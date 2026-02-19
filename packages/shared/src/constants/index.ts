@@ -71,6 +71,23 @@ export const VEHICLE_TYPES = ["car", "motorbike", "van"] as const;
 // Shift statuses
 export const SHIFT_STATUSES = ["active", "completed"] as const;
 
+// Trip classifications
+export const TRIP_CLASSIFICATIONS = ["business", "personal"] as const;
+
+// Platform tags (values from GIG_PLATFORMS for Zod enum usage)
+export const PLATFORM_TAGS = [
+  "uber",
+  "deliveroo",
+  "just_eat",
+  "amazon_flex",
+  "stuart",
+  "gophr",
+  "dpd",
+  "yodel",
+  "evri",
+  "other",
+] as const;
+
 // Driver type options (waitlist)
 export const DRIVER_TYPES = [
   { value: "uber", label: "Uber / Uber Eats" },
