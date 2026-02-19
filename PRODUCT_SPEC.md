@@ -1,5 +1,43 @@
 # MileClear - Product Specification
 
+## Implementation Status
+
+> Last updated: 19 Feb 2026
+
+### Fully Implemented
+- **Shift Mode** — Start/end shifts, one-at-a-time enforcement, vehicle selection (API + mobile)
+- **Trip Tracking** — Full CRUD with Haversine distance calculation, classification, platform tagging, notes, pagination, filtering (API + mobile)
+- **Vehicle Profiles** — Full CRUD with make/model/year, fuel type, vehicle type, primary toggle, multi-vehicle (API + mobile)
+- **Earnings Tracking (Manual)** — Create/edit/delete earnings, platform tagging, paginated history (API + mobile)
+- **Tax Exports (Premium)** — CSV trip download, PDF trip report, Self-Assessment PDF with HMRC rate tiers and vehicle breakdown (API + web + mobile)
+- **Accounting Previews** — Xero, FreeAgent, QuickBooks formatted data previews (coming_soon status, OAuth deferred) (API + web + mobile)
+- **Authentication** — Email/password register, login, JWT refresh/logout, rate limiting (API + mobile)
+- **User Profile** — Edit profile, GDPR data export, account deletion with password confirmation (API + mobile)
+- **Waitlist** — Email signup with driver type, duplicate handling (API + web landing page)
+- **Landing Page** — Full 9-section page: hero, problem, features, who it's for, pricing, early access signup, FAQ, footer (web)
+- **Shared Package** — All types, HMRC constants, Haversine, tax year utilities, formatters
+- **Premium Middleware** — Feature gating via `isPremium` flag + expiry check
+- **Database** — 10-model MySQL schema deployed via Prisma, all indexes
+
+### Partially Implemented
+- **Auth** — Email verify, forgot/reset password, Apple Sign-In, Google Sign-In all stubbed (501)
+- **Dashboard (Mobile)** — Shift controls work, but stats cards show hardcoded "0.0 mi" (not wired to real trip data)
+- **Earnings** — CSV upload, OCR, Open Banking all stubbed (501)
+
+### Not Yet Started (Stubbed / Placeholder)
+- **Fuel Prices** — All routes return 501, service returns empty array, mobile screen is placeholder
+- **Gamification** — All routes return 501, service is a no-op, no achievement logic
+- **Billing / Stripe** — All routes return 501, no Stripe integration
+- **Offline Sync** — All routes return 501, no sync engine
+- **Background Location Tracking** — expo-location/expo-task-manager not wired up
+- **Smart Trip Detection** — No push notification for unrecorded driving
+- **Reminders & Nudges** — Not started
+- **Email Service** — Resend not wired (verification, password reset, waitlist confirmation all no-ops)
+- **Web Dashboard Pages** — Dashboard, trips, earnings, settings, login, register are all placeholders (just h1 tags)
+- **Mobile Email Verify Screen** — Placeholder
+
+---
+
 ## Overview
 
 MileClear is a UK-based mileage tracking app for gig workers, delivery drivers, and professional drivers. The core value proposition is **trust through reliability** — bulletproof trip tracking that never misses a mile, with smart insights that make driving more rewarding.

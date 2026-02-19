@@ -1,5 +1,88 @@
 # MileClear - Technical Architecture
 
+## Implementation Status
+
+> Last updated: 19 Feb 2026
+
+### API Routes
+
+| Prefix | Status | Notes |
+|--------|--------|-------|
+| `/auth` | Partial | Register, login, refresh, logout work. Verify, forgot/reset password, Apple, Google OAuth return 501. |
+| `/shifts` | Done | Full CRUD — start, end, list, detail. One-active-shift enforcement. |
+| `/trips` | Done | Full CRUD — create (Haversine auto-calc), list (paginated + filterable), detail (with coordinates), update (re-calcs distance), delete. |
+| `/vehicles` | Done | Full CRUD — create, list, update (primary management), delete. DVLA lookup returns 501. |
+| `/fuel` | Stubbed | All routes return 501. |
+| `/earnings` | Partial | Manual CRUD (create, list, update, delete) works. CSV upload, OCR, Open Banking return 501. |
+| `/gamification` | Stubbed | All routes return 501. |
+| `/exports` | Done | CSV, PDF, Self-Assessment download working. Xero/FreeAgent/QuickBooks return coming_soon with formatted preview data. |
+| `/billing` | Stubbed | All routes return 501. |
+| `/sync` | Stubbed | All routes return 501. |
+| `/user` | Done | Profile CRUD, GDPR export, account deletion with password confirmation. |
+| `/waitlist` | Done | Email signup with upsert. |
+
+### API Services
+
+| Service | Status | Notes |
+|---------|--------|-------|
+| `auth.ts` | Done | bcrypt hashing, JWT generation (access + refresh) |
+| `export.ts` | Done | CSV (RFC 4180), PDF trip report (landscape A4, pdfkit), Self-Assessment PDF (HMRC tiers), Xero/FreeAgent/QuickBooks formatters |
+| `export-data.ts` | Done | Trip fetching with running HMRC tier tally, summary with vehicle breakdown + earnings aggregation |
+| `mileage.ts` | Done | Re-exports `calculateHmrcDeduction` from shared |
+| `email.ts` | Stub | All functions are empty no-ops (Resend not wired) |
+| `fuel.ts` | Stub | Returns empty array |
+| `gamification.ts` | Stub | `checkAndAwardAchievements` is no-op, `getDailyScorecard` returns null |
+| `ocr.ts` | Stub | Returns null |
+| `openBanking.ts` | Stub | Throws "Not implemented" / returns empty array |
+
+### Web Pages
+
+| Page | Status |
+|------|--------|
+| `/` (landing) | Done — 9 sections, all components built |
+| `/dashboard` | Placeholder |
+| `/dashboard/trips` | Placeholder |
+| `/dashboard/earnings` | Placeholder |
+| `/dashboard/exports` | Done — tax year selector, download cards, accounting previews |
+| `/dashboard/settings` | Placeholder |
+| `/login` | Placeholder |
+| `/register` | Placeholder |
+
+### Mobile Screens
+
+| Screen | Status |
+|--------|--------|
+| Login | Done |
+| Register | Done |
+| Verify Email | Placeholder |
+| Dashboard | Partial — shift controls work, stats hardcoded |
+| Trips | Done — paginated, filterable, infinite scroll |
+| Earnings | Done — paginated, platform filter, summary card |
+| Fuel | Placeholder |
+| Profile | Done — profile card, vehicles, export, tax exports link, delete account |
+| Exports | Done — tax year picker, download + share sheet, coming soon rows |
+| Trip Form | Done — create/edit, all fields |
+| Earning Form | Done — create/edit, platform chips |
+| Vehicle Form | Done — create/edit, type/fuel segments |
+| Profile Edit | Done — name, email, password confirmation |
+
+### Database
+
+- 1 migration (`20260219201744_init`) — initial schema with all 10 models
+- No schema changes since init
+
+### Infrastructure
+
+| Item | Status |
+|------|--------|
+| Server (Pixelish) | Running — Node 22, PM2, MySQL 8 |
+| API (`api.mileclear.com`) | Live on port 3002 |
+| Web (`mileclear.com`) | Live on port 3003 |
+| SSL | Active via cPanel AutoSSL |
+| Database | MySQL deployed, Prisma client generated |
+
+---
+
 ## Guiding Principles
 
 - **Solo developer friendly.** Every choice optimises for one person building and maintaining the entire product.
