@@ -74,6 +74,9 @@ export const SHIFT_STATUSES = ["active", "completed"] as const;
 // Trip classifications
 export const TRIP_CLASSIFICATIONS = ["business", "personal"] as const;
 
+// Earning sources
+export const EARNING_SOURCES = ["manual", "csv", "open_banking", "ocr"] as const;
+
 // Platform tags (values from GIG_PLATFORMS for Zod enum usage)
 export const PLATFORM_TAGS = [
   "uber",
