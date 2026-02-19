@@ -68,6 +68,9 @@ export const FUEL_TYPES = ["petrol", "diesel", "electric", "hybrid"] as const;
 // Vehicle types
 export const VEHICLE_TYPES = ["car", "motorbike", "van"] as const;
 
+// Shift statuses
+export const SHIFT_STATUSES = ["active", "completed"] as const;
+
 // Driver type options (waitlist)
 export const DRIVER_TYPES = [
   { value: "uber", label: "Uber / Uber Eats" },
