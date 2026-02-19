@@ -207,3 +207,65 @@ export interface WaitlistEntry {
   driverType: string | null;
   signedUpAt: string;
 }
+
+// Gamification types
+export interface PersonalRecords {
+  mostMilesInDay: number;
+  mostMilesInDayDate: string | null;
+  mostTripsInShift: number;
+  mostTripsInShiftDate: string | null;
+  longestSingleTrip: number;
+  longestSingleTripDate: string | null;
+  longestStreakDays: number;
+}
+
+export interface GamificationStats {
+  taxYear: string;
+  totalMiles: number;
+  businessMiles: number;
+  deductionPence: number;
+  currentStreakDays: number;
+  longestStreakDays: number;
+  totalTrips: number;
+  totalShifts: number;
+  todayMiles: number;
+  weekMiles: number;
+  personalRecords: PersonalRecords;
+}
+
+export interface AchievementWithMeta {
+  id: string;
+  type: string;
+  achievedAt: string;
+  label: string;
+  description: string;
+  emoji: string;
+}
+
+export interface ShiftScorecard {
+  shiftId: string;
+  startedAt: string;
+  endedAt: string | null;
+  durationSeconds: number;
+  tripsCompleted: number;
+  totalMiles: number;
+  businessMiles: number;
+  deductionPence: number;
+  isPersonalBestMiles: boolean;
+  isPersonalBestTrips: boolean;
+  newAchievements: AchievementWithMeta[];
+}
+
+export interface PeriodRecap {
+  period: "weekly" | "monthly";
+  label: string;
+  totalMiles: number;
+  businessMiles: number;
+  deductionPence: number;
+  totalTrips: number;
+  busiestDayLabel: string | null;
+  busiestDayMiles: number;
+  longestTripMiles: number;
+  longestTripDate: string | null;
+  shareText: string;
+}

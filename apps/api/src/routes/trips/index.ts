@@ -7,8 +7,11 @@ import {
   PLATFORM_TAGS,
   DEFAULT_PAGE_SIZE,
   MAX_PAGE_SIZE,
+  getTaxYear,
 } from "@mileclear/shared";
 import { haversineDistance } from "@mileclear/shared";
+import { upsertMileageSummary } from "../../services/mileage.js";
+import { checkAndAwardAchievements } from "../../services/gamification.js";
 
 const createTripSchema = z.object({
   shiftId: z.string().uuid().optional(),
@@ -106,6 +109,11 @@ export async function tripRoutes(app: FastifyInstance) {
       },
       include: { vehicle: true, shift: true },
     });
+
+    // Fire-and-forget: update mileage summary + check achievements
+    const taxYear = getTaxYear(data.startedAt);
+    upsertMileageSummary(userId, taxYear).catch(() => {});
+    checkAndAwardAchievements(userId).catch(() => {});
 
     return reply.status(201).send({ data: trip });
   });
@@ -209,6 +217,11 @@ export async function tripRoutes(app: FastifyInstance) {
       include: { vehicle: true, shift: true },
     });
 
+    // Fire-and-forget: update mileage summary + check achievements
+    const taxYear = getTaxYear(existing.startedAt);
+    upsertMileageSummary(userId, taxYear).catch(() => {});
+    checkAndAwardAchievements(userId).catch(() => {});
+
     return reply.send({ data: trip });
   });
 
@@ -224,7 +237,13 @@ export async function tripRoutes(app: FastifyInstance) {
       return reply.status(404).send({ error: "Trip not found" });
     }
 
+    // Capture tax year before deleting
+    const taxYear = getTaxYear(existing.startedAt);
+
     await prisma.trip.delete({ where: { id } });
+
+    // Fire-and-forget: update mileage summary
+    upsertMileageSummary(userId, taxYear).catch(() => {});
 
     return reply.send({ message: "Trip deleted" });
   });

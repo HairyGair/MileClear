@@ -2,7 +2,9 @@ import { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { authMiddleware } from "../../middleware/auth.js";
 import { prisma } from "../../lib/prisma.js";
-import { SHIFT_STATUSES } from "@mileclear/shared";
+import { SHIFT_STATUSES, getTaxYear } from "@mileclear/shared";
+import { upsertMileageSummary } from "../../services/mileage.js";
+import { checkAndAwardAchievements, getShiftScorecard } from "../../services/gamification.js";
 
 const startShiftSchema = z.object({
   vehicleId: z.string().uuid().optional(),
@@ -122,6 +124,16 @@ export async function shiftRoutes(app: FastifyInstance) {
       include: { vehicle: true },
     });
 
-    return reply.send({ data: updated });
+    // Update mileage summary + check achievements
+    const taxYear = getTaxYear(shift.startedAt);
+    await upsertMileageSummary(request.userId!, taxYear).catch(() => {});
+    await checkAndAwardAchievements(request.userId!).catch(() => {});
+
+    // Generate scorecard for this shift
+    const scorecard = await getShiftScorecard(request.userId!, id).catch(
+      () => null
+    );
+
+    return reply.send({ data: updated, scorecard });
   });
 }

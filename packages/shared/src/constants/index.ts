@@ -100,3 +100,57 @@ export const DRIVER_TYPES = [
   { value: "courier", label: "Courier" },
   { value: "other", label: "Other" },
 ] as const;
+
+// Gamification — milestones & thresholds
+export const MILESTONE_MILES = [100, 500, 1000, 2500, 5000, 10000, 25000, 50000] as const;
+export const STREAK_THRESHOLDS = [3, 7, 14, 30] as const;
+export const TRIP_COUNT_THRESHOLDS = [10, 50, 100, 500] as const;
+
+// Achievement type identifiers
+export const ACHIEVEMENT_TYPES = [
+  "first_trip",
+  "first_shift",
+  "miles_100",
+  "miles_500",
+  "miles_1000",
+  "miles_2500",
+  "miles_5000",
+  "miles_10000",
+  "miles_25000",
+  "miles_50000",
+  "trips_10",
+  "trips_50",
+  "trips_100",
+  "trips_500",
+  "streak_3",
+  "streak_7",
+  "streak_14",
+  "streak_30",
+] as const;
+
+export type AchievementType = (typeof ACHIEVEMENT_TYPES)[number];
+
+// Achievement display metadata
+export const ACHIEVEMENT_META: Record<
+  AchievementType,
+  { label: string; description: string; emoji: string }
+> = {
+  first_trip: { label: "First Trip", description: "Completed your first trip", emoji: "🚗" },
+  first_shift: { label: "First Shift", description: "Completed your first shift", emoji: "🏁" },
+  miles_100: { label: "Century", description: "Driven 100 miles", emoji: "💯" },
+  miles_500: { label: "Road Warrior", description: "Driven 500 miles", emoji: "🛣️" },
+  miles_1000: { label: "1K Club", description: "Driven 1,000 miles", emoji: "🏅" },
+  miles_2500: { label: "Long Hauler", description: "Driven 2,500 miles", emoji: "🚀" },
+  miles_5000: { label: "5K Legend", description: "Driven 5,000 miles", emoji: "⭐" },
+  miles_10000: { label: "10K Champion", description: "Driven 10,000 miles", emoji: "🏆" },
+  miles_25000: { label: "25K Elite", description: "Driven 25,000 miles", emoji: "👑" },
+  miles_50000: { label: "50K Master", description: "Driven 50,000 miles", emoji: "💎" },
+  trips_10: { label: "Getting Started", description: "Completed 10 trips", emoji: "📍" },
+  trips_50: { label: "Regular", description: "Completed 50 trips", emoji: "📌" },
+  trips_100: { label: "Century Rider", description: "Completed 100 trips", emoji: "🎯" },
+  trips_500: { label: "Road Master", description: "Completed 500 trips", emoji: "🗺️" },
+  streak_3: { label: "Hat Trick", description: "3-day driving streak", emoji: "🔥" },
+  streak_7: { label: "Week Warrior", description: "7-day driving streak", emoji: "🔥" },
+  streak_14: { label: "Fortnight Force", description: "14-day driving streak", emoji: "🔥" },
+  streak_30: { label: "Monthly Machine", description: "30-day driving streak", emoji: "🔥" },
+};
