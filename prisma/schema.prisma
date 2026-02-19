@@ -1,0 +1,197 @@
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  id               String    @id @default(uuid())
+  email            String    @unique
+  passwordHash     String?
+  displayName      String?
+  emailVerified    Boolean   @default(false)
+  appleId          String?   @unique
+  googleId         String?   @unique
+  isPremium        Boolean   @default(false)
+  premiumExpiresAt DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  vehicles       Vehicle[]
+  shifts         Shift[]
+  trips          Trip[]
+  fuelLogs       FuelLog[]
+  earnings       Earning[]
+  achievements   Achievement[]
+  mileageSummary MileageSummary[]
+  refreshTokens  RefreshToken[]
+
+  @@map("users")
+}
+
+model RefreshToken {
+  id        String   @id @default(uuid())
+  userId    String
+  token     String   @unique @db.VarChar(500)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("refresh_tokens")
+}
+
+model Vehicle {
+  id           String   @id @default(uuid())
+  userId       String
+  make         String
+  model        String
+  year         Int?
+  fuelType     String
+  vehicleType  String
+  estimatedMpg Float?
+  actualMpg    Float?
+  isPrimary    Boolean  @default(true)
+  createdAt    DateTime @default(now())
+
+  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  shifts   Shift[]
+  trips    Trip[]
+  fuelLogs FuelLog[]
+
+  @@map("vehicles")
+}
+
+model Shift {
+  id        String    @id @default(uuid())
+  userId    String
+  vehicleId String?
+  startedAt DateTime
+  endedAt   DateTime?
+  status    String    @default("active")
+  createdAt DateTime  @default(now())
+
+  user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  vehicle Vehicle? @relation(fields: [vehicleId], references: [id])
+  trips   Trip[]
+
+  @@map("shifts")
+}
+
+model Trip {
+  id             String    @id @default(uuid())
+  userId         String
+  shiftId        String?
+  vehicleId      String?
+  startLat       Float
+  startLng       Float
+  endLat         Float?
+  endLng         Float?
+  startAddress   String?
+  endAddress     String?
+  distanceMiles  Float
+  startedAt      DateTime
+  endedAt        DateTime?
+  isManualEntry  Boolean   @default(false)
+  classification String    @default("business")
+  platformTag    String?
+  notes          String?   @db.Text
+  routePolyline  String?   @db.LongText
+  createdAt      DateTime  @default(now())
+  syncedAt       DateTime?
+
+  user        User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  shift       Shift?            @relation(fields: [shiftId], references: [id])
+  vehicle     Vehicle?          @relation(fields: [vehicleId], references: [id])
+  coordinates TripCoordinate[]
+
+  @@index([userId, startedAt])
+  @@index([userId, classification])
+  @@map("trips")
+}
+
+model TripCoordinate {
+  id         String   @id @default(uuid())
+  tripId     String
+  lat        Float
+  lng        Float
+  speed      Float?
+  accuracy   Float?
+  recordedAt DateTime
+
+  trip Trip @relation(fields: [tripId], references: [id], onDelete: Cascade)
+
+  @@index([tripId, recordedAt])
+  @@map("trip_coordinates")
+}
+
+model FuelLog {
+  id              String   @id @default(uuid())
+  userId          String
+  vehicleId       String?
+  litres          Float
+  costPence       Int
+  stationName     String?
+  odometerReading Float?
+  loggedAt        DateTime @default(now())
+
+  user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  vehicle Vehicle? @relation(fields: [vehicleId], references: [id])
+
+  @@map("fuel_logs")
+}
+
+model Earning {
+  id          String   @id @default(uuid())
+  userId      String
+  platform    String
+  amountPence Int
+  periodStart DateTime @db.Date
+  periodEnd   DateTime @db.Date
+  source      String
+  createdAt   DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, periodStart])
+  @@map("earnings")
+}
+
+model Achievement {
+  id         String   @id @default(uuid())
+  userId     String
+  type       String
+  achievedAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, type])
+  @@map("achievements")
+}
+
+model MileageSummary {
+  id             String   @id @default(uuid())
+  userId         String
+  taxYear        String
+  totalMiles     Float    @default(0)
+  businessMiles  Float    @default(0)
+  deductionPence Int      @default(0)
+  updatedAt      DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, taxYear])
+  @@map("mileage_summaries")
+}
+
+model WaitlistEntry {
+  id         String   @id @default(uuid())
+  email      String   @unique
+  driverType String?
+  signedUpAt DateTime @default(now())
+
+  @@map("waitlist")
+}

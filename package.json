@@ -1,0 +1,28 @@
+{
+  "name": "mileclear",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev:api": "pnpm --filter @mileclear/api dev",
+    "dev:web": "pnpm --filter @mileclear/web dev",
+    "dev:mobile": "pnpm --filter @mileclear/mobile start",
+    "build:api": "pnpm --filter @mileclear/api build",
+    "build:web": "pnpm --filter @mileclear/web build",
+    "build:shared": "pnpm --filter @mileclear/shared build",
+    "db:migrate": "pnpm --filter @mileclear/api db:migrate",
+    "db:generate": "pnpm --filter @mileclear/api db:generate",
+    "db:studio": "pnpm --filter @mileclear/api db:studio",
+    "lint": "pnpm -r lint",
+    "typecheck": "pnpm -r typecheck"
+  },
+  "engines": {
+    "node": ">=20.0.0",
+    "pnpm": ">=9.0.0"
+  },
+  "devDependencies": {
+    "prisma": "^6.19.2"
+  },
+  "dependencies": {
+    "@prisma/client": "^6.19.2"
+  }
+}
