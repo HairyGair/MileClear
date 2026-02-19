@@ -148,6 +148,19 @@ Optional: `REDIS_URL`, `RESEND_API_KEY`, Stripe keys, OAuth credentials, TrueLay
 
 Self-hosted on Pixelish server (provided by James). Zero ongoing infrastructure costs.
 
+| Item | Value |
+|------|-------|
+| Server IP | `85.234.151.224` |
+| cPanel user | `mileclear` |
+| Home directory | `/home/mileclear` |
+| App directory | `/home/mileclear/mileclear-app` |
+| MySQL user | `mileclear_database` |
+| MySQL database | `mileclear_database` |
+| Shadow database | `mileclear_shadow` |
+| Node.js | v22.19.0 |
+| PM2 | 6.0.13 |
+| MySQL | 8.0.45 |
+
 | Domain | Service | Port |
 |--------|---------|------|
 | `mileclear.com` | Next.js (PM2) | 3000 |
@@ -155,10 +168,16 @@ Self-hosted on Pixelish server (provided by James). Zero ongoing infrastructure 
 
 Nginx reverse proxy, SSL via cPanel AutoSSL/Let's Encrypt, MySQL via cPanel.
 
+**Access:**
+- cPanel Terminal for shell commands (no direct SSH — key auth only, password auth disabled)
+- Cyberduck via FTP-SSL (port 21) for file transfer
+- DBeaver for database management (Remote MySQL `%` wildcard enabled)
+- pnpm not globally installed — use `npx pnpm` on server
+
 ### Deploy
 ```bash
-# API: SSH → git pull → pnpm install → prisma migrate deploy → PM2 restart
-# Web: SSH → git pull → pnpm install → next build → PM2 restart
+# API: cPanel Terminal → cd ~/mileclear-app → git pull → npx pnpm install → npx pnpm db:generate → prisma migrate deploy → PM2 restart
+# Web: cPanel Terminal → cd ~/mileclear-app → git pull → npx pnpm install → npx pnpm build:web → PM2 restart
 # Mobile: EAS Build → TestFlight / Play Store internal testing
 ```
 

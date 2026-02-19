@@ -1,13 +1,13 @@
 "use client";
 
-import { useRef, useEffect, type ReactNode } from "react";
+import { useRef, useEffect } from "react";
 
 export default function Reveal({
   children,
   className = "",
   delay = "",
 }: {
-  children: ReactNode;
+  children: React.ReactNode;
   className?: string;
   delay?: string;
 }) {
