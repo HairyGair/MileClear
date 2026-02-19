@@ -234,6 +234,18 @@ export default function ProfileScreen() {
               <Text style={styles.chevron}>›</Text>
             </TouchableOpacity>
 
+            <TouchableOpacity
+              style={styles.actionRow}
+              onPress={() => router.push("/exports")}
+              activeOpacity={0.7}
+            >
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                <Text style={styles.actionText}>Tax Exports</Text>
+                <Text style={styles.proBadge}>PRO</Text>
+              </View>
+              <Text style={styles.chevron}>›</Text>
+            </TouchableOpacity>
+
             <Text style={[styles.sectionTitle, { marginTop: 28 }]}>My Vehicles</Text>
           </View>
         }

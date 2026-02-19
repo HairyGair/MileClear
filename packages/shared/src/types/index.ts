@@ -157,6 +157,49 @@ export interface AuthTokens {
   refreshToken: string;
 }
 
+// Export types
+export interface ExportTripRow {
+  date: string;
+  startTime: string;
+  endTime: string | null;
+  startAddress: string | null;
+  endAddress: string | null;
+  distanceMiles: number;
+  classification: TripClassification;
+  platform: string | null;
+  vehicleType: VehicleType | null;
+  vehicleName: string | null;
+  hmrcRatePence: number;
+  deductionPence: number;
+}
+
+export interface ExportVehicleBreakdown {
+  vehicleName: string;
+  vehicleType: VehicleType;
+  totalMiles: number;
+  businessMiles: number;
+  deductionPence: number;
+}
+
+export interface ExportEarningsByPlatform {
+  platform: string;
+  totalPence: number;
+}
+
+export interface ExportSummary {
+  taxYear: string;
+  totalTrips: number;
+  totalMiles: number;
+  businessMiles: number;
+  personalMiles: number;
+  vehicleBreakdown: ExportVehicleBreakdown[];
+  totalDeductionPence: number;
+  totalEarningsPence: number;
+  earningsByPlatform: ExportEarningsByPlatform[];
+  generatedAt: string;
+  userName: string;
+}
+
 // Waitlist
 export interface WaitlistEntry {
   id: string;

@@ -73,3 +73,25 @@ export function getTaxYear(date: Date): string {
   }
   return `${year}-${String(year + 1).slice(2)}`;
 }
+
+/**
+ * Parse a UK tax year string (e.g. "2025-26") into start/end dates.
+ * Tax year runs 6 April to 5 April.
+ */
+export function parseTaxYear(taxYear: string): { start: Date; end: Date } {
+  const match = taxYear.match(/^(\d{4})-(\d{2})$/);
+  if (!match) throw new Error(`Invalid tax year format: ${taxYear}`);
+
+  const startYear = parseInt(match[1], 10);
+  const endYear = startYear + 1;
+
+  // Validate the suffix matches
+  if (match[2] !== String(endYear).slice(2)) {
+    throw new Error(`Invalid tax year format: ${taxYear}`);
+  }
+
+  return {
+    start: new Date(startYear, 3, 6), // 6 April
+    end: new Date(endYear, 3, 5, 23, 59, 59, 999), // 5 April 23:59:59.999
+  };
+}
