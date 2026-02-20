@@ -1,5 +1,6 @@
 import { FastifyInstance } from "fastify";
 import { prisma } from "../../lib/prisma.js";
+import { sendWaitlistConfirmation } from "../../services/email.js";
 import { z } from "zod";
 
 const waitlistSchema = z.object({
@@ -19,6 +20,8 @@ export async function waitlistRoutes(app: FastifyInstance) {
         driverType: body.driverType ?? null,
       },
     });
+
+    await sendWaitlistConfirmation(body.email);
 
     return { data: { id: entry.id }, message: "You're on the list!" };
   });
