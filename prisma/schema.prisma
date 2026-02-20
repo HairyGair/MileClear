@@ -21,14 +21,16 @@ model User {
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt
 
-  vehicles       Vehicle[]
-  shifts         Shift[]
-  trips          Trip[]
-  fuelLogs       FuelLog[]
-  earnings       Earning[]
-  achievements   Achievement[]
-  mileageSummary MileageSummary[]
-  refreshTokens  RefreshToken[]
+  vehicles            Vehicle[]
+  shifts              Shift[]
+  trips               Trip[]
+  fuelLogs            FuelLog[]
+  earnings            Earning[]
+  achievements        Achievement[]
+  mileageSummary      MileageSummary[]
+  refreshTokens       RefreshToken[]
+  verificationCodes   VerificationCode[]
+  passwordResetTokens PasswordResetToken[]
 
   @@map("users")
 }
@@ -186,6 +188,34 @@ model MileageSummary {
 
   @@unique([userId, taxYear])
   @@map("mileage_summaries")
+}
+
+model VerificationCode {
+  id        String   @id @default(uuid())
+  userId    String
+  code      String   @db.VarChar(6)
+  expiresAt DateTime
+  used      Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, used])
+  @@map("verification_codes")
+}
+
+model PasswordResetToken {
+  id        String   @id @default(uuid())
+  userId    String
+  code      String   @db.VarChar(6)
+  expiresAt DateTime
+  used      Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, used])
+  @@map("password_reset_tokens")
 }
 
 model WaitlistEntry {

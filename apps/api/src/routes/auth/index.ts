@@ -1,5 +1,6 @@
 import { FastifyInstance } from "fastify";
 import { z } from "zod";
+import crypto from "crypto";
 import { prisma } from "../../lib/prisma.js";
 import {
   hashPassword,
@@ -7,6 +8,11 @@ import {
   generateAccessToken,
   generateRefreshToken,
 } from "../../services/auth.js";
+import {
+  sendVerificationEmail,
+  sendPasswordResetEmail,
+} from "../../services/email.js";
+import { authMiddleware } from "../../middleware/auth.js";
 import { REFRESH_TOKEN_EXPIRY_DAYS } from "@mileclear/shared";
 
 const registerSchema = z.object({
@@ -27,6 +33,28 @@ const refreshSchema = z.object({
 const logoutSchema = z.object({
   refreshToken: z.string().min(1, "Refresh token is required"),
 });
+
+const verifySchema = z.object({
+  code: z.string().length(6, "Code must be 6 digits"),
+});
+
+const forgotPasswordSchema = z.object({
+  email: z.string().email("Invalid email address"),
+});
+
+const resetPasswordSchema = z.object({
+  email: z.string().email("Invalid email address"),
+  code: z.string().length(6, "Code must be 6 digits"),
+  newPassword: z.string().min(8, "Password must be at least 8 characters").max(128),
+});
+
+function generateOtp(): string {
+  return crypto.randomInt(100000, 999999).toString();
+}
+
+function otpExpiry(): Date {
+  return new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+}
 
 function storeRefreshToken(userId: string, token: string) {
   const expiresAt = new Date();
@@ -59,6 +87,13 @@ export async function authRoutes(app: FastifyInstance) {
     const accessToken = generateAccessToken(user.id);
     const refreshToken = generateRefreshToken(user.id);
     await storeRefreshToken(user.id, refreshToken);
+
+    // Send verification email (fire-and-forget)
+    const code = generateOtp();
+    prisma.verificationCode
+      .create({ data: { userId: user.id, code, expiresAt: otpExpiry() } })
+      .then(() => sendVerificationEmail(email, code))
+      .catch((err) => console.error("Failed to send verification email:", err));
 
     return reply.status(201).send({
       data: { accessToken, refreshToken },
@@ -146,17 +181,156 @@ export async function authRoutes(app: FastifyInstance) {
     return reply.status(200).send({ message: "Logged out" });
   });
 
-  // Stubs for post-MVP
-  app.post("/verify", async (_request, reply) => {
-    return reply.status(501).send({ error: "Not implemented" });
+  // POST /send-verification (authenticated)
+  app.post(
+    "/send-verification",
+    { preHandler: [authMiddleware] },
+    async (request, reply) => {
+      const userId = request.userId!;
+
+      const user = await prisma.user.findUnique({ where: { id: userId } });
+      if (!user) {
+        return reply.status(404).send({ error: "User not found" });
+      }
+
+      if (user.emailVerified) {
+        return reply.status(400).send({ error: "Email is already verified" });
+      }
+
+      // Invalidate existing unused codes
+      await prisma.verificationCode.updateMany({
+        where: { userId, used: false },
+        data: { used: true },
+      });
+
+      const code = generateOtp();
+      await prisma.verificationCode.create({
+        data: { userId, code, expiresAt: otpExpiry() },
+      });
+
+      await sendVerificationEmail(user.email, code);
+
+      return reply.status(200).send({ message: "Verification code sent" });
+    }
+  );
+
+  // POST /verify (authenticated)
+  app.post(
+    "/verify",
+    { preHandler: [authMiddleware] },
+    async (request, reply) => {
+      const parsed = verifySchema.safeParse(request.body);
+      if (!parsed.success) {
+        return reply.status(400).send({ error: parsed.error.errors[0].message });
+      }
+
+      const userId = request.userId!;
+      const { code } = parsed.data;
+
+      const record = await prisma.verificationCode.findFirst({
+        where: {
+          userId,
+          code,
+          used: false,
+          expiresAt: { gt: new Date() },
+        },
+      });
+
+      if (!record) {
+        return reply.status(400).send({ error: "Invalid or expired verification code" });
+      }
+
+      await prisma.$transaction([
+        prisma.verificationCode.update({
+          where: { id: record.id },
+          data: { used: true },
+        }),
+        prisma.user.update({
+          where: { id: userId },
+          data: { emailVerified: true },
+        }),
+      ]);
+
+      return reply.status(200).send({ message: "Email verified" });
+    }
+  );
+
+  // POST /forgot-password (public)
+  app.post("/forgot-password", async (request, reply) => {
+    const parsed = forgotPasswordSchema.safeParse(request.body);
+    if (!parsed.success) {
+      return reply.status(400).send({ error: parsed.error.errors[0].message });
+    }
+
+    const { email } = parsed.data;
+
+    // Always return success to avoid leaking user existence
+    const user = await prisma.user.findUnique({ where: { email } });
+    if (user) {
+      // Invalidate existing unused codes
+      await prisma.passwordResetToken.updateMany({
+        where: { userId: user.id, used: false },
+        data: { used: true },
+      });
+
+      const code = generateOtp();
+      await prisma.passwordResetToken.create({
+        data: { userId: user.id, code, expiresAt: otpExpiry() },
+      });
+
+      await sendPasswordResetEmail(email, code);
+    }
+
+    return reply.status(200).send({
+      message: "If an account exists with that email, a reset code has been sent",
+    });
   });
 
-  app.post("/forgot-password", async (_request, reply) => {
-    return reply.status(501).send({ error: "Not implemented" });
-  });
+  // POST /reset-password (public)
+  app.post("/reset-password", async (request, reply) => {
+    const parsed = resetPasswordSchema.safeParse(request.body);
+    if (!parsed.success) {
+      return reply.status(400).send({ error: parsed.error.errors[0].message });
+    }
 
-  app.post("/reset-password", async (_request, reply) => {
-    return reply.status(501).send({ error: "Not implemented" });
+    const { email, code, newPassword } = parsed.data;
+
+    const user = await prisma.user.findUnique({ where: { email } });
+    if (!user) {
+      return reply.status(400).send({ error: "Invalid or expired reset code" });
+    }
+
+    const record = await prisma.passwordResetToken.findFirst({
+      where: {
+        userId: user.id,
+        code,
+        used: false,
+        expiresAt: { gt: new Date() },
+      },
+    });
+
+    if (!record) {
+      return reply.status(400).send({ error: "Invalid or expired reset code" });
+    }
+
+    const passwordHash = await hashPassword(newPassword);
+
+    await prisma.$transaction([
+      prisma.passwordResetToken.update({
+        where: { id: record.id },
+        data: { used: true },
+      }),
+      prisma.user.update({
+        where: { id: user.id },
+        data: { passwordHash },
+      }),
+      // Invalidate all refresh tokens (log out all sessions)
+      prisma.refreshToken.deleteMany({
+        where: { userId: user.id },
+      }),
+    ]);
+
+    return reply.status(200).send({ message: "Password reset successfully" });
   });
 
   app.post("/apple", async (_request, reply) => {
