@@ -16,7 +16,7 @@ import {
   createFuelLog,
   updateFuelLog,
   deleteFuelLog,
-  fetchFuelLogs,
+  fetchFuelLog,
 } from "../lib/api/fuel";
 import { fetchVehicles } from "../lib/api/vehicles";
 import { FUEL_BRANDS } from "@mileclear/shared";
@@ -50,17 +50,15 @@ export default function FuelFormScreen() {
       setLoggedAt(new Date().toISOString().slice(0, 10));
       return;
     }
-    fetchFuelLogs({ pageSize: 100 })
+    fetchFuelLog(id)
       .then((res) => {
-        const log = res.data.find((l) => l.id === id);
-        if (log) {
-          setStationName(log.stationName ?? "");
-          setVehicleId(log.vehicleId);
-          setLitres(log.litres.toString());
-          setCost((log.costPence / 100).toFixed(2));
-          setOdometer(log.odometerReading?.toString() ?? "");
-          setLoggedAt(log.loggedAt.slice(0, 10));
-        }
+        const log = res.data;
+        setStationName(log.stationName ?? "");
+        setVehicleId(log.vehicleId);
+        setLitres(log.litres.toString());
+        setCost((log.costPence / 100).toFixed(2));
+        setOdometer(log.odometerReading?.toString() ?? "");
+        setLoggedAt(log.loggedAt.slice(0, 10));
       })
       .finally(() => setLoadingExisting(false));
   }, [id]);

@@ -111,6 +111,12 @@ export default function LoginScreen() {
             editable={!loading}
           />
 
+          <Link href="/(auth)/forgot-password" asChild>
+            <TouchableOpacity style={s.forgotWrap}>
+              <Text style={s.forgotText}>Forgot password?</Text>
+            </TouchableOpacity>
+          </Link>
+
           <TouchableOpacity
             style={[s.button, loading && s.buttonDisabled]}
             onPress={handleLogin}
@@ -260,5 +266,14 @@ const s = StyleSheet.create({
     color: AMBER,
     fontSize: 14,
     fontWeight: "600",
+  },
+  forgotWrap: {
+    alignSelf: "flex-end",
+    marginBottom: 16,
+    marginTop: -8,
+  },
+  forgotText: {
+    color: TEXT_2,
+    fontSize: 13,
   },
 });

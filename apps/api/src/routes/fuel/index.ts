@@ -112,6 +112,25 @@ export async function fuelRoutes(app: FastifyInstance) {
     });
   });
 
+  // Get single fuel log
+  app.get("/logs/:id", async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const userId = request.userId!;
+
+    const fuelLog = await prisma.fuelLog.findFirst({
+      where: { id, userId },
+      include: {
+        vehicle: { select: { id: true, make: true, model: true, fuelType: true } },
+      },
+    });
+
+    if (!fuelLog) {
+      return reply.status(404).send({ error: "Fuel log not found" });
+    }
+
+    return reply.send({ data: fuelLog });
+  });
+
   // Update fuel log
   app.patch("/logs/:id", async (request, reply) => {
     const { id } = request.params as { id: string };

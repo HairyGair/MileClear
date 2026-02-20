@@ -383,12 +383,13 @@ export async function getShiftScorecard(
   }
 
   // Check personal bests — most miles in a single shift, most trips in a single shift
+  // Exclude current shift so we compare against previous bests only
   const shiftMilesRecord = await prisma.$queryRaw<
     { totalMiles: number }[]
   >`
     SELECT CAST(SUM(t.distanceMiles) AS DECIMAL(12,2)) as totalMiles
     FROM trips t
-    WHERE t.userId = ${userId} AND t.shiftId IS NOT NULL
+    WHERE t.userId = ${userId} AND t.shiftId IS NOT NULL AND t.shiftId != ${shift.id}
     GROUP BY t.shiftId
     ORDER BY totalMiles DESC
     LIMIT 1
@@ -399,7 +400,7 @@ export async function getShiftScorecard(
   >`
     SELECT COUNT(*) as tripCount
     FROM trips t
-    WHERE t.userId = ${userId} AND t.shiftId IS NOT NULL
+    WHERE t.userId = ${userId} AND t.shiftId IS NOT NULL AND t.shiftId != ${shift.id}
     GROUP BY t.shiftId
     ORDER BY tripCount DESC
     LIMIT 1
@@ -412,8 +413,8 @@ export async function getShiftScorecard(
     ? Number(shiftTripsRecord[0].tripCount)
     : 0;
 
-  const isPersonalBestMiles = totalMiles > 0 && totalMiles >= bestMiles;
-  const isPersonalBestTrips = tripsCompleted > 0 && tripsCompleted >= bestTrips;
+  const isPersonalBestMiles = totalMiles > 0 && totalMiles > bestMiles;
+  const isPersonalBestTrips = tripsCompleted > 0 && tripsCompleted > bestTrips;
 
   // Get newly awarded achievements (from the current check)
   const newAchievements = await checkAndAwardAchievements(userId);

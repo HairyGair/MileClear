@@ -1,6 +1,14 @@
 import React, { createContext, useContext, useEffect, useState, useCallback } from "react";
 import * as SecureStore from "expo-secure-store";
-import { login as authLogin, register as authRegister, logout as authLogout } from "./index";
+import {
+  login as authLogin,
+  register as authRegister,
+  logout as authLogout,
+  sendVerificationCode as authSendVerification,
+  verifyEmail as authVerifyEmail,
+  forgotPassword as authForgotPassword,
+  resetPassword as authResetPassword,
+} from "./index";
 
 const ACCESS_TOKEN_KEY = "mileclear_access_token";
 
@@ -10,6 +18,11 @@ interface AuthContextValue {
   login: (email: string, password: string) => Promise<void>;
   register: (email: string, password: string, displayName?: string) => Promise<void>;
   logout: () => Promise<void>;
+  completeAuth: () => void;
+  sendVerificationCode: () => Promise<void>;
+  verifyEmail: (code: string) => Promise<void>;
+  forgotPassword: (email: string) => Promise<void>;
+  resetPassword: (email: string, code: string, newPassword: string) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -31,7 +44,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const register = useCallback(async (email: string, password: string, displayName?: string) => {
     await authRegister(email, password, displayName);
+    // Don't set isAuthenticated — user stays in auth group for verify screen
+  }, []);
+
+  const completeAuth = useCallback(() => {
     setIsAuthenticated(true);
+  }, []);
+
+  const sendVerificationCode = useCallback(async () => {
+    await authSendVerification();
+  }, []);
+
+  const verifyEmail = useCallback(async (code: string) => {
+    await authVerifyEmail(code);
+  }, []);
+
+  const forgotPassword = useCallback(async (email: string) => {
+    await authForgotPassword(email);
+  }, []);
+
+  const resetPassword = useCallback(async (email: string, code: string, newPassword: string) => {
+    await authResetPassword(email, code, newPassword);
   }, []);
 
   const logout = useCallback(async () => {
@@ -40,7 +73,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   return (
-    <AuthContext.Provider value={{ isLoading, isAuthenticated, login, register, logout }}>
+    <AuthContext.Provider value={{ isLoading, isAuthenticated, login, register, logout, completeAuth, sendVerificationCode, verifyEmail, forgotPassword, resetPassword }}>
       {children}
     </AuthContext.Provider>
   );

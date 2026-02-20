@@ -77,7 +77,7 @@ export async function earningRoutes(app: FastifyInstance) {
     if (from) where.periodStart = { ...(where.periodStart as object), gte: from };
     if (to) where.periodEnd = { ...(where.periodEnd as object), lte: to };
 
-    const [data, total] = await Promise.all([
+    const [data, total, sumResult] = await Promise.all([
       prisma.earning.findMany({
         where,
         orderBy: { periodStart: "desc" },
@@ -85,15 +85,33 @@ export async function earningRoutes(app: FastifyInstance) {
         take: pageSize,
       }),
       prisma.earning.count({ where }),
+      prisma.earning.aggregate({ where, _sum: { amountPence: true } }),
     ]);
 
     return reply.send({
       data,
       total,
+      totalAmountPence: sumResult._sum.amountPence ?? 0,
       page,
       pageSize,
       totalPages: Math.ceil(total / pageSize),
     });
+  });
+
+  // Get single earning
+  app.get("/:id", async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const userId = request.userId!;
+
+    const earning = await prisma.earning.findFirst({
+      where: { id, userId },
+    });
+
+    if (!earning) {
+      return reply.status(404).send({ error: "Earning not found" });
+    }
+
+    return reply.send({ data: earning });
   });
 
   // Update earning

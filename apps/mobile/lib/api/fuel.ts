@@ -37,6 +37,10 @@ export function fetchFuelLogs(params?: ListFuelLogsParams) {
   return apiRequest<PaginatedResponse<FuelLogWithVehicle>>(`/fuel/logs${qs ? `?${qs}` : ""}`);
 }
 
+export function fetchFuelLog(id: string) {
+  return apiRequest<{ data: FuelLogWithVehicle }>(`/fuel/logs/${id}`);
+}
+
 export function createFuelLog(data: CreateFuelLogData) {
   return apiRequest<{ data: FuelLogWithVehicle }>("/fuel/logs", {
     method: "POST",

@@ -83,5 +83,20 @@ async function initializeSchema(database: SQLite.SQLiteDatabase): Promise<void> 
       status TEXT NOT NULL DEFAULT 'pending',
       created_at TEXT NOT NULL
     );
+
+    CREATE TABLE IF NOT EXISTS shift_coordinates (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      shift_id TEXT NOT NULL,
+      lat REAL NOT NULL,
+      lng REAL NOT NULL,
+      speed REAL,
+      accuracy REAL,
+      recorded_at TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS tracking_state (
+      key TEXT PRIMARY KEY,
+      value TEXT NOT NULL
+    );
   `);
 }

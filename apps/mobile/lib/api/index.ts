@@ -2,7 +2,7 @@
 
 import * as SecureStore from "expo-secure-store";
 
-const API_URL = process.env.EXPO_PUBLIC_API_URL || "http://localhost:3001";
+const API_URL = process.env.EXPO_PUBLIC_API_URL || "http://localhost:3002";
 const ACCESS_TOKEN_KEY = "mileclear_access_token";
 export const REFRESH_TOKEN_KEY = "mileclear_refresh_token";
 

@@ -20,50 +20,33 @@ const TEXT_1 = "#f0f2f5";
 const TEXT_2 = "#8494a7";
 const TEXT_3 = "#4a5568";
 
-export default function RegisterScreen() {
-  const { register } = useAuth();
+export default function ForgotPasswordScreen() {
+  const { forgotPassword } = useAuth();
   const [email, setEmail] = useState("");
-  const [displayName, setDisplayName] = useState("");
-  const [password, setPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [focusedField, setFocusedField] = useState<string | null>(null);
 
-  const handleRegister = async () => {
+  const handleSubmit = async () => {
     setError("");
     if (!email.trim()) {
       setError("Email is required");
       return;
     }
-    if (password.length < 8) {
-      setError("Password must be at least 8 characters");
-      return;
-    }
-    if (password !== confirmPassword) {
-      setError("Passwords do not match");
-      return;
-    }
 
     setLoading(true);
     try {
-      await register(
-        email.trim().toLowerCase(),
-        password,
-        displayName.trim() || undefined,
-      );
-      router.replace("/(auth)/verify");
+      await forgotPassword(email.trim().toLowerCase());
+      router.push({
+        pathname: "/(auth)/reset-password",
+        params: { email: email.trim().toLowerCase() },
+      });
     } catch (e: any) {
-      setError(e.message || "Registration failed");
+      setError(e.message || "Failed to send reset code");
     } finally {
       setLoading(false);
     }
   };
-
-  const inputStyle = (field: string) => [
-    s.input,
-    focusedField === field && s.inputFocused,
-  ];
 
   return (
     <KeyboardAvoidingView
@@ -78,12 +61,15 @@ export default function RegisterScreen() {
         <View style={s.brandWrap}>
           <Text style={s.brandName}>MileClear</Text>
           <View style={s.brandRule} />
-          <Text style={s.brandTagline}>Create your account</Text>
+          <Text style={s.brandTagline}>Reset your password</Text>
         </View>
 
-        {/* Form card */}
+        {/* Card */}
         <View style={s.card}>
-          <Text style={s.title}>Get started</Text>
+          <Text style={s.title}>Forgot password?</Text>
+          <Text style={s.subtitle}>
+            Enter your email and we'll send you a code to reset your password.
+          </Text>
 
           {error ? (
             <View style={s.errorWrap}>
@@ -93,7 +79,10 @@ export default function RegisterScreen() {
 
           <Text style={s.label}>Email</Text>
           <TextInput
-            style={inputStyle("email")}
+            style={[
+              s.input,
+              focusedField === "email" && s.inputFocused,
+            ]}
             value={email}
             onChangeText={setEmail}
             onFocus={() => setFocusedField("email")}
@@ -103,63 +92,25 @@ export default function RegisterScreen() {
             keyboardType="email-address"
             autoCapitalize="none"
             autoCorrect={false}
-            editable={!loading}
-          />
-
-          <Text style={s.label}>Display name</Text>
-          <TextInput
-            style={inputStyle("name")}
-            value={displayName}
-            onChangeText={setDisplayName}
-            onFocus={() => setFocusedField("name")}
-            onBlur={() => setFocusedField(null)}
-            placeholder="Optional"
-            placeholderTextColor={TEXT_3}
-            autoCorrect={false}
-            editable={!loading}
-          />
-
-          <Text style={s.label}>Password</Text>
-          <TextInput
-            style={inputStyle("password")}
-            value={password}
-            onChangeText={setPassword}
-            onFocus={() => setFocusedField("password")}
-            onBlur={() => setFocusedField(null)}
-            placeholder="At least 8 characters"
-            placeholderTextColor={TEXT_3}
-            secureTextEntry
-            editable={!loading}
-          />
-
-          <Text style={s.label}>Confirm password</Text>
-          <TextInput
-            style={inputStyle("confirm")}
-            value={confirmPassword}
-            onChangeText={setConfirmPassword}
-            onFocus={() => setFocusedField("confirm")}
-            onBlur={() => setFocusedField(null)}
-            placeholder="Re-enter your password"
-            placeholderTextColor={TEXT_3}
-            secureTextEntry
+            autoFocus
             editable={!loading}
           />
 
           <TouchableOpacity
             style={[s.button, loading && s.buttonDisabled]}
-            onPress={handleRegister}
+            onPress={handleSubmit}
             disabled={loading}
             activeOpacity={0.8}
           >
             {loading ? (
               <ActivityIndicator color="#030712" />
             ) : (
-              <Text style={s.buttonText}>Create account</Text>
+              <Text style={s.buttonText}>Send reset code</Text>
             )}
           </TouchableOpacity>
 
           <View style={s.footer}>
-            <Text style={s.footerText}>Already have an account? </Text>
+            <Text style={s.footerText}>Remember your password? </Text>
             <Link href="/(auth)/login" asChild>
               <TouchableOpacity>
                 <Text style={s.link}>Sign in</Text>
@@ -216,8 +167,14 @@ const s = StyleSheet.create({
     fontSize: 20,
     fontWeight: "300",
     color: TEXT_1,
-    marginBottom: 24,
+    marginBottom: 8,
     letterSpacing: -0.3,
+  },
+  subtitle: {
+    fontSize: 14,
+    color: TEXT_2,
+    marginBottom: 24,
+    lineHeight: 20,
   },
   label: {
     fontSize: 12,

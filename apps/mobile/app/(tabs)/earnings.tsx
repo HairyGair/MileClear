@@ -60,14 +60,10 @@ export default function EarningsScreen() {
         }
         setPage(res.page);
         setTotalPages(res.totalPages);
-        // Sum total from current page set (for display)
-        if (!append) {
-          const sum = res.data.reduce((acc, e) => acc + e.amountPence, 0);
-          setTotalPence(sum);
-        } else {
-          setTotalPence((prev) =>
-            prev + res.data.reduce((acc, e) => acc + e.amountPence, 0)
-          );
+        // Use server-side total across all pages
+        const resAny = res as any;
+        if (resAny.totalAmountPence != null) {
+          setTotalPence(resAny.totalAmountPence);
         }
       } catch {
         // Silently fail — will show empty state
@@ -149,7 +145,7 @@ export default function EarningsScreen() {
           <View>
             {/* Total summary */}
             <View style={styles.summaryCard}>
-              <Text style={styles.summaryLabel}>Total Shown</Text>
+              <Text style={styles.summaryLabel}>Total Earnings</Text>
               <Text style={styles.summaryAmount}>{formatPence(totalPence)}</Text>
             </View>
 

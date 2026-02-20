@@ -10,7 +10,7 @@ import {
   ActivityIndicator,
   ScrollView,
 } from "react-native";
-import { Link, router } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import { useAuth } from "../../lib/auth/context";
 
 const AMBER = "#f5a623";
@@ -20,41 +20,38 @@ const TEXT_1 = "#f0f2f5";
 const TEXT_2 = "#8494a7";
 const TEXT_3 = "#4a5568";
 
-export default function RegisterScreen() {
-  const { register } = useAuth();
-  const [email, setEmail] = useState("");
-  const [displayName, setDisplayName] = useState("");
-  const [password, setPassword] = useState("");
+export default function ResetPasswordScreen() {
+  const { resetPassword } = useAuth();
+  const { email: emailParam } = useLocalSearchParams<{ email: string }>();
+  const [email] = useState(emailParam || "");
+  const [code, setCode] = useState("");
+  const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [focusedField, setFocusedField] = useState<string | null>(null);
 
-  const handleRegister = async () => {
+  const handleReset = async () => {
     setError("");
-    if (!email.trim()) {
-      setError("Email is required");
+    if (code.length !== 6) {
+      setError("Please enter the 6-digit code");
       return;
     }
-    if (password.length < 8) {
+    if (newPassword.length < 8) {
       setError("Password must be at least 8 characters");
       return;
     }
-    if (password !== confirmPassword) {
+    if (newPassword !== confirmPassword) {
       setError("Passwords do not match");
       return;
     }
 
     setLoading(true);
     try {
-      await register(
-        email.trim().toLowerCase(),
-        password,
-        displayName.trim() || undefined,
-      );
-      router.replace("/(auth)/verify");
+      await resetPassword(email, code, newPassword);
+      router.replace("/(auth)/login");
     } catch (e: any) {
-      setError(e.message || "Registration failed");
+      setError(e.message || "Password reset failed");
     } finally {
       setLoading(false);
     }
@@ -78,12 +75,16 @@ export default function RegisterScreen() {
         <View style={s.brandWrap}>
           <Text style={s.brandName}>MileClear</Text>
           <View style={s.brandRule} />
-          <Text style={s.brandTagline}>Create your account</Text>
+          <Text style={s.brandTagline}>Reset your password</Text>
         </View>
 
-        {/* Form card */}
+        {/* Card */}
         <View style={s.card}>
-          <Text style={s.title}>Get started</Text>
+          <Text style={s.title}>Enter reset code</Text>
+          <Text style={s.subtitle}>
+            We sent a 6-digit code to {email || "your email"}. Enter it below
+            with your new password.
+          </Text>
 
           {error ? (
             <View style={s.errorWrap}>
@@ -91,39 +92,24 @@ export default function RegisterScreen() {
             </View>
           ) : null}
 
-          <Text style={s.label}>Email</Text>
+          <Text style={s.label}>Reset code</Text>
           <TextInput
-            style={inputStyle("email")}
-            value={email}
-            onChangeText={setEmail}
-            onFocus={() => setFocusedField("email")}
-            onBlur={() => setFocusedField(null)}
-            placeholder="you@example.com"
+            style={s.codeInput}
+            value={code}
+            onChangeText={(text) => setCode(text.replace(/[^0-9]/g, "").slice(0, 6))}
+            placeholder="000000"
             placeholderTextColor={TEXT_3}
-            keyboardType="email-address"
-            autoCapitalize="none"
-            autoCorrect={false}
+            keyboardType="number-pad"
+            maxLength={6}
+            autoFocus
             editable={!loading}
           />
 
-          <Text style={s.label}>Display name</Text>
-          <TextInput
-            style={inputStyle("name")}
-            value={displayName}
-            onChangeText={setDisplayName}
-            onFocus={() => setFocusedField("name")}
-            onBlur={() => setFocusedField(null)}
-            placeholder="Optional"
-            placeholderTextColor={TEXT_3}
-            autoCorrect={false}
-            editable={!loading}
-          />
-
-          <Text style={s.label}>Password</Text>
+          <Text style={s.label}>New password</Text>
           <TextInput
             style={inputStyle("password")}
-            value={password}
-            onChangeText={setPassword}
+            value={newPassword}
+            onChangeText={setNewPassword}
             onFocus={() => setFocusedField("password")}
             onBlur={() => setFocusedField(null)}
             placeholder="At least 8 characters"
@@ -132,7 +118,7 @@ export default function RegisterScreen() {
             editable={!loading}
           />
 
-          <Text style={s.label}>Confirm password</Text>
+          <Text style={s.label}>Confirm new password</Text>
           <TextInput
             style={inputStyle("confirm")}
             value={confirmPassword}
@@ -147,24 +133,22 @@ export default function RegisterScreen() {
 
           <TouchableOpacity
             style={[s.button, loading && s.buttonDisabled]}
-            onPress={handleRegister}
+            onPress={handleReset}
             disabled={loading}
             activeOpacity={0.8}
           >
             {loading ? (
               <ActivityIndicator color="#030712" />
             ) : (
-              <Text style={s.buttonText}>Create account</Text>
+              <Text style={s.buttonText}>Reset password</Text>
             )}
           </TouchableOpacity>
 
           <View style={s.footer}>
-            <Text style={s.footerText}>Already have an account? </Text>
-            <Link href="/(auth)/login" asChild>
-              <TouchableOpacity>
-                <Text style={s.link}>Sign in</Text>
-              </TouchableOpacity>
-            </Link>
+            <Text style={s.footerText}>Back to </Text>
+            <TouchableOpacity onPress={() => router.replace("/(auth)/login")}>
+              <Text style={s.link}>Sign in</Text>
+            </TouchableOpacity>
           </View>
         </View>
       </ScrollView>
@@ -216,8 +200,14 @@ const s = StyleSheet.create({
     fontSize: 20,
     fontWeight: "300",
     color: TEXT_1,
-    marginBottom: 24,
+    marginBottom: 8,
     letterSpacing: -0.3,
+  },
+  subtitle: {
+    fontSize: 14,
+    color: TEXT_2,
+    marginBottom: 24,
+    lineHeight: 20,
   },
   label: {
     fontSize: 12,
@@ -240,6 +230,19 @@ const s = StyleSheet.create({
   },
   inputFocused: {
     borderColor: "rgba(245, 166, 35, 0.35)",
+  },
+  codeInput: {
+    backgroundColor: "rgba(255,255,255,0.03)",
+    borderWidth: 1,
+    borderColor: BORDER,
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 14,
+    fontSize: 24,
+    color: TEXT_1,
+    marginBottom: 18,
+    letterSpacing: 8,
+    textAlign: "center",
   },
   button: {
     backgroundColor: AMBER,

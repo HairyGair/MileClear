@@ -34,6 +34,10 @@ export function fetchEarnings(params?: ListEarningsParams) {
   return apiRequest<PaginatedResponse<Earning>>(`/earnings${qs ? `?${qs}` : ""}`);
 }
 
+export function fetchEarning(id: string) {
+  return apiRequest<{ data: Earning }>(`/earnings/${id}`);
+}
+
 export function createEarning(data: CreateEarningData) {
   return apiRequest<{ data: Earning }>("/earnings", {
     method: "POST",

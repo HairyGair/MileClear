@@ -16,7 +16,7 @@ import {
   createEarning,
   updateEarning,
   deleteEarning,
-  fetchEarnings,
+  fetchEarning,
 } from "../lib/api/earnings";
 import { GIG_PLATFORMS } from "@mileclear/shared";
 
@@ -41,16 +41,13 @@ export default function EarningFormScreen() {
       setPeriodEnd(today);
       return;
     }
-    // Fetch the earning to edit — use list endpoint filtered, then find by id
-    fetchEarnings({ pageSize: 100 })
+    fetchEarning(id)
       .then((res) => {
-        const earning = res.data.find((e) => e.id === id);
-        if (earning) {
-          setPlatform(earning.platform);
-          setAmount((earning.amountPence / 100).toFixed(2));
-          setPeriodStart(earning.periodStart.slice(0, 10));
-          setPeriodEnd(earning.periodEnd.slice(0, 10));
-        }
+        const earning = res.data;
+        setPlatform(earning.platform);
+        setAmount((earning.amountPence / 100).toFixed(2));
+        setPeriodStart(earning.periodStart.slice(0, 10));
+        setPeriodEnd(earning.periodEnd.slice(0, 10));
       })
       .finally(() => setLoadingExisting(false));
   }, [id]);

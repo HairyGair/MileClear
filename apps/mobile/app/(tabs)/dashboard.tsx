@@ -26,6 +26,13 @@ import {
   fetchAchievements,
   fetchRecap,
 } from "../../lib/api/gamification";
+import {
+  requestLocationPermissions,
+  startShiftTracking,
+  stopShiftTracking,
+  processShiftTrips,
+  isTrackingActive,
+} from "../../lib/tracking/index";
 import type {
   Vehicle,
   GamificationStats,
@@ -83,7 +90,16 @@ export default function DashboardScreen() {
       if (statsRes) setStats(statsRes.data);
       if (achievementsRes) setAchievements(achievementsRes.data);
 
-      if (!active) {
+      if (active) {
+        // Resume GPS tracking if app was killed/backgrounded during a shift
+        const tracking = await isTrackingActive();
+        if (!tracking) {
+          const hasPermission = await requestLocationPermissions();
+          if (hasPermission) {
+            await startShiftTracking(active.id);
+          }
+        }
+      } else {
         const primary = vehicleRes.data.find((v) => v.isPrimary);
         setSelectedVehicleId(primary?.id);
       }
@@ -125,6 +141,18 @@ export default function DashboardScreen() {
         selectedVehicleId ? { vehicleId: selectedVehicleId } : undefined
       );
       setActiveShift(res.data);
+
+      // Start GPS tracking
+      const hasPermission = await requestLocationPermissions();
+      if (hasPermission) {
+        await startShiftTracking(res.data.id);
+      } else {
+        Alert.alert(
+          "Location Access",
+          "GPS tracking is disabled. Trips won't be recorded automatically, but you can still add them manually.",
+          [{ text: "OK" }]
+        );
+      }
     } catch (err: any) {
       Alert.alert("Error", err.message || "Failed to start shift");
     } finally {
@@ -142,6 +170,16 @@ export default function DashboardScreen() {
         onPress: async () => {
           setEnding(true);
           try {
+            // 1. Stop GPS tracking
+            await stopShiftTracking();
+
+            // 2. Process GPS coordinates into trips (before ending shift so scorecard counts them)
+            await processShiftTrips(
+              activeShift.id,
+              activeShift.vehicleId ?? undefined
+            );
+
+            // 3. End shift on API (scorecard includes GPS-tracked trips)
             const res = await endShift(activeShift.id);
             setActiveShift(null);
             const resAny = res as any;
