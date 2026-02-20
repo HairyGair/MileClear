@@ -154,6 +154,7 @@ export default function TabLayout() {
           tabBarIcon: ({ focused }) => (
             <TabIcon name="fuel" focused={focused} />
           ),
+          headerRight: () => <HeaderAddButton route="/fuel-form" />,
         }}
       />
       <Tabs.Screen

@@ -48,6 +48,10 @@ function RootNavigator() {
         options={{ headerShown: true, title: "Earning" }}
       />
       <Stack.Screen
+        name="fuel-form"
+        options={{ headerShown: true, title: "Fuel Log" }}
+      />
+      <Stack.Screen
         name="profile-edit"
         options={{ headerShown: true, title: "Edit Profile" }}
       />

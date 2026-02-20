@@ -95,6 +95,10 @@ export interface FuelLog {
   loggedAt: string;
 }
 
+export interface FuelLogWithVehicle extends FuelLog {
+  vehicle: { id: string; make: string; model: string; fuelType: FuelType } | null;
+}
+
 // Earnings types
 export type EarningSource = "manual" | "csv" | "open_banking" | "ocr";
 
