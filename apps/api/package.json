@@ -24,14 +24,15 @@
     "dotenv": "^16.4.7",
     "fastify": "^5.2.0",
     "jsonwebtoken": "^9.0.2",
+    "nodemailer": "^8.0.1",
     "pdfkit": "^0.17.2",
-    "resend": "^6.9.2",
     "zod": "^3.24.0"
   },
   "devDependencies": {
     "@types/bcrypt": "^5.0.2",
     "@types/jsonwebtoken": "^9.0.7",
     "@types/node": "^22.0.0",
+    "@types/nodemailer": "^7.0.10",
     "@types/pdfkit": "^0.17.5",
     "prisma": "^6.3.0",
     "tsx": "^4.19.0",

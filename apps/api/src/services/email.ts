@@ -1,11 +1,19 @@
-// Email service using Resend (free tier: 3,000 emails/month)
-// Falls back to console logging when RESEND_API_KEY is not set
+// Email service using Brevo SMTP relay (free tier: 300/day, ~9,000/month)
+// Falls back to console logging when SMTP creds are not set
 
-import { Resend } from "resend";
+import nodemailer from "nodemailer";
 
-const resend = process.env.RESEND_API_KEY
-  ? new Resend(process.env.RESEND_API_KEY)
-  : null;
+const transporter =
+  process.env.BREVO_SMTP_USER && process.env.BREVO_SMTP_KEY
+    ? nodemailer.createTransport({
+        host: "smtp-relay.brevo.com",
+        port: 587,
+        auth: {
+          user: process.env.BREVO_SMTP_USER,
+          pass: process.env.BREVO_SMTP_KEY,
+        },
+      })
+    : null;
 
 const FROM = process.env.EMAIL_FROM || "MileClear <noreply@mileclear.com>";
 
@@ -25,12 +33,12 @@ export async function sendVerificationEmail(
     </div>
   `;
 
-  if (!resend) {
+  if (!transporter) {
     console.log(`[EMAIL] Verification code for ${email}: ${code}`);
     return;
   }
 
-  await resend.emails.send({ from: FROM, to: email, subject, html });
+  await transporter.sendMail({ from: FROM, to: email, subject, html });
 }
 
 export async function sendPasswordResetEmail(
@@ -49,12 +57,12 @@ export async function sendPasswordResetEmail(
     </div>
   `;
 
-  if (!resend) {
+  if (!transporter) {
     console.log(`[EMAIL] Password reset code for ${email}: ${code}`);
     return;
   }
 
-  await resend.emails.send({ from: FROM, to: email, subject, html });
+  await transporter.sendMail({ from: FROM, to: email, subject, html });
 }
 
 export async function sendWaitlistConfirmation(
@@ -70,10 +78,10 @@ export async function sendWaitlistConfirmation(
     </div>
   `;
 
-  if (!resend) {
+  if (!transporter) {
     console.log(`[EMAIL] Waitlist confirmation for ${email}`);
     return;
   }
 
-  await resend.emails.send({ from: FROM, to: email, subject, html });
+  await transporter.sendMail({ from: FROM, to: email, subject, html });
 }
