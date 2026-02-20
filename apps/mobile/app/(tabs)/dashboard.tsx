@@ -10,8 +10,10 @@ import {
   RefreshControl,
   Modal,
   Share,
+  Platform,
 } from "react-native";
 import { useFocusEffect, useRouter } from "expo-router";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { fetchVehicles } from "../../lib/api/vehicles";
 import {
   fetchActiveShift,
@@ -40,8 +42,15 @@ function formatElapsed(seconds: number): string {
   return [h, m, s].map((v) => String(v).padStart(2, "0")).join(":");
 }
 
+function formatMilesShort(miles: number): string {
+  return miles < 1000
+    ? `${miles.toFixed(1)}`
+    : `${(miles / 1000).toFixed(1)}k`;
+}
+
 export default function DashboardScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const [activeShift, setActiveShift] = useState<ShiftWithVehicle | null>(null);
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [selectedVehicleId, setSelectedVehicleId] = useState<string | undefined>();
@@ -52,7 +61,6 @@ export default function DashboardScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  // Gamification state
   const [stats, setStats] = useState<GamificationStats | null>(null);
   const [achievements, setAchievements] = useState<AchievementWithMeta[]>([]);
   const [scorecard, setScorecard] = useState<ShiftScorecard | null>(null);
@@ -93,7 +101,6 @@ export default function DashboardScreen() {
     }, [loadData])
   );
 
-  // Timer for active shift
   useEffect(() => {
     if (activeShift) {
       const updateElapsed = () => {
@@ -137,15 +144,11 @@ export default function DashboardScreen() {
           try {
             const res = await endShift(activeShift.id);
             setActiveShift(null);
-
-            // Check for embedded scorecard in response
             const resAny = res as any;
             if (resAny.scorecard) {
               setScorecard(resAny.scorecard);
               setShowScorecard(true);
             }
-
-            // Refresh stats
             loadData();
           } catch (err: any) {
             Alert.alert("Error", err.message || "Failed to end shift");
@@ -162,39 +165,32 @@ export default function DashboardScreen() {
       Alert.alert("No Vehicles", "Add a vehicle in your profile first.");
       return;
     }
-
     const options = vehicles.map((v) => ({
       text: `${v.make} ${v.model}${v.isPrimary ? " (Primary)" : ""}`,
       onPress: () => setSelectedVehicleId(v.id),
     }));
     options.push({ text: "No Vehicle", onPress: () => setSelectedVehicleId(undefined) });
-
     Alert.alert("Select Vehicle", "Choose a vehicle for this shift", [
       ...options,
       { text: "Cancel", onPress: () => {} },
     ]);
   }, [vehicles]);
 
-  const handleRecap = useCallback(
-    async (period: "weekly" | "monthly") => {
-      try {
-        const res = await fetchRecap(period);
-        setRecapData(res.data);
-        setShowRecap(true);
-      } catch {
-        Alert.alert("Error", "Failed to load recap");
-      }
-    },
-    []
-  );
+  const handleRecap = useCallback(async (period: "weekly" | "monthly") => {
+    try {
+      const res = await fetchRecap(period);
+      setRecapData(res.data);
+      setShowRecap(true);
+    } catch {
+      Alert.alert("Error", "Failed to load recap");
+    }
+  }, []);
 
   const handleShareRecap = useCallback(async () => {
     if (!recapData) return;
     try {
       await Share.share({ message: recapData.shareText });
-    } catch {
-      // User cancelled
-    }
+    } catch {}
   }, [recapData]);
 
   const onRefresh = useCallback(() => {
@@ -204,8 +200,8 @@ export default function DashboardScreen() {
 
   if (loading) {
     return (
-      <View style={[styles.container, styles.centered]}>
-        <ActivityIndicator size="large" color="#f59e0b" />
+      <View style={[s.container, s.centered]}>
+        <ActivityIndicator size="large" color="#f5a623" />
       </View>
     );
   }
@@ -220,63 +216,59 @@ export default function DashboardScreen() {
       transparent
       onRequestClose={() => setShowScorecard(false)}
     >
-      <View style={styles.modalOverlay}>
-        <View style={styles.modalContent}>
-          <Text style={styles.modalTitle}>Shift Complete!</Text>
+      <View style={s.modalOverlay}>
+        <View style={s.modalSheet}>
+          <View style={s.modalHandle} />
+          <Text style={s.modalTitle}>Shift Complete</Text>
 
           {scorecard && (
             <>
-              <View style={styles.scorecardRow}>
-                <View style={styles.scorecardStat}>
-                  <Text style={styles.scorecardValue}>
+              <View style={s.scorecardGrid}>
+                <View style={s.scorecardCell}>
+                  <Text style={s.scorecardNum}>
                     {scorecard.tripsCompleted}
                   </Text>
-                  <Text style={styles.scorecardLabel}>Trips</Text>
+                  <Text style={s.scorecardUnit}>trips</Text>
                 </View>
-                <View style={styles.scorecardStat}>
-                  <Text style={styles.scorecardValue}>
-                    {scorecard.totalMiles.toFixed(1)} mi
+                <View style={[s.scorecardCell, s.scorecardCellCenter]}>
+                  <Text style={s.scorecardNumLarge}>
+                    {scorecard.totalMiles.toFixed(1)}
                   </Text>
-                  <Text style={styles.scorecardLabel}>Total</Text>
+                  <Text style={s.scorecardUnit}>miles</Text>
                 </View>
-                <View style={styles.scorecardStat}>
-                  <Text style={styles.scorecardValue}>
+                <View style={s.scorecardCell}>
+                  <Text style={s.scorecardNum}>
                     {formatPence(scorecard.deductionPence)}
                   </Text>
-                  <Text style={styles.scorecardLabel}>Deduction</Text>
+                  <Text style={s.scorecardUnit}>deduction</Text>
                 </View>
               </View>
 
-              <Text style={styles.scorecardDuration}>
+              <Text style={s.scorecardDuration}>
                 {formatElapsed(scorecard.durationSeconds)}
               </Text>
 
-              {(scorecard.isPersonalBestMiles ||
-                scorecard.isPersonalBestTrips) && (
-                <View style={styles.personalBestBadge}>
-                  <Text style={styles.personalBestText}>
+              {(scorecard.isPersonalBestMiles || scorecard.isPersonalBestTrips) && (
+                <View style={s.pbBadge}>
+                  <Text style={s.pbText}>
                     {scorecard.isPersonalBestMiles && scorecard.isPersonalBestTrips
-                      ? "New PB: Miles & Trips!"
+                      ? "New record \u2014 Miles & Trips"
                       : scorecard.isPersonalBestMiles
-                        ? "New PB: Most Miles!"
-                        : "New PB: Most Trips!"}
+                        ? "New record \u2014 Most Miles"
+                        : "New record \u2014 Most Trips"}
                   </Text>
                 </View>
               )}
 
               {scorecard.newAchievements.length > 0 && (
-                <View style={styles.newAchievements}>
-                  <Text style={styles.newAchievementsTitle}>
-                    Achievements Unlocked
-                  </Text>
+                <View style={s.unlockSection}>
+                  <Text style={s.unlockTitle}>Unlocked</Text>
                   {scorecard.newAchievements.map((a) => (
-                    <View key={a.id} style={styles.achievementUnlock}>
-                      <Text style={styles.achievementEmoji}>{a.emoji}</Text>
-                      <View>
-                        <Text style={styles.achievementLabel}>{a.label}</Text>
-                        <Text style={styles.achievementDesc}>
-                          {a.description}
-                        </Text>
+                    <View key={a.id} style={s.unlockRow}>
+                      <Text style={s.unlockEmoji}>{a.emoji}</Text>
+                      <View style={{ flex: 1 }}>
+                        <Text style={s.unlockLabel}>{a.label}</Text>
+                        <Text style={s.unlockDesc}>{a.description}</Text>
                       </View>
                     </View>
                   ))}
@@ -286,10 +278,10 @@ export default function DashboardScreen() {
           )}
 
           <TouchableOpacity
-            style={styles.modalButton}
+            style={s.modalPrimaryBtn}
             onPress={() => setShowScorecard(false)}
           >
-            <Text style={styles.modalButtonText}>Done</Text>
+            <Text style={s.modalPrimaryBtnText}>Done</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -304,59 +296,50 @@ export default function DashboardScreen() {
       transparent
       onRequestClose={() => setShowRecap(false)}
     >
-      <View style={styles.modalOverlay}>
-        <View style={styles.modalContent}>
-          <Text style={styles.modalTitle}>
+      <View style={s.modalOverlay}>
+        <View style={s.modalSheet}>
+          <View style={s.modalHandle} />
+          <Text style={s.modalTitle}>
             {recapData?.period === "weekly" ? "Weekly" : "Monthly"} Recap
           </Text>
           {recapData && (
             <>
-              <Text style={styles.recapLabel}>{recapData.label}</Text>
+              <Text style={s.recapSubtitle}>{recapData.label}</Text>
 
-              <View style={styles.scorecardRow}>
-                <View style={styles.scorecardStat}>
-                  <Text style={styles.scorecardValue}>
-                    {recapData.totalMiles.toFixed(1)} mi
+              <View style={s.scorecardGrid}>
+                <View style={s.scorecardCell}>
+                  <Text style={s.scorecardNum}>
+                    {recapData.totalMiles.toFixed(1)}
                   </Text>
-                  <Text style={styles.scorecardLabel}>Total</Text>
+                  <Text style={s.scorecardUnit}>miles</Text>
                 </View>
-                <View style={styles.scorecardStat}>
-                  <Text style={styles.scorecardValue}>
-                    {recapData.totalTrips}
-                  </Text>
-                  <Text style={styles.scorecardLabel}>Trips</Text>
+                <View style={s.scorecardCell}>
+                  <Text style={s.scorecardNum}>{recapData.totalTrips}</Text>
+                  <Text style={s.scorecardUnit}>trips</Text>
                 </View>
-                <View style={styles.scorecardStat}>
-                  <Text style={styles.scorecardValue}>
+                <View style={s.scorecardCell}>
+                  <Text style={s.scorecardNum}>
                     {formatPence(recapData.deductionPence)}
                   </Text>
-                  <Text style={styles.scorecardLabel}>Deduction</Text>
+                  <Text style={s.scorecardUnit}>deduction</Text>
                 </View>
               </View>
 
               {recapData.busiestDayLabel && (
-                <Text style={styles.recapDetail}>
-                  Busiest: {recapData.busiestDayLabel} ({recapData.busiestDayMiles.toFixed(1)} mi)
-                </Text>
-              )}
-              {recapData.longestTripMiles > 0 && (
-                <Text style={styles.recapDetail}>
-                  Longest trip: {recapData.longestTripMiles.toFixed(1)} mi
+                <Text style={s.recapDetail}>
+                  Busiest day: {recapData.busiestDayLabel} ({recapData.busiestDayMiles.toFixed(1)} mi)
                 </Text>
               )}
 
-              <View style={styles.recapButtons}>
-                <TouchableOpacity
-                  style={styles.shareButton}
-                  onPress={handleShareRecap}
-                >
-                  <Text style={styles.shareButtonText}>Share</Text>
+              <View style={s.recapBtnRow}>
+                <TouchableOpacity style={s.shareBtn} onPress={handleShareRecap}>
+                  <Text style={s.shareBtnText}>Share</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
-                  style={styles.modalButton}
+                  style={s.modalPrimaryBtn}
                   onPress={() => setShowRecap(false)}
                 >
-                  <Text style={styles.modalButtonText}>Close</Text>
+                  <Text style={s.modalPrimaryBtnText}>Close</Text>
                 </TouchableOpacity>
               </View>
             </>
@@ -366,599 +349,675 @@ export default function DashboardScreen() {
     </Modal>
   );
 
-  // ── Active shift view ─────────────────────────────────────────
+  // ── Active Shift ──────────────────────────────────────────────
   if (activeShift) {
     return (
       <ScrollView
-        style={styles.container}
-        contentContainerStyle={styles.activeContent}
+        style={s.container}
+        contentContainerStyle={[s.content, { paddingTop: insets.top + 16 }]}
         refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#f59e0b" />
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#f5a623" />
         }
       >
         {scorecardModal}
-        <Text style={styles.title}>Dashboard</Text>
+        <Text style={s.greeting}>Shift Active</Text>
 
-        <View style={styles.timerContainer}>
-          <View style={styles.activeBadge}>
-            <Text style={styles.activeBadgeText}>SHIFT ACTIVE</Text>
+        <View style={s.timerWrap}>
+          <View style={s.liveIndicator}>
+            <View style={s.liveDot} />
+            <Text style={s.liveText}>TRACKING</Text>
           </View>
-          <Text style={styles.timer}>{formatElapsed(elapsed)}</Text>
+          <Text style={s.timer}>{formatElapsed(elapsed)}</Text>
           {activeShift.vehicle && (
-            <Text style={styles.vehicleLabel}>
+            <Text style={s.timerSub}>
               {activeShift.vehicle.make} {activeShift.vehicle.model}
             </Text>
           )}
         </View>
 
-        <View style={styles.statsRow}>
-          <View style={styles.statCard}>
-            <Text style={styles.statValue}>
-              {stats ? `${stats.todayMiles.toFixed(1)} mi` : "0.0 mi"}
+        <View style={s.statsRow}>
+          <View style={s.statCard}>
+            <Text style={s.statNum}>
+              {stats ? formatMilesShort(stats.todayMiles) : "0"}
             </Text>
-            <Text style={styles.statLabel}>Today</Text>
+            <Text style={s.statUnit}>mi today</Text>
           </View>
-          <View style={styles.statCard}>
-            <Text style={styles.statValue}>
-              {stats ? `${stats.weekMiles.toFixed(1)} mi` : "0.0 mi"}
+          <View style={s.statCard}>
+            <Text style={s.statNum}>
+              {stats ? formatMilesShort(stats.weekMiles) : "0"}
             </Text>
-            <Text style={styles.statLabel}>This Week</Text>
+            <Text style={s.statUnit}>mi this week</Text>
           </View>
         </View>
 
         <TouchableOpacity
-          style={styles.endButton}
+          style={s.endBtn}
           onPress={handleEndShift}
-          activeOpacity={0.7}
+          activeOpacity={0.8}
           disabled={ending}
         >
           {ending ? (
             <ActivityIndicator color="#fff" />
           ) : (
-            <Text style={styles.endButtonText}>End Shift</Text>
+            <Text style={s.endBtnText}>End Shift</Text>
           )}
         </TouchableOpacity>
       </ScrollView>
     );
   }
 
-  // ── Idle view ─────────────────────────────────────────────────
+  // ── Idle Dashboard ────────────────────────────────────────────
   return (
     <ScrollView
-      style={styles.container}
-      contentContainerStyle={styles.idleContent}
+      style={s.container}
+      contentContainerStyle={[s.content, { paddingTop: insets.top + 16 }]}
       refreshControl={
-        <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#f59e0b" />
+        <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#f5a623" />
       }
     >
       {scorecardModal}
       {recapModal}
-      <Text style={styles.title}>Dashboard</Text>
 
-      {/* Tax Savings Card */}
-      {stats && stats.deductionPence > 0 && (
-        <View style={styles.taxSavingsCard}>
-          <Text style={styles.taxSavingsLabel}>
-            Tax Deduction ({stats.taxYear})
+      {/* Header */}
+      <View style={s.headerRow}>
+        <View>
+          <Text style={s.brandMark}>MileClear</Text>
+          <Text style={s.greeting}>
+            {stats && stats.currentStreakDays > 0
+              ? `${stats.currentStreakDays}-day streak`
+              : "Ready to drive"}
           </Text>
-          <Text style={styles.taxSavingsValue}>
+        </View>
+        {stats && stats.currentStreakDays > 0 && (
+          <View style={s.streakBadge}>
+            <Text style={s.streakNum}>{stats.currentStreakDays}</Text>
+          </View>
+        )}
+      </View>
+
+      {/* Tax Savings — hero card */}
+      {stats && (
+        <View style={s.heroCard}>
+          <Text style={s.heroLabel}>Tax Deduction \u00B7 {stats.taxYear}</Text>
+          <Text style={s.heroValue}>
             {formatPence(stats.deductionPence)}
           </Text>
-          <Text style={styles.taxSavingsDetail}>
-            {formatMiles(stats.businessMiles)} business miles
-          </Text>
+          <View style={s.heroMeta}>
+            <Text style={s.heroMetaText}>
+              {formatMiles(stats.businessMiles)} business
+            </Text>
+            <View style={s.heroDivider} />
+            <Text style={s.heroMetaText}>
+              {formatMiles(stats.totalMiles)} total
+            </Text>
+          </View>
         </View>
       )}
 
-      {/* Streak Chip */}
-      {stats && stats.currentStreakDays > 0 && (
-        <View style={styles.streakChip}>
-          <Text style={styles.streakText}>
-            {stats.currentStreakDays} day streak
+      {/* Quick Stats */}
+      <View style={s.statsRow}>
+        <View style={s.statCard}>
+          <Text style={s.statNum}>
+            {stats ? formatMilesShort(stats.todayMiles) : "0"}
           </Text>
+          <Text style={s.statUnit}>mi today</Text>
         </View>
-      )}
-
-      {/* Stats Row */}
-      <View style={styles.statsRow}>
-        <View style={styles.statCard}>
-          <Text style={styles.statValue}>
-            {stats ? `${stats.todayMiles.toFixed(1)} mi` : "0.0 mi"}
+        <View style={s.statCard}>
+          <Text style={s.statNum}>
+            {stats ? formatMilesShort(stats.weekMiles) : "0"}
           </Text>
-          <Text style={styles.statLabel}>Today</Text>
+          <Text style={s.statUnit}>mi this week</Text>
         </View>
-        <View style={styles.statCard}>
-          <Text style={styles.statValue}>
-            {stats ? `${stats.weekMiles.toFixed(1)} mi` : "0.0 mi"}
-          </Text>
-          <Text style={styles.statLabel}>This Week</Text>
+        <View style={s.statCard}>
+          <Text style={s.statNum}>{stats?.totalTrips ?? 0}</Text>
+          <Text style={s.statUnit}>trips</Text>
         </View>
       </View>
 
-      {/* Achievements Row */}
+      {/* Achievements */}
       {achievements.length > 0 && (
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Achievements</Text>
+        <View style={s.section}>
+          <View style={s.sectionHead}>
+            <Text style={s.sectionTitle}>Achievements</Text>
             <TouchableOpacity onPress={() => router.push("/achievements")}>
-              <Text style={styles.seeAllLink}>See all</Text>
+              <Text style={s.seeAll}>See all</Text>
             </TouchableOpacity>
           </View>
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.achievementsScroll}
+            contentContainerStyle={s.badgeScroll}
           >
             {achievements.slice(0, 8).map((a) => (
-              <View key={a.id} style={styles.badgeCard}>
-                <Text style={styles.badgeEmoji}>{a.emoji}</Text>
-                <Text style={styles.badgeLabel} numberOfLines={1}>
-                  {a.label}
-                </Text>
+              <View key={a.id} style={s.badge}>
+                <Text style={s.badgeEmoji}>{a.emoji}</Text>
+                <Text style={s.badgeLabel} numberOfLines={1}>{a.label}</Text>
               </View>
             ))}
           </ScrollView>
         </View>
       )}
 
-      {/* Recap Buttons */}
-      <View style={styles.recapRow}>
+      {/* Recaps */}
+      <View style={s.recapRow}>
         <TouchableOpacity
-          style={styles.recapButton}
+          style={s.recapBtn}
           onPress={() => handleRecap("weekly")}
+          activeOpacity={0.7}
         >
-          <Text style={styles.recapButtonText}>This Week</Text>
+          <Text style={s.recapBtnLabel}>This Week</Text>
         </TouchableOpacity>
         <TouchableOpacity
-          style={styles.recapButton}
+          style={s.recapBtn}
           onPress={() => handleRecap("monthly")}
+          activeOpacity={0.7}
         >
-          <Text style={styles.recapButtonText}>This Month</Text>
+          <Text style={s.recapBtnLabel}>This Month</Text>
         </TouchableOpacity>
       </View>
 
       {/* Personal Records */}
       {stats && stats.personalRecords.mostMilesInDay > 0 && (
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Personal Records</Text>
-          <View style={styles.recordsGrid}>
-            <View style={styles.recordCard}>
-              <Text style={styles.recordValue}>
-                {stats.personalRecords.mostMilesInDay.toFixed(1)} mi
-              </Text>
-              <Text style={styles.recordLabel}>Best Day</Text>
-            </View>
-            <View style={styles.recordCard}>
-              <Text style={styles.recordValue}>
-                {stats.personalRecords.mostTripsInShift}
-              </Text>
-              <Text style={styles.recordLabel}>Most Trips/Shift</Text>
-            </View>
-            <View style={styles.recordCard}>
-              <Text style={styles.recordValue}>
-                {stats.personalRecords.longestSingleTrip.toFixed(1)} mi
-              </Text>
-              <Text style={styles.recordLabel}>Longest Trip</Text>
-            </View>
-            <View style={styles.recordCard}>
-              <Text style={styles.recordValue}>
-                {stats.personalRecords.longestStreakDays}d
-              </Text>
-              <Text style={styles.recordLabel}>Best Streak</Text>
-            </View>
+        <View style={s.section}>
+          <Text style={s.sectionTitle}>Personal Records</Text>
+          <View style={s.recordGrid}>
+            {[
+              { v: `${stats.personalRecords.mostMilesInDay.toFixed(1)} mi`, l: "Best day" },
+              { v: `${stats.personalRecords.mostTripsInShift}`, l: "Trips / shift" },
+              { v: `${stats.personalRecords.longestSingleTrip.toFixed(1)} mi`, l: "Longest trip" },
+              { v: `${stats.personalRecords.longestStreakDays}d`, l: "Best streak" },
+            ].map((r) => (
+              <View key={r.l} style={s.recordCell}>
+                <Text style={s.recordValue}>{r.v}</Text>
+                <Text style={s.recordLabel}>{r.l}</Text>
+              </View>
+            ))}
           </View>
         </View>
       )}
 
       {/* Vehicle Picker */}
       <TouchableOpacity
-        style={styles.vehiclePicker}
+        style={s.vehiclePicker}
         onPress={handleSelectVehicle}
         activeOpacity={0.7}
       >
-        <Text style={styles.vehiclePickerLabel}>Vehicle</Text>
-        <View style={styles.vehiclePickerRow}>
-          <Text style={styles.vehiclePickerValue}>
+        <View>
+          <Text style={s.vehiclePickerLabel}>Vehicle</Text>
+          <Text style={s.vehiclePickerVal}>
             {selectedVehicle
               ? `${selectedVehicle.make} ${selectedVehicle.model}`
               : "None selected"}
           </Text>
-          <Text style={styles.chevron}>›</Text>
         </View>
+        <Text style={s.chevron}>\u203A</Text>
       </TouchableOpacity>
 
-      {/* Start Shift Button */}
+      {/* Start Shift */}
       <TouchableOpacity
-        style={styles.startButton}
+        style={s.startBtn}
         onPress={handleStartShift}
-        activeOpacity={0.7}
+        activeOpacity={0.8}
         disabled={starting}
       >
         {starting ? (
           <ActivityIndicator color="#030712" />
         ) : (
-          <Text style={styles.startButtonText}>Start Shift</Text>
+          <Text style={s.startBtnText}>Start Shift</Text>
         )}
       </TouchableOpacity>
+
+      <View style={{ height: 24 }} />
     </ScrollView>
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#030712",
+// ── Styles ────────────────────────────────────────────────────────
+
+const CARD_BG = "#0a1120";
+const CARD_BORDER = "rgba(255,255,255,0.05)";
+const AMBER = "#f5a623";
+const TEXT_1 = "#f0f2f5";
+const TEXT_2 = "#8494a7";
+const TEXT_3 = "#4a5568";
+
+const s = StyleSheet.create({
+  container: { flex: 1, backgroundColor: "#030712" },
+  centered: { justifyContent: "center", alignItems: "center" },
+  content: { paddingHorizontal: 20, paddingBottom: 20 },
+
+  // Header
+  headerRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+    marginBottom: 24,
   },
-  centered: {
+  brandMark: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: AMBER,
+    letterSpacing: 1.5,
+    textTransform: "uppercase",
+    marginBottom: 2,
+  },
+  greeting: {
+    fontSize: 22,
+    fontWeight: "300",
+    color: TEXT_1,
+    letterSpacing: -0.3,
+  },
+  streakBadge: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: "rgba(245, 166, 35, 0.12)",
+    borderWidth: 1.5,
+    borderColor: "rgba(245, 166, 35, 0.3)",
     justifyContent: "center",
     alignItems: "center",
   },
-  idleContent: {
-    padding: 16,
-    paddingTop: 60,
-    paddingBottom: 32,
-  },
-  activeContent: {
-    padding: 16,
-    paddingTop: 60,
-  },
-  title: {
-    fontSize: 22,
+  streakNum: {
+    fontSize: 18,
     fontWeight: "700",
-    color: "#fff",
-    marginBottom: 20,
+    color: AMBER,
   },
-  // Tax savings
-  taxSavingsCard: {
-    backgroundColor: "#111827",
-    borderRadius: 12,
-    padding: 16,
+
+  // Hero card
+  heroCard: {
+    backgroundColor: CARD_BG,
+    borderRadius: 16,
+    padding: 20,
     marginBottom: 16,
     borderWidth: 1,
-    borderColor: "rgba(245, 158, 11, 0.3)",
+    borderColor: "rgba(245, 166, 35, 0.12)",
+    ...Platform.select({
+      ios: {
+        shadowColor: AMBER,
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.06,
+        shadowRadius: 12,
+      },
+    }),
   },
-  taxSavingsLabel: {
-    fontSize: 12,
-    color: "#f59e0b",
-    textTransform: "uppercase",
-    letterSpacing: 0.5,
-    marginBottom: 4,
-  },
-  taxSavingsValue: {
-    fontSize: 32,
-    fontWeight: "700",
-    color: "#f59e0b",
-    marginBottom: 2,
-  },
-  taxSavingsDetail: {
-    fontSize: 13,
-    color: "#9ca3af",
-  },
-  // Streak
-  streakChip: {
-    alignSelf: "flex-start",
-    backgroundColor: "rgba(239, 68, 68, 0.15)",
-    borderRadius: 20,
-    paddingHorizontal: 14,
-    paddingVertical: 6,
-    marginBottom: 16,
-  },
-  streakText: {
-    fontSize: 14,
+  heroLabel: {
+    fontSize: 11,
     fontWeight: "600",
-    color: "#ef4444",
+    color: TEXT_2,
+    letterSpacing: 0.8,
+    textTransform: "uppercase",
+    marginBottom: 8,
   },
-  // Stats
+  heroValue: {
+    fontSize: 38,
+    fontWeight: "200",
+    color: AMBER,
+    letterSpacing: -1,
+    marginBottom: 10,
+  },
+  heroMeta: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  heroMetaText: {
+    fontSize: 13,
+    color: TEXT_2,
+  },
+  heroDivider: {
+    width: 3,
+    height: 3,
+    borderRadius: 1.5,
+    backgroundColor: TEXT_3,
+    marginHorizontal: 10,
+  },
+
+  // Stats row
   statsRow: {
     flexDirection: "row",
-    gap: 12,
+    gap: 10,
     marginBottom: 20,
   },
   statCard: {
     flex: 1,
-    backgroundColor: "#111827",
+    backgroundColor: CARD_BG,
     borderRadius: 12,
-    padding: 16,
+    paddingVertical: 16,
+    paddingHorizontal: 12,
     alignItems: "center",
+    borderWidth: 1,
+    borderColor: CARD_BORDER,
   },
-  statValue: {
-    fontSize: 24,
-    fontWeight: "700",
-    color: "#fff",
-    marginBottom: 4,
+  statNum: {
+    fontSize: 22,
+    fontWeight: "600",
+    color: TEXT_1,
+    letterSpacing: -0.5,
   },
-  statLabel: {
-    fontSize: 13,
-    color: "#9ca3af",
+  statUnit: {
+    fontSize: 11,
+    color: TEXT_2,
+    marginTop: 2,
+    letterSpacing: 0.2,
   },
-  // Section
-  section: {
-    marginBottom: 20,
-  },
-  sectionHeader: {
+
+  // Sections
+  section: { marginBottom: 20 },
+  sectionHead: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: 10,
+    marginBottom: 12,
   },
   sectionTitle: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: "600",
-    color: "#fff",
-    marginBottom: 10,
+    color: TEXT_1,
+    letterSpacing: -0.2,
   },
-  seeAllLink: {
-    fontSize: 14,
-    color: "#f59e0b",
-    marginBottom: 10,
+  seeAll: {
+    fontSize: 13,
+    color: AMBER,
+    fontWeight: "500",
   },
-  // Achievements
-  achievementsScroll: {
-    gap: 10,
-  },
-  badgeCard: {
-    backgroundColor: "#111827",
+
+  // Badges
+  badgeScroll: { gap: 8 },
+  badge: {
+    backgroundColor: CARD_BG,
     borderRadius: 10,
-    padding: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
     alignItems: "center",
-    width: 80,
+    width: 74,
+    borderWidth: 1,
+    borderColor: CARD_BORDER,
   },
-  badgeEmoji: {
-    fontSize: 28,
-    marginBottom: 4,
-  },
+  badgeEmoji: { fontSize: 26, marginBottom: 4 },
   badgeLabel: {
-    fontSize: 11,
-    color: "#9ca3af",
+    fontSize: 10,
+    color: TEXT_2,
     textAlign: "center",
+    fontWeight: "500",
   },
-  // Recap
-  recapRow: {
-    flexDirection: "row",
-    gap: 12,
-    marginBottom: 20,
-  },
-  recapButton: {
+
+  // Recap buttons
+  recapRow: { flexDirection: "row", gap: 10, marginBottom: 20 },
+  recapBtn: {
     flex: 1,
-    backgroundColor: "#111827",
+    backgroundColor: CARD_BG,
     borderRadius: 12,
     paddingVertical: 14,
     alignItems: "center",
+    borderWidth: 1,
+    borderColor: CARD_BORDER,
   },
-  recapButtonText: {
-    fontSize: 15,
+  recapBtnLabel: {
+    fontSize: 14,
     fontWeight: "600",
-    color: "#f59e0b",
+    color: AMBER,
+    letterSpacing: -0.2,
   },
-  // Personal records
-  recordsGrid: {
+
+  // Records
+  recordGrid: {
     flexDirection: "row",
     flexWrap: "wrap",
     gap: 10,
   },
-  recordCard: {
-    width: "47%",
-    backgroundColor: "#111827",
+  recordCell: {
+    width: "47%" as any,
+    backgroundColor: CARD_BG,
     borderRadius: 10,
-    padding: 14,
+    paddingVertical: 14,
+    paddingHorizontal: 12,
     alignItems: "center",
+    borderWidth: 1,
+    borderColor: CARD_BORDER,
   },
   recordValue: {
-    fontSize: 20,
-    fontWeight: "700",
-    color: "#fff",
+    fontSize: 18,
+    fontWeight: "600",
+    color: TEXT_1,
     marginBottom: 2,
   },
   recordLabel: {
-    fontSize: 12,
-    color: "#9ca3af",
+    fontSize: 11,
+    color: TEXT_3,
+    letterSpacing: 0.2,
   },
+
   // Vehicle picker
   vehiclePicker: {
-    backgroundColor: "#111827",
+    backgroundColor: CARD_BG,
     borderRadius: 12,
     padding: 16,
-    marginBottom: 24,
-  },
-  vehiclePickerLabel: {
-    fontSize: 12,
-    color: "#9ca3af",
-    marginBottom: 6,
-    textTransform: "uppercase",
-    letterSpacing: 0.5,
-  },
-  vehiclePickerRow: {
+    marginBottom: 20,
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
+    borderWidth: 1,
+    borderColor: CARD_BORDER,
   },
-  vehiclePickerValue: {
-    fontSize: 17,
-    fontWeight: "600",
-    color: "#fff",
+  vehiclePickerLabel: {
+    fontSize: 11,
+    color: TEXT_3,
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+    marginBottom: 3,
+  },
+  vehiclePickerVal: {
+    fontSize: 16,
+    fontWeight: "500",
+    color: TEXT_1,
   },
   chevron: {
-    fontSize: 22,
-    color: "#6b7280",
+    fontSize: 24,
+    color: TEXT_3,
+    fontWeight: "300",
   },
+
   // Start button
-  startButton: {
-    backgroundColor: "#f59e0b",
+  startBtn: {
+    backgroundColor: AMBER,
     borderRadius: 14,
     paddingVertical: 18,
     alignItems: "center",
+    ...Platform.select({
+      ios: {
+        shadowColor: AMBER,
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.25,
+        shadowRadius: 12,
+      },
+      android: { elevation: 6 },
+    }),
   },
-  startButtonText: {
-    fontSize: 18,
+  startBtnText: {
+    fontSize: 17,
     fontWeight: "700",
     color: "#030712",
+    letterSpacing: 0.3,
   },
+
   // Active shift
-  timerContainer: {
+  timerWrap: {
     alignItems: "center",
-    marginBottom: 24,
-    paddingVertical: 20,
+    marginBottom: 28,
+    paddingVertical: 24,
   },
-  activeBadge: {
-    backgroundColor: "rgba(245, 158, 11, 0.15)",
-    borderRadius: 6,
-    paddingHorizontal: 12,
-    paddingVertical: 4,
-    marginBottom: 16,
+  liveIndicator: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginBottom: 20,
   },
-  activeBadgeText: {
-    fontSize: 12,
+  liveDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 3.5,
+    backgroundColor: "#34c759",
+  },
+  liveText: {
+    fontSize: 11,
     fontWeight: "700",
-    color: "#f59e0b",
-    letterSpacing: 1,
+    color: "#34c759",
+    letterSpacing: 1.5,
   },
   timer: {
-    fontSize: 56,
-    fontWeight: "200",
-    color: "#fff",
+    fontSize: 60,
+    fontWeight: "100",
+    color: TEXT_1,
     fontVariant: ["tabular-nums"],
-    letterSpacing: 2,
+    letterSpacing: 4,
   },
-  vehicleLabel: {
-    fontSize: 15,
-    color: "#9ca3af",
+  timerSub: {
+    fontSize: 14,
+    color: TEXT_2,
     marginTop: 8,
   },
-  // End button
-  endButton: {
-    backgroundColor: "#ef4444",
+  endBtn: {
+    backgroundColor: "#dc2626",
     borderRadius: 14,
     paddingVertical: 18,
     alignItems: "center",
   },
-  endButtonText: {
-    fontSize: 18,
+  endBtnText: {
+    fontSize: 17,
     fontWeight: "700",
     color: "#fff",
+    letterSpacing: 0.3,
   },
+
   // Modal
   modalOverlay: {
     flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.7)",
-    justifyContent: "center",
-    padding: 20,
+    backgroundColor: "rgba(0,0,0,0.65)",
+    justifyContent: "flex-end",
   },
-  modalContent: {
-    backgroundColor: "#111827",
-    borderRadius: 16,
-    padding: 24,
+  modalSheet: {
+    backgroundColor: "#0c1425",
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    paddingHorizontal: 24,
+    paddingBottom: 36,
+    paddingTop: 12,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.06)",
+    borderBottomWidth: 0,
+  },
+  modalHandle: {
+    width: 36,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: "rgba(255,255,255,0.15)",
+    alignSelf: "center",
+    marginBottom: 20,
   },
   modalTitle: {
     fontSize: 22,
-    fontWeight: "700",
-    color: "#fff",
+    fontWeight: "300",
+    color: TEXT_1,
     textAlign: "center",
     marginBottom: 20,
+    letterSpacing: -0.3,
   },
-  modalButton: {
-    backgroundColor: "#f59e0b",
+  modalPrimaryBtn: {
+    backgroundColor: AMBER,
     borderRadius: 12,
-    paddingVertical: 14,
+    paddingVertical: 15,
     alignItems: "center",
-    marginTop: 16,
   },
-  modalButtonText: {
+  modalPrimaryBtnText: {
     fontSize: 16,
     fontWeight: "700",
     color: "#030712",
   },
+
   // Scorecard
-  scorecardRow: {
+  scorecardGrid: {
     flexDirection: "row",
     justifyContent: "space-around",
     marginBottom: 16,
   },
-  scorecardStat: {
-    alignItems: "center",
-  },
-  scorecardValue: {
+  scorecardCell: { alignItems: "center" },
+  scorecardCellCenter: {},
+  scorecardNum: {
     fontSize: 20,
-    fontWeight: "700",
-    color: "#fff",
-    marginBottom: 2,
+    fontWeight: "600",
+    color: TEXT_1,
   },
-  scorecardLabel: {
-    fontSize: 12,
-    color: "#9ca3af",
+  scorecardNumLarge: {
+    fontSize: 28,
+    fontWeight: "300",
+    color: AMBER,
+  },
+  scorecardUnit: {
+    fontSize: 11,
+    color: TEXT_2,
+    marginTop: 2,
+    letterSpacing: 0.3,
   },
   scorecardDuration: {
-    fontSize: 16,
-    color: "#6b7280",
+    fontSize: 14,
+    color: TEXT_3,
     textAlign: "center",
-    marginBottom: 12,
+    marginBottom: 14,
   },
-  personalBestBadge: {
-    backgroundColor: "rgba(245, 158, 11, 0.15)",
+  pbBadge: {
+    backgroundColor: "rgba(245, 166, 35, 0.1)",
     borderRadius: 8,
     paddingVertical: 8,
     paddingHorizontal: 14,
     alignSelf: "center",
-    marginBottom: 12,
+    marginBottom: 14,
+    borderWidth: 1,
+    borderColor: "rgba(245, 166, 35, 0.2)",
   },
-  personalBestText: {
-    fontSize: 14,
+  pbText: { fontSize: 13, fontWeight: "600", color: AMBER },
+  unlockSection: { marginTop: 8, marginBottom: 16 },
+  unlockTitle: {
+    fontSize: 13,
     fontWeight: "600",
-    color: "#f59e0b",
+    color: TEXT_2,
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+    marginBottom: 10,
   },
-  newAchievements: {
-    marginTop: 8,
-    marginBottom: 4,
-  },
-  newAchievementsTitle: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: "#fff",
-    marginBottom: 8,
-  },
-  achievementUnlock: {
+  unlockRow: {
     flexDirection: "row",
     alignItems: "center",
     gap: 10,
     marginBottom: 8,
   },
-  achievementEmoji: {
-    fontSize: 24,
-  },
-  achievementLabel: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: "#fff",
-  },
-  achievementDesc: {
-    fontSize: 12,
-    color: "#9ca3af",
-  },
+  unlockEmoji: { fontSize: 24 },
+  unlockLabel: { fontSize: 14, fontWeight: "600", color: TEXT_1 },
+  unlockDesc: { fontSize: 12, color: TEXT_2 },
+
   // Recap modal
-  recapLabel: {
-    fontSize: 14,
-    color: "#9ca3af",
+  recapSubtitle: {
+    fontSize: 13,
+    color: TEXT_2,
     textAlign: "center",
-    marginBottom: 16,
+    marginBottom: 20,
   },
   recapDetail: {
-    fontSize: 14,
-    color: "#9ca3af",
+    fontSize: 13,
+    color: TEXT_2,
     textAlign: "center",
-    marginBottom: 4,
+    marginBottom: 6,
   },
-  recapButtons: {
-    gap: 8,
-  },
-  shareButton: {
-    backgroundColor: "#1d4ed8",
+  recapBtnRow: { gap: 10, marginTop: 8 },
+  shareBtn: {
+    backgroundColor: "rgba(255,255,255,0.06)",
     borderRadius: 12,
-    paddingVertical: 14,
+    paddingVertical: 15,
     alignItems: "center",
-    marginTop: 16,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.08)",
   },
-  shareButtonText: {
+  shareBtnText: {
     fontSize: 16,
-    fontWeight: "700",
-    color: "#fff",
+    fontWeight: "600",
+    color: TEXT_1,
   },
 });

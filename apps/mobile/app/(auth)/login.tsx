@@ -13,12 +13,20 @@ import {
 import { Link } from "expo-router";
 import { useAuth } from "../../lib/auth/context";
 
+const AMBER = "#f5a623";
+const CARD_BG = "#0a1120";
+const BORDER = "rgba(255,255,255,0.06)";
+const TEXT_1 = "#f0f2f5";
+const TEXT_2 = "#8494a7";
+const TEXT_3 = "#4a5568";
+
 export default function LoginScreen() {
   const { login } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [focusedField, setFocusedField] = useState<string | null>(null);
 
   const handleLogin = async () => {
     setError("");
@@ -43,64 +51,84 @@ export default function LoginScreen() {
 
   return (
     <KeyboardAvoidingView
-      style={styles.container}
+      style={s.container}
       behavior={Platform.OS === "ios" ? "padding" : "height"}
     >
       <ScrollView
-        contentContainerStyle={styles.scrollContent}
+        contentContainerStyle={s.scrollContent}
         keyboardShouldPersistTaps="handled"
       >
-        <View style={styles.header}>
-          <Text style={styles.brand}>MileClear</Text>
-          <Text style={styles.subtitle}>Track your miles, maximise your tax relief</Text>
+        {/* Brand */}
+        <View style={s.brandWrap}>
+          <Text style={s.brandName}>MileClear</Text>
+          <View style={s.brandRule} />
+          <Text style={s.brandTagline}>
+            Track miles. Save tax.
+          </Text>
         </View>
 
-        <View style={styles.card}>
-          <Text style={styles.title}>Sign in</Text>
+        {/* Form card */}
+        <View style={s.card}>
+          <Text style={s.title}>Sign in</Text>
 
-          {error ? <Text style={styles.error}>{error}</Text> : null}
+          {error ? (
+            <View style={s.errorWrap}>
+              <Text style={s.errorText}>{error}</Text>
+            </View>
+          ) : null}
 
-          <Text style={styles.label}>Email</Text>
+          <Text style={s.label}>Email</Text>
           <TextInput
-            style={styles.input}
+            style={[
+              s.input,
+              focusedField === "email" && s.inputFocused,
+            ]}
             value={email}
             onChangeText={setEmail}
+            onFocus={() => setFocusedField("email")}
+            onBlur={() => setFocusedField(null)}
             placeholder="you@example.com"
-            placeholderTextColor="#6b7280"
+            placeholderTextColor={TEXT_3}
             keyboardType="email-address"
             autoCapitalize="none"
             autoCorrect={false}
             editable={!loading}
           />
 
-          <Text style={styles.label}>Password</Text>
+          <Text style={s.label}>Password</Text>
           <TextInput
-            style={styles.input}
+            style={[
+              s.input,
+              focusedField === "password" && s.inputFocused,
+            ]}
             value={password}
             onChangeText={setPassword}
+            onFocus={() => setFocusedField("password")}
+            onBlur={() => setFocusedField(null)}
             placeholder="Enter your password"
-            placeholderTextColor="#6b7280"
+            placeholderTextColor={TEXT_3}
             secureTextEntry
             editable={!loading}
           />
 
           <TouchableOpacity
-            style={[styles.button, loading && styles.buttonDisabled]}
+            style={[s.button, loading && s.buttonDisabled]}
             onPress={handleLogin}
             disabled={loading}
+            activeOpacity={0.8}
           >
             {loading ? (
               <ActivityIndicator color="#030712" />
             ) : (
-              <Text style={styles.buttonText}>Sign in</Text>
+              <Text style={s.buttonText}>Sign in</Text>
             )}
           </TouchableOpacity>
 
-          <View style={styles.footer}>
-            <Text style={styles.footerText}>Don't have an account? </Text>
+          <View style={s.footer}>
+            <Text style={s.footerText}>Don't have an account? </Text>
             <Link href="/(auth)/register" asChild>
               <TouchableOpacity>
-                <Text style={styles.link}>Create one</Text>
+                <Text style={s.link}>Create one</Text>
               </TouchableOpacity>
             </Link>
           </View>
@@ -110,7 +138,7 @@ export default function LoginScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const s = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: "#030712",
@@ -120,53 +148,82 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     padding: 24,
   },
-  header: {
+  // Brand
+  brandWrap: {
     alignItems: "center",
-    marginBottom: 32,
+    marginBottom: 40,
   },
-  brand: {
-    fontSize: 32,
-    fontWeight: "700",
-    color: "#f59e0b",
+  brandName: {
+    fontSize: 28,
+    fontWeight: "200",
+    color: AMBER,
+    letterSpacing: 4,
+    textTransform: "uppercase",
   },
-  subtitle: {
+  brandRule: {
+    width: 32,
+    height: 1,
+    backgroundColor: "rgba(245, 166, 35, 0.3)",
+    marginVertical: 12,
+  },
+  brandTagline: {
     fontSize: 14,
-    color: "#9ca3af",
-    marginTop: 4,
+    color: TEXT_2,
+    fontWeight: "300",
+    letterSpacing: 0.5,
   },
+  // Card
   card: {
-    backgroundColor: "#111827",
+    backgroundColor: CARD_BG,
     borderRadius: 16,
     padding: 24,
+    borderWidth: 1,
+    borderColor: BORDER,
   },
   title: {
-    fontSize: 22,
-    fontWeight: "600",
-    color: "#f9fafb",
-    marginBottom: 20,
+    fontSize: 20,
+    fontWeight: "300",
+    color: TEXT_1,
+    marginBottom: 24,
+    letterSpacing: -0.3,
   },
   label: {
-    fontSize: 14,
-    color: "#d1d5db",
+    fontSize: 12,
+    color: TEXT_2,
     marginBottom: 6,
+    letterSpacing: 0.3,
+    textTransform: "uppercase",
+    fontWeight: "600",
   },
   input: {
-    backgroundColor: "#030712",
+    backgroundColor: "rgba(255,255,255,0.03)",
     borderWidth: 1,
-    borderColor: "#1f2937",
+    borderColor: BORDER,
     borderRadius: 10,
     paddingHorizontal: 14,
-    paddingVertical: 12,
+    paddingVertical: 14,
     fontSize: 16,
-    color: "#f9fafb",
-    marginBottom: 16,
+    color: TEXT_1,
+    marginBottom: 18,
+  },
+  inputFocused: {
+    borderColor: "rgba(245, 166, 35, 0.35)",
   },
   button: {
-    backgroundColor: "#f59e0b",
-    borderRadius: 10,
-    paddingVertical: 14,
+    backgroundColor: AMBER,
+    borderRadius: 12,
+    paddingVertical: 16,
     alignItems: "center",
     marginTop: 4,
+    ...Platform.select({
+      ios: {
+        shadowColor: AMBER,
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.2,
+        shadowRadius: 10,
+      },
+      android: { elevation: 4 },
+    }),
   },
   buttonDisabled: {
     opacity: 0.6,
@@ -174,25 +231,33 @@ const styles = StyleSheet.create({
   buttonText: {
     color: "#030712",
     fontSize: 16,
-    fontWeight: "600",
+    fontWeight: "700",
+    letterSpacing: 0.3,
   },
-  error: {
-    color: "#ef4444",
-    fontSize: 14,
-    marginBottom: 12,
+  errorWrap: {
+    backgroundColor: "rgba(220, 38, 38, 0.1)",
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: "rgba(220, 38, 38, 0.2)",
+  },
+  errorText: {
+    color: "#f87171",
+    fontSize: 13,
     textAlign: "center",
   },
   footer: {
     flexDirection: "row",
     justifyContent: "center",
-    marginTop: 20,
+    marginTop: 24,
   },
   footerText: {
-    color: "#9ca3af",
+    color: TEXT_2,
     fontSize: 14,
   },
   link: {
-    color: "#f59e0b",
+    color: AMBER,
     fontSize: 14,
     fontWeight: "600",
   },

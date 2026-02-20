@@ -5,9 +5,9 @@ import {
   StyleSheet,
   ScrollView,
   ActivityIndicator,
-  TouchableOpacity,
+  Platform,
 } from "react-native";
-import { Stack, useRouter } from "expo-router";
+import { Stack } from "expo-router";
 import { fetchAchievements, fetchGamificationStats } from "../lib/api/gamification";
 import {
   ACHIEVEMENT_TYPES,
@@ -16,8 +16,14 @@ import {
 } from "@mileclear/shared";
 import type { AchievementWithMeta, GamificationStats } from "@mileclear/shared";
 
+const AMBER = "#f5a623";
+const CARD_BG = "#0a1120";
+const BORDER = "rgba(255,255,255,0.05)";
+const TEXT_1 = "#f0f2f5";
+const TEXT_2 = "#8494a7";
+const TEXT_3 = "#4a5568";
+
 export default function AchievementsScreen() {
-  const router = useRouter();
   const [earned, setEarned] = useState<AchievementWithMeta[]>([]);
   const [stats, setStats] = useState<GamificationStats | null>(null);
   const [loading, setLoading] = useState(true);
@@ -30,9 +36,8 @@ export default function AchievementsScreen() {
       ]);
       setEarned(achRes.data);
       setStats(statsRes.data);
-    } catch {
-      // silently fail
-    } finally {
+    } catch {}
+    finally {
       setLoading(false);
     }
   }, []);
@@ -43,16 +48,17 @@ export default function AchievementsScreen() {
 
   if (loading) {
     return (
-      <View style={[styles.container, styles.centered]}>
+      <View style={[s.container, s.centered]}>
         <Stack.Screen
           options={{
             headerShown: true,
             title: "Achievements",
             headerStyle: { backgroundColor: "#030712" },
             headerTintColor: "#fff",
+            headerTitleStyle: { fontWeight: "300" },
           }}
         />
-        <ActivityIndicator size="large" color="#f59e0b" />
+        <ActivityIndicator size="large" color={AMBER} />
       </View>
     );
   }
@@ -60,53 +66,67 @@ export default function AchievementsScreen() {
   const earnedTypes = new Set(earned.map((a) => a.type));
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+    <ScrollView style={s.container} contentContainerStyle={s.content}>
       <Stack.Screen
         options={{
           headerShown: true,
           title: "Achievements",
           headerStyle: { backgroundColor: "#030712" },
           headerTintColor: "#fff",
+          headerTitleStyle: { fontWeight: "300" },
         }}
       />
 
-      <Text style={styles.subtitle}>
-        {earned.length} of {ACHIEVEMENT_TYPES.length} unlocked
-      </Text>
+      {/* Progress bar */}
+      <View style={s.progressWrap}>
+        <View style={s.progressTrack}>
+          <View
+            style={[
+              s.progressFill,
+              { width: `${(earned.length / ACHIEVEMENT_TYPES.length) * 100}%` },
+            ]}
+          />
+        </View>
+        <Text style={s.progressText}>
+          {earned.length} of {ACHIEVEMENT_TYPES.length} unlocked
+        </Text>
+      </View>
 
-      {/* Badges grid */}
-      <View style={styles.grid}>
+      {/* Badge grid */}
+      <View style={s.grid}>
         {ACHIEVEMENT_TYPES.map((type) => {
           const meta = ACHIEVEMENT_META[type];
           const isEarned = earnedTypes.has(type);
-          const achievement = earned.find((a) => a.type === type);
+          const ach = earned.find((a) => a.type === type);
 
           return (
             <View
               key={type}
-              style={[styles.badgeCard, !isEarned && styles.badgeLocked]}
+              style={[
+                s.badgeCard,
+                isEarned && s.badgeEarned,
+              ]}
             >
-              <Text style={[styles.badgeEmoji, !isEarned && styles.emojiLocked]}>
+              <Text style={[s.badgeEmoji, !isEarned && s.emojiLocked]}>
                 {meta.emoji}
               </Text>
               <Text
-                style={[styles.badgeLabel, !isEarned && styles.labelLocked]}
+                style={[s.badgeLabel, !isEarned && s.textLocked]}
                 numberOfLines={1}
               >
                 {meta.label}
               </Text>
               <Text
-                style={[styles.badgeDesc, !isEarned && styles.descLocked]}
+                style={[s.badgeDesc, !isEarned && s.textLockedSoft]}
                 numberOfLines={2}
               >
                 {meta.description}
               </Text>
-              {isEarned && achievement && (
-                <Text style={styles.badgeDate}>
-                  {new Date(achievement.achievedAt).toLocaleDateString("en-GB", {
+              {isEarned && ach && (
+                <Text style={s.badgeDate}>
+                  {new Date(ach.achievedAt).toLocaleDateString("en-GB", {
                     day: "numeric",
                     month: "short",
-                    year: "numeric",
                   })}
                 </Text>
               )}
@@ -117,41 +137,30 @@ export default function AchievementsScreen() {
 
       {/* Personal Records */}
       {stats && (
-        <View style={styles.recordsSection}>
-          <Text style={styles.sectionTitle}>Personal Records</Text>
-          <View style={styles.recordsGrid}>
-            <View style={styles.recordCard}>
-              <Text style={styles.recordValue}>
-                {stats.personalRecords.mostMilesInDay.toFixed(1)} mi
-              </Text>
-              <Text style={styles.recordLabel}>Best Day</Text>
-            </View>
-            <View style={styles.recordCard}>
-              <Text style={styles.recordValue}>
-                {stats.personalRecords.mostTripsInShift}
-              </Text>
-              <Text style={styles.recordLabel}>Most Trips/Shift</Text>
-            </View>
-            <View style={styles.recordCard}>
-              <Text style={styles.recordValue}>
-                {stats.personalRecords.longestSingleTrip.toFixed(1)} mi
-              </Text>
-              <Text style={styles.recordLabel}>Longest Trip</Text>
-            </View>
-            <View style={styles.recordCard}>
-              <Text style={styles.recordValue}>
-                {stats.personalRecords.longestStreakDays}d
-              </Text>
-              <Text style={styles.recordLabel}>Best Streak</Text>
-            </View>
+        <View style={s.recordsSection}>
+          <Text style={s.sectionTitle}>Personal Records</Text>
+          <View style={s.recordGrid}>
+            {[
+              { v: `${stats.personalRecords.mostMilesInDay.toFixed(1)} mi`, l: "Best day" },
+              { v: `${stats.personalRecords.mostTripsInShift}`, l: "Trips / shift" },
+              { v: `${stats.personalRecords.longestSingleTrip.toFixed(1)} mi`, l: "Longest trip" },
+              { v: `${stats.personalRecords.longestStreakDays}d`, l: "Best streak" },
+            ].map((r) => (
+              <View key={r.l} style={s.recordCell}>
+                <Text style={s.recordValue}>{r.v}</Text>
+                <Text style={s.recordLabel}>{r.l}</Text>
+              </View>
+            ))}
           </View>
         </View>
       )}
+
+      <View style={{ height: 32 }} />
     </ScrollView>
   );
 }
 
-const styles = StyleSheet.create({
+const s = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: "#030712",
@@ -161,89 +170,121 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   content: {
-    padding: 16,
-    paddingBottom: 32,
+    padding: 20,
   },
-  subtitle: {
-    fontSize: 14,
-    color: "#9ca3af",
-    marginBottom: 20,
+
+  // Progress
+  progressWrap: {
+    marginBottom: 24,
   },
+  progressTrack: {
+    height: 3,
+    backgroundColor: "rgba(255,255,255,0.06)",
+    borderRadius: 1.5,
+    overflow: "hidden",
+    marginBottom: 8,
+  },
+  progressFill: {
+    height: 3,
+    backgroundColor: AMBER,
+    borderRadius: 1.5,
+  },
+  progressText: {
+    fontSize: 12,
+    color: TEXT_2,
+    letterSpacing: 0.3,
+  },
+
+  // Grid
   grid: {
     flexDirection: "row",
     flexWrap: "wrap",
-    gap: 10,
+    gap: 8,
   },
   badgeCard: {
-    width: "31%",
-    backgroundColor: "#111827",
+    width: "31%" as any,
+    backgroundColor: CARD_BG,
     borderRadius: 12,
     padding: 12,
     alignItems: "center",
     minHeight: 120,
+    borderWidth: 1,
+    borderColor: BORDER,
+    opacity: 0.35,
   },
-  badgeLocked: {
-    opacity: 0.4,
+  badgeEarned: {
+    opacity: 1,
+    borderColor: "rgba(245, 166, 35, 0.12)",
   },
   badgeEmoji: {
-    fontSize: 32,
+    fontSize: 30,
     marginBottom: 6,
   },
   emojiLocked: {
     opacity: 0.5,
   },
   badgeLabel: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: "600",
-    color: "#fff",
+    color: TEXT_1,
     textAlign: "center",
     marginBottom: 2,
+    letterSpacing: -0.2,
   },
-  labelLocked: {
-    color: "#6b7280",
+  textLocked: {
+    color: TEXT_3,
   },
   badgeDesc: {
-    fontSize: 10,
-    color: "#9ca3af",
+    fontSize: 9,
+    color: TEXT_2,
     textAlign: "center",
+    lineHeight: 12,
   },
-  descLocked: {
-    color: "#4b5563",
+  textLockedSoft: {
+    color: "#374151",
   },
   badgeDate: {
     fontSize: 9,
-    color: "#f59e0b",
+    color: AMBER,
     marginTop: 4,
+    fontWeight: "500",
   },
+
+  // Records
   recordsSection: {
-    marginTop: 28,
+    marginTop: 32,
   },
   sectionTitle: {
-    fontSize: 18,
-    fontWeight: "700",
-    color: "#fff",
+    fontSize: 15,
+    fontWeight: "600",
+    color: TEXT_1,
     marginBottom: 12,
+    letterSpacing: -0.2,
   },
-  recordsGrid: {
+  recordGrid: {
     flexDirection: "row",
     flexWrap: "wrap",
     gap: 10,
   },
-  recordCard: {
-    width: "47%",
-    backgroundColor: "#111827",
+  recordCell: {
+    width: "47%" as any,
+    backgroundColor: CARD_BG,
     borderRadius: 10,
-    padding: 14,
+    paddingVertical: 14,
+    paddingHorizontal: 12,
     alignItems: "center",
+    borderWidth: 1,
+    borderColor: BORDER,
   },
   recordValue: {
     fontSize: 20,
-    fontWeight: "700",
-    color: "#fff",
+    fontWeight: "600",
+    color: TEXT_1,
     marginBottom: 2,
   },
   recordLabel: {
-    fontSize: 12,
-    color: "#9ca3af",
+    fontSize: 11,
+    color: TEXT_3,
+    letterSpacing: 0.2,
   },
 });
