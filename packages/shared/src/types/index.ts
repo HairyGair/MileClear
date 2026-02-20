@@ -212,6 +212,15 @@ export interface WaitlistEntry {
   signedUpAt: string;
 }
 
+// Billing types
+export interface BillingStatus {
+  isPremium: boolean;
+  premiumExpiresAt: string | null;
+  subscriptionStatus: "active" | "canceled" | "past_due" | "none";
+  cancelAtPeriodEnd: boolean;
+  currentPeriodEnd: string | null;
+}
+
 // Gamification types
 export interface PersonalRecords {
   mostMilesInDay: number;

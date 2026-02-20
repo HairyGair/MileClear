@@ -8,9 +8,12 @@ import {
   ActivityIndicator,
   StyleSheet,
 } from "react-native";
-import { Stack } from "expo-router";
+import { Stack, useFocusEffect } from "expo-router";
+import * as WebBrowser from "expo-web-browser";
 import { getTaxYear } from "@mileclear/shared";
 import { downloadAndShareExport } from "../lib/api/exports";
+import { fetchProfile } from "../lib/api/user";
+import { createCheckoutSession } from "../lib/api/billing";
 
 function generateTaxYears(count: number): string[] {
   const current = getTaxYear(new Date());
@@ -27,6 +30,33 @@ export default function ExportsScreen() {
   const taxYears = generateTaxYears(4);
   const [selectedYear, setSelectedYear] = useState(taxYears[0]);
   const [loadingKey, setLoadingKey] = useState<LoadingKey>(null);
+  const [isPremium, setIsPremium] = useState<boolean | null>(null);
+
+  useFocusEffect(
+    useCallback(() => {
+      fetchProfile()
+        .then((res) => setIsPremium(res.data.isPremium))
+        .catch(() => setIsPremium(false));
+    }, [])
+  );
+
+  const handleUpgrade = useCallback(async () => {
+    try {
+      const res = await createCheckoutSession();
+      if (res.data.url) {
+        await WebBrowser.openBrowserAsync(res.data.url);
+        // Refresh premium status after returning
+        fetchProfile()
+          .then((r) => setIsPremium(r.data.isPremium))
+          .catch(() => {});
+      }
+    } catch (err: unknown) {
+      Alert.alert(
+        "Upgrade failed",
+        err instanceof Error ? err.message : "Could not start checkout"
+      );
+    }
+  }, []);
 
   const pickTaxYear = useCallback(() => {
     Alert.alert(
@@ -65,6 +95,20 @@ export default function ExportsScreen() {
       } catch (err: unknown) {
         const msg =
           err instanceof Error ? err.message : "Download failed";
+        if (msg === "Premium subscription required") {
+          Alert.alert(
+            "Pro Feature",
+            "Tax exports require MileClear Pro (£4.99/mo).",
+            [
+              { text: "Not now", style: "cancel" },
+              {
+                text: "Upgrade — £4.99/mo",
+                onPress: handleUpgrade,
+              },
+            ]
+          );
+          return;
+        }
         Alert.alert("Export failed", msg);
       } finally {
         setLoadingKey(null);
@@ -77,6 +121,20 @@ export default function ExportsScreen() {
     <View style={styles.container}>
       <Stack.Screen options={{ title: "Tax Exports" }} />
       <ScrollView contentContainerStyle={styles.content}>
+        {isPremium === false && (
+          <TouchableOpacity
+            style={styles.paywallBanner}
+            onPress={handleUpgrade}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.paywallTitle}>Pro Feature</Text>
+            <Text style={styles.paywallText}>
+              Tax exports require MileClear Pro. Upgrade for £4.99/mo to download HMRC-ready reports.
+            </Text>
+            <Text style={styles.paywallCta}>Upgrade Now</Text>
+          </TouchableOpacity>
+        )}
+
         <Text style={styles.subtitle}>
           Download your mileage data for HMRC self-assessment.
         </Text>
@@ -250,5 +308,30 @@ const styles = StyleSheet.create({
     paddingVertical: 2,
     borderRadius: 4,
     overflow: "hidden",
+  },
+  paywallBanner: {
+    backgroundColor: "#111827",
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: "#f59e0b",
+  },
+  paywallTitle: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#f59e0b",
+    marginBottom: 4,
+  },
+  paywallText: {
+    fontSize: 13,
+    color: "#9ca3af",
+    lineHeight: 20,
+    marginBottom: 10,
+  },
+  paywallCta: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#f59e0b",
   },
 });

@@ -13,10 +13,16 @@ import {
   Share,
 } from "react-native";
 import { useRouter, useFocusEffect } from "expo-router";
+import * as WebBrowser from "expo-web-browser";
 import { useAuth } from "../../lib/auth/context";
 import { fetchVehicles } from "../../lib/api/vehicles";
 import { fetchProfile, exportUserData, deleteAccount } from "../../lib/api/user";
-import type { Vehicle, User } from "@mileclear/shared";
+import {
+  fetchBillingStatus,
+  createCheckoutSession,
+  cancelSubscription,
+} from "../../lib/api/billing";
+import type { Vehicle, User, BillingStatus } from "@mileclear/shared";
 
 const VEHICLE_TYPE_LABELS: Record<string, string> = {
   car: "Car",
@@ -44,18 +50,21 @@ export default function ProfileScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [loading, setLoading] = useState(true);
   const [exporting, setExporting] = useState(false);
+  const [billing, setBilling] = useState<BillingStatus | null>(null);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deletePassword, setDeletePassword] = useState("");
   const [deletingAccount, setDeletingAccount] = useState(false);
 
   const loadData = useCallback(async () => {
     try {
-      const [profileRes, vehiclesRes] = await Promise.all([
+      const [profileRes, vehiclesRes, billingRes] = await Promise.all([
         fetchProfile(),
         fetchVehicles(),
+        fetchBillingStatus().catch(() => null),
       ]);
       setUser(profileRes.data);
       setVehicles(vehiclesRes.data);
+      if (billingRes) setBilling(billingRes.data);
     } catch {
       // Silently fail — will show empty state
     } finally {
@@ -101,6 +110,47 @@ export default function ProfileScreen() {
       setExporting(false);
     }
   }, []);
+
+  const handleUpgrade = useCallback(async () => {
+    try {
+      const res = await createCheckoutSession();
+      if (res.data.url) {
+        await WebBrowser.openBrowserAsync(res.data.url);
+        // Refresh billing status after returning from browser
+        loadData();
+      }
+    } catch (err: unknown) {
+      Alert.alert(
+        "Upgrade failed",
+        err instanceof Error ? err.message : "Could not start checkout"
+      );
+    }
+  }, [loadData]);
+
+  const handleCancelSubscription = useCallback(() => {
+    Alert.alert(
+      "Cancel Subscription",
+      "You'll keep Pro features until the end of your billing period. Are you sure?",
+      [
+        { text: "Keep Pro", style: "cancel" },
+        {
+          text: "Cancel Subscription",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              await cancelSubscription();
+              loadData();
+            } catch (err: unknown) {
+              Alert.alert(
+                "Error",
+                err instanceof Error ? err.message : "Could not cancel subscription"
+              );
+            }
+          },
+        },
+      ]
+    );
+  }, [loadData]);
 
   const handleDeleteAccount = useCallback(() => {
     if (Platform.OS === "ios") {
@@ -245,6 +295,60 @@ export default function ProfileScreen() {
               </View>
               <Text style={styles.chevron}>›</Text>
             </TouchableOpacity>
+
+            {/* Subscription Section */}
+            <Text style={[styles.sectionTitle, { marginTop: 28 }]}>Subscription</Text>
+            {!user?.isPremium ? (
+              <TouchableOpacity
+                style={styles.upgradeCard}
+                onPress={handleUpgrade}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.upgradeTitle}>Upgrade to Pro</Text>
+                <Text style={styles.upgradePrice}>£4.99/mo</Text>
+                <Text style={styles.upgradeFeatures}>
+                  HMRC tax exports  •  Earnings tracking  •  Advanced analytics
+                </Text>
+                <View style={styles.upgradeButton}>
+                  <Text style={styles.upgradeButtonText}>Upgrade Now</Text>
+                </View>
+              </TouchableOpacity>
+            ) : (
+              <View style={styles.subscriptionCard}>
+                <View style={styles.subscriptionHeader}>
+                  <Text style={styles.subscriptionTitle}>MileClear Pro</Text>
+                  <Text style={styles.proBadge}>ACTIVE</Text>
+                </View>
+                {billing?.cancelAtPeriodEnd ? (
+                  <Text style={styles.subscriptionDetail}>
+                    Cancels on{" "}
+                    {billing.currentPeriodEnd
+                      ? new Date(billing.currentPeriodEnd).toLocaleDateString("en-GB", {
+                          day: "numeric",
+                          month: "long",
+                          year: "numeric",
+                        })
+                      : "end of period"}
+                  </Text>
+                ) : (
+                  <>
+                    <Text style={styles.subscriptionDetail}>
+                      Renews{" "}
+                      {billing?.currentPeriodEnd
+                        ? new Date(billing.currentPeriodEnd).toLocaleDateString("en-GB", {
+                            day: "numeric",
+                            month: "long",
+                            year: "numeric",
+                          })
+                        : "—"}
+                    </Text>
+                    <TouchableOpacity onPress={handleCancelSubscription}>
+                      <Text style={styles.cancelLink}>Cancel subscription</Text>
+                    </TouchableOpacity>
+                  </>
+                )}
+              </View>
+            )}
 
             <Text style={[styles.sectionTitle, { marginTop: 28 }]}>My Vehicles</Text>
           </View>
@@ -585,5 +689,69 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: "600",
     color: "#fff",
+  },
+  upgradeCard: {
+    backgroundColor: "#111827",
+    borderRadius: 12,
+    padding: 20,
+    borderWidth: 1,
+    borderColor: "#f59e0b",
+    marginBottom: 10,
+  },
+  upgradeTitle: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: "#fff",
+    marginBottom: 4,
+  },
+  upgradePrice: {
+    fontSize: 15,
+    fontWeight: "600",
+    color: "#f59e0b",
+    marginBottom: 10,
+  },
+  upgradeFeatures: {
+    fontSize: 13,
+    color: "#9ca3af",
+    lineHeight: 20,
+    marginBottom: 16,
+  },
+  upgradeButton: {
+    backgroundColor: "#f59e0b",
+    borderRadius: 10,
+    paddingVertical: 12,
+    alignItems: "center",
+  },
+  upgradeButtonText: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: "#030712",
+  },
+  subscriptionCard: {
+    backgroundColor: "#111827",
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 10,
+  },
+  subscriptionHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginBottom: 8,
+  },
+  subscriptionTitle: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#fff",
+  },
+  subscriptionDetail: {
+    fontSize: 13,
+    color: "#9ca3af",
+    marginBottom: 4,
+  },
+  cancelLink: {
+    fontSize: 13,
+    color: "#ef4444",
+    marginTop: 8,
   },
 });

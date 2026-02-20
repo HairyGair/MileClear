@@ -16,10 +16,12 @@ model User {
   emailVerified    Boolean   @default(false)
   appleId          String?   @unique
   googleId         String?   @unique
-  isPremium        Boolean   @default(false)
-  premiumExpiresAt DateTime?
-  createdAt        DateTime  @default(now())
-  updatedAt        DateTime  @updatedAt
+  isPremium            Boolean   @default(false)
+  premiumExpiresAt     DateTime?
+  stripeCustomerId     String?   @unique @db.VarChar(255)
+  stripeSubscriptionId String?   @unique @db.VarChar(255)
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
 
   vehicles            Vehicle[]
   shifts              Shift[]

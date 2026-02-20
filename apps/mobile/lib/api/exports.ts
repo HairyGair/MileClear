@@ -2,7 +2,7 @@ import * as FileSystem from "expo-file-system/legacy";
 import * as Sharing from "expo-sharing";
 import * as SecureStore from "expo-secure-store";
 
-const API_URL = process.env.EXPO_PUBLIC_API_URL || "http://localhost:3001";
+const API_URL = process.env.EXPO_PUBLIC_API_URL || "http://localhost:3002";
 const ACCESS_TOKEN_KEY = "mileclear_access_token";
 
 export async function downloadAndShareExport(
