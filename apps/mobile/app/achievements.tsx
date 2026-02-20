@@ -5,14 +5,11 @@ import {
   StyleSheet,
   ScrollView,
   ActivityIndicator,
-  Platform,
 } from "react-native";
-import { Stack } from "expo-router";
 import { fetchAchievements, fetchGamificationStats } from "../lib/api/gamification";
 import {
   ACHIEVEMENT_TYPES,
   ACHIEVEMENT_META,
-  type AchievementType,
 } from "@mileclear/shared";
 import type { AchievementWithMeta, GamificationStats } from "@mileclear/shared";
 
@@ -49,15 +46,6 @@ export default function AchievementsScreen() {
   if (loading) {
     return (
       <View style={[s.container, s.centered]}>
-        <Stack.Screen
-          options={{
-            headerShown: true,
-            title: "Achievements",
-            headerStyle: { backgroundColor: "#030712" },
-            headerTintColor: "#fff",
-            headerTitleStyle: { fontWeight: "300" },
-          }}
-        />
         <ActivityIndicator size="large" color={AMBER} />
       </View>
     );
@@ -67,16 +55,6 @@ export default function AchievementsScreen() {
 
   return (
     <ScrollView style={s.container} contentContainerStyle={s.content}>
-      <Stack.Screen
-        options={{
-          headerShown: true,
-          title: "Achievements",
-          headerStyle: { backgroundColor: "#030712" },
-          headerTintColor: "#fff",
-          headerTitleStyle: { fontWeight: "300" },
-        }}
-      />
-
       {/* Progress bar */}
       <View style={s.progressWrap}>
         <View style={s.progressTrack}>

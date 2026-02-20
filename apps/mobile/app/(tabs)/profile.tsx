@@ -342,7 +342,6 @@ const styles = StyleSheet.create({
   },
   listContent: {
     padding: 16,
-    paddingTop: 60,
   },
   profileCard: {
     backgroundColor: "#111827",

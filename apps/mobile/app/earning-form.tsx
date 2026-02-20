@@ -124,7 +124,6 @@ export default function EarningFormScreen() {
   if (loadingExisting) {
     return (
       <View style={styles.loadingContainer}>
-        <Stack.Screen options={{ headerShown: false }} />
         <ActivityIndicator size="large" color="#f59e0b" />
       </View>
     );
@@ -136,12 +135,7 @@ export default function EarningFormScreen() {
       behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
       <Stack.Screen
-        options={{
-          title: isEditing ? "Edit Earning" : "Add Earning",
-          headerStyle: { backgroundColor: "#030712" },
-          headerTintColor: "#fff",
-          headerShown: true,
-        }}
+        options={{ title: isEditing ? "Edit Earning" : "Add Earning" }}
       />
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
         {/* Platform */}

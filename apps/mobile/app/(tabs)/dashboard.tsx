@@ -454,6 +454,42 @@ export default function DashboardScreen() {
         </View>
       )}
 
+      {/* Quick Actions */}
+      <View style={s.quickActions}>
+        <TouchableOpacity
+          style={s.quickAction}
+          onPress={() => router.push("/trip-form")}
+          activeOpacity={0.7}
+        >
+          <Text style={s.quickActionIcon}>+</Text>
+          <Text style={s.quickActionLabel}>Add Trip</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={s.quickAction}
+          onPress={() => router.push("/(tabs)/trips" as any)}
+          activeOpacity={0.7}
+        >
+          <Text style={s.quickActionIcon}>{"\u2630"}</Text>
+          <Text style={s.quickActionLabel}>All Trips</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={s.quickAction}
+          onPress={() => router.push("/exports")}
+          activeOpacity={0.7}
+        >
+          <Text style={s.quickActionIcon}>{"\u2193"}</Text>
+          <Text style={s.quickActionLabel}>Exports</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={s.quickAction}
+          onPress={() => router.push("/achievements")}
+          activeOpacity={0.7}
+        >
+          <Text style={s.quickActionIcon}>{"\u2606"}</Text>
+          <Text style={s.quickActionLabel}>Badges</Text>
+        </TouchableOpacity>
+      </View>
+
       {/* Quick Stats */}
       <View style={s.statsRow}>
         <View style={s.statCard}>
@@ -669,6 +705,33 @@ const s = StyleSheet.create({
     borderRadius: 1.5,
     backgroundColor: TEXT_3,
     marginHorizontal: 10,
+  },
+
+  // Quick actions
+  quickActions: {
+    flexDirection: "row",
+    gap: 10,
+    marginBottom: 16,
+  },
+  quickAction: {
+    flex: 1,
+    backgroundColor: CARD_BG,
+    borderRadius: 12,
+    paddingVertical: 12,
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: CARD_BORDER,
+  },
+  quickActionIcon: {
+    fontSize: 18,
+    color: AMBER,
+    marginBottom: 4,
+  },
+  quickActionLabel: {
+    fontSize: 10,
+    color: TEXT_2,
+    fontWeight: "600",
+    letterSpacing: 0.2,
   },
 
   // Stats row

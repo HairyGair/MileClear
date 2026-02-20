@@ -74,7 +74,6 @@ export default function ProfileEditScreen() {
   if (loadingProfile) {
     return (
       <View style={styles.loadingContainer}>
-        <Stack.Screen options={{ headerShown: false }} />
         <ActivityIndicator size="large" color="#f59e0b" />
       </View>
     );
@@ -86,12 +85,7 @@ export default function ProfileEditScreen() {
       behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
       <Stack.Screen
-        options={{
-          title: "Edit Profile",
-          headerStyle: { backgroundColor: "#030712" },
-          headerTintColor: "#fff",
-          headerShown: true,
-        }}
+        options={{ title: "Edit Profile" }}
       />
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
         <Text style={styles.label}>Display Name</Text>

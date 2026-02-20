@@ -75,15 +75,7 @@ export default function ExportsScreen() {
 
   return (
     <View style={styles.container}>
-      <Stack.Screen
-        options={{
-          headerShown: true,
-          title: "Tax Exports",
-          headerStyle: { backgroundColor: "#030712" },
-          headerTintColor: "#fff",
-          headerTitleStyle: { fontWeight: "700" },
-        }}
-      />
+      <Stack.Screen options={{ title: "Tax Exports" }} />
       <ScrollView contentContainerStyle={styles.content}>
         <Text style={styles.subtitle}>
           Download your mileage data for HMRC self-assessment.

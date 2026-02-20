@@ -1,5 +1,5 @@
-import { Tabs } from "expo-router";
-import { View, Text, StyleSheet, Platform } from "react-native";
+import { Tabs, useRouter } from "expo-router";
+import { View, Text, TouchableOpacity, StyleSheet, Platform } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 const TAB_ICONS: Record<string, string> = {
@@ -54,13 +54,50 @@ const tabIconStyles = StyleSheet.create({
   },
 });
 
+function HeaderAddButton({ route }: { route: string }) {
+  const router = useRouter();
+  return (
+    <TouchableOpacity
+      onPress={() => router.push(route as any)}
+      hitSlop={8}
+      style={headerStyles.addBtn}
+    >
+      <Text style={headerStyles.addBtnText}>+</Text>
+    </TouchableOpacity>
+  );
+}
+
+const headerStyles = StyleSheet.create({
+  addBtn: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: "rgba(245,166,35,0.12)",
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: 4,
+  },
+  addBtnText: {
+    fontSize: 20,
+    fontWeight: "400",
+    color: "#f5a623",
+    lineHeight: 22,
+  },
+});
+
+const HEADER_BG = { backgroundColor: "#030712" } as const;
+
 export default function TabLayout() {
   const insets = useSafeAreaInsets();
 
   return (
     <Tabs
       screenOptions={{
-        headerShown: false,
+        headerShown: true,
+        headerStyle: HEADER_BG,
+        headerTintColor: "#f0f2f5",
+        headerTitleStyle: { fontWeight: "300", color: "#f0f2f5" },
+        headerShadowVisible: false,
         tabBarStyle: {
           backgroundColor: "#060d1b",
           borderTopWidth: StyleSheet.hairlineWidth,
@@ -93,6 +130,7 @@ export default function TabLayout() {
       <Tabs.Screen
         name="dashboard"
         options={{
+          headerShown: false,
           title: "Home",
           tabBarIcon: ({ focused }) => (
             <TabIcon name="dashboard" focused={focused} />
@@ -106,6 +144,7 @@ export default function TabLayout() {
           tabBarIcon: ({ focused }) => (
             <TabIcon name="trips" focused={focused} />
           ),
+          headerRight: () => <HeaderAddButton route="/trip-form" />,
         }}
       />
       <Tabs.Screen
@@ -124,6 +163,7 @@ export default function TabLayout() {
           tabBarIcon: ({ focused }) => (
             <TabIcon name="earnings" focused={focused} />
           ),
+          headerRight: () => <HeaderAddButton route="/earning-form" />,
         }}
       />
       <Tabs.Screen

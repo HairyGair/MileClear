@@ -127,7 +127,6 @@ export default function VehicleFormScreen() {
   if (loadingExisting) {
     return (
       <View style={styles.loadingContainer}>
-        <Stack.Screen options={{ headerShown: false }} />
         <ActivityIndicator size="large" color="#f59e0b" />
       </View>
     );
@@ -139,12 +138,7 @@ export default function VehicleFormScreen() {
       behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
       <Stack.Screen
-        options={{
-          title: isEditing ? "Edit Vehicle" : "Add Vehicle",
-          headerStyle: { backgroundColor: "#030712" },
-          headerTintColor: "#fff",
-          headerShown: true,
-        }}
+        options={{ title: isEditing ? "Edit Vehicle" : "Add Vehicle" }}
       />
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
         {/* Make */}

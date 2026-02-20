@@ -181,7 +181,6 @@ export default function TripFormScreen() {
   if (loadingExisting) {
     return (
       <View style={styles.loadingContainer}>
-        <Stack.Screen options={{ headerShown: false }} />
         <ActivityIndicator size="large" color="#f59e0b" />
       </View>
     );
@@ -195,12 +194,7 @@ export default function TripFormScreen() {
       behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
       <Stack.Screen
-        options={{
-          title: isEditing ? "Edit Trip" : "Add Trip",
-          headerStyle: { backgroundColor: "#030712" },
-          headerTintColor: "#fff",
-          headerShown: true,
-        }}
+        options={{ title: isEditing ? "Edit Trip" : "Add Trip" }}
       />
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
         {/* Classification */}

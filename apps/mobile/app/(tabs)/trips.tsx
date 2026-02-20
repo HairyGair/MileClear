@@ -183,7 +183,6 @@ export default function TripsScreen() {
         contentContainerStyle={styles.listContent}
         ListHeaderComponent={
           <View>
-            <Text style={styles.title}>Trips</Text>
             <View style={styles.filterRow}>
               {FILTERS.map((f) => (
                 <TouchableOpacity
@@ -251,13 +250,6 @@ const styles = StyleSheet.create({
   },
   listContent: {
     padding: 16,
-    paddingTop: 60,
-  },
-  title: {
-    fontSize: 22,
-    fontWeight: "700",
-    color: "#fff",
-    marginBottom: 16,
   },
   // Filter chips
   filterRow: {

@@ -147,8 +147,6 @@ export default function EarningsScreen() {
         contentContainerStyle={styles.listContent}
         ListHeaderComponent={
           <View>
-            <Text style={styles.title}>Earnings</Text>
-
             {/* Total summary */}
             <View style={styles.summaryCard}>
               <Text style={styles.summaryLabel}>Total Shown</Text>
@@ -243,13 +241,6 @@ const styles = StyleSheet.create({
   },
   listContent: {
     padding: 16,
-    paddingTop: 60,
-  },
-  title: {
-    fontSize: 22,
-    fontWeight: "700",
-    color: "#fff",
-    marginBottom: 16,
   },
   // Summary card
   summaryCard: {
