@@ -11,6 +11,7 @@ import {
   Modal,
   TextInput,
   Share,
+  Switch,
 } from "react-native";
 import { useRouter, useFocusEffect } from "expo-router";
 import * as WebBrowser from "expo-web-browser";
@@ -23,6 +24,10 @@ import {
   cancelSubscription,
 } from "../../lib/api/billing";
 import type { Vehicle, User, BillingStatus } from "@mileclear/shared";
+import {
+  isDriveDetectionEnabled,
+  setDriveDetectionEnabled,
+} from "../../lib/tracking/detection";
 
 const VEHICLE_TYPE_LABELS: Record<string, string> = {
   car: "Car",
@@ -54,17 +59,20 @@ export default function ProfileScreen() {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deletePassword, setDeletePassword] = useState("");
   const [deletingAccount, setDeletingAccount] = useState(false);
+  const [driveDetection, setDriveDetection] = useState(true);
 
   const loadData = useCallback(async () => {
     try {
-      const [profileRes, vehiclesRes, billingRes] = await Promise.all([
+      const [profileRes, vehiclesRes, billingRes, detectionEnabled] = await Promise.all([
         fetchProfile(),
         fetchVehicles(),
         fetchBillingStatus().catch(() => null),
+        isDriveDetectionEnabled(),
       ]);
       setUser(profileRes.data);
       setVehicles(vehiclesRes.data);
       if (billingRes) setBilling(billingRes.data);
+      setDriveDetection(detectionEnabled);
     } catch {
       // Silently fail — will show empty state
     } finally {
@@ -296,6 +304,26 @@ export default function ProfileScreen() {
               <Text style={styles.chevron}>›</Text>
             </TouchableOpacity>
 
+            {/* Settings Section */}
+            <Text style={[styles.sectionTitle, { marginTop: 28 }]}>Settings</Text>
+            <View style={styles.settingRow}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.actionText}>Drive Detection</Text>
+                <Text style={styles.settingHint}>
+                  Get notified when you start driving without a shift
+                </Text>
+              </View>
+              <Switch
+                value={driveDetection}
+                onValueChange={(val) => {
+                  setDriveDetection(val);
+                  setDriveDetectionEnabled(val);
+                }}
+                trackColor={{ false: "#374151", true: "#f59e0b" }}
+                thumbColor="#fff"
+              />
+            </View>
+
             {/* Subscription Section */}
             <Text style={[styles.sectionTitle, { marginTop: 28 }]}>Subscription</Text>
             {!user?.isPremium ? (
@@ -520,6 +548,21 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontFamily: "PlusJakartaSans_500Medium",
     color: "#fff",
+  },
+  settingRow: {
+    backgroundColor: "#111827",
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 8,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  settingHint: {
+    fontSize: 12,
+    fontFamily: "PlusJakartaSans_400Regular",
+    color: "#6b7280",
+    marginTop: 4,
   },
   sectionTitle: {
     fontSize: 22,

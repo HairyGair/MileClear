@@ -13,6 +13,9 @@ import { AuthProvider, useAuth } from "../lib/auth/context";
 import { UserProvider } from "../lib/user/context";
 import { SyncProvider } from "../lib/sync/context";
 import { SyncStatusBar } from "../components/SyncStatusBar";
+import "../lib/tracking/detection"; // Register drive detection TaskManager task
+import { requestNotificationPermissions, setupNotificationResponseHandler } from "../lib/notifications/index";
+import { startDriveDetection } from "../lib/tracking/detection";
 
 const HEADER_STYLE = { backgroundColor: "#030712" } as const;
 const HEADER_TINT = "#f0f2f5";
@@ -20,6 +23,12 @@ const HEADER_TITLE_STYLE = { fontFamily: "PlusJakartaSans_300Light", color: "#f0
 
 function RootNavigator() {
   const { isLoading, isAuthenticated } = useAuth();
+
+  useEffect(() => {
+    if (isAuthenticated && !isLoading) {
+      startDriveDetection();
+    }
+  }, [isAuthenticated, isLoading]);
 
   if (isLoading) {
     return (
@@ -84,6 +93,11 @@ function RootNavigator() {
 
 export default function RootLayout() {
   const [fontsLoaded, setFontsLoaded] = useState(false);
+
+  useEffect(() => {
+    requestNotificationPermissions();
+    setupNotificationResponseHandler();
+  }, []);
 
   useEffect(() => {
     Font.loadAsync({

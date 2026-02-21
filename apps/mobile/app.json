@@ -18,14 +18,13 @@
       "bundleIdentifier": "com.mileclear.app",
       "usesAppleSignIn": true,
       "infoPlist": {
-        "NSLocationAlwaysAndWhenInUseUsageDescription": "MileClear needs location access to track your mileage during shifts.",
-        "NSLocationWhenInUseUsageDescription": "MileClear needs location access to track your mileage during shifts.",
-        "NSLocationAlwaysUsageDescription": "MileClear needs background location access to track your mileage during shifts.",
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "MileClear needs location access to track your mileage during shifts and detect when you start driving.",
+        "NSLocationWhenInUseUsageDescription": "MileClear needs location access to track your mileage during shifts and detect when you start driving.",
+        "NSLocationAlwaysUsageDescription": "MileClear needs background location access to track your mileage during shifts and detect when you start driving.",
         "UIBackgroundModes": [
           "location",
           "fetch",
-          "location",
-          "fetch"
+          "remote-notification"
         ],
         "ITSAppUsesNonExemptEncryption": false
       }
@@ -41,12 +40,7 @@
         "ACCESS_COARSE_LOCATION",
         "ACCESS_BACKGROUND_LOCATION",
         "FOREGROUND_SERVICE",
-        "FOREGROUND_SERVICE_LOCATION",
-        "android.permission.ACCESS_COARSE_LOCATION",
-        "android.permission.ACCESS_FINE_LOCATION",
-        "android.permission.ACCESS_BACKGROUND_LOCATION",
-        "android.permission.FOREGROUND_SERVICE",
-        "android.permission.FOREGROUND_SERVICE_LOCATION"
+        "FOREGROUND_SERVICE_LOCATION"
       ]
     },
     "plugins": [
@@ -57,7 +51,7 @@
       [
         "expo-location",
         {
-          "locationAlwaysAndWhenInUsePermission": "MileClear needs location access to track your mileage during shifts.",
+          "locationAlwaysAndWhenInUsePermission": "MileClear needs location access to track your mileage during shifts and detect when you start driving.",
           "isAndroidBackgroundLocationEnabled": true
         }
       ],

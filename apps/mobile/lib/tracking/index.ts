@@ -6,6 +6,7 @@ import * as Location from "expo-location";
 import * as TaskManager from "expo-task-manager";
 import { getDatabase } from "../db/index";
 import { syncCreateTrip } from "../sync/actions";
+import { startDriveDetection, stopDriveDetection } from "./detection";
 
 const LOCATION_TASK_NAME = "mileclear-background-location";
 const MIN_TRIP_DISTANCE_MILES = 0.1;
@@ -47,6 +48,8 @@ export async function isTrackingActive(): Promise<boolean> {
 }
 
 export async function startShiftTracking(shiftId: string): Promise<void> {
+  await stopDriveDetection();
+
   const db = await getDatabase();
   await db.runAsync(
     "INSERT OR REPLACE INTO tracking_state (key, value) VALUES ('active_shift_id', ?)",
@@ -75,6 +78,8 @@ export async function stopShiftTracking(): Promise<void> {
 
   const db = await getDatabase();
   await db.runAsync("DELETE FROM tracking_state WHERE key = 'active_shift_id'");
+
+  await startDriveDetection();
 }
 
 /**
