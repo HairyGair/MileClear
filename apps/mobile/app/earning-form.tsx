@@ -12,12 +12,12 @@ import {
   Platform,
 } from "react-native";
 import { useRouter, useLocalSearchParams, Stack } from "expo-router";
+import { fetchEarning } from "../lib/api/earnings";
 import {
-  createEarning,
-  updateEarning,
-  deleteEarning,
-  fetchEarning,
-} from "../lib/api/earnings";
+  syncCreateEarning,
+  syncUpdateEarning,
+  syncDeleteEarning,
+} from "../lib/sync/actions";
 import { GIG_PLATFORMS } from "@mileclear/shared";
 
 export default function EarningFormScreen() {
@@ -76,14 +76,14 @@ export default function EarningFormScreen() {
     setSaving(true);
     try {
       if (isEditing) {
-        await updateEarning(id, {
+        await syncUpdateEarning(id, {
           platform,
           amountPence,
           periodStart: new Date(periodStart).toISOString(),
           periodEnd: new Date(periodEnd).toISOString(),
         });
       } else {
-        await createEarning({
+        await syncCreateEarning({
           platform,
           amountPence,
           periodStart: new Date(periodStart).toISOString(),
@@ -107,7 +107,7 @@ export default function EarningFormScreen() {
         onPress: async () => {
           setDeleting(true);
           try {
-            await deleteEarning(id!);
+            await syncDeleteEarning(id!);
             router.back();
           } catch (err: unknown) {
             Alert.alert("Error", err instanceof Error ? err.message : "Failed to delete");

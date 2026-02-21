@@ -12,13 +12,12 @@ import {
   Platform,
 } from "react-native";
 import { useRouter, useLocalSearchParams, Stack } from "expo-router";
+import { fetchTrip, CreateTripData } from "../lib/api/trips";
 import {
-  createTrip,
-  updateTrip,
-  deleteTrip,
-  fetchTrip,
-  CreateTripData,
-} from "../lib/api/trips";
+  syncCreateTrip,
+  syncUpdateTrip,
+  syncDeleteTrip,
+} from "../lib/sync/actions";
 import { fetchVehicles } from "../lib/api/vehicles";
 import { GIG_PLATFORMS } from "@mileclear/shared";
 import type { TripClassification, PlatformTag, Vehicle } from "@mileclear/shared";
@@ -103,7 +102,7 @@ export default function TripFormScreen() {
     setSaving(true);
     try {
       if (isEditing) {
-        await updateTrip(id, {
+        await syncUpdateTrip(id, {
           classification,
           platformTag: platformTag ?? null,
           notes: notes.trim() || null,
@@ -131,7 +130,7 @@ export default function TripFormScreen() {
           ...(vehicleId && { vehicleId }),
         };
 
-        await createTrip(data);
+        await syncCreateTrip(data);
       }
       router.back();
     } catch (err: unknown) {
@@ -154,7 +153,7 @@ export default function TripFormScreen() {
         onPress: async () => {
           setDeleting(true);
           try {
-            await deleteTrip(id!);
+            await syncDeleteTrip(id!);
             router.back();
           } catch (err: unknown) {
             Alert.alert("Error", err instanceof Error ? err.message : "Failed to delete");

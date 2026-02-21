@@ -12,12 +12,12 @@ import {
   Platform,
 } from "react-native";
 import { useRouter, useLocalSearchParams, Stack } from "expo-router";
+import { fetchFuelLog } from "../lib/api/fuel";
 import {
-  createFuelLog,
-  updateFuelLog,
-  deleteFuelLog,
-  fetchFuelLog,
-} from "../lib/api/fuel";
+  syncCreateFuelLog,
+  syncUpdateFuelLog,
+  syncDeleteFuelLog,
+} from "../lib/sync/actions";
 import { fetchVehicles } from "../lib/api/vehicles";
 import { FUEL_BRANDS } from "@mileclear/shared";
 import type { Vehicle } from "@mileclear/shared";
@@ -105,7 +105,7 @@ export default function FuelFormScreen() {
     setSaving(true);
     try {
       if (isEditing) {
-        await updateFuelLog(id, {
+        await syncUpdateFuelLog(id, {
           vehicleId: vehicleId,
           litres: parsedLitres,
           costPence,
@@ -114,7 +114,7 @@ export default function FuelFormScreen() {
           loggedAt: loggedAt ? new Date(loggedAt).toISOString() : undefined,
         });
       } else {
-        await createFuelLog({
+        await syncCreateFuelLog({
           vehicleId: vehicleId ?? undefined,
           litres: parsedLitres,
           costPence,
@@ -140,7 +140,7 @@ export default function FuelFormScreen() {
         onPress: async () => {
           setDeleting(true);
           try {
-            await deleteFuelLog(id!);
+            await syncDeleteFuelLog(id!);
             router.back();
           } catch (err: unknown) {
             Alert.alert("Error", err instanceof Error ? err.message : "Failed to delete");

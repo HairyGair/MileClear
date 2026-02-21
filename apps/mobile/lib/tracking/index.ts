@@ -5,7 +5,7 @@
 import * as Location from "expo-location";
 import * as TaskManager from "expo-task-manager";
 import { getDatabase } from "../db/index";
-import { createTrip } from "../api/trips";
+import { syncCreateTrip } from "../sync/actions";
 
 const LOCATION_TASK_NAME = "mileclear-background-location";
 const MIN_TRIP_DISTANCE_MILES = 0.1;
@@ -117,7 +117,7 @@ export async function processShiftTrips(
     const last = segment[segment.length - 1];
 
     try {
-      await createTrip({
+      await syncCreateTrip({
         shiftId,
         vehicleId,
         startLat: first.lat,
