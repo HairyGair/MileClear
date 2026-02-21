@@ -12,7 +12,9 @@
   "dependencies": {
     "@expo/metro-runtime": "~6.1.2",
     "@mileclear/shared": "workspace:*",
+    "@react-native-google-signin/google-signin": "^16.1.1",
     "expo": "~54.0.33",
+    "expo-apple-authentication": "^8.0.8",
     "expo-constants": "~18.0.13",
     "expo-crypto": "~15.0.8",
     "expo-file-system": "~19.0.21",

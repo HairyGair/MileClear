@@ -11,6 +11,7 @@ import {
   ScrollView,
 } from "react-native";
 import { Link } from "expo-router";
+import * as AppleAuthentication from "expo-apple-authentication";
 import { useAuth } from "../../lib/auth/context";
 
 const AMBER = "#f5a623";
@@ -21,12 +22,32 @@ const TEXT_2 = "#8494a7";
 const TEXT_3 = "#4a5568";
 
 export default function LoginScreen() {
-  const { login } = useAuth();
+  const { login, loginWithApple, loginWithGoogle } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [socialLoading, setSocialLoading] = useState<string | null>(null);
   const [focusedField, setFocusedField] = useState<string | null>(null);
+
+  const handleSocialLogin = async (provider: "apple" | "google") => {
+    setError("");
+    setSocialLoading(provider);
+    try {
+      if (provider === "apple") {
+        await loginWithApple();
+      } else {
+        await loginWithGoogle();
+      }
+    } catch (e: any) {
+      // Don't show error if user cancelled
+      if (e.code !== "ERR_REQUEST_CANCELED" && e.code !== "SIGN_IN_CANCELLED") {
+        setError(e.message || `${provider === "apple" ? "Apple" : "Google"} sign-in failed`);
+      }
+    } finally {
+      setSocialLoading(null);
+    }
+  };
 
   const handleLogin = async () => {
     setError("");
@@ -76,6 +97,37 @@ export default function LoginScreen() {
               <Text style={s.errorText}>{error}</Text>
             </View>
           ) : null}
+
+          {/* Social sign-in buttons */}
+          {Platform.OS === "ios" && (
+            <AppleAuthentication.AppleAuthenticationButton
+              buttonType={AppleAuthentication.AppleAuthenticationButtonType.SIGN_IN}
+              buttonStyle={AppleAuthentication.AppleAuthenticationButtonStyle.WHITE}
+              cornerRadius={12}
+              style={s.appleButton}
+              onPress={() => handleSocialLogin("apple")}
+            />
+          )}
+
+          <TouchableOpacity
+            style={s.googleButton}
+            onPress={() => handleSocialLogin("google")}
+            disabled={!!socialLoading}
+            activeOpacity={0.8}
+          >
+            {socialLoading === "google" ? (
+              <ActivityIndicator color={TEXT_1} />
+            ) : (
+              <Text style={s.googleButtonText}>Sign in with Google</Text>
+            )}
+          </TouchableOpacity>
+
+          {/* Divider */}
+          <View style={s.divider}>
+            <View style={s.dividerLine} />
+            <Text style={s.dividerText}>or</Text>
+            <View style={s.dividerLine} />
+          </View>
 
           <Text style={s.label}>Email</Text>
           <TextInput
@@ -275,5 +327,41 @@ const s = StyleSheet.create({
   forgotText: {
     color: TEXT_2,
     fontSize: 13,
+  },
+  // Social buttons
+  appleButton: {
+    height: 50,
+    marginBottom: 12,
+  },
+  googleButton: {
+    height: 50,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.15)",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "transparent",
+    marginBottom: 4,
+  },
+  googleButtonText: {
+    color: TEXT_1,
+    fontSize: 16,
+    fontWeight: "600",
+  },
+  divider: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginVertical: 20,
+  },
+  dividerLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: "rgba(255,255,255,0.08)",
+  },
+  dividerText: {
+    color: TEXT_3,
+    fontSize: 13,
+    marginHorizontal: 16,
+    textTransform: "lowercase",
   },
 });

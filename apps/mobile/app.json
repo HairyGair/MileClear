@@ -11,11 +11,12 @@
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
-      "backgroundColor": "#ffffff"
+      "backgroundColor": "#030712"
     },
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "com.mileclear.app",
+      "usesAppleSignIn": true,
       "infoPlist": {
         "NSLocationAlwaysAndWhenInUseUsageDescription": "MileClear needs location access to track your mileage during shifts.",
         "NSLocationWhenInUseUsageDescription": "MileClear needs location access to track your mileage during shifts.",
@@ -41,6 +42,7 @@
       "expo-router",
       "expo-secure-store",
       "expo-sqlite",
+      "expo-apple-authentication",
       [
         "expo-location",
         {
@@ -53,6 +55,12 @@
         {
           "icon": "./assets/notification-icon.png",
           "color": "#ffffff"
+        }
+      ],
+      [
+        "@react-native-google-signin/google-signin",
+        {
+          "iosUrlScheme": "com.googleusercontent.apps.GOOGLE_IOS_CLIENT_ID"
         }
       ]
     ]

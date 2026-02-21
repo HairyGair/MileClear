@@ -4,6 +4,8 @@ import {
   login as authLogin,
   register as authRegister,
   logout as authLogout,
+  loginWithApple as authLoginWithApple,
+  loginWithGoogle as authLoginWithGoogle,
   sendVerificationCode as authSendVerification,
   verifyEmail as authVerifyEmail,
   forgotPassword as authForgotPassword,
@@ -16,6 +18,8 @@ interface AuthContextValue {
   isLoading: boolean;
   isAuthenticated: boolean;
   login: (email: string, password: string) => Promise<void>;
+  loginWithApple: () => Promise<void>;
+  loginWithGoogle: () => Promise<void>;
   register: (email: string, password: string, displayName?: string) => Promise<void>;
   logout: () => Promise<void>;
   completeAuth: () => void;
@@ -39,6 +43,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const login = useCallback(async (email: string, password: string) => {
     await authLogin(email, password);
+    setIsAuthenticated(true);
+  }, []);
+
+  const loginWithApple = useCallback(async () => {
+    await authLoginWithApple();
+    setIsAuthenticated(true);
+  }, []);
+
+  const loginWithGoogle = useCallback(async () => {
+    await authLoginWithGoogle();
     setIsAuthenticated(true);
   }, []);
 
@@ -73,7 +87,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   return (
-    <AuthContext.Provider value={{ isLoading, isAuthenticated, login, register, logout, completeAuth, sendVerificationCode, verifyEmail, forgotPassword, resetPassword }}>
+    <AuthContext.Provider value={{ isLoading, isAuthenticated, login, loginWithApple, loginWithGoogle, register, logout, completeAuth, sendVerificationCode, verifyEmail, forgotPassword, resetPassword }}>
       {children}
     </AuthContext.Provider>
   );

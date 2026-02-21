@@ -1,6 +1,7 @@
 import { FastifyInstance } from "fastify";
 import { z } from "zod";
 import crypto from "crypto";
+import { createRemoteJWKSet, jwtVerify } from "jose";
 import { prisma } from "../../lib/prisma.js";
 import {
   hashPassword,
@@ -47,6 +48,24 @@ const resetPasswordSchema = z.object({
   code: z.string().length(6, "Code must be 6 digits"),
   newPassword: z.string().min(8, "Password must be at least 8 characters").max(128),
 });
+
+const appleAuthSchema = z.object({
+  identityToken: z.string().min(1, "Identity token is required"),
+  fullName: z
+    .object({
+      givenName: z.string().nullish(),
+      familyName: z.string().nullish(),
+    })
+    .optional(),
+});
+
+const googleAuthSchema = z.object({
+  idToken: z.string().min(1, "ID token is required"),
+});
+
+const APPLE_JWKS = createRemoteJWKSet(
+  new URL("https://appleid.apple.com/auth/keys")
+);
 
 function generateOtp(): string {
   return crypto.randomInt(100000, 999999).toString();
@@ -333,11 +352,159 @@ export async function authRoutes(app: FastifyInstance) {
     return reply.status(200).send({ message: "Password reset successfully" });
   });
 
-  app.post("/apple", async (_request, reply) => {
-    return reply.status(501).send({ error: "Not implemented" });
+  // POST /apple — Apple Sign-In
+  app.post("/apple", async (request, reply) => {
+    const parsed = appleAuthSchema.safeParse(request.body);
+    if (!parsed.success) {
+      return reply.status(400).send({ error: parsed.error.errors[0].message });
+    }
+
+    const { identityToken, fullName } = parsed.data;
+
+    // Verify Apple identity token against Apple's JWKS
+    let payload: { sub?: string; email?: string };
+    try {
+      const { payload: verified } = await jwtVerify(
+        identityToken,
+        APPLE_JWKS,
+        {
+          issuer: "https://appleid.apple.com",
+          audience: process.env.APPLE_CLIENT_ID || "com.mileclear.app",
+        }
+      );
+      payload = verified as { sub?: string; email?: string };
+    } catch {
+      return reply.status(401).send({ error: "Invalid Apple identity token" });
+    }
+
+    const appleId = payload.sub;
+    const email = payload.email;
+    if (!appleId) {
+      return reply
+        .status(401)
+        .send({ error: "Apple token missing subject claim" });
+    }
+
+    // Build display name from fullName if provided
+    const displayName = [fullName?.givenName, fullName?.familyName]
+      .filter(Boolean)
+      .join(" ") || undefined;
+
+    // Account linking: find by appleId → find by email → create
+    let user = await prisma.user.findUnique({ where: { appleId } });
+
+    if (!user && email) {
+      user = await prisma.user.findUnique({ where: { email } });
+      if (user) {
+        // Link Apple ID to existing account
+        user = await prisma.user.update({
+          where: { id: user.id },
+          data: { appleId, ...(displayName && !user.displayName ? { displayName } : {}) },
+        });
+      }
+    }
+
+    if (!user) {
+      // Create new user
+      user = await prisma.user.create({
+        data: {
+          email: email || `apple_${appleId}@private.mileclear.com`,
+          appleId,
+          emailVerified: true,
+          ...(displayName ? { displayName } : {}),
+        },
+      });
+    }
+
+    const accessToken = generateAccessToken(user.id);
+    const refreshToken = generateRefreshToken(user.id);
+    await storeRefreshToken(user.id, refreshToken);
+
+    return reply.status(200).send({ data: { accessToken, refreshToken } });
   });
 
-  app.post("/google", async (_request, reply) => {
-    return reply.status(501).send({ error: "Not implemented" });
+  // POST /google — Google Sign-In
+  app.post("/google", async (request, reply) => {
+    const parsed = googleAuthSchema.safeParse(request.body);
+    if (!parsed.success) {
+      return reply.status(400).send({ error: parsed.error.errors[0].message });
+    }
+
+    const { idToken } = parsed.data;
+    const googleClientId = process.env.GOOGLE_CLIENT_ID;
+
+    // Verify Google ID token via tokeninfo endpoint
+    let tokenInfo: { sub?: string; email?: string; name?: string; aud?: string };
+    try {
+      const res = await fetch(
+        `https://oauth2.googleapis.com/tokeninfo?id_token=${encodeURIComponent(idToken)}`
+      );
+      if (!res.ok) {
+        return reply.status(401).send({ error: "Invalid Google ID token" });
+      }
+      tokenInfo = (await res.json()) as {
+        sub?: string;
+        email?: string;
+        name?: string;
+        aud?: string;
+      };
+    } catch {
+      return reply
+        .status(401)
+        .send({ error: "Failed to verify Google ID token" });
+    }
+
+    // Validate audience matches our client ID
+    if (googleClientId && tokenInfo.aud !== googleClientId) {
+      return reply
+        .status(401)
+        .send({ error: "Google token audience mismatch" });
+    }
+
+    const googleId = tokenInfo.sub;
+    const email = tokenInfo.email;
+    const displayName = tokenInfo.name || undefined;
+    if (!googleId) {
+      return reply
+        .status(401)
+        .send({ error: "Google token missing subject claim" });
+    }
+
+    // Account linking: find by googleId → find by email → create
+    let user = await prisma.user.findUnique({ where: { googleId } });
+
+    if (!user && email) {
+      user = await prisma.user.findUnique({ where: { email } });
+      if (user) {
+        // Link Google ID to existing account
+        user = await prisma.user.update({
+          where: { id: user.id },
+          data: { googleId, ...(displayName && !user.displayName ? { displayName } : {}) },
+        });
+      }
+    }
+
+    if (!user) {
+      if (!email) {
+        return reply
+          .status(400)
+          .send({ error: "Google account has no email address" });
+      }
+      // Create new user
+      user = await prisma.user.create({
+        data: {
+          email,
+          googleId,
+          emailVerified: true,
+          ...(displayName ? { displayName } : {}),
+        },
+      });
+    }
+
+    const accessToken = generateAccessToken(user.id);
+    const refreshToken = generateRefreshToken(user.id);
+    await storeRefreshToken(user.id, refreshToken);
+
+    return reply.status(200).send({ data: { accessToken, refreshToken } });
   });
 }
