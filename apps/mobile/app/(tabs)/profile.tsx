@@ -468,7 +468,7 @@ const styles = StyleSheet.create({
   },
   avatarText: {
     fontSize: 22,
-    fontWeight: "700",
+    fontFamily: "PlusJakartaSans_700Bold",
     color: "#030712",
   },
   profileInfo: {
@@ -481,13 +481,13 @@ const styles = StyleSheet.create({
   },
   displayName: {
     fontSize: 18,
-    fontWeight: "700",
+    fontFamily: "PlusJakartaSans_700Bold",
     color: "#fff",
     flexShrink: 1,
   },
   proBadge: {
     fontSize: 11,
-    fontWeight: "700",
+    fontFamily: "PlusJakartaSans_700Bold",
     color: "#030712",
     backgroundColor: "#f59e0b",
     paddingHorizontal: 6,
@@ -497,11 +497,13 @@ const styles = StyleSheet.create({
   },
   email: {
     fontSize: 14,
+    fontFamily: "PlusJakartaSans_400Regular",
     color: "#9ca3af",
     marginTop: 2,
   },
   memberSince: {
     fontSize: 12,
+    fontFamily: "PlusJakartaSans_400Regular",
     color: "#6b7280",
     marginTop: 2,
   },
@@ -516,12 +518,12 @@ const styles = StyleSheet.create({
   },
   actionText: {
     fontSize: 15,
-    fontWeight: "500",
+    fontFamily: "PlusJakartaSans_500Medium",
     color: "#fff",
   },
   sectionTitle: {
     fontSize: 22,
-    fontWeight: "700",
+    fontFamily: "PlusJakartaSans_700Bold",
     color: "#fff",
     marginBottom: 16,
   },
@@ -543,12 +545,12 @@ const styles = StyleSheet.create({
   },
   vehicleName: {
     fontSize: 17,
-    fontWeight: "600",
+    fontFamily: "PlusJakartaSans_600SemiBold",
     color: "#fff",
   },
   primaryBadge: {
     fontSize: 11,
-    fontWeight: "700",
+    fontFamily: "PlusJakartaSans_700Bold",
     color: "#030712",
     backgroundColor: "#f59e0b",
     paddingHorizontal: 6,
@@ -563,6 +565,7 @@ const styles = StyleSheet.create({
   },
   badge: {
     fontSize: 12,
+    fontFamily: "PlusJakartaSans_400Regular",
     color: "#d1d5db",
     backgroundColor: "#1f2937",
     paddingHorizontal: 8,
@@ -572,10 +575,12 @@ const styles = StyleSheet.create({
   },
   metaText: {
     fontSize: 13,
+    fontFamily: "PlusJakartaSans_400Regular",
     color: "#9ca3af",
   },
   chevron: {
     fontSize: 22,
+    fontFamily: "PlusJakartaSans_400Regular",
     color: "#6b7280",
     marginLeft: 8,
   },
@@ -585,12 +590,13 @@ const styles = StyleSheet.create({
   },
   emptyTitle: {
     fontSize: 17,
-    fontWeight: "600",
+    fontFamily: "PlusJakartaSans_600SemiBold",
     color: "#9ca3af",
     marginBottom: 4,
   },
   emptyText: {
     fontSize: 14,
+    fontFamily: "PlusJakartaSans_400Regular",
     color: "#6b7280",
   },
   footer: {
@@ -606,7 +612,7 @@ const styles = StyleSheet.create({
   },
   addButtonText: {
     fontSize: 16,
-    fontWeight: "700",
+    fontFamily: "PlusJakartaSans_700Bold",
     color: "#030712",
   },
   logoutButton: {
@@ -615,8 +621,8 @@ const styles = StyleSheet.create({
   },
   logoutText: {
     fontSize: 15,
+    fontFamily: "PlusJakartaSans_600SemiBold",
     color: "#ef4444",
-    fontWeight: "600",
   },
   deleteAccountButton: {
     paddingVertical: 10,
@@ -624,6 +630,7 @@ const styles = StyleSheet.create({
   },
   deleteAccountText: {
     fontSize: 14,
+    fontFamily: "PlusJakartaSans_400Regular",
     color: "#6b7280",
   },
   buttonDisabled: {
@@ -642,12 +649,13 @@ const styles = StyleSheet.create({
   },
   modalTitle: {
     fontSize: 18,
-    fontWeight: "700",
+    fontFamily: "PlusJakartaSans_700Bold",
     color: "#fff",
     marginBottom: 8,
   },
   modalMessage: {
     fontSize: 14,
+    fontFamily: "PlusJakartaSans_400Regular",
     color: "#9ca3af",
     marginBottom: 16,
     lineHeight: 20,
@@ -657,6 +665,7 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     padding: 14,
     fontSize: 16,
+    fontFamily: "PlusJakartaSans_400Regular",
     color: "#fff",
     borderWidth: 1,
     borderColor: "#374151",
@@ -675,7 +684,7 @@ const styles = StyleSheet.create({
   },
   modalCancelText: {
     fontSize: 15,
-    fontWeight: "600",
+    fontFamily: "PlusJakartaSans_600SemiBold",
     color: "#fff",
   },
   modalDelete: {
@@ -687,7 +696,7 @@ const styles = StyleSheet.create({
   },
   modalDeleteText: {
     fontSize: 15,
-    fontWeight: "600",
+    fontFamily: "PlusJakartaSans_600SemiBold",
     color: "#fff",
   },
   upgradeCard: {
@@ -700,18 +709,19 @@ const styles = StyleSheet.create({
   },
   upgradeTitle: {
     fontSize: 18,
-    fontWeight: "700",
+    fontFamily: "PlusJakartaSans_700Bold",
     color: "#fff",
     marginBottom: 4,
   },
   upgradePrice: {
     fontSize: 15,
-    fontWeight: "600",
+    fontFamily: "PlusJakartaSans_600SemiBold",
     color: "#f59e0b",
     marginBottom: 10,
   },
   upgradeFeatures: {
     fontSize: 13,
+    fontFamily: "PlusJakartaSans_400Regular",
     color: "#9ca3af",
     lineHeight: 20,
     marginBottom: 16,
@@ -724,7 +734,7 @@ const styles = StyleSheet.create({
   },
   upgradeButtonText: {
     fontSize: 15,
-    fontWeight: "700",
+    fontFamily: "PlusJakartaSans_700Bold",
     color: "#030712",
   },
   subscriptionCard: {
@@ -741,16 +751,18 @@ const styles = StyleSheet.create({
   },
   subscriptionTitle: {
     fontSize: 16,
-    fontWeight: "700",
+    fontFamily: "PlusJakartaSans_700Bold",
     color: "#fff",
   },
   subscriptionDetail: {
     fontSize: 13,
+    fontFamily: "PlusJakartaSans_400Regular",
     color: "#9ca3af",
     marginBottom: 4,
   },
   cancelLink: {
     fontSize: 13,
+    fontFamily: "PlusJakartaSans_400Regular",
     color: "#ef4444",
     marginTop: 8,
   },

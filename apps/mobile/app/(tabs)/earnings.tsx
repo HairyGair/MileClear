@@ -248,12 +248,13 @@ const styles = StyleSheet.create({
   },
   summaryLabel: {
     fontSize: 13,
+    fontFamily: "PlusJakartaSans_400Regular",
     color: "#9ca3af",
     marginBottom: 4,
   },
   summaryAmount: {
     fontSize: 28,
-    fontWeight: "700",
+    fontFamily: "PlusJakartaSans_700Bold",
     color: "#10b981",
   },
   // Filter chips
@@ -276,10 +277,11 @@ const styles = StyleSheet.create({
   },
   filterChipText: {
     fontSize: 13,
-    fontWeight: "600",
+    fontFamily: "PlusJakartaSans_600SemiBold",
     color: "#9ca3af",
   },
   filterChipTextActive: {
+    fontFamily: "PlusJakartaSans_600SemiBold",
     color: "#030712",
   },
   // Earning cards
@@ -297,12 +299,12 @@ const styles = StyleSheet.create({
   },
   platformText: {
     fontSize: 15,
-    fontWeight: "600",
+    fontFamily: "PlusJakartaSans_600SemiBold",
     color: "#fff",
   },
   sourceBadge: {
     fontSize: 11,
-    fontWeight: "700",
+    fontFamily: "PlusJakartaSans_700Bold",
     color: "#d1d5db",
     backgroundColor: "#1f2937",
     paddingHorizontal: 8,
@@ -312,12 +314,13 @@ const styles = StyleSheet.create({
   },
   amountText: {
     fontSize: 22,
-    fontWeight: "700",
+    fontFamily: "PlusJakartaSans_700Bold",
     color: "#10b981",
     marginBottom: 6,
   },
   periodText: {
     fontSize: 13,
+    fontFamily: "PlusJakartaSans_400Regular",
     color: "#9ca3af",
   },
   // Empty state
@@ -327,12 +330,13 @@ const styles = StyleSheet.create({
   },
   emptyTitle: {
     fontSize: 17,
-    fontWeight: "600",
+    fontFamily: "PlusJakartaSans_600SemiBold",
     color: "#9ca3af",
     marginBottom: 4,
   },
   emptyText: {
     fontSize: 14,
+    fontFamily: "PlusJakartaSans_400Regular",
     color: "#6b7280",
     textAlign: "center",
   },
@@ -349,7 +353,7 @@ const styles = StyleSheet.create({
   },
   addButtonText: {
     fontSize: 16,
-    fontWeight: "700",
+    fontFamily: "PlusJakartaSans_700Bold",
     color: "#030712",
   },
   // Loading overlay

@@ -243,6 +243,7 @@ const styles = StyleSheet.create({
   },
   subtitle: {
     fontSize: 14,
+    fontFamily: "PlusJakartaSans_400Regular",
     color: "#9ca3af",
     marginBottom: 24,
   },
@@ -257,16 +258,17 @@ const styles = StyleSheet.create({
   },
   yearLabel: {
     fontSize: 15,
+    fontFamily: "PlusJakartaSans_400Regular",
     color: "#9ca3af",
   },
   yearValue: {
     fontSize: 16,
-    fontWeight: "700",
+    fontFamily: "PlusJakartaSans_700Bold",
     color: "#f59e0b",
   },
   sectionTitle: {
     fontSize: 18,
-    fontWeight: "700",
+    fontFamily: "PlusJakartaSans_700Bold",
     color: "#fff",
     marginBottom: 12,
   },
@@ -280,16 +282,18 @@ const styles = StyleSheet.create({
   },
   rowTitle: {
     fontSize: 15,
-    fontWeight: "600",
+    fontFamily: "PlusJakartaSans_600SemiBold",
     color: "#fff",
     marginBottom: 4,
   },
   rowDesc: {
     fontSize: 13,
+    fontFamily: "PlusJakartaSans_400Regular",
     color: "#6b7280",
   },
   chevron: {
     fontSize: 22,
+    fontFamily: "PlusJakartaSans_400Regular",
     color: "#6b7280",
     marginLeft: 8,
   },
@@ -301,7 +305,7 @@ const styles = StyleSheet.create({
   },
   comingSoonBadge: {
     fontSize: 10,
-    fontWeight: "700",
+    fontFamily: "PlusJakartaSans_700Bold",
     color: "#9ca3af",
     backgroundColor: "#374151",
     paddingHorizontal: 6,
@@ -319,19 +323,20 @@ const styles = StyleSheet.create({
   },
   paywallTitle: {
     fontSize: 16,
-    fontWeight: "700",
+    fontFamily: "PlusJakartaSans_700Bold",
     color: "#f59e0b",
     marginBottom: 4,
   },
   paywallText: {
     fontSize: 13,
+    fontFamily: "PlusJakartaSans_400Regular",
     color: "#9ca3af",
     lineHeight: 20,
     marginBottom: 10,
   },
   paywallCta: {
     fontSize: 14,
-    fontWeight: "700",
+    fontFamily: "PlusJakartaSans_700Bold",
     color: "#f59e0b",
   },
 });

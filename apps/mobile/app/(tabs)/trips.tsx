@@ -271,10 +271,11 @@ const styles = StyleSheet.create({
   },
   filterChipText: {
     fontSize: 13,
-    fontWeight: "600",
+    fontFamily: "PlusJakartaSans_600SemiBold",
     color: "#9ca3af",
   },
   filterChipTextActive: {
+    fontFamily: "PlusJakartaSans_600SemiBold",
     color: "#030712",
   },
   // Trip cards
@@ -292,12 +293,12 @@ const styles = StyleSheet.create({
   },
   tripDate: {
     fontSize: 15,
-    fontWeight: "600",
+    fontFamily: "PlusJakartaSans_600SemiBold",
     color: "#fff",
   },
   classificationBadge: {
     fontSize: 11,
-    fontWeight: "700",
+    fontFamily: "PlusJakartaSans_700Bold",
     paddingHorizontal: 8,
     paddingVertical: 2,
     borderRadius: 4,
@@ -319,11 +320,12 @@ const styles = StyleSheet.create({
   },
   distanceText: {
     fontSize: 20,
-    fontWeight: "700",
+    fontFamily: "PlusJakartaSans_700Bold",
     color: "#fff",
   },
   timeText: {
     fontSize: 13,
+    fontFamily: "PlusJakartaSans_400Regular",
     color: "#9ca3af",
   },
   addressRow: {
@@ -333,11 +335,13 @@ const styles = StyleSheet.create({
   },
   addressText: {
     fontSize: 13,
+    fontFamily: "PlusJakartaSans_400Regular",
     color: "#9ca3af",
     flexShrink: 1,
   },
   arrowText: {
     fontSize: 13,
+    fontFamily: "PlusJakartaSans_400Regular",
     color: "#6b7280",
   },
   tripMeta: {
@@ -347,6 +351,7 @@ const styles = StyleSheet.create({
   },
   platformBadge: {
     fontSize: 11,
+    fontFamily: "PlusJakartaSans_400Regular",
     color: "#d1d5db",
     backgroundColor: "#1f2937",
     paddingHorizontal: 8,
@@ -356,10 +361,12 @@ const styles = StyleSheet.create({
   },
   metaText: {
     fontSize: 12,
+    fontFamily: "PlusJakartaSans_400Regular",
     color: "#6b7280",
   },
   manualBadge: {
     fontSize: 11,
+    fontFamily: "PlusJakartaSans_400Regular",
     color: "#9ca3af",
     backgroundColor: "#1f2937",
     paddingHorizontal: 6,
@@ -374,12 +381,13 @@ const styles = StyleSheet.create({
   },
   emptyTitle: {
     fontSize: 17,
-    fontWeight: "600",
+    fontFamily: "PlusJakartaSans_600SemiBold",
     color: "#9ca3af",
     marginBottom: 4,
   },
   emptyText: {
     fontSize: 14,
+    fontFamily: "PlusJakartaSans_400Regular",
     color: "#6b7280",
     textAlign: "center",
   },
@@ -396,7 +404,7 @@ const styles = StyleSheet.create({
   },
   addButtonText: {
     fontSize: 16,
-    fontWeight: "700",
+    fontFamily: "PlusJakartaSans_700Bold",
     color: "#030712",
   },
   // Loading overlay

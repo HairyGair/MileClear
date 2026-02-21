@@ -2,21 +2,21 @@
 
 ## Implementation Status
 
-> Last updated: 19 Feb 2026
+> Last updated: 21 Feb 2026
 
 ### API Routes
 
 | Prefix | Status | Notes |
 |--------|--------|-------|
-| `/auth` | Partial | Register, login, refresh, logout work. Verify, forgot/reset password, Apple, Google OAuth return 501. |
+| `/auth` | Done | Register, login, verify (6-digit OTP), forgot/reset password, Apple Sign-In (JWKS verification via `jose`), Google Sign-In (tokeninfo verification), refresh, logout. |
 | `/shifts` | Done | Full CRUD — start, end, list, detail. One-active-shift enforcement. |
 | `/trips` | Done | Full CRUD — create (Haversine auto-calc), list (paginated + filterable), detail (with coordinates), update (re-calcs distance), delete. |
 | `/vehicles` | Done | Full CRUD — create, list, update (primary management), delete. DVLA lookup returns 501. |
 | `/fuel` | Stubbed | All routes return 501. |
 | `/earnings` | Partial | Manual CRUD (create, list, update, delete) works. CSV upload, OCR, Open Banking return 501. |
-| `/gamification` | Stubbed | All routes return 501. |
+| `/gamification` | Done | Stats, achievements (18 types), shift scorecard, period recaps — all fully functional. |
 | `/exports` | Done | CSV, PDF, Self-Assessment download working. Xero/FreeAgent/QuickBooks return coming_soon with formatted preview data. |
-| `/billing` | Stubbed | All routes return 501. |
+| `/billing` | Done | Stripe Checkout subscriptions, webhook lifecycle (checkout.session.completed, invoice events, subscription deleted), subscription status, cancel. |
 | `/sync` | Stubbed | All routes return 501. |
 | `/user` | Done | Profile CRUD, GDPR export, account deletion with password confirmation. |
 | `/waitlist` | Done | Email signup with upsert. |
@@ -25,13 +25,13 @@
 
 | Service | Status | Notes |
 |---------|--------|-------|
-| `auth.ts` | Done | bcrypt hashing, JWT generation (access + refresh) |
+| `auth.ts` | Done | bcrypt hashing, JWT generation (access + refresh), Apple/Google OAuth token verification |
 | `export.ts` | Done | CSV (RFC 4180), PDF trip report (landscape A4, pdfkit), Self-Assessment PDF (HMRC tiers), Xero/FreeAgent/QuickBooks formatters |
 | `export-data.ts` | Done | Trip fetching with running HMRC tier tally, summary with vehicle breakdown + earnings aggregation |
 | `mileage.ts` | Done | Re-exports `calculateHmrcDeduction` from shared |
-| `email.ts` | Stub | All functions are empty no-ops (Resend not wired) |
+| `email.ts` | Done | Brevo SMTP — verification emails, password reset, waitlist confirmation |
 | `fuel.ts` | Stub | Returns empty array |
-| `gamification.ts` | Stub | `checkAndAwardAchievements` is no-op, `getDailyScorecard` returns null |
+| `gamification.ts` | Done | Full service (562 lines): stats, achievements (18 types), shift scorecard, period recaps, streak computation, personal records via raw SQL |
 | `ocr.ts` | Stub | Returns null |
 | `openBanking.ts` | Stub | Throws "Not implemented" / returns empty array |
 
@@ -52,24 +52,29 @@
 
 | Screen | Status |
 |--------|--------|
-| Login | Done |
-| Register | Done |
-| Verify Email | Placeholder |
-| Dashboard | Partial — shift controls work, stats hardcoded |
+| Login | Done — email/password + Apple Sign-In (iOS) + Google Sign-In, logo branding |
+| Register | Done — email/password + Apple/Google social signup, logo branding |
+| Verify Email | Done — 6-digit OTP verification |
+| Forgot Password | Done — email input, sends reset link |
+| Reset Password | Done — new password entry |
+| Dashboard | Done — logo branding, stats cards (today/week/total), streak badge, personal records, achievements, shift scorecard modal, weekly/monthly recap modal, all wired to real GamificationStats API |
+| Achievements | Done — badge grid with progress bars |
 | Trips | Done — paginated, filterable, infinite scroll |
 | Earnings | Done — paginated, platform filter, summary card |
 | Fuel | Placeholder |
-| Profile | Done — profile card, vehicles, export, tax exports link, delete account |
+| Profile | Done — profile card, vehicles, export, tax exports link, Stripe subscription management, delete account |
 | Exports | Done — tax year picker, download + share sheet, coming soon rows |
 | Trip Form | Done — create/edit, all fields |
 | Earning Form | Done — create/edit, platform chips |
 | Vehicle Form | Done — create/edit, type/fuel segments |
 | Profile Edit | Done — name, email, password confirmation |
+| Fuel Form | Done — fuel log entry |
 
 ### Database
 
-- 1 migration (`20260219201744_init`) — initial schema with all 10 models
-- No schema changes since init
+- 2 migrations deployed:
+  - `20260219201744_init` — initial schema with all 10 models
+  - `20260221133448_add_stripe_oauth_fields` — added `stripeCustomerId`, `stripeSubscriptionId` to User model
 
 ### Infrastructure
 
@@ -108,7 +113,7 @@
 | Push notifications | Expo Notifications | Free. Handles iOS and Android push from one API. |
 | Maps | MapLibre + OpenStreetMap | Free and open-source. No per-request charges. |
 | OCR (screenshots) | Google ML Kit (on-device) | Free. Runs on the phone — no API calls, no cost, works offline. |
-| Email | Resend (free tier) or Nodemailer | Email verification, password resets, tax year reminders. Resend: 3,000 emails/month free. |
+| Email | Brevo SMTP (Nodemailer) | Email verification, password resets, waitlist confirmation. Brevo free tier: 300 emails/day. |
 | File storage | Pixelish server filesystem | CSV uploads, exported reports. Served via the API. |
 | Process manager | PM2 | Keeps Node.js processes alive, auto-restarts on crash, log management. |
 
@@ -121,7 +126,7 @@
 | Pixelish server | £0 (provided by James) |
 | MySQL / PHPMyAdmin | £0 (included with server) |
 | Expo / EAS Build (free tier) | £0/month |
-| Resend email (free tier) | £0/month (3,000 emails/month) |
+| Brevo SMTP (free tier) | £0/month (300 emails/day) |
 | Google Cloud (OCR fallback) | £0–5/month (1,000 requests/month free) |
 | Apple Developer Account | £79/year (required for iOS App Store) |
 | Google Play Developer | ~£20 one-time (required for Play Store) |
@@ -130,7 +135,7 @@
 
 **When you scale:**
 - Redis: Free if James installs it. Otherwise ~£0 (use in-memory caching).
-- Resend: $20/month if you exceed 3,000 emails/month.
+- Brevo: Paid plan if you exceed 300 emails/day.
 - Background location library: ~$300 one-time if Expo's built-in isn't reliable enough.
 - TrueLayer (Open Banking): Pay-per-connection at scale, free to integrate.
 - Server resources: If Pixelish server hits limits, discuss with James or move to a VPS (~£5-10/month).
@@ -162,8 +167,8 @@ Pixelish Server
 ├── MySQL                    # Via cPanel / PHPMyAdmin
 ├── Redis                    # If installed
 ├── Nginx                    # Reverse proxy (likely already present)
-│   ├── api.mileclear.com → localhost:3001 (API)
-│   └── mileclear.com → localhost:3000 (Web)
+│   ├── api.mileclear.com → localhost:3002 (API)
+│   └── mileclear.com → localhost:3003 (Web)
 └── PM2                      # Process manager
     ├── mileclear-api         # API process
     └── mileclear-web         # Next.js process
@@ -173,8 +178,8 @@ Pixelish Server
 
 | Domain | Points to | Purpose |
 |--------|-----------|---------|
-| mileclear.com | Next.js app (port 3000) | Landing page + web dashboard |
-| api.mileclear.com | Fastify API (port 3001) | REST API for mobile and web |
+| mileclear.com | Next.js app (port 3003) | Landing page + web dashboard |
+| api.mileclear.com | Fastify API (port 3002) | REST API for mobile and web |
 
 SSL via cPanel AutoSSL or Let's Encrypt (likely already configured).
 
@@ -202,10 +207,14 @@ mileclear-app/
 │   │   ├── earnings.tsx    # Earnings (optional feature)
 │   │   └── profile.tsx     # Vehicle, account, settings
 │   ├── (auth)/             # Auth screens
-│   │   ├── login.tsx
-│   │   ├── register.tsx
-│   │   └── verify.tsx
-│   └── _layout.tsx         # Root layout
+│   │   ├── login.tsx       # Email + Apple/Google social sign-in
+│   │   ├── register.tsx    # Email + Apple/Google social signup
+│   │   ├── verify.tsx      # 6-digit OTP verification
+│   │   ├── forgot-password.tsx
+│   │   └── reset-password.tsx
+│   ├── achievements.tsx    # Badge grid with progress bars
+│   ├── index.tsx           # Auth-based redirect (root route)
+│   └── _layout.tsx         # Root layout + Plus Jakarta Sans font loading
 ├── components/             # Reusable UI components
 ├── lib/                    # Core logic
 │   ├── tracking/           # GPS and trip detection
@@ -219,6 +228,7 @@ mileclear-app/
 ├── constants/              # App constants, config
 ├── types/                  # TypeScript type definitions
 └── assets/                 # Images, fonts
+    └── branding/           # Logo, icons, wordmarks
 ```
 
 ### Background Location Tracking
@@ -429,7 +439,7 @@ User
 | Token storage (web) | HttpOnly secure cookies |
 | Apple Sign-In | Verify Apple identity token server-side, create/link account |
 | Google Sign-In | Verify Google ID token server-side, create/link account |
-| Email verification | Send verification code via Resend, verify before allowing login |
+| Email verification | Send 6-digit OTP via Brevo SMTP, verify before allowing login |
 | Password reset | Time-limited reset token sent via email |
 | Rate limiting | 5 login attempts per 15 minutes per IP (Redis or in-memory) |
 
@@ -461,17 +471,19 @@ generator client {
 }
 
 model User {
-  id                String    @id @default(uuid())
-  email             String    @unique
-  passwordHash      String?   // Null for OAuth-only accounts
-  displayName       String?
-  emailVerified     Boolean   @default(false)
-  appleId           String?   @unique
-  googleId          String?   @unique
-  isPremium         Boolean   @default(false)
-  premiumExpiresAt  DateTime?
-  createdAt         DateTime  @default(now())
-  updatedAt         DateTime  @updatedAt
+  id                    String    @id @default(uuid())
+  email                 String    @unique
+  passwordHash          String?   // Null for OAuth-only accounts
+  displayName           String?
+  emailVerified         Boolean   @default(false)
+  appleId               String?   @unique
+  googleId              String?   @unique
+  isPremium             Boolean   @default(false)
+  premiumExpiresAt      DateTime?
+  stripeCustomerId      String?   @unique
+  stripeSubscriptionId  String?   @unique
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
 
   vehicles       Vehicle[]
   shifts         Shift[]
@@ -842,10 +854,10 @@ Using **pnpm workspaces** so shared types and logic between mobile, web, and API
 
 ```
 # Terminal 1: API
-cd apps/api && pnpm dev          # Fastify with hot reload (port 3001)
+cd apps/api && pnpm dev          # Fastify with hot reload (port 3002)
 
 # Terminal 2: Web
-cd apps/web && pnpm dev          # Next.js dev server (port 3000)
+cd apps/web && pnpm dev          # Next.js dev server (port 3003)
 
 # Terminal 3: Mobile
 cd apps/mobile && pnpm start     # Expo dev server
@@ -855,9 +867,10 @@ Local MySQL for development (via Docker, MAMP, or connecting to a dev database o
 
 ### Deployment
 
-- **API:** SSH to server → git pull → pnpm install → prisma migrate → PM2 restart.
-- **Web:** SSH to server → git pull → pnpm install → next build → PM2 restart.
-- **Mobile:** Expo EAS Build → TestFlight (iOS) / Internal Testing (Android) → App Store / Play Store.
+- **API:** cPanel Terminal → `cd ~/mileclear-app` → `git pull` → `npx pnpm install` → `npx pnpm db:generate` → `npx prisma migrate deploy` → PM2 restart.
+- **Web:** cPanel Terminal → `cd ~/mileclear-app` → `git pull` → `npx pnpm install` → `npx pnpm build:web` → PM2 restart.
+- **Mobile:** EAS Build → TestFlight (iOS) / Internal Testing (Android) → App Store / Play Store.
+- **Note:** No SSH access — use cPanel Terminal in browser. pnpm not globally installed, use `npx pnpm`.
 - **Database:** Prisma migrations via `npx prisma migrate deploy`.
 
 Can be scripted into a simple deploy.sh later.

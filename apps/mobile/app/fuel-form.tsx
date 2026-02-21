@@ -312,7 +312,7 @@ const styles = StyleSheet.create({
   },
   label: {
     fontSize: 14,
-    fontWeight: "600",
+    fontFamily: "PlusJakartaSans_600SemiBold",
     color: "#d1d5db",
     marginBottom: 6,
     marginTop: 16,
@@ -322,16 +322,19 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     padding: 14,
     fontSize: 16,
+    fontFamily: "PlusJakartaSans_400Regular",
     color: "#fff",
     borderWidth: 1,
     borderColor: "#1f2937",
   },
   inputValue: {
     fontSize: 16,
+    fontFamily: "PlusJakartaSans_400Regular",
     color: "#fff",
   },
   inputPlaceholder: {
     fontSize: 16,
+    fontFamily: "PlusJakartaSans_400Regular",
     color: "#6b7280",
   },
   // Brand chips
@@ -353,10 +356,11 @@ const styles = StyleSheet.create({
   },
   chipText: {
     fontSize: 12,
-    fontWeight: "600",
+    fontFamily: "PlusJakartaSans_600SemiBold",
     color: "#9ca3af",
   },
   chipTextActive: {
+    fontFamily: "PlusJakartaSans_600SemiBold",
     color: "#030712",
   },
   // Amount row
@@ -366,7 +370,7 @@ const styles = StyleSheet.create({
   },
   currencyPrefix: {
     fontSize: 18,
-    fontWeight: "700",
+    fontFamily: "PlusJakartaSans_700Bold",
     color: "#fff",
     marginRight: 8,
   },
@@ -386,7 +390,7 @@ const styles = StyleSheet.create({
   },
   saveButtonText: {
     fontSize: 16,
-    fontWeight: "700",
+    fontFamily: "PlusJakartaSans_700Bold",
     color: "#030712",
   },
   deleteButton: {
@@ -397,6 +401,6 @@ const styles = StyleSheet.create({
   deleteText: {
     fontSize: 15,
     color: "#ef4444",
-    fontWeight: "600",
+    fontFamily: "PlusJakartaSans_600SemiBold",
   },
 });

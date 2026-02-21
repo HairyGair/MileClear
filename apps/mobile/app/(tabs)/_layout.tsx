@@ -37,10 +37,11 @@ const tabIconStyles = StyleSheet.create({
   icon: {
     fontSize: 18,
     color: "#4b5563",
+    fontFamily: "PlusJakartaSans_400Regular",
   },
   iconEarnings: {
     fontSize: 20,
-    fontWeight: "700",
+    fontFamily: "PlusJakartaSans_700Bold",
   },
   iconActive: {
     color: "#f5a623",
@@ -79,7 +80,7 @@ const headerStyles = StyleSheet.create({
   },
   addBtnText: {
     fontSize: 20,
-    fontWeight: "400",
+    fontFamily: "PlusJakartaSans_400Regular",
     color: "#f5a623",
     lineHeight: 22,
   },
@@ -96,7 +97,7 @@ export default function TabLayout() {
         headerShown: true,
         headerStyle: HEADER_BG,
         headerTintColor: "#f0f2f5",
-        headerTitleStyle: { fontWeight: "300", color: "#f0f2f5" },
+        headerTitleStyle: { fontFamily: "PlusJakartaSans_300Light", color: "#f0f2f5" },
         headerShadowVisible: false,
         tabBarStyle: {
           backgroundColor: "#060d1b",
@@ -121,7 +122,7 @@ export default function TabLayout() {
         tabBarInactiveTintColor: "#4b5563",
         tabBarLabelStyle: {
           fontSize: 10,
-          fontWeight: "600",
+          fontFamily: "PlusJakartaSans_600SemiBold",
           letterSpacing: 0.3,
           marginTop: -2,
         },

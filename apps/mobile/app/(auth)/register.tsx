@@ -9,10 +9,13 @@ import {
   Platform,
   ActivityIndicator,
   ScrollView,
+  Image,
 } from "react-native";
 import { Link, router } from "expo-router";
-import * as AppleAuthentication from "expo-apple-authentication";
 import { useAuth } from "../../lib/auth/context";
+
+let AppleAuthentication: typeof import("expo-apple-authentication") | null = null;
+try { AppleAuthentication = require("expo-apple-authentication"); } catch {}
 
 const AMBER = "#f5a623";
 const CARD_BG = "#0a1120";
@@ -96,9 +99,15 @@ export default function RegisterScreen() {
       >
         {/* Brand */}
         <View style={s.brandWrap}>
-          <Text style={s.brandName}>MileClear</Text>
-          <View style={s.brandRule} />
-          <Text style={s.brandTagline}>Create your account</Text>
+          <Image
+            source={require("../../assets/branding/logo-original.png")}
+            style={s.brandIcon}
+            resizeMode="contain"
+          />
+          <View style={s.brandText}>
+            <Text style={s.brandName}>Mile</Text>
+            <Text style={s.brandNameAccent}>Clear</Text>
+          </View>
         </View>
 
         {/* Form card */}
@@ -112,7 +121,7 @@ export default function RegisterScreen() {
           ) : null}
 
           {/* Social sign-in buttons */}
-          {Platform.OS === "ios" && (
+          {Platform.OS === "ios" && AppleAuthentication && (
             <AppleAuthentication.AppleAuthenticationButton
               buttonType={AppleAuthentication.AppleAuthenticationButtonType.SIGN_UP}
               buttonStyle={AppleAuthentication.AppleAuthenticationButtonStyle.WHITE}
@@ -234,26 +243,33 @@ const s = StyleSheet.create({
     padding: 24,
   },
   brandWrap: {
+    flexDirection: "row",
     alignItems: "center",
-    marginBottom: 40,
+    marginBottom: 32,
+  },
+  brandIcon: {
+    width: 52,
+    height: 52,
+    borderRadius: 12,
+  },
+  brandText: {
+    flexDirection: "row",
+    marginLeft: 14,
   },
   brandName: {
-    fontSize: 28,
-    fontWeight: "200",
+    fontSize: 26,
+    fontFamily: "PlusJakartaSans_600SemiBold",
+    color: TEXT_1,
+  },
+  brandNameAccent: {
+    fontSize: 26,
+    fontFamily: "PlusJakartaSans_600SemiBold",
     color: AMBER,
-    letterSpacing: 4,
-    textTransform: "uppercase",
   },
-  brandRule: {
-    width: 32,
-    height: 1,
-    backgroundColor: "rgba(245, 166, 35, 0.3)",
-    marginVertical: 12,
-  },
-  brandTagline: {
+  _unused: {
     fontSize: 14,
     color: TEXT_2,
-    fontWeight: "300",
+    fontFamily: "PlusJakartaSans_300Light",
     letterSpacing: 0.5,
   },
   card: {
@@ -265,7 +281,7 @@ const s = StyleSheet.create({
   },
   title: {
     fontSize: 20,
-    fontWeight: "300",
+    fontFamily: "PlusJakartaSans_300Light",
     color: TEXT_1,
     marginBottom: 24,
     letterSpacing: -0.3,
@@ -276,7 +292,7 @@ const s = StyleSheet.create({
     marginBottom: 6,
     letterSpacing: 0.3,
     textTransform: "uppercase",
-    fontWeight: "600",
+    fontFamily: "PlusJakartaSans_600SemiBold",
   },
   input: {
     backgroundColor: "rgba(255,255,255,0.03)",
@@ -288,6 +304,7 @@ const s = StyleSheet.create({
     fontSize: 16,
     color: TEXT_1,
     marginBottom: 18,
+    fontFamily: "PlusJakartaSans_400Regular",
   },
   inputFocused: {
     borderColor: "rgba(245, 166, 35, 0.35)",
@@ -314,7 +331,7 @@ const s = StyleSheet.create({
   buttonText: {
     color: "#030712",
     fontSize: 16,
-    fontWeight: "700",
+    fontFamily: "PlusJakartaSans_700Bold",
     letterSpacing: 0.3,
   },
   errorWrap: {
@@ -329,6 +346,7 @@ const s = StyleSheet.create({
     color: "#f87171",
     fontSize: 13,
     textAlign: "center",
+    fontFamily: "PlusJakartaSans_400Regular",
   },
   footer: {
     flexDirection: "row",
@@ -338,11 +356,12 @@ const s = StyleSheet.create({
   footerText: {
     color: TEXT_2,
     fontSize: 14,
+    fontFamily: "PlusJakartaSans_400Regular",
   },
   link: {
     color: AMBER,
     fontSize: 14,
-    fontWeight: "600",
+    fontFamily: "PlusJakartaSans_600SemiBold",
   },
   // Social buttons
   appleButton: {
@@ -362,7 +381,7 @@ const s = StyleSheet.create({
   googleButtonText: {
     color: TEXT_1,
     fontSize: 16,
-    fontWeight: "600",
+    fontFamily: "PlusJakartaSans_600SemiBold",
   },
   divider: {
     flexDirection: "row",
@@ -379,5 +398,6 @@ const s = StyleSheet.create({
     fontSize: 13,
     marginHorizontal: 16,
     textTransform: "lowercase",
+    fontFamily: "PlusJakartaSans_400Regular",
   },
 });

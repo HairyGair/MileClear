@@ -172,7 +172,7 @@ const s = StyleSheet.create({
   },
   brandName: {
     fontSize: 28,
-    fontWeight: "200",
+    fontFamily: "PlusJakartaSans_300Light",
     color: AMBER,
     letterSpacing: 4,
     textTransform: "uppercase",
@@ -186,7 +186,7 @@ const s = StyleSheet.create({
   brandTagline: {
     fontSize: 14,
     color: TEXT_2,
-    fontWeight: "300",
+    fontFamily: "PlusJakartaSans_300Light",
     letterSpacing: 0.5,
   },
   card: {
@@ -198,7 +198,7 @@ const s = StyleSheet.create({
   },
   title: {
     fontSize: 20,
-    fontWeight: "300",
+    fontFamily: "PlusJakartaSans_300Light",
     color: TEXT_1,
     marginBottom: 8,
     letterSpacing: -0.3,
@@ -208,6 +208,7 @@ const s = StyleSheet.create({
     color: TEXT_2,
     marginBottom: 24,
     lineHeight: 20,
+    fontFamily: "PlusJakartaSans_400Regular",
   },
   label: {
     fontSize: 12,
@@ -215,7 +216,7 @@ const s = StyleSheet.create({
     marginBottom: 6,
     letterSpacing: 0.3,
     textTransform: "uppercase",
-    fontWeight: "600",
+    fontFamily: "PlusJakartaSans_600SemiBold",
   },
   input: {
     backgroundColor: "rgba(255,255,255,0.03)",
@@ -227,6 +228,7 @@ const s = StyleSheet.create({
     fontSize: 16,
     color: TEXT_1,
     marginBottom: 18,
+    fontFamily: "PlusJakartaSans_400Regular",
   },
   inputFocused: {
     borderColor: "rgba(245, 166, 35, 0.35)",
@@ -243,6 +245,7 @@ const s = StyleSheet.create({
     marginBottom: 18,
     letterSpacing: 8,
     textAlign: "center",
+    fontFamily: "PlusJakartaSans_400Regular",
   },
   button: {
     backgroundColor: AMBER,
@@ -266,7 +269,7 @@ const s = StyleSheet.create({
   buttonText: {
     color: "#030712",
     fontSize: 16,
-    fontWeight: "700",
+    fontFamily: "PlusJakartaSans_700Bold",
     letterSpacing: 0.3,
   },
   errorWrap: {
@@ -281,6 +284,7 @@ const s = StyleSheet.create({
     color: "#f87171",
     fontSize: 13,
     textAlign: "center",
+    fontFamily: "PlusJakartaSans_400Regular",
   },
   footer: {
     flexDirection: "row",
@@ -290,10 +294,11 @@ const s = StyleSheet.create({
   footerText: {
     color: TEXT_2,
     fontSize: 14,
+    fontFamily: "PlusJakartaSans_400Regular",
   },
   link: {
     color: AMBER,
     fontSize: 14,
-    fontWeight: "600",
+    fontFamily: "PlusJakartaSans_600SemiBold",
   },
 });

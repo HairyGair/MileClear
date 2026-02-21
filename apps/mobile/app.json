@@ -21,7 +21,13 @@
         "NSLocationAlwaysAndWhenInUseUsageDescription": "MileClear needs location access to track your mileage during shifts.",
         "NSLocationWhenInUseUsageDescription": "MileClear needs location access to track your mileage during shifts.",
         "NSLocationAlwaysUsageDescription": "MileClear needs background location access to track your mileage during shifts.",
-        "UIBackgroundModes": ["location", "fetch"]
+        "UIBackgroundModes": [
+          "location",
+          "fetch",
+          "location",
+          "fetch"
+        ],
+        "ITSAppUsesNonExemptEncryption": false
       }
     },
     "android": {
@@ -35,7 +41,12 @@
         "ACCESS_COARSE_LOCATION",
         "ACCESS_BACKGROUND_LOCATION",
         "FOREGROUND_SERVICE",
-        "FOREGROUND_SERVICE_LOCATION"
+        "FOREGROUND_SERVICE_LOCATION",
+        "android.permission.ACCESS_COARSE_LOCATION",
+        "android.permission.ACCESS_FINE_LOCATION",
+        "android.permission.ACCESS_BACKGROUND_LOCATION",
+        "android.permission.FOREGROUND_SERVICE",
+        "android.permission.FOREGROUND_SERVICE_LOCATION"
       ]
     },
     "plugins": [
@@ -63,6 +74,13 @@
           "iosUrlScheme": "com.googleusercontent.apps.194042004-s3b6j7s7uh0ht0k3kvvgeh39nvuigldd"
         }
       ]
-    ]
+    ],
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "db25fbc4-87aa-4b72-bcf8-e6b382e8a5ee"
+      }
+    },
+    "owner": "hairygair00"
   }
 }

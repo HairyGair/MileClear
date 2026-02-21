@@ -1,10 +1,19 @@
+import { useEffect, useState, useCallback } from "react";
 import { Redirect, Stack } from "expo-router";
 import { View, ActivityIndicator } from "react-native";
+import * as Font from "expo-font";
+import {
+  PlusJakartaSans_300Light,
+  PlusJakartaSans_400Regular,
+  PlusJakartaSans_500Medium,
+  PlusJakartaSans_600SemiBold,
+  PlusJakartaSans_700Bold,
+} from "@expo-google-fonts/plus-jakarta-sans";
 import { AuthProvider, useAuth } from "../lib/auth/context";
 
 const HEADER_STYLE = { backgroundColor: "#030712" } as const;
 const HEADER_TINT = "#f0f2f5";
-const HEADER_TITLE_STYLE = { fontWeight: "300" as const, color: "#f0f2f5" };
+const HEADER_TITLE_STYLE = { fontFamily: "PlusJakartaSans_300Light", color: "#f0f2f5" };
 
 function RootNavigator() {
   const { isLoading, isAuthenticated } = useAuth();
@@ -68,6 +77,27 @@ function RootNavigator() {
 }
 
 export default function RootLayout() {
+  const [fontsLoaded, setFontsLoaded] = useState(false);
+
+  useEffect(() => {
+    Font.loadAsync({
+      PlusJakartaSans_300Light,
+      PlusJakartaSans_400Regular,
+      PlusJakartaSans_500Medium,
+      PlusJakartaSans_600SemiBold,
+      PlusJakartaSans_700Bold,
+    }).then(() => setFontsLoaded(true))
+      .catch(() => setFontsLoaded(true)); // Continue even if fonts fail
+  }, []);
+
+  if (!fontsLoaded) {
+    return (
+      <View style={{ flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: "#030712" }}>
+        <ActivityIndicator size="large" color="#f5a623" />
+      </View>
+    );
+  }
+
   return (
     <AuthProvider>
       <RootNavigator />

@@ -11,6 +11,7 @@ import {
   Modal,
   Share,
   Platform,
+  Image,
 } from "react-native";
 import { useFocusEffect, useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -458,13 +459,23 @@ export default function DashboardScreen() {
 
       {/* Header */}
       <View style={s.headerRow}>
-        <View>
-          <Text style={s.brandMark}>MileClear</Text>
-          <Text style={s.greeting}>
-            {stats && stats.currentStreakDays > 0
-              ? `${stats.currentStreakDays}-day streak`
-              : "Ready to drive"}
-          </Text>
+        <View style={s.brandRow}>
+          <Image
+            source={require("../../assets/branding/logo-original.png")}
+            style={s.brandIcon}
+            resizeMode="contain"
+          />
+          <View style={s.brandTextWrap}>
+            <View style={s.brandNameRow}>
+              <Text style={s.brandNameWhite}>Mile</Text>
+              <Text style={s.brandNameAmber}>Clear</Text>
+            </View>
+            <Text style={s.greeting}>
+              {stats && stats.currentStreakDays > 0
+                ? `${stats.currentStreakDays}-day streak`
+                : "Ready to drive"}
+            </Text>
+          </View>
         </View>
         {stats && stats.currentStreakDays > 0 && (
           <View style={s.streakBadge}>
@@ -667,19 +678,36 @@ const s = StyleSheet.create({
     alignItems: "flex-start",
     marginBottom: 24,
   },
-  brandMark: {
-    fontSize: 13,
-    fontWeight: "700",
+  brandRow: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  brandIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 10,
+  },
+  brandTextWrap: {
+    marginLeft: 12,
+  },
+  brandNameRow: {
+    flexDirection: "row",
+  },
+  brandNameWhite: {
+    fontSize: 20,
+    fontFamily: "PlusJakartaSans_600SemiBold",
+    color: TEXT_1,
+  },
+  brandNameAmber: {
+    fontSize: 20,
+    fontFamily: "PlusJakartaSans_600SemiBold",
     color: AMBER,
-    letterSpacing: 1.5,
-    textTransform: "uppercase",
-    marginBottom: 2,
   },
   greeting: {
-    fontSize: 22,
-    fontWeight: "300",
-    color: TEXT_1,
-    letterSpacing: -0.3,
+    fontSize: 14,
+    fontFamily: "PlusJakartaSans_400Regular",
+    color: TEXT_2,
+    marginTop: 2,
   },
   streakBadge: {
     width: 44,
@@ -693,7 +721,7 @@ const s = StyleSheet.create({
   },
   streakNum: {
     fontSize: 18,
-    fontWeight: "700",
+    fontFamily: "PlusJakartaSans_700Bold",
     color: AMBER,
   },
 
@@ -716,7 +744,7 @@ const s = StyleSheet.create({
   },
   heroLabel: {
     fontSize: 11,
-    fontWeight: "600",
+    fontFamily: "PlusJakartaSans_600SemiBold",
     color: TEXT_2,
     letterSpacing: 0.8,
     textTransform: "uppercase",
@@ -724,7 +752,7 @@ const s = StyleSheet.create({
   },
   heroValue: {
     fontSize: 38,
-    fontWeight: "200",
+    fontFamily: "PlusJakartaSans_300Light",
     color: AMBER,
     letterSpacing: -1,
     marginBottom: 10,
@@ -735,6 +763,7 @@ const s = StyleSheet.create({
   },
   heroMetaText: {
     fontSize: 13,
+    fontFamily: "PlusJakartaSans_400Regular",
     color: TEXT_2,
   },
   heroDivider: {
@@ -762,13 +791,14 @@ const s = StyleSheet.create({
   },
   quickActionIcon: {
     fontSize: 18,
+    fontFamily: "PlusJakartaSans_400Regular",
     color: AMBER,
     marginBottom: 4,
   },
   quickActionLabel: {
     fontSize: 10,
+    fontFamily: "PlusJakartaSans_600SemiBold",
     color: TEXT_2,
-    fontWeight: "600",
     letterSpacing: 0.2,
   },
 
@@ -790,12 +820,13 @@ const s = StyleSheet.create({
   },
   statNum: {
     fontSize: 22,
-    fontWeight: "600",
+    fontFamily: "PlusJakartaSans_600SemiBold",
     color: TEXT_1,
     letterSpacing: -0.5,
   },
   statUnit: {
     fontSize: 11,
+    fontFamily: "PlusJakartaSans_400Regular",
     color: TEXT_2,
     marginTop: 2,
     letterSpacing: 0.2,
@@ -811,14 +842,14 @@ const s = StyleSheet.create({
   },
   sectionTitle: {
     fontSize: 15,
-    fontWeight: "600",
+    fontFamily: "PlusJakartaSans_600SemiBold",
     color: TEXT_1,
     letterSpacing: -0.2,
   },
   seeAll: {
     fontSize: 13,
+    fontFamily: "PlusJakartaSans_500Medium",
     color: AMBER,
-    fontWeight: "500",
   },
 
   // Badges
@@ -836,9 +867,9 @@ const s = StyleSheet.create({
   badgeEmoji: { fontSize: 26, marginBottom: 4 },
   badgeLabel: {
     fontSize: 10,
+    fontFamily: "PlusJakartaSans_500Medium",
     color: TEXT_2,
     textAlign: "center",
-    fontWeight: "500",
   },
 
   // Recap buttons
@@ -854,7 +885,7 @@ const s = StyleSheet.create({
   },
   recapBtnLabel: {
     fontSize: 14,
-    fontWeight: "600",
+    fontFamily: "PlusJakartaSans_600SemiBold",
     color: AMBER,
     letterSpacing: -0.2,
   },
@@ -877,12 +908,13 @@ const s = StyleSheet.create({
   },
   recordValue: {
     fontSize: 18,
-    fontWeight: "600",
+    fontFamily: "PlusJakartaSans_600SemiBold",
     color: TEXT_1,
     marginBottom: 2,
   },
   recordLabel: {
     fontSize: 11,
+    fontFamily: "PlusJakartaSans_400Regular",
     color: TEXT_3,
     letterSpacing: 0.2,
   },
@@ -901,6 +933,7 @@ const s = StyleSheet.create({
   },
   vehiclePickerLabel: {
     fontSize: 11,
+    fontFamily: "PlusJakartaSans_400Regular",
     color: TEXT_3,
     textTransform: "uppercase",
     letterSpacing: 0.5,
@@ -908,13 +941,13 @@ const s = StyleSheet.create({
   },
   vehiclePickerVal: {
     fontSize: 16,
-    fontWeight: "500",
+    fontFamily: "PlusJakartaSans_500Medium",
     color: TEXT_1,
   },
   chevron: {
     fontSize: 24,
+    fontFamily: "PlusJakartaSans_300Light",
     color: TEXT_3,
-    fontWeight: "300",
   },
 
   // Start button
@@ -935,7 +968,7 @@ const s = StyleSheet.create({
   },
   startBtnText: {
     fontSize: 17,
-    fontWeight: "700",
+    fontFamily: "PlusJakartaSans_700Bold",
     color: "#030712",
     letterSpacing: 0.3,
   },
@@ -960,19 +993,20 @@ const s = StyleSheet.create({
   },
   liveText: {
     fontSize: 11,
-    fontWeight: "700",
+    fontFamily: "PlusJakartaSans_700Bold",
     color: "#34c759",
     letterSpacing: 1.5,
   },
   timer: {
     fontSize: 60,
-    fontWeight: "100",
+    fontFamily: "PlusJakartaSans_300Light",
     color: TEXT_1,
     fontVariant: ["tabular-nums"],
     letterSpacing: 4,
   },
   timerSub: {
     fontSize: 14,
+    fontFamily: "PlusJakartaSans_400Regular",
     color: TEXT_2,
     marginTop: 8,
   },
@@ -984,7 +1018,7 @@ const s = StyleSheet.create({
   },
   endBtnText: {
     fontSize: 17,
-    fontWeight: "700",
+    fontFamily: "PlusJakartaSans_700Bold",
     color: "#fff",
     letterSpacing: 0.3,
   },
@@ -1016,7 +1050,7 @@ const s = StyleSheet.create({
   },
   modalTitle: {
     fontSize: 22,
-    fontWeight: "300",
+    fontFamily: "PlusJakartaSans_300Light",
     color: TEXT_1,
     textAlign: "center",
     marginBottom: 20,
@@ -1030,7 +1064,7 @@ const s = StyleSheet.create({
   },
   modalPrimaryBtnText: {
     fontSize: 16,
-    fontWeight: "700",
+    fontFamily: "PlusJakartaSans_700Bold",
     color: "#030712",
   },
 
@@ -1044,22 +1078,24 @@ const s = StyleSheet.create({
   scorecardCellCenter: {},
   scorecardNum: {
     fontSize: 20,
-    fontWeight: "600",
+    fontFamily: "PlusJakartaSans_600SemiBold",
     color: TEXT_1,
   },
   scorecardNumLarge: {
     fontSize: 28,
-    fontWeight: "300",
+    fontFamily: "PlusJakartaSans_300Light",
     color: AMBER,
   },
   scorecardUnit: {
     fontSize: 11,
+    fontFamily: "PlusJakartaSans_400Regular",
     color: TEXT_2,
     marginTop: 2,
     letterSpacing: 0.3,
   },
   scorecardDuration: {
     fontSize: 14,
+    fontFamily: "PlusJakartaSans_400Regular",
     color: TEXT_3,
     textAlign: "center",
     marginBottom: 14,
@@ -1074,11 +1110,11 @@ const s = StyleSheet.create({
     borderWidth: 1,
     borderColor: "rgba(245, 166, 35, 0.2)",
   },
-  pbText: { fontSize: 13, fontWeight: "600", color: AMBER },
+  pbText: { fontSize: 13, fontFamily: "PlusJakartaSans_600SemiBold", color: AMBER },
   unlockSection: { marginTop: 8, marginBottom: 16 },
   unlockTitle: {
     fontSize: 13,
-    fontWeight: "600",
+    fontFamily: "PlusJakartaSans_600SemiBold",
     color: TEXT_2,
     textTransform: "uppercase",
     letterSpacing: 0.5,
@@ -1091,18 +1127,20 @@ const s = StyleSheet.create({
     marginBottom: 8,
   },
   unlockEmoji: { fontSize: 24 },
-  unlockLabel: { fontSize: 14, fontWeight: "600", color: TEXT_1 },
-  unlockDesc: { fontSize: 12, color: TEXT_2 },
+  unlockLabel: { fontSize: 14, fontFamily: "PlusJakartaSans_600SemiBold", color: TEXT_1 },
+  unlockDesc: { fontSize: 12, fontFamily: "PlusJakartaSans_400Regular", color: TEXT_2 },
 
   // Recap modal
   recapSubtitle: {
     fontSize: 13,
+    fontFamily: "PlusJakartaSans_400Regular",
     color: TEXT_2,
     textAlign: "center",
     marginBottom: 20,
   },
   recapDetail: {
     fontSize: 13,
+    fontFamily: "PlusJakartaSans_400Regular",
     color: TEXT_2,
     textAlign: "center",
     marginBottom: 6,
@@ -1118,7 +1156,7 @@ const s = StyleSheet.create({
   },
   shareBtnText: {
     fontSize: 16,
-    fontWeight: "600",
+    fontFamily: "PlusJakartaSans_600SemiBold",
     color: TEXT_1,
   },
 });

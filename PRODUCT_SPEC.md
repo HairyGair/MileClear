@@ -11,7 +11,7 @@
 - **Earnings Tracking (Manual)** — Create/edit/delete earnings, platform tagging, paginated history (API + mobile)
 - **Tax Exports (Premium)** — CSV trip download, PDF trip report, Self-Assessment PDF with HMRC rate tiers and vehicle breakdown (API + web + mobile)
 - **Accounting Previews** — Xero, FreeAgent, QuickBooks formatted data previews (coming_soon status, OAuth deferred) (API + web + mobile)
-- **Authentication** — Email/password register, login, JWT refresh/logout, rate limiting, email verification (6-digit OTP), forgot/reset password with session invalidation (API + mobile)
+- **Authentication** — Email/password register, login, JWT refresh/logout, rate limiting, email verification (6-digit OTP), forgot/reset password with session invalidation, Apple Sign-In (iOS), Google Sign-In (API + mobile)
 - **User Profile** — Edit profile, GDPR data export, account deletion with password confirmation (API + mobile)
 - **Waitlist** — Email signup with driver type, duplicate handling (API + web landing page)
 - **Landing Page** — Full 9-section page: hero, problem, features, who it's for, pricing, early access signup, FAQ, footer (web)
@@ -19,14 +19,13 @@
 - **Premium Middleware** — Feature gating via `isPremium` flag + expiry check
 - **Billing / Stripe** — Stripe Checkout subscriptions, webhook lifecycle, subscription management in mobile profile, paywall on exports (API + mobile)
 - **Database** — 10-model MySQL schema deployed via Prisma, all indexes
-- **Dashboard (Mobile)** — Hero card, stats cards (today/week/total), streak badge, personal records, achievements section, shift scorecard modal, weekly/monthly recap modal — all wired to real `GamificationStats` API data
+- **Dashboard (Mobile)** — Hero card with logo branding, stats cards (today/week/total), streak badge, personal records, achievements section, shift scorecard modal, weekly/monthly recap modal — all wired to real `GamificationStats` API data
 - **Gamification** — Full service (562 lines): stats, achievements (18 types), shift scorecard, period recaps, streak computation, personal records via raw SQL. Routes fully functional. Mobile achievements screen with badge grid and progress bars.
 - **Background Location Tracking** — expo-location + expo-task-manager: background GPS during shifts, 50m intervals, stop detection (2min threshold), trip segmentation from GPS breadcrumbs, foreground service notification. App permissions configured for iOS + Android.
 - **Email Service** — Brevo SMTP configured and sending (verification, password reset, waitlist confirmation)
 - **GPS Coordinate Persistence** — Trip coordinates uploaded from mobile to API on shift end, stored atomically via Prisma transaction, returned on GET /trips/:id for route replay
 
 ### Partially Implemented
-- **Auth** — Apple/Google Sign-In not started (return 501).
 - **Earnings** — Manual CRUD done. CSV upload, OCR, Open Banking still stubbed (501).
 
 ### Not Yet Started (Stubbed / Placeholder)
@@ -288,7 +287,11 @@ Available to **all users (free tier).**
 
 ## Branding & Design
 
-- To be developed iteratively during build.
+- **Logo:** Hand-brushed M with road motif, amber (#f5a623) on dark navy (#030712), rounded border frame
+- **Colour palette:** Amber/gold (#f5a623) accent on deep navy-black (#030712) backgrounds
+- **Font:** Plus Jakarta Sans (Google Font) — 5 weights (Light to Bold)
+- **Theme:** Dark, minimal, premium feel — not playful or cartoonish
+- **Assets:** Full branding pack in `apps/mobile/assets/branding/` (icon, adaptive icon, splash, notification icon, wordmarks)
 
 ## Beta Programme
 

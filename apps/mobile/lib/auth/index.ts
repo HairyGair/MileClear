@@ -1,16 +1,26 @@
 // Auth logic: login, register, token management
 
 import * as SecureStore from "expo-secure-store";
-import * as AppleAuthentication from "expo-apple-authentication";
-import { GoogleSignin } from "@react-native-google-signin/google-signin";
 import { Platform } from "react-native";
 import { apiRequest, setTokens, clearTokens, REFRESH_TOKEN_KEY } from "../api/index";
 import type { AuthTokens } from "@mileclear/shared";
 
-GoogleSignin.configure({
-  webClientId: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID,
-  iosClientId: process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID,
-});
+// Lazy imports for native-only modules (not available in Expo Go)
+let AppleAuthentication: typeof import("expo-apple-authentication") | null = null;
+let GoogleSignin: typeof import("@react-native-google-signin/google-signin").GoogleSignin | null = null;
+
+try {
+  AppleAuthentication = require("expo-apple-authentication");
+} catch {}
+
+try {
+  const google = require("@react-native-google-signin/google-signin");
+  GoogleSignin = google.GoogleSignin;
+  GoogleSignin?.configure({
+    webClientId: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID,
+    iosClientId: process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID,
+  });
+} catch {}
 
 export async function login(
   email: string,
@@ -68,6 +78,9 @@ export async function loginWithApple(): Promise<void> {
   if (Platform.OS !== "ios") {
     throw new Error("Apple Sign-In is only available on iOS");
   }
+  if (!AppleAuthentication) {
+    throw new Error("Apple Sign-In requires a development build");
+  }
 
   const credential = await AppleAuthentication.signInAsync({
     requestedScopes: [
@@ -96,6 +109,9 @@ export async function loginWithApple(): Promise<void> {
 }
 
 export async function loginWithGoogle(): Promise<void> {
+  if (!GoogleSignin) {
+    throw new Error("Google Sign-In requires a development build");
+  }
   await GoogleSignin.hasPlayServices();
   const response = await GoogleSignin.signIn();
 

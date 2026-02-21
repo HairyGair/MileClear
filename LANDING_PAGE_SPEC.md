@@ -2,7 +2,7 @@
 
 ## Implementation Status
 
-> Last updated: 19 Feb 2026
+> Last updated: 21 Feb 2026
 
 **Fully implemented and live at mileclear.com.** All 9 sections built as separate React components under `apps/web/src/components/landing/`. Waitlist signup functional (writes to database via API). SEO meta tags, Open Graph, and responsive design in place.
 
@@ -18,7 +18,7 @@ Friendly, approachable, no-nonsense. Speak like a mate who happens to know about
 
 ## Logo
 
-Text-based logo for now ("MileClear" in the brand font). Proper logo to be designed later.
+Custom logo designed: hand-brushed M with road motif, amber (#f5a623) on dark navy-black (#030712), rounded border frame. Full branding pack available at `apps/mobile/assets/branding/` (icon, adaptive icon, splash, notification icon, wordmarks). Web landing page currently uses text-based wordmark ("Mile" white + "Clear" amber).
 
 ---
 
@@ -187,7 +187,7 @@ Collapsible accordion style.
 
 - **Email collection:** Store in a `waitlist` table in MySQL. Simple insert via the API.
 - **No third-party email forms** (Mailchimp, etc.) — keep it self-hosted to avoid costs.
-- **Confirmation email:** Send a simple "You're on the list" email via Resend when someone signs up.
+- **Confirmation email:** Send a simple "You're on the list" email via Brevo SMTP when someone signs up.
 - **Mobile responsive:** Must look good on phones — gig drivers will find this via their phone, not a desktop.
 - **Page speed:** Keep it fast. Minimal JS, optimised images, no heavy frameworks beyond Next.js itself.
 - **SEO:** Meta tags, Open Graph tags for social sharing, structured data for Google.

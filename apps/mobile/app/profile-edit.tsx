@@ -162,7 +162,7 @@ const styles = StyleSheet.create({
   },
   label: {
     fontSize: 14,
-    fontWeight: "600",
+    fontFamily: "PlusJakartaSans_600SemiBold",
     color: "#d1d5db",
     marginBottom: 6,
     marginTop: 16,
@@ -172,12 +172,14 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     padding: 14,
     fontSize: 16,
+    fontFamily: "PlusJakartaSans_400Regular",
     color: "#fff",
     borderWidth: 1,
     borderColor: "#1f2937",
   },
   hint: {
     fontSize: 13,
+    fontFamily: "PlusJakartaSans_400Regular",
     color: "#f59e0b",
     marginTop: 10,
     lineHeight: 18,
@@ -194,7 +196,7 @@ const styles = StyleSheet.create({
   },
   saveButtonText: {
     fontSize: 16,
-    fontWeight: "700",
+    fontFamily: "PlusJakartaSans_700Bold",
     color: "#030712",
   },
 });

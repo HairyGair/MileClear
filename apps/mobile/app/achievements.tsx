@@ -169,6 +169,7 @@ const s = StyleSheet.create({
   },
   progressText: {
     fontSize: 12,
+    fontFamily: "PlusJakartaSans_400Regular",
     color: TEXT_2,
     letterSpacing: 0.3,
   },
@@ -203,7 +204,7 @@ const s = StyleSheet.create({
   },
   badgeLabel: {
     fontSize: 11,
-    fontWeight: "600",
+    fontFamily: "PlusJakartaSans_600SemiBold",
     color: TEXT_1,
     textAlign: "center",
     marginBottom: 2,
@@ -214,6 +215,7 @@ const s = StyleSheet.create({
   },
   badgeDesc: {
     fontSize: 9,
+    fontFamily: "PlusJakartaSans_400Regular",
     color: TEXT_2,
     textAlign: "center",
     lineHeight: 12,
@@ -223,9 +225,9 @@ const s = StyleSheet.create({
   },
   badgeDate: {
     fontSize: 9,
+    fontFamily: "PlusJakartaSans_500Medium",
     color: AMBER,
     marginTop: 4,
-    fontWeight: "500",
   },
 
   // Records
@@ -234,7 +236,7 @@ const s = StyleSheet.create({
   },
   sectionTitle: {
     fontSize: 15,
-    fontWeight: "600",
+    fontFamily: "PlusJakartaSans_600SemiBold",
     color: TEXT_1,
     marginBottom: 12,
     letterSpacing: -0.2,
@@ -256,12 +258,13 @@ const s = StyleSheet.create({
   },
   recordValue: {
     fontSize: 20,
-    fontWeight: "600",
+    fontFamily: "PlusJakartaSans_600SemiBold",
     color: TEXT_1,
     marginBottom: 2,
   },
   recordLabel: {
     fontSize: 11,
+    fontFamily: "PlusJakartaSans_400Regular",
     color: TEXT_3,
     letterSpacing: 0.2,
   },
