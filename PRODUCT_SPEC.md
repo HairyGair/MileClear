@@ -2,7 +2,7 @@
 
 ## Implementation Status
 
-> Last updated: 19 Feb 2026
+> Last updated: 21 Feb 2026
 
 ### Fully Implemented
 - **Shift Mode** — Start/end shifts, one-at-a-time enforcement, vehicle selection (API + mobile)
@@ -11,30 +11,30 @@
 - **Earnings Tracking (Manual)** — Create/edit/delete earnings, platform tagging, paginated history (API + mobile)
 - **Tax Exports (Premium)** — CSV trip download, PDF trip report, Self-Assessment PDF with HMRC rate tiers and vehicle breakdown (API + web + mobile)
 - **Accounting Previews** — Xero, FreeAgent, QuickBooks formatted data previews (coming_soon status, OAuth deferred) (API + web + mobile)
-- **Authentication** — Email/password register, login, JWT refresh/logout, rate limiting (API + mobile)
+- **Authentication** — Email/password register, login, JWT refresh/logout, rate limiting, email verification (6-digit OTP), forgot/reset password with session invalidation (API + mobile)
 - **User Profile** — Edit profile, GDPR data export, account deletion with password confirmation (API + mobile)
 - **Waitlist** — Email signup with driver type, duplicate handling (API + web landing page)
 - **Landing Page** — Full 9-section page: hero, problem, features, who it's for, pricing, early access signup, FAQ, footer (web)
 - **Shared Package** — All types, HMRC constants, Haversine, tax year utilities, formatters
 - **Premium Middleware** — Feature gating via `isPremium` flag + expiry check
+- **Billing / Stripe** — Stripe Checkout subscriptions, webhook lifecycle, subscription management in mobile profile, paywall on exports (API + mobile)
 - **Database** — 10-model MySQL schema deployed via Prisma, all indexes
+- **Dashboard (Mobile)** — Hero card, stats cards (today/week/total), streak badge, personal records, achievements section, shift scorecard modal, weekly/monthly recap modal — all wired to real `GamificationStats` API data
+- **Gamification** — Full service (562 lines): stats, achievements (18 types), shift scorecard, period recaps, streak computation, personal records via raw SQL. Routes fully functional. Mobile achievements screen with badge grid and progress bars.
+- **Background Location Tracking** — expo-location + expo-task-manager: background GPS during shifts, 50m intervals, stop detection (2min threshold), trip segmentation from GPS breadcrumbs, foreground service notification. App permissions configured for iOS + Android.
+- **Email Service** — Brevo SMTP configured and sending (verification, password reset, waitlist confirmation)
+- **GPS Coordinate Persistence** — Trip coordinates uploaded from mobile to API on shift end, stored atomically via Prisma transaction, returned on GET /trips/:id for route replay
 
 ### Partially Implemented
-- **Auth** — Email verify, forgot/reset password, Apple Sign-In, Google Sign-In all stubbed (501)
-- **Dashboard (Mobile)** — Shift controls work, but stats cards show hardcoded "0.0 mi" (not wired to real trip data)
-- **Earnings** — CSV upload, OCR, Open Banking all stubbed (501)
+- **Auth** — Apple/Google Sign-In not started (return 501).
+- **Earnings** — Manual CRUD done. CSV upload, OCR, Open Banking still stubbed (501).
 
 ### Not Yet Started (Stubbed / Placeholder)
-- **Fuel Prices** — All routes return 501, service returns empty array, mobile screen is placeholder
-- **Gamification** — All routes return 501, service is a no-op, no achievement logic
-- **Billing / Stripe** — All routes return 501, no Stripe integration
-- **Offline Sync** — All routes return 501, no sync engine
-- **Background Location Tracking** — expo-location/expo-task-manager not wired up
-- **Smart Trip Detection** — No push notification for unrecorded driving
+- **Fuel Prices** — All routes return 501, mobile screen placeholder
+- **Offline Sync** — SQLite queue schema exists but sync engine not implemented
+- **Smart Trip Detection** — Outside-shift low-power driving detection not wired
 - **Reminders & Nudges** — Not started
-- **Email Service** — Resend not wired (verification, password reset, waitlist confirmation all no-ops)
-- **Web Dashboard Pages** — Dashboard, trips, earnings, settings, login, register are all placeholders (just h1 tags)
-- **Mobile Email Verify Screen** — Placeholder
+- **Web Dashboard Pages** — All placeholder h1 tags
 
 ---
 
