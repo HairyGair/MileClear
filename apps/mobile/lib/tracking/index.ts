@@ -128,6 +128,13 @@ export async function processShiftTrips(
         startedAt: first.recorded_at,
         endedAt: last.recorded_at,
         classification: "business",
+        coordinates: segment.map((c) => ({
+          lat: c.lat,
+          lng: c.lng,
+          speed: c.speed,
+          accuracy: c.accuracy,
+          recordedAt: c.recorded_at,
+        })),
       });
       created++;
     } catch (err) {

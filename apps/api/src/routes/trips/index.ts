@@ -13,6 +13,14 @@ import { haversineDistance } from "@mileclear/shared";
 import { upsertMileageSummary } from "../../services/mileage.js";
 import { checkAndAwardAchievements } from "../../services/gamification.js";
 
+const coordinateInputSchema = z.object({
+  lat: z.number().min(-90).max(90),
+  lng: z.number().min(-180).max(180),
+  speed: z.number().nullable().optional(),
+  accuracy: z.number().nullable().optional(),
+  recordedAt: z.coerce.date(),
+});
+
 const createTripSchema = z.object({
   shiftId: z.string().uuid().optional(),
   vehicleId: z.string().uuid().optional(),
@@ -28,6 +36,7 @@ const createTripSchema = z.object({
   classification: z.enum(TRIP_CLASSIFICATIONS).default("business"),
   platformTag: z.enum(PLATFORM_TAGS).optional(),
   notes: z.string().max(2000).optional(),
+  coordinates: z.array(coordinateInputSchema).max(5000).optional(),
 });
 
 const updateTripSchema = z.object({
@@ -88,27 +97,58 @@ export async function tripRoutes(app: FastifyInstance) {
       distanceMiles = haversineDistance(data.startLat, data.startLng, data.endLat, data.endLng);
     }
 
-    const trip = await prisma.trip.create({
-      data: {
-        userId,
-        shiftId: data.shiftId ?? null,
-        vehicleId: data.vehicleId ?? null,
-        startLat: data.startLat,
-        startLng: data.startLng,
-        endLat: data.endLat ?? null,
-        endLng: data.endLng ?? null,
-        startAddress: data.startAddress ?? null,
-        endAddress: data.endAddress ?? null,
-        distanceMiles,
-        startedAt: data.startedAt,
-        endedAt: data.endedAt ?? null,
-        isManualEntry: true,
-        classification: data.classification,
-        platformTag: data.platformTag ?? null,
-        notes: data.notes ?? null,
-      },
-      include: { vehicle: true, shift: true },
-    });
+    const { coordinates, ...tripData } = data;
+    const hasCoordinates = coordinates && coordinates.length > 0;
+
+    const tripPayload = {
+      userId,
+      shiftId: tripData.shiftId ?? null,
+      vehicleId: tripData.vehicleId ?? null,
+      startLat: tripData.startLat,
+      startLng: tripData.startLng,
+      endLat: tripData.endLat ?? null,
+      endLng: tripData.endLng ?? null,
+      startAddress: tripData.startAddress ?? null,
+      endAddress: tripData.endAddress ?? null,
+      distanceMiles,
+      startedAt: tripData.startedAt,
+      endedAt: tripData.endedAt ?? null,
+      isManualEntry: !hasCoordinates,
+      classification: tripData.classification,
+      platformTag: tripData.platformTag ?? null,
+      notes: tripData.notes ?? null,
+    };
+
+    let trip;
+
+    if (hasCoordinates) {
+      trip = await prisma.$transaction(async (tx) => {
+        const created = await tx.trip.create({
+          data: tripPayload,
+        });
+
+        await tx.tripCoordinate.createMany({
+          data: coordinates.map((c) => ({
+            tripId: created.id,
+            lat: c.lat,
+            lng: c.lng,
+            speed: c.speed ?? null,
+            accuracy: c.accuracy ?? null,
+            recordedAt: c.recordedAt,
+          })),
+        });
+
+        return tx.trip.findUniqueOrThrow({
+          where: { id: created.id },
+          include: { vehicle: true, shift: true },
+        });
+      });
+    } else {
+      trip = await prisma.trip.create({
+        data: tripPayload,
+        include: { vehicle: true, shift: true },
+      });
+    }
 
     // Fire-and-forget: update mileage summary + check achievements
     const taxYear = getTaxYear(data.startedAt);

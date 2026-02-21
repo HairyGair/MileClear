@@ -19,6 +19,14 @@ export interface TripDetail extends Trip {
   coordinates: TripCoordinate[];
 }
 
+export interface CoordinateInput {
+  lat: number;
+  lng: number;
+  speed: number | null;
+  accuracy: number | null;
+  recordedAt: string;
+}
+
 export interface CreateTripData {
   shiftId?: string;
   vehicleId?: string;
@@ -34,6 +42,7 @@ export interface CreateTripData {
   classification?: TripClassification;
   platformTag?: PlatformTag;
   notes?: string;
+  coordinates?: CoordinateInput[];
 }
 
 export interface UpdateTripData {
