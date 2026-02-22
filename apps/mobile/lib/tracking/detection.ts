@@ -6,7 +6,16 @@ import { DRIVING_SPEED_THRESHOLD_MPH } from "@mileclear/shared";
 
 const DETECTION_TASK_NAME = "mileclear-drive-detection";
 const COOLDOWN_MS = 20 * 60 * 1000; // 20 minutes
+const BUFFER_MAX_AGE_MS = 30 * 60 * 1000; // 30 minutes
 const SPEED_THRESHOLD_MS = DRIVING_SPEED_THRESHOLD_MPH * 0.44704; // mph to m/s
+
+export interface BufferedCoordinate {
+  lat: number;
+  lng: number;
+  speed: number | null;
+  accuracy: number | null;
+  recorded_at: string;
+}
 
 // TaskManager task must be defined at module top level
 TaskManager.defineTask(DETECTION_TASK_NAME, async ({ data, error }) => {
@@ -21,17 +30,41 @@ TaskManager.defineTask(DETECTION_TASK_NAME, async ({ data, error }) => {
   try {
     const db = await getDatabase();
 
-    // Guard: don't notify if a shift is active
+    // Guard: don't buffer if a shift is active
     const activeShift = await db.getFirstAsync<{ value: string }>(
       "SELECT value FROM tracking_state WHERE key = 'active_shift_id'"
     );
     if (activeShift) return;
+
+    // Purge stale detection coordinates (older than 30 min)
+    const cutoff = new Date(Date.now() - BUFFER_MAX_AGE_MS).toISOString();
+    await db.runAsync(
+      "DELETE FROM detection_coordinates WHERE recorded_at < ?",
+      [cutoff]
+    );
 
     // Check if any location exceeds driving speed
     const isDriving = locations.some(
       (loc) => loc.coords.speed != null && loc.coords.speed >= SPEED_THRESHOLD_MS
     );
     if (!isDriving) return;
+
+    // Buffer driving coordinates
+    for (const loc of locations) {
+      if (loc.coords.speed != null && loc.coords.speed >= SPEED_THRESHOLD_MS) {
+        await db.runAsync(
+          `INSERT INTO detection_coordinates (lat, lng, speed, accuracy, recorded_at)
+           VALUES (?, ?, ?, ?, ?)`,
+          [
+            loc.coords.latitude,
+            loc.coords.longitude,
+            loc.coords.speed,
+            loc.coords.accuracy,
+            new Date(loc.timestamp).toISOString(),
+          ]
+        );
+      }
+    }
 
     // Cooldown: don't spam notifications
     const lastNotif = await db.getFirstAsync<{ value: string }>(
@@ -114,4 +147,13 @@ export async function setDriveDetectionEnabled(enabled: boolean): Promise<void> 
   } else {
     await stopDriveDetection();
   }
+}
+
+export async function getAndClearBufferedCoordinates(): Promise<BufferedCoordinate[]> {
+  const db = await getDatabase();
+  const rows = await db.getAllAsync<BufferedCoordinate>(
+    "SELECT lat, lng, speed, accuracy, recorded_at FROM detection_coordinates ORDER BY recorded_at ASC"
+  );
+  await db.runAsync("DELETE FROM detection_coordinates");
+  return rows;
 }

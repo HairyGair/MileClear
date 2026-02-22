@@ -92,6 +92,15 @@ async function initializeSchema(database: SQLite.SQLiteDatabase): Promise<void> 
       key TEXT PRIMARY KEY,
       value TEXT NOT NULL
     );
+
+    CREATE TABLE IF NOT EXISTS detection_coordinates (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      lat REAL NOT NULL,
+      lng REAL NOT NULL,
+      speed REAL,
+      accuracy REAL,
+      recorded_at TEXT NOT NULL
+    );
   `);
 
   // Schema versioning — upgrade sync_queue if needed
