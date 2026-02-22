@@ -11,8 +11,11 @@ import {
 } from "react-native";
 import { useRouter, useFocusEffect } from "expo-router";
 import { fetchEarnings } from "../../lib/api/earnings";
+import { getLocalEarnings, getLocalUnsyncedEarnings } from "../../lib/db/queries";
 import { GIG_PLATFORMS, formatPence } from "@mileclear/shared";
 import type { Earning } from "@mileclear/shared";
+
+type EarningItem = Earning & { _isLocal?: boolean };
 
 const PLATFORM_LABELS: Record<string, string> = Object.fromEntries(
   GIG_PLATFORMS.map((p) => [p.value, p.label])
@@ -36,7 +39,7 @@ function formatDate(iso: string): string {
 
 export default function EarningsScreen() {
   const router = useRouter();
-  const [earnings, setEarnings] = useState<Earning[]>([]);
+  const [earnings, setEarnings] = useState<EarningItem[]>([]);
   const [platformFilter, setPlatformFilter] = useState<string | undefined>(undefined);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
@@ -44,6 +47,7 @@ export default function EarningsScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
+  const [isOffline, setIsOffline] = useState(false);
 
   const loadEarnings = useCallback(
     async (pageNum: number, append = false) => {
@@ -53,10 +57,15 @@ export default function EarningsScreen() {
           page: pageNum,
           pageSize: 20,
         });
+        setIsOffline(false);
         if (append) {
           setEarnings((prev) => [...prev, ...res.data]);
         } else {
-          setEarnings(res.data);
+          // Merge unsynced local items on first page
+          const unsynced = await getLocalUnsyncedEarnings({ platform: platformFilter });
+          const apiIds = new Set(res.data.map((e) => e.id));
+          const uniqueLocal = unsynced.filter((e) => !apiIds.has(e.id)) as EarningItem[];
+          setEarnings([...uniqueLocal, ...res.data]);
         }
         setPage(res.page);
         setTotalPages(res.totalPages);
@@ -66,7 +75,14 @@ export default function EarningsScreen() {
           setTotalPence(resAny.totalAmountPence);
         }
       } catch {
-        // Silently fail — will show empty state
+        // Offline fallback — show all local data
+        if (!append) {
+          const local = await getLocalEarnings({ platform: platformFilter }) as EarningItem[];
+          setEarnings(local);
+          setIsOffline(true);
+          setTotalPages(1);
+          setTotalPence(local.reduce((acc, e) => acc + e.amountPence, 0));
+        }
       } finally {
         setLoading(false);
         setRefreshing(false);
@@ -102,7 +118,12 @@ export default function EarningsScreen() {
     []
   );
 
-  const renderEarning = ({ item }: { item: Earning }) => (
+  const onEndReachedSafe = useCallback(() => {
+    if (isOffline) return;
+    onEndReached();
+  }, [isOffline, onEndReached]);
+
+  const renderEarning = ({ item }: { item: EarningItem }) => (
     <TouchableOpacity
       style={styles.card}
       onPress={() => router.push(`/earning-form?id=${item.id}`)}
@@ -119,9 +140,14 @@ export default function EarningsScreen() {
 
       <Text style={styles.amountText}>{formatPence(item.amountPence)}</Text>
 
-      <Text style={styles.periodText}>
-        {formatDate(item.periodStart)} — {formatDate(item.periodEnd)}
-      </Text>
+      <View style={styles.cardFooterRow}>
+        <Text style={styles.periodText}>
+          {formatDate(item.periodStart)} — {formatDate(item.periodEnd)}
+        </Text>
+        {item._isLocal && (
+          <Text style={styles.syncBadge}>Pending sync</Text>
+        )}
+      </View>
     </TouchableOpacity>
   );
 
@@ -131,7 +157,7 @@ export default function EarningsScreen() {
         data={earnings}
         keyExtractor={(item) => item.id}
         renderItem={renderEarning}
-        onEndReached={onEndReached}
+        onEndReached={onEndReachedSafe}
         onEndReachedThreshold={0.3}
         refreshControl={
           <RefreshControl
@@ -143,6 +169,13 @@ export default function EarningsScreen() {
         contentContainerStyle={styles.listContent}
         ListHeaderComponent={
           <View>
+            {isOffline && (
+              <View style={styles.offlineBanner}>
+                <Text style={styles.offlineBannerText}>
+                  Offline — showing local data
+                </Text>
+              </View>
+            )}
             {/* Total summary */}
             <View style={styles.summaryCard}>
               <Text style={styles.summaryLabel}>Total Earnings</Text>
@@ -322,6 +355,33 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontFamily: "PlusJakartaSans_400Regular",
     color: "#9ca3af",
+  },
+  cardFooterRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  syncBadge: {
+    fontSize: 11,
+    fontFamily: "PlusJakartaSans_600SemiBold",
+    color: "#030712",
+    backgroundColor: "#f59e0b",
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 4,
+    overflow: "hidden",
+  },
+  offlineBanner: {
+    backgroundColor: "#92400e",
+    borderRadius: 8,
+    padding: 10,
+    marginBottom: 12,
+    alignItems: "center",
+  },
+  offlineBannerText: {
+    fontSize: 13,
+    fontFamily: "PlusJakartaSans_600SemiBold",
+    color: "#fef3c7",
   },
   // Empty state
   emptyState: {

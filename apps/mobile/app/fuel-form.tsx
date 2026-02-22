@@ -13,6 +13,7 @@ import {
 } from "react-native";
 import { useRouter, useLocalSearchParams, Stack } from "expo-router";
 import { fetchFuelLog } from "../lib/api/fuel";
+import { getLocalFuelLog } from "../lib/db/queries";
 import {
   syncCreateFuelLog,
   syncUpdateFuelLog,
@@ -50,15 +51,24 @@ export default function FuelFormScreen() {
       setLoggedAt(new Date().toISOString().slice(0, 10));
       return;
     }
+    const populateLog = (log: {
+      stationName?: string | null; vehicleId: string | null;
+      litres: number; costPence: number;
+      odometerReading?: number | null; loggedAt: string;
+    }) => {
+      setStationName(log.stationName ?? "");
+      setVehicleId(log.vehicleId);
+      setLitres(log.litres.toString());
+      setCost((log.costPence / 100).toFixed(2));
+      setOdometer(log.odometerReading?.toString() ?? "");
+      setLoggedAt(log.loggedAt.slice(0, 10));
+    };
+
     fetchFuelLog(id)
-      .then((res) => {
-        const log = res.data;
-        setStationName(log.stationName ?? "");
-        setVehicleId(log.vehicleId);
-        setLitres(log.litres.toString());
-        setCost((log.costPence / 100).toFixed(2));
-        setOdometer(log.odometerReading?.toString() ?? "");
-        setLoggedAt(log.loggedAt.slice(0, 10));
+      .then((res) => populateLog(res.data))
+      .catch(async () => {
+        const local = await getLocalFuelLog(id);
+        if (local) populateLog(local);
       })
       .finally(() => setLoadingExisting(false));
   }, [id]);

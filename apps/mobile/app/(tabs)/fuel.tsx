@@ -11,8 +11,11 @@ import {
 } from "react-native";
 import { useRouter, useFocusEffect } from "expo-router";
 import { fetchFuelLogs } from "../../lib/api/fuel";
+import { getLocalFuelLogs, getLocalUnsyncedFuelLogs } from "../../lib/db/queries";
 import { FUEL_BRANDS, formatPence } from "@mileclear/shared";
 import type { FuelLogWithVehicle } from "@mileclear/shared";
+
+type FuelLogItem = FuelLogWithVehicle & { _isLocal?: boolean };
 
 function formatDate(iso: string): string {
   const d = new Date(iso);
@@ -30,7 +33,7 @@ function formatPpl(costPence: number, litres: number): string {
 
 export default function FuelScreen() {
   const router = useRouter();
-  const [logs, setLogs] = useState<FuelLogWithVehicle[]>([]);
+  const [logs, setLogs] = useState<FuelLogItem[]>([]);
   const [stationFilter, setStationFilter] = useState<string | undefined>(undefined);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
@@ -40,12 +43,14 @@ export default function FuelScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
+  const [isOffline, setIsOffline] = useState(false);
 
   const loadLogs = useCallback(
     async (pageNum: number, append = false) => {
       try {
         const res = await fetchFuelLogs({ page: pageNum, pageSize: 20 });
-        let filtered = res.data;
+        setIsOffline(false);
+        let filtered = res.data as FuelLogItem[];
         if (stationFilter) {
           filtered = filtered.filter(
             (l) => l.stationName?.toLowerCase() === stationFilter.toLowerCase()
@@ -54,7 +59,16 @@ export default function FuelScreen() {
         if (append) {
           setLogs((prev) => [...prev, ...filtered]);
         } else {
-          setLogs(filtered);
+          // Merge unsynced local items on first page
+          const unsynced = await getLocalUnsyncedFuelLogs();
+          const apiIds = new Set(res.data.map((l) => l.id));
+          let uniqueLocal = unsynced.filter((l) => !apiIds.has(l.id)) as FuelLogItem[];
+          if (stationFilter) {
+            uniqueLocal = uniqueLocal.filter(
+              (l) => l.stationName?.toLowerCase() === stationFilter.toLowerCase()
+            );
+          }
+          setLogs([...uniqueLocal, ...filtered]);
         }
         setPage(res.page);
         setTotalPages(res.totalPages);
@@ -76,7 +90,23 @@ export default function FuelScreen() {
           );
         }
       } catch {
-        // Silently fail — will show empty state
+        // Offline fallback — show all local data
+        if (!append) {
+          let local = await getLocalFuelLogs() as FuelLogItem[];
+          if (stationFilter) {
+            local = local.filter(
+              (l) => l.stationName?.toLowerCase() === stationFilter.toLowerCase()
+            );
+          }
+          setLogs(local);
+          setIsOffline(true);
+          setTotalPages(1);
+          const spend = local.reduce((acc, l) => acc + l.costPence, 0);
+          const litres = local.reduce((acc, l) => acc + l.litres, 0);
+          setTotalSpendPence(spend);
+          setTotalLitres(litres);
+          setTotalCostPenceForAvg(spend);
+        }
       } finally {
         setLoading(false);
         setRefreshing(false);
@@ -112,7 +142,12 @@ export default function FuelScreen() {
   const avgPpl =
     totalLitres > 0 ? (totalCostPenceForAvg / totalLitres).toFixed(1) : "—";
 
-  const renderLog = ({ item }: { item: FuelLogWithVehicle }) => (
+  const onEndReachedSafe = useCallback(() => {
+    if (isOffline) return;
+    onEndReached();
+  }, [isOffline, onEndReached]);
+
+  const renderLog = ({ item }: { item: FuelLogItem }) => (
     <TouchableOpacity
       style={styles.card}
       onPress={() => router.push(`/fuel-form?id=${item.id}`)}
@@ -135,7 +170,12 @@ export default function FuelScreen() {
         <Text style={styles.detailText}>
           {item.litres.toFixed(1)}L · {formatPpl(item.costPence, item.litres)}
         </Text>
-        <Text style={styles.dateText}>{formatDate(item.loggedAt)}</Text>
+        <View style={styles.footerRight}>
+          {item._isLocal && (
+            <Text style={styles.syncBadge}>Pending sync</Text>
+          )}
+          <Text style={styles.dateText}>{formatDate(item.loggedAt)}</Text>
+        </View>
       </View>
     </TouchableOpacity>
   );
@@ -146,7 +186,7 @@ export default function FuelScreen() {
         data={logs}
         keyExtractor={(item) => item.id}
         renderItem={renderLog}
-        onEndReached={onEndReached}
+        onEndReached={onEndReachedSafe}
         onEndReachedThreshold={0.3}
         refreshControl={
           <RefreshControl
@@ -158,6 +198,13 @@ export default function FuelScreen() {
         contentContainerStyle={styles.listContent}
         ListHeaderComponent={
           <View>
+            {isOffline && (
+              <View style={styles.offlineBanner}>
+                <Text style={styles.offlineBannerText}>
+                  Offline — showing local data
+                </Text>
+              </View>
+            )}
             {/* Summary card */}
             <View style={styles.summaryCard}>
               <View style={styles.summaryRow}>
@@ -370,6 +417,33 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontFamily: "PlusJakartaSans_400Regular",
     color: "#6b7280",
+  },
+  footerRight: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  syncBadge: {
+    fontSize: 11,
+    fontFamily: "PlusJakartaSans_600SemiBold",
+    color: "#030712",
+    backgroundColor: "#f59e0b",
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 4,
+    overflow: "hidden",
+  },
+  offlineBanner: {
+    backgroundColor: "#92400e",
+    borderRadius: 8,
+    padding: 10,
+    marginBottom: 12,
+    alignItems: "center",
+  },
+  offlineBannerText: {
+    fontSize: 13,
+    fontFamily: "PlusJakartaSans_600SemiBold",
+    color: "#fef3c7",
   },
   // Empty state
   emptyState: {

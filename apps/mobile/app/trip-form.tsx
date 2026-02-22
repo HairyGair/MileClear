@@ -13,6 +13,7 @@ import {
 } from "react-native";
 import { useRouter, useLocalSearchParams, Stack } from "expo-router";
 import { fetchTrip, CreateTripData } from "../lib/api/trips";
+import { getLocalTrip } from "../lib/db/queries";
 import {
   syncCreateTrip,
   syncUpdateTrip,
@@ -69,22 +70,32 @@ export default function TripFormScreen() {
       setStartedAt(now);
       return;
     }
+    const populateTrip = (t: {
+      classification: string; platformTag?: string | null; vehicleId?: string | null;
+      startAddress?: string | null; endAddress?: string | null;
+      startLat: number; startLng: number; endLat?: number | null; endLng?: number | null;
+      distanceMiles: number; startedAt: string; endedAt?: string | null; notes?: string | null;
+    }) => {
+      setClassification(t.classification as TripClassification);
+      setPlatformTag((t.platformTag ?? undefined) as PlatformTag | undefined);
+      setVehicleId(t.vehicleId ?? undefined);
+      setStartAddress(t.startAddress ?? "");
+      setEndAddress(t.endAddress ?? "");
+      setStartLat(String(t.startLat));
+      setStartLng(String(t.startLng));
+      setEndLat(t.endLat != null ? String(t.endLat) : "");
+      setEndLng(t.endLng != null ? String(t.endLng) : "");
+      setDistanceMiles(String(t.distanceMiles));
+      setStartedAt(t.startedAt.slice(0, 16));
+      setEndedAt(t.endedAt ? t.endedAt.slice(0, 16) : "");
+      setNotes(t.notes ?? "");
+    };
+
     fetchTrip(id)
-      .then((res) => {
-        const t = res.data;
-        setClassification(t.classification);
-        setPlatformTag(t.platformTag ?? undefined);
-        setVehicleId(t.vehicleId ?? undefined);
-        setStartAddress(t.startAddress ?? "");
-        setEndAddress(t.endAddress ?? "");
-        setStartLat(String(t.startLat));
-        setStartLng(String(t.startLng));
-        setEndLat(t.endLat != null ? String(t.endLat) : "");
-        setEndLng(t.endLng != null ? String(t.endLng) : "");
-        setDistanceMiles(String(t.distanceMiles));
-        setStartedAt(t.startedAt.slice(0, 16));
-        setEndedAt(t.endedAt ? t.endedAt.slice(0, 16) : "");
-        setNotes(t.notes ?? "");
+      .then((res) => populateTrip(res.data))
+      .catch(async () => {
+        const local = await getLocalTrip(id);
+        if (local) populateTrip(local);
       })
       .finally(() => setLoadingExisting(false));
   }, [id]);

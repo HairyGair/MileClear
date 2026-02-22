@@ -10,8 +10,11 @@ import {
 } from "react-native";
 import { useRouter, useFocusEffect } from "expo-router";
 import { fetchTrips, TripWithVehicle } from "../../lib/api/trips";
+import { getLocalTrips, getLocalUnsyncedTrips } from "../../lib/db/queries";
 import { GIG_PLATFORMS } from "@mileclear/shared";
 import type { TripClassification } from "@mileclear/shared";
+
+type TripItem = TripWithVehicle & { _isLocal?: boolean };
 
 const FILTERS: { label: string; value: TripClassification | undefined }[] = [
   { label: "All", value: undefined },
@@ -39,13 +42,14 @@ function formatTime(iso: string): string {
 
 export default function TripsScreen() {
   const router = useRouter();
-  const [trips, setTrips] = useState<TripWithVehicle[]>([]);
+  const [trips, setTrips] = useState<TripItem[]>([]);
   const [filter, setFilter] = useState<TripClassification | undefined>(undefined);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
+  const [isOffline, setIsOffline] = useState(false);
 
   const loadTrips = useCallback(
     async (pageNum: number, append = false) => {
@@ -55,15 +59,27 @@ export default function TripsScreen() {
           page: pageNum,
           pageSize: 20,
         });
+        setIsOffline(false);
+
         if (append) {
           setTrips((prev) => [...prev, ...res.data]);
         } else {
-          setTrips(res.data);
+          // Merge unsynced local items on first page
+          const unsynced = await getLocalUnsyncedTrips({ classification: filter });
+          const apiIds = new Set(res.data.map((t) => t.id));
+          const uniqueLocal = unsynced.filter((t) => !apiIds.has(t.id)) as TripItem[];
+          setTrips([...uniqueLocal, ...res.data]);
         }
         setPage(res.page);
         setTotalPages(res.totalPages);
       } catch {
-        // Silently fail — will show empty state
+        // Offline fallback — show all local data
+        if (!append) {
+          const local = await getLocalTrips({ classification: filter });
+          setTrips(local as TripItem[]);
+          setIsOffline(true);
+          setTotalPages(1);
+        }
       } finally {
         setLoading(false);
         setRefreshing(false);
@@ -99,7 +115,12 @@ export default function TripsScreen() {
     []
   );
 
-  const renderTrip = ({ item }: { item: TripWithVehicle }) => (
+  const onEndReachedSafe = useCallback(() => {
+    if (isOffline) return;
+    onEndReached();
+  }, [isOffline, onEndReached]);
+
+  const renderTrip = ({ item }: { item: TripItem }) => (
     <TouchableOpacity
       style={styles.tripCard}
       onPress={() => router.push(`/trip-form?id=${item.id}`)}
@@ -148,6 +169,9 @@ export default function TripsScreen() {
       )}
 
       <View style={styles.tripMeta}>
+        {item._isLocal && (
+          <Text style={styles.syncBadge}>Pending sync</Text>
+        )}
         {item.platformTag && (
           <Text style={styles.platformBadge}>
             {PLATFORM_LABELS[item.platformTag] ?? item.platformTag}
@@ -171,7 +195,7 @@ export default function TripsScreen() {
         data={trips}
         keyExtractor={(item) => item.id}
         renderItem={renderTrip}
-        onEndReached={onEndReached}
+        onEndReached={onEndReachedSafe}
         onEndReachedThreshold={0.3}
         refreshControl={
           <RefreshControl
@@ -183,6 +207,13 @@ export default function TripsScreen() {
         contentContainerStyle={styles.listContent}
         ListHeaderComponent={
           <View>
+            {isOffline && (
+              <View style={styles.offlineBanner}>
+                <Text style={styles.offlineBannerText}>
+                  Offline — showing local data
+                </Text>
+              </View>
+            )}
             <View style={styles.filterRow}>
               {FILTERS.map((f) => (
                 <TouchableOpacity
@@ -373,6 +404,28 @@ const styles = StyleSheet.create({
     paddingVertical: 2,
     borderRadius: 4,
     overflow: "hidden",
+  },
+  syncBadge: {
+    fontSize: 11,
+    fontFamily: "PlusJakartaSans_600SemiBold",
+    color: "#030712",
+    backgroundColor: "#f59e0b",
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 4,
+    overflow: "hidden",
+  },
+  offlineBanner: {
+    backgroundColor: "#92400e",
+    borderRadius: 8,
+    padding: 10,
+    marginBottom: 12,
+    alignItems: "center",
+  },
+  offlineBannerText: {
+    fontSize: 13,
+    fontFamily: "PlusJakartaSans_600SemiBold",
+    color: "#fef3c7",
   },
   // Empty state
   emptyState: {

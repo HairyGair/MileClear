@@ -13,6 +13,7 @@ import {
 } from "react-native";
 import { useRouter, useLocalSearchParams, Stack } from "expo-router";
 import { fetchEarning } from "../lib/api/earnings";
+import { getLocalEarning } from "../lib/db/queries";
 import {
   syncCreateEarning,
   syncUpdateEarning,
@@ -41,13 +42,21 @@ export default function EarningFormScreen() {
       setPeriodEnd(today);
       return;
     }
+    const populateEarning = (earning: {
+      platform: string; amountPence: number;
+      periodStart: string; periodEnd: string;
+    }) => {
+      setPlatform(earning.platform);
+      setAmount((earning.amountPence / 100).toFixed(2));
+      setPeriodStart(earning.periodStart.slice(0, 10));
+      setPeriodEnd(earning.periodEnd.slice(0, 10));
+    };
+
     fetchEarning(id)
-      .then((res) => {
-        const earning = res.data;
-        setPlatform(earning.platform);
-        setAmount((earning.amountPence / 100).toFixed(2));
-        setPeriodStart(earning.periodStart.slice(0, 10));
-        setPeriodEnd(earning.periodEnd.slice(0, 10));
+      .then((res) => populateEarning(res.data))
+      .catch(async () => {
+        const local = await getLocalEarning(id);
+        if (local) populateEarning(local);
       })
       .finally(() => setLoadingExisting(false));
   }, [id]);
