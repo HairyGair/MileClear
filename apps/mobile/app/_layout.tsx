@@ -12,6 +12,7 @@ import {
 import { AuthProvider, useAuth } from "../lib/auth/context";
 import { UserProvider } from "../lib/user/context";
 import { SyncProvider } from "../lib/sync/context";
+import { ModeProvider } from "../lib/mode/context";
 import { SyncStatusBar } from "../components/SyncStatusBar";
 import "../lib/tracking/detection"; // Register drive detection TaskManager task
 import { requestNotificationPermissions, setupNotificationResponseHandler } from "../lib/notifications/index";
@@ -121,9 +122,11 @@ export default function RootLayout() {
   return (
     <AuthProvider>
       <UserProvider>
-        <SyncProvider>
-          <RootNavigator />
-        </SyncProvider>
+        <ModeProvider>
+          <SyncProvider>
+            <RootNavigator />
+          </SyncProvider>
+        </ModeProvider>
       </UserProvider>
     </AuthProvider>
   );

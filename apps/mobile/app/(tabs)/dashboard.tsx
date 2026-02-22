@@ -11,10 +11,8 @@ import {
   Modal,
   Share,
   Platform,
-  Image,
 } from "react-native";
 import { useFocusEffect, useRouter } from "expo-router";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { fetchVehicles } from "../../lib/api/vehicles";
 import {
   fetchActiveShift,
@@ -42,6 +40,9 @@ import type {
   PeriodRecap,
 } from "@mileclear/shared";
 import { formatPence, formatMiles } from "@mileclear/shared";
+import { useMode } from "../../lib/mode/context";
+import { ModeToggle } from "../../components/ModeToggle";
+import { PersonalDashboard } from "../../components/personal/PersonalDashboard";
 
 function formatElapsed(seconds: number): string {
   const h = Math.floor(seconds / 3600);
@@ -58,7 +59,7 @@ function formatMilesShort(miles: number): string {
 
 export default function DashboardScreen() {
   const router = useRouter();
-  const insets = useSafeAreaInsets();
+  const { isPersonal, isWork } = useMode();
   const [activeShift, setActiveShift] = useState<ShiftWithVehicle | null>(null);
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [selectedVehicleId, setSelectedVehicleId] = useState<string | undefined>();
@@ -393,7 +394,7 @@ export default function DashboardScreen() {
     return (
       <ScrollView
         style={s.container}
-        contentContainerStyle={[s.content, { paddingTop: insets.top + 16 }]}
+        contentContainerStyle={[s.content, { paddingTop: 16 }]}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#f5a623" />
         }
@@ -449,7 +450,7 @@ export default function DashboardScreen() {
   return (
     <ScrollView
       style={s.container}
-      contentContainerStyle={[s.content, { paddingTop: insets.top + 16 }]}
+      contentContainerStyle={[s.content, { paddingTop: 16 }]}
       refreshControl={
         <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#f5a623" />
       }
@@ -457,37 +458,23 @@ export default function DashboardScreen() {
       {scorecardModal}
       {recapModal}
 
-      {/* Header */}
-      <View style={s.headerRow}>
-        <View style={s.brandRow}>
-          <Image
-            source={require("../../assets/branding/logo-original.png")}
-            style={s.brandIcon}
-            resizeMode="contain"
-          />
-          <View style={s.brandTextWrap}>
-            <View style={s.brandNameRow}>
-              <Text style={s.brandNameWhite}>Mile</Text>
-              <Text style={s.brandNameAmber}>Clear</Text>
-            </View>
-            <Text style={s.greeting}>
-              {stats && stats.currentStreakDays > 0
-                ? `${stats.currentStreakDays}-day streak`
-                : "Ready to drive"}
-            </Text>
-          </View>
-        </View>
-        {stats && stats.currentStreakDays > 0 && (
+      {/* Mode Toggle */}
+      <ModeToggle />
+
+      {/* Streak indicator */}
+      {stats && stats.currentStreakDays > 0 && (
+        <View style={s.streakRow}>
           <View style={s.streakBadge}>
             <Text style={s.streakNum}>{stats.currentStreakDays}</Text>
           </View>
-        )}
-      </View>
+          <Text style={s.greeting}>{stats.currentStreakDays}-day streak</Text>
+        </View>
+      )}
 
-      {/* Tax Savings — hero card */}
-      {stats && (
+      {/* Tax Savings — hero card (work mode only) */}
+      {isWork && stats && (
         <View style={s.heroCard}>
-          <Text style={s.heroLabel}>Tax Deduction \u00B7 {stats.taxYear}</Text>
+          <Text style={s.heroLabel}>Tax Deduction {"\u00B7"} {stats.taxYear}</Text>
           <Text style={s.heroValue}>
             {formatPence(stats.deductionPence)}
           </Text>
@@ -521,14 +508,25 @@ export default function DashboardScreen() {
           <Text style={s.quickActionIcon}>{"\u2630"}</Text>
           <Text style={s.quickActionLabel}>All Trips</Text>
         </TouchableOpacity>
-        <TouchableOpacity
-          style={s.quickAction}
-          onPress={() => router.push("/exports")}
-          activeOpacity={0.7}
-        >
-          <Text style={s.quickActionIcon}>{"\u2193"}</Text>
-          <Text style={s.quickActionLabel}>Exports</Text>
-        </TouchableOpacity>
+        {isWork ? (
+          <TouchableOpacity
+            style={s.quickAction}
+            onPress={() => router.push("/exports")}
+            activeOpacity={0.7}
+          >
+            <Text style={s.quickActionIcon}>{"\u2193"}</Text>
+            <Text style={s.quickActionLabel}>Exports</Text>
+          </TouchableOpacity>
+        ) : (
+          <TouchableOpacity
+            style={s.quickAction}
+            onPress={() => router.push("/(tabs)/fuel" as any)}
+            activeOpacity={0.7}
+          >
+            <Text style={s.quickActionIcon}>{"\u26FD"}</Text>
+            <Text style={s.quickActionLabel}>Fuel</Text>
+          </TouchableOpacity>
+        )}
         <TouchableOpacity
           style={s.quickAction}
           onPress={() => router.push("/achievements")}
@@ -558,6 +556,9 @@ export default function DashboardScreen() {
           <Text style={s.statUnit}>trips</Text>
         </View>
       </View>
+
+      {/* Personal Dashboard (personal mode only) */}
+      {isPersonal && <PersonalDashboard />}
 
       {/* Achievements */}
       {achievements.length > 0 && (
@@ -621,36 +622,40 @@ export default function DashboardScreen() {
         </View>
       )}
 
-      {/* Vehicle Picker */}
-      <TouchableOpacity
-        style={s.vehiclePicker}
-        onPress={handleSelectVehicle}
-        activeOpacity={0.7}
-      >
-        <View>
-          <Text style={s.vehiclePickerLabel}>Vehicle</Text>
-          <Text style={s.vehiclePickerVal}>
-            {selectedVehicle
-              ? `${selectedVehicle.make} ${selectedVehicle.model}`
-              : "None selected"}
-          </Text>
-        </View>
-        <Text style={s.chevron}>\u203A</Text>
-      </TouchableOpacity>
+      {/* Vehicle Picker (work mode only) */}
+      {isWork && (
+        <TouchableOpacity
+          style={s.vehiclePicker}
+          onPress={handleSelectVehicle}
+          activeOpacity={0.7}
+        >
+          <View>
+            <Text style={s.vehiclePickerLabel}>Vehicle</Text>
+            <Text style={s.vehiclePickerVal}>
+              {selectedVehicle
+                ? `${selectedVehicle.make} ${selectedVehicle.model}`
+                : "None selected"}
+            </Text>
+          </View>
+          <Text style={s.chevron}>{"\u203A"}</Text>
+        </TouchableOpacity>
+      )}
 
-      {/* Start Shift */}
-      <TouchableOpacity
-        style={s.startBtn}
-        onPress={handleStartShift}
-        activeOpacity={0.8}
-        disabled={starting}
-      >
-        {starting ? (
-          <ActivityIndicator color="#030712" />
-        ) : (
-          <Text style={s.startBtnText}>Start Shift</Text>
-        )}
-      </TouchableOpacity>
+      {/* Start Shift (work mode only) */}
+      {isWork && (
+        <TouchableOpacity
+          style={s.startBtn}
+          onPress={handleStartShift}
+          activeOpacity={0.8}
+          disabled={starting}
+        >
+          {starting ? (
+            <ActivityIndicator color="#030712" />
+          ) : (
+            <Text style={s.startBtnText}>Start Shift</Text>
+          )}
+        </TouchableOpacity>
+      )}
 
       <View style={{ height: 24 }} />
     </ScrollView>
@@ -671,48 +676,22 @@ const s = StyleSheet.create({
   centered: { justifyContent: "center", alignItems: "center" },
   content: { paddingHorizontal: 20, paddingBottom: 20 },
 
-  // Header
-  headerRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "flex-start",
-    marginBottom: 24,
-  },
-  brandRow: {
+  // Streak
+  streakRow: {
     flexDirection: "row",
     alignItems: "center",
-  },
-  brandIcon: {
-    width: 44,
-    height: 44,
-    borderRadius: 10,
-  },
-  brandTextWrap: {
-    marginLeft: 12,
-  },
-  brandNameRow: {
-    flexDirection: "row",
-  },
-  brandNameWhite: {
-    fontSize: 20,
-    fontFamily: "PlusJakartaSans_600SemiBold",
-    color: TEXT_1,
-  },
-  brandNameAmber: {
-    fontSize: 20,
-    fontFamily: "PlusJakartaSans_600SemiBold",
-    color: AMBER,
+    gap: 10,
+    marginBottom: 16,
   },
   greeting: {
     fontSize: 14,
     fontFamily: "PlusJakartaSans_400Regular",
     color: TEXT_2,
-    marginTop: 2,
   },
   streakBadge: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     backgroundColor: "rgba(245, 166, 35, 0.12)",
     borderWidth: 1.5,
     borderColor: "rgba(245, 166, 35, 0.3)",
@@ -720,7 +699,7 @@ const s = StyleSheet.create({
     alignItems: "center",
   },
   streakNum: {
-    fontSize: 18,
+    fontSize: 15,
     fontFamily: "PlusJakartaSans_700Bold",
     color: AMBER,
   },
