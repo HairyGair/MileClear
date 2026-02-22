@@ -20,8 +20,10 @@ import {
   syncDeleteTrip,
 } from "../lib/sync/actions";
 import { fetchVehicles } from "../lib/api/vehicles";
-import { GIG_PLATFORMS } from "@mileclear/shared";
+import { GIG_PLATFORMS, haversineDistance } from "@mileclear/shared";
 import type { TripClassification, PlatformTag, Vehicle } from "@mileclear/shared";
+import { LocationPickerField } from "../components/LocationPickerField";
+import { DateTimePickerField } from "../components/DateTimePickerField";
 
 const CLASSIFICATIONS: { value: TripClassification; label: string }[] = [
   { value: "business", label: "Business" },
@@ -37,19 +39,38 @@ export default function TripFormScreen() {
   const [platformTag, setPlatformTag] = useState<PlatformTag | undefined>(undefined);
   const [vehicleId, setVehicleId] = useState<string | undefined>(undefined);
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
-  const [startAddress, setStartAddress] = useState("");
-  const [endAddress, setEndAddress] = useState("");
-  const [startLat, setStartLat] = useState("");
-  const [startLng, setStartLng] = useState("");
-  const [endLat, setEndLat] = useState("");
-  const [endLng, setEndLng] = useState("");
-  const [distanceMiles, setDistanceMiles] = useState("");
-  const [startedAt, setStartedAt] = useState("");
-  const [endedAt, setEndedAt] = useState("");
+
+  // Location state — typed values instead of raw strings
+  const [startLat, setStartLat] = useState<number | null>(null);
+  const [startLng, setStartLng] = useState<number | null>(null);
+  const [startAddress, setStartAddress] = useState<string | null>(null);
+  const [endLat, setEndLat] = useState<number | null>(null);
+  const [endLng, setEndLng] = useState<number | null>(null);
+  const [endAddress, setEndAddress] = useState<string | null>(null);
+
+  // Date/time state — Date objects instead of ISO strings
+  const [startedAt, setStartedAt] = useState<Date>(new Date());
+  const [endedAt, setEndedAt] = useState<Date | null>(null);
+
+  // Auto-calculated distance
+  const [distanceMiles, setDistanceMiles] = useState<number | null>(null);
+
   const [notes, setNotes] = useState("");
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [loadingExisting, setLoadingExisting] = useState(isEditing);
+  const [showDetails, setShowDetails] = useState(false);
+
+  // Auto-calculate distance when both locations set
+  useEffect(() => {
+    if (startLat != null && startLng != null && endLat != null && endLng != null) {
+      setDistanceMiles(
+        Math.round(haversineDistance(startLat, startLng, endLat, endLng) * 100) / 100
+      );
+    } else {
+      setDistanceMiles(null);
+    }
+  }, [startLat, startLng, endLat, endLng]);
 
   useEffect(() => {
     fetchVehicles()
@@ -64,12 +85,8 @@ export default function TripFormScreen() {
   }, [id]);
 
   useEffect(() => {
-    if (!id) {
-      // Pre-fill dates for new trip
-      const now = new Date().toISOString().slice(0, 16);
-      setStartedAt(now);
-      return;
-    }
+    if (!id) return;
+
     const populateTrip = (t: {
       classification: string; platformTag?: string | null; vehicleId?: string | null;
       startAddress?: string | null; endAddress?: string | null;
@@ -79,15 +96,15 @@ export default function TripFormScreen() {
       setClassification(t.classification as TripClassification);
       setPlatformTag((t.platformTag ?? undefined) as PlatformTag | undefined);
       setVehicleId(t.vehicleId ?? undefined);
-      setStartAddress(t.startAddress ?? "");
-      setEndAddress(t.endAddress ?? "");
-      setStartLat(String(t.startLat));
-      setStartLng(String(t.startLng));
-      setEndLat(t.endLat != null ? String(t.endLat) : "");
-      setEndLng(t.endLng != null ? String(t.endLng) : "");
-      setDistanceMiles(String(t.distanceMiles));
-      setStartedAt(t.startedAt.slice(0, 16));
-      setEndedAt(t.endedAt ? t.endedAt.slice(0, 16) : "");
+      setStartAddress(t.startAddress ?? null);
+      setEndAddress(t.endAddress ?? null);
+      setStartLat(t.startLat);
+      setStartLng(t.startLng);
+      setEndLat(t.endLat ?? null);
+      setEndLng(t.endLng ?? null);
+      setDistanceMiles(t.distanceMiles);
+      setStartedAt(new Date(t.startedAt));
+      setEndedAt(t.endedAt ? new Date(t.endedAt) : null);
       setNotes(t.notes ?? "");
     };
 
@@ -101,12 +118,8 @@ export default function TripFormScreen() {
   }, [id]);
 
   const handleSave = useCallback(async () => {
-    if (!startLat.trim() || !startLng.trim()) {
-      Alert.alert("Missing fields", "Start coordinates are required.");
-      return;
-    }
-    if (!startedAt.trim()) {
-      Alert.alert("Missing fields", "Start date/time is required.");
+    if (startLat == null || startLng == null) {
+      Alert.alert("Missing location", "Set a start location using GPS, map, or address search.");
       return;
     }
 
@@ -117,25 +130,25 @@ export default function TripFormScreen() {
           classification,
           platformTag: platformTag ?? null,
           notes: notes.trim() || null,
-          endAddress: endAddress.trim() || null,
-          endLat: endLat.trim() ? parseFloat(endLat) : null,
-          endLng: endLng.trim() ? parseFloat(endLng) : null,
-          endedAt: endedAt.trim() ? new Date(endedAt).toISOString() : null,
+          endAddress: endAddress ?? null,
+          endLat: endLat ?? null,
+          endLng: endLng ?? null,
+          endedAt: endedAt ? endedAt.toISOString() : null,
         });
       } else {
         const data: CreateTripData = {
-          startLat: parseFloat(startLat),
-          startLng: parseFloat(startLng),
-          startedAt: new Date(startedAt).toISOString(),
+          startLat,
+          startLng,
+          startedAt: startedAt.toISOString(),
           classification,
-          ...(endLat.trim() && endLng.trim() && {
-            endLat: parseFloat(endLat),
-            endLng: parseFloat(endLng),
+          ...(endLat != null && endLng != null && {
+            endLat,
+            endLng,
           }),
-          ...(distanceMiles.trim() && { distanceMiles: parseFloat(distanceMiles) }),
-          ...(startAddress.trim() && { startAddress: startAddress.trim() }),
-          ...(endAddress.trim() && { endAddress: endAddress.trim() }),
-          ...(endedAt.trim() && { endedAt: new Date(endedAt).toISOString() }),
+          ...(distanceMiles != null && { distanceMiles }),
+          ...(startAddress && { startAddress }),
+          ...(endAddress && { endAddress }),
+          ...(endedAt && { endedAt: endedAt.toISOString() }),
           ...(platformTag && { platformTag }),
           ...(notes.trim() && { notes: notes.trim() }),
           ...(vehicleId && { vehicleId }),
@@ -207,6 +220,74 @@ export default function TripFormScreen() {
         options={{ title: isEditing ? "Edit Trip" : "Add Trip" }}
       />
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+        {/* Start Location */}
+        <LocationPickerField
+          label="Start Location"
+          lat={startLat}
+          lng={startLng}
+          address={startAddress}
+          onLocationChange={(lat, lng, addr) => {
+            setStartLat(lat);
+            setStartLng(lng);
+            setStartAddress(addr);
+          }}
+          onClear={() => {
+            setStartLat(null);
+            setStartLng(null);
+            setStartAddress(null);
+          }}
+          disabled={isEditing}
+        />
+
+        {/* Distance card */}
+        <View style={styles.distanceCard}>
+          <Text style={styles.distanceLabel}>Distance</Text>
+          <Text style={styles.distanceValue}>
+            {distanceMiles != null ? `${distanceMiles} mi` : "--"}
+          </Text>
+          {distanceMiles == null && (
+            <Text style={styles.distanceHint}>
+              Set both locations to auto-calculate
+            </Text>
+          )}
+        </View>
+
+        {/* End Location */}
+        <LocationPickerField
+          label="End Location"
+          lat={endLat}
+          lng={endLng}
+          address={endAddress}
+          onLocationChange={(lat, lng, addr) => {
+            setEndLat(lat);
+            setEndLng(lng);
+            setEndAddress(addr);
+          }}
+          onClear={() => {
+            setEndLat(null);
+            setEndLng(null);
+            setEndAddress(null);
+          }}
+        />
+
+        {/* Start Time */}
+        <DateTimePickerField
+          label="Start Time"
+          value={startedAt}
+          onChange={setStartedAt}
+          disabled={isEditing}
+          maximumDate={new Date()}
+        />
+
+        {/* End Time */}
+        <DateTimePickerField
+          label="End Time"
+          value={endedAt}
+          onChange={setEndedAt}
+          onClear={() => setEndedAt(null)}
+          maximumDate={new Date()}
+        />
+
         {/* Classification */}
         <Text style={styles.label}>Classification</Text>
         <View style={styles.segmentRow}>
@@ -231,177 +312,85 @@ export default function TripFormScreen() {
           ))}
         </View>
 
-        {/* Platform */}
-        <Text style={styles.label}>Platform</Text>
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.platformRow}
-        >
-          <TouchableOpacity
-            style={[styles.platformChip, !platformTag && styles.platformChipActive]}
-            onPress={() => setPlatformTag(undefined)}
-          >
-            <Text style={[styles.platformChipText, !platformTag && styles.platformChipTextActive]}>
-              None
-            </Text>
-          </TouchableOpacity>
-          {GIG_PLATFORMS.map((p) => (
-            <TouchableOpacity
-              key={p.value}
-              style={[
-                styles.platformChip,
-                platformTag === p.value && styles.platformChipActive,
-              ]}
-              onPress={() => setPlatformTag(p.value as PlatformTag)}
-            >
-              <Text
-                style={[
-                  styles.platformChipText,
-                  platformTag === p.value && styles.platformChipTextActive,
-                ]}
-              >
-                {p.label}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </ScrollView>
-
-        {/* Vehicle */}
-        <Text style={styles.label}>Vehicle</Text>
+        {/* Collapsible Details */}
         <TouchableOpacity
-          style={styles.vehiclePicker}
-          onPress={handleSelectVehicle}
+          style={styles.detailsToggle}
+          onPress={() => setShowDetails(!showDetails)}
           activeOpacity={0.7}
         >
-          <Text style={styles.vehiclePickerText}>
-            {selectedVehicle
-              ? `${selectedVehicle.make} ${selectedVehicle.model}`
-              : "None selected"}
+          <Text style={styles.detailsToggleText}>Details</Text>
+          <Text style={styles.detailsChevron}>
+            {showDetails ? "\u2303" : "\u2304"}
           </Text>
-          <Text style={styles.chevron}>›</Text>
         </TouchableOpacity>
 
-        {/* Start Address */}
-        <Text style={styles.label}>Start Address</Text>
-        <TextInput
-          style={styles.input}
-          value={startAddress}
-          onChangeText={setStartAddress}
-          placeholder="e.g. 10 Downing Street"
-          placeholderTextColor="#6b7280"
-        />
+        {showDetails && (
+          <View>
+            {/* Platform */}
+            <Text style={styles.label}>Platform</Text>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.platformRow}
+            >
+              <TouchableOpacity
+                style={[styles.platformChip, !platformTag && styles.platformChipActive]}
+                onPress={() => setPlatformTag(undefined)}
+              >
+                <Text style={[styles.platformChipText, !platformTag && styles.platformChipTextActive]}>
+                  None
+                </Text>
+              </TouchableOpacity>
+              {GIG_PLATFORMS.map((p) => (
+                <TouchableOpacity
+                  key={p.value}
+                  style={[
+                    styles.platformChip,
+                    platformTag === p.value && styles.platformChipActive,
+                  ]}
+                  onPress={() => setPlatformTag(p.value as PlatformTag)}
+                >
+                  <Text
+                    style={[
+                      styles.platformChipText,
+                      platformTag === p.value && styles.platformChipTextActive,
+                    ]}
+                  >
+                    {p.label}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
 
-        {/* End Address */}
-        <Text style={styles.label}>End Address</Text>
-        <TextInput
-          style={styles.input}
-          value={endAddress}
-          onChangeText={setEndAddress}
-          placeholder="e.g. Buckingham Palace"
-          placeholderTextColor="#6b7280"
-        />
+            {/* Vehicle */}
+            <Text style={styles.label}>Vehicle</Text>
+            <TouchableOpacity
+              style={styles.vehiclePicker}
+              onPress={handleSelectVehicle}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.vehiclePickerText}>
+                {selectedVehicle
+                  ? `${selectedVehicle.make} ${selectedVehicle.model}`
+                  : "None selected"}
+              </Text>
+              <Text style={styles.chevron}>{"\u203A"}</Text>
+            </TouchableOpacity>
 
-        {/* Coordinates */}
-        <View style={styles.coordRow}>
-          <View style={styles.coordField}>
-            <Text style={styles.label}>Start Lat *</Text>
+            {/* Notes */}
+            <Text style={styles.label}>Notes</Text>
             <TextInput
-              style={styles.input}
-              value={startLat}
-              onChangeText={setStartLat}
-              placeholder="51.5074"
+              style={[styles.input, styles.notesInput]}
+              value={notes}
+              onChangeText={setNotes}
+              placeholder="Optional notes about this trip"
               placeholderTextColor="#6b7280"
-              keyboardType="decimal-pad"
-              editable={!isEditing}
+              multiline
+              numberOfLines={3}
+              textAlignVertical="top"
             />
           </View>
-          <View style={styles.coordField}>
-            <Text style={styles.label}>Start Lng *</Text>
-            <TextInput
-              style={styles.input}
-              value={startLng}
-              onChangeText={setStartLng}
-              placeholder="-0.1278"
-              placeholderTextColor="#6b7280"
-              keyboardType="decimal-pad"
-              editable={!isEditing}
-            />
-          </View>
-        </View>
-
-        <View style={styles.coordRow}>
-          <View style={styles.coordField}>
-            <Text style={styles.label}>End Lat</Text>
-            <TextInput
-              style={styles.input}
-              value={endLat}
-              onChangeText={setEndLat}
-              placeholder="51.5014"
-              placeholderTextColor="#6b7280"
-              keyboardType="decimal-pad"
-            />
-          </View>
-          <View style={styles.coordField}>
-            <Text style={styles.label}>End Lng</Text>
-            <TextInput
-              style={styles.input}
-              value={endLng}
-              onChangeText={setEndLng}
-              placeholder="-0.1419"
-              placeholderTextColor="#6b7280"
-              keyboardType="decimal-pad"
-            />
-          </View>
-        </View>
-
-        {/* Distance */}
-        {!isEditing && (
-          <>
-            <Text style={styles.label}>Distance (miles)</Text>
-            <TextInput
-              style={styles.input}
-              value={distanceMiles}
-              onChangeText={setDistanceMiles}
-              placeholder="Auto-calculated from coords if empty"
-              placeholderTextColor="#6b7280"
-              keyboardType="decimal-pad"
-            />
-          </>
         )}
-
-        {/* Date/time */}
-        <Text style={styles.label}>Start Date/Time *</Text>
-        <TextInput
-          style={[styles.input, isEditing && styles.inputDisabled]}
-          value={startedAt}
-          onChangeText={setStartedAt}
-          placeholder="2025-01-15T09:00"
-          placeholderTextColor="#6b7280"
-          editable={!isEditing}
-        />
-
-        <Text style={styles.label}>End Date/Time</Text>
-        <TextInput
-          style={styles.input}
-          value={endedAt}
-          onChangeText={setEndedAt}
-          placeholder="2025-01-15T09:30"
-          placeholderTextColor="#6b7280"
-        />
-
-        {/* Notes */}
-        <Text style={styles.label}>Notes</Text>
-        <TextInput
-          style={[styles.input, styles.notesInput]}
-          value={notes}
-          onChangeText={setNotes}
-          placeholder="Optional notes about this trip"
-          placeholderTextColor="#6b7280"
-          multiline
-          numberOfLines={3}
-          textAlignVertical="top"
-        />
 
         {/* Save */}
         <TouchableOpacity
@@ -471,11 +460,38 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#1f2937",
   },
-  inputDisabled: {
-    opacity: 0.5,
-  },
   notesInput: {
     minHeight: 80,
+  },
+  // Distance card
+  distanceCard: {
+    backgroundColor: "#0a1120",
+    borderRadius: 12,
+    padding: 16,
+    marginTop: 16,
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.05)",
+  },
+  distanceLabel: {
+    fontSize: 11,
+    fontFamily: "PlusJakartaSans_600SemiBold",
+    color: "#8494a7",
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+    marginBottom: 4,
+  },
+  distanceValue: {
+    fontSize: 28,
+    fontFamily: "PlusJakartaSans_300Light",
+    color: "#f59e0b",
+    letterSpacing: -0.5,
+  },
+  distanceHint: {
+    fontSize: 11,
+    fontFamily: "PlusJakartaSans_400Regular",
+    color: "#4a5568",
+    marginTop: 4,
   },
   // Segment control
   segmentRow: {
@@ -503,6 +519,26 @@ const styles = StyleSheet.create({
   segmentTextActive: {
     fontFamily: "PlusJakartaSans_600SemiBold",
     color: "#030712",
+  },
+  // Details toggle
+  detailsToggle: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginTop: 20,
+    paddingVertical: 12,
+    borderTopWidth: 1,
+    borderTopColor: "rgba(255,255,255,0.05)",
+  },
+  detailsToggleText: {
+    fontSize: 15,
+    fontFamily: "PlusJakartaSans_600SemiBold",
+    color: "#f0f2f5",
+  },
+  detailsChevron: {
+    fontSize: 18,
+    fontFamily: "PlusJakartaSans_400Regular",
+    color: "#6b7280",
   },
   // Platform chips
   platformRow: {
@@ -550,14 +586,6 @@ const styles = StyleSheet.create({
     fontSize: 22,
     fontFamily: "PlusJakartaSans_400Regular",
     color: "#6b7280",
-  },
-  // Coordinate rows
-  coordRow: {
-    flexDirection: "row",
-    gap: 12,
-  },
-  coordField: {
-    flex: 1,
   },
   // Buttons
   saveButton: {

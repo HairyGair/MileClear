@@ -494,11 +494,11 @@ export default function DashboardScreen() {
       <View style={s.quickActions}>
         <TouchableOpacity
           style={s.quickAction}
-          onPress={() => router.push("/trip-form")}
+          onPress={() => router.push("/quick-trip")}
           activeOpacity={0.7}
         >
-          <Text style={s.quickActionIcon}>+</Text>
-          <Text style={s.quickActionLabel}>Add Trip</Text>
+          <Text style={s.quickActionIcon}>{"\u25B6"}</Text>
+          <Text style={s.quickActionLabel}>Quick Trip</Text>
         </TouchableOpacity>
         <TouchableOpacity
           style={s.quickAction}

@@ -7,6 +7,7 @@ import * as TaskManager from "expo-task-manager";
 import { getDatabase } from "../db/index";
 import { syncCreateTrip } from "../sync/actions";
 import { startDriveDetection, stopDriveDetection } from "./detection";
+import { reverseGeocode } from "../location/geocoding";
 
 const LOCATION_TASK_NAME = "mileclear-background-location";
 const MIN_TRIP_DISTANCE_MILES = 0.1;
@@ -121,6 +122,12 @@ export async function processShiftTrips(
     const first = segment[0];
     const last = segment[segment.length - 1];
 
+    // Reverse-geocode start and end points for human-readable addresses
+    const [startAddress, endAddress] = await Promise.all([
+      reverseGeocode(first.lat, first.lng),
+      reverseGeocode(last.lat, last.lng),
+    ]);
+
     try {
       await syncCreateTrip({
         shiftId,
@@ -129,6 +136,8 @@ export async function processShiftTrips(
         startLng: first.lng,
         endLat: last.lat,
         endLng: last.lng,
+        startAddress: startAddress ?? undefined,
+        endAddress: endAddress ?? undefined,
         distanceMiles: Math.round(totalDistance * 100) / 100,
         startedAt: first.recorded_at,
         endedAt: last.recorded_at,

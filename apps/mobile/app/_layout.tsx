@@ -64,6 +64,10 @@ function RootNavigator() {
           options={{ headerShown: true, title: "Trip" }}
         />
         <Stack.Screen
+          name="quick-trip"
+          options={{ headerShown: true, title: "Quick Trip" }}
+        />
+        <Stack.Screen
           name="vehicle-form"
           options={{ headerShown: true, title: "Vehicle" }}
         />
