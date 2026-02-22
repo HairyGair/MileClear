@@ -67,6 +67,10 @@ const APPLE_JWKS = createRemoteJWKSet(
   new URL("https://appleid.apple.com/auth/keys")
 );
 
+const GOOGLE_JWKS = createRemoteJWKSet(
+  new URL("https://www.googleapis.com/oauth2/v3/certs")
+);
+
 function generateOtp(): string {
   return crypto.randomInt(100000, 999999).toString();
 }
@@ -85,7 +89,7 @@ function storeRefreshToken(userId: string, token: string) {
 
 export async function authRoutes(app: FastifyInstance) {
   // POST /register
-  app.post("/register", async (request, reply) => {
+  app.post("/register", { config: { rateLimit: { max: 10, timeWindow: "15 minutes" } } }, async (request, reply) => {
     const parsed = registerSchema.safeParse(request.body);
     if (!parsed.success) {
       return reply.status(400).send({ error: parsed.error.errors[0].message });
@@ -184,8 +188,8 @@ export async function authRoutes(app: FastifyInstance) {
     });
   });
 
-  // POST /logout
-  app.post("/logout", async (request, reply) => {
+  // POST /logout (authenticated — scoped to user's own tokens)
+  app.post("/logout", { preHandler: [authMiddleware] }, async (request, reply) => {
     const parsed = logoutSchema.safeParse(request.body);
     if (!parsed.success) {
       return reply.status(400).send({ error: parsed.error.errors[0].message });
@@ -194,7 +198,7 @@ export async function authRoutes(app: FastifyInstance) {
     const { refreshToken } = parsed.data;
 
     await prisma.refreshToken.deleteMany({
-      where: { token: refreshToken },
+      where: { token: refreshToken, userId: request.userId! },
     });
 
     return reply.status(200).send({ message: "Logged out" });
@@ -275,7 +279,7 @@ export async function authRoutes(app: FastifyInstance) {
   );
 
   // POST /forgot-password (public)
-  app.post("/forgot-password", async (request, reply) => {
+  app.post("/forgot-password", { config: { rateLimit: { max: 5, timeWindow: "15 minutes" } } }, async (request, reply) => {
     const parsed = forgotPasswordSchema.safeParse(request.body);
     if (!parsed.success) {
       return reply.status(400).send({ error: parsed.error.errors[0].message });
@@ -306,7 +310,7 @@ export async function authRoutes(app: FastifyInstance) {
   });
 
   // POST /reset-password (public)
-  app.post("/reset-password", async (request, reply) => {
+  app.post("/reset-password", { config: { rateLimit: { max: 5, timeWindow: "15 minutes" } } }, async (request, reply) => {
     const parsed = resetPasswordSchema.safeParse(request.body);
     if (!parsed.success) {
       return reply.status(400).send({ error: parsed.error.errors[0].message });
@@ -433,37 +437,29 @@ export async function authRoutes(app: FastifyInstance) {
     const { idToken } = parsed.data;
     const googleClientId = process.env.GOOGLE_CLIENT_ID;
 
-    // Verify Google ID token via tokeninfo endpoint
-    let tokenInfo: { sub?: string; email?: string; name?: string; aud?: string };
+    if (!googleClientId) {
+      return reply.status(500).send({ error: "Google Sign-In is not configured" });
+    }
+
+    // Verify Google ID token via JWKS (cryptographic verification)
+    let payload: { sub?: string; email?: string; name?: string };
     try {
-      const res = await fetch(
-        `https://oauth2.googleapis.com/tokeninfo?id_token=${encodeURIComponent(idToken)}`
+      const { payload: verified } = await jwtVerify(
+        idToken,
+        GOOGLE_JWKS,
+        {
+          issuer: "https://accounts.google.com",
+          audience: googleClientId,
+        }
       );
-      if (!res.ok) {
-        return reply.status(401).send({ error: "Invalid Google ID token" });
-      }
-      tokenInfo = (await res.json()) as {
-        sub?: string;
-        email?: string;
-        name?: string;
-        aud?: string;
-      };
+      payload = verified as { sub?: string; email?: string; name?: string };
     } catch {
-      return reply
-        .status(401)
-        .send({ error: "Failed to verify Google ID token" });
+      return reply.status(401).send({ error: "Invalid Google ID token" });
     }
 
-    // Validate audience matches our client ID
-    if (googleClientId && tokenInfo.aud !== googleClientId) {
-      return reply
-        .status(401)
-        .send({ error: "Google token audience mismatch" });
-    }
-
-    const googleId = tokenInfo.sub;
-    const email = tokenInfo.email;
-    const displayName = tokenInfo.name || undefined;
+    const googleId = payload.sub;
+    const email = payload.email;
+    const displayName = payload.name || undefined;
     if (!googleId) {
       return reply
         .status(401)

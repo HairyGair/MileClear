@@ -2,6 +2,7 @@ import { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { authMiddleware } from "../../middleware/auth.js";
 import { prisma } from "../../lib/prisma.js";
+import { stripe } from "../../lib/stripe.js";
 import { verifyPassword } from "../../services/auth.js";
 
 const updateProfileSchema = z.object({
@@ -153,7 +154,7 @@ export async function userRoutes(app: FastifyInstance) {
 
     const user = await prisma.user.findUnique({
       where: { id: userId },
-      select: { passwordHash: true },
+      select: { passwordHash: true, stripeSubscriptionId: true },
     });
 
     if (!user) {
@@ -170,6 +171,15 @@ export async function userRoutes(app: FastifyInstance) {
       const valid = await verifyPassword(parsed.data.password, user.passwordHash);
       if (!valid) {
         return reply.status(401).send({ error: "Incorrect password" });
+      }
+    }
+
+    // Cancel Stripe subscription before deleting account
+    if (user.stripeSubscriptionId && stripe) {
+      try {
+        await stripe.subscriptions.cancel(user.stripeSubscriptionId);
+      } catch (err) {
+        console.error("Failed to cancel subscription:", err);
       }
     }
 

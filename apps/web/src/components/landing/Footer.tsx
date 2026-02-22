@@ -3,7 +3,7 @@ export default function Footer() {
     <footer className="footer">
       <div className="container footer__row">
         <span className="nav__logo" style={{ fontSize: "1.125rem" }}>
-          <span className="logo-mark" style={{ width: 22, height: 22, fontSize: "0.625rem" }}>M</span>
+          <img src="/branding/logo-120x120.png" alt="" className="logo-mark" style={{ width: 24, height: 24 }} aria-hidden="true" />
           MileClear
         </span>
 

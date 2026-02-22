@@ -31,6 +31,10 @@ export const metadata: Metadata = {
     "uber driver",
     "deliveroo driver",
   ],
+  icons: {
+    icon: "/branding/logo-120x120.png",
+    apple: "/branding/logo-120x120.png",
+  },
   openGraph: {
     title: "MileClear — Track every mile. Keep every penny.",
     description:
@@ -38,12 +42,21 @@ export const metadata: Metadata = {
     type: "website",
     url: "https://mileclear.com",
     siteName: "MileClear",
+    images: [
+      {
+        url: "/branding/wordmark-dark.png",
+        width: 1500,
+        height: 500,
+        alt: "MileClear",
+      },
+    ],
   },
   twitter: {
     card: "summary_large_image",
     title: "MileClear — Track every mile. Keep every penny.",
     description:
       "The mileage tracker that actually works. Built for gig drivers, delivery riders, and anyone who drives for a living.",
+    images: ["/branding/wordmark-dark.png"],
   },
   robots: {
     index: true,

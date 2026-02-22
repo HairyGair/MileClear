@@ -34,7 +34,10 @@ export async function sendVerificationEmail(
   `;
 
   if (!transporter) {
-    console.log(`[EMAIL] Verification code for ${email}: ${code}`);
+    if (process.env.NODE_ENV === "production") {
+      throw new Error("SMTP not configured — cannot send verification email in production");
+    }
+    console.log(`[EMAIL] Verification code for ${email} (dev only)`);
     return;
   }
 
@@ -58,7 +61,10 @@ export async function sendPasswordResetEmail(
   `;
 
   if (!transporter) {
-    console.log(`[EMAIL] Password reset code for ${email}: ${code}`);
+    if (process.env.NODE_ENV === "production") {
+      throw new Error("SMTP not configured — cannot send password reset email in production");
+    }
+    console.log(`[EMAIL] Password reset code for ${email} (dev only)`);
     return;
   }
 

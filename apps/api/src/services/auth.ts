@@ -14,11 +14,12 @@ export async function verifyPassword(
 }
 
 export function generateAccessToken(userId: string): string {
-  return jwt.sign({ userId }, process.env.JWT_SECRET!, { expiresIn: "15m" });
+  return jwt.sign({ userId }, process.env.JWT_SECRET!, { algorithm: "HS256", expiresIn: "15m" });
 }
 
 export function generateRefreshToken(userId: string): string {
   return jwt.sign({ userId }, process.env.JWT_REFRESH_SECRET!, {
+    algorithm: "HS256",
     expiresIn: "30d",
   });
 }

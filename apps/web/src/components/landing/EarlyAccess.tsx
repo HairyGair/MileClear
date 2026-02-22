@@ -49,6 +49,13 @@ export default function EarlyAccess() {
   return (
     <section id="early-access" className="section ea">
       <div className="container ea__wrap">
+        <img
+          src="/branding/logo-120x120.png"
+          alt="MileClear"
+          className="ea__logo"
+          width={56}
+          height={56}
+        />
         <p className="label">Early access</p>
         <h2 className="heading">Be the first to try MileClear</h2>
         <p className="subtext">

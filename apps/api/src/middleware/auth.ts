@@ -25,7 +25,8 @@ export async function authMiddleware(
   try {
     const decoded = jwt.verify(
       token,
-      process.env.JWT_SECRET!
+      process.env.JWT_SECRET!,
+      { algorithms: ["HS256"] }
     ) as JwtPayload;
     request.userId = decoded.userId;
   } catch {

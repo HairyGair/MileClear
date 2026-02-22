@@ -2,6 +2,7 @@ import "dotenv/config";
 import Fastify from "fastify";
 import cors from "@fastify/cors";
 import cookie from "@fastify/cookie";
+import helmet from "@fastify/helmet";
 import rateLimit from "@fastify/rate-limit";
 import { authRoutes } from "./routes/auth/index.js";
 import { shiftRoutes } from "./routes/shifts/index.js";
@@ -20,12 +21,21 @@ const PORT = Number(process.env.API_PORT) || 3001;
 const HOST = process.env.API_HOST || "0.0.0.0";
 
 const app = Fastify({
-  logger: true,
+  logger: {
+    level: process.env.NODE_ENV === "production" ? "warn" : "info",
+    redact: ["req.headers.authorization"],
+  },
 });
 
 // Plugins
+await app.register(helmet, {
+  contentSecurityPolicy: false, // API serves JSON, not HTML
+});
+
 await app.register(cors, {
-  origin: process.env.CORS_ORIGIN || "http://localhost:3000",
+  origin: process.env.CORS_ORIGIN
+    ? process.env.CORS_ORIGIN.split(",")
+    : ["http://localhost:3003"],
   credentials: true,
 });
 
