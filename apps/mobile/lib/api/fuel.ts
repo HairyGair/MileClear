@@ -1,5 +1,5 @@
 import { apiRequest } from "./index";
-import type { FuelLogWithVehicle, NearbyPricesResponse, PaginatedResponse } from "@mileclear/shared";
+import type { FuelLogWithVehicle, FuelStation, NearbyPricesResponse, PaginatedResponse } from "@mileclear/shared";
 
 export interface CreateFuelLogData {
   vehicleId?: string;

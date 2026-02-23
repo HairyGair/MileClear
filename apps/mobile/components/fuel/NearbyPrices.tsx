@@ -9,7 +9,7 @@ import { getCurrentLocation } from "../../lib/location/geocoding";
 import { fetchNearbyPrices } from "../../lib/api/fuel";
 import { openDirections } from "../../lib/location/directions";
 import FuelMapModal from "./FuelMapModal";
-import type { CommunityFuelStation, NationalAveragePrices } from "@mileclear/shared";
+import type { FuelStation, NationalAveragePrices } from "@mileclear/shared";
 
 type ViewMode = "list" | "map";
 
@@ -18,7 +18,7 @@ function formatDistance(miles: number): string {
 }
 
 function formatPpl(pence: number): string {
-  return `${pence.toFixed(1)}p/L`;
+  return `${pence.toFixed(1)}p`;
 }
 
 function getPriceColor(pricePence: number, nationalAvg: number | null): string {
@@ -32,38 +32,64 @@ function getPriceColor(pricePence: number, nationalAvg: number | null): string {
 function StationCard({
   station,
   nationalAvgPetrol,
+  nationalAvgDiesel,
 }: {
-  station: CommunityFuelStation;
+  station: FuelStation;
   nationalAvgPetrol: number | null;
+  nationalAvgDiesel: number | null;
 }) {
-  const priceColor = getPriceColor(station.avgPricePerLitrePence, nationalAvgPetrol);
+  const unleadedPrice = station.prices.E10;
+  const dieselPrice = station.prices.B7;
 
   return (
     <View style={styles.stationCard}>
       <View style={styles.stationHeader}>
-        <Text style={styles.stationName} numberOfLines={1}>
-          {station.stationName}
-        </Text>
+        <View style={{ flex: 1, marginRight: 8 }}>
+          <Text style={styles.brandName}>{station.brand}</Text>
+          <Text style={styles.stationAddress} numberOfLines={1}>
+            {station.address || station.postcode}
+          </Text>
+        </View>
         <Text style={styles.stationDistance}>{formatDistance(station.distanceMiles)}</Text>
       </View>
       <View style={styles.stationBody}>
-        <Text style={[styles.stationPrice, { color: priceColor }]}>
-          {formatPpl(station.avgPricePerLitrePence)}
-        </Text>
-        <View style={styles.stationActions}>
-          <TouchableOpacity
-            style={styles.directionsPill}
-            onPress={() =>
-              openDirections(station.latitude, station.longitude, station.stationName)
-            }
-            activeOpacity={0.7}
-          >
-            <Text style={styles.directionsPillText}>Directions</Text>
-          </TouchableOpacity>
-          <Text style={styles.reportCount}>
-            {station.reportCount} report{station.reportCount !== 1 ? "s" : ""}
-          </Text>
+        <View style={styles.pricesRow}>
+          {unleadedPrice != null && (
+            <View style={styles.priceChip}>
+              <Text style={styles.fuelLabel}>Unleaded</Text>
+              <Text
+                style={[
+                  styles.fuelPrice,
+                  { color: getPriceColor(unleadedPrice, nationalAvgPetrol) },
+                ]}
+              >
+                {formatPpl(unleadedPrice)}
+              </Text>
+            </View>
+          )}
+          {dieselPrice != null && (
+            <View style={styles.priceChip}>
+              <Text style={styles.fuelLabel}>Diesel</Text>
+              <Text
+                style={[
+                  styles.fuelPrice,
+                  { color: getPriceColor(dieselPrice, nationalAvgDiesel) },
+                ]}
+              >
+                {formatPpl(dieselPrice)}
+              </Text>
+            </View>
+          )}
         </View>
+        <TouchableOpacity
+          style={styles.directionsPill}
+          onPress={() =>
+            openDirections(station.latitude, station.longitude, station.brand)
+          }
+          activeOpacity={0.7}
+        >
+          <Text style={styles.directionsPillText}>Directions</Text>
+        </TouchableOpacity>
       </View>
     </View>
   );
@@ -76,12 +102,12 @@ function NationalAverageBanner({ data }: { data: NationalAveragePrices }) {
       <View style={styles.avgRow}>
         <Text style={styles.avgLabel}>
           Petrol{" "}
-          <Text style={styles.avgValue}>{data.petrolPencePerLitre.toFixed(1)}p/L</Text>
+          <Text style={styles.avgValue}>{data.petrolPencePerLitre.toFixed(1)}p</Text>
         </Text>
         <Text style={styles.avgDivider}>|</Text>
         <Text style={styles.avgLabel}>
           Diesel{" "}
-          <Text style={styles.avgValue}>{data.dieselPencePerLitre.toFixed(1)}p/L</Text>
+          <Text style={styles.avgValue}>{data.dieselPencePerLitre.toFixed(1)}p</Text>
         </Text>
       </View>
     </View>
@@ -89,7 +115,7 @@ function NationalAverageBanner({ data }: { data: NationalAveragePrices }) {
 }
 
 export default function NearbyPrices() {
-  const [stations, setStations] = useState<CommunityFuelStation[]>([]);
+  const [stations, setStations] = useState<FuelStation[]>([]);
   const [nationalAvg, setNationalAvg] = useState<NationalAveragePrices | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -202,15 +228,16 @@ export default function NearbyPrices() {
         stations.length === 0 ? (
           <View style={styles.messageBox}>
             <Text style={styles.messageText}>
-              No community prices nearby. Log your fill-ups to contribute!
+              No fuel stations found nearby
             </Text>
           </View>
         ) : (
           stations.map((s, i) => (
             <StationCard
-              key={`${s.stationName}-${i}`}
+              key={`${s.siteId}-${i}`}
               station={s}
               nationalAvgPetrol={nationalAvg?.petrolPencePerLitre ?? null}
+              nationalAvgDiesel={nationalAvg?.dieselPencePerLitre ?? null}
             />
           ))
         )
@@ -237,6 +264,7 @@ export default function NearbyPrices() {
         onClose={() => setMapModalVisible(false)}
         stations={stations}
         nationalAvgPetrol={nationalAvg?.petrolPencePerLitre ?? null}
+        nationalAvgDiesel={nationalAvg?.dieselPencePerLitre ?? null}
         userLat={userLat}
         userLng={userLng}
       />
@@ -250,7 +278,7 @@ function InlineMapView({
   userLat,
   userLng,
 }: {
-  stations: CommunityFuelStation[];
+  stations: FuelStation[];
   nationalAvgPetrol: number | null;
   userLat: number | null;
   userLng: number | null;
@@ -265,7 +293,7 @@ function InlineMapView({
       return (
         <View style={styles.messageBox}>
           <Text style={styles.messageText}>
-            No community prices nearby. Log your fill-ups to contribute!
+            No fuel stations found nearby
           </Text>
         </View>
       );
@@ -289,19 +317,22 @@ function InlineMapView({
         userInterfaceStyle="dark"
       >
         {stations.map((s, i) => {
-          const color = getPriceColor(s.avgPricePerLitrePence, nationalAvgPetrol);
+          const e10 = s.prices.E10;
+          const color = e10 != null ? getPriceColor(e10, nationalAvgPetrol) : "#f59e0b";
           return (
             <Marker
-              key={`${s.stationName}-${i}`}
+              key={`${s.siteId}-${i}`}
               coordinate={{ latitude: s.latitude, longitude: s.longitude }}
               pinColor={color}
             >
               <Callout>
                 <View style={styles.callout}>
-                  <Text style={styles.calloutTitle}>{s.stationName}</Text>
-                  <Text style={styles.calloutPrice}>
-                    {formatPpl(s.avgPricePerLitrePence)}
-                  </Text>
+                  <Text style={styles.calloutTitle}>{s.brand}</Text>
+                  {e10 != null && (
+                    <Text style={styles.calloutPrice}>
+                      Unleaded {formatPpl(e10)}
+                    </Text>
+                  )}
                 </View>
               </Callout>
             </Marker>
@@ -401,15 +432,19 @@ const styles = StyleSheet.create({
   stationHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 6,
+    alignItems: "flex-start",
+    marginBottom: 8,
   },
-  stationName: {
-    fontSize: 14,
-    fontFamily: "PlusJakartaSans_600SemiBold",
+  brandName: {
+    fontSize: 15,
+    fontFamily: "PlusJakartaSans_700Bold",
     color: "#fff",
-    flex: 1,
-    marginRight: 8,
+  },
+  stationAddress: {
+    fontSize: 12,
+    fontFamily: "PlusJakartaSans_400Regular",
+    color: "#9ca3af",
+    marginTop: 2,
   },
   stationDistance: {
     fontSize: 12,
@@ -421,14 +456,22 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     alignItems: "center",
   },
-  stationPrice: {
+  pricesRow: {
+    flexDirection: "row",
+    gap: 12,
+  },
+  priceChip: {
+    alignItems: "center",
+  },
+  fuelLabel: {
+    fontSize: 10,
+    fontFamily: "PlusJakartaSans_500Medium",
+    color: "#6b7280",
+    marginBottom: 2,
+  },
+  fuelPrice: {
     fontSize: 18,
     fontFamily: "PlusJakartaSans_700Bold",
-  },
-  stationActions: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
   },
   directionsPill: {
     paddingHorizontal: 10,
@@ -441,11 +484,6 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontFamily: "PlusJakartaSans_600SemiBold",
     color: "#f59e0b",
-  },
-  reportCount: {
-    fontSize: 12,
-    fontFamily: "PlusJakartaSans_400Regular",
-    color: "#6b7280",
   },
   // Loading skeleton
   skeletonRow: {
@@ -517,7 +555,7 @@ const styles = StyleSheet.create({
     color: "#030712",
   },
   calloutPrice: {
-    fontSize: 15,
+    fontSize: 14,
     fontFamily: "PlusJakartaSans_700Bold",
     color: "#030712",
   },

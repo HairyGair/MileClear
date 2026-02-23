@@ -97,15 +97,25 @@ export interface FuelLog {
   loggedAt: string;
 }
 
-export interface CommunityFuelStation {
+export interface FuelStation {
+  siteId: string;
+  brand: string;
   stationName: string;
+  address: string;
+  postcode: string;
   latitude: number;
   longitude: number;
   distanceMiles: number;
-  avgPricePerLitrePence: number;
-  reportCount: number;
-  lastReportedAt: string;
+  prices: {
+    E10?: number;   // unleaded (pence/litre)
+    E5?: number;    // super unleaded
+    B7?: number;    // diesel
+    SDV?: number;   // super diesel
+  };
 }
+
+/** @deprecated Use FuelStation instead */
+export type CommunityFuelStation = FuelStation;
 
 export interface NationalAveragePrices {
   petrolPencePerLitre: number;
@@ -114,8 +124,9 @@ export interface NationalAveragePrices {
 }
 
 export interface NearbyPricesResponse {
-  stations: CommunityFuelStation[];
+  stations: FuelStation[];
   nationalAverage: NationalAveragePrices | null;
+  lastUpdated: string;
 }
 
 export interface FuelLogWithVehicle extends FuelLog {

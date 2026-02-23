@@ -51,6 +51,24 @@ export const GIG_PLATFORMS = [
 // Fuel prices
 export const FUEL_PRICE_STALENESS_DAYS = 14;
 export const FUEL_PRICE_DEFAULT_RADIUS_MILES = 5;
+export const FUEL_STATION_CACHE_TTL_MS = 15 * 60 * 1000; // 15 minutes
+
+// UK government-mandated retailer fuel price feeds
+export const FUEL_RETAILER_FEEDS = [
+  { name: "Asda", url: "https://storelocator.asda.com/fuel_prices_data.json" },
+  { name: "Esso", url: "https://fuelprices.esso.co.uk/latestdata.json" },
+  { name: "JET", url: "https://jetlocal.co.uk/fuel_prices_data.json" },
+  { name: "Morrisons", url: "https://www.morrisons.com/fuel-prices/fuel.json" },
+  { name: "Moto", url: "https://moto-way.com/fuel-price/fuel_prices.json" },
+  { name: "MFG", url: "https://fuel.motorfuelgroup.com/fuel_prices_data.json" },
+  { name: "Rontec", url: "https://www.rontec-servicestations.co.uk/fuel-prices/data/fuel_prices_data.json" },
+  { name: "Sainsburys", url: "https://api.sainsburys.co.uk/v1/exports/latest/fuel_prices_data.json" },
+  { name: "SGN", url: "https://www.sgnretail.uk/files/data/SGN_daily_fuel_prices.json" },
+  { name: "Shell", url: "https://www.shell.co.uk/fuel-prices-data.html" },
+  { name: "Tesco", url: "https://www.tesco.com/fuel_prices/fuel_prices_data.json" },
+  { name: "Ascona", url: "https://fuelprices.asconagroup.co.uk/newfuel.json" },
+  { name: "Karan", url: "https://devapi.krlpos.com/integration/live_price/krl" },
+] as const;
 
 // Fuel brands
 export const FUEL_BRANDS = [

@@ -9,19 +9,20 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { openDirections } from "../../lib/location/directions";
-import type { CommunityFuelStation } from "@mileclear/shared";
+import type { FuelStation } from "@mileclear/shared";
 
-// Lazy imports for Expo Go compatibility
-let MapViewComponent: any = null;
-let Marker: any = null;
-let Callout: any = null;
-try {
-  const RNMaps = require("react-native-maps");
-  MapViewComponent = RNMaps.default;
-  Marker = RNMaps.Marker;
-  Callout = RNMaps.Callout;
-} catch {
-  // Not available in Expo Go
+// Lazy require — resolved at render time with try/catch for Expo Go safety
+function getMapComponents() {
+  try {
+    const RNMaps = require("react-native-maps");
+    return {
+      MapView: RNMaps.default,
+      Marker: RNMaps.Marker,
+      Callout: RNMaps.Callout,
+    };
+  } catch {
+    return null;
+  }
 }
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
@@ -29,7 +30,7 @@ const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
 const LONDON = { lat: 51.5074, lng: -0.1278 };
 
 function formatPpl(pence: number): string {
-  return `${pence.toFixed(1)}p/L`;
+  return `${pence.toFixed(1)}p`;
 }
 
 function formatDistance(miles: number): string {
@@ -47,8 +48,9 @@ function getPriceColor(pricePence: number, nationalAvg: number | null): string {
 interface FuelMapModalProps {
   visible: boolean;
   onClose: () => void;
-  stations: CommunityFuelStation[];
+  stations: FuelStation[];
   nationalAvgPetrol: number | null;
+  nationalAvgDiesel: number | null;
   userLat: number | null;
   userLng: number | null;
 }
@@ -58,12 +60,15 @@ export default function FuelMapModal({
   onClose,
   stations,
   nationalAvgPetrol,
+  nationalAvgDiesel,
   userLat,
   userLng,
 }: FuelMapModalProps) {
   const insets = useSafeAreaInsets();
   const mapRef = useRef<any>(null);
-  const [selected, setSelected] = useState<CommunityFuelStation | null>(null);
+  const [selected, setSelected] = useState<FuelStation | null>(null);
+
+  const maps = getMapComponents();
 
   // Determine map center: user → first station → London
   const centerLat = userLat ?? stations[0]?.latitude ?? LONDON.lat;
@@ -82,11 +87,11 @@ export default function FuelMapModal({
 
   const handleDirections = () => {
     if (!selected) return;
-    openDirections(selected.latitude, selected.longitude, selected.stationName);
+    openDirections(selected.latitude, selected.longitude, selected.brand);
   };
 
-  // Expo Go fallback
-  if (!MapViewComponent) {
+  // Expo Go / missing native module fallback
+  if (!maps) {
     return (
       <Modal
         visible={visible}
@@ -106,6 +111,8 @@ export default function FuelMapModal({
     );
   }
 
+  const { MapView: MapViewNative, Marker: MarkerNative, Callout: CalloutNative } = maps;
+
   return (
     <Modal
       visible={visible}
@@ -114,7 +121,7 @@ export default function FuelMapModal({
       statusBarTranslucent
     >
       <View style={styles.container}>
-        <MapViewComponent
+        <MapViewNative
           ref={mapRef}
           style={styles.map}
           initialRegion={initialRegion}
@@ -123,28 +130,31 @@ export default function FuelMapModal({
           onPress={() => setSelected(null)}
         >
           {stations.map((s, i) => {
-            const color = getPriceColor(s.avgPricePerLitrePence, nationalAvgPetrol);
+            const e10 = s.prices.E10;
+            const color = e10 != null ? getPriceColor(e10, nationalAvgPetrol) : "#f59e0b";
             return (
-              <Marker
-                key={`${s.stationName}-${i}`}
+              <MarkerNative
+                key={`${s.siteId}-${i}`}
                 coordinate={{ latitude: s.latitude, longitude: s.longitude }}
                 pinColor={color}
                 onPress={() => setSelected(s)}
               >
-                <Callout tooltip={false}>
+                <CalloutNative tooltip={false}>
                   <View style={styles.callout}>
                     <Text style={styles.calloutTitle} numberOfLines={1}>
-                      {s.stationName}
+                      {s.brand}
                     </Text>
-                    <Text style={[styles.calloutPrice, { color }]}>
-                      {formatPpl(s.avgPricePerLitrePence)}
-                    </Text>
+                    {e10 != null && (
+                      <Text style={[styles.calloutPrice, { color }]}>
+                        Unleaded {formatPpl(e10)}
+                      </Text>
+                    )}
                   </View>
-                </Callout>
-              </Marker>
+                </CalloutNative>
+              </MarkerNative>
             );
           })}
-        </MapViewComponent>
+        </MapViewNative>
 
         {/* Close button */}
         <TouchableOpacity
@@ -170,23 +180,47 @@ export default function FuelMapModal({
             <View>
               <View style={styles.panelHeader}>
                 <View style={{ flex: 1 }}>
-                  <Text style={styles.panelName} numberOfLines={1}>
-                    {selected.stationName}
+                  <Text style={styles.panelBrand}>{selected.brand}</Text>
+                  <Text style={styles.panelAddress} numberOfLines={1}>
+                    {selected.address || selected.postcode}
                   </Text>
-                  <View style={styles.panelMeta}>
-                    <Text
-                      style={[
-                        styles.panelPrice,
-                        {
-                          color: getPriceColor(
-                            selected.avgPricePerLitrePence,
-                            nationalAvgPetrol
-                          ),
-                        },
-                      ]}
-                    >
-                      {formatPpl(selected.avgPricePerLitrePence)}
-                    </Text>
+                  <View style={styles.panelPrices}>
+                    {selected.prices.E10 != null && (
+                      <View style={styles.panelPriceItem}>
+                        <Text style={styles.panelFuelLabel}>Unleaded</Text>
+                        <Text
+                          style={[
+                            styles.panelPrice,
+                            {
+                              color: getPriceColor(
+                                selected.prices.E10,
+                                nationalAvgPetrol
+                              ),
+                            },
+                          ]}
+                        >
+                          {formatPpl(selected.prices.E10)}
+                        </Text>
+                      </View>
+                    )}
+                    {selected.prices.B7 != null && (
+                      <View style={styles.panelPriceItem}>
+                        <Text style={styles.panelFuelLabel}>Diesel</Text>
+                        <Text
+                          style={[
+                            styles.panelPrice,
+                            {
+                              color: getPriceColor(
+                                selected.prices.B7,
+                                nationalAvgDiesel
+                              ),
+                            },
+                          ]}
+                        >
+                          {formatPpl(selected.prices.B7)}
+                        </Text>
+                      </View>
+                    )}
                     <Text style={styles.panelDistance}>
                       {formatDistance(selected.distanceMiles)}
                     </Text>
@@ -230,7 +264,7 @@ const styles = StyleSheet.create({
     color: "#030712",
   },
   calloutPrice: {
-    fontSize: 15,
+    fontSize: 14,
     fontFamily: "PlusJakartaSans_700Bold",
   },
   // Close button
@@ -282,16 +316,31 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginBottom: 14,
   },
-  panelName: {
+  panelBrand: {
     fontSize: 17,
     fontFamily: "PlusJakartaSans_700Bold",
     color: "#fff",
-    marginBottom: 4,
+    marginBottom: 2,
   },
-  panelMeta: {
+  panelAddress: {
+    fontSize: 13,
+    fontFamily: "PlusJakartaSans_400Regular",
+    color: "#9ca3af",
+    marginBottom: 8,
+  },
+  panelPrices: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 12,
+    gap: 16,
+  },
+  panelPriceItem: {
+    alignItems: "center",
+  },
+  panelFuelLabel: {
+    fontSize: 10,
+    fontFamily: "PlusJakartaSans_500Medium",
+    color: "#6b7280",
+    marginBottom: 2,
   },
   panelPrice: {
     fontSize: 20,

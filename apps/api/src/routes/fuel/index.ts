@@ -3,7 +3,7 @@ import { z } from "zod";
 import { authMiddleware } from "../../middleware/auth.js";
 import { prisma } from "../../lib/prisma.js";
 import { DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE, FUEL_PRICE_DEFAULT_RADIUS_MILES } from "@mileclear/shared";
-import { getNearbyFuelPrices, getNationalAverages } from "../../services/fuel.js";
+import { getNearbyStations, getNationalAverages } from "../../services/fuel.js";
 
 const createFuelLogSchema = z.object({
   vehicleId: z.string().uuid().optional(),
@@ -35,10 +35,39 @@ const listFuelLogsQuery = z.object({
 });
 
 export async function fuelRoutes(app: FastifyInstance) {
-  app.addHook("preHandler", authMiddleware);
+  // Public: nearby fuel prices from government retailer feeds
+  const pricesQuerySchema = z.object({
+    lat: z.coerce.number().min(-90).max(90),
+    lng: z.coerce.number().min(-180).max(180),
+    radiusMiles: z.coerce.number().positive().max(50).default(FUEL_PRICE_DEFAULT_RADIUS_MILES),
+  });
+
+  app.get("/prices", async (request, reply) => {
+    const parsed = pricesQuerySchema.safeParse(request.query);
+    if (!parsed.success) {
+      return reply.status(400).send({ error: parsed.error.issues[0].message });
+    }
+
+    const { lat, lng, radiusMiles } = parsed.data;
+
+    const [result, nationalAverage] = await Promise.all([
+      getNearbyStations(lat, lng, radiusMiles),
+      getNationalAverages(),
+    ]);
+
+    return reply.send({
+      stations: result.stations,
+      nationalAverage,
+      lastUpdated: result.lastUpdated,
+    });
+  });
+
+  // Auth-protected fuel log routes
+  app.register(async (authApp) => {
+    authApp.addHook("preHandler", authMiddleware);
 
   // Create fuel log
-  app.post("/logs", async (request, reply) => {
+  authApp.post("/logs", async (request, reply) => {
     const parsed = createFuelLogSchema.safeParse(request.body);
     if (!parsed.success) {
       return reply.status(400).send({ error: parsed.error.issues[0].message });
@@ -80,7 +109,7 @@ export async function fuelRoutes(app: FastifyInstance) {
   });
 
   // List fuel logs with pagination
-  app.get("/logs", async (request, reply) => {
+  authApp.get("/logs", async (request, reply) => {
     const parsed = listFuelLogsQuery.safeParse(request.query);
     if (!parsed.success) {
       return reply.status(400).send({ error: parsed.error.issues[0].message });
@@ -120,7 +149,7 @@ export async function fuelRoutes(app: FastifyInstance) {
   });
 
   // Get single fuel log
-  app.get("/logs/:id", async (request, reply) => {
+  authApp.get("/logs/:id", async (request, reply) => {
     const { id } = request.params as { id: string };
     const userId = request.userId!;
 
@@ -139,7 +168,7 @@ export async function fuelRoutes(app: FastifyInstance) {
   });
 
   // Update fuel log
-  app.patch("/logs/:id", async (request, reply) => {
+  authApp.patch("/logs/:id", async (request, reply) => {
     const { id } = request.params as { id: string };
     const parsed = updateFuelLogSchema.safeParse(request.body);
     if (!parsed.success) {
@@ -178,7 +207,7 @@ export async function fuelRoutes(app: FastifyInstance) {
   });
 
   // Delete fuel log
-  app.delete("/logs/:id", async (request, reply) => {
+  authApp.delete("/logs/:id", async (request, reply) => {
     const { id } = request.params as { id: string };
     const userId = request.userId!;
 
@@ -194,26 +223,5 @@ export async function fuelRoutes(app: FastifyInstance) {
     return reply.send({ message: "Fuel log deleted" });
   });
 
-  // Community-sourced nearby fuel prices
-  const pricesQuerySchema = z.object({
-    lat: z.coerce.number().min(-90).max(90),
-    lng: z.coerce.number().min(-180).max(180),
-    radiusMiles: z.coerce.number().positive().max(50).default(FUEL_PRICE_DEFAULT_RADIUS_MILES),
-  });
-
-  app.get("/prices", async (request, reply) => {
-    const parsed = pricesQuerySchema.safeParse(request.query);
-    if (!parsed.success) {
-      return reply.status(400).send({ error: parsed.error.issues[0].message });
-    }
-
-    const { lat, lng, radiusMiles } = parsed.data;
-
-    const [stations, nationalAverage] = await Promise.all([
-      getNearbyFuelPrices(lat, lng, radiusMiles),
-      getNationalAverages(),
-    ]);
-
-    return reply.send({ stations, nationalAverage });
-  });
+  }); // end auth register
 }

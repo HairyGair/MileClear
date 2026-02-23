@@ -1,23 +1,187 @@
-// Community-sourced fuel prices service
-// Aggregates nearby fuel logs from MileClear users + GOV.UK national averages
+// Government retailer fuel price feeds + GOV.UK national averages
 
-import { prisma } from "../lib/prisma.js";
 import { cacheGet, cacheSet } from "../lib/redis.js";
 import {
-  FUEL_PRICE_STALENESS_DAYS,
+  FUEL_RETAILER_FEEDS,
+  FUEL_STATION_CACHE_TTL_MS,
 } from "@mileclear/shared";
-import type { CommunityFuelStation, NationalAveragePrices } from "@mileclear/shared";
+import type { FuelStation, NationalAveragePrices } from "@mileclear/shared";
 
-const EARTH_RADIUS_MILES = 3958.8;
 const NATIONAL_AVG_CACHE_KEY = "fuel:national_averages";
 const NATIONAL_AVG_TTL_SECONDS = 24 * 60 * 60; // 24 hours
+const FEED_TIMEOUT_MS = 10_000;
 
-export async function getNearbyFuelPrices(
+// --- In-memory station cache ---
+
+interface StationCacheEntry {
+  stations: InternalStation[];
+  lastUpdated: string;
+  fetchedAt: number;
+}
+
+interface InternalStation {
+  siteId: string;
+  brand: string;
+  address: string;
+  postcode: string;
+  latitude: number;
+  longitude: number;
+  prices: {
+    E10?: number;
+    E5?: number;
+    B7?: number;
+    SDV?: number;
+  };
+}
+
+let stationCache: StationCacheEntry | null = null;
+
+// Raw feed station shape (government standard format)
+// Prices come as an object: { E10?: number, E5?: number, B7?: number, SDV?: number }
+interface RawFeedStation {
+  site_id?: string;
+  brand?: string;
+  address?: string;
+  postcode?: string;
+  location?: { latitude?: number; longitude?: number };
+  prices?: Record<string, number | string | null>;
+}
+
+const VALID_FUEL_TYPES = new Set(["E10", "E5", "B7", "SDV"]);
+
+function normaliseStation(raw: RawFeedStation, feedName: string): InternalStation | null {
+  const lat = raw.location?.latitude;
+  const lng = raw.location?.longitude;
+  if (lat == null || lng == null || isNaN(lat) || isNaN(lng)) return null;
+  if (lat === 0 && lng === 0) return null;
+
+  const prices: InternalStation["prices"] = {};
+  if (raw.prices && typeof raw.prices === "object") {
+    for (const [key, rawVal] of Object.entries(raw.prices)) {
+      const type = key.toUpperCase();
+      if (!VALID_FUEL_TYPES.has(type)) continue;
+      const val = typeof rawVal === "string" ? parseFloat(rawVal) : rawVal;
+      if (val == null || isNaN(val) || val <= 0) continue;
+      if (type === "E10") prices.E10 = val;
+      else if (type === "E5") prices.E5 = val;
+      else if (type === "B7") prices.B7 = val;
+      else if (type === "SDV") prices.SDV = val;
+    }
+  }
+
+  // Skip stations with no valid prices
+  if (!prices.E10 && !prices.E5 && !prices.B7 && !prices.SDV) return null;
+
+  return {
+    siteId: String(raw.site_id || `${feedName}-${lat}-${lng}`),
+    brand: raw.brand || feedName,
+    address: raw.address || "",
+    postcode: raw.postcode || "",
+    latitude: lat,
+    longitude: lng,
+    prices,
+  };
+}
+
+async function fetchFeed(feed: { name: string; url: string }): Promise<{ stations: InternalStation[]; lastUpdated: string }> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), FEED_TIMEOUT_MS);
+
+  try {
+    const res = await fetch(feed.url, {
+      signal: controller.signal,
+      headers: { "User-Agent": "MileClear/1.0" },
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
+    const data = await res.json() as {
+      last_updated?: string;
+      stations?: RawFeedStation[];
+    };
+
+    const stations: InternalStation[] = [];
+    if (Array.isArray(data.stations)) {
+      for (const raw of data.stations) {
+        const normalised = normaliseStation(raw, feed.name);
+        if (normalised) stations.push(normalised);
+      }
+    }
+
+    return {
+      stations,
+      lastUpdated: data.last_updated || new Date().toISOString(),
+    };
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+async function fetchAllStations(): Promise<StationCacheEntry> {
+  const results = await Promise.allSettled(
+    FUEL_RETAILER_FEEDS.map((feed) => fetchFeed(feed))
+  );
+
+  const seen = new Set<string>();
+  const allStations: InternalStation[] = [];
+  let latestUpdate = "";
+  let successCount = 0;
+
+  for (let i = 0; i < results.length; i++) {
+    const result = results[i];
+    if (result.status === "fulfilled") {
+      successCount++;
+      if (result.value.lastUpdated > latestUpdate) {
+        latestUpdate = result.value.lastUpdated;
+      }
+      for (const s of result.value.stations) {
+        if (!seen.has(s.siteId)) {
+          seen.add(s.siteId);
+          allStations.push(s);
+        }
+      }
+    } else {
+      console.warn(`[fuel] Feed ${FUEL_RETAILER_FEEDS[i].name} failed:`, result.reason?.message || result.reason);
+    }
+  }
+
+  console.log(`[fuel] Fetched ${allStations.length} stations from ${successCount}/${FUEL_RETAILER_FEEDS.length} feeds`);
+
+  return {
+    stations: allStations,
+    lastUpdated: latestUpdate || new Date().toISOString(),
+    fetchedAt: Date.now(),
+  };
+}
+
+async function getCachedStations(): Promise<StationCacheEntry> {
+  if (stationCache && (Date.now() - stationCache.fetchedAt) < FUEL_STATION_CACHE_TTL_MS) {
+    return stationCache;
+  }
+  stationCache = await fetchAllStations();
+  return stationCache;
+}
+
+// --- Nearby search ---
+
+const EARTH_RADIUS_MILES = 3958.8;
+
+function haversineDistance(lat1: number, lng1: number, lat2: number, lng2: number): number {
+  const toRad = (d: number) => d * Math.PI / 180;
+  const dLat = toRad(lat2 - lat1);
+  const dLng = toRad(lng2 - lng1);
+  const a = Math.sin(dLat / 2) ** 2
+    + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
+  return EARTH_RADIUS_MILES * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+export async function getNearbyStations(
   lat: number,
   lng: number,
   radiusMiles: number
-): Promise<CommunityFuelStation[]> {
-  // Bounding box pre-filter (rough, fast)
+): Promise<{ stations: FuelStation[]; lastUpdated: string }> {
+  const cache = await getCachedStations();
+
+  // Bounding box pre-filter
   const latDelta = radiusMiles / 69.0;
   const lngDelta = radiusMiles / (69.0 * Math.cos((lat * Math.PI) / 180));
   const minLat = lat - latDelta;
@@ -25,77 +189,46 @@ export async function getNearbyFuelPrices(
   const minLng = lng - lngDelta;
   const maxLng = lng + lngDelta;
 
-  const cutoffDate = new Date();
-  cutoffDate.setDate(cutoffDate.getDate() - FUEL_PRICE_STALENESS_DAYS);
+  const nearby: FuelStation[] = [];
 
-  const rows = await prisma.$queryRawUnsafe<
-    {
-      station_name: string;
-      avg_lat: number;
-      avg_lng: number;
-      avg_price_ppl: number;
-      report_count: bigint;
-      last_reported: Date;
-      distance_miles: number;
-    }[]
-  >(
-    `SELECT s.*, (
-        ${EARTH_RADIUS_MILES} * ACOS(
-          LEAST(1, COS(RADIANS(?)) * COS(RADIANS(s.avg_lat)) * COS(RADIANS(s.avg_lng) - RADIANS(?))
-          + SIN(RADIANS(?)) * SIN(RADIANS(s.avg_lat)))
-        )
-      ) AS distance_miles
-    FROM (
-      SELECT
-        LOWER(TRIM(stationName)) AS station_name,
-        AVG(latitude) AS avg_lat,
-        AVG(longitude) AS avg_lng,
-        AVG(costPence / litres) AS avg_price_ppl,
-        COUNT(*) AS report_count,
-        MAX(loggedAt) AS last_reported
-      FROM fuel_logs
-      WHERE latitude IS NOT NULL
-        AND longitude IS NOT NULL
-        AND stationName IS NOT NULL
-        AND stationName != ''
-        AND loggedAt >= ?
-        AND latitude BETWEEN ? AND ?
-        AND longitude BETWEEN ? AND ?
-      GROUP BY LOWER(TRIM(stationName)), ROUND(latitude, 3), ROUND(longitude, 3)
-    ) s
-    HAVING distance_miles <= ?
-    ORDER BY distance_miles ASC
-    LIMIT 50`,
-    lat,
-    lng,
-    lat,
-    cutoffDate,
-    minLat,
-    maxLat,
-    minLng,
-    maxLng,
-    radiusMiles
-  );
+  for (const s of cache.stations) {
+    // Fast bounding box check
+    if (s.latitude < minLat || s.latitude > maxLat) continue;
+    if (s.longitude < minLng || s.longitude > maxLng) continue;
 
-  return rows.map((row) => ({
-    stationName: row.station_name,
-    latitude: row.avg_lat,
-    longitude: row.avg_lng,
-    distanceMiles: Math.round(row.distance_miles * 100) / 100,
-    avgPricePerLitrePence: Math.round(row.avg_price_ppl * 10) / 10,
-    reportCount: Number(row.report_count),
-    lastReportedAt: row.last_reported instanceof Date
-      ? row.last_reported.toISOString()
-      : String(row.last_reported),
-  }));
+    // Precise distance
+    const dist = haversineDistance(lat, lng, s.latitude, s.longitude);
+    if (dist > radiusMiles) continue;
+
+    nearby.push({
+      siteId: s.siteId,
+      brand: s.brand,
+      stationName: s.brand + (s.address ? ` - ${s.address}` : ""),
+      address: s.address,
+      postcode: s.postcode,
+      latitude: s.latitude,
+      longitude: s.longitude,
+      distanceMiles: Math.round(dist * 100) / 100,
+      prices: s.prices,
+    });
+  }
+
+  // Sort by distance, limit 50
+  nearby.sort((a, b) => a.distanceMiles - b.distanceMiles);
+
+  return {
+    stations: nearby.slice(0, 50),
+    lastUpdated: cache.lastUpdated,
+  };
 }
+
+// --- National averages (unchanged) ---
 
 const GOV_UK_CSV_URL =
   "https://assets.publishing.service.gov.uk/media/6993252f7da91680ad7f44a1/CSV__2018_-____3_.csv";
 
 export async function getNationalAverages(): Promise<NationalAveragePrices | null> {
   try {
-    // Check cache first
     const cached = await cacheGet(NATIONAL_AVG_CACHE_KEY);
     if (cached) {
       return JSON.parse(cached) as NationalAveragePrices;
@@ -108,13 +241,11 @@ export async function getNationalAverages(): Promise<NationalAveragePrices | nul
     const lines = text.trim().split("\n");
     if (lines.length < 2) return null;
 
-    // Parse header to find ULSP (unleaded petrol) and ULSD (diesel) column indices
     const headers = lines[0].split(",").map((h) => h.trim().toUpperCase());
     const ulspIndex = headers.findIndex((h) => h.includes("ULSP"));
     const ulsdIndex = headers.findIndex((h) => h.includes("ULSD"));
     if (ulspIndex === -1 || ulsdIndex === -1) return null;
 
-    // Read last data row
     const lastLine = lines[lines.length - 1];
     const cols = lastLine.split(",").map((c) => c.trim());
 
@@ -122,7 +253,6 @@ export async function getNationalAverages(): Promise<NationalAveragePrices | nul
     const dieselPpl = parseFloat(cols[ulsdIndex]);
     if (isNaN(petrolPpl) || isNaN(dieselPpl)) return null;
 
-    // GOV.UK prices are in pence per litre already
     const result: NationalAveragePrices = {
       petrolPencePerLitre: Math.round(petrolPpl * 10) / 10,
       dieselPencePerLitre: Math.round(dieselPpl * 10) / 10,
