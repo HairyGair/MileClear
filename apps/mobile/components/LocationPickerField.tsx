@@ -144,7 +144,7 @@ export function LocationPickerField({
             style={styles.searchInput}
             value={searchText}
             onChangeText={setSearchText}
-            placeholder="e.g. 10 Downing Street, London"
+            placeholder="e.g. SW1A 1AA or 10 Downing Street"
             placeholderTextColor="#6b7280"
             returnKeyType="search"
             onSubmitEditing={handleSearch}
