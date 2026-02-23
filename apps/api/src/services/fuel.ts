@@ -39,28 +39,30 @@ export async function getNearbyFuelPrices(
       distance_miles: number;
     }[]
   >(
-    `SELECT
-      LOWER(TRIM(stationName)) AS station_name,
-      AVG(latitude) AS avg_lat,
-      AVG(longitude) AS avg_lng,
-      AVG(costPence / litres) AS avg_price_ppl,
-      COUNT(*) AS report_count,
-      MAX(loggedAt) AS last_reported,
-      (
+    `SELECT s.*, (
         ${EARTH_RADIUS_MILES} * ACOS(
-          LEAST(1, COS(RADIANS(?)) * COS(RADIANS(latitude)) * COS(RADIANS(longitude) - RADIANS(?))
-          + SIN(RADIANS(?)) * SIN(RADIANS(latitude)))
+          LEAST(1, COS(RADIANS(?)) * COS(RADIANS(s.avg_lat)) * COS(RADIANS(s.avg_lng) - RADIANS(?))
+          + SIN(RADIANS(?)) * SIN(RADIANS(s.avg_lat)))
         )
       ) AS distance_miles
-    FROM fuel_logs
-    WHERE latitude IS NOT NULL
-      AND longitude IS NOT NULL
-      AND stationName IS NOT NULL
-      AND stationName != ''
-      AND loggedAt >= ?
-      AND latitude BETWEEN ? AND ?
-      AND longitude BETWEEN ? AND ?
-    GROUP BY LOWER(TRIM(stationName)), ROUND(latitude, 3), ROUND(longitude, 3)
+    FROM (
+      SELECT
+        LOWER(TRIM(stationName)) AS station_name,
+        AVG(latitude) AS avg_lat,
+        AVG(longitude) AS avg_lng,
+        AVG(costPence / litres) AS avg_price_ppl,
+        COUNT(*) AS report_count,
+        MAX(loggedAt) AS last_reported
+      FROM fuel_logs
+      WHERE latitude IS NOT NULL
+        AND longitude IS NOT NULL
+        AND stationName IS NOT NULL
+        AND stationName != ''
+        AND loggedAt >= ?
+        AND latitude BETWEEN ? AND ?
+        AND longitude BETWEEN ? AND ?
+      GROUP BY LOWER(TRIM(stationName)), ROUND(latitude, 3), ROUND(longitude, 3)
+    ) s
     HAVING distance_miles <= ?
     ORDER BY distance_miles ASC
     LIMIT 50`,
