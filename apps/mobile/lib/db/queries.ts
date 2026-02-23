@@ -90,6 +90,8 @@ interface LocalFuelLogRow {
   cost_pence: number;
   station_name: string | null;
   odometer_reading: number | null;
+  latitude: number | null;
+  longitude: number | null;
   logged_at: string;
   synced_at: string | null;
 }
@@ -102,6 +104,8 @@ function mapFuelLogRow(row: LocalFuelLogRow, isLocal: boolean) {
     costPence: row.cost_pence,
     stationName: row.station_name,
     odometerReading: row.odometer_reading,
+    latitude: row.latitude,
+    longitude: row.longitude,
     loggedAt: row.logged_at,
     vehicle: null,
     _isLocal: isLocal,

@@ -1,5 +1,5 @@
 import { apiRequest } from "./index";
-import type { FuelLogWithVehicle, PaginatedResponse } from "@mileclear/shared";
+import type { FuelLogWithVehicle, NearbyPricesResponse, PaginatedResponse } from "@mileclear/shared";
 
 export interface CreateFuelLogData {
   vehicleId?: string;
@@ -7,6 +7,8 @@ export interface CreateFuelLogData {
   costPence: number;
   stationName?: string;
   odometerReading?: number;
+  latitude?: number;
+  longitude?: number;
   loggedAt?: string;
 }
 
@@ -16,6 +18,8 @@ export interface UpdateFuelLogData {
   costPence?: number;
   stationName?: string | null;
   odometerReading?: number | null;
+  latitude?: number | null;
+  longitude?: number | null;
   loggedAt?: string;
 }
 
@@ -59,4 +63,19 @@ export function deleteFuelLog(id: string) {
   return apiRequest<{ message: string }>(`/fuel/logs/${id}`, {
     method: "DELETE",
   });
+}
+
+export function fetchNearbyPrices(params: {
+  lat: number;
+  lng: number;
+  radiusMiles?: number;
+}) {
+  const query = new URLSearchParams({
+    lat: String(params.lat),
+    lng: String(params.lng),
+  });
+  if (params.radiusMiles !== undefined) {
+    query.set("radiusMiles", String(params.radiusMiles));
+  }
+  return apiRequest<NearbyPricesResponse>(`/fuel/prices?${query.toString()}`);
 }

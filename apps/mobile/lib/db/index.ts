@@ -2,7 +2,7 @@
 
 import * as SQLite from "expo-sqlite";
 
-const CURRENT_SCHEMA_VERSION = 2;
+const CURRENT_SCHEMA_VERSION = 3;
 
 let db: SQLite.SQLiteDatabase | null = null;
 
@@ -64,6 +64,8 @@ async function initializeSchema(database: SQLite.SQLiteDatabase): Promise<void> 
       cost_pence INTEGER NOT NULL,
       station_name TEXT,
       odometer_reading REAL,
+      latitude REAL,
+      longitude REAL,
       logged_at TEXT NOT NULL,
       synced_at TEXT
     );
@@ -126,8 +128,6 @@ async function initializeSchema(database: SQLite.SQLiteDatabase): Promise<void> 
         created_at TEXT NOT NULL,
         updated_at TEXT
       );
-
-      INSERT OR REPLACE INTO tracking_state (key, value) VALUES ('schema_version', '${CURRENT_SCHEMA_VERSION}');
     `);
   } else {
     // Ensure sync_queue exists for fresh installs at current version
@@ -146,4 +146,17 @@ async function initializeSchema(database: SQLite.SQLiteDatabase): Promise<void> 
       );
     `);
   }
+
+  if (currentVersion >= 2 && currentVersion < 3) {
+    // Only ALTER if upgrading from v2 — fresh installs already have these columns in CREATE TABLE
+    await database.execAsync(`
+      ALTER TABLE fuel_logs ADD COLUMN latitude REAL;
+      ALTER TABLE fuel_logs ADD COLUMN longitude REAL;
+    `);
+  }
+
+  // Always update schema version to current
+  await database.execAsync(
+    `INSERT OR REPLACE INTO tracking_state (key, value) VALUES ('schema_version', '${CURRENT_SCHEMA_VERSION}');`
+  );
 }

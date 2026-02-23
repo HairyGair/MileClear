@@ -48,6 +48,10 @@ export const GIG_PLATFORMS = [
   { value: "other", label: "Other" },
 ] as const;
 
+// Fuel prices
+export const FUEL_PRICE_STALENESS_DAYS = 14;
+export const FUEL_PRICE_DEFAULT_RADIUS_MILES = 5;
+
 // Fuel brands
 export const FUEL_BRANDS = [
   "Shell",

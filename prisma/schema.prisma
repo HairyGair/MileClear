@@ -141,11 +141,14 @@ model FuelLog {
   costPence       Int
   stationName     String?
   odometerReading Float?
+  latitude        Float?
+  longitude       Float?
   loggedAt        DateTime @default(now())
 
   user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   vehicle Vehicle? @relation(fields: [vehicleId], references: [id])
 
+  @@index([latitude, longitude])
   @@map("fuel_logs")
 }
 

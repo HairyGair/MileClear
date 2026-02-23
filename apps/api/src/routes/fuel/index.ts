@@ -2,7 +2,8 @@ import { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { authMiddleware } from "../../middleware/auth.js";
 import { prisma } from "../../lib/prisma.js";
-import { DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE } from "@mileclear/shared";
+import { DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE, FUEL_PRICE_DEFAULT_RADIUS_MILES } from "@mileclear/shared";
+import { getNearbyFuelPrices, getNationalAverages } from "../../services/fuel.js";
 
 const createFuelLogSchema = z.object({
   vehicleId: z.string().uuid().optional(),
@@ -10,6 +11,8 @@ const createFuelLogSchema = z.object({
   costPence: z.number().int().positive("Cost must be positive"),
   stationName: z.string().min(1).optional(),
   odometerReading: z.number().positive().optional(),
+  latitude: z.number().min(-90).max(90).optional(),
+  longitude: z.number().min(-180).max(180).optional(),
   loggedAt: z.coerce.date().default(() => new Date()),
 });
 
@@ -19,6 +22,8 @@ const updateFuelLogSchema = z.object({
   costPence: z.number().int().positive().optional(),
   stationName: z.string().min(1).nullable().optional(),
   odometerReading: z.number().positive().nullable().optional(),
+  latitude: z.number().min(-90).max(90).nullable().optional(),
+  longitude: z.number().min(-180).max(180).nullable().optional(),
   loggedAt: z.coerce.date().optional(),
 });
 
@@ -39,7 +44,7 @@ export async function fuelRoutes(app: FastifyInstance) {
       return reply.status(400).send({ error: parsed.error.issues[0].message });
     }
 
-    const { vehicleId, litres, costPence, stationName, odometerReading, loggedAt } = parsed.data;
+    const { vehicleId, litres, costPence, stationName, odometerReading, latitude, longitude, loggedAt } = parsed.data;
     const userId = request.userId!;
 
     // Verify vehicle ownership if provided
@@ -60,6 +65,8 @@ export async function fuelRoutes(app: FastifyInstance) {
         costPence,
         stationName: stationName ?? null,
         odometerReading: odometerReading ?? null,
+        latitude: latitude ?? null,
+        longitude: longitude ?? null,
         loggedAt,
       },
       include: {
@@ -187,8 +194,26 @@ export async function fuelRoutes(app: FastifyInstance) {
     return reply.send({ message: "Fuel log deleted" });
   });
 
-  // Fuel prices — deferred (requires third-party API)
+  // Community-sourced nearby fuel prices
+  const pricesQuerySchema = z.object({
+    lat: z.coerce.number().min(-90).max(90),
+    lng: z.coerce.number().min(-180).max(180),
+    radiusMiles: z.coerce.number().positive().max(50).default(FUEL_PRICE_DEFAULT_RADIUS_MILES),
+  });
+
   app.get("/prices", async (request, reply) => {
-    return reply.status(501).send({ error: "Not implemented" });
+    const parsed = pricesQuerySchema.safeParse(request.query);
+    if (!parsed.success) {
+      return reply.status(400).send({ error: parsed.error.issues[0].message });
+    }
+
+    const { lat, lng, radiusMiles } = parsed.data;
+
+    const [stations, nationalAverage] = await Promise.all([
+      getNearbyFuelPrices(lat, lng, radiusMiles),
+      getNationalAverages(),
+    ]);
+
+    return reply.send({ stations, nationalAverage });
   });
 }

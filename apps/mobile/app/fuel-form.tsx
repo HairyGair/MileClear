@@ -20,6 +20,7 @@ import {
   syncDeleteFuelLog,
 } from "../lib/sync/actions";
 import { fetchVehicles } from "../lib/api/vehicles";
+import { getCurrentLocation } from "../lib/location/geocoding";
 import { FUEL_BRANDS } from "@mileclear/shared";
 import type { Vehicle } from "@mileclear/shared";
 
@@ -114,6 +115,21 @@ export default function FuelFormScreen() {
 
     setSaving(true);
     try {
+      // Silently capture GPS for new fuel logs (non-blocking)
+      let latitude: number | undefined;
+      let longitude: number | undefined;
+      if (!isEditing) {
+        try {
+          const loc = await getCurrentLocation();
+          if (loc) {
+            latitude = loc.lat;
+            longitude = loc.lng;
+          }
+        } catch {
+          // GPS capture is best-effort — don't block save
+        }
+      }
+
       if (isEditing) {
         await syncUpdateFuelLog(id, {
           vehicleId: vehicleId,
@@ -130,6 +146,8 @@ export default function FuelFormScreen() {
           costPence,
           stationName: stationName.trim() || undefined,
           odometerReading: parsedOdometer,
+          latitude,
+          longitude,
           loggedAt: loggedAt ? new Date(loggedAt).toISOString() : undefined,
         });
       }

@@ -92,7 +92,30 @@ export interface FuelLog {
   costPence: number;
   stationName: string | null;
   odometerReading: number | null;
+  latitude: number | null;
+  longitude: number | null;
   loggedAt: string;
+}
+
+export interface CommunityFuelStation {
+  stationName: string;
+  latitude: number;
+  longitude: number;
+  distanceMiles: number;
+  avgPricePerLitrePence: number;
+  reportCount: number;
+  lastReportedAt: string;
+}
+
+export interface NationalAveragePrices {
+  petrolPencePerLitre: number;
+  dieselPencePerLitre: number;
+  date: string;
+}
+
+export interface NearbyPricesResponse {
+  stations: CommunityFuelStation[];
+  nationalAverage: NationalAveragePrices | null;
 }
 
 export interface FuelLogWithVehicle extends FuelLog {

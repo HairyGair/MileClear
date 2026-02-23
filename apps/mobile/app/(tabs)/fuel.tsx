@@ -12,6 +12,7 @@ import {
 import { useRouter, useFocusEffect } from "expo-router";
 import { fetchFuelLogs } from "../../lib/api/fuel";
 import { getLocalFuelLogs, getLocalUnsyncedFuelLogs } from "../../lib/db/queries";
+import NearbyPrices from "../../components/fuel/NearbyPrices";
 import { FUEL_BRANDS, formatPence } from "@mileclear/shared";
 import type { FuelLogWithVehicle } from "@mileclear/shared";
 
@@ -222,6 +223,9 @@ export default function FuelScreen() {
                 </View>
               </View>
             </View>
+
+            {/* Nearby community fuel prices */}
+            <NearbyPrices />
 
             {/* Station brand filter chips */}
             <ScrollView

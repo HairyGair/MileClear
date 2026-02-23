@@ -253,8 +253,8 @@ export async function syncCreateFuelLog(data: CreateFuelLogData) {
   const db = await getDatabase();
 
   await db.runAsync(
-    `INSERT INTO fuel_logs (id, vehicle_id, litres, cost_pence, station_name, odometer_reading, logged_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO fuel_logs (id, vehicle_id, litres, cost_pence, station_name, odometer_reading, latitude, longitude, logged_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       localId,
       data.vehicleId ?? null,
@@ -262,6 +262,8 @@ export async function syncCreateFuelLog(data: CreateFuelLogData) {
       data.costPence,
       data.stationName ?? null,
       data.odometerReading ?? null,
+      data.latitude ?? null,
+      data.longitude ?? null,
       data.loggedAt ?? new Date().toISOString(),
     ]
   );
@@ -299,6 +301,8 @@ export async function syncUpdateFuelLog(id: string, data: UpdateFuelLogData) {
   if (data.costPence !== undefined) { setClauses.push("cost_pence = ?"); values.push(data.costPence); }
   if (data.stationName !== undefined) { setClauses.push("station_name = ?"); values.push(data.stationName); }
   if (data.odometerReading !== undefined) { setClauses.push("odometer_reading = ?"); values.push(data.odometerReading); }
+  if (data.latitude !== undefined) { setClauses.push("latitude = ?"); values.push(data.latitude); }
+  if (data.longitude !== undefined) { setClauses.push("longitude = ?"); values.push(data.longitude); }
   if (data.loggedAt !== undefined) { setClauses.push("logged_at = ?"); values.push(data.loggedAt); }
   if (setClauses.length > 0) {
     values.push(id);
