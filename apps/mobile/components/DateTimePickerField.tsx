@@ -261,7 +261,7 @@ const styles = StyleSheet.create({
   nowBtn: {
     fontSize: 13,
     fontFamily: "PlusJakartaSans_600SemiBold",
-    color: "#f59e0b",
+    color: "#f5a623",
   },
   field: {
     flexDirection: "row",
@@ -354,6 +354,6 @@ const styles = StyleSheet.create({
   modalDone: {
     fontSize: 16,
     fontFamily: "PlusJakartaSans_700Bold",
-    color: "#f59e0b",
+    color: "#f5a623",
   },
 });

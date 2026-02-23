@@ -114,7 +114,7 @@ export function MapPickerModal({
         <View style={styles.bottomBar}>
           <View style={styles.addressContainer}>
             {geocoding ? (
-              <ActivityIndicator size="small" color="#f59e0b" />
+              <ActivityIndicator size="small" color="#f5a623" />
             ) : (
               <Text style={styles.addressText} numberOfLines={2}>
                 {address ?? "Move map to select location"}
@@ -171,7 +171,7 @@ const styles = StyleSheet.create({
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: "#f59e0b",
+    backgroundColor: "#f5a623",
     borderWidth: 3,
     borderColor: "#fff",
   },
@@ -183,7 +183,7 @@ const styles = StyleSheet.create({
     borderTopWidth: 10,
     borderLeftColor: "transparent",
     borderRightColor: "transparent",
-    borderTopColor: "#f59e0b",
+    borderTopColor: "#f5a623",
     marginTop: -2,
   },
   pinShadow: {
@@ -223,7 +223,7 @@ const styles = StyleSheet.create({
     color: "#6b7280",
   },
   confirmBtn: {
-    backgroundColor: "#f59e0b",
+    backgroundColor: "#f5a623",
     borderRadius: 12,
     paddingVertical: 16,
     alignItems: "center",

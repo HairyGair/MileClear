@@ -292,8 +292,8 @@ const styles = StyleSheet.create({
     borderColor: "#1f2937",
   },
   chipActive: {
-    backgroundColor: "#f59e0b",
-    borderColor: "#f59e0b",
+    backgroundColor: "#f5a623",
+    borderColor: "#f5a623",
   },
   chipText: {
     fontSize: 13,
@@ -310,9 +310,9 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   primaryButton: {
-    backgroundColor: "#f59e0b",
-    borderRadius: 10,
-    paddingVertical: 14,
+    backgroundColor: "#f5a623",
+    borderRadius: 12,
+    paddingVertical: 16,
     alignItems: "center",
   },
   primaryButtonText: {
@@ -351,6 +351,8 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     padding: 12,
     marginBottom: 8,
+    borderWidth: 1,
+    borderColor: "#1f2937",
   },
   rowDuplicate: {
     opacity: 0.5,
@@ -400,9 +402,11 @@ const styles = StyleSheet.create({
   secondaryButton: {
     flex: 1,
     backgroundColor: "#1f2937",
-    borderRadius: 10,
-    paddingVertical: 14,
+    borderRadius: 12,
+    paddingVertical: 16,
     alignItems: "center",
+    borderWidth: 1,
+    borderColor: "#374151",
   },
   secondaryButtonText: {
     fontSize: 16,

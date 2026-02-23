@@ -1,4 +1,5 @@
 import { useCallback, useState } from "react";
+import { Ionicons } from "@expo/vector-icons";
 import {
   View,
   Text,
@@ -201,7 +202,7 @@ export default function TripsScreen() {
           <RefreshControl
             refreshing={refreshing}
             onRefresh={onRefresh}
-            tintColor="#f59e0b"
+            tintColor="#f5a623"
           />
         }
         contentContainerStyle={styles.listContent}
@@ -240,9 +241,12 @@ export default function TripsScreen() {
         ListEmptyComponent={
           !loading ? (
             <View style={styles.emptyState}>
-              <Text style={styles.emptyTitle}>No trips yet</Text>
+              <View style={styles.emptyIcon}>
+                <Ionicons name="car-outline" size={40} color="#4a5568" />
+              </View>
+              <Text style={styles.emptyTitle}>No trips recorded yet</Text>
               <Text style={styles.emptyText}>
-                Add a trip manually or start a shift to track automatically
+                Tap the button below to add your first trip
               </Text>
             </View>
           ) : null
@@ -251,7 +255,7 @@ export default function TripsScreen() {
           <View style={styles.footer}>
             {loadingMore && (
               <ActivityIndicator
-                color="#f59e0b"
+                color="#f5a623"
                 style={{ marginBottom: 12 }}
               />
             )}
@@ -267,7 +271,7 @@ export default function TripsScreen() {
       />
       {loading && !refreshing && (
         <View style={styles.loadingOverlay}>
-          <ActivityIndicator size="large" color="#f59e0b" />
+          <ActivityIndicator size="large" color="#f5a623" />
         </View>
       )}
     </View>
@@ -297,8 +301,8 @@ const styles = StyleSheet.create({
     borderColor: "#1f2937",
   },
   filterChipActive: {
-    backgroundColor: "#f59e0b",
-    borderColor: "#f59e0b",
+    backgroundColor: "#f5a623",
+    borderColor: "#f5a623",
   },
   filterChipText: {
     fontSize: 13,
@@ -313,6 +317,8 @@ const styles = StyleSheet.create({
   tripCard: {
     backgroundColor: "#111827",
     borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#1f2937",
     padding: 16,
     marginBottom: 10,
   },
@@ -337,7 +343,7 @@ const styles = StyleSheet.create({
   },
   businessBadge: {
     color: "#030712",
-    backgroundColor: "#f59e0b",
+    backgroundColor: "#f5a623",
   },
   personalBadge: {
     color: "#d1d5db",
@@ -409,7 +415,7 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontFamily: "PlusJakartaSans_600SemiBold",
     color: "#030712",
-    backgroundColor: "#f59e0b",
+    backgroundColor: "#f5a623",
     paddingHorizontal: 8,
     paddingVertical: 2,
     borderRadius: 4,
@@ -432,6 +438,17 @@ const styles = StyleSheet.create({
     alignItems: "center",
     paddingVertical: 40,
   },
+  emptyIcon: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    backgroundColor: "#111827",
+    borderWidth: 1,
+    borderColor: "#1f2937",
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 16,
+  },
   emptyTitle: {
     fontSize: 17,
     fontFamily: "PlusJakartaSans_600SemiBold",
@@ -450,9 +467,9 @@ const styles = StyleSheet.create({
     paddingBottom: 20,
   },
   addButton: {
-    backgroundColor: "#f59e0b",
-    borderRadius: 10,
-    paddingVertical: 14,
+    backgroundColor: "#f5a623",
+    borderRadius: 12,
+    paddingVertical: 16,
     alignItems: "center",
   },
   addButtonText: {

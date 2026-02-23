@@ -17,6 +17,7 @@ import {
   updateVehicle,
   deleteVehicle,
   fetchVehicles,
+  lookupVehicle,
 } from "../lib/api/vehicles";
 import type { FuelType, VehicleType } from "@mileclear/shared";
 
@@ -38,6 +39,9 @@ export default function VehicleFormScreen() {
   const { id } = useLocalSearchParams<{ id?: string }>();
   const isEditing = !!id;
 
+  const [registrationPlate, setRegistrationPlate] = useState("");
+  const [lookingUp, setLookingUp] = useState(false);
+  const [lookupDone, setLookupDone] = useState(false);
   const [make, setMake] = useState("");
   const [model, setModel] = useState("");
   const [year, setYear] = useState("");
@@ -62,10 +66,43 @@ export default function VehicleFormScreen() {
           setFuelType(vehicle.fuelType as FuelType);
           setEstimatedMpg(vehicle.estimatedMpg ? String(vehicle.estimatedMpg) : "");
           setIsPrimary(vehicle.isPrimary);
+          setRegistrationPlate(vehicle.registrationPlate || "");
         }
       })
       .finally(() => setLoadingExisting(false));
   }, [id]);
+
+  const handleLookup = useCallback(async () => {
+    const plate = registrationPlate.trim();
+    if (plate.length < 2) {
+      Alert.alert("Enter a registration", "Type a UK registration plate to look up.");
+      return;
+    }
+
+    setLookingUp(true);
+    try {
+      const res = await lookupVehicle(plate);
+      const data = res.data;
+
+      setMake(data.make);
+      if (data.yearOfManufacture) setYear(String(data.yearOfManufacture));
+      setFuelType(data.fuelType);
+      setLookupDone(true);
+
+      const colourText = data.colour ? `, ${data.colour}` : "";
+      const yearText = data.yearOfManufacture ? ` (${data.yearOfManufacture})` : "";
+      Alert.alert(
+        "Vehicle found",
+        `${data.make}${yearText}${colourText}.\n\nPlease enter the model and check the details.`
+      );
+    } catch (err: unknown) {
+      const message =
+        err instanceof Error ? err.message : "Lookup failed. Please enter details manually.";
+      Alert.alert("Lookup failed", message);
+    } finally {
+      setLookingUp(false);
+    }
+  }, [registrationPlate]);
 
   const handleSave = useCallback(async () => {
     if (!make.trim() || !model.trim()) {
@@ -75,22 +112,25 @@ export default function VehicleFormScreen() {
 
     setSaving(true);
     try {
-      const data: Record<string, unknown> = {
+      const payload: Parameters<typeof createVehicle>[0] = {
         make: make.trim(),
         model: model.trim(),
         vehicleType,
         fuelType,
         isPrimary,
       };
-      if (year.trim()) data.year = parseInt(year, 10);
+      if (year.trim()) payload.year = parseInt(year, 10);
       if (estimatedMpg.trim() && fuelType !== "electric") {
-        data.estimatedMpg = parseFloat(estimatedMpg);
+        payload.estimatedMpg = parseFloat(estimatedMpg);
+      }
+      if (registrationPlate.trim()) {
+        payload.registrationPlate = registrationPlate.trim().toUpperCase().replace(/\s+/g, "");
       }
 
       if (isEditing) {
-        await updateVehicle(id, data);
+        await updateVehicle(id, payload);
       } else {
-        await createVehicle(data as Parameters<typeof createVehicle>[0]);
+        await createVehicle(payload);
       }
       router.back();
     } catch (err: unknown) {
@@ -98,7 +138,7 @@ export default function VehicleFormScreen() {
     } finally {
       setSaving(false);
     }
-  }, [make, model, year, vehicleType, fuelType, estimatedMpg, isPrimary, isEditing, id, router]);
+  }, [make, model, year, vehicleType, fuelType, estimatedMpg, isPrimary, registrationPlate, isEditing, id, router]);
 
   const handleDelete = useCallback(() => {
     Alert.alert(
@@ -127,7 +167,7 @@ export default function VehicleFormScreen() {
   if (loadingExisting) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#f59e0b" />
+        <ActivityIndicator size="large" color="#f5a623" />
       </View>
     );
   }
@@ -141,6 +181,41 @@ export default function VehicleFormScreen() {
         options={{ title: isEditing ? "Edit Vehicle" : "Add Vehicle" }}
       />
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+        {/* Registration Plate Lookup */}
+        <Text style={styles.label}>Registration Plate</Text>
+        <View style={styles.lookupRow}>
+          <TextInput
+            style={styles.plateInput}
+            value={registrationPlate}
+            onChangeText={(text) => {
+              setRegistrationPlate(text.toUpperCase());
+              setLookupDone(false);
+            }}
+            placeholder="e.g. BD63 OJT"
+            placeholderTextColor="#6b7280"
+            autoCapitalize="characters"
+            autoCorrect={false}
+            maxLength={10}
+          />
+          <TouchableOpacity
+            style={[styles.lookupButton, lookingUp && styles.buttonDisabled]}
+            onPress={handleLookup}
+            disabled={lookingUp || saving}
+            activeOpacity={0.7}
+          >
+            {lookingUp ? (
+              <ActivityIndicator color="#030712" size="small" />
+            ) : (
+              <Text style={styles.lookupButtonText}>Look up</Text>
+            )}
+          </TouchableOpacity>
+        </View>
+        {lookupDone && (
+          <Text style={styles.lookupHint}>
+            Details filled from DVLA. Please add the model and verify.
+          </Text>
+        )}
+
         {/* Make */}
         <Text style={styles.label}>Make *</Text>
         <TextInput
@@ -320,6 +395,41 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#1f2937",
   },
+  lookupRow: {
+    flexDirection: "row",
+    gap: 10,
+  },
+  plateInput: {
+    flex: 1,
+    backgroundColor: "#111827",
+    borderRadius: 10,
+    padding: 14,
+    fontSize: 18,
+    fontFamily: "PlusJakartaSans_700Bold",
+    color: "#fff",
+    letterSpacing: 2,
+    borderWidth: 1,
+    borderColor: "#1f2937",
+    textTransform: "uppercase",
+  },
+  lookupButton: {
+    backgroundColor: "#f5a623",
+    borderRadius: 10,
+    paddingHorizontal: 20,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  lookupButtonText: {
+    fontSize: 15,
+    fontFamily: "PlusJakartaSans_700Bold",
+    color: "#030712",
+  },
+  lookupHint: {
+    fontSize: 13,
+    fontFamily: "PlusJakartaSans_400Regular",
+    color: "#22c55e",
+    marginTop: 6,
+  },
   segmentRow: {
     flexDirection: "row",
     gap: 8,
@@ -334,8 +444,8 @@ const styles = StyleSheet.create({
     borderColor: "#1f2937",
   },
   segmentActive: {
-    backgroundColor: "#f59e0b",
-    borderColor: "#f59e0b",
+    backgroundColor: "#f5a623",
+    borderColor: "#f5a623",
   },
   segmentText: {
     fontSize: 13,
@@ -367,7 +477,7 @@ const styles = StyleSheet.create({
     padding: 2,
   },
   toggleActive: {
-    backgroundColor: "#f59e0b",
+    backgroundColor: "#f5a623",
   },
   toggleThumb: {
     width: 24,
@@ -379,9 +489,9 @@ const styles = StyleSheet.create({
     alignSelf: "flex-end",
   },
   saveButton: {
-    backgroundColor: "#f59e0b",
-    borderRadius: 10,
-    paddingVertical: 14,
+    backgroundColor: "#f5a623",
+    borderRadius: 12,
+    paddingVertical: 16,
     alignItems: "center",
     marginTop: 28,
   },

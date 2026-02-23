@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import {
   View,
   Text,
@@ -12,7 +12,7 @@ import {
   Platform,
 } from "react-native";
 import { useRouter, useLocalSearchParams, Stack } from "expo-router";
-import { fetchFuelLog } from "../lib/api/fuel";
+import { fetchFuelLog, fetchNearbyPrices } from "../lib/api/fuel";
 import { getLocalFuelLog } from "../lib/db/queries";
 import {
   syncCreateFuelLog,
@@ -22,7 +22,8 @@ import {
 import { fetchVehicles } from "../lib/api/vehicles";
 import { getCurrentLocation } from "../lib/location/geocoding";
 import { FUEL_BRANDS } from "@mileclear/shared";
-import type { Vehicle } from "@mileclear/shared";
+import type { Vehicle, FuelStation } from "@mileclear/shared";
+import { DateTimePickerField } from "../components/DateTimePickerField";
 
 export default function FuelFormScreen() {
   const router = useRouter();
@@ -35,10 +36,17 @@ export default function FuelFormScreen() {
   const [litres, setLitres] = useState("");
   const [cost, setCost] = useState("");
   const [odometer, setOdometer] = useState("");
-  const [loggedAt, setLoggedAt] = useState("");
+  const [loggedAt, setLoggedAt] = useState<Date | null>(new Date());
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [loadingExisting, setLoadingExisting] = useState(isEditing);
+
+  // Nearby stations
+  const [nearbyStations, setNearbyStations] = useState<FuelStation[]>([]);
+  const [selectedStation, setSelectedStation] = useState<FuelStation | null>(null);
+  const [loadingStations, setLoadingStations] = useState(false);
+  // Tracks which field the user last typed in so we calculate the other
+  const lastEditedRef = useRef<"litres" | "cost" | null>(null);
 
   useEffect(() => {
     // Load vehicles for picker
@@ -46,6 +54,26 @@ export default function FuelFormScreen() {
       .then((res) => setVehicles(res.data))
       .catch(() => {});
   }, []);
+
+  // Fetch nearby stations on mount (new logs only)
+  useEffect(() => {
+    if (isEditing) return;
+    let cancelled = false;
+    (async () => {
+      setLoadingStations(true);
+      try {
+        const loc = await getCurrentLocation();
+        if (!loc || cancelled) { setLoadingStations(false); return; }
+        const res = await fetchNearbyPrices({ lat: loc.lat, lng: loc.lng, radiusMiles: 3 });
+        if (!cancelled) setNearbyStations(res.stations ?? []);
+      } catch {
+        // Silently fail — manual entry still works
+      } finally {
+        if (!cancelled) setLoadingStations(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [isEditing]);
 
   useEffect(() => {
     if (!id) {
@@ -62,7 +90,7 @@ export default function FuelFormScreen() {
       setLitres(log.litres.toString());
       setCost((log.costPence / 100).toFixed(2));
       setOdometer(log.odometerReading?.toString() ?? "");
-      setLoggedAt(log.loggedAt.slice(0, 10));
+      setLoggedAt(new Date(log.loggedAt));
     };
 
     fetchFuelLog(id)
@@ -75,6 +103,68 @@ export default function FuelFormScreen() {
   }, [id]);
 
   const selectedVehicle = vehicles.find((v) => v.id === vehicleId);
+
+  // Get the relevant price from a station based on selected vehicle fuel type
+  const getStationPrice = useCallback((station: FuelStation): number | undefined => {
+    const fuelType = selectedVehicle?.fuelType;
+    if (fuelType === "diesel") return station.prices.B7;
+    // Default to E10 for petrol, hybrid, or no vehicle selected
+    return station.prices.E10;
+  }, [selectedVehicle]);
+
+  // Bidirectional auto-calculate: litres→cost or cost→litres
+  useEffect(() => {
+    if (!selectedStation || !lastEditedRef.current) return;
+    const ppl = getStationPrice(selectedStation);
+    if (!ppl) return;
+
+    if (lastEditedRef.current === "litres") {
+      const parsed = parseFloat(litres);
+      if (isNaN(parsed) || parsed <= 0) return;
+      setCost(((ppl * parsed) / 100).toFixed(2));
+    } else if (lastEditedRef.current === "cost") {
+      const parsed = parseFloat(cost);
+      if (isNaN(parsed) || parsed <= 0) return;
+      // cost is pounds, ppl is pence → litres = (cost * 100) / ppl
+      const calc = ((parsed * 100) / ppl).toFixed(1);
+      setLitres(calc);
+    }
+  }, [litres, cost, selectedStation, getStationPrice]);
+
+  const handleSelectStation = useCallback((station: FuelStation) => {
+    setSelectedStation(station);
+    // Build station name: "Brand - Address"
+    const addr = station.address.length > 40
+      ? station.address.slice(0, 37) + "..."
+      : station.address;
+    setStationName(`${station.brand} - ${addr}`);
+
+    const fuelType = selectedVehicle?.fuelType;
+    const ppl = fuelType === "diesel" ? station.prices.B7 : station.prices.E10;
+    if (!ppl) return;
+
+    // Auto-fill whichever field is empty, or calc cost from litres by default
+    const parsedLitres = parseFloat(litres);
+    const parsedCost = parseFloat(cost);
+    if (!isNaN(parsedLitres) && parsedLitres > 0) {
+      setCost(((ppl * parsedLitres) / 100).toFixed(2));
+      lastEditedRef.current = "litres";
+    } else if (!isNaN(parsedCost) && parsedCost > 0) {
+      setLitres(((parsedCost * 100) / ppl).toFixed(1));
+      lastEditedRef.current = "cost";
+    }
+  }, [litres, cost, selectedVehicle]);
+
+  const handleStationNameChange = useCallback((text: string) => {
+    setStationName(text);
+    // Typing manually deselects any picked station
+    if (selectedStation) setSelectedStation(null);
+  }, [selectedStation]);
+
+  const handleCostChange = useCallback((text: string) => {
+    setCost(text);
+    lastEditedRef.current = "cost";
+  }, []);
 
   const showVehiclePicker = useCallback(() => {
     const options = [
@@ -115,10 +205,13 @@ export default function FuelFormScreen() {
 
     setSaving(true);
     try {
-      // Silently capture GPS for new fuel logs (non-blocking)
+      // Use station coordinates if selected, otherwise capture GPS
       let latitude: number | undefined;
       let longitude: number | undefined;
-      if (!isEditing) {
+      if (selectedStation) {
+        latitude = selectedStation.latitude;
+        longitude = selectedStation.longitude;
+      } else if (!isEditing) {
         try {
           const loc = await getCurrentLocation();
           if (loc) {
@@ -137,7 +230,7 @@ export default function FuelFormScreen() {
           costPence,
           stationName: stationName.trim() || null,
           odometerReading: parsedOdometer ?? null,
-          loggedAt: loggedAt ? new Date(loggedAt).toISOString() : undefined,
+          loggedAt: loggedAt ? loggedAt.toISOString() : undefined,
         });
       } else {
         await syncCreateFuelLog({
@@ -148,7 +241,7 @@ export default function FuelFormScreen() {
           odometerReading: parsedOdometer,
           latitude,
           longitude,
-          loggedAt: loggedAt ? new Date(loggedAt).toISOString() : undefined,
+          loggedAt: loggedAt ? loggedAt.toISOString() : undefined,
         });
       }
       router.back();
@@ -157,7 +250,7 @@ export default function FuelFormScreen() {
     } finally {
       setSaving(false);
     }
-  }, [isEditing, id, vehicleId, litres, cost, stationName, odometer, loggedAt, router]);
+  }, [isEditing, id, vehicleId, litres, cost, stationName, odometer, loggedAt, router, selectedStation]);
 
   const handleDelete = useCallback(() => {
     Alert.alert("Delete fuel log", "Remove this fuel log? This can't be undone.", [
@@ -179,10 +272,17 @@ export default function FuelFormScreen() {
     ]);
   }, [id, router]);
 
+  // Price colour: green if cheap, amber if mid, red if expensive
+  const priceColour = (pence: number): string => {
+    if (pence < 130) return "#22c55e";
+    if (pence < 145) return "#f5a623";
+    return "#ef4444";
+  };
+
   if (loadingExisting) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#f59e0b" />
+        <ActivityIndicator size="large" color="#f5a623" />
       </View>
     );
   }
@@ -201,35 +301,86 @@ export default function FuelFormScreen() {
         <TextInput
           style={styles.input}
           value={stationName}
-          onChangeText={setStationName}
+          onChangeText={handleStationNameChange}
           placeholder="Station name (optional)"
           placeholderTextColor="#6b7280"
         />
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.chipRow}
-        >
-          {FUEL_BRANDS.map((brand) => (
-            <TouchableOpacity
-              key={brand}
-              style={[
-                styles.chip,
-                stationName === brand && styles.chipActive,
-              ]}
-              onPress={() => setStationName(brand)}
-            >
-              <Text
+
+        {/* Nearby station picker */}
+        {loadingStations && (
+          <View style={styles.stationsLoading}>
+            <ActivityIndicator size="small" color="#f5a623" />
+            <Text style={styles.stationsLoadingText}>Finding nearby stations...</Text>
+          </View>
+        )}
+        {nearbyStations.length > 0 && (
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.stationRow}
+          >
+            {nearbyStations.map((station) => {
+              const isSelected = selectedStation?.siteId === station.siteId;
+              const price = getStationPrice(station);
+              return (
+                <TouchableOpacity
+                  key={station.siteId}
+                  style={[styles.stationCard, isSelected && styles.stationCardSelected]}
+                  onPress={() => handleSelectStation(station)}
+                  activeOpacity={0.7}
+                >
+                  <Text style={styles.stationBrand} numberOfLines={1}>
+                    {station.brand}
+                  </Text>
+                  <Text style={styles.stationAddress} numberOfLines={1}>
+                    {station.address}
+                  </Text>
+                  <View style={styles.stationMeta}>
+                    {price != null && (
+                      <Text style={[styles.stationPrice, { color: priceColour(price) }]}>
+                        {price.toFixed(1)}p
+                      </Text>
+                    )}
+                    <Text style={styles.stationDistance}>
+                      {station.distanceMiles.toFixed(1)} mi
+                    </Text>
+                  </View>
+                </TouchableOpacity>
+              );
+            })}
+          </ScrollView>
+        )}
+        {/* Fallback brand chips when no nearby stations */}
+        {nearbyStations.length === 0 && !loadingStations && (
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.chipRow}
+          >
+            {FUEL_BRANDS.map((brand) => (
+              <TouchableOpacity
+                key={brand}
                 style={[
-                  styles.chipText,
-                  stationName === brand && styles.chipTextActive,
+                  styles.chip,
+                  stationName === brand && styles.chipActive,
                 ]}
+                onPress={() => {
+                  setStationName(brand);
+                  setSelectedStation(null);
+                }}
               >
-                {brand}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </ScrollView>
+                <Text
+                  style={[
+                    styles.chipText,
+                    stationName === brand && styles.chipTextActive,
+                  ]}
+                >
+                  {brand}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        )}
 
         {/* Vehicle */}
         <Text style={styles.label}>Vehicle</Text>
@@ -242,24 +393,31 @@ export default function FuelFormScreen() {
         </TouchableOpacity>
 
         {/* Litres */}
-        <Text style={styles.label}>Litres *</Text>
+        <Text style={styles.label}>
+          Litres *{selectedStation && lastEditedRef.current === "cost" ? "  (estimated)" : ""}
+        </Text>
         <TextInput
           style={styles.input}
           value={litres}
-          onChangeText={setLitres}
+          onChangeText={(text) => {
+            setLitres(text);
+            lastEditedRef.current = "litres";
+          }}
           placeholder="0.0"
           placeholderTextColor="#6b7280"
           keyboardType="decimal-pad"
         />
 
         {/* Cost */}
-        <Text style={styles.label}>Cost *</Text>
+        <Text style={styles.label}>
+          Cost *{selectedStation && lastEditedRef.current === "litres" ? "  (estimated)" : ""}
+        </Text>
         <View style={styles.amountRow}>
           <Text style={styles.currencyPrefix}>£</Text>
           <TextInput
             style={[styles.input, styles.amountInput]}
             value={cost}
-            onChangeText={setCost}
+            onChangeText={handleCostChange}
             placeholder="0.00"
             placeholderTextColor="#6b7280"
             keyboardType="decimal-pad"
@@ -278,13 +436,11 @@ export default function FuelFormScreen() {
         />
 
         {/* Date */}
-        <Text style={styles.label}>Date</Text>
-        <TextInput
-          style={styles.input}
+        <DateTimePickerField
+          label="Date"
           value={loggedAt}
-          onChangeText={setLoggedAt}
-          placeholder="YYYY-MM-DD"
-          placeholderTextColor="#6b7280"
+          onChange={setLoggedAt}
+          maximumDate={new Date()}
         />
 
         {/* Save */}
@@ -365,7 +521,7 @@ const styles = StyleSheet.create({
     fontFamily: "PlusJakartaSans_400Regular",
     color: "#6b7280",
   },
-  // Brand chips
+  // Brand chips (fallback)
   chipRow: {
     gap: 8,
     paddingVertical: 8,
@@ -379,8 +535,8 @@ const styles = StyleSheet.create({
     borderColor: "#1f2937",
   },
   chipActive: {
-    backgroundColor: "#f59e0b",
-    borderColor: "#f59e0b",
+    backgroundColor: "#f5a623",
+    borderColor: "#f5a623",
   },
   chipText: {
     fontSize: 12,
@@ -390,6 +546,60 @@ const styles = StyleSheet.create({
   chipTextActive: {
     fontFamily: "PlusJakartaSans_600SemiBold",
     color: "#030712",
+  },
+  // Nearby stations
+  stationsLoading: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingVertical: 10,
+  },
+  stationsLoadingText: {
+    fontSize: 13,
+    fontFamily: "PlusJakartaSans_400Regular",
+    color: "#6b7280",
+  },
+  stationRow: {
+    gap: 10,
+    paddingVertical: 10,
+  },
+  stationCard: {
+    width: 160,
+    backgroundColor: "#111827",
+    borderRadius: 12,
+    padding: 12,
+    borderWidth: 1.5,
+    borderColor: "#1f2937",
+  },
+  stationCardSelected: {
+    borderColor: "#f5a623",
+    backgroundColor: "#1a1708",
+  },
+  stationBrand: {
+    fontSize: 14,
+    fontFamily: "PlusJakartaSans_700Bold",
+    color: "#fff",
+    marginBottom: 3,
+  },
+  stationAddress: {
+    fontSize: 11,
+    fontFamily: "PlusJakartaSans_400Regular",
+    color: "#9ca3af",
+    marginBottom: 8,
+  },
+  stationMeta: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  stationPrice: {
+    fontSize: 14,
+    fontFamily: "PlusJakartaSans_700Bold",
+  },
+  stationDistance: {
+    fontSize: 11,
+    fontFamily: "PlusJakartaSans_500Medium",
+    color: "#6b7280",
   },
   // Amount row
   amountRow: {
@@ -407,9 +617,9 @@ const styles = StyleSheet.create({
   },
   // Buttons
   saveButton: {
-    backgroundColor: "#f59e0b",
-    borderRadius: 10,
-    paddingVertical: 14,
+    backgroundColor: "#f5a623",
+    borderRadius: 12,
+    paddingVertical: 16,
     alignItems: "center",
     marginTop: 28,
   },

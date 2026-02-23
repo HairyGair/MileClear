@@ -8,6 +8,7 @@ import {
   Alert,
   StyleSheet,
 } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 import { useRouter, useFocusEffect } from "expo-router";
 import * as WebBrowser from "expo-web-browser";
 import {
@@ -193,7 +194,7 @@ export default function OpenBankingScreen() {
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#f59e0b" />
+        <ActivityIndicator size="large" color="#f5a623" />
       </View>
     );
   }
@@ -221,6 +222,9 @@ export default function OpenBankingScreen() {
         }
         ListEmptyComponent={
           <View style={styles.emptyState}>
+            <View style={styles.emptyIcon}>
+              <Ionicons name="business-outline" size={40} color="#4a5568" />
+            </View>
             <Text style={styles.emptyTitle}>No banks connected</Text>
             <Text style={styles.emptyText}>
               Tap the button below to link your bank account
@@ -276,7 +280,7 @@ const styles = StyleSheet.create({
     color: "#fff",
   },
   proBadge: {
-    backgroundColor: "#f59e0b",
+    backgroundColor: "#f5a623",
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: 6,
@@ -298,6 +302,8 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     padding: 16,
     marginBottom: 12,
+    borderWidth: 1,
+    borderColor: "#1f2937",
   },
   cardHeader: {
     flexDirection: "row",
@@ -338,9 +344,9 @@ const styles = StyleSheet.create({
   },
   syncButton: {
     flex: 1,
-    backgroundColor: "#f59e0b",
-    borderRadius: 8,
-    paddingVertical: 10,
+    backgroundColor: "#f5a623",
+    borderRadius: 10,
+    paddingVertical: 12,
     alignItems: "center",
   },
   syncButtonText: {
@@ -365,6 +371,17 @@ const styles = StyleSheet.create({
     alignItems: "center",
     paddingVertical: 40,
   },
+  emptyIcon: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    backgroundColor: "#111827",
+    borderWidth: 1,
+    borderColor: "#1f2937",
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 16,
+  },
   emptyTitle: {
     fontSize: 17,
     fontFamily: "PlusJakartaSans_600SemiBold",
@@ -383,9 +400,9 @@ const styles = StyleSheet.create({
     paddingBottom: 20,
   },
   connectButton: {
-    backgroundColor: "#f59e0b",
-    borderRadius: 10,
-    paddingVertical: 14,
+    backgroundColor: "#f5a623",
+    borderRadius: 12,
+    paddingVertical: 16,
     alignItems: "center",
   },
   connectButtonText: {

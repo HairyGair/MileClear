@@ -74,7 +74,7 @@ export default function ProfileEditScreen() {
   if (loadingProfile) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#f59e0b" />
+        <ActivityIndicator size="large" color="#f5a623" />
       </View>
     );
   }
@@ -180,14 +180,14 @@ const styles = StyleSheet.create({
   hint: {
     fontSize: 13,
     fontFamily: "PlusJakartaSans_400Regular",
-    color: "#f59e0b",
+    color: "#f5a623",
     marginTop: 10,
     lineHeight: 18,
   },
   saveButton: {
-    backgroundColor: "#f59e0b",
-    borderRadius: 10,
-    paddingVertical: 14,
+    backgroundColor: "#f5a623",
+    borderRadius: 12,
+    paddingVertical: 16,
     alignItems: "center",
     marginTop: 28,
   },

@@ -38,11 +38,11 @@ function formatDistance(miles: number): string {
 }
 
 function getPriceColor(pricePence: number, nationalAvg: number | null): string {
-  if (nationalAvg === null) return "#f59e0b";
+  if (nationalAvg === null) return "#f5a623";
   const diff = pricePence - nationalAvg;
   if (diff < -3) return "#10b981";
   if (diff > 3) return "#ef4444";
-  return "#f59e0b";
+  return "#f5a623";
 }
 
 interface FuelMapModalProps {
@@ -131,7 +131,7 @@ export default function FuelMapModal({
         >
           {stations.map((s, i) => {
             const e10 = s.prices.E10;
-            const color = e10 != null ? getPriceColor(e10, nationalAvgPetrol) : "#f59e0b";
+            const color = e10 != null ? getPriceColor(e10, nationalAvgPetrol) : "#f5a623";
             return (
               <MarkerNative
                 key={`${s.siteId}-${i}`}
@@ -296,7 +296,7 @@ const styles = StyleSheet.create({
   },
   recenterIcon: {
     fontSize: 20,
-    color: "#f59e0b",
+    color: "#f5a623",
   },
   // Bottom panel
   bottomPanel: {
@@ -353,7 +353,7 @@ const styles = StyleSheet.create({
   },
   // Directions button
   directionsBtn: {
-    backgroundColor: "#f59e0b",
+    backgroundColor: "#f5a623",
     borderRadius: 12,
     paddingVertical: 16,
     alignItems: "center",
@@ -396,6 +396,6 @@ const styles = StyleSheet.create({
   fallbackCloseText: {
     fontSize: 15,
     fontFamily: "PlusJakartaSans_600SemiBold",
-    color: "#f59e0b",
+    color: "#f5a623",
   },
 });

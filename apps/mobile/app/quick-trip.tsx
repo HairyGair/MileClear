@@ -232,7 +232,7 @@ export default function QuickTripScreen() {
     return (
       <View style={[styles.container, styles.centered]}>
         <Stack.Screen options={{ title: "Quick Trip" }} />
-        <ActivityIndicator size="large" color="#f59e0b" />
+        <ActivityIndicator size="large" color="#f5a623" />
         <Text style={styles.loadingText}>Getting your location...</Text>
       </View>
     );
@@ -295,7 +295,7 @@ export default function QuickTripScreen() {
                     { latitude: startLat, longitude: startLng },
                     { latitude: endLat, longitude: endLng },
                   ]}
-                  strokeColor="#f59e0b"
+                  strokeColor="#f5a623"
                   strokeWidth={3}
                 />
               </>
@@ -464,7 +464,7 @@ export default function QuickTripScreen() {
         {/* ── Saving State ── */}
         {state === "saving" && (
           <View style={styles.centered}>
-            <ActivityIndicator size="large" color="#f59e0b" />
+            <ActivityIndicator size="large" color="#f5a623" />
             <Text style={styles.loadingText}>Saving trip...</Text>
           </View>
         )}
@@ -473,7 +473,7 @@ export default function QuickTripScreen() {
   );
 }
 
-const AMBER = "#f59e0b";
+const AMBER = "#f5a623";
 const TEXT_1 = "#f0f2f5";
 const TEXT_2 = "#8494a7";
 const CARD_BG = "#0a1120";

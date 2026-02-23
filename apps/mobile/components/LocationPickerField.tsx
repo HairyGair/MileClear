@@ -7,6 +7,7 @@ import {
   StyleSheet,
   ActivityIndicator,
 } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 import {
   getCurrentLocation,
   forwardGeocode,
@@ -79,7 +80,7 @@ export function LocationPickerField({
         <Text style={styles.label}>{label}</Text>
         {onClear && hasValue && !disabled && (
           <TouchableOpacity onPress={onClear} hitSlop={8}>
-            <Text style={styles.clearText}>x</Text>
+            <Ionicons name="close-circle" size={18} color="#6b7280" />
           </TouchableOpacity>
         )}
       </View>
@@ -87,7 +88,7 @@ export function LocationPickerField({
       {/* Address display */}
       <View style={styles.addressBox}>
         {loading ? (
-          <ActivityIndicator size="small" color="#f59e0b" />
+          <ActivityIndicator size="small" color="#f5a623" />
         ) : hasValue ? (
           <>
             <Text style={styles.addressText} numberOfLines={2}>
@@ -111,7 +112,7 @@ export function LocationPickerField({
             disabled={loading}
             activeOpacity={0.7}
           >
-            <Text style={styles.actionIcon}>O</Text>
+            <Ionicons name="locate-outline" size={16} color="#f5a623" />
             <Text style={styles.actionLabel}>Current</Text>
           </TouchableOpacity>
 
@@ -121,7 +122,7 @@ export function LocationPickerField({
             disabled={loading}
             activeOpacity={0.7}
           >
-            <Text style={styles.actionIcon}>^</Text>
+            <Ionicons name="map-outline" size={16} color="#f5a623" />
             <Text style={styles.actionLabel}>Map</Text>
           </TouchableOpacity>
 
@@ -131,7 +132,7 @@ export function LocationPickerField({
             disabled={loading}
             activeOpacity={0.7}
           >
-            <Text style={[styles.actionIcon, showSearch && styles.actionIconActive]}>?</Text>
+            <Ionicons name="search-outline" size={16} color={showSearch ? "#f5a623" : "#f5a623"} />
             <Text style={[styles.actionLabel, showSearch && styles.actionLabelActive]}>Search</Text>
           </TouchableOpacity>
         </View>
@@ -190,11 +191,6 @@ const styles = StyleSheet.create({
     fontFamily: "PlusJakartaSans_600SemiBold",
     color: "#d1d5db",
   },
-  clearText: {
-    fontSize: 16,
-    fontFamily: "PlusJakartaSans_600SemiBold",
-    color: "#6b7280",
-  },
   // Address display
   addressBox: {
     backgroundColor: "#111827",
@@ -243,21 +239,13 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(245, 158, 11, 0.12)",
     borderColor: "rgba(245, 158, 11, 0.3)",
   },
-  actionIcon: {
-    fontSize: 14,
-    fontFamily: "PlusJakartaSans_700Bold",
-    color: "#f59e0b",
-  },
-  actionIconActive: {
-    color: "#f59e0b",
-  },
   actionLabel: {
     fontSize: 12,
     fontFamily: "PlusJakartaSans_600SemiBold",
     color: "#8494a7",
   },
   actionLabelActive: {
-    color: "#f59e0b",
+    color: "#f5a623",
   },
   // Search
   searchRow: {
@@ -277,7 +265,7 @@ const styles = StyleSheet.create({
     borderColor: "#1f2937",
   },
   searchBtn: {
-    backgroundColor: "#f59e0b",
+    backgroundColor: "#f5a623",
     borderRadius: 10,
     paddingHorizontal: 16,
     justifyContent: "center",

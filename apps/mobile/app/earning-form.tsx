@@ -20,6 +20,7 @@ import {
   syncDeleteEarning,
 } from "../lib/sync/actions";
 import { GIG_PLATFORMS } from "@mileclear/shared";
+import { DateTimePickerField } from "../components/DateTimePickerField";
 
 export default function EarningFormScreen() {
   const router = useRouter();
@@ -28,28 +29,22 @@ export default function EarningFormScreen() {
 
   const [platform, setPlatform] = useState<string>("");
   const [amount, setAmount] = useState("");
-  const [periodStart, setPeriodStart] = useState("");
-  const [periodEnd, setPeriodEnd] = useState("");
+  const [periodStart, setPeriodStart] = useState<Date | null>(new Date());
+  const [periodEnd, setPeriodEnd] = useState<Date | null>(new Date());
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [loadingExisting, setLoadingExisting] = useState(isEditing);
 
   useEffect(() => {
-    if (!id) {
-      // Pre-fill dates for new earning
-      const today = new Date().toISOString().slice(0, 10);
-      setPeriodStart(today);
-      setPeriodEnd(today);
-      return;
-    }
+    if (!id) return;
     const populateEarning = (earning: {
       platform: string; amountPence: number;
       periodStart: string; periodEnd: string;
     }) => {
       setPlatform(earning.platform);
       setAmount((earning.amountPence / 100).toFixed(2));
-      setPeriodStart(earning.periodStart.slice(0, 10));
-      setPeriodEnd(earning.periodEnd.slice(0, 10));
+      setPeriodStart(new Date(earning.periodStart));
+      setPeriodEnd(new Date(earning.periodEnd));
     };
 
     fetchEarning(id)
@@ -71,7 +66,7 @@ export default function EarningFormScreen() {
       Alert.alert("Invalid amount", "Please enter an amount greater than 0.");
       return;
     }
-    if (!periodStart.trim() || !periodEnd.trim()) {
+    if (!periodStart || !periodEnd) {
       Alert.alert("Missing fields", "Both period dates are required.");
       return;
     }
@@ -88,15 +83,15 @@ export default function EarningFormScreen() {
         await syncUpdateEarning(id, {
           platform,
           amountPence,
-          periodStart: new Date(periodStart).toISOString(),
-          periodEnd: new Date(periodEnd).toISOString(),
+          periodStart: periodStart.toISOString(),
+          periodEnd: periodEnd.toISOString(),
         });
       } else {
         await syncCreateEarning({
           platform,
           amountPence,
-          periodStart: new Date(periodStart).toISOString(),
-          periodEnd: new Date(periodEnd).toISOString(),
+          periodStart: periodStart.toISOString(),
+          periodEnd: periodEnd.toISOString(),
         });
       }
       router.back();
@@ -130,7 +125,7 @@ export default function EarningFormScreen() {
   if (loadingExisting) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#f59e0b" />
+        <ActivityIndicator size="large" color="#f5a623" />
       </View>
     );
   }
@@ -187,23 +182,19 @@ export default function EarningFormScreen() {
         </View>
 
         {/* Period Start */}
-        <Text style={styles.label}>Period Start *</Text>
-        <TextInput
-          style={styles.input}
+        <DateTimePickerField
+          label="Period Start *"
           value={periodStart}
-          onChangeText={setPeriodStart}
-          placeholder="YYYY-MM-DD"
-          placeholderTextColor="#6b7280"
+          onChange={setPeriodStart}
+          maximumDate={new Date()}
         />
 
         {/* Period End */}
-        <Text style={styles.label}>Period End *</Text>
-        <TextInput
-          style={styles.input}
+        <DateTimePickerField
+          label="Period End *"
           value={periodEnd}
-          onChangeText={setPeriodEnd}
-          placeholder="YYYY-MM-DD"
-          placeholderTextColor="#6b7280"
+          onChange={setPeriodEnd}
+          maximumDate={new Date()}
         />
 
         {/* Save */}
@@ -288,8 +279,8 @@ const styles = StyleSheet.create({
     borderColor: "#1f2937",
   },
   platformChipActive: {
-    backgroundColor: "#f59e0b",
-    borderColor: "#f59e0b",
+    backgroundColor: "#f5a623",
+    borderColor: "#f5a623",
   },
   platformChipText: {
     fontSize: 12,
@@ -316,9 +307,9 @@ const styles = StyleSheet.create({
   },
   // Buttons
   saveButton: {
-    backgroundColor: "#f59e0b",
-    borderRadius: 10,
-    paddingVertical: 14,
+    backgroundColor: "#f5a623",
+    borderRadius: 12,
+    paddingVertical: 16,
     alignItems: "center",
     marginTop: 28,
   },

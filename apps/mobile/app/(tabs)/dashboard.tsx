@@ -43,6 +43,7 @@ import { formatPence, formatMiles } from "@mileclear/shared";
 import { useMode } from "../../lib/mode/context";
 import { ModeToggle } from "../../components/ModeToggle";
 import { PersonalDashboard } from "../../components/personal/PersonalDashboard";
+import { Ionicons } from "@expo/vector-icons";
 
 function formatElapsed(seconds: number): string {
   const h = Math.floor(seconds / 3600);
@@ -497,7 +498,7 @@ export default function DashboardScreen() {
           onPress={() => router.push("/quick-trip")}
           activeOpacity={0.7}
         >
-          <Text style={s.quickActionIcon}>{"\u25B6"}</Text>
+          <Ionicons name="navigate-outline" size={22} color="#f5a623" style={{ marginBottom: 4 }} />
           <Text style={s.quickActionLabel}>Quick Trip</Text>
         </TouchableOpacity>
         <TouchableOpacity
@@ -505,7 +506,7 @@ export default function DashboardScreen() {
           onPress={() => router.push("/(tabs)/trips" as any)}
           activeOpacity={0.7}
         >
-          <Text style={s.quickActionIcon}>{"\u2630"}</Text>
+          <Ionicons name="list-outline" size={22} color="#f5a623" style={{ marginBottom: 4 }} />
           <Text style={s.quickActionLabel}>All Trips</Text>
         </TouchableOpacity>
         {isWork ? (
@@ -514,7 +515,7 @@ export default function DashboardScreen() {
             onPress={() => router.push("/exports")}
             activeOpacity={0.7}
           >
-            <Text style={s.quickActionIcon}>{"\u2193"}</Text>
+            <Ionicons name="download-outline" size={22} color="#f5a623" style={{ marginBottom: 4 }} />
             <Text style={s.quickActionLabel}>Exports</Text>
           </TouchableOpacity>
         ) : (
@@ -523,7 +524,7 @@ export default function DashboardScreen() {
             onPress={() => router.push("/(tabs)/fuel" as any)}
             activeOpacity={0.7}
           >
-            <Text style={s.quickActionIcon}>{"\u26FD"}</Text>
+            <Ionicons name="water-outline" size={22} color="#f5a623" style={{ marginBottom: 4 }} />
             <Text style={s.quickActionLabel}>Fuel</Text>
           </TouchableOpacity>
         )}
@@ -532,7 +533,7 @@ export default function DashboardScreen() {
           onPress={() => router.push("/achievements")}
           activeOpacity={0.7}
         >
-          <Text style={s.quickActionIcon}>{"\u2606"}</Text>
+          <Ionicons name="trophy-outline" size={22} color="#f5a623" style={{ marginBottom: 4 }} />
           <Text style={s.quickActionLabel}>Badges</Text>
         </TouchableOpacity>
       </View>
@@ -767,12 +768,6 @@ const s = StyleSheet.create({
     alignItems: "center",
     borderWidth: 1,
     borderColor: CARD_BORDER,
-  },
-  quickActionIcon: {
-    fontSize: 18,
-    fontFamily: "PlusJakartaSans_400Regular",
-    color: AMBER,
-    marginBottom: 4,
   },
   quickActionLabel: {
     fontSize: 10,

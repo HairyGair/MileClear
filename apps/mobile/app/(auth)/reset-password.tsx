@@ -9,6 +9,7 @@ import {
   Platform,
   ActivityIndicator,
   ScrollView,
+  Image,
 } from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
 import { useAuth } from "../../lib/auth/context";
@@ -73,9 +74,15 @@ export default function ResetPasswordScreen() {
       >
         {/* Brand */}
         <View style={s.brandWrap}>
-          <Text style={s.brandName}>MileClear</Text>
-          <View style={s.brandRule} />
-          <Text style={s.brandTagline}>Reset your password</Text>
+          <Image
+            source={require("../../assets/branding/logo-original.png")}
+            style={s.brandIcon}
+            resizeMode="contain"
+          />
+          <View style={s.brandText}>
+            <Text style={s.brandName}>Mile</Text>
+            <Text style={s.brandNameAccent}>Clear</Text>
+          </View>
         </View>
 
         {/* Card */}
@@ -167,27 +174,28 @@ const s = StyleSheet.create({
     padding: 24,
   },
   brandWrap: {
+    flexDirection: "row",
     alignItems: "center",
-    marginBottom: 40,
+    marginBottom: 32,
+  },
+  brandIcon: {
+    width: 52,
+    height: 52,
+    borderRadius: 12,
+  },
+  brandText: {
+    flexDirection: "row",
+    marginLeft: 14,
   },
   brandName: {
-    fontSize: 28,
-    fontFamily: "PlusJakartaSans_300Light",
+    fontSize: 26,
+    fontFamily: "PlusJakartaSans_600SemiBold",
+    color: TEXT_1,
+  },
+  brandNameAccent: {
+    fontSize: 26,
+    fontFamily: "PlusJakartaSans_600SemiBold",
     color: AMBER,
-    letterSpacing: 4,
-    textTransform: "uppercase",
-  },
-  brandRule: {
-    width: 32,
-    height: 1,
-    backgroundColor: "rgba(245, 166, 35, 0.3)",
-    marginVertical: 12,
-  },
-  brandTagline: {
-    fontSize: 14,
-    color: TEXT_2,
-    fontFamily: "PlusJakartaSans_300Light",
-    letterSpacing: 0.5,
   },
   card: {
     backgroundColor: CARD_BG,

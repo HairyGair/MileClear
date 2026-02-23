@@ -22,11 +22,11 @@ function formatPpl(pence: number): string {
 }
 
 function getPriceColor(pricePence: number, nationalAvg: number | null): string {
-  if (nationalAvg === null) return "#f59e0b"; // amber if no benchmark
+  if (nationalAvg === null) return "#f5a623"; // amber if no benchmark
   const diff = pricePence - nationalAvg;
   if (diff < -3) return "#10b981"; // green — cheaper
   if (diff > 3) return "#ef4444"; // red — more expensive
-  return "#f59e0b"; // amber — within 3p
+  return "#f5a623"; // amber — within 3p
 }
 
 function StationCard({
@@ -318,7 +318,7 @@ function InlineMapView({
       >
         {stations.map((s, i) => {
           const e10 = s.prices.E10;
-          const color = e10 != null ? getPriceColor(e10, nationalAvgPetrol) : "#f59e0b";
+          const color = e10 != null ? getPriceColor(e10, nationalAvgPetrol) : "#f5a623";
           return (
             <Marker
               key={`${s.siteId}-${i}`}
@@ -380,7 +380,7 @@ const styles = StyleSheet.create({
     borderRadius: 6,
   },
   toggleBtnActive: {
-    backgroundColor: "#f59e0b",
+    backgroundColor: "#f5a623",
   },
   toggleText: {
     fontSize: 12,
@@ -416,7 +416,7 @@ const styles = StyleSheet.create({
   },
   avgValue: {
     fontFamily: "PlusJakartaSans_700Bold",
-    color: "#f59e0b",
+    color: "#f5a623",
   },
   avgDivider: {
     fontSize: 14,
@@ -478,12 +478,12 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: "#f59e0b",
+    borderColor: "#f5a623",
   },
   directionsPillText: {
     fontSize: 11,
     fontFamily: "PlusJakartaSans_600SemiBold",
-    color: "#f59e0b",
+    color: "#f5a623",
   },
   // Loading skeleton
   skeletonRow: {
@@ -519,7 +519,7 @@ const styles = StyleSheet.create({
   retryText: {
     fontSize: 13,
     fontFamily: "PlusJakartaSans_600SemiBold",
-    color: "#f59e0b",
+    color: "#f5a623",
   },
   // Map
   mapContainer: {

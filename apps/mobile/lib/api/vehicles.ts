@@ -1,5 +1,5 @@
 import { apiRequest } from "./index";
-import type { Vehicle, FuelType, VehicleType } from "@mileclear/shared";
+import type { Vehicle, FuelType, VehicleType, VehicleLookupResult } from "@mileclear/shared";
 
 export interface CreateVehicleData {
   make: string;
@@ -7,6 +7,7 @@ export interface CreateVehicleData {
   year?: number;
   fuelType: FuelType;
   vehicleType: VehicleType;
+  registrationPlate?: string;
   estimatedMpg?: number;
   isPrimary?: boolean;
 }
@@ -17,6 +18,7 @@ export interface UpdateVehicleData {
   year?: number | null;
   fuelType?: FuelType;
   vehicleType?: VehicleType;
+  registrationPlate?: string | null;
   estimatedMpg?: number | null;
   isPrimary?: boolean;
 }
@@ -42,5 +44,12 @@ export function updateVehicle(id: string, data: UpdateVehicleData) {
 export function deleteVehicle(id: string) {
   return apiRequest<{ message: string }>(`/vehicles/${id}`, {
     method: "DELETE",
+  });
+}
+
+export function lookupVehicle(registrationNumber: string) {
+  return apiRequest<{ data: VehicleLookupResult }>("/vehicles/lookup", {
+    method: "POST",
+    body: JSON.stringify({ registrationNumber }),
   });
 }

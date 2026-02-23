@@ -8,6 +8,7 @@ import {
   ActivityIndicator,
   StyleSheet,
 } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 import { Stack, useFocusEffect } from "expo-router";
 import * as WebBrowser from "expo-web-browser";
 import { getTaxYear } from "@mileclear/shared";
@@ -165,9 +166,9 @@ export default function ExportsScreen() {
             </Text>
           </View>
           {loadingKey === "csv" ? (
-            <ActivityIndicator color="#f59e0b" />
+            <ActivityIndicator color="#f5a623" />
           ) : (
-            <Text style={styles.chevron}>›</Text>
+            <Ionicons name="chevron-forward" size={18} color="#6b7280" style={{ marginLeft: 8 }} />
           )}
         </TouchableOpacity>
 
@@ -184,9 +185,9 @@ export default function ExportsScreen() {
             </Text>
           </View>
           {loadingKey === "pdf" ? (
-            <ActivityIndicator color="#f59e0b" />
+            <ActivityIndicator color="#f5a623" />
           ) : (
-            <Text style={styles.chevron}>›</Text>
+            <Ionicons name="chevron-forward" size={18} color="#6b7280" style={{ marginLeft: 8 }} />
           )}
         </TouchableOpacity>
 
@@ -203,9 +204,9 @@ export default function ExportsScreen() {
             </Text>
           </View>
           {loadingKey === "self-assessment" ? (
-            <ActivityIndicator color="#f59e0b" />
+            <ActivityIndicator color="#f5a623" />
           ) : (
-            <Text style={styles.chevron}>›</Text>
+            <Ionicons name="chevron-forward" size={18} color="#6b7280" style={{ marginLeft: 8 }} />
           )}
         </TouchableOpacity>
 
@@ -255,6 +256,8 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     alignItems: "center",
     marginBottom: 28,
+    borderWidth: 1,
+    borderColor: "#1f2937",
   },
   yearLabel: {
     fontSize: 15,
@@ -264,7 +267,7 @@ const styles = StyleSheet.create({
   yearValue: {
     fontSize: 16,
     fontFamily: "PlusJakartaSans_700Bold",
-    color: "#f59e0b",
+    color: "#f5a623",
   },
   sectionTitle: {
     fontSize: 18,
@@ -279,6 +282,8 @@ const styles = StyleSheet.create({
     marginBottom: 10,
     flexDirection: "row",
     alignItems: "center",
+    borderWidth: 1,
+    borderColor: "#1f2937",
   },
   rowTitle: {
     fontSize: 15,
@@ -290,12 +295,6 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontFamily: "PlusJakartaSans_400Regular",
     color: "#6b7280",
-  },
-  chevron: {
-    fontSize: 22,
-    fontFamily: "PlusJakartaSans_400Regular",
-    color: "#6b7280",
-    marginLeft: 8,
   },
   comingSoonRow: {
     flexDirection: "row",
@@ -319,12 +318,12 @@ const styles = StyleSheet.create({
     padding: 16,
     marginBottom: 16,
     borderWidth: 1,
-    borderColor: "#f59e0b",
+    borderColor: "#f5a623",
   },
   paywallTitle: {
     fontSize: 16,
     fontFamily: "PlusJakartaSans_700Bold",
-    color: "#f59e0b",
+    color: "#f5a623",
     marginBottom: 4,
   },
   paywallText: {
@@ -337,6 +336,6 @@ const styles = StyleSheet.create({
   paywallCta: {
     fontSize: 14,
     fontFamily: "PlusJakartaSans_700Bold",
-    color: "#f59e0b",
+    color: "#f5a623",
   },
 });

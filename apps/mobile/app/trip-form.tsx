@@ -11,6 +11,7 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 import { useRouter, useLocalSearchParams, Stack } from "expo-router";
 import { fetchTrip, CreateTripData } from "../lib/api/trips";
 import { getLocalTrip } from "../lib/db/queries";
@@ -204,7 +205,7 @@ export default function TripFormScreen() {
   if (loadingExisting) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#f59e0b" />
+        <ActivityIndicator size="large" color="#f5a623" />
       </View>
     );
   }
@@ -374,7 +375,7 @@ export default function TripFormScreen() {
                   ? `${selectedVehicle.make} ${selectedVehicle.model}`
                   : "None selected"}
               </Text>
-              <Text style={styles.chevron}>{"\u203A"}</Text>
+              <Ionicons name="chevron-forward" size={18} color="#6b7280" />
             </TouchableOpacity>
 
             {/* Notes */}
@@ -484,7 +485,7 @@ const styles = StyleSheet.create({
   distanceValue: {
     fontSize: 28,
     fontFamily: "PlusJakartaSans_300Light",
-    color: "#f59e0b",
+    color: "#f5a623",
     letterSpacing: -0.5,
   },
   distanceHint: {
@@ -508,8 +509,8 @@ const styles = StyleSheet.create({
     borderColor: "#1f2937",
   },
   segmentActive: {
-    backgroundColor: "#f59e0b",
-    borderColor: "#f59e0b",
+    backgroundColor: "#f5a623",
+    borderColor: "#f5a623",
   },
   segmentText: {
     fontSize: 13,
@@ -554,8 +555,8 @@ const styles = StyleSheet.create({
     borderColor: "#1f2937",
   },
   platformChipActive: {
-    backgroundColor: "#f59e0b",
-    borderColor: "#f59e0b",
+    backgroundColor: "#f5a623",
+    borderColor: "#f5a623",
   },
   platformChipText: {
     fontSize: 12,
@@ -582,16 +583,11 @@ const styles = StyleSheet.create({
     fontFamily: "PlusJakartaSans_400Regular",
     color: "#fff",
   },
-  chevron: {
-    fontSize: 22,
-    fontFamily: "PlusJakartaSans_400Regular",
-    color: "#6b7280",
-  },
   // Buttons
   saveButton: {
-    backgroundColor: "#f59e0b",
-    borderRadius: 10,
-    paddingVertical: 14,
+    backgroundColor: "#f5a623",
+    borderRadius: 12,
+    paddingVertical: 16,
     alignItems: "center",
     marginTop: 28,
   },

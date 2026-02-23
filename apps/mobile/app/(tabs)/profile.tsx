@@ -13,6 +13,7 @@ import {
   Share,
   Switch,
 } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 import { useRouter, useFocusEffect } from "expo-router";
 import * as WebBrowser from "expo-web-browser";
 import { useAuth } from "../../lib/auth/context";
@@ -224,7 +225,7 @@ export default function ProfileScreen() {
             {item.year && <Text style={styles.metaText}>{item.year}</Text>}
           </View>
         </View>
-        <Text style={styles.chevron}>›</Text>
+        <Ionicons name="chevron-forward" size={18} color="#6b7280" style={{ marginLeft: 8 }} />
       </View>
     </TouchableOpacity>
   );
@@ -239,7 +240,7 @@ export default function ProfileScreen() {
           <RefreshControl
             refreshing={refreshing}
             onRefresh={onRefresh}
-            tintColor="#f59e0b"
+            tintColor="#f5a623"
           />
         }
         contentContainerStyle={styles.listContent}
@@ -276,8 +277,11 @@ export default function ProfileScreen() {
               onPress={() => router.push("/profile-edit")}
               activeOpacity={0.7}
             >
-              <Text style={styles.actionText}>Edit Profile</Text>
-              <Text style={styles.chevron}>›</Text>
+              <View style={styles.actionRowLeft}>
+                <Ionicons name="create-outline" size={18} color="#8494a7" />
+                <Text style={styles.actionText}>Edit Profile</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={18} color="#6b7280" />
             </TouchableOpacity>
 
             <TouchableOpacity
@@ -286,10 +290,13 @@ export default function ProfileScreen() {
               disabled={exporting}
               activeOpacity={0.7}
             >
-              <Text style={styles.actionText}>
-                {exporting ? "Exporting..." : "Export My Data"}
-              </Text>
-              <Text style={styles.chevron}>›</Text>
+              <View style={styles.actionRowLeft}>
+                <Ionicons name="download-outline" size={18} color="#8494a7" />
+                <Text style={styles.actionText}>
+                  {exporting ? "Exporting..." : "Export My Data"}
+                </Text>
+              </View>
+              <Ionicons name="chevron-forward" size={18} color="#6b7280" />
             </TouchableOpacity>
 
             <TouchableOpacity
@@ -297,11 +304,12 @@ export default function ProfileScreen() {
               onPress={() => router.push("/exports")}
               activeOpacity={0.7}
             >
-              <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+              <View style={styles.actionRowLeft}>
+                <Ionicons name="document-text-outline" size={18} color="#8494a7" />
                 <Text style={styles.actionText}>Tax Exports</Text>
                 <Text style={styles.proBadge}>PRO</Text>
               </View>
-              <Text style={styles.chevron}>›</Text>
+              <Ionicons name="chevron-forward" size={18} color="#6b7280" />
             </TouchableOpacity>
 
             {/* Settings Section */}
@@ -319,7 +327,7 @@ export default function ProfileScreen() {
                   setDriveDetection(val);
                   setDriveDetectionEnabled(val);
                 }}
-                trackColor={{ false: "#374151", true: "#f59e0b" }}
+                trackColor={{ false: "#374151", true: "#f5a623" }}
                 thumbColor="#fff"
               />
             </View>
@@ -332,11 +340,25 @@ export default function ProfileScreen() {
                 onPress={handleUpgrade}
                 activeOpacity={0.7}
               >
-                <Text style={styles.upgradeTitle}>Upgrade to Pro</Text>
+                <View style={styles.upgradeHeader}>
+                  <Ionicons name="diamond-outline" size={22} color="#f5a623" />
+                  <Text style={styles.upgradeTitle}>Upgrade to Pro</Text>
+                </View>
                 <Text style={styles.upgradePrice}>£4.99/mo</Text>
-                <Text style={styles.upgradeFeatures}>
-                  HMRC tax exports  •  Earnings tracking  •  Advanced analytics
-                </Text>
+                <View style={styles.featureList}>
+                  <View style={styles.featureRow}>
+                    <Ionicons name="checkmark-circle" size={18} color="#10b981" />
+                    <Text style={styles.featureText}>HMRC tax exports (PDF, CSV, Xero)</Text>
+                  </View>
+                  <View style={styles.featureRow}>
+                    <Ionicons name="checkmark-circle" size={18} color="#10b981" />
+                    <Text style={styles.featureText}>Open Banking auto-import</Text>
+                  </View>
+                  <View style={styles.featureRow}>
+                    <Ionicons name="checkmark-circle" size={18} color="#10b981" />
+                    <Text style={styles.featureText}>Advanced analytics & insights</Text>
+                  </View>
+                </View>
                 <View style={styles.upgradeButton}>
                   <Text style={styles.upgradeButtonText}>Upgrade Now</Text>
                 </View>
@@ -384,6 +406,9 @@ export default function ProfileScreen() {
         ListEmptyComponent={
           !loading ? (
             <View style={styles.emptyState}>
+              <View style={styles.emptyIcon}>
+                <Ionicons name="car-outline" size={40} color="#4a5568" />
+              </View>
               <Text style={styles.emptyTitle}>No vehicles yet</Text>
               <Text style={styles.emptyText}>
                 Add one to start tracking your mileage
@@ -480,6 +505,8 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     padding: 16,
     marginBottom: 12,
+    borderWidth: 1,
+    borderColor: "#1f2937",
   },
   avatarRow: {
     flexDirection: "row",
@@ -490,7 +517,7 @@ const styles = StyleSheet.create({
     width: 52,
     height: 52,
     borderRadius: 26,
-    backgroundColor: "#f59e0b",
+    backgroundColor: "#f5a623",
     justifyContent: "center",
     alignItems: "center",
   },
@@ -517,7 +544,7 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontFamily: "PlusJakartaSans_700Bold",
     color: "#030712",
-    backgroundColor: "#f59e0b",
+    backgroundColor: "#f5a623",
     paddingHorizontal: 6,
     paddingVertical: 2,
     borderRadius: 4,
@@ -543,6 +570,14 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
+    borderWidth: 1,
+    borderColor: "#1f2937",
+  },
+  actionRowLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    flex: 1,
   },
   actionText: {
     fontSize: 15,
@@ -557,6 +592,8 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
+    borderWidth: 1,
+    borderColor: "#1f2937",
   },
   settingHint: {
     fontSize: 12,
@@ -575,6 +612,8 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     padding: 16,
     marginBottom: 10,
+    borderWidth: 1,
+    borderColor: "#1f2937",
   },
   vehicleRow: {
     flexDirection: "row",
@@ -595,7 +634,7 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontFamily: "PlusJakartaSans_700Bold",
     color: "#030712",
-    backgroundColor: "#f59e0b",
+    backgroundColor: "#f5a623",
     paddingHorizontal: 6,
     paddingVertical: 2,
     borderRadius: 4,
@@ -621,15 +660,20 @@ const styles = StyleSheet.create({
     fontFamily: "PlusJakartaSans_400Regular",
     color: "#9ca3af",
   },
-  chevron: {
-    fontSize: 22,
-    fontFamily: "PlusJakartaSans_400Regular",
-    color: "#6b7280",
-    marginLeft: 8,
-  },
   emptyState: {
     alignItems: "center",
     paddingVertical: 40,
+  },
+  emptyIcon: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    backgroundColor: "#111827",
+    borderWidth: 1,
+    borderColor: "#1f2937",
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 16,
   },
   emptyTitle: {
     fontSize: 17,
@@ -648,9 +692,9 @@ const styles = StyleSheet.create({
     paddingBottom: 20,
   },
   addButton: {
-    backgroundColor: "#f59e0b",
-    borderRadius: 10,
-    paddingVertical: 14,
+    backgroundColor: "#f5a623",
+    borderRadius: 12,
+    paddingVertical: 16,
     alignItems: "center",
   },
   addButtonText: {
@@ -743,36 +787,57 @@ const styles = StyleSheet.create({
     color: "#fff",
   },
   upgradeCard: {
-    backgroundColor: "#111827",
+    backgroundColor: "#0a1120",
     borderRadius: 12,
     padding: 20,
     borderWidth: 1,
-    borderColor: "#f59e0b",
+    borderColor: "rgba(245, 166, 35, 0.4)",
     marginBottom: 10,
+    ...Platform.select({
+      ios: {
+        shadowColor: "#f5a623",
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.15,
+        shadowRadius: 12,
+      },
+      android: { elevation: 4 },
+    }),
+  },
+  upgradeHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginBottom: 4,
   },
   upgradeTitle: {
     fontSize: 18,
     fontFamily: "PlusJakartaSans_700Bold",
     color: "#fff",
-    marginBottom: 4,
   },
   upgradePrice: {
     fontSize: 15,
     fontFamily: "PlusJakartaSans_600SemiBold",
-    color: "#f59e0b",
-    marginBottom: 10,
+    color: "#f5a623",
+    marginBottom: 14,
   },
-  upgradeFeatures: {
-    fontSize: 13,
+  featureList: {
+    gap: 10,
+    marginBottom: 18,
+  },
+  featureRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  featureText: {
+    fontSize: 14,
     fontFamily: "PlusJakartaSans_400Regular",
-    color: "#9ca3af",
-    lineHeight: 20,
-    marginBottom: 16,
+    color: "#d1d5db",
   },
   upgradeButton: {
-    backgroundColor: "#f59e0b",
-    borderRadius: 10,
-    paddingVertical: 12,
+    backgroundColor: "#f5a623",
+    borderRadius: 12,
+    paddingVertical: 14,
     alignItems: "center",
   },
   upgradeButtonText: {
@@ -785,6 +850,8 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     padding: 16,
     marginBottom: 10,
+    borderWidth: 1,
+    borderColor: "#1f2937",
   },
   subscriptionHeader: {
     flexDirection: "row",

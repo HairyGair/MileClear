@@ -148,11 +148,17 @@ async function initializeSchema(database: SQLite.SQLiteDatabase): Promise<void> 
   }
 
   if (currentVersion >= 2 && currentVersion < 3) {
-    // Only ALTER if upgrading from v2 — fresh installs already have these columns in CREATE TABLE
-    await database.execAsync(`
-      ALTER TABLE fuel_logs ADD COLUMN latitude REAL;
-      ALTER TABLE fuel_logs ADD COLUMN longitude REAL;
-    `);
+    // Only ALTER if upgrading from v2 AND columns don't already exist
+    const tableInfo = await database.getAllAsync<{ name: string }>(
+      "PRAGMA table_info(fuel_logs)"
+    );
+    const columns = tableInfo.map((c) => c.name);
+    if (!columns.includes("latitude")) {
+      await database.execAsync("ALTER TABLE fuel_logs ADD COLUMN latitude REAL;");
+    }
+    if (!columns.includes("longitude")) {
+      await database.execAsync("ALTER TABLE fuel_logs ADD COLUMN longitude REAL;");
+    }
   }
 
   // Always update schema version to current
