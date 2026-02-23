@@ -9,9 +9,16 @@ import {
   StyleSheet,
 } from "react-native";
 import { useRouter } from "expo-router";
-import * as DocumentPicker from "expo-document-picker";
 import * as FileSystem from "expo-file-system";
 import { uploadCsvPreview, confirmCsvImport } from "../lib/api/earnings";
+
+// expo-document-picker native module may not be available in Expo Go
+let DocumentPicker: typeof import("expo-document-picker") | null = null;
+try {
+  DocumentPicker = require("expo-document-picker");
+} catch {
+  // Will show user-friendly error when they try to pick a file
+}
 import { GIG_PLATFORMS, formatPence } from "@mileclear/shared";
 import type { CsvEarningRow, CsvParsePreview } from "@mileclear/shared";
 
@@ -34,6 +41,14 @@ export default function CsvImportScreen() {
   const [result, setResult] = useState<{ imported: number; skipped: number } | null>(null);
 
   const pickFile = async () => {
+    if (!DocumentPicker || !FileSystem) {
+      Alert.alert(
+        "Not Available",
+        "CSV import requires a development build. It is not supported in Expo Go."
+      );
+      return;
+    }
+
     try {
       const res = await DocumentPicker.getDocumentAsync({
         type: ["text/csv", "text/comma-separated-values", "application/csv", "*/*"],

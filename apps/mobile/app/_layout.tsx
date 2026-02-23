@@ -91,6 +91,14 @@ function RootNavigator() {
           name="achievements"
           options={{ headerShown: true, title: "Achievements" }}
         />
+        <Stack.Screen
+          name="csv-import"
+          options={{ headerShown: true, title: "Import CSV" }}
+        />
+        <Stack.Screen
+          name="open-banking"
+          options={{ headerShown: true, title: "Open Banking" }}
+        />
       </Stack>
     </>
   );
