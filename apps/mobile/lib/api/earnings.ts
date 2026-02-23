@@ -1,5 +1,12 @@
 import { apiRequest } from "./index";
-import type { Earning, PaginatedResponse } from "@mileclear/shared";
+import type {
+  Earning,
+  PaginatedResponse,
+  CsvParsePreview,
+  CsvEarningRow,
+  CsvImportResult,
+  PlaidConnection,
+} from "@mileclear/shared";
 
 export interface CreateEarningData {
   platform: string;
@@ -56,4 +63,55 @@ export function deleteEarning(id: string) {
   return apiRequest<{ message: string }>(`/earnings/${id}`, {
     method: "DELETE",
   });
+}
+
+// ── CSV Import ──────────────────────────────────────────────────────
+
+export function uploadCsvPreview(csvContent: string, platform?: string) {
+  return apiRequest<{ data: CsvParsePreview }>("/earnings/csv/preview", {
+    method: "POST",
+    body: JSON.stringify({ csvContent, platform }),
+  });
+}
+
+export function confirmCsvImport(rows: CsvEarningRow[], filename?: string) {
+  return apiRequest<{ data: CsvImportResult }>("/earnings/csv/confirm", {
+    method: "POST",
+    body: JSON.stringify({ rows, filename }),
+  });
+}
+
+// ── Open Banking (Plaid) ────────────────────────────────────────────
+
+export function createPlaidLinkToken() {
+  return apiRequest<{ data: { linkToken: string } }>(
+    "/earnings/open-banking/link-token",
+    { method: "POST" }
+  );
+}
+
+export function fetchPlaidConnections() {
+  return apiRequest<{ data: PlaidConnection[] }>(
+    "/earnings/open-banking/connections"
+  );
+}
+
+export function syncPlaidConnection(
+  connectionId: string,
+  fromDate?: string,
+  toDate?: string
+) {
+  return apiRequest<{
+    data: { imported: number; skipped: number; unmatched: number };
+  }>("/earnings/open-banking/sync", {
+    method: "POST",
+    body: JSON.stringify({ connectionId, fromDate, toDate }),
+  });
+}
+
+export function disconnectPlaidConnection(connectionId: string) {
+  return apiRequest<{ message: string }>(
+    `/earnings/open-banking/connections/${connectionId}`,
+    { method: "DELETE" }
+  );
 }

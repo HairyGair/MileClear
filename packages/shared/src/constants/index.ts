@@ -113,6 +113,24 @@ export const PLATFORM_TAGS = [
   "other",
 ] as const;
 
+// Merchant name → platform mapping for Open Banking transaction matching
+export const MERCHANT_PLATFORM_MAP: Record<string, string> = {
+  "amazon logistics": "amazon_flex",
+  "amazon flex": "amazon_flex",
+  "uber eats": "uber",
+  "just eat": "just_eat",
+  justeat: "just_eat",
+  dpdgroup: "dpd",
+  uber: "uber",
+  deliveroo: "deliveroo",
+  stuart: "stuart",
+  gophr: "gophr",
+  dpd: "dpd",
+  yodel: "yodel",
+  evri: "evri",
+  hermes: "evri",
+} as const;
+
 // Driver type options (waitlist)
 export const DRIVER_TYPES = [
   { value: "uber", label: "Uber / Uber Eats" },

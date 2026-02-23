@@ -33,6 +33,7 @@ model User {
   refreshTokens       RefreshToken[]
   verificationCodes   VerificationCode[]
   passwordResetTokens PasswordResetToken[]
+  plaidConnections    PlaidConnection[]
 
   @@map("users")
 }
@@ -50,17 +51,18 @@ model RefreshToken {
 }
 
 model Vehicle {
-  id           String   @id @default(uuid())
-  userId       String
-  make         String
-  model        String
-  year         Int?
-  fuelType     String
-  vehicleType  String
-  estimatedMpg Float?
-  actualMpg    Float?
-  isPrimary    Boolean  @default(true)
-  createdAt    DateTime @default(now())
+  id                String   @id @default(uuid())
+  userId            String
+  make              String
+  model             String
+  year              Int?
+  fuelType          String
+  vehicleType       String
+  registrationPlate String?  @db.VarChar(10)
+  estimatedMpg      Float?
+  actualMpg         Float?
+  isPrimary         Boolean  @default(true)
+  createdAt         DateTime @default(now())
 
   user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   shifts   Shift[]
@@ -160,10 +162,13 @@ model Earning {
   periodStart DateTime @db.Date
   periodEnd   DateTime @db.Date
   source      String
+  externalId  String?  @db.VarChar(255)
+  notes       String?  @db.Text
   createdAt   DateTime @default(now())
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  @@unique([userId, externalId])
   @@index([userId, periodStart])
   @@map("earnings")
 }
@@ -221,6 +226,24 @@ model PasswordResetToken {
 
   @@index([userId, used])
   @@map("password_reset_tokens")
+}
+
+model PlaidConnection {
+  id              String    @id @default(uuid())
+  userId          String
+  institutionId   String?
+  institutionName String?
+  accessToken     String    @db.VarChar(500)
+  itemId          String    @unique
+  lastSynced      DateTime?
+  status          String    @default("active")
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("plaid_connections")
 }
 
 model WaitlistEntry {

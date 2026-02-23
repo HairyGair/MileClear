@@ -21,9 +21,22 @@ export interface Vehicle {
   year: number | null;
   fuelType: FuelType;
   vehicleType: VehicleType;
+  registrationPlate: string | null;
   estimatedMpg: number | null;
   actualMpg: number | null;
   isPrimary: boolean;
+}
+
+export interface VehicleLookupResult {
+  registrationNumber: string;
+  make: string;
+  yearOfManufacture: number | null;
+  fuelType: FuelType;
+  colour: string | null;
+  engineCapacity: number | null;
+  co2Emissions: number | null;
+  taxStatus: string | null;
+  motStatus: string | null;
 }
 
 // Shift types
@@ -144,6 +157,43 @@ export interface Earning {
   periodStart: string;
   periodEnd: string;
   source: EarningSource;
+  externalId: string | null;
+  notes: string | null;
+}
+
+// Plaid Open Banking
+export type PlaidConnectionStatus = "active" | "disconnected" | "error";
+
+export interface PlaidConnection {
+  id: string;
+  userId: string;
+  institutionId: string | null;
+  institutionName: string | null;
+  lastSynced: string | null;
+  status: PlaidConnectionStatus;
+  createdAt: string;
+}
+
+// CSV Import
+export interface CsvEarningRow {
+  platform: string;
+  amountPence: number;
+  periodStart: string;
+  periodEnd: string;
+  externalId: string;
+  isDuplicate: boolean;
+}
+
+export interface CsvParsePreview {
+  platform: string;
+  rows: CsvEarningRow[];
+  totalAmountPence: number;
+  duplicateCount: number;
+}
+
+export interface CsvImportResult {
+  imported: number;
+  skipped: number;
 }
 
 // Achievement types

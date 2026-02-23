@@ -251,6 +251,25 @@ export default function EarningsScreen() {
             >
               <Text style={styles.addButtonText}>+ Add Earning</Text>
             </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.importButton}
+              onPress={() => router.push("/csv-import")}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.importButtonText}>Import CSV</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.bankButton}
+              onPress={() => router.push("/open-banking")}
+              activeOpacity={0.7}
+            >
+              <View style={styles.bankButtonRow}>
+                <Text style={styles.bankButtonText}>Connect Bank</Text>
+                <View style={styles.proBadge}>
+                  <Text style={styles.proBadgeText}>PRO</Text>
+                </View>
+              </View>
+            </TouchableOpacity>
           </View>
         }
       />
@@ -410,9 +429,53 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     paddingVertical: 14,
     alignItems: "center",
+    marginBottom: 10,
   },
   addButtonText: {
     fontSize: 16,
+    fontFamily: "PlusJakartaSans_700Bold",
+    color: "#030712",
+  },
+  importButton: {
+    backgroundColor: "#1f2937",
+    borderRadius: 10,
+    paddingVertical: 14,
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "#374151",
+    marginBottom: 10,
+  },
+  importButtonText: {
+    fontSize: 16,
+    fontFamily: "PlusJakartaSans_600SemiBold",
+    color: "#d1d5db",
+  },
+  bankButton: {
+    backgroundColor: "#1f2937",
+    borderRadius: 10,
+    paddingVertical: 14,
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "#374151",
+  },
+  bankButtonRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  bankButtonText: {
+    fontSize: 16,
+    fontFamily: "PlusJakartaSans_600SemiBold",
+    color: "#d1d5db",
+  },
+  proBadge: {
+    backgroundColor: "#f59e0b",
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  proBadgeText: {
+    fontSize: 10,
     fontFamily: "PlusJakartaSans_700Bold",
     color: "#030712",
   },
