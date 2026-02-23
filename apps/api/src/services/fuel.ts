@@ -40,12 +40,12 @@ export async function getNearbyFuelPrices(
     }[]
   >(
     `SELECT
-      LOWER(TRIM(station_name)) AS station_name,
+      LOWER(TRIM(stationName)) AS station_name,
       AVG(latitude) AS avg_lat,
       AVG(longitude) AS avg_lng,
-      AVG(cost_pence / litres) AS avg_price_ppl,
+      AVG(costPence / litres) AS avg_price_ppl,
       COUNT(*) AS report_count,
-      MAX(logged_at) AS last_reported,
+      MAX(loggedAt) AS last_reported,
       (
         ${EARTH_RADIUS_MILES} * ACOS(
           LEAST(1, COS(RADIANS(?)) * COS(RADIANS(latitude)) * COS(RADIANS(longitude) - RADIANS(?))
@@ -55,12 +55,12 @@ export async function getNearbyFuelPrices(
     FROM fuel_logs
     WHERE latitude IS NOT NULL
       AND longitude IS NOT NULL
-      AND station_name IS NOT NULL
-      AND station_name != ''
-      AND logged_at >= ?
+      AND stationName IS NOT NULL
+      AND stationName != ''
+      AND loggedAt >= ?
       AND latitude BETWEEN ? AND ?
       AND longitude BETWEEN ? AND ?
-    GROUP BY LOWER(TRIM(station_name)), ROUND(latitude, 3), ROUND(longitude, 3)
+    GROUP BY LOWER(TRIM(stationName)), ROUND(latitude, 3), ROUND(longitude, 3)
     HAVING distance_miles <= ?
     ORDER BY distance_miles ASC
     LIMIT 50`,
