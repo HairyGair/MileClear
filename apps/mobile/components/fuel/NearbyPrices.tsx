@@ -7,6 +7,8 @@ import {
 } from "react-native";
 import { getCurrentLocation } from "../../lib/location/geocoding";
 import { fetchNearbyPrices } from "../../lib/api/fuel";
+import { openDirections } from "../../lib/location/directions";
+import FuelMapModal from "./FuelMapModal";
 import type { CommunityFuelStation, NationalAveragePrices } from "@mileclear/shared";
 
 type ViewMode = "list" | "map";
@@ -48,9 +50,20 @@ function StationCard({
         <Text style={[styles.stationPrice, { color: priceColor }]}>
           {formatPpl(station.avgPricePerLitrePence)}
         </Text>
-        <Text style={styles.reportCount}>
-          {station.reportCount} report{station.reportCount !== 1 ? "s" : ""}
-        </Text>
+        <View style={styles.stationActions}>
+          <TouchableOpacity
+            style={styles.directionsPill}
+            onPress={() =>
+              openDirections(station.latitude, station.longitude, station.stationName)
+            }
+            activeOpacity={0.7}
+          >
+            <Text style={styles.directionsPillText}>Directions</Text>
+          </TouchableOpacity>
+          <Text style={styles.reportCount}>
+            {station.reportCount} report{station.reportCount !== 1 ? "s" : ""}
+          </Text>
+        </View>
       </View>
     </View>
   );
@@ -82,6 +95,9 @@ export default function NearbyPrices() {
   const [error, setError] = useState<string | null>(null);
   const [permissionDenied, setPermissionDenied] = useState(false);
   const [viewMode, setViewMode] = useState<ViewMode>("list");
+  const [userLat, setUserLat] = useState<number | null>(null);
+  const [userLng, setUserLng] = useState<number | null>(null);
+  const [mapModalVisible, setMapModalVisible] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -95,6 +111,9 @@ export default function NearbyPrices() {
         setLoading(false);
         return;
       }
+
+      setUserLat(loc.lat);
+      setUserLng(loc.lng);
 
       const res = await fetchNearbyPrices({ lat: loc.lat, lng: loc.lng });
       setStations(res.stations);
@@ -196,21 +215,45 @@ export default function NearbyPrices() {
           ))
         )
       ) : (
-        <MapView
-          stations={stations}
-          nationalAvgPetrol={nationalAvg?.petrolPencePerLitre ?? null}
-        />
+        <View style={styles.mapContainer}>
+          <InlineMapView
+            stations={stations}
+            nationalAvgPetrol={nationalAvg?.petrolPencePerLitre ?? null}
+            userLat={userLat}
+            userLng={userLng}
+          />
+          <TouchableOpacity
+            style={styles.expandBtn}
+            onPress={() => setMapModalVisible(true)}
+            activeOpacity={0.8}
+          >
+            <Text style={styles.expandBtnText}>⛶</Text>
+          </TouchableOpacity>
+        </View>
       )}
+
+      <FuelMapModal
+        visible={mapModalVisible}
+        onClose={() => setMapModalVisible(false)}
+        stations={stations}
+        nationalAvgPetrol={nationalAvg?.petrolPencePerLitre ?? null}
+        userLat={userLat}
+        userLng={userLng}
+      />
     </View>
   );
 }
 
-function MapView({
+function InlineMapView({
   stations,
   nationalAvgPetrol,
+  userLat,
+  userLng,
 }: {
   stations: CommunityFuelStation[];
   nationalAvgPetrol: number | null;
+  userLat: number | null;
+  userLng: number | null;
 }) {
   try {
     const RNMaps = require("react-native-maps");
@@ -228,9 +271,12 @@ function MapView({
       );
     }
 
+    const centerLat = userLat ?? stations[0].latitude;
+    const centerLng = userLng ?? stations[0].longitude;
+
     const initialRegion = {
-      latitude: stations[0].latitude,
-      longitude: stations[0].longitude,
+      latitude: centerLat,
+      longitude: centerLng,
       latitudeDelta: 0.05,
       longitudeDelta: 0.05,
     };
@@ -379,6 +425,23 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontFamily: "PlusJakartaSans_700Bold",
   },
+  stationActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  directionsPill: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#f59e0b",
+  },
+  directionsPillText: {
+    fontSize: 11,
+    fontFamily: "PlusJakartaSans_600SemiBold",
+    color: "#f59e0b",
+  },
   reportCount: {
     fontSize: 12,
     fontFamily: "PlusJakartaSans_400Regular",
@@ -421,10 +484,28 @@ const styles = StyleSheet.create({
     color: "#f59e0b",
   },
   // Map
+  mapContainer: {
+    position: "relative",
+  },
   map: {
     height: 250,
     borderRadius: 10,
     overflow: "hidden",
+  },
+  expandBtn: {
+    position: "absolute",
+    top: 10,
+    right: 10,
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    backgroundColor: "rgba(3,7,18,0.8)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  expandBtnText: {
+    fontSize: 16,
+    color: "#fff",
   },
   callout: {
     padding: 6,
