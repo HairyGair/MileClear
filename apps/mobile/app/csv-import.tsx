@@ -19,6 +19,7 @@ try {
 } catch {
   // Will show user-friendly error when they try to pick a file
 }
+import { Button } from "../components/Button";
 import { GIG_PLATFORMS, formatPence } from "@mileclear/shared";
 import type { CsvEarningRow, CsvParsePreview } from "@mileclear/shared";
 
@@ -132,12 +133,10 @@ export default function CsvImportScreen() {
               {result.skipped} duplicate{result.skipped !== 1 ? "s" : ""} skipped
             </Text>
           )}
-          <TouchableOpacity
-            style={styles.primaryButton}
+          <Button
+            title="Back to Earnings"
             onPress={() => router.back()}
-          >
-            <Text style={styles.primaryButtonText}>Back to Earnings</Text>
-          </TouchableOpacity>
+          />
         </View>
       </View>
     );
@@ -170,25 +169,19 @@ export default function CsvImportScreen() {
         />
 
         <View style={styles.footerButtons}>
-          <TouchableOpacity
-            style={styles.secondaryButton}
+          <Button
+            variant="secondary"
+            title="Cancel"
             onPress={() => setPreview(null)}
-          >
-            <Text style={styles.secondaryButtonText}>Cancel</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.primaryButton, styles.importButton, newCount === 0 && styles.disabledButton]}
+            style={{ flex: 1 }}
+          />
+          <Button
+            title={`Import ${newCount} Earning${newCount !== 1 ? "s" : ""}`}
             onPress={handleImport}
-            disabled={importing || newCount === 0}
-          >
-            {importing ? (
-              <ActivityIndicator color="#030712" size="small" />
-            ) : (
-              <Text style={styles.primaryButtonText}>
-                Import {newCount} Earning{newCount !== 1 ? "s" : ""}
-              </Text>
-            )}
-          </TouchableOpacity>
+            loading={importing}
+            disabled={newCount === 0}
+            style={{ flex: 2 }}
+          />
         </View>
       </View>
     );
@@ -231,19 +224,12 @@ export default function CsvImportScreen() {
           <Text style={styles.fileLabel}>Selected: {filename}</Text>
         )}
 
-        <TouchableOpacity
-          style={styles.primaryButton}
+        <Button
+          title={filename ? "Pick Different File" : "Select CSV File"}
+          icon="document-outline"
           onPress={pickFile}
-          disabled={loading}
-        >
-          {loading ? (
-            <ActivityIndicator color="#030712" size="small" />
-          ) : (
-            <Text style={styles.primaryButtonText}>
-              {filename ? "Pick Different File" : "Select CSV File"}
-            </Text>
-          )}
-        </TouchableOpacity>
+          loading={loading}
+        />
       </View>
     </View>
   );
@@ -308,17 +294,6 @@ const styles = StyleSheet.create({
     fontFamily: "PlusJakartaSans_400Regular",
     color: "#d1d5db",
     marginBottom: 16,
-  },
-  primaryButton: {
-    backgroundColor: "#f5a623",
-    borderRadius: 12,
-    paddingVertical: 16,
-    alignItems: "center",
-  },
-  primaryButtonText: {
-    fontSize: 16,
-    fontFamily: "PlusJakartaSans_700Bold",
-    color: "#030712",
   },
   // Preview
   previewHeader: {
@@ -398,26 +373,6 @@ const styles = StyleSheet.create({
     padding: 16,
     borderTopWidth: 1,
     borderTopColor: "#1f2937",
-  },
-  secondaryButton: {
-    flex: 1,
-    backgroundColor: "#1f2937",
-    borderRadius: 12,
-    paddingVertical: 16,
-    alignItems: "center",
-    borderWidth: 1,
-    borderColor: "#374151",
-  },
-  secondaryButtonText: {
-    fontSize: 16,
-    fontFamily: "PlusJakartaSans_600SemiBold",
-    color: "#d1d5db",
-  },
-  importButton: {
-    flex: 2,
-  },
-  disabledButton: {
-    opacity: 0.5,
   },
   // Result
   resultCard: {

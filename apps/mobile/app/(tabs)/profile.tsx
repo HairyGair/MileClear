@@ -29,6 +29,7 @@ import {
   isDriveDetectionEnabled,
   setDriveDetectionEnabled,
 } from "../../lib/tracking/detection";
+import { Button } from "../../components/Button";
 
 const VEHICLE_TYPE_LABELS: Record<string, string> = {
   car: "Car",
@@ -418,30 +419,24 @@ export default function ProfileScreen() {
         }
         ListFooterComponent={
           <View style={styles.footer}>
-            <TouchableOpacity
-              style={styles.addButton}
+            <Button
+              title="Add Vehicle"
+              icon="add"
               onPress={() => router.push("/vehicle-form")}
-              activeOpacity={0.7}
-            >
-              <Text style={styles.addButtonText}>+ Add Vehicle</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.logoutButton}
+            />
+            <Button
+              variant="ghost"
+              danger
+              title="Log out"
+              icon="log-out-outline"
               onPress={handleLogout}
-              activeOpacity={0.7}
-            >
-              <Text style={styles.logoutText}>Log out</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.deleteAccountButton}
+            />
+            <Button
+              variant="ghost"
+              title="Delete Account"
               onPress={handleDeleteAccount}
-              disabled={deletingAccount}
-              activeOpacity={0.7}
-            >
-              <Text style={styles.deleteAccountText}>
-                {deletingAccount ? "Deleting..." : "Delete Account"}
-              </Text>
-            </TouchableOpacity>
+              loading={deletingAccount}
+            />
           </View>
         }
       />
@@ -690,35 +685,6 @@ const styles = StyleSheet.create({
     marginTop: 16,
     gap: 12,
     paddingBottom: 20,
-  },
-  addButton: {
-    backgroundColor: "#f5a623",
-    borderRadius: 12,
-    paddingVertical: 16,
-    alignItems: "center",
-  },
-  addButtonText: {
-    fontSize: 16,
-    fontFamily: "PlusJakartaSans_700Bold",
-    color: "#030712",
-  },
-  logoutButton: {
-    paddingVertical: 14,
-    alignItems: "center",
-  },
-  logoutText: {
-    fontSize: 15,
-    fontFamily: "PlusJakartaSans_600SemiBold",
-    color: "#ef4444",
-  },
-  deleteAccountButton: {
-    paddingVertical: 10,
-    alignItems: "center",
-  },
-  deleteAccountText: {
-    fontSize: 14,
-    fontFamily: "PlusJakartaSans_400Regular",
-    color: "#6b7280",
   },
   buttonDisabled: {
     opacity: 0.5,

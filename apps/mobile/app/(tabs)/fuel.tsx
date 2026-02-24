@@ -12,6 +12,7 @@ import {
 } from "react-native";
 import { useRouter, useFocusEffect } from "expo-router";
 import { fetchFuelLogs } from "../../lib/api/fuel";
+import { Button } from "../../components/Button";
 import { getLocalFuelLogs, getLocalUnsyncedFuelLogs } from "../../lib/db/queries";
 import NearbyPrices from "../../components/fuel/NearbyPrices";
 import { FUEL_BRANDS, formatPence } from "@mileclear/shared";
@@ -293,13 +294,11 @@ export default function FuelScreen() {
                 style={{ marginBottom: 12 }}
               />
             )}
-            <TouchableOpacity
-              style={styles.addButton}
+            <Button
+              title="Add Fuel Log"
+              icon="add"
               onPress={() => router.push("/fuel-form")}
-              activeOpacity={0.7}
-            >
-              <Text style={styles.addButtonText}>+ Add Fuel Log</Text>
-            </TouchableOpacity>
+            />
           </View>
         }
       />
@@ -487,17 +486,6 @@ const styles = StyleSheet.create({
   footer: {
     marginTop: 16,
     paddingBottom: 20,
-  },
-  addButton: {
-    backgroundColor: "#f5a623",
-    borderRadius: 12,
-    paddingVertical: 16,
-    alignItems: "center",
-  },
-  addButtonText: {
-    fontSize: 16,
-    fontFamily: "PlusJakartaSans_700Bold",
-    color: "#030712",
   },
   // Loading overlay
   loadingOverlay: {

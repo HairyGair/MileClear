@@ -12,6 +12,7 @@ import {
   Share,
   Platform,
 } from "react-native";
+import { Button } from "../../components/Button";
 import { useFocusEffect, useRouter } from "expo-router";
 import { fetchVehicles } from "../../lib/api/vehicles";
 import {
@@ -318,12 +319,11 @@ export default function DashboardScreen() {
             </>
           )}
 
-          <TouchableOpacity
-            style={s.modalPrimaryBtn}
+          <Button
+            title="Done"
+            icon="checkmark"
             onPress={() => setShowScorecard(false)}
-          >
-            <Text style={s.modalPrimaryBtnText}>Done</Text>
-          </TouchableOpacity>
+          />
         </View>
       </View>
     </Modal>
@@ -373,15 +373,17 @@ export default function DashboardScreen() {
               )}
 
               <View style={s.recapBtnRow}>
-                <TouchableOpacity style={s.shareBtn} onPress={handleShareRecap}>
-                  <Text style={s.shareBtnText}>Share</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={s.modalPrimaryBtn}
+                <Button
+                  variant="secondary"
+                  title="Share"
+                  icon="share-outline"
+                  onPress={handleShareRecap}
+                />
+                <Button
+                  title="Close"
+                  icon="checkmark"
                   onPress={() => setShowRecap(false)}
-                >
-                  <Text style={s.modalPrimaryBtnText}>Close</Text>
-                </TouchableOpacity>
+                />
               </View>
             </>
           )}
@@ -431,18 +433,14 @@ export default function DashboardScreen() {
           </View>
         </View>
 
-        <TouchableOpacity
-          style={s.endBtn}
+        <Button
+          variant="destructive"
+          title="End Shift"
+          icon="stop-circle"
           onPress={handleEndShift}
-          activeOpacity={0.8}
-          disabled={ending}
-        >
-          {ending ? (
-            <ActivityIndicator color="#fff" />
-          ) : (
-            <Text style={s.endBtnText}>End Shift</Text>
-          )}
-        </TouchableOpacity>
+          loading={ending}
+          size="lg"
+        />
       </ScrollView>
     );
   }
@@ -503,7 +501,7 @@ export default function DashboardScreen() {
         </TouchableOpacity>
         <TouchableOpacity
           style={s.quickAction}
-          onPress={() => router.push("/(tabs)/trips" as any)}
+          onPress={() => router.replace("/(tabs)/trips" as any)}
           activeOpacity={0.7}
         >
           <Ionicons name="list-outline" size={22} color="#f5a623" style={{ marginBottom: 4 }} />
@@ -521,7 +519,7 @@ export default function DashboardScreen() {
         ) : (
           <TouchableOpacity
             style={s.quickAction}
-            onPress={() => router.push("/(tabs)/fuel" as any)}
+            onPress={() => router.replace("/(tabs)/fuel" as any)}
             activeOpacity={0.7}
           >
             <Ionicons name="water-outline" size={22} color="#f5a623" style={{ marginBottom: 4 }} />
@@ -638,24 +636,20 @@ export default function DashboardScreen() {
                 : "None selected"}
             </Text>
           </View>
-          <Text style={s.chevron}>{"\u203A"}</Text>
+          <Ionicons name="chevron-forward" size={20} color="#4a5568" />
         </TouchableOpacity>
       )}
 
       {/* Start Shift (work mode only) */}
       {isWork && (
-        <TouchableOpacity
-          style={s.startBtn}
+        <Button
+          variant="hero"
+          title="Start Shift"
+          icon="play"
           onPress={handleStartShift}
-          activeOpacity={0.8}
-          disabled={starting}
-        >
-          {starting ? (
-            <ActivityIndicator color="#030712" />
-          ) : (
-            <Text style={s.startBtnText}>Start Shift</Text>
-          )}
-        </TouchableOpacity>
+          loading={starting}
+          size="lg"
+        />
       )}
 
       <View style={{ height: 24 }} />
@@ -918,34 +912,6 @@ const s = StyleSheet.create({
     fontFamily: "PlusJakartaSans_500Medium",
     color: TEXT_1,
   },
-  chevron: {
-    fontSize: 24,
-    fontFamily: "PlusJakartaSans_300Light",
-    color: TEXT_3,
-  },
-
-  // Start button
-  startBtn: {
-    backgroundColor: AMBER,
-    borderRadius: 14,
-    paddingVertical: 18,
-    alignItems: "center",
-    ...Platform.select({
-      ios: {
-        shadowColor: AMBER,
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.25,
-        shadowRadius: 12,
-      },
-      android: { elevation: 6 },
-    }),
-  },
-  startBtnText: {
-    fontSize: 17,
-    fontFamily: "PlusJakartaSans_700Bold",
-    color: "#030712",
-    letterSpacing: 0.3,
-  },
 
   // Active shift
   timerWrap: {
@@ -984,18 +950,6 @@ const s = StyleSheet.create({
     color: TEXT_2,
     marginTop: 8,
   },
-  endBtn: {
-    backgroundColor: "#dc2626",
-    borderRadius: 14,
-    paddingVertical: 18,
-    alignItems: "center",
-  },
-  endBtnText: {
-    fontSize: 17,
-    fontFamily: "PlusJakartaSans_700Bold",
-    color: "#fff",
-    letterSpacing: 0.3,
-  },
 
   // Modal
   modalOverlay: {
@@ -1029,17 +983,6 @@ const s = StyleSheet.create({
     textAlign: "center",
     marginBottom: 20,
     letterSpacing: -0.3,
-  },
-  modalPrimaryBtn: {
-    backgroundColor: AMBER,
-    borderRadius: 12,
-    paddingVertical: 15,
-    alignItems: "center",
-  },
-  modalPrimaryBtnText: {
-    fontSize: 16,
-    fontFamily: "PlusJakartaSans_700Bold",
-    color: "#030712",
   },
 
   // Scorecard
@@ -1120,17 +1063,4 @@ const s = StyleSheet.create({
     marginBottom: 6,
   },
   recapBtnRow: { gap: 10, marginTop: 8 },
-  shareBtn: {
-    backgroundColor: "rgba(255,255,255,0.06)",
-    borderRadius: 12,
-    paddingVertical: 15,
-    alignItems: "center",
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.08)",
-  },
-  shareBtnText: {
-    fontSize: 16,
-    fontFamily: "PlusJakartaSans_600SemiBold",
-    color: TEXT_1,
-  },
 });

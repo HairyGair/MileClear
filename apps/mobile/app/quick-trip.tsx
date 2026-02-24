@@ -15,6 +15,7 @@ import { syncCreateTrip } from "../lib/sync/actions";
 import { haversineDistance } from "@mileclear/shared";
 import type { TripClassification, PlatformTag } from "@mileclear/shared";
 import { getDatabase } from "../lib/db/index";
+import { Button } from "../components/Button";
 
 // Lazy import MapView for Expo Go compatibility
 let MapView: any = null;
@@ -319,18 +320,14 @@ export default function QuickTripScreen() {
             {startAddress && (
               <Text style={styles.addressText}>{startAddress}</Text>
             )}
-            <TouchableOpacity
-              style={styles.primaryBtn}
+            <Button
+              variant="hero"
+              title="I'm at my start"
+              icon="locate"
               onPress={handleStartTrip}
-              activeOpacity={0.8}
-              disabled={loading}
-            >
-              {loading ? (
-                <ActivityIndicator color="#030712" />
-              ) : (
-                <Text style={styles.primaryBtnText}>I'm at my start</Text>
-              )}
-            </TouchableOpacity>
+              loading={loading}
+              size="lg"
+            />
           </>
         )}
 
@@ -347,25 +344,20 @@ export default function QuickTripScreen() {
             {startAddress && (
               <Text style={styles.addressMuted}>From: {startAddress}</Text>
             )}
-            <TouchableOpacity
-              style={styles.primaryBtn}
+            <Button
+              variant="hero"
+              title="I've arrived"
+              icon="flag"
               onPress={handleArrived}
-              activeOpacity={0.8}
-              disabled={loading}
-            >
-              {loading ? (
-                <ActivityIndicator color="#030712" />
-              ) : (
-                <Text style={styles.primaryBtnText}>I've arrived</Text>
-              )}
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.cancelBtn}
+              loading={loading}
+              size="lg"
+            />
+            <Button
+              variant="ghost"
+              title="Cancel trip"
               onPress={handleCancel}
-              activeOpacity={0.7}
-            >
-              <Text style={styles.cancelBtnText}>Cancel trip</Text>
-            </TouchableOpacity>
+              style={{ marginTop: 8 }}
+            />
           </>
         )}
 
@@ -444,20 +436,17 @@ export default function QuickTripScreen() {
             </View>
 
             {/* Save */}
-            <TouchableOpacity
-              style={styles.primaryBtn}
+            <Button
+              title="Save Trip"
+              icon="checkmark"
               onPress={handleSave}
-              activeOpacity={0.8}
-            >
-              <Text style={styles.primaryBtnText}>Save Trip</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.cancelBtn}
+            />
+            <Button
+              variant="ghost"
+              title="Discard"
               onPress={handleCancel}
-              activeOpacity={0.7}
-            >
-              <Text style={styles.cancelBtnText}>Discard</Text>
-            </TouchableOpacity>
+              style={{ marginTop: 8 }}
+            />
           </>
         )}
 
@@ -654,37 +643,5 @@ const styles = StyleSheet.create({
   classChipTextActive: {
     fontFamily: "PlusJakartaSans_600SemiBold",
     color: "#030712",
-  },
-  // Buttons
-  primaryBtn: {
-    backgroundColor: AMBER,
-    borderRadius: 14,
-    paddingVertical: 18,
-    alignItems: "center",
-    ...Platform.select({
-      ios: {
-        shadowColor: AMBER,
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.25,
-        shadowRadius: 12,
-      },
-      android: { elevation: 6 },
-    }),
-  },
-  primaryBtnText: {
-    fontSize: 17,
-    fontFamily: "PlusJakartaSans_700Bold",
-    color: "#030712",
-    letterSpacing: 0.3,
-  },
-  cancelBtn: {
-    paddingVertical: 14,
-    alignItems: "center",
-    marginTop: 8,
-  },
-  cancelBtnText: {
-    fontSize: 15,
-    fontFamily: "PlusJakartaSans_600SemiBold",
-    color: "#6b7280",
   },
 });

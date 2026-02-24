@@ -24,6 +24,7 @@ import { getCurrentLocation } from "../lib/location/geocoding";
 import { FUEL_BRANDS } from "@mileclear/shared";
 import type { Vehicle, FuelStation } from "@mileclear/shared";
 import { DateTimePickerField } from "../components/DateTimePickerField";
+import { Button } from "../components/Button";
 
 export default function FuelFormScreen() {
   const router = useRouter();
@@ -444,35 +445,26 @@ export default function FuelFormScreen() {
         />
 
         {/* Save */}
-        <TouchableOpacity
-          style={[styles.saveButton, saving && styles.buttonDisabled]}
+        <Button
+          title={isEditing ? "Save Changes" : "Add Fuel Log"}
+          icon="checkmark"
           onPress={handleSave}
-          disabled={saving || deleting}
-          activeOpacity={0.7}
-        >
-          {saving ? (
-            <ActivityIndicator color="#030712" />
-          ) : (
-            <Text style={styles.saveButtonText}>
-              {isEditing ? "Save Changes" : "Add Fuel Log"}
-            </Text>
-          )}
-        </TouchableOpacity>
+          loading={saving}
+          disabled={deleting}
+          style={{ marginTop: 28 }}
+        />
 
         {/* Delete — edit mode only */}
         {isEditing && (
-          <TouchableOpacity
-            style={styles.deleteButton}
+          <Button
+            variant="ghost"
+            danger
+            title="Delete Fuel Log"
             onPress={handleDelete}
-            disabled={saving || deleting}
-            activeOpacity={0.7}
-          >
-            {deleting ? (
-              <ActivityIndicator color="#ef4444" />
-            ) : (
-              <Text style={styles.deleteText}>Delete Fuel Log</Text>
-            )}
-          </TouchableOpacity>
+            loading={deleting}
+            disabled={saving}
+            style={{ marginTop: 12 }}
+          />
         )}
       </ScrollView>
     </KeyboardAvoidingView>
@@ -614,31 +606,5 @@ const styles = StyleSheet.create({
   },
   amountInput: {
     flex: 1,
-  },
-  // Buttons
-  saveButton: {
-    backgroundColor: "#f5a623",
-    borderRadius: 12,
-    paddingVertical: 16,
-    alignItems: "center",
-    marginTop: 28,
-  },
-  buttonDisabled: {
-    opacity: 0.6,
-  },
-  saveButtonText: {
-    fontSize: 16,
-    fontFamily: "PlusJakartaSans_700Bold",
-    color: "#030712",
-  },
-  deleteButton: {
-    paddingVertical: 14,
-    alignItems: "center",
-    marginTop: 12,
-  },
-  deleteText: {
-    fontSize: 15,
-    color: "#ef4444",
-    fontFamily: "PlusJakartaSans_600SemiBold",
   },
 });

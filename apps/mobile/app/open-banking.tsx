@@ -18,6 +18,7 @@ import {
   disconnectPlaidConnection,
 } from "../lib/api/earnings";
 import type { PlaidConnection } from "@mileclear/shared";
+import { Button } from "../components/Button";
 
 const API_URL = process.env.EXPO_PUBLIC_API_URL || "http://localhost:3002";
 
@@ -169,24 +170,21 @@ export default function OpenBankingScreen() {
 
       <View style={styles.cardActions}>
         {item.status === "active" && (
-          <TouchableOpacity
-            style={styles.syncButton}
+          <Button
+            title="Sync Now"
+            size="sm"
             onPress={() => handleSync(item.id)}
-            disabled={syncingId === item.id}
-          >
-            {syncingId === item.id ? (
-              <ActivityIndicator color="#030712" size="small" />
-            ) : (
-              <Text style={styles.syncButtonText}>Sync Now</Text>
-            )}
-          </TouchableOpacity>
+            loading={syncingId === item.id}
+            style={{ flex: 1 }}
+          />
         )}
-        <TouchableOpacity
-          style={styles.disconnectButton}
+        <Button
+          variant="secondary"
+          title="Disconnect"
+          size="sm"
           onPress={() => handleDisconnect(item)}
-        >
-          <Text style={styles.disconnectButtonText}>Disconnect</Text>
-        </TouchableOpacity>
+          fullWidth={false}
+        />
       </View>
     </View>
   );
@@ -233,17 +231,12 @@ export default function OpenBankingScreen() {
         }
         ListFooterComponent={
           <View style={styles.footer}>
-            <TouchableOpacity
-              style={styles.connectButton}
+            <Button
+              title="Connect Bank"
+              icon="add-circle-outline"
               onPress={handleConnect}
-              disabled={connecting}
-            >
-              {connecting ? (
-                <ActivityIndicator color="#030712" size="small" />
-              ) : (
-                <Text style={styles.connectButtonText}>+ Connect Bank</Text>
-              )}
-            </TouchableOpacity>
+              loading={connecting}
+            />
           </View>
         }
       />
@@ -342,30 +335,6 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     gap: 10,
   },
-  syncButton: {
-    flex: 1,
-    backgroundColor: "#f5a623",
-    borderRadius: 10,
-    paddingVertical: 12,
-    alignItems: "center",
-  },
-  syncButtonText: {
-    fontSize: 14,
-    fontFamily: "PlusJakartaSans_700Bold",
-    color: "#030712",
-  },
-  disconnectButton: {
-    backgroundColor: "#1f2937",
-    borderRadius: 8,
-    paddingVertical: 10,
-    paddingHorizontal: 16,
-    alignItems: "center",
-  },
-  disconnectButtonText: {
-    fontSize: 14,
-    fontFamily: "PlusJakartaSans_600SemiBold",
-    color: "#9ca3af",
-  },
   // Empty state
   emptyState: {
     alignItems: "center",
@@ -398,16 +367,5 @@ const styles = StyleSheet.create({
   footer: {
     marginTop: 16,
     paddingBottom: 20,
-  },
-  connectButton: {
-    backgroundColor: "#f5a623",
-    borderRadius: 12,
-    paddingVertical: 16,
-    alignItems: "center",
-  },
-  connectButtonText: {
-    fontSize: 16,
-    fontFamily: "PlusJakartaSans_700Bold",
-    color: "#030712",
   },
 });

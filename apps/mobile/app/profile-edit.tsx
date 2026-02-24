@@ -3,7 +3,6 @@ import {
   View,
   Text,
   TextInput,
-  TouchableOpacity,
   ScrollView,
   Alert,
   ActivityIndicator,
@@ -13,6 +12,7 @@ import {
 } from "react-native";
 import { useRouter, Stack } from "expo-router";
 import { fetchProfile, updateProfile } from "../lib/api/user";
+import { Button } from "../components/Button";
 
 export default function ProfileEditScreen() {
   const router = useRouter();
@@ -128,18 +128,13 @@ export default function ProfileEditScreen() {
           </>
         )}
 
-        <TouchableOpacity
-          style={[styles.saveButton, saving && styles.buttonDisabled]}
+        <Button
+          title="Save Changes"
+          icon="checkmark"
           onPress={handleSave}
-          disabled={saving}
-          activeOpacity={0.7}
-        >
-          {saving ? (
-            <ActivityIndicator color="#030712" />
-          ) : (
-            <Text style={styles.saveButtonText}>Save Changes</Text>
-          )}
-        </TouchableOpacity>
+          loading={saving}
+          style={{ marginTop: 28 }}
+        />
       </ScrollView>
     </KeyboardAvoidingView>
   );
@@ -183,20 +178,5 @@ const styles = StyleSheet.create({
     color: "#f5a623",
     marginTop: 10,
     lineHeight: 18,
-  },
-  saveButton: {
-    backgroundColor: "#f5a623",
-    borderRadius: 12,
-    paddingVertical: 16,
-    alignItems: "center",
-    marginTop: 28,
-  },
-  buttonDisabled: {
-    opacity: 0.6,
-  },
-  saveButtonText: {
-    fontSize: 16,
-    fontFamily: "PlusJakartaSans_700Bold",
-    color: "#030712",
   },
 });

@@ -1,5 +1,6 @@
 import { useCallback, useState } from "react";
 import { Ionicons } from "@expo/vector-icons";
+import { Button } from "../../components/Button";
 import {
   View,
   Text,
@@ -248,32 +249,25 @@ export default function EarningsScreen() {
                 style={{ marginBottom: 12 }}
               />
             )}
-            <TouchableOpacity
-              style={styles.addButton}
+            <Button
+              title="Add Earning"
+              icon="add"
               onPress={() => router.push("/earning-form")}
-              activeOpacity={0.7}
-            >
-              <Text style={styles.addButtonText}>+ Add Earning</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.importButton}
+            />
+            <Button
+              variant="secondary"
+              title="Import CSV"
+              icon="document-text-outline"
               onPress={() => router.push("/csv-import")}
-              activeOpacity={0.7}
-            >
-              <Text style={styles.importButtonText}>Import CSV</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.bankButton}
+              style={{ marginTop: 10 }}
+            />
+            <Button
+              variant="secondary"
+              title="Connect Bank"
+              icon="business-outline"
               onPress={() => router.push("/open-banking")}
-              activeOpacity={0.7}
-            >
-              <View style={styles.bankButtonRow}>
-                <Text style={styles.bankButtonText}>Connect Bank</Text>
-                <View style={styles.proBadge}>
-                  <Text style={styles.proBadgeText}>PRO</Text>
-                </View>
-              </View>
-            </TouchableOpacity>
+              style={{ marginTop: 10 }}
+            />
           </View>
         }
       />
@@ -440,61 +434,6 @@ const styles = StyleSheet.create({
   footer: {
     marginTop: 16,
     paddingBottom: 20,
-  },
-  addButton: {
-    backgroundColor: "#f5a623",
-    borderRadius: 12,
-    paddingVertical: 16,
-    alignItems: "center",
-    marginBottom: 10,
-  },
-  addButtonText: {
-    fontSize: 16,
-    fontFamily: "PlusJakartaSans_700Bold",
-    color: "#030712",
-  },
-  importButton: {
-    backgroundColor: "#1f2937",
-    borderRadius: 12,
-    paddingVertical: 16,
-    alignItems: "center",
-    borderWidth: 1,
-    borderColor: "#374151",
-    marginBottom: 10,
-  },
-  importButtonText: {
-    fontSize: 16,
-    fontFamily: "PlusJakartaSans_600SemiBold",
-    color: "#d1d5db",
-  },
-  bankButton: {
-    backgroundColor: "#1f2937",
-    borderRadius: 12,
-    paddingVertical: 16,
-    alignItems: "center",
-    borderWidth: 1,
-    borderColor: "#374151",
-  },
-  bankButtonRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-  },
-  bankButtonText: {
-    fontSize: 16,
-    fontFamily: "PlusJakartaSans_600SemiBold",
-    color: "#d1d5db",
-  },
-  proBadge: {
-    backgroundColor: "#f5a623",
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 4,
-  },
-  proBadgeText: {
-    fontSize: 10,
-    fontFamily: "PlusJakartaSans_700Bold",
-    color: "#030712",
   },
   // Loading overlay
   loadingOverlay: {

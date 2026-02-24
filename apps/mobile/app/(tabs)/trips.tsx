@@ -10,6 +10,7 @@ import {
   StyleSheet,
 } from "react-native";
 import { useRouter, useFocusEffect } from "expo-router";
+import { Button } from "../../components/Button";
 import { fetchTrips, TripWithVehicle } from "../../lib/api/trips";
 import { getLocalTrips, getLocalUnsyncedTrips } from "../../lib/db/queries";
 import { GIG_PLATFORMS } from "@mileclear/shared";
@@ -259,13 +260,11 @@ export default function TripsScreen() {
                 style={{ marginBottom: 12 }}
               />
             )}
-            <TouchableOpacity
-              style={styles.addButton}
+            <Button
+              title="Add Trip"
+              icon="add"
               onPress={() => router.push("/trip-form")}
-              activeOpacity={0.7}
-            >
-              <Text style={styles.addButtonText}>+ Add Trip</Text>
-            </TouchableOpacity>
+            />
           </View>
         }
       />
@@ -465,17 +464,6 @@ const styles = StyleSheet.create({
   footer: {
     marginTop: 16,
     paddingBottom: 20,
-  },
-  addButton: {
-    backgroundColor: "#f5a623",
-    borderRadius: 12,
-    paddingVertical: 16,
-    alignItems: "center",
-  },
-  addButtonText: {
-    fontSize: 16,
-    fontFamily: "PlusJakartaSans_700Bold",
-    color: "#030712",
   },
   // Loading overlay
   loadingOverlay: {
