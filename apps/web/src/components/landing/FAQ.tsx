@@ -30,7 +30,7 @@ const faqs = [
   },
   {
     q: "When is it launching?",
-    a: "We\u2019re currently in development. Sign up for early access above and we\u2019ll let you know as soon as it\u2019s ready for testing.",
+    a: "MileClear is live right now in early access. The core app is fully functional \u2014 mileage tracking, fuel prices, earnings, exports, and gamification all work. Sign up above to get your invite.",
   },
 ];
 

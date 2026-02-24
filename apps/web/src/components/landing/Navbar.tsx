@@ -28,7 +28,7 @@ export default function Navbar() {
           <li><a href="#faq" className="nav__link">FAQ</a></li>
         </ul>
 
-        <a href="#early-access" className="nav__cta">Get Early Access</a>
+        <a href="#early-access" className="nav__cta">Try it free</a>
 
         <button
           className={`nav__burger${open ? " nav__burger--open" : ""}`}
@@ -45,7 +45,7 @@ export default function Navbar() {
         <a href="#pricing" onClick={close}>Pricing</a>
         <a href="#faq" onClick={close}>FAQ</a>
         <a href="#early-access" className="nav__mobile-cta" onClick={close}>
-          Get Early Access
+          Try it free
         </a>
       </div>
     </nav>

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
+import Reveal from "./Reveal";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3002";
 
@@ -12,6 +13,18 @@ const types = [
   { value: "amazon_flex", label: "Amazon Flex" },
   { value: "courier", label: "Courier" },
   { value: "other", label: "Other" },
+];
+
+const liveFeatures = [
+  "GPS mileage tracking with shift mode",
+  "Smart drive detection when off-shift",
+  "HMRC tax deduction calculator (45p/25p rates)",
+  "Offline-first — trips saved locally, synced when online",
+  "Cheapest fuel prices from 13 UK retailers",
+  "Earnings tracking across gig platforms",
+  "Milestones, streaks & shift scorecards",
+  "HMRC-ready PDF & CSV exports",
+  "Community suggestions board — shape the app",
 ];
 
 export default function EarlyAccess() {
@@ -56,16 +69,33 @@ export default function EarlyAccess() {
           width={56}
           height={56}
         />
-        <p className="label">Early access</p>
-        <h2 className="heading">Be the first to try MileClear</h2>
+        <p className="label">Early access — live now</p>
+        <h2 className="heading">MileClear is ready to try</h2>
         <p className="subtext">
-          We&apos;re building something drivers can actually rely on. Sign up
-          and be the first to know when it&apos;s ready.
+          We&apos;re not just collecting emails anymore. The app is live and being
+          used by real drivers. Join early access to get in first and help shape
+          what we build next.
         </p>
+
+        <Reveal delay="reveal-d1">
+          <div className="ea__features">
+            <p className="ea__features-label">What&apos;s already working:</p>
+            <ul className="ea__features-list">
+              {liveFeatures.map((f) => (
+                <li key={f} className="ea__features-item">
+                  <svg className="ea__features-check" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="20 6 9 17 4 12" />
+                  </svg>
+                  {f}
+                </li>
+              ))}
+            </ul>
+          </div>
+        </Reveal>
 
         {status === "ok" ? (
           <div className="ea__ok">
-            You&apos;re in. We&apos;ll let you know as soon as MileClear is ready.
+            You&apos;re in! We&apos;ll send you an invite to download MileClear shortly.
           </div>
         ) : (
           <form className="ea__form" onSubmit={submit}>
@@ -90,9 +120,12 @@ export default function EarlyAccess() {
               </select>
             </div>
             <button type="submit" className="ea__btn" disabled={status === "loading"}>
-              {status === "loading" ? "Joining\u2026" : "Join the waitlist"}
+              {status === "loading" ? "Joining\u2026" : "Get early access"}
             </button>
             {status === "err" && <p className="ea__err">{errMsg}</p>}
+            <p className="ea__note">
+              Free during early access. Premium features unlocked. No card required.
+            </p>
           </form>
         )}
       </div>

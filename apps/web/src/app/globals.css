@@ -800,7 +800,57 @@ body::after {
 }
 .ea__err { margin-top: 0.75rem; color: #f87171; font-size: 0.8125rem; }
 
-@media (max-width: 540px) { .ea__row { flex-direction: column; } }
+.ea__note {
+  margin-top: 0.25rem;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  text-align: center;
+}
+
+.ea__features {
+  margin-top: 2rem;
+  margin-bottom: 2rem;
+  padding: 1.5rem 2rem;
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--r-md);
+  text-align: left;
+  max-width: 520px;
+  margin-left: auto;
+  margin-right: auto;
+}
+.ea__features-label {
+  font-family: var(--font-sora);
+  font-weight: 600;
+  font-size: 0.8125rem;
+  color: var(--amber-400);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 0.75rem;
+}
+.ea__features-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+.ea__features-item {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+  line-height: 1.4;
+}
+.ea__features-check {
+  flex-shrink: 0;
+  color: var(--emerald-400);
+}
+
+@media (max-width: 540px) {
+  .ea__row { flex-direction: column; }
+  .ea__features { padding: 1.25rem 1.25rem; }
+}
 
 /* ================================================================
    FAQ

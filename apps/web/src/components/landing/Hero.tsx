@@ -7,7 +7,7 @@ export default function Hero() {
         <div className="hero__text">
           <div className="hero__badge">
             <span className="hero__badge-dot" />
-            Coming soon
+            Early access — live now
           </div>
           <h1 className="hero__h1">
             Track every mile.
@@ -19,7 +19,7 @@ export default function Hero() {
             delivery riders, and anyone who drives for a living.
           </p>
           <a href="#early-access" className="hero__cta">
-            Get Early Access
+            Try it free
             <span className="hero__cta-arrow" aria-hidden="true">&rarr;</span>
           </a>
           <p className="hero__trust">
