@@ -17,6 +17,7 @@ const outfit = Outfit({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL("https://mileclear.com"),
   title: "MileClear — Track every mile. Keep every penny.",
   description:
     "The mileage tracker that actually works. Built for gig drivers, delivery riders, and anyone who drives for a living. Free to use, offline-first, HMRC ready.",
