@@ -112,6 +112,18 @@ function RootNavigator() {
           name="admin-health"
           options={{ headerShown: true, title: "System Health" }}
         />
+        <Stack.Screen
+          name="feedback"
+          options={{ headerShown: true, title: "Suggestions" }}
+        />
+        <Stack.Screen
+          name="feedback-form"
+          options={{ headerShown: true, title: "Submit Suggestion" }}
+        />
+        <Stack.Screen
+          name="admin-feedback"
+          options={{ headerShown: true, title: "Manage Feedback" }}
+        />
       </Stack>
     </>
   );

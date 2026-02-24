@@ -368,6 +368,26 @@ export interface PeriodRecap {
   shareText: string;
 }
 
+// Feedback types
+export type FeedbackCategory = "feature_request" | "bug_report" | "improvement" | "other";
+export type FeedbackStatus = "new" | "planned" | "in_progress" | "done" | "declined";
+
+export interface FeedbackItem {
+  id: string;
+  userId: string | null;
+  displayName: string | null;
+  title: string;
+  body: string;
+  category: FeedbackCategory;
+  status: FeedbackStatus;
+  upvoteCount: number;
+  createdAt: string;
+}
+
+export interface FeedbackWithVoted extends FeedbackItem {
+  hasVoted: boolean;
+}
+
 // Admin types
 export interface AdminAnalytics {
   totalUsers: number;

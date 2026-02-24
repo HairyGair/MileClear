@@ -110,6 +110,18 @@ export default function AdminDashboardScreen() {
         <Ionicons name="chevron-forward" size={20} color={TEXT_3} />
       </TouchableOpacity>
 
+      <TouchableOpacity
+        style={s.navCard}
+        onPress={() => router.push("/admin-feedback")}
+        activeOpacity={0.7}
+      >
+        <View style={s.navCardLeft}>
+          <Ionicons name="chatbox-ellipses-outline" size={22} color={AMBER} />
+          <Text style={s.navCardLabel}>Community Feedback</Text>
+        </View>
+        <Ionicons name="chevron-forward" size={20} color={TEXT_3} />
+      </TouchableOpacity>
+
       <View style={{ height: 24 }} />
     </ScrollView>
   );

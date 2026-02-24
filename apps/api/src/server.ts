@@ -17,6 +17,7 @@ import { syncRoutes } from "./routes/sync/index.js";
 import { userRoutes } from "./routes/user/index.js";
 import { waitlistRoutes } from "./routes/waitlist/index.js";
 import { adminRoutes } from "./routes/admin/index.js";
+import { feedbackRoutes } from "./routes/feedback/index.js";
 
 const PORT = Number(process.env.API_PORT) || 3001;
 const HOST = process.env.API_HOST || "0.0.0.0";
@@ -58,6 +59,7 @@ await app.register(syncRoutes, { prefix: "/sync" });
 await app.register(userRoutes, { prefix: "/user" });
 await app.register(waitlistRoutes, { prefix: "/waitlist" });
 await app.register(adminRoutes, { prefix: "/admin" });
+await app.register(feedbackRoutes, { prefix: "/feedback" });
 
 // Health check
 app.get("/health", async () => ({ status: "ok" }));

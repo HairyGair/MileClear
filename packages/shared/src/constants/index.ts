@@ -131,6 +131,22 @@ export const MERCHANT_PLATFORM_MAP: Record<string, string> = {
   hermes: "evri",
 } as const;
 
+// Feedback
+export const FEEDBACK_CATEGORIES = [
+  { value: "feature_request", label: "Feature Request" },
+  { value: "bug_report", label: "Bug Report" },
+  { value: "improvement", label: "Improvement" },
+  { value: "other", label: "Other" },
+] as const;
+
+export const FEEDBACK_STATUSES = [
+  { value: "new", label: "New", color: "#8494a7" },
+  { value: "planned", label: "Planned", color: "#3b82f6" },
+  { value: "in_progress", label: "In Progress", color: "#f5a623" },
+  { value: "done", label: "Done", color: "#34c759" },
+  { value: "declined", label: "Declined", color: "#ef4444" },
+] as const;
+
 // Driver type options (waitlist)
 export const DRIVER_TYPES = [
   { value: "uber", label: "Uber / Uber Eats" },
