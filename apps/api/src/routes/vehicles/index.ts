@@ -114,7 +114,14 @@ export async function vehicleRoutes(app: FastifyInstance) {
       if (response.status === 404) {
         return reply
           .status(404)
-          .send({ error: "Vehicle not found. Check the registration number." });
+          .send({ error: "Vehicle not found. Double-check the registration plate and try again." });
+      }
+
+      if (response.status === 403) {
+        app.log.error("DVLA API returned 403 — key may be invalid");
+        return reply
+          .status(502)
+          .send({ error: "DVLA authentication failed. Please contact support." });
       }
 
       if (!response.ok) {

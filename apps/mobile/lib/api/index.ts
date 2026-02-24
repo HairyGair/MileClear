@@ -64,8 +64,12 @@ export async function apiRequest<T>(
 
   let res = await makeRequest(token);
 
-  // If 401, try refreshing the token
-  if (res.status === 401) {
+  // Skip token refresh for auth endpoints — they return 401 for invalid credentials,
+  // not expired tokens, so refreshing makes no sense and masks the real error
+  const isAuthEndpoint = path.startsWith("/auth/");
+
+  // If 401 on a protected endpoint, try refreshing the token
+  if (res.status === 401 && !isAuthEndpoint) {
     token = await refreshAccessToken();
     if (token) {
       res = await makeRequest(token);
