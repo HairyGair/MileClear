@@ -1,9 +1,19 @@
-import { FastifyInstance, FastifyRequest } from "fastify";
+import { FastifyInstance } from "fastify";
 import { z } from "zod";
-import jwt from "jsonwebtoken";
 import { prisma } from "../../lib/prisma.js";
-import { authMiddleware } from "../../middleware/auth.js";
+import { authMiddleware, optionalAuthMiddleware } from "../../middleware/auth.js";
 import { adminMiddleware } from "../../middleware/admin.js";
+
+function sanitizeText(input: string): string {
+  return input
+    .replace(/<[^>]*>/g, "")
+    .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, "")
+    .trim();
+}
+
+const idParamSchema = z.object({
+  id: z.string().uuid(),
+});
 
 const submitSchema = z.object({
   displayName: z.string().max(100).optional(),
@@ -24,31 +34,20 @@ const statusUpdateSchema = z.object({
   status: z.enum(["new", "planned", "in_progress", "done", "declined"]),
 });
 
-async function optionalAuth(request: FastifyRequest) {
-  const authHeader = request.headers.authorization;
-  if (!authHeader?.startsWith("Bearer ")) return;
-  try {
-    const token = authHeader.slice(7);
-    const decoded = jwt.verify(token, process.env.JWT_SECRET!, {
-      algorithms: ["HS256"],
-    }) as { userId: string; isAdmin?: boolean };
-    request.userId = decoded.userId;
-    request.isAdmin = decoded.isAdmin ?? false;
-  } catch {
-    /* proceed as anonymous */
-  }
-}
-
 export async function feedbackRoutes(app: FastifyInstance) {
   // POST /feedback — submit (anonymous or authenticated)
   app.post("/", {
     config: { rateLimit: { max: 5, timeWindow: "15 minutes" } },
+    preHandler: [optionalAuthMiddleware],
     handler: async (request, reply) => {
-      await optionalAuth(request);
-
       const parsed = submitSchema.safeParse(request.body);
       if (!parsed.success) {
-        return reply.status(400).send({ error: "Invalid input", details: parsed.error.flatten().fieldErrors });
+        const fieldErrors = parsed.error.flatten().fieldErrors;
+        const fields: Record<string, string> = {};
+        for (const [key, msgs] of Object.entries(fieldErrors)) {
+          fields[key] = Array.isArray(msgs) && msgs.length > 0 ? msgs[0] : "Invalid value";
+        }
+        return reply.status(400).send({ error: "Invalid input", fields });
       }
 
       const { displayName, title, body, category } = parsed.data;
@@ -56,21 +55,76 @@ export async function feedbackRoutes(app: FastifyInstance) {
       const feedback = await prisma.feedback.create({
         data: {
           userId: request.userId ?? null,
-          displayName: displayName || null,
-          title,
-          body,
+          displayName: displayName ? sanitizeText(displayName) : null,
+          title: sanitizeText(title),
+          body: sanitizeText(body),
           category,
+        },
+        select: {
+          id: true,
+          displayName: true,
+          title: true,
+          body: true,
+          category: true,
+          status: true,
+          upvoteCount: true,
+          createdAt: true,
         },
       });
 
-      return reply.status(201).send({ data: feedback, message: "Feedback submitted!" });
+      return reply.status(201).send({
+        data: {
+          ...feedback,
+          createdAt: feedback.createdAt.toISOString(),
+          hasVoted: false,
+        },
+        message: "Feedback submitted!",
+      });
     },
   });
 
-  // GET /feedback — list (optional auth for hasVoted)
-  app.get("/", async (request, reply) => {
-    await optionalAuth(request);
+  // GET /feedback/stats — admin only (registered BEFORE parametric routes)
+  app.get("/stats", { preHandler: [authMiddleware, adminMiddleware] }, async (_request, reply) => {
+    const [byStatus, byCategory, total] = await Promise.all([
+      prisma.feedback.groupBy({ by: ["status"], _count: true }),
+      prisma.feedback.groupBy({ by: ["category"], _count: true }),
+      prisma.feedback.count(),
+    ]);
 
+    return reply.send({
+      data: {
+        total,
+        byStatus: Object.fromEntries(byStatus.map((s: { status: string; _count: number }) => [s.status, s._count])),
+        byCategory: Object.fromEntries(byCategory.map((c: { category: string; _count: number }) => [c.category, c._count])),
+      },
+    });
+  });
+
+  // POST /feedback/reconcile — admin: recalculate all upvoteCounts from actual votes
+  app.post("/reconcile", { preHandler: [authMiddleware, adminMiddleware] }, async (_request, reply) => {
+    const voteCounts = await prisma.feedbackVote.groupBy({
+      by: ["feedbackId"],
+      _count: true,
+    });
+
+    const countMap = new Map(voteCounts.map((v: { feedbackId: string; _count: number }) => [v.feedbackId, v._count]));
+
+    const allFeedback = await prisma.feedback.findMany({ select: { id: true, upvoteCount: true } });
+
+    let fixed = 0;
+    for (const fb of allFeedback) {
+      const actual = countMap.get(fb.id) ?? 0;
+      if (fb.upvoteCount !== actual) {
+        await prisma.feedback.update({ where: { id: fb.id }, data: { upvoteCount: actual } });
+        fixed++;
+      }
+    }
+
+    return reply.send({ data: { checked: allFeedback.length, fixed }, message: "Reconciliation complete" });
+  });
+
+  // GET /feedback — list (optional auth for hasVoted)
+  app.get("/", { preHandler: [optionalAuthMiddleware] }, async (request, reply) => {
     const parsed = listQuerySchema.safeParse(request.query);
     if (!parsed.success) {
       return reply.status(400).send({ error: "Invalid query parameters" });
@@ -113,17 +167,24 @@ export async function feedbackRoutes(app: FastifyInstance) {
       const votes = await prisma.feedbackVote.findMany({
         where: {
           userId: request.userId,
-          feedbackId: { in: items.map((i) => i.id) },
+          feedbackId: { in: items.map((i: { id: string }) => i.id) },
         },
         select: { feedbackId: true },
       });
-      votedSet = new Set(votes.map((v) => v.feedbackId));
+      votedSet = new Set(votes.map((v: { feedbackId: string }) => v.feedbackId));
     }
 
-    const data = items.map((item) => ({
-      ...item,
+    const data = items.map((item: { id: string; userId: string | null; displayName: string | null; title: string; body: string; category: string; status: string; upvoteCount: number; createdAt: Date }) => ({
+      id: item.id,
+      displayName: item.displayName,
+      title: item.title,
+      body: item.body,
+      category: item.category,
+      status: item.status,
+      upvoteCount: item.upvoteCount,
       createdAt: item.createdAt.toISOString(),
       hasVoted: votedSet.has(item.id),
+      isOwner: request.userId ? item.userId === request.userId : false,
     }));
 
     return reply.send({
@@ -135,9 +196,16 @@ export async function feedbackRoutes(app: FastifyInstance) {
     });
   });
 
-  // POST /feedback/:id/vote — toggle upvote (auth required)
-  app.post("/:id/vote", { preHandler: [authMiddleware] }, async (request, reply) => {
-    const { id } = request.params as { id: string };
+  // POST /feedback/:id/vote — toggle upvote (auth required, rate limited)
+  app.post("/:id/vote", {
+    config: { rateLimit: { max: 30, timeWindow: "1 minute" } },
+    preHandler: [authMiddleware],
+  }, async (request, reply) => {
+    const paramsParsed = idParamSchema.safeParse(request.params);
+    if (!paramsParsed.success) {
+      return reply.status(400).send({ error: "Invalid feedback ID" });
+    }
+    const { id } = paramsParsed.data;
     const userId = request.userId!;
 
     const feedback = await prisma.feedback.findUnique({ where: { id } });
@@ -145,55 +213,50 @@ export async function feedbackRoutes(app: FastifyInstance) {
       return reply.status(404).send({ error: "Feedback not found" });
     }
 
-    const existingVote = await prisma.feedbackVote.findUnique({
-      where: { feedbackId_userId: { feedbackId: id, userId } },
-    });
+    try {
+      const result = await prisma.$transaction(async (tx) => {
+        const existingVote = await tx.feedbackVote.findUnique({
+          where: { feedbackId_userId: { feedbackId: id, userId } },
+        });
 
-    if (existingVote) {
-      await prisma.$transaction([
-        prisma.feedbackVote.delete({
-          where: { id: existingVote.id },
-        }),
-        prisma.feedback.update({
-          where: { id },
-          data: { upvoteCount: { decrement: 1 } },
-        }),
-      ]);
-      return reply.send({ data: { voted: false }, message: "Vote removed" });
-    } else {
-      await prisma.$transaction([
-        prisma.feedbackVote.create({
-          data: { feedbackId: id, userId },
-        }),
-        prisma.feedback.update({
-          where: { id },
-          data: { upvoteCount: { increment: 1 } },
-        }),
-      ]);
-      return reply.send({ data: { voted: true }, message: "Voted!" });
+        if (existingVote) {
+          await tx.feedbackVote.delete({ where: { id: existingVote.id } });
+          await tx.feedback.update({
+            where: { id },
+            data: { upvoteCount: { decrement: 1 } },
+          });
+          return { voted: false };
+        } else {
+          await tx.feedbackVote.create({ data: { feedbackId: id, userId } });
+          await tx.feedback.update({
+            where: { id },
+            data: { upvoteCount: { increment: 1 } },
+          });
+          return { voted: true };
+        }
+      });
+
+      return reply.send({
+        data: result,
+        message: result.voted ? "Voted!" : "Vote removed",
+      });
+    } catch (e: unknown) {
+      const prismaError = e as { code?: string };
+      if (prismaError.code === "P2002") {
+        return reply.status(409).send({ error: "Vote already recorded" });
+      }
+      throw e;
     }
-  });
-
-  // GET /feedback/stats — admin only
-  app.get("/stats", { preHandler: [authMiddleware, adminMiddleware] }, async (_request, reply) => {
-    const [byStatus, byCategory, total] = await Promise.all([
-      prisma.feedback.groupBy({ by: ["status"], _count: true }),
-      prisma.feedback.groupBy({ by: ["category"], _count: true }),
-      prisma.feedback.count(),
-    ]);
-
-    return reply.send({
-      data: {
-        total,
-        byStatus: Object.fromEntries(byStatus.map((s) => [s.status, s._count])),
-        byCategory: Object.fromEntries(byCategory.map((c) => [c.category, c._count])),
-      },
-    });
   });
 
   // PATCH /feedback/:id/status — admin only
   app.patch("/:id/status", { preHandler: [authMiddleware, adminMiddleware] }, async (request, reply) => {
-    const { id } = request.params as { id: string };
+    const paramsParsed = idParamSchema.safeParse(request.params);
+    if (!paramsParsed.success) {
+      return reply.status(400).send({ error: "Invalid feedback ID" });
+    }
+    const { id } = paramsParsed.data;
+
     const parsed = statusUpdateSchema.safeParse(request.body);
     if (!parsed.success) {
       return reply.status(400).send({ error: "Invalid status" });
@@ -214,7 +277,11 @@ export async function feedbackRoutes(app: FastifyInstance) {
 
   // DELETE /feedback/:id — admin only
   app.delete("/:id", { preHandler: [authMiddleware, adminMiddleware] }, async (request, reply) => {
-    const { id } = request.params as { id: string };
+    const paramsParsed = idParamSchema.safeParse(request.params);
+    if (!paramsParsed.success) {
+      return reply.status(400).send({ error: "Invalid feedback ID" });
+    }
+    const { id } = paramsParsed.data;
 
     const feedback = await prisma.feedback.findUnique({ where: { id } });
     if (!feedback) {

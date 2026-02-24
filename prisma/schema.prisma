@@ -267,6 +267,7 @@ model Feedback {
   @@index([status])
   @@index([category])
   @@index([createdAt])
+  @@index([upvoteCount])
   @@map("feedback")
 }
 

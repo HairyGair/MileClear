@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import {
   View,
   Text,
@@ -13,6 +13,7 @@ import { useFocusEffect, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useAuth } from "../lib/auth/context";
 import { fetchFeedbackList, toggleFeedbackVote } from "../lib/api/feedback";
+import type { FeedbackListParams } from "../lib/api/feedback";
 import { FEEDBACK_CATEGORIES, FEEDBACK_STATUSES } from "@mileclear/shared";
 import type { FeedbackWithVoted, FeedbackCategory } from "@mileclear/shared";
 
@@ -45,14 +46,16 @@ export default function FeedbackScreen() {
   const [totalPages, setTotalPages] = useState(1);
   const [filter, setFilter] = useState<FilterOption>("all");
   const [sort, setSort] = useState<SortOption>("most_voted");
+  const [error, setError] = useState(false);
   const votingIds = useRef(new Set<string>());
 
   const loadData = useCallback(
     async (p = 1, append = false) => {
       try {
-        const params: Record<string, unknown> = { page: p, pageSize: 15, sort };
+        setError(false);
+        const params: FeedbackListParams = { page: p, pageSize: 15, sort };
         if (filter !== "all") params.category = filter;
-        const res = await fetchFeedbackList(params as any);
+        const res = await fetchFeedbackList(params);
         if (append) {
           setItems((prev) => [...prev, ...res.data]);
         } else {
@@ -61,7 +64,7 @@ export default function FeedbackScreen() {
         setTotalPages(res.totalPages);
         setPage(p);
       } catch {
-        // silent
+        if (!append) setError(true);
       } finally {
         setLoading(false);
         setRefreshing(false);
@@ -100,15 +103,20 @@ export default function FeedbackScreen() {
       if (votingIds.current.has(id)) return;
       votingIds.current.add(id);
 
+      // Capture original state before mutation
+      const original = items.find((i) => i.id === id);
+      if (!original) { votingIds.current.delete(id); return; }
+      const origVoted = original.hasVoted;
+      const origCount = original.upvoteCount;
+
       // Optimistic update
       setItems((prev) =>
         prev.map((item) => {
           if (item.id !== id) return item;
-          const nowVoted = !item.hasVoted;
           return {
             ...item,
-            hasVoted: nowVoted,
-            upvoteCount: item.upvoteCount + (nowVoted ? 1 : -1),
+            hasVoted: !origVoted,
+            upvoteCount: origCount + (origVoted ? -1 : 1),
           };
         })
       );
@@ -116,16 +124,11 @@ export default function FeedbackScreen() {
       try {
         await toggleFeedbackVote(id);
       } catch {
-        // Revert on failure
+        // Revert to captured original state
         setItems((prev) =>
           prev.map((item) => {
             if (item.id !== id) return item;
-            const reverted = !item.hasVoted;
-            return {
-              ...item,
-              hasVoted: reverted,
-              upvoteCount: item.upvoteCount + (reverted ? 1 : -1),
-            };
+            return { ...item, hasVoted: origVoted, upvoteCount: origCount };
           })
         );
       } finally {
@@ -257,6 +260,12 @@ export default function FeedbackScreen() {
       {loading ? (
         <View style={s.centered}>
           <ActivityIndicator size="large" color={AMBER} />
+        </View>
+      ) : error ? (
+        <View style={s.centered}>
+          <Ionicons name="cloud-offline-outline" size={48} color={TEXT_3} />
+          <Text style={s.emptyTitle}>Could not load suggestions</Text>
+          <Text style={s.emptySubtitle}>Pull down to try again</Text>
         </View>
       ) : items.length === 0 ? (
         <View style={s.centered}>

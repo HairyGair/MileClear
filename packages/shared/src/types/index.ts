@@ -374,7 +374,6 @@ export type FeedbackStatus = "new" | "planned" | "in_progress" | "done" | "decli
 
 export interface FeedbackItem {
   id: string;
-  userId: string | null;
   displayName: string | null;
   title: string;
   body: string;
@@ -382,6 +381,7 @@ export interface FeedbackItem {
   status: FeedbackStatus;
   upvoteCount: number;
   createdAt: string;
+  isOwner: boolean;
 }
 
 export interface FeedbackWithVoted extends FeedbackItem {

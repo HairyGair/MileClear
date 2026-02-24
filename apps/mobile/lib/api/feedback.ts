@@ -1,7 +1,7 @@
 import { apiRequest } from "./index";
 import type { FeedbackWithVoted, FeedbackCategory, FeedbackStatus, PaginatedResponse } from "@mileclear/shared";
 
-interface FeedbackListParams {
+export interface FeedbackListParams {
   page?: number;
   pageSize?: number;
   category?: FeedbackCategory;

@@ -11,12 +11,14 @@ import {
 } from "react-native";
 import { useFocusEffect } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
+import { useUser } from "../lib/user/context";
 import {
   fetchFeedbackList,
   fetchFeedbackStats,
   updateFeedbackStatus,
   deleteFeedback,
 } from "../lib/api/feedback";
+import type { FeedbackListParams } from "../lib/api/feedback";
 import { FEEDBACK_CATEGORIES, FEEDBACK_STATUSES } from "@mileclear/shared";
 import type { FeedbackWithVoted, FeedbackStatus } from "@mileclear/shared";
 
@@ -38,45 +40,79 @@ const CATEGORY_COLORS: Record<string, string> = {
 type StatusFilter = "all" | FeedbackStatus;
 
 export default function AdminFeedbackScreen() {
+  const { user } = useUser();
   const [items, setItems] = useState<FeedbackWithVoted[]>([]);
   const [stats, setStats] = useState<Record<string, number>>({});
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [error, setError] = useState(false);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
 
-  const loadData = useCallback(async () => {
+  // Client-side admin guard
+  if (!user?.isAdmin) {
+    return (
+      <View style={[s.container, s.centered]}>
+        <Ionicons name="shield-outline" size={48} color={TEXT_3} />
+        <Text style={s.emptyText}>Admin access required</Text>
+      </View>
+    );
+  }
+
+  const loadData = useCallback(async (p = 1, append = false) => {
     try {
-      const params: Record<string, unknown> = { pageSize: 50, sort: "newest" };
+      setError(false);
+      const params: FeedbackListParams = { page: p, pageSize: 30, sort: "newest" };
       if (statusFilter !== "all") params.status = statusFilter;
-      const [listRes, statsRes] = await Promise.all([
-        fetchFeedbackList(params as any),
-        fetchFeedbackStats(),
-      ]);
-      setItems(listRes.data);
-      setStats(statsRes.data.byStatus);
-      setTotal(statsRes.data.total);
+
+      if (p === 1) {
+        const [listRes, statsRes] = await Promise.all([
+          fetchFeedbackList(params),
+          fetchFeedbackStats(),
+        ]);
+        setItems(listRes.data);
+        setTotalPages(listRes.totalPages);
+        setStats(statsRes.data.byStatus);
+        setTotal(statsRes.data.total);
+      } else {
+        const listRes = await fetchFeedbackList(params);
+        if (append) {
+          setItems((prev) => [...prev, ...listRes.data]);
+        }
+        setTotalPages(listRes.totalPages);
+      }
+      setPage(p);
     } catch {
-      // silent
+      if (!append) setError(true);
     } finally {
       setLoading(false);
       setRefreshing(false);
+      setLoadingMore(false);
     }
   }, [statusFilter]);
 
   useFocusEffect(
     useCallback(() => {
       setLoading(true);
-      loadData();
+      loadData(1);
     }, [loadData])
   );
 
   const onRefresh = useCallback(() => {
     setRefreshing(true);
-    loadData();
+    loadData(1);
   }, [loadData]);
+
+  const onEndReached = useCallback(() => {
+    if (loadingMore || page >= totalPages) return;
+    setLoadingMore(true);
+    loadData(page + 1, true);
+  }, [loadingMore, page, totalPages, loadData]);
 
   const handleStatusChange = async (id: string, newStatus: FeedbackStatus) => {
     setUpdatingId(id);
@@ -87,7 +123,6 @@ export default function AdminFeedbackScreen() {
           item.id === id ? { ...item, status: newStatus } : item
         )
       );
-      // Update stats locally
       setStats((prev) => {
         const old = items.find((i) => i.id === id);
         if (!old) return prev;
@@ -139,16 +174,16 @@ export default function AdminFeedbackScreen() {
 
   const statusFilters: { key: StatusFilter; label: string }[] = [
     { key: "all", label: `All (${total})` },
-    ...FEEDBACK_STATUSES.map((s) => ({
-      key: s.value as StatusFilter,
-      label: `${s.label} (${stats[s.value] || 0})`,
+    ...FEEDBACK_STATUSES.map((st) => ({
+      key: st.value as StatusFilter,
+      label: `${st.label} (${stats[st.value] || 0})`,
     })),
   ];
 
   const renderItem = ({ item }: { item: FeedbackWithVoted }) => {
     const expanded = expandedId === item.id;
     const catColor = CATEGORY_COLORS[item.category] ?? TEXT_3;
-    const statusMeta = FEEDBACK_STATUSES.find((s) => s.value === item.status);
+    const statusMeta = FEEDBACK_STATUSES.find((st) => st.value === item.status);
 
     return (
       <TouchableOpacity
@@ -156,7 +191,6 @@ export default function AdminFeedbackScreen() {
         onPress={() => setExpandedId(expanded ? null : item.id)}
         activeOpacity={0.7}
       >
-        {/* Header row */}
         <View style={s.cardHeader}>
           <View style={s.cardBadges}>
             <View style={[s.pill, { backgroundColor: catColor + "20" }]}>
@@ -182,12 +216,10 @@ export default function AdminFeedbackScreen() {
           <Text style={s.metaText}>{formatDate(item.createdAt)}</Text>
         </View>
 
-        {/* Expanded detail */}
         {expanded && (
           <View style={s.expandedSection}>
             <Text style={s.bodyText}>{item.body}</Text>
 
-            {/* Status picker */}
             <Text style={s.sectionLabel}>Status</Text>
             <View style={s.statusRow}>
               {FEEDBACK_STATUSES.map((st) => {
@@ -219,7 +251,6 @@ export default function AdminFeedbackScreen() {
               })}
             </View>
 
-            {/* Delete */}
             <TouchableOpacity
               style={s.deleteButton}
               onPress={() => handleDelete(item.id, item.title)}
@@ -234,7 +265,6 @@ export default function AdminFeedbackScreen() {
     );
   };
 
-  // Stats summary row
   const statsRow = FEEDBACK_STATUSES.map((st) => ({
     label: st.label,
     count: stats[st.value] || 0,
@@ -247,9 +277,14 @@ export default function AdminFeedbackScreen() {
         <View style={s.centered}>
           <ActivityIndicator size="large" color={AMBER} />
         </View>
+      ) : error ? (
+        <View style={s.centered}>
+          <Ionicons name="cloud-offline-outline" size={48} color={TEXT_3} />
+          <Text style={s.emptyText}>Could not load feedback</Text>
+          <Text style={[s.emptyText, { fontSize: 12 }]}>Pull down to try again</Text>
+        </View>
       ) : (
         <>
-          {/* Stats row */}
           <View style={s.statsRow}>
             {statsRow.map((st) => (
               <View key={st.label} style={s.statBox}>
@@ -259,7 +294,6 @@ export default function AdminFeedbackScreen() {
             ))}
           </View>
 
-          {/* Filter chips */}
           <FlatList
             horizontal
             showsHorizontalScrollIndicator={false}
@@ -279,7 +313,6 @@ export default function AdminFeedbackScreen() {
             )}
           />
 
-          {/* List */}
           <FlatList
             data={items}
             keyExtractor={(item) => item.id}
@@ -287,6 +320,13 @@ export default function AdminFeedbackScreen() {
             contentContainerStyle={s.list}
             refreshControl={
               <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={AMBER} />
+            }
+            onEndReached={onEndReached}
+            onEndReachedThreshold={0.3}
+            ListFooterComponent={
+              loadingMore ? (
+                <ActivityIndicator style={{ paddingVertical: 16 }} color={AMBER} />
+              ) : null
             }
             ListEmptyComponent={
               <View style={s.centered}>
@@ -304,8 +344,6 @@ export default function AdminFeedbackScreen() {
 const s = StyleSheet.create({
   container: { flex: 1, backgroundColor: BG },
   centered: { flex: 1, justifyContent: "center", alignItems: "center", paddingTop: 60 },
-
-  // Stats
   statsRow: {
     flexDirection: "row",
     paddingHorizontal: 16,
@@ -334,8 +372,6 @@ const s = StyleSheet.create({
     textTransform: "uppercase",
     letterSpacing: 0.3,
   },
-
-  // Filters
   filterScroll: {
     paddingHorizontal: 16,
     paddingVertical: 10,
@@ -362,8 +398,6 @@ const s = StyleSheet.create({
     color: AMBER,
     fontFamily: "PlusJakartaSans_600SemiBold",
   },
-
-  // List
   list: { paddingHorizontal: 16, paddingBottom: 24 },
   card: {
     backgroundColor: CARD_BG,
@@ -431,8 +465,6 @@ const s = StyleSheet.create({
     borderRadius: 1.5,
     backgroundColor: TEXT_3,
   },
-
-  // Expanded
   expandedSection: {
     marginTop: 12,
     paddingTop: 12,
