@@ -145,7 +145,7 @@ export async function authRoutes(app: FastifyInstance) {
         return reply.status(401).send({ error: "Invalid email or password" });
       }
 
-      const accessToken = generateAccessToken(user.id);
+      const accessToken = generateAccessToken(user.id, user.isAdmin);
       const refreshToken = generateRefreshToken(user.id);
       await storeRefreshToken(user.id, refreshToken);
 
@@ -179,7 +179,12 @@ export async function authRoutes(app: FastifyInstance) {
     // Token rotation: delete old, issue new
     await prisma.refreshToken.delete({ where: { id: stored.id } });
 
-    const newAccessToken = generateAccessToken(stored.userId);
+    const user = await prisma.user.findUnique({
+      where: { id: stored.userId },
+      select: { isAdmin: true },
+    });
+
+    const newAccessToken = generateAccessToken(stored.userId, user?.isAdmin ?? false);
     const newRefreshToken = generateRefreshToken(stored.userId);
     await storeRefreshToken(stored.userId, newRefreshToken);
 
@@ -420,7 +425,7 @@ export async function authRoutes(app: FastifyInstance) {
       });
     }
 
-    const accessToken = generateAccessToken(user.id);
+    const accessToken = generateAccessToken(user.id, user.isAdmin);
     const refreshToken = generateRefreshToken(user.id);
     await storeRefreshToken(user.id, refreshToken);
 
@@ -497,7 +502,7 @@ export async function authRoutes(app: FastifyInstance) {
       });
     }
 
-    const accessToken = generateAccessToken(user.id);
+    const accessToken = generateAccessToken(user.id, user.isAdmin);
     const refreshToken = generateRefreshToken(user.id);
     await storeRefreshToken(user.id, refreshToken);
 

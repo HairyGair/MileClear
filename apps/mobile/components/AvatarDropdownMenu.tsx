@@ -152,6 +152,31 @@ export default function AvatarDropdownMenu({ visible, onClose }: Props) {
             </TouchableOpacity>
           ))}
 
+          {/* Admin section — only visible to admins */}
+          {user?.isAdmin && (
+            <>
+              <View style={styles.separator} />
+              <TouchableOpacity
+                style={[styles.menuItem, isActive("/(tabs)/admin") && styles.menuItemActive]}
+                onPress={() => handleNav({ label: "Admin", route: "/(tabs)/admin", icon: "shield-outline", isReplace: true })}
+                activeOpacity={0.7}
+              >
+                {isActive("/(tabs)/admin") && <View style={styles.activeIndicator} />}
+                <Ionicons
+                  name="shield-outline"
+                  size={18}
+                  color={isActive("/(tabs)/admin") ? AMBER : TEXT_2}
+                />
+                <Text style={[styles.menuLabel, isActive("/(tabs)/admin") && styles.menuLabelActive]}>
+                  Admin
+                </Text>
+                <View style={styles.adminBadge}>
+                  <Text style={styles.adminBadgeText}>ADMIN</Text>
+                </View>
+              </TouchableOpacity>
+            </>
+          )}
+
           <View style={styles.separator} />
 
           {/* Logout */}
@@ -275,5 +300,17 @@ const styles = StyleSheet.create({
     fontFamily: "PlusJakartaSans_500Medium",
     color: "#ef4444",
     flex: 1,
+  },
+  adminBadge: {
+    backgroundColor: "#ef4444",
+    paddingHorizontal: 5,
+    paddingVertical: 1,
+    borderRadius: 3,
+  },
+  adminBadgeText: {
+    fontSize: 9,
+    fontFamily: "PlusJakartaSans_700Bold",
+    color: "#fff",
+    letterSpacing: 0.3,
   },
 });

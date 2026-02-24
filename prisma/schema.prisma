@@ -17,6 +17,7 @@ model User {
   appleId          String?   @unique
   googleId         String?   @unique
   isPremium            Boolean   @default(false)
+  isAdmin              Boolean   @default(false)
   premiumExpiresAt     DateTime?
   stripeCustomerId     String?   @unique @db.VarChar(255)
   stripeSubscriptionId String?   @unique @db.VarChar(255)

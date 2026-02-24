@@ -3,11 +3,13 @@ import jwt from "jsonwebtoken";
 
 interface JwtPayload {
   userId: string;
+  isAdmin?: boolean;
 }
 
 declare module "fastify" {
   interface FastifyRequest {
     userId?: string;
+    isAdmin?: boolean;
   }
 }
 
@@ -29,6 +31,7 @@ export async function authMiddleware(
       { algorithms: ["HS256"] }
     ) as JwtPayload;
     request.userId = decoded.userId;
+    request.isAdmin = decoded.isAdmin ?? false;
   } catch {
     return reply.status(401).send({ error: "Invalid or expired token" });
   }

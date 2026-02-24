@@ -1,5 +1,6 @@
 import { Stack, useRouter } from "expo-router";
 import { View, Text, Image, TouchableOpacity, StyleSheet } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 import AvatarMenuButton from "../../components/AvatarMenuButton";
 
 function HeaderAddButton({ route }: { route: string }) {
@@ -10,7 +11,7 @@ function HeaderAddButton({ route }: { route: string }) {
       hitSlop={8}
       style={headerStyles.addBtn}
     >
-      <Text style={headerStyles.addBtnText}>+</Text>
+      <Ionicons name="add" size={20} color="#f5a623" />
     </TouchableOpacity>
   );
 }
@@ -23,12 +24,6 @@ const headerStyles = StyleSheet.create({
     backgroundColor: "rgba(245,166,35,0.12)",
     justifyContent: "center",
     alignItems: "center",
-  },
-  addBtnText: {
-    fontSize: 20,
-    fontFamily: "PlusJakartaSans_400Regular",
-    color: "#f5a623",
-    lineHeight: 22,
   },
   rightRow: {
     flexDirection: "row",
@@ -93,6 +88,7 @@ export default function TabLayout() {
         headerTintColor: "#f0f2f5",
         headerTitleStyle: { fontFamily: "PlusJakartaSans_300Light", color: "#f0f2f5" },
         headerShadowVisible: false,
+        headerBackButtonDisplayMode: "minimal",
         headerTitle: () => <BrandHeader />,
         headerRight: () => <AvatarMenuButton />,
         animation: "fade",
@@ -118,6 +114,7 @@ export default function TabLayout() {
         }}
       />
       <Stack.Screen name="profile" />
+      <Stack.Screen name="admin" />
     </Stack>
   );
 }

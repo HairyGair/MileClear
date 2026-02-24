@@ -5,6 +5,7 @@ export interface User {
   displayName: string | null;
   emailVerified: boolean;
   isPremium: boolean;
+  isAdmin: boolean;
   premiumExpiresAt: string | null;
   createdAt: string;
 }
@@ -365,4 +366,69 @@ export interface PeriodRecap {
   longestTripMiles: number;
   longestTripDate: string | null;
   shareText: string;
+}
+
+// Admin types
+export interface AdminAnalytics {
+  totalUsers: number;
+  activeUsers30d: number;
+  premiumUsers: number;
+  totalTrips: number;
+  totalMiles: number;
+  totalEarningsPence: number;
+  usersThisMonth: number;
+  tripsThisMonth: number;
+}
+
+export interface AdminUserSummary {
+  id: string;
+  email: string;
+  displayName: string | null;
+  emailVerified: boolean;
+  isPremium: boolean;
+  isAdmin: boolean;
+  createdAt: string;
+  _count: { trips: number; vehicles: number; earnings: number };
+}
+
+export interface AdminUserDetail extends AdminUserSummary {
+  stripeCustomerId: string | null;
+  stripeSubscriptionId: string | null;
+  premiumExpiresAt: string | null;
+  appleId: string | null;
+  googleId: string | null;
+  trips: Array<{
+    id: string;
+    distanceMiles: number;
+    classification: string;
+    startedAt: string;
+    platformTag: string | null;
+  }>;
+  vehicles: Array<{
+    id: string;
+    make: string;
+    model: string;
+    fuelType: string;
+    vehicleType: string;
+  }>;
+  totalMiles: number;
+  totalEarningsPence: number;
+}
+
+export interface AdminHealthStatus {
+  api: "ok" | "error";
+  database: "ok" | "error";
+  databaseLatencyMs: number;
+  recordCounts: {
+    users: number;
+    trips: number;
+    shifts: number;
+    vehicles: number;
+    fuelLogs: number;
+    earnings: number;
+    achievements: number;
+  };
+  uptime: number;
+  memoryUsageMb: number;
+  nodeVersion: string;
 }

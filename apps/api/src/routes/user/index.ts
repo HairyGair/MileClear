@@ -21,6 +21,7 @@ const USER_SELECT = {
   displayName: true,
   emailVerified: true,
   isPremium: true,
+  isAdmin: true,
   premiumExpiresAt: true,
   createdAt: true,
 } as const;

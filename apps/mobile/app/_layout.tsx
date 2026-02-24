@@ -49,6 +49,7 @@ function RootNavigator() {
           headerTintColor: HEADER_TINT,
           headerTitleStyle: HEADER_TITLE_STYLE,
           headerShadowVisible: false,
+          headerBackButtonDisplayMode: "minimal",
         }}
       >
         <Stack.Screen
@@ -61,7 +62,7 @@ function RootNavigator() {
         />
         <Stack.Screen
           name="trip-form"
-          options={{ headerShown: true, title: "Trip" }}
+          options={{ headerShown: true, title: "Add Trip" }}
         />
         <Stack.Screen
           name="quick-trip"
@@ -69,15 +70,15 @@ function RootNavigator() {
         />
         <Stack.Screen
           name="vehicle-form"
-          options={{ headerShown: true, title: "Vehicle" }}
+          options={{ headerShown: true, title: "Add Vehicle" }}
         />
         <Stack.Screen
           name="earning-form"
-          options={{ headerShown: true, title: "Earning" }}
+          options={{ headerShown: true, title: "Add Earning" }}
         />
         <Stack.Screen
           name="fuel-form"
-          options={{ headerShown: true, title: "Fuel Log" }}
+          options={{ headerShown: true, title: "Log Fuel" }}
         />
         <Stack.Screen
           name="profile-edit"
@@ -98,6 +99,18 @@ function RootNavigator() {
         <Stack.Screen
           name="open-banking"
           options={{ headerShown: true, title: "Open Banking" }}
+        />
+        <Stack.Screen
+          name="admin-users"
+          options={{ headerShown: true, title: "User Management" }}
+        />
+        <Stack.Screen
+          name="admin-user-detail"
+          options={{ headerShown: true, title: "User Detail" }}
+        />
+        <Stack.Screen
+          name="admin-health"
+          options={{ headerShown: true, title: "System Health" }}
         />
       </Stack>
     </>

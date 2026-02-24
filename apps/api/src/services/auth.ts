@@ -13,8 +13,8 @@ export async function verifyPassword(
   return bcrypt.compare(password, hash);
 }
 
-export function generateAccessToken(userId: string): string {
-  return jwt.sign({ userId }, process.env.JWT_SECRET!, { algorithm: "HS256", expiresIn: "15m" });
+export function generateAccessToken(userId: string, isAdmin: boolean = false): string {
+  return jwt.sign({ userId, isAdmin }, process.env.JWT_SECRET!, { algorithm: "HS256", expiresIn: "15m" });
 }
 
 export function generateRefreshToken(userId: string): string {
