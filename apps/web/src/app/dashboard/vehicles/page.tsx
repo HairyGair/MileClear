@@ -55,8 +55,9 @@ export default function VehiclesPage() {
   const loadVehicles = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await api.get<Vehicle[]>("/vehicles/");
-      setVehicles(Array.isArray(res) ? res : []);
+      const res = await api.get<{ data: Vehicle[] }>("/vehicles/");
+      const list = res.data ?? res;
+      setVehicles(Array.isArray(list) ? list : []);
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -106,12 +107,13 @@ export default function VehiclesPage() {
       const res = await api.post<any>("/vehicles/lookup", {
         registrationNumber: regLookup.replace(/\s/g, "").toUpperCase(),
       });
+      const v = res.data ?? res;
       setForm((f) => ({
         ...f,
-        make: res.make || f.make,
+        make: v.make || f.make,
         model: "",
-        year: res.yearOfManufacture ? String(res.yearOfManufacture) : f.year,
-        fuelType: res.fuelType?.toLowerCase() || f.fuelType,
+        year: v.yearOfManufacture ? String(v.yearOfManufacture) : f.year,
+        fuelType: v.fuelType?.toLowerCase() || f.fuelType,
         registrationPlate: regLookup.replace(/\s/g, "").toUpperCase(),
       }));
     } catch (err: any) {

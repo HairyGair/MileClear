@@ -46,8 +46,8 @@ export default function SettingsPage() {
 
   useEffect(() => {
     api
-      .get<BillingStatus>("/billing/status")
-      .then(setBilling)
+      .get<{ data: BillingStatus }>("/billing/status")
+      .then((res) => setBilling((res as any).data ?? res))
       .catch(() => setBilling(null))
       .finally(() => setBillingLoading(false));
   }, []);
@@ -89,8 +89,8 @@ export default function SettingsPage() {
   const handleUpgrade = async () => {
     setUpgradeLoading(true);
     try {
-      const res = await api.post<{ url: string }>("/billing/checkout");
-      window.location.href = res.url;
+      const res = await api.post<any>("/billing/checkout");
+      window.location.href = (res.data ?? res).url;
     } catch (err: any) {
       setError(err.message);
       setUpgradeLoading(false);
@@ -101,8 +101,8 @@ export default function SettingsPage() {
     setCancelLoading(true);
     try {
       await api.post("/billing/cancel");
-      const updated = await api.get<BillingStatus>("/billing/status");
-      setBilling(updated);
+      const updatedRes = await api.get<any>("/billing/status");
+      setBilling((updatedRes as any).data ?? updatedRes);
     } catch (err: any) {
       setError(err.message);
     } finally {

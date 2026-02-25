@@ -132,7 +132,7 @@ export default function EarningsPage() {
         csvContent,
         platform: csvPlatform,
       });
-      setCsvPreview(res);
+      setCsvPreview(res.data ?? res);
     } catch (err: any) {
       setError(err.message);
     } finally {

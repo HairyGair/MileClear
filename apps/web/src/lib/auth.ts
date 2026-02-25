@@ -63,6 +63,6 @@ export async function logout(): Promise<void> {
 }
 
 export async function fetchProfile(): Promise<User> {
-  const res = await api.get<User>("/user/profile");
-  return res;
+  const res = await api.get<{ data: User }>("/user/profile");
+  return (res as any).data ?? res;
 }
