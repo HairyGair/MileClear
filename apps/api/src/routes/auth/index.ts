@@ -371,6 +371,11 @@ export async function authRoutes(app: FastifyInstance) {
     const { identityToken, fullName } = parsed.data;
 
     // Verify Apple identity token against Apple's JWKS
+    // Accept both iOS app bundle ID and web Services ID as valid audiences
+    const appleAudiences = [
+      process.env.APPLE_CLIENT_ID || "com.mileclear.app",
+      process.env.APPLE_WEB_CLIENT_ID || "com.mileclear.web",
+    ];
     let payload: { sub?: string; email?: string };
     try {
       const { payload: verified } = await jwtVerify(
@@ -378,7 +383,7 @@ export async function authRoutes(app: FastifyInstance) {
         APPLE_JWKS,
         {
           issuer: "https://appleid.apple.com",
-          audience: process.env.APPLE_CLIENT_ID || "com.mileclear.app",
+          audience: appleAudiences,
         }
       );
       payload = verified as { sub?: string; email?: string };
