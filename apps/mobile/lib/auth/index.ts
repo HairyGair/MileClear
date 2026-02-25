@@ -36,11 +36,12 @@ export async function login(
 export async function register(
   email: string,
   password: string,
-  displayName?: string
+  displayName?: string,
+  agreedToTerms?: boolean
 ): Promise<void> {
   const res = await apiRequest<{ data: AuthTokens }>("/auth/register", {
     method: "POST",
-    body: JSON.stringify({ email, password, displayName }),
+    body: JSON.stringify({ email, password, displayName, agreedToTerms }),
   });
   await setTokens(res.data.accessToken, res.data.refreshToken);
 }
@@ -74,7 +75,7 @@ export async function resetPassword(
   });
 }
 
-export async function loginWithApple(): Promise<void> {
+export async function loginWithApple(agreedToTerms?: boolean): Promise<void> {
   if (Platform.OS !== "ios") {
     throw new Error("Apple Sign-In is only available on iOS");
   }
@@ -103,12 +104,13 @@ export async function loginWithApple(): Promise<void> {
             familyName: credential.fullName.familyName,
           }
         : undefined,
+      agreedToTerms,
     }),
   });
   await setTokens(res.data.accessToken, res.data.refreshToken);
 }
 
-export async function loginWithGoogle(): Promise<void> {
+export async function loginWithGoogle(agreedToTerms?: boolean): Promise<void> {
   if (!GoogleSignin) {
     throw new Error("Google Sign-In requires a development build");
   }
@@ -121,7 +123,7 @@ export async function loginWithGoogle(): Promise<void> {
 
   const res = await apiRequest<{ data: AuthTokens }>("/auth/google", {
     method: "POST",
-    body: JSON.stringify({ idToken: response.data.idToken }),
+    body: JSON.stringify({ idToken: response.data.idToken, agreedToTerms }),
   });
   await setTokens(res.data.accessToken, res.data.refreshToken);
 }

@@ -11,7 +11,9 @@ import {
   ScrollView,
   Image,
 } from "react-native";
+import { Linking } from "react-native";
 import { Link, router } from "expo-router";
+import { Ionicons } from "@expo/vector-icons";
 import { useAuth } from "../../lib/auth/context";
 
 let AppleAuthentication: typeof import("expo-apple-authentication") | null = null;
@@ -30,6 +32,7 @@ export default function RegisterScreen() {
   const [displayName, setDisplayName] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [agreedToTerms, setAgreedToTerms] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [socialLoading, setSocialLoading] = useState<string | null>(null);
@@ -37,12 +40,16 @@ export default function RegisterScreen() {
 
   const handleSocialLogin = async (provider: "apple" | "google") => {
     setError("");
+    if (!agreedToTerms) {
+      setError("You must agree to the Terms of Service and Privacy Policy");
+      return;
+    }
     setSocialLoading(provider);
     try {
       if (provider === "apple") {
-        await loginWithApple();
+        await loginWithApple(true);
       } else {
-        await loginWithGoogle();
+        await loginWithGoogle(true);
       }
     } catch (e: any) {
       if (e.code !== "ERR_REQUEST_CANCELED" && e.code !== "SIGN_IN_CANCELLED") {
@@ -68,12 +75,18 @@ export default function RegisterScreen() {
       return;
     }
 
+    if (!agreedToTerms) {
+      setError("You must agree to the Terms of Service and Privacy Policy");
+      return;
+    }
+
     setLoading(true);
     try {
       await register(
         email.trim().toLowerCase(),
         password,
         displayName.trim() || undefined,
+        true,
       );
       router.replace("/(auth)/verify");
     } catch (e: any) {
@@ -204,6 +217,35 @@ export default function RegisterScreen() {
             secureTextEntry
             editable={!loading}
           />
+
+          {/* Terms checkbox */}
+          <TouchableOpacity
+            style={s.termsRow}
+            onPress={() => setAgreedToTerms(!agreedToTerms)}
+            activeOpacity={0.7}
+          >
+            <View style={[s.checkbox, agreedToTerms && s.checkboxChecked]}>
+              {agreedToTerms && (
+                <Ionicons name="checkmark" size={14} color="#030712" />
+              )}
+            </View>
+            <Text style={s.termsText}>
+              I agree to the{" "}
+              <Text
+                style={s.termsLink}
+                onPress={() => Linking.openURL("https://mileclear.com/terms")}
+              >
+                Terms of Service
+              </Text>
+              {" "}and{" "}
+              <Text
+                style={s.termsLink}
+                onPress={() => Linking.openURL("https://mileclear.com/privacy")}
+              >
+                Privacy Policy
+              </Text>
+            </Text>
+          </TouchableOpacity>
 
           <TouchableOpacity
             style={[s.button, loading && s.buttonDisabled]}
@@ -361,6 +403,39 @@ const s = StyleSheet.create({
   link: {
     color: AMBER,
     fontSize: 14,
+    fontFamily: "PlusJakartaSans_600SemiBold",
+  },
+  // Terms checkbox
+  termsRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    marginBottom: 18,
+    marginTop: 4,
+  },
+  checkbox: {
+    width: 22,
+    height: 22,
+    borderRadius: 6,
+    borderWidth: 1.5,
+    borderColor: "rgba(255,255,255,0.2)",
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: 10,
+    marginTop: 1,
+  },
+  checkboxChecked: {
+    backgroundColor: AMBER,
+    borderColor: AMBER,
+  },
+  termsText: {
+    flex: 1,
+    fontSize: 13,
+    color: TEXT_2,
+    fontFamily: "PlusJakartaSans_400Regular",
+    lineHeight: 20,
+  },
+  termsLink: {
+    color: AMBER,
     fontFamily: "PlusJakartaSans_600SemiBold",
   },
   // Social buttons

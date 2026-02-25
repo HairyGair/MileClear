@@ -14,6 +14,7 @@ export default function RegisterPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [agreedToTerms, setAgreedToTerms] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -31,10 +32,15 @@ export default function RegisterPage() {
       return;
     }
 
+    if (!agreedToTerms) {
+      setError("You must agree to the Terms of Service and Privacy Policy");
+      return;
+    }
+
     setLoading(true);
 
     try {
-      await register(email, password, displayName || undefined);
+      await register(email, password, displayName || undefined, true);
       router.push("/dashboard");
     } catch (err: any) {
       setError(err.message || "Registration failed");
@@ -103,6 +109,23 @@ export default function RegisterPage() {
             required
             autoComplete="new-password"
           />
+          <label className="auth-form__terms">
+            <input
+              type="checkbox"
+              checked={agreedToTerms}
+              onChange={(e) => setAgreedToTerms(e.target.checked)}
+            />
+            <span>
+              I agree to the{" "}
+              <a href="/terms" target="_blank" rel="noopener noreferrer">
+                Terms of Service
+              </a>{" "}
+              and{" "}
+              <a href="/privacy" target="_blank" rel="noopener noreferrer">
+                Privacy Policy
+              </a>
+            </span>
+          </label>
           <Button
             type="submit"
             variant="primary"
@@ -116,6 +139,7 @@ export default function RegisterPage() {
         </form>
 
         <OAuthButtons
+          agreedToTerms={agreedToTerms}
           onSuccess={() => router.push("/dashboard")}
           onError={(msg) => setError(msg)}
         />

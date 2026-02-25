@@ -20,6 +20,7 @@ const registerSchema = z.object({
   email: z.string().email("Invalid email address"),
   password: z.string().min(8, "Password must be at least 8 characters").max(128),
   displayName: z.string().max(100).optional(),
+  agreedToTerms: z.literal(true, { errorMap: () => ({ message: "You must agree to the Terms of Service and Privacy Policy" }) }),
 });
 
 const loginSchema = z.object({
@@ -57,10 +58,12 @@ const appleAuthSchema = z.object({
       familyName: z.string().nullish(),
     })
     .optional(),
+  agreedToTerms: z.boolean().optional(),
 });
 
 const googleAuthSchema = z.object({
   idToken: z.string().min(1, "ID token is required"),
+  agreedToTerms: z.boolean().optional(),
 });
 
 const APPLE_JWKS = createRemoteJWKSet(
@@ -105,7 +108,7 @@ export async function authRoutes(app: FastifyInstance) {
 
     const passwordHash = await hashPassword(password);
     const user = await prisma.user.create({
-      data: { email, passwordHash, displayName },
+      data: { email, passwordHash, displayName, termsAcceptedAt: new Date() },
     });
 
     const accessToken = generateAccessToken(user.id);
@@ -373,7 +376,7 @@ export async function authRoutes(app: FastifyInstance) {
       return reply.status(400).send({ error: parsed.error.errors[0].message });
     }
 
-    const { identityToken, fullName } = parsed.data;
+    const { identityToken, fullName, agreedToTerms } = parsed.data;
 
     // Verify Apple identity token against Apple's JWKS
     // Accept both iOS app bundle ID and web Services ID as valid audiences
@@ -424,12 +427,16 @@ export async function authRoutes(app: FastifyInstance) {
     }
 
     if (!user) {
+      if (!agreedToTerms) {
+        return reply.status(400).send({ error: "You must agree to the Terms of Service and Privacy Policy" });
+      }
       // Create new user
       user = await prisma.user.create({
         data: {
           email: email || `apple_${appleId}@private.mileclear.com`,
           appleId,
           emailVerified: true,
+          termsAcceptedAt: new Date(),
           ...(displayName ? { displayName } : {}),
         },
       });
@@ -451,7 +458,7 @@ export async function authRoutes(app: FastifyInstance) {
       return reply.status(400).send({ error: parsed.error.errors[0].message });
     }
 
-    const { idToken } = parsed.data;
+    const { idToken, agreedToTerms } = parsed.data;
     const googleClientId = process.env.GOOGLE_CLIENT_ID;
 
     if (!googleClientId) {
@@ -498,6 +505,9 @@ export async function authRoutes(app: FastifyInstance) {
     }
 
     if (!user) {
+      if (!agreedToTerms) {
+        return reply.status(400).send({ error: "You must agree to the Terms of Service and Privacy Policy" });
+      }
       if (!email) {
         return reply
           .status(400)
@@ -509,6 +519,7 @@ export async function authRoutes(app: FastifyInstance) {
           email,
           googleId,
           emailVerified: true,
+          termsAcceptedAt: new Date(),
           ...(displayName ? { displayName } : {}),
         },
       });
@@ -623,6 +634,7 @@ export async function authRoutes(app: FastifyInstance) {
           email: email || `apple_${appleId}@private.mileclear.com`,
           appleId,
           emailVerified: true,
+          termsAcceptedAt: new Date(),
           ...(displayName ? { displayName } : {}),
         },
       });

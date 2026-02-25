@@ -21,6 +21,7 @@ model User {
   premiumExpiresAt     DateTime?
   stripeCustomerId     String?   @unique @db.VarChar(255)
   stripeSubscriptionId String?   @unique @db.VarChar(255)
+  termsAcceptedAt      DateTime?
   createdAt            DateTime  @default(now())
   updatedAt            DateTime  @updatedAt
 

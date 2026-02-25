@@ -21,19 +21,21 @@ export async function login(email: string, password: string): Promise<User> {
 export async function register(
   email: string,
   password: string,
-  displayName?: string
+  displayName?: string,
+  agreedToTerms?: boolean
 ): Promise<User> {
   const res = await api.post<AuthResponse>("/auth/register", {
     email,
     password,
     displayName,
+    agreedToTerms,
   });
   handleTokens(res);
   return fetchProfile();
 }
 
-export async function loginWithGoogle(idToken: string): Promise<User> {
-  const res = await api.post<AuthResponse>("/auth/google", { idToken });
+export async function loginWithGoogle(idToken: string, agreedToTerms?: boolean): Promise<User> {
+  const res = await api.post<AuthResponse>("/auth/google", { idToken, agreedToTerms });
   handleTokens(res);
   return fetchProfile();
 }

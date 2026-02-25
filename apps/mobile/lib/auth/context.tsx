@@ -18,9 +18,9 @@ interface AuthContextValue {
   isLoading: boolean;
   isAuthenticated: boolean;
   login: (email: string, password: string) => Promise<void>;
-  loginWithApple: () => Promise<void>;
-  loginWithGoogle: () => Promise<void>;
-  register: (email: string, password: string, displayName?: string) => Promise<void>;
+  loginWithApple: (agreedToTerms?: boolean) => Promise<void>;
+  loginWithGoogle: (agreedToTerms?: boolean) => Promise<void>;
+  register: (email: string, password: string, displayName?: string, agreedToTerms?: boolean) => Promise<void>;
   logout: () => Promise<void>;
   completeAuth: () => void;
   sendVerificationCode: () => Promise<void>;
@@ -46,18 +46,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setIsAuthenticated(true);
   }, []);
 
-  const loginWithApple = useCallback(async () => {
-    await authLoginWithApple();
+  const loginWithApple = useCallback(async (agreedToTerms?: boolean) => {
+    await authLoginWithApple(agreedToTerms);
     setIsAuthenticated(true);
   }, []);
 
-  const loginWithGoogle = useCallback(async () => {
-    await authLoginWithGoogle();
+  const loginWithGoogle = useCallback(async (agreedToTerms?: boolean) => {
+    await authLoginWithGoogle(agreedToTerms);
     setIsAuthenticated(true);
   }, []);
 
-  const register = useCallback(async (email: string, password: string, displayName?: string) => {
-    await authRegister(email, password, displayName);
+  const register = useCallback(async (email: string, password: string, displayName?: string, agreedToTerms?: boolean) => {
+    await authRegister(email, password, displayName, agreedToTerms);
     // Don't set isAuthenticated — user stays in auth group for verify screen
   }, []);
 

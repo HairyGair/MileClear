@@ -1264,6 +1264,34 @@
   gap: 1rem;
 }
 
+.auth-form__terms {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  cursor: pointer;
+  font-size: 0.8125rem;
+  color: var(--text-muted);
+  line-height: 1.5;
+}
+
+.auth-form__terms input[type="checkbox"] {
+  margin-top: 0.2rem;
+  accent-color: var(--amber-400);
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+}
+
+.auth-form__terms a {
+  color: var(--amber-400);
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.auth-form__terms a:hover {
+  text-decoration: underline;
+}
+
 .auth-form__submit {
   margin-top: 0.5rem;
 }
