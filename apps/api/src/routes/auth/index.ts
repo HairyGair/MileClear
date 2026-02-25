@@ -514,6 +514,16 @@ export async function authRoutes(app: FastifyInstance) {
     return reply.status(200).send({ data: { accessToken, refreshToken } });
   });
 
+  // Parse application/x-www-form-urlencoded for Apple callback
+  app.addContentTypeParser(
+    "application/x-www-form-urlencoded",
+    { parseAs: "string" },
+    (req, body, done) => {
+      const parsed = Object.fromEntries(new URLSearchParams(body as string));
+      done(null, parsed);
+    }
+  );
+
   // GET /apple/web — Redirect to Apple's auth page (for web popup flow)
   app.get("/apple/web", async (request, reply) => {
     const webClientId = process.env.APPLE_WEB_CLIENT_ID || "com.mileclear.web";
