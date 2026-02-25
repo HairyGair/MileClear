@@ -1,16 +1,22 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { api } from "../../lib/api";
+import { PageHeader } from "../../components/dashboard/PageHeader";
+import { Card } from "../../components/ui/Card";
+import { Badge } from "../../components/ui/Badge";
+import { DashboardSkeleton } from "../../components/ui/LoadingSkeleton";
 import type {
   GamificationStats,
   AchievementWithMeta,
   PeriodRecap,
+  Trip,
+  PaginatedResponse,
 } from "@mileclear/shared";
 import {
   ACHIEVEMENT_TYPES,
   ACHIEVEMENT_META,
-  type AchievementType,
 } from "@mileclear/shared";
 
 function formatPence(pence: number): string {
@@ -18,27 +24,30 @@ function formatPence(pence: number): string {
 }
 
 function formatMiles(miles: number): string {
-  return `${miles.toLocaleString("en-GB", { maximumFractionDigits: 1 })} mi`;
+  return miles.toLocaleString("en-GB", { maximumFractionDigits: 1 });
 }
 
 export default function DashboardPage() {
   const [stats, setStats] = useState<GamificationStats | null>(null);
   const [achievements, setAchievements] = useState<AchievementWithMeta[]>([]);
   const [recap, setRecap] = useState<PeriodRecap | null>(null);
+  const [recentTrips, setRecentTrips] = useState<Trip[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     async function load() {
       try {
-        const [statsRes, achRes, recapRes] = await Promise.all([
+        const [statsRes, achRes, recapRes, tripsRes] = await Promise.all([
           api.get<{ data: GamificationStats }>("/gamification/stats"),
           api.get<{ data: AchievementWithMeta[] }>("/gamification/achievements"),
           api.get<{ data: PeriodRecap }>("/gamification/recap?period=weekly"),
+          api.get<PaginatedResponse<Trip>>("/trips/?pageSize=5"),
         ]);
         setStats(statsRes.data);
         setAchievements(achRes.data);
         setRecap(recapRes.data);
+        setRecentTrips(tripsRes.data);
       } catch (err: any) {
         setError(err.message || "Failed to load dashboard");
       } finally {
@@ -48,51 +57,37 @@ export default function DashboardPage() {
     load();
   }, []);
 
-  if (loading) {
-    return (
-      <main style={{ padding: "2rem", color: "#fff" }}>
-        <p>Loading dashboard...</p>
-      </main>
-    );
-  }
+  if (loading) return <DashboardSkeleton />;
 
   if (error) {
     return (
-      <main style={{ padding: "2rem", color: "#fff" }}>
-        <p style={{ color: "#ef4444" }}>{error}</p>
-      </main>
+      <>
+        <PageHeader title="Dashboard" />
+        <div className="alert alert--error">{error}</div>
+      </>
     );
   }
 
   const earnedTypes = new Set(achievements.map((a) => a.type));
 
   return (
-    <main style={{ padding: "2rem", maxWidth: 900, margin: "0 auto" }}>
-      <h1 style={{ fontSize: "1.5rem", fontWeight: 700, color: "#fff", marginBottom: "1.5rem" }}>
-        Dashboard
-      </h1>
+    <>
+      <PageHeader title="Dashboard" subtitle="Your driving overview" />
 
-      {/* Tax Savings Banner */}
+      {/* Tax Deduction Hero */}
       {stats && (
-        <div
-          style={{
-            background: "#111827",
-            borderRadius: 12,
-            padding: "1.25rem",
-            marginBottom: "1.5rem",
-            border: "1px solid rgba(245, 158, 11, 0.3)",
-          }}
-        >
-          <div style={{ fontSize: "0.75rem", color: "#f59e0b", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 4 }}>
+        <div className="hero-card" style={{ marginBottom: "var(--dash-gap)" }}>
+          <div className="hero-card__label">
             Tax Deduction ({stats.taxYear})
           </div>
-          <div style={{ fontSize: "2rem", fontWeight: 700, color: "#f59e0b", marginBottom: 2 }}>
-            {formatPence(stats.deductionPence)}
-          </div>
-          <div style={{ fontSize: "0.875rem", color: "#9ca3af" }}>
-            {formatMiles(stats.businessMiles)} business miles
+          <div className="hero-card__value">{formatPence(stats.deductionPence)}</div>
+          <div className="hero-card__meta">
+            <span>{formatMiles(stats.businessMiles)} business miles</span>
             {stats.currentStreakDays > 0 && (
-              <span style={{ marginLeft: 16, color: "#ef4444" }}>
+              <span className="hero-card__streak">
+                <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                  <path d="M7 1L8.5 5.5L13 7L8.5 8.5L7 13L5.5 8.5L1 7L5.5 5.5L7 1Z" fill="currentColor" />
+                </svg>
                 {stats.currentStreakDays} day streak
               </span>
             )}
@@ -102,35 +97,16 @@ export default function DashboardPage() {
 
       {/* Stats Grid */}
       {stats && (
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(4, 1fr)",
-            gap: 12,
-            marginBottom: "1.5rem",
-          }}
-        >
+        <div className="stats-grid" style={{ marginBottom: "var(--dash-gap)" }}>
           {[
-            { label: "Today", value: formatMiles(stats.todayMiles) },
-            { label: "This Week", value: formatMiles(stats.weekMiles) },
+            { label: "Today", value: `${formatMiles(stats.todayMiles)} mi` },
+            { label: "This Week", value: `${formatMiles(stats.weekMiles)} mi` },
             { label: "Total Trips", value: String(stats.totalTrips) },
             { label: "Total Shifts", value: String(stats.totalShifts) },
           ].map((item) => (
-            <div
-              key={item.label}
-              style={{
-                background: "#111827",
-                borderRadius: 12,
-                padding: "1rem",
-                textAlign: "center",
-              }}
-            >
-              <div style={{ fontSize: "1.5rem", fontWeight: 700, color: "#fff", marginBottom: 4 }}>
-                {item.value}
-              </div>
-              <div style={{ fontSize: "0.8rem", color: "#9ca3af" }}>
-                {item.label}
-              </div>
+            <div key={item.label} className="stat-card">
+              <div className="stat-card__value">{item.value}</div>
+              <div className="stat-card__label">{item.label}</div>
             </div>
           ))}
         </div>
@@ -138,67 +114,94 @@ export default function DashboardPage() {
 
       {/* Weekly Recap */}
       {recap && (
-        <div
-          style={{
-            background: "#111827",
-            borderRadius: 12,
-            padding: "1.25rem",
-            marginBottom: "1.5rem",
-          }}
+        <Card
+          title="Weekly Recap"
+          subtitle={recap.label}
+          className=""
+          style={{ marginBottom: "var(--dash-gap)" }}
         >
-          <div style={{ fontSize: "1rem", fontWeight: 600, color: "#fff", marginBottom: 4 }}>
-            Weekly Recap
-          </div>
-          <div style={{ fontSize: "0.8rem", color: "#9ca3af", marginBottom: 12 }}>
-            {recap.label}
-          </div>
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(3, 1fr)",
-              gap: 12,
-              marginBottom: 12,
-            }}
-          >
-            <div style={{ textAlign: "center" }}>
-              <div style={{ fontSize: "1.25rem", fontWeight: 700, color: "#fff" }}>
-                {formatMiles(recap.totalMiles)}
-              </div>
-              <div style={{ fontSize: "0.75rem", color: "#9ca3af" }}>Total</div>
+          <div className="recap-grid">
+            <div className="recap-stat">
+              <div className="recap-stat__value">{formatMiles(recap.totalMiles)} mi</div>
+              <div className="recap-stat__label">Total</div>
             </div>
-            <div style={{ textAlign: "center" }}>
-              <div style={{ fontSize: "1.25rem", fontWeight: 700, color: "#fff" }}>
-                {recap.totalTrips}
-              </div>
-              <div style={{ fontSize: "0.75rem", color: "#9ca3af" }}>Trips</div>
+            <div className="recap-stat">
+              <div className="recap-stat__value">{recap.totalTrips}</div>
+              <div className="recap-stat__label">Trips</div>
             </div>
-            <div style={{ textAlign: "center" }}>
-              <div style={{ fontSize: "1.25rem", fontWeight: 700, color: "#fff" }}>
-                {formatPence(recap.deductionPence)}
-              </div>
-              <div style={{ fontSize: "0.75rem", color: "#9ca3af" }}>Deduction</div>
+            <div className="recap-stat">
+              <div className="recap-stat__value">{formatPence(recap.deductionPence)}</div>
+              <div className="recap-stat__label">Deduction</div>
             </div>
           </div>
           {recap.busiestDayLabel && (
-            <div style={{ fontSize: "0.8rem", color: "#9ca3af" }}>
-              Busiest day: {recap.busiestDayLabel} ({formatMiles(recap.busiestDayMiles)})
+            <div className="recap-note">
+              Busiest day: {recap.busiestDayLabel} ({formatMiles(recap.busiestDayMiles)} mi)
             </div>
           )}
-        </div>
+        </Card>
       )}
 
-      {/* Achievements Grid */}
-      <div style={{ marginBottom: "1.5rem" }}>
-        <div style={{ fontSize: "1rem", fontWeight: 600, color: "#fff", marginBottom: 12 }}>
-          Achievements ({achievements.length}/{ACHIEVEMENT_TYPES.length})
-        </div>
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fill, minmax(140px, 1fr))",
-            gap: 10,
-          }}
+      {/* Recent Trips */}
+      {recentTrips.length > 0 && (
+        <Card
+          title="Recent Trips"
+          action={
+            <Link href="/dashboard/trips" className="btn btn--ghost btn--sm">
+              View all
+            </Link>
+          }
+          style={{ marginBottom: "var(--dash-gap)" }}
         >
+          <div className="table-wrap" style={{ border: "none", background: "transparent" }}>
+            <table className="table">
+              <thead>
+                <tr>
+                  <th>Date</th>
+                  <th>Route</th>
+                  <th>Distance</th>
+                  <th>Type</th>
+                </tr>
+              </thead>
+              <tbody>
+                {recentTrips.map((trip) => (
+                  <tr key={trip.id}>
+                    <td>
+                      {new Date(trip.startedAt).toLocaleDateString("en-GB", {
+                        day: "numeric",
+                        month: "short",
+                      })}
+                    </td>
+                    <td style={{ maxWidth: 220, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      {trip.startAddress || "Unknown"} → {trip.endAddress || "Unknown"}
+                    </td>
+                    <td>{trip.distanceMiles?.toFixed(1) || "0"} mi</td>
+                    <td>
+                      <Badge variant={trip.classification === "business" ? "business" : "personal"}>
+                        {trip.classification}
+                      </Badge>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </Card>
+      )}
+
+      {/* Achievements */}
+      <Card
+        title={`Achievements (${achievements.length}/${ACHIEVEMENT_TYPES.length})`}
+        action={
+          achievements.length > 8 ? (
+            <span style={{ fontSize: "0.8125rem", color: "var(--text-muted)" }}>
+              Scroll to see all
+            </span>
+          ) : undefined
+        }
+        style={{ marginBottom: "var(--dash-gap)" }}
+      >
+        <div className="achievement-grid">
           {ACHIEVEMENT_TYPES.map((type) => {
             const meta = ACHIEVEMENT_META[type];
             const isEarned = earnedTypes.has(type);
@@ -207,37 +210,13 @@ export default function DashboardPage() {
             return (
               <div
                 key={type}
-                style={{
-                  background: "#111827",
-                  borderRadius: 10,
-                  padding: "0.75rem",
-                  textAlign: "center",
-                  opacity: isEarned ? 1 : 0.35,
-                }}
+                className={`achievement ${isEarned ? "achievement--earned" : "achievement--locked"}`}
               >
-                <div style={{ fontSize: "1.75rem", marginBottom: 4 }}>
-                  {meta.emoji}
-                </div>
-                <div
-                  style={{
-                    fontSize: "0.8rem",
-                    fontWeight: 600,
-                    color: isEarned ? "#fff" : "#6b7280",
-                    marginBottom: 2,
-                  }}
-                >
-                  {meta.label}
-                </div>
-                <div
-                  style={{
-                    fontSize: "0.7rem",
-                    color: isEarned ? "#9ca3af" : "#4b5563",
-                  }}
-                >
-                  {meta.description}
-                </div>
+                <div className="achievement__emoji">{meta.emoji}</div>
+                <div className="achievement__name">{meta.label}</div>
+                <div className="achievement__desc">{meta.description}</div>
                 {isEarned && ach && (
-                  <div style={{ fontSize: "0.65rem", color: "#f59e0b", marginTop: 4 }}>
+                  <div className="achievement__date">
                     {new Date(ach.achievedAt).toLocaleDateString("en-GB", {
                       day: "numeric",
                       month: "short",
@@ -249,47 +228,26 @@ export default function DashboardPage() {
             );
           })}
         </div>
-      </div>
+      </Card>
 
       {/* Personal Records */}
       {stats && stats.personalRecords.mostMilesInDay > 0 && (
-        <div>
-          <div style={{ fontSize: "1rem", fontWeight: 600, color: "#fff", marginBottom: 12 }}>
-            Personal Records
-          </div>
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(4, 1fr)",
-              gap: 10,
-            }}
-          >
+        <Card title="Personal Records">
+          <div className="stats-grid">
             {[
               { label: "Best Day", value: `${stats.personalRecords.mostMilesInDay.toFixed(1)} mi` },
               { label: "Most Trips/Shift", value: String(stats.personalRecords.mostTripsInShift) },
               { label: "Longest Trip", value: `${stats.personalRecords.longestSingleTrip.toFixed(1)} mi` },
               { label: "Best Streak", value: `${stats.personalRecords.longestStreakDays}d` },
             ].map((item) => (
-              <div
-                key={item.label}
-                style={{
-                  background: "#111827",
-                  borderRadius: 10,
-                  padding: "0.75rem",
-                  textAlign: "center",
-                }}
-              >
-                <div style={{ fontSize: "1.25rem", fontWeight: 700, color: "#fff", marginBottom: 2 }}>
-                  {item.value}
-                </div>
-                <div style={{ fontSize: "0.7rem", color: "#9ca3af" }}>
-                  {item.label}
-                </div>
+              <div key={item.label} className="stat-card">
+                <div className="stat-card__value stat-card__value--amber">{item.value}</div>
+                <div className="stat-card__label">{item.label}</div>
               </div>
             ))}
           </div>
-        </div>
+        </Card>
       )}
-    </main>
+    </>
   );
 }
