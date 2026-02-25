@@ -1,9 +1,10 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { useState, useEffect, type FormEvent } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { login } from "../../../lib/auth";
+import { login, fetchProfile } from "../../../lib/auth";
+import { setTokens } from "../../../lib/api";
 import { Input } from "../../../components/ui/Input";
 import { Button } from "../../../components/ui/Button";
 import { OAuthButtons } from "../../../components/ui/OAuthButtons";
@@ -14,6 +15,31 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+
+  // Handle Apple Sign-In redirect (tokens in URL hash)
+  useEffect(() => {
+    const hash = window.location.hash;
+    if (hash.includes("apple_token=")) {
+      const params = new URLSearchParams(hash.slice(1));
+      const accessToken = params.get("apple_token");
+      const refreshToken = params.get("apple_refresh");
+      // Clear hash from URL
+      window.history.replaceState(null, "", window.location.pathname);
+      if (accessToken && refreshToken) {
+        setTokens(accessToken, refreshToken);
+        fetchProfile()
+          .then(() => router.push("/dashboard"))
+          .catch(() => setError("Apple sign-in failed"));
+      }
+    }
+    // Handle Apple error
+    const searchParams = new URLSearchParams(window.location.search);
+    const appleError = searchParams.get("apple_error");
+    if (appleError) {
+      setError(appleError);
+      window.history.replaceState(null, "", window.location.pathname);
+    }
+  }, [router]);
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();

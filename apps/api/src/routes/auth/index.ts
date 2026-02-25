@@ -546,17 +546,13 @@ export async function authRoutes(app: FastifyInstance) {
 
   // POST /apple/callback — Apple redirects here after auth (form_post)
   app.post("/apple/callback", async (request, reply) => {
+    const webOrigin = process.env.CORS_ORIGIN?.split(",")[0] || "https://mileclear.com";
     const body = request.body as Record<string, string>;
     const idToken = body?.id_token;
-    const userJSON = body?.user; // Apple sends user info as JSON string on first sign-in
+    const userJSON = body?.user;
 
     if (!idToken) {
-      return reply.type("text/html").send(`
-        <html><body><script>
-          window.opener.postMessage({ type: "apple-auth-error", error: "No identity token received" }, "*");
-          window.close();
-        </script></body></html>
-      `);
+      return reply.redirect(`${webOrigin}/login?apple_error=${encodeURIComponent("No identity token received")}`);
     }
 
     // Parse user info if provided (only sent on first authorization)
@@ -573,7 +569,7 @@ export async function authRoutes(app: FastifyInstance) {
       }
     }
 
-    // Verify the token (same logic as POST /apple)
+    // Verify the token
     const appleAudiences = [
       process.env.APPLE_CLIENT_ID || "com.mileclear.app",
       process.env.APPLE_WEB_CLIENT_ID || "com.mileclear.web",
@@ -590,23 +586,13 @@ export async function authRoutes(app: FastifyInstance) {
       );
       payload = verified as { sub?: string; email?: string };
     } catch {
-      return reply.type("text/html").send(`
-        <html><body><script>
-          window.opener.postMessage({ type: "apple-auth-error", error: "Invalid Apple identity token" }, "*");
-          window.close();
-        </script></body></html>
-      `);
+      return reply.redirect(`${webOrigin}/login?apple_error=${encodeURIComponent("Invalid Apple identity token")}`);
     }
 
     const appleId = payload.sub;
     const email = payload.email;
     if (!appleId) {
-      return reply.type("text/html").send(`
-        <html><body><script>
-          window.opener.postMessage({ type: "apple-auth-error", error: "Apple token missing subject" }, "*");
-          window.close();
-        </script></body></html>
-      `);
+      return reply.redirect(`${webOrigin}/login?apple_error=${encodeURIComponent("Apple token missing subject")}`);
     }
 
     const displayName = [fullName?.givenName, fullName?.familyName]
@@ -639,18 +625,7 @@ export async function authRoutes(app: FastifyInstance) {
     const refreshToken = generateRefreshToken(user.id);
     await storeRefreshToken(user.id, refreshToken);
 
-    const webOrigin = process.env.CORS_ORIGIN?.split(",")[0] || "https://mileclear.com";
-
-    // Send tokens back to the opener window via postMessage, then close the popup
-    return reply.type("text/html").send(`
-      <html><body><script>
-        window.opener.postMessage({
-          type: "apple-auth-success",
-          accessToken: ${JSON.stringify(accessToken)},
-          refreshToken: ${JSON.stringify(refreshToken)}
-        }, ${JSON.stringify(webOrigin)});
-        window.close();
-      </script></body></html>
-    `);
+    // Redirect back to web app with tokens in URL hash (not exposed to server logs)
+    return reply.redirect(`${webOrigin}/login#apple_token=${encodeURIComponent(accessToken)}&apple_refresh=${encodeURIComponent(refreshToken)}`);
   });
 }
