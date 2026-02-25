@@ -7,6 +7,7 @@
     "development": {
       "developmentClient": true,
       "distribution": "internal",
+      "prebuildCommand": "cd ../../packages/shared && npx tsc",
       "ios": {
         "simulator": false
       },
@@ -19,6 +20,7 @@
     "development-simulator": {
       "developmentClient": true,
       "distribution": "internal",
+      "prebuildCommand": "cd ../../packages/shared && npx tsc",
       "ios": {
         "simulator": true
       },
@@ -30,6 +32,7 @@
     },
     "preview": {
       "distribution": "internal",
+      "prebuildCommand": "cd ../../packages/shared && npx tsc",
       "env": {
         "EXPO_PUBLIC_API_URL": "https://api.mileclear.com",
         "EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID": "194042004-v652n998vp3qcar8krul6516vdpske3e.apps.googleusercontent.com",
@@ -38,6 +41,7 @@
     },
     "production": {
       "distribution": "store",
+      "prebuildCommand": "cd ../../packages/shared && npx tsc",
       "env": {
         "EXPO_PUBLIC_API_URL": "https://api.mileclear.com",
         "EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID": "194042004-v652n998vp3qcar8krul6516vdpske3e.apps.googleusercontent.com",
