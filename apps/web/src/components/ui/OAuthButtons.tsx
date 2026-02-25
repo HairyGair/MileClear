@@ -104,9 +104,11 @@ export function OAuthButtons({ onSuccess, onError }: OAuthButtonsProps) {
     setAppleLoading(true);
     try {
       window.AppleID.auth.init({
-        clientId: process.env.NEXT_PUBLIC_APPLE_CLIENT_ID || "com.mileclear.app",
+        clientId: process.env.NEXT_PUBLIC_APPLE_CLIENT_ID || "com.mileclear.web",
         scope: "name email",
         redirectURI: window.location.origin + "/login",
+        state: crypto.randomUUID(),
+        nonce: crypto.randomUUID(),
         usePopup: true,
       });
 
