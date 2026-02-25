@@ -50,12 +50,60 @@ const NAV_ITEMS = [
     ),
   },
   {
+    href: "/dashboard/fuel",
+    label: "Fuel",
+    icon: (
+      <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+        <path d="M3 15V5l2-3h6l2 3v10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+        <path d="M3 9h10M15 7v8M13 7h2" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+      </svg>
+    ),
+  },
+  {
+    href: "/dashboard/shifts",
+    label: "Shifts",
+    icon: (
+      <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+        <circle cx="9" cy="9" r="7" stroke="currentColor" strokeWidth="1.5" />
+        <path d="M9 5v4l2.5 1.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+      </svg>
+    ),
+  },
+  {
     href: "/dashboard/exports",
     label: "Exports",
     icon: (
       <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
         <path d="M9 2v9m0 0l3-3m-3 3L6 8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
         <path d="M2 13v2a1 1 0 001 1h12a1 1 0 001-1v-2" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+      </svg>
+    ),
+  },
+  {
+    href: "/dashboard/tax",
+    label: "Tax Summary",
+    icon: (
+      <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+        <rect x="2" y="3" width="14" height="12" rx="1.5" stroke="currentColor" strokeWidth="1.5" />
+        <path d="M2 7h14M6 3v12" stroke="currentColor" strokeWidth="1.5" />
+      </svg>
+    ),
+  },
+  {
+    href: "/dashboard/analytics",
+    label: "Analytics",
+    icon: (
+      <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+        <path d="M14 14V8M10 14V5M6 14V10M2 14V12" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+      </svg>
+    ),
+  },
+  {
+    href: "/dashboard/feedback",
+    label: "Feedback",
+    icon: (
+      <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+        <path d="M2 3h14v10H6l-4 3V3z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
       </svg>
     ),
   },
@@ -153,6 +201,23 @@ export function Sidebar({ open, onClose }: SidebarProps) {
         </nav>
 
         <div className="sidebar__bottom">
+          {user?.isAdmin && (
+            <Link
+              href="/dashboard/admin"
+              className={`sidebar__link ${
+                isActive("/dashboard/admin") ? "sidebar__link--active" : ""
+              }`}
+              onClick={onClose}
+              style={{ marginBottom: "0.5rem" }}
+            >
+              <span className="sidebar__link-icon">
+                <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+                  <path d="M9 2l2 4h4l-3 3 1 4-4-2-4 2 1-4-3-3h4l2-4z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              </span>
+              Admin
+            </Link>
+          )}
           <button className="sidebar__logout" onClick={handleLogout}>
             <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
               <path
