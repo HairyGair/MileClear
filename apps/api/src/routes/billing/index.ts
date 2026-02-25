@@ -3,6 +3,7 @@ import { FastifyInstance } from "fastify";
 import { authMiddleware } from "../../middleware/auth.js";
 import { prisma } from "../../lib/prisma.js";
 import { stripe } from "../../lib/stripe.js";
+import { sendPushNotification } from "../../lib/push.js";
 
 function getPeriodEnd(sub: Stripe.Subscription): number {
   return sub.items.data[0]?.current_period_end ?? 0;
@@ -172,6 +173,27 @@ export async function billingRoutes(app: FastifyInstance) {
             : invoice.customer?.id;
         app.log.warn(`Payment failed for customer ${customerId}`);
         // Don't revoke premium — Stripe retries automatically
+
+        // Notify the user via push if they have a token registered
+        if (customerId) {
+          try {
+            const user = await prisma.user.findFirst({
+              where: { stripeCustomerId: customerId },
+              select: { pushToken: true },
+            });
+            if (user?.pushToken) {
+              await sendPushNotification({
+                to: user.pushToken,
+                title: "Payment Failed",
+                body: "Your MileClear Pro payment didn't go through. Update your payment method to keep Pro features.",
+                sound: "default",
+                data: { type: "payment_failed" },
+              });
+            }
+          } catch (err) {
+            app.log.error({ err }, "Failed to send payment_failed push notification");
+          }
+        }
         break;
       }
     }

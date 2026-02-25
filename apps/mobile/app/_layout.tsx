@@ -15,7 +15,13 @@ import { SyncProvider } from "../lib/sync/context";
 import { ModeProvider } from "../lib/mode/context";
 import { SyncStatusBar } from "../components/SyncStatusBar";
 import "../lib/tracking/detection"; // Register drive detection TaskManager task
-import { requestNotificationPermissions, setupNotificationResponseHandler } from "../lib/notifications/index";
+import {
+  requestNotificationPermissions,
+  setupNotificationResponseHandler,
+  registerForPushNotifications,
+} from "../lib/notifications/index";
+import { setupNotificationChannels, scheduleWeeklyMileageSummary, scheduleTaxYearDeadlineReminder, checkUnclassifiedTripsNudge, checkStreakAtRisk, checkLongRunningShift } from "../lib/notifications/scheduler";
+import { registerPushToken } from "../lib/api/notifications";
 import { startDriveDetection } from "../lib/tracking/detection";
 
 const HEADER_STYLE = { backgroundColor: "#030712" } as const;
@@ -28,6 +34,22 @@ function RootNavigator() {
   useEffect(() => {
     if (isAuthenticated && !isLoading) {
       startDriveDetection();
+
+      // Register push token and sync to API
+      registerForPushNotifications()
+        .then((token) => {
+          if (token) return registerPushToken(token);
+        })
+        .catch(console.error);
+
+      // Schedule recurring and one-off local notifications
+      scheduleWeeklyMileageSummary().catch(console.error);
+      scheduleTaxYearDeadlineReminder().catch(console.error);
+
+      // Check conditions that fire immediately if met
+      checkUnclassifiedTripsNudge().catch(console.error);
+      checkStreakAtRisk().catch(console.error);
+      checkLongRunningShift().catch(console.error);
     }
   }, [isAuthenticated, isLoading]);
 
@@ -135,6 +157,7 @@ export default function RootLayout() {
   useEffect(() => {
     requestNotificationPermissions();
     setupNotificationResponseHandler();
+    setupNotificationChannels().catch(console.error);
   }, []);
 
   useEffect(() => {

@@ -11,6 +11,7 @@ import {
   forgotPassword as authForgotPassword,
   resetPassword as authResetPassword,
 } from "./index";
+import { deregisterPushToken } from "../api/notifications";
 
 const ACCESS_TOKEN_KEY = "mileclear_access_token";
 
@@ -82,6 +83,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const logout = useCallback(async () => {
+    // Best-effort deregistration — don't block logout if this fails
+    try {
+      await deregisterPushToken();
+    } catch {
+      // Silently ignore — the token will simply expire on the server
+    }
     await authLogout();
     setIsAuthenticated(false);
   }, []);

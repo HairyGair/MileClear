@@ -12,6 +12,7 @@ import {
 import {
   sendVerificationEmail,
   sendPasswordResetEmail,
+  sendWelcomeEmail,
 } from "../../services/email.js";
 import { authMiddleware } from "../../middleware/auth.js";
 import { REFRESH_TOKEN_EXPIRY_DAYS } from "@mileclear/shared";
@@ -121,6 +122,11 @@ export async function authRoutes(app: FastifyInstance) {
       .create({ data: { userId: user.id, code, expiresAt: otpExpiry() } })
       .then(() => sendVerificationEmail(email, code))
       .catch((err) => console.error("Failed to send verification email:", err));
+
+    // Send welcome email (fire-and-forget)
+    sendWelcomeEmail(email, displayName).catch((err) =>
+      console.error("Failed to send welcome email:", err)
+    );
 
     return reply.status(201).send({
       data: { accessToken, refreshToken },
@@ -426,6 +432,7 @@ export async function authRoutes(app: FastifyInstance) {
       }
     }
 
+    let isNewUser = false;
     if (!user) {
       // Create new user — signing up implies agreement to terms
       user = await prisma.user.create({
@@ -437,6 +444,13 @@ export async function authRoutes(app: FastifyInstance) {
           ...(displayName ? { displayName } : {}),
         },
       });
+      isNewUser = true;
+    }
+
+    if (isNewUser && email) {
+      sendWelcomeEmail(email, displayName).catch((err) =>
+        console.error("Failed to send welcome email:", err)
+      );
     }
 
     const accessToken = generateAccessToken(user.id, user.isAdmin);
@@ -505,6 +519,7 @@ export async function authRoutes(app: FastifyInstance) {
       }
     }
 
+    let isNewUser = false;
     if (!user) {
       if (!email) {
         return reply
@@ -521,6 +536,13 @@ export async function authRoutes(app: FastifyInstance) {
           ...(displayName ? { displayName } : {}),
         },
       });
+      isNewUser = true;
+    }
+
+    if (isNewUser) {
+      sendWelcomeEmail(email!, displayName).catch((err) =>
+        console.error("Failed to send welcome email:", err)
+      );
     }
 
     const accessToken = generateAccessToken(user.id, user.isAdmin);
@@ -647,6 +669,7 @@ export async function authRoutes(app: FastifyInstance) {
         });
       }
     }
+    let isNewUser = false;
     if (!user) {
       user = await prisma.user.create({
         data: {
@@ -657,6 +680,13 @@ export async function authRoutes(app: FastifyInstance) {
           ...(displayName ? { displayName } : {}),
         },
       });
+      isNewUser = true;
+    }
+
+    if (isNewUser && email) {
+      sendWelcomeEmail(email, displayName).catch((err) =>
+        console.error("Failed to send welcome email:", err)
+      );
     }
 
     const accessToken = generateAccessToken(user.id, user.isAdmin);

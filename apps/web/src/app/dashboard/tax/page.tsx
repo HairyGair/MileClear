@@ -104,7 +104,7 @@ export default function TaxPage() {
       const [statsRes, tripsRes, vehiclesRes] = await Promise.all([
         api.get<{ data: GamificationStats }>("/gamification/stats"),
         api.get<{ data: Trip[]; total: number }>(
-          `/trips/?pageSize=1000&from=${from.toISOString()}&to=${to.toISOString()}`
+          `/trips/?pageSize=100&from=${from.toISOString()}&to=${to.toISOString()}`
         ),
         api.get<{ data: Vehicle[] }>("/vehicles/"),
       ]);

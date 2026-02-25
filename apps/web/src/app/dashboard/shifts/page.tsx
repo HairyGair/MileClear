@@ -50,7 +50,7 @@ export default function ShiftsPage() {
     try {
       const [shiftsRes, tripsRes] = await Promise.all([
         api.get<{ data: Shift[] }>("/shifts/"),
-        api.get<{ data: Trip[]; total: number }>("/trips/?pageSize=500"),
+        api.get<{ data: Trip[]; total: number }>("/trips/?pageSize=100"),
       ]);
       setShifts(shiftsRes.data);
       setTrips(tripsRes.data);

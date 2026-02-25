@@ -18,6 +18,8 @@ import { userRoutes } from "./routes/user/index.js";
 import { waitlistRoutes } from "./routes/waitlist/index.js";
 import { adminRoutes } from "./routes/admin/index.js";
 import { feedbackRoutes } from "./routes/feedback/index.js";
+import { notificationRoutes } from "./routes/notifications/index.js";
+import { startNotificationJobs } from "./jobs/notifications.js";
 
 // Validate required secrets at startup
 const JWT_SECRET = process.env.JWT_SECRET;
@@ -75,7 +77,7 @@ await app.register(userRoutes, { prefix: "/user" });
 await app.register(waitlistRoutes, { prefix: "/waitlist" });
 await app.register(adminRoutes, { prefix: "/admin" });
 await app.register(feedbackRoutes, { prefix: "/feedback" });
-
+await app.register(notificationRoutes, { prefix: "/notifications" });
 // Health check
 app.get("/health", async () => ({ status: "ok" }));
 
@@ -83,6 +85,7 @@ app.get("/health", async () => ({ status: "ok" }));
 try {
   await app.listen({ port: PORT, host: HOST });
   console.log(`MileClear API running on http://${HOST}:${PORT}`);
+  startNotificationJobs();
 } catch (err) {
   app.log.error(err);
   process.exit(1);

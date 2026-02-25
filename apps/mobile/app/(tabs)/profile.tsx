@@ -29,6 +29,11 @@ import {
   isDriveDetectionEnabled,
   setDriveDetectionEnabled,
 } from "../../lib/tracking/detection";
+import {
+  getNotificationPreferences,
+  setNotificationPreferences,
+  type NotificationPreferences,
+} from "../../lib/notifications/preferences";
 import { Button } from "../../components/Button";
 
 const VEHICLE_TYPE_LABELS: Record<string, string> = {
@@ -62,19 +67,28 @@ export default function ProfileScreen() {
   const [deletePassword, setDeletePassword] = useState("");
   const [deletingAccount, setDeletingAccount] = useState(false);
   const [driveDetection, setDriveDetection] = useState(true);
+  const [notifPrefs, setNotifPrefs] = useState<NotificationPreferences>({
+    weeklySummary: true,
+    unclassifiedNudge: true,
+    shiftReminder: true,
+    streakReminder: true,
+    taxDeadline: true,
+  });
 
   const loadData = useCallback(async () => {
     try {
-      const [profileRes, vehiclesRes, billingRes, detectionEnabled] = await Promise.all([
+      const [profileRes, vehiclesRes, billingRes, detectionEnabled, notifPrefsLoaded] = await Promise.all([
         fetchProfile(),
         fetchVehicles(),
         fetchBillingStatus().catch(() => null),
         isDriveDetectionEnabled(),
+        getNotificationPreferences(),
       ]);
       setUser(profileRes.data);
       setVehicles(vehiclesRes.data);
       if (billingRes) setBilling(billingRes.data);
       setDriveDetection(detectionEnabled);
+      setNotifPrefs(notifPrefsLoaded);
     } catch {
       // Silently fail — will show empty state
     } finally {
@@ -332,6 +346,104 @@ export default function ProfileScreen() {
                 onValueChange={(val) => {
                   setDriveDetection(val);
                   setDriveDetectionEnabled(val);
+                }}
+                trackColor={{ false: "#374151", true: "#f5a623" }}
+                thumbColor="#fff"
+              />
+            </View>
+
+            {/* Notifications Section */}
+            <Text style={[styles.sectionTitle, { marginTop: 28 }]}>Notifications</Text>
+
+            <View style={styles.settingRow}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.actionText}>Weekly Summary</Text>
+                <Text style={styles.settingHint}>
+                  Mileage recap every Monday morning
+                </Text>
+              </View>
+              <Switch
+                value={notifPrefs.weeklySummary}
+                onValueChange={(val) => {
+                  const updated = { ...notifPrefs, weeklySummary: val };
+                  setNotifPrefs(updated);
+                  setNotificationPreferences({ weeklySummary: val }).catch(console.error);
+                }}
+                trackColor={{ false: "#374151", true: "#f5a623" }}
+                thumbColor="#fff"
+              />
+            </View>
+
+            <View style={styles.settingRow}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.actionText}>Trip Reminders</Text>
+                <Text style={styles.settingHint}>
+                  Nudge to classify unreviewed trips
+                </Text>
+              </View>
+              <Switch
+                value={notifPrefs.unclassifiedNudge}
+                onValueChange={(val) => {
+                  const updated = { ...notifPrefs, unclassifiedNudge: val };
+                  setNotifPrefs(updated);
+                  setNotificationPreferences({ unclassifiedNudge: val }).catch(console.error);
+                }}
+                trackColor={{ false: "#374151", true: "#f5a623" }}
+                thumbColor="#fff"
+              />
+            </View>
+
+            <View style={styles.settingRow}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.actionText}>Shift Alerts</Text>
+                <Text style={styles.settingHint}>
+                  Warn if a shift runs over 12 hours
+                </Text>
+              </View>
+              <Switch
+                value={notifPrefs.shiftReminder}
+                onValueChange={(val) => {
+                  const updated = { ...notifPrefs, shiftReminder: val };
+                  setNotifPrefs(updated);
+                  setNotificationPreferences({ shiftReminder: val }).catch(console.error);
+                }}
+                trackColor={{ false: "#374151", true: "#f5a623" }}
+                thumbColor="#fff"
+              />
+            </View>
+
+            <View style={styles.settingRow}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.actionText}>Streak Reminders</Text>
+                <Text style={styles.settingHint}>
+                  Remind you to keep your streak going
+                </Text>
+              </View>
+              <Switch
+                value={notifPrefs.streakReminder}
+                onValueChange={(val) => {
+                  const updated = { ...notifPrefs, streakReminder: val };
+                  setNotifPrefs(updated);
+                  setNotificationPreferences({ streakReminder: val }).catch(console.error);
+                }}
+                trackColor={{ false: "#374151", true: "#f5a623" }}
+                thumbColor="#fff"
+              />
+            </View>
+
+            <View style={styles.settingRow}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.actionText}>Tax Deadline</Text>
+                <Text style={styles.settingHint}>
+                  Reminder before 5 April tax year end
+                </Text>
+              </View>
+              <Switch
+                value={notifPrefs.taxDeadline}
+                onValueChange={(val) => {
+                  const updated = { ...notifPrefs, taxDeadline: val };
+                  setNotifPrefs(updated);
+                  setNotificationPreferences({ taxDeadline: val }).catch(console.error);
                 }}
                 trackColor={{ false: "#374151", true: "#f5a623" }}
                 thumbColor="#fff"
