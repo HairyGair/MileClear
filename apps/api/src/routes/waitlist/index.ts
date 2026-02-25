@@ -10,7 +10,11 @@ const waitlistSchema = z.object({
 
 export async function waitlistRoutes(app: FastifyInstance) {
   app.post("/", async (request, reply) => {
-    const body = waitlistSchema.parse(request.body);
+    const parsed = waitlistSchema.safeParse(request.body);
+    if (!parsed.success) {
+      return reply.status(400).send({ error: parsed.error.issues[0].message });
+    }
+    const body = parsed.data;
 
     const entry = await prisma.waitlistEntry.upsert({
       where: { email: body.email },

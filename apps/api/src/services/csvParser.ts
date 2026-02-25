@@ -10,6 +10,14 @@ const PLATFORM_HEADER_PATTERNS: Record<string, RegExp[]> = {
   stuart: [/stuart/i],
 };
 
+// Sanitize cell values to prevent CSV formula injection (=, +, -, @, \t, \r)
+function sanitizeCellValue(value: string): string {
+  if (/^[=+\-@\t\r]/.test(value)) {
+    return "'" + value;
+  }
+  return value;
+}
+
 function splitCsvLine(line: string): string[] {
   const fields: string[] = [];
   let current = "";
@@ -27,7 +35,7 @@ function splitCsvLine(line: string): string[] {
     }
   }
   fields.push(current.trim());
-  return fields;
+  return fields.map(sanitizeCellValue);
 }
 
 function parseUkDate(value: string): Date | null {

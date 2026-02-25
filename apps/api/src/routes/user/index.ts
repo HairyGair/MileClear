@@ -125,7 +125,8 @@ export async function userRoutes(app: FastifyInstance) {
         prisma.shift.findMany({ where: { userId } }),
         prisma.trip.findMany({
           where: { userId },
-          include: { coordinates: true },
+          take: 10000,
+          include: { coordinates: { take: 1000 } },
         }),
         prisma.fuelLog.findMany({ where: { userId } }),
         prisma.earning.findMany({ where: { userId } }),

@@ -81,7 +81,7 @@ export async function shiftRoutes(app: FastifyInstance) {
 
   // Get single shift
   app.get("/:id", async (request, reply) => {
-    const { id } = request.params as { id: string };
+    const { id } = z.object({ id: z.string().uuid() }).parse(request.params);
 
     const shift = await prisma.shift.findFirst({
       where: { id, userId: request.userId! },
@@ -97,7 +97,7 @@ export async function shiftRoutes(app: FastifyInstance) {
 
   // End a shift
   app.patch("/:id", async (request, reply) => {
-    const { id } = request.params as { id: string };
+    const { id } = z.object({ id: z.string().uuid() }).parse(request.params);
     const parsed = endShiftSchema.safeParse(request.body);
     if (!parsed.success) {
       return reply.status(400).send({ error: parsed.error.issues[0].message });

@@ -19,6 +19,21 @@ import { waitlistRoutes } from "./routes/waitlist/index.js";
 import { adminRoutes } from "./routes/admin/index.js";
 import { feedbackRoutes } from "./routes/feedback/index.js";
 
+// Validate required secrets at startup
+const JWT_SECRET = process.env.JWT_SECRET;
+const JWT_REFRESH_SECRET = process.env.JWT_REFRESH_SECRET;
+if (!JWT_SECRET || JWT_SECRET.length < 32) {
+  console.error("FATAL: JWT_SECRET is missing or too short (minimum 32 characters)");
+  process.exit(1);
+}
+if (!JWT_REFRESH_SECRET || JWT_REFRESH_SECRET.length < 32) {
+  console.error("FATAL: JWT_REFRESH_SECRET is missing or too short (minimum 32 characters)");
+  process.exit(1);
+}
+if (process.env.STRIPE_SECRET_KEY && !process.env.STRIPE_WEBHOOK_SECRET) {
+  console.warn("WARNING: STRIPE_SECRET_KEY set but STRIPE_WEBHOOK_SECRET missing — webhooks will be rejected");
+}
+
 const PORT = Number(process.env.API_PORT) || 3001;
 const HOST = process.env.API_HOST || "0.0.0.0";
 
@@ -36,7 +51,7 @@ await app.register(helmet, {
 
 await app.register(cors, {
   origin: process.env.CORS_ORIGIN
-    ? process.env.CORS_ORIGIN.split(",")
+    ? process.env.CORS_ORIGIN.split(",").map((o) => o.trim()).filter(Boolean)
     : ["http://localhost:3003"],
   credentials: true,
 });

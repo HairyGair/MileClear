@@ -1,4 +1,5 @@
 // In-memory cache fallback when Redis is not available
+const MAX_CACHE_SIZE = 10000;
 const cache = new Map<string, { value: string; expiresAt: number }>();
 
 export async function cacheGet(key: string): Promise<string | null> {
@@ -16,6 +17,11 @@ export async function cacheSet(
   value: string,
   ttlSeconds: number
 ): Promise<void> {
+  // Evict oldest entry if at capacity
+  if (cache.size >= MAX_CACHE_SIZE) {
+    const oldestKey = cache.keys().next().value;
+    if (oldestKey) cache.delete(oldestKey);
+  }
   cache.set(key, {
     value,
     expiresAt: Date.now() + ttlSeconds * 1000,

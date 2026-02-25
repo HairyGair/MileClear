@@ -99,7 +99,8 @@ export async function authRoutes(app: FastifyInstance) {
 
     const existing = await prisma.user.findUnique({ where: { email } });
     if (existing) {
-      return reply.status(409).send({ error: "An account with this email already exists" });
+      // Return generic message to prevent account enumeration
+      return reply.status(400).send({ error: "Unable to create account. Please try logging in or use a different email." });
     }
 
     const passwordHash = await hashPassword(password);
@@ -156,7 +157,9 @@ export async function authRoutes(app: FastifyInstance) {
   );
 
   // POST /refresh
-  app.post("/refresh", async (request, reply) => {
+  app.post("/refresh", {
+    config: { rateLimit: { max: 10, timeWindow: "1 minute" } },
+  }, async (request, reply) => {
     const parsed = refreshSchema.safeParse(request.body);
     if (!parsed.success) {
       return reply.status(400).send({ error: parsed.error.errors[0].message });
@@ -212,7 +215,7 @@ export async function authRoutes(app: FastifyInstance) {
   // POST /send-verification (authenticated)
   app.post(
     "/send-verification",
-    { preHandler: [authMiddleware] },
+    { preHandler: [authMiddleware], config: { rateLimit: { max: 3, timeWindow: "15 minutes" } } },
     async (request, reply) => {
       const userId = request.userId!;
 
@@ -245,7 +248,7 @@ export async function authRoutes(app: FastifyInstance) {
   // POST /verify (authenticated)
   app.post(
     "/verify",
-    { preHandler: [authMiddleware] },
+    { preHandler: [authMiddleware], config: { rateLimit: { max: 5, timeWindow: "15 minutes" } } },
     async (request, reply) => {
       const parsed = verifySchema.safeParse(request.body);
       if (!parsed.success) {
@@ -362,7 +365,9 @@ export async function authRoutes(app: FastifyInstance) {
   });
 
   // POST /apple — Apple Sign-In
-  app.post("/apple", async (request, reply) => {
+  app.post("/apple", {
+    config: { rateLimit: { max: 10, timeWindow: "15 minutes" } },
+  }, async (request, reply) => {
     const parsed = appleAuthSchema.safeParse(request.body);
     if (!parsed.success) {
       return reply.status(400).send({ error: parsed.error.errors[0].message });
@@ -438,7 +443,9 @@ export async function authRoutes(app: FastifyInstance) {
   });
 
   // POST /google — Google Sign-In
-  app.post("/google", async (request, reply) => {
+  app.post("/google", {
+    config: { rateLimit: { max: 10, timeWindow: "15 minutes" } },
+  }, async (request, reply) => {
     const parsed = googleAuthSchema.safeParse(request.body);
     if (!parsed.success) {
       return reply.status(400).send({ error: parsed.error.errors[0].message });

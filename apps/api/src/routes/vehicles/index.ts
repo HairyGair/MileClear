@@ -75,7 +75,9 @@ export async function vehicleRoutes(app: FastifyInstance) {
   app.addHook("preHandler", authMiddleware);
 
   // DVLA reg plate lookup
-  app.post("/lookup", async (request, reply) => {
+  app.post("/lookup", {
+    config: { rateLimit: { max: 10, timeWindow: "1 minute" } },
+  }, async (request, reply) => {
     const parsed = lookupSchema.safeParse(request.body);
     if (!parsed.success) {
       return reply.status(400).send({ error: parsed.error.issues[0].message });
@@ -201,7 +203,7 @@ export async function vehicleRoutes(app: FastifyInstance) {
 
   // Update vehicle
   app.patch("/:id", async (request, reply) => {
-    const { id } = request.params as { id: string };
+    const { id } = z.object({ id: z.string().uuid() }).parse(request.params);
     const parsed = updateVehicleSchema.safeParse(request.body);
     if (!parsed.success) {
       return reply.status(400).send({ error: parsed.error.issues[0].message });
@@ -235,7 +237,7 @@ export async function vehicleRoutes(app: FastifyInstance) {
 
   // Delete vehicle
   app.delete("/:id", async (request, reply) => {
-    const { id } = request.params as { id: string };
+    const { id } = z.object({ id: z.string().uuid() }).parse(request.params);
     const userId = request.userId!;
 
     const existing = await prisma.vehicle.findFirst({

@@ -110,7 +110,7 @@ export async function earningRoutes(app: FastifyInstance) {
 
   // Get single earning
   app.get("/:id", async (request, reply) => {
-    const { id } = request.params as { id: string };
+    const { id } = z.object({ id: z.string().uuid() }).parse(request.params);
     const userId = request.userId!;
 
     const earning = await prisma.earning.findFirst({
@@ -126,7 +126,7 @@ export async function earningRoutes(app: FastifyInstance) {
 
   // Update earning
   app.patch("/:id", async (request, reply) => {
-    const { id } = request.params as { id: string };
+    const { id } = z.object({ id: z.string().uuid() }).parse(request.params);
     const parsed = updateEarningSchema.safeParse(request.body);
     if (!parsed.success) {
       return reply.status(400).send({ error: parsed.error.issues[0].message });
@@ -159,7 +159,7 @@ export async function earningRoutes(app: FastifyInstance) {
 
   // Delete earning
   app.delete("/:id", async (request, reply) => {
-    const { id } = request.params as { id: string };
+    const { id } = z.object({ id: z.string().uuid() }).parse(request.params);
     const userId = request.userId!;
 
     const existing = await prisma.earning.findFirst({
@@ -179,7 +179,7 @@ export async function earningRoutes(app: FastifyInstance) {
   // Preview parsed CSV before confirming import
   app.post("/csv/preview", async (request, reply) => {
     const schema = z.object({
-      csvContent: z.string().min(1, "CSV content is required"),
+      csvContent: z.string().min(1, "CSV content is required").max(500_000, "CSV file too large (max 500KB)"),
       platform: z.string().optional(),
     });
     const parsed = schema.safeParse(request.body);
@@ -227,7 +227,8 @@ export async function earningRoutes(app: FastifyInstance) {
       );
       return reply.send({ data: result });
     } catch (err: any) {
-      return reply.status(500).send({ error: err.message });
+      request.log.error(err, "CSV confirm import failed");
+      return reply.status(500).send({ error: "Import failed. Please try again." });
     }
   });
 
@@ -336,7 +337,7 @@ export async function earningRoutes(app: FastifyInstance) {
         return reply.send({ data: result });
       } catch (err: any) {
         request.log.error(err, "Failed to sync transactions");
-        return reply.status(500).send({ error: err.message || "Sync failed" });
+        return reply.status(500).send({ error: "Transaction sync failed. Please try again later." });
       }
     }
   );
@@ -346,14 +347,14 @@ export async function earningRoutes(app: FastifyInstance) {
     "/open-banking/connections/:id",
     { preHandler: premiumMiddleware },
     async (request, reply) => {
-      const { id } = request.params as { id: string };
+      const { id } = z.object({ id: z.string().uuid() }).parse(request.params);
 
       try {
         await disconnectConnection(request.userId!, id);
         return reply.send({ message: "Bank disconnected" });
       } catch (err: any) {
         request.log.error(err, "Failed to disconnect bank");
-        return reply.status(500).send({ error: err.message || "Disconnect failed" });
+        return reply.status(500).send({ error: "Failed to disconnect bank. Please try again." });
       }
     }
   );
@@ -364,11 +365,12 @@ export async function earningRoutes(app: FastifyInstance) {
   app.get("/open-banking/link", async (request, reply) => {
     const { token } = request.query as { token?: string };
 
-    if (!token) {
-      return reply.status(400).send({ error: "Missing link token" });
+    if (!token || !/^link-[\w\-]+$/.test(token)) {
+      return reply.status(400).send({ error: "Invalid or missing link token" });
     }
 
     const apiBaseUrl = process.env.API_BASE_URL || `http://localhost:${process.env.API_PORT || 3002}`;
+    const safeToken = JSON.stringify(token); // Safe for embedding in JS
 
     const html = `<!DOCTYPE html>
 <html><head>
@@ -407,7 +409,7 @@ export async function earningRoutes(app: FastifyInstance) {
 </div>
 <script src="https://cdn.plaid.com/link/v2/stable/link-initialize.js"></script>
 <script>
-  const linkToken = "${token}";
+  const linkToken = ${safeToken};
   const handler = Plaid.create({
     token: linkToken,
     onSuccess: async function(publicToken, metadata) {

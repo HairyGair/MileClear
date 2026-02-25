@@ -150,7 +150,7 @@ export async function fuelRoutes(app: FastifyInstance) {
 
   // Get single fuel log
   authApp.get("/logs/:id", async (request, reply) => {
-    const { id } = request.params as { id: string };
+    const { id } = z.object({ id: z.string().uuid() }).parse(request.params);
     const userId = request.userId!;
 
     const fuelLog = await prisma.fuelLog.findFirst({
@@ -169,7 +169,7 @@ export async function fuelRoutes(app: FastifyInstance) {
 
   // Update fuel log
   authApp.patch("/logs/:id", async (request, reply) => {
-    const { id } = request.params as { id: string };
+    const { id } = z.object({ id: z.string().uuid() }).parse(request.params);
     const parsed = updateFuelLogSchema.safeParse(request.body);
     if (!parsed.success) {
       return reply.status(400).send({ error: parsed.error.issues[0].message });
@@ -208,7 +208,7 @@ export async function fuelRoutes(app: FastifyInstance) {
 
   // Delete fuel log
   authApp.delete("/logs/:id", async (request, reply) => {
-    const { id } = request.params as { id: string };
+    const { id } = z.object({ id: z.string().uuid() }).parse(request.params);
     const userId = request.userId!;
 
     const existing = await prisma.fuelLog.findFirst({

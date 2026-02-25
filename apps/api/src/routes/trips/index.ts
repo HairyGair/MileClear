@@ -200,7 +200,7 @@ export async function tripRoutes(app: FastifyInstance) {
 
   // Get single trip
   app.get("/:id", async (request, reply) => {
-    const { id } = request.params as { id: string };
+    const { id } = z.object({ id: z.string().uuid() }).parse(request.params);
 
     const trip = await prisma.trip.findFirst({
       where: { id, userId: request.userId! },
@@ -220,7 +220,7 @@ export async function tripRoutes(app: FastifyInstance) {
 
   // Update trip
   app.patch("/:id", async (request, reply) => {
-    const { id } = request.params as { id: string };
+    const { id } = z.object({ id: z.string().uuid() }).parse(request.params);
     const parsed = updateTripSchema.safeParse(request.body);
     if (!parsed.success) {
       return reply.status(400).send({ error: parsed.error.issues[0].message });
@@ -267,7 +267,7 @@ export async function tripRoutes(app: FastifyInstance) {
 
   // Delete trip
   app.delete("/:id", async (request, reply) => {
-    const { id } = request.params as { id: string };
+    const { id } = z.object({ id: z.string().uuid() }).parse(request.params);
     const userId = request.userId!;
 
     const existing = await prisma.trip.findFirst({
