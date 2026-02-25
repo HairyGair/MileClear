@@ -95,7 +95,16 @@ export default function EarningsPage() {
 
   // Add earning
   const handleAdd = async () => {
+    if (!addForm.amount || isNaN(parseFloat(addForm.amount))) {
+      setError("Please enter a valid amount");
+      return;
+    }
+    if (!addForm.periodStart || !addForm.periodEnd) {
+      setError("Please select both start and end dates");
+      return;
+    }
     setAddLoading(true);
+    setError(null);
     try {
       const amountPence = Math.round(parseFloat(addForm.amount) * 100);
       await api.post("/earnings/", {

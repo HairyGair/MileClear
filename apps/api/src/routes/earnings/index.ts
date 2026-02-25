@@ -22,8 +22,8 @@ import {
 const createEarningSchema = z.object({
   platform: z.string().min(1, "Platform is required"),
   amountPence: z.number().int().positive("Amount must be positive"),
-  periodStart: z.coerce.date(),
-  periodEnd: z.coerce.date(),
+  periodStart: z.coerce.date({ required_error: "Period start date is required", invalid_type_error: "Invalid start date" }),
+  periodEnd: z.coerce.date({ required_error: "Period end date is required", invalid_type_error: "Invalid end date" }),
 });
 
 const updateEarningSchema = z.object({
