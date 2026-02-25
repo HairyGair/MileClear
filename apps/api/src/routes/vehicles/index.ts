@@ -245,7 +245,13 @@ export async function vehicleRoutes(app: FastifyInstance) {
       return reply.status(404).send({ error: "Vehicle not found" });
     }
 
-    await prisma.vehicle.delete({ where: { id } });
+    // Unlink vehicle from related records before deleting
+    await prisma.$transaction([
+      prisma.shift.updateMany({ where: { vehicleId: id }, data: { vehicleId: null } }),
+      prisma.trip.updateMany({ where: { vehicleId: id }, data: { vehicleId: null } }),
+      prisma.fuelLog.updateMany({ where: { vehicleId: id }, data: { vehicleId: null } }),
+      prisma.vehicle.delete({ where: { id } }),
+    ]);
 
     return reply.send({ message: "Vehicle deleted" });
   });
