@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { register } from "../../../lib/auth";
 import { Input } from "../../../components/ui/Input";
 import { Button } from "../../../components/ui/Button";
+import { OAuthButtons } from "../../../components/ui/OAuthButtons";
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -113,6 +114,11 @@ export default function RegisterPage() {
             {loading ? "Creating account..." : "Create account"}
           </Button>
         </form>
+
+        <OAuthButtons
+          onSuccess={() => router.push("/dashboard")}
+          onError={(msg) => setError(msg)}
+        />
 
         <p className="auth-card__footer">
           Already have an account? <Link href="/login">Sign in</Link>

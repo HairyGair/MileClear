@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { login } from "../../../lib/auth";
 import { Input } from "../../../components/ui/Input";
 import { Button } from "../../../components/ui/Button";
+import { OAuthButtons } from "../../../components/ui/OAuthButtons";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -80,6 +81,11 @@ export default function LoginPage() {
             {loading ? "Signing in..." : "Sign in"}
           </Button>
         </form>
+
+        <OAuthButtons
+          onSuccess={() => router.push("/dashboard")}
+          onError={(msg) => setError(msg)}
+        />
 
         <p className="auth-card__footer">
           Don&apos;t have an account? <Link href="/register">Create one</Link>

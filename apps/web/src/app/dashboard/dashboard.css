@@ -1643,3 +1643,102 @@
     display: none !important;
   }
 }
+
+/* ================================================================
+   OAUTH BUTTONS
+   ================================================================ */
+.oauth {
+  margin-top: 1.5rem;
+}
+
+.oauth__divider {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.oauth__divider::before,
+.oauth__divider::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--border-default);
+}
+
+.oauth__divider span {
+  font-size: 0.8125rem;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.oauth__buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.oauth__google-wrap {
+  position: relative;
+  min-height: 44px;
+  display: flex;
+  justify-content: center;
+}
+
+.oauth__google-btn {
+  display: flex;
+  justify-content: center;
+}
+
+/* Override Google button iframe to fill width */
+.oauth__google-btn > div {
+  width: 100% !important;
+}
+
+.oauth__google-btn iframe {
+  width: 100% !important;
+  border-radius: var(--r-sm) !important;
+}
+
+.oauth__loading {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(3, 7, 18, 0.8);
+  border-radius: var(--r-sm);
+  font-size: 0.8125rem;
+  color: var(--text-secondary);
+}
+
+.oauth__btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.625rem;
+  width: 100%;
+  padding: 0.6875rem 1rem;
+  font-family: var(--font-body);
+  font-size: 0.9375rem;
+  font-weight: 500;
+  border-radius: var(--r-sm);
+  transition: background 0.15s, border-color 0.15s;
+  cursor: pointer;
+}
+
+.oauth__btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.oauth__btn--apple {
+  color: #fff;
+  background: #000;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.oauth__btn--apple:hover:not(:disabled) {
+  background: #1a1a1a;
+  border-color: rgba(255, 255, 255, 0.2);
+}
