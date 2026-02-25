@@ -125,6 +125,11 @@ export default function ProfileScreen() {
     try {
       const res = await createCheckoutSession();
       if (res.data.url) {
+        // Validate checkout URL points to Stripe
+        const url = new URL(res.data.url);
+        if (!url.hostname.endsWith("stripe.com")) {
+          throw new Error("Invalid checkout URL");
+        }
         await WebBrowser.openBrowserAsync(res.data.url);
         // Refresh billing status after returning from browser
         loadData();

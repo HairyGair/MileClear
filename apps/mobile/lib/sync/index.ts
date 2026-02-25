@@ -102,7 +102,13 @@ export async function processSyncQueue(): Promise<void> {
 
         const response = await apiRequest<{ data?: { id?: string } }>(path, options);
         const now = new Date().toISOString();
-        const table = item.entity_type === "fuel_log" ? "fuel_logs" : `${item.entity_type}s`;
+        const TABLE_MAP: Record<string, string> = {
+          trip: "trips",
+          earning: "earnings",
+          fuel_log: "fuel_logs",
+        };
+        const table = TABLE_MAP[item.entity_type];
+        if (!table) throw new Error(`Unknown entity type: ${item.entity_type}`);
 
         if (item.action === "create" && response?.data?.id) {
           // Reconcile local UUID → server ID
@@ -153,8 +159,15 @@ export async function processSyncQueue(): Promise<void> {
           // For deletes, the local row was already removed by the user — nothing to restore
           // For creates that permanently fail, clean up the orphaned local row
           if (item.action === "create") {
-            const tbl = item.entity_type === "fuel_log" ? "fuel_logs" : `${item.entity_type}s`;
-            await db.runAsync(`DELETE FROM ${tbl} WHERE id = ?`, [item.entity_id]);
+            const CLEANUP_TABLE_MAP: Record<string, string> = {
+              trip: "trips",
+              earning: "earnings",
+              fuel_log: "fuel_logs",
+            };
+            const tbl = CLEANUP_TABLE_MAP[item.entity_type];
+            if (tbl) {
+              await db.runAsync(`DELETE FROM ${tbl} WHERE id = ?`, [item.entity_id]);
+            }
           }
         } else {
           // Transient failure — increment retry count

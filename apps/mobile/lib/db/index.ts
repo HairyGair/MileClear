@@ -162,7 +162,8 @@ async function initializeSchema(database: SQLite.SQLiteDatabase): Promise<void> 
   }
 
   // Always update schema version to current
-  await database.execAsync(
-    `INSERT OR REPLACE INTO tracking_state (key, value) VALUES ('schema_version', '${CURRENT_SCHEMA_VERSION}');`
+  await database.runAsync(
+    "INSERT OR REPLACE INTO tracking_state (key, value) VALUES ('schema_version', ?)",
+    [String(CURRENT_SCHEMA_VERSION)]
   );
 }

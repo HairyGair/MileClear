@@ -6,6 +6,11 @@ const API_URL = process.env.EXPO_PUBLIC_API_URL || "http://localhost:3002";
 const ACCESS_TOKEN_KEY = "mileclear_access_token";
 export const REFRESH_TOKEN_KEY = "mileclear_refresh_token";
 
+// Enforce HTTPS in production builds
+if (!__DEV__ && API_URL.startsWith("http://")) {
+  throw new Error("API_URL must use HTTPS in production");
+}
+
 async function getAccessToken(): Promise<string | null> {
   return SecureStore.getItemAsync(ACCESS_TOKEN_KEY);
 }
@@ -23,24 +28,39 @@ export async function clearTokens(): Promise<void> {
   await SecureStore.deleteItemAsync(REFRESH_TOKEN_KEY);
 }
 
+// Deduplicate concurrent refresh attempts — prevents race condition
+// where multiple 401s trigger parallel refreshes and token rotation
+// invalidates all but the first
+let refreshPromise: Promise<string | null> | null = null;
+
 async function refreshAccessToken(): Promise<string | null> {
-  const refreshToken = await SecureStore.getItemAsync(REFRESH_TOKEN_KEY);
-  if (!refreshToken) return null;
+  if (refreshPromise) return refreshPromise;
+
+  refreshPromise = (async () => {
+    const refreshToken = await SecureStore.getItemAsync(REFRESH_TOKEN_KEY);
+    if (!refreshToken) return null;
+
+    try {
+      const res = await fetch(`${API_URL}/auth/refresh`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ refreshToken }),
+      });
+
+      if (!res.ok) return null;
+
+      const data = await res.json();
+      await setTokens(data.data.accessToken, data.data.refreshToken);
+      return data.data.accessToken;
+    } catch {
+      return null;
+    }
+  })();
 
   try {
-    const res = await fetch(`${API_URL}/auth/refresh`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ refreshToken }),
-    });
-
-    if (!res.ok) return null;
-
-    const data = await res.json();
-    await setTokens(data.data.accessToken, data.data.refreshToken);
-    return data.data.accessToken;
-  } catch {
-    return null;
+    return await refreshPromise;
+  } finally {
+    refreshPromise = null;
   }
 }
 
