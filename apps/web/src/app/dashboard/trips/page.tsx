@@ -114,12 +114,26 @@ export default function TripsPage() {
 
   // Add
   const handleAdd = async () => {
+    if (!addForm.startAddress.trim()) {
+      setError("Start address is required");
+      return;
+    }
+    if (!addForm.endAddress.trim()) {
+      setError("End address is required");
+      return;
+    }
+    const distance = parseFloat(addForm.distanceMiles);
+    if (!addForm.distanceMiles || isNaN(distance) || distance <= 0) {
+      setError("Please enter a valid distance");
+      return;
+    }
     setAddLoading(true);
+    setError(null);
     try {
       await api.post("/trips/", {
-        startAddress: addForm.startAddress,
-        endAddress: addForm.endAddress,
-        distanceMiles: parseFloat(addForm.distanceMiles) || 0,
+        startAddress: addForm.startAddress.trim(),
+        endAddress: addForm.endAddress.trim(),
+        distanceMiles: distance,
         classification: addForm.classification,
         platformTag: addForm.platformTag || undefined,
         notes: addForm.notes || undefined,

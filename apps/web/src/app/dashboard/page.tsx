@@ -204,6 +204,7 @@ export default function DashboardPage() {
         <div className="achievement-grid">
           {ACHIEVEMENT_TYPES.map((type) => {
             const meta = ACHIEVEMENT_META[type];
+            if (!meta) return null;
             const isEarned = earnedTypes.has(type);
             const ach = achievements.find((a) => a.type === type);
 
@@ -231,7 +232,7 @@ export default function DashboardPage() {
       </Card>
 
       {/* Personal Records */}
-      {stats && stats.personalRecords.mostMilesInDay > 0 && (
+      {stats && stats.personalRecords && stats.personalRecords.mostMilesInDay > 0 && (
         <Card title="Personal Records">
           <div className="stats-grid">
             {[
