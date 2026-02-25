@@ -1,7 +1,22 @@
 import { useState } from "react";
-import { View, Text, TouchableOpacity, StyleSheet, Modal } from "react-native";
-import MapView, { Polyline } from "react-native-maps";
+import { View, Text, TouchableOpacity, StyleSheet, Modal, UIManager, Platform } from "react-native";
 import type { TripDetail } from "../../lib/api/trips";
+
+// Lazy import for Expo Go compatibility — check native module exists before requiring
+let MapViewComponent: any = null;
+let PolylineComponent: any = null;
+const hasNativeMap =
+  Platform.OS !== "web" &&
+  UIManager.getViewManagerConfig?.("AIRMap") != null;
+if (hasNativeMap) {
+  try {
+    const RNMaps = require("react-native-maps");
+    MapViewComponent = RNMaps.default;
+    PolylineComponent = RNMaps.Polyline;
+  } catch {
+    // Not available
+  }
+}
 
 interface MapOverviewProps {
   trips: TripDetail[];
@@ -43,8 +58,20 @@ export function MapOverview({ trips }: MapOverviewProps) {
     longitudeDelta: Math.max((maxLng - minLng) * 1.4, 0.01),
   };
 
+  if (!MapViewComponent || !PolylineComponent) {
+    return (
+      <View style={styles.emptyCard}>
+        <Text style={styles.emptyIcon}>M</Text>
+        <Text style={styles.emptyTitle}>Map requires a development build</Text>
+        <Text style={styles.emptyText}>
+          Route overlay is not available in Expo Go
+        </Text>
+      </View>
+    );
+  }
+
   const mapContent = (interactive: boolean, height: number | string) => (
-    <MapView
+    <MapViewComponent
       style={typeof height === "number" ? { height } : StyleSheet.absoluteFillObject}
       region={region}
       userInterfaceStyle="dark"
@@ -59,7 +86,7 @@ export function MapOverview({ trips }: MapOverviewProps) {
       showsPointsOfInterest={false}
     >
       {tripsWithCoords.map((trip) => (
-        <Polyline
+        <PolylineComponent
           key={trip.id}
           coordinates={trip.coordinates.map((c) => ({
             latitude: c.lat,
@@ -69,7 +96,7 @@ export function MapOverview({ trips }: MapOverviewProps) {
           strokeWidth={3}
         />
       ))}
-    </MapView>
+    </MapViewComponent>
   );
 
   return (

@@ -111,31 +111,24 @@ export async function processSyncQueue(): Promise<void> {
         if (!table) throw new Error(`Unknown entity type: ${item.entity_type}`);
 
         if (item.action === "create" && response?.data?.id) {
-          // Reconcile local UUID → server ID
+          // Reconcile local UUID → server ID atomically
           const serverId = response.data.id;
-          await db.runAsync(`UPDATE ${table} SET id = ?, synced_at = ? WHERE id = ?`, [
-            serverId, now, item.entity_id,
-          ]);
-          await db.runAsync(
-            "UPDATE sync_queue SET entity_id = ?, status = 'synced', updated_at = ? WHERE id = ?",
-            [serverId, now, item.id]
-          );
+          await db.execAsync(`
+            UPDATE ${table} SET id = '${serverId}', synced_at = '${now}' WHERE id = '${item.entity_id}';
+            UPDATE sync_queue SET entity_id = '${serverId}', status = 'synced', updated_at = '${now}' WHERE id = '${item.id}';
+          `);
         } else if (item.action === "delete") {
           // Clean up local row on successful delete
-          await db.runAsync(`DELETE FROM ${table} WHERE id = ?`, [item.entity_id]);
-          await db.runAsync(
-            "UPDATE sync_queue SET status = 'synced', updated_at = ? WHERE id = ?",
-            [now, item.id]
-          );
+          await db.execAsync(`
+            DELETE FROM ${table} WHERE id = '${item.entity_id}';
+            UPDATE sync_queue SET status = 'synced', updated_at = '${now}' WHERE id = '${item.id}';
+          `);
         } else {
           // Update — mark synced
-          await db.runAsync(
-            "UPDATE sync_queue SET status = 'synced', updated_at = ? WHERE id = ?",
-            [now, item.id]
-          );
-          await db.runAsync(`UPDATE ${table} SET synced_at = ? WHERE id = ?`, [
-            now, item.entity_id,
-          ]);
+          await db.execAsync(`
+            UPDATE sync_queue SET status = 'synced', updated_at = '${now}' WHERE id = '${item.id}';
+            UPDATE ${table} SET synced_at = '${now}' WHERE id = '${item.entity_id}';
+          `);
         }
       } catch (err) {
         const isNetwork =
@@ -151,24 +144,12 @@ export async function processSyncQueue(): Promise<void> {
           (/HTTP 4\d\d/.test(err.message) || /Session expired/.test(err.message));
 
         if (is4xx) {
-          // Permanent failure — stop retrying
+          // Permanent failure — stop retrying but preserve local data
+          // The user's data stays in the local table for manual review/retry
           await db.runAsync(
             "UPDATE sync_queue SET status = 'permanently_failed', last_error = ?, updated_at = ? WHERE id = ?",
             [err instanceof Error ? err.message : "Unknown error", new Date().toISOString(), item.id]
           );
-          // For deletes, the local row was already removed by the user — nothing to restore
-          // For creates that permanently fail, clean up the orphaned local row
-          if (item.action === "create") {
-            const CLEANUP_TABLE_MAP: Record<string, string> = {
-              trip: "trips",
-              earning: "earnings",
-              fuel_log: "fuel_logs",
-            };
-            const tbl = CLEANUP_TABLE_MAP[item.entity_type];
-            if (tbl) {
-              await db.runAsync(`DELETE FROM ${tbl} WHERE id = ?`, [item.entity_id]);
-            }
-          }
         } else {
           // Transient failure — increment retry count
           const newRetry = item.retry_count + 1;

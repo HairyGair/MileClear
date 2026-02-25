@@ -28,9 +28,13 @@ export async function billingRoutes(app: FastifyInstance) {
 <html><head><meta charset="utf-8"><title>MileClear Pro</title>
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <style>body{font-family:system-ui;background:#030712;color:#fff;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;text-align:center}
-.card{max-width:400px;padding:40px}.check{font-size:64px;margin-bottom:16px}h1{color:#f59e0b;margin-bottom:8px}p{color:#9ca3af;line-height:1.6}</style></head>
+.card{max-width:400px;padding:40px}.check{font-size:64px;margin-bottom:16px}h1{color:#f59e0b;margin-bottom:8px}p{color:#9ca3af;line-height:1.6}
+.btn{display:inline-block;margin-top:20px;padding:12px 24px;background:#f59e0b;color:#030712;font-weight:700;border-radius:10px;text-decoration:none}</style></head>
 <body><div class="card"><div class="check">&#10003;</div><h1>Welcome to MileClear Pro!</h1>
-<p>Your subscription is active. You can close this page and return to the app.</p></div></body></html>`);
+<p>Your subscription is active.</p>
+<a class="btn" href="mileclear://billing/success">Return to App</a>
+<script>setTimeout(function(){window.location.href="mileclear://billing/success"},1500)</script>
+</div></body></html>`);
   });
 
   app.get("/cancel", async (_request, reply) => {
@@ -38,9 +42,13 @@ export async function billingRoutes(app: FastifyInstance) {
 <html><head><meta charset="utf-8"><title>MileClear</title>
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <style>body{font-family:system-ui;background:#030712;color:#fff;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;text-align:center}
-.card{max-width:400px;padding:40px}h1{margin-bottom:8px}p{color:#9ca3af;line-height:1.6}</style></head>
+.card{max-width:400px;padding:40px}h1{margin-bottom:8px}p{color:#9ca3af;line-height:1.6}
+.btn{display:inline-block;margin-top:20px;padding:12px 24px;background:#374151;color:#fff;font-weight:600;border-radius:10px;text-decoration:none}</style></head>
 <body><div class="card"><h1>Checkout Cancelled</h1>
-<p>No charges were made. You can close this page and return to the app.</p></div></body></html>`);
+<p>No charges were made.</p>
+<a class="btn" href="mileclear://billing/cancel">Return to App</a>
+<script>setTimeout(function(){window.location.href="mileclear://billing/cancel"},1500)</script>
+</div></body></html>`);
   });
 
   // --- Webhook (no auth — verified by Stripe signature) ---

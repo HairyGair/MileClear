@@ -3,6 +3,14 @@ import * as Sharing from "expo-sharing";
 import * as SecureStore from "expo-secure-store";
 
 const API_URL = process.env.EXPO_PUBLIC_API_URL || "http://localhost:3002";
+
+function ensureHttps(url: string): string {
+  // Enforce HTTPS in production (allow HTTP for localhost development)
+  if (!url.includes("localhost") && !url.includes("127.0.0.1") && url.startsWith("http://")) {
+    return url.replace("http://", "https://");
+  }
+  return url;
+}
 const ACCESS_TOKEN_KEY = "mileclear_access_token";
 
 export async function downloadAndShareExport(
@@ -15,7 +23,7 @@ export async function downloadAndShareExport(
 
   const fileUri = FileSystem.documentDirectory + filename;
 
-  const result = await FileSystem.downloadAsync(`${API_URL}${path}`, fileUri, {
+  const result = await FileSystem.downloadAsync(`${ensureHttps(API_URL)}${path}`, fileUri, {
     headers: { Authorization: `Bearer ${token}` },
   });
 
@@ -43,7 +51,7 @@ export async function fetchAccountingPreview(
   const token = await SecureStore.getItemAsync(ACCESS_TOKEN_KEY);
   if (!token) throw new Error("Not authenticated");
 
-  const res = await fetch(`${API_URL}/exports/${provider}`, {
+  const res = await fetch(`${ensureHttps(API_URL)}/exports/${provider}`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",

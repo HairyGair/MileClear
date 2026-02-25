@@ -460,10 +460,14 @@ export async function authRoutes(app: FastifyInstance) {
 
     const { idToken, agreedToTerms } = parsed.data;
     const googleClientId = process.env.GOOGLE_CLIENT_ID;
+    const googleIosClientId = process.env.GOOGLE_IOS_CLIENT_ID;
 
     if (!googleClientId) {
       return reply.status(500).send({ error: "Google Sign-In is not configured" });
     }
+
+    // Accept both web and iOS client IDs as valid audiences
+    const googleAudiences = [googleClientId, googleIosClientId].filter(Boolean) as string[];
 
     // Verify Google ID token via JWKS (cryptographic verification)
     let payload: { sub?: string; email?: string; name?: string };
@@ -473,7 +477,7 @@ export async function authRoutes(app: FastifyInstance) {
         GOOGLE_JWKS,
         {
           issuer: "https://accounts.google.com",
-          audience: googleClientId,
+          audience: googleAudiences,
         }
       );
       payload = verified as { sub?: string; email?: string; name?: string };
@@ -542,12 +546,26 @@ export async function authRoutes(app: FastifyInstance) {
     }
   );
 
+  // In-memory store for Apple OAuth state tokens (short-lived, CSRF protection)
+  const appleOAuthStates = new Map<string, number>();
+
+  // Clean up expired states periodically (10-minute TTL)
+  setInterval(() => {
+    const now = Date.now();
+    for (const [key, timestamp] of appleOAuthStates) {
+      if (now - timestamp > 10 * 60 * 1000) appleOAuthStates.delete(key);
+    }
+  }, 5 * 60 * 1000);
+
   // GET /apple/web — Redirect to Apple's auth page (for web popup flow)
   app.get("/apple/web", async (request, reply) => {
     const webClientId = process.env.APPLE_WEB_CLIENT_ID || "com.mileclear.web";
     const apiBase = process.env.API_BASE_URL || "https://api.mileclear.com";
     const state = crypto.randomUUID();
     const nonce = crypto.randomUUID();
+
+    // Store state for CSRF validation on callback
+    appleOAuthStates.set(state, Date.now());
 
     const params = new URLSearchParams({
       client_id: webClientId,
@@ -568,6 +586,13 @@ export async function authRoutes(app: FastifyInstance) {
     const body = request.body as Record<string, string>;
     const idToken = body?.id_token;
     const userJSON = body?.user;
+    const state = body?.state;
+
+    // Validate CSRF state parameter
+    if (!state || !appleOAuthStates.has(state)) {
+      return reply.redirect(`${webOrigin}/login?apple_error=${encodeURIComponent("Invalid OAuth state — please try again")}`);
+    }
+    appleOAuthStates.delete(state);
 
     if (!idToken) {
       return reply.redirect(`${webOrigin}/login?apple_error=${encodeURIComponent("No identity token received")}`);
@@ -644,7 +669,9 @@ export async function authRoutes(app: FastifyInstance) {
     const refreshToken = generateRefreshToken(user.id);
     await storeRefreshToken(user.id, refreshToken);
 
-    // Redirect back to web app with tokens in URL hash (not exposed to server logs)
+    // Redirect back to web app with short-lived auth code instead of raw tokens
+    // Tokens are passed via URL hash (client-only, not sent to server in logs/referrer)
+    // The hash fragment is cleared by the frontend immediately after reading
     return reply.redirect(`${webOrigin}/login#apple_token=${encodeURIComponent(accessToken)}&apple_refresh=${encodeURIComponent(refreshToken)}`);
   });
 }

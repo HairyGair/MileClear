@@ -1,6 +1,23 @@
-import { View, StyleSheet } from "react-native";
-import MapView, { Polyline, Marker } from "react-native-maps";
+import { View, Text, StyleSheet, UIManager, Platform } from "react-native";
 import { useMemo } from "react";
+
+// Lazy import for Expo Go compatibility
+let MapViewComponent: any = null;
+let PolylineComponent: any = null;
+let MarkerComponent: any = null;
+const hasNativeMap =
+  Platform.OS !== "web" &&
+  UIManager.getViewManagerConfig?.("AIRMap") != null;
+if (hasNativeMap) {
+  try {
+    const RNMaps = require("react-native-maps");
+    MapViewComponent = RNMaps.default;
+    PolylineComponent = RNMaps.Polyline;
+    MarkerComponent = RNMaps.Marker;
+  } catch {
+    // Not available
+  }
+}
 
 interface Coordinate {
   lat: number;
@@ -51,12 +68,16 @@ export function TripMapWidget({
 
   if (!region || coordinates.length < 2) return null;
 
+  if (!MapViewComponent || !PolylineComponent || !MarkerComponent) {
+    return null; // Silently hide map widget in Expo Go
+  }
+
   const start = coordinates[0];
   const end = coordinates[coordinates.length - 1];
 
   return (
     <View style={[styles.container, { height }]}>
-      <MapView
+      <MapViewComponent
         style={StyleSheet.absoluteFillObject}
         region={region}
         userInterfaceStyle="dark"
@@ -70,20 +91,20 @@ export function TripMapWidget({
         showsScale={false}
         showsPointsOfInterest={false}
       >
-        <Polyline
+        <PolylineComponent
           coordinates={polylineCoords}
           strokeColor="#f5a623"
           strokeWidth={3}
         />
-        <Marker
+        <MarkerComponent
           coordinate={{ latitude: start.lat, longitude: start.lng }}
           pinColor="#34c759"
         />
-        <Marker
+        <MarkerComponent
           coordinate={{ latitude: end.lat, longitude: end.lng }}
           pinColor="#dc2626"
         />
-      </MapView>
+      </MapViewComponent>
     </View>
   );
 }

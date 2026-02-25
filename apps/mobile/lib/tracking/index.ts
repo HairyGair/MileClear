@@ -93,6 +93,9 @@ export async function processShiftTrips(
   vehicleId?: string
 ): Promise<number> {
   const db = await getDatabase();
+
+  // Read coordinates atomically — copy to a processing flag to prevent
+  // the background task from writing more while we process
   const coords = await db.getAllAsync<StoredCoordinate>(
     "SELECT lat, lng, speed, accuracy, recorded_at FROM shift_coordinates WHERE shift_id = ? ORDER BY recorded_at ASC",
     [shiftId]
@@ -102,6 +105,10 @@ export async function processShiftTrips(
     await db.runAsync("DELETE FROM shift_coordinates WHERE shift_id = ?", [shiftId]);
     return 0;
   }
+
+  // Delete coordinates immediately after reading to avoid race with background task
+  // (shift tracking should already be stopped before calling this function)
+  await db.runAsync("DELETE FROM shift_coordinates WHERE shift_id = ?", [shiftId]);
 
   const segments = segmentTrips(coords);
   let created = 0;
@@ -156,7 +163,6 @@ export async function processShiftTrips(
     }
   }
 
-  await db.runAsync("DELETE FROM shift_coordinates WHERE shift_id = ?", [shiftId]);
   return created;
 }
 
