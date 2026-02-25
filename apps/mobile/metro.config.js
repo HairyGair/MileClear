@@ -18,32 +18,37 @@ config.resolver.nodeModulesPaths = [
 
 // pnpm creates symlinks that cause Metro to bundle duplicate copies of React.
 // Force ALL react/react-native imports to resolve to the mobile app's copy.
-const mobileReactDir = fs.realpathSync(
-  path.resolve(projectRoot, "node_modules/react")
-);
-const mobileRNDir = fs.realpathSync(
-  path.resolve(projectRoot, "node_modules/react-native")
-);
+// Gracefully handle EAS build environment where paths may differ.
+const mobileReactPath = path.resolve(projectRoot, "node_modules/react");
+const mobileRNPath = path.resolve(projectRoot, "node_modules/react-native");
 
-config.resolver.resolveRequest = (context, moduleName, platform) => {
-  // Pin react to the mobile app's single copy
-  if (moduleName === "react" || moduleName.startsWith("react/")) {
-    const subpath = moduleName === "react" ? "" : moduleName.slice("react".length);
-    return context.resolveRequest(
-      { ...context, originModulePath: path.join(mobileReactDir, "index.js") },
-      moduleName,
-      platform,
-    );
-  }
-  // Pin react-native to the mobile app's single copy
-  if (moduleName === "react-native" || moduleName.startsWith("react-native/")) {
-    return context.resolveRequest(
-      { ...context, originModulePath: path.join(mobileRNDir, "index.js") },
-      moduleName,
-      platform,
-    );
-  }
-  return context.resolveRequest(context, moduleName, platform);
-};
+const mobileReactDir = fs.existsSync(mobileReactPath)
+  ? fs.realpathSync(mobileReactPath)
+  : null;
+const mobileRNDir = fs.existsSync(mobileRNPath)
+  ? fs.realpathSync(mobileRNPath)
+  : null;
+
+if (mobileReactDir && mobileRNDir) {
+  config.resolver.resolveRequest = (context, moduleName, platform) => {
+    // Pin react to the mobile app's single copy
+    if (moduleName === "react" || moduleName.startsWith("react/")) {
+      return context.resolveRequest(
+        { ...context, originModulePath: path.join(mobileReactDir, "index.js") },
+        moduleName,
+        platform,
+      );
+    }
+    // Pin react-native to the mobile app's single copy
+    if (moduleName === "react-native" || moduleName.startsWith("react-native/")) {
+      return context.resolveRequest(
+        { ...context, originModulePath: path.join(mobileRNDir, "index.js") },
+        moduleName,
+        platform,
+      );
+    }
+    return context.resolveRequest(context, moduleName, platform);
+  };
+}
 
 module.exports = config;
