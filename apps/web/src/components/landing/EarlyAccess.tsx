@@ -21,9 +21,11 @@ const liveFeatures = [
   "HMRC tax deduction calculator (45p/25p rates)",
   "Offline-first — trips saved locally, synced when online",
   "Cheapest fuel prices from 13 UK retailers",
-  "Earnings tracking across gig platforms",
+  "Earnings tracking — manual, CSV import, or Open Banking",
+  "Sign in with Apple, Google, or email",
   "Milestones, streaks & shift scorecards",
   "HMRC-ready PDF & CSV exports",
+  "Full GDPR controls — export or delete your data any time",
   "Community suggestions board — shape the app",
 ];
 

@@ -13,6 +13,8 @@ const free = [
   "Daily scorecards & streaks",
   "Tax savings counter",
   "Manual trip entry",
+  "Vehicle management",
+  "Apple & Google sign-in",
 ];
 
 const pro = [
@@ -20,6 +22,8 @@ const pro = [
   "HMRC-compliant exports",
   "Xero, FreeAgent & QuickBooks",
   "Earnings tracking & real hourly rate",
+  "Open Banking earnings sync",
+  "CSV earnings import",
   "Fuel price finder with brand preference",
   "Audit protection & trip classification",
   "Advanced analytics & reports",

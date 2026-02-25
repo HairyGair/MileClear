@@ -18,7 +18,7 @@ const faqs = [
   },
   {
     q: "Is my data safe?",
-    a: "Your location data is encrypted and stored securely. We never sell your data. You can export or delete everything at any time. We\u2019re fully GDPR compliant.",
+    a: "Your location data is encrypted and stored securely. We never sell your data. You can export a full copy of everything we hold or delete your account entirely at any time — it\u2019s all in your settings. We\u2019re fully GDPR compliant.",
   },
   {
     q: "Can I use it for HMRC Self Assessment?",

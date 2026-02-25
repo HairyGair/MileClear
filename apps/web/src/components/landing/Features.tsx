@@ -83,7 +83,29 @@ const features = [
       </svg>
     ),
     title: "Know your real earnings",
-    desc: "Optionally track what you earn across platforms. See your actual hourly rate after costs.",
+    desc: "Track what you earn across platforms via manual entry, CSV import, or Open Banking. See your actual hourly rate after costs.",
+  },
+  {
+    icon: (
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M12 2a10 10 0 00-6.88 17.23l1.15-2.3A1 1 0 017.16 16h9.68a1 1 0 01.89.54l1.15 2.3A10 10 0 0012 2z" />
+        <circle cx="12" cy="10" r="3" />
+      </svg>
+    ),
+    title: "Sign in your way",
+    desc: "Create an account with email, or sign in instantly with Apple or Google. Fast, secure, no friction.",
+    alt: true,
+  },
+  {
+    icon: (
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+        <path d="M7 11V7a5 5 0 0110 0v4" />
+      </svg>
+    ),
+    title: "Your data, your control",
+    desc: "Export all your data or delete your account any time. Fully GDPR compliant — we never sell your data.",
+    alt: true,
   },
 ];
 
