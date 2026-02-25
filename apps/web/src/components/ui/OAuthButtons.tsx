@@ -106,7 +106,7 @@ export function OAuthButtons({ onSuccess, onError }: OAuthButtonsProps) {
       window.AppleID.auth.init({
         clientId: process.env.NEXT_PUBLIC_APPLE_CLIENT_ID || "com.mileclear.web",
         scope: "name email",
-        redirectURI: window.location.origin,
+        redirectURI: window.location.origin + "/apple-callback.html",
         usePopup: true,
       });
 
