@@ -21,12 +21,11 @@ declare global {
 }
 
 interface OAuthButtonsProps {
-  agreedToTerms?: boolean;
   onSuccess: () => void;
   onError: (error: string) => void;
 }
 
-export function OAuthButtons({ agreedToTerms, onSuccess, onError }: OAuthButtonsProps) {
+export function OAuthButtons({ onSuccess, onError }: OAuthButtonsProps) {
   const googleRef = useRef<HTMLDivElement>(null);
   const [googleReady, setGoogleReady] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
@@ -36,7 +35,7 @@ export function OAuthButtons({ agreedToTerms, onSuccess, onError }: OAuthButtons
   handleGoogleRef.current = async (response) => {
     setGoogleLoading(true);
     try {
-      await loginWithGoogle(response.credential, agreedToTerms);
+      await loginWithGoogle(response.credential, true);
       onSuccess();
     } catch (err: any) {
       onError(err.message || "Google sign-in failed");
@@ -81,12 +80,8 @@ export function OAuthButtons({ agreedToTerms, onSuccess, onError }: OAuthButtons
 
   // Apple Sign-In: redirect to API server (full page, not popup)
   const handleApple = useCallback(() => {
-    if (agreedToTerms === false) {
-      onError("You must agree to the Terms of Service and Privacy Policy");
-      return;
-    }
     window.location.href = `${API_URL}/auth/apple/web`;
-  }, [agreedToTerms, onError]);
+  }, []);
 
   const showGoogle = !!GOOGLE_CLIENT_ID;
 

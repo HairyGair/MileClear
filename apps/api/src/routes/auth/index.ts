@@ -20,7 +20,7 @@ const registerSchema = z.object({
   email: z.string().email("Invalid email address"),
   password: z.string().min(8, "Password must be at least 8 characters").max(128),
   displayName: z.string().max(100).optional(),
-  agreedToTerms: z.literal(true, { errorMap: () => ({ message: "You must agree to the Terms of Service and Privacy Policy" }) }),
+  agreedToTerms: z.boolean().optional(),
 });
 
 const loginSchema = z.object({
@@ -427,10 +427,7 @@ export async function authRoutes(app: FastifyInstance) {
     }
 
     if (!user) {
-      if (!agreedToTerms) {
-        return reply.status(400).send({ error: "You must agree to the Terms of Service and Privacy Policy" });
-      }
-      // Create new user
+      // Create new user — signing up implies agreement to terms
       user = await prisma.user.create({
         data: {
           email: email || `apple_${appleId}@private.mileclear.com`,
@@ -509,15 +506,12 @@ export async function authRoutes(app: FastifyInstance) {
     }
 
     if (!user) {
-      if (!agreedToTerms) {
-        return reply.status(400).send({ error: "You must agree to the Terms of Service and Privacy Policy" });
-      }
       if (!email) {
         return reply
           .status(400)
           .send({ error: "Google account has no email address" });
       }
-      // Create new user
+      // Create new user — signing up implies agreement to terms
       user = await prisma.user.create({
         data: {
           email,
