@@ -513,4 +513,134 @@ export async function authRoutes(app: FastifyInstance) {
 
     return reply.status(200).send({ data: { accessToken, refreshToken } });
   });
+
+  // GET /apple/web — Redirect to Apple's auth page (for web popup flow)
+  app.get("/apple/web", async (request, reply) => {
+    const webClientId = process.env.APPLE_WEB_CLIENT_ID || "com.mileclear.web";
+    const apiBase = process.env.API_BASE_URL || "https://api.mileclear.com";
+    const state = crypto.randomUUID();
+    const nonce = crypto.randomUUID();
+
+    const params = new URLSearchParams({
+      client_id: webClientId,
+      redirect_uri: `${apiBase}/auth/apple/callback`,
+      response_type: "code id_token",
+      scope: "name email",
+      response_mode: "form_post",
+      state,
+      nonce,
+    });
+
+    return reply.redirect(`https://appleid.apple.com/auth/authorize?${params.toString()}`);
+  });
+
+  // POST /apple/callback — Apple redirects here after auth (form_post)
+  app.post("/apple/callback", async (request, reply) => {
+    const body = request.body as Record<string, string>;
+    const idToken = body?.id_token;
+    const userJSON = body?.user; // Apple sends user info as JSON string on first sign-in
+
+    if (!idToken) {
+      return reply.type("text/html").send(`
+        <html><body><script>
+          window.opener.postMessage({ type: "apple-auth-error", error: "No identity token received" }, "*");
+          window.close();
+        </script></body></html>
+      `);
+    }
+
+    // Parse user info if provided (only sent on first authorization)
+    let fullName: { givenName?: string | null; familyName?: string | null } | undefined;
+    if (userJSON) {
+      try {
+        const userData = typeof userJSON === "string" ? JSON.parse(userJSON) : userJSON;
+        fullName = {
+          givenName: userData?.name?.firstName || null,
+          familyName: userData?.name?.lastName || null,
+        };
+      } catch {
+        // Ignore parse errors
+      }
+    }
+
+    // Verify the token (same logic as POST /apple)
+    const appleAudiences = [
+      process.env.APPLE_CLIENT_ID || "com.mileclear.app",
+      process.env.APPLE_WEB_CLIENT_ID || "com.mileclear.web",
+    ];
+    let payload: { sub?: string; email?: string };
+    try {
+      const { payload: verified } = await jwtVerify(
+        idToken,
+        APPLE_JWKS,
+        {
+          issuer: "https://appleid.apple.com",
+          audience: appleAudiences,
+        }
+      );
+      payload = verified as { sub?: string; email?: string };
+    } catch {
+      return reply.type("text/html").send(`
+        <html><body><script>
+          window.opener.postMessage({ type: "apple-auth-error", error: "Invalid Apple identity token" }, "*");
+          window.close();
+        </script></body></html>
+      `);
+    }
+
+    const appleId = payload.sub;
+    const email = payload.email;
+    if (!appleId) {
+      return reply.type("text/html").send(`
+        <html><body><script>
+          window.opener.postMessage({ type: "apple-auth-error", error: "Apple token missing subject" }, "*");
+          window.close();
+        </script></body></html>
+      `);
+    }
+
+    const displayName = [fullName?.givenName, fullName?.familyName]
+      .filter(Boolean)
+      .join(" ") || undefined;
+
+    // Account linking: find by appleId → find by email → create
+    let user = await prisma.user.findUnique({ where: { appleId } });
+    if (!user && email) {
+      user = await prisma.user.findUnique({ where: { email } });
+      if (user) {
+        user = await prisma.user.update({
+          where: { id: user.id },
+          data: { appleId, ...(displayName && !user.displayName ? { displayName } : {}) },
+        });
+      }
+    }
+    if (!user) {
+      user = await prisma.user.create({
+        data: {
+          email: email || `apple_${appleId}@private.mileclear.com`,
+          appleId,
+          emailVerified: true,
+          ...(displayName ? { displayName } : {}),
+        },
+      });
+    }
+
+    const accessToken = generateAccessToken(user.id, user.isAdmin);
+    const refreshToken = generateRefreshToken(user.id);
+    await storeRefreshToken(user.id, refreshToken);
+
+    const webOrigin = process.env.CORS_ORIGIN?.split(",")[0] || "https://mileclear.com";
+
+    // Send tokens back to the opener window via postMessage, then close the popup
+    return reply.type("text/html").send(`
+      <html><body><script>
+        window.opener.postMessage({
+          type: "apple-auth-success",
+          accessToken: ${JSON.stringify(accessToken)},
+          refreshToken: ${JSON.stringify(refreshToken)}
+        }, ${JSON.stringify(webOrigin)});
+        window.close();
+      </script></body></html>
+    `);
+  });
 }
