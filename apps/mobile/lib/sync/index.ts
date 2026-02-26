@@ -34,6 +34,7 @@ function getEndpoint(entityType: string, action: string, entityId: string): { me
     trip: { base: "/trips" },
     earning: { base: "/earnings" },
     fuel_log: { base: "/fuel/logs" },
+    shift: { base: "/shifts" },
   };
 
   const route = routes[entityType];
@@ -106,6 +107,7 @@ export async function processSyncQueue(): Promise<void> {
           trip: "trips",
           earning: "earnings",
           fuel_log: "fuel_logs",
+          shift: "shifts",
         };
         const table = TABLE_MAP[item.entity_type];
         if (!table) throw new Error(`Unknown entity type: ${item.entity_type}`);
@@ -117,6 +119,13 @@ export async function processSyncQueue(): Promise<void> {
             UPDATE ${table} SET id = '${serverId}', synced_at = '${now}' WHERE id = '${item.entity_id}';
             UPDATE sync_queue SET entity_id = '${serverId}', status = 'synced', updated_at = '${now}' WHERE id = '${item.id}';
           `);
+          // Cascade shift ID changes to related tables
+          if (item.entity_type === "shift") {
+            await db.execAsync(`
+              UPDATE shift_coordinates SET shift_id = '${serverId}' WHERE shift_id = '${item.entity_id}';
+              UPDATE trips SET shift_id = '${serverId}' WHERE shift_id = '${item.entity_id}';
+            `);
+          }
         } else if (item.action === "delete") {
           // Clean up local row on successful delete
           await db.execAsync(`

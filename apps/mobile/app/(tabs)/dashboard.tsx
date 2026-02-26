@@ -17,10 +17,10 @@ import { useFocusEffect, useRouter } from "expo-router";
 import { fetchVehicles } from "../../lib/api/vehicles";
 import {
   fetchActiveShift,
-  startShift,
-  endShift,
   ShiftWithVehicle,
 } from "../../lib/api/shifts";
+import { syncStartShift, syncEndShift } from "../../lib/sync/actions";
+import { getDatabase } from "../../lib/db/index";
 import {
   fetchGamificationStats,
   fetchAchievements,
@@ -82,8 +82,32 @@ export default function DashboardScreen() {
   const loadData = useCallback(async () => {
     try {
       const [shiftRes, vehicleRes, statsRes, achievementsRes] = await Promise.all([
-        fetchActiveShift(),
-        fetchVehicles(),
+        fetchActiveShift().catch(async () => {
+          // Offline fallback: check local SQLite for active shift
+          const db = await getDatabase();
+          const row = await db.getFirstAsync<{
+            id: string;
+            vehicle_id: string | null;
+            started_at: string;
+            ended_at: string | null;
+            status: string;
+          }>("SELECT * FROM shifts WHERE status = 'active' LIMIT 1");
+          if (row) {
+            return {
+              data: [{
+                id: row.id,
+                userId: "",
+                vehicleId: row.vehicle_id,
+                startedAt: row.started_at,
+                endedAt: row.ended_at,
+                status: row.status as "active",
+                vehicle: null,
+              }] as ShiftWithVehicle[],
+            };
+          }
+          return { data: [] as ShiftWithVehicle[] };
+        }),
+        fetchVehicles().catch(() => ({ data: [] as Vehicle[] })),
         fetchGamificationStats().catch(() => null),
         fetchAchievements().catch(() => null),
       ]);
@@ -141,7 +165,7 @@ export default function DashboardScreen() {
   const handleStartShift = useCallback(async () => {
     setStarting(true);
     try {
-      const res = await startShift(
+      const res = await syncStartShift(
         selectedVehicleId ? { vehicleId: selectedVehicleId } : undefined
       );
       setActiveShift(res.data);
@@ -183,13 +207,15 @@ export default function DashboardScreen() {
               activeShift.vehicleId ?? undefined
             );
 
-            // 3. End shift on API (scorecard includes GPS-tracked trips)
-            const res = await endShift(activeShift.id);
+            // 3. End shift (offline-aware — syncs when online)
+            const res = await syncEndShift(activeShift.id);
             setActiveShift(null);
-            const resAny = res as any;
-            if (resAny.scorecard) {
-              setScorecard(resAny.scorecard);
-              setShowScorecard(true);
+            if (res) {
+              const resAny = res as any;
+              if (resAny.scorecard) {
+                setScorecard(resAny.scorecard);
+                setShowScorecard(true);
+              }
             }
             loadData();
           } catch (err: any) {

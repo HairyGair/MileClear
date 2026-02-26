@@ -3,7 +3,7 @@
 import { randomUUID } from "expo-crypto";
 import { getDatabase } from "../db/index";
 
-export type EntityType = "trip" | "earning" | "fuel_log";
+export type EntityType = "trip" | "earning" | "fuel_log" | "shift";
 export type SyncAction = "create" | "update" | "delete";
 
 export async function enqueueSync(

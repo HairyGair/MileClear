@@ -179,15 +179,19 @@ export function Button({
   const isGhostDanger = variant === "ghost" && danger;
   const textColor = isGhostDanger ? "#f87171" : v.text;
 
-  // ── Outer animated wrapper ──────────────────────────────────
-  const outerStyle: Animated.AnimatedProps<ViewStyle>[] = [
-    { transform: [{ scale: scaleAnim }] },
+  // ── Style wrappers ─────────────────────────────────────────
+  // Glow / shadow must be JS-driven (useNativeDriver: false) because shadow*
+  // props aren't supported by the native animation driver. Scale is native-
+  // driven. Mixing drivers on the same Animated.View crashes, so we use two
+  // nested Animated.Views: outer for glow, inner for scale + transform.
+
+  const glowStyle: Animated.AnimatedProps<ViewStyle>[] = [
     ...(!fullWidth ? [{ alignSelf: "flex-start" as const }] : []),
   ];
 
   // Hero glow — animate both opacity and radius for a breathing feel
   if (variant === "hero" && Platform.OS === "ios") {
-    outerStyle.push({
+    glowStyle.push({
       shadowColor: "#e8991a",
       shadowOffset: { width: 0, height: 6 },
       shadowOpacity: glowOpacity as unknown as number,
@@ -197,7 +201,7 @@ export function Button({
 
   // Primary — static warm shadow
   if (variant === "primary" && Platform.OS === "ios") {
-    outerStyle.push({
+    glowStyle.push({
       shadowColor: "#d4891a",
       shadowOffset: { width: 0, height: 3 },
       shadowOpacity: 0.18,
@@ -205,67 +209,73 @@ export function Button({
     });
   }
 
-  if (style) outerStyle.push(style);
+  if (style) glowStyle.push(style);
+
+  const scaleStyle: Animated.AnimatedProps<ViewStyle>[] = [
+    { transform: [{ scale: scaleAnim }] },
+  ];
 
   return (
-    <Animated.View style={outerStyle}>
-      <Pressable
-        onPress={onPress}
-        onPressIn={handlePressIn}
-        onPressOut={handlePressOut}
-        disabled={disabled || loading}
-        style={[
-          styles.base,
-          {
-            paddingVertical: s.pv,
-            paddingHorizontal: s.ph,
-            backgroundColor: v.bg,
-            borderRadius: v.radius,
-          },
-          v.border != null && {
-            borderWidth: 1,
-            borderColor: v.border,
-          },
-          // Secondary — amber accent strip on left edge
-          variant === "secondary" && styles.secondaryAccent,
-          // Hero — Android static elevation
-          variant === "hero" && Platform.OS === "android" && { elevation: 6 },
-          // Primary — Android slight elevation
-          variant === "primary" && Platform.OS === "android" && { elevation: 3 },
-          // Disabled state
-          (disabled || loading) && styles.disabled,
-        ]}
-      >
-        {/* Content — fades out when loading */}
-        <Animated.View style={[styles.content, { opacity: contentOpacity }]}>
-          {icon && (
-            <Ionicons
-              name={icon}
-              size={s.icon}
-              color={textColor}
-              style={{ marginRight: s.gap }}
-            />
-          )}
-          <Text
-            style={{
-              fontSize: s.fs,
-              fontFamily: v.font,
-              color: textColor,
-              letterSpacing: s.ls,
-            }}
-          >
-            {title}
-          </Text>
-        </Animated.View>
-
-        {/* Spinner — fades in when loading, overlaid on content */}
-        <Animated.View
-          style={[styles.spinnerOverlay, { opacity: spinnerOpacity }]}
-          pointerEvents="none"
+    <Animated.View style={glowStyle}>
+      <Animated.View style={scaleStyle}>
+        <Pressable
+          onPress={onPress}
+          onPressIn={handlePressIn}
+          onPressOut={handlePressOut}
+          disabled={disabled || loading}
+          style={[
+            styles.base,
+            {
+              paddingVertical: s.pv,
+              paddingHorizontal: s.ph,
+              backgroundColor: v.bg,
+              borderRadius: v.radius,
+            },
+            v.border != null && {
+              borderWidth: 1,
+              borderColor: v.border,
+            },
+            // Secondary — amber accent strip on left edge
+            variant === "secondary" && styles.secondaryAccent,
+            // Hero — Android static elevation
+            variant === "hero" && Platform.OS === "android" && { elevation: 6 },
+            // Primary — Android slight elevation
+            variant === "primary" && Platform.OS === "android" && { elevation: 3 },
+            // Disabled state
+            (disabled || loading) && styles.disabled,
+          ]}
         >
-          <ActivityIndicator color={textColor} size="small" />
-        </Animated.View>
-      </Pressable>
+          {/* Content — fades out when loading */}
+          <Animated.View style={[styles.content, { opacity: contentOpacity }]}>
+            {icon && (
+              <Ionicons
+                name={icon}
+                size={s.icon}
+                color={textColor}
+                style={{ marginRight: s.gap }}
+              />
+            )}
+            <Text
+              style={{
+                fontSize: s.fs,
+                fontFamily: v.font,
+                color: textColor,
+                letterSpacing: s.ls,
+              }}
+            >
+              {title}
+            </Text>
+          </Animated.View>
+
+          {/* Spinner — fades in when loading, overlaid on content */}
+          <Animated.View
+            style={[styles.spinnerOverlay, { opacity: spinnerOpacity }]}
+            pointerEvents="none"
+          >
+            <ActivityIndicator color={textColor} size="small" />
+          </Animated.View>
+        </Pressable>
+      </Animated.View>
     </Animated.View>
   );
 }

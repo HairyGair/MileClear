@@ -181,15 +181,23 @@ export async function authRoutes(app: FastifyInstance) {
     });
 
     if (!stored || stored.expiresAt < new Date()) {
-      // Clean up expired token if it exists
+      // Clean up expired token if it exists — use deleteMany to avoid
+      // race condition where another concurrent request already deleted it
       if (stored) {
-        await prisma.refreshToken.delete({ where: { id: stored.id } });
+        await prisma.refreshToken.deleteMany({ where: { id: stored.id } });
       }
       return reply.status(401).send({ error: "Invalid or expired refresh token" });
     }
 
     // Token rotation: delete old, issue new
-    await prisma.refreshToken.delete({ where: { id: stored.id } });
+    // Use deleteMany to gracefully handle concurrent refresh requests
+    // where another request already consumed (deleted) this token.
+    const deleted = await prisma.refreshToken.deleteMany({ where: { id: stored.id } });
+
+    if (deleted.count === 0) {
+      // Another concurrent request already consumed this token
+      return reply.status(401).send({ error: "Refresh token already used" });
+    }
 
     const user = await prisma.user.findUnique({
       where: { id: stored.userId },

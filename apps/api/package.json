@@ -8,6 +8,8 @@
     "build": "tsc",
     "start": "node dist/server.js",
     "typecheck": "tsc --noEmit",
+    "test": "vitest run --config vitest.config.ts",
+    "test:watch": "vitest --config vitest.config.ts",
     "db:migrate": "prisma migrate dev --schema ../../prisma/schema.prisma",
     "db:generate": "prisma generate --schema ../../prisma/schema.prisma",
     "db:studio": "prisma studio --schema ../../prisma/schema.prisma",
@@ -40,6 +42,7 @@
     "@types/pdfkit": "^0.17.5",
     "prisma": "^6.3.0",
     "tsx": "^4.19.0",
-    "typescript": "^5.7.0"
+    "typescript": "^5.7.0",
+    "vitest": "^2.1.0"
   }
 }

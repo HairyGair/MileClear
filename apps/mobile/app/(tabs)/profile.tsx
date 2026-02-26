@@ -332,6 +332,18 @@ export default function ProfileScreen() {
               <Ionicons name="chevron-forward" size={18} color="#6b7280" />
             </TouchableOpacity>
 
+            <TouchableOpacity
+              style={styles.actionRow}
+              onPress={() => router.push("/sync-status")}
+              activeOpacity={0.7}
+            >
+              <View style={styles.actionRowLeft}>
+                <Ionicons name="cloud-upload-outline" size={18} color="#8494a7" />
+                <Text style={styles.actionText}>Sync Status</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={18} color="#6b7280" />
+            </TouchableOpacity>
+
             {/* Settings Section */}
             <Text style={[styles.sectionTitle, { marginTop: 28 }]}>Settings</Text>
             <View style={styles.settingRow}>

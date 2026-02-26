@@ -24,6 +24,11 @@ import {
   deleteFuelLog as apiDeleteFuelLog,
 } from "../api/fuel";
 import type { CreateFuelLogData, UpdateFuelLogData } from "../api/fuel";
+import {
+  startShift as apiStartShift,
+  endShift as apiEndShift,
+} from "../api/shifts";
+import type { ShiftWithVehicle } from "../api/shifts";
 
 function isNetworkError(err: unknown): boolean {
   if (err instanceof TypeError && err.message.includes("Network request failed")) {
@@ -344,6 +349,98 @@ export async function syncDeleteFuelLog(id: string) {
     if (isNetworkError(err)) return null;
     await db.runAsync(
       "DELETE FROM sync_queue WHERE entity_id = ? AND entity_type = 'fuel_log' AND action = 'delete' AND status = 'pending'",
+      [id]
+    );
+    throw err;
+  }
+}
+
+// ─── Shifts ─────────────────────────────────────────────────────────────────
+
+export async function syncStartShift(
+  data?: { vehicleId?: string }
+): Promise<{ data: ShiftWithVehicle }> {
+  const localId = randomUUID();
+  const now = new Date().toISOString();
+  const db = await getDatabase();
+
+  // Write to local SQLite
+  await db.runAsync(
+    `INSERT INTO shifts (id, vehicle_id, started_at, status) VALUES (?, ?, ?, 'active')`,
+    [localId, data?.vehicleId ?? null, now]
+  );
+
+  // Build local shift object for offline use
+  const localShift: ShiftWithVehicle = {
+    id: localId,
+    userId: "",
+    vehicleId: data?.vehicleId ?? null,
+    startedAt: now,
+    endedAt: null,
+    status: "active",
+    vehicle: null,
+  };
+
+  await enqueueSync("shift", localId, "create", (data ?? {}) as Record<string, unknown>);
+
+  try {
+    const result = await apiStartShift(data);
+    const serverId = result.data.id;
+    const syncNow = new Date().toISOString();
+
+    // Reconcile local ID → server ID + cascade to related tables
+    await db.execAsync(`
+      UPDATE shifts SET id = '${serverId}', synced_at = '${syncNow}' WHERE id = '${localId}';
+      UPDATE sync_queue SET entity_id = '${serverId}', status = 'synced', updated_at = '${syncNow}'
+        WHERE entity_id = '${localId}' AND entity_type = 'shift' AND action = 'create';
+      UPDATE shift_coordinates SET shift_id = '${serverId}' WHERE shift_id = '${localId}';
+      UPDATE trips SET shift_id = '${serverId}' WHERE shift_id = '${localId}';
+    `);
+
+    return result;
+  } catch (err) {
+    if (isNetworkError(err)) {
+      // Return local object so UI works offline
+      return { data: localShift };
+    }
+    // API validation error — cleanup
+    await db.runAsync("DELETE FROM sync_queue WHERE entity_id = ? AND entity_type = 'shift'", [localId]);
+    await db.runAsync("DELETE FROM shifts WHERE id = ?", [localId]);
+    throw err;
+  }
+}
+
+export async function syncEndShift(id: string) {
+  const db = await getDatabase();
+  const now = new Date().toISOString();
+
+  // Update local SQLite first
+  await db.runAsync(
+    "UPDATE shifts SET status = 'completed', ended_at = ? WHERE id = ?",
+    [now, id]
+  );
+
+  await enqueueSync("shift", id, "update", { status: "completed" } as Record<string, unknown>);
+
+  try {
+    const result = await apiEndShift(id);
+    await db.runAsync(
+      "UPDATE sync_queue SET status = 'synced', updated_at = ? WHERE entity_id = ? AND entity_type = 'shift' AND action = 'update' AND status = 'pending'",
+      [new Date().toISOString(), id]
+    );
+    return result;
+  } catch (err) {
+    if (isNetworkError(err)) {
+      // Shift ended locally; scorecard unavailable offline
+      return null;
+    }
+    // API error — revert local change
+    await db.runAsync(
+      "UPDATE shifts SET status = 'active', ended_at = NULL WHERE id = ?",
+      [id]
+    );
+    await db.runAsync(
+      "DELETE FROM sync_queue WHERE entity_id = ? AND entity_type = 'shift' AND action = 'update' AND status = 'pending'",
       [id]
     );
     throw err;

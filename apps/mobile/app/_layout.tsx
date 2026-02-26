@@ -1,6 +1,8 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Redirect, Stack } from "expo-router";
-import { View, ActivityIndicator } from "react-native";
+import { View, ActivityIndicator, LogBox } from "react-native";
+
+LogBox.ignoreLogs(["Not Found"]);
 import * as Font from "expo-font";
 import {
   PlusJakartaSans_300Light,
@@ -14,6 +16,7 @@ import { UserProvider } from "../lib/user/context";
 import { SyncProvider } from "../lib/sync/context";
 import { ModeProvider } from "../lib/mode/context";
 import { SyncStatusBar } from "../components/SyncStatusBar";
+import { HydrationOverlay } from "../components/HydrationOverlay";
 import "../lib/tracking/detection"; // Register drive detection TaskManager task
 import {
   requestNotificationPermissions,
@@ -23,6 +26,8 @@ import {
 import { setupNotificationChannels, scheduleWeeklyMileageSummary, scheduleTaxYearDeadlineReminder, checkUnclassifiedTripsNudge, checkStreakAtRisk, checkLongRunningShift } from "../lib/notifications/scheduler";
 import { registerPushToken } from "../lib/api/notifications";
 import { startDriveDetection } from "../lib/tracking/detection";
+import { getDatabase } from "../lib/db/index";
+import { hydrateLocalData, isHydrationComplete } from "../lib/sync/hydrate";
 
 const HEADER_STYLE = { backgroundColor: "#030712" } as const;
 const HEADER_TINT = "#f0f2f5";
@@ -31,6 +36,54 @@ const HEADER_TITLE_STYLE = { fontFamily: "PlusJakartaSans_300Light", color: "#f0
 function RootNavigator() {
   const { isLoading, isAuthenticated } = useAuth();
 
+  // ── Onboarding check ──────────────────────────────────────────
+  const [onboardingChecked, setOnboardingChecked] = useState(false);
+  const [onboardingComplete, setOnboardingComplete] = useState(false);
+
+  useEffect(() => {
+    if (!isAuthenticated) {
+      setOnboardingChecked(true);
+      return;
+    }
+    getDatabase()
+      .then((db) =>
+        db.getFirstAsync<{ value: string }>(
+          "SELECT value FROM tracking_state WHERE key = 'onboarding_complete'"
+        )
+      )
+      .then((row) => {
+        setOnboardingComplete(row?.value === "true");
+        setOnboardingChecked(true);
+      })
+      .catch(() => {
+        setOnboardingComplete(false);
+        setOnboardingChecked(true);
+      });
+  }, [isAuthenticated]);
+
+  // ── Data hydration (first login on new device) ────────────────
+  const [hydrating, setHydrating] = useState(false);
+  const [hydrateStep, setHydrateStep] = useState("Preparing...");
+  const [hydrateDone, setHydrateDone] = useState(0);
+  const hydrateRan = useRef(false);
+
+  useEffect(() => {
+    if (!isAuthenticated || isLoading || hydrateRan.current) return;
+    hydrateRan.current = true;
+
+    isHydrationComplete().then((done) => {
+      if (done) return;
+      setHydrating(true);
+      hydrateLocalData((step, stepDone) => {
+        setHydrateStep(step);
+        setHydrateDone(stepDone);
+      })
+        .catch(console.error)
+        .finally(() => setHydrating(false));
+    });
+  }, [isAuthenticated, isLoading]);
+
+  // ── Notifications, tracking, etc. ─────────────────────────────
   useEffect(() => {
     if (isAuthenticated && !isLoading) {
       startDriveDetection();
@@ -40,20 +93,20 @@ function RootNavigator() {
         .then((token) => {
           if (token) return registerPushToken(token);
         })
-        .catch(console.error);
+        .catch(() => {});
 
       // Schedule recurring and one-off local notifications
-      scheduleWeeklyMileageSummary().catch(console.error);
-      scheduleTaxYearDeadlineReminder().catch(console.error);
+      scheduleWeeklyMileageSummary().catch(() => {});
+      scheduleTaxYearDeadlineReminder().catch(() => {});
 
       // Check conditions that fire immediately if met
-      checkUnclassifiedTripsNudge().catch(console.error);
-      checkStreakAtRisk().catch(console.error);
-      checkLongRunningShift().catch(console.error);
+      checkUnclassifiedTripsNudge().catch(() => {});
+      checkStreakAtRisk().catch(() => {});
+      checkLongRunningShift().catch(() => {});
     }
   }, [isAuthenticated, isLoading]);
 
-  if (isLoading) {
+  if (isLoading || !onboardingChecked) {
     return (
       <View style={{ flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: "#030712" }}>
         <ActivityIndicator size="large" color="#f5a623" />
@@ -75,8 +128,12 @@ function RootNavigator() {
         }}
       >
         <Stack.Screen
+          name="onboarding"
+          redirect={!isAuthenticated || onboardingComplete}
+        />
+        <Stack.Screen
           name="(tabs)"
-          redirect={!isAuthenticated}
+          redirect={!isAuthenticated || !onboardingComplete}
         />
         <Stack.Screen
           name="(auth)"
@@ -146,7 +203,17 @@ function RootNavigator() {
           name="admin-feedback"
           options={{ headerShown: true, title: "Manage Feedback" }}
         />
+        <Stack.Screen
+          name="sync-status"
+          options={{ headerShown: true, title: "Sync Status" }}
+        />
       </Stack>
+      <HydrationOverlay
+        visible={hydrating}
+        step={hydrateStep}
+        done={hydrateDone}
+        total={5}
+      />
     </>
   );
 }

@@ -1,7 +1,7 @@
 import * as Notifications from "expo-notifications";
 import Constants from "expo-constants";
 import { router } from "expo-router";
-import { startShift } from "../api/shifts";
+import { syncStartShift } from "../sync/actions";
 import {
   requestLocationPermissions,
   startShiftTracking,
@@ -75,7 +75,7 @@ export function setupNotificationResponseHandler(): void {
     switch (action) {
       case "start_shift": {
         try {
-          const res = await startShift();
+          const res = await syncStartShift();
           const shift = res.data;
 
           const hasPermission = await requestLocationPermissions();
