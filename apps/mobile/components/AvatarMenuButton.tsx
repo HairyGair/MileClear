@@ -1,7 +1,8 @@
 import { useState } from "react";
-import { TouchableOpacity, Text, StyleSheet } from "react-native";
+import { TouchableOpacity, Text, View, StyleSheet } from "react-native";
 import { useUser } from "../lib/user/context";
 import AvatarDropdownMenu from "./AvatarDropdownMenu";
+import { AvatarIcon } from "./avatars/AvatarRegistry";
 
 export default function AvatarMenuButton() {
   const { user } = useUser();
@@ -14,12 +15,18 @@ export default function AvatarMenuButton() {
   return (
     <>
       <TouchableOpacity
-        style={styles.avatar}
         onPress={() => setMenuVisible(true)}
         hitSlop={6}
         activeOpacity={0.7}
+        style={{ marginRight: 8 }}
       >
-        <Text style={styles.initial}>{initial}</Text>
+        {user?.avatarId ? (
+          <AvatarIcon avatarId={user.avatarId} size={32} />
+        ) : (
+          <View style={styles.avatar}>
+            <Text style={styles.initial}>{initial}</Text>
+          </View>
+        )}
       </TouchableOpacity>
       <AvatarDropdownMenu
         visible={menuVisible}

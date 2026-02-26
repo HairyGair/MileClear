@@ -23,6 +23,7 @@ model User {
   stripeSubscriptionId String?   @unique @db.VarChar(255)
   termsAcceptedAt      DateTime?
   pushToken            String?   @db.VarChar(255)
+  avatarId             String?   @db.VarChar(50)
   createdAt            DateTime  @default(now())
   updatedAt            DateTime  @updatedAt
 

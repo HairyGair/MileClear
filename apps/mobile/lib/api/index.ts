@@ -72,9 +72,13 @@ export async function apiRequest<T>(
 
   const makeRequest = async (accessToken: string | null) => {
     const headers: Record<string, string> = {
-      "Content-Type": "application/json",
       ...(options.headers as Record<string, string>),
     };
+    // Only set Content-Type for requests that have a body — Fastify rejects
+    // empty bodies with Content-Type: application/json (400 Bad Request)
+    if (options.body) {
+      headers["Content-Type"] = "application/json";
+    }
     if (accessToken) {
       headers["Authorization"] = `Bearer ${accessToken}`;
     }

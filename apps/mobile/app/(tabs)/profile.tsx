@@ -18,7 +18,7 @@ import { useRouter, useFocusEffect } from "expo-router";
 import * as WebBrowser from "expo-web-browser";
 import { useAuth } from "../../lib/auth/context";
 import { fetchVehicles } from "../../lib/api/vehicles";
-import { fetchProfile, exportUserData, deleteAccount } from "../../lib/api/user";
+import { fetchProfile, updateProfile, exportUserData, deleteAccount } from "../../lib/api/user";
 import {
   fetchBillingStatus,
   createCheckoutSession,
@@ -35,6 +35,8 @@ import {
   type NotificationPreferences,
 } from "../../lib/notifications/preferences";
 import { Button } from "../../components/Button";
+import { AvatarPicker } from "../../components/avatars/AvatarPicker";
+import { AvatarIcon } from "../../components/avatars/AvatarRegistry";
 
 const VEHICLE_TYPE_LABELS: Record<string, string> = {
   car: "Car",
@@ -74,6 +76,15 @@ export default function ProfileScreen() {
     streakReminder: true,
     taxDeadline: true,
   });
+
+  const handleAvatarSelect = useCallback(async (avatarId: string | null) => {
+    try {
+      const res = await updateProfile({ avatarId });
+      setUser(res.data);
+    } catch {
+      Alert.alert("Error", "Failed to update avatar");
+    }
+  }, []);
 
   const loadData = useCallback(async () => {
     try {
@@ -269,24 +280,21 @@ export default function ProfileScreen() {
             {/* Profile Card */}
             {user && (
               <View style={styles.profileCard}>
-                <View style={styles.avatarRow}>
-                  <View style={styles.avatar}>
-                    <Text style={styles.avatarText}>
-                      {(user.displayName || user.email)[0].toUpperCase()}
+                <AvatarPicker
+                  currentAvatarId={user.avatarId}
+                  onSelect={handleAvatarSelect}
+                />
+                <View style={styles.profileInfoCentered}>
+                  <View style={styles.nameRow}>
+                    <Text style={styles.displayName} numberOfLines={1}>
+                      {user.displayName || "Driver"}
                     </Text>
+                    {user.isPremium && <Text style={styles.proBadge}>PRO</Text>}
                   </View>
-                  <View style={styles.profileInfo}>
-                    <View style={styles.nameRow}>
-                      <Text style={styles.displayName} numberOfLines={1}>
-                        {user.displayName || "Driver"}
-                      </Text>
-                      {user.isPremium && <Text style={styles.proBadge}>PRO</Text>}
-                    </View>
-                    <Text style={styles.email} numberOfLines={1}>{user.email}</Text>
-                    <Text style={styles.memberSince}>
-                      Member since {formatDate(user.createdAt)}
-                    </Text>
-                  </View>
+                  <Text style={styles.email} numberOfLines={1}>{user.email}</Text>
+                  <Text style={styles.memberSince}>
+                    Member since {formatDate(user.createdAt)}
+                  </Text>
                 </View>
               </View>
             )}
@@ -652,6 +660,9 @@ const styles = StyleSheet.create({
   },
   profileInfo: {
     flex: 1,
+  },
+  profileInfoCentered: {
+    alignItems: "center",
   },
   nameRow: {
     flexDirection: "row",

@@ -3,6 +3,7 @@ import type { User } from "@mileclear/shared";
 
 export interface UpdateProfileData {
   displayName?: string | null;
+  avatarId?: string | null;
   email?: string;
   currentPassword?: string;
 }

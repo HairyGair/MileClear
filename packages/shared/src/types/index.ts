@@ -3,6 +3,7 @@ export interface User {
   id: string;
   email: string;
   displayName: string | null;
+  avatarId: string | null;
   emailVerified: boolean;
   isPremium: boolean;
   isAdmin: boolean;

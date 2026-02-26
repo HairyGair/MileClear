@@ -44,6 +44,8 @@ import { formatPence, formatMiles } from "@mileclear/shared";
 import { useMode } from "../../lib/mode/context";
 import { ModeToggle } from "../../components/ModeToggle";
 import { PersonalDashboard } from "../../components/personal/PersonalDashboard";
+import { LiveMapTracker } from "../../components/map/LiveMapTracker";
+import { useUser } from "../../lib/user/context";
 import { Ionicons } from "@expo/vector-icons";
 
 function formatElapsed(seconds: number): string {
@@ -62,6 +64,7 @@ function formatMilesShort(miles: number): string {
 export default function DashboardScreen() {
   const router = useRouter();
   const { isPersonal, isWork } = useMode();
+  const { user: currentUser } = useUser();
   const [activeShift, setActiveShift] = useState<ShiftWithVehicle | null>(null);
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [selectedVehicleId, setSelectedVehicleId] = useState<string | undefined>();
@@ -444,6 +447,8 @@ export default function DashboardScreen() {
           )}
         </View>
 
+        <LiveMapTracker shiftId={activeShift.id} height={240} trailDefault avatarId={currentUser?.avatarId} />
+
         <View style={s.statsRow}>
           <View style={s.statCard}>
             <Text style={s.statNum}>
@@ -583,7 +588,7 @@ export default function DashboardScreen() {
       </View>
 
       {/* Personal Dashboard (personal mode only) */}
-      {isPersonal && <PersonalDashboard />}
+      {isPersonal && <PersonalDashboard avatarId={currentUser?.avatarId} />}
 
       {/* Achievements */}
       {achievements.length > 0 && (
