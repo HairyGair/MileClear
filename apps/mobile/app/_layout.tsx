@@ -1,8 +1,6 @@
-import { useEffect, useRef, useState } from "react";
-import { Redirect, Stack } from "expo-router";
-import { View, ActivityIndicator, LogBox } from "react-native";
-
-LogBox.ignoreLogs(["Not Found"]);
+import React, { useEffect, useRef, useState } from "react";
+import { View, Text, ActivityIndicator, LogBox, ScrollView } from "react-native";
+import { Stack } from "expo-router";
 import * as Font from "expo-font";
 import {
   PlusJakartaSans_300Light,
@@ -11,13 +9,53 @@ import {
   PlusJakartaSans_600SemiBold,
   PlusJakartaSans_700Bold,
 } from "@expo-google-fonts/plus-jakarta-sans";
+
+LogBox.ignoreLogs(["Not Found"]);
+
+// Error boundary to catch and display runtime crashes
+class ErrorBoundary extends React.Component<
+  { children: React.ReactNode },
+  { hasError: boolean; error: Error | null }
+> {
+  state = { hasError: false, error: null as Error | null };
+
+  static getDerivedStateFromError(error: Error) {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error: Error, info: React.ErrorInfo) {
+    console.error("Root ErrorBoundary caught:", error, info.componentStack);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <View style={{ flex: 1, backgroundColor: "#030712", padding: 40, justifyContent: "center" }}>
+          <Text style={{ color: "#ef4444", fontSize: 18, fontWeight: "bold", marginBottom: 12 }}>
+            App Crash
+          </Text>
+          <ScrollView>
+            <Text style={{ color: "#f0f2f5", fontSize: 13, lineHeight: 20 }}>
+              {this.state.error?.message}
+            </Text>
+            <Text style={{ color: "#6b7280", fontSize: 11, marginTop: 12, lineHeight: 16 }}>
+              {this.state.error?.stack?.slice(0, 800)}
+            </Text>
+          </ScrollView>
+        </View>
+      );
+    }
+    return this.props.children;
+  }
+}
+
 import { AuthProvider, useAuth } from "../lib/auth/context";
 import { UserProvider } from "../lib/user/context";
-import { SyncProvider } from "../lib/sync/context";
 import { ModeProvider } from "../lib/mode/context";
+import { SyncProvider } from "../lib/sync/context";
 import { SyncStatusBar } from "../components/SyncStatusBar";
 import { HydrationOverlay } from "../components/HydrationOverlay";
-import "../lib/tracking/detection"; // Register drive detection TaskManager task
+import "../lib/tracking/detection";
 import {
   requestNotificationPermissions,
   setupNotificationResponseHandler,
@@ -61,7 +99,7 @@ function RootNavigator() {
       });
   }, [isAuthenticated]);
 
-  // ── Data hydration (first login on new device) ────────────────
+  // ── Data hydration ────────────────────────────────────────────
   const [hydrating, setHydrating] = useState(false);
   const [hydrateStep, setHydrateStep] = useState("Preparing...");
   const [hydrateDone, setHydrateDone] = useState(0);
@@ -83,23 +121,15 @@ function RootNavigator() {
     });
   }, [isAuthenticated, isLoading]);
 
-  // ── Notifications, tracking, etc. ─────────────────────────────
+  // ── Notifications, tracking ───────────────────────────────────
   useEffect(() => {
     if (isAuthenticated && !isLoading) {
       startDriveDetection();
-
-      // Register push token and sync to API
       registerForPushNotifications()
-        .then((token) => {
-          if (token) return registerPushToken(token);
-        })
+        .then((token) => { if (token) return registerPushToken(token); })
         .catch(() => {});
-
-      // Schedule recurring and one-off local notifications
       scheduleWeeklyMileageSummary().catch(() => {});
       scheduleTaxYearDeadlineReminder().catch(() => {});
-
-      // Check conditions that fire immediately if met
       checkUnclassifiedTripsNudge().catch(() => {});
       checkStreakAtRisk().catch(() => {});
       checkLongRunningShift().catch(() => {});
@@ -139,74 +169,23 @@ function RootNavigator() {
           name="(auth)"
           redirect={isAuthenticated}
         />
-        <Stack.Screen
-          name="trip-form"
-          options={{ headerShown: true, title: "Add Trip" }}
-        />
-        <Stack.Screen
-          name="quick-trip"
-          options={{ headerShown: true, title: "Quick Trip" }}
-        />
-        <Stack.Screen
-          name="vehicle-form"
-          options={{ headerShown: true, title: "Add Vehicle" }}
-        />
-        <Stack.Screen
-          name="earning-form"
-          options={{ headerShown: true, title: "Add Earning" }}
-        />
-        <Stack.Screen
-          name="fuel-form"
-          options={{ headerShown: true, title: "Log Fuel" }}
-        />
-        <Stack.Screen
-          name="profile-edit"
-          options={{ headerShown: true, title: "Edit Profile" }}
-        />
-        <Stack.Screen
-          name="exports"
-          options={{ headerShown: true, title: "Tax Exports" }}
-        />
-        <Stack.Screen
-          name="achievements"
-          options={{ headerShown: true, title: "Achievements" }}
-        />
-        <Stack.Screen
-          name="csv-import"
-          options={{ headerShown: true, title: "Import CSV" }}
-        />
-        <Stack.Screen
-          name="open-banking"
-          options={{ headerShown: true, title: "Open Banking" }}
-        />
-        <Stack.Screen
-          name="admin-users"
-          options={{ headerShown: true, title: "User Management" }}
-        />
-        <Stack.Screen
-          name="admin-user-detail"
-          options={{ headerShown: true, title: "User Detail" }}
-        />
-        <Stack.Screen
-          name="admin-health"
-          options={{ headerShown: true, title: "System Health" }}
-        />
-        <Stack.Screen
-          name="feedback"
-          options={{ headerShown: true, title: "Suggestions" }}
-        />
-        <Stack.Screen
-          name="feedback-form"
-          options={{ headerShown: true, title: "Submit Suggestion" }}
-        />
-        <Stack.Screen
-          name="admin-feedback"
-          options={{ headerShown: true, title: "Manage Feedback" }}
-        />
-        <Stack.Screen
-          name="sync-status"
-          options={{ headerShown: true, title: "Sync Status" }}
-        />
+        <Stack.Screen name="trip-form" options={{ headerShown: true, title: "Add Trip" }} />
+        <Stack.Screen name="quick-trip" options={{ headerShown: true, title: "Quick Trip" }} />
+        <Stack.Screen name="vehicle-form" options={{ headerShown: true, title: "Add Vehicle" }} />
+        <Stack.Screen name="earning-form" options={{ headerShown: true, title: "Add Earning" }} />
+        <Stack.Screen name="fuel-form" options={{ headerShown: true, title: "Log Fuel" }} />
+        <Stack.Screen name="profile-edit" options={{ headerShown: true, title: "Edit Profile" }} />
+        <Stack.Screen name="exports" options={{ headerShown: true, title: "Tax Exports" }} />
+        <Stack.Screen name="achievements" options={{ headerShown: true, title: "Achievements" }} />
+        <Stack.Screen name="csv-import" options={{ headerShown: true, title: "Import CSV" }} />
+        <Stack.Screen name="open-banking" options={{ headerShown: true, title: "Open Banking" }} />
+        <Stack.Screen name="admin-users" options={{ headerShown: true, title: "User Management" }} />
+        <Stack.Screen name="admin-user-detail" options={{ headerShown: true, title: "User Detail" }} />
+        <Stack.Screen name="admin-health" options={{ headerShown: true, title: "System Health" }} />
+        <Stack.Screen name="feedback" options={{ headerShown: true, title: "Suggestions" }} />
+        <Stack.Screen name="feedback-form" options={{ headerShown: true, title: "Submit Suggestion" }} />
+        <Stack.Screen name="admin-feedback" options={{ headerShown: true, title: "Manage Feedback" }} />
+        <Stack.Screen name="sync-status" options={{ headerShown: true, title: "Sync Status" }} />
       </Stack>
       <HydrationOverlay
         visible={hydrating}
@@ -235,7 +214,7 @@ export default function RootLayout() {
       PlusJakartaSans_600SemiBold,
       PlusJakartaSans_700Bold,
     }).then(() => setFontsLoaded(true))
-      .catch(() => setFontsLoaded(true)); // Continue even if fonts fail
+      .catch(() => setFontsLoaded(true));
   }, []);
 
   if (!fontsLoaded) {
@@ -247,14 +226,16 @@ export default function RootLayout() {
   }
 
   return (
-    <AuthProvider>
-      <UserProvider>
-        <ModeProvider>
-          <SyncProvider>
-            <RootNavigator />
-          </SyncProvider>
-        </ModeProvider>
-      </UserProvider>
-    </AuthProvider>
+    <ErrorBoundary>
+      <AuthProvider>
+        <UserProvider>
+          <ModeProvider>
+            <SyncProvider>
+              <RootNavigator />
+            </SyncProvider>
+          </ModeProvider>
+        </UserProvider>
+      </AuthProvider>
+    </ErrorBoundary>
   );
 }

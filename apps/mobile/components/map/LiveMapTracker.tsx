@@ -15,6 +15,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { getDatabase } from "../../lib/db/index";
 import { AvatarIcon } from "../avatars/AvatarRegistry";
 
+
 // ── Lazy native map import (Expo Go safe) ──────────────────────────
 let MapViewComponent: any = null;
 let PolylineComponent: any = null;

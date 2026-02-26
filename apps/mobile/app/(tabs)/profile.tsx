@@ -36,7 +36,6 @@ import {
 } from "../../lib/notifications/preferences";
 import { Button } from "../../components/Button";
 import { AvatarPicker } from "../../components/avatars/AvatarPicker";
-import { AvatarIcon } from "../../components/avatars/AvatarRegistry";
 
 const VEHICLE_TYPE_LABELS: Record<string, string> = {
   car: "Car",
