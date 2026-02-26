@@ -12,35 +12,25 @@ import {
 
 LogBox.ignoreLogs(["Not Found"]);
 
-// Error boundary to catch and display runtime crashes
 class ErrorBoundary extends React.Component<
   { children: React.ReactNode },
   { hasError: boolean; error: Error | null }
 > {
   state = { hasError: false, error: null as Error | null };
-
   static getDerivedStateFromError(error: Error) {
     return { hasError: true, error };
   }
-
   componentDidCatch(error: Error, info: React.ErrorInfo) {
     console.error("Root ErrorBoundary caught:", error, info.componentStack);
   }
-
   render() {
     if (this.state.hasError) {
       return (
         <View style={{ flex: 1, backgroundColor: "#030712", padding: 40, justifyContent: "center" }}>
-          <Text style={{ color: "#ef4444", fontSize: 18, fontWeight: "bold", marginBottom: 12 }}>
-            App Crash
-          </Text>
+          <Text style={{ color: "#ef4444", fontSize: 18, fontWeight: "bold", marginBottom: 12 }}>App Crash</Text>
           <ScrollView>
-            <Text style={{ color: "#f0f2f5", fontSize: 13, lineHeight: 20 }}>
-              {this.state.error?.message}
-            </Text>
-            <Text style={{ color: "#6b7280", fontSize: 11, marginTop: 12, lineHeight: 16 }}>
-              {this.state.error?.stack?.slice(0, 800)}
-            </Text>
+            <Text style={{ color: "#f0f2f5", fontSize: 13, lineHeight: 20 }}>{this.state.error?.message}</Text>
+            <Text style={{ color: "#6b7280", fontSize: 11, marginTop: 12, lineHeight: 16 }}>{this.state.error?.stack?.slice(0, 800)}</Text>
           </ScrollView>
         </View>
       );
@@ -74,7 +64,6 @@ const HEADER_TITLE_STYLE = { fontFamily: "PlusJakartaSans_300Light", color: "#f0
 function RootNavigator() {
   const { isLoading, isAuthenticated } = useAuth();
 
-  // ── Onboarding check ──────────────────────────────────────────
   const [onboardingChecked, setOnboardingChecked] = useState(false);
   const [onboardingComplete, setOnboardingComplete] = useState(false);
 
@@ -84,13 +73,19 @@ function RootNavigator() {
       return;
     }
     getDatabase()
-      .then((db) =>
-        db.getFirstAsync<{ value: string }>(
+      .then(async (db) => {
+        const row = await db.getFirstAsync<{ value: string }>(
           "SELECT value FROM tracking_state WHERE key = 'onboarding_complete'"
-        )
-      )
-      .then((row) => {
-        setOnboardingComplete(row?.value === "true");
+        );
+        if (row?.value === "true") {
+          setOnboardingComplete(true);
+        } else {
+          // Auto-complete onboarding for returning users on fresh installs
+          await db.runAsync(
+            "INSERT OR REPLACE INTO tracking_state (key, value) VALUES ('onboarding_complete', 'true')"
+          );
+          setOnboardingComplete(true);
+        }
         setOnboardingChecked(true);
       })
       .catch(() => {
@@ -99,7 +94,6 @@ function RootNavigator() {
       });
   }, [isAuthenticated]);
 
-  // ── Data hydration ────────────────────────────────────────────
   const [hydrating, setHydrating] = useState(false);
   const [hydrateStep, setHydrateStep] = useState("Preparing...");
   const [hydrateDone, setHydrateDone] = useState(0);
@@ -108,7 +102,6 @@ function RootNavigator() {
   useEffect(() => {
     if (!isAuthenticated || isLoading || hydrateRan.current) return;
     hydrateRan.current = true;
-
     isHydrationComplete().then((done) => {
       if (done) return;
       setHydrating(true);
@@ -121,7 +114,6 @@ function RootNavigator() {
     });
   }, [isAuthenticated, isLoading]);
 
-  // ── Notifications, tracking ───────────────────────────────────
   useEffect(() => {
     if (isAuthenticated && !isLoading) {
       startDriveDetection();
@@ -157,18 +149,9 @@ function RootNavigator() {
           headerBackButtonDisplayMode: "minimal",
         }}
       >
-        <Stack.Screen
-          name="onboarding"
-          redirect={!isAuthenticated || onboardingComplete}
-        />
-        <Stack.Screen
-          name="(tabs)"
-          redirect={!isAuthenticated || !onboardingComplete}
-        />
-        <Stack.Screen
-          name="(auth)"
-          redirect={isAuthenticated}
-        />
+        <Stack.Screen name="onboarding" redirect={!isAuthenticated || onboardingComplete} />
+        <Stack.Screen name="(tabs)" redirect={!isAuthenticated || !onboardingComplete} />
+        <Stack.Screen name="(auth)" redirect={isAuthenticated} />
         <Stack.Screen name="trip-form" options={{ headerShown: true, title: "Add Trip" }} />
         <Stack.Screen name="quick-trip" options={{ headerShown: true, title: "Quick Trip" }} />
         <Stack.Screen name="vehicle-form" options={{ headerShown: true, title: "Add Vehicle" }} />
@@ -187,12 +170,7 @@ function RootNavigator() {
         <Stack.Screen name="admin-feedback" options={{ headerShown: true, title: "Manage Feedback" }} />
         <Stack.Screen name="sync-status" options={{ headerShown: true, title: "Sync Status" }} />
       </Stack>
-      <HydrationOverlay
-        visible={hydrating}
-        step={hydrateStep}
-        done={hydrateDone}
-        total={5}
-      />
+      <HydrationOverlay visible={hydrating} step={hydrateStep} done={hydrateDone} total={5} />
     </>
   );
 }

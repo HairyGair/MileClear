@@ -4,6 +4,7 @@ import { useRouter, useSegments } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAuth } from "../lib/auth/context";
 import { useUser } from "../lib/user/context";
+import { AvatarIcon } from "./avatars/AvatarRegistry";
 
 const AMBER = "#f5a623";
 const TEXT_1 = "#f0f2f5";
@@ -88,11 +89,15 @@ export default function AvatarDropdownMenu({ visible, onClose }: Props) {
           {/* User info */}
           {user && (
             <View style={styles.userSection}>
-              <View style={styles.userAvatar}>
-                <Text style={styles.userAvatarText}>
-                  {(user.displayName || user.email)[0].toUpperCase()}
-                </Text>
-              </View>
+              {user.avatarId ? (
+                <AvatarIcon avatarId={user.avatarId} size={36} />
+              ) : (
+                <View style={styles.userAvatar}>
+                  <Text style={styles.userAvatarText}>
+                    {(user.displayName || user.email)[0].toUpperCase()}
+                  </Text>
+                </View>
+              )}
               <View style={styles.userInfo}>
                 <Text style={styles.userName} numberOfLines={1}>
                   {user.displayName || "Driver"}

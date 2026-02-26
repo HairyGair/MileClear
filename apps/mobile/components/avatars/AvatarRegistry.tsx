@@ -1,50 +1,83 @@
 import React from "react";
-import { View, Text } from "react-native";
+import { View, Image, ImageSourcePropType } from "react-native";
 
 // ---------------------------------------------------------------------------
-// Vehicle avatar system — pure React Native Views (no native SVG dependency)
-// Each avatar is a coloured circle with a vehicle emoji.
+// Vehicle avatar system — AI-generated PNG images (Gemini Flash)
+// Each avatar is a flat cartoon vehicle on a coloured circular background.
 // Works everywhere: Expo Go, dev builds, production.
 // ---------------------------------------------------------------------------
+
+// Static require() calls — Metro needs these at compile time
+const AVATAR_IMAGES: Record<string, ImageSourcePropType> = {
+  "sedan-red": require("../../assets/avatars/avatar-01.png"),
+  "suv-blue": require("../../assets/avatars/avatar-02.png"),
+  "taxi-yellow": require("../../assets/avatars/avatar-03.png"),
+  "hatchback-green": require("../../assets/avatars/avatar-04.png"),
+  "sports-orange": require("../../assets/avatars/avatar-05.png"),
+  "muscle-purple": require("../../assets/avatars/avatar-06.png"),
+  "convertible-pink": require("../../assets/avatars/avatar-07.png"),
+  "van-white": require("../../assets/avatars/avatar-08.png"),
+  "pickup-black": require("../../assets/avatars/avatar-09.png"),
+  "motorcycle-silver": require("../../assets/avatars/avatar-10.png"),
+  "bus-red": require("../../assets/avatars/avatar-11.png"),
+  "racer-blue": require("../../assets/avatars/avatar-12.png"),
+  "schoolbus-yellow": require("../../assets/avatars/avatar-13.png"),
+  "electric-green": require("../../assets/avatars/avatar-14.png"),
+  "monster-orange": require("../../assets/avatars/avatar-15.png"),
+  "f1-teal": require("../../assets/avatars/avatar-16.png"),
+  "luxury-gold": require("../../assets/avatars/avatar-17.png"),
+  "jeep-brown": require("../../assets/avatars/avatar-18.png"),
+  "ambulance-navy": require("../../assets/avatars/avatar-19.png"),
+  "firetruck-red": require("../../assets/avatars/avatar-20.png"),
+  "gokart-lime": require("../../assets/avatars/avatar-21.png"),
+  "minivan-indigo": require("../../assets/avatars/avatar-22.png"),
+  "scooter-rose": require("../../assets/avatars/avatar-23.png"),
+  "icecream-cyan": require("../../assets/avatars/avatar-24.png"),
+  "limo-magenta": require("../../assets/avatars/avatar-25.png"),
+  "military-olive": require("../../assets/avatars/avatar-26.png"),
+  "beetle-coral": require("../../assets/avatars/avatar-27.png"),
+  "camper-turquoise": require("../../assets/avatars/avatar-28.png"),
+  "classic-maroon": require("../../assets/avatars/avatar-29.png"),
+  "tesla-electric": require("../../assets/avatars/avatar-30.png"),
+};
 
 interface AvatarDef {
   id: string;
   label: string;
-  emoji: string;
-  color: string;
+  image: ImageSourcePropType;
 }
 
 export const AVATARS: AvatarDef[] = [
-  { id: "sedan-red", label: "Red Sedan", emoji: "\uD83D\uDE97", color: "#e53e3e" },
-  { id: "suv-blue", label: "Blue SUV", emoji: "\uD83D\uDE99", color: "#3182ce" },
-  { id: "taxi-yellow", label: "Yellow Taxi", emoji: "\uD83D\uDE95", color: "#d69e2e" },
-  { id: "hatchback-green", label: "Green Hatch", emoji: "\uD83D\uDE97", color: "#38a169" },
-  { id: "sports-orange", label: "Sports Car", emoji: "\uD83C\uDFCE\uFE0F", color: "#dd6b20" },
-  { id: "muscle-purple", label: "Muscle Car", emoji: "\uD83D\uDE97", color: "#805ad5" },
-  { id: "convertible-pink", label: "Convertible", emoji: "\uD83D\uDE97", color: "#d53f8c" },
-  { id: "van-white", label: "Delivery Van", emoji: "\uD83D\uDE90", color: "#a0aec0" },
-  { id: "pickup-black", label: "Pickup Truck", emoji: "\uD83D\uDEFB", color: "#4a5568" },
-  { id: "motorcycle-silver", label: "Motorcycle", emoji: "\uD83C\uDFCD\uFE0F", color: "#718096" },
-  { id: "bus-red", label: "Double Decker", emoji: "\uD83D\uDE8C", color: "#c53030" },
-  { id: "racer-blue", label: "Racing Car", emoji: "\uD83C\uDFCE\uFE0F", color: "#2b6cb0" },
-  { id: "schoolbus-yellow", label: "School Bus", emoji: "\uD83D\uDE8C", color: "#b7791f" },
-  { id: "electric-green", label: "Electric Car", emoji: "\u26A1", color: "#2f855a" },
-  { id: "monster-orange", label: "Monster Truck", emoji: "\uD83D\uDE9A", color: "#c05621" },
-  { id: "f1-teal", label: "F1 Car", emoji: "\uD83C\uDFCE\uFE0F", color: "#319795" },
-  { id: "luxury-gold", label: "Luxury Car", emoji: "\uD83D\uDE97", color: "#b7791f" },
-  { id: "jeep-brown", label: "Jeep", emoji: "\uD83D\uDE99", color: "#8B4513" },
-  { id: "ambulance-navy", label: "Ambulance", emoji: "\uD83D\uDE91", color: "#2a4365" },
-  { id: "firetruck-red", label: "Fire Truck", emoji: "\uD83D\uDE92", color: "#e53e3e" },
-  { id: "gokart-lime", label: "Go-Kart", emoji: "\uD83C\uDFCE\uFE0F", color: "#84cc16" },
-  { id: "minivan-indigo", label: "Minivan", emoji: "\uD83D\uDE90", color: "#5a67d8" },
-  { id: "scooter-rose", label: "Scooter", emoji: "\uD83D\uDEF5", color: "#ed64a6" },
-  { id: "icecream-cyan", label: "Ice Cream Van", emoji: "\uD83C\uDF66", color: "#00b5d8" },
-  { id: "limo-magenta", label: "Limousine", emoji: "\uD83D\uDE97", color: "#9f1239" },
-  { id: "military-olive", label: "Military Jeep", emoji: "\uD83D\uDE99", color: "#6b7821" },
-  { id: "beetle-coral", label: "VW Beetle", emoji: "\uD83D\uDE97", color: "#f56565" },
-  { id: "camper-turquoise", label: "Camper Van", emoji: "\uD83D\uDE90", color: "#0d9488" },
-  { id: "classic-maroon", label: "Classic Car", emoji: "\uD83D\uDE97", color: "#7b341e" },
-  { id: "tesla-electric", label: "Tesla", emoji: "\u26A1", color: "#0ea5e9" },
+  { id: "sedan-red", label: "Red Sedan", image: AVATAR_IMAGES["sedan-red"] },
+  { id: "suv-blue", label: "Blue SUV", image: AVATAR_IMAGES["suv-blue"] },
+  { id: "taxi-yellow", label: "Yellow Taxi", image: AVATAR_IMAGES["taxi-yellow"] },
+  { id: "hatchback-green", label: "Green Hatch", image: AVATAR_IMAGES["hatchback-green"] },
+  { id: "sports-orange", label: "Sports Car", image: AVATAR_IMAGES["sports-orange"] },
+  { id: "muscle-purple", label: "Muscle Car", image: AVATAR_IMAGES["muscle-purple"] },
+  { id: "convertible-pink", label: "Convertible", image: AVATAR_IMAGES["convertible-pink"] },
+  { id: "van-white", label: "Delivery Van", image: AVATAR_IMAGES["van-white"] },
+  { id: "pickup-black", label: "Pickup Truck", image: AVATAR_IMAGES["pickup-black"] },
+  { id: "motorcycle-silver", label: "Motorcycle", image: AVATAR_IMAGES["motorcycle-silver"] },
+  { id: "bus-red", label: "Double Decker", image: AVATAR_IMAGES["bus-red"] },
+  { id: "racer-blue", label: "Racing Car", image: AVATAR_IMAGES["racer-blue"] },
+  { id: "schoolbus-yellow", label: "School Bus", image: AVATAR_IMAGES["schoolbus-yellow"] },
+  { id: "electric-green", label: "Electric Car", image: AVATAR_IMAGES["electric-green"] },
+  { id: "monster-orange", label: "Monster Truck", image: AVATAR_IMAGES["monster-orange"] },
+  { id: "f1-teal", label: "F1 Car", image: AVATAR_IMAGES["f1-teal"] },
+  { id: "luxury-gold", label: "Luxury Car", image: AVATAR_IMAGES["luxury-gold"] },
+  { id: "jeep-brown", label: "Jeep", image: AVATAR_IMAGES["jeep-brown"] },
+  { id: "ambulance-navy", label: "Ambulance", image: AVATAR_IMAGES["ambulance-navy"] },
+  { id: "firetruck-red", label: "Fire Truck", image: AVATAR_IMAGES["firetruck-red"] },
+  { id: "gokart-lime", label: "Go-Kart", image: AVATAR_IMAGES["gokart-lime"] },
+  { id: "minivan-indigo", label: "Minivan", image: AVATAR_IMAGES["minivan-indigo"] },
+  { id: "scooter-rose", label: "Scooter", image: AVATAR_IMAGES["scooter-rose"] },
+  { id: "icecream-cyan", label: "Ice Cream Van", image: AVATAR_IMAGES["icecream-cyan"] },
+  { id: "limo-magenta", label: "Limousine", image: AVATAR_IMAGES["limo-magenta"] },
+  { id: "military-olive", label: "Military Jeep", image: AVATAR_IMAGES["military-olive"] },
+  { id: "beetle-coral", label: "VW Beetle", image: AVATAR_IMAGES["beetle-coral"] },
+  { id: "camper-turquoise", label: "Camper Van", image: AVATAR_IMAGES["camper-turquoise"] },
+  { id: "classic-maroon", label: "Classic Car", image: AVATAR_IMAGES["classic-maroon"] },
+  { id: "tesla-electric", label: "Tesla", image: AVATAR_IMAGES["tesla-electric"] },
 ];
 
 export function getAvatarById(id: string): AvatarDef | undefined {
@@ -58,8 +91,7 @@ interface AvatarIconProps {
 
 export function AvatarIcon({ avatarId, size }: AvatarIconProps) {
   const avatar = getAvatarById(avatarId);
-  const bg = avatar?.color ?? "#f5a623";
-  const emoji = avatar?.emoji ?? "\uD83D\uDE97";
+  const source = avatar?.image ?? AVATAR_IMAGES["sedan-red"];
 
   return (
     <View
@@ -67,16 +99,14 @@ export function AvatarIcon({ avatarId, size }: AvatarIconProps) {
         width: size,
         height: size,
         borderRadius: size / 2,
-        backgroundColor: bg,
-        justifyContent: "center",
-        alignItems: "center",
-        borderWidth: 1.5,
-        borderColor: "rgba(255,255,255,0.2)",
+        overflow: "hidden",
       }}
     >
-      <Text style={{ fontSize: size * 0.5, textAlign: "center" }}>
-        {emoji}
-      </Text>
+      <Image
+        source={source}
+        style={{ width: size, height: size }}
+        resizeMode="cover"
+      />
     </View>
   );
 }

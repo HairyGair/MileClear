@@ -17,6 +17,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useRouter, useFocusEffect } from "expo-router";
 import * as WebBrowser from "expo-web-browser";
 import { useAuth } from "../../lib/auth/context";
+import { useUser } from "../../lib/user/context";
 import { fetchVehicles } from "../../lib/api/vehicles";
 import { fetchProfile, updateProfile, exportUserData, deleteAccount } from "../../lib/api/user";
 import {
@@ -57,6 +58,7 @@ function formatDate(dateString: string): string {
 
 export default function ProfileScreen() {
   const { logout } = useAuth();
+  const { refreshUser } = useUser();
   const router = useRouter();
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [user, setUser] = useState<User | null>(null);
@@ -80,10 +82,11 @@ export default function ProfileScreen() {
     try {
       const res = await updateProfile({ avatarId });
       setUser(res.data);
+      refreshUser();
     } catch {
       Alert.alert("Error", "Failed to update avatar");
     }
-  }, []);
+  }, [refreshUser]);
 
   const loadData = useCallback(async () => {
     try {
