@@ -1,6 +1,20 @@
 import React, { useEffect, useRef, useState } from "react";
-import { View, Text, ActivityIndicator, LogBox, ScrollView } from "react-native";
+import { View, Text, ActivityIndicator, LogBox, ScrollView, Alert } from "react-native";
 import { Stack } from "expo-router";
+
+// DEBUG: Catch all uncaught JS errors as a native alert — visible even on white screen
+// Remove this block once the production crash is identified
+const _originalHandler = (globalThis as any).ErrorUtils?.getGlobalHandler?.();
+(globalThis as any).ErrorUtils?.setGlobalHandler?.((error: any, isFatal: boolean) => {
+  try {
+    Alert.alert(
+      isFatal ? "Fatal JS Error" : "JS Error",
+      String(error?.message || error).slice(0, 500),
+      [{ text: "OK" }]
+    );
+  } catch {}
+  _originalHandler?.(error, isFatal);
+});
 import * as Font from "expo-font";
 import {
   PlusJakartaSans_300Light,
