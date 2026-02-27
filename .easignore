@@ -1,0 +1,56 @@
+# EAS Build ignore — based on .gitignore but keeps packages/shared/dist/
+
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Build output (except shared package)
+.next/
+.expo/
+out/
+*.tsbuildinfo
+apps/api/dist/
+apps/web/dist/
+
+# Environment variables
+.env
+.env.local
+.env.production
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+
+# Prisma
+prisma/*.db
+
+# Mobile
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+*.orig.*
+android/
+ios/
+
+# Expo
+web-build/
+
+# Logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# OS
+Thumbs.db
+
+# Uploads
+apps/api/uploads/*
+!apps/api/uploads/.gitkeep
+
+# Testing
+coverage/
