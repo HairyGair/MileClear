@@ -1,7 +1,7 @@
 // Network connectivity detection
 // Polls the API health endpoint to determine online/offline status
 
-const API_URL = process.env.EXPO_PUBLIC_API_URL || "http://localhost:3002";
+const API_URL = process.env.EXPO_PUBLIC_API_URL || "https://api.mileclear.com";
 const HEALTH_TIMEOUT_MS = 5000;
 const POLL_INTERVAL_MS = 15000;
 

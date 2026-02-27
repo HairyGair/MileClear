@@ -20,7 +20,7 @@ import {
 import type { PlaidConnection } from "@mileclear/shared";
 import { Button } from "../components/Button";
 
-const API_URL = process.env.EXPO_PUBLIC_API_URL || "http://localhost:3002";
+const API_URL = process.env.EXPO_PUBLIC_API_URL || "https://api.mileclear.com";
 
 function formatDate(iso: string): string {
   return new Date(iso).toLocaleDateString("en-GB", {
