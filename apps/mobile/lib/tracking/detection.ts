@@ -17,74 +17,79 @@ export interface BufferedCoordinate {
   recorded_at: string;
 }
 
-// TaskManager task must be defined at module top level
-TaskManager.defineTask(DETECTION_TASK_NAME, async ({ data, error }) => {
-  if (error) {
-    console.error("Drive detection error:", error);
-    return;
-  }
-  if (!data) return;
+// TaskManager task must be defined at module top level — wrap in try-catch
+// so a native module failure doesn't crash the entire JS bundle on startup
+try {
+  TaskManager.defineTask(DETECTION_TASK_NAME, async ({ data, error }) => {
+    if (error) {
+      console.error("Drive detection error:", error);
+      return;
+    }
+    if (!data) return;
 
-  const { locations } = data as { locations: Location.LocationObject[] };
+    const { locations } = data as { locations: Location.LocationObject[] };
 
-  try {
-    const db = await getDatabase();
+    try {
+      const db = await getDatabase();
 
-    // Guard: don't buffer if a shift is active
-    const activeShift = await db.getFirstAsync<{ value: string }>(
-      "SELECT value FROM tracking_state WHERE key = 'active_shift_id'"
-    );
-    if (activeShift) return;
+      // Guard: don't buffer if a shift is active
+      const activeShift = await db.getFirstAsync<{ value: string }>(
+        "SELECT value FROM tracking_state WHERE key = 'active_shift_id'"
+      );
+      if (activeShift) return;
 
-    // Purge stale detection coordinates (older than 30 min)
-    const cutoff = new Date(Date.now() - BUFFER_MAX_AGE_MS).toISOString();
-    await db.runAsync(
-      "DELETE FROM detection_coordinates WHERE recorded_at < ?",
-      [cutoff]
-    );
+      // Purge stale detection coordinates (older than 30 min)
+      const cutoff = new Date(Date.now() - BUFFER_MAX_AGE_MS).toISOString();
+      await db.runAsync(
+        "DELETE FROM detection_coordinates WHERE recorded_at < ?",
+        [cutoff]
+      );
 
-    // Check if any location exceeds driving speed
-    const isDriving = locations.some(
-      (loc) => loc.coords.speed != null && loc.coords.speed >= SPEED_THRESHOLD_MS
-    );
-    if (!isDriving) return;
+      // Check if any location exceeds driving speed
+      const isDriving = locations.some(
+        (loc) => loc.coords.speed != null && loc.coords.speed >= SPEED_THRESHOLD_MS
+      );
+      if (!isDriving) return;
 
-    // Buffer driving coordinates
-    for (const loc of locations) {
-      if (loc.coords.speed != null && loc.coords.speed >= SPEED_THRESHOLD_MS) {
-        await db.runAsync(
-          `INSERT INTO detection_coordinates (lat, lng, speed, accuracy, recorded_at)
-           VALUES (?, ?, ?, ?, ?)`,
-          [
-            loc.coords.latitude,
-            loc.coords.longitude,
-            loc.coords.speed,
-            loc.coords.accuracy,
-            new Date(loc.timestamp).toISOString(),
-          ]
-        );
+      // Buffer driving coordinates
+      for (const loc of locations) {
+        if (loc.coords.speed != null && loc.coords.speed >= SPEED_THRESHOLD_MS) {
+          await db.runAsync(
+            `INSERT INTO detection_coordinates (lat, lng, speed, accuracy, recorded_at)
+             VALUES (?, ?, ?, ?, ?)`,
+            [
+              loc.coords.latitude,
+              loc.coords.longitude,
+              loc.coords.speed,
+              loc.coords.accuracy,
+              new Date(loc.timestamp).toISOString(),
+            ]
+          );
+        }
       }
-    }
 
-    // Cooldown: don't spam notifications
-    const lastNotif = await db.getFirstAsync<{ value: string }>(
-      "SELECT value FROM tracking_state WHERE key = 'last_detection_notification'"
-    );
-    if (lastNotif) {
-      const elapsed = Date.now() - parseInt(lastNotif.value, 10);
-      if (elapsed < COOLDOWN_MS) return;
-    }
+      // Cooldown: don't spam notifications
+      const lastNotif = await db.getFirstAsync<{ value: string }>(
+        "SELECT value FROM tracking_state WHERE key = 'last_detection_notification'"
+      );
+      if (lastNotif) {
+        const elapsed = Date.now() - parseInt(lastNotif.value, 10);
+        if (elapsed < COOLDOWN_MS) return;
+      }
 
-    // Send notification and record timestamp
-    await sendDrivingDetectedNotification();
-    await db.runAsync(
-      "INSERT OR REPLACE INTO tracking_state (key, value) VALUES ('last_detection_notification', ?)",
-      [Date.now().toString()]
-    );
-  } catch (err) {
-    console.error("Drive detection task error:", err);
-  }
-});
+      // Send notification and record timestamp
+      await sendDrivingDetectedNotification();
+      await db.runAsync(
+        "INSERT OR REPLACE INTO tracking_state (key, value) VALUES ('last_detection_notification', ?)",
+        [Date.now().toString()]
+      );
+    } catch (err) {
+      console.error("Drive detection task error:", err);
+    }
+  });
+} catch (err) {
+  console.warn("TaskManager.defineTask failed — drive detection disabled:", err);
+}
 
 export async function startDriveDetection(): Promise<void> {
   // Guard: don't start if disabled by user

@@ -105,12 +105,22 @@ function RootNavigator() {
     isHydrationComplete().then((done) => {
       if (done) return;
       setHydrating(true);
+
+      // Safety timeout — don't let hydration hang the app forever
+      const timeout = setTimeout(() => {
+        console.warn("Hydration timed out after 30s, continuing anyway");
+        setHydrating(false);
+      }, 30000);
+
       hydrateLocalData((step, stepDone) => {
         setHydrateStep(step);
         setHydrateDone(stepDone);
       })
         .catch(console.error)
-        .finally(() => setHydrating(false));
+        .finally(() => {
+          clearTimeout(timeout);
+          setHydrating(false);
+        });
     });
   }, [isAuthenticated, isLoading]);
 
