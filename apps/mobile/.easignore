@@ -1,0 +1,24 @@
+# Other apps (not needed for mobile build)
+apps/web
+apps/api
+
+# Non-build assets
+apps/mobile/assets/appstore-screenshots
+apps/mobile/assets/logo-concepts
+_pending
+
+# Docs
+*.md
+!node_modules/**/*.md
+LICENSE
+
+# Dev/test files
+**/__tests__
+**/*.test.*
+**/*.spec.*
+.vscode
+.claude
+
+# OS files
+.DS_Store
+Thumbs.db
