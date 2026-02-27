@@ -200,29 +200,39 @@ function RootNavigator() {
 }
 
 export default function RootLayout() {
+  const [debugStage, setDebugStage] = useState("STAGE 1: JS LOADED");
   const [fontsLoaded, setFontsLoaded] = useState(false);
 
   useEffect(() => {
+    setDebugStage("STAGE 2: EFFECTS RUNNING");
     requestNotificationPermissions();
     setupNotificationResponseHandler();
     setupNotificationChannels().catch(console.error);
   }, []);
 
   useEffect(() => {
+    setDebugStage("STAGE 3: LOADING FONTS");
     Font.loadAsync({
       PlusJakartaSans_300Light,
       PlusJakartaSans_400Regular,
       PlusJakartaSans_500Medium,
       PlusJakartaSans_600SemiBold,
       PlusJakartaSans_700Bold,
-    }).then(() => setFontsLoaded(true))
-      .catch(() => setFontsLoaded(true));
+    }).then(() => {
+      setDebugStage("STAGE 4: FONTS LOADED");
+      setFontsLoaded(true);
+    })
+      .catch(() => {
+        setDebugStage("STAGE 4: FONTS FAILED (continuing)");
+        setFontsLoaded(true);
+      });
   }, []);
 
   if (!fontsLoaded) {
     return (
-      <View style={{ flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: "#030712" }}>
-        <ActivityIndicator size="large" color="#f5a623" />
+      <View style={{ flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: "#ff0000" }}>
+        <Text style={{ color: "#ffffff", fontSize: 24, fontWeight: "bold" }}>{debugStage}</Text>
+        <ActivityIndicator size="large" color="#ffffff" style={{ marginTop: 20 }} />
       </View>
     );
   }
