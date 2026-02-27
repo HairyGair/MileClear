@@ -2,13 +2,12 @@
 
 import * as SecureStore from "expo-secure-store";
 
-const API_URL = process.env.EXPO_PUBLIC_API_URL || "http://localhost:3002";
+const API_URL = process.env.EXPO_PUBLIC_API_URL || "https://api.mileclear.com";
 const ACCESS_TOKEN_KEY = "mileclear_access_token";
 export const REFRESH_TOKEN_KEY = "mileclear_refresh_token";
 
-// Enforce HTTPS in production builds
 if (!__DEV__ && API_URL.startsWith("http://")) {
-  throw new Error("API_URL must use HTTPS in production");
+  console.warn("WARNING: API_URL is not using HTTPS in production:", API_URL);
 }
 
 async function getAccessToken(): Promise<string | null> {

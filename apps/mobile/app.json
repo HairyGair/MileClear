@@ -7,7 +7,7 @@
     "icon": "./assets/icon.png",
     "scheme": "mileclear",
     "userInterfaceStyle": "automatic",
-    "newArchEnabled": true,
+    "newArchEnabled": false,
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
@@ -16,7 +16,7 @@
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "com.mileclear.app",
-      "buildNumber": "4",
+      "buildNumber": "6",
       "usesAppleSignIn": true,
       "infoPlist": {
         "NSLocationAlwaysAndWhenInUseUsageDescription": "MileClear needs location access to track your mileage during shifts and detect when you start driving.",
