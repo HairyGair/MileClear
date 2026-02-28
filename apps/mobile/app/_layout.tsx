@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
-import { View, Text, ActivityIndicator, LogBox, ScrollView } from "react-native";
+import { View, Text, ActivityIndicator, LogBox, ScrollView, StyleSheet } from "react-native";
 import { Stack } from "expo-router";
 import * as Font from "expo-font";
 import {
@@ -80,7 +80,6 @@ function RootNavigator() {
         if (row?.value === "true") {
           setOnboardingComplete(true);
         } else {
-          // Auto-complete onboarding for returning users on fresh installs
           await db.runAsync(
             "INSERT OR REPLACE INTO tracking_state (key, value) VALUES ('onboarding_complete', 'true')"
           );
@@ -106,7 +105,6 @@ function RootNavigator() {
       if (done) return;
       setHydrating(true);
 
-      // Safety timeout — don't let hydration hang the app forever
       const timeout = setTimeout(() => {
         console.warn("Hydration timed out after 30s, continuing anyway");
         setHydrating(false);
@@ -138,17 +136,11 @@ function RootNavigator() {
     }
   }, [isAuthenticated, isLoading]);
 
-  if (isLoading || !onboardingChecked) {
-    return (
-      <View style={{ flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: "#030712" }}>
-        <ActivityIndicator size="large" color="#f5a623" />
-      </View>
-    );
-  }
+  const showLoading = isLoading || !onboardingChecked;
 
   return (
     <>
-      {isAuthenticated && <SyncStatusBar />}
+      {isAuthenticated && !showLoading && <SyncStatusBar />}
       <Stack
         screenOptions={{
           headerShown: false,
@@ -180,20 +172,19 @@ function RootNavigator() {
         <Stack.Screen name="admin-feedback" options={{ headerShown: true, title: "Manage Feedback" }} />
         <Stack.Screen name="sync-status" options={{ headerShown: true, title: "Sync Status" }} />
       </Stack>
+      {/* Loading overlay — covers Stack while auth/onboarding resolves */}
+      {showLoading && (
+        <View style={styles.loadingOverlay}>
+          <ActivityIndicator size="large" color="#f5a623" />
+        </View>
+      )}
       <HydrationOverlay visible={hydrating} step={hydrateStep} done={hydrateDone} total={5} />
     </>
   );
 }
 
 export default function RootLayout() {
-  const [fontsLoaded, setFontsLoaded] = useState(false);
-
-  useEffect(() => {
-    requestNotificationPermissions();
-    setupNotificationResponseHandler();
-    setupNotificationChannels().catch(console.error);
-  }, []);
-
+  // Load fonts in background — never block the navigator
   useEffect(() => {
     Font.loadAsync({
       PlusJakartaSans_300Light,
@@ -201,17 +192,14 @@ export default function RootLayout() {
       PlusJakartaSans_500Medium,
       PlusJakartaSans_600SemiBold,
       PlusJakartaSans_700Bold,
-    }).then(() => setFontsLoaded(true))
-      .catch(() => setFontsLoaded(true));
+    }).catch(() => {});
   }, []);
 
-  if (!fontsLoaded) {
-    return (
-      <View style={{ flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: "#030712" }}>
-        <ActivityIndicator size="large" color="#f5a623" />
-      </View>
-    );
-  }
+  useEffect(() => {
+    requestNotificationPermissions();
+    setupNotificationResponseHandler();
+    setupNotificationChannels().catch(console.error);
+  }, []);
 
   return (
     <ErrorBoundary>
@@ -227,3 +215,13 @@ export default function RootLayout() {
     </ErrorBoundary>
   );
 }
+
+const styles = StyleSheet.create({
+  loadingOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "#030712",
+    zIndex: 999,
+  },
+});

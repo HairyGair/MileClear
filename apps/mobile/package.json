@@ -2,7 +2,7 @@
   "name": "@mileclear/mobile",
   "version": "0.1.0",
   "private": true,
-  "main": "./DiagnosticApp.tsx",
+  "main": "expo-router/entry",
   "scripts": {
     "postinstall": "cd ../../packages/shared && npx tsc || true",
     "start": "expo start",
