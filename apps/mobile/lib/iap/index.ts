@@ -1,12 +1,18 @@
 import { Platform } from "react-native";
+import Constants from "expo-constants";
 
 const PRODUCT_ID = "com.mileclear.premium.monthly";
+
+// Detect Expo Go — NitroModules (used by react-native-iap) fatally crashes
+// in Expo Go before try/catch can intercept, so we must guard before require()
+const isExpoGo = Constants.executionEnvironment === "storeClient";
 
 // Lazy import for Expo Go compatibility (native module may not be available)
 let RNIap: typeof import("react-native-iap") | null = null;
 
 function loadIapModule(): typeof import("react-native-iap") | null {
   if (RNIap) return RNIap;
+  if (isExpoGo) return null;
   try {
     RNIap = require("react-native-iap");
     return RNIap;
