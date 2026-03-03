@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
-import { View, Text, ActivityIndicator, LogBox, ScrollView, StyleSheet } from "react-native";
+import { View, Text, ActivityIndicator, LogBox, ScrollView, StyleSheet, Alert } from "react-native";
 import { Stack } from "expo-router";
 import * as Font from "expo-font";
 import {
@@ -40,7 +40,7 @@ class ErrorBoundary extends React.Component<
 }
 
 import { AuthProvider, useAuth } from "../lib/auth/context";
-import { UserProvider } from "../lib/user/context";
+import { UserProvider, useUser } from "../lib/user/context";
 import { ModeProvider } from "../lib/mode/context";
 import { SyncProvider } from "../lib/sync/context";
 import { SyncStatusBar } from "../components/SyncStatusBar";
@@ -56,6 +56,8 @@ import { registerPushToken } from "../lib/api/notifications";
 import { startDriveDetection } from "../lib/tracking/detection";
 import { getDatabase } from "../lib/db/index";
 import { hydrateLocalData, isHydrationComplete } from "../lib/sync/hydrate";
+import { isIapAvailable, initializeIap, setupPurchaseListeners, endIapConnection } from "../lib/iap/index";
+import { validateApplePurchase } from "../lib/api/billing";
 
 const HEADER_STYLE = { backgroundColor: "#030712" } as const;
 const HEADER_TINT = "#f0f2f5";
@@ -135,6 +137,35 @@ function RootNavigator() {
       checkLongRunningShift().catch(() => {});
     }
   }, [isAuthenticated, isLoading]);
+
+  // Apple In-App Purchase: global listener for StoreKit transactions
+  const { refreshUser } = useUser();
+  useEffect(() => {
+    if (!isAuthenticated || isLoading || !isIapAvailable()) return;
+
+    let cleanup: (() => void) | undefined;
+
+    initializeIap().then((ok) => {
+      if (!ok) return;
+      cleanup = setupPurchaseListeners({
+        onPurchaseSuccess: async (transactionId) => {
+          await validateApplePurchase(transactionId);
+          refreshUser();
+        },
+        onPurchaseError: (error) => {
+          Alert.alert(
+            "Purchase Failed",
+            error.message || "Something went wrong with your purchase."
+          );
+        },
+      });
+    });
+
+    return () => {
+      cleanup?.();
+      endIapConnection();
+    };
+  }, [isAuthenticated, isLoading, refreshUser]);
 
   const showLoading = isLoading || !onboardingChecked;
 

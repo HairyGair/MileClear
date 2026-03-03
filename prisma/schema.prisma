@@ -21,6 +21,7 @@ model User {
   premiumExpiresAt     DateTime?
   stripeCustomerId     String?   @unique @db.VarChar(255)
   stripeSubscriptionId String?   @unique @db.VarChar(255)
+  appleOriginalTransactionId String? @unique @db.VarChar(255)
   termsAcceptedAt      DateTime?
   pushToken            String?   @db.VarChar(255)
   avatarId             String?   @db.VarChar(50)

@@ -16,6 +16,7 @@
     "db:deploy": "prisma migrate deploy --schema ../../prisma/schema.prisma"
   },
   "dependencies": {
+    "@apple/app-store-server-library": "^2.0.0",
     "@fastify/cookie": "^11.0.0",
     "@fastify/cors": "^10.0.0",
     "@fastify/helmet": "^13.0.2",

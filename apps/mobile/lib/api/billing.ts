@@ -16,3 +16,12 @@ export function cancelSubscription() {
     method: "POST",
   });
 }
+
+export function validateApplePurchase(transactionId: string) {
+  return apiRequest<{
+    data: { isPremium: boolean; premiumExpiresAt: string | null };
+  }>("/billing/apple/validate", {
+    method: "POST",
+    body: JSON.stringify({ transactionId }),
+  });
+}

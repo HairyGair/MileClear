@@ -305,6 +305,7 @@ export interface BillingStatus {
   subscriptionStatus: "active" | "canceled" | "past_due" | "none";
   cancelAtPeriodEnd: boolean;
   currentPeriodEnd: string | null;
+  subscriptionPlatform: "apple" | "stripe" | "none";
 }
 
 // Gamification types

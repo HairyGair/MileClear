@@ -4,12 +4,16 @@ import { authMiddleware } from "../../middleware/auth.js";
 import { prisma } from "../../lib/prisma.js";
 import { stripe } from "../../lib/stripe.js";
 import { sendPushNotification } from "../../lib/push.js";
+import { appleBillingRoutes } from "./apple.js";
 
 function getPeriodEnd(sub: Stripe.Subscription): number {
   return sub.items.data[0]?.current_period_end ?? 0;
 }
 
 export async function billingRoutes(app: FastifyInstance) {
+  // Register Apple IAP routes under /billing/apple
+  await app.register(appleBillingRoutes, { prefix: "/apple" });
+
   const API_BASE_URL =
     process.env.API_BASE_URL || "https://api.mileclear.com";
 
@@ -207,24 +211,13 @@ export async function billingRoutes(app: FastifyInstance) {
     "/status",
     { preHandler: authMiddleware },
     async (request, reply) => {
-      if (!stripe) {
-        return reply.send({
-          data: {
-            isPremium: false,
-            premiumExpiresAt: null,
-            subscriptionStatus: "none",
-            cancelAtPeriodEnd: false,
-            currentPeriodEnd: null,
-          },
-        });
-      }
-
       const user = await prisma.user.findUnique({
         where: { id: request.userId! },
         select: {
           isPremium: true,
           premiumExpiresAt: true,
           stripeSubscriptionId: true,
+          appleOriginalTransactionId: true,
         },
       });
 
@@ -232,12 +225,24 @@ export async function billingRoutes(app: FastifyInstance) {
         return reply.status(404).send({ error: "User not found" });
       }
 
+      // Determine subscription platform
+      const subscriptionPlatform: "apple" | "stripe" | "none" =
+        user.appleOriginalTransactionId
+          ? "apple"
+          : user.stripeSubscriptionId
+            ? "stripe"
+            : "none";
+
       let subscriptionStatus: "active" | "canceled" | "past_due" | "none" =
         "none";
       let cancelAtPeriodEnd = false;
       let currentPeriodEnd: string | null = null;
 
-      if (user.stripeSubscriptionId) {
+      if (user.appleOriginalTransactionId) {
+        // Apple-managed subscription — status comes from webhooks
+        subscriptionStatus = user.isPremium ? "active" : "none";
+        currentPeriodEnd = user.premiumExpiresAt?.toISOString() ?? null;
+      } else if (stripe && user.stripeSubscriptionId) {
         try {
           const sub = await stripe.subscriptions.retrieve(
             user.stripeSubscriptionId
@@ -260,6 +265,7 @@ export async function billingRoutes(app: FastifyInstance) {
           subscriptionStatus,
           cancelAtPeriodEnd,
           currentPeriodEnd,
+          subscriptionPlatform,
         },
       });
     }

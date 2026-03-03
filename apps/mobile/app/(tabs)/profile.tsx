@@ -24,8 +24,15 @@ import {
   fetchBillingStatus,
   createCheckoutSession,
   cancelSubscription,
+  validateApplePurchase,
 } from "../../lib/api/billing";
 import type { Vehicle, User, BillingStatus } from "@mileclear/shared";
+import {
+  isIapAvailable,
+  purchaseSubscription,
+  getSubscriptionProduct,
+  restorePurchases,
+} from "../../lib/iap/index";
 import {
   isDriveDetectionEnabled,
   setDriveDetectionEnabled,
@@ -69,6 +76,8 @@ export default function ProfileScreen() {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deletePassword, setDeletePassword] = useState("");
   const [deletingAccount, setDeletingAccount] = useState(false);
+  const [iapPrice, setIapPrice] = useState<string | null>(null);
+  const [restoring, setRestoring] = useState(false);
   const [driveDetection, setDriveDetection] = useState(true);
   const [notifPrefs, setNotifPrefs] = useState<NotificationPreferences>({
     weeklySummary: true,
@@ -102,6 +111,13 @@ export default function ProfileScreen() {
       if (billingRes) setBilling(billingRes.data);
       setDriveDetection(detectionEnabled);
       setNotifPrefs(notifPrefsLoaded);
+
+      // Fetch IAP product price if available
+      if (isIapAvailable()) {
+        getSubscriptionProduct()
+          .then((product) => { if (product) setIapPrice(product.localizedPrice); })
+          .catch(() => {});
+      }
     } catch {
       // Silently fail — will show empty state
     } finally {
@@ -150,22 +166,48 @@ export default function ProfileScreen() {
 
   const handleUpgrade = useCallback(async () => {
     try {
-      const res = await createCheckoutSession();
-      if (res.data.url) {
-        // Validate checkout URL points to Stripe
-        const url = new URL(res.data.url);
-        if (!url.hostname.endsWith("stripe.com")) {
-          throw new Error("Invalid checkout URL");
+      if (isIapAvailable()) {
+        // Native iOS purchase — triggers StoreKit sheet
+        // Purchase completion is handled by the global listener in _layout.tsx
+        await purchaseSubscription();
+      } else {
+        // Fallback to Stripe checkout (Android, Expo Go, web)
+        const res = await createCheckoutSession();
+        if (res.data.url) {
+          const url = new URL(res.data.url);
+          if (!url.hostname.endsWith("stripe.com")) {
+            throw new Error("Invalid checkout URL");
+          }
+          await WebBrowser.openBrowserAsync(res.data.url);
+          loadData();
         }
-        await WebBrowser.openBrowserAsync(res.data.url);
-        // Refresh billing status after returning from browser
-        loadData();
       }
     } catch (err: unknown) {
       Alert.alert(
         "Upgrade failed",
         err instanceof Error ? err.message : "Could not start checkout"
       );
+    }
+  }, [loadData]);
+
+  const handleRestorePurchases = useCallback(async () => {
+    setRestoring(true);
+    try {
+      const transactionIds = await restorePurchases();
+      if (transactionIds.length === 0) {
+        Alert.alert("No Purchases Found", "No previous subscriptions were found for this Apple ID.");
+        return;
+      }
+      // Validate each restored transaction with server
+      for (const txId of transactionIds) {
+        await validateApplePurchase(txId);
+      }
+      loadData();
+      Alert.alert("Restored", "Your subscription has been restored successfully.");
+    } catch (err: unknown) {
+      Alert.alert("Restore Failed", err instanceof Error ? err.message : "Could not restore purchases");
+    } finally {
+      setRestoring(false);
     }
   }, [loadData]);
 
@@ -475,41 +517,73 @@ export default function ProfileScreen() {
             {/* Subscription Section */}
             <Text style={[styles.sectionTitle, { marginTop: 28 }]}>Subscription</Text>
             {!user?.isPremium ? (
-              <TouchableOpacity
-                style={styles.upgradeCard}
-                onPress={handleUpgrade}
-                activeOpacity={0.7}
-              >
-                <View style={styles.upgradeHeader}>
-                  <Ionicons name="diamond-outline" size={22} color="#f5a623" />
-                  <Text style={styles.upgradeTitle}>Upgrade to Pro</Text>
-                </View>
-                <Text style={styles.upgradePrice}>£4.99/mo</Text>
-                <View style={styles.featureList}>
-                  <View style={styles.featureRow}>
-                    <Ionicons name="checkmark-circle" size={18} color="#10b981" />
-                    <Text style={styles.featureText}>HMRC tax exports (PDF, CSV, Xero)</Text>
+              <>
+                <TouchableOpacity
+                  style={styles.upgradeCard}
+                  onPress={handleUpgrade}
+                  activeOpacity={0.7}
+                >
+                  <View style={styles.upgradeHeader}>
+                    <Ionicons name="diamond-outline" size={22} color="#f5a623" />
+                    <Text style={styles.upgradeTitle}>Upgrade to Pro</Text>
                   </View>
-                  <View style={styles.featureRow}>
-                    <Ionicons name="checkmark-circle" size={18} color="#10b981" />
-                    <Text style={styles.featureText}>Open Banking auto-import</Text>
+                  <Text style={styles.upgradePrice}>{iapPrice ?? "£4.99"}/mo</Text>
+                  <View style={styles.featureList}>
+                    <View style={styles.featureRow}>
+                      <Ionicons name="checkmark-circle" size={18} color="#10b981" />
+                      <Text style={styles.featureText}>HMRC tax exports (PDF, CSV, Xero)</Text>
+                    </View>
+                    <View style={styles.featureRow}>
+                      <Ionicons name="checkmark-circle" size={18} color="#10b981" />
+                      <Text style={styles.featureText}>Open Banking auto-import</Text>
+                    </View>
+                    <View style={styles.featureRow}>
+                      <Ionicons name="checkmark-circle" size={18} color="#10b981" />
+                      <Text style={styles.featureText}>Advanced analytics & insights</Text>
+                    </View>
                   </View>
-                  <View style={styles.featureRow}>
-                    <Ionicons name="checkmark-circle" size={18} color="#10b981" />
-                    <Text style={styles.featureText}>Advanced analytics & insights</Text>
+                  <View style={styles.upgradeButton}>
+                    <Text style={styles.upgradeButtonText}>Upgrade Now</Text>
                   </View>
-                </View>
-                <View style={styles.upgradeButton}>
-                  <Text style={styles.upgradeButtonText}>Upgrade Now</Text>
-                </View>
-              </TouchableOpacity>
+                </TouchableOpacity>
+                {isIapAvailable() && (
+                  <TouchableOpacity
+                    style={styles.restoreButton}
+                    onPress={handleRestorePurchases}
+                    disabled={restoring}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={styles.restoreButtonText}>
+                      {restoring ? "Restoring..." : "Restore Purchases"}
+                    </Text>
+                  </TouchableOpacity>
+                )}
+              </>
             ) : (
               <View style={styles.subscriptionCard}>
                 <View style={styles.subscriptionHeader}>
                   <Text style={styles.subscriptionTitle}>MileClear Pro</Text>
                   <Text style={styles.proBadge}>ACTIVE</Text>
                 </View>
-                {billing?.cancelAtPeriodEnd ? (
+                {billing?.subscriptionPlatform === "apple" ? (
+                  <>
+                    <Text style={styles.subscriptionDetail}>
+                      Managed by App Store
+                    </Text>
+                    <TouchableOpacity
+                      onPress={() => {
+                        const url = "https://apps.apple.com/account/subscriptions";
+                        import("expo-web-browser").then((wb) =>
+                          wb.openBrowserAsync(url)
+                        );
+                      }}
+                    >
+                      <Text style={[styles.cancelLink, { color: "#3b82f6" }]}>
+                        Manage in App Store
+                      </Text>
+                    </TouchableOpacity>
+                  </>
+                ) : billing?.cancelAtPeriodEnd ? (
                   <Text style={styles.subscriptionDetail}>
                     Cancels on{" "}
                     {billing.currentPeriodEnd
@@ -952,6 +1026,16 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontFamily: "PlusJakartaSans_700Bold",
     color: "#030712",
+  },
+  restoreButton: {
+    alignItems: "center",
+    paddingVertical: 12,
+    marginBottom: 10,
+  },
+  restoreButtonText: {
+    fontSize: 14,
+    fontFamily: "PlusJakartaSans_500Medium",
+    color: "#3b82f6",
   },
   subscriptionCard: {
     backgroundColor: "#111827",
