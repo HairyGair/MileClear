@@ -7,10 +7,12 @@ import Pricing from "@/components/landing/Pricing";
 import EarlyAccess from "@/components/landing/EarlyAccess";
 import FAQ from "@/components/landing/FAQ";
 import Footer from "@/components/landing/Footer";
+import StructuredData from "@/components/landing/StructuredData";
 
 export default function LandingPage() {
   return (
     <>
+      <StructuredData />
       <Navbar />
       <main>
         <Hero />

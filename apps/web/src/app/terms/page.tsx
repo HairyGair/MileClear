@@ -1,6 +1,16 @@
+import type { Metadata } from 'next';
 import Navbar from '@/components/landing/Navbar';
 import Footer from '@/components/landing/Footer';
 import '../legal.css';
+
+export const metadata: Metadata = {
+  title: 'Terms of Service',
+  description:
+    'Terms of Service for MileClear. Covers account usage, subscriptions, billing, data ownership, and liability for UK gig workers and self-employed drivers.',
+  alternates: {
+    canonical: 'https://mileclear.com/terms',
+  },
+};
 
 export default function TermsOfService() {
   return (

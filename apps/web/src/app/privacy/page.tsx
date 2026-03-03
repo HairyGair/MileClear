@@ -1,6 +1,16 @@
+import type { Metadata } from 'next';
 import Navbar from '@/components/landing/Navbar';
 import Footer from '@/components/landing/Footer';
 import '../legal.css';
+
+export const metadata: Metadata = {
+  title: 'Privacy Policy',
+  description:
+    'How MileClear collects, uses, and protects your data. GDPR-compliant privacy policy covering location tracking, earnings data, and your rights as a UK driver.',
+  alternates: {
+    canonical: 'https://mileclear.com/privacy',
+  },
+};
 
 export default function PrivacyPolicy() {
   return (
