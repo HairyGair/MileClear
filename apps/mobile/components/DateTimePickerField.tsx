@@ -37,7 +37,8 @@ function formatDateTime(date: Date): string {
   });
 }
 
-function formatFallback(d: Date): string {
+function formatFallback(d: Date | null | undefined): string {
+  if (!d) return "";
   const day = String(d.getDate()).padStart(2, "0");
   const month = String(d.getMonth() + 1).padStart(2, "0");
   const year = d.getFullYear();
@@ -75,7 +76,7 @@ export function DateTimePickerField({
   const [showAndroid, setShowAndroid] = useState(false);
   // Fallback text input for Expo Go
   const [fallbackText, setFallbackText] = useState(
-    value ? formatFallback(value) : ""
+    formatFallback(value)
   );
 
   const handleSetNow = () => {
