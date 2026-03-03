@@ -26,6 +26,16 @@ interface DateTimePickerFieldProps {
   maximumDate?: Date;
 }
 
+/** Coerce any value into a real Date instance (handles strings from JSON). */
+function toDate(v: any): Date {
+  if (v instanceof Date) return v;
+  if (v) {
+    const d = new Date(v);
+    if (!isNaN(d.getTime())) return d;
+  }
+  return new Date();
+}
+
 function formatDateTime(date: Date | any): string {
   if (!date) return "";
   if (!(date instanceof Date)) date = new Date(date);
@@ -75,9 +85,7 @@ export function DateTimePickerField({
   maximumDate,
 }: DateTimePickerFieldProps) {
   const [showModal, setShowModal] = useState(false);
-  const [tempDate, setTempDate] = useState<Date>(
-    value instanceof Date ? value : value ? new Date(value) : new Date()
-  );
+  const [tempDate, setTempDate] = useState<Date>(() => toDate(value));
   // Android shows date first, then time
   const [androidMode, setAndroidMode] = useState<"date" | "time">("date");
   const [showAndroid, setShowAndroid] = useState(false);
@@ -139,7 +147,7 @@ export function DateTimePickerField({
           style={[styles.field, disabled && styles.inputDisabled]}
           onPress={() => {
             if (!disabled) {
-              setTempDate(value ?? new Date());
+              setTempDate(toDate(value));
               setShowModal(true);
             }
           }}
@@ -209,7 +217,7 @@ export function DateTimePickerField({
         style={[styles.field, disabled && styles.inputDisabled]}
         onPress={() => {
           if (!disabled) {
-            setTempDate(value ?? new Date());
+            setTempDate(toDate(value));
             setAndroidMode("date");
             setShowAndroid(true);
           }
