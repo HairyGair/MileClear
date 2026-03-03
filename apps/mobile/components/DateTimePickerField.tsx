@@ -37,6 +37,29 @@ function formatDateTime(date: Date): string {
   });
 }
 
+function formatFallback(d: Date): string {
+  const day = String(d.getDate()).padStart(2, "0");
+  const month = String(d.getMonth() + 1).padStart(2, "0");
+  const year = d.getFullYear();
+  const hours = String(d.getHours()).padStart(2, "0");
+  const mins = String(d.getMinutes()).padStart(2, "0");
+  return `${day}/${month}/${year} ${hours}:${mins}`;
+}
+
+function parseFallback(text: string): Date | null {
+  // DD/MM/YYYY HH:MM
+  const match = text.match(/^(\d{2})\/(\d{2})\/(\d{4})\s+(\d{2}):(\d{2})$/);
+  if (!match) return null;
+  const d = new Date(
+    parseInt(match[3]),
+    parseInt(match[2]) - 1,
+    parseInt(match[1]),
+    parseInt(match[4]),
+    parseInt(match[5])
+  );
+  return isNaN(d.getTime()) ? null : d;
+}
+
 export function DateTimePickerField({
   label,
   value,
@@ -54,29 +77,6 @@ export function DateTimePickerField({
   const [fallbackText, setFallbackText] = useState(
     value ? formatFallback(value) : ""
   );
-
-  function formatFallback(d: Date): string {
-    const day = String(d.getDate()).padStart(2, "0");
-    const month = String(d.getMonth() + 1).padStart(2, "0");
-    const year = d.getFullYear();
-    const hours = String(d.getHours()).padStart(2, "0");
-    const mins = String(d.getMinutes()).padStart(2, "0");
-    return `${day}/${month}/${year} ${hours}:${mins}`;
-  }
-
-  function parseFallback(text: string): Date | null {
-    // DD/MM/YYYY HH:MM
-    const match = text.match(/^(\d{2})\/(\d{2})\/(\d{4})\s+(\d{2}):(\d{2})$/);
-    if (!match) return null;
-    const d = new Date(
-      parseInt(match[3]),
-      parseInt(match[2]) - 1,
-      parseInt(match[1]),
-      parseInt(match[4]),
-      parseInt(match[5])
-    );
-    return isNaN(d.getTime()) ? null : d;
-  }
 
   const handleSetNow = () => {
     const now = new Date();
