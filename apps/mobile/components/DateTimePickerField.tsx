@@ -26,7 +26,10 @@ interface DateTimePickerFieldProps {
   maximumDate?: Date;
 }
 
-function formatDateTime(date: Date): string {
+function formatDateTime(date: Date | any): string {
+  if (!date) return "";
+  if (!(date instanceof Date)) date = new Date(date);
+  if (isNaN(date.getTime())) return "";
   return date.toLocaleString("en-GB", {
     day: "numeric",
     month: "short",
@@ -39,6 +42,8 @@ function formatDateTime(date: Date): string {
 
 function formatFallback(d: Date | null | undefined): string {
   if (!d) return "";
+  if (!(d instanceof Date)) d = new Date(d);
+  if (isNaN(d.getTime())) return "";
   const day = String(d.getDate()).padStart(2, "0");
   const month = String(d.getMonth() + 1).padStart(2, "0");
   const year = d.getFullYear();
@@ -70,7 +75,9 @@ export function DateTimePickerField({
   maximumDate,
 }: DateTimePickerFieldProps) {
   const [showModal, setShowModal] = useState(false);
-  const [tempDate, setTempDate] = useState<Date>(value ?? new Date());
+  const [tempDate, setTempDate] = useState<Date>(
+    value instanceof Date ? value : value ? new Date(value) : new Date()
+  );
   // Android shows date first, then time
   const [androidMode, setAndroidMode] = useState<"date" | "time">("date");
   const [showAndroid, setShowAndroid] = useState(false);
