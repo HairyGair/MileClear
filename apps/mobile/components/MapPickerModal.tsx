@@ -2,13 +2,18 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import {
   View,
   Text,
+  TextInput,
   TouchableOpacity,
   Modal,
   StyleSheet,
   ActivityIndicator,
   Dimensions,
+  Keyboard,
+  Platform,
 } from "react-native";
-import { reverseGeocode } from "../lib/location/geocoding";
+import { Ionicons } from "@expo/vector-icons";
+import * as Location from "expo-location";
+import { reverseGeocode, forwardGeocode } from "../lib/location/geocoding";
 
 // Lazy import for Expo Go compatibility
 let MapView: any = null;
@@ -35,30 +40,73 @@ export function MapPickerModal({
   onConfirm,
   onCancel,
 }: MapPickerModalProps) {
+  const DEFAULT_LAT = 51.5074;
+  const DEFAULT_LNG = -0.1278;
+
   const [region, setRegion] = useState({
-    latitude: initialLat ?? 51.5074,
-    longitude: initialLng ?? -0.1278,
+    latitude: initialLat ?? DEFAULT_LAT,
+    longitude: initialLng ?? DEFAULT_LNG,
     latitudeDelta: 0.01,
     longitudeDelta: 0.01,
   });
   const [address, setAddress] = useState<string | null>(null);
   const [geocoding, setGeocoding] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searching, setSearching] = useState(false);
+  const [searchFocused, setSearchFocused] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const mapRef = useRef<any>(null);
 
   // Reset region when modal opens with new coordinates
   useEffect(() => {
-    if (visible) {
-      setRegion({
-        latitude: initialLat ?? 51.5074,
-        longitude: initialLng ?? -0.1278,
+    if (!visible) return;
+
+    setSearchQuery("");
+    setAddress(null);
+
+    if (initialLat != null && initialLng != null) {
+      // Use provided coordinates
+      const r = {
+        latitude: initialLat,
+        longitude: initialLng,
         latitudeDelta: 0.01,
         longitudeDelta: 0.01,
-      });
-      setAddress(null);
-      // Geocode initial position
-      const lat = initialLat ?? 51.5074;
-      const lng = initialLng ?? -0.1278;
-      reverseGeocode(lat, lng).then(setAddress);
+      };
+      setRegion(r);
+      reverseGeocode(initialLat, initialLng).then(setAddress);
+    } else {
+      // No initial coords — try user's current location
+      (async () => {
+        try {
+          const { status } = await Location.requestForegroundPermissionsAsync();
+          if (status === "granted") {
+            const loc = await Location.getCurrentPositionAsync({
+              accuracy: Location.Accuracy.Balanced,
+            });
+            const r = {
+              latitude: loc.coords.latitude,
+              longitude: loc.coords.longitude,
+              latitudeDelta: 0.01,
+              longitudeDelta: 0.01,
+            };
+            setRegion(r);
+            mapRef.current?.animateToRegion(r, 300);
+            reverseGeocode(r.latitude, r.longitude).then(setAddress);
+            return;
+          }
+        } catch {
+          // Fall through to default
+        }
+        // Fallback to London
+        const r = {
+          latitude: DEFAULT_LAT,
+          longitude: DEFAULT_LNG,
+          latitudeDelta: 0.05,
+          longitudeDelta: 0.05,
+        };
+        setRegion(r);
+        reverseGeocode(DEFAULT_LAT, DEFAULT_LNG).then(setAddress);
+      })();
     }
   }, [visible, initialLat, initialLng]);
 
@@ -72,6 +120,30 @@ export function MapPickerModal({
       setGeocoding(false);
     }, 500);
   }, []);
+
+  const handleSearch = useCallback(async () => {
+    const q = searchQuery.trim();
+    if (!q) return;
+    Keyboard.dismiss();
+    setSearching(true);
+    try {
+      const result = await forwardGeocode(q);
+      if (result) {
+        const r = {
+          latitude: result.lat,
+          longitude: result.lng,
+          latitudeDelta: 0.01,
+          longitudeDelta: 0.01,
+        };
+        setRegion(r);
+        mapRef.current?.animateToRegion(r, 500);
+        const addr = await reverseGeocode(result.lat, result.lng);
+        setAddress(addr);
+      }
+    } finally {
+      setSearching(false);
+    }
+  }, [searchQuery]);
 
   if (!MapView) {
     return (
@@ -93,6 +165,7 @@ export function MapPickerModal({
     <Modal visible={visible} animationType="slide" onRequestClose={onCancel}>
       <View style={styles.container}>
         <MapView
+          ref={mapRef}
           style={styles.map}
           region={region}
           onRegionChangeComplete={handleRegionChange}
@@ -100,6 +173,32 @@ export function MapPickerModal({
           showsUserLocation
           showsMyLocationButton={false}
         />
+
+        {/* Search bar at top */}
+        <View style={styles.searchContainer}>
+          <View style={[styles.searchBar, searchFocused && styles.searchBarFocused]}>
+            <Ionicons name="search" size={18} color="#6b7280" style={styles.searchIcon} />
+            <TextInput
+              style={styles.searchInput}
+              placeholder="Search address or postcode..."
+              placeholderTextColor="#6b7280"
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+              onFocus={() => setSearchFocused(true)}
+              onBlur={() => setSearchFocused(false)}
+              onSubmitEditing={handleSearch}
+              returnKeyType="search"
+              autoCorrect={false}
+            />
+            {searching ? (
+              <ActivityIndicator size="small" color="#f5a623" />
+            ) : searchQuery.length > 0 ? (
+              <TouchableOpacity onPress={handleSearch} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                <Ionicons name="arrow-forward-circle" size={24} color="#f5a623" />
+              </TouchableOpacity>
+            ) : null}
+          </View>
+        </View>
 
         {/* Crosshair pin fixed at center */}
         <View style={styles.crosshairContainer} pointerEvents="none">
@@ -154,6 +253,37 @@ const styles = StyleSheet.create({
   map: {
     width: SCREEN_WIDTH,
     height: SCREEN_HEIGHT,
+  },
+  // Search bar
+  searchContainer: {
+    position: "absolute",
+    top: Platform.OS === "ios" ? 60 : 40,
+    left: 16,
+    right: 16,
+    zIndex: 10,
+  },
+  searchBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "rgba(3, 7, 18, 0.92)",
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: Platform.OS === "ios" ? 10 : 4,
+    borderWidth: 1,
+    borderColor: "rgba(107, 114, 128, 0.3)",
+  },
+  searchBarFocused: {
+    borderColor: "#f5a623",
+  },
+  searchIcon: {
+    marginRight: 8,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 15,
+    fontFamily: "PlusJakartaSans_400Regular",
+    color: "#f0f2f5",
+    paddingVertical: 4,
   },
   // Crosshair pin
   crosshairContainer: {
