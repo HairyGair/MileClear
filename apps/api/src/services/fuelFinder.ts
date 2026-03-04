@@ -1,18 +1,18 @@
-// UK Government Fuel Finder API client
+// UK Government Fuel Finder API client (Information Recipient)
 // OAuth 2.0 client credentials + station/price data fetching
 // Covers all 8,300+ UK fuel stations (mandatory reporting since Feb 2026)
-
-// Token endpoint: https://www.fuel-finder.service.gov.uk/api/v1/oauth/generate_secret_token
-// API base: https://api.fuelfinder.service.gov.uk
-// Known endpoints: GET /v1/prices?fuel_type=unleaded, GET /v1/prices/{site_id}
+//
+// Token:    POST https://www.fuel-finder.service.gov.uk/api/v1/oauth/generate_access_token
+// Stations: GET  https://www.fuel-finder.service.gov.uk/api/v1/pfs?batch-number=N
+// Prices:   GET  https://www.fuel-finder.service.gov.uk/api/v1/pfs/fuel-prices?batch-number=N
 
 const FUEL_FINDER_CLIENT_ID = process.env.FUEL_FINDER_CLIENT_ID || "";
 const FUEL_FINDER_CLIENT_SECRET = process.env.FUEL_FINDER_CLIENT_SECRET || "";
-const FUEL_FINDER_TOKEN_URL = process.env.FUEL_FINDER_TOKEN_URL || "https://www.fuel-finder.service.gov.uk/api/v1/oauth/generate_secret_token";
-const FUEL_FINDER_API_BASE_URL = process.env.FUEL_FINDER_API_BASE_URL || "https://api.fuelfinder.service.gov.uk";
+const FUEL_FINDER_API_BASE = "https://www.fuel-finder.service.gov.uk/api";
 
 const TOKEN_REFRESH_BUFFER_MS = 5 * 60 * 1000; // Refresh 5 min before expiry
 const REQUEST_TIMEOUT_MS = 15_000;
+const MAX_BATCHES = 200; // Safety limit to prevent infinite loops
 
 // --- Token management ---
 
@@ -37,8 +37,7 @@ async function getToken(): Promise<string> {
   const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
 
   try {
-    // Token endpoint uses JSON body with client_id + client_secret
-    const res = await fetch(FUEL_FINDER_TOKEN_URL, {
+    const res = await fetch(`${FUEL_FINDER_API_BASE}/v1/oauth/generate_access_token`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -80,7 +79,39 @@ async function getToken(): Promise<string> {
   }
 }
 
-// --- Station/price fetching ---
+// --- API types (from Fuel Finder schema) ---
+
+interface FuelFinderPfsStation {
+  node_id: string;
+  trading_name: string;
+  brand_name?: string;
+  is_same_trading_and_brand_name?: boolean;
+  temporary_closure?: boolean;
+  permanent_closure?: boolean;
+  location: {
+    address_line_1?: string;
+    address_line_2?: string | null;
+    city?: string;
+    country?: string;
+    county?: string | null;
+    postcode?: string;
+    latitude: number;
+    longitude: number;
+  };
+  amenities?: string[];
+  fuel_types?: string[];
+}
+
+interface FuelFinderPriceStation {
+  node_id: string;
+  trading_name?: string;
+  fuel_prices: Array<{
+    fuel_type: string;
+    price: number;
+    price_last_updated: string;
+    price_change_effective_timestamp?: string;
+  }>;
+}
 
 // The internal station format used by fuel.ts
 interface InternalStation {
@@ -98,94 +129,24 @@ interface InternalStation {
   };
 }
 
-// Fuel Finder API response shapes — handles multiple possible formats
-interface FuelFinderStation {
-  id?: string;
-  site_id?: string;
-  brand?: string;
-  name?: string;
-  address?: string;
-  postcode?: string;
-  location?: { latitude?: number; longitude?: number };
-  latitude?: number;
-  longitude?: number;
-  prices?: Record<string, number | string | null>;
-  fuel_prices?: Array<{
-    fuel_type?: string;
-    price?: number;
-  }>;
-}
-
-const VALID_FUEL_TYPES = new Set(["E10", "E5", "B7", "SDV"]);
-
-// Map Fuel Finder fuel type names to our standard codes
-const FUEL_TYPE_MAP: Record<string, string> = {
+// Map Fuel Finder fuel_type values to our standard codes
+const FUEL_TYPE_MAP: Record<string, keyof InternalStation["prices"]> = {
   E10: "E10",
   E5: "E5",
+  B7_STANDARD: "B7",
+  B7_PREMIUM: "SDV",  // Premium diesel → SDV slot
   B7: "B7",
   SDV: "SDV",
-  UNLEADED: "E10",   // E10 is standard unleaded since 2021
-  SUPER: "E5",       // E5 = super unleaded / premium
-  DIESEL: "B7",      // B7 = standard diesel
-  PREMIUM_DIESEL: "SDV",
 };
 
-function normaliseStation(raw: FuelFinderStation): InternalStation | null {
-  const lat = raw.location?.latitude ?? raw.latitude;
-  const lng = raw.location?.longitude ?? raw.longitude;
-  if (lat == null || lng == null || isNaN(lat) || isNaN(lng)) return null;
-  if (lat === 0 && lng === 0) return null;
+// --- Paginated batch fetching ---
 
-  const prices: InternalStation["prices"] = {};
-
-  // Handle object-style prices { "E10": 132.9, "B7": 139.9 }
-  if (raw.prices && typeof raw.prices === "object" && !Array.isArray(raw.prices)) {
-    for (const [key, rawVal] of Object.entries(raw.prices)) {
-      const mapped = FUEL_TYPE_MAP[key.toUpperCase()] || key.toUpperCase();
-      if (!VALID_FUEL_TYPES.has(mapped)) continue;
-      const val = typeof rawVal === "string" ? parseFloat(rawVal) : rawVal;
-      if (val == null || isNaN(val) || val <= 0) continue;
-      (prices as Record<string, number>)[mapped] = val;
-    }
-  }
-
-  // Handle array-style fuel_prices [{ fuel_type: "unleaded", price: 132.9 }]
-  if (Array.isArray(raw.fuel_prices)) {
-    for (const fp of raw.fuel_prices) {
-      const mapped = FUEL_TYPE_MAP[fp.fuel_type?.toUpperCase() || ""];
-      if (!mapped || !VALID_FUEL_TYPES.has(mapped)) continue;
-      const val = fp.price;
-      if (val == null || isNaN(val) || val <= 0) continue;
-      (prices as Record<string, number>)[mapped] = val;
-    }
-  }
-
-  if (!prices.E10 && !prices.E5 && !prices.B7 && !prices.SDV) return null;
-
-  return {
-    siteId: String(raw.id || raw.site_id || `ff-${lat}-${lng}`),
-    brand: raw.brand || raw.name || "Unknown",
-    address: raw.address || "",
-    postcode: raw.postcode || "",
-    latitude: lat,
-    longitude: lng,
-    prices,
-  };
-}
-
-/**
- * Fetch a single fuel type's prices from the Fuel Finder API.
- * Known endpoint: GET /v1/prices?fuel_type=unleaded
- */
-async function fetchPricesByFuelType(
-  token: string,
-  fuelType: string
-): Promise<FuelFinderStation[]> {
+async function fetchBatch<T>(token: string, path: string, batchNumber: number): Promise<T[]> {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
 
   try {
-    const url = `${FUEL_FINDER_API_BASE_URL}/v1/prices?fuel_type=${encodeURIComponent(fuelType)}`;
+    const url = `${FUEL_FINDER_API_BASE}${path}?batch-number=${batchNumber}`;
 
     const res = await fetch(url, {
       headers: {
@@ -198,21 +159,16 @@ async function fetchPricesByFuelType(
 
     if (!res.ok) {
       const text = await res.text().catch(() => "");
-      throw new Error(`Fuel Finder /v1/prices?fuel_type=${fuelType} failed: HTTP ${res.status} — ${text}`);
+      throw new Error(`HTTP ${res.status} — ${text}`);
     }
 
-    const json = (await res.json()) as {
-      success?: boolean;
-      data?: FuelFinderStation[] | { stations?: FuelFinderStation[] };
-      stations?: FuelFinderStation[];
-      results?: FuelFinderStation[];
-    };
+    const data = await res.json();
 
-    // Handle wrapped response { success, data: [...] } or { data: { stations: [...] } }
-    if (Array.isArray(json.data)) return json.data;
-    if (json.data && "stations" in json.data && Array.isArray(json.data.stations)) return json.data.stations;
-    if (Array.isArray(json.stations)) return json.stations;
-    if (Array.isArray(json.results)) return json.results;
+    // Response is a direct array
+    if (Array.isArray(data)) return data as T[];
+
+    // Response might be wrapped: { success, data: [...] }
+    if (data && Array.isArray(data.data)) return data.data as T[];
 
     return [];
   } finally {
@@ -220,10 +176,25 @@ async function fetchPricesByFuelType(
   }
 }
 
+async function fetchAllBatches<T>(token: string, path: string): Promise<T[]> {
+  const all: T[] = [];
+
+  for (let batch = 1; batch <= MAX_BATCHES; batch++) {
+    const items = await fetchBatch<T>(token, path, batch);
+    if (items.length === 0) break;
+    all.push(...items);
+  }
+
+  return all;
+}
+
+// --- Main export ---
+
 /**
- * Fetch all stations from the Fuel Finder API.
- * Queries each fuel type and merges results (deduped by site ID).
- * Returns normalised stations in the same format as CMA retailer feeds.
+ * Fetch all stations + prices from the Fuel Finder API.
+ * 1. Fetch station details (location, brand) from /v1/pfs
+ * 2. Fetch prices from /v1/pfs/fuel-prices
+ * 3. Join by node_id and normalise to InternalStation format
  */
 export async function fetchFuelFinderStations(): Promise<{
   stations: InternalStation[];
@@ -231,51 +202,69 @@ export async function fetchFuelFinderStations(): Promise<{
 }> {
   const token = await getToken();
 
-  // Fetch all fuel types in parallel — rate limit is 30 RPM so 4 concurrent is fine
-  const fuelTypes = ["unleaded", "super_unleaded", "diesel", "premium_diesel"];
-  const results = await Promise.allSettled(
-    fuelTypes.map((ft) => fetchPricesByFuelType(token, ft))
-  );
+  // Fetch stations and prices in parallel
+  const [pfsStations, pfsStationPrices] = await Promise.all([
+    fetchAllBatches<FuelFinderPfsStation>(token, "/v1/pfs"),
+    fetchAllBatches<FuelFinderPriceStation>(token, "/v1/pfs/fuel-prices"),
+  ]);
 
-  const seen = new Map<string, FuelFinderStation>();
+  console.log(`[fuel-finder] Raw data: ${pfsStations.length} stations, ${pfsStationPrices.length} price entries`);
 
-  for (let i = 0; i < results.length; i++) {
-    const result = results[i];
-    if (result.status === "fulfilled") {
-      for (const station of result.value) {
-        const id = String(station.id || station.site_id || "");
-        if (!id) continue;
-
-        // Merge prices from different fuel type queries into one station
-        const existing = seen.get(id);
-        if (existing) {
-          // Merge prices
-          if (station.prices) {
-            existing.prices = { ...existing.prices, ...station.prices };
-          }
-          if (station.fuel_prices) {
-            existing.fuel_prices = [
-              ...(existing.fuel_prices || []),
-              ...station.fuel_prices,
-            ];
-          }
-        } else {
-          seen.set(id, { ...station });
-        }
-      }
-    } else {
-      console.warn(`[fuel-finder] ${fuelTypes[i]} query failed:`, result.reason?.message || result.reason);
-    }
+  // Index prices by node_id
+  const priceMap = new Map<string, FuelFinderPriceStation>();
+  for (const p of pfsStationPrices) {
+    priceMap.set(p.node_id, p);
   }
 
+  // Join and normalise
   const stations: InternalStation[] = [];
-  for (const raw of seen.values()) {
-    const normalised = normaliseStation(raw);
-    if (normalised) stations.push(normalised);
+  let latestUpdate = "";
+
+  for (const pfs of pfsStations) {
+    // Skip closed stations
+    if (pfs.permanent_closure || pfs.temporary_closure) continue;
+
+    const lat = pfs.location?.latitude;
+    const lng = pfs.location?.longitude;
+    if (lat == null || lng == null || isNaN(lat) || isNaN(lng)) continue;
+    if (lat === 0 && lng === 0) continue;
+
+    // Look up prices for this station
+    const priceData = priceMap.get(pfs.node_id);
+    if (!priceData || !priceData.fuel_prices?.length) continue;
+
+    const prices: InternalStation["prices"] = {};
+    for (const fp of priceData.fuel_prices) {
+      const mapped = FUEL_TYPE_MAP[fp.fuel_type];
+      if (!mapped) continue;
+      if (fp.price == null || isNaN(fp.price) || fp.price <= 0) continue;
+      prices[mapped] = fp.price;
+
+      // Track latest update timestamp
+      if (fp.price_last_updated && fp.price_last_updated > latestUpdate) {
+        latestUpdate = fp.price_last_updated;
+      }
+    }
+
+    if (!prices.E10 && !prices.E5 && !prices.B7 && !prices.SDV) continue;
+
+    const address = [pfs.location.address_line_1, pfs.location.city]
+      .filter(Boolean)
+      .join(", ");
+
+    stations.push({
+      siteId: pfs.node_id,
+      brand: pfs.brand_name || pfs.trading_name || "Unknown",
+      address,
+      postcode: pfs.location.postcode || "",
+      latitude: lat,
+      longitude: lng,
+      prices,
+    });
   }
 
   return {
     stations,
-    lastUpdated: new Date().toISOString(),
+    lastUpdated: latestUpdate || new Date().toISOString(),
   };
 }
