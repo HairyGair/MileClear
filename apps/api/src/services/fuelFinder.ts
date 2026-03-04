@@ -3,12 +3,13 @@
 // Covers all 8,300+ UK fuel stations (mandatory reporting since Feb 2026)
 //
 // Token:    POST https://www.fuel-finder.service.gov.uk/api/v1/oauth/generate_access_token
-// Stations: GET  https://www.fuel-finder.service.gov.uk/api/v1/pfs?batch-number=N
-// Prices:   GET  https://www.fuel-finder.service.gov.uk/api/v1/pfs/fuel-prices?batch-number=N
+// Stations: GET  https://www.developer.fuel-finder.service.gov.uk/api/v1/pfs?batch-number=N
+// Prices:   GET  https://www.developer.fuel-finder.service.gov.uk/api/v1/pfs/fuel-prices?batch-number=N
 
 const FUEL_FINDER_CLIENT_ID = process.env.FUEL_FINDER_CLIENT_ID || "";
 const FUEL_FINDER_CLIENT_SECRET = process.env.FUEL_FINDER_CLIENT_SECRET || "";
-const FUEL_FINDER_API_BASE = "https://www.fuel-finder.service.gov.uk/api";
+const FUEL_FINDER_TOKEN_BASE = "https://www.fuel-finder.service.gov.uk/api";
+const FUEL_FINDER_DATA_BASE = "https://www.developer.fuel-finder.service.gov.uk/api";
 
 const TOKEN_REFRESH_BUFFER_MS = 5 * 60 * 1000; // Refresh 5 min before expiry
 const REQUEST_TIMEOUT_MS = 15_000;
@@ -37,7 +38,7 @@ async function getToken(): Promise<string> {
   const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
 
   try {
-    const res = await fetch(`${FUEL_FINDER_API_BASE}/v1/oauth/generate_access_token`, {
+    const res = await fetch(`${FUEL_FINDER_TOKEN_BASE}/v1/oauth/generate_access_token`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -146,7 +147,7 @@ async function fetchBatch<T>(token: string, path: string, batchNumber: number): 
   const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
 
   try {
-    const url = `${FUEL_FINDER_API_BASE}${path}?batch-number=${batchNumber}`;
+    const url = `${FUEL_FINDER_DATA_BASE}${path}?batch-number=${batchNumber}`;
 
     const res = await fetch(url, {
       headers: {
