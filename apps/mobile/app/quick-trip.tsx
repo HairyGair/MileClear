@@ -10,6 +10,8 @@ import {
   ScrollView,
 } from "react-native";
 import { useRouter, Stack } from "expo-router";
+import { Ionicons } from "@expo/vector-icons";
+import * as Location from "expo-location";
 import { getCurrentLocation, reverseGeocode } from "../lib/location/geocoding";
 import { syncCreateTrip } from "../lib/sync/actions";
 import { haversineDistance } from "@mileclear/shared";
@@ -66,6 +68,13 @@ export default function QuickTripScreen() {
   const [elapsed, setElapsed] = useState(0);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
+  // Live location tracking during driving
+  const mapRef = useRef<any>(null);
+  const [followUser, setFollowUser] = useState(true);
+  const [userLat, setUserLat] = useState<number | null>(null);
+  const [userLng, setUserLng] = useState<number | null>(null);
+  const locationSubRef = useRef<Location.LocationSubscription | null>(null);
+
   // Check for in-progress quick trip on mount
   useEffect(() => {
     (async () => {
@@ -115,6 +124,66 @@ export default function QuickTripScreen() {
       if (timerRef.current) clearInterval(timerRef.current);
     };
   }, [state, startTime]);
+
+  // Watch location during driving state
+  useEffect(() => {
+    if (state !== "driving") return;
+
+    let sub: Location.LocationSubscription | null = null;
+    (async () => {
+      try {
+        sub = await Location.watchPositionAsync(
+          {
+            accuracy: Location.Accuracy.High,
+            timeInterval: 3000,
+            distanceInterval: 10,
+          },
+          (loc) => {
+            const { latitude, longitude } = loc.coords;
+            setUserLat(latitude);
+            setUserLng(longitude);
+
+            if (followUser && mapRef.current) {
+              mapRef.current.animateToRegion(
+                {
+                  latitude,
+                  longitude,
+                  latitudeDelta: 0.008,
+                  longitudeDelta: 0.008,
+                },
+                500
+              );
+            }
+          }
+        );
+        locationSubRef.current = sub;
+      } catch {
+        // Location permission may not be granted
+      }
+    })();
+
+    return () => {
+      if (sub) sub.remove();
+      locationSubRef.current = null;
+    };
+  }, [state, followUser]);
+
+  const handleRecenter = useCallback(() => {
+    setFollowUser(true);
+    const lat = userLat ?? startLat;
+    const lng = userLng ?? startLng;
+    if (lat != null && lng != null && mapRef.current) {
+      mapRef.current.animateToRegion(
+        {
+          latitude: lat,
+          longitude: lng,
+          latitudeDelta: 0.008,
+          longitudeDelta: 0.008,
+        },
+        400
+      );
+    }
+  }, [userLat, userLng, startLat, startLng]);
 
   const formatTimer = (secs: number): string => {
     const m = Math.floor(secs / 60);
@@ -257,27 +326,27 @@ export default function QuickTripScreen() {
       <View style={styles.mapArea}>
         {MapView && startLat != null && startLng != null ? (
           <MapView
+            ref={mapRef}
             style={styles.map}
-            region={{
-              latitude: state === "arrived" && endLat != null
-                ? (startLat + endLat) / 2
-                : startLat,
-              longitude: state === "arrived" && endLng != null
-                ? (startLng + endLng) / 2
-                : startLng,
-              latitudeDelta: state === "arrived" && endLat != null
-                ? Math.abs(startLat - endLat) * 2.5 + 0.01
-                : 0.01,
-              longitudeDelta: state === "arrived" && endLng != null
-                ? Math.abs(startLng - endLng) * 2.5 + 0.01
-                : 0.01,
+            initialRegion={{
+              latitude: startLat,
+              longitude: startLng,
+              latitudeDelta: 0.01,
+              longitudeDelta: 0.01,
             }}
+            region={state === "arrived" && endLat != null && endLng != null ? {
+              latitude: (startLat + endLat) / 2,
+              longitude: (startLng + endLng) / 2,
+              latitudeDelta: Math.abs(startLat - endLat) * 2.5 + 0.01,
+              longitudeDelta: Math.abs(startLng - endLng) * 2.5 + 0.01,
+            } : undefined}
             userInterfaceStyle="dark"
             showsUserLocation={state !== "arrived"}
-            scrollEnabled={false}
-            zoomEnabled={false}
+            scrollEnabled={state === "driving"}
+            zoomEnabled={state === "driving"}
             rotateEnabled={false}
             pitchEnabled={false}
+            onPanDrag={state === "driving" ? () => setFollowUser(false) : undefined}
           >
             {/* Start marker */}
             <Marker
@@ -308,6 +377,16 @@ export default function QuickTripScreen() {
               {startAddress ?? "Locating..."}
             </Text>
           </View>
+        )}
+        {/* Re-center button — only shows when user has panned away during driving */}
+        {state === "driving" && !followUser && (
+          <TouchableOpacity
+            style={styles.recenterBtn}
+            onPress={handleRecenter}
+            activeOpacity={0.7}
+          >
+            <Ionicons name="locate-outline" size={20} color="#f0f2f5" />
+          </TouchableOpacity>
         )}
       </View>
 
@@ -499,6 +578,19 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontFamily: "PlusJakartaSans_500Medium",
     color: TEXT_2,
+  },
+  recenterBtn: {
+    position: "absolute",
+    bottom: 12,
+    right: 12,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "rgba(10, 17, 32, 0.85)",
+    justifyContent: "center",
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.1)",
   },
   // Panel
   panel: {
