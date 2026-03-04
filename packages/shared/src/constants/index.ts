@@ -67,7 +67,8 @@ export const FUEL_RETAILER_FEEDS = [
   { name: "Shell", url: "https://www.shell.co.uk/fuel-prices-data.html" },
   { name: "Tesco", url: "https://www.tesco.com/fuel_prices/fuel_prices_data.json" },
   { name: "Ascona", url: "https://fuelprices.asconagroup.co.uk/newfuel.json" },
-  { name: "Karan", url: "https://devapi.krlpos.com/integration/live_price/krl" },
+  { name: "Karan", url: "https://api.krl.live/integration/live_price/krl" },
+  { name: "BP", url: "https://www.bp.com/en_gb/united-kingdom/home/fuelprices/fuel_prices_data.json" },
 ] as const;
 
 // Fuel brands
@@ -82,6 +83,13 @@ export const FUEL_BRANDS = [
   "Texaco",
   "Gulf",
   "Jet",
+  "Costco",
+  "Moto",
+  "MFG",
+  "Rontec",
+  "SGN",
+  "Ascona",
+  "Karan",
 ] as const;
 
 // Vehicle fuel types

@@ -1,4 +1,4 @@
-// Government retailer fuel price feeds + GOV.UK national averages
+// Fuel price data: Fuel Finder API (primary) + CMA retailer feeds (fallback) + GOV.UK national averages
 
 import { cacheGet, cacheSet } from "../lib/redis.js";
 import {
@@ -6,6 +6,7 @@ import {
   FUEL_STATION_CACHE_TTL_MS,
 } from "@mileclear/shared";
 import type { FuelStation, NationalAveragePrices } from "@mileclear/shared";
+import { isFuelFinderConfigured, fetchFuelFinderStations } from "./fuelFinder.js";
 
 const NATIONAL_AVG_CACHE_KEY = "fuel:national_averages";
 const NATIONAL_AVG_TTL_SECONDS = 24 * 60 * 60; // 24 hours
@@ -116,7 +117,7 @@ async function fetchFeed(feed: { name: string; url: string }): Promise<{ station
   }
 }
 
-async function fetchAllStations(): Promise<StationCacheEntry> {
+async function fetchFromRetailerFeeds(): Promise<StationCacheEntry> {
   const results = await Promise.allSettled(
     FUEL_RETAILER_FEEDS.map((feed) => fetchFeed(feed))
   );
@@ -144,13 +145,33 @@ async function fetchAllStations(): Promise<StationCacheEntry> {
     }
   }
 
-  console.log(`[fuel] Fetched ${allStations.length} stations from ${successCount}/${FUEL_RETAILER_FEEDS.length} feeds`);
+  console.log(`[fuel] Fetched ${allStations.length} stations from ${successCount}/${FUEL_RETAILER_FEEDS.length} retailer feeds`);
 
   return {
     stations: allStations,
     lastUpdated: latestUpdate || new Date().toISOString(),
     fetchedAt: Date.now(),
   };
+}
+
+async function fetchAllStations(): Promise<StationCacheEntry> {
+  // Try Fuel Finder API first (8,300+ stations) if configured
+  if (isFuelFinderConfigured()) {
+    try {
+      const result = await fetchFuelFinderStations();
+      console.log(`[fuel] Fetched ${result.stations.length} stations from Fuel Finder API`);
+      return {
+        stations: result.stations,
+        lastUpdated: result.lastUpdated,
+        fetchedAt: Date.now(),
+      };
+    } catch (err) {
+      console.warn("[fuel] Fuel Finder API failed, falling back to retailer feeds:", (err as Error).message);
+    }
+  }
+
+  // Fallback: CMA retailer feeds (~4k stations)
+  return fetchFromRetailerFeeds();
 }
 
 async function getCachedStations(): Promise<StationCacheEntry> {
