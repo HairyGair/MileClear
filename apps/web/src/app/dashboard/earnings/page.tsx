@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { api } from "../../../lib/api";
+import { useAuth } from "../../../lib/auth-context";
 import { PageHeader } from "../../../components/dashboard/PageHeader";
 import { Button } from "../../../components/ui/Button";
 import { Badge } from "../../../components/ui/Badge";
@@ -36,6 +37,7 @@ function formatPence(pence: number): string {
 }
 
 export default function EarningsPage() {
+  const { user } = useAuth();
   const [earnings, setEarnings] = useState<Earning[]>([]);
   const [total, setTotal] = useState(0);
   const [totalAmount, setTotalAmount] = useState(0);
@@ -190,9 +192,15 @@ export default function EarningsPage() {
         subtitle="Track income from gig platforms"
         action={
           <div style={{ display: "flex", gap: "0.5rem" }}>
-            <Button variant="secondary" size="sm" onClick={() => setShowCsv(true)}>
-              Import CSV
-            </Button>
+            {user?.isPremium ? (
+              <Button variant="secondary" size="sm" onClick={() => setShowCsv(true)}>
+                Import CSV
+              </Button>
+            ) : (
+              <Button variant="secondary" size="sm" disabled title="Premium feature">
+                Import CSV (Pro)
+              </Button>
+            )}
             <Button variant="primary" size="sm" onClick={() => setShowAdd(true)}>
               + Add earning
             </Button>

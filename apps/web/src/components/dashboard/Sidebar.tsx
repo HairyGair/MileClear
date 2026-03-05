@@ -70,6 +70,16 @@ const NAV_ITEMS = [
     ),
   },
   {
+    href: "/dashboard/locations",
+    label: "Locations",
+    icon: (
+      <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+        <path d="M9 1.5C6.24 1.5 4 3.74 4 6.5c0 3.94 5 9.5 5 9.5s5-5.56 5-9.5c0-2.76-2.24-5-5-5z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+        <circle cx="9" cy="6.5" r="1.75" stroke="currentColor" strokeWidth="1.5" />
+      </svg>
+    ),
+  },
+  {
     href: "/dashboard/exports",
     label: "Exports",
     icon: (
