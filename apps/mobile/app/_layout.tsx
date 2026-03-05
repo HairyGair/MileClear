@@ -50,6 +50,7 @@ import {
   requestNotificationPermissions,
   setupNotificationResponseHandler,
   registerForPushNotifications,
+  registerNotificationCategories,
 } from "../lib/notifications/index";
 import { setupNotificationChannels, scheduleWeeklyMileageSummary, scheduleTaxYearDeadlineReminder, checkUnclassifiedTripsNudge, checkStreakAtRisk, checkLongRunningShift } from "../lib/notifications/scheduler";
 import { registerPushToken } from "../lib/api/notifications";
@@ -232,6 +233,7 @@ export default function RootLayout() {
 
   useEffect(() => {
     requestNotificationPermissions();
+    registerNotificationCategories();
     setupNotificationResponseHandler();
     setupNotificationChannels().catch(console.error);
   }, []);
