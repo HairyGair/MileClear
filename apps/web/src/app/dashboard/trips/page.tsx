@@ -12,7 +12,7 @@ import { ConfirmModal } from "../../../components/ui/ConfirmModal";
 import { Pagination } from "../../../components/ui/Pagination";
 import { EmptyState } from "../../../components/ui/EmptyState";
 import { LoadingSkeleton } from "../../../components/ui/LoadingSkeleton";
-import type { Trip, PaginatedResponse } from "@mileclear/shared";
+import type { Trip, TripInsights, PaginatedResponse } from "@mileclear/shared";
 import { GIG_PLATFORMS } from "@mileclear/shared";
 
 const PAGE_SIZE = 20;
@@ -54,6 +54,10 @@ export default function TripsPage() {
   // Delete modal
   const [deleteTrip, setDeleteTrip] = useState<Trip | null>(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
+
+  // Detail modal (view trip + insights)
+  const [detailTrip, setDetailTrip] = useState<(Trip & { insights?: TripInsights | null }) | null>(null);
+  const [detailLoading, setDetailLoading] = useState(false);
 
   const loadTrips = useCallback(async () => {
     setLoading(true);
@@ -174,6 +178,20 @@ export default function TripsPage() {
     }
   };
 
+  // Detail
+  const openDetail = async (trip: Trip) => {
+    setDetailLoading(true);
+    setDetailTrip(trip);
+    try {
+      const res = await api.get<{ data: Trip & { insights?: TripInsights | null } }>(`/trips/${trip.id}`);
+      setDetailTrip(res.data);
+    } catch {
+      // Still show basic trip info without insights
+    } finally {
+      setDetailLoading(false);
+    }
+  };
+
   return (
     <>
       <PageHeader
@@ -264,6 +282,12 @@ export default function TripsPage() {
                     </td>
                     <td>
                       <div className="table__actions">
+                        <button
+                          className="table__action-btn"
+                          onClick={() => openDetail(trip)}
+                        >
+                          View
+                        </button>
                         <button
                           className="table__action-btn"
                           onClick={() => openEdit(trip)}
@@ -417,6 +441,129 @@ export default function TripsPage() {
         message={`Are you sure you want to delete this trip? This action cannot be undone.`}
         loading={deleteLoading}
       />
+
+      {/* Trip Detail Modal */}
+      <Modal
+        open={!!detailTrip}
+        onClose={() => setDetailTrip(null)}
+        title="Trip Details"
+        footer={
+          <Button variant="ghost" size="sm" onClick={() => setDetailTrip(null)}>
+            Close
+          </Button>
+        }
+      >
+        {detailTrip && (
+          <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+            {/* Route */}
+            <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", fontSize: "0.95rem" }}>
+              <span style={{ color: "#10b981", fontWeight: 600 }}>A</span>
+              <span>{detailTrip.startAddress || "Unknown"}</span>
+              <span style={{ color: "var(--text-faint)" }}>&rarr;</span>
+              <span style={{ color: "#ef4444", fontWeight: 600 }}>B</span>
+              <span>{detailTrip.endAddress || "Unknown"}</span>
+            </div>
+
+            {/* Stats row */}
+            <div style={{ display: "flex", gap: "1rem" }}>
+              <div className="card" style={{ flex: 1, textAlign: "center", padding: "0.75rem" }}>
+                <div style={{ fontSize: "1.25rem", fontWeight: 700, color: "var(--text-primary)" }}>
+                  {detailTrip.distanceMiles?.toFixed(1) || "0"} mi
+                </div>
+                <div style={{ fontSize: "0.75rem", color: "var(--text-faint)" }}>Distance</div>
+              </div>
+              <div className="card" style={{ flex: 1, textAlign: "center", padding: "0.75rem" }}>
+                <div style={{ fontSize: "1.25rem", fontWeight: 700, color: "var(--text-primary)" }}>
+                  {detailTrip.endedAt && detailTrip.startedAt
+                    ? (() => {
+                        const secs = Math.floor((new Date(detailTrip.endedAt).getTime() - new Date(detailTrip.startedAt).getTime()) / 1000);
+                        const m = Math.floor(secs / 60);
+                        return `${m} min`;
+                      })()
+                    : "--"}
+                </div>
+                <div style={{ fontSize: "0.75rem", color: "var(--text-faint)" }}>Duration</div>
+              </div>
+              <div className="card" style={{ flex: 1, textAlign: "center", padding: "0.75rem" }}>
+                <div style={{ fontSize: "1.25rem", fontWeight: 700, color: "var(--text-primary)" }}>
+                  <Badge variant={detailTrip.classification === "business" ? "business" : "personal"}>
+                    {detailTrip.classification}
+                  </Badge>
+                </div>
+                <div style={{ fontSize: "0.75rem", color: "var(--text-faint)", marginTop: 4 }}>Type</div>
+              </div>
+            </div>
+
+            {/* Trip Insights */}
+            {detailLoading ? (
+              <div style={{ textAlign: "center", padding: "1rem", color: "var(--text-faint)" }}>
+                Loading insights...
+              </div>
+            ) : detailTrip.insights ? (
+              <div className="card" style={{ padding: "1rem" }}>
+                <h4 style={{ margin: "0 0 0.75rem", fontSize: "0.9rem", fontWeight: 600, color: "var(--text-primary)" }}>
+                  Trip Insights
+                </h4>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "0.75rem", textAlign: "center" }}>
+                  <div>
+                    <div style={{ fontSize: "1.25rem", fontWeight: 700, color: "#fcd34d" }}>
+                      {detailTrip.insights.topSpeedMph}
+                    </div>
+                    <div style={{ fontSize: "0.7rem", color: "var(--text-faint)" }}>Top mph</div>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: "1.25rem", fontWeight: 700, color: "#fcd34d" }}>
+                      {detailTrip.insights.avgMovingSpeedMph}
+                    </div>
+                    <div style={{ fontSize: "0.7rem", color: "var(--text-faint)" }}>Avg mph</div>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: "1.25rem", fontWeight: 700, color: "#fcd34d" }}>
+                      {detailTrip.insights.timeStoppedSecs >= 60
+                        ? `${Math.round(detailTrip.insights.timeStoppedSecs / 60)}m`
+                        : `${detailTrip.insights.timeStoppedSecs}s`}
+                    </div>
+                    <div style={{ fontSize: "0.7rem", color: "var(--text-faint)" }}>Stopped</div>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: "1.25rem", fontWeight: 700, color: "#fcd34d" }}>
+                      {detailTrip.insights.routeEfficiency}x
+                    </div>
+                    <div style={{ fontSize: "0.7rem", color: "var(--text-faint)" }}>Route</div>
+                  </div>
+                </div>
+                {detailTrip.insights.longestNonStopMiles > 0.1 && (
+                  <div style={{ marginTop: "0.75rem", fontSize: "0.8rem", color: "var(--text-secondary)" }}>
+                    Longest non-stop: {detailTrip.insights.longestNonStopMiles} mi
+                  </div>
+                )}
+                {detailTrip.insights.speedFunFact && (
+                  <div style={{ marginTop: "0.5rem", fontSize: "0.8rem", color: "#fcd34d" }}>
+                    {detailTrip.insights.speedFunFact}
+                  </div>
+                )}
+                {detailTrip.insights.distanceFunFact && (
+                  <div style={{ fontSize: "0.8rem", color: "#fcd34d" }}>
+                    {detailTrip.insights.distanceFunFact}
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div style={{ textAlign: "center", padding: "0.75rem", fontSize: "0.85rem", color: "var(--text-faint)" }}>
+                No GPS data recorded — insights are available for tracked trips
+              </div>
+            )}
+
+            {/* Extra info */}
+            <div style={{ fontSize: "0.8rem", color: "var(--text-faint)", display: "flex", flexDirection: "column", gap: "0.25rem" }}>
+              <span>Started: {new Date(detailTrip.startedAt).toLocaleString("en-GB")}</span>
+              {detailTrip.endedAt && <span>Ended: {new Date(detailTrip.endedAt).toLocaleString("en-GB")}</span>}
+              {detailTrip.platformTag && <span>Platform: {detailTrip.platformTag}</span>}
+              {detailTrip.notes && <span>Notes: {detailTrip.notes}</span>}
+            </div>
+          </div>
+        )}
+      </Modal>
     </>
   );
 }

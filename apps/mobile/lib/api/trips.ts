@@ -2,6 +2,7 @@ import { apiRequest } from "./index";
 import type {
   Trip,
   TripCoordinate,
+  TripInsights,
   TripClassification,
   PlatformTag,
   Vehicle,
@@ -17,6 +18,7 @@ export interface TripDetail extends Trip {
   vehicle: Vehicle | null;
   shift: Shift | null;
   coordinates: TripCoordinate[];
+  insights: TripInsights | null;
 }
 
 export interface CoordinateInput {

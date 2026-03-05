@@ -95,3 +95,98 @@ export function parseTaxYear(taxYear: string): { start: Date; end: Date } {
     end: new Date(endYear, 3, 5, 23, 59, 59, 999), // 5 April 23:59:59.999
   };
 }
+
+/**
+ * Compute trip insights from GPS coordinates.
+ * Coordinates must be sorted by recordedAt ascending.
+ */
+export function computeTripInsights(
+  coords: { lat: number; lng: number; speed: number | null; recordedAt: string | Date }[],
+  distanceMiles: number,
+  durationSecs: number,
+): import("../types/index.js").TripInsights | null {
+  if (coords.length < 2) return null;
+
+  const MS_TO_MPH = 2.23694;
+  const STOP_SPEED_MS = 1.5;
+
+  let topSpeedMph = 0;
+  let movingSpeedSum = 0;
+  let movingCount = 0;
+  let timeMovingSecs = 0;
+  let timeStoppedSecs = 0;
+  let currentStretchMiles = 0;
+  let longestNonStopMiles = 0;
+
+  for (let i = 1; i < coords.length; i++) {
+    const prev = coords[i - 1];
+    const curr = coords[i];
+    const dt =
+      (new Date(curr.recordedAt).getTime() - new Date(prev.recordedAt).getTime()) / 1000;
+    if (dt <= 0) continue;
+
+    const speed = curr.speed;
+    const isStopped = speed != null ? speed < STOP_SPEED_MS : false;
+
+    if (speed != null && speed >= 0) {
+      const mph = speed * MS_TO_MPH;
+      if (mph > topSpeedMph) topSpeedMph = mph;
+      if (!isStopped) {
+        movingSpeedSum += mph;
+        movingCount++;
+      }
+    }
+
+    if (isStopped) {
+      timeStoppedSecs += dt;
+      if (currentStretchMiles > longestNonStopMiles) {
+        longestNonStopMiles = currentStretchMiles;
+      }
+      currentStretchMiles = 0;
+    } else {
+      timeMovingSecs += dt;
+      currentStretchMiles += haversineDistance(prev.lat, prev.lng, curr.lat, curr.lng);
+    }
+  }
+
+  if (currentStretchMiles > longestNonStopMiles) {
+    longestNonStopMiles = currentStretchMiles;
+  }
+
+  const first = coords[0];
+  const last = coords[coords.length - 1];
+  const straightLine = haversineDistance(first.lat, first.lng, last.lat, last.lng);
+  const routeEfficiency = straightLine > 0.01 ? distanceMiles / straightLine : 1;
+
+  const avgSpeedMph = durationSecs > 0 ? (distanceMiles / durationSecs) * 3600 : 0;
+  const avgMovingSpeedMph = movingCount > 0 ? movingSpeedSum / movingCount : avgSpeedMph;
+
+  const topMph = Math.round(topSpeedMph);
+  let speedFunFact: string | null = null;
+  if (topMph >= 70) speedFunFact = "You hit motorway speed!";
+  else if (topMph >= 60) speedFunFact = "Dual carriageway pace";
+  else if (topMph >= 40) speedFunFact = "Faster than Usain Bolt (27 mph)";
+  else if (topMph >= 30) speedFunFact = "Town speed — nice and steady";
+  else if (topMph >= 15) speedFunFact = "Faster than a London cyclist";
+
+  let distanceFunFact: string | null = null;
+  if (distanceMiles >= 100) distanceFunFact = "That's London to Birmingham!";
+  else if (distanceMiles >= 60) distanceFunFact = "That's London to Brighton and back";
+  else if (distanceMiles >= 30) distanceFunFact = "That's London to Brighton";
+  else if (distanceMiles >= 10) distanceFunFact = `That's about ${Math.round(distanceMiles * 20)} football pitches`;
+  else if (distanceMiles >= 5) distanceFunFact = "That's roughly a parkrun distance";
+  else if (distanceMiles >= 1) distanceFunFact = `That's about ${Math.round(distanceMiles * 20)} laps of a track`;
+
+  return {
+    topSpeedMph: topMph,
+    avgSpeedMph: Math.round(avgSpeedMph),
+    avgMovingSpeedMph: Math.round(avgMovingSpeedMph),
+    timeMovingSecs: Math.round(timeMovingSecs),
+    timeStoppedSecs: Math.round(timeStoppedSecs),
+    routeEfficiency: Math.round(routeEfficiency * 10) / 10,
+    longestNonStopMiles: Math.round(longestNonStopMiles * 10) / 10,
+    coordCount: coords.length,
+    speedFunFact,
+    distanceFunFact,
+  };
+}

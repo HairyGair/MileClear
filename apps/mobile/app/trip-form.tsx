@@ -78,6 +78,8 @@ interface TripInsights {
   routeEfficiency: number; // 1.0 = straight line, higher = more winding
   longestNonStopMiles: number;
   coordCount: number;
+  speedFunFact?: string | null;
+  distanceFunFact?: string | null;
 }
 
 function getSpeedFunFact(topMph: number): string | null {
@@ -274,6 +276,7 @@ export default function TripFormScreen() {
       startAddress?: string | null; endAddress?: string | null;
       startLat: number; startLng: number; endLat?: number | null; endLng?: number | null;
       distanceMiles: number; startedAt: string; endedAt?: string | null; notes?: string | null;
+      insights?: TripInsights | null;
     }) => {
       setClassification(t.classification as TripClassification);
       setPlatformTag((t.platformTag ?? undefined) as PlatformTag | undefined);
@@ -288,6 +291,7 @@ export default function TripFormScreen() {
       setStartedAt(new Date(t.startedAt));
       setEndedAt(t.endedAt ? new Date(t.endedAt) : null);
       setNotes(t.notes ?? "");
+      if (t.insights) setInsights(t.insights);
     };
 
     fetchTrip(id)
@@ -974,6 +978,51 @@ export default function TripFormScreen() {
                 <Text style={styles.distanceHint}>Set both locations to auto-calculate</Text>
               )}
             </View>
+
+            {/* Trip Insights (from GPS data — editing mode) */}
+            {isEditing && insights && (
+              <View style={styles.insightsCard}>
+                <Text style={styles.insightsTitle}>Trip Insights</Text>
+                <View style={styles.insightsGrid}>
+                  <View style={styles.insightItem}>
+                    <Text style={styles.insightValue}>{insights.topSpeedMph}</Text>
+                    <Text style={styles.insightLabel}>Top mph</Text>
+                  </View>
+                  <View style={styles.insightItem}>
+                    <Text style={styles.insightValue}>{insights.avgMovingSpeedMph}</Text>
+                    <Text style={styles.insightLabel}>Avg mph</Text>
+                  </View>
+                  <View style={styles.insightItem}>
+                    <Text style={styles.insightValue}>
+                      {insights.timeStoppedSecs >= 60
+                        ? `${Math.round(insights.timeStoppedSecs / 60)}m`
+                        : `${insights.timeStoppedSecs}s`}
+                    </Text>
+                    <Text style={styles.insightLabel}>Stopped</Text>
+                  </View>
+                  <View style={styles.insightItem}>
+                    <Text style={styles.insightValue}>{insights.routeEfficiency}x</Text>
+                    <Text style={styles.insightLabel}>Route</Text>
+                  </View>
+                </View>
+                {insights.longestNonStopMiles > 0.1 && (
+                  <Text style={styles.insightNote}>
+                    Longest non-stop stretch: {insights.longestNonStopMiles} mi
+                  </Text>
+                )}
+                {insights.timeStoppedSecs > 60 && (
+                  <Text style={styles.insightNote}>
+                    {Math.round((insights.timeMovingSecs / (insights.timeMovingSecs + insights.timeStoppedSecs)) * 100)}% of your trip was spent moving
+                  </Text>
+                )}
+                {getSpeedFunFact(insights.topSpeedMph) && (
+                  <Text style={styles.insightFunFact}>{getSpeedFunFact(insights.topSpeedMph)}</Text>
+                )}
+                {distance != null && getDistanceFunFact(distance) && (
+                  <Text style={styles.insightFunFact}>{getDistanceFunFact(distance)}</Text>
+                )}
+              </View>
+            )}
 
             {/* End Location */}
             <LocationPickerField

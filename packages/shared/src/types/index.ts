@@ -99,6 +99,19 @@ export interface TripCoordinate {
   recordedAt: string;
 }
 
+export interface TripInsights {
+  topSpeedMph: number;
+  avgSpeedMph: number;
+  avgMovingSpeedMph: number;
+  timeMovingSecs: number;
+  timeStoppedSecs: number;
+  routeEfficiency: number;
+  longestNonStopMiles: number;
+  coordCount: number;
+  speedFunFact: string | null;
+  distanceFunFact: string | null;
+}
+
 // Fuel types
 export interface FuelLog {
   id: string;

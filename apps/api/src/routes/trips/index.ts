@@ -9,7 +9,7 @@ import {
   MAX_PAGE_SIZE,
   getTaxYear,
 } from "@mileclear/shared";
-import { haversineDistance } from "@mileclear/shared";
+import { haversineDistance, computeTripInsights } from "@mileclear/shared";
 import { upsertMileageSummary } from "../../services/mileage.js";
 import { checkAndAwardAchievements } from "../../services/gamification.js";
 
@@ -215,7 +215,16 @@ export async function tripRoutes(app: FastifyInstance) {
       return reply.status(404).send({ error: "Trip not found" });
     }
 
-    return reply.send({ data: trip });
+    // Compute trip insights from coordinates
+    let insights = null;
+    if (trip.coordinates.length >= 2 && trip.endedAt) {
+      const durationSecs = Math.round(
+        (trip.endedAt.getTime() - trip.startedAt.getTime()) / 1000
+      );
+      insights = computeTripInsights(trip.coordinates, trip.distanceMiles, durationSecs);
+    }
+
+    return reply.send({ data: { ...trip, insights } });
   });
 
   // Update trip
