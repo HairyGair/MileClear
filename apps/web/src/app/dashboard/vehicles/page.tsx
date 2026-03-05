@@ -215,35 +215,60 @@ export default function VehiclesPage() {
       ) : (
         <div className="grid-auto">
           {vehicles.map((v) => (
-            <div key={v.id} className="vehicle-card">
+            <div key={v.id} className={`vehicle-card${v.isPrimary ? " vehicle-card--primary" : ""}`}>
+              {v.isPrimary && <div className="vehicle-card__primary-tag">Primary</div>}
+
               <div className="vehicle-card__head">
-                <div>
-                  <div className="vehicle-card__name">
-                    {v.make} {v.model}
-                  </div>
-                  {v.year && <div className="vehicle-card__year">{v.year}</div>}
+                <div className="vehicle-card__icon">
+                  {v.vehicleType === "motorbike" ? (
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                      <circle cx="5" cy="17" r="3" />
+                      <circle cx="19" cy="17" r="3" />
+                      <path d="M9 17h6" />
+                      <path d="M12 17V9l4-2" />
+                      <path d="M16 7l2 3h1" />
+                    </svg>
+                  ) : v.vehicleType === "van" ? (
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M14 18V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v11a1 1 0 0 0 1 1h1" />
+                      <path d="M15 18h2a1 1 0 0 0 1-1v-3.28a1 1 0 0 0-.684-.948l-1.923-.641a1 1 0 0 1-.684-.949V8h4.868a1 1 0 0 1 .868.504l1.637 2.867A1 1 0 0 1 23 12v5a1 1 0 0 1-1 1h-1" />
+                      <circle cx="7" cy="18" r="2" />
+                      <circle cx="19" cy="18" r="2" />
+                    </svg>
+                  ) : (
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M3 15l2-7a1 1 0 01.96-.73h12.08a1 1 0 01.96.73L21 15" />
+                      <rect x="2" y="15" width="20" height="5" rx="1.5" />
+                      <circle cx="7" cy="20" r="1.5" fill="currentColor" />
+                      <circle cx="17" cy="20" r="1.5" fill="currentColor" />
+                    </svg>
+                  )}
                 </div>
-                <div style={{ display: "flex", gap: "0.375rem" }}>
-                  {v.isPrimary && <Badge variant="primary">Primary</Badge>}
-                  <Badge variant="source">{v.vehicleType}</Badge>
+                <div className="vehicle-card__title">
+                  <span className="vehicle-card__name">{v.make} {v.model}</span>
+                  {v.year && <span className="vehicle-card__year">{v.year}</span>}
                 </div>
               </div>
 
-              <div className="vehicle-card__details">
-                <div className="vehicle-card__detail">
-                  <span className="vehicle-card__detail-label">Fuel:</span>
-                  {v.fuelType}
+              {v.registrationPlate && (
+                <div className="vehicle-card__reg">
+                  <span className="vehicle-card__reg-text">{v.registrationPlate}</span>
                 </div>
-                {v.registrationPlate && (
-                  <div className="vehicle-card__detail">
-                    <span className="vehicle-card__detail-label">Reg:</span>
-                    {v.registrationPlate}
-                  </div>
-                )}
+              )}
+
+              <div className="vehicle-card__specs">
+                <div className="vehicle-card__spec">
+                  <span className="vehicle-card__spec-label">Type</span>
+                  <span className="vehicle-card__spec-value">{v.vehicleType.charAt(0).toUpperCase() + v.vehicleType.slice(1)}</span>
+                </div>
+                <div className="vehicle-card__spec">
+                  <span className="vehicle-card__spec-label">Fuel</span>
+                  <span className="vehicle-card__spec-value">{v.fuelType.charAt(0).toUpperCase() + v.fuelType.slice(1)}</span>
+                </div>
                 {v.estimatedMpg && (
-                  <div className="vehicle-card__detail">
-                    <span className="vehicle-card__detail-label">MPG:</span>
-                    {v.estimatedMpg}
+                  <div className="vehicle-card__spec">
+                    <span className="vehicle-card__spec-label">Economy</span>
+                    <span className="vehicle-card__spec-value">{v.estimatedMpg} mpg</span>
                   </div>
                 )}
               </div>
