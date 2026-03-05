@@ -108,12 +108,19 @@ export async function fetchRouteDistance(
   endLng: number
 ): Promise<{ distanceMiles: number; durationSecs: number } | null> {
   try {
-    const url = `https://router.project-osrm.org/route/v1/driving/${startLng},${startLat};${endLng},${endLat}?overview=false`;
+    // Request alternatives and pick the shortest distance route —
+    // OSRM's default "fastest" route often overshoots on distance
+    const url = `https://router.project-osrm.org/route/v1/driving/${startLng},${startLat};${endLng},${endLat}?overview=false&alternatives=true`;
     const res = await fetch(url);
     if (!res.ok) return null;
     const data = await res.json();
     if (data.code !== "Ok" || !data.routes?.length) return null;
-    const route = data.routes[0];
+    // Pick the route with the shortest distance
+    const route = data.routes.reduce(
+      (shortest: { distance: number; duration: number }, r: { distance: number; duration: number }) =>
+        r.distance < shortest.distance ? r : shortest,
+      data.routes[0]
+    );
     return {
       distanceMiles: Math.round((route.distance / 1609.344) * 100) / 100,
       durationSecs: Math.round(route.duration),
