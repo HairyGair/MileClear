@@ -203,7 +203,7 @@ export default function SavedLocationFormScreen() {
     if (!id) return;
     fetchSavedLocation(id)
       .then((res) => {
-        const loc = res.data.data;
+        const loc = res.data;
         setName(loc.name);
         setLocationType(loc.locationType);
         setLatitude(loc.latitude);

@@ -99,7 +99,7 @@ export default function SavedLocationsScreen() {
   const loadLocations = useCallback(async () => {
     try {
       const res = await fetchSavedLocations();
-      setLocations(res.data.data);
+      setLocations(res.data);
     } catch {
       // Silently fail — will show empty state
     } finally {

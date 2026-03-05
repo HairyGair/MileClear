@@ -524,7 +524,7 @@ export default function DashboardScreen() {
       <View style={s.quickActions}>
         <TouchableOpacity
           style={s.quickAction}
-          onPress={() => router.push("/quick-trip")}
+          onPress={() => router.push("/trip-form")}
           activeOpacity={0.7}
         >
           <Ionicons name="navigate-outline" size={22} color="#f5a623" style={{ marginBottom: 4 }} />
