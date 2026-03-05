@@ -13,6 +13,49 @@ import { haversineDistance, fetchRouteDistance, computeTripInsights } from "@mil
 import { upsertMileageSummary } from "../../services/mileage.js";
 import { checkAndAwardAchievements } from "../../services/gamification.js";
 
+// Server-side geocoding: resolve an address to coordinates via Postcodes.io or Nominatim
+async function geocodeAddress(addr: string): Promise<{ lat: number; lng: number } | null> {
+  // Extract UK postcode (full or partial outcode)
+  const fullMatch = addr.match(/\b([A-Z]{1,2}\d[A-Z\d]?\s*\d[A-Z]{2})\b/i);
+  const partialMatch = addr.match(/\b([A-Z]{1,2}\d[A-Z\d]?)\b/i);
+  const pc = fullMatch
+    ? { code: fullMatch[1].replace(/\s+/g, ""), partial: false }
+    : partialMatch
+      ? { code: partialMatch[1], partial: true }
+      : null;
+
+  if (pc) {
+    try {
+      const endpoint = pc.partial
+        ? `https://api.postcodes.io/outcodes/${pc.code}`
+        : `https://api.postcodes.io/postcodes/${pc.code}`;
+      const res = await fetch(endpoint);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.status === 200 && data.result) {
+          return { lat: data.result.latitude, lng: data.result.longitude };
+        }
+      }
+    } catch { /* fall through */ }
+  }
+
+  // Fallback: Nominatim
+  try {
+    const res = await fetch(
+      `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(addr)}&format=json&limit=1&countrycodes=gb`,
+      { headers: { "User-Agent": "MileClear/1.0" } }
+    );
+    const data = await res.json();
+    if (data?.[0]) return { lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon) };
+  } catch { /* give up */ }
+  return null;
+}
+
+// Check if coordinates look like real values (not 0,0 dummy or null-island)
+function hasValidCoords(lat: number, lng: number): boolean {
+  return !(Math.abs(lat) < 0.1 && Math.abs(lng) < 0.1);
+}
+
 const coordinateInputSchema = z.object({
   lat: z.number().min(-90).max(90),
   lng: z.number().min(-180).max(180),
@@ -91,14 +134,35 @@ export async function tripRoutes(app: FastifyInstance) {
       }
     }
 
+    // Server-side geocoding fallback: resolve addresses to coordinates if missing/zero
+    let resolvedStartLat = data.startLat;
+    let resolvedStartLng = data.startLng;
+    let resolvedEndLat = data.endLat ?? null;
+    let resolvedEndLng = data.endLng ?? null;
+
+    if (!hasValidCoords(resolvedStartLat, resolvedStartLng) && data.startAddress) {
+      const geo = await geocodeAddress(data.startAddress);
+      if (geo) {
+        resolvedStartLat = geo.lat;
+        resolvedStartLng = geo.lng;
+      }
+    }
+
+    if (data.endAddress && (resolvedEndLat == null || resolvedEndLng == null || !hasValidCoords(resolvedEndLat, resolvedEndLng))) {
+      const geo = await geocodeAddress(data.endAddress);
+      if (geo) {
+        resolvedEndLat = geo.lat;
+        resolvedEndLng = geo.lng;
+      }
+    }
+
     // Auto-calculate distance if end coords present and distance not provided
     let distanceMiles = data.distanceMiles ?? 0;
-    if (data.endLat != null && data.endLng != null && data.distanceMiles == null) {
-      // Try road-based distance first, fall back to straight-line
-      const route = await fetchRouteDistance(data.startLat, data.startLng, data.endLat, data.endLng);
+    if (resolvedEndLat != null && resolvedEndLng != null && hasValidCoords(resolvedStartLat, resolvedStartLng) && data.distanceMiles == null) {
+      const route = await fetchRouteDistance(resolvedStartLat, resolvedStartLng, resolvedEndLat, resolvedEndLng);
       distanceMiles = route
         ? route.distanceMiles
-        : haversineDistance(data.startLat, data.startLng, data.endLat, data.endLng);
+        : haversineDistance(resolvedStartLat, resolvedStartLng, resolvedEndLat, resolvedEndLng);
     }
 
     const { coordinates, ...tripData } = data;
@@ -108,10 +172,10 @@ export async function tripRoutes(app: FastifyInstance) {
       userId,
       shiftId: tripData.shiftId ?? null,
       vehicleId: tripData.vehicleId ?? null,
-      startLat: tripData.startLat,
-      startLng: tripData.startLng,
-      endLat: tripData.endLat ?? null,
-      endLng: tripData.endLng ?? null,
+      startLat: resolvedStartLat,
+      startLng: resolvedStartLng,
+      endLat: resolvedEndLat,
+      endLng: resolvedEndLng,
       startAddress: tripData.startAddress ?? null,
       endAddress: tripData.endAddress ?? null,
       distanceMiles,
@@ -249,10 +313,21 @@ export async function tripRoutes(app: FastifyInstance) {
       return reply.status(404).send({ error: "Trip not found" });
     }
 
+    // Geocode end address if provided without coordinates
+    let newEndLat = updates.endLat !== undefined ? updates.endLat : existing.endLat;
+    let newEndLng = updates.endLng !== undefined ? updates.endLng : existing.endLng;
+    if (updates.endAddress && (newEndLat == null || newEndLng == null)) {
+      const geo = await geocodeAddress(updates.endAddress);
+      if (geo) {
+        newEndLat = geo.lat;
+        newEndLng = geo.lng;
+        updates.endLat = geo.lat;
+        updates.endLng = geo.lng;
+      }
+    }
+
     // Recalculate distance if end coords updated
     let distanceMiles: number | undefined;
-    const newEndLat = updates.endLat !== undefined ? updates.endLat : existing.endLat;
-    const newEndLng = updates.endLng !== undefined ? updates.endLng : existing.endLng;
     if (
       (updates.endLat !== undefined || updates.endLng !== undefined) &&
       newEndLat != null &&
