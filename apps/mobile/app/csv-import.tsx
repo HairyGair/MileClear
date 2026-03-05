@@ -11,6 +11,10 @@ import {
 import { useRouter } from "expo-router";
 import * as FileSystem from "expo-file-system";
 import { uploadCsvPreview, confirmCsvImport } from "../lib/api/earnings";
+import { useUser } from "../lib/user/context";
+import { isIapAvailable, purchaseSubscription } from "../lib/iap/index";
+import { createCheckoutSession } from "../lib/api/billing";
+import * as WebBrowser from "expo-web-browser";
 
 // expo-document-picker native module may not be available in Expo Go
 let DocumentPicker: typeof import("expo-document-picker") | null = null;
@@ -34,6 +38,7 @@ const PLATFORM_LABELS: Record<string, string> = Object.fromEntries(
 
 export default function CsvImportScreen() {
   const router = useRouter();
+  const { user } = useUser();
   const [selectedPlatform, setSelectedPlatform] = useState("");
   const [preview, setPreview] = useState<CsvParsePreview | null>(null);
   const [filename, setFilename] = useState<string | null>(null);
@@ -181,6 +186,42 @@ export default function CsvImportScreen() {
             loading={importing}
             disabled={newCount === 0}
             style={{ flex: 2 }}
+          />
+        </View>
+      </View>
+    );
+  }
+
+  // Premium gate
+  if (!user?.isPremium) {
+    const handleUpgrade = async () => {
+      try {
+        if (isIapAvailable()) {
+          await purchaseSubscription();
+        } else {
+          const res = await createCheckoutSession();
+          if (res.data?.url) await WebBrowser.openBrowserAsync(res.data.url);
+        }
+      } catch (err: any) {
+        if (!err.message?.includes("cancel")) {
+          Alert.alert("Error", err.message || "Something went wrong");
+        }
+      }
+    };
+
+    return (
+      <View style={styles.container}>
+        <View style={styles.content}>
+          <Text style={styles.heading}>Import CSV</Text>
+          <Text style={styles.description}>
+            CSV import is a Pro feature. Upgrade to bulk-import earnings from Uber, Deliveroo, Amazon Flex, and more.
+          </Text>
+          <Button title="Upgrade to Pro — £4.99/mo" onPress={handleUpgrade} />
+          <Button
+            variant="ghost"
+            title="Go Back"
+            onPress={() => router.back()}
+            style={{ marginTop: 12 }}
           />
         </View>
       </View>

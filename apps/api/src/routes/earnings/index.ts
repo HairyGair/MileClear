@@ -177,7 +177,7 @@ export async function earningRoutes(app: FastifyInstance) {
   // ── CSV Import ─────────────────────────────────────────────────────
 
   // Preview parsed CSV before confirming import
-  app.post("/csv/preview", async (request, reply) => {
+  app.post("/csv/preview", { preHandler: premiumMiddleware }, async (request, reply) => {
     const schema = z.object({
       csvContent: z.string().min(1, "CSV content is required").max(500_000, "CSV file too large (max 500KB)"),
       platform: z.string().optional(),
@@ -200,7 +200,7 @@ export async function earningRoutes(app: FastifyInstance) {
   });
 
   // Confirm CSV import after preview
-  app.post("/csv/confirm", async (request, reply) => {
+  app.post("/csv/confirm", { preHandler: premiumMiddleware }, async (request, reply) => {
     const schema = z.object({
       rows: z.array(
         z.object({
