@@ -2,7 +2,7 @@
 
 import * as SQLite from "expo-sqlite";
 
-const CURRENT_SCHEMA_VERSION = 3;
+const CURRENT_SCHEMA_VERSION = 4;
 
 let db: SQLite.SQLiteDatabase | null = null;
 
@@ -103,6 +103,24 @@ async function initializeSchema(database: SQLite.SQLiteDatabase): Promise<void> 
       accuracy REAL,
       recorded_at TEXT NOT NULL
     );
+
+    CREATE TABLE IF NOT EXISTS saved_locations (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      location_type TEXT NOT NULL DEFAULT 'custom',
+      latitude REAL NOT NULL,
+      longitude REAL NOT NULL,
+      radius_meters INTEGER NOT NULL DEFAULT 150,
+      geofence_enabled INTEGER NOT NULL DEFAULT 1,
+      synced_at TEXT,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS notification_prefs (
+      key TEXT PRIMARY KEY,
+      value TEXT NOT NULL
+    );
   `);
 
   // Schema versioning — upgrade sync_queue if needed
@@ -145,6 +163,12 @@ async function initializeSchema(database: SQLite.SQLiteDatabase): Promise<void> 
         updated_at TEXT
       );
     `);
+  }
+
+  if (currentVersion >= 3 && currentVersion < 4) {
+    // saved_locations and notification_prefs tables were added in schema v4.
+    // No ALTER TABLE needed — fresh installs get them from CREATE TABLE IF NOT EXISTS above.
+    // Existing installs at v3 will have them created on first open at the top of initializeSchema.
   }
 
   if (currentVersion >= 2 && currentVersion < 3) {

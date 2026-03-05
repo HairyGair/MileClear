@@ -20,6 +20,7 @@ const createVehicleSchema = z.object({
   fuelType: z.enum(FUEL_TYPES),
   vehicleType: z.enum(VEHICLE_TYPES),
   registrationPlate: regPlateField,
+  bluetoothName: z.string().max(100).optional(),
   estimatedMpg: z.number().positive().optional(),
   isPrimary: z.boolean().default(true),
 });
@@ -36,6 +37,7 @@ const updateVehicleSchema = z.object({
     .transform((v) => v.replace(/\s+/g, "").toUpperCase())
     .nullable()
     .optional(),
+  bluetoothName: z.string().max(100).nullable().optional(),
   estimatedMpg: z.number().positive().nullable().optional(),
   isPrimary: z.boolean().optional(),
 });

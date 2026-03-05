@@ -42,6 +42,7 @@ import {
   setNotificationPreferences,
   type NotificationPreferences,
 } from "../../lib/notifications/preferences";
+import { cacheVehicleBluetoothNames } from "../../lib/bluetooth/index";
 import { Button } from "../../components/Button";
 import { AvatarPicker } from "../../components/avatars/AvatarPicker";
 
@@ -108,6 +109,7 @@ export default function ProfileScreen() {
       ]);
       setUser(profileRes.data);
       setVehicles(vehiclesRes.data);
+      cacheVehicleBluetoothNames(vehiclesRes.data).catch(() => {});
       if (billingRes) setBilling(billingRes.data);
       setDriveDetection(detectionEnabled);
       setNotifPrefs(notifPrefsLoaded);
@@ -380,6 +382,18 @@ export default function ProfileScreen() {
                 <Ionicons name="document-text-outline" size={18} color="#8494a7" />
                 <Text style={styles.actionText}>Tax Exports</Text>
                 <Text style={styles.proBadge}>PRO</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={18} color="#6b7280" />
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.actionRow}
+              onPress={() => router.push("/saved-locations")}
+              activeOpacity={0.7}
+            >
+              <View style={styles.actionRowLeft}>
+                <Ionicons name="location-outline" size={18} color="#8494a7" />
+                <Text style={styles.actionText}>Saved Locations</Text>
               </View>
               <Ionicons name="chevron-forward" size={18} color="#6b7280" />
             </TouchableOpacity>

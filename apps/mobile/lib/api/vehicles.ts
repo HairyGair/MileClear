@@ -8,6 +8,7 @@ export interface CreateVehicleData {
   fuelType: FuelType;
   vehicleType: VehicleType;
   registrationPlate?: string;
+  bluetoothName?: string;
   estimatedMpg?: number;
   isPrimary?: boolean;
 }
@@ -19,6 +20,7 @@ export interface UpdateVehicleData {
   fuelType?: FuelType;
   vehicleType?: VehicleType;
   registrationPlate?: string | null;
+  bluetoothName?: string | null;
   estimatedMpg?: number | null;
   isPrimary?: boolean;
 }

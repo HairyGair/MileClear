@@ -24,6 +24,7 @@ export interface Vehicle {
   fuelType: FuelType;
   vehicleType: VehicleType;
   registrationPlate: string | null;
+  bluetoothName: string | null;
   estimatedMpg: number | null;
   actualMpg: number | null;
   isPrimary: boolean;
@@ -296,6 +297,22 @@ export interface WaitlistEntry {
   email: string;
   driverType: string | null;
   signedUpAt: string;
+}
+
+// Saved Location types
+export type LocationType = "home" | "work" | "depot" | "custom";
+
+export interface SavedLocation {
+  id: string;
+  userId: string;
+  name: string;
+  locationType: LocationType;
+  latitude: number;
+  longitude: number;
+  radiusMeters: number;
+  geofenceEnabled: boolean;
+  createdAt: string;
+  updatedAt: string;
 }
 
 // Billing types

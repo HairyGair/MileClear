@@ -19,6 +19,7 @@ import { waitlistRoutes } from "./routes/waitlist/index.js";
 import { adminRoutes } from "./routes/admin/index.js";
 import { feedbackRoutes } from "./routes/feedback/index.js";
 import { notificationRoutes } from "./routes/notifications/index.js";
+import { savedLocationRoutes } from "./routes/savedLocations/index.js";
 import { startNotificationJobs } from "./jobs/notifications.js";
 
 // Validate required secrets at startup
@@ -78,6 +79,7 @@ await app.register(waitlistRoutes, { prefix: "/waitlist" });
 await app.register(adminRoutes, { prefix: "/admin" });
 await app.register(feedbackRoutes, { prefix: "/feedback" });
 await app.register(notificationRoutes, { prefix: "/notifications" });
+await app.register(savedLocationRoutes, { prefix: "/saved-locations" });
 // Health check
 app.get("/health", async () => ({ status: "ok" }));
 

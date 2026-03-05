@@ -49,6 +49,7 @@ export default function VehicleFormScreen() {
   const [vehicleType, setVehicleType] = useState<VehicleType>("car");
   const [fuelType, setFuelType] = useState<FuelType>("petrol");
   const [estimatedMpg, setEstimatedMpg] = useState("");
+  const [bluetoothName, setBluetoothName] = useState("");
   const [isPrimary, setIsPrimary] = useState(true);
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -68,6 +69,7 @@ export default function VehicleFormScreen() {
           setEstimatedMpg(vehicle.estimatedMpg ? String(vehicle.estimatedMpg) : "");
           setIsPrimary(vehicle.isPrimary);
           setRegistrationPlate(vehicle.registrationPlate || "");
+          setBluetoothName(vehicle.bluetoothName || "");
         }
       })
       .finally(() => setLoadingExisting(false));
@@ -127,6 +129,9 @@ export default function VehicleFormScreen() {
       if (registrationPlate.trim()) {
         payload.registrationPlate = registrationPlate.trim().toUpperCase().replace(/\s+/g, "");
       }
+      if (bluetoothName.trim()) {
+        payload.bluetoothName = bluetoothName.trim();
+      }
 
       if (isEditing) {
         await updateVehicle(id, payload);
@@ -139,7 +144,7 @@ export default function VehicleFormScreen() {
     } finally {
       setSaving(false);
     }
-  }, [make, model, year, vehicleType, fuelType, estimatedMpg, isPrimary, registrationPlate, isEditing, id, router]);
+  }, [make, model, year, vehicleType, fuelType, estimatedMpg, isPrimary, registrationPlate, bluetoothName, isEditing, id, router]);
 
   const handleDelete = useCallback(() => {
     Alert.alert(
@@ -312,6 +317,22 @@ export default function VehicleFormScreen() {
           </>
         )}
 
+        {/* Bluetooth Name (for auto-confirm trips) */}
+        <Text style={styles.label}>Car Bluetooth Name</Text>
+        <TextInput
+          style={styles.input}
+          value={bluetoothName}
+          onChangeText={setBluetoothName}
+          placeholder="e.g. Toyota Prius, My Car"
+          placeholderTextColor="#6b7280"
+          autoCapitalize="words"
+          autoCorrect={false}
+          maxLength={100}
+        />
+        <Text style={styles.btHint}>
+          If set, trips are auto-confirmed when your phone is connected to this Bluetooth device
+        </Text>
+
         {/* Primary toggle */}
         <TouchableOpacity
           style={styles.toggleRow}
@@ -407,6 +428,13 @@ const styles = StyleSheet.create({
     fontFamily: "PlusJakartaSans_400Regular",
     color: "#22c55e",
     marginTop: 6,
+  },
+  btHint: {
+    fontSize: 12,
+    fontFamily: "PlusJakartaSans_400Regular",
+    color: "#6b7280",
+    marginTop: 6,
+    lineHeight: 17,
   },
   segmentRow: {
     flexDirection: "row",

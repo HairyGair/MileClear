@@ -27,6 +27,18 @@ export const TRACKING_INTERVAL_METERS = 50;
 export const STOP_DETECTION_MINUTES = 2;
 export const DRIVING_SPEED_THRESHOLD_MPH = 15;
 
+// Geofencing
+export const DEFAULT_GEOFENCE_RADIUS_METERS = 150;
+export const MAX_FREE_SAVED_LOCATIONS = 2;
+export const GEOFENCE_TRIP_CONFIRM_REMINDER_HOURS = 3;
+
+export const LOCATION_TYPES = [
+  { value: "home", label: "Home" },
+  { value: "work", label: "Work" },
+  { value: "depot", label: "Depot" },
+  { value: "custom", label: "Custom" },
+] as const;
+
 // Pagination
 export const DEFAULT_PAGE_SIZE = 20;
 export const MAX_PAGE_SIZE = 100;

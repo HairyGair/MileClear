@@ -54,6 +54,7 @@ import {
 import { setupNotificationChannels, scheduleWeeklyMileageSummary, scheduleTaxYearDeadlineReminder, checkUnclassifiedTripsNudge, checkStreakAtRisk, checkLongRunningShift } from "../lib/notifications/scheduler";
 import { registerPushToken } from "../lib/api/notifications";
 import { startDriveDetection } from "../lib/tracking/detection";
+import { registerGeofences, shadeExpiredUnconfirmedTrips } from "../lib/geofencing/index";
 import { getDatabase } from "../lib/db/index";
 import { hydrateLocalData, isHydrationComplete } from "../lib/sync/hydrate";
 import { isIapAvailable, initializeIap, setupPurchaseListeners, endIapConnection } from "../lib/iap/index";
@@ -127,6 +128,8 @@ function RootNavigator() {
   useEffect(() => {
     if (isAuthenticated && !isLoading) {
       startDriveDetection();
+      registerGeofences().catch(() => {});
+      shadeExpiredUnconfirmedTrips().catch(() => {});
       registerForPushNotifications()
         .then((token) => { if (token) return registerPushToken(token); })
         .catch(() => {});
@@ -202,6 +205,8 @@ function RootNavigator() {
         <Stack.Screen name="feedback-form" options={{ headerShown: true, title: "Submit Suggestion" }} />
         <Stack.Screen name="admin-feedback" options={{ headerShown: true, title: "Manage Feedback" }} />
         <Stack.Screen name="sync-status" options={{ headerShown: true, title: "Sync Status" }} />
+        <Stack.Screen name="saved-locations" options={{ headerShown: true, title: "Saved Locations" }} />
+        <Stack.Screen name="saved-location-form" options={{ headerShown: true, title: "Add Location" }} />
       </Stack>
       {/* Loading overlay — covers Stack while auth/onboarding resolves */}
       {showLoading && (
