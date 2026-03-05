@@ -19,18 +19,25 @@ function sleep(ms: number) {
   return new Promise((r) => setTimeout(r, ms));
 }
 
-// UK postcode regex — matches formats like SW1A 1AA, NE38 8RY, SR3 1BS, etc.
-const UK_POSTCODE_REGEX = /\b([A-Z]{1,2}\d[A-Z\d]?\s*\d[A-Z]{2})\b/i;
+// Full UK postcode: SW1A 1AA, NE38 8RY, SR3 1BS
+const FULL_POSTCODE_REGEX = /\b([A-Z]{1,2}\d[A-Z\d]?\s*\d[A-Z]{2})\b/i;
+// Partial outcode only: NE38, NE11, SR3
+const OUTCODE_REGEX = /\b([A-Z]{1,2}\d[A-Z\d]?)\b/i;
 
-function extractPostcode(address: string): string | null {
-  const match = address.match(UK_POSTCODE_REGEX);
-  return match ? match[1].replace(/\s+/g, "") : null;
+function extractPostcode(address: string): { code: string; partial: boolean } | null {
+  const full = address.match(FULL_POSTCODE_REGEX);
+  if (full) return { code: full[1].replace(/\s+/g, ""), partial: false };
+  const partial = address.match(OUTCODE_REGEX);
+  if (partial) return { code: partial[1], partial: true };
+  return null;
 }
 
-async function geocodePostcode(postcode: string): Promise<{ lat: number; lng: number } | null> {
+async function geocodePostcode(info: { code: string; partial: boolean }): Promise<{ lat: number; lng: number } | null> {
   try {
-    const clean = postcode.replace(/\s+/g, "");
-    const res = await fetch(`https://api.postcodes.io/postcodes/${clean}`);
+    const endpoint = info.partial
+      ? `https://api.postcodes.io/outcodes/${info.code}`
+      : `https://api.postcodes.io/postcodes/${info.code}`;
+    const res = await fetch(endpoint);
     if (!res.ok) return null;
     const data = await res.json();
     if (data.status !== 200 || !data.result) return null;
@@ -81,18 +88,18 @@ async function main() {
       continue;
     }
 
-    console.log(`  ${startPC} -> ${endPC}  (${trip.startAddress} -> ${trip.endAddress})`);
+    console.log(`  ${startPC.code}${startPC.partial ? " (partial)" : ""} -> ${endPC.code}${endPC.partial ? " (partial)" : ""}  (${trip.startAddress} -> ${trip.endAddress})`);
 
     const startGeo = await geocodePostcode(startPC);
     if (!startGeo) {
-      console.log(`    FAIL — could not resolve postcode ${startPC}`);
+      console.log(`    FAIL — could not resolve postcode ${startPC.code}`);
       failed++;
       continue;
     }
 
     const endGeo = await geocodePostcode(endPC);
     if (!endGeo) {
-      console.log(`    FAIL — could not resolve postcode ${endPC}`);
+      console.log(`    FAIL — could not resolve postcode ${endPC.code}`);
       failed++;
       continue;
     }

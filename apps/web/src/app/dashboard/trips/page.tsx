@@ -61,19 +61,25 @@ export default function TripsPage() {
   const [routeCalcStatus, setRouteCalcStatus] = useState<"idle" | "calculating" | "done" | "error">("idle");
   const geocodeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Extract UK postcode from an address string
-  const extractPostcode = (addr: string): string | null => {
-    const match = addr.match(/\b([A-Z]{1,2}\d[A-Z\d]?\s*\d[A-Z]{2})\b/i);
-    return match ? match[1].replace(/\s+/g, "") : null;
+  // Extract UK postcode (full or partial outcode) from an address string
+  const extractPostcode = (addr: string): { code: string; partial: boolean } | null => {
+    const full = addr.match(/\b([A-Z]{1,2}\d[A-Z\d]?\s*\d[A-Z]{2})\b/i);
+    if (full) return { code: full[1].replace(/\s+/g, ""), partial: false };
+    const partial = addr.match(/\b([A-Z]{1,2}\d[A-Z\d]?)\b/i);
+    if (partial) return { code: partial[1], partial: true };
+    return null;
   };
 
-  // Geocode via Postcodes.io (UK postcode) or Nominatim (fallback)
+  // Geocode via Postcodes.io (UK postcode/outcode) or Nominatim (fallback)
   const geocodeAddress = async (addr: string): Promise<{ lat: number; lng: number } | null> => {
     // Try postcode first — most accurate for UK
-    const postcode = extractPostcode(addr);
-    if (postcode) {
+    const pc = extractPostcode(addr);
+    if (pc) {
       try {
-        const res = await fetch(`https://api.postcodes.io/postcodes/${postcode}`);
+        const endpoint = pc.partial
+          ? `https://api.postcodes.io/outcodes/${pc.code}`
+          : `https://api.postcodes.io/postcodes/${pc.code}`;
+        const res = await fetch(endpoint);
         if (res.ok) {
           const data = await res.json();
           if (data.status === 200 && data.result) {
