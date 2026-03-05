@@ -1680,6 +1680,38 @@
   background: rgba(255, 255, 255, 0.02);
   border: 1px solid var(--border-subtle);
   border-radius: var(--r-sm);
+  width: 100%;
+  text-align: left;
+}
+
+.trip-detail__route--clickable {
+  cursor: pointer;
+  transition: border-color 0.2s, background 0.2s;
+}
+
+.trip-detail__route--clickable:hover {
+  border-color: var(--border-strong);
+  background: rgba(255, 255, 255, 0.035);
+}
+
+.trip-detail__route--active {
+  border-color: rgba(234, 179, 8, 0.2);
+  background: rgba(234, 179, 8, 0.03);
+}
+
+.trip-detail__route-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+  flex-shrink: 0;
+  margin-left: auto;
+  padding-left: 0.5rem;
+  transition: color 0.2s;
+}
+
+.trip-detail__route--clickable:hover .trip-detail__route-toggle {
+  color: var(--amber-400);
 }
 
 .trip-detail__route-dots {
@@ -1933,6 +1965,48 @@
 .trip-detail__fun-fact-icon {
   flex-shrink: 0;
   font-size: 0.875rem;
+}
+
+/* Map */
+.trip-detail__map-wrap {
+  border-radius: var(--r-sm);
+  overflow: hidden;
+  border: 1px solid var(--dash-card-border);
+  animation: tripMapIn 0.3s cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+
+.trip-detail__map {
+  width: 100%;
+  height: 260px;
+  background: var(--bg-tertiary);
+}
+
+/* Custom Leaflet marker dots */
+.trip-map-marker {
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.9);
+  box-shadow: 0 0 8px rgba(0, 0, 0, 0.5);
+}
+
+.trip-map-marker--start {
+  background: var(--emerald-400);
+  box-shadow: 0 0 10px rgba(16, 185, 129, 0.5);
+}
+
+.trip-map-marker--end {
+  background: var(--dash-red);
+  box-shadow: 0 0 10px rgba(239, 68, 68, 0.45);
+}
+
+@keyframes tripMapIn {
+  from {
+    opacity: 0;
+    max-height: 0;
+  }
+  to {
+    opacity: 1;
+    max-height: 300px;
+  }
 }
 
 /* No insights fallback */

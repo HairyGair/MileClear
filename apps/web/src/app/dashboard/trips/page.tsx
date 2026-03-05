@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { api } from "../../../lib/api";
 import { PageHeader } from "../../../components/dashboard/PageHeader";
 import { Button } from "../../../components/ui/Button";
@@ -12,8 +12,13 @@ import { ConfirmModal } from "../../../components/ui/ConfirmModal";
 import { Pagination } from "../../../components/ui/Pagination";
 import { EmptyState } from "../../../components/ui/EmptyState";
 import { LoadingSkeleton } from "../../../components/ui/LoadingSkeleton";
-import type { Trip, TripInsights, PaginatedResponse } from "@mileclear/shared";
+import type { Trip, TripInsights, TripCoordinate, PaginatedResponse } from "@mileclear/shared";
 import { GIG_PLATFORMS } from "@mileclear/shared";
+
+interface DetailTrip extends Trip {
+  insights?: TripInsights | null;
+  coordinates?: TripCoordinate[];
+}
 
 const PAGE_SIZE = 20;
 
@@ -56,8 +61,11 @@ export default function TripsPage() {
   const [deleteLoading, setDeleteLoading] = useState(false);
 
   // Detail modal (view trip + insights)
-  const [detailTrip, setDetailTrip] = useState<(Trip & { insights?: TripInsights | null }) | null>(null);
+  const [detailTrip, setDetailTrip] = useState<DetailTrip | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
+  const [showMap, setShowMap] = useState(false);
+  const mapContainerRef = useRef<HTMLDivElement>(null);
+  const mapInstanceRef = useRef<any>(null);
 
   const loadTrips = useCallback(async () => {
     setLoading(true);
@@ -182,8 +190,9 @@ export default function TripsPage() {
   const openDetail = async (trip: Trip) => {
     setDetailLoading(true);
     setDetailTrip(trip);
+    setShowMap(false);
     try {
-      const res = await api.get<{ data: Trip & { insights?: TripInsights | null } }>(`/trips/${trip.id}`);
+      const res = await api.get<{ data: DetailTrip }>(`/trips/${trip.id}`);
       setDetailTrip(res.data);
     } catch {
       // Still show basic trip info without insights
@@ -191,6 +200,115 @@ export default function TripsPage() {
       setDetailLoading(false);
     }
   };
+
+  // Cleanup map on modal close
+  const closeDetail = () => {
+    if (mapInstanceRef.current) {
+      mapInstanceRef.current.remove();
+      mapInstanceRef.current = null;
+    }
+    setShowMap(false);
+    setDetailTrip(null);
+  };
+
+  // Load Leaflet and render map
+  useEffect(() => {
+    if (!showMap || !detailTrip || !mapContainerRef.current) return;
+    if (mapInstanceRef.current) return; // Already rendered
+
+    const hasCoords = detailTrip.coordinates && detailTrip.coordinates.length >= 2;
+    const hasStartEnd = detailTrip.startLat && detailTrip.startLng;
+    if (!hasCoords && !hasStartEnd) return;
+
+    function renderMap() {
+      const L = (window as any).L;
+      if (!L || !mapContainerRef.current) return;
+
+      const map = L.map(mapContainerRef.current, {
+        zoomControl: true,
+        attributionControl: false,
+      });
+
+      // Dark tile layer
+      L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", {
+        maxZoom: 19,
+      }).addTo(map);
+
+      const coords = detailTrip!.coordinates || [];
+      const startIcon = L.divIcon({
+        className: "trip-map-marker trip-map-marker--start",
+        iconSize: [14, 14],
+        iconAnchor: [7, 7],
+      });
+      const endIcon = L.divIcon({
+        className: "trip-map-marker trip-map-marker--end",
+        iconSize: [14, 14],
+        iconAnchor: [7, 7],
+      });
+
+      if (coords.length >= 2) {
+        // Draw GPS trail
+        const latlngs = coords.map((c: TripCoordinate) => [c.lat, c.lng]);
+        const polyline = L.polyline(latlngs, {
+          color: "#fbbf24",
+          weight: 3,
+          opacity: 0.85,
+          smoothFactor: 1.5,
+        }).addTo(map);
+
+        L.marker(latlngs[0], { icon: startIcon }).addTo(map);
+        L.marker(latlngs[latlngs.length - 1], { icon: endIcon }).addTo(map);
+        map.fitBounds(polyline.getBounds(), { padding: [30, 30] });
+      } else if (detailTrip!.startLat && detailTrip!.startLng) {
+        // Just start/end markers with straight line
+        const start: [number, number] = [detailTrip!.startLat, detailTrip!.startLng];
+        L.marker(start, { icon: startIcon }).addTo(map);
+
+        if (detailTrip!.endLat && detailTrip!.endLng) {
+          const end: [number, number] = [detailTrip!.endLat, detailTrip!.endLng];
+          L.marker(end, { icon: endIcon }).addTo(map);
+          L.polyline([start, end], {
+            color: "#fbbf24",
+            weight: 2,
+            opacity: 0.6,
+            dashArray: "8, 8",
+          }).addTo(map);
+          map.fitBounds(L.latLngBounds(start, end), { padding: [30, 30] });
+        } else {
+          map.setView(start, 14);
+        }
+      }
+
+      mapInstanceRef.current = map;
+    }
+
+    // Check if Leaflet is already loaded
+    if ((window as any).L) {
+      renderMap();
+      return;
+    }
+
+    // Load Leaflet CSS
+    if (!document.querySelector('link[href*="leaflet"]')) {
+      const link = document.createElement("link");
+      link.rel = "stylesheet";
+      link.href = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.css";
+      document.head.appendChild(link);
+    }
+
+    // Load Leaflet JS
+    const script = document.createElement("script");
+    script.src = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.js";
+    script.onload = () => renderMap();
+    document.head.appendChild(script);
+
+    return () => {
+      if (mapInstanceRef.current) {
+        mapInstanceRef.current.remove();
+        mapInstanceRef.current = null;
+      }
+    };
+  }, [showMap, detailTrip]);
 
   return (
     <>
@@ -445,18 +563,27 @@ export default function TripsPage() {
       {/* Trip Detail Modal */}
       <Modal
         open={!!detailTrip}
-        onClose={() => setDetailTrip(null)}
+        onClose={closeDetail}
         title="Trip Details"
         footer={
-          <Button variant="ghost" size="sm" onClick={() => setDetailTrip(null)}>
+          <Button variant="ghost" size="sm" onClick={closeDetail}>
             Close
           </Button>
         }
       >
         {detailTrip && (
           <div className="trip-detail">
-            {/* Route visualization */}
-            <div className="trip-detail__route">
+            {/* Route visualization — clickable to show map */}
+            <button
+              className={`trip-detail__route trip-detail__route--clickable${showMap ? " trip-detail__route--active" : ""}`}
+              onClick={() => {
+                if (showMap && mapInstanceRef.current) {
+                  mapInstanceRef.current.remove();
+                  mapInstanceRef.current = null;
+                }
+                setShowMap(!showMap);
+              }}
+            >
               <div className="trip-detail__route-dots">
                 <div className="trip-detail__route-dot trip-detail__route-dot--start" />
                 <div className="trip-detail__route-line" />
@@ -470,7 +597,26 @@ export default function TripsPage() {
                   {detailTrip.endAddress || "Unknown end"}
                 </span>
               </div>
-            </div>
+              <div className="trip-detail__route-toggle">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  {showMap ? (
+                    <polyline points="18 15 12 9 6 15" />
+                  ) : (
+                    <>
+                      <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z" />
+                      <circle cx="12" cy="10" r="3" />
+                    </>
+                  )}
+                </svg>
+              </div>
+            </button>
+
+            {/* Map container */}
+            {showMap && (
+              <div className="trip-detail__map-wrap">
+                <div ref={mapContainerRef} className="trip-detail__map" />
+              </div>
+            )}
 
             {/* Stats strip */}
             <div className="trip-detail__stats">
