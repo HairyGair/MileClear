@@ -61,6 +61,119 @@ interface QuickTripStart {
   startedAt: string;
 }
 
+interface Breadcrumb {
+  lat: number;
+  lng: number;
+  speed: number | null; // m/s from expo-location
+  accuracy: number | null;
+  recordedAt: string;
+}
+
+interface TripInsights {
+  topSpeedMph: number;
+  avgSpeedMph: number;
+  avgMovingSpeedMph: number;
+  timeMovingSecs: number;
+  timeStoppedSecs: number;
+  routeEfficiency: number; // 1.0 = straight line, higher = more winding
+  longestNonStopMiles: number;
+  coordCount: number;
+}
+
+function getSpeedFunFact(topMph: number): string | null {
+  if (topMph >= 70) return "You hit motorway speed!";
+  if (topMph >= 60) return "Dual carriageway pace";
+  if (topMph >= 40) return "Faster than Usain Bolt (27 mph)";
+  if (topMph >= 30) return "Town speed — nice and steady";
+  if (topMph >= 15) return "Faster than a London cyclist";
+  return null;
+}
+
+function getDistanceFunFact(miles: number): string | null {
+  if (miles >= 100) return "That's London to Birmingham!";
+  if (miles >= 60) return "That's London to Brighton and back";
+  if (miles >= 30) return "That's London to Brighton";
+  if (miles >= 10) return "That's about 528 football pitches";
+  if (miles >= 5) return "That's roughly a parkrun distance";
+  if (miles >= 1) return `That's about ${Math.round(miles * 20)} laps of a track`;
+  return null;
+}
+
+function computeInsights(crumbs: Breadcrumb[], distMiles: number, durationSecs: number): TripInsights | null {
+  if (crumbs.length < 2) return null;
+
+  const MS_TO_MPH = 2.23694;
+  const STOP_SPEED_MS = 1.5; // <3.4 mph = stopped
+
+  let topSpeedMph = 0;
+  let movingSpeedSum = 0;
+  let movingCount = 0;
+  let timeMovingSecs = 0;
+  let timeStoppedSecs = 0;
+
+  // Longest non-stop stretch
+  let currentStretchMiles = 0;
+  let longestNonStopMiles = 0;
+
+  for (let i = 1; i < crumbs.length; i++) {
+    const prev = crumbs[i - 1];
+    const curr = crumbs[i];
+    const dt = (new Date(curr.recordedAt).getTime() - new Date(prev.recordedAt).getTime()) / 1000;
+    if (dt <= 0) continue;
+
+    const speed = curr.speed;
+    const isStopped = speed != null ? speed < STOP_SPEED_MS : false;
+
+    if (speed != null && speed >= 0) {
+      const mph = speed * MS_TO_MPH;
+      if (mph > topSpeedMph) topSpeedMph = mph;
+      if (!isStopped) {
+        movingSpeedSum += mph;
+        movingCount++;
+      }
+    }
+
+    if (isStopped) {
+      timeStoppedSecs += dt;
+      // End of non-stop stretch
+      if (currentStretchMiles > longestNonStopMiles) {
+        longestNonStopMiles = currentStretchMiles;
+      }
+      currentStretchMiles = 0;
+    } else {
+      timeMovingSecs += dt;
+      // Calculate segment distance
+      const segDist = haversineDistance(prev.lat, prev.lng, curr.lat, curr.lng);
+      currentStretchMiles += segDist;
+    }
+  }
+  // Check final stretch
+  if (currentStretchMiles > longestNonStopMiles) {
+    longestNonStopMiles = currentStretchMiles;
+  }
+
+  // Route efficiency: actual distance vs straight-line
+  const straightLine = haversineDistance(
+    crumbs[0].lat, crumbs[0].lng,
+    crumbs[crumbs.length - 1].lat, crumbs[crumbs.length - 1].lng
+  );
+  const routeEfficiency = straightLine > 0.01 ? distMiles / straightLine : 1;
+
+  const avgSpeedMph = durationSecs > 0 ? (distMiles / durationSecs) * 3600 : 0;
+  const avgMovingSpeedMph = movingCount > 0 ? movingSpeedSum / movingCount : avgSpeedMph;
+
+  return {
+    topSpeedMph: Math.round(topSpeedMph),
+    avgSpeedMph: Math.round(avgSpeedMph),
+    avgMovingSpeedMph: Math.round(avgMovingSpeedMph),
+    timeMovingSecs: Math.round(timeMovingSecs),
+    timeStoppedSecs: Math.round(timeStoppedSecs),
+    routeEfficiency: Math.round(routeEfficiency * 10) / 10,
+    longestNonStopMiles: Math.round(longestNonStopMiles * 10) / 10,
+    coordCount: crumbs.length,
+  };
+}
+
 const CLASSIFICATIONS: { value: TripClassification; label: string }[] = [
   { value: "business", label: "Business" },
   { value: "personal", label: "Personal" },
@@ -109,6 +222,10 @@ export default function TripFormScreen() {
   const [userLat, setUserLat] = useState<number | null>(null);
   const [userLng, setUserLng] = useState<number | null>(null);
   const locationSubRef = useRef<Location.LocationSubscription | null>(null);
+
+  // Breadcrumb trail (collected during driving mode)
+  const breadcrumbsRef = useRef<Breadcrumb[]>([]);
+  const [insights, setInsights] = useState<TripInsights | null>(null);
 
   // Pulsing dot animation
   const pulseAnim = useRef(new Animated.Value(1)).current;
@@ -224,9 +341,19 @@ export default function TripFormScreen() {
         sub = await Location.watchPositionAsync(
           { accuracy: Location.Accuracy.High, timeInterval: 3000, distanceInterval: 10 },
           (loc) => {
-            const { latitude, longitude } = loc.coords;
+            const { latitude, longitude, speed, accuracy } = loc.coords;
             setUserLat(latitude);
             setUserLng(longitude);
+
+            // Store breadcrumb with speed for trip insights
+            breadcrumbsRef.current.push({
+              lat: latitude,
+              lng: longitude,
+              speed: speed ?? null,
+              accuracy: accuracy ?? null,
+              recordedAt: new Date(loc.timestamp).toISOString(),
+            });
+
             if (followUser && mapRef.current) {
               mapRef.current.animateToRegion(
                 { latitude, longitude, latitudeDelta: 0.008, longitudeDelta: 0.008 },
@@ -276,6 +403,8 @@ export default function TripFormScreen() {
       setStartLng(loc.lng);
       setStartAddress(loc.address);
       setStartedAt(now);
+      breadcrumbsRef.current = [];
+      setInsights(null);
       LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
       setMode("driving");
 
@@ -304,7 +433,35 @@ export default function TripFormScreen() {
       setEndLat(loc.lat);
       setEndLng(loc.lng);
       setEndAddress(loc.address);
-      setEndedAt(new Date());
+      const now = new Date();
+      setEndedAt(now);
+
+      // Calculate distance from breadcrumb trail (more accurate than straight-line)
+      const crumbs = breadcrumbsRef.current;
+      let trailDistance = 0;
+      if (crumbs.length >= 2) {
+        for (let i = 1; i < crumbs.length; i++) {
+          trailDistance += haversineDistance(
+            crumbs[i - 1].lat, crumbs[i - 1].lng,
+            crumbs[i].lat, crumbs[i].lng
+          );
+        }
+      }
+      // Fall back to straight-line if trail is too short
+      const finalDistance = trailDistance > 0.05
+        ? Math.round(trailDistance * 100) / 100
+        : (startLat != null && startLng != null
+          ? Math.round(haversineDistance(startLat, startLng, loc.lat, loc.lng) * 100) / 100
+          : null);
+      setDistanceMiles(finalDistance);
+
+      // Compute trip insights
+      const durationSecs = startedAt ? Math.round((now.getTime() - startedAt.getTime()) / 1000) : 0;
+      if (finalDistance != null) {
+        const tripInsights = computeInsights(crumbs, finalDistance, durationSecs);
+        setInsights(tripInsights);
+      }
+
       LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
       setMode("arrived");
     } catch {
@@ -312,7 +469,7 @@ export default function TripFormScreen() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [startLat, startLng, startedAt]);
 
   const handleRecenter = useCallback(() => {
     setFollowUser(true);
@@ -355,6 +512,18 @@ export default function TripFormScreen() {
           endedAt: endedAt ? endedAt.toISOString() : null,
         });
       } else {
+        // Include breadcrumb trail if we have one (from quick trip driving mode)
+        const crumbs = breadcrumbsRef.current;
+        const coords = crumbs.length >= 2
+          ? crumbs.map((c) => ({
+              lat: c.lat,
+              lng: c.lng,
+              speed: c.speed,
+              accuracy: c.accuracy,
+              recordedAt: c.recordedAt,
+            }))
+          : undefined;
+
         const data: CreateTripData = {
           startLat,
           startLng,
@@ -368,6 +537,7 @@ export default function TripFormScreen() {
           ...(platformTag && { platformTag }),
           ...(notes.trim() && { notes: notes.trim() }),
           ...(vehicleId && { vehicleId }),
+          ...(coords && { coordinates: coords }),
         };
         await syncCreateTrip(data);
 
@@ -434,9 +604,11 @@ export default function TripFormScreen() {
   // ── Derived values ───────────────────────────────────────────────────────
 
   const distance =
-    startLat != null && startLng != null && endLat != null && endLng != null
-      ? Math.round(haversineDistance(startLat, startLng, endLat, endLng) * 100) / 100
-      : null;
+    distanceMiles != null
+      ? distanceMiles
+      : startLat != null && startLng != null && endLat != null && endLng != null
+        ? Math.round(haversineDistance(startLat, startLng, endLat, endLng) * 100) / 100
+        : null;
   const duration =
     startedAt && endedAt
       ? Math.floor((endedAt.getTime() - startedAt.getTime()) / 1000)
@@ -651,6 +823,51 @@ export default function TripFormScreen() {
                 <Text style={styles.statUnit}>duration</Text>
               </View>
             </View>
+
+            {/* Trip Insights */}
+            {insights && (
+              <View style={styles.insightsCard}>
+                <Text style={styles.insightsTitle}>Trip Insights</Text>
+                <View style={styles.insightsGrid}>
+                  <View style={styles.insightItem}>
+                    <Text style={styles.insightValue}>{insights.topSpeedMph}</Text>
+                    <Text style={styles.insightLabel}>Top mph</Text>
+                  </View>
+                  <View style={styles.insightItem}>
+                    <Text style={styles.insightValue}>{insights.avgMovingSpeedMph}</Text>
+                    <Text style={styles.insightLabel}>Avg mph</Text>
+                  </View>
+                  <View style={styles.insightItem}>
+                    <Text style={styles.insightValue}>
+                      {insights.timeStoppedSecs >= 60
+                        ? `${Math.round(insights.timeStoppedSecs / 60)}m`
+                        : `${insights.timeStoppedSecs}s`}
+                    </Text>
+                    <Text style={styles.insightLabel}>Stopped</Text>
+                  </View>
+                  <View style={styles.insightItem}>
+                    <Text style={styles.insightValue}>{insights.routeEfficiency}x</Text>
+                    <Text style={styles.insightLabel}>Route</Text>
+                  </View>
+                </View>
+                {insights.longestNonStopMiles > 0.1 && (
+                  <Text style={styles.insightNote}>
+                    Longest non-stop stretch: {insights.longestNonStopMiles} mi
+                  </Text>
+                )}
+                {insights.timeStoppedSecs > 60 && (
+                  <Text style={styles.insightNote}>
+                    {Math.round((insights.timeMovingSecs / (insights.timeMovingSecs + insights.timeStoppedSecs)) * 100)}% of your trip was spent moving
+                  </Text>
+                )}
+                {getSpeedFunFact(insights.topSpeedMph) && (
+                  <Text style={styles.insightFunFact}>{getSpeedFunFact(insights.topSpeedMph)}</Text>
+                )}
+                {distance != null && getDistanceFunFact(distance) && (
+                  <Text style={styles.insightFunFact}>{getDistanceFunFact(distance)}</Text>
+                )}
+              </View>
+            )}
 
             {/* Classification */}
             <View style={styles.classRow}>
@@ -1138,6 +1355,55 @@ const styles = StyleSheet.create({
     fontFamily: "PlusJakartaSans_400Regular",
     color: TEXT_2,
     marginTop: 2,
+  },
+  // ── Trip Insights ──────────────────────────────────────
+  insightsCard: {
+    backgroundColor: "#0a1628",
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "rgba(245, 166, 35, 0.15)",
+    padding: 14,
+    marginBottom: 16,
+  },
+  insightsTitle: {
+    fontSize: 13,
+    fontFamily: "PlusJakartaSans_600SemiBold",
+    color: AMBER,
+    marginBottom: 10,
+    letterSpacing: 0.3,
+  },
+  insightsGrid: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+  },
+  insightItem: {
+    alignItems: "center",
+    flex: 1,
+  },
+  insightValue: {
+    fontSize: 22,
+    fontFamily: "PlusJakartaSans_700Bold",
+    color: TEXT_1,
+  },
+  insightLabel: {
+    fontSize: 10,
+    fontFamily: "PlusJakartaSans_400Regular",
+    color: TEXT_2,
+    marginTop: 2,
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+  },
+  insightNote: {
+    fontSize: 12,
+    fontFamily: "PlusJakartaSans_400Regular",
+    color: TEXT_2,
+    marginTop: 8,
+  },
+  insightFunFact: {
+    fontSize: 13,
+    fontFamily: "PlusJakartaSans_600SemiBold",
+    color: AMBER,
+    marginTop: 6,
   },
   // ── Classification / platform chips ──────────────────
   classRow: {
