@@ -2240,3 +2240,35 @@
   margin: 0 0 1.5rem;
   max-width: 380px;
 }
+
+/* ================================================================
+   Feedback Banner
+   ================================================================ */
+
+.feedback-banner {
+  margin-bottom: 1.25rem;
+  padding: 1.25rem 1.5rem;
+  background: linear-gradient(
+    135deg,
+    rgba(252, 211, 77, 0.06) 0%,
+    rgba(252, 211, 77, 0.02) 100%
+  );
+  border: 1px solid rgba(252, 211, 77, 0.1);
+  border-radius: var(--dash-radius);
+  border-left: 3px solid var(--amber-400);
+}
+
+.feedback-banner__heading {
+  font-family: var(--font-display);
+  font-size: 0.975rem;
+  font-weight: 600;
+  color: var(--amber-400);
+  margin: 0 0 0.375rem;
+}
+
+.feedback-banner__text {
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+  line-height: 1.65;
+  margin: 0;
+}

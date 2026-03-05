@@ -212,15 +212,19 @@ export default function FeedbackScreen() {
 
   return (
     <View style={s.container}>
-      {/* Toolbar */}
-      <View style={s.toolbar}>
+      {/* Community banner */}
+      <View style={s.banner}>
+        <Text style={s.bannerHeading}>Help shape MileClear</Text>
+        <Text style={s.bannerText}>
+          Every suggestion is personally reviewed. Vote on ideas you want to see, or share your own — the most popular get built next.
+        </Text>
         <TouchableOpacity
           style={s.submitButton}
           onPress={() => router.push("/feedback-form")}
           activeOpacity={0.7}
         >
-          <Ionicons name="add" size={18} color="#030712" />
-          <Text style={s.submitButtonText}>Submit Idea</Text>
+          <Ionicons name="chatbubble-ellipses-outline" size={16} color="#030712" />
+          <Text style={s.submitButtonText}>Share Your Idea</Text>
         </TouchableOpacity>
       </View>
 
@@ -269,9 +273,9 @@ export default function FeedbackScreen() {
         </View>
       ) : items.length === 0 ? (
         <View style={s.centered}>
-          <Ionicons name="bulb-outline" size={48} color={TEXT_3} />
+          <Ionicons name="bulb-outline" size={48} color={AMBER} />
           <Text style={s.emptyTitle}>No suggestions yet</Text>
-          <Text style={s.emptySubtitle}>Be the first to share an idea!</Text>
+          <Text style={s.emptySubtitle}>You could be the first! Tell us what{"\n"}would make MileClear better for you.</Text>
         </View>
       ) : (
         <FlatList
@@ -297,26 +301,45 @@ export default function FeedbackScreen() {
 
 const s = StyleSheet.create({
   container: { flex: 1, backgroundColor: BG },
-  centered: { flex: 1, justifyContent: "center", alignItems: "center", gap: 8 },
-  toolbar: {
-    flexDirection: "row",
-    justifyContent: "flex-end",
-    paddingHorizontal: 16,
-    paddingTop: 8,
-    paddingBottom: 4,
+  centered: { flex: 1, justifyContent: "center", alignItems: "center", gap: 8, paddingHorizontal: 32 },
+  banner: {
+    marginHorizontal: 16,
+    marginTop: 12,
+    marginBottom: 4,
+    padding: 16,
+    borderRadius: 14,
+    backgroundColor: CARD_BG,
+    borderWidth: 1,
+    borderColor: AMBER + "18",
+    borderLeftWidth: 3,
+    borderLeftColor: AMBER,
+  },
+  bannerHeading: {
+    fontSize: 15,
+    fontFamily: "PlusJakartaSans_700Bold",
+    color: AMBER,
+    marginBottom: 4,
+  },
+  bannerText: {
+    fontSize: 13,
+    fontFamily: "PlusJakartaSans_400Regular",
+    color: TEXT_2,
+    lineHeight: 19,
+    marginBottom: 12,
   },
   submitButton: {
     flexDirection: "row",
     alignItems: "center",
+    alignSelf: "flex-start",
     backgroundColor: AMBER,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 20,
-    gap: 4,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 10,
+    gap: 6,
   },
   submitButtonText: {
-    fontSize: 13,
-    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontSize: 14,
+    fontFamily: "PlusJakartaSans_700Bold",
     color: "#030712",
   },
   filterRow: {
@@ -465,5 +488,7 @@ const s = StyleSheet.create({
     fontSize: 13,
     fontFamily: "PlusJakartaSans_400Regular",
     color: TEXT_2,
+    textAlign: "center",
+    lineHeight: 19,
   },
 });

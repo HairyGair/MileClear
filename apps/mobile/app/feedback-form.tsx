@@ -57,7 +57,7 @@ export default function FeedbackFormScreen() {
         body: body.trim(),
         category,
       });
-      Alert.alert("Submitted!", "Thanks for your suggestion.", [
+      Alert.alert("Thank you!", "Your feedback has been received and will be personally reviewed. It genuinely helps us make MileClear better.", [
         { text: "OK", onPress: () => router.back() },
       ]);
     } catch (e: any) {
@@ -77,6 +77,13 @@ export default function FeedbackFormScreen() {
         contentContainerStyle={s.scroll}
         keyboardShouldPersistTaps="handled"
       >
+        {/* Intro message */}
+        <View style={s.introCard}>
+          <Text style={s.introText}>
+            Whether it's a feature you'd love, a bug you've hit, or something that could work better — we genuinely want to hear it. Every submission is personally reviewed by the team.
+          </Text>
+        </View>
+
         {/* Display Name */}
         <View style={s.field}>
           <Text style={s.label}>Display Name</Text>
@@ -194,6 +201,22 @@ export default function FeedbackFormScreen() {
 const s = StyleSheet.create({
   container: { flex: 1, backgroundColor: BG },
   scroll: { paddingHorizontal: 20, paddingTop: 16 },
+  introCard: {
+    backgroundColor: CARD_BG,
+    borderRadius: 12,
+    padding: 14,
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: AMBER + "18",
+    borderLeftWidth: 3,
+    borderLeftColor: AMBER,
+  },
+  introText: {
+    fontSize: 13,
+    fontFamily: "PlusJakartaSans_400Regular",
+    color: TEXT_2,
+    lineHeight: 19,
+  },
   field: { marginBottom: 20 },
   label: {
     fontSize: 13,

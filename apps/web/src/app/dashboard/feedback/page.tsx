@@ -262,14 +262,26 @@ export default function FeedbackPage() {
   return (
     <>
       <PageHeader
-        title="Feedback"
-        subtitle="Share ideas and vote on features"
+        title="Roadmap & Feedback"
+        subtitle="Help shape MileClear — every suggestion is read and considered"
         action={
           <Button variant="primary" size="sm" onClick={() => setShowSubmit(true)}>
-            + Submit idea
+            + Share your idea
           </Button>
         }
       />
+
+      {/* Community message */}
+      <div className="feedback-banner">
+        <div className="feedback-banner__content">
+          <p className="feedback-banner__heading">Your voice builds this app</p>
+          <p className="feedback-banner__text">
+            MileClear is built for drivers, by listening to drivers. Every feature request, bug report, and suggestion
+            is personally reviewed. Vote on ideas you want to see next, or share your own — the most popular
+            ideas get prioritised on our roadmap.
+          </p>
+        </div>
+      </div>
 
       {/* Filter row */}
       <div
@@ -326,15 +338,15 @@ export default function FeedbackPage() {
               <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
             </svg>
           }
-          title="No feedback yet"
+          title="No suggestions yet"
           description={
             category
-              ? "No feedback found for this category. Try a different filter or be the first to submit."
-              : "Be the first to share an idea or report a bug."
+              ? "Nothing here yet for this category. Try a different filter, or be the first to share."
+              : "You could be the first! Tell us what would make MileClear better for you."
           }
           action={
             <Button variant="primary" size="sm" onClick={() => setShowSubmit(true)}>
-              Submit the first idea
+              Share the first idea
             </Button>
           }
         />
@@ -356,7 +368,7 @@ export default function FeedbackPage() {
       <Modal
         open={showSubmit}
         onClose={handleCloseSubmit}
-        title="Submit an idea"
+        title="Share your idea"
         footer={
           <>
             <Button variant="ghost" size="sm" onClick={handleCloseSubmit}>
@@ -368,29 +380,41 @@ export default function FeedbackPage() {
               onClick={handleSubmit}
               disabled={submitLoading}
             >
-              {submitLoading ? "Submitting..." : "Submit idea"}
+              {submitLoading ? "Submitting..." : "Send feedback"}
             </Button>
           </>
         }
       >
+        <p style={{ fontSize: "0.875rem", color: "var(--text-secondary)", lineHeight: 1.6, margin: "0 0 1.25rem" }}>
+          Whether it&apos;s a feature you&apos;d love, a bug you&apos;ve hit, or something that could work better — we genuinely want to hear it. Every submission is personally reviewed.
+        </p>
+
         {submitError && (
           <div className="alert alert--error" style={{ marginBottom: "1rem" }}>
             {submitError}
           </div>
         )}
 
+        <Select
+          id="submitCategory"
+          label="What kind of feedback?"
+          value={submitCategory}
+          onChange={(e) => setSubmitCategory(e.target.value as FeedbackCategory)}
+          options={SUBMIT_CATEGORY_OPTIONS}
+        />
+
         <Input
           id="submitTitle"
           label="Title"
           value={submitTitle}
           onChange={(e) => setSubmitTitle(e.target.value)}
-          placeholder="Short summary of your idea or issue"
+          placeholder="e.g. Add weekly mileage summary email"
           maxLength={120}
         />
 
         <div className="form-group">
           <label htmlFor="submitBody" className="form-label">
-            Description
+            Tell us more
           </label>
           <textarea
             id="submitBody"
@@ -398,18 +422,10 @@ export default function FeedbackPage() {
             rows={4}
             value={submitBody}
             onChange={(e) => setSubmitBody(e.target.value)}
-            placeholder="Describe your idea or the bug you've encountered in detail"
+            placeholder="What would this look like? What problem does it solve for you?"
             style={{ minHeight: "100px", resize: "vertical" }}
           />
         </div>
-
-        <Select
-          id="submitCategory"
-          label="Category"
-          value={submitCategory}
-          onChange={(e) => setSubmitCategory(e.target.value as FeedbackCategory)}
-          options={SUBMIT_CATEGORY_OPTIONS}
-        />
       </Modal>
     </>
   );
