@@ -454,26 +454,34 @@ export default function TripsPage() {
         }
       >
         {detailTrip && (
-          <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
-            {/* Route */}
-            <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", fontSize: "0.95rem" }}>
-              <span style={{ color: "#10b981", fontWeight: 600 }}>A</span>
-              <span>{detailTrip.startAddress || "Unknown"}</span>
-              <span style={{ color: "var(--text-faint)" }}>&rarr;</span>
-              <span style={{ color: "#ef4444", fontWeight: 600 }}>B</span>
-              <span>{detailTrip.endAddress || "Unknown"}</span>
+          <div className="trip-detail">
+            {/* Route visualization */}
+            <div className="trip-detail__route">
+              <div className="trip-detail__route-dots">
+                <div className="trip-detail__route-dot trip-detail__route-dot--start" />
+                <div className="trip-detail__route-line" />
+                <div className="trip-detail__route-dot trip-detail__route-dot--end" />
+              </div>
+              <div className="trip-detail__route-addrs">
+                <span className={`trip-detail__route-addr${!detailTrip.startAddress ? " trip-detail__route-addr--muted" : ""}`}>
+                  {detailTrip.startAddress || "Unknown start"}
+                </span>
+                <span className={`trip-detail__route-addr${!detailTrip.endAddress ? " trip-detail__route-addr--muted" : ""}`}>
+                  {detailTrip.endAddress || "Unknown end"}
+                </span>
+              </div>
             </div>
 
-            {/* Stats row */}
-            <div style={{ display: "flex", gap: "1rem" }}>
-              <div className="card" style={{ flex: 1, textAlign: "center", padding: "0.75rem" }}>
-                <div style={{ fontSize: "1.25rem", fontWeight: 700, color: "var(--text-primary)" }}>
+            {/* Stats strip */}
+            <div className="trip-detail__stats">
+              <div className="trip-detail__stat">
+                <div className="trip-detail__stat-value">
                   {detailTrip.distanceMiles?.toFixed(1) || "0"} mi
                 </div>
-                <div style={{ fontSize: "0.75rem", color: "var(--text-faint)" }}>Distance</div>
+                <div className="trip-detail__stat-label">Distance</div>
               </div>
-              <div className="card" style={{ flex: 1, textAlign: "center", padding: "0.75rem" }}>
-                <div style={{ fontSize: "1.25rem", fontWeight: 700, color: "var(--text-primary)" }}>
+              <div className="trip-detail__stat">
+                <div className="trip-detail__stat-value">
                   {detailTrip.endedAt && detailTrip.startedAt
                     ? (() => {
                         const secs = Math.floor((new Date(detailTrip.endedAt).getTime() - new Date(detailTrip.startedAt).getTime()) / 1000);
@@ -482,84 +490,111 @@ export default function TripsPage() {
                       })()
                     : "--"}
                 </div>
-                <div style={{ fontSize: "0.75rem", color: "var(--text-faint)" }}>Duration</div>
+                <div className="trip-detail__stat-label">Duration</div>
               </div>
-              <div className="card" style={{ flex: 1, textAlign: "center", padding: "0.75rem" }}>
-                <div style={{ fontSize: "1.25rem", fontWeight: 700, color: "var(--text-primary)" }}>
-                  <Badge variant={detailTrip.classification === "business" ? "business" : "personal"}>
-                    {detailTrip.classification}
-                  </Badge>
-                </div>
-                <div style={{ fontSize: "0.75rem", color: "var(--text-faint)", marginTop: 4 }}>Type</div>
+              <div className="trip-detail__stat">
+                <Badge variant={detailTrip.classification === "business" ? "business" : "personal"}>
+                  {detailTrip.classification}
+                </Badge>
+                <div className="trip-detail__stat-label">Type</div>
               </div>
             </div>
 
             {/* Trip Insights */}
             {detailLoading ? (
-              <div style={{ textAlign: "center", padding: "1rem", color: "var(--text-faint)" }}>
-                Loading insights...
+              <div className="trip-detail__loading">
+                <span className="trip-detail__loading-dot">Loading insights</span>
               </div>
             ) : detailTrip.insights ? (
-              <div className="card" style={{ padding: "1rem" }}>
-                <h4 style={{ margin: "0 0 0.75rem", fontSize: "0.9rem", fontWeight: 600, color: "var(--text-primary)" }}>
-                  Trip Insights
-                </h4>
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "0.75rem", textAlign: "center" }}>
-                  <div>
-                    <div style={{ fontSize: "1.25rem", fontWeight: 700, color: "#fcd34d" }}>
-                      {detailTrip.insights.topSpeedMph}
-                    </div>
-                    <div style={{ fontSize: "0.7rem", color: "var(--text-faint)" }}>Top mph</div>
+              <div className="trip-detail__insights">
+                <div className="trip-detail__insights-header">
+                  <div className="trip-detail__insights-icon">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+                      <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" />
+                    </svg>
                   </div>
-                  <div>
-                    <div style={{ fontSize: "1.25rem", fontWeight: 700, color: "#fcd34d" }}>
-                      {detailTrip.insights.avgMovingSpeedMph}
-                    </div>
-                    <div style={{ fontSize: "0.7rem", color: "var(--text-faint)" }}>Avg mph</div>
+                  <span className="trip-detail__insights-title">Trip Insights</span>
+                </div>
+
+                <div className="trip-detail__insights-grid">
+                  <div className="trip-detail__insight">
+                    <div className="trip-detail__insight-value">{detailTrip.insights.topSpeedMph}</div>
+                    <div className="trip-detail__insight-label">Top mph</div>
                   </div>
-                  <div>
-                    <div style={{ fontSize: "1.25rem", fontWeight: 700, color: "#fcd34d" }}>
+                  <div className="trip-detail__insight">
+                    <div className="trip-detail__insight-value">{detailTrip.insights.avgMovingSpeedMph}</div>
+                    <div className="trip-detail__insight-label">Avg mph</div>
+                  </div>
+                  <div className="trip-detail__insight">
+                    <div className="trip-detail__insight-value">
                       {detailTrip.insights.timeStoppedSecs >= 60
                         ? `${Math.round(detailTrip.insights.timeStoppedSecs / 60)}m`
                         : `${detailTrip.insights.timeStoppedSecs}s`}
                     </div>
-                    <div style={{ fontSize: "0.7rem", color: "var(--text-faint)" }}>Stopped</div>
+                    <div className="trip-detail__insight-label">Stopped</div>
                   </div>
-                  <div>
-                    <div style={{ fontSize: "1.25rem", fontWeight: 700, color: "#fcd34d" }}>
-                      {detailTrip.insights.routeEfficiency}x
-                    </div>
-                    <div style={{ fontSize: "0.7rem", color: "var(--text-faint)" }}>Route</div>
+                  <div className="trip-detail__insight">
+                    <div className="trip-detail__insight-value">{detailTrip.insights.routeEfficiency}x</div>
+                    <div className="trip-detail__insight-label">Route</div>
                   </div>
                 </div>
-                {detailTrip.insights.longestNonStopMiles > 0.1 && (
-                  <div style={{ marginTop: "0.75rem", fontSize: "0.8rem", color: "var(--text-secondary)" }}>
-                    Longest non-stop: {detailTrip.insights.longestNonStopMiles} mi
+
+                {(detailTrip.insights.longestNonStopMiles > 0.1 || detailTrip.insights.timeStoppedSecs > 60) && (
+                  <div className="trip-detail__insights-notes">
+                    {detailTrip.insights.longestNonStopMiles > 0.1 && (
+                      <span className="trip-detail__insights-note">
+                        Longest non-stop stretch: {detailTrip.insights.longestNonStopMiles} mi
+                      </span>
+                    )}
+                    {detailTrip.insights.timeStoppedSecs > 60 && detailTrip.insights.timeMovingSecs > 0 && (
+                      <span className="trip-detail__insights-note">
+                        {Math.round((detailTrip.insights.timeMovingSecs / (detailTrip.insights.timeMovingSecs + detailTrip.insights.timeStoppedSecs)) * 100)}% of your trip was spent moving
+                      </span>
+                    )}
                   </div>
                 )}
-                {detailTrip.insights.speedFunFact && (
-                  <div style={{ marginTop: "0.5rem", fontSize: "0.8rem", color: "#fcd34d" }}>
-                    {detailTrip.insights.speedFunFact}
-                  </div>
-                )}
-                {detailTrip.insights.distanceFunFact && (
-                  <div style={{ fontSize: "0.8rem", color: "#fcd34d" }}>
-                    {detailTrip.insights.distanceFunFact}
+
+                {(detailTrip.insights.speedFunFact || detailTrip.insights.distanceFunFact) && (
+                  <div className="trip-detail__fun-fact">
+                    <span className="trip-detail__fun-fact-icon">&#9889;</span>
+                    <span>{detailTrip.insights.speedFunFact || detailTrip.insights.distanceFunFact}</span>
                   </div>
                 )}
               </div>
             ) : (
-              <div style={{ textAlign: "center", padding: "0.75rem", fontSize: "0.85rem", color: "var(--text-faint)" }}>
+              <div className="trip-detail__no-insights">
                 No GPS data recorded — insights are available for tracked trips
               </div>
             )}
 
-            {/* Extra info */}
-            <div style={{ fontSize: "0.8rem", color: "var(--text-faint)", display: "flex", flexDirection: "column", gap: "0.25rem" }}>
-              <span>Started: {new Date(detailTrip.startedAt).toLocaleString("en-GB")}</span>
-              {detailTrip.endedAt && <span>Ended: {new Date(detailTrip.endedAt).toLocaleString("en-GB")}</span>}
-              {detailTrip.platformTag && <span>Platform: {detailTrip.platformTag}</span>}
-              {detailTrip.notes && <span>Notes: {detailTrip.notes}</span>}
+            {/* Meta info */}
+            <div className="trip-detail__meta">
+              <span className="trip-detail__meta-item">
+                <span className="trip-detail__meta-label">Started</span>
+                {new Date(detailTrip.startedAt).toLocaleString("en-GB", {
+                  day: "numeric", month: "short", year: "numeric",
+                  hour: "2-digit", minute: "2-digit",
+                })}
+              </span>
+              {detailTrip.endedAt && (
+                <span className="trip-detail__meta-item">
+                  <span className="trip-detail__meta-label">Ended</span>
+                  {new Date(detailTrip.endedAt).toLocaleString("en-GB", {
+                    hour: "2-digit", minute: "2-digit",
+                  })}
+                </span>
+              )}
+              {detailTrip.platformTag && (
+                <span className="trip-detail__meta-item">
+                  <Badge variant="source">{detailTrip.platformTag}</Badge>
+                </span>
+              )}
+              {detailTrip.notes && (
+                <span className="trip-detail__meta-item" style={{ flexBasis: "100%" }}>
+                  <span className="trip-detail__meta-label">Notes:</span>
+                  {detailTrip.notes}
+                </span>
+              )}
             </div>
           </div>
         )}
