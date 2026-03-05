@@ -7,6 +7,7 @@ import { verifyPassword } from "../../services/auth.js";
 
 const updateProfileSchema = z.object({
   displayName: z.string().max(100).nullable().optional(),
+  fullName: z.string().max(200).nullable().optional(),
   avatarId: z.string().max(50).nullable().optional(),
   email: z.string().email().optional(),
   currentPassword: z.string().optional(),
@@ -20,6 +21,7 @@ const USER_SELECT = {
   id: true,
   email: true,
   displayName: true,
+  fullName: true,
   avatarId: true,
   emailVerified: true,
   isPremium: true,
@@ -53,7 +55,7 @@ export async function userRoutes(app: FastifyInstance) {
     }
 
     const userId = request.userId!;
-    const { displayName, avatarId, email, currentPassword } = parsed.data;
+    const { displayName, fullName, avatarId, email, currentPassword } = parsed.data;
 
     const currentUser = await prisma.user.findUnique({
       where: { id: userId },
@@ -69,6 +71,11 @@ export async function userRoutes(app: FastifyInstance) {
     // Display name can always be updated
     if (displayName !== undefined) {
       updateData.displayName = displayName;
+    }
+
+    // Full name (legal name for exports) can always be updated
+    if (fullName !== undefined) {
+      updateData.fullName = fullName;
     }
 
     // Avatar can always be updated

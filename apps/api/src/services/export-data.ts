@@ -146,7 +146,7 @@ export async function fetchExportSummary(
     }),
     prisma.user.findUnique({
       where: { id: userId },
-      select: { displayName: true, email: true },
+      select: { fullName: true, displayName: true, email: true },
     }),
   ]);
 
@@ -235,6 +235,6 @@ export async function fetchExportSummary(
     totalEarningsPence,
     earningsByPlatform,
     generatedAt: new Date().toISOString(),
-    userName: user?.displayName || user?.email || "MileClear User",
+    userName: user?.fullName || user?.displayName || user?.email || "MileClear User",
   };
 }

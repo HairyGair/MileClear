@@ -18,6 +18,7 @@ export default function ProfileEditScreen() {
   const router = useRouter();
 
   const [displayName, setDisplayName] = useState("");
+  const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [originalEmail, setOriginalEmail] = useState("");
   const [currentPassword, setCurrentPassword] = useState("");
@@ -28,6 +29,7 @@ export default function ProfileEditScreen() {
     fetchProfile()
       .then((res) => {
         setDisplayName(res.data.displayName || "");
+        setFullName((res.data as any).fullName || "");
         setEmail(res.data.email);
         setOriginalEmail(res.data.email);
       })
@@ -51,6 +53,7 @@ export default function ProfileEditScreen() {
       const data: Record<string, unknown> = {};
 
       data.displayName = displayName.trim() || null;
+      data.fullName = fullName.trim() || null;
 
       if (emailChanged) {
         data.email = email.trim().toLowerCase();
@@ -69,7 +72,7 @@ export default function ProfileEditScreen() {
     } finally {
       setSaving(false);
     }
-  }, [displayName, email, originalEmail, currentPassword, emailChanged, router]);
+  }, [displayName, fullName, email, originalEmail, currentPassword, emailChanged, router]);
 
   if (loadingProfile) {
     return (
@@ -88,12 +91,25 @@ export default function ProfileEditScreen() {
         options={{ title: "Edit Profile" }}
       />
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+        <Text style={styles.label}>Full Name</Text>
+        <Text style={styles.fieldHint}>Used on PDF exports and tax documents</Text>
+        <TextInput
+          style={styles.input}
+          value={fullName}
+          onChangeText={setFullName}
+          placeholder="Your legal name"
+          placeholderTextColor="#6b7280"
+          autoCapitalize="words"
+          maxLength={200}
+        />
+
         <Text style={styles.label}>Display Name</Text>
+        <Text style={styles.fieldHint}>Public nickname (optional)</Text>
         <TextInput
           style={styles.input}
           value={displayName}
           onChangeText={setDisplayName}
-          placeholder="Your name"
+          placeholder="Nickname"
           placeholderTextColor="#6b7280"
           autoCapitalize="words"
           maxLength={100}
@@ -171,6 +187,12 @@ const styles = StyleSheet.create({
     color: "#fff",
     borderWidth: 1,
     borderColor: "#1f2937",
+  },
+  fieldHint: {
+    fontSize: 12,
+    fontFamily: "PlusJakartaSans_400Regular",
+    color: "#6b7280",
+    marginBottom: 6,
   },
   hint: {
     fontSize: 13,

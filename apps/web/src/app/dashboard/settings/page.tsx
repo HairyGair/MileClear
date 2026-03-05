@@ -15,6 +15,7 @@ export default function SettingsPage() {
 
   // Profile
   const [displayName, setDisplayName] = useState("");
+  const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [profileLoading, setProfileLoading] = useState(false);
   const [profileSuccess, setProfileSuccess] = useState(false);
@@ -40,6 +41,7 @@ export default function SettingsPage() {
   useEffect(() => {
     if (user) {
       setDisplayName(user.displayName || "");
+      setFullName((user as any).fullName || "");
       setEmail(user.email);
     }
   }, [user]);
@@ -59,6 +61,7 @@ export default function SettingsPage() {
     try {
       await api.patch("/user/profile", {
         displayName: displayName || undefined,
+        fullName: fullName || null,
         email: email !== user?.email ? email : undefined,
       });
       await refreshUser();
@@ -158,15 +161,22 @@ export default function SettingsPage() {
       <div className="settings-section">
         <h2 className="settings-section__title">Profile</h2>
         <p className="settings-section__desc">
-          Update your display name and email address.
+          Update your profile details. Your full name is used on PDF exports and tax documents.
         </p>
         <div style={{ display: "flex", flexDirection: "column", gap: "1rem", maxWidth: 400 }}>
+          <Input
+            id="fullName"
+            label="Full name"
+            value={fullName}
+            onChange={(e) => setFullName(e.target.value)}
+            placeholder="Your legal name (used on exports)"
+          />
           <Input
             id="displayName"
             label="Display name"
             value={displayName}
             onChange={(e) => setDisplayName(e.target.value)}
-            placeholder="Your name"
+            placeholder="Public nickname (optional)"
           />
           <Input
             id="settingsEmail"
