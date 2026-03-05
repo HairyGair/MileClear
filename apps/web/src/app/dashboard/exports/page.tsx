@@ -4,6 +4,7 @@ import { useState, useCallback } from "react";
 import { getTaxYear } from "@mileclear/shared";
 import { fetchWithAuth } from "../../../lib/api";
 import { api } from "../../../lib/api";
+import { useAuth } from "../../../lib/auth-context";
 import { PageHeader } from "../../../components/dashboard/PageHeader";
 import { Select } from "../../../components/ui/Select";
 import { Button } from "../../../components/ui/Button";
@@ -21,9 +22,26 @@ function generateTaxYears(count: number): string[] {
 type DownloadState = "idle" | "loading" | "done" | "error";
 
 export default function ExportsPage() {
+  const { user } = useAuth();
   const taxYears = generateTaxYears(4);
   const [selectedYear, setSelectedYear] = useState(taxYears[0]);
   const [premiumError, setPremiumError] = useState(false);
+
+  if (!(user?.isPremium)) {
+    return (
+      <>
+        <PageHeader title="Exports" subtitle="Download trip reports and tax documents" />
+        <div className="premium-gate">
+          <div className="premium-gate__icon">&#9888;</div>
+          <h2 className="premium-gate__title">Upgrade to Pro</h2>
+          <p className="premium-gate__text">
+            CSV exports, PDF trip reports, and HMRC self-assessment documents are available with a MileClear Pro subscription.
+          </p>
+          <a href="/dashboard/settings" className="btn btn--primary">Manage Subscription</a>
+        </div>
+      </>
+    );
+  }
 
   const [csvState, setCsvState] = useState<DownloadState>("idle");
   const [pdfState, setPdfState] = useState<DownloadState>("idle");

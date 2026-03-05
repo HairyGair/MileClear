@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { api } from "../../../lib/api";
+import { useAuth } from "../../../lib/auth-context";
 import { PageHeader } from "../../../components/dashboard/PageHeader";
 import { Card } from "../../../components/ui/Card";
 import { LoadingSkeleton } from "../../../components/ui/LoadingSkeleton";
@@ -352,12 +353,19 @@ function AnalyticsSkeleton() {
 // ---------------------------------------------------------------------------
 
 export default function AnalyticsPage() {
+  const { user } = useAuth();
   const [stats, setStats] = useState<GamificationStats | null>(null);
   const [trips, setTrips] = useState<Trip[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  const isPremium = user?.isPremium ?? false;
+
   useEffect(() => {
+    if (!isPremium) {
+      setLoading(false);
+      return;
+    }
     async function load() {
       try {
         // Determine date range: start of 12 weeks ago → now
@@ -397,9 +405,25 @@ export default function AnalyticsPage() {
     }
 
     load();
-  }, []);
+  }, [isPremium]);
 
   if (loading) return <AnalyticsSkeleton />;
+
+  if (!isPremium) {
+    return (
+      <>
+        <PageHeader title="Analytics" subtitle="Your driving trends and insights" />
+        <div className="premium-gate">
+          <div className="premium-gate__icon">&#9888;</div>
+          <h2 className="premium-gate__title">Upgrade to Pro</h2>
+          <p className="premium-gate__text">
+            Detailed analytics, weekly trends, and monthly HMRC breakdowns are available with a MileClear Pro subscription.
+          </p>
+          <a href="/dashboard/settings" className="btn btn--primary">Manage Subscription</a>
+        </div>
+      </>
+    );
+  }
 
   if (error) {
     return (

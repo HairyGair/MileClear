@@ -2195,3 +2195,48 @@
   background: #1a1a1a;
   border-color: rgba(255, 255, 255, 0.2);
 }
+
+/* ================================================================
+   Premium Gate — full-page upgrade prompt
+   ================================================================ */
+
+.premium-gate {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 4rem 2rem;
+  margin: 2rem auto;
+  max-width: 480px;
+  background: linear-gradient(
+    135deg,
+    rgba(252, 211, 77, 0.04) 0%,
+    rgba(252, 211, 77, 0.01) 100%
+  );
+  border: 1px solid rgba(252, 211, 77, 0.12);
+  border-radius: var(--dash-radius);
+  backdrop-filter: blur(12px);
+}
+
+.premium-gate__icon {
+  font-size: 2.5rem;
+  margin-bottom: 1rem;
+  filter: grayscale(0.3);
+}
+
+.premium-gate__title {
+  font-family: var(--font-display);
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--amber-400);
+  margin: 0 0 0.75rem;
+}
+
+.premium-gate__text {
+  font-size: 0.925rem;
+  color: var(--text-secondary);
+  line-height: 1.6;
+  margin: 0 0 1.5rem;
+  max-width: 380px;
+}
