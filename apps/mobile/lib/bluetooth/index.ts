@@ -11,9 +11,9 @@ import Constants from "expo-constants";
 import { getDatabase } from "../db/index";
 
 // Guard: BLE libraries crash in Expo Go
-const isNativeBuild =
-  Constants.executionEnvironment === "storeClient" ||
-  Constants.executionEnvironment === "standalone";
+// Constants.executionEnvironment is unreliable in SDK 53+ — use appOwnership instead
+const isExpoGo = Constants.appOwnership === "expo";
+const isNativeBuild = !isExpoGo;
 
 let BleManager: any = null;
 if (isNativeBuild) {

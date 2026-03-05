@@ -3,11 +3,12 @@ import Constants from "expo-constants";
 
 const PRODUCT_ID = "com.mileclear.premium.monthly";
 
-// Detect native build — NitroModules (used by react-native-iap) fatally crashes
-// in Expo Go before try/catch can intercept, so we must guard before require()
-const isNativeBuild =
-  Constants.executionEnvironment === "storeClient" ||
-  Constants.executionEnvironment === "standalone";
+// Detect Expo Go — NitroModules (used by react-native-iap) fatally crashes
+// in Expo Go before try/catch can intercept, so we must guard before require().
+// Constants.executionEnvironment is unreliable in SDK 53+ (Expo Go reports "storeClient").
+// Constants.appOwnership === "expo" is the reliable check for Expo Go.
+const isExpoGo = Constants.appOwnership === "expo";
+const isNativeBuild = !isExpoGo && Platform.OS === "ios";
 
 // Lazy import for Expo Go compatibility (native module may not be available)
 let RNIap: typeof import("react-native-iap") | null = null;
