@@ -61,6 +61,39 @@ export default function TripsPage() {
   const [routeCalcStatus, setRouteCalcStatus] = useState<"idle" | "calculating" | "done" | "error">("idle");
   const geocodeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // Extract UK postcode from an address string
+  const extractPostcode = (addr: string): string | null => {
+    const match = addr.match(/\b([A-Z]{1,2}\d[A-Z\d]?\s*\d[A-Z]{2})\b/i);
+    return match ? match[1].replace(/\s+/g, "") : null;
+  };
+
+  // Geocode via Postcodes.io (UK postcode) or Nominatim (fallback)
+  const geocodeAddress = async (addr: string): Promise<{ lat: number; lng: number } | null> => {
+    // Try postcode first — most accurate for UK
+    const postcode = extractPostcode(addr);
+    if (postcode) {
+      try {
+        const res = await fetch(`https://api.postcodes.io/postcodes/${postcode}`);
+        if (res.ok) {
+          const data = await res.json();
+          if (data.status === 200 && data.result) {
+            return { lat: data.result.latitude, lng: data.result.longitude };
+          }
+        }
+      } catch { /* fall through to Nominatim */ }
+    }
+    // Fallback: Nominatim with countrycodes=gb
+    try {
+      const res = await fetch(
+        `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(addr)}&format=json&limit=1&countrycodes=gb`,
+        { headers: { "User-Agent": "MileClear/1.0" } }
+      );
+      const data = await res.json();
+      if (data?.[0]) return { lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon) };
+    } catch { /* give up */ }
+    return null;
+  };
+
   // Geocode addresses and calculate route distance (debounced)
   useEffect(() => {
     if (geocodeTimerRef.current) clearTimeout(geocodeTimerRef.current);
@@ -74,23 +107,19 @@ export default function TripsPage() {
     geocodeTimerRef.current = setTimeout(async () => {
       setRouteCalcStatus("calculating");
       try {
-        const [startRes, endRes] = await Promise.all([
-          fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(start + ", UK")}&format=json&limit=1`, {
-            headers: { "User-Agent": "MileClear/1.0" },
-          }).then((r) => r.json()),
-          fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(end + ", UK")}&format=json&limit=1`, {
-            headers: { "User-Agent": "MileClear/1.0" },
-          }).then((r) => r.json()),
+        const [startGeo, endGeo] = await Promise.all([
+          geocodeAddress(start),
+          geocodeAddress(end),
         ]);
-        if (!startRes?.[0] || !endRes?.[0]) {
+        if (!startGeo || !endGeo) {
           setRouteCalcStatus("error");
           return;
         }
         const coords = {
-          startLat: parseFloat(startRes[0].lat),
-          startLng: parseFloat(startRes[0].lon),
-          endLat: parseFloat(endRes[0].lat),
-          endLng: parseFloat(endRes[0].lon),
+          startLat: startGeo.lat,
+          startLng: startGeo.lng,
+          endLat: endGeo.lat,
+          endLng: endGeo.lng,
         };
         setAddCoords(coords);
         const route = await fetchRouteDistance(coords.startLat, coords.startLng, coords.endLat, coords.endLng);
