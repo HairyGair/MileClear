@@ -15,6 +15,7 @@ import { getTaxYear } from "@mileclear/shared";
 import { downloadAndShareExport } from "../lib/api/exports";
 import { fetchProfile } from "../lib/api/user";
 import { createCheckoutSession } from "../lib/api/billing";
+import { isIapAvailable, purchaseSubscription } from "../lib/iap/index";
 
 function generateTaxYears(count: number): string[] {
   const current = getTaxYear(new Date());
@@ -43,13 +44,20 @@ export default function ExportsScreen() {
 
   const handleUpgrade = useCallback(async () => {
     try {
-      const res = await createCheckoutSession();
-      if (res.data.url) {
-        await WebBrowser.openBrowserAsync(res.data.url);
-        // Refresh premium status after returning
-        fetchProfile()
-          .then((r) => setIsPremium(r.data.isPremium))
-          .catch(() => {});
+      if (isIapAvailable()) {
+        await purchaseSubscription();
+      } else {
+        const res = await createCheckoutSession();
+        if (res.data.url) {
+          const url = new URL(res.data.url);
+          if (!url.hostname.endsWith("stripe.com")) {
+            throw new Error("Invalid checkout URL");
+          }
+          await WebBrowser.openBrowserAsync(res.data.url);
+          fetchProfile()
+            .then((r) => setIsPremium(r.data.isPremium))
+            .catch(() => {});
+        }
       }
     } catch (err: unknown) {
       Alert.alert(
