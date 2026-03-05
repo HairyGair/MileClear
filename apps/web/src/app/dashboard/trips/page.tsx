@@ -13,7 +13,7 @@ import { Pagination } from "../../../components/ui/Pagination";
 import { EmptyState } from "../../../components/ui/EmptyState";
 import { LoadingSkeleton } from "../../../components/ui/LoadingSkeleton";
 import type { Trip, TripInsights, TripCoordinate, PaginatedResponse } from "@mileclear/shared";
-import { GIG_PLATFORMS } from "@mileclear/shared";
+import { GIG_PLATFORMS, fetchRouteDistance } from "@mileclear/shared";
 
 interface DetailTrip extends Trip {
   insights?: TripInsights | null;
@@ -55,6 +55,57 @@ export default function TripsPage() {
     startedAt: new Date().toISOString().slice(0, 16),
   });
   const [addLoading, setAddLoading] = useState(false);
+  const [addCoords, setAddCoords] = useState<{
+    startLat: number; startLng: number; endLat: number; endLng: number;
+  } | null>(null);
+  const [routeCalcStatus, setRouteCalcStatus] = useState<"idle" | "calculating" | "done" | "error">("idle");
+  const geocodeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Geocode addresses and calculate route distance (debounced)
+  useEffect(() => {
+    if (geocodeTimerRef.current) clearTimeout(geocodeTimerRef.current);
+    const start = addForm.startAddress.trim();
+    const end = addForm.endAddress.trim();
+    if (!start || !end || start.length < 3 || end.length < 3) {
+      setAddCoords(null);
+      setRouteCalcStatus("idle");
+      return;
+    }
+    geocodeTimerRef.current = setTimeout(async () => {
+      setRouteCalcStatus("calculating");
+      try {
+        const [startRes, endRes] = await Promise.all([
+          fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(start + ", UK")}&format=json&limit=1`, {
+            headers: { "User-Agent": "MileClear/1.0" },
+          }).then((r) => r.json()),
+          fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(end + ", UK")}&format=json&limit=1`, {
+            headers: { "User-Agent": "MileClear/1.0" },
+          }).then((r) => r.json()),
+        ]);
+        if (!startRes?.[0] || !endRes?.[0]) {
+          setRouteCalcStatus("error");
+          return;
+        }
+        const coords = {
+          startLat: parseFloat(startRes[0].lat),
+          startLng: parseFloat(startRes[0].lon),
+          endLat: parseFloat(endRes[0].lat),
+          endLng: parseFloat(endRes[0].lon),
+        };
+        setAddCoords(coords);
+        const route = await fetchRouteDistance(coords.startLat, coords.startLng, coords.endLat, coords.endLng);
+        if (route) {
+          setAddForm((f) => ({ ...f, distanceMiles: String(route.distanceMiles) }));
+          setRouteCalcStatus("done");
+        } else {
+          setRouteCalcStatus("error");
+        }
+      } catch {
+        setRouteCalcStatus("error");
+      }
+    }, 800);
+    return () => { if (geocodeTimerRef.current) clearTimeout(geocodeTimerRef.current); };
+  }, [addForm.startAddress, addForm.endAddress]);
 
   // Delete modal
   const [deleteTrip, setDeleteTrip] = useState<Trip | null>(null);
@@ -150,10 +201,14 @@ export default function TripsPage() {
         platformTag: addForm.platformTag || undefined,
         notes: addForm.notes || undefined,
         startedAt: new Date(addForm.startedAt).toISOString(),
-        startLat: 0,
-        startLng: 0,
+        startLat: addCoords?.startLat ?? 0,
+        startLng: addCoords?.startLng ?? 0,
+        endLat: addCoords?.endLat,
+        endLng: addCoords?.endLng,
       });
       setShowAdd(false);
+      setAddCoords(null);
+      setRouteCalcStatus("idle");
       setAddForm({
         startAddress: "",
         endAddress: "",
@@ -504,16 +559,34 @@ export default function TripsPage() {
           />
         </div>
         <div className="form-row">
-          <Input
-            id="addDistance"
-            label="Distance (miles)"
-            type="number"
-            step="0.1"
-            min="0"
-            value={addForm.distanceMiles}
-            onChange={(e) => setAddForm((f) => ({ ...f, distanceMiles: e.target.value }))}
-            placeholder="e.g. 12.5"
-          />
+          <div style={{ flex: 1 }}>
+            <Input
+              id="addDistance"
+              label={
+                routeCalcStatus === "calculating"
+                  ? "Distance (calculating route...)"
+                  : routeCalcStatus === "done"
+                    ? "Distance (road route)"
+                    : "Distance (miles)"
+              }
+              type="number"
+              step="0.1"
+              min="0"
+              value={addForm.distanceMiles}
+              onChange={(e) => setAddForm((f) => ({ ...f, distanceMiles: e.target.value }))}
+              placeholder={routeCalcStatus === "calculating" ? "Calculating..." : "e.g. 12.5"}
+            />
+            {routeCalcStatus === "done" && (
+              <span style={{ fontSize: "0.75rem", color: "var(--text-tertiary)", marginTop: "0.25rem", display: "block" }}>
+                Auto-calculated via road — you can override
+              </span>
+            )}
+            {routeCalcStatus === "error" && (
+              <span style={{ fontSize: "0.75rem", color: "var(--amber-400)", marginTop: "0.25rem", display: "block" }}>
+                Could not calculate route — enter distance manually
+              </span>
+            )}
+          </div>
           <Input
             id="addDate"
             label="Date & time"

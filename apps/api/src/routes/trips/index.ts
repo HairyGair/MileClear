@@ -9,7 +9,7 @@ import {
   MAX_PAGE_SIZE,
   getTaxYear,
 } from "@mileclear/shared";
-import { haversineDistance, computeTripInsights } from "@mileclear/shared";
+import { haversineDistance, fetchRouteDistance, computeTripInsights } from "@mileclear/shared";
 import { upsertMileageSummary } from "../../services/mileage.js";
 import { checkAndAwardAchievements } from "../../services/gamification.js";
 
@@ -94,7 +94,11 @@ export async function tripRoutes(app: FastifyInstance) {
     // Auto-calculate distance if end coords present and distance not provided
     let distanceMiles = data.distanceMiles ?? 0;
     if (data.endLat != null && data.endLng != null && data.distanceMiles == null) {
-      distanceMiles = haversineDistance(data.startLat, data.startLng, data.endLat, data.endLng);
+      // Try road-based distance first, fall back to straight-line
+      const route = await fetchRouteDistance(data.startLat, data.startLng, data.endLat, data.endLng);
+      distanceMiles = route
+        ? route.distanceMiles
+        : haversineDistance(data.startLat, data.startLng, data.endLat, data.endLng);
     }
 
     const { coordinates, ...tripData } = data;
@@ -254,7 +258,10 @@ export async function tripRoutes(app: FastifyInstance) {
       newEndLat != null &&
       newEndLng != null
     ) {
-      distanceMiles = haversineDistance(existing.startLat, existing.startLng, newEndLat, newEndLng);
+      const route = await fetchRouteDistance(existing.startLat, existing.startLng, newEndLat, newEndLng);
+      distanceMiles = route
+        ? route.distanceMiles
+        : haversineDistance(existing.startLat, existing.startLng, newEndLat, newEndLng);
     }
 
     const trip = await prisma.trip.update({

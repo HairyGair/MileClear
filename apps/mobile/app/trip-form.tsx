@@ -25,7 +25,7 @@ import {
   syncDeleteTrip,
 } from "../lib/sync/actions";
 import { fetchVehicles } from "../lib/api/vehicles";
-import { GIG_PLATFORMS, haversineDistance } from "@mileclear/shared";
+import { GIG_PLATFORMS, haversineDistance, fetchRouteDistance } from "@mileclear/shared";
 import type { TripClassification, PlatformTag, Vehicle } from "@mileclear/shared";
 import { getDatabase } from "../lib/db/index";
 import { LocationPickerField } from "../components/LocationPickerField";
@@ -316,14 +316,29 @@ export default function TripFormScreen() {
       .catch(() => {});
   }, [id]);
 
-  // Auto-calculate distance
+  // Auto-calculate distance via OSRM route (falls back to Haversine)
+  const [calculatingRoute, setCalculatingRoute] = useState(false);
   useEffect(() => {
-    if (startLat != null && startLng != null && endLat != null && endLng != null) {
-      setDistanceMiles(
-        Math.round(haversineDistance(startLat, startLng, endLat, endLng) * 100) / 100
-      );
-    }
-  }, [startLat, startLng, endLat, endLng]);
+    if (startLat == null || startLng == null || endLat == null || endLng == null) return;
+    // In driving/arrived modes, distance is tracked via GPS breadcrumbs
+    if (mode === "driving" || mode === "arrived") return;
+    let cancelled = false;
+    setCalculatingRoute(true);
+    fetchRouteDistance(startLat, startLng, endLat, endLng)
+      .then((result) => {
+        if (cancelled) return;
+        if (result) {
+          setDistanceMiles(result.distanceMiles);
+        } else {
+          // Fallback to straight-line
+          setDistanceMiles(
+            Math.round(haversineDistance(startLat, startLng, endLat, endLng) * 100) / 100
+          );
+        }
+      })
+      .finally(() => { if (!cancelled) setCalculatingRoute(false); });
+    return () => { cancelled = true; };
+  }, [startLat, startLng, endLat, endLng, mode]);
 
   // ── Driving state: timer + location watch ────────────────────────────────
 
@@ -972,9 +987,12 @@ export default function TripFormScreen() {
             <View style={styles.distanceCard}>
               <Text style={styles.distanceLabel}>Distance</Text>
               <Text style={styles.distanceValue}>
-                {distanceMiles != null ? `${distanceMiles} mi` : "--"}
+                {calculatingRoute ? "Calculating..." : distanceMiles != null ? `${distanceMiles} mi` : "--"}
               </Text>
-              {distanceMiles == null && (
+              {!calculatingRoute && distanceMiles != null && (
+                <Text style={styles.distanceHint}>Route distance via road</Text>
+              )}
+              {!calculatingRoute && distanceMiles == null && (
                 <Text style={styles.distanceHint}>Set both locations to auto-calculate</Text>
               )}
             </View>

@@ -97,6 +97,33 @@ export function parseTaxYear(taxYear: string): { start: Date; end: Date } {
 }
 
 /**
+ * Fetch the actual driving distance between two points using OSRM.
+ * Returns distance in miles, or null if the request fails.
+ * Uses the free OSRM demo server (no API key needed).
+ */
+export async function fetchRouteDistance(
+  startLat: number,
+  startLng: number,
+  endLat: number,
+  endLng: number
+): Promise<{ distanceMiles: number; durationSecs: number } | null> {
+  try {
+    const url = `https://router.project-osrm.org/route/v1/driving/${startLng},${startLat};${endLng},${endLat}?overview=false`;
+    const res = await fetch(url);
+    if (!res.ok) return null;
+    const data = await res.json();
+    if (data.code !== "Ok" || !data.routes?.length) return null;
+    const route = data.routes[0];
+    return {
+      distanceMiles: Math.round((route.distance / 1609.344) * 100) / 100,
+      durationSecs: Math.round(route.duration),
+    };
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Compute trip insights from GPS coordinates.
  * Coordinates must be sorted by recordedAt ascending.
  */
