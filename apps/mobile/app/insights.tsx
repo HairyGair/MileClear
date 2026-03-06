@@ -102,6 +102,13 @@ export default function InsightsScreen() {
   const weekDays = buildWeekDays(weekTrips);
   const mpg = primaryVehicle?.estimatedMpg ?? primaryVehicle?.actualMpg ?? null;
 
+  // Today's stats derived from weekTrips (reliable client-side dates)
+  const todayStr = new Date().toDateString();
+  const todayTripsArr = weekTrips.filter((t) => new Date(t.startedAt).toDateString() === todayStr);
+  const todayMiles = todayTripsArr.reduce((sum, t) => sum + t.distanceMiles, 0);
+  const todayTripsCount = todayTripsArr.length;
+  const todayDeductionPence = dailyRecap?.deductionPence ?? 0;
+
   return (
     <View style={styles.container}>
       <Stack.Screen options={{ title: "Insights & Analytics" }} />
@@ -214,9 +221,9 @@ export default function InsightsScreen() {
             yearBusinessMiles={stats?.businessMiles ?? 0}
             taxYear={stats?.taxYear ?? ""}
             yearBusiestMonth={yearBusiestMonth}
-            todayMiles={dailyRecap?.totalMiles ?? 0}
-            todayTrips={dailyRecap?.totalTrips ?? 0}
-            todayDeductionPence={dailyRecap?.deductionPence ?? 0}
+            todayMiles={todayMiles}
+            todayTrips={todayTripsCount}
+            todayDeductionPence={todayDeductionPence}
           />
         )}
         {isPersonal && trips.length > 0 && <JourneyTimeline trips={trips} />}

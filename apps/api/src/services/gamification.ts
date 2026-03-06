@@ -16,6 +16,34 @@ import {
   type PersonalRecords,
 } from "@mileclear/shared";
 
+// ── UK date helpers ─────────────────────────────────────────────────
+// The server may run in any timezone. All date boundaries must be
+// computed relative to Europe/London so "today" matches the user's day.
+
+function ukNow(): Date {
+  // Get current wall-clock time in Europe/London
+  const parts = new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Europe/London",
+    year: "numeric", month: "2-digit", day: "2-digit",
+    hour: "2-digit", minute: "2-digit", second: "2-digit",
+    hour12: false,
+  }).formatToParts(new Date());
+  const p = (type: string) => parts.find((x) => x.type === type)?.value ?? "0";
+  return new Date(`${p("year")}-${p("month")}-${p("day")}T${p("hour")}:${p("minute")}:${p("second")}.000Z`);
+}
+
+function ukDayStart(ref?: Date): Date {
+  const d = ref ? new Date(ref) : ukNow();
+  d.setUTCHours(0, 0, 0, 0);
+  return d;
+}
+
+function ukDayEnd(ref?: Date): Date {
+  const d = ref ? new Date(ref) : ukNow();
+  d.setUTCHours(23, 59, 59, 999);
+  return d;
+}
+
 // ── Streak computation ──────────────────────────────────────────────
 
 function computeStreak(sortedDatesDesc: string[]): {
@@ -157,11 +185,9 @@ export async function getStats(userId: string): Promise<GamificationStats> {
     where: { userId_taxYear: { userId, taxYear } },
   });
 
-  // Today's miles
-  const todayStart = new Date();
-  todayStart.setHours(0, 0, 0, 0);
-  const todayEnd = new Date();
-  todayEnd.setHours(23, 59, 59, 999);
+  // Today's miles (UK timezone)
+  const todayStart = ukDayStart();
+  const todayEnd = ukDayEnd();
 
   const todayAgg = await prisma.trip.aggregate({
     where: {
@@ -171,12 +197,13 @@ export async function getStats(userId: string): Promise<GamificationStats> {
     _sum: { distanceMiles: true },
   });
 
-  // This week's miles (Monday-based)
-  const weekStart = new Date();
-  const dayOfWeek = weekStart.getDay();
+  // This week's miles (Monday-based, UK timezone)
+  const ukToday = ukNow();
+  const dayOfWeek = ukToday.getUTCDay();
   const diffToMon = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
-  weekStart.setDate(weekStart.getDate() - diffToMon);
-  weekStart.setHours(0, 0, 0, 0);
+  const weekStart = new Date(ukToday);
+  weekStart.setUTCDate(weekStart.getUTCDate() - diffToMon);
+  weekStart.setUTCHours(0, 0, 0, 0);
 
   const weekAgg = await prisma.trip.aggregate({
     where: {
@@ -447,45 +474,37 @@ export async function getPeriodRecap(
   period: "daily" | "weekly" | "monthly",
   referenceDate?: Date
 ): Promise<PeriodRecap> {
-  const ref = referenceDate ?? new Date();
+  // Use UK timezone for all date boundary calculations
+  const ref = referenceDate ? referenceDate : ukNow();
   let start: Date;
   let end: Date;
   let label: string;
 
+  const fmt = (d: Date, opts: Intl.DateTimeFormatOptions) =>
+    d.toLocaleDateString("en-GB", { ...opts, timeZone: "UTC" });
+
   if (period === "daily") {
-    start = new Date(ref);
-    start.setHours(0, 0, 0, 0);
-    end = new Date(ref);
-    end.setHours(23, 59, 59, 999);
-    label = ref.toLocaleDateString("en-GB", {
-      weekday: "long",
-      day: "numeric",
-      month: "long",
-    });
+    start = ukDayStart(ref);
+    end = ukDayEnd(ref);
+    label = fmt(start, { weekday: "long", day: "numeric", month: "long" });
   } else if (period === "weekly") {
     // Monday-based week
-    const dayOfWeek = ref.getDay();
+    const dayOfWeek = ref.getUTCDay();
     const diffToMon = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
     start = new Date(ref);
-    start.setDate(start.getDate() - diffToMon);
-    start.setHours(0, 0, 0, 0);
+    start.setUTCDate(start.getUTCDate() - diffToMon);
+    start.setUTCHours(0, 0, 0, 0);
     end = new Date(start);
-    end.setDate(end.getDate() + 6);
-    end.setHours(23, 59, 59, 999);
+    end.setUTCDate(end.getUTCDate() + 6);
+    end.setUTCHours(23, 59, 59, 999);
 
-    const startStr = start.toLocaleDateString("en-GB", {
-      day: "numeric",
-      month: "short",
-    });
-    const endStr = end.toLocaleDateString("en-GB", {
-      day: "numeric",
-      month: "short",
-    });
+    const startStr = fmt(start, { day: "numeric", month: "short" });
+    const endStr = fmt(end, { day: "numeric", month: "short" });
     label = `Week of ${startStr} – ${endStr}`;
   } else {
-    start = new Date(ref.getFullYear(), ref.getMonth(), 1);
-    end = new Date(ref.getFullYear(), ref.getMonth() + 1, 0, 23, 59, 59, 999);
-    label = ref.toLocaleDateString("en-GB", { month: "long", year: "numeric" });
+    start = new Date(Date.UTC(ref.getUTCFullYear(), ref.getUTCMonth(), 1));
+    end = new Date(Date.UTC(ref.getUTCFullYear(), ref.getUTCMonth() + 1, 0, 23, 59, 59, 999));
+    label = fmt(start, { month: "long", year: "numeric" });
   }
 
   const trips = await prisma.trip.findMany({
@@ -532,10 +551,11 @@ export async function getPeriodRecap(
   for (const [day, miles] of Object.entries(milesByDay)) {
     if (miles > busiestDayMiles) {
       busiestDayMiles = miles;
-      busiestDayLabel = new Date(day).toLocaleDateString("en-GB", {
+      busiestDayLabel = new Date(day + "T12:00:00Z").toLocaleDateString("en-GB", {
         weekday: "long",
         day: "numeric",
         month: "short",
+        timeZone: "UTC",
       });
     }
   }
