@@ -157,7 +157,7 @@ export async function userRoutes(app: FastifyInstance) {
   app.get("/export", async (request, reply) => {
     const userId = request.userId!;
 
-    const [user, vehicles, shifts, trips, fuelLogs, earnings, achievements, mileageSummaries] =
+    const [user, vehicles, shifts, trips, fuelLogs, earnings, achievements, mileageSummaries, tripAnomalies] =
       await Promise.all([
         prisma.user.findUnique({
           where: { id: userId },
@@ -174,6 +174,7 @@ export async function userRoutes(app: FastifyInstance) {
         prisma.earning.findMany({ where: { userId } }),
         prisma.achievement.findMany({ where: { userId } }),
         prisma.mileageSummary.findMany({ where: { userId } }),
+        prisma.tripAnomaly.findMany({ where: { userId } }),
       ]);
 
     const exportData = {
@@ -186,6 +187,7 @@ export async function userRoutes(app: FastifyInstance) {
       earnings,
       achievements,
       mileageSummaries,
+      tripAnomalies,
     };
 
     reply.header("Content-Disposition", "attachment; filename=mileclear-data-export.json");

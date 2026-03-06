@@ -393,15 +393,38 @@ export async function tripRoutes(app: FastifyInstance) {
     return reply.send({ message: "Trip deleted" });
   });
 
+  // Known anomaly types and valid responses per type
+  const VALID_ANOMALY_TYPES = [
+    "indirect_route", "many_stops", "long_idle", "very_short", "very_long",
+    "slow_zone", "long_stop", "sudden_slowdown",
+  ] as const;
+  const VALID_RESPONSES = new Set([
+    // Trip-level anomaly options
+    "Multiple deliveries", "Detour/road closure", "Got lost", "Exploring",
+    "Multiple drop-offs", "Heavy traffic", "Picking up orders", "Errands",
+    "Waiting for order", "Break/rest", "Traffic jam", "Loading/unloading",
+    "Short delivery", "Parking relocation", "Wrong destination", "Discard it",
+    "Long distance delivery", "Commute", "Road trip", "Intercity transfer",
+    // Slow zone options
+    "Roadworks", "Accident or breakdown", "Road closure/diversion",
+    "School traffic", "Event or market", "Weather conditions", "Busy road",
+    // Long stop options
+    "Delivery or pickup", "Waiting for passenger/order", "Parked up",
+    // Generic
+    "Other",
+  ]);
+
   // Submit anomaly response for a trip
-  app.post("/:id/anomaly", async (request, reply) => {
+  app.post("/:id/anomaly", {
+    config: { rateLimit: { max: 20, timeWindow: "1 minute" } },
+  }, async (request, reply) => {
     const { id } = z.object({ id: z.string().uuid() }).parse(request.params);
     const schema = z.object({
-      type: z.string().max(50),
+      type: z.enum(VALID_ANOMALY_TYPES),
       response: z.string().max(500),
       customNote: z.string().max(1000).nullable().optional(),
-      lat: z.number().nullable().optional(),
-      lng: z.number().nullable().optional(),
+      lat: z.number().min(49).max(61).nullable().optional(),   // UK lat range
+      lng: z.number().min(-11).max(2).nullable().optional(),    // UK lng range
       placeName: z.string().max(200).nullable().optional(),
     });
     const parsed = schema.safeParse(request.body);
@@ -410,17 +433,42 @@ export async function tripRoutes(app: FastifyInstance) {
     }
 
     const userId = request.userId!;
+
+    // Validate each comma-separated response value against known options
+    const responseParts = parsed.data.response.split(",").map((s) => s.trim());
+    for (const part of responseParts) {
+      if (!VALID_RESPONSES.has(part)) {
+        return reply.status(400).send({ error: `Invalid response option: ${part}` });
+      }
+    }
+
     const trip = await prisma.trip.findFirst({
       where: { id, userId },
-      select: { id: true, startLat: true, startLng: true, endLat: true, endLng: true },
+      select: { id: true, startLat: true, startLng: true, endLat: true, endLng: true, isManualEntry: true },
     });
     if (!trip) {
       return reply.status(404).send({ error: "Trip not found" });
     }
 
+    // Only allow anomaly submission for GPS-tracked trips (not manual entries)
+    if (trip.isManualEntry) {
+      return reply.status(400).send({ error: "Anomaly reports are only supported for tracked trips" });
+    }
+
+    // Prevent duplicate anomaly submissions (same trip + type)
+    const existing = await prisma.tripAnomaly.findFirst({
+      where: { tripId: id, userId, type: parsed.data.type },
+    });
+    if (existing) {
+      return reply.status(409).send({ error: "Anomaly already reported for this trip" });
+    }
+
     // Use client-provided lat/lng (for location questions) or trip midpoint
-    const anomalyLat = parsed.data.lat ?? (trip.endLat != null ? (trip.startLat + trip.endLat) / 2 : trip.startLat);
-    const anomalyLng = parsed.data.lng ?? (trip.endLng != null ? (trip.startLng + trip.endLng) / 2 : trip.startLng);
+    // Truncate to 3 decimal places (~111m precision) for privacy
+    const rawLat = parsed.data.lat ?? (trip.endLat != null ? (trip.startLat + trip.endLat) / 2 : trip.startLat);
+    const rawLng = parsed.data.lng ?? (trip.endLng != null ? (trip.startLng + trip.endLng) / 2 : trip.startLng);
+    const anomalyLat = Math.round(rawLat * 1000) / 1000;
+    const anomalyLng = Math.round(rawLng * 1000) / 1000;
 
     // Get the question text for the anomaly type
     const questionMap: Record<string, string> = {

@@ -13,7 +13,7 @@ export async function communityInsightRoutes(app: FastifyInstance) {
   app.addHook("preHandler", authMiddleware);
 
   // GET /community-insights?lat=54.9&lng=-1.38
-  app.get("/", async (request, reply) => {
+  app.get("/", { config: { rateLimit: { max: 10, timeWindow: "1 minute" } } }, async (request, reply) => {
     const parsed = querySchema.safeParse(request.query);
     if (!parsed.success) {
       return reply.status(400).send({

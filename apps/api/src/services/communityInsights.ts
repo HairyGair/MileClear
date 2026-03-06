@@ -101,12 +101,13 @@ export async function getCommunityInsights(
       GROUP BY e.userId, e.platform
     `,
 
-    // 4. Nearby anomalies (14 day window — time-decay filters relevance)
+    // 4. Nearby anomalies (14 day window — time-decay filters relevance, excluding self)
     prisma.tripAnomaly.findMany({
       where: {
         lat: { gte: minLat, lte: maxLat },
         lng: { gte: minLng, lte: maxLng },
         createdAt: { gte: anomalyLookback },
+        userId: { not: userId },
       },
       select: {
         type: true,
@@ -136,15 +137,18 @@ export async function getCommunityInsights(
     `,
   ]);
 
-  // Count nearby drivers
-  const nearbyDriverIds = new Set(nearbyTrips.map((t) => t.userId));
+  // Exclude requesting user's own data from community results
+  const otherTrips = nearbyTrips.filter((t) => t.userId !== userId);
+
+  // Count nearby drivers (excluding self)
+  const nearbyDriverIds = new Set(otherTrips.map((t) => t.userId));
   const driversNearby = nearbyDriverIds.size;
 
   // ── Area Earnings (by platform) ──────────────────────────────────
   const platformAgg = new Map<string, { totalPence: number; tripCount: number; drivers: Set<string>; totalMiles: number }>();
 
-  // Get trip miles per platform per user
-  for (const trip of nearbyTrips) {
+  // Get trip miles per platform per user (excluding self)
+  for (const trip of otherTrips) {
     if (!trip.platformTag) continue;
     const key = trip.platformTag.toLowerCase();
     const existing = platformAgg.get(key) ?? { totalPence: 0, tripCount: 0, drivers: new Set(), totalMiles: 0 };
@@ -177,14 +181,15 @@ export async function getCommunityInsights(
   areaEarnings.sort((a, b) => b.earningsPerMilePence - a.earningsPerMilePence);
 
   // ── Peak Hours ───────────────────────────────────────────────────
-  const hourBuckets = new Map<string, { trips: number; totalSpeedSum: number; speedCount: number }>();
-  for (const trip of nearbyTrips) {
+  const hourBuckets = new Map<string, { trips: number; totalSpeedSum: number; speedCount: number; drivers: Set<string> }>();
+  for (const trip of otherTrips) {
     const d = new Date(trip.startedAt);
     const day = DAY_NAMES[d.getUTCDay()];
     const hour = d.getUTCHours();
     const key = `${day}-${hour}`;
-    const existing = hourBuckets.get(key) ?? { trips: 0, totalSpeedSum: 0, speedCount: 0 };
+    const existing = hourBuckets.get(key) ?? { trips: 0, totalSpeedSum: 0, speedCount: 0, drivers: new Set<string>() };
     existing.trips++;
+    existing.drivers.add(trip.userId);
     if (trip.endedAt && trip.distanceMiles > 0) {
       const durationHours = (new Date(trip.endedAt).getTime() - d.getTime()) / 3600000;
       if (durationHours > 0) {
@@ -196,7 +201,7 @@ export async function getCommunityInsights(
   }
 
   const peakHours: AreaPeakHour[] = Array.from(hourBuckets.entries())
-    .filter(([, v]) => v.trips >= 3) // minimum trips to surface
+    .filter(([, v]) => v.trips >= 3 && v.drivers.size >= MIN_DRIVERS_THRESHOLD) // minimum trips + drivers for privacy
     .map(([key, v]) => {
       const [day, hourStr] = key.split("-");
       const hour = parseInt(hourStr, 10);
@@ -274,8 +279,8 @@ export async function getCommunityInsights(
       return {
         type: cluster.type,
         response: topReasons[0] ?? cluster.responses[0],
-        lat: cluster.lat,
-        lng: cluster.lng,
+        lat: Math.round(cluster.lat * 1000) / 1000,   // ~111m precision for privacy
+        lng: Math.round(cluster.lng * 1000) / 1000,
         distanceMiles: Math.round(cluster.dist * 10) / 10,
         reportedAt: cluster.mostRecent.toISOString(),
         reportCount: cluster.count,
