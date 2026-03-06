@@ -73,7 +73,7 @@ export default function PersonalPage() {
   const [fuelTotal, setFuelTotal] = useState(0);
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [loading, setLoading] = useState(true);
-  const [recapView, setRecapView] = useState<RecapView>("monthly");
+  const [recapView, setRecapView] = useState<RecapView>(isPremium ? "monthly" : "daily");
 
   useEffect(() => {
     async function load() {
@@ -94,14 +94,15 @@ export default function PersonalPage() {
         setAchievements(achRes.data);
         setRecentTrips(tripsRes.data);
 
-        // Recaps are premium — fetch separately
+        // Daily recap is free (viral sharing); weekly/monthly are premium
+        const dailyRes = await api.get<{ data: PeriodRecap }>("/gamification/recap?period=daily").catch(() => null);
+        if (dailyRes) setDailyRecap(dailyRes.data);
+
         if (user?.isPremium) {
-          const [dailyRes, weeklyRes, monthlyRes] = await Promise.all([
-            api.get<{ data: PeriodRecap }>("/gamification/recap?period=daily").catch(() => null),
+          const [weeklyRes, monthlyRes] = await Promise.all([
             api.get<{ data: PeriodRecap }>("/gamification/recap?period=weekly").catch(() => null),
             api.get<{ data: PeriodRecap }>("/gamification/recap?period=monthly").catch(() => null),
           ]);
-          if (dailyRes) setDailyRecap(dailyRes.data);
           if (weeklyRes) setWeeklyRecap(weeklyRes.data);
           if (monthlyRes) setMonthlyRecap(monthlyRes.data);
         }
@@ -146,8 +147,8 @@ export default function PersonalPage() {
         </div>
       )}
 
-      {/* Driving Recap — premium */}
-      {isPremium && (weeklyRecap || monthlyRecap || stats) && (
+      {/* Driving Recap — daily is free, weekly/monthly/yearly are premium */}
+      {(dailyRecap || (isPremium && (weeklyRecap || monthlyRecap || stats))) && (
         <div className="driving-recap" style={{ marginBottom: "var(--dash-gap)" }}>
           <div className="driving-recap__header">
             <div className="driving-recap__title">
@@ -160,15 +161,21 @@ export default function PersonalPage() {
               <span>Driving Recap</span>
             </div>
             <div className="driving-recap__toggle">
-              {(["daily", "weekly", "monthly", "yearly"] as const).map((v) => (
-                <button
-                  key={v}
-                  className={`driving-recap__toggle-btn${recapView === v ? " driving-recap__toggle-btn--active" : ""}`}
-                  onClick={() => setRecapView(v)}
-                >
-                  {v === "daily" ? "Day" : v === "weekly" ? "Week" : v === "monthly" ? "Month" : "Year"}
-                </button>
-              ))}
+              {(["daily", "weekly", "monthly", "yearly"] as const).map((v) => {
+                const isLocked = !isPremium && v !== "daily";
+                return (
+                  <button
+                    key={v}
+                    className={`driving-recap__toggle-btn${recapView === v ? " driving-recap__toggle-btn--active" : ""}`}
+                    onClick={() => isLocked ? undefined : setRecapView(v)}
+                    disabled={isLocked}
+                    title={isLocked ? "Upgrade to Pro" : undefined}
+                    style={isLocked ? { opacity: 0.35, cursor: "not-allowed" } : undefined}
+                  >
+                    {isLocked ? "\uD83D\uDD12 " : ""}{v === "daily" ? "Day" : v === "weekly" ? "Week" : v === "monthly" ? "Month" : "Year"}
+                  </button>
+                );
+              })}
             </div>
           </div>
 

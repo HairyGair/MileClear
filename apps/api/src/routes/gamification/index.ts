@@ -49,10 +49,16 @@ export async function gamificationRoutes(app: FastifyInstance) {
     return reply.send({ data });
   });
 
-  app.get("/recap", { preHandler: premiumMiddleware }, async (request, reply) => {
+  app.get("/recap", async (request, reply) => {
     const parsed = recapQuery.safeParse(request.query);
     if (!parsed.success) {
       return reply.status(400).send({ error: parsed.error.issues[0].message });
+    }
+
+    // Daily recap is free (viral sharing); weekly/monthly require premium
+    if (parsed.data.period !== "daily") {
+      await premiumMiddleware(request, reply);
+      if (reply.sent) return;
     }
 
     const userId = request.userId!;

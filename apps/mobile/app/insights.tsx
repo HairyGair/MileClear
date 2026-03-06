@@ -24,7 +24,7 @@ import { usePersonalStats } from "../hooks/usePersonalStats";
 import { useRecentTripsWithCoords } from "../hooks/useRecentTripsWithCoords";
 import { BusinessInsightsCard } from "../components/business/BusinessInsightsCard";
 import { BusinessRecapCard } from "../components/business/BusinessRecapCard";
-import { PremiumGate } from "../components/PremiumGate";
+import { PremiumGate, useIsPremium } from "../components/PremiumGate";
 import { MilestoneTracker } from "../components/personal/MilestoneTracker";
 import { WeeklyActivity, buildWeekDays } from "../components/personal/WeeklyActivity";
 import { DrivingGoals } from "../components/personal/DrivingGoals";
@@ -36,6 +36,7 @@ import { Button } from "../components/Button";
 export default function InsightsScreen() {
   const router = useRouter();
   const { isWork, isPersonal } = useMode();
+  const isPremium = useIsPremium();
 
   const [stats, setStats] = useState<GamificationStats | null>(null);
   const [achievements, setAchievements] = useState<AchievementWithMeta[]>([]);
@@ -157,13 +158,21 @@ export default function InsightsScreen() {
             <Ionicons name="today-outline" size={16} color="#f5a623" />
             <Text style={styles.recapBtnLabel}>Today</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.recapBtn} onPress={() => handleRecap("weekly")} activeOpacity={0.7}>
-            <Ionicons name="calendar-outline" size={16} color="#f5a623" />
-            <Text style={styles.recapBtnLabel}>Week</Text>
+          <TouchableOpacity
+            style={[styles.recapBtn, !isPremium && styles.recapBtnLocked]}
+            onPress={() => isPremium ? handleRecap("weekly") : router.push("/(tabs)/profile" as any)}
+            activeOpacity={0.7}
+          >
+            <Ionicons name={isPremium ? "calendar-outline" : "lock-closed"} size={16} color={isPremium ? "#f5a623" : "#4a5568"} />
+            <Text style={[styles.recapBtnLabel, !isPremium && styles.recapBtnLabelLocked]}>Week</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.recapBtn} onPress={() => handleRecap("monthly")} activeOpacity={0.7}>
-            <Ionicons name="calendar-outline" size={16} color="#f5a623" />
-            <Text style={styles.recapBtnLabel}>Month</Text>
+          <TouchableOpacity
+            style={[styles.recapBtn, !isPremium && styles.recapBtnLocked]}
+            onPress={() => isPremium ? handleRecap("monthly") : router.push("/(tabs)/profile" as any)}
+            activeOpacity={0.7}
+          >
+            <Ionicons name={isPremium ? "calendar-outline" : "lock-closed"} size={16} color={isPremium ? "#f5a623" : "#4a5568"} />
+            <Text style={[styles.recapBtnLabel, !isPremium && styles.recapBtnLabelLocked]}>Month</Text>
           </TouchableOpacity>
         </View>
 
@@ -276,6 +285,13 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontFamily: "PlusJakartaSans_600SemiBold",
     color: "#c9d1d9",
+  },
+  recapBtnLocked: {
+    opacity: 0.45,
+    borderColor: "rgba(255,255,255,0.03)",
+  },
+  recapBtnLabelLocked: {
+    color: "#4a5568",
   },
   // Sections
   section: { marginBottom: 16 },
