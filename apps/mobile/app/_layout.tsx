@@ -207,6 +207,7 @@ function RootNavigator() {
         <Stack.Screen name="sync-status" options={{ headerShown: true, title: "Sync Status" }} />
         <Stack.Screen name="saved-locations" options={{ headerShown: true, title: "Saved Locations" }} />
         <Stack.Screen name="saved-location-form" options={{ headerShown: true, title: "Add Location" }} />
+        <Stack.Screen name="insights" options={{ headerShown: true, title: "Insights & Analytics" }} />
       </Stack>
       {/* Loading overlay — covers Stack while auth/onboarding resolves */}
       {showLoading && (
