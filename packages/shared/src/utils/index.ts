@@ -1,4 +1,4 @@
-import { HMRC_RATES, HMRC_THRESHOLD_MILES } from "../constants/index.js";
+import { HMRC_RATES, HMRC_THRESHOLD_MILES, MILESTONE_MILES } from "../constants/index.js";
 
 /**
  * Calculate the Haversine distance between two coordinates in miles.
@@ -583,4 +583,87 @@ export function getDistanceEquivalent(
     return pick.s.replace("{n}", String(Math.max(1, n)));
   }
   return pick.m.replace("{n}", String(n));
+}
+
+// ── Insurance mileage projection ──────────────────────────────────
+// Not integrated into UI yet — utility for future use.
+
+export interface MileageProjection {
+  /** Projected total miles for the current calendar year */
+  projectedAnnualMiles: number;
+  /** Daily average based on tracking history */
+  dailyAvgMiles: number;
+  /** Number of days of data used for the projection */
+  daysTracked: number;
+  /** Whether the projection is reliable (>= 30 days of data) */
+  isReliable: boolean;
+}
+
+/**
+ * Project annual mileage from total miles and the date range tracked.
+ * @param totalMiles Total miles driven since tracking started
+ * @param firstTripDate Date of the user's first trip
+ * @param now Current date (defaults to now)
+ */
+export function projectAnnualMileage(
+  totalMiles: number,
+  firstTripDate: Date,
+  now: Date = new Date(),
+): MileageProjection {
+  const msPerDay = 86_400_000;
+  const daysTracked = Math.max(1, Math.floor((now.getTime() - firstTripDate.getTime()) / msPerDay));
+  const dailyAvgMiles = totalMiles / daysTracked;
+  const projectedAnnualMiles = Math.round(dailyAvgMiles * 365);
+  return {
+    projectedAnnualMiles,
+    dailyAvgMiles: Math.round(dailyAvgMiles * 10) / 10,
+    daysTracked,
+    isReliable: daysTracked >= 30,
+  };
+}
+
+// ── Milestone progress ────────────────────────────────────────────
+
+export interface MilestoneProgress {
+  /** The next milestone to reach */
+  nextMilestone: number;
+  /** Miles remaining to reach it */
+  milesRemaining: number;
+  /** Progress as 0-1 fraction from previous milestone (or 0) to next */
+  progress: number;
+  /** The milestone after next (for preview) */
+  milestoneAfter: number | null;
+  /** Whether all milestones have been passed */
+  allComplete: boolean;
+}
+
+/**
+ * Calculate progress toward the next mileage milestone.
+ */
+export function getMilestoneProgress(
+  totalMiles: number,
+  milestones: readonly number[] = MILESTONE_MILES,
+): MilestoneProgress {
+  const next = milestones.find((m) => m > totalMiles);
+  if (!next) {
+    return {
+      nextMilestone: milestones[milestones.length - 1],
+      milesRemaining: 0,
+      progress: 1,
+      milestoneAfter: null,
+      allComplete: true,
+    };
+  }
+  const idx = milestones.indexOf(next);
+  const prev = idx > 0 ? milestones[idx - 1] : 0;
+  const range = next - prev;
+  const progress = range > 0 ? (totalMiles - prev) / range : 0;
+  const after = idx + 1 < milestones.length ? milestones[idx + 1] : null;
+  return {
+    nextMilestone: next,
+    milesRemaining: Math.round(next - totalMiles),
+    progress: Math.min(1, Math.max(0, progress)),
+    milestoneAfter: after,
+    allComplete: false,
+  };
 }

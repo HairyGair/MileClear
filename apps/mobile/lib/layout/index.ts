@@ -111,6 +111,18 @@ export const SECTION_REGISTRY: Record<ScreenKey, SectionDef[]> = {
       description: "Insights, Trips, Fuel, Badges",
     },
     {
+      key: "milestone",
+      label: "Mileage Milestone",
+      icon: "flag-outline",
+      description: "Progress to your next milestone",
+    },
+    {
+      key: "driving_patterns",
+      label: "Driving Patterns",
+      icon: "bar-chart-outline",
+      description: "When and where you drive most",
+    },
+    {
       key: "journey_map",
       label: "Recent Journeys",
       icon: "map-outline",

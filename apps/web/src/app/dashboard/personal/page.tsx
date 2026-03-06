@@ -20,6 +20,7 @@ import {
   ACHIEVEMENT_META,
   FREE_ACHIEVEMENT_TYPES,
   getDistanceEquivalent,
+  getMilestoneProgress,
 } from "@mileclear/shared";
 import { useAuth } from "../../../lib/auth-context";
 
@@ -137,6 +138,38 @@ export default function PersonalPage() {
         </div>
       )}
 
+      {/* Mileage Milestone */}
+      {stats && (() => {
+        const ms = getMilestoneProgress(stats.totalMiles);
+        if (ms.allComplete) return null;
+        return (
+          <div className="milestone-card" style={{ marginBottom: "var(--dash-gap)" }}>
+            <div className="milestone-card__header">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--amber-400)" strokeWidth="2" strokeLinecap="round">
+                <path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z" />
+                <line x1="4" y1="22" x2="4" y2="15" />
+              </svg>
+              <span>Next Milestone</span>
+            </div>
+            <div className="milestone-card__target">
+              {ms.nextMilestone.toLocaleString("en-GB")} miles
+            </div>
+            <div className="milestone-card__bar-wrap">
+              <div className="milestone-card__bar" style={{ width: `${Math.round(ms.progress * 100)}%` }} />
+            </div>
+            <div className="milestone-card__info">
+              <span>{ms.milesRemaining.toLocaleString("en-GB")} miles to go</span>
+              <span>{Math.round(ms.progress * 100)}%</span>
+            </div>
+            {ms.milestoneAfter && (
+              <div className="milestone-card__after">
+                Then: {ms.milestoneAfter.toLocaleString("en-GB")} miles
+              </div>
+            )}
+          </div>
+        );
+      })()}
+
       {/* Driving Recap — daily is free, weekly/monthly/yearly are premium */}
       {(dailyRecap || (isPremium && (weeklyRecap || monthlyRecap || stats))) && (
         <div className="driving-recap" style={{ marginBottom: "var(--dash-gap)" }}>
@@ -246,6 +279,90 @@ export default function PersonalPage() {
               </>
             );
           })()}
+        </div>
+      )}
+
+      {/* Driving Patterns */}
+      {stats?.drivingPatterns && (
+        <div className="driving-patterns" style={{ marginBottom: "var(--dash-gap)" }}>
+          <div className="driving-patterns__header">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--amber-400)" strokeWidth="2" strokeLinecap="round">
+              <line x1="18" y1="20" x2="18" y2="10" /><line x1="12" y1="20" x2="12" y2="4" />
+              <line x1="6" y1="20" x2="6" y2="14" />
+            </svg>
+            <span>Driving Patterns</span>
+          </div>
+
+          <div className="driving-patterns__grid">
+            {/* Day of week */}
+            <div className="driving-patterns__section">
+              <div className="driving-patterns__section-title">Busiest Days</div>
+              <div className="driving-patterns__days">
+                {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((day, i) => {
+                  const max = Math.max(...stats.drivingPatterns!.dayOfWeek);
+                  const pct = max > 0 ? (stats.drivingPatterns!.dayOfWeek[i] / max) * 100 : 0;
+                  return (
+                    <div key={day} className="driving-patterns__day">
+                      <div className="driving-patterns__day-bar-wrap">
+                        <div className="driving-patterns__day-bar" style={{ height: `${Math.max(4, pct)}%` }} />
+                      </div>
+                      <span className="driving-patterns__day-label">{day}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Time of day */}
+            <div className="driving-patterns__section">
+              <div className="driving-patterns__section-title">Peak Hours</div>
+              <div className="driving-patterns__times">
+                {[
+                  { label: "Night", range: "00–04", icon: "🌙" },
+                  { label: "Early", range: "04–08", icon: "🌅" },
+                  { label: "Morning", range: "08–12", icon: "☀️" },
+                  { label: "Afternoon", range: "12–16", icon: "🌤️" },
+                  { label: "Evening", range: "16–20", icon: "🌆" },
+                  { label: "Late", range: "20–24", icon: "🌃" },
+                ].map((slot, i) => {
+                  const max = Math.max(...stats.drivingPatterns!.timeOfDay);
+                  const pct = max > 0 ? (stats.drivingPatterns!.timeOfDay[i] / max) * 100 : 0;
+                  const isPeak = stats.drivingPatterns!.timeOfDay[i] === max && max > 0;
+                  return (
+                    <div key={slot.label} className={`driving-patterns__time${isPeak ? " driving-patterns__time--peak" : ""}`}>
+                      <span className="driving-patterns__time-icon">{slot.icon}</span>
+                      <div className="driving-patterns__time-bar-wrap">
+                        <div className="driving-patterns__time-bar" style={{ width: `${Math.max(4, pct)}%` }} />
+                      </div>
+                      <span className="driving-patterns__time-count">{stats.drivingPatterns!.timeOfDay[i]}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+
+          {/* Stats row */}
+          <div className="driving-patterns__stats">
+            <div className="driving-patterns__stat">
+              <span className="driving-patterns__stat-value">{stats.drivingPatterns.avgTripsPerWeek}</span>
+              <span className="driving-patterns__stat-label">trips/week avg</span>
+            </div>
+          </div>
+
+          {/* Top Places */}
+          {stats.drivingPatterns.topPlaces.length > 0 && (
+            <div className="driving-patterns__places">
+              <div className="driving-patterns__section-title">Most Visited</div>
+              {stats.drivingPatterns.topPlaces.map((place, i) => (
+                <div key={i} className="driving-patterns__place">
+                  <span className="driving-patterns__place-rank">{i + 1}</span>
+                  <span className="driving-patterns__place-name">{place.name}</span>
+                  <span className="driving-patterns__place-count">{place.count} {place.count === 1 ? "trip" : "trips"}</span>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
 

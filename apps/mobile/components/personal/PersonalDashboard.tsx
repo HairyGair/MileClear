@@ -9,6 +9,8 @@ import { PostTripCard } from "./PostTripCard";
 import { MapOverview } from "./MapOverview";
 import { CommunityInsightsCard } from "../community/CommunityInsightsCard";
 import { PremiumGate } from "../PremiumGate";
+import { MilestoneTracker } from "./MilestoneTracker";
+import { DrivingPatternsCard } from "./DrivingPatternsCard";
 import type { GamificationStats, PeriodRecap } from "@mileclear/shared";
 import { formatPence } from "@mileclear/shared";
 
@@ -188,6 +190,14 @@ export function PersonalDashboard({ avatarId, stats, visibleKeys, recentTrips, d
             </TouchableOpacity>
           </View>
         );
+      case "milestone":
+        return stats && stats.totalMiles >= 5 ? (
+          <MilestoneTracker key={key} totalMiles={stats.totalMiles} />
+        ) : null;
+      case "driving_patterns":
+        return stats?.drivingPatterns ? (
+          <DrivingPatternsCard key={key} patterns={stats.drivingPatterns} />
+        ) : null;
       case "journey_map":
         return (recentTrips && recentTrips.length > 0) ? (
           <View key={key}>
@@ -211,6 +221,7 @@ export function PersonalDashboard({ avatarId, stats, visibleKeys, recentTrips, d
 
   const sectionOrder = visibleKeys || [
     "personal_summary", "personal_cta", "personal_quicknav",
+    "milestone", "driving_patterns",
     "journey_map", "community",
   ];
 

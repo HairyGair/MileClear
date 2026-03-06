@@ -397,6 +397,17 @@ export interface PersonalRecords {
   longestStreakDays: number;
 }
 
+export interface DrivingPatterns {
+  /** Trips per day of week: index 0 = Monday, 6 = Sunday */
+  dayOfWeek: number[];
+  /** Trips per 4-hour block: 0=00-04, 1=04-08, 2=08-12, 3=12-16, 4=16-20, 5=20-24 */
+  timeOfDay: number[];
+  /** Average trips per week (based on weeks with at least one trip) */
+  avgTripsPerWeek: number;
+  /** Top visited destinations (end addresses) */
+  topPlaces: { name: string; count: number }[];
+}
+
 export interface GamificationStats {
   taxYear: string;
   totalMiles: number;
@@ -410,6 +421,7 @@ export interface GamificationStats {
   weekMiles: number;
   personalRecords: PersonalRecords;
   region?: string;
+  drivingPatterns?: DrivingPatterns;
 }
 
 export interface AchievementWithMeta {

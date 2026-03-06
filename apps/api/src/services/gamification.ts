@@ -246,11 +246,57 @@ export async function getStats(userId: string): Promise<GamificationStats> {
   });
   let region: string | undefined;
   if (recentTrips.length > 0) {
-    // Use median coordinates — more stable than mean against outliers
     const lats = recentTrips.map((t) => t.startLat).sort((a, b) => a - b);
     const lngs = recentTrips.map((t) => t.startLng).sort((a, b) => a - b);
     const mid = Math.floor(lats.length / 2);
     region = detectUkRegion(lats[mid], lngs[mid]) ?? undefined;
+  }
+
+  // Driving patterns — day of week, time of day, top places
+  const patternTrips = await prisma.trip.findMany({
+    where: { userId },
+    select: { startedAt: true, endAddress: true },
+    orderBy: { startedAt: "desc" },
+    take: 500,
+  });
+
+  let drivingPatterns: import("@mileclear/shared").DrivingPatterns | undefined;
+  if (patternTrips.length >= 3) {
+    const dayOfWeek = [0, 0, 0, 0, 0, 0, 0]; // Mon-Sun
+    const timeOfDay = [0, 0, 0, 0, 0, 0]; // 4-hour blocks
+    for (const t of patternTrips) {
+      const d = new Date(t.startedAt);
+      const dow = d.getUTCDay(); // 0=Sun
+      dayOfWeek[dow === 0 ? 6 : dow - 1]++;
+      const hour = d.getUTCHours();
+      timeOfDay[Math.floor(hour / 4)]++;
+    }
+
+    // Average trips per week (weeks with at least one trip)
+    const weekSet = new Set<string>();
+    for (const t of patternTrips) {
+      const d = new Date(t.startedAt);
+      const yearWeek = `${d.getUTCFullYear()}-W${Math.ceil((d.getUTCDate() + new Date(d.getUTCFullYear(), d.getUTCMonth(), 1).getUTCDay()) / 7)}`;
+      weekSet.add(yearWeek);
+    }
+    const avgTripsPerWeek = weekSet.size > 0
+      ? Math.round((patternTrips.length / weekSet.size) * 10) / 10
+      : 0;
+
+    // Top visited places (by end address)
+    const placeCounts: Record<string, number> = {};
+    for (const t of patternTrips) {
+      const addr = t.endAddress?.trim();
+      if (addr && addr !== "Unknown") {
+        placeCounts[addr] = (placeCounts[addr] ?? 0) + 1;
+      }
+    }
+    const topPlaces = Object.entries(placeCounts)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 5)
+      .map(([name, count]) => ({ name, count }));
+
+    drivingPatterns = { dayOfWeek, timeOfDay, avgTripsPerWeek, topPlaces };
   }
 
   return {
@@ -266,6 +312,7 @@ export async function getStats(userId: string): Promise<GamificationStats> {
     weekMiles: weekAgg._sum.distanceMiles ?? 0,
     personalRecords,
     region,
+    drivingPatterns,
   };
 }
 
