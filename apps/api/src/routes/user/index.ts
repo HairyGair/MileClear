@@ -10,6 +10,8 @@ const updateProfileSchema = z.object({
   fullName: z.string().max(200).nullable().optional(),
   avatarId: z.string().max(50).nullable().optional(),
   userIntent: z.enum(["work", "personal", "both"]).nullable().optional(),
+  workType: z.enum(["gig", "employee", "both"]).optional(),
+  employerMileageRatePence: z.number().int().min(0).max(100).nullable().optional(),
   dashboardMode: z.enum(["both", "work", "personal"]).optional(),
   email: z.string().email().optional(),
   currentPassword: z.string().optional(),
@@ -26,6 +28,8 @@ const USER_SELECT = {
   fullName: true,
   avatarId: true,
   userIntent: true,
+  workType: true,
+  employerMileageRatePence: true,
   dashboardMode: true,
   emailVerified: true,
   isPremium: true,
@@ -59,7 +63,7 @@ export async function userRoutes(app: FastifyInstance) {
     }
 
     const userId = request.userId!;
-    const { displayName, fullName, avatarId, userIntent, dashboardMode, email, currentPassword } = parsed.data;
+    const { displayName, fullName, avatarId, userIntent, workType, employerMileageRatePence, dashboardMode, email, currentPassword } = parsed.data;
 
     const currentUser = await prisma.user.findUnique({
       where: { id: userId },
@@ -90,6 +94,16 @@ export async function userRoutes(app: FastifyInstance) {
     // User intent can always be updated
     if (userIntent !== undefined) {
       updateData.userIntent = userIntent;
+    }
+
+    // Work type can always be updated
+    if (workType !== undefined) {
+      updateData.workType = workType;
+    }
+
+    // Employer mileage rate can always be updated
+    if (employerMileageRatePence !== undefined) {
+      updateData.employerMileageRatePence = employerMileageRatePence;
     }
 
     // Dashboard mode can always be updated

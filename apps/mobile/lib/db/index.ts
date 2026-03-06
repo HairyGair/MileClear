@@ -2,7 +2,7 @@
 
 import * as SQLite from "expo-sqlite";
 
-const CURRENT_SCHEMA_VERSION = 4;
+const CURRENT_SCHEMA_VERSION = 5;
 
 let db: SQLite.SQLiteDatabase | null = null;
 
@@ -33,6 +33,8 @@ async function initializeSchema(database: SQLite.SQLiteDatabase): Promise<void> 
       is_manual_entry INTEGER NOT NULL DEFAULT 0,
       classification TEXT NOT NULL DEFAULT 'business',
       platform_tag TEXT,
+      category TEXT,
+      business_purpose TEXT,
       notes TEXT,
       synced_at TEXT
     );
@@ -182,6 +184,20 @@ async function initializeSchema(database: SQLite.SQLiteDatabase): Promise<void> 
     }
     if (!columns.includes("longitude")) {
       await database.execAsync("ALTER TABLE fuel_logs ADD COLUMN longitude REAL;");
+    }
+  }
+
+  if (currentVersion < 5) {
+    // Add category and business_purpose columns to trips table
+    const tripsInfo = await database.getAllAsync<{ name: string }>(
+      "PRAGMA table_info(trips)"
+    );
+    const tripCols = tripsInfo.map((c) => c.name);
+    if (!tripCols.includes("category")) {
+      await database.execAsync("ALTER TABLE trips ADD COLUMN category TEXT;");
+    }
+    if (!tripCols.includes("business_purpose")) {
+      await database.execAsync("ALTER TABLE trips ADD COLUMN business_purpose TEXT;");
     }
   }
 

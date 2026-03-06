@@ -17,7 +17,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useRouter, useLocalSearchParams, Stack } from "expo-router";
 import * as Location from "expo-location";
 import { getCurrentLocation, reverseGeocode } from "../lib/location/geocoding";
-import { fetchTrip, CreateTripData } from "../lib/api/trips";
+import { fetchTrip, CreateTripData, submitTripAnomaly } from "../lib/api/trips";
 import { getLocalTrip } from "../lib/db/queries";
 import {
   syncCreateTrip,
@@ -25,31 +25,48 @@ import {
   syncDeleteTrip,
 } from "../lib/sync/actions";
 import { fetchVehicles } from "../lib/api/vehicles";
-import { GIG_PLATFORMS, TRIP_CATEGORY_META, haversineDistance, fetchRouteDistance } from "@mileclear/shared";
-import type { TripClassification, TripCategory, PlatformTag, Vehicle } from "@mileclear/shared";
+import { GIG_PLATFORMS, BUSINESS_PURPOSES, TRIP_CATEGORY_META, haversineDistance, fetchRouteDistance } from "@mileclear/shared";
+import type { TripClassification, TripCategory, PlatformTag, BusinessPurpose, Vehicle } from "@mileclear/shared";
 import { getDatabase } from "../lib/db/index";
 import { startQuickTripTracking, stopQuickTripTracking, clearDetectionCooldown } from "../lib/tracking";
 import { setLastSavedTrip } from "../lib/events/lastTrip";
 import { LocationPickerField } from "../components/LocationPickerField";
 import { DateTimePickerField } from "../components/DateTimePickerField";
 import { Button } from "../components/Button";
+import { useMode } from "../lib/mode/context";
+import { useUser } from "../lib/user/context";
+import { fetchBusinessInsights } from "../lib/api/businessInsights";
+import { detectAnomalies, type TripAnomalyDef } from "@mileclear/shared";
 
 // Enable LayoutAnimation on Android
 if (Platform.OS === "android" && UIManager.setLayoutAnimationEnabledExperimental) {
   UIManager.setLayoutAnimationEnabledExperimental(true);
 }
 
-// Lazy import MapView for Expo Go compatibility
+// Lazy import MapView for Expo Go compatibility (UIManager guard)
 let MapView: any = null;
 let Marker: any = null;
 let Polyline: any = null;
+const hasNativeMap =
+  Platform.OS !== "web" &&
+  UIManager.getViewManagerConfig?.("AIRMap") != null;
+if (hasNativeMap) {
+  try {
+    const Maps = require("react-native-maps");
+    MapView = Maps.default;
+    Marker = Maps.Marker;
+    Polyline = Maps.Polyline;
+  } catch {
+    // Not available
+  }
+}
+
+// Lazy import expo-haptics (available in Expo Go runtime)
+let Haptics: typeof import("expo-haptics") | null = null;
 try {
-  const Maps = require("react-native-maps");
-  MapView = Maps.default;
-  Marker = Maps.Marker;
-  Polyline = Maps.Polyline;
+  Haptics = require("expo-haptics");
 } catch {
-  // Not available in Expo Go
+  // Not available
 }
 
 type TripMode = "ready" | "driving" | "arrived" | "saving" | "manual" | "editing";
@@ -208,6 +225,54 @@ function computeInsights(crumbs: Breadcrumb[], distMiles: number, durationSecs: 
   };
 }
 
+// Speed colour thresholds for trail segments
+function getSpeedColor(mph: number): string {
+  if (mph < 3) return "#ef4444";      // stopped — red
+  if (mph < 15) return "#f59e0b";     // slow — amber
+  if (mph < 50) return "#f5a623";     // cruising — brand amber
+  return "#10b981";                    // fast — green
+}
+
+// Build speed-coloured polyline segments from trail points
+function buildSpeedSegments(
+  trail: { latitude: number; longitude: number; speed: number }[],
+  accentColor?: string
+): { coords: { latitude: number; longitude: number }[]; color: string }[] {
+  if (trail.length < 2) return [];
+  const segments: { coords: { latitude: number; longitude: number }[]; color: string }[] = [];
+  let currentColor = accentColor || getSpeedColor(trail[0].speed);
+  let currentCoords = [{ latitude: trail[0].latitude, longitude: trail[0].longitude }];
+
+  for (let i = 1; i < trail.length; i++) {
+    const color = accentColor || getSpeedColor(trail[i].speed);
+    const point = { latitude: trail[i].latitude, longitude: trail[i].longitude };
+    if (color !== currentColor) {
+      // Overlap by 1 point for continuity
+      currentCoords.push(point);
+      segments.push({ coords: currentCoords, color: currentColor });
+      currentCoords = [point];
+      currentColor = color;
+    } else {
+      currentCoords.push(point);
+    }
+  }
+  if (currentCoords.length >= 2) {
+    segments.push({ coords: currentCoords, color: currentColor });
+  }
+  return segments;
+}
+
+// Positive message based on trip data
+function getPositiveMessage(distanceMiles: number | null, numberOfStops: number, routeEfficiency: number): string {
+  const miles = distanceMiles ?? 0;
+  if (miles >= 50) return "Epic journey!";
+  if (miles >= 20) return "Great distance covered!";
+  if (numberOfStops === 0) return "Smooth sailing — no stops!";
+  if (routeEfficiency <= 1.3 && routeEfficiency > 0) return "Super direct route!";
+  if (miles >= 5) return "Solid trip logged!";
+  return "Trip tracked!";
+}
+
 const CLASSIFICATIONS: { value: TripClassification; label: string }[] = [
   { value: "business", label: "Business" },
   { value: "personal", label: "Personal" },
@@ -217,6 +282,7 @@ export default function TripFormScreen() {
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id?: string }>();
   const isEditing = !!id;
+  const { user: currentUser } = useUser();
 
   const [mode, setMode] = useState<TripMode>(isEditing ? "editing" : "ready");
   const [loading, setLoading] = useState(true);
@@ -237,6 +303,7 @@ export default function TripFormScreen() {
   const [distanceMiles, setDistanceMiles] = useState<number | null>(null);
   const [classification, setClassification] = useState<TripClassification>("business");
   const [platformTag, setPlatformTag] = useState<PlatformTag | undefined>(undefined);
+  const [businessPurpose, setBusinessPurpose] = useState<BusinessPurpose | undefined>(undefined);
   const [category, setCategory] = useState<TripCategory | undefined>(undefined);
   const [vehicleId, setVehicleId] = useState<string | undefined>(undefined);
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
@@ -262,6 +329,32 @@ export default function TripFormScreen() {
   const breadcrumbsRef = useRef<Breadcrumb[]>([]);
   const [routeTrail, setRouteTrail] = useState<{ latitude: number; longitude: number }[]>([]);
   const [insights, setInsights] = useState<TripInsights | null>(null);
+
+  // Live stats during driving
+  const [liveSpeed, setLiveSpeed] = useState(0);
+  const [liveDistance, setLiveDistance] = useState(0);
+  const [currentArea, setCurrentArea] = useState<string | null>(null);
+  const runningDistanceRef = useRef(0);
+  const breadcrumbCountRef = useRef(0);
+  const lastGeoTimestampRef = useRef(0);
+  const [earningsPerMilePence, setEarningsPerMilePence] = useState<number | null>(null);
+
+  // Speed-coloured driving trail segments
+  const [drivingTrail, setDrivingTrail] = useState<{ latitude: number; longitude: number; speed: number }[]>([]);
+
+  // Mode detection for business vs personal theming
+  const { isPersonal, isWork } = useMode();
+
+  // Anomaly detection
+  const [anomalyDef, setAnomalyDef] = useState<TripAnomalyDef | null>(null);
+  const [anomalyResponse, setAnomalyResponse] = useState<string | null>(null);
+  const [anomalyCustomNote, setAnomalyCustomNote] = useState("");
+
+  // Celebration animations
+  const celebHeaderAnim = useRef(new Animated.Value(0)).current;
+  const celebStatsAnim = useRef(new Animated.Value(0)).current;
+  const celebInsightsAnim = useRef(new Animated.Value(0)).current;
+  const celebSlideAnim = useRef(new Animated.Value(20)).current;
 
   // Pulsing dot animation
   const pulseAnim = useRef(new Animated.Value(1)).current;
@@ -308,7 +401,8 @@ export default function TripFormScreen() {
   useEffect(() => {
     if (!id) return;
     const populateTrip = (t: {
-      classification: string; platformTag?: string | null; category?: string | null; vehicleId?: string | null;
+      classification: string; platformTag?: string | null; businessPurpose?: string | null;
+      category?: string | null; vehicleId?: string | null;
       startAddress?: string | null; endAddress?: string | null;
       startLat: number; startLng: number; endLat?: number | null; endLng?: number | null;
       distanceMiles: number; startedAt: string; endedAt?: string | null; notes?: string | null;
@@ -316,6 +410,7 @@ export default function TripFormScreen() {
     }) => {
       setClassification(t.classification as TripClassification);
       setPlatformTag((t.platformTag ?? undefined) as PlatformTag | undefined);
+      setBusinessPurpose((t.businessPurpose ?? undefined) as BusinessPurpose | undefined);
       setCategory((t.category ?? undefined) as TripCategory | undefined);
       setVehicleId(t.vehicleId ?? undefined);
       setStartAddress(t.startAddress ?? null);
@@ -339,6 +434,19 @@ export default function TripFormScreen() {
       })
       .finally(() => setLoading(false));
   }, [id]);
+
+  // Fetch earnings/mile for business mode live stats
+  useEffect(() => {
+    if (isWork && !isEditing) {
+      fetchBusinessInsights()
+        .then((res) => {
+          if (res.data?.earningsPerMilePence) {
+            setEarningsPerMilePence(res.data.earningsPerMilePence);
+          }
+        })
+        .catch(() => {});
+    }
+  }, [isWork, isEditing]);
 
   // Load vehicles
   useEffect(() => {
@@ -401,14 +509,51 @@ export default function TripFormScreen() {
             setUserLat(latitude);
             setUserLng(longitude);
 
+            // Live speed in mph
+            const mph = Math.round((speed ?? 0) * 2.23694);
+            setLiveSpeed(Math.max(0, mph));
+
             // Store breadcrumb with speed for trip insights
-            breadcrumbsRef.current.push({
+            const crumbs = breadcrumbsRef.current;
+            const crumb: Breadcrumb = {
               lat: latitude,
               lng: longitude,
               speed: speed ?? null,
               accuracy: accuracy ?? null,
               recordedAt: new Date(loc.timestamp).toISOString(),
-            });
+            };
+            crumbs.push(crumb);
+
+            // Accumulate running distance
+            if (crumbs.length >= 2) {
+              const prev = crumbs[crumbs.length - 2];
+              const segDist = haversineDistance(prev.lat, prev.lng, latitude, longitude);
+              runningDistanceRef.current += segDist;
+            }
+            breadcrumbCountRef.current++;
+
+            // Update live distance state every 3rd point to avoid excessive rerenders
+            if (breadcrumbCountRef.current % 3 === 0 || crumbs.length <= 2) {
+              setLiveDistance(Math.round(runningDistanceRef.current * 100) / 100);
+            }
+
+            // Build speed-coloured trail point
+            setDrivingTrail((prev) => [...prev, { latitude, longitude, speed: mph }]);
+
+            // Reverse geocode for personal mode area name (throttled to every 30s)
+            const now = Date.now();
+            if (now - lastGeoTimestampRef.current > 30000) {
+              lastGeoTimestampRef.current = now;
+              reverseGeocode(latitude, longitude)
+                .then((addr) => {
+                  if (addr) {
+                    // Extract area name (town/city) from address
+                    const parts = addr.split(",").map((p) => p.trim());
+                    setCurrentArea(parts.length >= 2 ? parts[parts.length - 2] : parts[0]);
+                  }
+                })
+                .catch(() => {});
+            }
 
             if (followUser && mapRef.current) {
               mapRef.current.animateToRegion(
@@ -461,6 +606,15 @@ export default function TripFormScreen() {
       setStartedAt(now);
       breadcrumbsRef.current = [];
       setInsights(null);
+      setLiveSpeed(0);
+      setLiveDistance(0);
+      setCurrentArea(null);
+      runningDistanceRef.current = 0;
+      breadcrumbCountRef.current = 0;
+      setDrivingTrail([]);
+      setAnomalyDef(null);
+      setAnomalyResponse(null);
+      setAnomalyCustomNote("");
       LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
       setMode("driving");
 
@@ -551,14 +705,42 @@ export default function TripFormScreen() {
         setRouteTrail(crumbs.map((c) => ({ latitude: c.lat, longitude: c.lng })));
       }
 
+      // Detect anomalies for the arrived screen
+      if (finalDistance != null) {
+        const tripInsightsForAnomaly = computeInsights(crumbs, finalDistance, durationSecs);
+        const anomalies = detectAnomalies(finalDistance, durationSecs, tripInsightsForAnomaly);
+        if (anomalies.length > 0) {
+          setAnomalyDef(anomalies[0]); // Show the most significant one
+        }
+      }
+
+      // Haptic feedback on arrival
+      if (Haptics) {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+      }
+
       LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
       setMode("arrived");
+
+      // Trigger celebration animations
+      celebHeaderAnim.setValue(0);
+      celebStatsAnim.setValue(0);
+      celebInsightsAnim.setValue(0);
+      celebSlideAnim.setValue(20);
+      Animated.stagger(100, [
+        Animated.parallel([
+          Animated.timing(celebHeaderAnim, { toValue: 1, duration: 400, useNativeDriver: true }),
+          Animated.timing(celebSlideAnim, { toValue: 0, duration: 400, useNativeDriver: true }),
+        ]),
+        Animated.timing(celebStatsAnim, { toValue: 1, duration: 300, useNativeDriver: true }),
+        Animated.timing(celebInsightsAnim, { toValue: 1, duration: 300, useNativeDriver: true }),
+      ]).start();
     } catch {
       Alert.alert("Error", "Failed to get location.");
     } finally {
       setLoading(false);
     }
-  }, [startLat, startLng, startedAt]);
+  }, [startLat, startLng, startedAt, celebHeaderAnim, celebStatsAnim, celebInsightsAnim, celebSlideAnim]);
 
   const handleRecenter = useCallback(() => {
     setFollowUser(true);
@@ -594,6 +776,7 @@ export default function TripFormScreen() {
         await syncUpdateTrip(id!, {
           classification,
           platformTag: platformTag ?? null,
+          businessPurpose: businessPurpose ?? null,
           category: category ?? null,
           notes: notes.trim() || null,
           endAddress: endAddress ?? null,
@@ -625,12 +808,22 @@ export default function TripFormScreen() {
           ...(endAddress && { endAddress }),
           ...(endedAt && { endedAt: endedAt.toISOString() }),
           ...(platformTag && { platformTag }),
+          ...(businessPurpose && { businessPurpose }),
           ...(category && { category }),
           ...(notes.trim() && { notes: notes.trim() }),
           ...(vehicleId && { vehicleId }),
           ...(coords && { coordinates: coords }),
         };
-        await syncCreateTrip(data);
+        const tripResult = await syncCreateTrip(data);
+
+        // Submit anomaly response if user answered one
+        if (anomalyDef && anomalyResponse && tripResult?.data?.id) {
+          submitTripAnomaly(tripResult.data.id, {
+            type: anomalyDef.type,
+            response: anomalyResponse,
+            customNote: anomalyResponse === "Other" ? anomalyCustomNote || null : null,
+          }).catch(() => {}); // fire-and-forget
+        }
 
         // Clear persisted quick trip state
         const db = await getDatabase();
@@ -655,7 +848,7 @@ export default function TripFormScreen() {
       setSaving(false);
     }
   }, [
-    isEditing, id, classification, platformTag, category, vehicleId,
+    isEditing, id, classification, platformTag, businessPurpose, category, vehicleId,
     startAddress, endAddress, startLat, startLng, endLat, endLng,
     distanceMiles, startedAt, endedAt, notes, router,
   ]);
@@ -719,6 +912,9 @@ export default function TripFormScreen() {
       ? Math.floor((endedAt.getTime() - startedAt.getTime()) / 1000)
       : null;
   const selectedVehicle = vehicles.find((v) => v.id === vehicleId);
+  const workType = currentUser?.workType ?? "gig";
+  const isGigDriver = workType === "gig" || workType === "both";
+  const isEmployeeDriver = workType === "employee" || workType === "both";
   const isQuickMode = mode === "ready" || mode === "driving" || mode === "arrived" || mode === "saving";
   const showMap = isQuickMode && !isEditing;
 
@@ -787,7 +983,7 @@ export default function TripFormScreen() {
                   : undefined
               }
               userInterfaceStyle="dark"
-              showsUserLocation={mode !== "arrived"}
+              showsUserLocation={mode === "ready"}
               scrollEnabled={mode === "driving"}
               zoomEnabled={mode === "driving"}
               rotateEnabled={false}
@@ -800,6 +996,33 @@ export default function TripFormScreen() {
                   pinColor="#34c759"
                 />
               )}
+              {/* Live driving trail — speed-coloured segments */}
+              {mode === "driving" && Polyline && drivingTrail.length >= 2 && (
+                <>
+                  {buildSpeedSegments(drivingTrail).map((seg, i) => (
+                    <Polyline
+                      key={`seg-${i}`}
+                      coordinates={seg.coords}
+                      strokeColor={seg.color}
+                      strokeWidth={3}
+                    />
+                  ))}
+                </>
+              )}
+
+              {/* Custom user marker during driving */}
+              {mode === "driving" && userLat != null && userLng != null && Marker && (
+                <Marker
+                  coordinate={{ latitude: userLat, longitude: userLng }}
+                  anchor={{ x: 0.5, y: 0.5 }}
+                  flat
+                >
+                  <View style={styles.userDot}>
+                    <View style={styles.userDotInner} />
+                  </View>
+                </Marker>
+              )}
+
               {mode === "arrived" && endLat != null && endLng != null && (
                 <>
                   <Marker
@@ -815,7 +1038,7 @@ export default function TripFormScreen() {
                             { latitude: endLat, longitude: endLng },
                           ]
                     }
-                    strokeColor="#f5a623"
+                    strokeColor={isPersonal ? "#10b981" : "#f5a623"}
                     strokeWidth={3}
                   />
                 </>
@@ -835,6 +1058,15 @@ export default function TripFormScreen() {
             <TouchableOpacity style={styles.recenterBtn} onPress={handleRecenter} activeOpacity={0.7}>
               <Ionicons name="locate-outline" size={20} color="#f0f2f5" />
             </TouchableOpacity>
+          )}
+
+          {/* Distance badge overlay during driving */}
+          {mode === "driving" && liveDistance > 0 && (
+            <View style={styles.mapDistanceBadge}>
+              <Text style={[styles.mapDistanceText, isPersonal && { color: "#10b981" }]}>
+                {liveDistance.toFixed(1)} mi
+              </Text>
+            </View>
           )}
         </View>
       )}
@@ -885,21 +1117,63 @@ export default function TripFormScreen() {
                 <Animated.View
                   style={[
                     styles.liveDotOuter,
+                    isPersonal && { backgroundColor: "rgba(16, 185, 129, 0.3)" },
                     { transform: [{ scale: pulseAnim }] },
                   ]}
                 />
-                <View style={styles.liveDot} />
-                <Text style={styles.liveText}>TRIP IN PROGRESS</Text>
+                <View style={[styles.liveDot, isPersonal && { backgroundColor: "#10b981" }]} />
+                <Text style={[styles.liveText, isPersonal && { color: "#10b981" }]}>
+                  {isPersonal ? "JOURNEY IN PROGRESS" : "TRACKING BUSINESS MILES"}
+                </Text>
               </View>
               <Text style={styles.timerText}>{formatTimer(elapsed)}</Text>
             </View>
+
+            {/* Live stats strip */}
+            <View style={styles.liveStatsRow}>
+              <View style={styles.liveStatCard}>
+                <Text style={[styles.liveStatValue, isPersonal && { color: "#10b981" }]}>{liveSpeed}</Text>
+                <Text style={styles.liveStatLabel}>MPH</Text>
+              </View>
+              <View style={styles.liveStatCard}>
+                <Text style={[styles.liveStatValue, isPersonal && { color: "#10b981" }]}>{liveDistance.toFixed(1)}</Text>
+                <Text style={styles.liveStatLabel}>MILES</Text>
+              </View>
+              {isWork && (
+                <View style={styles.liveStatCard}>
+                  <Text style={styles.liveStatValue}>
+                    {earningsPerMilePence != null
+                      ? `${(liveDistance * earningsPerMilePence / 100).toFixed(0)}p`
+                      : "--"}
+                  </Text>
+                  <Text style={styles.liveStatLabel}>EST. EARN</Text>
+                </View>
+              )}
+              {isWork && (
+                <View style={styles.liveStatCard}>
+                  <Text style={styles.liveStatValue}>
+                    {(liveDistance <= 10000 ? liveDistance * 45 : 10000 * 45 + (liveDistance - 10000) * 25).toFixed(0)}p
+                  </Text>
+                  <Text style={styles.liveStatLabel}>HMRC</Text>
+                </View>
+              )}
+              {isPersonal && currentArea && (
+                <View style={[styles.liveStatCard, { flex: 2 }]}>
+                  <Text style={[styles.liveStatValue, { color: "#10b981", fontSize: 16 }]} numberOfLines={1}>
+                    {currentArea}
+                  </Text>
+                  <Text style={styles.liveStatLabel}>AREA</Text>
+                </View>
+              )}
+            </View>
+
             {startAddress && (
               <Text style={styles.addressMuted}>From: {startAddress}</Text>
             )}
 
             <Button
               variant="hero"
-              title="I've Arrived"
+              title={isPersonal ? "I'm Here" : "I've Arrived"}
               icon="flag"
               onPress={handleArrived}
               loading={loading}
@@ -917,8 +1191,25 @@ export default function TripFormScreen() {
         {/* ── Arrived State ── */}
         {mode === "arrived" && (
           <>
+            {/* Celebration header */}
+            <Animated.View style={[styles.celebrationHeader, { opacity: celebHeaderAnim, transform: [{ translateY: celebSlideAnim }] }]}>
+              <View style={styles.celebCheckCircle}>
+                <Ionicons name="checkmark" size={28} color="#fff" />
+              </View>
+              <Text style={styles.celebTitle}>Trip complete!</Text>
+              <Text style={[styles.celebDistance, isPersonal && { color: "#10b981" }]}>
+                {distance != null ? `${distance} mi` : "--"}
+              </Text>
+              <Text style={styles.celebDuration}>
+                {duration != null ? formatTimer(duration) : ""}
+              </Text>
+              <Text style={styles.celebMessage}>
+                {getPositiveMessage(distance, insights?.numberOfStops ?? 0, insights?.routeEfficiency ?? 0)}
+              </Text>
+            </Animated.View>
+
             {/* Route summary */}
-            <View style={styles.routeCard}>
+            <Animated.View style={[styles.routeCard, { opacity: celebStatsAnim }]}>
               <View style={styles.routeRow}>
                 <View style={[styles.routeDot, { backgroundColor: "#34c759" }]} />
                 <Text style={styles.routeText} numberOfLines={1}>
@@ -932,10 +1223,10 @@ export default function TripFormScreen() {
                   {endAddress ?? "End location"}
                 </Text>
               </View>
-            </View>
+            </Animated.View>
 
             {/* Stats */}
-            <View style={styles.statsRow}>
+            <Animated.View style={[styles.statsRow, { opacity: celebStatsAnim }]}>
               <View style={styles.statCard}>
                 <Text style={styles.statValue}>{distance != null ? `${distance}` : "--"}</Text>
                 <Text style={styles.statUnit}>miles</Text>
@@ -944,7 +1235,7 @@ export default function TripFormScreen() {
                 <Text style={styles.statValue}>{duration != null ? formatTimer(duration) : "--"}</Text>
                 <Text style={styles.statUnit}>duration</Text>
               </View>
-            </View>
+            </Animated.View>
 
             {/* Trip Insights */}
             {insights && (
@@ -1015,6 +1306,35 @@ export default function TripFormScreen() {
               </View>
             )}
 
+            {/* Anomaly question */}
+            {anomalyDef && (
+              <View style={styles.anomalyCard}>
+                <Text style={styles.anomalyQuestion}>{anomalyDef.question}</Text>
+                <View style={styles.anomalyOptions}>
+                  {anomalyDef.options.map((opt) => (
+                    <TouchableOpacity
+                      key={opt}
+                      style={[styles.anomalyChip, anomalyResponse === opt && styles.anomalyChipActive]}
+                      onPress={() => setAnomalyResponse(opt)}
+                    >
+                      <Text style={[styles.anomalyChipText, anomalyResponse === opt && styles.anomalyChipTextActive]}>
+                        {opt}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+                {anomalyResponse === "Other" && (
+                  <TextInput
+                    style={[styles.input, { marginTop: 8 }]}
+                    value={anomalyCustomNote}
+                    onChangeText={setAnomalyCustomNote}
+                    placeholder="Tell us more..."
+                    placeholderTextColor="#6b7280"
+                  />
+                )}
+              </View>
+            )}
+
             {/* Classification */}
             <View style={styles.classRow}>
               {CLASSIFICATIONS.map((opt) => (
@@ -1032,36 +1352,81 @@ export default function TripFormScreen() {
               ))}
             </View>
 
-            {/* Platform quick-select for business */}
-            {classification === "business" && (
-              <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={styles.platformRow}
-                style={{ marginBottom: 16 }}
-              >
-                <TouchableOpacity
-                  style={[styles.platformChip, !platformTag && styles.platformChipActive]}
-                  onPress={() => setPlatformTag(undefined)}
+            {/* Platform quick-select for gig drivers */}
+            {classification === "business" && isGigDriver && (
+              <>
+                {isEmployeeDriver && <Text style={styles.chipSectionLabel}>Gig Platform</Text>}
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={styles.platformRow}
+                  style={{ marginBottom: isEmployeeDriver ? 8 : 16 }}
                 >
-                  <Text style={[styles.platformChipText, !platformTag && styles.platformChipTextActive]}>
-                    None
-                  </Text>
-                </TouchableOpacity>
-                {GIG_PLATFORMS.map((p) => (
                   <TouchableOpacity
-                    key={p.value}
-                    style={[styles.platformChip, platformTag === p.value && styles.platformChipActive]}
-                    onPress={() => setPlatformTag(p.value as PlatformTag)}
+                    style={[styles.platformChip, !platformTag && styles.platformChipActive]}
+                    onPress={() => setPlatformTag(undefined)}
                   >
-                    <Text
-                      style={[styles.platformChipText, platformTag === p.value && styles.platformChipTextActive]}
-                    >
-                      {p.label}
+                    <Text style={[styles.platformChipText, !platformTag && styles.platformChipTextActive]}>
+                      None
                     </Text>
                   </TouchableOpacity>
-                ))}
-              </ScrollView>
+                  {GIG_PLATFORMS.map((p) => (
+                    <TouchableOpacity
+                      key={p.value}
+                      style={[styles.platformChip, platformTag === p.value && styles.platformChipActive]}
+                      onPress={() => setPlatformTag(p.value as PlatformTag)}
+                    >
+                      <Text
+                        style={[styles.platformChipText, platformTag === p.value && styles.platformChipTextActive]}
+                      >
+                        {p.label}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+              </>
+            )}
+
+            {/* Business purpose quick-select for employee drivers */}
+            {classification === "business" && isEmployeeDriver && (
+              <>
+                {isGigDriver && <Text style={styles.chipSectionLabel}>Business Purpose</Text>}
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={styles.platformRow}
+                  style={{ marginBottom: 16 }}
+                >
+                  <TouchableOpacity
+                    style={[styles.platformChip, !businessPurpose && styles.platformChipActive]}
+                    onPress={() => setBusinessPurpose(undefined)}
+                  >
+                    <Text style={[styles.platformChipText, !businessPurpose && styles.platformChipTextActive]}>
+                      None
+                    </Text>
+                  </TouchableOpacity>
+                  {BUSINESS_PURPOSES.map((bp) => (
+                    <TouchableOpacity
+                      key={bp.value}
+                      style={[styles.platformChip, businessPurpose === bp.value && styles.platformChipActive]}
+                      onPress={() => setBusinessPurpose(bp.value as BusinessPurpose)}
+                    >
+                      <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+                        <Ionicons
+                          name={bp.icon as any}
+                          size={14}
+                          color={businessPurpose === bp.value ? "#030712" : "#8494a7"}
+                        />
+                        <Text
+                          style={[styles.platformChipText, businessPurpose === bp.value && styles.platformChipTextActive]}
+                        >
+                          {bp.label}
+                        </Text>
+                      </View>
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+              </>
             )}
 
             {/* Category quick-select for personal */}
@@ -1363,35 +1728,80 @@ export default function TripFormScreen() {
 
             {showDetails && (
               <View>
-                {/* Platform */}
-                <Text style={styles.label}>Platform</Text>
-                <ScrollView
-                  horizontal
-                  showsHorizontalScrollIndicator={false}
-                  contentContainerStyle={styles.platformRow}
-                >
-                  <TouchableOpacity
-                    style={[styles.platformChip, !platformTag && styles.platformChipActive]}
-                    onPress={() => setPlatformTag(undefined)}
-                  >
-                    <Text style={[styles.platformChipText, !platformTag && styles.platformChipTextActive]}>
-                      None
-                    </Text>
-                  </TouchableOpacity>
-                  {GIG_PLATFORMS.map((p) => (
-                    <TouchableOpacity
-                      key={p.value}
-                      style={[styles.platformChip, platformTag === p.value && styles.platformChipActive]}
-                      onPress={() => setPlatformTag(p.value as PlatformTag)}
+                {/* Platform (gig drivers) */}
+                {isGigDriver && (
+                  <>
+                    <Text style={styles.label}>Platform</Text>
+                    <ScrollView
+                      horizontal
+                      showsHorizontalScrollIndicator={false}
+                      contentContainerStyle={styles.platformRow}
                     >
-                      <Text
-                        style={[styles.platformChipText, platformTag === p.value && styles.platformChipTextActive]}
+                      <TouchableOpacity
+                        style={[styles.platformChip, !platformTag && styles.platformChipActive]}
+                        onPress={() => setPlatformTag(undefined)}
                       >
-                        {p.label}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                </ScrollView>
+                        <Text style={[styles.platformChipText, !platformTag && styles.platformChipTextActive]}>
+                          None
+                        </Text>
+                      </TouchableOpacity>
+                      {GIG_PLATFORMS.map((p) => (
+                        <TouchableOpacity
+                          key={p.value}
+                          style={[styles.platformChip, platformTag === p.value && styles.platformChipActive]}
+                          onPress={() => setPlatformTag(p.value as PlatformTag)}
+                        >
+                          <Text
+                            style={[styles.platformChipText, platformTag === p.value && styles.platformChipTextActive]}
+                          >
+                            {p.label}
+                          </Text>
+                        </TouchableOpacity>
+                      ))}
+                    </ScrollView>
+                  </>
+                )}
+
+                {/* Business purpose (employee drivers) */}
+                {isEmployeeDriver && (
+                  <>
+                    <Text style={styles.label}>Business Purpose</Text>
+                    <ScrollView
+                      horizontal
+                      showsHorizontalScrollIndicator={false}
+                      contentContainerStyle={styles.platformRow}
+                    >
+                      <TouchableOpacity
+                        style={[styles.platformChip, !businessPurpose && styles.platformChipActive]}
+                        onPress={() => setBusinessPurpose(undefined)}
+                      >
+                        <Text style={[styles.platformChipText, !businessPurpose && styles.platformChipTextActive]}>
+                          None
+                        </Text>
+                      </TouchableOpacity>
+                      {BUSINESS_PURPOSES.map((bp) => (
+                        <TouchableOpacity
+                          key={bp.value}
+                          style={[styles.platformChip, businessPurpose === bp.value && styles.platformChipActive]}
+                          onPress={() => setBusinessPurpose(bp.value as BusinessPurpose)}
+                        >
+                          <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+                            <Ionicons
+                              name={bp.icon as any}
+                              size={14}
+                              color={businessPurpose === bp.value ? "#030712" : "#8494a7"}
+                            />
+                            <Text
+                              style={[styles.platformChipText, businessPurpose === bp.value && styles.platformChipTextActive]}
+                            >
+                              {bp.label}
+                            </Text>
+                          </View>
+                        </TouchableOpacity>
+                      ))}
+                    </ScrollView>
+                  </>
+                )}
 
                 {/* Vehicle */}
                 <Text style={styles.label}>Vehicle</Text>
@@ -1478,7 +1888,7 @@ const styles = StyleSheet.create({
     height: 240,
   },
   mapAreaDriving: {
-    height: 280,
+    height: 320,
   },
   map: {
     flex: 1,
@@ -1781,6 +2191,14 @@ const styles = StyleSheet.create({
     backgroundColor: AMBER,
     borderColor: AMBER,
   },
+  chipSectionLabel: {
+    fontSize: 11,
+    fontFamily: "PlusJakartaSans_600SemiBold",
+    color: "#6b7280",
+    textTransform: "uppercase" as const,
+    letterSpacing: 0.5,
+    marginBottom: 6,
+  },
   platformChipText: {
     fontSize: 12,
     fontFamily: "PlusJakartaSans_600SemiBold",
@@ -1874,5 +2292,144 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontFamily: "PlusJakartaSans_400Regular",
     color: "#fff",
+  },
+  // ── Live stats strip ──────────────────────────────────
+  liveStatsRow: {
+    flexDirection: "row",
+    gap: 6,
+    marginBottom: 12,
+  },
+  liveStatCard: {
+    flex: 1,
+    backgroundColor: CARD_BG,
+    borderRadius: 10,
+    paddingVertical: 10,
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.05)",
+  },
+  liveStatValue: {
+    fontSize: 20,
+    fontFamily: "PlusJakartaSans_700Bold",
+    color: AMBER,
+  },
+  liveStatLabel: {
+    fontSize: 9,
+    fontFamily: "PlusJakartaSans_600SemiBold",
+    color: TEXT_2,
+    marginTop: 2,
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+  },
+  // ── Map distance badge ────────────────────────────────
+  mapDistanceBadge: {
+    position: "absolute",
+    bottom: 12,
+    left: 12,
+    backgroundColor: "rgba(10, 17, 32, 0.85)",
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.08)",
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+  },
+  mapDistanceText: {
+    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontSize: 12,
+    color: AMBER,
+  },
+  // ── User location dot (driving mode) ──────────────────
+  userDot: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: "rgba(245, 166, 35, 0.25)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  userDotInner: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    backgroundColor: AMBER,
+    borderWidth: 2,
+    borderColor: "#fff",
+  },
+  // ── Celebration header ────────────────────────────────
+  celebrationHeader: {
+    alignItems: "center",
+    marginBottom: 16,
+  },
+  celebCheckCircle: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: "#10b981",
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 12,
+  },
+  celebTitle: {
+    fontSize: 20,
+    fontFamily: "PlusJakartaSans_700Bold",
+    color: TEXT_1,
+    marginBottom: 4,
+  },
+  celebDistance: {
+    fontSize: 32,
+    fontFamily: "PlusJakartaSans_700Bold",
+    color: AMBER,
+    marginBottom: 2,
+  },
+  celebDuration: {
+    fontSize: 14,
+    fontFamily: "PlusJakartaSans_400Regular",
+    color: TEXT_2,
+    marginBottom: 8,
+  },
+  celebMessage: {
+    fontSize: 14,
+    fontFamily: "PlusJakartaSans_500Medium",
+    color: "#10b981",
+  },
+  // ── Anomaly card ──────────────────────────────────────
+  anomalyCard: {
+    backgroundColor: "#0a1628",
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "rgba(245, 166, 35, 0.2)",
+    padding: 14,
+    marginBottom: 16,
+  },
+  anomalyQuestion: {
+    fontSize: 14,
+    fontFamily: "PlusJakartaSans_600SemiBold",
+    color: TEXT_1,
+    marginBottom: 10,
+  },
+  anomalyOptions: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+  },
+  anomalyChip: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 20,
+    backgroundColor: "#111827",
+    borderWidth: 1,
+    borderColor: "#1f2937",
+  },
+  anomalyChipActive: {
+    backgroundColor: AMBER,
+    borderColor: AMBER,
+  },
+  anomalyChipText: {
+    fontSize: 12,
+    fontFamily: "PlusJakartaSans_500Medium",
+    color: "#9ca3af",
+  },
+  anomalyChipTextActive: {
+    color: "#030712",
   },
 });

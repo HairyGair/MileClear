@@ -1,5 +1,6 @@
 // LiveMapTracker — follows the user's current location with optional breadcrumb trail.
 // Works in both active shift (reads shift_coordinates from SQLite) and personal mode.
+// Supports per-trip polyline segments when showTripSegments is enabled.
 
 import { useEffect, useRef, useState, useCallback } from "react";
 import {
@@ -9,11 +10,14 @@ import {
   TouchableOpacity,
   UIManager,
   Platform,
+  Animated,
 } from "react-native";
 import * as Location from "expo-location";
 import { Ionicons } from "@expo/vector-icons";
 import { getDatabase } from "../../lib/db/index";
 import { AvatarIcon } from "../avatars/AvatarRegistry";
+import { segmentTrips, type StoredCoordinate } from "../../lib/tracking/index";
+import { reverseGeocode } from "../../lib/location/geocoding";
 
 
 // ── Lazy native map import (Expo Go safe) ──────────────────────────
@@ -43,6 +47,22 @@ interface LatLng {
   longitude: number;
 }
 
+interface TripSegment {
+  coords: LatLng[];
+  rawCoords: StoredCoordinate[];
+  color: string;
+  index: number;
+}
+
+export interface TripTapInfo {
+  index: number;
+  distance: number;
+  duration: number;
+  startAddress: string | null;
+  endAddress: string | null;
+  avgSpeed: number;
+}
+
 interface LiveMapTrackerProps {
   /** Active shift ID — if set, reads trail from shift_coordinates table */
   shiftId?: string | null;
@@ -52,6 +72,10 @@ interface LiveMapTrackerProps {
   trailDefault?: boolean;
   /** User's selected avatar ID — shown as map marker */
   avatarId?: string | null;
+  /** Show per-trip polyline segments instead of one continuous trail */
+  showTripSegments?: boolean;
+  /** Callback when a trip segment is tapped */
+  onTripTap?: (info: TripTapInfo) => void;
 }
 
 // ── Constants ───────────────────────────────────────────────────────
@@ -63,6 +87,10 @@ const TEXT_2 = "#8494a7";
 const TRAIL_POLL_MS = 3000; // Poll shift_coordinates every 3s
 const LOCATION_INTERVAL_MS = 2000; // Foreground location watch interval
 
+const SEGMENT_COLORS = [
+  "#f5a623", "#10b981", "#3b82f6", "#8b5cf6", "#ec4899", "#06b6d4",
+];
+
 // ── Component ───────────────────────────────────────────────────────
 
 export function LiveMapTracker({
@@ -70,6 +98,8 @@ export function LiveMapTracker({
   height = 260,
   trailDefault = true,
   avatarId,
+  showTripSegments = false,
+  onTripTap,
 }: LiveMapTrackerProps) {
   const mapRef = useRef<any>(null);
   const [userLocation, setUserLocation] = useState<LatLng | null>(null);
@@ -78,6 +108,12 @@ export function LiveMapTracker({
   const [showTrail, setShowTrail] = useState(trailDefault);
   const [followUser, setFollowUser] = useState(true);
   const personalTrailRef = useRef<LatLng[]>([]);
+
+  // Trip segments state
+  const [tripSegments, setTripSegments] = useState<TripSegment[]>([]);
+  const [selectedSegment, setSelectedSegment] = useState<number | null>(null);
+  const lastCoordCountRef = useRef(0);
+  const rawCoordsRef = useRef<StoredCoordinate[]>([]);
 
   // ── Foreground location watcher ────────────────────────────────
   useEffect(() => {
@@ -137,13 +173,39 @@ export function LiveMapTracker({
     const poll = async () => {
       try {
         const db = await getDatabase();
-        const rows = await db.getAllAsync<{ lat: number; lng: number }>(
-          "SELECT lat, lng FROM shift_coordinates WHERE shift_id = ? ORDER BY recorded_at ASC",
+        const rows = await db.getAllAsync<{
+          lat: number;
+          lng: number;
+          speed: number | null;
+          accuracy: number | null;
+          recorded_at: string;
+        }>(
+          "SELECT lat, lng, speed, accuracy, recorded_at FROM shift_coordinates WHERE shift_id = ? ORDER BY recorded_at ASC",
           [shiftId]
         );
-        if (mounted) {
-          setTrail(
-            rows.map((r) => ({ latitude: r.lat, longitude: r.lng }))
+        if (!mounted) return;
+
+        setTrail(rows.map((r) => ({ latitude: r.lat, longitude: r.lng })));
+
+        // Build trip segments if enabled and count changed
+        if (showTripSegments && rows.length !== lastCoordCountRef.current) {
+          lastCoordCountRef.current = rows.length;
+          const storedCoords: StoredCoordinate[] = rows.map((r) => ({
+            lat: r.lat,
+            lng: r.lng,
+            speed: r.speed,
+            accuracy: r.accuracy,
+            recorded_at: r.recorded_at,
+          }));
+          rawCoordsRef.current = storedCoords;
+          const segments = segmentTrips(storedCoords);
+          setTripSegments(
+            segments.map((seg, i) => ({
+              coords: seg.map((c) => ({ latitude: c.lat, longitude: c.lng })),
+              rawCoords: seg,
+              color: SEGMENT_COLORS[i % SEGMENT_COLORS.length],
+              index: i,
+            }))
           );
         }
       } catch {
@@ -158,7 +220,58 @@ export function LiveMapTracker({
       mounted = false;
       clearInterval(interval);
     };
-  }, [shiftId]);
+  }, [shiftId, showTripSegments]);
+
+  // ── Handle trip segment tap ──────────────────────────────────
+  const handleSegmentTap = useCallback(
+    async (segment: TripSegment) => {
+      setSelectedSegment(segment.index);
+
+      if (!onTripTap || segment.rawCoords.length < 2) return;
+
+      // Calculate distance
+      let dist = 0;
+      for (let i = 1; i < segment.rawCoords.length; i++) {
+        const prev = segment.rawCoords[i - 1];
+        const curr = segment.rawCoords[i];
+        dist += trailDistance([
+          { latitude: prev.lat, longitude: prev.lng },
+          { latitude: curr.lat, longitude: curr.lng },
+        ]);
+      }
+
+      // Calculate duration
+      const first = segment.rawCoords[0];
+      const last = segment.rawCoords[segment.rawCoords.length - 1];
+      const durationMs =
+        new Date(last.recorded_at).getTime() -
+        new Date(first.recorded_at).getTime();
+      const durationSecs = Math.round(durationMs / 1000);
+
+      // Avg speed
+      const avgSpeed = durationSecs > 0 ? (dist / durationSecs) * 3600 : 0;
+
+      // Reverse geocode start and end
+      let startAddress: string | null = null;
+      let endAddress: string | null = null;
+      try {
+        [startAddress, endAddress] = await Promise.all([
+          reverseGeocode(first.lat, first.lng),
+          reverseGeocode(last.lat, last.lng),
+        ]);
+      } catch {}
+
+      onTripTap({
+        index: segment.index,
+        distance: Math.round(dist * 100) / 100,
+        duration: durationSecs,
+        startAddress,
+        endAddress,
+        avgSpeed: Math.round(avgSpeed),
+      });
+    },
+    [onTripTap]
+  );
 
   // ── Reset personal trail when toggled off ─────────────────────
   const handleToggleTrail = useCallback(() => {
@@ -218,6 +331,8 @@ export function LiveMapTracker({
         longitudeDelta: 0.05,
       };
 
+  const useSegments = showTripSegments && tripSegments.length > 0;
+
   return (
     <View style={[styles.container, { height }]}>
       <MapViewComponent
@@ -232,9 +347,52 @@ export function LiveMapTracker({
         toolbarEnabled={false}
         rotateEnabled={false}
         onPanDrag={() => setFollowUser(false)}
+        onPress={() => setSelectedSegment(null)}
       >
-        {/* Trail polyline */}
-        {showTrail && trail.length >= 2 && PolylineComponent && (
+        {/* Per-trip segment polylines */}
+        {useSegments &&
+          showTrail &&
+          PolylineComponent &&
+          tripSegments.map((seg) => (
+            <PolylineComponent
+              key={`trip-${seg.index}`}
+              coordinates={seg.coords}
+              strokeColor={seg.color}
+              strokeWidth={selectedSegment === seg.index ? 5 : selectedSegment != null ? 1.5 : 3}
+              tappable
+              onPress={() => handleSegmentTap(seg)}
+            />
+          ))}
+
+        {/* Trip boundary markers */}
+        {useSegments &&
+          showTrail &&
+          MarkerComponent &&
+          tripSegments.map((seg) => (
+            <MarkerComponent
+              key={`start-${seg.index}`}
+              coordinate={seg.coords[0]}
+              anchor={{ x: 0.5, y: 0.5 }}
+            >
+              <View style={styles.startDot} />
+            </MarkerComponent>
+          ))}
+
+        {useSegments &&
+          showTrail &&
+          MarkerComponent &&
+          tripSegments.map((seg) => (
+            <MarkerComponent
+              key={`end-${seg.index}`}
+              coordinate={seg.coords[seg.coords.length - 1]}
+              anchor={{ x: 0.5, y: 0.5 }}
+            >
+              <View style={styles.endDot} />
+            </MarkerComponent>
+          ))}
+
+        {/* Single trail polyline (non-segmented mode) */}
+        {!useSegments && showTrail && trail.length >= 2 && PolylineComponent && (
           <PolylineComponent
             coordinates={trail}
             strokeColor={AMBER}
@@ -243,8 +401,8 @@ export function LiveMapTracker({
           />
         )}
 
-        {/* Trail start marker */}
-        {showTrail && trail.length >= 2 && MarkerComponent && (
+        {/* Trail start marker (non-segmented) */}
+        {!useSegments && showTrail && trail.length >= 2 && MarkerComponent && (
           <MarkerComponent
             coordinate={trail[0]}
             anchor={{ x: 0.5, y: 0.5 }}
@@ -316,6 +474,15 @@ export function LiveMapTracker({
         <View style={styles.distanceBadge}>
           <Text style={styles.distanceText}>
             {trailDistance(trail).toFixed(1)} mi
+          </Text>
+        </View>
+      )}
+
+      {/* Trip count badge */}
+      {useSegments && showTrail && (
+        <View style={styles.tripCountBadge}>
+          <Text style={styles.tripCountText}>
+            {tripSegments.length} trip{tripSegments.length !== 1 ? "s" : ""}
           </Text>
         </View>
       )}
@@ -400,6 +567,22 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: AMBER,
   },
+  tripCountBadge: {
+    position: "absolute",
+    bottom: 12,
+    right: 12,
+    backgroundColor: "rgba(10, 17, 32, 0.85)",
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.08)",
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+  },
+  tripCountText: {
+    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontSize: 12,
+    color: "#10b981",
+  },
   // User location dot
   userDot: {
     width: 22,
@@ -435,6 +618,15 @@ const styles = StyleSheet.create({
     height: 10,
     borderRadius: 5,
     backgroundColor: "#34c759",
+    borderWidth: 2,
+    borderColor: "#fff",
+  },
+  // End dot (red)
+  endDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: "#ef4444",
     borderWidth: 2,
     borderColor: "#fff",
   },

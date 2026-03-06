@@ -8,6 +8,9 @@ export interface UpdateProfileData {
   email?: string;
   currentPassword?: string;
   userIntent?: "work" | "personal" | "both" | null;
+  workType?: "gig" | "employee" | "both";
+  employerMileageRatePence?: number | null;
+  dashboardMode?: "both" | "work" | "personal";
 }
 
 export function fetchProfile() {

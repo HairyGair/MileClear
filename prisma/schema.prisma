@@ -27,6 +27,8 @@ model User {
   pushToken            String?   @db.VarChar(255)
   avatarId             String?   @db.VarChar(50)
   userIntent           String?   @db.VarChar(20)
+  workType             String    @default("gig") @db.VarChar(20)
+  employerMileageRatePence Int?
   dashboardMode        String    @default("both") @db.VarChar(20)
   createdAt            DateTime  @default(now())
   updatedAt            DateTime  @updatedAt
@@ -45,6 +47,7 @@ model User {
   feedback            Feedback[]
   feedbackVotes       FeedbackVote[]
   savedLocations      SavedLocation[]
+  tripAnomalies       TripAnomaly[]
 
   @@map("users")
 }
@@ -117,6 +120,7 @@ model Trip {
   isManualEntry  Boolean   @default(false)
   classification String    @default("business")
   platformTag    String?
+  businessPurpose String?
   category       String?
   notes          String?   @db.Text
   routePolyline  String?   @db.LongText
@@ -127,6 +131,7 @@ model Trip {
   shift       Shift?            @relation(fields: [shiftId], references: [id])
   vehicle     Vehicle?          @relation(fields: [vehicleId], references: [id])
   coordinates TripCoordinate[]
+  anomalies   TripAnomaly[]
 
   @@index([userId, startedAt])
   @@index([userId, classification])
@@ -146,6 +151,26 @@ model TripCoordinate {
 
   @@index([tripId, recordedAt])
   @@map("trip_coordinates")
+}
+
+model TripAnomaly {
+  id          String   @id @default(uuid())
+  tripId      String
+  userId      String
+  type        String
+  question    String   @db.Text
+  response    String
+  customNote  String?  @db.Text
+  lat         Float?
+  lng         Float?
+  createdAt   DateTime @default(now())
+
+  trip Trip @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([type])
+  @@index([lat, lng])
+  @@map("trip_anomalies")
 }
 
 model FuelLog {

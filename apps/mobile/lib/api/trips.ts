@@ -6,6 +6,7 @@ import type {
   TripClassification,
   TripCategory,
   PlatformTag,
+  BusinessPurpose,
   Vehicle,
   Shift,
   PaginatedResponse,
@@ -44,6 +45,7 @@ export interface CreateTripData {
   endedAt?: string;
   classification?: TripClassification;
   platformTag?: PlatformTag;
+  businessPurpose?: BusinessPurpose;
   category?: TripCategory;
   notes?: string;
   coordinates?: CoordinateInput[];
@@ -52,6 +54,7 @@ export interface CreateTripData {
 export interface UpdateTripData {
   classification?: TripClassification;
   platformTag?: PlatformTag | null;
+  businessPurpose?: BusinessPurpose | null;
   category?: TripCategory | null;
   notes?: string | null;
   endAddress?: string | null;
@@ -101,5 +104,15 @@ export function updateTrip(id: string, data: UpdateTripData) {
 export function deleteTrip(id: string) {
   return apiRequest<{ message: string }>(`/trips/${id}`, {
     method: "DELETE",
+  });
+}
+
+export function submitTripAnomaly(
+  tripId: string,
+  data: { type: string; response: string; customNote?: string | null }
+) {
+  return apiRequest<{ data: unknown }>(`/trips/${tripId}/anomaly`, {
+    method: "POST",
+    body: JSON.stringify(data),
   });
 }

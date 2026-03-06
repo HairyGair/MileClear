@@ -50,8 +50,8 @@ export async function syncCreateTrip(data: CreateTripData) {
   await db.runAsync(
     `INSERT INTO trips (id, shift_id, vehicle_id, start_lat, start_lng, end_lat, end_lng,
       start_address, end_address, distance_miles, started_at, ended_at,
-      is_manual_entry, classification, platform_tag, notes)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      is_manual_entry, classification, platform_tag, category, business_purpose, notes)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       localId,
       data.shiftId ?? null,
@@ -68,6 +68,8 @@ export async function syncCreateTrip(data: CreateTripData) {
       data.coordinates ? 0 : 1,
       data.classification ?? "business",
       data.platformTag ?? null,
+      data.category ?? null,
+      data.businessPurpose ?? null,
       data.notes ?? null,
     ]
   );
@@ -109,6 +111,8 @@ export async function syncUpdateTrip(id: string, data: UpdateTripData) {
   const values: SQLiteBindValue[] = [];
   if (data.classification !== undefined) { setClauses.push("classification = ?"); values.push(data.classification); }
   if (data.platformTag !== undefined) { setClauses.push("platform_tag = ?"); values.push(data.platformTag); }
+  if (data.category !== undefined) { setClauses.push("category = ?"); values.push(data.category); }
+  if (data.businessPurpose !== undefined) { setClauses.push("business_purpose = ?"); values.push(data.businessPurpose); }
   if (data.notes !== undefined) { setClauses.push("notes = ?"); values.push(data.notes); }
   if (data.endAddress !== undefined) { setClauses.push("end_address = ?"); values.push(data.endAddress); }
   if (data.endLat !== undefined) { setClauses.push("end_lat = ?"); values.push(data.endLat); }

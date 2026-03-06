@@ -112,6 +112,7 @@ export async function fetchExportTrips(
       distanceMiles: Math.round(trip.distanceMiles * 100) / 100,
       classification: trip.classification as "business" | "personal",
       platform: trip.platformTag,
+      businessPurpose: trip.businessPurpose,
       vehicleType: trip.vehicle?.vehicleType as VehicleType | null,
       vehicleName: trip.vehicle
         ? `${trip.vehicle.make} ${trip.vehicle.model}`

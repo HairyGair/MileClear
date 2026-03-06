@@ -21,8 +21,8 @@ import { createVehicle } from "../lib/api/vehicles";
 import { updateProfile } from "../lib/api/user";
 import { getDatabase } from "../lib/db/index";
 import { useMode } from "../lib/mode/context";
-import type { FuelType, VehicleType } from "@mileclear/shared";
-import { FUEL_TYPES, VEHICLE_TYPES } from "@mileclear/shared";
+import type { FuelType, VehicleType, WorkType } from "@mileclear/shared";
+import { FUEL_TYPES, VEHICLE_TYPES, WORK_TYPES } from "@mileclear/shared";
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
@@ -103,6 +103,7 @@ export default function OnboardingScreen() {
 
   // User intent
   const [userIntent, setUserIntent] = useState<"work" | "personal" | "both" | null>(null);
+  const [workType, setWorkType] = useState<WorkType>("gig");
   const { setMode: setAppMode } = useMode();
 
   // Location state
@@ -212,7 +213,10 @@ export default function OnboardingScreen() {
 
       // Save intent to server (fire-and-forget)
       if (userIntent) {
-        updateProfile({ userIntent }).catch(() => {});
+        updateProfile({
+          userIntent,
+          ...(userIntent !== "personal" && { workType }),
+        }).catch(() => {});
       }
 
       router.replace("/(tabs)/dashboard");
@@ -371,6 +375,56 @@ export default function OnboardingScreen() {
                 </Text>
               </TouchableOpacity>
             </View>
+
+            {(userIntent === "work" || userIntent === "both") && (
+              <View style={s.workTypeSection}>
+                <Text style={s.workTypeHeading}>What kind of work?</Text>
+                <Text style={s.workTypeSubtext}>This helps us show the right trip tagging options.</Text>
+                <View style={s.intentCards}>
+                  <TouchableOpacity
+                    style={[s.intentCard, workType === "gig" && s.intentCardActive]}
+                    onPress={() => setWorkType("gig")}
+                    activeOpacity={0.75}
+                  >
+                    <View style={[s.intentIconWrap, workType === "gig" && s.intentIconWrapActive]}>
+                      <Ionicons name="bicycle-outline" size={24} color={workType === "gig" ? AMBER : TEXT_2} />
+                    </View>
+                    <Text style={[s.intentTitle, workType === "gig" && s.intentTitleActive]}>Gig / Delivery</Text>
+                    <Text style={s.intentDesc}>
+                      Uber, Deliveroo, Just Eat, Amazon Flex, and other platforms
+                    </Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={[s.intentCard, workType === "employee" && s.intentCardActive]}
+                    onPress={() => setWorkType("employee")}
+                    activeOpacity={0.75}
+                  >
+                    <View style={[s.intentIconWrap, workType === "employee" && s.intentIconWrapActive]}>
+                      <Ionicons name="briefcase-outline" size={24} color={workType === "employee" ? AMBER : TEXT_2} />
+                    </View>
+                    <Text style={[s.intentTitle, workType === "employee" && s.intentTitleActive]}>Employee Driver</Text>
+                    <Text style={s.intentDesc}>
+                      I drive my own car for work — client visits, site trips, between offices
+                    </Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={[s.intentCard, workType === "both" && s.intentCardActive]}
+                    onPress={() => setWorkType("both")}
+                    activeOpacity={0.75}
+                  >
+                    <View style={[s.intentIconWrap, workType === "both" && s.intentIconWrapActive]}>
+                      <Ionicons name="git-branch-outline" size={24} color={workType === "both" ? AMBER : TEXT_2} />
+                    </View>
+                    <Text style={[s.intentTitle, workType === "both" && s.intentTitleActive]}>Both</Text>
+                    <Text style={s.intentDesc}>
+                      I do gig work and also drive for my employer
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            )}
 
             <Button
               title="Continue"
@@ -929,6 +983,24 @@ const s = StyleSheet.create({
     color: TEXT_3,
     lineHeight: 19,
     flex: 1,
+  },
+
+  workTypeSection: {
+    marginTop: 4,
+    marginBottom: 24,
+  },
+  workTypeHeading: {
+    fontSize: 18,
+    fontFamily: "PlusJakartaSans_600SemiBold",
+    color: TEXT_1,
+    marginBottom: 4,
+  },
+  workTypeSubtext: {
+    fontSize: 13,
+    fontFamily: "PlusJakartaSans_400Regular",
+    color: TEXT_2,
+    marginBottom: 16,
+    lineHeight: 20,
   },
 
   // ── How It Works step ──────────────────────────────────────────

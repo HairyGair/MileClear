@@ -13,7 +13,8 @@ import { Pagination } from "../../../components/ui/Pagination";
 import { EmptyState } from "../../../components/ui/EmptyState";
 import { LoadingSkeleton } from "../../../components/ui/LoadingSkeleton";
 import type { Trip, TripInsights, TripCoordinate, PaginatedResponse } from "@mileclear/shared";
-import { GIG_PLATFORMS, fetchRouteDistance } from "@mileclear/shared";
+import { GIG_PLATFORMS, BUSINESS_PURPOSES, fetchRouteDistance } from "@mileclear/shared";
+import { useAuth } from "../../../lib/auth-context";
 
 interface DetailTrip extends Trip {
   insights?: TripInsights | null;
@@ -27,7 +28,17 @@ const PLATFORM_OPTIONS = GIG_PLATFORMS.map((p) => ({
   label: p.label,
 }));
 
+const PURPOSE_OPTIONS = BUSINESS_PURPOSES.map((bp) => ({
+  value: bp.value,
+  label: bp.label,
+}));
+
 export default function TripsPage() {
+  const { user } = useAuth();
+  const workType = (user as any)?.workType ?? "gig";
+  const isGigDriver = workType === "gig" || workType === "both";
+  const isEmployeeDriver = workType === "employee" || workType === "both";
+
   const [trips, setTrips] = useState<Trip[]>([]);
   const [total, setTotal] = useState(0);
   const [totalPages, setTotalPages] = useState(0);
@@ -40,6 +51,7 @@ export default function TripsPage() {
   const [editTrip, setEditTrip] = useState<Trip | null>(null);
   const [editClass, setEditClass] = useState("business");
   const [editPlatform, setEditPlatform] = useState("");
+  const [editBusinessPurpose, setEditBusinessPurpose] = useState("");
   const [editNotes, setEditNotes] = useState("");
   const [editLoading, setEditLoading] = useState(false);
 
@@ -51,6 +63,7 @@ export default function TripsPage() {
     distanceMiles: "",
     classification: "business",
     platformTag: "",
+    businessPurpose: "",
     notes: "",
     startedAt: new Date().toISOString().slice(0, 16),
   });
@@ -189,6 +202,7 @@ export default function TripsPage() {
     setEditTrip(trip);
     setEditClass(trip.classification);
     setEditPlatform(trip.platformTag || "");
+    setEditBusinessPurpose((trip as any).businessPurpose || "");
     setEditNotes(trip.notes || "");
   };
 
@@ -199,6 +213,7 @@ export default function TripsPage() {
       await api.patch(`/trips/${editTrip.id}`, {
         classification: editClass,
         platformTag: editPlatform || null,
+        businessPurpose: editBusinessPurpose || null,
         notes: editNotes || null,
       });
       setEditTrip(null);
@@ -234,6 +249,7 @@ export default function TripsPage() {
         distanceMiles: distance,
         classification: addForm.classification,
         platformTag: addForm.platformTag || undefined,
+        businessPurpose: addForm.businessPurpose || undefined,
         notes: addForm.notes || undefined,
         startedAt: new Date(addForm.startedAt).toISOString(),
         startLat: addCoords?.startLat ?? 0,
@@ -250,6 +266,7 @@ export default function TripsPage() {
         distanceMiles: "",
         classification: "business",
         platformTag: "",
+        businessPurpose: "",
         notes: "",
         startedAt: new Date().toISOString().slice(0, 16),
       });
@@ -545,13 +562,24 @@ export default function TripsPage() {
             { value: "personal", label: "Personal" },
           ]}
         />
-        <Select
-          id="editPlatform"
-          label="Platform"
-          value={editPlatform}
-          onChange={(e) => setEditPlatform(e.target.value)}
-          options={[{ value: "", label: "None" }, ...PLATFORM_OPTIONS]}
-        />
+        {isGigDriver && (
+          <Select
+            id="editPlatform"
+            label="Platform"
+            value={editPlatform}
+            onChange={(e) => setEditPlatform(e.target.value)}
+            options={[{ value: "", label: "None" }, ...PLATFORM_OPTIONS]}
+          />
+        )}
+        {isEmployeeDriver && (
+          <Select
+            id="editBusinessPurpose"
+            label="Business Purpose"
+            value={editBusinessPurpose}
+            onChange={(e) => setEditBusinessPurpose(e.target.value)}
+            options={[{ value: "", label: "None" }, ...PURPOSE_OPTIONS]}
+          />
+        )}
         <Input
           id="editNotes"
           label="Notes"
@@ -641,13 +669,24 @@ export default function TripsPage() {
               { value: "personal", label: "Personal" },
             ]}
           />
-          <Select
-            id="addPlatform"
-            label="Platform"
-            value={addForm.platformTag}
-            onChange={(e) => setAddForm((f) => ({ ...f, platformTag: e.target.value }))}
-            options={[{ value: "", label: "None" }, ...PLATFORM_OPTIONS]}
-          />
+          {isGigDriver && (
+            <Select
+              id="addPlatform"
+              label="Platform"
+              value={addForm.platformTag}
+              onChange={(e) => setAddForm((f) => ({ ...f, platformTag: e.target.value }))}
+              options={[{ value: "", label: "None" }, ...PLATFORM_OPTIONS]}
+            />
+          )}
+          {isEmployeeDriver && (
+            <Select
+              id="addBusinessPurpose"
+              label="Business Purpose"
+              value={addForm.businessPurpose}
+              onChange={(e) => setAddForm((f) => ({ ...f, businessPurpose: e.target.value }))}
+              options={[{ value: "", label: "None" }, ...PURPOSE_OPTIONS]}
+            />
+          )}
         </div>
         <Input
           id="addNotes"
@@ -844,6 +883,11 @@ export default function TripsPage() {
               {detailTrip.platformTag && (
                 <span className="trip-detail__meta-item">
                   <Badge variant="source">{detailTrip.platformTag}</Badge>
+                </span>
+              )}
+              {(detailTrip as any).businessPurpose && (
+                <span className="trip-detail__meta-item">
+                  <Badge variant="primary">{(detailTrip as any).businessPurpose.replace(/_/g, " ")}</Badge>
                 </span>
               )}
               {detailTrip.notes && (

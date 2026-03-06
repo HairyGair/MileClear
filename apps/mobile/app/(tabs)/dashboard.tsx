@@ -11,6 +11,8 @@ import {
   Modal,
   Share,
   Platform,
+  Animated,
+  Dimensions,
 } from "react-native";
 import { Button } from "../../components/Button";
 import { useFocusEffect, useRouter } from "expo-router";
@@ -47,7 +49,7 @@ import { PersonalDashboard } from "../../components/personal/PersonalDashboard";
 import { MilestoneTracker } from "../../components/personal/MilestoneTracker";
 import { BusinessInsightsCard } from "../../components/business/BusinessInsightsCard";
 import { BusinessRecapCard } from "../../components/business/BusinessRecapCard";
-import { LiveMapTracker } from "../../components/map/LiveMapTracker";
+import { LiveMapTracker, type TripTapInfo } from "../../components/map/LiveMapTracker";
 import { useUser } from "../../lib/user/context";
 import { Ionicons } from "@expo/vector-icons";
 
@@ -84,6 +86,29 @@ export default function DashboardScreen() {
   const [showScorecard, setShowScorecard] = useState(false);
   const [recapData, setRecapData] = useState<PeriodRecap | null>(null);
   const [showRecap, setShowRecap] = useState(false);
+
+  // Trip segment bottom sheet
+  const [tripTapInfo, setTripTapInfo] = useState<TripTapInfo | null>(null);
+  const tripSheetAnim = useRef(new Animated.Value(200)).current;
+
+  const handleTripTap = useCallback((info: TripTapInfo) => {
+    setTripTapInfo(info);
+    tripSheetAnim.setValue(200);
+    Animated.spring(tripSheetAnim, {
+      toValue: 0,
+      useNativeDriver: true,
+      tension: 80,
+      friction: 12,
+    }).start();
+  }, [tripSheetAnim]);
+
+  const dismissTripSheet = useCallback(() => {
+    Animated.timing(tripSheetAnim, {
+      toValue: 200,
+      duration: 200,
+      useNativeDriver: true,
+    }).start(() => setTripTapInfo(null));
+  }, [tripSheetAnim]);
 
   const loadData = useCallback(async () => {
     try {
@@ -450,7 +475,14 @@ export default function DashboardScreen() {
           )}
         </View>
 
-        <LiveMapTracker shiftId={activeShift.id} height={240} trailDefault avatarId={currentUser?.avatarId} />
+        <LiveMapTracker
+          shiftId={activeShift.id}
+          height={280}
+          trailDefault
+          avatarId={currentUser?.avatarId}
+          showTripSegments
+          onTripTap={handleTripTap}
+        />
 
         <View style={s.statsRow}>
           <View style={s.statCard}>
@@ -532,7 +564,7 @@ export default function DashboardScreen() {
             activeOpacity={0.7}
           >
             <Ionicons name="navigate-outline" size={22} color="#f5a623" style={{ marginBottom: 4 }} />
-            <Text style={s.quickActionLabel}>Quick Trip</Text>
+            <Text style={s.quickActionLabel}>Trip</Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={s.quickAction}
@@ -689,6 +721,58 @@ export default function DashboardScreen() {
       )}
 
       <View style={{ height: 24 }} />
+
+      {/* Trip segment bottom sheet */}
+      {tripTapInfo && (
+        <Animated.View
+          style={[
+            s.tripSheet,
+            { transform: [{ translateY: tripSheetAnim }] },
+          ]}
+        >
+          <TouchableOpacity
+            style={s.tripSheetDismiss}
+            onPress={dismissTripSheet}
+            activeOpacity={0.7}
+          >
+            <View style={s.tripSheetHandle} />
+          </TouchableOpacity>
+          <View style={s.tripSheetHeader}>
+            <View style={[s.tripSheetDot, { backgroundColor: ["#f5a623", "#10b981", "#3b82f6", "#8b5cf6", "#ec4899", "#06b6d4"][tripTapInfo.index % 6] }]} />
+            <Text style={s.tripSheetTitle}>Trip {tripTapInfo.index + 1}</Text>
+          </View>
+          <View style={s.tripSheetStats}>
+            <View style={s.tripSheetStat}>
+              <Text style={s.tripSheetStatValue}>{tripTapInfo.distance}</Text>
+              <Text style={s.tripSheetStatLabel}>miles</Text>
+            </View>
+            <View style={s.tripSheetStat}>
+              <Text style={s.tripSheetStatValue}>
+                {Math.floor(tripTapInfo.duration / 60)}m {tripTapInfo.duration % 60}s
+              </Text>
+              <Text style={s.tripSheetStatLabel}>duration</Text>
+            </View>
+            <View style={s.tripSheetStat}>
+              <Text style={s.tripSheetStatValue}>{tripTapInfo.avgSpeed}</Text>
+              <Text style={s.tripSheetStatLabel}>avg mph</Text>
+            </View>
+          </View>
+          {(tripTapInfo.startAddress || tripTapInfo.endAddress) && (
+            <View style={s.tripSheetAddresses}>
+              {tripTapInfo.startAddress && (
+                <Text style={s.tripSheetAddress} numberOfLines={1}>
+                  From: {tripTapInfo.startAddress}
+                </Text>
+              )}
+              {tripTapInfo.endAddress && (
+                <Text style={s.tripSheetAddress} numberOfLines={1}>
+                  To: {tripTapInfo.endAddress}
+                </Text>
+              )}
+            </View>
+          )}
+        </Animated.View>
+      )}
     </ScrollView>
   );
 }
@@ -1099,4 +1183,77 @@ const s = StyleSheet.create({
     marginBottom: 6,
   },
   recapBtnRow: { gap: 10, marginTop: 8 },
+  // Trip segment bottom sheet
+  tripSheet: {
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: "#0a1120",
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
+    borderWidth: 1,
+    borderBottomWidth: 0,
+    borderColor: "rgba(255,255,255,0.08)",
+    paddingHorizontal: 20,
+    paddingBottom: 24,
+  },
+  tripSheetDismiss: {
+    alignItems: "center",
+    paddingVertical: 10,
+  },
+  tripSheetHandle: {
+    width: 36,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: "rgba(255,255,255,0.15)",
+  },
+  tripSheetHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginBottom: 12,
+  },
+  tripSheetDot: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+  },
+  tripSheetTitle: {
+    fontSize: 16,
+    fontFamily: "PlusJakartaSans_700Bold",
+    color: TEXT_1,
+  },
+  tripSheetStats: {
+    flexDirection: "row",
+    gap: 8,
+    marginBottom: 12,
+  },
+  tripSheetStat: {
+    flex: 1,
+    backgroundColor: "rgba(255,255,255,0.04)",
+    borderRadius: 10,
+    paddingVertical: 10,
+    alignItems: "center",
+  },
+  tripSheetStatValue: {
+    fontSize: 18,
+    fontFamily: "PlusJakartaSans_700Bold",
+    color: TEXT_1,
+  },
+  tripSheetStatLabel: {
+    fontSize: 10,
+    fontFamily: "PlusJakartaSans_400Regular",
+    color: TEXT_2,
+    marginTop: 2,
+    textTransform: "uppercase",
+  },
+  tripSheetAddresses: {
+    gap: 4,
+  },
+  tripSheetAddress: {
+    fontSize: 12,
+    fontFamily: "PlusJakartaSans_400Regular",
+    color: TEXT_2,
+  },
 });

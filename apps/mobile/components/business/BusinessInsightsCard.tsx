@@ -9,8 +9,9 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { fetchBusinessInsights, fetchWeeklyPnL } from "../../lib/api/businessInsights";
-import { formatPence } from "@mileclear/shared";
+import { formatPence, BUSINESS_PURPOSES } from "@mileclear/shared";
 import type { BusinessInsights, WeeklyPnL } from "@mileclear/shared";
+import { useUser } from "../../lib/user/context";
 
 const CARD_BG = "#0a1120";
 const CARD_BORDER = "rgba(255,255,255,0.05)";
@@ -30,6 +31,11 @@ function platformLabel(tag: string): string {
   return map[tag] ?? tag;
 }
 
+function purposeLabel(value: string): string {
+  const found = BUSINESS_PURPOSES.find((bp) => bp.value === value);
+  return found?.label ?? value.replace(/_/g, " ");
+}
+
 function gradeColor(grade: string): string {
   switch (grade) {
     case "A": return GREEN;
@@ -44,6 +50,9 @@ function gradeColor(grade: string): string {
 type Section = "efficiency" | "platforms" | "shifts" | "pnl" | "fuel";
 
 export function BusinessInsightsCard() {
+  const { user } = useUser();
+  const workType = user?.workType ?? "gig";
+  const isGigDriver = workType === "gig" || workType === "both";
   const [insights, setInsights] = useState<BusinessInsights | null>(null);
   const [pnl, setPnl] = useState<WeeklyPnL | null>(null);
   const [loading, setLoading] = useState(true);
@@ -145,15 +154,15 @@ export function BusinessInsightsCard() {
         )}
       </View>
 
-      {/* Platform Performance */}
+      {/* Platform / Purpose Performance */}
       {insights.platformPerformance.length > 0 && (
         <TouchableOpacity style={s.card} onPress={() => toggle("platforms")} activeOpacity={0.7}>
           <View style={s.expandHeader}>
             <View style={{ flex: 1 }}>
-              <Text style={s.sectionLabel}>Platform Performance</Text>
+              <Text style={s.sectionLabel}>{isGigDriver ? "Platform Performance" : "Trip Breakdown"}</Text>
               {insights.bestPlatform && (
                 <Text style={s.bestLabel}>
-                  Best: {platformLabel(insights.bestPlatform)} ({formatPence(insights.platformPerformance[0]?.earningsPerMilePence ?? 0)}/mi)
+                  Best: {isGigDriver ? platformLabel(insights.bestPlatform) : purposeLabel(insights.bestPlatform)} ({formatPence(insights.platformPerformance[0]?.earningsPerMilePence ?? 0)}/mi)
                 </Text>
               )}
             </View>
@@ -168,7 +177,7 @@ export function BusinessInsightsCard() {
               {insights.platformPerformance.map((p) => (
                 <View key={p.platform} style={s.platformRow}>
                   <View style={{ flex: 1 }}>
-                    <Text style={s.platformName}>{platformLabel(p.platform)}</Text>
+                    <Text style={s.platformName}>{isGigDriver ? platformLabel(p.platform) : purposeLabel(p.platform)}</Text>
                     <Text style={s.platformMeta}>
                       {p.tripCount} trips · {p.totalMiles.toFixed(1)} mi
                     </Text>

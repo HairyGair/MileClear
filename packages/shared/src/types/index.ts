@@ -1,4 +1,6 @@
 // User types
+export type WorkType = "gig" | "employee" | "both";
+
 export interface User {
   id: string;
   email: string;
@@ -6,6 +8,8 @@ export interface User {
   fullName: string | null;
   avatarId: string | null;
   userIntent: "work" | "personal" | "both" | null;
+  workType: WorkType;
+  employerMileageRatePence: number | null;
   dashboardMode: "both" | "work" | "personal";
   emailVerified: boolean;
   isPremium: boolean;
@@ -82,6 +86,18 @@ export type PlatformTag =
   | "evri"
   | "other";
 
+export type BusinessPurpose =
+  | "client_meeting"
+  | "site_visit"
+  | "office_travel"
+  | "training"
+  | "conference"
+  | "sales_call"
+  | "field_service"
+  | "delivery"
+  | "airport_pickup"
+  | "other";
+
 export interface Trip {
   id: string;
   userId: string;
@@ -99,6 +115,7 @@ export interface Trip {
   isManualEntry: boolean;
   classification: TripClassification;
   platformTag: PlatformTag | null;
+  businessPurpose: BusinessPurpose | null;
   category: TripCategory | null;
   notes: string | null;
   syncedAt: string | null;
@@ -112,6 +129,19 @@ export interface TripCoordinate {
   speed: number | null;
   accuracy: number | null;
   recordedAt: string;
+}
+
+export interface TripAnomaly {
+  id: string;
+  tripId: string;
+  userId: string;
+  type: string;
+  question: string;
+  response: string;
+  customNote: string | null;
+  lat: number | null;
+  lng: number | null;
+  createdAt: string;
 }
 
 export interface TripInsights {
@@ -288,6 +318,7 @@ export interface ExportTripRow {
   distanceMiles: number;
   classification: TripClassification;
   platform: string | null;
+  businessPurpose: string | null;
   vehicleType: VehicleType | null;
   vehicleName: string | null;
   hmrcRatePence: number;

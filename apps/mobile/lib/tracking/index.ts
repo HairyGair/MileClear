@@ -15,7 +15,7 @@ const MIN_TRIP_DISTANCE_MILES = 0.1;
 const STOP_THRESHOLD_MS = 2 * 60 * 1000; // 2 minutes
 const STOP_SPEED_MS = 1.5; // m/s (~3.4 mph)
 
-interface StoredCoordinate {
+export interface StoredCoordinate {
   lat: number;
   lng: number;
   speed: number | null;
@@ -228,7 +228,7 @@ export async function processShiftTrips(
   return created;
 }
 
-function segmentTrips(coords: StoredCoordinate[]): StoredCoordinate[][] {
+export function segmentTrips(coords: StoredCoordinate[]): StoredCoordinate[][] {
   if (coords.length < 2) return [];
 
   const trips: StoredCoordinate[][] = [];

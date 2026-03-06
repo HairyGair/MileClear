@@ -6,6 +6,7 @@ import {
   TRIP_CLASSIFICATIONS,
   TRIP_CATEGORIES,
   PLATFORM_TAGS,
+  BUSINESS_PURPOSE_VALUES,
   DEFAULT_PAGE_SIZE,
   MAX_PAGE_SIZE,
   getTaxYear,
@@ -79,6 +80,7 @@ const createTripSchema = z.object({
   endedAt: z.coerce.date().optional(),
   classification: z.enum(TRIP_CLASSIFICATIONS).default("business"),
   platformTag: z.enum(PLATFORM_TAGS).optional(),
+  businessPurpose: z.enum(BUSINESS_PURPOSE_VALUES).optional(),
   notes: z.string().max(2000).optional(),
   category: z.enum(TRIP_CATEGORIES).nullable().optional(),
   coordinates: z.array(coordinateInputSchema).max(5000).optional(),
@@ -87,6 +89,7 @@ const createTripSchema = z.object({
 const updateTripSchema = z.object({
   classification: z.enum(TRIP_CLASSIFICATIONS).optional(),
   platformTag: z.enum(PLATFORM_TAGS).nullable().optional(),
+  businessPurpose: z.enum(BUSINESS_PURPOSE_VALUES).nullable().optional(),
   notes: z.string().max(2000).nullable().optional(),
   category: z.enum(TRIP_CATEGORIES).nullable().optional(),
   endAddress: z.string().max(500).nullable().optional(),
@@ -187,6 +190,7 @@ export async function tripRoutes(app: FastifyInstance) {
       isManualEntry: !hasCoordinates,
       classification: tripData.classification,
       platformTag: tripData.platformTag ?? null,
+      businessPurpose: tripData.businessPurpose ?? null,
       category: tripData.category ?? null,
       notes: tripData.notes ?? null,
     };
@@ -381,5 +385,56 @@ export async function tripRoutes(app: FastifyInstance) {
     upsertMileageSummary(userId, taxYear).catch(() => {});
 
     return reply.send({ message: "Trip deleted" });
+  });
+
+  // Submit anomaly response for a trip
+  app.post("/:id/anomaly", async (request, reply) => {
+    const { id } = z.object({ id: z.string().uuid() }).parse(request.params);
+    const schema = z.object({
+      type: z.string().max(50),
+      response: z.string().max(200),
+      customNote: z.string().max(1000).nullable().optional(),
+    });
+    const parsed = schema.safeParse(request.body);
+    if (!parsed.success) {
+      return reply.status(400).send({ error: parsed.error.issues[0].message });
+    }
+
+    const userId = request.userId!;
+    const trip = await prisma.trip.findFirst({
+      where: { id, userId },
+      select: { id: true, startLat: true, startLng: true, endLat: true, endLng: true },
+    });
+    if (!trip) {
+      return reply.status(404).send({ error: "Trip not found" });
+    }
+
+    // Calculate midpoint for geospatial indexing
+    const midLat = trip.endLat != null ? (trip.startLat + trip.endLat) / 2 : trip.startLat;
+    const midLng = trip.endLng != null ? (trip.startLng + trip.endLng) / 2 : trip.startLng;
+
+    // Get the question text for the anomaly type
+    const questionMap: Record<string, string> = {
+      indirect_route: "Your route was quite indirect. What happened?",
+      many_stops: "You had quite a few stops. What was happening?",
+      long_idle: "You were stationary for a while. Everything OK?",
+      very_short: "This was a very short trip. Worth keeping?",
+      very_long: "That was a long haul! What type of trip?",
+    };
+
+    const anomaly = await prisma.tripAnomaly.create({
+      data: {
+        tripId: id,
+        userId,
+        type: parsed.data.type,
+        question: questionMap[parsed.data.type] || parsed.data.type,
+        response: parsed.data.response,
+        customNote: parsed.data.customNote ?? null,
+        lat: midLat,
+        lng: midLng,
+      },
+    });
+
+    return reply.status(201).send({ data: anomaly });
   });
 }

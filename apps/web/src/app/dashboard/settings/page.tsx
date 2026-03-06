@@ -8,7 +8,8 @@ import { Input } from "../../../components/ui/Input";
 import { Button } from "../../../components/ui/Button";
 import { Badge } from "../../../components/ui/Badge";
 import { ConfirmModal } from "../../../components/ui/ConfirmModal";
-import type { BillingStatus } from "@mileclear/shared";
+import type { BillingStatus, WorkType } from "@mileclear/shared";
+import { Select } from "../../../components/ui/Select";
 
 export default function SettingsPage() {
   const { user, refreshUser } = useAuth();
@@ -17,6 +18,12 @@ export default function SettingsPage() {
   const [dashboardMode, setDashboardMode] = useState<"both" | "work" | "personal">("both");
   const [modeLoading, setModeLoading] = useState(false);
   const [modeSaved, setModeSaved] = useState(false);
+
+  // Work settings
+  const [workType, setWorkType] = useState<WorkType>("gig");
+  const [employerRate, setEmployerRate] = useState("");
+  const [workSaving, setWorkSaving] = useState(false);
+  const [workSaved, setWorkSaved] = useState(false);
 
   // Profile
   const [displayName, setDisplayName] = useState("");
@@ -49,6 +56,8 @@ export default function SettingsPage() {
       setFullName((user as any).fullName || "");
       setEmail(user.email);
       setDashboardMode(user.dashboardMode ?? "both");
+      setWorkType((user as any).workType ?? "gig");
+      setEmployerRate((user as any).employerMileageRatePence != null ? String((user as any).employerMileageRatePence) : "");
     }
   }, [user]);
 
@@ -93,6 +102,26 @@ export default function SettingsPage() {
       setError(err.message);
     } finally {
       setModeLoading(false);
+    }
+  };
+
+  // Work settings
+  const handleWorkSettingsSave = async () => {
+    setWorkSaving(true);
+    setError(null);
+    try {
+      const rateParsed = employerRate ? parseInt(employerRate, 10) : null;
+      await api.patch("/user/profile", {
+        workType,
+        employerMileageRatePence: rateParsed,
+      });
+      await refreshUser();
+      setWorkSaved(true);
+      setTimeout(() => setWorkSaved(false), 3000);
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setWorkSaving(false);
     }
   };
 
@@ -259,6 +288,61 @@ export default function SettingsPage() {
           </span>
         )}
       </div>
+
+      {/* Work Settings — only for work/both */}
+      {(dashboardMode === "work" || dashboardMode === "both") && (
+        <div className="settings-section">
+          <h2 className="settings-section__title">Work Settings</h2>
+          <p className="settings-section__desc">
+            Configure your work type and employer mileage reimbursement rate.
+          </p>
+          <div style={{ display: "flex", flexDirection: "column", gap: "1rem", maxWidth: 400 }}>
+            <Select
+              id="workType"
+              label="Work type"
+              value={workType}
+              onChange={(e) => setWorkType(e.target.value as WorkType)}
+              options={[
+                { value: "gig", label: "Gig / Delivery driver" },
+                { value: "employee", label: "Employee using own vehicle" },
+                { value: "both", label: "Both gig and employee" },
+              ]}
+            />
+            {(workType === "employee" || workType === "both") && (
+              <Input
+                id="employerRate"
+                label="Employer mileage rate (pence/mile)"
+                type="number"
+                min="0"
+                max="100"
+                value={employerRate}
+                onChange={(e) => setEmployerRate(e.target.value)}
+                placeholder="e.g. 25 (leave empty if none)"
+              />
+            )}
+            <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
+              <Button
+                variant="primary"
+                size="sm"
+                onClick={handleWorkSettingsSave}
+                disabled={workSaving}
+              >
+                {workSaving ? "Saving..." : "Save work settings"}
+              </Button>
+              {workSaved && (
+                <span style={{ fontSize: "0.875rem", color: "var(--emerald-400)" }}>
+                  Saved!
+                </span>
+              )}
+            </div>
+            {(workType === "employee" || workType === "both") && employerRate && (
+              <p style={{ fontSize: "0.8125rem", color: "var(--text-muted)", margin: 0 }}>
+                Your employer reimburses {employerRate}p/mi. HMRC allows 45p/mi for cars — you can claim the {Math.max(0, 45 - parseInt(employerRate, 10))}p difference.
+              </p>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Password */}
       <div className="settings-section">

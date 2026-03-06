@@ -144,6 +144,36 @@ export const TRIP_CATEGORY_META = [
 
 export const USER_INTENTS = ["work", "personal", "both"] as const;
 
+// Work type — determines whether business trips show gig platforms or business purposes
+export const WORK_TYPES = ["gig", "employee", "both"] as const;
+
+// Business purposes for employee drivers (non-gig)
+export const BUSINESS_PURPOSES = [
+  { value: "client_meeting", label: "Client Meeting", icon: "people-outline" },
+  { value: "site_visit", label: "Site Visit", icon: "location-outline" },
+  { value: "office_travel", label: "Between Offices", icon: "business-outline" },
+  { value: "training", label: "Training", icon: "school-outline" },
+  { value: "conference", label: "Conference", icon: "calendar-outline" },
+  { value: "sales_call", label: "Sales Call", icon: "call-outline" },
+  { value: "field_service", label: "Field Service", icon: "construct-outline" },
+  { value: "delivery", label: "Delivery", icon: "cube-outline" },
+  { value: "airport_pickup", label: "Airport Pickup", icon: "airplane-outline" },
+  { value: "other", label: "Other", icon: "ellipsis-horizontal-outline" },
+] as const;
+
+export const BUSINESS_PURPOSE_VALUES = [
+  "client_meeting",
+  "site_visit",
+  "office_travel",
+  "training",
+  "conference",
+  "sales_call",
+  "field_service",
+  "delivery",
+  "airport_pickup",
+  "other",
+] as const;
+
 // Earning sources
 export const EARNING_SOURCES = ["manual", "csv", "open_banking", "ocr"] as const;
 

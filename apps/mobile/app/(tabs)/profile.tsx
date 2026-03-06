@@ -26,7 +26,8 @@ import {
   cancelSubscription,
   validateApplePurchase,
 } from "../../lib/api/billing";
-import type { Vehicle, User, BillingStatus } from "@mileclear/shared";
+import type { Vehicle, User, BillingStatus, WorkType } from "@mileclear/shared";
+import { WORK_TYPES } from "@mileclear/shared";
 import {
   isIapAvailable,
   purchaseSubscription,
@@ -89,6 +90,8 @@ export default function ProfileScreen() {
     taxDeadline: true,
   });
   const [weeklyGoal, setWeeklyGoal] = useState<number | null>(null);
+  const [workType, setWorkType] = useState<WorkType>("gig");
+  const [employerRate, setEmployerRate] = useState<number | null>(null);
 
   const handleAvatarSelect = useCallback(async (avatarId: string | null) => {
     try {
@@ -113,6 +116,8 @@ export default function ProfileScreen() {
         ).catch(() => null),
       ]);
       setUser(profileRes.data);
+      if (profileRes.data.workType) setWorkType(profileRes.data.workType as WorkType);
+      setEmployerRate(profileRes.data.employerMileageRatePence ?? null);
       setVehicles(vehiclesRes.data);
       cacheVehicleBluetoothNames(vehiclesRes.data).catch(() => {});
       if (billingRes) setBilling(billingRes.data);
@@ -292,6 +297,60 @@ export default function ProfileScreen() {
       setDeletingAccount(false);
     }
   }, [deletePassword, logout]);
+
+  const handleWorkTypeChange = useCallback(async (wt: WorkType) => {
+    setWorkType(wt);
+    try {
+      await updateProfile({ workType: wt });
+      refreshUser();
+    } catch {
+      Alert.alert("Error", "Failed to update work type");
+    }
+  }, [refreshUser]);
+
+  const handleEmployerRateChange = useCallback(() => {
+    if (Platform.OS === "ios") {
+      Alert.prompt(
+        "Employer Mileage Rate",
+        "Enter the pence per mile your employer reimburses (0 if none).\nHMRC allows you to claim the difference up to 45p.",
+        [
+          { text: "Cancel", style: "cancel" },
+          {
+            text: "Save",
+            onPress: async (value: string | undefined) => {
+              if (!value?.trim()) return;
+              const parsed = parseInt(value.trim(), 10);
+              if (isNaN(parsed) || parsed < 0 || parsed > 100) {
+                Alert.alert("Invalid", "Enter a value between 0 and 100.");
+                return;
+              }
+              setEmployerRate(parsed);
+              try {
+                await updateProfile({ employerMileageRatePence: parsed || null });
+                refreshUser();
+              } catch {
+                Alert.alert("Error", "Failed to save rate");
+              }
+            },
+          },
+        ],
+        "plain-text",
+        employerRate ? String(employerRate) : "",
+        "number-pad"
+      );
+    } else {
+      Alert.alert(
+        "Employer Mileage Rate",
+        `Current: ${employerRate ? `${employerRate}p/mile` : "Not set"}\n\nYour employer reimburses you per mile. HMRC lets you claim the gap up to 45p.`,
+        [
+          { text: "Cancel", style: "cancel" },
+          { text: "0p (none)", onPress: async () => { setEmployerRate(null); await updateProfile({ employerMileageRatePence: null }).catch(() => {}); refreshUser(); } },
+          { text: "10p", onPress: async () => { setEmployerRate(10); await updateProfile({ employerMileageRatePence: 10 }).catch(() => {}); refreshUser(); } },
+          { text: "25p", onPress: async () => { setEmployerRate(25); await updateProfile({ employerMileageRatePence: 25 }).catch(() => {}); refreshUser(); } },
+        ]
+      );
+    }
+  }, [employerRate, refreshUser]);
 
   const renderVehicle = ({ item }: { item: Vehicle }) => (
     <TouchableOpacity
@@ -523,6 +582,75 @@ export default function ProfileScreen() {
                 {weeklyGoal ? "Edit" : "Set"}
               </Text>
             </TouchableOpacity>
+
+            {/* Work Settings — only for work/both users */}
+            {user && (user.userIntent === "work" || user.userIntent === "both") && (
+              <>
+                <Text style={[styles.sectionTitle, { marginTop: 28 }]}>Work Settings</Text>
+
+                {/* Work type selector */}
+                <View style={styles.settingRow}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.actionText}>Work Type</Text>
+                    <Text style={styles.settingHint}>
+                      {workType === "gig" ? "Gig / delivery platforms" : workType === "employee" ? "Employee using own vehicle" : "Gig work + employee driving"}
+                    </Text>
+                  </View>
+                </View>
+                <View style={{ flexDirection: "row", gap: 8, marginBottom: 8, marginTop: -4 }}>
+                  {([
+                    { value: "gig" as WorkType, label: "Gig" },
+                    { value: "employee" as WorkType, label: "Employee" },
+                    { value: "both" as WorkType, label: "Both" },
+                  ]).map((opt) => (
+                    <TouchableOpacity
+                      key={opt.value}
+                      style={{
+                        flex: 1,
+                        paddingVertical: 10,
+                        borderRadius: 8,
+                        backgroundColor: workType === opt.value ? "rgba(245, 166, 35, 0.15)" : "#111827",
+                        borderWidth: 1,
+                        borderColor: workType === opt.value ? "rgba(245, 166, 35, 0.4)" : "#1f2937",
+                        alignItems: "center",
+                      }}
+                      onPress={() => handleWorkTypeChange(opt.value)}
+                      activeOpacity={0.7}
+                    >
+                      <Text style={{
+                        fontSize: 13,
+                        fontFamily: workType === opt.value ? "PlusJakartaSans_600SemiBold" : "PlusJakartaSans_400Regular",
+                        color: workType === opt.value ? "#f5a623" : "#9ca3af",
+                      }}>
+                        {opt.label}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+
+                {/* Employer mileage rate — only for employee / both */}
+                {(workType === "employee" || workType === "both") && (
+                  <TouchableOpacity
+                    style={styles.actionRow}
+                    onPress={handleEmployerRateChange}
+                    activeOpacity={0.7}
+                  >
+                    <View style={styles.actionRowLeft}>
+                      <Ionicons name="cash-outline" size={18} color="#8494a7" />
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.actionText}>Employer Mileage Rate</Text>
+                        <Text style={styles.settingHint}>
+                          {employerRate ? `${employerRate}p/mi — you can claim ${Math.max(0, 45 - employerRate)}p gap from HMRC` : "Not set — claim full 45p HMRC rate"}
+                        </Text>
+                      </View>
+                    </View>
+                    <Text style={{ fontSize: 14, fontFamily: "PlusJakartaSans_500Medium", color: "#f5a623" }}>
+                      {employerRate ? "Edit" : "Set"}
+                    </Text>
+                  </TouchableOpacity>
+                )}
+              </>
+            )}
 
             {/* Notifications Section */}
             <Text style={[styles.sectionTitle, { marginTop: 28 }]}>Notifications</Text>
