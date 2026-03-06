@@ -13,6 +13,7 @@ import {
   Platform,
   Animated,
   Dimensions,
+  Linking,
 } from "react-native";
 import { Button } from "../../components/Button";
 import { useFocusEffect, useRouter } from "expo-router";
@@ -209,7 +210,10 @@ export default function DashboardScreen() {
         Alert.alert(
           "Location Access",
           "GPS tracking is disabled. Trips won't be recorded automatically, but you can still add them manually.",
-          [{ text: "OK" }]
+          [
+            { text: "Open Settings", onPress: () => Linking.openSettings() },
+            { text: "OK", style: "cancel" },
+          ]
         );
       }
     } catch (err: any) {
