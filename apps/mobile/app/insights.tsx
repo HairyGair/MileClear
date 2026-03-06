@@ -40,6 +40,7 @@ export default function InsightsScreen() {
 
   const [stats, setStats] = useState<GamificationStats | null>(null);
   const [achievements, setAchievements] = useState<AchievementWithMeta[]>([]);
+  const [dailyRecap, setDailyRecap] = useState<PeriodRecap | null>(null);
   const [refreshing, setRefreshing] = useState(false);
 
   // Recap modal
@@ -63,12 +64,14 @@ export default function InsightsScreen() {
 
   const loadData = useCallback(async () => {
     try {
-      const [statsRes, achievementsRes] = await Promise.all([
+      const [statsRes, achievementsRes, dailyRes] = await Promise.all([
         fetchGamificationStats().catch(() => null),
         fetchAchievements().catch(() => null),
+        fetchRecap("daily").catch(() => null),
       ]);
       if (statsRes) setStats(statsRes.data);
       if (achievementsRes) setAchievements(achievementsRes.data);
+      if (dailyRes) setDailyRecap(dailyRes.data);
     } catch {}
     setRefreshing(false);
   }, []);
@@ -211,6 +214,9 @@ export default function InsightsScreen() {
             yearBusinessMiles={stats?.businessMiles ?? 0}
             taxYear={stats?.taxYear ?? ""}
             yearBusiestMonth={yearBusiestMonth}
+            todayMiles={dailyRecap?.totalMiles ?? 0}
+            todayTrips={dailyRecap?.totalTrips ?? 0}
+            todayDeductionPence={dailyRecap?.deductionPence ?? 0}
           />
         )}
         {isPersonal && trips.length > 0 && <JourneyTimeline trips={trips} />}

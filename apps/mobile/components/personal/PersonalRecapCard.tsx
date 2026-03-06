@@ -21,6 +21,10 @@ interface PersonalRecapCardProps {
   yearBusinessMiles: number;
   taxYear: string;
   yearBusiestMonth: string | null;
+  // Daily data
+  todayMiles?: number;
+  todayTrips?: number;
+  todayDeductionPence?: number;
 }
 
 function formatMilesCompact(miles: number): string {
@@ -104,9 +108,13 @@ export function PersonalRecapCard({
   yearBusinessMiles,
   taxYear,
   yearBusiestMonth,
+  todayMiles = 0,
+  todayTrips = 0,
+  todayDeductionPence = 0,
 }: PersonalRecapCardProps) {
   const shareCardRef = useRef<View>(null);
-  const [view, setView] = useState<"month" | "year">("month");
+  const [view, setView] = useState<"today" | "month" | "year">("today");
+  const isToday = view === "today";
   const isYear = view === "year";
 
   // Monthly insights
@@ -121,20 +129,26 @@ export function PersonalRecapCard({
       : null;
 
   // Current view values
-  const displayMiles = isYear ? yearMiles : monthMiles;
-  const displayTrips = isYear ? yearTrips : monthTrips;
+  const todayDateLabel = new Date().toLocaleDateString("en-GB", {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+  });
+  const displayMiles = isToday ? todayMiles : isYear ? yearMiles : monthMiles;
+  const displayTrips = isToday ? todayTrips : isYear ? yearTrips : monthTrips;
   const displayAvg = displayTrips > 0 ? displayMiles / displayTrips : 0;
-  const displayDeduction = isYear ? yearDeductionPence : deductionPence;
-  const displayLabel = isYear ? `Tax Year ${taxYear}` : `${monthLabel} Recap`;
+  const displayDeduction = isToday ? todayDeductionPence : isYear ? yearDeductionPence : deductionPence;
+  const displayLabel = isToday ? "Today" : isYear ? `Tax Year ${taxYear}` : `${monthLabel} Recap`;
 
   const shareData: RecapShareCardProps = {
-    monthLabel: isYear ? `Tax Year ${taxYear}` : monthLabel,
+    period: isToday ? "daily" : isYear ? "yearly" : "monthly",
+    monthLabel: isToday ? todayDateLabel : isYear ? `Tax Year ${taxYear}` : monthLabel,
     monthMiles: displayMiles,
     monthTrips: displayTrips,
     avgTripMiles: displayAvg,
     totalMiles,
-    busiestDay: isYear ? null : busiestDay,
-    prevMonthMiles: isYear ? null : prevMonthMiles,
+    busiestDay: isToday || isYear ? null : busiestDay,
+    prevMonthMiles: isToday || isYear ? null : prevMonthMiles,
     deductionPence: displayDeduction,
   };
 
@@ -165,10 +179,16 @@ export function PersonalRecapCard({
           </View>
           <View style={styles.toggleRow}>
             <Pressable
-              style={[styles.toggleBtn, !isYear && styles.toggleBtnActive]}
+              style={[styles.toggleBtn, isToday && styles.toggleBtnActive]}
+              onPress={() => setView("today")}
+            >
+              <Text style={[styles.toggleText, isToday && styles.toggleTextActive]}>Today</Text>
+            </Pressable>
+            <Pressable
+              style={[styles.toggleBtn, view === "month" && styles.toggleBtnActive]}
               onPress={() => setView("month")}
             >
-              <Text style={[styles.toggleText, !isYear && styles.toggleTextActive]}>Month</Text>
+              <Text style={[styles.toggleText, view === "month" && styles.toggleTextActive]}>Month</Text>
             </Pressable>
             <Pressable
               style={[styles.toggleBtn, isYear && styles.toggleBtnActive]}
@@ -207,7 +227,7 @@ export function PersonalRecapCard({
 
         {/* Insights */}
         <View style={styles.insightList}>
-          {!isYear && milesChange && milesChange.text !== "" && (
+          {!isToday && !isYear && milesChange && milesChange.text !== "" && (
             <View style={styles.insightRow}>
               <View
                 style={[
@@ -239,7 +259,7 @@ export function PersonalRecapCard({
             </View>
           )}
 
-          {!isYear && tripsChange && (
+          {!isToday && !isYear && tripsChange && (
             <View style={styles.insightRow}>
               <View style={[styles.insightIcon, styles.insightIconNeutral]}>
                 <Ionicons name="navigate" size={12} color="#8494a7" />
@@ -248,7 +268,7 @@ export function PersonalRecapCard({
             </View>
           )}
 
-          {!isYear && busiestDay && (
+          {!isToday && !isYear && busiestDay && (
             <View style={styles.insightRow}>
               <View style={[styles.insightIcon, styles.insightIconAmber]}>
                 <Ionicons name="star" size={12} color="#f5a623" />

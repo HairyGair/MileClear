@@ -6,6 +6,7 @@ import * as Sharing from "expo-sharing";
 // ─── Data types ─────────────────────────────────────────────
 
 export interface RecapShareCardProps {
+  period?: "daily" | "monthly" | "yearly";
   monthLabel: string;
   monthMiles: number;
   monthTrips: number;
@@ -52,6 +53,7 @@ function getMonthlyDistanceEquivalent(miles: number): string | null {
 // ─── Visual certificate card (rendered off-screen, captured as image) ───
 
 export function RecapShareCard({
+  period = "monthly",
   monthLabel,
   monthMiles,
   monthTrips,
@@ -106,16 +108,18 @@ export function RecapShareCard({
         <Text style={s.wordClear}>Clear</Text>
       </View>
 
-      {/* "DRIVING RECAP" label with flanking lines */}
+      {/* Recap type label with flanking lines */}
       <View style={s.labelRow}>
         <View style={s.labelLine} />
-        <Text style={s.labelText}>DRIVING RECAP</Text>
+        <Text style={s.labelText}>
+          {period === "daily" ? "DAILY RECAP" : period === "yearly" ? "YEAR IN REVIEW" : "DRIVING RECAP"}
+        </Text>
         <View style={s.labelLine} />
       </View>
 
-      {/* Month + Year */}
+      {/* Period heading */}
       <Text style={s.monthYear}>
-        {monthLabel.toUpperCase()} {year}
+        {period === "daily" ? monthLabel.toUpperCase() : period === "yearly" ? monthLabel.toUpperCase() : `${monthLabel.toUpperCase()} ${year}`}
       </Text>
 
       {/* Hero miles — the big number */}
@@ -205,9 +209,10 @@ export async function captureAndShareRecap(
       format: "png",
       quality: 1,
     });
+    const dialogLabel = data.period === "daily" ? "Daily" : data.monthLabel;
     await Sharing.shareAsync(uri, {
       mimeType: "image/png",
-      dialogTitle: `My ${data.monthLabel} Driving Recap`,
+      dialogTitle: `My ${dialogLabel} Driving Recap`,
     });
   } catch {
     // Fallback to text sharing if image capture fails
@@ -218,14 +223,15 @@ export async function captureAndShareRecap(
 // ─── Text fallback (for environments where view-shot is unavailable) ────
 
 async function textFallbackShare(data: RecapShareCardProps): Promise<void> {
-  const { monthLabel, monthMiles, monthTrips, avgTripMiles, totalMiles, deductionPence } = data;
+  const { period, monthLabel, monthMiles, monthTrips, avgTripMiles, totalMiles, deductionPence } = data;
   const milesStr = formatMilesReadable(monthMiles);
   const avgStr = avgTripMiles < 10 ? avgTripMiles.toFixed(1) : String(Math.round(avgTripMiles));
   const totalStr = Math.round(totalMiles).toLocaleString("en-GB");
   const tripWord = monthTrips === 1 ? "trip" : "trips";
+  const recapLabel = period === "daily" ? "today's" : monthLabel;
 
   const lines = [
-    `My ${monthLabel} driving recap:`,
+    `My ${recapLabel} driving recap:`,
     `- ${milesStr} miles across ${monthTrips} ${tripWord}`,
     `- Average trip: ${avgStr} miles`,
   ];
@@ -243,7 +249,7 @@ async function textFallbackShare(data: RecapShareCardProps): Promise<void> {
   try {
     await RNShare.share(
       { message },
-      { subject: `My ${monthLabel} Driving Recap` }
+      { subject: `My ${recapLabel} Driving Recap` }
     );
   } catch {
     // Share dismissed
