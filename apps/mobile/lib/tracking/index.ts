@@ -36,25 +36,29 @@ function haversine(lat1: number, lng1: number, lat2: number, lng2: number): numb
 }
 
 export async function requestLocationPermissions(): Promise<boolean> {
+  // Foreground permission is sufficient — background is best-effort
+  // (Expo Go can't grant background permission at all)
   try {
     const { status: foreground } =
       await Location.requestForegroundPermissionsAsync();
     if (foreground !== "granted") return false;
-
-    const { status: background } =
-      await Location.requestBackgroundPermissionsAsync();
-    return background === "granted";
   } catch {
-    // Expo Go may throw if Info.plist keys unavailable — check existing permissions
     try {
       const fg = await Location.getForegroundPermissionsAsync();
       if (fg.status !== "granted") return false;
-      const bg = await Location.getBackgroundPermissionsAsync();
-      return bg.status === "granted";
     } catch {
       return false;
     }
   }
+
+  // Try background permission but don't require it
+  try {
+    await Location.requestBackgroundPermissionsAsync();
+  } catch {
+    // Expected in Expo Go — foreground-only is fine
+  }
+
+  return true;
 }
 
 export async function isTrackingActive(): Promise<boolean> {
@@ -70,16 +74,22 @@ export async function startShiftTracking(shiftId: string): Promise<void> {
     [shiftId]
   );
 
-  await Location.startLocationUpdatesAsync(LOCATION_TASK_NAME, {
-    accuracy: Location.Accuracy.High,
-    distanceInterval: 50,
-    deferredUpdatesInterval: 10000,
-    showsBackgroundLocationIndicator: true,
-    foregroundService: {
-      notificationTitle: "MileClear is tracking your shift",
-      notificationBody: "Tap to open the app",
-    },
-  });
+  try {
+    await Location.startLocationUpdatesAsync(LOCATION_TASK_NAME, {
+      accuracy: Location.Accuracy.High,
+      distanceInterval: 50,
+      deferredUpdatesInterval: 10000,
+      showsBackgroundLocationIndicator: true,
+      foregroundService: {
+        notificationTitle: "MileClear is tracking your shift",
+        notificationBody: "Tap to open the app",
+      },
+    });
+  } catch {
+    // Background location updates not available (e.g. Expo Go) —
+    // shift still runs, GPS just won't record in background
+    console.warn("Background location updates unavailable — foreground only");
+  }
 }
 
 export async function stopShiftTracking(): Promise<void> {
@@ -112,16 +122,20 @@ export async function startQuickTripTracking(): Promise<void> {
   const isRunning = await TaskManager.isTaskRegisteredAsync(LOCATION_TASK_NAME);
   if (isRunning) return; // Already running (e.g. resumed after background)
 
-  await Location.startLocationUpdatesAsync(LOCATION_TASK_NAME, {
-    accuracy: Location.Accuracy.High,
-    distanceInterval: 50,
-    deferredUpdatesInterval: 10000,
-    showsBackgroundLocationIndicator: true,
-    foregroundService: {
-      notificationTitle: "MileClear is tracking your trip",
-      notificationBody: "Tap to open the app",
-    },
-  });
+  try {
+    await Location.startLocationUpdatesAsync(LOCATION_TASK_NAME, {
+      accuracy: Location.Accuracy.High,
+      distanceInterval: 50,
+      deferredUpdatesInterval: 10000,
+      showsBackgroundLocationIndicator: true,
+      foregroundService: {
+        notificationTitle: "MileClear is tracking your trip",
+        notificationBody: "Tap to open the app",
+      },
+    });
+  } catch {
+    console.warn("Background location updates unavailable — foreground only");
+  }
 }
 
 export async function stopQuickTripTracking(): Promise<StoredCoordinate[]> {
