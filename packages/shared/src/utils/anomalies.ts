@@ -281,3 +281,151 @@ export function setLocationQuestionPlace(
       : `You were slow near ${placeName} for ${q.durationMins} minutes. What was happening?`,
   };
 }
+
+// ── Time-Decay & Severity for Community Intelligence ──────────────
+
+/**
+ * How long (in hours) each type of report stays relevant.
+ * Maps from the user's response text to a relevance window.
+ */
+const RESPONSE_RELEVANCE_HOURS: Record<string, number> = {
+  // Traffic (changes fast)
+  "Heavy traffic": 4,
+  "Traffic jam": 4,
+  "Busy road": 6,
+  "School traffic": 12,
+  // Incidents
+  "Accident or breakdown": 8,
+  "Accident/incident": 8,
+  // Roadworks (persist)
+  "Roadworks": 168, // 7 days
+  // Closures (persist longer)
+  "Road closure/diversion": 336, // 14 days
+  "Detour/road closure": 336,
+  // Time-specific
+  "Event or market": 12,
+  // Weather
+  "Weather conditions": 6,
+  // Stops
+  "Delivery or pickup": 1,
+  "Break or rest": 1,
+  "Waiting for passenger/order": 4,
+  "Loading/unloading": 2,
+  "Parked up": 1,
+};
+
+const DEFAULT_RELEVANCE_HOURS = 24;
+
+/**
+ * Get the relevance window in hours for a given response.
+ * Multi-select responses (comma-separated) use the longest relevance.
+ */
+export function getRelevanceHours(response: string): number {
+  const parts = response.split(",").map((s) => s.trim());
+  let maxHours = 0;
+  for (const part of parts) {
+    maxHours = Math.max(maxHours, RESPONSE_RELEVANCE_HOURS[part] ?? DEFAULT_RELEVANCE_HOURS);
+  }
+  return maxHours || DEFAULT_RELEVANCE_HOURS;
+}
+
+/**
+ * Check if a report is still relevant given its creation time and response.
+ */
+export function isReportRelevant(createdAt: string | Date, response: string): boolean {
+  const created = new Date(createdAt).getTime();
+  const relevanceMs = getRelevanceHours(response) * 60 * 60 * 1000;
+  return Date.now() - created < relevanceMs;
+}
+
+/**
+ * Calculate severity based on report count and recency.
+ */
+export function getAlertSeverity(
+  reportCount: number,
+  hoursAgo: number
+): "low" | "medium" | "high" {
+  if (reportCount >= 5 && hoursAgo < 2) return "high";
+  if (reportCount >= 3 && hoursAgo < 4) return "high";
+  if (reportCount >= 2 && hoursAgo < 6) return "medium";
+  if (reportCount >= 1 && hoursAgo < 2) return "medium";
+  return "low";
+}
+
+/**
+ * Parse comma-separated multi-select responses into individual reasons,
+ * aggregate counts across multiple reports, and return sorted by frequency.
+ */
+export function aggregateReasons(responses: string[]): string[] {
+  const counts = new Map<string, number>();
+  for (const resp of responses) {
+    for (const part of resp.split(",").map((s) => s.trim())) {
+      if (part && part !== "Other") {
+        counts.set(part, (counts.get(part) ?? 0) + 1);
+      }
+    }
+  }
+  return Array.from(counts.entries())
+    .sort((a, b) => b[1] - a[1])
+    .map(([reason]) => reason);
+}
+
+/**
+ * Build a human-readable alert message from anomaly data.
+ */
+export function buildAlertMessage(
+  topReasons: string[],
+  reportCount: number,
+  placeName: string | null,
+  distanceMiles: number
+): string {
+  const location = placeName ?? `${distanceMiles} mi away`;
+  const reason = topReasons[0] ?? "Issue";
+  const drivers = reportCount === 1
+    ? "1 driver reported"
+    : `${reportCount} drivers reported`;
+
+  if (topReasons.length > 1) {
+    return `${drivers} ${reason.toLowerCase()} and ${topReasons[1].toLowerCase()} near ${location}`;
+  }
+  return `${drivers} ${reason.toLowerCase()} near ${location}`;
+}
+
+/**
+ * Get the icon name for a community alert reason.
+ */
+export function getAlertIcon(topReason: string): string {
+  switch (topReason) {
+    case "Heavy traffic":
+    case "Traffic jam":
+    case "Busy road":
+      return "car-outline";
+    case "Roadworks":
+      return "construct-outline";
+    case "Accident or breakdown":
+    case "Accident/incident":
+      return "warning-outline";
+    case "Road closure/diversion":
+    case "Detour/road closure":
+      return "close-circle-outline";
+    case "School traffic":
+      return "school-outline";
+    case "Event or market":
+      return "people-outline";
+    case "Weather conditions":
+      return "rainy-outline";
+    default:
+      return "alert-circle-outline";
+  }
+}
+
+/**
+ * Get the color for a severity level.
+ */
+export function getSeverityColor(severity: "low" | "medium" | "high"): string {
+  switch (severity) {
+    case "high": return "#ef4444";
+    case "medium": return "#f59e0b";
+    case "low": return "#f5a623";
+  }
+}

@@ -636,7 +636,19 @@ export interface NearbyAnomaly {
   lng: number;
   distanceMiles: number;
   reportedAt: string;
-  reportCount: number; // how many drivers reported similar
+  reportCount: number;
+  severity?: "low" | "medium" | "high";
+  topReasons?: string[];
+  placeName?: string | null;
+}
+
+export interface PreTripAlert {
+  message: string;
+  severity: "low" | "medium" | "high";
+  icon: string;
+  color: string;
+  distanceMiles: number;
+  reportCount: number;
 }
 
 export interface RouteSpeedInsight {

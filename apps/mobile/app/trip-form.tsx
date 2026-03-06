@@ -371,7 +371,8 @@ export default function TripFormScreen() {
   const celebInsightsAnim = useRef(new Animated.Value(0)).current;
   const celebSlideAnim = useRef(new Animated.Value(20)).current;
 
-  // Pre-trip community nudges
+  // Pre-trip community alerts and nudges
+  const [communityAlerts, setCommunityAlerts] = useState<{ message: string; icon: string; color: string; severity: string }[]>([]);
   const [communityNudges, setCommunityNudges] = useState<string[]>([]);
 
   // Pulsing dot animation
@@ -453,23 +454,41 @@ export default function TripFormScreen() {
       .finally(() => setLoading(false));
   }, [id]);
 
-  // Fetch community nudges for the ready state
+  // Fetch community alerts and nudges for the ready state
   useEffect(() => {
     if (isEditing || !startLat || !startLng) return;
     fetchCommunityInsights(startLat, startLng)
       .then((res) => {
-        const nudges: string[] = [];
         const d = res.data;
-        if (d.nearbyAnomalies.length > 0) {
-          const a = d.nearbyAnomalies[0];
-          const labels: Record<string, string> = {
-            indirect_route: "Detour",
-            many_stops: "Heavy traffic",
-            long_idle: "Long waits",
+        const alerts: typeof communityAlerts = [];
+        const nudges: string[] = [];
+
+        // Road condition alerts (severity-based, with place names)
+        for (const a of d.nearbyAnomalies.slice(0, 3)) {
+          if (a.severity !== "high" && a.severity !== "medium") continue;
+          const reason = a.topReasons?.[0] ?? a.response;
+          const location = a.placeName ?? `${a.distanceMiles} mi away`;
+          const count = a.reportCount > 1 ? `${a.reportCount} drivers reported ` : "";
+          const severityColors: Record<string, string> = { high: "#ef4444", medium: "#f59e0b" };
+          const icons: Record<string, string> = {
+            "Heavy traffic": "car-outline",
+            "Traffic jam": "car-outline",
+            "Roadworks": "construct-outline",
+            "Accident or breakdown": "warning-outline",
+            "Road closure/diversion": "close-circle-outline",
+            "School traffic": "school-outline",
+            "Weather conditions": "rainy-outline",
           };
-          const label = labels[a.type] ?? "Road issue";
-          nudges.push(`${label} reported ${a.distanceMiles} mi away`);
+          alerts.push({
+            message: `${count}${reason.toLowerCase()} near ${location}`,
+            icon: icons[reason] ?? "alert-circle-outline",
+            color: severityColors[a.severity ?? "low"] ?? "#f5a623",
+            severity: a.severity ?? "low",
+          });
         }
+        setCommunityAlerts(alerts);
+
+        // Info nudges (non-alert, helpful tips)
         if (d.bestPlatformNearby && isWork) {
           const best = d.areaEarnings.find((e) => e.platform === d.bestPlatformNearby);
           if (best) {
@@ -1314,6 +1333,22 @@ export default function TripFormScreen() {
               </View>
             )}
 
+            {/* Pre-trip road alerts */}
+            {communityAlerts.length > 0 && (
+              <View style={styles.alertCard}>
+                <View style={styles.alertHeader}>
+                  <Ionicons name="warning-outline" size={13} color="#ef4444" />
+                  <Text style={styles.alertHeaderText}>Heads up</Text>
+                </View>
+                {communityAlerts.map((alert, i) => (
+                  <View key={i} style={styles.alertRow}>
+                    <Ionicons name={alert.icon as any} size={14} color={alert.color} />
+                    <Text style={[styles.alertText, { color: alert.color }]}>{alert.message}</Text>
+                  </View>
+                ))}
+              </View>
+            )}
+
             {/* Community nudges */}
             {communityNudges.length > 0 && (
               <View style={styles.nudgeCard}>
@@ -2134,6 +2169,38 @@ const styles = StyleSheet.create({
     paddingBottom: 40,
   },
   // ── Ready state ──────────────────────────────────────
+  alertCard: {
+    backgroundColor: "rgba(239, 68, 68, 0.08)",
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 10,
+    borderWidth: 1,
+    borderColor: "rgba(239, 68, 68, 0.2)",
+  },
+  alertHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginBottom: 6,
+  },
+  alertHeaderText: {
+    fontSize: 11,
+    fontFamily: "PlusJakartaSans_700Bold",
+    color: "#ef4444",
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+  },
+  alertRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingVertical: 3,
+  },
+  alertText: {
+    fontSize: 13,
+    fontFamily: "PlusJakartaSans_600SemiBold",
+    flex: 1,
+  },
   nudgeCard: {
     backgroundColor: "rgba(245, 166, 35, 0.06)",
     borderRadius: 12,

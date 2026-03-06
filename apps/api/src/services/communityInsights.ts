@@ -1,5 +1,10 @@
 import { PrismaClient } from "@prisma/client";
 import { haversineDistance } from "@mileclear/shared";
+import {
+  isReportRelevant,
+  getAlertSeverity,
+  aggregateReasons,
+} from "@mileclear/shared";
 import type {
   CommunityInsights,
   CommunityStats,
@@ -15,8 +20,8 @@ const prisma = new PrismaClient();
 const MIN_DRIVERS_THRESHOLD = 3;
 // Radius in miles for "nearby" queries
 const NEARBY_RADIUS_MILES = 20;
-// How far back to look for anomalies
-const ANOMALY_LOOKBACK_HOURS = 48;
+// Max lookback for anomalies (broadest window — time-decay handles filtering)
+const ANOMALY_LOOKBACK_DAYS = 14;
 // How far back for speed/earnings data
 const DATA_LOOKBACK_DAYS = 90;
 
@@ -42,7 +47,7 @@ export async function getCommunityInsights(
 ): Promise<CommunityInsights> {
   const now = new Date();
   const lookbackDate = new Date(now.getTime() - DATA_LOOKBACK_DAYS * 24 * 60 * 60 * 1000);
-  const anomalyLookback = new Date(now.getTime() - ANOMALY_LOOKBACK_HOURS * 60 * 60 * 1000);
+  const anomalyLookback = new Date(now.getTime() - ANOMALY_LOOKBACK_DAYS * 24 * 60 * 60 * 1000);
 
   // Approximate bounding box for nearby queries (±0.3 degrees ≈ 20 miles)
   const latDelta = 0.3;
@@ -96,7 +101,7 @@ export async function getCommunityInsights(
       GROUP BY e.userId, e.platform
     `,
 
-    // 4. Nearby anomalies (last 48h)
+    // 4. Nearby anomalies (14 day window — time-decay filters relevance)
     prisma.tripAnomaly.findMany({
       where: {
         lat: { gte: minLat, lte: maxLat },
@@ -109,9 +114,10 @@ export async function getCommunityInsights(
         lat: true,
         lng: true,
         createdAt: true,
+        question: true,
       },
       orderBy: { createdAt: "desc" },
-      take: 50,
+      take: 100,
     }),
 
     // 5. Speed data from trip coordinates near the location
@@ -205,37 +211,87 @@ export async function getCommunityInsights(
     .sort((a, b) => b.tripCount - a.tripCount)
     .slice(0, 5);
 
-  // ── Nearby Anomalies ─────────────────────────────────────────────
-  // Cluster nearby anomalies of the same type
-  const anomalyClusters = new Map<string, NearbyAnomaly>();
-  for (const a of nearbyAnomalyRows) {
-    if (a.lat == null || a.lng == null) continue;
-    const dist = haversineDistance(lat, lng, a.lat, a.lng);
+  // ── Nearby Anomalies (with time-decay + severity + reason aggregation) ──
+  // First, filter by time-decay relevance
+  const relevantAnomalies = nearbyAnomalyRows.filter((a) =>
+    a.lat != null && a.lng != null && isReportRelevant(a.createdAt, a.response)
+  );
+
+  // Cluster nearby anomalies by location (~500m grid)
+  const anomalyClusters = new Map<string, {
+    type: string;
+    responses: string[];
+    lat: number;
+    lng: number;
+    dist: number;
+    mostRecent: Date;
+    count: number;
+    placeName: string | null;
+  }>();
+
+  for (const a of relevantAnomalies) {
+    const dist = haversineDistance(lat, lng, a.lat!, a.lng!);
     if (dist > NEARBY_RADIUS_MILES) continue;
 
-    const clusterKey = `${a.type}-${Math.round(a.lat * 100)}-${Math.round(a.lng * 100)}`;
+    // Grid at ~500m precision
+    const clusterKey = `${Math.round(a.lat! * 200)}-${Math.round(a.lng! * 200)}`;
     const existing = anomalyClusters.get(clusterKey);
+
+    // Extract place name from question text (e.g. "Slow near Penshaw")
+    const placeMatch = a.question.match(/near (.+?)$/);
+    const placeName = placeMatch ? placeMatch[1] : null;
+
     if (existing) {
-      existing.reportCount++;
-      if (new Date(a.createdAt) > new Date(existing.reportedAt)) {
-        existing.reportedAt = a.createdAt.toISOString();
-        existing.response = a.response;
+      existing.responses.push(a.response);
+      existing.count++;
+      if (a.createdAt > existing.mostRecent) {
+        existing.mostRecent = a.createdAt;
+        existing.type = a.type;
+      }
+      if (placeName && !existing.placeName) {
+        existing.placeName = placeName;
       }
     } else {
       anomalyClusters.set(clusterKey, {
         type: a.type,
-        response: a.response,
-        lat: a.lat,
-        lng: a.lng,
-        distanceMiles: Math.round(dist * 10) / 10,
-        reportedAt: a.createdAt.toISOString(),
-        reportCount: 1,
+        responses: [a.response],
+        lat: a.lat!,
+        lng: a.lng!,
+        dist,
+        mostRecent: a.createdAt,
+        count: 1,
+        placeName,
       });
     }
   }
-  const nearbyAnomalies = Array.from(anomalyClusters.values())
-    .sort((a, b) => a.distanceMiles - b.distanceMiles)
-    .slice(0, 10);
+
+  const nearbyAnomalies: NearbyAnomaly[] = Array.from(anomalyClusters.values())
+    .map((cluster) => {
+      const hoursAgo = (Date.now() - cluster.mostRecent.getTime()) / (60 * 60 * 1000);
+      const topReasons = aggregateReasons(cluster.responses);
+      const severity = getAlertSeverity(cluster.count, hoursAgo);
+
+      return {
+        type: cluster.type,
+        response: topReasons[0] ?? cluster.responses[0],
+        lat: cluster.lat,
+        lng: cluster.lng,
+        distanceMiles: Math.round(cluster.dist * 10) / 10,
+        reportedAt: cluster.mostRecent.toISOString(),
+        reportCount: cluster.count,
+        severity,
+        topReasons,
+        placeName: cluster.placeName,
+      };
+    })
+    .sort((a, b) => {
+      // Sort by severity first (high > medium > low), then by distance
+      const severityOrder = { high: 0, medium: 1, low: 2 };
+      const sDiff = (severityOrder[a.severity!] ?? 2) - (severityOrder[b.severity!] ?? 2);
+      if (sDiff !== 0) return sDiff;
+      return a.distanceMiles - b.distanceMiles;
+    })
+    .slice(0, 15);
 
   // ── Route Speed Insights ─────────────────────────────────────────
   const MS_TO_MPH = 2.23694;

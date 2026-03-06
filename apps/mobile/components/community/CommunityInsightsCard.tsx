@@ -29,25 +29,64 @@ function platformLabel(key: string): string {
   return GIG_LABELS[key] ?? key.charAt(0).toUpperCase() + key.slice(1);
 }
 
-function anomalyIcon(type: string): string {
+function anomalyIcon(type: string, topReason?: string): string {
+  // Use top reason for more specific icons when available
+  if (topReason) {
+    switch (topReason) {
+      case "Heavy traffic":
+      case "Traffic jam":
+      case "Busy road":
+        return "car-outline";
+      case "Roadworks":
+        return "construct-outline";
+      case "Accident or breakdown":
+        return "warning-outline";
+      case "Road closure/diversion":
+      case "Detour/road closure":
+        return "close-circle-outline";
+      case "School traffic":
+        return "school-outline";
+      case "Event or market":
+        return "people-outline";
+      case "Weather conditions":
+        return "rainy-outline";
+    }
+  }
   switch (type) {
     case "indirect_route": return "git-branch-outline";
     case "many_stops": return "ellipsis-horizontal-circle-outline";
     case "long_idle": return "time-outline";
     case "very_short": return "resize-outline";
     case "very_long": return "trail-sign-outline";
+    case "slow_zone": return "speedometer-outline";
+    case "long_stop": return "location-outline";
     default: return "alert-circle-outline";
   }
 }
 
-function anomalyLabel(type: string): string {
+function anomalyLabel(type: string, topReasons?: string[]): string {
+  // Use aggregated reasons when available
+  if (topReasons && topReasons.length > 0) {
+    if (topReasons.length === 1) return topReasons[0];
+    return `${topReasons[0]} + ${topReasons.length - 1} more`;
+  }
   switch (type) {
     case "indirect_route": return "Detour reported";
     case "many_stops": return "Heavy traffic";
     case "long_idle": return "Long wait";
     case "very_short": return "Short trip area";
     case "very_long": return "Long haul route";
+    case "slow_zone": return "Slow traffic";
+    case "long_stop": return "Stop reported";
     default: return "Road issue";
+  }
+}
+
+function severityColor(severity?: string): string {
+  switch (severity) {
+    case "high": return "#ef4444";
+    case "medium": return "#f59e0b";
+    default: return "#f5a623";
   }
 }
 
@@ -132,12 +171,18 @@ export function CommunityInsightsCard({ isWork = true }: CommunityInsightsCardPr
     });
   }
 
-  if (nearbyAnomalies.length > 0) {
-    const a = nearbyAnomalies[0];
+  // Show up to 2 anomaly headlines (high/medium severity first)
+  const significantAnomalies = nearbyAnomalies.filter((a) => a.severity === "high" || a.severity === "medium");
+  const headlineAnomalies = significantAnomalies.length > 0 ? significantAnomalies.slice(0, 2) : nearbyAnomalies.slice(0, 1);
+  for (const a of headlineAnomalies) {
+    const label = a.placeName
+      ? `${anomalyLabel(a.type, a.topReasons)} near ${a.placeName}`
+      : `${anomalyLabel(a.type, a.topReasons)} — ${a.distanceMiles} mi away`;
+    const countText = a.reportCount > 1 ? ` (${a.reportCount} reports)` : "";
     headlines.push({
-      icon: anomalyIcon(a.type),
-      text: `${anomalyLabel(a.type)} — ${a.distanceMiles} mi away (${timeAgo(a.reportedAt)})`,
-      color: "#ef4444",
+      icon: anomalyIcon(a.type, a.topReasons?.[0]),
+      text: `${label}${countText} · ${timeAgo(a.reportedAt)}`,
+      color: severityColor(a.severity),
     });
   }
 
@@ -244,15 +289,18 @@ export function CommunityInsightsCard({ isWork = true }: CommunityInsightsCardPr
           )}
 
           {/* Nearby Road Conditions */}
-          {nearbyAnomalies.length > 1 && (
+          {nearbyAnomalies.length > 0 && (
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>Road Conditions</Text>
-              {nearbyAnomalies.slice(0, 5).map((a, i) => (
+              {nearbyAnomalies.slice(0, 8).map((a, i) => (
                 <View key={i} style={styles.anomalyRow}>
-                  <Ionicons name={anomalyIcon(a.type) as any} size={14} color="#ef4444" />
+                  <View style={[styles.severityDot, { backgroundColor: severityColor(a.severity) }]} />
+                  <Ionicons name={anomalyIcon(a.type, a.topReasons?.[0]) as any} size={14} color={severityColor(a.severity)} />
                   <View style={styles.anomalyInfo}>
                     <Text style={styles.anomalyText}>
-                      {anomalyLabel(a.type)} — {a.response}
+                      {a.placeName
+                        ? `${anomalyLabel(a.type, a.topReasons)} near ${a.placeName}`
+                        : `${anomalyLabel(a.type, a.topReasons)}`}
                     </Text>
                     <Text style={styles.anomalyMeta}>
                       {a.distanceMiles} mi away {"\u00B7"} {timeAgo(a.reportedAt)}
@@ -417,9 +465,15 @@ const styles = StyleSheet.create({
     color: "#6b7280",
   },
   // Anomalies
+  severityDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    marginTop: 5,
+  },
   anomalyRow: {
     flexDirection: "row",
-    gap: 8,
+    gap: 6,
     alignItems: "flex-start",
     paddingVertical: 5,
   },
