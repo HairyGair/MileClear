@@ -83,13 +83,53 @@ function otpExpiry(): Date {
   return new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
 }
 
+function hashToken(token: string): string {
+  return crypto.createHash("sha256").update(token).digest("hex");
+}
+
 function storeRefreshToken(userId: string, token: string) {
   const expiresAt = new Date();
   expiresAt.setDate(expiresAt.getDate() + REFRESH_TOKEN_EXPIRY_DAYS);
   return prisma.refreshToken.create({
-    data: { userId, token, expiresAt },
+    data: { userId, token: hashToken(token), expiresAt },
   });
 }
+
+// Per-account login lockout: track failed attempts in memory
+const loginAttempts = new Map<string, { count: number; lockedUntil: number }>();
+const MAX_ACCOUNT_ATTEMPTS = 5;
+const LOCKOUT_DURATION_MS = 15 * 60 * 1000; // 15 minutes
+
+function recordFailedLogin(email: string): void {
+  const key = email.toLowerCase();
+  const existing = loginAttempts.get(key);
+  const count = (existing?.count ?? 0) + 1;
+  loginAttempts.set(key, {
+    count,
+    lockedUntil: count >= MAX_ACCOUNT_ATTEMPTS ? Date.now() + LOCKOUT_DURATION_MS : 0,
+  });
+}
+
+function isAccountLocked(email: string): boolean {
+  const entry = loginAttempts.get(email.toLowerCase());
+  if (!entry) return false;
+  if (entry.lockedUntil > Date.now()) return true;
+  // Lockout expired — reset
+  if (entry.lockedUntil > 0) loginAttempts.delete(email.toLowerCase());
+  return false;
+}
+
+function clearFailedLogins(email: string): void {
+  loginAttempts.delete(email.toLowerCase());
+}
+
+// Clean up stale entries every 30 minutes
+setInterval(() => {
+  const now = Date.now();
+  for (const [key, entry] of loginAttempts) {
+    if (entry.lockedUntil > 0 && entry.lockedUntil < now) loginAttempts.delete(key);
+  }
+}, 30 * 60 * 1000);
 
 export async function authRoutes(app: FastifyInstance) {
   // POST /register
@@ -145,15 +185,25 @@ export async function authRoutes(app: FastifyInstance) {
 
       const { email, password } = parsed.data;
 
+      // Check per-account lockout
+      if (isAccountLocked(email)) {
+        return reply.status(429).send({ error: "Too many failed attempts. Please try again in 15 minutes." });
+      }
+
       const user = await prisma.user.findUnique({ where: { email } });
       if (!user || !user.passwordHash) {
+        recordFailedLogin(email);
         return reply.status(401).send({ error: "Invalid email or password" });
       }
 
       const valid = await verifyPassword(password, user.passwordHash);
       if (!valid) {
+        recordFailedLogin(email);
         return reply.status(401).send({ error: "Invalid email or password" });
       }
+
+      // Successful login — clear failed attempts
+      clearFailedLogins(email);
 
       const accessToken = generateAccessToken(user.id, user.isAdmin);
       const refreshToken = generateRefreshToken(user.id);
@@ -175,9 +225,10 @@ export async function authRoutes(app: FastifyInstance) {
     }
 
     const { refreshToken } = parsed.data;
+    const tokenHash = hashToken(refreshToken);
 
     const stored = await prisma.refreshToken.findUnique({
-      where: { token: refreshToken },
+      where: { token: tokenHash },
     });
 
     if (!stored || stored.expiresAt < new Date()) {
@@ -223,7 +274,7 @@ export async function authRoutes(app: FastifyInstance) {
     const { refreshToken } = parsed.data;
 
     await prisma.refreshToken.deleteMany({
-      where: { token: refreshToken, userId: request.userId! },
+      where: { token: hashToken(refreshToken), userId: request.userId! },
     });
 
     return reply.status(200).send({ message: "Logged out" });
@@ -432,6 +483,11 @@ export async function authRoutes(app: FastifyInstance) {
     if (!user && email) {
       user = await prisma.user.findUnique({ where: { email } });
       if (user) {
+        // Only auto-link if existing account has verified email
+        // This prevents account hijacking via unverified email claims
+        if (!user.emailVerified) {
+          return reply.status(403).send({ error: "An account with this email exists but is not verified. Please log in with your password and verify your email first." });
+        }
         // Link Apple ID to existing account
         user = await prisma.user.update({
           where: { id: user.id },
@@ -489,7 +545,7 @@ export async function authRoutes(app: FastifyInstance) {
     const googleAudiences = [googleClientId, googleIosClientId].filter(Boolean) as string[];
 
     // Verify Google ID token via JWKS (cryptographic verification)
-    let payload: { sub?: string; email?: string; name?: string };
+    let payload: { sub?: string; email?: string; name?: string; email_verified?: boolean };
     try {
       const { payload: verified } = await jwtVerify(
         idToken,
@@ -499,7 +555,7 @@ export async function authRoutes(app: FastifyInstance) {
           audience: googleAudiences,
         }
       );
-      payload = verified as { sub?: string; email?: string; name?: string };
+      payload = verified as { sub?: string; email?: string; name?: string; email_verified?: boolean };
     } catch {
       return reply.status(401).send({ error: "Invalid Google ID token" });
     }
@@ -519,6 +575,10 @@ export async function authRoutes(app: FastifyInstance) {
     if (!user && email) {
       user = await prisma.user.findUnique({ where: { email } });
       if (user) {
+        // Only auto-link if existing account has verified email
+        if (!user.emailVerified) {
+          return reply.status(403).send({ error: "An account with this email exists but is not verified. Please log in with your password and verify your email first." });
+        }
         // Link Google ID to existing account
         user = await prisma.user.update({
           where: { id: user.id },
@@ -671,6 +731,10 @@ export async function authRoutes(app: FastifyInstance) {
     if (!user && email) {
       user = await prisma.user.findUnique({ where: { email } });
       if (user) {
+        // Only auto-link if existing account has verified email
+        if (!user.emailVerified) {
+          return reply.redirect(`${webOrigin}/login?apple_error=${encodeURIComponent("An account with this email exists but is not verified. Please log in with your password first.")}`);
+        }
         user = await prisma.user.update({
           where: { id: user.id },
           data: { appleId, ...(displayName && !user.displayName ? { displayName } : {}) },
@@ -701,8 +765,7 @@ export async function authRoutes(app: FastifyInstance) {
     const refreshToken = generateRefreshToken(user.id);
     await storeRefreshToken(user.id, refreshToken);
 
-    // Redirect back to web app with short-lived auth code instead of raw tokens
-    // Tokens are passed via URL hash (client-only, not sent to server in logs/referrer)
+    // Redirect back to web app with tokens in URL hash (client-only, not sent in logs/referrer)
     // The hash fragment is cleared by the frontend immediately after reading
     return reply.redirect(`${webOrigin}/login#apple_token=${encodeURIComponent(accessToken)}&apple_refresh=${encodeURIComponent(refreshToken)}`);
   });

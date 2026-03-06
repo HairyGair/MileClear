@@ -1,7 +1,40 @@
+import crypto from "crypto";
 import { CountryCode, Products } from "plaid";
 import { plaidClient } from "../lib/plaid.js";
 import { prisma } from "../lib/prisma.js";
 import { MERCHANT_PLATFORM_MAP } from "@mileclear/shared";
+
+// AES-256-GCM encryption for Plaid access tokens at rest
+const PLAID_ENCRYPTION_KEY = process.env.PLAID_TOKEN_ENCRYPTION_KEY || process.env.JWT_SECRET || "";
+const ENCRYPTION_ALGORITHM = "aes-256-gcm";
+
+function getEncryptionKey(): Buffer {
+  // Derive a 32-byte key from the secret using SHA-256
+  return crypto.createHash("sha256").update(PLAID_ENCRYPTION_KEY).digest();
+}
+
+function encryptPlaidToken(plaintext: string): string {
+  const key = getEncryptionKey();
+  const iv = crypto.randomBytes(12);
+  const cipher = crypto.createCipheriv(ENCRYPTION_ALGORITHM, key, iv);
+  let encrypted = cipher.update(plaintext, "utf8", "hex");
+  encrypted += cipher.final("hex");
+  const tag = cipher.getAuthTag().toString("hex");
+  // Format: iv:tag:ciphertext
+  return `${iv.toString("hex")}:${tag}:${encrypted}`;
+}
+
+function decryptPlaidToken(encrypted: string): string {
+  // Support unencrypted legacy tokens (no colons = raw token)
+  if (!encrypted.includes(":")) return encrypted;
+  const [ivHex, tagHex, ciphertext] = encrypted.split(":");
+  const key = getEncryptionKey();
+  const decipher = crypto.createDecipheriv(ENCRYPTION_ALGORITHM, key, Buffer.from(ivHex, "hex"));
+  decipher.setAuthTag(Buffer.from(tagHex, "hex"));
+  let decrypted = decipher.update(ciphertext, "hex", "utf8");
+  decrypted += decipher.final("utf8");
+  return decrypted;
+}
 
 // Sort merchant keys longest-first so "amazon flex" matches before "amazon"
 const sortedMerchantKeys = Object.keys(MERCHANT_PLATFORM_MAP).sort(
@@ -46,19 +79,28 @@ export async function exchangePublicToken(
 
   const { access_token, item_id } = response.data;
 
+  // Verify ownership before reconnecting — prevent cross-user connection hijacking
+  const existing = await prisma.plaidConnection.findUnique({ where: { itemId: item_id } });
+  if (existing && existing.userId !== userId) {
+    throw new Error("This bank connection belongs to another account");
+  }
+
+  // Encrypt access token before storage
+  const encryptedToken = encryptPlaidToken(access_token);
+
   // Upsert — handles reconnection of same bank
   const connection = await prisma.plaidConnection.upsert({
     where: { itemId: item_id },
     create: {
       userId,
-      accessToken: access_token,
+      accessToken: encryptedToken,
       itemId: item_id,
       institutionId: institutionId || null,
       institutionName: institutionName || null,
       status: "active",
     },
     update: {
-      accessToken: access_token,
+      accessToken: encryptedToken,
       status: "active",
       institutionId: institutionId || undefined,
       institutionName: institutionName || undefined,
@@ -118,7 +160,7 @@ export async function syncTransactions(
 
   while (hasMore) {
     const response = await plaidClient.transactionsGet({
-      access_token: connection.accessToken,
+      access_token: decryptPlaidToken(connection.accessToken),
       start_date: startDate,
       end_date: endDate,
       options: { count: 500, offset },
@@ -201,7 +243,7 @@ export async function disconnectConnection(
   if (plaidClient) {
     try {
       await plaidClient.itemRemove({
-        access_token: connection.accessToken,
+        access_token: decryptPlaidToken(connection.accessToken),
       });
     } catch {
       // Non-fatal — still mark as disconnected locally
