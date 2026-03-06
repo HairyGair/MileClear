@@ -1,10 +1,11 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useMemo } from "react";
 import {
   Pressable,
   Text,
   View,
   Modal,
   TouchableOpacity,
+  ScrollView,
   StyleSheet,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
@@ -13,12 +14,46 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAuth } from "../lib/auth/context";
 import { useUser } from "../lib/user/context";
 import { AvatarIcon } from "./avatars/AvatarRegistry";
-import { useLayoutPrefs, SECTION_REGISTRY } from "../lib/layout/index";
+import { useLayoutPrefs } from "../lib/layout/index";
 
 const AMBER = "#f5a623";
 const TEXT_1 = "#f0f2f5";
 const TEXT_2 = "#8494a7";
+const TEXT_3 = "#4a5568";
 const CARD_BG = "#0c1425";
+const SHEET_BG = "#0a1120";
+
+// ── Menu item definitions ──────────────────────────────────────────
+
+interface MenuItem {
+  key: string;
+  label: string;
+  route: string;
+  icon: string;
+  replace?: boolean;
+  badge?: string;
+}
+
+const MENU_ITEMS: Record<string, MenuItem> = {
+  menu_dashboard: { key: "menu_dashboard", label: "Dashboard", route: "/(tabs)/dashboard", icon: "speedometer-outline", replace: true },
+  menu_trips: { key: "menu_trips", label: "Trips", route: "/(tabs)/trips", icon: "car-outline", replace: true },
+  menu_fuel: { key: "menu_fuel", label: "Fuel", route: "/(tabs)/fuel", icon: "water-outline", replace: true },
+  menu_earnings: { key: "menu_earnings", label: "Earnings", route: "/(tabs)/earnings", icon: "cash-outline", replace: true },
+  menu_insights: { key: "menu_insights", label: "Insights", route: "/insights", icon: "stats-chart-outline" },
+  menu_profile: { key: "menu_profile", label: "Profile", route: "/(tabs)/profile", icon: "person-outline", replace: true },
+  menu_exports: { key: "menu_exports", label: "Tax Exports", route: "/exports", icon: "download-outline", badge: "PRO" },
+  menu_edit_profile: { key: "menu_edit_profile", label: "Edit Profile", route: "/profile-edit", icon: "create-outline" },
+  menu_suggestions: { key: "menu_suggestions", label: "Suggestions", route: "/feedback", icon: "bulb-outline" },
+};
+
+// Group definitions — items render in layout-pref order within each group
+const GROUPS = [
+  { id: "nav", label: "NAVIGATE", keys: ["menu_dashboard", "menu_trips", "menu_fuel", "menu_earnings"] },
+  { id: "tools", label: "TOOLS", keys: ["menu_insights", "menu_exports"] },
+  { id: "account", label: "ACCOUNT", keys: ["menu_profile", "menu_edit_profile", "menu_suggestions"] },
+];
+
+// ── Component ──────────────────────────────────────────────────────
 
 export default function AvatarMenuButton() {
   const { user } = useUser();
@@ -27,6 +62,7 @@ export default function AvatarMenuButton() {
   const segments = useSegments();
   const insets = useSafeAreaInsets();
   const [menuVisible, setMenuVisible] = useState(false);
+  const menuLayout = useLayoutPrefs("avatar_menu");
 
   const initial = user
     ? (user.displayName || user.email)[0].toUpperCase()
@@ -58,25 +94,11 @@ export default function AvatarMenuButton() {
     return routeSegment === currentSegment;
   };
 
-  const menuLayout = useLayoutPrefs("avatar_menu");
-
-  // Map menu keys to route definitions
-  const MENU_ITEM_MAP: Record<string, { label: string; route: string; icon: string; replace?: boolean; badge?: string }> = {
-    menu_dashboard: { label: "Dashboard", route: "/(tabs)/dashboard", icon: "speedometer-outline", replace: true },
-    menu_trips: { label: "Trips", route: "/(tabs)/trips", icon: "car-outline", replace: true },
-    menu_fuel: { label: "Fuel", route: "/(tabs)/fuel", icon: "water-outline", replace: true },
-    menu_earnings: { label: "Earnings", route: "/(tabs)/earnings", icon: "cash-outline", replace: true },
-    menu_insights: { label: "Insights", route: "/insights", icon: "stats-chart-outline" },
-    menu_profile: { label: "Profile", route: "/(tabs)/profile", icon: "person-outline", replace: true },
-    menu_exports: { label: "Tax Exports", route: "/exports", icon: "download-outline", badge: "PRO" },
-    menu_edit_profile: { label: "Edit Profile", route: "/profile-edit", icon: "create-outline" },
-    menu_suggestions: { label: "Suggestions", route: "/feedback", icon: "bulb-outline" },
-  };
-
-  // Build ordered menu items from layout prefs (excluding logout, handled separately)
-  const menuItems = menuLayout.visibleKeys
-    .filter((key) => key !== "menu_logout" && MENU_ITEM_MAP[key])
-    .map((key) => ({ ...MENU_ITEM_MAP[key], key }));
+  // Build grouped items respecting layout visibility + ordering
+  const visibleSet = useMemo(
+    () => new Set(menuLayout.visibleKeys),
+    [menuLayout.visibleKeys]
+  );
 
   const displayName = user?.displayName || user?.email?.split("@")[0] || "";
   const shortName = displayName.length > 10
@@ -111,23 +133,34 @@ export default function AvatarMenuButton() {
         </Pressable>
       </View>
 
+      {/* ── Bottom Sheet Menu ── */}
       {menuVisible && (
         <Modal
           visible
           transparent
-          animationType="fade"
+          animationType="slide"
           onRequestClose={() => setMenuVisible(false)}
         >
           <Pressable
             style={styles.backdrop}
             onPress={() => setMenuVisible(false)}
           >
-            <View style={[styles.card, { top: insets.top + 52 }]}>
-              {/* User info */}
+            <View
+              style={[styles.sheet, { paddingBottom: insets.bottom + 12 }]}
+              onStartShouldSetResponder={() => true}
+            >
+              {/* Handle */}
+              <View style={styles.handle} />
+
+              {/* User card */}
               {user && (
-                <View style={styles.userSection}>
+                <TouchableOpacity
+                  style={styles.userCard}
+                  onPress={() => handleNav("/(tabs)/profile", true)}
+                  activeOpacity={0.7}
+                >
                   {user.avatarId ? (
-                    <AvatarIcon avatarId={user.avatarId} size={36} />
+                    <AvatarIcon avatarId={user.avatarId} size={44} />
                   ) : (
                     <View style={styles.userAvatar}>
                       <Text style={styles.userAvatarText}>
@@ -143,72 +176,117 @@ export default function AvatarMenuButton() {
                       {user.email}
                     </Text>
                   </View>
-                </View>
-              )}
-
-              <View style={styles.separator} />
-
-              {/* Menu items (layout-aware order) */}
-              {menuItems.map((item) => (
-                <TouchableOpacity
-                  key={item.key}
-                  style={[styles.menuItem, isActive(item.route) && styles.menuItemActive]}
-                  onPress={() => handleNav(item.route, item.replace)}
-                  activeOpacity={0.7}
-                >
-                  {isActive(item.route) && <View style={styles.activeIndicator} />}
-                  <Ionicons
-                    name={item.icon as any}
-                    size={18}
-                    color={isActive(item.route) ? AMBER : TEXT_2}
-                  />
-                  <Text style={[styles.menuLabel, isActive(item.route) && styles.menuLabelActive]}>
-                    {item.label}
-                  </Text>
-                  {item.badge && (
-                    <View style={styles.badge}>
-                      <Text style={styles.badgeText}>{item.badge}</Text>
-                    </View>
-                  )}
+                  <Ionicons name="chevron-forward" size={16} color={TEXT_3} />
                 </TouchableOpacity>
-              ))}
-
-              {/* Admin */}
-              {user?.isAdmin && (
-                <>
-                  <View style={styles.separator} />
-                  <TouchableOpacity
-                    style={[styles.menuItem, isActive("/(tabs)/admin") && styles.menuItemActive]}
-                    onPress={() => handleNav("/(tabs)/admin", true)}
-                    activeOpacity={0.7}
-                  >
-                    {isActive("/(tabs)/admin") && <View style={styles.activeIndicator} />}
-                    <Ionicons
-                      name="shield-outline"
-                      size={18}
-                      color={isActive("/(tabs)/admin") ? AMBER : TEXT_2}
-                    />
-                    <Text style={[styles.menuLabel, isActive("/(tabs)/admin") && styles.menuLabelActive]}>
-                      Admin
-                    </Text>
-                    <View style={styles.adminBadge}>
-                      <Text style={styles.adminBadgeText}>ADMIN</Text>
-                    </View>
-                  </TouchableOpacity>
-                </>
               )}
 
-              <View style={styles.separator} />
-
-              {/* Logout */}
-              <TouchableOpacity
-                style={styles.menuItem}
-                onPress={handleLogout}
-                activeOpacity={0.7}
+              <ScrollView
+                style={styles.scrollArea}
+                showsVerticalScrollIndicator={false}
+                bounces={false}
               >
-                <Ionicons name="log-out-outline" size={18} color="#ef4444" />
-                <Text style={styles.logoutLabel}>Log out</Text>
-              </TouchableOpacity>
+                {/* Grouped menu items */}
+                {GROUPS.map((group) => {
+                  const items = group.keys
+                    .filter((k) => visibleSet.has(k) && MENU_ITEMS[k])
+                    .sort((a, b) => {
+                      const ai = menuLayout.visibleKeys.indexOf(a);
+                      const bi = menuLayout.visibleKeys.indexOf(b);
+                      return ai - bi;
+                    })
+                    .map((k) => MENU_ITEMS[k]);
+
+                  if (items.length === 0) return null;
+
+                  return (
+                    <View key={group.id} style={styles.group}>
+                      <Text style={styles.groupLabel}>{group.label}</Text>
+                      <View style={styles.groupCard}>
+                        {items.map((item, idx) => (
+                          <TouchableOpacity
+                            key={item.key}
+                            style={[
+                              styles.menuItem,
+                              isActive(item.route) && styles.menuItemActive,
+                              idx < items.length - 1 && styles.menuItemBorder,
+                            ]}
+                            onPress={() => handleNav(item.route, item.replace)}
+                            activeOpacity={0.6}
+                          >
+                            <View style={[
+                              styles.iconCircle,
+                              isActive(item.route) && styles.iconCircleActive,
+                            ]}>
+                              <Ionicons
+                                name={item.icon as any}
+                                size={18}
+                                color={isActive(item.route) ? AMBER : TEXT_2}
+                              />
+                            </View>
+                            <Text style={[
+                              styles.menuLabel,
+                              isActive(item.route) && styles.menuLabelActive,
+                            ]}>
+                              {item.label}
+                            </Text>
+                            {item.badge && (
+                              <View style={styles.badge}>
+                                <Text style={styles.badgeText}>{item.badge}</Text>
+                              </View>
+                            )}
+                            {isActive(item.route) && (
+                              <View style={styles.activeDot} />
+                            )}
+                          </TouchableOpacity>
+                        ))}
+                      </View>
+                    </View>
+                  );
+                })}
+
+                {/* Admin */}
+                {user?.isAdmin && (
+                  <View style={styles.group}>
+                    <Text style={styles.groupLabel}>ADMIN</Text>
+                    <View style={styles.groupCard}>
+                      <TouchableOpacity
+                        style={[
+                          styles.menuItem,
+                          isActive("/(tabs)/admin") && styles.menuItemActive,
+                        ]}
+                        onPress={() => handleNav("/(tabs)/admin", true)}
+                        activeOpacity={0.6}
+                      >
+                        <View style={[
+                          styles.iconCircle,
+                          { backgroundColor: "rgba(239, 68, 68, 0.1)" },
+                        ]}>
+                          <Ionicons name="shield-outline" size={18} color="#ef4444" />
+                        </View>
+                        <Text style={[
+                          styles.menuLabel,
+                          isActive("/(tabs)/admin") && styles.menuLabelActive,
+                        ]}>
+                          Admin Panel
+                        </Text>
+                        <View style={styles.adminBadge}>
+                          <Text style={styles.adminBadgeText}>ADMIN</Text>
+                        </View>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                )}
+
+                {/* Logout */}
+                <TouchableOpacity
+                  style={styles.logoutBtn}
+                  onPress={handleLogout}
+                  activeOpacity={0.6}
+                >
+                  <Ionicons name="log-out-outline" size={18} color="#ef4444" />
+                  <Text style={styles.logoutLabel}>Log out</Text>
+                </TouchableOpacity>
+              </ScrollView>
             </View>
           </Pressable>
         </Modal>
@@ -217,7 +295,10 @@ export default function AvatarMenuButton() {
   );
 }
 
+// ── Styles ────────────────────────────────────────────────────────
+
 const styles = StyleSheet.create({
+  // Header trigger
   headerRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -234,7 +315,7 @@ const styles = StyleSheet.create({
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: "#f5a623",
+    backgroundColor: AMBER,
     justifyContent: "center",
     alignItems: "center",
   },
@@ -243,42 +324,55 @@ const styles = StyleSheet.create({
     fontFamily: "PlusJakartaSans_700Bold",
     color: "#030712",
   },
+
+  // Bottom sheet
   backdrop: {
     flex: 1,
-    backgroundColor: "rgba(0,0,0,0.4)",
+    backgroundColor: "rgba(0,0,0,0.5)",
+    justifyContent: "flex-end",
   },
-  card: {
-    position: "absolute",
-    right: 12,
-    width: 240,
-    backgroundColor: CARD_BG,
-    borderRadius: 14,
-    paddingVertical: 8,
+  sheet: {
+    backgroundColor: SHEET_BG,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    paddingTop: 8,
+    maxHeight: "85%",
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.08)",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.4,
-    shadowRadius: 24,
-    elevation: 20,
+    borderBottomWidth: 0,
+    borderColor: "rgba(255,255,255,0.06)",
   },
-  userSection: {
+  handle: {
+    width: 36,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: "rgba(255,255,255,0.15)",
+    alignSelf: "center",
+    marginBottom: 12,
+  },
+
+  // User card
+  userCard: {
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    gap: 10,
+    marginHorizontal: 16,
+    padding: 14,
+    backgroundColor: CARD_BG,
+    borderRadius: 14,
+    gap: 12,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.06)",
+    marginBottom: 8,
   },
   userAvatar: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     backgroundColor: AMBER,
     justifyContent: "center",
     alignItems: "center",
   },
   userAvatarText: {
-    fontSize: 15,
+    fontSize: 18,
     fontFamily: "PlusJakartaSans_700Bold",
     color: "#030712",
   },
@@ -286,43 +380,70 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   userName: {
-    fontSize: 14,
-    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontSize: 16,
+    fontFamily: "PlusJakartaSans_700Bold",
     color: TEXT_1,
   },
   userEmail: {
-    fontSize: 11,
+    fontSize: 12,
     fontFamily: "PlusJakartaSans_400Regular",
     color: TEXT_2,
     marginTop: 1,
   },
-  separator: {
-    height: 1,
-    backgroundColor: "rgba(255,255,255,0.06)",
-    marginVertical: 4,
-    marginHorizontal: 10,
+
+  // Scroll area
+  scrollArea: {
+    paddingHorizontal: 16,
   },
+
+  // Groups
+  group: {
+    marginTop: 12,
+  },
+  groupLabel: {
+    fontSize: 11,
+    fontFamily: "PlusJakartaSans_600SemiBold",
+    color: TEXT_3,
+    letterSpacing: 1,
+    marginBottom: 6,
+    marginLeft: 4,
+  },
+  groupCard: {
+    backgroundColor: CARD_BG,
+    borderRadius: 14,
+    overflow: "hidden",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.06)",
+  },
+
+  // Menu items
   menuItem: {
     flexDirection: "row",
     alignItems: "center",
-    paddingVertical: 10,
+    paddingVertical: 13,
     paddingHorizontal: 14,
-    gap: 10,
+    gap: 12,
   },
   menuItemActive: {
-    backgroundColor: "rgba(245, 166, 35, 0.06)",
+    backgroundColor: "rgba(245, 166, 35, 0.05)",
   },
-  activeIndicator: {
-    position: "absolute",
-    left: 0,
-    top: 6,
-    bottom: 6,
-    width: 3,
-    borderRadius: 1.5,
-    backgroundColor: AMBER,
+  menuItemBorder: {
+    borderBottomWidth: 1,
+    borderBottomColor: "rgba(255,255,255,0.04)",
+  },
+  iconCircle: {
+    width: 34,
+    height: 34,
+    borderRadius: 10,
+    backgroundColor: "rgba(255,255,255,0.04)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  iconCircleActive: {
+    backgroundColor: "rgba(245, 166, 35, 0.1)",
   },
   menuLabel: {
-    fontSize: 14,
+    fontSize: 15,
     fontFamily: "PlusJakartaSans_500Medium",
     color: TEXT_1,
     flex: 1,
@@ -331,11 +452,17 @@ const styles = StyleSheet.create({
     color: AMBER,
     fontFamily: "PlusJakartaSans_600SemiBold",
   },
+  activeDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: AMBER,
+  },
   badge: {
     backgroundColor: AMBER,
-    paddingHorizontal: 5,
-    paddingVertical: 1,
-    borderRadius: 3,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
   },
   badgeText: {
     fontSize: 9,
@@ -343,22 +470,40 @@ const styles = StyleSheet.create({
     color: "#030712",
     letterSpacing: 0.3,
   },
-  logoutLabel: {
-    fontSize: 14,
-    fontFamily: "PlusJakartaSans_500Medium",
-    color: "#ef4444",
-    flex: 1,
-  },
+
+  // Admin
   adminBadge: {
-    backgroundColor: "#ef4444",
-    paddingHorizontal: 5,
-    paddingVertical: 1,
-    borderRadius: 3,
+    backgroundColor: "rgba(239, 68, 68, 0.15)",
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+    borderWidth: 1,
+    borderColor: "rgba(239, 68, 68, 0.3)",
   },
   adminBadgeText: {
     fontSize: 9,
     fontFamily: "PlusJakartaSans_700Bold",
-    color: "#fff",
+    color: "#ef4444",
     letterSpacing: 0.3,
+  },
+
+  // Logout
+  logoutBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    marginTop: 16,
+    marginBottom: 8,
+    paddingVertical: 12,
+    borderRadius: 12,
+    backgroundColor: "rgba(239, 68, 68, 0.06)",
+    borderWidth: 1,
+    borderColor: "rgba(239, 68, 68, 0.12)",
+  },
+  logoutLabel: {
+    fontSize: 14,
+    fontFamily: "PlusJakartaSans_600SemiBold",
+    color: "#ef4444",
   },
 });
