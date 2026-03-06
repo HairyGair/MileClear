@@ -36,13 +36,17 @@ function haversine(lat1: number, lng1: number, lat2: number, lng2: number): numb
 }
 
 export async function requestLocationPermissions(): Promise<boolean> {
-  const { status: foreground } =
-    await Location.requestForegroundPermissionsAsync();
-  if (foreground !== "granted") return false;
+  try {
+    const { status: foreground } =
+      await Location.requestForegroundPermissionsAsync();
+    if (foreground !== "granted") return false;
 
-  const { status: background } =
-    await Location.requestBackgroundPermissionsAsync();
-  return background === "granted";
+    const { status: background } =
+      await Location.requestBackgroundPermissionsAsync();
+    return background === "granted";
+  } catch {
+    return false; // Expo Go may throw if Info.plist keys unavailable
+  }
 }
 
 export async function isTrackingActive(): Promise<boolean> {

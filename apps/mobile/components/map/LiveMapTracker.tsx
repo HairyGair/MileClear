@@ -120,8 +120,12 @@ export function LiveMapTracker({
     let sub: Location.LocationSubscription | null = null;
 
     (async () => {
-      const { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== "granted") return;
+      try {
+        const { status } = await Location.requestForegroundPermissionsAsync();
+        if (status !== "granted") return;
+      } catch {
+        return; // Expo Go may throw if Info.plist keys unavailable
+      }
 
       sub = await Location.watchPositionAsync(
         {
