@@ -179,7 +179,7 @@ export default function DashboardPage() {
             const deduction = recapView === "yearly" ? (stats?.deductionPence ?? 0) : (recapSource?.deductionPence ?? 0);
             const busiest = recapView !== "yearly" && recapView !== "daily" ? (recapSource?.busiestDayLabel ?? null) : null;
             const busiestMiles = recapView !== "yearly" && recapView !== "daily" ? (recapSource?.busiestDayMiles ?? 0) : 0;
-            const equiv = getDistanceEquivalent(miles);
+            const equiv = getDistanceEquivalent(miles, stats?.region);
 
             return (
               <>

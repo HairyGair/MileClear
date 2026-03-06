@@ -256,6 +256,32 @@ export function computeTripInsights(
 interface DC {
   min: number; max: number; dist: number;
   s: string; m: string;
+  r?: string; // UK region tag — undefined = universal
+}
+
+// UK regions derived from coordinates
+export type UkRegion =
+  | "north_east" | "north_west" | "yorkshire" | "midlands"
+  | "east" | "london" | "south_east" | "south_west"
+  | "wales" | "scotland";
+
+/**
+ * Detect UK region from latitude/longitude.
+ * Returns undefined for non-UK or unknown coordinates.
+ */
+export function detectUkRegion(lat: number, lng: number): UkRegion | undefined {
+  if (lat < 49.9 || lat > 60.9 || lng < -8.2 || lng > 1.8) return undefined;
+  if (lat > 55.8) return "scotland";
+  if (lng < -3.0 && lat < 53.5 && lat > 51.3) return "wales";
+  if (lat > 54.5 && lng > -2.5) return "north_east";
+  if (lat > 53.5 && lng < -1.5) return "north_west";
+  if (lat > 53.2 && lat <= 54.5 && lng >= -2.0) return "yorkshire";
+  if (lat > 52.0 && lat <= 53.5) return "midlands";
+  if (lat < 51.8 && lng < -2.0) return "south_west";
+  if (lat >= 51.3 && lat <= 51.7 && lng >= -0.5 && lng <= 0.3) return "london";
+  if (lat < 52.2 && lng > 0.4) return "east";
+  if (lat < 51.8) return "south_east";
+  return undefined;
 }
 
 const C: DC[] = [
@@ -404,6 +430,131 @@ const C: DC[] = [
   { min: 50000, max: 300000, dist: 24901, s: "Like driving around the Earth {n} times", m: "Like driving around the Earth {n} times" },
   { min: 200000, max: 500000, dist: 238900, s: "That's about the distance to the Moon!", m: "Like driving to the Moon {n} times" },
   { min: 238900, max: Infinity, dist: 238900, s: "Like driving to the Moon {n} times", m: "Like driving to the Moon {n} times" },
+
+  // ══════════════════════════════════════════════════════════════════
+  // REGIONAL — tagged with r: "region_name"
+  // These are blended with universal comparisons when region matches.
+  // ══════════════════════════════════════════════════════════════════
+
+  // ── North East ──
+  { min: 1, max: 6, dist: 2, r: "north_east", s: "About the walk from the Tyne Bridge to the Angel of the North", m: "Like {n} walks from the Tyne Bridge to the Angel" },
+  { min: 2, max: 6, dist: 3, r: "north_east", s: "Like a lap of Newcastle's Town Moor", m: "Like {n} laps of the Town Moor" },
+  { min: 5, max: 16, dist: 12, r: "north_east", s: "About Newcastle to Durham", m: "Like {n} trips from Newcastle to Durham" },
+  { min: 5, max: 16, dist: 10, r: "north_east", s: "Like Newcastle to Sunderland", m: "Like {n} runs from Newcastle to Sunderland" },
+  { min: 5, max: 16, dist: 14, r: "north_east", s: "About Newcastle to the coast at Tynemouth", m: "Like {n} trips to Tynemouth" },
+  { min: 8, max: 16, dist: 12, r: "north_east", s: "Like a run along the A19 to the Tyne Tunnel", m: "Like {n} Tyne Tunnel runs" },
+  { min: 15, max: 55, dist: 30, r: "north_east", s: "Like Newcastle to Middlesbrough", m: "Like {n} drives from Newcastle to Boro" },
+  { min: 15, max: 55, dist: 25, r: "north_east", s: "About Newcastle to Hexham", m: "Like {n} Newcastle-to-Hexham drives" },
+  { min: 15, max: 55, dist: 20, r: "north_east", s: "Like Sunderland to Hartlepool along the coast", m: "Like {n} coastal runs to Hartlepool" },
+  { min: 20, max: 55, dist: 35, r: "north_east", s: "Like Newcastle to Alnwick Castle", m: "Like {n} trips to Alnwick Castle" },
+  { min: 25, max: 55, dist: 40, r: "north_east", s: "About Newcastle to Kielder Water", m: "Like {n} drives to Kielder" },
+  { min: 30, max: 55, dist: 50, r: "north_east", s: "Like Newcastle to the Scottish border at Berwick", m: "Like {n} drives to Berwick" },
+  { min: 50, max: 130, dist: 60, r: "north_east", s: "About Newcastle to Whitby", m: "Like {n} trips from Newcastle to Whitby" },
+  { min: 50, max: 130, dist: 55, r: "north_east", s: "Like Newcastle to Carlisle across the Pennines", m: "Like {n} drives across the Pennines" },
+  { min: 60, max: 130, dist: 75, r: "north_east", s: "About Newcastle to the Lake District", m: "Like {n} trips to the Lakes from Newcastle" },
+  { min: 80, max: 130, dist: 100, r: "north_east", s: "Like Newcastle to Edinburgh", m: "Like {n} Newcastle-to-Edinburgh drives" },
+  { min: 100, max: 320, dist: 120, r: "north_east", s: "About Newcastle to York and back", m: "Like {n} York round trips from Newcastle" },
+  { min: 120, max: 320, dist: 160, r: "north_east", s: "Like Newcastle to Manchester", m: "Like {n} drives from Newcastle to Manchester" },
+  { min: 160, max: 320, dist: 200, r: "north_east", s: "About Newcastle to the Peak District and back", m: "Like {n} Peak District round trips" },
+  { min: 200, max: 320, dist: 280, r: "north_east", s: "Like Newcastle to London", m: "Like {n} drives from Newcastle to London" },
+
+  // ── North West ──
+  { min: 5, max: 16, dist: 10, r: "north_west", s: "Like Manchester to Stockport and back", m: "Like {n} trips to Stockport and back" },
+  { min: 5, max: 16, dist: 8, r: "north_west", s: "About a lap of Liverpool's waterfront and back", m: "Like {n} waterfront laps" },
+  { min: 15, max: 55, dist: 35, r: "north_west", s: "Like Manchester to Liverpool", m: "Like {n} drives from Manchester to Liverpool" },
+  { min: 15, max: 55, dist: 25, r: "north_west", s: "About Manchester to Blackburn", m: "Like {n} drives to Blackburn" },
+  { min: 20, max: 55, dist: 30, r: "north_west", s: "Like Liverpool to Chester", m: "Like {n} trips from Liverpool to Chester" },
+  { min: 25, max: 55, dist: 45, r: "north_west", s: "About Manchester to Blackpool", m: "Like {n} drives to Blackpool" },
+  { min: 30, max: 55, dist: 50, r: "north_west", s: "Like Manchester to the Lake District", m: "Like {n} drives to the Lakes" },
+  { min: 50, max: 130, dist: 75, r: "north_west", s: "About Manchester to North Wales", m: "Like {n} drives from Manchester to North Wales" },
+  { min: 60, max: 130, dist: 85, r: "north_west", s: "Like Liverpool to the Yorkshire Dales", m: "Like {n} trips to the Dales" },
+  { min: 80, max: 130, dist: 100, r: "north_west", s: "About Manchester to Newcastle", m: "Like {n} Manchester-to-Newcastle drives" },
+  { min: 120, max: 320, dist: 150, r: "north_west", s: "Like Manchester to Edinburgh", m: "Like {n} drives to Edinburgh" },
+  { min: 200, max: 320, dist: 200, r: "north_west", s: "About Manchester to London", m: "Like {n} drives from Manchester to London" },
+
+  // ── Yorkshire ──
+  { min: 5, max: 16, dist: 10, r: "yorkshire", s: "Like Leeds to Bradford", m: "Like {n} trips from Leeds to Bradford" },
+  { min: 5, max: 16, dist: 12, r: "yorkshire", s: "About Sheffield to Rotherham and back", m: "Like {n} Rotherham round trips" },
+  { min: 15, max: 55, dist: 30, r: "yorkshire", s: "Like Leeds to Sheffield", m: "Like {n} Leeds-to-Sheffield drives" },
+  { min: 15, max: 55, dist: 25, r: "yorkshire", s: "About York to Scarborough", m: "Like {n} trips from York to Scarborough" },
+  { min: 20, max: 55, dist: 35, r: "yorkshire", s: "Like Leeds to the heart of the Yorkshire Dales", m: "Like {n} trips to the Dales from Leeds" },
+  { min: 25, max: 55, dist: 40, r: "yorkshire", s: "About Sheffield to the Peak District and back", m: "Like {n} Peak District round trips" },
+  { min: 30, max: 55, dist: 50, r: "yorkshire", s: "Like York to Whitby across the North York Moors", m: "Like {n} drives across the Moors to Whitby" },
+  { min: 50, max: 130, dist: 60, r: "yorkshire", s: "About Leeds to Hull", m: "Like {n} Leeds-to-Hull drives" },
+  { min: 60, max: 130, dist: 70, r: "yorkshire", s: "Like Sheffield to Manchester and back", m: "Like {n} Manchester round trips" },
+  { min: 80, max: 130, dist: 95, r: "yorkshire", s: "About Leeds to Newcastle", m: "Like {n} drives from Leeds to Newcastle" },
+  { min: 100, max: 320, dist: 120, r: "yorkshire", s: "Like Leeds to the Lake District and back", m: "Like {n} Lake District round trips" },
+  { min: 160, max: 320, dist: 195, r: "yorkshire", s: "About Leeds to London", m: "Like {n} drives from Leeds to London" },
+
+  // ── Scotland ──
+  { min: 5, max: 16, dist: 8, r: "scotland", s: "Like a drive along Edinburgh's Royal Mile and back to Leith", m: "Like {n} Royal Mile drives" },
+  { min: 5, max: 16, dist: 12, r: "scotland", s: "About Glasgow to East Kilbride and back", m: "Like {n} East Kilbride round trips" },
+  { min: 15, max: 55, dist: 45, r: "scotland", s: "Like Glasgow to Edinburgh", m: "Like {n} Glasgow-to-Edinburgh drives" },
+  { min: 15, max: 55, dist: 30, r: "scotland", s: "About Edinburgh to Stirling", m: "Like {n} trips from Edinburgh to Stirling" },
+  { min: 20, max: 55, dist: 35, r: "scotland", s: "Like Glasgow to Loch Lomond and back", m: "Like {n} trips to Loch Lomond" },
+  { min: 30, max: 55, dist: 50, r: "scotland", s: "About Edinburgh to Dundee", m: "Like {n} drives from Edinburgh to Dundee" },
+  { min: 50, max: 130, dist: 65, r: "scotland", s: "Like Edinburgh to the Cairngorms", m: "Like {n} drives to the Cairngorms" },
+  { min: 60, max: 130, dist: 80, r: "scotland", s: "About Glasgow to Fort William", m: "Like {n} drives to Fort William" },
+  { min: 80, max: 130, dist: 110, r: "scotland", s: "Like Edinburgh to Aberdeen", m: "Like {n} Edinburgh-to-Aberdeen drives" },
+  { min: 100, max: 320, dist: 125, r: "scotland", s: "About Glasgow to Inverness", m: "Like {n} drives to Inverness from Glasgow" },
+  { min: 150, max: 320, dist: 180, r: "scotland", s: "Like Edinburgh to the far north at Thurso", m: "Like {n} drives to Thurso" },
+  { min: 250, max: 620, dist: 280, r: "scotland", s: "About a full lap of the North Coast 500", m: "Like {n} laps of the NC500" },
+
+  // ── Wales ──
+  { min: 5, max: 16, dist: 8, r: "wales", s: "Like a drive around Cardiff Bay", m: "Like {n} laps of Cardiff Bay" },
+  { min: 15, max: 55, dist: 25, r: "wales", s: "About Cardiff to the Brecon Beacons", m: "Like {n} trips to the Beacons" },
+  { min: 15, max: 55, dist: 40, r: "wales", s: "Like Cardiff to Swansea", m: "Like {n} Cardiff-to-Swansea drives" },
+  { min: 25, max: 55, dist: 50, r: "wales", s: "About Swansea to Pembrokeshire", m: "Like {n} drives to Pembrokeshire" },
+  { min: 50, max: 130, dist: 75, r: "wales", s: "Like Cardiff to Aberystwyth", m: "Like {n} drives to Aberystwyth" },
+  { min: 60, max: 130, dist: 90, r: "wales", s: "About a drive along the entire Pembrokeshire Coast Path", m: "Like {n} Pembrokeshire coast drives" },
+  { min: 80, max: 130, dist: 105, r: "wales", s: "Like Cardiff to Snowdonia", m: "Like {n} drives to Snowdonia" },
+  { min: 100, max: 320, dist: 130, r: "wales", s: "About the full length of Wales — Cardiff to Anglesey", m: "Like driving the length of Wales {n} times" },
+
+  // ── Midlands ──
+  { min: 5, max: 16, dist: 10, r: "midlands", s: "Like a lap around Birmingham's ring road", m: "Like {n} laps of the ring road" },
+  { min: 5, max: 16, dist: 14, r: "midlands", s: "About Nottingham to Derby", m: "Like {n} Nottingham-to-Derby drives" },
+  { min: 15, max: 55, dist: 25, r: "midlands", s: "Like Birmingham to Coventry", m: "Like {n} drives from Birmingham to Coventry" },
+  { min: 15, max: 55, dist: 30, r: "midlands", s: "About Nottingham to Leicester", m: "Like {n} Nottingham-to-Leicester drives" },
+  { min: 20, max: 55, dist: 40, r: "midlands", s: "Like Birmingham to Stratford-upon-Avon and back", m: "Like {n} Stratford round trips" },
+  { min: 30, max: 55, dist: 50, r: "midlands", s: "About Birmingham to the Peak District", m: "Like {n} drives to the Peak District" },
+  { min: 50, max: 130, dist: 60, r: "midlands", s: "Like Birmingham to Bristol", m: "Like {n} Birmingham-to-Bristol drives" },
+  { min: 60, max: 130, dist: 80, r: "midlands", s: "About Nottingham to Manchester", m: "Like {n} Nottingham-to-Manchester drives" },
+  { min: 80, max: 130, dist: 110, r: "midlands", s: "Like Birmingham to North Wales", m: "Like {n} drives from Birmingham to North Wales" },
+  { min: 120, max: 320, dist: 130, r: "midlands", s: "About Birmingham to London", m: "Like {n} drives from Birmingham to London" },
+
+  // ── South West ──
+  { min: 5, max: 16, dist: 8, r: "south_west", s: "Like a drive along the Bristol harbourside and back", m: "Like {n} harbourside drives" },
+  { min: 15, max: 55, dist: 30, r: "south_west", s: "About Bristol to Bath and back", m: "Like {n} Bath round trips" },
+  { min: 15, max: 55, dist: 45, r: "south_west", s: "Like Bristol to Exeter", m: "Like {n} Bristol-to-Exeter drives" },
+  { min: 25, max: 55, dist: 50, r: "south_west", s: "About Exeter to Plymouth", m: "Like {n} Exeter-to-Plymouth drives" },
+  { min: 50, max: 130, dist: 75, r: "south_west", s: "Like Exeter to Land's End", m: "Like {n} drives to Land's End" },
+  { min: 60, max: 130, dist: 85, r: "south_west", s: "About Bristol to the Jurassic Coast", m: "Like {n} trips to the Jurassic Coast" },
+  { min: 80, max: 130, dist: 120, r: "south_west", s: "Like Bristol to London", m: "Like {n} Bristol-to-London drives" },
+
+  // ── South East ──
+  { min: 5, max: 16, dist: 10, r: "south_east", s: "Like Brighton seafront end to end and back", m: "Like {n} Brighton seafront drives" },
+  { min: 15, max: 55, dist: 25, r: "south_east", s: "About Brighton to Eastbourne", m: "Like {n} drives from Brighton to Eastbourne" },
+  { min: 15, max: 55, dist: 30, r: "south_east", s: "Like Southampton to Bournemouth", m: "Like {n} drives to Bournemouth" },
+  { min: 25, max: 55, dist: 45, r: "south_east", s: "About Canterbury to Dover and back", m: "Like {n} Dover round trips" },
+  { min: 50, max: 130, dist: 60, r: "south_east", s: "Like Brighton to London", m: "Like {n} Brighton-to-London drives" },
+  { min: 60, max: 130, dist: 80, r: "south_east", s: "About Southampton to London", m: "Like {n} Southampton-to-London drives" },
+
+  // ── East ──
+  { min: 5, max: 16, dist: 12, r: "east", s: "Like Cambridge to Ely and back", m: "Like {n} Ely round trips" },
+  { min: 15, max: 55, dist: 25, r: "east", s: "About Norwich to Great Yarmouth and back", m: "Like {n} Yarmouth round trips" },
+  { min: 15, max: 55, dist: 40, r: "east", s: "Like Cambridge to Bury St Edmunds", m: "Like {n} drives to Bury St Edmunds" },
+  { min: 25, max: 55, dist: 50, r: "east", s: "About Cambridge to Norwich", m: "Like {n} Cambridge-to-Norwich drives" },
+  { min: 50, max: 130, dist: 60, r: "east", s: "Like Cambridge to London", m: "Like {n} Cambridge-to-London drives" },
+  { min: 60, max: 130, dist: 80, r: "east", s: "About Norwich to London", m: "Like {n} Norwich-to-London drives" },
+
+  // ── London ──
+  { min: 1, max: 6, dist: 2, r: "london", s: "About Oxford Circus to Canary Wharf", m: "Like {n} drives from Oxford Circus to Canary Wharf" },
+  { min: 5, max: 16, dist: 7, r: "london", s: "Like Brixton to Hampstead across town", m: "Like {n} drives across London" },
+  { min: 5, max: 16, dist: 10, r: "london", s: "About Croydon to central London", m: "Like {n} drives from Croydon to central" },
+  { min: 15, max: 55, dist: 20, r: "london", s: "Like a trip out to the M25 and back", m: "Like {n} trips out to the M25" },
+  { min: 15, max: 55, dist: 30, r: "london", s: "About London to St Albans and back", m: "Like {n} St Albans round trips" },
+  { min: 50, max: 130, dist: 55, r: "london", s: "Like London to Brighton for the day", m: "Like {n} day trips to Brighton" },
+  { min: 50, max: 130, dist: 65, r: "london", s: "About London to Cambridge for the weekend", m: "Like {n} Cambridge weekend drives" },
 ];
 
 /**
@@ -411,10 +562,16 @@ const C: DC[] = [
  * Uses a seeded selection so the same mileage returns the same text
  * within a given day, but varies day-to-day.
  */
-export function getDistanceEquivalent(miles: number): string | null {
+export function getDistanceEquivalent(
+  miles: number,
+  region?: UkRegion | string,
+): string | null {
   if (miles < 1) return null;
 
-  const eligible = C.filter((c) => miles >= c.min && miles < c.max);
+  // Blend: universal entries + any that match the user's region
+  const eligible = C.filter(
+    (c) => miles >= c.min && miles < c.max && (!c.r || c.r === region),
+  );
   if (eligible.length === 0) return null;
 
   // Deterministic pick that varies by day

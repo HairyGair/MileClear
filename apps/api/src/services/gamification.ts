@@ -14,6 +14,7 @@ import {
   type ShiftScorecard,
   type PeriodRecap,
   type PersonalRecords,
+  detectUkRegion,
 } from "@mileclear/shared";
 
 // ── UK date helpers ─────────────────────────────────────────────────
@@ -236,6 +237,22 @@ export async function getStats(userId: string): Promise<GamificationStats> {
 
   const personalRecords = await getPersonalRecords(userId);
 
+  // Detect user's home region from most recent trips
+  const recentTrips = await prisma.trip.findMany({
+    where: { userId, startLat: { not: 0 } },
+    select: { startLat: true, startLng: true },
+    orderBy: { startedAt: "desc" },
+    take: 20,
+  });
+  let region: string | undefined;
+  if (recentTrips.length > 0) {
+    // Use median coordinates — more stable than mean against outliers
+    const lats = recentTrips.map((t) => t.startLat).sort((a, b) => a - b);
+    const lngs = recentTrips.map((t) => t.startLng).sort((a, b) => a - b);
+    const mid = Math.floor(lats.length / 2);
+    region = detectUkRegion(lats[mid], lngs[mid]) ?? undefined;
+  }
+
   return {
     taxYear,
     totalMiles: summary?.totalMiles ?? 0,
@@ -248,6 +265,7 @@ export async function getStats(userId: string): Promise<GamificationStats> {
     todayMiles: todayAgg._sum.distanceMiles ?? 0,
     weekMiles: weekAgg._sum.distanceMiles ?? 0,
     personalRecords,
+    region,
   };
 }
 

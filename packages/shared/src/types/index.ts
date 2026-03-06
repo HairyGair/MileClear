@@ -409,6 +409,7 @@ export interface GamificationStats {
   todayMiles: number;
   weekMiles: number;
   personalRecords: PersonalRecords;
+  region?: string;
 }
 
 export interface AchievementWithMeta {

@@ -26,6 +26,7 @@ interface PersonalRecapCardProps {
   todayMiles?: number;
   todayTrips?: number;
   todayDeductionPence?: number;
+  region?: string;
 }
 
 function formatMilesCompact(miles: number): string {
@@ -106,6 +107,7 @@ export function PersonalRecapCard({
   todayMiles = 0,
   todayTrips = 0,
   todayDeductionPence = 0,
+  region,
 }: PersonalRecapCardProps) {
   const shareCardRef = useRef<View>(null);
   const [view, setView] = useState<"today" | "month" | "year">("today");
@@ -145,6 +147,7 @@ export function PersonalRecapCard({
     busiestDay: isToday || isYear ? null : busiestDay,
     prevMonthMiles: isToday || isYear ? null : prevMonthMiles,
     deductionPence: displayDeduction,
+    region,
   };
 
   const handleShare = () => {
@@ -312,7 +315,7 @@ export function PersonalRecapCard({
 
           {/* Distance equivalent (both views) */}
           {(() => {
-            const equiv = getDistanceEquivalent(displayMiles);
+            const equiv = getDistanceEquivalent(displayMiles, region);
             if (!equiv) return null;
             return (
               <View style={styles.insightRow}>

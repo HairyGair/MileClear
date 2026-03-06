@@ -224,6 +224,7 @@ export default function InsightsScreen() {
             todayMiles={todayMiles}
             todayTrips={todayTripsCount}
             todayDeductionPence={todayDeductionPence}
+            region={stats?.region}
           />
         )}
         {isPersonal && trips.length > 0 && <JourneyTimeline trips={trips} />}

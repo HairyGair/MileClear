@@ -16,6 +16,7 @@ export interface RecapShareCardProps {
   busiestDay: string | null;
   prevMonthMiles: number | null;
   deductionPence: number;
+  region?: string;
 }
 
 // ─── Helpers ────────────────────────────────────────────────
@@ -50,6 +51,7 @@ export function RecapShareCard({
   busiestDay,
   prevMonthMiles,
   deductionPence,
+  region,
 }: RecapShareCardProps) {
   const year = new Date().getFullYear();
   const milesStr = formatMilesReadable(monthMiles);
@@ -73,7 +75,7 @@ export function RecapShareCard({
     }
   }
 
-  const distanceEquiv = getDistanceEquivalent(monthMiles);
+  const distanceEquiv = getDistanceEquivalent(monthMiles, region);
   const hasInsights = busiestDay || comparisonText || distanceEquiv;
 
   return (
