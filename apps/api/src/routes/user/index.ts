@@ -229,6 +229,11 @@ export async function userRoutes(app: FastifyInstance) {
       }
     }
 
+    request.log.warn(
+      { userId, action: "account.delete" },
+      `User deleted their own account: ${userId}`
+    );
+
     await prisma.user.delete({ where: { id: userId } });
 
     return reply.send({ message: "Account deleted" });

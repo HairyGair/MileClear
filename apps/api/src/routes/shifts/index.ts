@@ -2,7 +2,7 @@ import { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { authMiddleware } from "../../middleware/auth.js";
 import { prisma } from "../../lib/prisma.js";
-import { SHIFT_STATUSES, getTaxYear } from "@mileclear/shared";
+import { SHIFT_STATUSES, getTaxYear, DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE } from "@mileclear/shared";
 import { upsertMileageSummary } from "../../services/mileage.js";
 import { checkAndAwardAchievements, getShiftScorecard } from "../../services/gamification.js";
 import { sendShiftSummaryPush, sendAchievementPush } from "../../jobs/notifications.js";
@@ -60,24 +60,45 @@ export async function shiftRoutes(app: FastifyInstance) {
   });
 
   // List shifts
-  app.get("/", async (request, reply) => {
-    const { status } = request.query as { status?: string };
+  const listShiftsQuery = z.object({
+    status: z.enum(SHIFT_STATUSES).optional(),
+    page: z.coerce.number().int().positive().default(1),
+    pageSize: z.coerce.number().int().positive().max(MAX_PAGE_SIZE).default(DEFAULT_PAGE_SIZE),
+  });
 
+  app.get("/", async (request, reply) => {
+    const parsed = listShiftsQuery.safeParse(request.query);
+    if (!parsed.success) {
+      return reply.status(400).send({ error: parsed.error.issues[0].message });
+    }
+
+    const { status, page, pageSize } = parsed.data;
     const where: { userId: string; status?: string } = {
       userId: request.userId!,
     };
 
-    if (status && SHIFT_STATUSES.includes(status as any)) {
+    if (status) {
       where.status = status;
     }
 
-    const shifts = await prisma.shift.findMany({
-      where,
-      orderBy: { startedAt: "desc" },
-      include: { vehicle: true },
-    });
+    const [data, total] = await Promise.all([
+      prisma.shift.findMany({
+        where,
+        orderBy: { startedAt: "desc" },
+        include: { vehicle: true },
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+      }),
+      prisma.shift.count({ where }),
+    ]);
 
-    return reply.send({ data: shifts });
+    return reply.send({
+      data,
+      total,
+      page,
+      pageSize,
+      totalPages: Math.ceil(total / pageSize),
+    });
   });
 
   // Get single shift

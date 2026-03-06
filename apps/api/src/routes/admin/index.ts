@@ -3,6 +3,7 @@ import { z } from "zod";
 import { prisma } from "../../lib/prisma.js";
 import { authMiddleware } from "../../middleware/auth.js";
 import { adminMiddleware } from "../../middleware/admin.js";
+import { stripe } from "../../lib/stripe.js";
 
 const premiumToggleSchema = z.object({
   isPremium: z.boolean(),
@@ -192,6 +193,11 @@ export async function adminRoutes(app: FastifyInstance) {
       select: { id: true, email: true, isPremium: true },
     });
 
+    request.log.warn(
+      { adminId: request.userId, targetUserId: userId, action: "premium.toggle", newValue: parsed.data.isPremium },
+      `Admin toggled premium: ${userId} → ${parsed.data.isPremium}`
+    );
+
     return reply.send({ data: updated });
   });
 
@@ -203,10 +209,27 @@ export async function adminRoutes(app: FastifyInstance) {
       return reply.status(400).send({ error: "Cannot delete your own account via admin" });
     }
 
-    const user = await prisma.user.findUnique({ where: { id: userId } });
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true, email: true, stripeSubscriptionId: true },
+    });
     if (!user) {
       return reply.status(404).send({ error: "User not found" });
     }
+
+    // Cancel active Stripe subscription before deleting
+    if (user.stripeSubscriptionId && stripe) {
+      try {
+        await stripe.subscriptions.cancel(user.stripeSubscriptionId);
+      } catch (err) {
+        request.log.error(err, `Failed to cancel Stripe subscription for ${userId}`);
+      }
+    }
+
+    request.log.warn(
+      { adminId: request.userId, targetUserId: userId, targetEmail: user.email, action: "user.delete" },
+      `Admin deleted user: ${userId} (${user.email})`
+    );
 
     await prisma.user.delete({ where: { id: userId } });
 

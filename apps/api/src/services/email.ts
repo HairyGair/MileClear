@@ -18,6 +18,14 @@ const transporter =
 const FROM = process.env.EMAIL_FROM || "MileClear <noreply@mileclear.com>";
 const FROM_PERSONAL = "Gair — MileClear <gair@mileclear.com>";
 
+function escapeHtml(str: string): string {
+  return str
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
 export async function sendVerificationEmail(
   email: string,
   code: string
@@ -76,7 +84,7 @@ export async function sendWelcomeEmail(
   email: string,
   displayName?: string | null
 ): Promise<void> {
-  const greeting = displayName ? `Hi ${displayName},` : "Hi there,";
+  const greeting = displayName ? `Hi ${escapeHtml(displayName)},` : "Hi there,";
   const subject = "Welcome to MileClear";
   const html = `
     <!DOCTYPE html>

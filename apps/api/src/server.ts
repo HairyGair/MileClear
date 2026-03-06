@@ -1,5 +1,6 @@
 import "dotenv/config";
 import Fastify from "fastify";
+import { ZodError } from "zod";
 import cors from "@fastify/cors";
 import cookie from "@fastify/cookie";
 import helmet from "@fastify/helmet";
@@ -43,8 +44,10 @@ const PORT = Number(process.env.API_PORT) || 3001;
 const HOST = process.env.API_HOST || "0.0.0.0";
 
 const app = Fastify({
+  trustProxy: true,
+  bodyLimit: 1_048_576, // 1MB
   logger: {
-    level: process.env.NODE_ENV === "production" ? "warn" : "info",
+    level: process.env.NODE_ENV === "production" ? "info" : "debug",
     redact: ["req.headers.authorization"],
   },
 });
@@ -64,6 +67,28 @@ await app.register(cors, {
 await app.register(cookie);
 
 await app.register(rateLimit, { max: 100, timeWindow: "1 minute" });
+
+// Global error handler — prevent stack trace / schema leakage
+app.setErrorHandler((error: Error & { statusCode?: number; validation?: unknown }, request, reply) => {
+  if (error instanceof ZodError) {
+    return reply.status(400).send({ error: error.issues[0]?.message ?? "Validation error" });
+  }
+  // Fastify validation errors (from schema validation)
+  if (error.validation) {
+    return reply.status(400).send({ error: error.message });
+  }
+  // Rate limit errors
+  if (error.statusCode === 429) {
+    return reply.status(429).send({ error: "Too many requests" });
+  }
+  // Log server errors, return generic message
+  request.log.error(error);
+  const statusCode = error.statusCode && error.statusCode < 500 ? error.statusCode : 500;
+  if (statusCode >= 500) {
+    return reply.status(500).send({ error: "Internal server error" });
+  }
+  return reply.status(statusCode).send({ error: error.message });
+});
 
 // Routes
 await app.register(authRoutes, { prefix: "/auth" });

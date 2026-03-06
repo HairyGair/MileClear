@@ -76,9 +76,9 @@ const createTripSchema = z.object({
   endLng: z.number().min(-180).max(180).optional(),
   startAddress: z.string().max(500).optional(),
   endAddress: z.string().max(500).optional(),
-  distanceMiles: z.number().nonnegative().optional(),
-  startedAt: z.coerce.date(),
-  endedAt: z.coerce.date().optional(),
+  distanceMiles: z.number().nonnegative().max(2000, "Distance exceeds reasonable limit").optional(),
+  startedAt: z.coerce.date().refine((d) => d <= new Date(Date.now() + 86400000), "Start date cannot be in the future"),
+  endedAt: z.coerce.date().refine((d) => d <= new Date(Date.now() + 86400000), "End date cannot be in the future").optional(),
   classification: z.enum(TRIP_CLASSIFICATIONS).default("business"),
   platformTag: z.enum(PLATFORM_TAGS).optional(),
   businessPurpose: z.enum(BUSINESS_PURPOSE_VALUES).optional(),
@@ -384,6 +384,11 @@ export async function tripRoutes(app: FastifyInstance) {
 
     // Capture tax year before deleting
     const taxYear = getTaxYear(existing.startedAt);
+
+    request.log.warn(
+      { userId, tripId: id, action: "trip.delete", miles: existing.distanceMiles },
+      `Trip deleted: ${id}`
+    );
 
     await prisma.trip.delete({ where: { id } });
 

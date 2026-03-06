@@ -86,7 +86,7 @@ export async function getCommunityInsights(
       },
     }),
 
-    // 3. Earnings from users who have trips in the area
+    // 3. Earnings from users who have trips in the area (excluding requesting user)
     prisma.$queryRaw<Array<{ userId: string; platform: string; totalPence: bigint; count: bigint }>>`
       SELECT e.userId, e.platform, SUM(e.amountPence) as totalPence, COUNT(*) as count
       FROM earnings e
@@ -96,7 +96,9 @@ export async function getCommunityInsights(
         AND t.startLng BETWEEN ${minLng} AND ${maxLng}
         AND t.startedAt >= ${lookbackDate}
         AND t.classification = 'business'
+        AND t.userId != ${userId}
       )
+      AND e.userId != ${userId}
       AND e.periodStart >= ${lookbackDate}
       GROUP BY e.userId, e.platform
     `,
