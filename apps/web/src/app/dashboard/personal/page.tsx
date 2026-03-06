@@ -12,11 +12,26 @@ import type {
   PeriodRecap,
   Trip,
   PaginatedResponse,
+  Vehicle,
 } from "@mileclear/shared";
 import {
   ACHIEVEMENT_TYPES,
   ACHIEVEMENT_META,
 } from "@mileclear/shared";
+
+interface FuelLog {
+  id: string;
+  litres: number;
+  costPence: number;
+  stationName: string | null;
+  loggedAt: string;
+  vehicle?: { make: string; model: string } | null;
+}
+
+interface FuelLogsResponse {
+  data: FuelLog[];
+  total: number;
+}
 
 function formatPence(pence: number): string {
   return `\u00A3${(pence / 100).toFixed(2)}`;
@@ -47,24 +62,41 @@ export default function PersonalPage() {
   const [weeklyRecap, setWeeklyRecap] = useState<PeriodRecap | null>(null);
   const [monthlyRecap, setMonthlyRecap] = useState<PeriodRecap | null>(null);
   const [recentTrips, setRecentTrips] = useState<Trip[]>([]);
+  const [fuelLogs, setFuelLogs] = useState<FuelLog[]>([]);
+  const [fuelTotal, setFuelTotal] = useState(0);
+  const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [loading, setLoading] = useState(true);
   const [recapView, setRecapView] = useState<RecapView>("monthly");
 
   useEffect(() => {
     async function load() {
       try {
-        const [statsRes, achRes, weeklyRes, monthlyRes, tripsRes] = await Promise.all([
+        // Current month date range for fuel logs
+        const now = new Date();
+        const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+        const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
+
+        const [statsRes, achRes, weeklyRes, monthlyRes, tripsRes, fuelRes, vehicleRes] = await Promise.all([
           api.get<{ data: GamificationStats }>("/gamification/stats"),
           api.get<{ data: AchievementWithMeta[] }>("/gamification/achievements"),
           api.get<{ data: PeriodRecap }>("/gamification/recap?period=weekly"),
           api.get<{ data: PeriodRecap }>("/gamification/recap?period=monthly"),
           api.get<PaginatedResponse<Trip>>("/trips/?pageSize=5&classification=personal"),
+          api.get<FuelLogsResponse>(`/fuel/logs?pageSize=5&from=${monthStart.toISOString()}&to=${monthEnd.toISOString()}`).catch(() => null),
+          api.get<{ data: Vehicle[] }>("/vehicles/").catch(() => null),
         ]);
         setStats(statsRes.data);
         setAchievements(achRes.data);
         setWeeklyRecap(weeklyRes.data);
         setMonthlyRecap(monthlyRes.data);
         setRecentTrips(tripsRes.data);
+        if (fuelRes) {
+          setFuelLogs(fuelRes.data);
+          setFuelTotal(fuelRes.total);
+        }
+        if (vehicleRes) {
+          setVehicles(vehicleRes.data);
+        }
       } catch {
         // Handled by empty state
       } finally {
@@ -231,6 +263,134 @@ export default function PersonalPage() {
           </div>
         </Card>
       )}
+
+      {/* Fuel & Running Costs */}
+      {(() => {
+        const monthMiles = monthlyRecap?.totalMiles ?? weeklyRecap?.totalMiles ?? 0;
+        const fuelSpendPence = fuelLogs.reduce((sum, l) => sum + l.costPence, 0);
+        const fuelLitres = fuelLogs.reduce((sum, l) => sum + l.litres, 0);
+        const primary = vehicles.find((v) => v.isPrimary) ?? vehicles[0];
+        const mpg = primary?.estimatedMpg ?? primary?.actualMpg ?? 35;
+        const LITRES_PER_GALLON = 4.54609;
+        const fuelType = primary?.fuelType ?? "petrol";
+        const ppl = fuelLitres > 0
+          ? Math.round(fuelSpendPence / fuelLitres)
+          : fuelType === "diesel" ? 145 : 138;
+
+        // Estimated cost if no fuel logs
+        const estimatedGallons = monthMiles / mpg;
+        const estimatedLitres = estimatedGallons * LITRES_PER_GALLON;
+        const estimatedCostPence = Math.round(estimatedLitres * ppl);
+
+        const costPerMile = monthMiles > 0 && fuelSpendPence > 0
+          ? (fuelSpendPence / monthMiles / 100).toFixed(2)
+          : monthMiles > 0
+          ? (estimatedCostPence / monthMiles / 100).toFixed(2)
+          : null;
+
+        const displayCost = fuelSpendPence > 0 ? fuelSpendPence : estimatedCostPence;
+        const isEstimate = fuelSpendPence === 0;
+        const monthLabel = new Date().toLocaleDateString("en-GB", { month: "long" });
+
+        return (
+          <Card
+            title="Fuel & Running Costs"
+            subtitle={isEstimate && monthMiles > 0 ? `Estimated for ${monthLabel}` : monthLabel}
+            action={
+              <Link href="/dashboard/fuel" className="btn btn--ghost btn--sm">
+                Fuel logs
+              </Link>
+            }
+            style={{ marginBottom: "var(--dash-gap)" }}
+          >
+            {monthMiles < 1 && fuelLogs.length === 0 ? (
+              <p style={{ color: "var(--text-muted)", fontSize: "0.875rem" }}>
+                Start driving and logging fill-ups to see your running costs here.
+              </p>
+            ) : (
+              <>
+                <div className="stats-grid" style={{ marginBottom: fuelLogs.length > 0 ? "1rem" : 0 }}>
+                  <div className="stat-card">
+                    <div className="stat-card__value stat-card__value--amber">
+                      {isEstimate ? "~" : ""}{"\u00A3"}{(displayCost / 100).toFixed(2)}
+                    </div>
+                    <div className="stat-card__label">
+                      {isEstimate ? "Est. Fuel Cost" : "Fuel Spend"}
+                    </div>
+                  </div>
+                  {costPerMile && (
+                    <div className="stat-card">
+                      <div className="stat-card__value">{"\u00A3"}{costPerMile}</div>
+                      <div className="stat-card__label">Per Mile</div>
+                    </div>
+                  )}
+                  <div className="stat-card">
+                    <div className="stat-card__value">{mpg}</div>
+                    <div className="stat-card__label">
+                      {primary?.estimatedMpg || primary?.actualMpg ? "MPG" : "Est. MPG"}
+                    </div>
+                  </div>
+                  <div className="stat-card">
+                    <div className="stat-card__value">{fuelTotal}</div>
+                    <div className="stat-card__label">Fill-ups</div>
+                  </div>
+                </div>
+
+                {fuelLogs.length > 0 && (
+                  <div className="table-wrap" style={{ border: "none", background: "transparent" }}>
+                    <table className="table">
+                      <thead>
+                        <tr>
+                          <th>Date</th>
+                          <th>Station</th>
+                          <th>Litres</th>
+                          <th>Cost</th>
+                          <th className="hide-mobile">Cost/L</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {fuelLogs.map((log) => (
+                          <tr key={log.id}>
+                            <td style={{ whiteSpace: "nowrap" }}>
+                              {new Date(log.loggedAt).toLocaleDateString("en-GB", {
+                                day: "numeric",
+                                month: "short",
+                              })}
+                            </td>
+                            <td style={{ maxWidth: 180, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                              {log.stationName || <span style={{ color: "var(--text-faint)" }}>&mdash;</span>}
+                            </td>
+                            <td>{log.litres.toFixed(1)}L</td>
+                            <td style={{ fontWeight: 600 }}>{formatPence(log.costPence)}</td>
+                            <td className="hide-mobile">
+                              {(log.costPence / log.litres / 100).toFixed(1)}p/L
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+
+                {isEstimate && monthMiles > 0 && (
+                  <p style={{
+                    color: "var(--text-muted)",
+                    fontSize: "0.75rem",
+                    marginTop: "0.75rem",
+                    lineHeight: 1.5,
+                  }}>
+                    Based on {mpg} MPG and {(ppl / 100).toFixed(1)}p/L average.{" "}
+                    <Link href="/dashboard/fuel" style={{ color: "var(--amber-400)" }}>
+                      Log a fill-up
+                    </Link>
+                    {" "}for accurate costs.
+                  </p>
+                )}
+              </>
+            )}
+          </Card>
+        );
+      })()}
 
       {/* Recent Personal Trips */}
       {recentTrips.length > 0 && (

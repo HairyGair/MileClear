@@ -9,6 +9,7 @@ import { SmartMap } from "./SmartMap";
 import { PostTripCard } from "./PostTripCard";
 import { WeeklyActivity, buildWeekDays } from "./WeeklyActivity";
 import { CostEstimate } from "./CostEstimate";
+import { FuelSummaryCard } from "./FuelSummaryCard";
 import { JourneyTimeline } from "./JourneyTimeline";
 import { DrivingGoals } from "./DrivingGoals";
 import { PersonalRecapCard } from "./PersonalRecapCard";
@@ -135,10 +136,9 @@ export function PersonalDashboard({ avatarId, stats }: PersonalDashboardProps) {
   const weeklyActivity = <WeeklyActivity days={weekDays} />;
   const drivingGoals = <DrivingGoals weekMiles={weekMiles} />;
   const costEstimate = (
-    <CostEstimate
+    <FuelSummaryCard
       monthMiles={monthMiles}
       estimatedMpg={mpg}
-      fuelPricePerLitre={null}
       fuelType={primaryVehicle?.fuelType ?? null}
     />
   );

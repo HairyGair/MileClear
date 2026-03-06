@@ -390,7 +390,7 @@ export default function AnalyticsPage() {
         const [statsRes, tripsRes] = await Promise.all([
           api.get<{ data: GamificationStats }>("/gamification/stats"),
           api.get<PaginatedResponse<Trip>>(
-            `/trips/?pageSize=100&from=${fetchFrom.toISOString()}&to=${taxYearEnd.toISOString()}`
+            `/trips/?pageSize=100&classification=business&from=${fetchFrom.toISOString()}&to=${taxYearEnd.toISOString()}`
           ),
         ]);
 
@@ -505,7 +505,7 @@ export default function AnalyticsPage() {
       {/* Miles per week bar chart */}
       <div style={{ marginBottom: "var(--dash-gap)" }}>
         <BarChart
-          title="Miles per Week (last 12 weeks)"
+          title="Business Miles per Week (last 12 weeks)"
           data={milesChartData}
           color="amber"
           formatValue={(v) => (v >= 1000 ? `${(v / 1000).toFixed(1)}k` : v.toFixed(0))}
@@ -515,7 +515,7 @@ export default function AnalyticsPage() {
       {/* Trips per week bar chart */}
       <div style={{ marginBottom: "var(--dash-gap)" }}>
         <BarChart
-          title="Trips per Week (last 12 weeks)"
+          title="Business Trips per Week (last 12 weeks)"
           data={tripsChartData}
           color="emerald"
           formatValue={(v) => String(Math.round(v))}
