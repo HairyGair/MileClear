@@ -1800,6 +1800,11 @@
   color: var(--amber-400);
 }
 
+.driving-recap__toggle-btn--locked {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
 .driving-recap__subtitle {
   font-size: 0.75rem;
   color: var(--text-muted);

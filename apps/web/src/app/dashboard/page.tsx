@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { api } from "../../lib/api";
+import { useAuth } from "../../lib/auth-context";
 import { PageHeader } from "../../components/dashboard/PageHeader";
 import { Card } from "../../components/ui/Card";
 import { Badge } from "../../components/ui/Badge";
@@ -40,33 +41,44 @@ function getDistanceEquivalent(miles: number): string | null {
   return null;
 }
 
-type RecapView = "weekly" | "monthly" | "yearly";
+type RecapView = "daily" | "weekly" | "monthly" | "yearly";
 
 export default function DashboardPage() {
+  const { user } = useAuth();
+  const isPremium = user?.isPremium ?? false;
   const [stats, setStats] = useState<GamificationStats | null>(null);
   const [achievements, setAchievements] = useState<AchievementWithMeta[]>([]);
+  const [dailyRecap, setDailyRecap] = useState<PeriodRecap | null>(null);
   const [weeklyRecap, setWeeklyRecap] = useState<PeriodRecap | null>(null);
   const [monthlyRecap, setMonthlyRecap] = useState<PeriodRecap | null>(null);
   const [recentTrips, setRecentTrips] = useState<Trip[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [recapView, setRecapView] = useState<RecapView>("weekly");
+  const [recapView, setRecapView] = useState<RecapView>("daily");
 
   useEffect(() => {
     async function load() {
       try {
-        const [statsRes, achRes, weeklyRes, monthlyRes, tripsRes] = await Promise.all([
+        const [statsRes, achRes, dailyRes, tripsRes] = await Promise.all([
           api.get<{ data: GamificationStats }>("/gamification/stats"),
           api.get<{ data: AchievementWithMeta[] }>("/gamification/achievements"),
-          api.get<{ data: PeriodRecap }>("/gamification/recap?period=weekly"),
-          api.get<{ data: PeriodRecap }>("/gamification/recap?period=monthly"),
+          api.get<{ data: PeriodRecap }>("/gamification/recap?period=daily"),
           api.get<PaginatedResponse<Trip>>("/trips/?pageSize=5"),
         ]);
         setStats(statsRes.data);
         setAchievements(achRes.data);
-        setWeeklyRecap(weeklyRes.data);
-        setMonthlyRecap(monthlyRes.data);
+        setDailyRecap(dailyRes.data);
         setRecentTrips(tripsRes.data);
+
+        // Weekly/monthly recaps require premium
+        if (isPremium) {
+          const [weeklyRes, monthlyRes] = await Promise.all([
+            api.get<{ data: PeriodRecap }>("/gamification/recap?period=weekly").catch(() => null),
+            api.get<{ data: PeriodRecap }>("/gamification/recap?period=monthly").catch(() => null),
+          ]);
+          if (weeklyRes) setWeeklyRecap(weeklyRes.data);
+          if (monthlyRes) setMonthlyRecap(monthlyRes.data);
+        }
       } catch (err: any) {
         setError(err.message || "Failed to load dashboard");
       } finally {
@@ -74,7 +86,7 @@ export default function DashboardPage() {
       }
     }
     load();
-  }, []);
+  }, [isPremium]);
 
   if (loading) return <DashboardSkeleton />;
 
@@ -132,7 +144,7 @@ export default function DashboardPage() {
       )}
 
       {/* Driving Recap */}
-      {(weeklyRecap || monthlyRecap || stats) && (
+      {(dailyRecap || weeklyRecap || monthlyRecap || stats) && (
         <div className="driving-recap" style={{ marginBottom: "var(--dash-gap)" }}>
           <div className="driving-recap__header">
             <div className="driving-recap__title">
@@ -145,19 +157,26 @@ export default function DashboardPage() {
               <span>Driving Recap</span>
             </div>
             <div className="driving-recap__toggle">
-              {(["weekly", "monthly", "yearly"] as const).map((v) => (
-                <button
-                  key={v}
-                  className={`driving-recap__toggle-btn${recapView === v ? " driving-recap__toggle-btn--active" : ""}`}
-                  onClick={() => setRecapView(v)}
-                >
-                  {v === "weekly" ? "Week" : v === "monthly" ? "Month" : "Year"}
-                </button>
-              ))}
+              {(["daily", "weekly", "monthly", "yearly"] as const).map((v) => {
+                const locked = !isPremium && (v === "weekly" || v === "monthly" || v === "yearly");
+                return (
+                  <button
+                    key={v}
+                    className={`driving-recap__toggle-btn${recapView === v ? " driving-recap__toggle-btn--active" : ""}${locked ? " driving-recap__toggle-btn--locked" : ""}`}
+                    onClick={() => !locked && setRecapView(v)}
+                    disabled={locked}
+                    title={locked ? "Upgrade to Pro" : undefined}
+                  >
+                    {v === "daily" ? "Today" : v === "weekly" ? "Week" : v === "monthly" ? "Month" : "Year"}
+                    {locked && <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ marginLeft: 3 }}><rect x="3" y="11" width="18" height="11" rx="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" /></svg>}
+                  </button>
+                );
+              })}
             </div>
           </div>
 
           <div className="driving-recap__subtitle">
+            {recapView === "daily" && dailyRecap?.label}
             {recapView === "weekly" && weeklyRecap?.label}
             {recapView === "monthly" && monthlyRecap?.label}
             {recapView === "yearly" && stats && `Tax Year ${stats.taxYear}`}
@@ -165,12 +184,13 @@ export default function DashboardPage() {
 
           {/* Stats grid */}
           {(() => {
-            const miles = recapView === "yearly" ? (stats?.totalMiles ?? 0) : recapView === "monthly" ? (monthlyRecap?.totalMiles ?? 0) : (weeklyRecap?.totalMiles ?? 0);
-            const trips = recapView === "yearly" ? (stats?.totalTrips ?? 0) : recapView === "monthly" ? (monthlyRecap?.totalTrips ?? 0) : (weeklyRecap?.totalTrips ?? 0);
+            const recapSource = recapView === "daily" ? dailyRecap : recapView === "weekly" ? weeklyRecap : recapView === "monthly" ? monthlyRecap : null;
+            const miles = recapView === "yearly" ? (stats?.totalMiles ?? 0) : (recapSource?.totalMiles ?? 0);
+            const trips = recapView === "yearly" ? (stats?.totalTrips ?? 0) : (recapSource?.totalTrips ?? 0);
             const avg = trips > 0 ? miles / trips : 0;
-            const deduction = recapView === "yearly" ? (stats?.deductionPence ?? 0) : recapView === "monthly" ? (monthlyRecap?.deductionPence ?? 0) : (weeklyRecap?.deductionPence ?? 0);
-            const busiest = recapView !== "yearly" ? (recapView === "monthly" ? monthlyRecap?.busiestDayLabel : weeklyRecap?.busiestDayLabel) : null;
-            const busiestMiles = recapView !== "yearly" ? (recapView === "monthly" ? monthlyRecap?.busiestDayMiles : weeklyRecap?.busiestDayMiles) : 0;
+            const deduction = recapView === "yearly" ? (stats?.deductionPence ?? 0) : (recapSource?.deductionPence ?? 0);
+            const busiest = recapView !== "yearly" && recapView !== "daily" ? (recapSource?.busiestDayLabel ?? null) : null;
+            const busiestMiles = recapView !== "yearly" && recapView !== "daily" ? (recapSource?.busiestDayMiles ?? 0) : 0;
             const equiv = getDistanceEquivalent(miles);
 
             return (

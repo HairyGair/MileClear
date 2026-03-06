@@ -87,6 +87,7 @@ export default function DashboardScreen() {
   const [showScorecard, setShowScorecard] = useState(false);
   const [recapData, setRecapData] = useState<PeriodRecap | null>(null);
   const [showRecap, setShowRecap] = useState(false);
+  const [dailyRecap, setDailyRecap] = useState<PeriodRecap | null>(null);
 
   // Recent trips with coordinates for MapOverview
   const { trips: recentTrips } = useRecentTripsWithCoords(10);
@@ -155,6 +156,9 @@ export default function DashboardScreen() {
       setActiveShift(active);
       setVehicles(vehicleRes.data);
       if (statsRes) setStats(statsRes.data);
+
+      // Fetch daily recap (free for all users)
+      fetchRecap("daily").then((res) => setDailyRecap(res.data)).catch(() => {});
 
       if (active) {
         // Resume GPS tracking if app was killed/backgrounded during a shift
@@ -584,6 +588,41 @@ export default function DashboardScreen() {
                 </View>
               </View>
             ) : null;
+          case "daily_recap":
+            return dailyRecap && dailyRecap.totalTrips > 0 ? (
+              <TouchableOpacity
+                key={key}
+                style={s.dailyRecapCard}
+                onPress={() => { setRecapData(dailyRecap); setShowRecap(true); }}
+                activeOpacity={0.7}
+              >
+                <View style={s.dailyRecapHeader}>
+                  <Ionicons name="today-outline" size={16} color="#f5a623" />
+                  <Text style={s.dailyRecapTitle}>Today</Text>
+                  <Ionicons name="share-outline" size={14} color="#4a5568" style={{ marginLeft: "auto" }} />
+                </View>
+                <View style={s.dailyRecapStats}>
+                  <View style={s.dailyRecapStat}>
+                    <Text style={s.dailyRecapValue}>{dailyRecap.totalMiles.toFixed(1)}</Text>
+                    <Text style={s.dailyRecapUnit}>miles</Text>
+                  </View>
+                  <View style={s.dailyRecapDivider} />
+                  <View style={s.dailyRecapStat}>
+                    <Text style={s.dailyRecapValue}>{dailyRecap.totalTrips}</Text>
+                    <Text style={s.dailyRecapUnit}>{dailyRecap.totalTrips === 1 ? "trip" : "trips"}</Text>
+                  </View>
+                  {dailyRecap.deductionPence > 0 && (
+                    <>
+                      <View style={s.dailyRecapDivider} />
+                      <View style={s.dailyRecapStat}>
+                        <Text style={s.dailyRecapValue}>{formatPence(dailyRecap.deductionPence)}</Text>
+                        <Text style={s.dailyRecapUnit}>deduction</Text>
+                      </View>
+                    </>
+                  )}
+                </View>
+              </TouchableOpacity>
+            ) : null;
           case "work_cta":
             return (
               <View key={key} style={s.ctaRow}>
@@ -685,6 +724,8 @@ export default function DashboardScreen() {
           stats={stats}
           visibleKeys={personalLayout.visibleKeys}
           recentTrips={recentTrips}
+          dailyRecap={dailyRecap}
+          onShowRecap={(recap) => { setRecapData(recap); setShowRecap(true); }}
         />
       )}
 
@@ -1198,6 +1239,54 @@ const s = StyleSheet.create({
   unlockEmoji: { fontSize: 24 },
   unlockLabel: { fontSize: 14, fontFamily: "PlusJakartaSans_600SemiBold", color: TEXT_1 },
   unlockDesc: { fontSize: 12, fontFamily: "PlusJakartaSans_400Regular", color: TEXT_2 },
+
+  // Daily recap card (work mode)
+  dailyRecapCard: {
+    backgroundColor: CARD_BG,
+    borderRadius: 14,
+    padding: 16,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: "rgba(245, 166, 35, 0.12)",
+  },
+  dailyRecapHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginBottom: 12,
+  },
+  dailyRecapTitle: {
+    fontSize: 14,
+    fontFamily: "PlusJakartaSans_600SemiBold",
+    color: TEXT_1,
+  },
+  dailyRecapStats: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 16,
+  },
+  dailyRecapStat: {
+    alignItems: "center",
+  },
+  dailyRecapValue: {
+    fontSize: 20,
+    fontFamily: "PlusJakartaSans_700Bold",
+    color: AMBER,
+  },
+  dailyRecapUnit: {
+    fontSize: 10,
+    fontFamily: "PlusJakartaSans_500Medium",
+    color: TEXT_3,
+    textTransform: "uppercase",
+    letterSpacing: 0.3,
+    marginTop: 2,
+  },
+  dailyRecapDivider: {
+    width: 1,
+    height: 28,
+    backgroundColor: "rgba(255,255,255,0.06)",
+  },
 
   // Recap modal
   recapSubtitle: {

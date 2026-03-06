@@ -9,13 +9,16 @@ import { PostTripCard } from "./PostTripCard";
 import { MapOverview } from "./MapOverview";
 import { CommunityInsightsCard } from "../community/CommunityInsightsCard";
 import { PremiumGate } from "../PremiumGate";
-import type { GamificationStats } from "@mileclear/shared";
+import type { GamificationStats, PeriodRecap } from "@mileclear/shared";
+import { formatPence } from "@mileclear/shared";
 
 interface PersonalDashboardProps {
   avatarId?: string | null;
   stats: GamificationStats | null;
   visibleKeys?: string[];
   recentTrips?: any[];
+  dailyRecap?: PeriodRecap | null;
+  onShowRecap?: (recap: PeriodRecap) => void;
 }
 
 function ordinal(n: number): string {
@@ -24,7 +27,7 @@ function ordinal(n: number): string {
   return n + (s[(v - 20) % 10] || s[v] || s[0]);
 }
 
-export function PersonalDashboard({ avatarId, stats, visibleKeys, recentTrips }: PersonalDashboardProps) {
+export function PersonalDashboard({ avatarId, stats, visibleKeys, recentTrips, dailyRecap, onShowRecap }: PersonalDashboardProps) {
   const isVisible = (key: string) => !visibleKeys || visibleKeys.includes(key);
   const router = useRouter();
   const {
@@ -101,6 +104,41 @@ export function PersonalDashboard({ avatarId, stats, visibleKeys, recentTrips }:
             weekMiles={weekMiles}
           />
         );
+      case "daily_recap":
+        return dailyRecap && dailyRecap.totalTrips > 0 ? (
+          <TouchableOpacity
+            key={key}
+            style={styles.dailyRecapCard}
+            onPress={() => onShowRecap?.(dailyRecap)}
+            activeOpacity={0.7}
+          >
+            <View style={styles.dailyRecapHeader}>
+              <Ionicons name="today-outline" size={16} color="#10b981" />
+              <Text style={styles.dailyRecapTitle}>Today</Text>
+              <Ionicons name="share-outline" size={14} color="#4a5568" style={{ marginLeft: "auto" as any }} />
+            </View>
+            <View style={styles.dailyRecapStats}>
+              <View style={styles.dailyRecapStat}>
+                <Text style={styles.dailyRecapValue}>{dailyRecap.totalMiles.toFixed(1)}</Text>
+                <Text style={styles.dailyRecapUnit}>miles</Text>
+              </View>
+              <View style={styles.dailyRecapDivider} />
+              <View style={styles.dailyRecapStat}>
+                <Text style={styles.dailyRecapValue}>{dailyRecap.totalTrips}</Text>
+                <Text style={styles.dailyRecapUnit}>{dailyRecap.totalTrips === 1 ? "trip" : "trips"}</Text>
+              </View>
+              {dailyRecap.deductionPence > 0 && (
+                <>
+                  <View style={styles.dailyRecapDivider} />
+                  <View style={styles.dailyRecapStat}>
+                    <Text style={styles.dailyRecapValue}>{formatPence(dailyRecap.deductionPence)}</Text>
+                    <Text style={styles.dailyRecapUnit}>deduction</Text>
+                  </View>
+                </>
+              )}
+            </View>
+          </TouchableOpacity>
+        ) : null;
       case "personal_cta":
         return (
           <TouchableOpacity
@@ -229,5 +267,51 @@ const styles = StyleSheet.create({
   loading: {
     paddingVertical: 40,
     alignItems: "center",
+  },
+  dailyRecapCard: {
+    backgroundColor: "#0a1120",
+    borderRadius: 14,
+    padding: 16,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: "rgba(16,185,129,0.12)",
+  },
+  dailyRecapHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginBottom: 12,
+  },
+  dailyRecapTitle: {
+    fontSize: 14,
+    fontFamily: "PlusJakartaSans_600SemiBold",
+    color: "#f0f2f5",
+  },
+  dailyRecapStats: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 16,
+  },
+  dailyRecapStat: {
+    alignItems: "center",
+  },
+  dailyRecapValue: {
+    fontSize: 20,
+    fontFamily: "PlusJakartaSans_700Bold",
+    color: "#10b981",
+  },
+  dailyRecapUnit: {
+    fontSize: 10,
+    fontFamily: "PlusJakartaSans_500Medium",
+    color: "#6b7280",
+    textTransform: "uppercase",
+    letterSpacing: 0.3,
+    marginTop: 2,
+  },
+  dailyRecapDivider: {
+    width: 1,
+    height: 28,
+    backgroundColor: "rgba(255,255,255,0.06)",
   },
 });

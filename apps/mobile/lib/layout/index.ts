@@ -49,6 +49,12 @@ export const SECTION_REGISTRY: Record<ScreenKey, SectionDef[]> = {
       description: "Tax year deduction summary",
     },
     {
+      key: "daily_recap",
+      label: "Today's Recap",
+      icon: "today-outline",
+      description: "Daily driving summary card",
+    },
+    {
       key: "work_cta",
       label: "Start Trip",
       icon: "navigate",
@@ -85,6 +91,12 @@ export const SECTION_REGISTRY: Record<ScreenKey, SectionDef[]> = {
       label: "Driving Summary",
       icon: "speedometer-outline",
       description: "Monthly miles, trips, fuel cost",
+    },
+    {
+      key: "daily_recap",
+      label: "Today's Recap",
+      icon: "today-outline",
+      description: "Daily driving summary card",
     },
     {
       key: "personal_cta",
