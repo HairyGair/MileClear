@@ -40,7 +40,6 @@ const MENU_ITEMS: Record<string, MenuItem> = {
   menu_fuel: { key: "menu_fuel", label: "Fuel", route: "/(tabs)/fuel", icon: "water-outline", replace: true },
   menu_earnings: { key: "menu_earnings", label: "Earnings", route: "/(tabs)/earnings", icon: "cash-outline", replace: true },
   menu_insights: { key: "menu_insights", label: "Insights", route: "/insights", icon: "stats-chart-outline" },
-  menu_profile: { key: "menu_profile", label: "Profile", route: "/(tabs)/profile", icon: "person-outline", replace: true },
   menu_exports: { key: "menu_exports", label: "Tax Exports", route: "/exports", icon: "download-outline", badge: "PRO" },
   menu_suggestions: { key: "menu_suggestions", label: "Suggestions", route: "/feedback", icon: "bulb-outline" },
 };
@@ -48,8 +47,7 @@ const MENU_ITEMS: Record<string, MenuItem> = {
 // Group definitions — items render in layout-pref order within each group
 const GROUPS = [
   { id: "nav", label: "NAVIGATE", keys: ["menu_dashboard", "menu_trips", "menu_fuel", "menu_earnings"] },
-  { id: "tools", label: "TOOLS", keys: ["menu_insights", "menu_exports"] },
-  { id: "account", label: "ACCOUNT", keys: ["menu_profile", "menu_suggestions"] },
+  { id: "tools", label: "TOOLS", keys: ["menu_insights", "menu_exports", "menu_suggestions"] },
 ];
 
 // ── Component ──────────────────────────────────────────────────────

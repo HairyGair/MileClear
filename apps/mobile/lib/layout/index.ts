@@ -178,12 +178,6 @@ export const SECTION_REGISTRY: Record<ScreenKey, SectionDef[]> = {
       icon: "stats-chart-outline",
     },
     {
-      key: "menu_profile",
-      label: "Profile",
-      icon: "person-outline",
-      locked: true,
-    },
-    {
       key: "menu_exports",
       label: "Tax Exports",
       icon: "download-outline",
