@@ -189,11 +189,6 @@ export const SECTION_REGISTRY: Record<ScreenKey, SectionDef[]> = {
       icon: "download-outline",
     },
     {
-      key: "menu_edit_profile",
-      label: "Edit Profile",
-      icon: "create-outline",
-    },
-    {
       key: "menu_suggestions",
       label: "Suggestions",
       icon: "bulb-outline",

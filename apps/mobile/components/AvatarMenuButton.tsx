@@ -42,7 +42,6 @@ const MENU_ITEMS: Record<string, MenuItem> = {
   menu_insights: { key: "menu_insights", label: "Insights", route: "/insights", icon: "stats-chart-outline" },
   menu_profile: { key: "menu_profile", label: "Profile", route: "/(tabs)/profile", icon: "person-outline", replace: true },
   menu_exports: { key: "menu_exports", label: "Tax Exports", route: "/exports", icon: "download-outline", badge: "PRO" },
-  menu_edit_profile: { key: "menu_edit_profile", label: "Edit Profile", route: "/profile-edit", icon: "create-outline" },
   menu_suggestions: { key: "menu_suggestions", label: "Suggestions", route: "/feedback", icon: "bulb-outline" },
 };
 
@@ -50,7 +49,7 @@ const MENU_ITEMS: Record<string, MenuItem> = {
 const GROUPS = [
   { id: "nav", label: "NAVIGATE", keys: ["menu_dashboard", "menu_trips", "menu_fuel", "menu_earnings"] },
   { id: "tools", label: "TOOLS", keys: ["menu_insights", "menu_exports"] },
-  { id: "account", label: "ACCOUNT", keys: ["menu_profile", "menu_edit_profile", "menu_suggestions"] },
+  { id: "account", label: "ACCOUNT", keys: ["menu_profile", "menu_suggestions"] },
 ];
 
 // ── Component ──────────────────────────────────────────────────────
