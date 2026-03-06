@@ -178,6 +178,19 @@ export async function vehicleRoutes(app: FastifyInstance) {
     const userId = request.userId!;
     const data = parsed.data;
 
+    // Free users limited to 1 vehicle
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { isPremium: true, premiumExpiresAt: true },
+    });
+    const isPremium = user?.isPremium && (!user.premiumExpiresAt || user.premiumExpiresAt > new Date());
+    if (!isPremium) {
+      const count = await prisma.vehicle.count({ where: { userId } });
+      if (count >= 1) {
+        return reply.status(403).send({ error: "Free accounts can have 1 vehicle. Upgrade to Pro for unlimited vehicles." });
+      }
+    }
+
     // If setting as primary, unset existing primary
     if (data.isPrimary) {
       await prisma.vehicle.updateMany({

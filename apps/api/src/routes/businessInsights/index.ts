@@ -1,10 +1,12 @@
 import { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { authMiddleware } from "../../middleware/auth.js";
+import { premiumMiddleware } from "../../middleware/premium.js";
 import { getBusinessInsights, getWeeklyPnL } from "../../services/businessInsights.js";
 
 export async function businessInsightRoutes(app: FastifyInstance) {
   app.addHook("preHandler", authMiddleware);
+  app.addHook("preHandler", premiumMiddleware);
 
   // GET /business-insights — full business intelligence dashboard data
   app.get("/", async (request, reply) => {

@@ -1,6 +1,7 @@
 import { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { authMiddleware } from "../../middleware/auth.js";
+import { premiumMiddleware } from "../../middleware/premium.js";
 import {
   getStats,
   getAchievements,
@@ -32,7 +33,7 @@ export async function gamificationRoutes(app: FastifyInstance) {
     return reply.send({ data });
   });
 
-  app.get("/scorecard", async (request, reply) => {
+  app.get("/scorecard", { preHandler: premiumMiddleware }, async (request, reply) => {
     const parsed = scorecardQuery.safeParse(request.query);
     if (!parsed.success) {
       return reply.status(400).send({ error: parsed.error.issues[0].message });
@@ -48,7 +49,7 @@ export async function gamificationRoutes(app: FastifyInstance) {
     return reply.send({ data });
   });
 
-  app.get("/recap", async (request, reply) => {
+  app.get("/recap", { preHandler: premiumMiddleware }, async (request, reply) => {
     const parsed = recapQuery.safeParse(request.query);
     if (!parsed.success) {
       return reply.status(400).send({ error: parsed.error.issues[0].message });
