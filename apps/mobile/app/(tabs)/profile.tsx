@@ -47,6 +47,7 @@ import {
 import { cacheVehicleBluetoothNames } from "../../lib/bluetooth/index";
 import { Button } from "../../components/Button";
 import { AvatarPicker } from "../../components/avatars/AvatarPicker";
+import { useLayoutPrefs, resetAllLayouts } from "../../lib/layout/index";
 
 const VEHICLE_TYPE_LABELS: Record<string, string> = {
   car: "Car",
@@ -95,6 +96,7 @@ export default function ProfileScreen() {
   const [weeklyGoal, setWeeklyGoal] = useState<number | null>(null);
   const [workType, setWorkType] = useState<WorkType>("gig");
   const [employerRate, setEmployerRate] = useState<number | null>(null);
+  const profileLayout = useLayoutPrefs("profile");
 
   const handleAvatarSelect = useCallback(async (avatarId: string | null) => {
     try {
@@ -383,7 +385,7 @@ export default function ProfileScreen() {
   return (
     <View style={styles.container}>
       <FlatList
-        data={vehicles}
+        data={profileLayout.isVisible("profile_vehicles") ? vehicles : []}
         keyExtractor={(item) => item.id}
         renderItem={renderVehicle}
         refreshControl={
@@ -419,71 +421,90 @@ export default function ProfileScreen() {
             )}
 
             {/* Action Rows */}
-            <TouchableOpacity
-              style={styles.actionRow}
-              onPress={() => router.push("/profile-edit")}
-              activeOpacity={0.7}
-            >
-              <View style={styles.actionRowLeft}>
-                <Ionicons name="create-outline" size={18} color="#8494a7" />
-                <Text style={styles.actionText}>Edit Profile</Text>
-              </View>
-              <Ionicons name="chevron-forward" size={18} color="#6b7280" />
-            </TouchableOpacity>
+            {profileLayout.isVisible("profile_actions") && (
+              <>
+                <TouchableOpacity
+                  style={styles.actionRow}
+                  onPress={() => router.push("/profile-edit")}
+                  activeOpacity={0.7}
+                >
+                  <View style={styles.actionRowLeft}>
+                    <Ionicons name="create-outline" size={18} color="#8494a7" />
+                    <Text style={styles.actionText}>Edit Profile</Text>
+                  </View>
+                  <Ionicons name="chevron-forward" size={18} color="#6b7280" />
+                </TouchableOpacity>
 
-            <TouchableOpacity
-              style={styles.actionRow}
-              onPress={handleExport}
-              disabled={exporting}
-              activeOpacity={0.7}
-            >
-              <View style={styles.actionRowLeft}>
-                <Ionicons name="download-outline" size={18} color="#8494a7" />
-                <Text style={styles.actionText}>
-                  {exporting ? "Exporting..." : "Export My Data"}
-                </Text>
-              </View>
-              <Ionicons name="chevron-forward" size={18} color="#6b7280" />
-            </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.actionRow}
+                  onPress={handleExport}
+                  disabled={exporting}
+                  activeOpacity={0.7}
+                >
+                  <View style={styles.actionRowLeft}>
+                    <Ionicons name="download-outline" size={18} color="#8494a7" />
+                    <Text style={styles.actionText}>
+                      {exporting ? "Exporting..." : "Export My Data"}
+                    </Text>
+                  </View>
+                  <Ionicons name="chevron-forward" size={18} color="#6b7280" />
+                </TouchableOpacity>
 
-            <TouchableOpacity
-              style={styles.actionRow}
-              onPress={() => router.push("/exports")}
-              activeOpacity={0.7}
-            >
-              <View style={styles.actionRowLeft}>
-                <Ionicons name="document-text-outline" size={18} color="#8494a7" />
-                <Text style={styles.actionText}>Tax Exports</Text>
-                <Text style={styles.proBadge}>PRO</Text>
-              </View>
-              <Ionicons name="chevron-forward" size={18} color="#6b7280" />
-            </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.actionRow}
+                  onPress={() => router.push("/exports")}
+                  activeOpacity={0.7}
+                >
+                  <View style={styles.actionRowLeft}>
+                    <Ionicons name="document-text-outline" size={18} color="#8494a7" />
+                    <Text style={styles.actionText}>Tax Exports</Text>
+                    <Text style={styles.proBadge}>PRO</Text>
+                  </View>
+                  <Ionicons name="chevron-forward" size={18} color="#6b7280" />
+                </TouchableOpacity>
 
-            <TouchableOpacity
-              style={styles.actionRow}
-              onPress={() => router.push("/saved-locations")}
-              activeOpacity={0.7}
-            >
-              <View style={styles.actionRowLeft}>
-                <Ionicons name="location-outline" size={18} color="#8494a7" />
-                <Text style={styles.actionText}>Saved Locations</Text>
-              </View>
-              <Ionicons name="chevron-forward" size={18} color="#6b7280" />
-            </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.actionRow}
+                  onPress={() => router.push("/saved-locations")}
+                  activeOpacity={0.7}
+                >
+                  <View style={styles.actionRowLeft}>
+                    <Ionicons name="location-outline" size={18} color="#8494a7" />
+                    <Text style={styles.actionText}>Saved Locations</Text>
+                  </View>
+                  <Ionicons name="chevron-forward" size={18} color="#6b7280" />
+                </TouchableOpacity>
 
+                <TouchableOpacity
+                  style={styles.actionRow}
+                  onPress={() => router.push("/sync-status")}
+                  activeOpacity={0.7}
+                >
+                  <View style={styles.actionRowLeft}>
+                    <Ionicons name="cloud-upload-outline" size={18} color="#8494a7" />
+                    <Text style={styles.actionText}>Sync Status</Text>
+                  </View>
+                  <Ionicons name="chevron-forward" size={18} color="#6b7280" />
+                </TouchableOpacity>
+              </>
+            )}
+
+            {/* Customize Layout — always visible */}
             <TouchableOpacity
               style={styles.actionRow}
-              onPress={() => router.push("/sync-status")}
+              onPress={() => router.push("/customize-layout")}
               activeOpacity={0.7}
             >
               <View style={styles.actionRowLeft}>
-                <Ionicons name="cloud-upload-outline" size={18} color="#8494a7" />
-                <Text style={styles.actionText}>Sync Status</Text>
+                <Ionicons name="grid-outline" size={18} color="#8494a7" />
+                <Text style={styles.actionText}>Customize Layout</Text>
               </View>
               <Ionicons name="chevron-forward" size={18} color="#6b7280" />
             </TouchableOpacity>
 
             {/* Settings Section */}
+            {profileLayout.isVisible("profile_settings") && (
+            <>
             <Text style={[styles.sectionTitle, { marginTop: 28 }]}>Settings</Text>
             <View style={styles.settingRow}>
               <View style={{ flex: 1 }}>
@@ -585,9 +606,11 @@ export default function ProfileScreen() {
                 {weeklyGoal ? "Edit" : "Set"}
               </Text>
             </TouchableOpacity>
+            </>
+            )}
 
             {/* Work Settings — only for work/both users */}
-            {user && (user.userIntent === "work" || user.userIntent === "both") && (
+            {profileLayout.isVisible("profile_work_settings") && user && (user.userIntent === "work" || user.userIntent === "both") && (
               <>
                 <Text style={[styles.sectionTitle, { marginTop: 28 }]}>Work Settings</Text>
 
@@ -656,6 +679,8 @@ export default function ProfileScreen() {
             )}
 
             {/* Notifications Section */}
+            {profileLayout.isVisible("profile_notifications") && (
+            <>
             <Text style={[styles.sectionTitle, { marginTop: 28 }]}>Notifications</Text>
 
             <View style={styles.settingRow}>
@@ -810,7 +835,12 @@ export default function ProfileScreen() {
               />
             </View>
 
+            </>
+            )}
+
             {/* Subscription Section */}
+            {profileLayout.isVisible("profile_subscription") && (
+            <>
             <Text style={[styles.sectionTitle, { marginTop: 28 }]}>Subscription</Text>
             {!user?.isPremium ? (
               <>
@@ -910,11 +940,16 @@ export default function ProfileScreen() {
               </View>
             )}
 
-            <Text style={[styles.sectionTitle, { marginTop: 28 }]}>My Vehicles</Text>
+            </>
+            )}
+
+            {profileLayout.isVisible("profile_vehicles") && (
+              <Text style={[styles.sectionTitle, { marginTop: 28 }]}>My Vehicles</Text>
+            )}
           </View>
         }
         ListEmptyComponent={
-          !loading ? (
+          !loading && profileLayout.isVisible("profile_vehicles") ? (
             <View style={styles.emptyState}>
               <View style={styles.emptyIcon}>
                 <Ionicons name="car-outline" size={40} color="#4a5568" />
@@ -928,10 +963,35 @@ export default function ProfileScreen() {
         }
         ListFooterComponent={
           <View style={styles.footer}>
+            {profileLayout.isVisible("profile_vehicles") && (
+              <Button
+                title="Add Vehicle"
+                icon="add"
+                onPress={() => router.push("/vehicle-form")}
+              />
+            )}
             <Button
-              title="Add Vehicle"
-              icon="add"
-              onPress={() => router.push("/vehicle-form")}
+              variant="ghost"
+              title="Reset Layout"
+              icon="refresh-outline"
+              onPress={() => {
+                Alert.alert(
+                  "Reset Layout",
+                  "This will restore the default layout for all screens. Continue?",
+                  [
+                    { text: "Cancel", style: "cancel" },
+                    {
+                      text: "Reset",
+                      style: "destructive",
+                      onPress: async () => {
+                        await resetAllLayouts();
+                        profileLayout.reset();
+                        Alert.alert("Done", "All layouts have been reset to default.");
+                      },
+                    },
+                  ]
+                );
+              }}
             />
             <Button
               variant="ghost"

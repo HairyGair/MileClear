@@ -52,6 +52,7 @@ import { useUser } from "../../lib/user/context";
 import { useRecentTripsWithCoords } from "../../hooks/useRecentTripsWithCoords";
 import { Ionicons } from "@expo/vector-icons";
 import { startLiveActivity, updateLiveActivity, endLiveActivity } from "../../lib/liveActivity";
+import { useLayoutPrefs } from "../../lib/layout/index";
 
 function formatElapsed(seconds: number): string {
   const h = Math.floor(seconds / 3600);
@@ -88,6 +89,10 @@ export default function DashboardScreen() {
 
   // Recent trips with coordinates for MapOverview
   const { trips: recentTrips } = useRecentTripsWithCoords(10);
+
+  // Layout customization
+  const workLayout = useLayoutPrefs("dashboard_work");
+  const personalLayout = useLayoutPrefs("dashboard_personal");
 
   // Trip segment bottom sheet
   const [tripTapInfo, setTripTapInfo] = useState<TripTapInfo | null>(null);
@@ -542,119 +547,137 @@ export default function DashboardScreen() {
       {/* Mode Toggle */}
       <ModeToggle />
 
-      {/* ── Work Mode Hero ── */}
-      {isWork && stats && (
-        <View style={s.heroCard}>
-          <View style={s.heroTopRow}>
-            <Text style={s.heroLabel}>Tax Deduction {"\u00B7"} {stats.taxYear}</Text>
-            {stats.currentStreakDays > 0 && (
-              <View style={s.streakBadgeInline}>
-                <Text style={s.streakNumInline}>{stats.currentStreakDays}d</Text>
+      {/* ── Work Mode (layout-aware) ── */}
+      {isWork && workLayout.visibleKeys.map((key) => {
+        switch (key) {
+          case "work_hero":
+            return stats ? (
+              <View key={key} style={s.heroCard}>
+                <View style={s.heroTopRow}>
+                  <Text style={s.heroLabel}>Tax Deduction {"\u00B7"} {stats.taxYear}</Text>
+                  {stats.currentStreakDays > 0 && (
+                    <View style={s.streakBadgeInline}>
+                      <Text style={s.streakNumInline}>{stats.currentStreakDays}d</Text>
+                    </View>
+                  )}
+                </View>
+                <Text style={s.heroValue}>
+                  {formatPence(stats.deductionPence)}
+                </Text>
+                <View style={s.heroMeta}>
+                  <Text style={s.heroMetaText}>
+                    {formatMilesShort(stats.todayMiles)} today
+                  </Text>
+                  <View style={s.heroDivider} />
+                  <Text style={s.heroMetaText}>
+                    {formatMilesShort(stats.weekMiles)} this week
+                  </Text>
+                  <View style={s.heroDivider} />
+                  <Text style={s.heroMetaText}>
+                    {stats.totalTrips} trips
+                  </Text>
+                </View>
               </View>
-            )}
-          </View>
-          <Text style={s.heroValue}>
-            {formatPence(stats.deductionPence)}
-          </Text>
-          <View style={s.heroMeta}>
-            <Text style={s.heroMetaText}>
-              {formatMilesShort(stats.todayMiles)} today
-            </Text>
-            <View style={s.heroDivider} />
-            <Text style={s.heroMetaText}>
-              {formatMilesShort(stats.weekMiles)} this week
-            </Text>
-            <View style={s.heroDivider} />
-            <Text style={s.heroMetaText}>
-              {stats.totalTrips} trips
-            </Text>
-          </View>
-        </View>
-      )}
+            ) : null;
+          case "work_cta":
+            return (
+              <View key={key} style={s.ctaRow}>
+                <TouchableOpacity
+                  style={s.ctaPrimary}
+                  onPress={() => router.push("/trip-form")}
+                  activeOpacity={0.7}
+                >
+                  <Ionicons name="navigate" size={18} color="#030712" />
+                  <Text style={s.ctaPrimaryText}>Start Trip</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={s.ctaSecondary}
+                  onPress={handleSelectVehicle}
+                  activeOpacity={0.7}
+                >
+                  <Ionicons name="car-outline" size={16} color="#f5a623" />
+                  <Text style={s.ctaSecondaryText} numberOfLines={1}>
+                    {selectedVehicle ? `${selectedVehicle.make} ${selectedVehicle.model}` : "Vehicle"}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            );
+          case "work_shift":
+            return (
+              <View key={key}>
+                <Button
+                  variant="hero"
+                  title="Start Shift"
+                  icon="play"
+                  onPress={handleStartShift}
+                  loading={starting}
+                  size="lg"
+                />
+              </View>
+            );
+          case "work_quicknav":
+            return (
+              <View key={key} style={s.quickActions}>
+                <TouchableOpacity
+                  style={s.quickAction}
+                  onPress={() => router.push("/insights")}
+                  activeOpacity={0.7}
+                >
+                  <Ionicons name="analytics-outline" size={22} color="#f5a623" style={{ marginBottom: 4 }} />
+                  <Text style={s.quickActionLabel}>Insights</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={s.quickAction}
+                  onPress={() => router.replace("/(tabs)/trips" as any)}
+                  activeOpacity={0.7}
+                >
+                  <Ionicons name="list-outline" size={22} color="#f5a623" style={{ marginBottom: 4 }} />
+                  <Text style={s.quickActionLabel}>Trips</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={s.quickAction}
+                  onPress={() => router.push("/exports")}
+                  activeOpacity={0.7}
+                >
+                  <Ionicons name="download-outline" size={22} color="#f5a623" style={{ marginBottom: 4 }} />
+                  <Text style={s.quickActionLabel}>Exports</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={s.quickAction}
+                  onPress={() => router.push("/achievements")}
+                  activeOpacity={0.7}
+                >
+                  <Ionicons name="trophy-outline" size={22} color="#f5a623" style={{ marginBottom: 4 }} />
+                  <Text style={s.quickActionLabel}>Badges</Text>
+                </TouchableOpacity>
+              </View>
+            );
+          case "journey_map":
+            return recentTrips.length > 0 ? (
+              <View key={key}>
+                <MapOverview trips={recentTrips} title="Recent Journeys" />
+              </View>
+            ) : null;
+          case "community":
+            return (
+              <View key={key}>
+                <CommunityInsightsCard isWork={isWork} />
+              </View>
+            );
+          default:
+            return null;
+        }
+      })}
 
-      {/* ── Primary CTAs (work mode) ── */}
-      {isWork && (
-        <View style={s.ctaRow}>
-          <TouchableOpacity
-            style={s.ctaPrimary}
-            onPress={() => router.push("/trip-form")}
-            activeOpacity={0.7}
-          >
-            <Ionicons name="navigate" size={18} color="#030712" />
-            <Text style={s.ctaPrimaryText}>Start Trip</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={s.ctaSecondary}
-            onPress={handleSelectVehicle}
-            activeOpacity={0.7}
-          >
-            <Ionicons name="car-outline" size={16} color="#f5a623" />
-            <Text style={s.ctaSecondaryText} numberOfLines={1}>
-              {selectedVehicle ? `${selectedVehicle.make} ${selectedVehicle.model}` : "Vehicle"}
-            </Text>
-          </TouchableOpacity>
-        </View>
-      )}
-
-      {isWork && (
-        <Button
-          variant="hero"
-          title="Start Shift"
-          icon="play"
-          onPress={handleStartShift}
-          loading={starting}
-          size="lg"
+      {/* ── Personal Dashboard (layout-aware) ── */}
+      {isPersonal && (
+        <PersonalDashboard
+          avatarId={currentUser?.avatarId}
+          stats={stats}
+          visibleKeys={personalLayout.visibleKeys}
+          recentTrips={recentTrips}
         />
       )}
-
-      {/* ── Quick Nav (work mode) ── */}
-      {isWork && (
-        <View style={s.quickActions}>
-          <TouchableOpacity
-            style={s.quickAction}
-            onPress={() => router.push("/insights")}
-            activeOpacity={0.7}
-          >
-            <Ionicons name="analytics-outline" size={22} color="#f5a623" style={{ marginBottom: 4 }} />
-            <Text style={s.quickActionLabel}>Insights</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={s.quickAction}
-            onPress={() => router.replace("/(tabs)/trips" as any)}
-            activeOpacity={0.7}
-          >
-            <Ionicons name="list-outline" size={22} color="#f5a623" style={{ marginBottom: 4 }} />
-            <Text style={s.quickActionLabel}>Trips</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={s.quickAction}
-            onPress={() => router.push("/exports")}
-            activeOpacity={0.7}
-          >
-            <Ionicons name="download-outline" size={22} color="#f5a623" style={{ marginBottom: 4 }} />
-            <Text style={s.quickActionLabel}>Exports</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={s.quickAction}
-            onPress={() => router.push("/achievements")}
-            activeOpacity={0.7}
-          >
-            <Ionicons name="trophy-outline" size={22} color="#f5a623" style={{ marginBottom: 4 }} />
-            <Text style={s.quickActionLabel}>Badges</Text>
-          </TouchableOpacity>
-        </View>
-      )}
-
-      {/* ── Personal Dashboard (personal mode — hero + start trip + quick nav) ── */}
-      {isPersonal && <PersonalDashboard avatarId={currentUser?.avatarId} stats={stats} />}
-
-      {/* ── Journey Map (both modes) ── */}
-      {recentTrips.length > 0 && (
-        <MapOverview trips={recentTrips} title="Recent Journeys" />
-      )}
-
-      {/* ── Community Intelligence (both modes, collapsed by default) ── */}
-      <CommunityInsightsCard isWork={isWork} />
 
       <View style={{ height: 24 }} />
 

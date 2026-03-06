@@ -13,6 +13,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAuth } from "../lib/auth/context";
 import { useUser } from "../lib/user/context";
 import { AvatarIcon } from "./avatars/AvatarRegistry";
+import { useLayoutPrefs, SECTION_REGISTRY } from "../lib/layout/index";
 
 const AMBER = "#f5a623";
 const TEXT_1 = "#f0f2f5";
@@ -57,19 +58,25 @@ export default function AvatarMenuButton() {
     return routeSegment === currentSegment;
   };
 
-  const navItems = [
-    { label: "Dashboard", route: "/(tabs)/dashboard", icon: "speedometer-outline", replace: true },
-    { label: "Trips", route: "/(tabs)/trips", icon: "car-outline", replace: true },
-    { label: "Fuel", route: "/(tabs)/fuel", icon: "water-outline", replace: true },
-    { label: "Earnings", route: "/(tabs)/earnings", icon: "cash-outline", replace: true },
-  ];
+  const menuLayout = useLayoutPrefs("avatar_menu");
 
-  const secondaryItems = [
-    { label: "Profile", route: "/(tabs)/profile", icon: "person-outline", replace: true },
-    { label: "Tax Exports", route: "/exports", icon: "download-outline", badge: "PRO" },
-    { label: "Edit Profile", route: "/profile-edit", icon: "create-outline" },
-    { label: "Suggestions", route: "/feedback", icon: "bulb-outline" },
-  ];
+  // Map menu keys to route definitions
+  const MENU_ITEM_MAP: Record<string, { label: string; route: string; icon: string; replace?: boolean; badge?: string }> = {
+    menu_dashboard: { label: "Dashboard", route: "/(tabs)/dashboard", icon: "speedometer-outline", replace: true },
+    menu_trips: { label: "Trips", route: "/(tabs)/trips", icon: "car-outline", replace: true },
+    menu_fuel: { label: "Fuel", route: "/(tabs)/fuel", icon: "water-outline", replace: true },
+    menu_earnings: { label: "Earnings", route: "/(tabs)/earnings", icon: "cash-outline", replace: true },
+    menu_insights: { label: "Insights", route: "/insights", icon: "stats-chart-outline" },
+    menu_profile: { label: "Profile", route: "/(tabs)/profile", icon: "person-outline", replace: true },
+    menu_exports: { label: "Tax Exports", route: "/exports", icon: "download-outline", badge: "PRO" },
+    menu_edit_profile: { label: "Edit Profile", route: "/profile-edit", icon: "create-outline" },
+    menu_suggestions: { label: "Suggestions", route: "/feedback", icon: "bulb-outline" },
+  };
+
+  // Build ordered menu items from layout prefs (excluding logout, handled separately)
+  const menuItems = menuLayout.visibleKeys
+    .filter((key) => key !== "menu_logout" && MENU_ITEM_MAP[key])
+    .map((key) => ({ ...MENU_ITEM_MAP[key], key }));
 
   return (
     <>
@@ -124,10 +131,10 @@ export default function AvatarMenuButton() {
 
               <View style={styles.separator} />
 
-              {/* Nav items */}
-              {navItems.map((item) => (
+              {/* Menu items (layout-aware order) */}
+              {menuItems.map((item) => (
                 <TouchableOpacity
-                  key={item.label}
+                  key={item.key}
                   style={[styles.menuItem, isActive(item.route) && styles.menuItemActive]}
                   onPress={() => handleNav(item.route, item.replace)}
                   activeOpacity={0.7}
@@ -141,31 +148,9 @@ export default function AvatarMenuButton() {
                   <Text style={[styles.menuLabel, isActive(item.route) && styles.menuLabelActive]}>
                     {item.label}
                   </Text>
-                </TouchableOpacity>
-              ))}
-
-              <View style={styles.separator} />
-
-              {/* Secondary items */}
-              {secondaryItems.map((item) => (
-                <TouchableOpacity
-                  key={item.label}
-                  style={[styles.menuItem, isActive(item.route) && styles.menuItemActive]}
-                  onPress={() => handleNav(item.route, (item as any).replace)}
-                  activeOpacity={0.7}
-                >
-                  {isActive(item.route) && <View style={styles.activeIndicator} />}
-                  <Ionicons
-                    name={item.icon as any}
-                    size={18}
-                    color={isActive(item.route) ? AMBER : TEXT_2}
-                  />
-                  <Text style={[styles.menuLabel, isActive(item.route) && styles.menuLabelActive]}>
-                    {item.label}
-                  </Text>
-                  {(item as any).badge && (
+                  {item.badge && (
                     <View style={styles.badge}>
-                      <Text style={styles.badgeText}>{(item as any).badge}</Text>
+                      <Text style={styles.badgeText}>{item.badge}</Text>
                     </View>
                   )}
                 </TouchableOpacity>

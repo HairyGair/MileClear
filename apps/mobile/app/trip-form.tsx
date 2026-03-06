@@ -998,9 +998,177 @@ export default function TripFormScreen() {
     <View style={styles.container}>
       <Stack.Screen options={{ title: screenTitle }} />
 
-      {/* Map — visible in quick trip modes */}
-      {showMap && (
-        <View style={[styles.mapArea, mode === "driving" && styles.mapAreaDriving]}>
+      {/* === Full-screen immersive driving mode === */}
+      {mode === "driving" && (
+        <View style={{ flex: 1 }}>
+          {/* Full-screen map */}
+          {MapView && startLat != null && startLng != null ? (
+            <MapView
+              ref={mapRef}
+              style={StyleSheet.absoluteFillObject}
+              initialRegion={{
+                latitude: startLat,
+                longitude: startLng,
+                latitudeDelta: 0.01,
+                longitudeDelta: 0.01,
+              }}
+              userInterfaceStyle="dark"
+              showsUserLocation={false}
+              scrollEnabled
+              zoomEnabled
+              rotateEnabled={false}
+              pitchEnabled={false}
+              onPanDrag={() => setFollowUser(false)}
+            >
+              {/* Start pin */}
+              <Marker
+                coordinate={{ latitude: startLat, longitude: startLng }}
+                pinColor="#34c759"
+              />
+              {/* Speed-coloured trail */}
+              {Polyline && drivingTrail.length >= 2 && (
+                <>
+                  {buildSpeedSegments(drivingTrail).map((seg, i) => (
+                    <Polyline
+                      key={`seg-${i}`}
+                      coordinates={seg.coords}
+                      strokeColor={seg.color}
+                      strokeWidth={4}
+                    />
+                  ))}
+                </>
+              )}
+              {/* Custom user dot */}
+              {userLat != null && userLng != null && Marker && (
+                <Marker
+                  coordinate={{ latitude: userLat, longitude: userLng }}
+                  anchor={{ x: 0.5, y: 0.5 }}
+                  flat
+                >
+                  <View style={styles.userDot}>
+                    <View style={styles.userDotInner} />
+                  </View>
+                </Marker>
+              )}
+            </MapView>
+          ) : (
+            <View style={[StyleSheet.absoluteFillObject, styles.mapFallback]}>
+              <Ionicons name="map-outline" size={32} color="#4b5563" />
+              <Text style={styles.mapFallbackText}>
+                {startAddress ?? "Locating..."}
+              </Text>
+            </View>
+          )}
+
+          {/* Top floating status bar */}
+          <View style={styles.drivingTopBar}>
+            <View style={styles.drivingLiveRow}>
+              <Animated.View
+                style={[
+                  styles.drivingPulse,
+                  isPersonal && { backgroundColor: "rgba(16, 185, 129, 0.3)" },
+                  { transform: [{ scale: pulseAnim }] },
+                ]}
+              />
+              <View style={[styles.drivingPulseCore, isPersonal && { backgroundColor: "#10b981" }]} />
+              <Text style={[styles.drivingLiveText, isPersonal && { color: "#10b981" }]}>
+                {isPersonal ? "JOURNEY" : "TRACKING"}
+              </Text>
+            </View>
+            <Text style={styles.drivingTopTimer}>{formatTimer(elapsed)}</Text>
+          </View>
+
+          {/* Recenter button */}
+          {!followUser && (
+            <TouchableOpacity style={styles.drivingRecenterBtn} onPress={handleRecenter} activeOpacity={0.7}>
+              <Ionicons name="locate-outline" size={20} color="#f0f2f5" />
+            </TouchableOpacity>
+          )}
+
+          {/* Bottom floating dashboard */}
+          <View style={styles.drivingDash}>
+            {/* Speed hero */}
+            <View style={styles.speedHero}>
+              <Text style={[styles.speedValue, isPersonal && { color: "#10b981" }]}>
+                {liveSpeed}
+              </Text>
+              <Text style={styles.speedUnit}>mph</Text>
+            </View>
+
+            {/* Stats strip */}
+            <View style={styles.dashStatsRow}>
+              <View style={styles.dashStat}>
+                <Text style={[styles.dashStatValue, isPersonal && { color: "#10b981" }]}>
+                  {liveDistance.toFixed(1)}
+                </Text>
+                <Text style={styles.dashStatLabel}>MILES</Text>
+              </View>
+              <View style={styles.dashDivider} />
+              <View style={styles.dashStat}>
+                <Text style={styles.dashStatValue}>{formatTimer(elapsed)}</Text>
+                <Text style={styles.dashStatLabel}>TIME</Text>
+              </View>
+              {isWork && earningsPerMilePence != null && (
+                <>
+                  <View style={styles.dashDivider} />
+                  <View style={styles.dashStat}>
+                    <Text style={styles.dashStatValue}>
+                      {"\u00A3"}{(liveDistance * earningsPerMilePence / 100).toFixed(2)}
+                    </Text>
+                    <Text style={styles.dashStatLabel}>EST. EARN</Text>
+                  </View>
+                </>
+              )}
+              {isWork && (
+                <>
+                  <View style={styles.dashDivider} />
+                  <View style={styles.dashStat}>
+                    <Text style={styles.dashStatValue}>
+                      {(liveDistance <= 10000 ? liveDistance * 45 : 10000 * 45 + (liveDistance - 10000) * 25).toFixed(0)}p
+                    </Text>
+                    <Text style={styles.dashStatLabel}>HMRC</Text>
+                  </View>
+                </>
+              )}
+              {isPersonal && currentArea && (
+                <>
+                  <View style={styles.dashDivider} />
+                  <View style={[styles.dashStat, { flex: 1.5 }]}>
+                    <Text style={[styles.dashStatValue, { color: "#10b981", fontSize: 14 }]} numberOfLines={1}>
+                      {currentArea}
+                    </Text>
+                    <Text style={styles.dashStatLabel}>AREA</Text>
+                  </View>
+                </>
+              )}
+            </View>
+
+            {/* From address */}
+            {startAddress && (
+              <Text style={styles.dashAddress} numberOfLines={1}>
+                From {startAddress}
+              </Text>
+            )}
+
+            {/* Buttons */}
+            <Button
+              variant="hero"
+              title={isPersonal ? "I'm Here" : "I've Arrived"}
+              icon="flag"
+              onPress={handleArrived}
+              loading={loading}
+              size="lg"
+            />
+            <TouchableOpacity onPress={handleCancel} style={styles.dashCancelBtn} activeOpacity={0.7}>
+              <Text style={styles.dashCancelText}>Cancel trip</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
+
+      {/* Map — visible in ready/arrived modes */}
+      {showMap && mode !== "driving" && (
+        <View style={styles.mapArea}>
           {MapView && startLat != null && startLng != null ? (
             <MapView
               ref={mapRef}
@@ -1036,11 +1204,10 @@ export default function TripFormScreen() {
               }
               userInterfaceStyle="dark"
               showsUserLocation={mode === "ready"}
-              scrollEnabled={mode === "driving"}
-              zoomEnabled={mode === "driving"}
+              scrollEnabled={false}
+              zoomEnabled={false}
               rotateEnabled={false}
               pitchEnabled={false}
-              onPanDrag={mode === "driving" ? () => setFollowUser(false) : undefined}
             >
               {mode !== "ready" && (
                 <Marker
@@ -1048,33 +1215,6 @@ export default function TripFormScreen() {
                   pinColor="#34c759"
                 />
               )}
-              {/* Live driving trail — speed-coloured segments */}
-              {mode === "driving" && Polyline && drivingTrail.length >= 2 && (
-                <>
-                  {buildSpeedSegments(drivingTrail).map((seg, i) => (
-                    <Polyline
-                      key={`seg-${i}`}
-                      coordinates={seg.coords}
-                      strokeColor={seg.color}
-                      strokeWidth={3}
-                    />
-                  ))}
-                </>
-              )}
-
-              {/* Custom user marker during driving */}
-              {mode === "driving" && userLat != null && userLng != null && Marker && (
-                <Marker
-                  coordinate={{ latitude: userLat, longitude: userLng }}
-                  anchor={{ x: 0.5, y: 0.5 }}
-                  flat
-                >
-                  <View style={styles.userDot}>
-                    <View style={styles.userDotInner} />
-                  </View>
-                </Marker>
-              )}
-
               {mode === "arrived" && endLat != null && endLng != null && (
                 <>
                   <Marker
@@ -1105,26 +1245,11 @@ export default function TripFormScreen() {
             </View>
           )}
 
-          {/* Re-center button during driving */}
-          {mode === "driving" && !followUser && (
-            <TouchableOpacity style={styles.recenterBtn} onPress={handleRecenter} activeOpacity={0.7}>
-              <Ionicons name="locate-outline" size={20} color="#f0f2f5" />
-            </TouchableOpacity>
-          )}
-
-          {/* Distance badge overlay during driving */}
-          {mode === "driving" && liveDistance > 0 && (
-            <View style={styles.mapDistanceBadge}>
-              <Text style={[styles.mapDistanceText, isPersonal && { color: "#10b981" }]}>
-                {liveDistance.toFixed(1)} mi
-              </Text>
-            </View>
-          )}
         </View>
       )}
 
-      {/* Bottom panel */}
-      <ScrollView
+      {/* Bottom panel — hidden during driving (UI overlays the map) */}
+      {mode !== "driving" && <ScrollView
         style={styles.panel}
         contentContainerStyle={styles.panelContent}
         keyboardShouldPersistTaps="handled"
@@ -1174,85 +1299,6 @@ export default function TripFormScreen() {
               <Ionicons name="create-outline" size={16} color="#8494a7" />
               <Text style={styles.manualLinkText}>Log a past trip instead</Text>
             </TouchableOpacity>
-          </>
-        )}
-
-        {/* ── Driving State ── */}
-        {mode === "driving" && (
-          <>
-            <View style={styles.drivingHeader}>
-              <View style={styles.liveIndicator}>
-                <Animated.View
-                  style={[
-                    styles.liveDotOuter,
-                    isPersonal && { backgroundColor: "rgba(16, 185, 129, 0.3)" },
-                    { transform: [{ scale: pulseAnim }] },
-                  ]}
-                />
-                <View style={[styles.liveDot, isPersonal && { backgroundColor: "#10b981" }]} />
-                <Text style={[styles.liveText, isPersonal && { color: "#10b981" }]}>
-                  {isPersonal ? "JOURNEY IN PROGRESS" : "TRACKING BUSINESS MILES"}
-                </Text>
-              </View>
-              <Text style={styles.timerText}>{formatTimer(elapsed)}</Text>
-            </View>
-
-            {/* Live stats strip */}
-            <View style={styles.liveStatsRow}>
-              <View style={styles.liveStatCard}>
-                <Text style={[styles.liveStatValue, isPersonal && { color: "#10b981" }]}>{liveSpeed}</Text>
-                <Text style={styles.liveStatLabel}>MPH</Text>
-              </View>
-              <View style={styles.liveStatCard}>
-                <Text style={[styles.liveStatValue, isPersonal && { color: "#10b981" }]}>{liveDistance.toFixed(1)}</Text>
-                <Text style={styles.liveStatLabel}>MILES</Text>
-              </View>
-              {isWork && (
-                <View style={styles.liveStatCard}>
-                  <Text style={styles.liveStatValue}>
-                    {earningsPerMilePence != null
-                      ? `${(liveDistance * earningsPerMilePence / 100).toFixed(0)}p`
-                      : "--"}
-                  </Text>
-                  <Text style={styles.liveStatLabel}>EST. EARN</Text>
-                </View>
-              )}
-              {isWork && (
-                <View style={styles.liveStatCard}>
-                  <Text style={styles.liveStatValue}>
-                    {(liveDistance <= 10000 ? liveDistance * 45 : 10000 * 45 + (liveDistance - 10000) * 25).toFixed(0)}p
-                  </Text>
-                  <Text style={styles.liveStatLabel}>HMRC</Text>
-                </View>
-              )}
-              {isPersonal && currentArea && (
-                <View style={[styles.liveStatCard, { flex: 2 }]}>
-                  <Text style={[styles.liveStatValue, { color: "#10b981", fontSize: 16 }]} numberOfLines={1}>
-                    {currentArea}
-                  </Text>
-                  <Text style={styles.liveStatLabel}>AREA</Text>
-                </View>
-              )}
-            </View>
-
-            {startAddress && (
-              <Text style={styles.addressMuted}>From: {startAddress}</Text>
-            )}
-
-            <Button
-              variant="hero"
-              title={isPersonal ? "I'm Here" : "I've Arrived"}
-              icon="flag"
-              onPress={handleArrived}
-              loading={loading}
-              size="lg"
-            />
-            <Button
-              variant="ghost"
-              title="Cancel trip"
-              onPress={handleCancel}
-              style={{ marginTop: 8 }}
-            />
           </>
         )}
 
@@ -1925,7 +1971,7 @@ export default function TripFormScreen() {
             )}
           </>
         )}
-      </ScrollView>
+      </ScrollView>}
     </View>
   );
 }
@@ -1955,9 +2001,6 @@ const styles = StyleSheet.create({
   mapArea: {
     height: 240,
   },
-  mapAreaDriving: {
-    height: 320,
-  },
   map: {
     flex: 1,
   },
@@ -1973,19 +2016,6 @@ const styles = StyleSheet.create({
     color: TEXT_2,
     textAlign: "center",
     paddingHorizontal: 20,
-  },
-  recenterBtn: {
-    position: "absolute",
-    bottom: 12,
-    right: 12,
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: "rgba(10, 17, 32, 0.85)",
-    justifyContent: "center",
-    alignItems: "center",
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.1)",
   },
   // ── Panel ────────────────────────────────────────────
   panel: {
@@ -2077,26 +2107,28 @@ const styles = StyleSheet.create({
     fontFamily: "PlusJakartaSans_500Medium",
     color: AMBER,
   },
-  // ── Driving state ────────────────────────────────────
-  drivingHeader: {
+  // ── Full-screen driving mode ─────────────────────────
+  drivingTopBar: {
+    position: "absolute",
+    top: 8,
+    left: 12,
+    right: 12,
+    flexDirection: "row",
     alignItems: "center",
-    marginBottom: 12,
+    justifyContent: "space-between",
+    backgroundColor: "rgba(3, 7, 18, 0.75)",
+    borderRadius: 14,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.08)",
   },
-  liveIndicator: {
+  drivingLiveRow: {
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
-    marginBottom: 8,
   },
-  liveDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: "#34c759",
-    position: "absolute",
-    left: 0,
-  },
-  liveDotOuter: {
+  drivingPulse: {
     width: 8,
     height: 8,
     borderRadius: 4,
@@ -2104,26 +2136,121 @@ const styles = StyleSheet.create({
     position: "absolute",
     left: 0,
   },
-  liveText: {
+  drivingPulseCore: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: "#34c759",
+    position: "absolute",
+    left: 0,
+  },
+  drivingLiveText: {
     fontSize: 11,
     fontFamily: "PlusJakartaSans_700Bold",
     color: "#34c759",
-    letterSpacing: 1.5,
+    letterSpacing: 1.2,
     marginLeft: 14,
   },
-  timerText: {
-    fontSize: 48,
-    fontFamily: "PlusJakartaSans_300Light",
-    color: TEXT_1,
+  drivingTopTimer: {
+    fontSize: 15,
+    fontFamily: "PlusJakartaSans_600SemiBold",
+    color: TEXT_2,
     fontVariant: ["tabular-nums"],
-    letterSpacing: 3,
+    letterSpacing: 1,
   },
-  addressMuted: {
+  drivingRecenterBtn: {
+    position: "absolute",
+    top: 60,
+    right: 12,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "rgba(10, 17, 32, 0.85)",
+    justifyContent: "center",
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.1)",
+  },
+  drivingDash: {
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: "rgba(3, 7, 18, 0.95)",
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingHorizontal: 20,
+    paddingTop: 20,
+    paddingBottom: 34,
+    borderTopWidth: 1,
+    borderTopColor: "rgba(255,255,255,0.06)",
+  },
+  speedHero: {
+    flexDirection: "row",
+    alignItems: "baseline",
+    justifyContent: "center",
+    gap: 6,
+    marginBottom: 16,
+  },
+  speedValue: {
+    fontSize: 56,
+    fontFamily: "PlusJakartaSans_300Light",
+    color: AMBER,
+    fontVariant: ["tabular-nums"],
+  },
+  speedUnit: {
+    fontSize: 18,
+    fontFamily: "PlusJakartaSans_500Medium",
+    color: TEXT_2,
+  },
+  dashStatsRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(255,255,255,0.03)",
+    borderRadius: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 8,
+    marginBottom: 14,
+  },
+  dashStat: {
+    flex: 1,
+    alignItems: "center",
+  },
+  dashStatValue: {
+    fontSize: 16,
+    fontFamily: "PlusJakartaSans_700Bold",
+    color: AMBER,
+  },
+  dashStatLabel: {
+    fontSize: 9,
+    fontFamily: "PlusJakartaSans_600SemiBold",
+    color: TEXT_2,
+    marginTop: 2,
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+  },
+  dashDivider: {
+    width: 1,
+    height: 28,
+    backgroundColor: "rgba(255,255,255,0.08)",
+  },
+  dashAddress: {
     fontSize: 13,
     fontFamily: "PlusJakartaSans_400Regular",
     color: TEXT_2,
-    marginBottom: 16,
+    marginBottom: 14,
     textAlign: "center",
+  },
+  dashCancelBtn: {
+    alignItems: "center",
+    paddingVertical: 10,
+    marginTop: 6,
+  },
+  dashCancelText: {
+    fontSize: 14,
+    fontFamily: "PlusJakartaSans_500Medium",
+    color: "#6b7280",
   },
   // ── Arrived / route summary ──────────────────────────
   routeCard: {
@@ -2393,51 +2520,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontFamily: "PlusJakartaSans_400Regular",
     color: "#fff",
-  },
-  // ── Live stats strip ──────────────────────────────────
-  liveStatsRow: {
-    flexDirection: "row",
-    gap: 6,
-    marginBottom: 12,
-  },
-  liveStatCard: {
-    flex: 1,
-    backgroundColor: CARD_BG,
-    borderRadius: 10,
-    paddingVertical: 10,
-    alignItems: "center",
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.05)",
-  },
-  liveStatValue: {
-    fontSize: 20,
-    fontFamily: "PlusJakartaSans_700Bold",
-    color: AMBER,
-  },
-  liveStatLabel: {
-    fontSize: 9,
-    fontFamily: "PlusJakartaSans_600SemiBold",
-    color: TEXT_2,
-    marginTop: 2,
-    textTransform: "uppercase",
-    letterSpacing: 0.5,
-  },
-  // ── Map distance badge ────────────────────────────────
-  mapDistanceBadge: {
-    position: "absolute",
-    bottom: 12,
-    left: 12,
-    backgroundColor: "rgba(10, 17, 32, 0.85)",
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.08)",
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-  },
-  mapDistanceText: {
-    fontFamily: "PlusJakartaSans_600SemiBold",
-    fontSize: 12,
-    color: AMBER,
   },
   // ── User location dot (driving mode) ──────────────────
   userDot: {

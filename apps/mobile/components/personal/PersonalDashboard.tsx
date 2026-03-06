@@ -6,11 +6,15 @@ import { usePersonalStats } from "../../hooks/usePersonalStats";
 import { consumeLastSavedTrip, type LastSavedTrip } from "../../lib/events/lastTrip";
 import { DrivingSummaryCard } from "./DrivingSummaryCard";
 import { PostTripCard } from "./PostTripCard";
+import { MapOverview } from "./MapOverview";
+import { CommunityInsightsCard } from "../community/CommunityInsightsCard";
 import type { GamificationStats } from "@mileclear/shared";
 
 interface PersonalDashboardProps {
   avatarId?: string | null;
   stats: GamificationStats | null;
+  visibleKeys?: string[];
+  recentTrips?: any[];
 }
 
 function ordinal(n: number): string {
@@ -19,7 +23,8 @@ function ordinal(n: number): string {
   return n + (s[(v - 20) % 10] || s[v] || s[0]);
 }
 
-export function PersonalDashboard({ avatarId, stats }: PersonalDashboardProps) {
+export function PersonalDashboard({ avatarId, stats, visibleKeys, recentTrips }: PersonalDashboardProps) {
+  const isVisible = (key: string) => !visibleKeys || visibleKeys.includes(key);
   const router = useRouter();
   const {
     monthMiles,
@@ -80,6 +85,92 @@ export function PersonalDashboard({ avatarId, stats }: PersonalDashboardProps) {
   const streakDays = stats?.currentStreakDays ?? 0;
   const monthLabel = new Date().toLocaleDateString("en-GB", { month: "long" });
 
+  const renderSection = (key: string) => {
+    switch (key) {
+      case "personal_summary":
+        return (
+          <DrivingSummaryCard
+            key={key}
+            monthMiles={monthMiles}
+            monthTrips={monthTrips}
+            estimatedCostPence={estimatedCostPence}
+            monthLabel={monthLabel}
+            streakDays={streakDays}
+            todayMiles={todayMiles}
+            weekMiles={weekMiles}
+          />
+        );
+      case "personal_cta":
+        return (
+          <TouchableOpacity
+            key={key}
+            style={styles.startTripBtn}
+            onPress={() => router.push("/trip-form")}
+            activeOpacity={0.7}
+          >
+            <Ionicons name="navigate" size={20} color="#030712" />
+            <Text style={styles.startTripBtnText}>Start Trip</Text>
+          </TouchableOpacity>
+        );
+      case "personal_quicknav":
+        return (
+          <View key={key} style={styles.quickActions}>
+            <TouchableOpacity
+              style={styles.quickAction}
+              onPress={() => router.push("/insights")}
+              activeOpacity={0.7}
+            >
+              <Ionicons name="analytics-outline" size={22} color="#10b981" style={{ marginBottom: 4 }} />
+              <Text style={styles.quickActionLabel}>Insights</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.quickAction}
+              onPress={() => router.replace("/(tabs)/trips" as any)}
+              activeOpacity={0.7}
+            >
+              <Ionicons name="list-outline" size={22} color="#10b981" style={{ marginBottom: 4 }} />
+              <Text style={styles.quickActionLabel}>Trips</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.quickAction}
+              onPress={() => router.replace("/(tabs)/fuel" as any)}
+              activeOpacity={0.7}
+            >
+              <Ionicons name="water-outline" size={22} color="#10b981" style={{ marginBottom: 4 }} />
+              <Text style={styles.quickActionLabel}>Fuel</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.quickAction}
+              onPress={() => router.push("/achievements")}
+              activeOpacity={0.7}
+            >
+              <Ionicons name="trophy-outline" size={22} color="#10b981" style={{ marginBottom: 4 }} />
+              <Text style={styles.quickActionLabel}>Badges</Text>
+            </TouchableOpacity>
+          </View>
+        );
+      case "journey_map":
+        return (recentTrips && recentTrips.length > 0) ? (
+          <View key={key}>
+            <MapOverview trips={recentTrips} title="Recent Journeys" />
+          </View>
+        ) : null;
+      case "community":
+        return (
+          <View key={key}>
+            <CommunityInsightsCard isWork={false} />
+          </View>
+        );
+      default:
+        return null;
+    }
+  };
+
+  const sectionOrder = visibleKeys || [
+    "personal_summary", "personal_cta", "personal_quicknav",
+    "journey_map", "community",
+  ];
+
   return (
     <View>
       {lastSaved && (
@@ -89,61 +180,7 @@ export function PersonalDashboard({ avatarId, stats }: PersonalDashboardProps) {
           onDismiss={dismissPostTrip}
         />
       )}
-
-      <DrivingSummaryCard
-        monthMiles={monthMiles}
-        monthTrips={monthTrips}
-        estimatedCostPence={estimatedCostPence}
-        monthLabel={monthLabel}
-        streakDays={streakDays}
-        todayMiles={todayMiles}
-        weekMiles={weekMiles}
-      />
-
-      <TouchableOpacity
-        style={styles.startTripBtn}
-        onPress={() => router.push("/trip-form")}
-        activeOpacity={0.7}
-      >
-        <Ionicons name="navigate" size={20} color="#030712" />
-        <Text style={styles.startTripBtnText}>Start Trip</Text>
-      </TouchableOpacity>
-
-      {/* Quick Nav */}
-      <View style={styles.quickActions}>
-        <TouchableOpacity
-          style={styles.quickAction}
-          onPress={() => router.push("/insights")}
-          activeOpacity={0.7}
-        >
-          <Ionicons name="analytics-outline" size={22} color="#10b981" style={{ marginBottom: 4 }} />
-          <Text style={styles.quickActionLabel}>Insights</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={styles.quickAction}
-          onPress={() => router.replace("/(tabs)/trips" as any)}
-          activeOpacity={0.7}
-        >
-          <Ionicons name="list-outline" size={22} color="#10b981" style={{ marginBottom: 4 }} />
-          <Text style={styles.quickActionLabel}>Trips</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={styles.quickAction}
-          onPress={() => router.replace("/(tabs)/fuel" as any)}
-          activeOpacity={0.7}
-        >
-          <Ionicons name="water-outline" size={22} color="#10b981" style={{ marginBottom: 4 }} />
-          <Text style={styles.quickActionLabel}>Fuel</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={styles.quickAction}
-          onPress={() => router.push("/achievements")}
-          activeOpacity={0.7}
-        >
-          <Ionicons name="trophy-outline" size={22} color="#10b981" style={{ marginBottom: 4 }} />
-          <Text style={styles.quickActionLabel}>Badges</Text>
-        </TouchableOpacity>
-      </View>
+      {sectionOrder.map((key) => renderSection(key))}
     </View>
   );
 }

@@ -2,7 +2,7 @@
 
 import * as SQLite from "expo-sqlite";
 
-const CURRENT_SCHEMA_VERSION = 5;
+const CURRENT_SCHEMA_VERSION = 6;
 
 let db: SQLite.SQLiteDatabase | null = null;
 
@@ -122,6 +122,14 @@ async function initializeSchema(database: SQLite.SQLiteDatabase): Promise<void> 
     CREATE TABLE IF NOT EXISTS notification_prefs (
       key TEXT PRIMARY KEY,
       value TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS layout_prefs (
+      screen TEXT NOT NULL,
+      section_key TEXT NOT NULL,
+      visible INTEGER NOT NULL DEFAULT 1,
+      position INTEGER NOT NULL DEFAULT 0,
+      PRIMARY KEY (screen, section_key)
     );
   `);
 
