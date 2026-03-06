@@ -247,3 +247,89 @@ export function computeTripInsights(
     routeDirectnessNote,
   };
 }
+
+// ── Distance equivalents ───────────────────────────────────────────
+// Real driving distances from London (miles). Each entry has a
+// threshold (minimum miles to show), a destination distance for the
+// multiplier calculation, and template strings. Templates use {n}
+// for the trip-count multiplier (e.g. "3 trips to Paris").
+
+interface DistanceComparison {
+  min: number;       // minimum miles to show this comparison
+  max: number;       // maximum miles (exclusive) — use Infinity for no cap
+  dist: number;      // real distance in miles for the multiplier
+  single: string;    // template when miles ≈ 1× distance
+  multi: string;     // template when miles > 1× distance — {n} = count
+}
+
+// Sorted roughly ascending by dist. All distances are real driving
+// miles from London unless noted.
+const COMPARISONS: DistanceComparison[] = [
+  // Tiny (1-5 mi)
+  { min: 1, max: 6, dist: 0.05, single: "About {n} laps of a running track", multi: "About {n} laps of a running track" },
+  // Short (5-15 mi)
+  { min: 5, max: 16, dist: 4, single: "Roughly a Heathrow round trip", multi: "Like {n} trips to Heathrow and back" },
+  { min: 5, max: 16, dist: 9, single: "About the length of the Tube's Central line", multi: "Like riding the Central line end-to-end {n} times" },
+  // Medium (15-50 mi)
+  { min: 15, max: 55, dist: 21, single: "That's London to Watford and back", multi: "Like driving to Watford and back {n} times" },
+  { min: 15, max: 55, dist: 26, single: "About the length of the M25 orbital", multi: "That's {n} laps of the M25" },
+  { min: 30, max: 55, dist: 34, single: "Like London to Southend-on-Sea", multi: "Like {n} trips to Southend" },
+  // Longer (50-120 mi)
+  { min: 50, max: 125, dist: 55, single: "Like driving from London to Brighton", multi: "Like {n} trips to Brighton from London" },
+  { min: 50, max: 125, dist: 61, single: "About London to Cambridge", multi: "Like {n} London-to-Cambridge drives" },
+  { min: 60, max: 125, dist: 76, single: "That could get you from London to Oxford and back", multi: "Like {n} round trips to Oxford" },
+  { min: 80, max: 125, dist: 100, single: "About as far as London to Bristol", multi: "Like {n} drives from London to Bristol" },
+  // Regional (120-300 mi)
+  { min: 120, max: 310, dist: 127, single: "That's London to Birmingham", multi: "Like {n} drives to Birmingham from London" },
+  { min: 120, max: 310, dist: 162, single: "Like driving from London to Cardiff", multi: "Like {n} London-to-Cardiff journeys" },
+  { min: 160, max: 310, dist: 200, single: "That would get you from London to Manchester", multi: "Like {n} trips from London to Manchester" },
+  { min: 200, max: 310, dist: 210, single: "Like driving from London to York", multi: "Like {n} trips from London to York" },
+  { min: 250, max: 310, dist: 275, single: "That's about London to Newcastle", multi: "Like driving to Newcastle {n} times" },
+  { min: 280, max: 310, dist: 290, single: "Almost London to the Lake District", multi: "Like {n} trips to the Lakes" },
+  // Cross-country (300-600 mi)
+  { min: 300, max: 620, dist: 405, single: "That would take you from London to Edinburgh", multi: "Like {n} drives from London to Edinburgh" },
+  { min: 300, max: 620, dist: 395, single: "Like driving from London to Glasgow", multi: "Like {n} drives to Glasgow from London" },
+  { min: 400, max: 620, dist: 476, single: "That's like London to Inverness", multi: "Like {n} drives to the Highlands" },
+  { min: 500, max: 620, dist: 540, single: "Like driving from London to Aberdeen", multi: "Like {n} trips to Aberdeen" },
+  // National (600-2000 mi)
+  { min: 600, max: 2100, dist: 874, single: "That's the full length of Britain — Land's End to John o' Groats!", multi: "Like driving Land's End to John o' Groats {n} times" },
+  { min: 600, max: 2100, dist: 550, single: "Like a UK road trip — London up to Edinburgh and back", multi: "Like {n} London-to-Edinburgh round trips" },
+  // European (500-3500 mi)
+  { min: 500, max: 3500, dist: 460, single: "Could have driven from London to Paris and back", multi: "Like {n} round trips to Paris" },
+  { min: 700, max: 3500, dist: 730, single: "That would get you from London to Barcelona", multi: "Like {n} drives to Barcelona" },
+  { min: 800, max: 3500, dist: 900, single: "Like driving from London to Rome", multi: "Like {n} London-to-Rome road trips" },
+  { min: 900, max: 3500, dist: 1100, single: "That's about London to Berlin and back", multi: "Like {n} Berlin round trips from London" },
+  { min: 1200, max: 3500, dist: 1300, single: "Like driving from London to Madrid", multi: "Like {n} drives to Madrid" },
+  { min: 1500, max: 3500, dist: 1500, single: "Like driving from London to Athens", multi: "Like {n} drives to Athens" },
+  // Global (2000+ mi)
+  { min: 2000, max: 8000, dist: 2000, single: "Like driving from London to Istanbul", multi: "Like {n} road trips to Istanbul" },
+  { min: 2500, max: 8000, dist: 3100, single: "That's about London to Riyadh", multi: "Like {n} drives from London to Riyadh" },
+  { min: 3000, max: 15000, dist: 3500, single: "Like driving from London to New York (if you could!)", multi: "That's {n} Atlantic crossings worth of driving" },
+  { min: 5000, max: 30000, dist: 5600, single: "Like driving from London to Mumbai", multi: "Like {n} London-to-Mumbai road trips" },
+  { min: 8000, max: 50000, dist: 10700, single: "That's almost halfway around the Earth", multi: "Like driving around half the planet {n} times" },
+  { min: 15000, max: 80000, dist: 24901, single: "That's the circumference of the Earth!", multi: "Like driving around the Earth {n} times" },
+  { min: 50000, max: Infinity, dist: 24901, single: "Like driving around the Earth {n} times", multi: "Like driving around the Earth {n} times" },
+];
+
+/**
+ * Get a fun, accurate distance comparison for a given mileage.
+ * Uses a seeded selection so the same mileage returns the same text
+ * within a given day, but varies day-to-day.
+ */
+export function getDistanceEquivalent(miles: number): string | null {
+  if (miles < 1) return null;
+
+  // Find all eligible comparisons
+  const eligible = COMPARISONS.filter((c) => miles >= c.min && miles < c.max);
+  if (eligible.length === 0) return null;
+
+  // Pick one based on miles value (deterministic but varies with distance)
+  const seed = Math.floor(miles * 7.3) + new Date().getDate();
+  const pick = eligible[seed % eligible.length];
+
+  const n = Math.round(miles / pick.dist);
+  if (n <= 1) {
+    return pick.single.replace("{n}", String(Math.max(1, n)));
+  }
+  return pick.multi.replace("{n}", String(n));
+}

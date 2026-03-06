@@ -1,6 +1,7 @@
 import { useRef, useState } from "react";
 import { View, Text, StyleSheet, Platform, Pressable } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { getDistanceEquivalent } from "@mileclear/shared";
 import { RecapShareCard, captureAndShareRecap } from "./ShareableRecap";
 import type { RecapShareCardProps } from "./ShareableRecap";
 
@@ -66,18 +67,12 @@ function getTripsChangeLabel(
   return `${abs} fewer ${abs === 1 ? "trip" : "trips"} than ${prevMonthLabel}`;
 }
 
-function getMonthlyDistanceEquivalent(miles: number): { text: string; icon: string } | null {
-  if (miles < 1) return null;
-  // Fun UK-centric comparisons, ascending
-  if (miles >= 2000) return { text: `That's like driving Land's End to John o' Groats ${Math.round(miles / 874)} times`, icon: "globe-outline" };
-  if (miles >= 874) return { text: "You drove the length of Britain — Land's End to John o' Groats!", icon: "globe-outline" };
-  if (miles >= 500) return { text: `That's like ${Math.round(miles / 210)} trips to Paris from London`, icon: "airplane-outline" };
-  if (miles >= 250) return { text: `Equivalent to driving London to Edinburgh`, icon: "map-outline" };
-  if (miles >= 100) return { text: `That's about ${Math.round(miles / 60)} trips from London to Brighton`, icon: "car-outline" };
-  if (miles >= 50) return { text: `You could've driven across London ${Math.round(miles / 15)} times`, icon: "business-outline" };
-  if (miles >= 20) return { text: `About ${Math.round(miles * 20)} laps of a running track`, icon: "footsteps-outline" };
-  if (miles >= 5) return { text: `That's about ${Math.round(miles * 100)} football pitches end-to-end`, icon: "football-outline" };
-  return { text: `${Math.round(miles * 1760)} yards — every mile counts`, icon: "walk-outline" };
+function getDistanceIcon(miles: number): string {
+  if (miles >= 500) return "globe-outline";
+  if (miles >= 100) return "map-outline";
+  if (miles >= 30) return "car-outline";
+  if (miles >= 5) return "navigate-outline";
+  return "walk-outline";
 }
 
 const MONTH_NAMES = [
@@ -317,14 +312,14 @@ export function PersonalRecapCard({
 
           {/* Distance equivalent (both views) */}
           {(() => {
-            const equiv = getMonthlyDistanceEquivalent(displayMiles);
+            const equiv = getDistanceEquivalent(displayMiles);
             if (!equiv) return null;
             return (
               <View style={styles.insightRow}>
                 <View style={[styles.insightIcon, styles.insightIconAmber]}>
-                  <Ionicons name={equiv.icon as any} size={12} color="#f5a623" />
+                  <Ionicons name={getDistanceIcon(displayMiles) as any} size={12} color="#f5a623" />
                 </View>
-                <Text style={styles.insightText}>{equiv.text}</Text>
+                <Text style={styles.insightText}>{equiv}</Text>
               </View>
             );
           })()}

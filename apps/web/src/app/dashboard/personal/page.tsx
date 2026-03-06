@@ -18,6 +18,7 @@ import {
   ACHIEVEMENT_TYPES,
   ACHIEVEMENT_META,
   FREE_ACHIEVEMENT_TYPES,
+  getDistanceEquivalent,
 } from "@mileclear/shared";
 import { useAuth } from "../../../lib/auth-context";
 
@@ -41,19 +42,6 @@ function formatPence(pence: number): string {
 
 function formatMiles(miles: number): string {
   return miles.toLocaleString("en-GB", { maximumFractionDigits: 1 });
-}
-
-function getDistanceEquivalent(miles: number): string | null {
-  if (miles < 1) return null;
-  if (miles >= 2000) return `Like driving Land\u2019s End to John o\u2019 Groats ${Math.round(miles / 874)} times`;
-  if (miles >= 874) return "That\u2019s the length of Britain \u2014 Land\u2019s End to John o\u2019 Groats!";
-  if (miles >= 500) return `Like ${Math.round(miles / 210)} trips to Paris from London`;
-  if (miles >= 250) return "Equivalent to London to Edinburgh";
-  if (miles >= 100) return `About ${Math.round(miles / 60)} London-to-Brighton trips`;
-  if (miles >= 50) return `Like driving across London ${Math.round(miles / 15)} times`;
-  if (miles >= 20) return `About ${Math.round(miles * 20)} laps of a running track`;
-  if (miles >= 5) return `About ${Math.round(miles * 100)} football pitches end-to-end`;
-  return null;
 }
 
 type RecapView = "daily" | "weekly" | "monthly" | "yearly";

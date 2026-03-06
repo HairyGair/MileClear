@@ -2,6 +2,7 @@ import { type RefObject } from "react";
 import { View, Text, StyleSheet, Share as RNShare } from "react-native";
 import { captureRef } from "react-native-view-shot";
 import * as Sharing from "expo-sharing";
+import { getDistanceEquivalent } from "@mileclear/shared";
 
 // ─── Data types ─────────────────────────────────────────────
 
@@ -35,19 +36,6 @@ function prevMonthName(current: string): string {
   );
   if (idx === -1) return "last month";
   return MONTH_NAMES[(idx + 11) % 12];
-}
-
-function getMonthlyDistanceEquivalent(miles: number): string | null {
-  if (miles < 1) return null;
-  if (miles >= 2000) return `Like driving Land's End to John o' Groats ${Math.round(miles / 874)} times`;
-  if (miles >= 874) return "That's the length of Britain — Land's End to John o' Groats!";
-  if (miles >= 500) return `Like ${Math.round(miles / 210)} trips to Paris from London`;
-  if (miles >= 250) return "Equivalent to London to Edinburgh";
-  if (miles >= 100) return `About ${Math.round(miles / 60)} London-to-Brighton trips`;
-  if (miles >= 50) return `Like driving across London ${Math.round(miles / 15)} times`;
-  if (miles >= 20) return `About ${Math.round(miles * 20)} laps of a running track`;
-  if (miles >= 5) return `About ${Math.round(miles * 100)} football pitches end-to-end`;
-  return null;
 }
 
 // ─── Visual certificate card (rendered off-screen, captured as image) ───
@@ -85,7 +73,7 @@ export function RecapShareCard({
     }
   }
 
-  const distanceEquiv = getMonthlyDistanceEquivalent(monthMiles);
+  const distanceEquiv = getDistanceEquivalent(monthMiles);
   const hasInsights = busiestDay || comparisonText || distanceEquiv;
 
   return (
