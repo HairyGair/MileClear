@@ -88,6 +88,9 @@ export default function ProfileScreen() {
     shiftReminder: true,
     streakReminder: true,
     taxDeadline: true,
+    milestoneAlerts: true,
+    shiftSummary: true,
+    monthlyRecap: true,
   });
   const [weeklyGoal, setWeeklyGoal] = useState<number | null>(null);
   const [workType, setWorkType] = useState<WorkType>("gig");
@@ -744,6 +747,63 @@ export default function ProfileScreen() {
                   const updated = { ...notifPrefs, taxDeadline: val };
                   setNotifPrefs(updated);
                   setNotificationPreferences({ taxDeadline: val }).catch(console.error);
+                }}
+                trackColor={{ false: "#374151", true: "#f5a623" }}
+                thumbColor="#fff"
+              />
+            </View>
+
+            <View style={styles.settingRow}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.actionText}>Monthly Recap</Text>
+                <Text style={styles.settingHint}>
+                  Your month in review on the 1st
+                </Text>
+              </View>
+              <Switch
+                value={notifPrefs.monthlyRecap}
+                onValueChange={(val) => {
+                  const updated = { ...notifPrefs, monthlyRecap: val };
+                  setNotifPrefs(updated);
+                  setNotificationPreferences({ monthlyRecap: val }).catch(console.error);
+                }}
+                trackColor={{ false: "#374151", true: "#f5a623" }}
+                thumbColor="#fff"
+              />
+            </View>
+
+            <View style={styles.settingRow}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.actionText}>Milestone Alerts</Text>
+                <Text style={styles.settingHint}>
+                  Celebrate when you hit mileage milestones
+                </Text>
+              </View>
+              <Switch
+                value={notifPrefs.milestoneAlerts}
+                onValueChange={(val) => {
+                  const updated = { ...notifPrefs, milestoneAlerts: val };
+                  setNotifPrefs(updated);
+                  setNotificationPreferences({ milestoneAlerts: val }).catch(console.error);
+                }}
+                trackColor={{ false: "#374151", true: "#f5a623" }}
+                thumbColor="#fff"
+              />
+            </View>
+
+            <View style={styles.settingRow}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.actionText}>Shift Summary</Text>
+                <Text style={styles.settingHint}>
+                  Stats when you end a shift
+                </Text>
+              </View>
+              <Switch
+                value={notifPrefs.shiftSummary}
+                onValueChange={(val) => {
+                  const updated = { ...notifPrefs, shiftSummary: val };
+                  setNotifPrefs(updated);
+                  setNotificationPreferences({ shiftSummary: val }).catch(console.error);
                 }}
                 trackColor={{ false: "#374151", true: "#f5a623" }}
                 thumbColor="#fff"

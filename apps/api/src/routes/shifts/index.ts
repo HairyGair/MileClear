@@ -5,6 +5,7 @@ import { prisma } from "../../lib/prisma.js";
 import { SHIFT_STATUSES, getTaxYear } from "@mileclear/shared";
 import { upsertMileageSummary } from "../../services/mileage.js";
 import { checkAndAwardAchievements, getShiftScorecard } from "../../services/gamification.js";
+import { sendShiftSummaryPush, sendAchievementPush } from "../../jobs/notifications.js";
 
 const startShiftSchema = z.object({
   vehicleId: z.string().uuid().optional(),
@@ -127,12 +128,25 @@ export async function shiftRoutes(app: FastifyInstance) {
     // Update mileage summary + check achievements
     const taxYear = getTaxYear(shift.startedAt);
     await upsertMileageSummary(request.userId!, taxYear).catch(() => {});
-    await checkAndAwardAchievements(request.userId!).catch(() => {});
+    const newAchievements = await checkAndAwardAchievements(request.userId!).catch(() => [] as never[]);
 
     // Generate scorecard for this shift
     const scorecard = await getShiftScorecard(request.userId!, id).catch(
       () => null
     );
+
+    // Fire-and-forget: push notifications for shift summary + achievements
+    if (scorecard) {
+      sendShiftSummaryPush(request.userId!, {
+        tripsCompleted: scorecard.tripsCompleted,
+        totalMiles: scorecard.totalMiles,
+        deductionPence: scorecard.deductionPence,
+        durationSeconds: scorecard.durationSeconds,
+      }).catch(() => {});
+    }
+    if (newAchievements && newAchievements.length > 0) {
+      sendAchievementPush(request.userId!, newAchievements).catch(() => {});
+    }
 
     return reply.send({ data: updated, scorecard });
   });

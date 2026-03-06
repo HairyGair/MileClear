@@ -6,6 +6,9 @@ export interface NotificationPreferences {
   shiftReminder: boolean;
   streakReminder: boolean;
   taxDeadline: boolean;
+  milestoneAlerts: boolean;
+  shiftSummary: boolean;
+  monthlyRecap: boolean;
 }
 
 const PREFS_KEY = "notification_prefs";
@@ -16,6 +19,9 @@ const DEFAULT_PREFERENCES: NotificationPreferences = {
   shiftReminder: true,
   streakReminder: true,
   taxDeadline: true,
+  milestoneAlerts: true,
+  shiftSummary: true,
+  monthlyRecap: true,
 };
 
 export async function getNotificationPreferences(): Promise<NotificationPreferences> {

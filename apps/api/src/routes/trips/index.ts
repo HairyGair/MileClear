@@ -14,6 +14,7 @@ import {
 import { haversineDistance, fetchRouteDistance, computeTripInsights } from "@mileclear/shared";
 import { upsertMileageSummary } from "../../services/mileage.js";
 import { checkAndAwardAchievements } from "../../services/gamification.js";
+import { sendMilestonePush, sendAchievementPush } from "../../jobs/notifications.js";
 
 // Server-side geocoding: resolve an address to coordinates via Postcodes.io or Nominatim
 async function geocodeAddress(addr: string): Promise<{ lat: number; lng: number } | null> {
@@ -226,10 +227,15 @@ export async function tripRoutes(app: FastifyInstance) {
       });
     }
 
-    // Fire-and-forget: update mileage summary + check achievements
+    // Fire-and-forget: update mileage summary + check achievements + push notifications
     const taxYear = getTaxYear(data.startedAt);
     upsertMileageSummary(userId, taxYear).catch(() => {});
-    checkAndAwardAchievements(userId).catch(() => {});
+    checkAndAwardAchievements(userId)
+      .then((newAchievements) => {
+        sendAchievementPush(userId, newAchievements).catch(() => {});
+        sendMilestonePush(userId).catch(() => {});
+      })
+      .catch(() => {});
 
     return reply.status(201).send({ data: trip });
   });

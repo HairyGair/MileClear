@@ -144,7 +144,7 @@ export function setupNotificationResponseHandler(): void {
       return;
     }
 
-    // Other notification types
+    // Other notification types — deep link to relevant screen
     switch (action) {
       case "open_dashboard":
         router.navigate("/(tabs)/dashboard");
@@ -152,6 +152,14 @@ export function setupNotificationResponseHandler(): void {
 
       case "open_trips":
         router.navigate("/(tabs)/trips");
+        break;
+
+      case "open_insights":
+        router.navigate("/insights" as any);
+        break;
+
+      case "open_achievements":
+        router.navigate("/achievements" as any);
         break;
 
       case "billing":
