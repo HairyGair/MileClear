@@ -7,7 +7,7 @@ import {
   ScrollView,
   StyleSheet,
 } from "react-native";
-import { AVATARS, AvatarIcon } from "./AvatarRegistry";
+import { AVATARS, AvatarIcon, UserAvatar } from "./AvatarRegistry";
 
 const AMBER = "#f5a623";
 const TEXT_1 = "#f0f2f5";
@@ -38,13 +38,7 @@ export function AvatarPicker({ currentAvatarId, onSelect }: AvatarPickerProps) {
         onPress={() => setVisible(true)}
         activeOpacity={0.7}
       >
-        {currentAvatarId ? (
-          <AvatarIcon avatarId={currentAvatarId} size={64} />
-        ) : (
-          <View style={styles.placeholder}>
-            <Text style={styles.placeholderText}>?</Text>
-          </View>
-        )}
+        <UserAvatar avatarId={currentAvatarId} name="?" size={64} />
         <Text style={styles.changeText}>Change Avatar</Text>
       </TouchableOpacity>
 
@@ -72,9 +66,7 @@ export function AvatarPicker({ currentAvatarId, onSelect }: AvatarPickerProps) {
                 onPress={() => handleSelect(null)}
                 activeOpacity={0.7}
               >
-                <View style={styles.removeDot}>
-                  <Text style={styles.removeDotText}>A</Text>
-                </View>
+                <UserAvatar name="A" size={52} />
                 <Text style={styles.cellLabel} numberOfLines={1}>
                   Initials
                 </Text>
@@ -117,19 +109,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 6,
     marginBottom: 16,
-  },
-  placeholder: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    backgroundColor: AMBER,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  placeholderText: {
-    fontSize: 26,
-    fontFamily: "PlusJakartaSans_700Bold",
-    color: "#030712",
   },
   changeText: {
     fontSize: 13,
@@ -193,19 +172,6 @@ const styles = StyleSheet.create({
     color: TEXT_2,
     marginTop: 4,
     textAlign: "center",
-  },
-  removeDot: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
-    backgroundColor: AMBER,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  removeDotText: {
-    fontSize: 22,
-    fontFamily: "PlusJakartaSans_700Bold",
-    color: "#030712",
   },
   closeBtn: {
     paddingVertical: 14,

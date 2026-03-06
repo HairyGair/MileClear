@@ -1,5 +1,5 @@
 import React from "react";
-import { View, Image, ImageSourcePropType } from "react-native";
+import { View, Image, Text, ImageSourcePropType, StyleSheet } from "react-native";
 
 // ---------------------------------------------------------------------------
 // Vehicle avatar system — AI-generated PNG images (Gemini Flash)
@@ -84,6 +84,8 @@ export function getAvatarById(id: string): AvatarDef | undefined {
   return AVATARS.find((a) => a.id === id);
 }
 
+// ── AvatarIcon — vehicle image only ────────────────────────────────
+
 interface AvatarIconProps {
   avatarId: string;
   size: number;
@@ -98,15 +100,102 @@ export function AvatarIcon({ avatarId, size }: AvatarIconProps) {
       style={{
         width: size,
         height: size,
+        aspectRatio: 1,
         borderRadius: size / 2,
         overflow: "hidden",
+        borderWidth: size >= 44 ? 1.5 : 1,
+        borderColor: "rgba(255,255,255,0.08)",
       }}
     >
       <Image
         source={source}
-        style={{ width: size, height: size }}
+        style={{ width: size, height: size, aspectRatio: 1 }}
         resizeMode="cover"
       />
     </View>
   );
 }
+
+// ── UserAvatar — unified avatar for all contexts ───────────────────
+// Handles both vehicle image avatars AND initial-letter fallbacks.
+// Uses aspectRatio: 1 + explicit dimensions to prevent flex stretching.
+
+const AMBER = "#f5a623";
+
+interface UserAvatarProps {
+  avatarId?: string | null;
+  name?: string | null;
+  email?: string | null;
+  size: number;
+}
+
+export function UserAvatar({ avatarId, name, email, size }: UserAvatarProps) {
+  if (avatarId) {
+    return <AvatarIcon avatarId={avatarId} size={size} />;
+  }
+
+  const initial = (name || email || "?")[0].toUpperCase();
+  const fontSize = Math.round(size * 0.42);
+  const ringWidth = size >= 44 ? 1.5 : 1;
+
+  return (
+    <View
+      style={[
+        baseStyles.container,
+        {
+          width: size,
+          height: size,
+          borderRadius: size / 2,
+          borderWidth: ringWidth,
+        },
+      ]}
+    >
+      <View
+        style={[
+          baseStyles.inner,
+          {
+            width: size - ringWidth * 2,
+            height: size - ringWidth * 2,
+            borderRadius: (size - ringWidth * 2) / 2,
+          },
+        ]}
+      >
+        <Text
+          style={[
+            baseStyles.initial,
+            {
+              fontSize,
+              lineHeight: fontSize * 1.15,
+            },
+          ]}
+          allowFontScaling={false}
+        >
+          {initial}
+        </Text>
+      </View>
+    </View>
+  );
+}
+
+const baseStyles = StyleSheet.create({
+  container: {
+    aspectRatio: 1,
+    borderColor: "rgba(255,255,255,0.1)",
+    overflow: "hidden",
+    flexShrink: 0,
+    flexGrow: 0,
+  },
+  inner: {
+    backgroundColor: AMBER,
+    justifyContent: "center",
+    alignItems: "center",
+    aspectRatio: 1,
+  },
+  initial: {
+    fontFamily: "PlusJakartaSans_700Bold",
+    color: "#030712",
+    textAlign: "center",
+    includeFontPadding: false,
+    textAlignVertical: "center",
+  },
+});

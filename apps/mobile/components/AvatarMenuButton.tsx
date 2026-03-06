@@ -13,7 +13,7 @@ import { useRouter, useSegments } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAuth } from "../lib/auth/context";
 import { useUser } from "../lib/user/context";
-import { AvatarIcon } from "./avatars/AvatarRegistry";
+import { UserAvatar } from "./avatars/AvatarRegistry";
 import { useLayoutPrefs } from "../lib/layout/index";
 
 const AMBER = "#f5a623";
@@ -63,10 +63,6 @@ export default function AvatarMenuButton() {
   const insets = useSafeAreaInsets();
   const [menuVisible, setMenuVisible] = useState(false);
   const menuLayout = useLayoutPrefs("avatar_menu");
-
-  const initial = user
-    ? (user.displayName || user.email)[0].toUpperCase()
-    : "?";
 
   const currentSegment = (segments as string[])[1] ?? "dashboard";
 
@@ -123,13 +119,12 @@ export default function AvatarMenuButton() {
           hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
           style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1 })}
         >
-          {user?.avatarId ? (
-            <AvatarIcon avatarId={user.avatarId} size={32} />
-          ) : (
-            <View style={styles.avatar}>
-              <Text style={styles.initial}>{initial}</Text>
-            </View>
-          )}
+          <UserAvatar
+            avatarId={user?.avatarId}
+            name={user?.displayName}
+            email={user?.email}
+            size={32}
+          />
         </Pressable>
       </View>
 
@@ -159,15 +154,12 @@ export default function AvatarMenuButton() {
                   onPress={() => handleNav("/(tabs)/profile", true)}
                   activeOpacity={0.7}
                 >
-                  {user.avatarId ? (
-                    <AvatarIcon avatarId={user.avatarId} size={44} />
-                  ) : (
-                    <View style={styles.userAvatar}>
-                      <Text style={styles.userAvatarText}>
-                        {(user.displayName || user.email)[0].toUpperCase()}
-                      </Text>
-                    </View>
-                  )}
+                  <UserAvatar
+                    avatarId={user.avatarId}
+                    name={user.displayName}
+                    email={user.email}
+                    size={44}
+                  />
                   <View style={styles.userInfo}>
                     <Text style={styles.userName} numberOfLines={1}>
                       {user.displayName || "Driver"}
@@ -311,20 +303,6 @@ const styles = StyleSheet.create({
     color: TEXT_2,
     maxWidth: 100,
   },
-  avatar: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: AMBER,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  initial: {
-    fontSize: 14,
-    fontFamily: "PlusJakartaSans_700Bold",
-    color: "#030712",
-  },
-
   // Bottom sheet
   backdrop: {
     flex: 1,
@@ -362,19 +340,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.06)",
     marginBottom: 8,
-  },
-  userAvatar: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: AMBER,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  userAvatarText: {
-    fontSize: 18,
-    fontFamily: "PlusJakartaSans_700Bold",
-    color: "#030712",
   },
   userInfo: {
     flex: 1,

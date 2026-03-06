@@ -4,7 +4,7 @@ import { useRouter, useSegments } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAuth } from "../lib/auth/context";
 import { useUser } from "../lib/user/context";
-import { AvatarIcon } from "./avatars/AvatarRegistry";
+import { UserAvatar } from "./avatars/AvatarRegistry";
 
 const AMBER = "#f5a623";
 const TEXT_1 = "#f0f2f5";
@@ -89,15 +89,12 @@ export default function AvatarDropdownMenu({ visible, onClose }: Props) {
           {/* User info */}
           {user && (
             <View style={styles.userSection}>
-              {user.avatarId ? (
-                <AvatarIcon avatarId={user.avatarId} size={36} />
-              ) : (
-                <View style={styles.userAvatar}>
-                  <Text style={styles.userAvatarText}>
-                    {(user.displayName || user.email)[0].toUpperCase()}
-                  </Text>
-                </View>
-              )}
+              <UserAvatar
+                avatarId={user.avatarId}
+                name={user.displayName}
+                email={user.email}
+                size={36}
+              />
               <View style={styles.userInfo}>
                 <Text style={styles.userName} numberOfLines={1}>
                   {user.displayName || "Driver"}
@@ -226,19 +223,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 10,
     gap: 10,
-  },
-  userAvatar: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: AMBER,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  userAvatarText: {
-    fontSize: 15,
-    fontFamily: "PlusJakartaSans_700Bold",
-    color: "#030712",
   },
   userInfo: {
     flex: 1,
