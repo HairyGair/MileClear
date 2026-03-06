@@ -109,7 +109,7 @@ export function deleteTrip(id: string) {
 
 export function submitTripAnomaly(
   tripId: string,
-  data: { type: string; response: string; customNote?: string | null }
+  data: { type: string; response: string; customNote?: string | null; lat?: number; lng?: number; placeName?: string | null }
 ) {
   return apiRequest<{ data: unknown }>(`/trips/${tripId}/anomaly`, {
     method: "POST",

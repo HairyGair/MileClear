@@ -398,8 +398,11 @@ export async function tripRoutes(app: FastifyInstance) {
     const { id } = z.object({ id: z.string().uuid() }).parse(request.params);
     const schema = z.object({
       type: z.string().max(50),
-      response: z.string().max(200),
+      response: z.string().max(500),
       customNote: z.string().max(1000).nullable().optional(),
+      lat: z.number().nullable().optional(),
+      lng: z.number().nullable().optional(),
+      placeName: z.string().max(200).nullable().optional(),
     });
     const parsed = schema.safeParse(request.body);
     if (!parsed.success) {
@@ -415,9 +418,9 @@ export async function tripRoutes(app: FastifyInstance) {
       return reply.status(404).send({ error: "Trip not found" });
     }
 
-    // Calculate midpoint for geospatial indexing
-    const midLat = trip.endLat != null ? (trip.startLat + trip.endLat) / 2 : trip.startLat;
-    const midLng = trip.endLng != null ? (trip.startLng + trip.endLng) / 2 : trip.startLng;
+    // Use client-provided lat/lng (for location questions) or trip midpoint
+    const anomalyLat = parsed.data.lat ?? (trip.endLat != null ? (trip.startLat + trip.endLat) / 2 : trip.startLat);
+    const anomalyLng = parsed.data.lng ?? (trip.endLng != null ? (trip.startLng + trip.endLng) / 2 : trip.startLng);
 
     // Get the question text for the anomaly type
     const questionMap: Record<string, string> = {
@@ -426,18 +429,29 @@ export async function tripRoutes(app: FastifyInstance) {
       long_idle: "You were stationary for a while. Everything OK?",
       very_short: "This was a very short trip. Worth keeping?",
       very_long: "That was a long haul! What type of trip?",
+      slow_zone: "Slow zone detected",
+      long_stop: "Long stop detected",
+      sudden_slowdown: "Sudden slowdown detected",
     };
+
+    // For location questions, build a descriptive question with place name
+    let questionText = questionMap[parsed.data.type] || parsed.data.type;
+    if (parsed.data.placeName && (parsed.data.type === "slow_zone" || parsed.data.type === "long_stop")) {
+      questionText = parsed.data.type === "long_stop"
+        ? `Stopped near ${parsed.data.placeName}`
+        : `Slow near ${parsed.data.placeName}`;
+    }
 
     const anomaly = await prisma.tripAnomaly.create({
       data: {
         tripId: id,
         userId,
         type: parsed.data.type,
-        question: questionMap[parsed.data.type] || parsed.data.type,
+        question: questionText,
         response: parsed.data.response,
         customNote: parsed.data.customNote ?? null,
-        lat: midLat,
-        lng: midLng,
+        lat: anomalyLat,
+        lng: anomalyLng,
       },
     });
 

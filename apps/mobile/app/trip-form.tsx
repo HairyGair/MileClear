@@ -36,7 +36,14 @@ import { Button } from "../components/Button";
 import { useMode } from "../lib/mode/context";
 import { useUser } from "../lib/user/context";
 import { fetchBusinessInsights } from "../lib/api/businessInsights";
-import { detectAnomalies, type TripAnomalyDef } from "@mileclear/shared";
+import {
+  detectAnomalies,
+  detectSlowZones,
+  buildLocationQuestions,
+  setLocationQuestionPlace,
+  type TripAnomalyDef,
+  type LocationQuestion,
+} from "@mileclear/shared";
 import type { CommunityInsights } from "@mileclear/shared";
 import { startLiveActivity, updateLiveActivity, endLiveActivity } from "../lib/liveActivity";
 import { fetchCommunityInsights } from "../lib/api/communityInsights";
@@ -352,6 +359,11 @@ export default function TripFormScreen() {
   const [anomalyDef, setAnomalyDef] = useState<TripAnomalyDef | null>(null);
   const [anomalyResponse, setAnomalyResponse] = useState<string | null>(null);
   const [anomalyCustomNote, setAnomalyCustomNote] = useState("");
+
+  // Location-based community questions (multi-select)
+  const [locationQuestions, setLocationQuestions] = useState<LocationQuestion[]>([]);
+  const [locationResponses, setLocationResponses] = useState<Record<number, string[]>>({});
+  const [locationCustomNotes, setLocationCustomNotes] = useState<Record<number, string>>({});
 
   // Celebration animations
   const celebHeaderAnim = useRef(new Animated.Value(0)).current;
@@ -759,7 +771,25 @@ export default function TripFormScreen() {
         const tripInsightsForAnomaly = computeInsights(crumbs, finalDistance, durationSecs);
         const anomalies = detectAnomalies(finalDistance, durationSecs, tripInsightsForAnomaly);
         if (anomalies.length > 0) {
-          setAnomalyDef(anomalies[0]); // Show the most significant one
+          setAnomalyDef(anomalies[0]);
+        }
+
+        // Detect slow zones & stops for community intelligence
+        const avgMph = durationSecs > 0 ? (finalDistance / durationSecs) * 3600 : 0;
+        const zones = detectSlowZones(crumbs, avgMph);
+        if (zones.length > 0) {
+          const questions = buildLocationQuestions(zones);
+          setLocationQuestions(questions);
+          // Async reverse geocode each zone (fire-and-forget, updates UI as names arrive)
+          questions.forEach((q, idx) => {
+            reverseGeocode(q.lat, q.lng).then((name) => {
+              if (name) {
+                setLocationQuestions((prev) =>
+                  prev.map((pq, pi) => pi === idx ? setLocationQuestionPlace(pq, name) : pq)
+                );
+              }
+            }).catch(() => {});
+          });
         }
       }
 
@@ -874,7 +904,25 @@ export default function TripFormScreen() {
             type: anomalyDef.type,
             response: anomalyResponse,
             customNote: anomalyResponse === "Other" ? anomalyCustomNote || null : null,
-          }).catch(() => {}); // fire-and-forget
+          }).catch(() => {});
+        }
+
+        // Submit location question responses (community intelligence)
+        if (tripResult?.data?.id) {
+          for (let i = 0; i < locationQuestions.length; i++) {
+            const responses = locationResponses[i];
+            if (responses && responses.length > 0) {
+              const q = locationQuestions[i];
+              submitTripAnomaly(tripResult.data.id, {
+                type: q.type,
+                response: responses.join(", "),
+                customNote: responses.includes("Other") ? locationCustomNotes[i] || null : null,
+                lat: q.lat,
+                lng: q.lng,
+                placeName: q.placeName,
+              }).catch(() => {});
+            }
+          }
         }
 
         // Clear persisted quick trip state
@@ -1446,6 +1494,66 @@ export default function TripFormScreen() {
                     placeholderTextColor="#6b7280"
                   />
                 )}
+              </View>
+            )}
+
+            {/* Location-based community questions (multi-select) */}
+            {locationQuestions.length > 0 && (
+              <View style={styles.locationQuestionsSection}>
+                <View style={styles.locationQuestionsHeader}>
+                  <Ionicons name="people-outline" size={14} color="#f5a623" />
+                  <Text style={styles.locationQuestionsTitle}>Help other drivers</Text>
+                </View>
+                {locationQuestions.map((q, qIdx) => {
+                  const selected = locationResponses[qIdx] || [];
+                  return (
+                    <View key={qIdx} style={styles.locationQuestionCard}>
+                      <View style={styles.locationQuestionTop}>
+                        <Ionicons
+                          name={q.type === "long_stop" ? "location" : "speedometer-outline"}
+                          size={15}
+                          color={q.type === "long_stop" ? "#ef4444" : "#f59e0b"}
+                        />
+                        <Text style={styles.locationQuestionText}>{q.question}</Text>
+                      </View>
+                      <View style={styles.anomalyOptions}>
+                        {q.options.map((opt) => {
+                          const isSelected = selected.includes(opt);
+                          return (
+                            <TouchableOpacity
+                              key={opt}
+                              style={[styles.anomalyChip, isSelected && styles.anomalyChipActive]}
+                              onPress={() => {
+                                setLocationResponses((prev) => {
+                                  const current = prev[qIdx] || [];
+                                  const updated = isSelected
+                                    ? current.filter((r) => r !== opt)
+                                    : [...current, opt];
+                                  return { ...prev, [qIdx]: updated };
+                                });
+                              }}
+                            >
+                              <Text style={[styles.anomalyChipText, isSelected && styles.anomalyChipTextActive]}>
+                                {opt}
+                              </Text>
+                            </TouchableOpacity>
+                          );
+                        })}
+                      </View>
+                      {selected.includes("Other") && (
+                        <TextInput
+                          style={[styles.input, { marginTop: 8 }]}
+                          value={locationCustomNotes[qIdx] || ""}
+                          onChangeText={(text) =>
+                            setLocationCustomNotes((prev) => ({ ...prev, [qIdx]: text }))
+                          }
+                          placeholder="Tell us more..."
+                          placeholderTextColor="#6b7280"
+                        />
+                      )}
+                    </View>
+                  );
+                })}
               </View>
             )}
 
@@ -2614,5 +2722,42 @@ const styles = StyleSheet.create({
   },
   anomalyChipTextActive: {
     color: "#030712",
+  },
+  // Location-based community questions
+  locationQuestionsSection: {
+    marginBottom: 16,
+  },
+  locationQuestionsHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginBottom: 10,
+  },
+  locationQuestionsTitle: {
+    fontSize: 12,
+    fontFamily: "PlusJakartaSans_600SemiBold",
+    color: "#f5a623",
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+  },
+  locationQuestionCard: {
+    backgroundColor: "#0a1628",
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "rgba(245, 166, 35, 0.15)",
+    padding: 14,
+    marginBottom: 10,
+  },
+  locationQuestionTop: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 8,
+    marginBottom: 10,
+  },
+  locationQuestionText: {
+    fontSize: 14,
+    fontFamily: "PlusJakartaSans_600SemiBold",
+    color: TEXT_1,
+    flex: 1,
   },
 });
