@@ -1,6 +1,7 @@
 import { useState, useMemo, useCallback } from "react";
-import { View, ActivityIndicator, StyleSheet } from "react-native";
-import { useFocusEffect } from "expo-router";
+import { View, Text, TouchableOpacity, ActivityIndicator, StyleSheet } from "react-native";
+import { useFocusEffect, useRouter } from "expo-router";
+import { Ionicons } from "@expo/vector-icons";
 import { useRecentTripsWithCoords } from "../../hooks/useRecentTripsWithCoords";
 import { usePersonalStats } from "../../hooks/usePersonalStats";
 import { consumeLastSavedTrip, type LastSavedTrip } from "../../lib/events/lastTrip";
@@ -24,6 +25,7 @@ interface PersonalDashboardProps {
 type DashboardContext = "post_trip" | "morning" | "end_of_week" | "default";
 
 export function PersonalDashboard({ avatarId, stats }: PersonalDashboardProps) {
+  const router = useRouter();
   const { trips, loading: tripsLoading } = useRecentTripsWithCoords(5);
   const {
     monthMiles,
@@ -167,6 +169,17 @@ export function PersonalDashboard({ avatarId, stats }: PersonalDashboardProps) {
   );
   const timeline = <JourneyTimeline trips={trips} />;
 
+  const startTripButton = (
+    <TouchableOpacity
+      style={styles.startTripBtn}
+      onPress={() => router.push("/trip-form")}
+      activeOpacity={0.7}
+    >
+      <Ionicons name="navigate" size={20} color="#030712" />
+      <Text style={styles.startTripBtnText}>Start Trip</Text>
+    </TouchableOpacity>
+  );
+
   // ── Contextual rendering ────────────────────────────────────────
 
   if (dashboardContext === "post_trip") {
@@ -178,6 +191,7 @@ export function PersonalDashboard({ avatarId, stats }: PersonalDashboardProps) {
           onDismiss={dismissPostTrip}
         />
         {heroCard}
+        {startTripButton}
         {smartMap}
 
         {weeklyActivity}
@@ -193,6 +207,7 @@ export function PersonalDashboard({ avatarId, stats }: PersonalDashboardProps) {
     return (
       <View>
         {heroCard}
+        {startTripButton}
         {smartMap}
         {drivingGoals}
         {weeklyActivity}
@@ -208,6 +223,7 @@ export function PersonalDashboard({ avatarId, stats }: PersonalDashboardProps) {
     return (
       <View>
         {heroCard}
+        {startTripButton}
         {recapCard}
         {smartMap}
 
@@ -223,6 +239,7 @@ export function PersonalDashboard({ avatarId, stats }: PersonalDashboardProps) {
   return (
     <View>
       {heroCard}
+      {startTripButton}
       {smartMap}
       {weeklyActivity}
       {drivingGoals}
@@ -240,6 +257,21 @@ function ordinal(n: number): string {
 }
 
 const styles = StyleSheet.create({
+  startTripBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    backgroundColor: "#10b981",
+    borderRadius: 14,
+    paddingVertical: 14,
+    marginBottom: 12,
+  },
+  startTripBtnText: {
+    fontSize: 16,
+    fontFamily: "PlusJakartaSans_700Bold",
+    color: "#030712",
+  },
   loading: {
     paddingVertical: 40,
     alignItems: "center",

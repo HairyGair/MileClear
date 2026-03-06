@@ -564,17 +564,21 @@ export default function DashboardScreen() {
         </View>
       )}
 
-      {/* Quick Actions (work mode only — personal mode navigates via avatar menu) */}
+      {/* Start Trip button (work mode) */}
+      {isWork && (
+        <TouchableOpacity
+          style={s.startTripBtn}
+          onPress={() => router.push("/trip-form")}
+          activeOpacity={0.7}
+        >
+          <Ionicons name="navigate" size={20} color="#030712" />
+          <Text style={s.startTripBtnText}>Start Individual Trip</Text>
+        </TouchableOpacity>
+      )}
+
+      {/* Quick Actions (work mode only) */}
       {isWork && (
         <View style={s.quickActions}>
-          <TouchableOpacity
-            style={s.quickAction}
-            onPress={() => router.push("/trip-form")}
-            activeOpacity={0.7}
-          >
-            <Ionicons name="navigate-outline" size={22} color="#f5a623" style={{ marginBottom: 4 }} />
-            <Text style={s.quickActionLabel}>Trip</Text>
-          </TouchableOpacity>
           <TouchableOpacity
             style={s.quickAction}
             onPress={() => router.replace("/(tabs)/trips" as any)}
@@ -880,6 +884,23 @@ const s = StyleSheet.create({
     borderRadius: 1.5,
     backgroundColor: TEXT_3,
     marginHorizontal: 10,
+  },
+
+  // Start Trip button
+  startTripBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    backgroundColor: "#f5a623",
+    borderRadius: 14,
+    paddingVertical: 14,
+    marginBottom: 12,
+  },
+  startTripBtnText: {
+    fontSize: 16,
+    fontFamily: "PlusJakartaSans_700Bold",
+    color: "#030712",
   },
 
   // Quick actions
