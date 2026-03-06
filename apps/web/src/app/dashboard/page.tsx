@@ -8,6 +8,7 @@ import { PageHeader } from "../../components/dashboard/PageHeader";
 import { Card } from "../../components/ui/Card";
 import { Badge } from "../../components/ui/Badge";
 import { DashboardSkeleton } from "../../components/ui/LoadingSkeleton";
+import { RecapShareModal } from "../../components/dashboard/RecapShareCard";
 import type {
   GamificationStats,
   AchievementWithMeta,
@@ -43,6 +44,7 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [recapView, setRecapView] = useState<RecapView>("daily");
+  const [shareOpen, setShareOpen] = useState(false);
 
   useEffect(() => {
     async function load() {
@@ -161,6 +163,13 @@ export default function DashboardPage() {
                 );
               })}
             </div>
+            <button className="driving-recap__share-btn" onClick={() => setShareOpen(true)}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                <circle cx="18" cy="5" r="3" /><circle cx="6" cy="12" r="3" /><circle cx="18" cy="19" r="3" />
+                <line x1="8.59" y1="13.51" x2="15.42" y2="17.49" /><line x1="15.41" y1="6.51" x2="8.59" y2="10.49" />
+              </svg>
+              Share
+            </button>
           </div>
 
           <div className="driving-recap__subtitle">
@@ -229,6 +238,25 @@ export default function DashboardPage() {
                     </div>
                   )}
                 </div>
+
+                <RecapShareModal
+                  open={shareOpen}
+                  onClose={() => setShareOpen(false)}
+                  period={recapView === "yearly" ? "yearly" : recapView}
+                  label={recapView === "daily" ? (dailyRecap?.label ?? "Today")
+                    : recapView === "weekly" ? (weeklyRecap?.label ?? "This Week")
+                    : recapView === "monthly" ? (monthlyRecap?.label ?? "This Month")
+                    : `Tax Year ${stats?.taxYear ?? ""}`}
+                  miles={miles}
+                  trips={trips}
+                  deductionPence={deduction}
+                  totalMiles={stats?.totalMiles ?? 0}
+                  busiestDay={busiest}
+                  busiestDayMiles={busiestMiles}
+                  businessMiles={stats?.businessMiles}
+                  equiv={equiv}
+                  region={stats?.region}
+                />
               </>
             );
           })()}
