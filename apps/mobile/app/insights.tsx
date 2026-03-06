@@ -24,6 +24,7 @@ import { usePersonalStats } from "../hooks/usePersonalStats";
 import { useRecentTripsWithCoords } from "../hooks/useRecentTripsWithCoords";
 import { BusinessInsightsCard } from "../components/business/BusinessInsightsCard";
 import { BusinessRecapCard } from "../components/business/BusinessRecapCard";
+import { PremiumGate } from "../components/PremiumGate";
 import { MilestoneTracker } from "../components/personal/MilestoneTracker";
 import { WeeklyActivity, buildWeekDays } from "../components/personal/WeeklyActivity";
 import { DrivingGoals } from "../components/personal/DrivingGoals";
@@ -162,9 +163,13 @@ export default function InsightsScreen() {
           </TouchableOpacity>
         </View>
 
-        {/* Business Insights (work mode) */}
-        {isWork && <BusinessInsightsCard />}
-        {isWork && <BusinessRecapCard />}
+        {/* Business Insights (work mode) — premium */}
+        {isWork && (
+          <PremiumGate feature="Business Insights">
+            <BusinessInsightsCard />
+            <BusinessRecapCard />
+          </PremiumGate>
+        )}
 
         {/* Personal Insights (personal mode) */}
         {isPersonal && <WeeklyActivity days={weekDays} />}

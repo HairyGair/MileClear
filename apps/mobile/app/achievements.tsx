@@ -10,8 +10,11 @@ import { fetchAchievements, fetchGamificationStats } from "../lib/api/gamificati
 import {
   ACHIEVEMENT_TYPES,
   ACHIEVEMENT_META,
+  FREE_ACHIEVEMENT_TYPES,
 } from "@mileclear/shared";
 import type { AchievementWithMeta, GamificationStats } from "@mileclear/shared";
+import { useIsPremium } from "../components/PremiumGate";
+import { PremiumTeaser } from "../components/PremiumGate";
 
 const AMBER = "#f5a623";
 const CARD_BG = "#0a1120";
@@ -20,7 +23,10 @@ const TEXT_1 = "#f0f2f5";
 const TEXT_2 = "#8494a7";
 const TEXT_3 = "#4a5568";
 
+const freeSet = new Set<string>(FREE_ACHIEVEMENT_TYPES);
+
 export default function AchievementsScreen() {
+  const isPremium = useIsPremium();
   const [earned, setEarned] = useState<AchievementWithMeta[]>([]);
   const [stats, setStats] = useState<GamificationStats | null>(null);
   const [loading, setLoading] = useState(true);
@@ -76,31 +82,34 @@ export default function AchievementsScreen() {
           const meta = ACHIEVEMENT_META[type];
           const isEarned = earnedTypes.has(type);
           const ach = earned.find((a) => a.type === type);
+          const isFree = freeSet.has(type);
+          const isLocked = !isPremium && !isFree;
 
           return (
             <View
               key={type}
               style={[
                 s.badgeCard,
-                isEarned && s.badgeEarned,
+                isEarned && !isLocked && s.badgeEarned,
+                isLocked && s.badgePremium,
               ]}
             >
-              <Text style={[s.badgeEmoji, !isEarned && s.emojiLocked]}>
-                {meta.emoji}
+              <Text style={[s.badgeEmoji, (!isEarned || isLocked) && s.emojiLocked]}>
+                {isLocked ? "🔒" : meta.emoji}
               </Text>
               <Text
-                style={[s.badgeLabel, !isEarned && s.textLocked]}
+                style={[s.badgeLabel, (!isEarned || isLocked) && s.textLocked]}
                 numberOfLines={1}
               >
                 {meta.label}
               </Text>
               <Text
-                style={[s.badgeDesc, !isEarned && s.textLockedSoft]}
+                style={[s.badgeDesc, (!isEarned || isLocked) && s.textLockedSoft]}
                 numberOfLines={2}
               >
-                {meta.description}
+                {isLocked ? "Pro feature" : meta.description}
               </Text>
-              {isEarned && ach && (
+              {isEarned && !isLocked && ach && (
                 <Text style={s.badgeDate}>
                   {new Date(ach.achievedAt).toLocaleDateString("en-GB", {
                     day: "numeric",
@@ -113,8 +122,13 @@ export default function AchievementsScreen() {
         })}
       </View>
 
+      {/* Premium upgrade teaser */}
+      {!isPremium && (
+        <PremiumTeaser feature="Unlock all 18 achievements" />
+      )}
+
       {/* Personal Records */}
-      {stats && (
+      {stats && isPremium && (
         <View style={s.recordsSection}>
           <Text style={s.sectionTitle}>Personal Records</Text>
           <View style={s.recordGrid}>
@@ -194,6 +208,9 @@ const s = StyleSheet.create({
   badgeEarned: {
     opacity: 1,
     borderColor: "rgba(245, 166, 35, 0.12)",
+  },
+  badgePremium: {
+    opacity: 0.25,
   },
   badgeEmoji: {
     fontSize: 30,

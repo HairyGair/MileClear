@@ -47,6 +47,7 @@ import {
 import { cacheVehicleBluetoothNames } from "../../lib/bluetooth/index";
 import { AvatarPicker } from "../../components/avatars/AvatarPicker";
 import { useLayoutPrefs, resetAllLayouts } from "../../lib/layout/index";
+import { PremiumTeaser } from "../../components/PremiumGate";
 
 const AMBER = "#f5a623";
 const TEXT_1 = "#f0f2f5";
@@ -798,14 +799,7 @@ export default function ProfileScreen() {
           <View style={styles.group}>
             <Text style={styles.groupLabel}>NOTIFICATIONS</Text>
             <View style={styles.groupCard}>
-              <NotifToggle
-                icon="calendar-outline"
-                label="Weekly Summary"
-                hint="Mileage recap every Monday morning"
-                value={notifPrefs.weeklySummary}
-                onToggle={(v) => toggleNotif("weeklySummary", v)}
-                border
-              />
+              {/* Free notifications */}
               <NotifToggle
                 icon="alert-circle-outline"
                 label="Trip Reminders"
@@ -828,40 +822,57 @@ export default function ProfileScreen() {
                 hint="Remind you to keep your streak going"
                 value={notifPrefs.streakReminder}
                 onToggle={(v) => toggleNotif("streakReminder", v)}
-                border
-              />
-              <NotifToggle
-                icon="receipt-outline"
-                label="Tax Deadline"
-                hint="Reminder before 5 April tax year end"
-                value={notifPrefs.taxDeadline}
-                onToggle={(v) => toggleNotif("taxDeadline", v)}
-                border
-              />
-              <NotifToggle
-                icon="stats-chart-outline"
-                label="Monthly Recap"
-                hint="Your month in review on the 1st"
-                value={notifPrefs.monthlyRecap}
-                onToggle={(v) => toggleNotif("monthlyRecap", v)}
-                border
-              />
-              <NotifToggle
-                icon="trophy-outline"
-                label="Milestone Alerts"
-                hint="Celebrate when you hit mileage milestones"
-                value={notifPrefs.milestoneAlerts}
-                onToggle={(v) => toggleNotif("milestoneAlerts", v)}
-                border
-              />
-              <NotifToggle
-                icon="clipboard-outline"
-                label="Shift Summary"
-                hint="Stats when you end a shift"
-                value={notifPrefs.shiftSummary}
-                onToggle={(v) => toggleNotif("shiftSummary", v)}
               />
             </View>
+
+            {/* Premium notifications */}
+            {user?.isPremium ? (
+              <View style={[styles.groupCard, { marginTop: 8 }]}>
+                <NotifToggle
+                  icon="calendar-outline"
+                  label="Weekly Summary"
+                  hint="Mileage recap every Monday morning"
+                  value={notifPrefs.weeklySummary}
+                  onToggle={(v) => toggleNotif("weeklySummary", v)}
+                  border
+                />
+                <NotifToggle
+                  icon="stats-chart-outline"
+                  label="Monthly Recap"
+                  hint="Your month in review on the 1st"
+                  value={notifPrefs.monthlyRecap}
+                  onToggle={(v) => toggleNotif("monthlyRecap", v)}
+                  border
+                />
+                <NotifToggle
+                  icon="trophy-outline"
+                  label="Milestone Alerts"
+                  hint="Celebrate when you hit mileage milestones"
+                  value={notifPrefs.milestoneAlerts}
+                  onToggle={(v) => toggleNotif("milestoneAlerts", v)}
+                  border
+                />
+                <NotifToggle
+                  icon="receipt-outline"
+                  label="Tax Deadline"
+                  hint="Reminder before 5 April tax year end"
+                  value={notifPrefs.taxDeadline}
+                  onToggle={(v) => toggleNotif("taxDeadline", v)}
+                  border
+                />
+                <NotifToggle
+                  icon="clipboard-outline"
+                  label="Shift Summary"
+                  hint="Stats when you end a shift"
+                  value={notifPrefs.shiftSummary}
+                  onToggle={(v) => toggleNotif("shiftSummary", v)}
+                />
+              </View>
+            ) : (
+              <View style={{ marginTop: 8 }}>
+                <PremiumTeaser feature="5 more notification types" compact />
+              </View>
+            )}
           </View>
         )}
 

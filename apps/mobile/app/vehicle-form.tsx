@@ -21,6 +21,7 @@ import {
 } from "../lib/api/vehicles";
 import type { FuelType, VehicleType } from "@mileclear/shared";
 import { Button } from "../components/Button";
+import { useUser } from "../lib/user/context";
 
 const VEHICLE_TYPES: { value: VehicleType; label: string }[] = [
   { value: "car", label: "Car" },
@@ -38,6 +39,7 @@ const FUEL_TYPE_OPTIONS: { value: FuelType; label: string }[] = [
 export default function VehicleFormScreen() {
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id?: string }>();
+  const { user } = useUser();
   const isEditing = !!id;
 
   const [registrationPlate, setRegistrationPlate] = useState("");
@@ -111,6 +113,24 @@ export default function VehicleFormScreen() {
     if (!make.trim() || !model.trim()) {
       Alert.alert("Missing fields", "Make and model are required.");
       return;
+    }
+
+    // Free users limited to 1 vehicle
+    if (!isEditing && !user?.isPremium) {
+      try {
+        const existing = await fetchVehicles();
+        if (existing.data.length >= 1) {
+          Alert.alert(
+            "Vehicle Limit",
+            "Free accounts can have 1 vehicle. Upgrade to Pro for unlimited vehicles.",
+            [
+              { text: "OK", style: "cancel" },
+              { text: "Upgrade", onPress: () => router.push("/(tabs)/profile" as any) },
+            ]
+          );
+          return;
+        }
+      } catch {}
     }
 
     setSaving(true);

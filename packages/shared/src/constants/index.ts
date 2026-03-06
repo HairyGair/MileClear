@@ -264,6 +264,16 @@ export const ACHIEVEMENT_TYPES = [
 
 export type AchievementType = (typeof ACHIEVEMENT_TYPES)[number];
 
+// Free-tier achievements — available to all users
+export const FREE_ACHIEVEMENT_TYPES: readonly AchievementType[] = [
+  "first_trip",
+  "first_shift",
+  "miles_100",
+  "miles_500",
+  "trips_10",
+  "streak_3",
+];
+
 // Achievement display metadata
 export const ACHIEVEMENT_META: Record<
   AchievementType,

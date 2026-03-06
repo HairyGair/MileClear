@@ -53,6 +53,7 @@ import { useRecentTripsWithCoords } from "../../hooks/useRecentTripsWithCoords";
 import { Ionicons } from "@expo/vector-icons";
 import { startLiveActivity, updateLiveActivity, endLiveActivity } from "../../lib/liveActivity";
 import { useLayoutPrefs } from "../../lib/layout/index";
+import { PremiumGate, PremiumTeaser, useIsPremium } from "../../components/PremiumGate";
 
 function formatElapsed(seconds: number): string {
   const h = Math.floor(seconds / 3600);
@@ -93,6 +94,7 @@ export default function DashboardScreen() {
   // Layout customization
   const workLayout = useLayoutPrefs("dashboard_work");
   const personalLayout = useLayoutPrefs("dashboard_personal");
+  const isPremium = useIsPremium();
 
   // Trip segment bottom sheet
   const [tripTapInfo, setTripTapInfo] = useState<TripTapInfo | null>(null);
@@ -562,8 +564,11 @@ export default function DashboardScreen() {
                   )}
                 </View>
                 <Text style={s.heroValue}>
-                  {formatPence(stats.deductionPence)}
+                  {isPremium ? formatPence(stats.deductionPence) : `${stats.businessMiles.toFixed(0)} mi`}
                 </Text>
+                {!isPremium && (
+                  <Text style={s.heroLockedHint}>Upgrade to see tax deduction</Text>
+                )}
                 <View style={s.heroMeta}>
                   <Text style={s.heroMetaText}>
                     {formatMilesShort(stats.todayMiles)} today
@@ -655,13 +660,17 @@ export default function DashboardScreen() {
           case "journey_map":
             return recentTrips.length > 0 ? (
               <View key={key}>
-                <MapOverview trips={recentTrips} title="Recent Journeys" />
+                <PremiumGate feature="Journey Map">
+                  <MapOverview trips={recentTrips} title="Recent Journeys" />
+                </PremiumGate>
               </View>
             ) : null;
           case "community":
             return (
               <View key={key}>
-                <CommunityInsightsCard isWork={isWork} />
+                <PremiumGate feature="Community Insights">
+                  <CommunityInsightsCard isWork={isWork} />
+                </PremiumGate>
               </View>
             );
           default:
@@ -809,6 +818,13 @@ const s = StyleSheet.create({
     color: AMBER,
     letterSpacing: -1,
     marginBottom: 10,
+  },
+  heroLockedHint: {
+    fontSize: 12,
+    fontFamily: "PlusJakartaSans_500Medium",
+    color: "rgba(245, 166, 35, 0.5)",
+    marginBottom: 6,
+    marginTop: -4,
   },
   heroMeta: {
     flexDirection: "row",

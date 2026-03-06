@@ -8,6 +8,7 @@ import { DrivingSummaryCard } from "./DrivingSummaryCard";
 import { PostTripCard } from "./PostTripCard";
 import { MapOverview } from "./MapOverview";
 import { CommunityInsightsCard } from "../community/CommunityInsightsCard";
+import { PremiumGate } from "../PremiumGate";
 import type { GamificationStats } from "@mileclear/shared";
 
 interface PersonalDashboardProps {
@@ -152,13 +153,17 @@ export function PersonalDashboard({ avatarId, stats, visibleKeys, recentTrips }:
       case "journey_map":
         return (recentTrips && recentTrips.length > 0) ? (
           <View key={key}>
-            <MapOverview trips={recentTrips} title="Recent Journeys" />
+            <PremiumGate feature="Journey Map">
+              <MapOverview trips={recentTrips} title="Recent Journeys" />
+            </PremiumGate>
           </View>
         ) : null;
       case "community":
         return (
           <View key={key}>
-            <CommunityInsightsCard isWork={false} />
+            <PremiumGate feature="Community Insights">
+              <CommunityInsightsCard isWork={false} />
+            </PremiumGate>
           </View>
         );
       default:
