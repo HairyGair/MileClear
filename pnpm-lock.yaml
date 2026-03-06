@@ -191,8 +191,8 @@ importers:
         specifier: 0.81.5
         version: 0.81.5(@babel/core@7.29.0)(@types/react@19.1.17)(react@19.1.0)
       react-native-iap:
-        specifier: ^14.7.12
-        version: 14.7.12(react-native-nitro-modules@0.31.10(react-native@0.81.5(@babel/core@7.29.0)(@types/react@19.1.17)(react@19.1.0))(react@19.1.0))(react-native@0.81.5(@babel/core@7.29.0)(@types/react@19.1.17)(react@19.1.0))(react@19.1.0)
+        specifier: ^14.7.14
+        version: 14.7.14(react-native-nitro-modules@0.31.10(react-native@0.81.5(@babel/core@7.29.0)(@types/react@19.1.17)(react@19.1.0))(react@19.1.0))(react-native@0.81.5(@babel/core@7.29.0)(@types/react@19.1.17)(react@19.1.0))(react@19.1.0)
       react-native-maps:
         specifier: 1.20.1
         version: 1.20.1(react-native@0.81.5(@babel/core@7.29.0)(@types/react@19.1.17)(react@19.1.0))(react@19.1.0)
@@ -4116,8 +4116,8 @@ packages:
   react-is@19.2.4:
     resolution: {integrity: sha512-W+EWGn2v0ApPKgKKCy/7s7WHXkboGcsrXE+2joLyVxkbyVQfO3MUEaUQDHoSmb8TFFrSKYa9mw64WZHNHSDzYA==}
 
-  react-native-iap@14.7.12:
-    resolution: {integrity: sha512-wbPIzuzvjZIQsgUWzluS3qRW1HAtYzoAnfBdjLRtmhpfgtJ3siuhw4xTLxxqgx6/OV8xjoZQxUYWcP0wRpLTaA==}
+  react-native-iap@14.7.14:
+    resolution: {integrity: sha512-2J7sk9DahhzSAYpNweAIrmFrviUemoAf24nAt+OHhlSXNyShlyBEQVr+lJzHfR4bx+G80SN8t8Sfsn5rt0rt6w==}
     peerDependencies:
       react: '*'
       react-native: '*'
@@ -9146,7 +9146,7 @@ snapshots:
 
   react-is@19.2.4: {}
 
-  react-native-iap@14.7.12(react-native-nitro-modules@0.31.10(react-native@0.81.5(@babel/core@7.29.0)(@types/react@19.1.17)(react@19.1.0))(react@19.1.0))(react-native@0.81.5(@babel/core@7.29.0)(@types/react@19.1.17)(react@19.1.0))(react@19.1.0):
+  react-native-iap@14.7.14(react-native-nitro-modules@0.31.10(react-native@0.81.5(@babel/core@7.29.0)(@types/react@19.1.17)(react@19.1.0))(react@19.1.0))(react-native@0.81.5(@babel/core@7.29.0)(@types/react@19.1.17)(react@19.1.0))(react@19.1.0):
     dependencies:
       react: 19.1.0
       react-native: 0.81.5(@babel/core@7.29.0)(@types/react@19.1.17)(react@19.1.0)
