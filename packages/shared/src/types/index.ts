@@ -417,6 +417,83 @@ export interface PeriodRecap {
   shareText: string;
 }
 
+// Business Insights types
+export interface PlatformPerformance {
+  platform: string;
+  totalEarningsPence: number;
+  tripCount: number;
+  totalMiles: number;
+  earningsPerMilePence: number;   // £/mile
+  earningsPerTripPence: number;   // £/trip
+  avgTripMiles: number;
+}
+
+export interface ShiftPerformance {
+  shiftId: string;
+  startedAt: string;
+  endedAt: string | null;
+  durationSeconds: number;
+  tripsCompleted: number;
+  totalMiles: number;
+  businessMiles: number;
+  earningsPence: number;          // earnings during this shift window
+  earningsPerMilePence: number;
+  earningsPerHourPence: number;
+  utilisationPercent: number;     // % of shift time moving
+  grade: "A" | "B" | "C" | "D" | "F";
+}
+
+export interface BusinessInsights {
+  // Overall efficiency (current tax year)
+  totalEarningsPence: number;
+  totalBusinessMiles: number;
+  totalShiftHours: number;
+  earningsPerMilePence: number;
+  earningsPerHourPence: number;
+  avgTripsPerShift: number;
+  deductionPence: number;
+
+  // Platform comparison
+  platformPerformance: PlatformPerformance[];
+  bestPlatform: string | null;
+
+  // Peak performance
+  goldenHours: GoldenHour[];       // top 3 most profitable hours
+  busiestDay: string | null;       // day of week
+  avgShiftGrade: string | null;
+
+  // Fuel economy
+  fuelCostPerMilePence: number | null;
+  actualMpg: number | null;
+  estimatedFuelCostPence: number | null;  // estimated total fuel spend
+
+  // Recent shift grades
+  recentShifts: ShiftPerformance[];
+
+  // Week-on-week trends
+  earningsTrendPercent: number | null;    // vs previous period
+  mileTrendPercent: number | null;
+}
+
+export interface GoldenHour {
+  dayOfWeek: string;              // "Monday", "Tuesday", etc.
+  hour: number;                   // 0-23
+  label: string;                  // "Friday 6–7 PM"
+  avgEarningsPence: number;       // average earnings in this slot
+  tripCount: number;
+}
+
+export interface WeeklyPnL {
+  periodLabel: string;
+  grossEarningsPence: number;
+  estimatedFuelCostPence: number;
+  estimatedWearCostPence: number; // industry standard ~8p/mile
+  netProfitPence: number;
+  hmrcDeductionPence: number;
+  businessMiles: number;
+  totalTrips: number;
+}
+
 // Feedback types
 export type FeedbackCategory = "feature_request" | "bug_report" | "improvement" | "other";
 export type FeedbackStatus = "new" | "planned" | "in_progress" | "done" | "declined";

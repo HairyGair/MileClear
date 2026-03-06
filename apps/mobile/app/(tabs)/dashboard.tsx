@@ -45,6 +45,7 @@ import { useMode } from "../../lib/mode/context";
 import { ModeToggle } from "../../components/ModeToggle";
 import { PersonalDashboard } from "../../components/personal/PersonalDashboard";
 import { MilestoneTracker } from "../../components/personal/MilestoneTracker";
+import { BusinessInsightsCard } from "../../components/business/BusinessInsightsCard";
 import { LiveMapTracker } from "../../components/map/LiveMapTracker";
 import { useUser } from "../../lib/user/context";
 import { Ionicons } from "@expo/vector-icons";
@@ -580,6 +581,9 @@ export default function DashboardScreen() {
           </View>
         </View>
       )}
+
+      {/* Business Insights (work mode only) */}
+      {isWork && <BusinessInsightsCard />}
 
       {/* Personal Dashboard (personal mode only) */}
       {isPersonal && <PersonalDashboard avatarId={currentUser?.avatarId} stats={stats} />}
