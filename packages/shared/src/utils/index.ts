@@ -161,7 +161,13 @@ export function computeTripInsights(
       (new Date(curr.recordedAt).getTime() - new Date(prev.recordedAt).getTime()) / 1000;
     if (dt <= 0) continue;
 
-    const speed = curr.speed;
+    // Use GPS speed if available, otherwise estimate from distance/time
+    const segDist = haversineDistance(prev.lat, prev.lng, curr.lat, curr.lng);
+    let speed = curr.speed;
+    if (speed == null && dt > 0) {
+      // Estimate speed in m/s from haversine distance
+      speed = (segDist * 1609.344) / dt;
+    }
     const isStopped = speed != null ? speed < STOP_SPEED_MS : false;
 
     if (speed != null && speed >= 0) {
@@ -184,7 +190,7 @@ export function computeTripInsights(
     } else {
       timeMovingSecs += dt;
       wasMoving = true;
-      currentStretchMiles += haversineDistance(prev.lat, prev.lng, curr.lat, curr.lng);
+      currentStretchMiles += segDist;
     }
   }
 
@@ -212,8 +218,10 @@ export function computeTripInsights(
   if (distanceMiles >= 100) distanceFunFact = "That's like London to Birmingham";
   else if (distanceMiles >= 60) distanceFunFact = "That's London to Brighton and back";
   else if (distanceMiles >= 30) distanceFunFact = "About the same as London to Brighton";
-  else if (distanceMiles >= 10) distanceFunFact = `That's about ${Math.round(distanceMiles * 100)} football pitches end-to-end`;
-  else if (distanceMiles >= 5) distanceFunFact = "About a parkrun distance by road";
+  else if (distanceMiles >= 15) distanceFunFact = `That's about ${Math.round(distanceMiles * 100)} football pitches end-to-end`;
+  else if (distanceMiles >= 7) distanceFunFact = `About ${Math.round(distanceMiles / 3.1)} parkruns back-to-back`;
+  else if (distanceMiles >= 4) distanceFunFact = "A bit more than a parkrun by road";
+  else if (distanceMiles >= 2.5) distanceFunFact = "About a parkrun distance by road";
   else if (distanceMiles >= 1) distanceFunFact = `About ${Math.round(distanceMiles * 20)} laps of a running track`;
 
   const re = Math.round(routeEfficiency * 10) / 10;
@@ -222,7 +230,7 @@ export function computeTripInsights(
   else if (re <= 2.0) routeDirectnessNote = "Pretty direct — minimal detours";
   else if (re <= 3.5) routeDirectnessNote = "A few twists and turns along the way";
   else if (re <= 6.0) routeDirectnessNote = "Winding route — lots of turns";
-  else routeDirectnessNote = "Multi-stop route — you covered a lot of ground";
+  else routeDirectnessNote = "Very indirect — you really explored the area";
 
   return {
     topSpeedMph: topMph,

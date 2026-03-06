@@ -98,8 +98,10 @@ function getDistanceFunFact(miles: number): string | null {
   if (miles >= 100) return "That's like London to Birmingham";
   if (miles >= 60) return "That's London to Brighton and back";
   if (miles >= 30) return "About the same as London to Brighton";
-  if (miles >= 10) return `That's about ${Math.round(miles * 100)} football pitches end-to-end`;
-  if (miles >= 5) return "About a parkrun distance by road";
+  if (miles >= 15) return `That's about ${Math.round(miles * 100)} football pitches end-to-end`;
+  if (miles >= 7) return `About ${Math.round(miles / 3.1)} parkruns back-to-back`;
+  if (miles >= 4) return "A bit more than a parkrun by road";
+  if (miles >= 2.5) return "About a parkrun distance by road";
   if (miles >= 1) return `About ${Math.round(miles * 20)} laps of a running track`;
   return null;
 }
@@ -109,7 +111,7 @@ function getRouteDirectnessNote(efficiency: number): string | null {
   if (efficiency <= 2.0) return "Pretty direct — minimal detours";
   if (efficiency <= 3.5) return "A few twists and turns along the way";
   if (efficiency <= 6.0) return "Winding route — lots of turns";
-  return "Multi-stop route — you covered a lot of ground";
+  return "Very indirect — you really explored the area";
 }
 
 function getTimeOfDayNote(startedAt: string | null): string | null {
