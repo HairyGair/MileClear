@@ -50,6 +50,7 @@ import { PersonalDashboard } from "../../components/personal/PersonalDashboard";
 import { MilestoneTracker } from "../../components/personal/MilestoneTracker";
 import { BusinessInsightsCard } from "../../components/business/BusinessInsightsCard";
 import { BusinessRecapCard } from "../../components/business/BusinessRecapCard";
+import { CommunityInsightsCard } from "../../components/community/CommunityInsightsCard";
 import { MapOverview } from "../../components/personal/MapOverview";
 import { LiveMapTracker, type TripTapInfo } from "../../components/map/LiveMapTracker";
 import { useUser } from "../../lib/user/context";
@@ -632,6 +633,9 @@ export default function DashboardScreen() {
       {isWork && recentTrips.length > 0 && (
         <MapOverview trips={recentTrips} title="Recent Journeys" />
       )}
+
+      {/* Community Intelligence (both modes) */}
+      <CommunityInsightsCard isWork={isWork} />
 
       {/* Business Insights + Share Recap (work mode only) */}
       {isWork && <BusinessInsightsCard />}

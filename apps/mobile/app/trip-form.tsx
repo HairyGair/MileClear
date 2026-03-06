@@ -37,6 +37,8 @@ import { useMode } from "../lib/mode/context";
 import { useUser } from "../lib/user/context";
 import { fetchBusinessInsights } from "../lib/api/businessInsights";
 import { detectAnomalies, type TripAnomalyDef } from "@mileclear/shared";
+import type { CommunityInsights } from "@mileclear/shared";
+import { fetchCommunityInsights } from "../lib/api/communityInsights";
 
 // Enable LayoutAnimation on Android
 if (Platform.OS === "android" && UIManager.setLayoutAnimationEnabledExperimental) {
@@ -356,6 +358,9 @@ export default function TripFormScreen() {
   const celebInsightsAnim = useRef(new Animated.Value(0)).current;
   const celebSlideAnim = useRef(new Animated.Value(20)).current;
 
+  // Pre-trip community nudges
+  const [communityNudges, setCommunityNudges] = useState<string[]>([]);
+
   // Pulsing dot animation
   const pulseAnim = useRef(new Animated.Value(1)).current;
 
@@ -434,6 +439,41 @@ export default function TripFormScreen() {
       })
       .finally(() => setLoading(false));
   }, [id]);
+
+  // Fetch community nudges for the ready state
+  useEffect(() => {
+    if (isEditing || !startLat || !startLng) return;
+    fetchCommunityInsights(startLat, startLng)
+      .then((res) => {
+        const nudges: string[] = [];
+        const d = res.data;
+        if (d.nearbyAnomalies.length > 0) {
+          const a = d.nearbyAnomalies[0];
+          const labels: Record<string, string> = {
+            indirect_route: "Detour",
+            many_stops: "Heavy traffic",
+            long_idle: "Long waits",
+          };
+          const label = labels[a.type] ?? "Road issue";
+          nudges.push(`${label} reported ${a.distanceMiles} mi away`);
+        }
+        if (d.bestPlatformNearby && isWork) {
+          const best = d.areaEarnings.find((e) => e.platform === d.bestPlatformNearby);
+          if (best) {
+            const rate = (best.earningsPerMilePence / 100).toFixed(2);
+            nudges.push(`${best.platform.charAt(0).toUpperCase() + best.platform.slice(1)} drivers earn ~\u00A3${rate}/mi nearby`);
+          }
+        }
+        if (d.bestTimeNearby && isWork) {
+          nudges.push(`Busiest time nearby: ${d.bestTimeNearby}`);
+        }
+        if (d.fuelTipNearby) {
+          nudges.push(`Cheapest fuel: ${d.fuelTipNearby}`);
+        }
+        setCommunityNudges(nudges.slice(0, 3));
+      })
+      .catch(() => {});
+  }, [startLat, startLng, isEditing, isWork]);
 
   // Fetch earnings/mile for business mode live stats
   useEffect(() => {
@@ -1086,6 +1126,22 @@ export default function TripFormScreen() {
                 <Text style={styles.currentLocationText} numberOfLines={1}>
                   {startAddress}
                 </Text>
+              </View>
+            )}
+
+            {/* Community nudges */}
+            {communityNudges.length > 0 && (
+              <View style={styles.nudgeCard}>
+                <View style={styles.nudgeHeader}>
+                  <Ionicons name="people-outline" size={13} color="#f5a623" />
+                  <Text style={styles.nudgeTitle}>From MileClear drivers</Text>
+                </View>
+                {communityNudges.map((nudge, i) => (
+                  <View key={i} style={styles.nudgeRow}>
+                    <Ionicons name="information-circle-outline" size={13} color="#8494a7" />
+                    <Text style={styles.nudgeText}>{nudge}</Text>
+                  </View>
+                ))}
               </View>
             )}
 
@@ -1928,6 +1984,39 @@ const styles = StyleSheet.create({
     paddingBottom: 40,
   },
   // ── Ready state ──────────────────────────────────────
+  nudgeCard: {
+    backgroundColor: "rgba(245, 166, 35, 0.06)",
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: "rgba(245, 166, 35, 0.12)",
+  },
+  nudgeHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginBottom: 6,
+  },
+  nudgeTitle: {
+    fontSize: 11,
+    fontFamily: "PlusJakartaSans_600SemiBold",
+    color: "#f5a623",
+    textTransform: "uppercase",
+    letterSpacing: 0.3,
+  },
+  nudgeRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingVertical: 3,
+  },
+  nudgeText: {
+    fontSize: 13,
+    fontFamily: "PlusJakartaSans_500Medium",
+    color: "#c9d1d9",
+    flex: 1,
+  },
   currentLocationRow: {
     flexDirection: "row",
     alignItems: "center",

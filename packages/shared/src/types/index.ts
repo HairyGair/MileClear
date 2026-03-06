@@ -592,6 +592,58 @@ export interface AdminUserDetail extends AdminUserSummary {
   totalEarningsPence: number;
 }
 
+// Community Intelligence types
+export interface CommunityStats {
+  totalDrivers: number;
+  totalMilesTracked: number;
+  totalTripsLogged: number;
+  totalTaxSavedPence: number;
+  driversNearby: number; // within ~20 mi radius
+}
+
+export interface AreaEarnings {
+  platform: string;
+  earningsPerMilePence: number;
+  tripCount: number;
+  driverCount: number;
+}
+
+export interface AreaPeakHour {
+  dayOfWeek: string; // "Monday", etc.
+  hour: number; // 0-23
+  label: string; // "Friday 6-7 PM"
+  tripCount: number;
+  avgSpeedMph: number;
+}
+
+export interface NearbyAnomaly {
+  type: string;
+  response: string;
+  lat: number;
+  lng: number;
+  distanceMiles: number;
+  reportedAt: string;
+  reportCount: number; // how many drivers reported similar
+}
+
+export interface RouteSpeedInsight {
+  areaName: string;
+  avgSpeedMph: number;
+  sampleSize: number;
+  timeOfDay: "morning" | "afternoon" | "evening" | "night";
+}
+
+export interface CommunityInsights {
+  stats: CommunityStats;
+  areaEarnings: AreaEarnings[];
+  peakHours: AreaPeakHour[];
+  nearbyAnomalies: NearbyAnomaly[];
+  routeSpeeds: RouteSpeedInsight[];
+  bestPlatformNearby: string | null;
+  bestTimeNearby: string | null; // e.g. "Friday 6-7 PM"
+  fuelTipNearby: string | null; // e.g. "Asda Sunderland: 142.9p/L unleaded"
+}
+
 export interface AdminHealthStatus {
   api: "ok" | "error";
   database: "ok" | "error";
