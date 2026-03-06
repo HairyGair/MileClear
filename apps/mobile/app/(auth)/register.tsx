@@ -133,18 +133,7 @@ export default function RegisterScreen() {
             />
           )}
 
-          <TouchableOpacity
-            style={s.googleButton}
-            onPress={() => handleSocialLogin("google")}
-            disabled={!!socialLoading}
-            activeOpacity={0.8}
-          >
-            {socialLoading === "google" ? (
-              <ActivityIndicator color={TEXT_1} />
-            ) : (
-              <Text style={s.googleButtonText}>Sign up with Google</Text>
-            )}
-          </TouchableOpacity>
+          {/* Google Sign-In temporarily disabled — iOS-only clearance */}
 
           {/* Divider */}
           <View style={s.divider}>

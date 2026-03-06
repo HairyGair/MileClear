@@ -83,7 +83,8 @@ export function OAuthButtons({ onSuccess, onError }: OAuthButtonsProps) {
     window.location.href = `${API_URL}/auth/apple/web`;
   }, []);
 
-  const showGoogle = !!GOOGLE_CLIENT_ID;
+  // Google Sign-In temporarily disabled — iOS-only clearance for now
+  const showGoogle = false;
 
   return (
     <div className="oauth">
