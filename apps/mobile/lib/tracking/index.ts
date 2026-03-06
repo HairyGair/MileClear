@@ -45,7 +45,15 @@ export async function requestLocationPermissions(): Promise<boolean> {
       await Location.requestBackgroundPermissionsAsync();
     return background === "granted";
   } catch {
-    return false; // Expo Go may throw if Info.plist keys unavailable
+    // Expo Go may throw if Info.plist keys unavailable — check existing permissions
+    try {
+      const fg = await Location.getForegroundPermissionsAsync();
+      if (fg.status !== "granted") return false;
+      const bg = await Location.getBackgroundPermissionsAsync();
+      return bg.status === "granted";
+    } catch {
+      return false;
+    }
   }
 }
 
