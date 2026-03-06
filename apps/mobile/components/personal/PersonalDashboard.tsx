@@ -6,13 +6,13 @@ import { usePersonalStats } from "../../hooks/usePersonalStats";
 import { consumeLastSavedTrip, type LastSavedTrip } from "../../lib/events/lastTrip";
 import { DrivingSummaryCard } from "./DrivingSummaryCard";
 import { PostTripCard } from "./PostTripCard";
+import { PersonalRecapCard } from "./PersonalRecapCard";
 import { MapOverview } from "./MapOverview";
 import { CommunityInsightsCard } from "../community/CommunityInsightsCard";
 import { PremiumGate } from "../PremiumGate";
 import { MilestoneTracker } from "./MilestoneTracker";
 import { DrivingPatternsCard } from "./DrivingPatternsCard";
 import type { GamificationStats, PeriodRecap } from "@mileclear/shared";
-import { formatPence } from "@mileclear/shared";
 
 interface PersonalDashboardProps {
   avatarId?: string | null;
@@ -37,6 +37,12 @@ export function PersonalDashboard({ avatarId, stats, visibleKeys, recentTrips, d
     monthTrips,
     weekTrips,
     primaryVehicle,
+    prevMonthMiles,
+    prevMonthTrips,
+    busiestDay,
+    avgTripMiles,
+    monthLabel,
+    yearBusiestMonth,
     loading: statsLoading,
   } = usePersonalStats();
 
@@ -89,7 +95,6 @@ export function PersonalDashboard({ avatarId, stats, visibleKeys, recentTrips, d
   const weekMiles = weekTrips.reduce((sum, t) => sum + t.distanceMiles, 0);
   const todayMiles = stats?.todayMiles ?? 0;
   const streakDays = stats?.currentStreakDays ?? 0;
-  const monthLabel = new Date().toLocaleDateString("en-GB", { month: "long" });
 
   const renderSection = (key: string) => {
     switch (key) {
@@ -106,41 +111,38 @@ export function PersonalDashboard({ avatarId, stats, visibleKeys, recentTrips, d
             weekMiles={weekMiles}
           />
         );
-      case "daily_recap":
-        return dailyRecap && dailyRecap.totalTrips > 0 ? (
-          <TouchableOpacity
-            key={key}
-            style={styles.dailyRecapCard}
-            onPress={() => onShowRecap?.(dailyRecap)}
-            activeOpacity={0.7}
-          >
-            <View style={styles.dailyRecapHeader}>
-              <Ionicons name="today-outline" size={16} color="#10b981" />
-              <Text style={styles.dailyRecapTitle}>Today</Text>
-              <Ionicons name="share-outline" size={14} color="#4a5568" style={{ marginLeft: "auto" as any }} />
-            </View>
-            <View style={styles.dailyRecapStats}>
-              <View style={styles.dailyRecapStat}>
-                <Text style={styles.dailyRecapValue}>{dailyRecap.totalMiles.toFixed(1)}</Text>
-                <Text style={styles.dailyRecapUnit}>miles</Text>
-              </View>
-              <View style={styles.dailyRecapDivider} />
-              <View style={styles.dailyRecapStat}>
-                <Text style={styles.dailyRecapValue}>{dailyRecap.totalTrips}</Text>
-                <Text style={styles.dailyRecapUnit}>{dailyRecap.totalTrips === 1 ? "trip" : "trips"}</Text>
-              </View>
-              {dailyRecap.deductionPence > 0 && (
-                <>
-                  <View style={styles.dailyRecapDivider} />
-                  <View style={styles.dailyRecapStat}>
-                    <Text style={styles.dailyRecapValue}>{formatPence(dailyRecap.deductionPence)}</Text>
-                    <Text style={styles.dailyRecapUnit}>deduction</Text>
-                  </View>
-                </>
-              )}
-            </View>
-          </TouchableOpacity>
-        ) : null;
+      case "daily_recap": {
+        const todayStr = new Date().toDateString();
+        const todayTripsArr = weekTrips.filter((t) => new Date(t.startedAt).toDateString() === todayStr);
+        const todayMilesVal = todayTripsArr.reduce((sum, t) => sum + t.distanceMiles, 0);
+        const todayTripsCount = todayTripsArr.length;
+        const todayDeductionPence = dailyRecap?.deductionPence ?? 0;
+        return (
+          <View key={key}>
+            <PersonalRecapCard
+              monthMiles={monthMiles}
+              monthTrips={monthTrips}
+              prevMonthMiles={prevMonthMiles}
+              prevMonthTrips={prevMonthTrips}
+              busiestDay={busiestDay}
+              avgTripMiles={avgTripMiles}
+              monthLabel={monthLabel}
+              totalMiles={stats?.totalMiles ?? 0}
+              deductionPence={stats?.deductionPence ?? 0}
+              yearMiles={stats?.totalMiles ?? 0}
+              yearTrips={stats?.totalTrips ?? 0}
+              yearDeductionPence={stats?.deductionPence ?? 0}
+              yearBusinessMiles={stats?.businessMiles ?? 0}
+              taxYear={stats?.taxYear ?? ""}
+              yearBusiestMonth={yearBusiestMonth}
+              todayMiles={todayMilesVal}
+              todayTrips={todayTripsCount}
+              todayDeductionPence={todayDeductionPence}
+              region={stats?.region}
+            />
+          </View>
+        );
+      }
       case "personal_cta":
         return (
           <TouchableOpacity
@@ -278,51 +280,5 @@ const styles = StyleSheet.create({
   loading: {
     paddingVertical: 40,
     alignItems: "center",
-  },
-  dailyRecapCard: {
-    backgroundColor: "#0a1120",
-    borderRadius: 14,
-    padding: 16,
-    marginBottom: 12,
-    borderWidth: 1,
-    borderColor: "rgba(16,185,129,0.12)",
-  },
-  dailyRecapHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    marginBottom: 12,
-  },
-  dailyRecapTitle: {
-    fontSize: 14,
-    fontFamily: "PlusJakartaSans_600SemiBold",
-    color: "#f0f2f5",
-  },
-  dailyRecapStats: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 16,
-  },
-  dailyRecapStat: {
-    alignItems: "center",
-  },
-  dailyRecapValue: {
-    fontSize: 20,
-    fontFamily: "PlusJakartaSans_700Bold",
-    color: "#10b981",
-  },
-  dailyRecapUnit: {
-    fontSize: 10,
-    fontFamily: "PlusJakartaSans_500Medium",
-    color: "#6b7280",
-    textTransform: "uppercase",
-    letterSpacing: 0.3,
-    marginTop: 2,
-  },
-  dailyRecapDivider: {
-    width: 1,
-    height: 28,
-    backgroundColor: "rgba(255,255,255,0.06)",
   },
 });
