@@ -14,7 +14,7 @@ const scorecardQuery = z.object({
 });
 
 const recapQuery = z.object({
-  period: z.enum(["weekly", "monthly"]).default("weekly"),
+  period: z.enum(["daily", "weekly", "monthly"]).default("weekly"),
   date: z.coerce.date().optional(),
 });
 

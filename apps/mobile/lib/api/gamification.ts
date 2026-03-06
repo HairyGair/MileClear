@@ -19,7 +19,7 @@ export function fetchScorecard(shiftId?: string) {
   return apiRequest<{ data: ShiftScorecard }>(`/gamification/scorecard${query}`);
 }
 
-export function fetchRecap(period: "weekly" | "monthly", date?: string) {
+export function fetchRecap(period: "daily" | "weekly" | "monthly", date?: string) {
   const params = new URLSearchParams({ period });
   if (date) params.set("date", date);
   return apiRequest<{ data: PeriodRecap }>(

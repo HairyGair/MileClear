@@ -298,7 +298,7 @@ export default function DashboardScreen() {
     ]);
   }, [vehicles]);
 
-  const handleRecap = useCallback(async (period: "weekly" | "monthly") => {
+  const handleRecap = useCallback(async (period: "daily" | "weekly" | "monthly") => {
     try {
       const res = await fetchRecap(period);
       setRecapData(res.data);
@@ -421,7 +421,7 @@ export default function DashboardScreen() {
         <View style={s.modalSheet}>
           <View style={s.modalHandle} />
           <Text style={s.modalTitle}>
-            {recapData?.period === "weekly" ? "Weekly" : "Monthly"} Recap
+            {recapData?.period === "daily" ? "Daily" : recapData?.period === "weekly" ? "Weekly" : "Monthly"} Recap
           </Text>
           {recapData && (
             <>

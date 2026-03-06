@@ -78,7 +78,7 @@ export default function InsightsScreen() {
     }, [loadData])
   );
 
-  const handleRecap = useCallback(async (period: "weekly" | "monthly") => {
+  const handleRecap = useCallback(async (period: "daily" | "weekly" | "monthly") => {
     try {
       const res = await fetchRecap(period);
       setRecapData(res.data);
@@ -113,7 +113,7 @@ export default function InsightsScreen() {
           <View style={styles.modalSheet}>
             <View style={styles.modalHandle} />
             <Text style={styles.modalTitle}>
-              {recapData?.period === "weekly" ? "Weekly" : "Monthly"} Recap
+              {recapData?.period === "daily" ? "Daily" : recapData?.period === "weekly" ? "Weekly" : "Monthly"} Recap
             </Text>
             {recapData && (
               <>
@@ -153,13 +153,17 @@ export default function InsightsScreen() {
       >
         {/* Recaps */}
         <View style={styles.recapRow}>
+          <TouchableOpacity style={styles.recapBtn} onPress={() => handleRecap("daily")} activeOpacity={0.7}>
+            <Ionicons name="today-outline" size={16} color="#f5a623" />
+            <Text style={styles.recapBtnLabel}>Today</Text>
+          </TouchableOpacity>
           <TouchableOpacity style={styles.recapBtn} onPress={() => handleRecap("weekly")} activeOpacity={0.7}>
             <Ionicons name="calendar-outline" size={16} color="#f5a623" />
-            <Text style={styles.recapBtnLabel}>Weekly Recap</Text>
+            <Text style={styles.recapBtnLabel}>Week</Text>
           </TouchableOpacity>
           <TouchableOpacity style={styles.recapBtn} onPress={() => handleRecap("monthly")} activeOpacity={0.7}>
             <Ionicons name="calendar-outline" size={16} color="#f5a623" />
-            <Text style={styles.recapBtnLabel}>Monthly Recap</Text>
+            <Text style={styles.recapBtnLabel}>Month</Text>
           </TouchableOpacity>
         </View>
 

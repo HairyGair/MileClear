@@ -444,7 +444,7 @@ export async function getShiftScorecard(
 
 export async function getPeriodRecap(
   userId: string,
-  period: "weekly" | "monthly",
+  period: "daily" | "weekly" | "monthly",
   referenceDate?: Date
 ): Promise<PeriodRecap> {
   const ref = referenceDate ?? new Date();
@@ -452,7 +452,17 @@ export async function getPeriodRecap(
   let end: Date;
   let label: string;
 
-  if (period === "weekly") {
+  if (period === "daily") {
+    start = new Date(ref);
+    start.setHours(0, 0, 0, 0);
+    end = new Date(ref);
+    end.setHours(23, 59, 59, 999);
+    label = ref.toLocaleDateString("en-GB", {
+      weekday: "long",
+      day: "numeric",
+      month: "long",
+    });
+  } else if (period === "weekly") {
     // Monday-based week
     const dayOfWeek = ref.getDay();
     const diffToMon = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
@@ -532,7 +542,7 @@ export async function getPeriodRecap(
 
   // Generate share text
   const shareLines: string[] = [
-    `📊 My ${period === "weekly" ? "Weekly" : "Monthly"} MileClear Recap`,
+    `📊 My ${period === "daily" ? "Daily" : period === "weekly" ? "Weekly" : "Monthly"} MileClear Recap`,
     label,
     "",
     `🚗 ${formatMiles(totalMiles)} total`,

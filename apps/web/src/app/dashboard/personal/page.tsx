@@ -56,7 +56,7 @@ function getDistanceEquivalent(miles: number): string | null {
   return null;
 }
 
-type RecapView = "weekly" | "monthly" | "yearly";
+type RecapView = "daily" | "weekly" | "monthly" | "yearly";
 
 const freeSet = new Set<string>(FREE_ACHIEVEMENT_TYPES);
 
@@ -65,6 +65,7 @@ export default function PersonalPage() {
   const isPremium = user?.isPremium ?? false;
   const [stats, setStats] = useState<GamificationStats | null>(null);
   const [achievements, setAchievements] = useState<AchievementWithMeta[]>([]);
+  const [dailyRecap, setDailyRecap] = useState<PeriodRecap | null>(null);
   const [weeklyRecap, setWeeklyRecap] = useState<PeriodRecap | null>(null);
   const [monthlyRecap, setMonthlyRecap] = useState<PeriodRecap | null>(null);
   const [recentTrips, setRecentTrips] = useState<Trip[]>([]);
@@ -95,10 +96,12 @@ export default function PersonalPage() {
 
         // Recaps are premium — fetch separately
         if (user?.isPremium) {
-          const [weeklyRes, monthlyRes] = await Promise.all([
+          const [dailyRes, weeklyRes, monthlyRes] = await Promise.all([
+            api.get<{ data: PeriodRecap }>("/gamification/recap?period=daily").catch(() => null),
             api.get<{ data: PeriodRecap }>("/gamification/recap?period=weekly").catch(() => null),
             api.get<{ data: PeriodRecap }>("/gamification/recap?period=monthly").catch(() => null),
           ]);
+          if (dailyRes) setDailyRecap(dailyRes.data);
           if (weeklyRes) setWeeklyRecap(weeklyRes.data);
           if (monthlyRes) setMonthlyRecap(monthlyRes.data);
         }
@@ -157,30 +160,32 @@ export default function PersonalPage() {
               <span>Driving Recap</span>
             </div>
             <div className="driving-recap__toggle">
-              {(["weekly", "monthly", "yearly"] as const).map((v) => (
+              {(["daily", "weekly", "monthly", "yearly"] as const).map((v) => (
                 <button
                   key={v}
                   className={`driving-recap__toggle-btn${recapView === v ? " driving-recap__toggle-btn--active" : ""}`}
                   onClick={() => setRecapView(v)}
                 >
-                  {v === "weekly" ? "Week" : v === "monthly" ? "Month" : "Year"}
+                  {v === "daily" ? "Day" : v === "weekly" ? "Week" : v === "monthly" ? "Month" : "Year"}
                 </button>
               ))}
             </div>
           </div>
 
           <div className="driving-recap__subtitle">
+            {recapView === "daily" && dailyRecap?.label}
             {recapView === "weekly" && weeklyRecap?.label}
             {recapView === "monthly" && monthlyRecap?.label}
             {recapView === "yearly" && stats && `Tax Year ${stats.taxYear}`}
           </div>
 
           {(() => {
-            const miles = recapView === "yearly" ? (stats?.totalMiles ?? 0) : recapView === "monthly" ? (monthlyRecap?.totalMiles ?? 0) : (weeklyRecap?.totalMiles ?? 0);
-            const trips = recapView === "yearly" ? (stats?.totalTrips ?? 0) : recapView === "monthly" ? (monthlyRecap?.totalTrips ?? 0) : (weeklyRecap?.totalTrips ?? 0);
+            const recapSource = recapView === "daily" ? dailyRecap : recapView === "weekly" ? weeklyRecap : recapView === "monthly" ? monthlyRecap : null;
+            const miles = recapView === "yearly" ? (stats?.totalMiles ?? 0) : (recapSource?.totalMiles ?? 0);
+            const trips = recapView === "yearly" ? (stats?.totalTrips ?? 0) : (recapSource?.totalTrips ?? 0);
             const avg = trips > 0 ? miles / trips : 0;
-            const busiest = recapView !== "yearly" ? (recapView === "monthly" ? monthlyRecap?.busiestDayLabel : weeklyRecap?.busiestDayLabel) : null;
-            const busiestMiles = recapView !== "yearly" ? (recapView === "monthly" ? monthlyRecap?.busiestDayMiles : weeklyRecap?.busiestDayMiles) : 0;
+            const busiest = recapView !== "yearly" && recapView !== "daily" ? (recapSource?.busiestDayLabel ?? null) : null;
+            const busiestMiles = recapView !== "yearly" && recapView !== "daily" ? (recapSource?.busiestDayMiles ?? 0) : 0;
             const equiv = getDistanceEquivalent(miles);
 
             return (

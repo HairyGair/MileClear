@@ -435,7 +435,7 @@ export interface ShiftScorecard {
 }
 
 export interface PeriodRecap {
-  period: "weekly" | "monthly";
+  period: "daily" | "weekly" | "monthly";
   label: string;
   totalMiles: number;
   businessMiles: number;
