@@ -6,6 +6,7 @@ import { usePersonalStats } from "../../hooks/usePersonalStats";
 import { consumeLastSavedTrip, type LastSavedTrip } from "../../lib/events/lastTrip";
 import { DrivingSummaryCard } from "./DrivingSummaryCard";
 import { SmartMap } from "./SmartMap";
+import { MapOverview } from "./MapOverview";
 import { PostTripCard } from "./PostTripCard";
 import { WeeklyActivity, buildWeekDays } from "./WeeklyActivity";
 import { CostEstimate } from "./CostEstimate";
@@ -125,7 +126,10 @@ export function PersonalDashboard({ avatarId, stats }: PersonalDashboardProps) {
     />
   );
 
-  const smartMap = (
+  const tripsWithCoords = trips.filter((t) => t.coordinates.length >= 2);
+  const smartMap = tripsWithCoords.length >= 2 ? (
+    <MapOverview trips={trips} title="Recent Journeys" />
+  ) : (
     <SmartMap
       avatarId={avatarId}
       lastTrip={lastTripWithCoords}

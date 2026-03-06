@@ -50,8 +50,10 @@ import { PersonalDashboard } from "../../components/personal/PersonalDashboard";
 import { MilestoneTracker } from "../../components/personal/MilestoneTracker";
 import { BusinessInsightsCard } from "../../components/business/BusinessInsightsCard";
 import { BusinessRecapCard } from "../../components/business/BusinessRecapCard";
+import { MapOverview } from "../../components/personal/MapOverview";
 import { LiveMapTracker, type TripTapInfo } from "../../components/map/LiveMapTracker";
 import { useUser } from "../../lib/user/context";
+import { useRecentTripsWithCoords } from "../../hooks/useRecentTripsWithCoords";
 import { Ionicons } from "@expo/vector-icons";
 
 function formatElapsed(seconds: number): string {
@@ -87,6 +89,9 @@ export default function DashboardScreen() {
   const [showScorecard, setShowScorecard] = useState(false);
   const [recapData, setRecapData] = useState<PeriodRecap | null>(null);
   const [showRecap, setShowRecap] = useState(false);
+
+  // Recent trips with coordinates for MapOverview
+  const { trips: recentTrips } = useRecentTripsWithCoords(10);
 
   // Trip segment bottom sheet
   const [tripTapInfo, setTripTapInfo] = useState<TripTapInfo | null>(null);
@@ -617,6 +622,11 @@ export default function DashboardScreen() {
             <Text style={s.statUnit}>trips</Text>
           </View>
         </View>
+      )}
+
+      {/* Journey Map (work mode — shows recent trips colour-coded) */}
+      {isWork && recentTrips.length > 0 && (
+        <MapOverview trips={recentTrips} title="Recent Journeys" />
       )}
 
       {/* Business Insights + Share Recap (work mode only) */}
