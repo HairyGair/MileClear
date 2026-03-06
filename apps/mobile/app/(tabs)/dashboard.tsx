@@ -26,7 +26,6 @@ import { syncStartShift, syncEndShift } from "../../lib/sync/actions";
 import { getDatabase } from "../../lib/db/index";
 import {
   fetchGamificationStats,
-  fetchAchievements,
   fetchRecap,
 } from "../../lib/api/gamification";
 import {
@@ -39,17 +38,13 @@ import {
 import type {
   Vehicle,
   GamificationStats,
-  AchievementWithMeta,
   ShiftScorecard,
   PeriodRecap,
 } from "@mileclear/shared";
-import { formatPence, formatMiles } from "@mileclear/shared";
+import { formatPence } from "@mileclear/shared";
 import { useMode } from "../../lib/mode/context";
 import { ModeToggle } from "../../components/ModeToggle";
 import { PersonalDashboard } from "../../components/personal/PersonalDashboard";
-import { MilestoneTracker } from "../../components/personal/MilestoneTracker";
-import { BusinessInsightsCard } from "../../components/business/BusinessInsightsCard";
-import { BusinessRecapCard } from "../../components/business/BusinessRecapCard";
 import { CommunityInsightsCard } from "../../components/community/CommunityInsightsCard";
 import { MapOverview } from "../../components/personal/MapOverview";
 import { LiveMapTracker, type TripTapInfo } from "../../components/map/LiveMapTracker";
@@ -85,7 +80,6 @@ export default function DashboardScreen() {
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const [stats, setStats] = useState<GamificationStats | null>(null);
-  const [achievements, setAchievements] = useState<AchievementWithMeta[]>([]);
   const [scorecard, setScorecard] = useState<ShiftScorecard | null>(null);
   const [showScorecard, setShowScorecard] = useState(false);
   const [recapData, setRecapData] = useState<PeriodRecap | null>(null);
@@ -119,7 +113,7 @@ export default function DashboardScreen() {
 
   const loadData = useCallback(async () => {
     try {
-      const [shiftRes, vehicleRes, statsRes, achievementsRes] = await Promise.all([
+      const [shiftRes, vehicleRes, statsRes] = await Promise.all([
         fetchActiveShift().catch(async () => {
           // Offline fallback: check local SQLite for active shift
           const db = await getDatabase();
@@ -147,14 +141,12 @@ export default function DashboardScreen() {
         }),
         fetchVehicles().catch(() => ({ data: [] as Vehicle[] })),
         fetchGamificationStats().catch(() => null),
-        fetchAchievements().catch(() => null),
       ]);
 
       const active = shiftRes.data.length > 0 ? shiftRes.data[0] : null;
       setActiveShift(active);
       setVehicles(vehicleRes.data);
       if (statsRes) setStats(statsRes.data);
-      if (achievementsRes) setAchievements(achievementsRes.data);
 
       if (active) {
         // Resume GPS tracking if app was killed/backgrounded during a shift
@@ -536,57 +528,89 @@ export default function DashboardScreen() {
       {/* Mode Toggle */}
       <ModeToggle />
 
-      {/* Streak indicator (work mode only — personal mode has it in hero card) */}
-      {isWork && stats && stats.currentStreakDays > 0 && (
-        <View style={s.streakRow}>
-          <View style={s.streakBadge}>
-            <Text style={s.streakNum}>{stats.currentStreakDays}</Text>
-          </View>
-          <Text style={s.greeting}>{stats.currentStreakDays}-day streak</Text>
-        </View>
-      )}
-
-      {/* Tax Savings — hero card (work mode only) */}
+      {/* ── Work Mode Hero ── */}
       {isWork && stats && (
         <View style={s.heroCard}>
-          <Text style={s.heroLabel}>Tax Deduction {"\u00B7"} {stats.taxYear}</Text>
+          <View style={s.heroTopRow}>
+            <Text style={s.heroLabel}>Tax Deduction {"\u00B7"} {stats.taxYear}</Text>
+            {stats.currentStreakDays > 0 && (
+              <View style={s.streakBadgeInline}>
+                <Text style={s.streakNumInline}>{stats.currentStreakDays}d</Text>
+              </View>
+            )}
+          </View>
           <Text style={s.heroValue}>
             {formatPence(stats.deductionPence)}
           </Text>
           <View style={s.heroMeta}>
             <Text style={s.heroMetaText}>
-              {formatMiles(stats.businessMiles)} business
+              {formatMilesShort(stats.todayMiles)} today
             </Text>
             <View style={s.heroDivider} />
             <Text style={s.heroMetaText}>
-              {formatMiles(stats.totalMiles)} total
+              {formatMilesShort(stats.weekMiles)} this week
+            </Text>
+            <View style={s.heroDivider} />
+            <Text style={s.heroMetaText}>
+              {stats.totalTrips} trips
             </Text>
           </View>
         </View>
       )}
 
-      {/* Start Trip button (work mode) */}
+      {/* ── Primary CTAs (work mode) ── */}
       {isWork && (
-        <TouchableOpacity
-          style={s.startTripBtn}
-          onPress={() => router.push("/trip-form")}
-          activeOpacity={0.7}
-        >
-          <Ionicons name="navigate" size={20} color="#030712" />
-          <Text style={s.startTripBtnText}>Start Individual Trip</Text>
-        </TouchableOpacity>
+        <View style={s.ctaRow}>
+          <TouchableOpacity
+            style={s.ctaPrimary}
+            onPress={() => router.push("/trip-form")}
+            activeOpacity={0.7}
+          >
+            <Ionicons name="navigate" size={18} color="#030712" />
+            <Text style={s.ctaPrimaryText}>Start Trip</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={s.ctaSecondary}
+            onPress={handleSelectVehicle}
+            activeOpacity={0.7}
+          >
+            <Ionicons name="car-outline" size={16} color="#f5a623" />
+            <Text style={s.ctaSecondaryText} numberOfLines={1}>
+              {selectedVehicle ? `${selectedVehicle.make} ${selectedVehicle.model}` : "Vehicle"}
+            </Text>
+          </TouchableOpacity>
+        </View>
       )}
 
-      {/* Quick Actions (work mode only) */}
+      {isWork && (
+        <Button
+          variant="hero"
+          title="Start Shift"
+          icon="play"
+          onPress={handleStartShift}
+          loading={starting}
+          size="lg"
+        />
+      )}
+
+      {/* ── Quick Nav (work mode) ── */}
       {isWork && (
         <View style={s.quickActions}>
+          <TouchableOpacity
+            style={s.quickAction}
+            onPress={() => router.push("/insights")}
+            activeOpacity={0.7}
+          >
+            <Ionicons name="analytics-outline" size={22} color="#f5a623" style={{ marginBottom: 4 }} />
+            <Text style={s.quickActionLabel}>Insights</Text>
+          </TouchableOpacity>
           <TouchableOpacity
             style={s.quickAction}
             onPress={() => router.replace("/(tabs)/trips" as any)}
             activeOpacity={0.7}
           >
             <Ionicons name="list-outline" size={22} color="#f5a623" style={{ marginBottom: 4 }} />
-            <Text style={s.quickActionLabel}>All Trips</Text>
+            <Text style={s.quickActionLabel}>Trips</Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={s.quickAction}
@@ -607,140 +631,16 @@ export default function DashboardScreen() {
         </View>
       )}
 
-      {/* Quick Stats (work mode only — personal mode has these in hero card) */}
-      {isWork && (
-        <View style={s.statsRow}>
-          <View style={s.statCard}>
-            <Text style={s.statNum}>
-              {stats ? formatMilesShort(stats.todayMiles) : "0"}
-            </Text>
-            <Text style={s.statUnit}>mi today</Text>
-          </View>
-          <View style={s.statCard}>
-            <Text style={s.statNum}>
-              {stats ? formatMilesShort(stats.weekMiles) : "0"}
-            </Text>
-            <Text style={s.statUnit}>mi this week</Text>
-          </View>
-          <View style={s.statCard}>
-            <Text style={s.statNum}>{stats?.totalTrips ?? 0}</Text>
-            <Text style={s.statUnit}>trips</Text>
-          </View>
-        </View>
-      )}
+      {/* ── Personal Dashboard (personal mode — hero + start trip + quick nav) ── */}
+      {isPersonal && <PersonalDashboard avatarId={currentUser?.avatarId} stats={stats} />}
 
-      {/* Journey Map (work mode — shows recent trips colour-coded) */}
-      {isWork && recentTrips.length > 0 && (
+      {/* ── Journey Map (both modes) ── */}
+      {recentTrips.length > 0 && (
         <MapOverview trips={recentTrips} title="Recent Journeys" />
       )}
 
-      {/* Community Intelligence (both modes) */}
+      {/* ── Community Intelligence (both modes, collapsed by default) ── */}
       <CommunityInsightsCard isWork={isWork} />
-
-      {/* Business Insights + Share Recap (work mode only) */}
-      {isWork && <BusinessInsightsCard />}
-      {isWork && <BusinessRecapCard />}
-
-      {/* Personal Dashboard (personal mode only) */}
-      {isPersonal && <PersonalDashboard avatarId={currentUser?.avatarId} stats={stats} />}
-
-      {/* Achievements */}
-      {achievements.length > 0 && (
-        <View style={s.section}>
-          <View style={s.sectionHead}>
-            <Text style={s.sectionTitle}>Achievements</Text>
-            <TouchableOpacity onPress={() => router.push("/achievements")}>
-              <Text style={s.seeAll}>See all</Text>
-            </TouchableOpacity>
-          </View>
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={s.badgeScroll}
-          >
-            {achievements.slice(0, 8).map((a) => (
-              <View key={a.id} style={s.badge}>
-                <Text style={s.badgeEmoji}>{a.emoji}</Text>
-                <Text style={s.badgeLabel} numberOfLines={1}>{a.label}</Text>
-              </View>
-            ))}
-          </ScrollView>
-        </View>
-      )}
-
-      {/* Milestone progress (personal mode — sits with achievements) */}
-      {isPersonal && stats && (
-        <MilestoneTracker totalMiles={stats.totalMiles} />
-      )}
-
-      {/* Recaps */}
-      <View style={s.recapRow}>
-        <TouchableOpacity
-          style={s.recapBtn}
-          onPress={() => handleRecap("weekly")}
-          activeOpacity={0.7}
-        >
-          <Text style={s.recapBtnLabel}>This Week</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={s.recapBtn}
-          onPress={() => handleRecap("monthly")}
-          activeOpacity={0.7}
-        >
-          <Text style={s.recapBtnLabel}>This Month</Text>
-        </TouchableOpacity>
-      </View>
-
-      {/* Personal Records */}
-      {stats && stats.personalRecords.mostMilesInDay > 0 && (
-        <View style={s.section}>
-          <Text style={s.sectionTitle}>Personal Records</Text>
-          <View style={s.recordGrid}>
-            {[
-              { v: `${stats.personalRecords.mostMilesInDay.toFixed(1)} mi`, l: "Best day" },
-              { v: `${stats.personalRecords.mostTripsInShift}`, l: "Trips / shift" },
-              { v: `${stats.personalRecords.longestSingleTrip.toFixed(1)} mi`, l: "Longest trip" },
-              { v: `${stats.personalRecords.longestStreakDays}d`, l: "Best streak" },
-            ].map((r) => (
-              <View key={r.l} style={s.recordCell}>
-                <Text style={s.recordValue}>{r.v}</Text>
-                <Text style={s.recordLabel}>{r.l}</Text>
-              </View>
-            ))}
-          </View>
-        </View>
-      )}
-
-      {/* Vehicle Picker (work mode only) */}
-      {isWork && (
-        <TouchableOpacity
-          style={s.vehiclePicker}
-          onPress={handleSelectVehicle}
-          activeOpacity={0.7}
-        >
-          <View>
-            <Text style={s.vehiclePickerLabel}>Vehicle</Text>
-            <Text style={s.vehiclePickerVal}>
-              {selectedVehicle
-                ? `${selectedVehicle.make} ${selectedVehicle.model}`
-                : "None selected"}
-            </Text>
-          </View>
-          <Ionicons name="chevron-forward" size={20} color="#4a5568" />
-        </TouchableOpacity>
-      )}
-
-      {/* Start Shift (work mode only) */}
-      {isWork && (
-        <Button
-          variant="hero"
-          title="Start Shift"
-          icon="play"
-          onPress={handleStartShift}
-          loading={starting}
-          size="lg"
-        />
-      )}
 
       <View style={{ height: 24 }} />
 
@@ -890,21 +790,61 @@ const s = StyleSheet.create({
     marginHorizontal: 10,
   },
 
-  // Start Trip button
-  startTripBtn: {
+  // Hero top row with inline streak
+  heroTopRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  streakBadgeInline: {
+    backgroundColor: "rgba(245, 166, 35, 0.15)",
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+  },
+  streakNumInline: {
+    fontSize: 12,
+    fontFamily: "PlusJakartaSans_700Bold",
+    color: AMBER,
+  },
+
+  // CTA row — Start Trip + Vehicle picker side by side
+  ctaRow: {
+    flexDirection: "row",
+    gap: 10,
+    marginBottom: 10,
+  },
+  ctaPrimary: {
+    flex: 1,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    gap: 8,
-    backgroundColor: "#f5a623",
+    gap: 6,
+    backgroundColor: AMBER,
     borderRadius: 14,
     paddingVertical: 14,
-    marginBottom: 12,
   },
-  startTripBtnText: {
-    fontSize: 16,
+  ctaPrimaryText: {
+    fontSize: 15,
     fontFamily: "PlusJakartaSans_700Bold",
     color: "#030712",
+  },
+  ctaSecondary: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: CARD_BG,
+    borderRadius: 14,
+    paddingHorizontal: 14,
+    paddingVertical: 14,
+    borderWidth: 1,
+    borderColor: CARD_BORDER,
+  },
+  ctaSecondaryText: {
+    fontSize: 13,
+    fontFamily: "PlusJakartaSans_500Medium",
+    color: TEXT_2,
+    maxWidth: 90,
   },
 
   // Quick actions
