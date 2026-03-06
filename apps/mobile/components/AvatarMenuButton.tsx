@@ -78,21 +78,38 @@ export default function AvatarMenuButton() {
     .filter((key) => key !== "menu_logout" && MENU_ITEM_MAP[key])
     .map((key) => ({ ...MENU_ITEM_MAP[key], key }));
 
+  const displayName = user?.displayName || user?.email?.split("@")[0] || "";
+  const shortName = displayName.length > 10
+    ? displayName.slice(0, 10)
+    : displayName;
+
   return (
     <>
-      <Pressable
-        onPress={() => setMenuVisible(true)}
-        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-        style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1, marginRight: 8 })}
-      >
-        {user?.avatarId ? (
-          <AvatarIcon avatarId={user.avatarId} size={32} />
-        ) : (
-          <View style={styles.avatar}>
-            <Text style={styles.initial}>{initial}</Text>
-          </View>
-        )}
-      </Pressable>
+      <View style={styles.headerRow}>
+        {/* Username — taps to profile */}
+        <Pressable
+          onPress={() => router.push("/(tabs)/profile" as any)}
+          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1 })}
+        >
+          <Text style={styles.headerName} numberOfLines={1}>{shortName}</Text>
+        </Pressable>
+
+        {/* Avatar — taps to open menu */}
+        <Pressable
+          onPress={() => setMenuVisible(true)}
+          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1 })}
+        >
+          {user?.avatarId ? (
+            <AvatarIcon avatarId={user.avatarId} size={32} />
+          ) : (
+            <View style={styles.avatar}>
+              <Text style={styles.initial}>{initial}</Text>
+            </View>
+          )}
+        </Pressable>
+      </View>
 
       {menuVisible && (
         <Modal
@@ -201,6 +218,18 @@ export default function AvatarMenuButton() {
 }
 
 const styles = StyleSheet.create({
+  headerRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginRight: 8,
+  },
+  headerName: {
+    fontSize: 13,
+    fontFamily: "PlusJakartaSans_600SemiBold",
+    color: TEXT_2,
+    maxWidth: 100,
+  },
   avatar: {
     width: 32,
     height: 32,
