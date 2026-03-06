@@ -91,7 +91,8 @@
         }
       ],
       "@react-native-community/datetimepicker",
-      "react-native-iap"
+      "react-native-iap",
+      "./plugins/with-live-activities/index"
     ],
     "extra": {
       "router": {},

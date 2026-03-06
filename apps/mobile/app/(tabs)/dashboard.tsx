@@ -51,6 +51,7 @@ import { LiveMapTracker, type TripTapInfo } from "../../components/map/LiveMapTr
 import { useUser } from "../../lib/user/context";
 import { useRecentTripsWithCoords } from "../../hooks/useRecentTripsWithCoords";
 import { Ionicons } from "@expo/vector-icons";
+import { startLiveActivity, updateLiveActivity, endLiveActivity } from "../../lib/liveActivity";
 
 function formatElapsed(seconds: number): string {
   const h = Math.floor(seconds / 3600);
@@ -177,9 +178,17 @@ export default function DashboardScreen() {
 
   useEffect(() => {
     if (activeShift) {
+      let tick = 0;
       const updateElapsed = () => {
         const start = new Date(activeShift.startedAt).getTime();
-        setElapsed(Math.floor((Date.now() - start) / 1000));
+        const secs = Math.floor((Date.now() - start) / 1000);
+        setElapsed(secs);
+        // Update Dynamic Island every 5 seconds
+        tick++;
+        if (tick % 5 === 0) {
+          const todayMi = stats?.todayMiles ?? 0;
+          updateLiveActivity({ elapsedSeconds: secs, distanceMiles: todayMi, speedMph: 0, tripCount: 0 });
+        }
       };
       updateElapsed();
       timerRef.current = setInterval(updateElapsed, 1000);
@@ -190,7 +199,7 @@ export default function DashboardScreen() {
       setElapsed(0);
       if (timerRef.current) clearInterval(timerRef.current);
     }
-  }, [activeShift]);
+  }, [activeShift, stats]);
 
   const handleStartShift = useCallback(async () => {
     setStarting(true);
@@ -199,6 +208,10 @@ export default function DashboardScreen() {
         selectedVehicleId ? { vehicleId: selectedVehicleId } : undefined
       );
       setActiveShift(res.data);
+
+      // Start Live Activity (Dynamic Island)
+      const vehicleName = selectedVehicle ? `${selectedVehicle.make} ${selectedVehicle.model}` : "";
+      startLiveActivity({ activityType: "shift", vehicleName, isBusinessMode: isWork });
 
       // Start GPS tracking
       const hasPermission = await requestLocationPermissions();
@@ -231,8 +244,9 @@ export default function DashboardScreen() {
         onPress: async () => {
           setEnding(true);
           try {
-            // 1. Stop GPS tracking
+            // 1. Stop GPS tracking + Live Activity
             await stopShiftTracking();
+            endLiveActivity();
 
             // 2. Process GPS coordinates into trips (before ending shift so scorecard counts them)
             await processShiftTrips(

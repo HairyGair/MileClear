@@ -38,6 +38,7 @@ import { useUser } from "../lib/user/context";
 import { fetchBusinessInsights } from "../lib/api/businessInsights";
 import { detectAnomalies, type TripAnomalyDef } from "@mileclear/shared";
 import type { CommunityInsights } from "@mileclear/shared";
+import { startLiveActivity, updateLiveActivity, endLiveActivity } from "../lib/liveActivity";
 import { fetchCommunityInsights } from "../lib/api/communityInsights";
 
 // Enable LayoutAnimation on Android
@@ -574,7 +575,12 @@ export default function TripFormScreen() {
 
             // Update live distance state every 3rd point to avoid excessive rerenders
             if (breadcrumbCountRef.current % 3 === 0 || crumbs.length <= 2) {
-              setLiveDistance(Math.round(runningDistanceRef.current * 100) / 100);
+              const dist = Math.round(runningDistanceRef.current * 100) / 100;
+              setLiveDistance(dist);
+
+              // Update Dynamic Island
+              const elapsedSecs = startedAt ? Math.floor((Date.now() - startedAt.getTime()) / 1000) : 0;
+              updateLiveActivity({ elapsedSeconds: elapsedSecs, distanceMiles: dist, speedMph: mph });
             }
 
             // Build speed-coloured trail point
@@ -667,6 +673,9 @@ export default function TripFormScreen() {
 
       // Start background location tracking so GPS continues when app is backgrounded
       startQuickTripTracking().catch(() => {});
+
+      // Start Dynamic Island live activity
+      startLiveActivity({ activityType: "trip", isBusinessMode: isWork });
     } catch {
       Alert.alert("Error", "Failed to get location.");
     } finally {
@@ -758,6 +767,9 @@ export default function TripFormScreen() {
       if (Haptics) {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
       }
+
+      // End Dynamic Island live activity
+      endLiveActivity();
 
       LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
       setMode("arrived");
