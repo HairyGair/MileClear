@@ -44,6 +44,7 @@ import { formatPence, formatMiles } from "@mileclear/shared";
 import { useMode } from "../../lib/mode/context";
 import { ModeToggle } from "../../components/ModeToggle";
 import { PersonalDashboard } from "../../components/personal/PersonalDashboard";
+import { MilestoneTracker } from "../../components/personal/MilestoneTracker";
 import { LiveMapTracker } from "../../components/map/LiveMapTracker";
 import { useUser } from "../../lib/user/context";
 import { Ionicons } from "@expo/vector-icons";
@@ -491,8 +492,8 @@ export default function DashboardScreen() {
       {/* Mode Toggle */}
       <ModeToggle />
 
-      {/* Streak indicator */}
-      {stats && stats.currentStreakDays > 0 && (
+      {/* Streak indicator (work mode only — personal mode has it in hero card) */}
+      {isWork && stats && stats.currentStreakDays > 0 && (
         <View style={s.streakRow}>
           <View style={s.streakBadge}>
             <Text style={s.streakNum}>{stats.currentStreakDays}</Text>
@@ -520,25 +521,25 @@ export default function DashboardScreen() {
         </View>
       )}
 
-      {/* Quick Actions */}
-      <View style={s.quickActions}>
-        <TouchableOpacity
-          style={s.quickAction}
-          onPress={() => router.push("/trip-form")}
-          activeOpacity={0.7}
-        >
-          <Ionicons name="navigate-outline" size={22} color="#f5a623" style={{ marginBottom: 4 }} />
-          <Text style={s.quickActionLabel}>Quick Trip</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={s.quickAction}
-          onPress={() => router.replace("/(tabs)/trips" as any)}
-          activeOpacity={0.7}
-        >
-          <Ionicons name="list-outline" size={22} color="#f5a623" style={{ marginBottom: 4 }} />
-          <Text style={s.quickActionLabel}>All Trips</Text>
-        </TouchableOpacity>
-        {isWork ? (
+      {/* Quick Actions (work mode only — personal mode navigates via avatar menu) */}
+      {isWork && (
+        <View style={s.quickActions}>
+          <TouchableOpacity
+            style={s.quickAction}
+            onPress={() => router.push("/trip-form")}
+            activeOpacity={0.7}
+          >
+            <Ionicons name="navigate-outline" size={22} color="#f5a623" style={{ marginBottom: 4 }} />
+            <Text style={s.quickActionLabel}>Quick Trip</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={s.quickAction}
+            onPress={() => router.replace("/(tabs)/trips" as any)}
+            activeOpacity={0.7}
+          >
+            <Ionicons name="list-outline" size={22} color="#f5a623" style={{ marginBottom: 4 }} />
+            <Text style={s.quickActionLabel}>All Trips</Text>
+          </TouchableOpacity>
           <TouchableOpacity
             style={s.quickAction}
             onPress={() => router.push("/exports")}
@@ -547,48 +548,41 @@ export default function DashboardScreen() {
             <Ionicons name="download-outline" size={22} color="#f5a623" style={{ marginBottom: 4 }} />
             <Text style={s.quickActionLabel}>Exports</Text>
           </TouchableOpacity>
-        ) : (
           <TouchableOpacity
             style={s.quickAction}
-            onPress={() => router.replace("/(tabs)/fuel" as any)}
+            onPress={() => router.push("/achievements")}
             activeOpacity={0.7}
           >
-            <Ionicons name="water-outline" size={22} color="#f5a623" style={{ marginBottom: 4 }} />
-            <Text style={s.quickActionLabel}>Fuel</Text>
+            <Ionicons name="trophy-outline" size={22} color="#f5a623" style={{ marginBottom: 4 }} />
+            <Text style={s.quickActionLabel}>Badges</Text>
           </TouchableOpacity>
-        )}
-        <TouchableOpacity
-          style={s.quickAction}
-          onPress={() => router.push("/achievements")}
-          activeOpacity={0.7}
-        >
-          <Ionicons name="trophy-outline" size={22} color="#f5a623" style={{ marginBottom: 4 }} />
-          <Text style={s.quickActionLabel}>Badges</Text>
-        </TouchableOpacity>
-      </View>
+        </View>
+      )}
 
-      {/* Quick Stats */}
-      <View style={s.statsRow}>
-        <View style={s.statCard}>
-          <Text style={s.statNum}>
-            {stats ? formatMilesShort(stats.todayMiles) : "0"}
-          </Text>
-          <Text style={s.statUnit}>mi today</Text>
+      {/* Quick Stats (work mode only — personal mode has these in hero card) */}
+      {isWork && (
+        <View style={s.statsRow}>
+          <View style={s.statCard}>
+            <Text style={s.statNum}>
+              {stats ? formatMilesShort(stats.todayMiles) : "0"}
+            </Text>
+            <Text style={s.statUnit}>mi today</Text>
+          </View>
+          <View style={s.statCard}>
+            <Text style={s.statNum}>
+              {stats ? formatMilesShort(stats.weekMiles) : "0"}
+            </Text>
+            <Text style={s.statUnit}>mi this week</Text>
+          </View>
+          <View style={s.statCard}>
+            <Text style={s.statNum}>{stats?.totalTrips ?? 0}</Text>
+            <Text style={s.statUnit}>trips</Text>
+          </View>
         </View>
-        <View style={s.statCard}>
-          <Text style={s.statNum}>
-            {stats ? formatMilesShort(stats.weekMiles) : "0"}
-          </Text>
-          <Text style={s.statUnit}>mi this week</Text>
-        </View>
-        <View style={s.statCard}>
-          <Text style={s.statNum}>{stats?.totalTrips ?? 0}</Text>
-          <Text style={s.statUnit}>trips</Text>
-        </View>
-      </View>
+      )}
 
       {/* Personal Dashboard (personal mode only) */}
-      {isPersonal && <PersonalDashboard avatarId={currentUser?.avatarId} />}
+      {isPersonal && <PersonalDashboard avatarId={currentUser?.avatarId} stats={stats} />}
 
       {/* Achievements */}
       {achievements.length > 0 && (
@@ -612,6 +606,11 @@ export default function DashboardScreen() {
             ))}
           </ScrollView>
         </View>
+      )}
+
+      {/* Milestone progress (personal mode — sits with achievements) */}
+      {isPersonal && stats && (
+        <MilestoneTracker totalMiles={stats.totalMiles} />
       )}
 
       {/* Recaps */}

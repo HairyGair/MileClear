@@ -4,6 +4,7 @@ import { authMiddleware } from "../../middleware/auth.js";
 import { prisma } from "../../lib/prisma.js";
 import {
   TRIP_CLASSIFICATIONS,
+  TRIP_CATEGORIES,
   PLATFORM_TAGS,
   DEFAULT_PAGE_SIZE,
   MAX_PAGE_SIZE,
@@ -79,6 +80,7 @@ const createTripSchema = z.object({
   classification: z.enum(TRIP_CLASSIFICATIONS).default("business"),
   platformTag: z.enum(PLATFORM_TAGS).optional(),
   notes: z.string().max(2000).optional(),
+  category: z.enum(TRIP_CATEGORIES).nullable().optional(),
   coordinates: z.array(coordinateInputSchema).max(5000).optional(),
 });
 
@@ -86,6 +88,7 @@ const updateTripSchema = z.object({
   classification: z.enum(TRIP_CLASSIFICATIONS).optional(),
   platformTag: z.enum(PLATFORM_TAGS).nullable().optional(),
   notes: z.string().max(2000).nullable().optional(),
+  category: z.enum(TRIP_CATEGORIES).nullable().optional(),
   endAddress: z.string().max(500).nullable().optional(),
   endLat: z.number().min(-90).max(90).nullable().optional(),
   endLng: z.number().min(-180).max(180).nullable().optional(),
@@ -184,6 +187,7 @@ export async function tripRoutes(app: FastifyInstance) {
       isManualEntry: !hasCoordinates,
       classification: tripData.classification,
       platformTag: tripData.platformTag ?? null,
+      category: tripData.category ?? null,
       notes: tripData.notes ?? null,
     };
 

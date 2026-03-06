@@ -151,6 +151,8 @@ export function computeTripInsights(
   let timeStoppedSecs = 0;
   let currentStretchMiles = 0;
   let longestNonStopMiles = 0;
+  let numberOfStops = 0;
+  let wasMoving = false;
 
   for (let i = 1; i < coords.length; i++) {
     const prev = coords[i - 1];
@@ -173,12 +175,15 @@ export function computeTripInsights(
 
     if (isStopped) {
       timeStoppedSecs += dt;
+      if (wasMoving) numberOfStops++;
+      wasMoving = false;
       if (currentStretchMiles > longestNonStopMiles) {
         longestNonStopMiles = currentStretchMiles;
       }
       currentStretchMiles = 0;
     } else {
       timeMovingSecs += dt;
+      wasMoving = true;
       currentStretchMiles += haversineDistance(prev.lat, prev.lng, curr.lat, curr.lng);
     }
   }
@@ -197,19 +202,27 @@ export function computeTripInsights(
 
   const topMph = Math.round(topSpeedMph);
   let speedFunFact: string | null = null;
-  if (topMph >= 70) speedFunFact = "You hit motorway speed!";
-  else if (topMph >= 60) speedFunFact = "Dual carriageway pace";
-  else if (topMph >= 40) speedFunFact = "Faster than Usain Bolt (27 mph)";
-  else if (topMph >= 30) speedFunFact = "Town speed — nice and steady";
-  else if (topMph >= 15) speedFunFact = "Faster than a London cyclist";
+  if (topMph >= 70) speedFunFact = "Motorway speed reached — 70 mph zone";
+  else if (topMph >= 60) speedFunFact = "Dual carriageway pace — 60 mph zone";
+  else if (topMph >= 40) speedFunFact = "Faster than Usain Bolt's 27 mph world record";
+  else if (topMph >= 30) speedFunFact = "Town driving — nice and steady";
+  else if (topMph >= 15) speedFunFact = "Quicker than a London cyclist";
 
   let distanceFunFact: string | null = null;
-  if (distanceMiles >= 100) distanceFunFact = "That's London to Birmingham!";
+  if (distanceMiles >= 100) distanceFunFact = "That's like London to Birmingham";
   else if (distanceMiles >= 60) distanceFunFact = "That's London to Brighton and back";
-  else if (distanceMiles >= 30) distanceFunFact = "That's London to Brighton";
-  else if (distanceMiles >= 10) distanceFunFact = `That's about ${Math.round(distanceMiles * 20)} football pitches`;
-  else if (distanceMiles >= 5) distanceFunFact = "That's roughly a parkrun distance";
-  else if (distanceMiles >= 1) distanceFunFact = `That's about ${Math.round(distanceMiles * 20)} laps of a track`;
+  else if (distanceMiles >= 30) distanceFunFact = "About the same as London to Brighton";
+  else if (distanceMiles >= 10) distanceFunFact = `That's about ${Math.round(distanceMiles * 100)} football pitches end-to-end`;
+  else if (distanceMiles >= 5) distanceFunFact = "About a parkrun distance by road";
+  else if (distanceMiles >= 1) distanceFunFact = `About ${Math.round(distanceMiles * 20)} laps of a running track`;
+
+  const re = Math.round(routeEfficiency * 10) / 10;
+  let routeDirectnessNote: string | null = null;
+  if (re <= 1.3) routeDirectnessNote = "Nearly a straight line — very direct route";
+  else if (re <= 2.0) routeDirectnessNote = "Pretty direct — minimal detours";
+  else if (re <= 3.5) routeDirectnessNote = "A few twists and turns along the way";
+  else if (re <= 6.0) routeDirectnessNote = "Winding route — lots of turns";
+  else routeDirectnessNote = "Multi-stop route — you covered a lot of ground";
 
   return {
     topSpeedMph: topMph,
@@ -217,10 +230,12 @@ export function computeTripInsights(
     avgMovingSpeedMph: Math.round(avgMovingSpeedMph),
     timeMovingSecs: Math.round(timeMovingSecs),
     timeStoppedSecs: Math.round(timeStoppedSecs),
-    routeEfficiency: Math.round(routeEfficiency * 10) / 10,
+    routeEfficiency: re,
     longestNonStopMiles: Math.round(longestNonStopMiles * 10) / 10,
+    numberOfStops,
     coordCount: coords.length,
     speedFunFact,
     distanceFunFact,
+    routeDirectnessNote,
   };
 }

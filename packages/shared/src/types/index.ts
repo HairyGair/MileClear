@@ -5,6 +5,8 @@ export interface User {
   displayName: string | null;
   fullName: string | null;
   avatarId: string | null;
+  userIntent: "work" | "personal" | "both" | null;
+  dashboardMode: "both" | "work" | "personal";
   emailVerified: boolean;
   isPremium: boolean;
   isAdmin: boolean;
@@ -57,6 +59,17 @@ export interface Shift {
 
 // Trip types
 export type TripClassification = "business" | "personal";
+export type TripCategory =
+  | "commute"
+  | "school_run"
+  | "road_trip"
+  | "shopping"
+  | "social"
+  | "errands"
+  | "leisure"
+  | "medical"
+  | "airport"
+  | "other";
 export type PlatformTag =
   | "uber"
   | "deliveroo"
@@ -86,6 +99,7 @@ export interface Trip {
   isManualEntry: boolean;
   classification: TripClassification;
   platformTag: PlatformTag | null;
+  category: TripCategory | null;
   notes: string | null;
   syncedAt: string | null;
 }
@@ -108,9 +122,11 @@ export interface TripInsights {
   timeStoppedSecs: number;
   routeEfficiency: number;
   longestNonStopMiles: number;
+  numberOfStops: number;
   coordCount: number;
   speedFunFact: string | null;
   distanceFunFact: string | null;
+  routeDirectnessNote: string | null;
 }
 
 // Fuel types

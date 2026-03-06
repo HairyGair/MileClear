@@ -26,6 +26,8 @@ model User {
   termsAcceptedAt      DateTime?
   pushToken            String?   @db.VarChar(255)
   avatarId             String?   @db.VarChar(50)
+  userIntent           String?   @db.VarChar(20)
+  dashboardMode        String    @default("both") @db.VarChar(20)
   createdAt            DateTime  @default(now())
   updatedAt            DateTime  @updatedAt
 
@@ -115,6 +117,7 @@ model Trip {
   isManualEntry  Boolean   @default(false)
   classification String    @default("business")
   platformTag    String?
+  category       String?
   notes          String?   @db.Text
   routePolyline  String?   @db.LongText
   createdAt      DateTime  @default(now())

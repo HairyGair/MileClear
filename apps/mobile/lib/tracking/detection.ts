@@ -17,6 +17,58 @@ export interface BufferedCoordinate {
   recorded_at: string;
 }
 
+function haversineMeters(lat1: number, lng1: number, lat2: number, lng2: number): number {
+  const R = 6371000; // Earth radius in meters
+  const dLat = ((lat2 - lat1) * Math.PI) / 180;
+  const dLng = ((lng2 - lng1) * Math.PI) / 180;
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos((lat1 * Math.PI) / 180) *
+      Math.cos((lat2 * Math.PI) / 180) *
+      Math.sin(dLng / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+/**
+ * Determine if any locations indicate driving speed.
+ * First checks the system-provided speed, then falls back to estimating
+ * speed from position changes (needed when iOS returns null speed at
+ * lower accuracy levels).
+ */
+function detectDrivingSpeed(locations: Location.LocationObject[]): boolean {
+  // Check system-provided speed first
+  const hasReportedSpeed = locations.some(
+    (loc) => loc.coords.speed != null && loc.coords.speed >= SPEED_THRESHOLD_MS
+  );
+  if (hasReportedSpeed) return true;
+
+  // Fallback: estimate speed from consecutive position changes
+  if (locations.length >= 2) {
+    for (let i = 1; i < locations.length; i++) {
+      const prev = locations[i - 1];
+      const curr = locations[i];
+      const dtSec = (curr.timestamp - prev.timestamp) / 1000;
+      if (dtSec > 0) {
+        const distM = haversineMeters(
+          prev.coords.latitude, prev.coords.longitude,
+          curr.coords.latitude, curr.coords.longitude
+        );
+        if (distM / dtSec >= SPEED_THRESHOLD_MS) return true;
+      }
+    }
+  }
+
+  // Single-location fallback: compare against last saved detection coordinate
+  // (handles case where iOS only delivers one location per batch)
+  if (locations.length === 1) {
+    const loc = locations[0];
+    // We'll compare against stored state in the task below
+    return false; // Handled separately in the task
+  }
+
+  return false;
+}
+
 // TaskManager task must be defined at module top level — wrap in try-catch
 // so a native module failure doesn't crash the entire JS bundle on startup
 try {
@@ -28,11 +80,12 @@ try {
     if (!data) return;
 
     const { locations } = data as { locations: Location.LocationObject[] };
+    if (!locations || locations.length === 0) return;
 
     try {
       const db = await getDatabase();
 
-      // Guard: don't buffer if a shift is active
+      // Guard: don't buffer if a shift/quick-trip is active
       const activeShift = await db.getFirstAsync<{ value: string }>(
         "SELECT value FROM tracking_state WHERE key = 'active_shift_id'"
       );
@@ -45,27 +98,42 @@ try {
         [cutoff]
       );
 
-      // Check if any location exceeds driving speed
-      const isDriving = locations.some(
-        (loc) => loc.coords.speed != null && loc.coords.speed >= SPEED_THRESHOLD_MS
-      );
+      // Check if locations indicate driving speed
+      let isDriving = detectDrivingSpeed(locations);
+
+      // Single-location batch: compare against the most recent buffered coordinate
+      if (!isDriving && locations.length === 1) {
+        const loc = locations[0];
+        const lastCoord = await db.getFirstAsync<{ lat: number; lng: number; recorded_at: string }>(
+          "SELECT lat, lng, recorded_at FROM detection_coordinates ORDER BY recorded_at DESC LIMIT 1"
+        );
+        if (lastCoord) {
+          const dtSec = (loc.timestamp - new Date(lastCoord.recorded_at).getTime()) / 1000;
+          if (dtSec > 0 && dtSec < 120) { // Only compare within 2 minutes
+            const distM = haversineMeters(
+              lastCoord.lat, lastCoord.lng,
+              loc.coords.latitude, loc.coords.longitude
+            );
+            isDriving = distM / dtSec >= SPEED_THRESHOLD_MS;
+          }
+        }
+      }
+
       if (!isDriving) return;
 
       // Buffer driving coordinates
       for (const loc of locations) {
-        if (loc.coords.speed != null && loc.coords.speed >= SPEED_THRESHOLD_MS) {
-          await db.runAsync(
-            `INSERT INTO detection_coordinates (lat, lng, speed, accuracy, recorded_at)
-             VALUES (?, ?, ?, ?, ?)`,
-            [
-              loc.coords.latitude,
-              loc.coords.longitude,
-              loc.coords.speed,
-              loc.coords.accuracy,
-              new Date(loc.timestamp).toISOString(),
-            ]
-          );
-        }
+        await db.runAsync(
+          `INSERT INTO detection_coordinates (lat, lng, speed, accuracy, recorded_at)
+           VALUES (?, ?, ?, ?, ?)`,
+          [
+            loc.coords.latitude,
+            loc.coords.longitude,
+            loc.coords.speed ?? null,
+            loc.coords.accuracy ?? null,
+            new Date(loc.timestamp).toISOString(),
+          ]
+        );
       }
 
       // Cooldown: don't spam notifications
@@ -112,10 +180,15 @@ export async function startDriveDetection(): Promise<void> {
   if (isRunning) return;
 
   await Location.startLocationUpdatesAsync(DETECTION_TASK_NAME, {
-    accuracy: Location.Accuracy.Balanced,
-    distanceInterval: 200,
-    deferredUpdatesInterval: 30000,
+    // Use High accuracy so iOS provides GPS-based speed data.
+    // Battery impact is minimal since distanceInterval limits how often
+    // the GPS activates — iOS uses cell/wifi for coarse movement detection
+    // and only fires up GPS when the distance threshold is met.
+    accuracy: Location.Accuracy.High,
+    distanceInterval: 100,
+    deferredUpdatesInterval: 15000,
     activityType: Location.ActivityType.AutomotiveNavigation,
+    pausesUpdatesAutomatically: false,
     showsBackgroundLocationIndicator: false,
     foregroundService: {
       notificationTitle: "MileClear",

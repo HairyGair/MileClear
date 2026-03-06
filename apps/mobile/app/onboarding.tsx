@@ -18,7 +18,9 @@ import { Ionicons } from "@expo/vector-icons";
 import * as Location from "expo-location";
 import { Button } from "../components/Button";
 import { createVehicle } from "../lib/api/vehicles";
+import { updateProfile } from "../lib/api/user";
 import { getDatabase } from "../lib/db/index";
+import { useMode } from "../lib/mode/context";
 import type { FuelType, VehicleType } from "@mileclear/shared";
 import { FUEL_TYPES, VEHICLE_TYPES } from "@mileclear/shared";
 
@@ -37,7 +39,7 @@ const INPUT_FOCUSED_BORDER = "rgba(245, 166, 35, 0.35)";
 const ERROR_BG = "rgba(220, 38, 38, 0.1)";
 const ERROR_BORDER = "rgba(220, 38, 38, 0.2)";
 
-const TOTAL_STEPS = 4;
+const TOTAL_STEPS = 5;
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
 // Human-readable labels mirroring those in profile.tsx
@@ -98,6 +100,10 @@ export default function OnboardingScreen() {
   const [vehicleError, setVehicleError] = useState("");
   const [addingVehicle, setAddingVehicle] = useState(false);
   const [focusedField, setFocusedField] = useState<string | null>(null);
+
+  // User intent
+  const [userIntent, setUserIntent] = useState<"work" | "personal" | "both" | null>(null);
+  const { setMode: setAppMode } = useMode();
 
   // Location state
   const [locationStatus, setLocationStatus] = useState<
@@ -196,6 +202,19 @@ export default function OnboardingScreen() {
       await db.runAsync(
         "INSERT OR REPLACE INTO tracking_state (key, value) VALUES ('onboarding_complete', 'true')"
       );
+
+      // Set default mode based on user intent
+      if (userIntent === "personal") {
+        setAppMode("personal");
+      } else {
+        setAppMode("work");
+      }
+
+      // Save intent to server (fire-and-forget)
+      if (userIntent) {
+        updateProfile({ userIntent }).catch(() => {});
+      }
+
       router.replace("/(tabs)/dashboard");
     } catch {
       Alert.alert(
@@ -206,7 +225,7 @@ export default function OnboardingScreen() {
     } finally {
       setFinishingSetup(false);
     }
-  }, [router]);
+  }, [router, userIntent, setAppMode]);
 
   // ── Input style helper ─────────────────────────────────────────────────────
 
@@ -268,14 +287,14 @@ export default function OnboardingScreen() {
 
             <Text style={s.welcomeHeading}>Welcome to MileClear</Text>
             <Text style={s.welcomeSubtitle}>
-              Track your mileage, save on tax.
+              Your friendly mileage tracking buddy.
             </Text>
 
             <View style={s.welcomeFeatureList}>
               {[
                 "Automatic GPS trip tracking",
-                "HMRC deductions calculated for you",
-                "Built for UK gig workers",
+                "HMRC tax deductions for work drivers",
+                "Personal mileage journal and goals",
               ].map((item) => (
                 <View key={item} style={s.welcomeFeatureRow}>
                   <Ionicons name="checkmark-circle" size={18} color="#10b981" />
@@ -294,7 +313,76 @@ export default function OnboardingScreen() {
           </ScrollView>
         </View>
 
-        {/* ── Step 2: Add Vehicle ──────────────────────────────────── */}
+        {/* ── Step 2: How Will You Use MileClear? ────────────────────── */}
+        <View style={[s.stepPage, { width: SCREEN_WIDTH }]}>
+          <ScrollView
+            contentContainerStyle={s.stepContent}
+            keyboardShouldPersistTaps="handled"
+          >
+            <View style={s.stepIconWrap}>
+              <Ionicons name="compass-outline" size={32} color={AMBER} />
+            </View>
+
+            <Text style={s.stepHeading}>How will you use MileClear?</Text>
+            <Text style={s.stepSubtitle}>
+              This helps us tailor your experience. You can always switch later.
+            </Text>
+
+            <View style={s.intentCards}>
+              <TouchableOpacity
+                style={[s.intentCard, userIntent === "work" && s.intentCardActive]}
+                onPress={() => setUserIntent("work")}
+                activeOpacity={0.75}
+              >
+                <View style={[s.intentIconWrap, userIntent === "work" && s.intentIconWrapActive]}>
+                  <Ionicons name="briefcase-outline" size={24} color={userIntent === "work" ? AMBER : TEXT_2} />
+                </View>
+                <Text style={[s.intentTitle, userIntent === "work" && s.intentTitleActive]}>Work</Text>
+                <Text style={s.intentDesc}>
+                  Track mileage for tax deductions, manage shifts, and log earnings
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[s.intentCard, userIntent === "personal" && s.intentCardActive]}
+                onPress={() => setUserIntent("personal")}
+                activeOpacity={0.75}
+              >
+                <View style={[s.intentIconWrap, userIntent === "personal" && s.intentIconWrapActive]}>
+                  <Ionicons name="car-outline" size={24} color={userIntent === "personal" ? AMBER : TEXT_2} />
+                </View>
+                <Text style={[s.intentTitle, userIntent === "personal" && s.intentTitleActive]}>Personal</Text>
+                <Text style={s.intentDesc}>
+                  Track your journeys, set driving goals, and keep a mileage journal
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[s.intentCard, userIntent === "both" && s.intentCardActive]}
+                onPress={() => setUserIntent("both")}
+                activeOpacity={0.75}
+              >
+                <View style={[s.intentIconWrap, userIntent === "both" && s.intentIconWrapActive]}>
+                  <Ionicons name="swap-horizontal-outline" size={24} color={userIntent === "both" ? AMBER : TEXT_2} />
+                </View>
+                <Text style={[s.intentTitle, userIntent === "both" && s.intentTitleActive]}>Both</Text>
+                <Text style={s.intentDesc}>
+                  Switch between work and personal modes whenever you need
+                </Text>
+              </TouchableOpacity>
+            </View>
+
+            <Button
+              title="Continue"
+              icon="arrow-forward"
+              size="lg"
+              onPress={goNext}
+              disabled={!userIntent}
+            />
+          </ScrollView>
+        </View>
+
+        {/* ── Step 3: Add Vehicle ──────────────────────────────────── */}
         <View style={[s.stepPage, { width: SCREEN_WIDTH }]}>
           <ScrollView
             contentContainerStyle={s.stepContent}
@@ -791,6 +879,56 @@ const s = StyleSheet.create({
   buttonStack: {
     gap: 10,
     marginTop: 8,
+  },
+
+  // ── Intent step ──────────────────────────────────────────────
+  intentCards: {
+    gap: 12,
+    marginBottom: 32,
+  },
+  intentCard: {
+    backgroundColor: CARD_BG,
+    borderRadius: 14,
+    borderWidth: 1.5,
+    borderColor: CARD_BORDER,
+    padding: 18,
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 14,
+  },
+  intentCardActive: {
+    borderColor: "rgba(245, 166, 35, 0.5)",
+    backgroundColor: "rgba(245, 166, 35, 0.04)",
+  },
+  intentIconWrap: {
+    width: 44,
+    height: 44,
+    borderRadius: 14,
+    backgroundColor: "rgba(255,255,255,0.03)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.06)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  intentIconWrapActive: {
+    backgroundColor: "rgba(245, 166, 35, 0.1)",
+    borderColor: "rgba(245, 166, 35, 0.25)",
+  },
+  intentTitle: {
+    fontSize: 16,
+    fontFamily: "PlusJakartaSans_600SemiBold",
+    color: TEXT_2,
+    marginBottom: 3,
+  },
+  intentTitleActive: {
+    color: AMBER,
+  },
+  intentDesc: {
+    fontSize: 13,
+    fontFamily: "PlusJakartaSans_400Regular",
+    color: TEXT_3,
+    lineHeight: 19,
+    flex: 1,
   },
 
   // ── How It Works step ──────────────────────────────────────────

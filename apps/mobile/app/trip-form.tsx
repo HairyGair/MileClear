@@ -25,9 +25,11 @@ import {
   syncDeleteTrip,
 } from "../lib/sync/actions";
 import { fetchVehicles } from "../lib/api/vehicles";
-import { GIG_PLATFORMS, haversineDistance, fetchRouteDistance } from "@mileclear/shared";
-import type { TripClassification, PlatformTag, Vehicle } from "@mileclear/shared";
+import { GIG_PLATFORMS, TRIP_CATEGORY_META, haversineDistance, fetchRouteDistance } from "@mileclear/shared";
+import type { TripClassification, TripCategory, PlatformTag, Vehicle } from "@mileclear/shared";
 import { getDatabase } from "../lib/db/index";
+import { startQuickTripTracking, stopQuickTripTracking, clearDetectionCooldown } from "../lib/tracking";
+import { setLastSavedTrip } from "../lib/events/lastTrip";
 import { LocationPickerField } from "../components/LocationPickerField";
 import { DateTimePickerField } from "../components/DateTimePickerField";
 import { Button } from "../components/Button";
@@ -77,28 +79,50 @@ interface TripInsights {
   timeStoppedSecs: number;
   routeEfficiency: number; // 1.0 = straight line, higher = more winding
   longestNonStopMiles: number;
+  numberOfStops: number;
   coordCount: number;
   speedFunFact?: string | null;
   distanceFunFact?: string | null;
 }
 
 function getSpeedFunFact(topMph: number): string | null {
-  if (topMph >= 70) return "You hit motorway speed!";
-  if (topMph >= 60) return "Dual carriageway pace";
-  if (topMph >= 40) return "Faster than Usain Bolt (27 mph)";
-  if (topMph >= 30) return "Town speed — nice and steady";
-  if (topMph >= 15) return "Faster than a London cyclist";
+  if (topMph >= 70) return "Motorway speed reached — 70 mph zone";
+  if (topMph >= 60) return "Dual carriageway pace — 60 mph zone";
+  if (topMph >= 40) return "Faster than Usain Bolt's 27 mph world record";
+  if (topMph >= 30) return "Town driving — nice and steady";
+  if (topMph >= 15) return "Quicker than a London cyclist";
   return null;
 }
 
 function getDistanceFunFact(miles: number): string | null {
-  if (miles >= 100) return "That's London to Birmingham!";
+  if (miles >= 100) return "That's like London to Birmingham";
   if (miles >= 60) return "That's London to Brighton and back";
-  if (miles >= 30) return "That's London to Brighton";
-  if (miles >= 10) return "That's about 528 football pitches";
-  if (miles >= 5) return "That's roughly a parkrun distance";
-  if (miles >= 1) return `That's about ${Math.round(miles * 20)} laps of a track`;
+  if (miles >= 30) return "About the same as London to Brighton";
+  if (miles >= 10) return `That's about ${Math.round(miles * 100)} football pitches end-to-end`;
+  if (miles >= 5) return "About a parkrun distance by road";
+  if (miles >= 1) return `About ${Math.round(miles * 20)} laps of a running track`;
   return null;
+}
+
+function getRouteDirectnessNote(efficiency: number): string | null {
+  if (efficiency <= 1.3) return "Nearly a straight line — very direct route";
+  if (efficiency <= 2.0) return "Pretty direct — minimal detours";
+  if (efficiency <= 3.5) return "A few twists and turns along the way";
+  if (efficiency <= 6.0) return "Winding route — lots of turns";
+  return "Multi-stop route — you covered a lot of ground";
+}
+
+function getTimeOfDayNote(startedAt: string | null): string | null {
+  if (!startedAt) return null;
+  const hour = new Date(startedAt).getHours();
+  if (hour >= 5 && hour < 7) return "Early bird — on the road before most";
+  if (hour >= 7 && hour < 9) return "Morning rush hour drive";
+  if (hour >= 9 && hour < 12) return "Mid-morning drive";
+  if (hour >= 12 && hour < 14) return "Lunchtime drive";
+  if (hour >= 14 && hour < 16) return "Afternoon drive";
+  if (hour >= 16 && hour < 19) return "Evening rush hour drive";
+  if (hour >= 19 && hour < 22) return "Evening drive";
+  return "Night owl — driving after hours";
 }
 
 function computeInsights(crumbs: Breadcrumb[], distMiles: number, durationSecs: number): TripInsights | null {
@@ -112,6 +136,8 @@ function computeInsights(crumbs: Breadcrumb[], distMiles: number, durationSecs: 
   let movingCount = 0;
   let timeMovingSecs = 0;
   let timeStoppedSecs = 0;
+  let numberOfStops = 0;
+  let wasMoving = false;
 
   // Longest non-stop stretch
   let currentStretchMiles = 0;
@@ -137,6 +163,8 @@ function computeInsights(crumbs: Breadcrumb[], distMiles: number, durationSecs: 
 
     if (isStopped) {
       timeStoppedSecs += dt;
+      if (wasMoving) numberOfStops++;
+      wasMoving = false;
       // End of non-stop stretch
       if (currentStretchMiles > longestNonStopMiles) {
         longestNonStopMiles = currentStretchMiles;
@@ -144,6 +172,7 @@ function computeInsights(crumbs: Breadcrumb[], distMiles: number, durationSecs: 
       currentStretchMiles = 0;
     } else {
       timeMovingSecs += dt;
+      wasMoving = true;
       // Calculate segment distance
       const segDist = haversineDistance(prev.lat, prev.lng, curr.lat, curr.lng);
       currentStretchMiles += segDist;
@@ -172,6 +201,7 @@ function computeInsights(crumbs: Breadcrumb[], distMiles: number, durationSecs: 
     timeStoppedSecs: Math.round(timeStoppedSecs),
     routeEfficiency: Math.round(routeEfficiency * 10) / 10,
     longestNonStopMiles: Math.round(longestNonStopMiles * 10) / 10,
+    numberOfStops,
     coordCount: crumbs.length,
   };
 }
@@ -205,6 +235,7 @@ export default function TripFormScreen() {
   const [distanceMiles, setDistanceMiles] = useState<number | null>(null);
   const [classification, setClassification] = useState<TripClassification>("business");
   const [platformTag, setPlatformTag] = useState<PlatformTag | undefined>(undefined);
+  const [category, setCategory] = useState<TripCategory | undefined>(undefined);
   const [vehicleId, setVehicleId] = useState<string | undefined>(undefined);
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [notes, setNotes] = useState("");
@@ -227,6 +258,7 @@ export default function TripFormScreen() {
 
   // Breadcrumb trail (collected during driving mode)
   const breadcrumbsRef = useRef<Breadcrumb[]>([]);
+  const [routeTrail, setRouteTrail] = useState<{ latitude: number; longitude: number }[]>([]);
   const [insights, setInsights] = useState<TripInsights | null>(null);
 
   // Pulsing dot animation
@@ -251,6 +283,8 @@ export default function TripFormScreen() {
           setStartAddress(saved.address);
           setStartedAt(new Date(saved.startedAt));
           setMode("driving");
+          // Re-start background tracking if it was killed
+          startQuickTripTracking().catch(() => {});
         } else {
           // Get current location for the ready state map
           const loc = await getCurrentLocation();
@@ -272,7 +306,7 @@ export default function TripFormScreen() {
   useEffect(() => {
     if (!id) return;
     const populateTrip = (t: {
-      classification: string; platformTag?: string | null; vehicleId?: string | null;
+      classification: string; platformTag?: string | null; category?: string | null; vehicleId?: string | null;
       startAddress?: string | null; endAddress?: string | null;
       startLat: number; startLng: number; endLat?: number | null; endLng?: number | null;
       distanceMiles: number; startedAt: string; endedAt?: string | null; notes?: string | null;
@@ -280,6 +314,7 @@ export default function TripFormScreen() {
     }) => {
       setClassification(t.classification as TripClassification);
       setPlatformTag((t.platformTag ?? undefined) as PlatformTag | undefined);
+      setCategory((t.category ?? undefined) as TripCategory | undefined);
       setVehicleId(t.vehicleId ?? undefined);
       setStartAddress(t.startAddress ?? null);
       setEndAddress(t.endAddress ?? null);
@@ -433,6 +468,9 @@ export default function TripFormScreen() {
         "INSERT OR REPLACE INTO tracking_state (key, value) VALUES (?, ?)",
         [QUICK_TRIP_KEY, JSON.stringify(tripStart)]
       );
+
+      // Start background location tracking so GPS continues when app is backgrounded
+      startQuickTripTracking().catch(() => {});
     } catch {
       Alert.alert("Error", "Failed to get location.");
     } finally {
@@ -455,8 +493,33 @@ export default function TripFormScreen() {
       const now = new Date();
       setEndedAt(now);
 
-      // Calculate distance from breadcrumb trail (more accurate than straight-line)
-      const crumbs = breadcrumbsRef.current;
+      // Stop background tracking and retrieve background GPS coordinates
+      const bgCoords = await stopQuickTripTracking().catch(() => []);
+
+      // Merge foreground breadcrumbs with background coordinates for a complete trail.
+      // Foreground gives high-res points while app is active (10m/3s intervals).
+      // Background fills gaps when app was backgrounded (50m intervals).
+      const fgCrumbs = breadcrumbsRef.current;
+      const bgCrumbs = bgCoords.map((c) => ({
+        lat: c.lat,
+        lng: c.lng,
+        speed: c.speed,
+        accuracy: c.accuracy,
+        recordedAt: c.recorded_at,
+      }));
+      const allPoints = [...fgCrumbs, ...bgCrumbs];
+      allPoints.sort((a, b) => new Date(a.recordedAt).getTime() - new Date(b.recordedAt).getTime());
+      // Deduplicate points within 2 seconds of each other
+      const crumbs: typeof allPoints = [];
+      for (const p of allPoints) {
+        const t = new Date(p.recordedAt).getTime();
+        if (crumbs.length === 0 || t - new Date(crumbs[crumbs.length - 1].recordedAt).getTime() > 2000) {
+          crumbs.push(p);
+        }
+      }
+      breadcrumbsRef.current = crumbs;
+
+      // Calculate distance from merged breadcrumb trail
       let trailDistance = 0;
       if (crumbs.length >= 2) {
         for (let i = 1; i < crumbs.length; i++) {
@@ -479,6 +542,11 @@ export default function TripFormScreen() {
       if (finalDistance != null) {
         const tripInsights = computeInsights(crumbs, finalDistance, durationSecs);
         setInsights(tripInsights);
+      }
+
+      // Snapshot merged trail for the arrived map polyline
+      if (crumbs.length >= 2) {
+        setRouteTrail(crumbs.map((c) => ({ latitude: c.lat, longitude: c.lng })));
       }
 
       LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
@@ -524,6 +592,7 @@ export default function TripFormScreen() {
         await syncUpdateTrip(id!, {
           classification,
           platformTag: platformTag ?? null,
+          category: category ?? null,
           notes: notes.trim() || null,
           endAddress: endAddress ?? null,
           endLat: endLat ?? null,
@@ -554,6 +623,7 @@ export default function TripFormScreen() {
           ...(endAddress && { endAddress }),
           ...(endedAt && { endedAt: endedAt.toISOString() }),
           ...(platformTag && { platformTag }),
+          ...(category && { category }),
           ...(notes.trim() && { notes: notes.trim() }),
           ...(vehicleId && { vehicleId }),
           ...(coords && { coordinates: coords }),
@@ -564,6 +634,18 @@ export default function TripFormScreen() {
         const db = await getDatabase();
         await db.runAsync("DELETE FROM tracking_state WHERE key = ?", [QUICK_TRIP_KEY]);
       }
+
+      // Reset detection cooldown so the next drive triggers a notification promptly
+      clearDetectionCooldown().catch(() => {});
+
+      // Store trip info for post-trip dashboard card
+      setLastSavedTrip({
+        distanceMiles: distanceMiles ?? 0,
+        startAddress: startAddress ?? null,
+        endAddress: endAddress ?? null,
+        savedAt: Date.now(),
+      });
+
       router.back();
     } catch (err: unknown) {
       Alert.alert("Error", err instanceof Error ? err.message : "Failed to save trip");
@@ -571,7 +653,7 @@ export default function TripFormScreen() {
       setSaving(false);
     }
   }, [
-    isEditing, id, classification, platformTag, vehicleId,
+    isEditing, id, classification, platformTag, category, vehicleId,
     startAddress, endAddress, startLat, startLng, endLat, endLng,
     distanceMiles, startedAt, endedAt, notes, router,
   ]);
@@ -583,6 +665,8 @@ export default function TripFormScreen() {
         text: "Discard",
         style: "destructive",
         onPress: async () => {
+          // Stop background tracking and clean up
+          await stopQuickTripTracking().catch(() => []);
           const db = await getDatabase();
           await db.runAsync("DELETE FROM tracking_state WHERE key = ?", [QUICK_TRIP_KEY]);
           router.back();
@@ -679,12 +763,25 @@ export default function TripFormScreen() {
               }}
               region={
                 mode === "arrived" && endLat != null && endLng != null
-                  ? {
-                      latitude: (startLat + endLat) / 2,
-                      longitude: (startLng + endLng) / 2,
-                      latitudeDelta: Math.abs(startLat - endLat) * 2.5 + 0.01,
-                      longitudeDelta: Math.abs(startLng - endLng) * 2.5 + 0.01,
-                    }
+                  ? (() => {
+                      const pts = routeTrail.length >= 2
+                        ? routeTrail
+                        : [{ latitude: startLat, longitude: startLng }, { latitude: endLat, longitude: endLng }];
+                      let minLat = pts[0].latitude, maxLat = pts[0].latitude;
+                      let minLng = pts[0].longitude, maxLng = pts[0].longitude;
+                      for (const p of pts) {
+                        if (p.latitude < minLat) minLat = p.latitude;
+                        if (p.latitude > maxLat) maxLat = p.latitude;
+                        if (p.longitude < minLng) minLng = p.longitude;
+                        if (p.longitude > maxLng) maxLng = p.longitude;
+                      }
+                      return {
+                        latitude: (minLat + maxLat) / 2,
+                        longitude: (minLng + maxLng) / 2,
+                        latitudeDelta: Math.max((maxLat - minLat) * 1.6, 0.01),
+                        longitudeDelta: Math.max((maxLng - minLng) * 1.6, 0.01),
+                      };
+                    })()
                   : undefined
               }
               userInterfaceStyle="dark"
@@ -708,10 +805,14 @@ export default function TripFormScreen() {
                     pinColor="#ef4444"
                   />
                   <Polyline
-                    coordinates={[
-                      { latitude: startLat, longitude: startLng },
-                      { latitude: endLat, longitude: endLng },
-                    ]}
+                    coordinates={
+                      routeTrail.length >= 2
+                        ? routeTrail
+                        : [
+                            { latitude: startLat, longitude: startLng },
+                            { latitude: endLat, longitude: endLng },
+                          ]
+                    }
                     strokeColor="#f5a623"
                     strokeWidth={3}
                   />
@@ -865,25 +966,49 @@ export default function TripFormScreen() {
                     <Text style={styles.insightLabel}>Stopped</Text>
                   </View>
                   <View style={styles.insightItem}>
-                    <Text style={styles.insightValue}>{insights.routeEfficiency}x</Text>
-                    <Text style={styles.insightLabel}>Route</Text>
+                    <Text style={styles.insightValue}>{insights.numberOfStops}</Text>
+                    <Text style={styles.insightLabel}>Stops</Text>
                   </View>
                 </View>
-                {insights.longestNonStopMiles > 0.1 && (
-                  <Text style={styles.insightNote}>
-                    Longest non-stop stretch: {insights.longestNonStopMiles} mi
-                  </Text>
-                )}
-                {insights.timeStoppedSecs > 60 && (
-                  <Text style={styles.insightNote}>
-                    {Math.round((insights.timeMovingSecs / (insights.timeMovingSecs + insights.timeStoppedSecs)) * 100)}% of your trip was spent moving
-                  </Text>
-                )}
-                {getSpeedFunFact(insights.topSpeedMph) && (
-                  <Text style={styles.insightFunFact}>{getSpeedFunFact(insights.topSpeedMph)}</Text>
-                )}
-                {distance != null && getDistanceFunFact(distance) && (
-                  <Text style={styles.insightFunFact}>{getDistanceFunFact(distance)}</Text>
+
+                <View style={styles.insightNotes}>
+                  {getTimeOfDayNote(startedAt.toISOString()) && (
+                    <View style={styles.insightNoteRow}>
+                      <Ionicons name="time-outline" size={13} color="#8494a7" />
+                      <Text style={styles.insightNote}>{getTimeOfDayNote(startedAt.toISOString())}</Text>
+                    </View>
+                  )}
+                  {getRouteDirectnessNote(insights.routeEfficiency) && (
+                    <View style={styles.insightNoteRow}>
+                      <Ionicons name="compass-outline" size={13} color="#8494a7" />
+                      <Text style={styles.insightNote}>{getRouteDirectnessNote(insights.routeEfficiency)}</Text>
+                    </View>
+                  )}
+                  {insights.longestNonStopMiles > 0.1 && (
+                    <View style={styles.insightNoteRow}>
+                      <Ionicons name="trending-up-outline" size={13} color="#8494a7" />
+                      <Text style={styles.insightNote}>Longest non-stop: {insights.longestNonStopMiles} mi</Text>
+                    </View>
+                  )}
+                  {insights.timeStoppedSecs > 60 && (
+                    <View style={styles.insightNoteRow}>
+                      <Ionicons name="pie-chart-outline" size={13} color="#8494a7" />
+                      <Text style={styles.insightNote}>
+                        {Math.round((insights.timeMovingSecs / (insights.timeMovingSecs + insights.timeStoppedSecs)) * 100)}% of your trip was moving
+                      </Text>
+                    </View>
+                  )}
+                </View>
+
+                {(getSpeedFunFact(insights.topSpeedMph) || (distance != null && getDistanceFunFact(distance))) && (
+                  <View style={styles.funFactBox}>
+                    {getSpeedFunFact(insights.topSpeedMph) && (
+                      <Text style={styles.insightFunFact}>{getSpeedFunFact(insights.topSpeedMph)}</Text>
+                    )}
+                    {distance != null && getDistanceFunFact(distance) && (
+                      <Text style={styles.insightFunFact}>{getDistanceFunFact(distance)}</Text>
+                    )}
+                  </View>
                 )}
               </View>
             )}
@@ -935,6 +1060,61 @@ export default function TripFormScreen() {
                   </TouchableOpacity>
                 ))}
               </ScrollView>
+            )}
+
+            {/* Category quick-select for personal */}
+            {classification === "personal" && (
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.platformRow}
+                style={{ marginBottom: 16 }}
+              >
+                <TouchableOpacity
+                  style={[styles.platformChip, !category && styles.platformChipActive]}
+                  onPress={() => setCategory(undefined)}
+                >
+                  <Text style={[styles.platformChipText, !category && styles.platformChipTextActive]}>
+                    None
+                  </Text>
+                </TouchableOpacity>
+                {TRIP_CATEGORY_META.map((c) => (
+                  <TouchableOpacity
+                    key={c.value}
+                    style={[styles.platformChip, category === c.value && styles.platformChipActive]}
+                    onPress={() => setCategory(c.value as TripCategory)}
+                  >
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+                      <Ionicons
+                        name={c.icon as any}
+                        size={14}
+                        color={category === c.value ? "#030712" : "#8494a7"}
+                      />
+                      <Text
+                        style={[styles.platformChipText, category === c.value && styles.platformChipTextActive]}
+                      >
+                        {c.label}
+                      </Text>
+                    </View>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+            )}
+
+            {/* Journal note for personal trips */}
+            {classification === "personal" && (
+              <View style={styles.journalNoteWrap}>
+                <TextInput
+                  style={[styles.input, styles.notesInput, styles.journalInput]}
+                  value={notes}
+                  onChangeText={setNotes}
+                  placeholder="Add a note about this journey..."
+                  placeholderTextColor="#4a5568"
+                  multiline
+                  numberOfLines={3}
+                  textAlignVertical="top"
+                />
+              </View>
             )}
 
             <Button title="Save Trip" icon="checkmark" onPress={handleSave} loading={saving} />
@@ -1019,25 +1199,49 @@ export default function TripFormScreen() {
                     <Text style={styles.insightLabel}>Stopped</Text>
                   </View>
                   <View style={styles.insightItem}>
-                    <Text style={styles.insightValue}>{insights.routeEfficiency}x</Text>
-                    <Text style={styles.insightLabel}>Route</Text>
+                    <Text style={styles.insightValue}>{insights.numberOfStops}</Text>
+                    <Text style={styles.insightLabel}>Stops</Text>
                   </View>
                 </View>
-                {insights.longestNonStopMiles > 0.1 && (
-                  <Text style={styles.insightNote}>
-                    Longest non-stop stretch: {insights.longestNonStopMiles} mi
-                  </Text>
-                )}
-                {insights.timeStoppedSecs > 60 && (
-                  <Text style={styles.insightNote}>
-                    {Math.round((insights.timeMovingSecs / (insights.timeMovingSecs + insights.timeStoppedSecs)) * 100)}% of your trip was spent moving
-                  </Text>
-                )}
-                {getSpeedFunFact(insights.topSpeedMph) && (
-                  <Text style={styles.insightFunFact}>{getSpeedFunFact(insights.topSpeedMph)}</Text>
-                )}
-                {distance != null && getDistanceFunFact(distance) && (
-                  <Text style={styles.insightFunFact}>{getDistanceFunFact(distance)}</Text>
+
+                <View style={styles.insightNotes}>
+                  {getTimeOfDayNote(startedAt.toISOString()) && (
+                    <View style={styles.insightNoteRow}>
+                      <Ionicons name="time-outline" size={13} color="#8494a7" />
+                      <Text style={styles.insightNote}>{getTimeOfDayNote(startedAt.toISOString())}</Text>
+                    </View>
+                  )}
+                  {getRouteDirectnessNote(insights.routeEfficiency) && (
+                    <View style={styles.insightNoteRow}>
+                      <Ionicons name="compass-outline" size={13} color="#8494a7" />
+                      <Text style={styles.insightNote}>{getRouteDirectnessNote(insights.routeEfficiency)}</Text>
+                    </View>
+                  )}
+                  {insights.longestNonStopMiles > 0.1 && (
+                    <View style={styles.insightNoteRow}>
+                      <Ionicons name="trending-up-outline" size={13} color="#8494a7" />
+                      <Text style={styles.insightNote}>Longest non-stop: {insights.longestNonStopMiles} mi</Text>
+                    </View>
+                  )}
+                  {insights.timeStoppedSecs > 60 && (
+                    <View style={styles.insightNoteRow}>
+                      <Ionicons name="pie-chart-outline" size={13} color="#8494a7" />
+                      <Text style={styles.insightNote}>
+                        {Math.round((insights.timeMovingSecs / (insights.timeMovingSecs + insights.timeStoppedSecs)) * 100)}% of your trip was moving
+                      </Text>
+                    </View>
+                  )}
+                </View>
+
+                {(getSpeedFunFact(insights.topSpeedMph) || (distance != null && getDistanceFunFact(distance))) && (
+                  <View style={styles.funFactBox}>
+                    {getSpeedFunFact(insights.topSpeedMph) && (
+                      <Text style={styles.insightFunFact}>{getSpeedFunFact(insights.topSpeedMph)}</Text>
+                    )}
+                    {distance != null && getDistanceFunFact(distance) && (
+                      <Text style={styles.insightFunFact}>{getDistanceFunFact(distance)}</Text>
+                    )}
+                  </View>
                 )}
               </View>
             )}
@@ -1095,6 +1299,48 @@ export default function TripFormScreen() {
                 </TouchableOpacity>
               ))}
             </View>
+
+            {/* Category for personal trips */}
+            {classification === "personal" && (
+              <>
+                <Text style={styles.label}>Category</Text>
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={styles.platformRow}
+                  style={{ marginBottom: 8 }}
+                >
+                  <TouchableOpacity
+                    style={[styles.platformChip, !category && styles.platformChipActive]}
+                    onPress={() => setCategory(undefined)}
+                  >
+                    <Text style={[styles.platformChipText, !category && styles.platformChipTextActive]}>
+                      None
+                    </Text>
+                  </TouchableOpacity>
+                  {TRIP_CATEGORY_META.map((c) => (
+                    <TouchableOpacity
+                      key={c.value}
+                      style={[styles.platformChip, category === c.value && styles.platformChipActive]}
+                      onPress={() => setCategory(c.value as TripCategory)}
+                    >
+                      <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+                        <Ionicons
+                          name={c.icon as any}
+                          size={14}
+                          color={category === c.value ? "#030712" : "#8494a7"}
+                        />
+                        <Text
+                          style={[styles.platformChipText, category === c.value && styles.platformChipTextActive]}
+                        >
+                          {c.label}
+                        </Text>
+                      </View>
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+              </>
+            )}
 
             {/* Collapsible Details */}
             <TouchableOpacity
@@ -1460,17 +1706,35 @@ const styles = StyleSheet.create({
     textTransform: "uppercase",
     letterSpacing: 0.5,
   },
+  insightNotes: {
+    marginTop: 14,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: "rgba(255,255,255,0.06)",
+    gap: 8,
+  },
+  insightNoteRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
   insightNote: {
     fontSize: 12,
     fontFamily: "PlusJakartaSans_400Regular",
     color: TEXT_2,
-    marginTop: 8,
+    flex: 1,
+  },
+  funFactBox: {
+    marginTop: 12,
+    paddingTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: "rgba(245, 166, 35, 0.15)",
+    gap: 4,
   },
   insightFunFact: {
     fontSize: 13,
     fontFamily: "PlusJakartaSans_600SemiBold",
     color: AMBER,
-    marginTop: 6,
   },
   // ── Classification / platform chips ──────────────────
   classRow: {
@@ -1543,6 +1807,13 @@ const styles = StyleSheet.create({
   },
   notesInput: {
     minHeight: 80,
+  },
+  journalNoteWrap: {
+    marginBottom: 16,
+  },
+  journalInput: {
+    minHeight: 60,
+    borderColor: "rgba(245, 166, 35, 0.12)",
   },
   distanceCard: {
     backgroundColor: CARD_BG,

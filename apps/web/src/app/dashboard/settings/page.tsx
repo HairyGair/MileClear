@@ -13,6 +13,11 @@ import type { BillingStatus } from "@mileclear/shared";
 export default function SettingsPage() {
   const { user, refreshUser } = useAuth();
 
+  // Dashboard mode
+  const [dashboardMode, setDashboardMode] = useState<"both" | "work" | "personal">("both");
+  const [modeLoading, setModeLoading] = useState(false);
+  const [modeSaved, setModeSaved] = useState(false);
+
   // Profile
   const [displayName, setDisplayName] = useState("");
   const [fullName, setFullName] = useState("");
@@ -43,6 +48,7 @@ export default function SettingsPage() {
       setDisplayName(user.displayName || "");
       setFullName((user as any).fullName || "");
       setEmail(user.email);
+      setDashboardMode(user.dashboardMode ?? "both");
     }
   }, [user]);
 
@@ -71,6 +77,22 @@ export default function SettingsPage() {
       setError(err.message);
     } finally {
       setProfileLoading(false);
+    }
+  };
+
+  // Dashboard mode
+  const handleModeChange = async (mode: "both" | "work" | "personal") => {
+    setDashboardMode(mode);
+    setModeLoading(true);
+    try {
+      await api.patch("/user/profile", { dashboardMode: mode });
+      await refreshUser();
+      setModeSaved(true);
+      setTimeout(() => setModeSaved(false), 3000);
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setModeLoading(false);
     }
   };
 
@@ -201,6 +223,41 @@ export default function SettingsPage() {
             )}
           </div>
         </div>
+      </div>
+
+      {/* Dashboard Mode */}
+      <div className="settings-section">
+        <h2 className="settings-section__title">I use MileClear for</h2>
+        <p className="settings-section__desc">
+          Choose what you use MileClear for. This controls which sections appear in the sidebar.
+        </p>
+        <div className="mode-selector">
+          {([
+            { value: "both" as const, label: "Both", desc: "Business mileage tracking and personal driving" },
+            { value: "work" as const, label: "Work only", desc: "Tax deductions, shifts, earnings, and exports" },
+            { value: "personal" as const, label: "Personal only", desc: "Driving goals, achievements, and recaps" },
+          ]).map((opt) => (
+            <button
+              key={opt.value}
+              className={`mode-selector__option${dashboardMode === opt.value ? " mode-selector__option--active" : ""}`}
+              onClick={() => handleModeChange(opt.value)}
+              disabled={modeLoading}
+            >
+              <div className="mode-selector__radio">
+                {dashboardMode === opt.value && <div className="mode-selector__radio-dot" />}
+              </div>
+              <div>
+                <div className="mode-selector__label">{opt.label}</div>
+                <div className="mode-selector__desc">{opt.desc}</div>
+              </div>
+            </button>
+          ))}
+        </div>
+        {modeSaved && (
+          <span style={{ fontSize: "0.875rem", color: "var(--emerald-400)", marginTop: "0.5rem", display: "block" }}>
+            Saved! Sidebar updated.
+          </span>
+        )}
       </div>
 
       {/* Password */}

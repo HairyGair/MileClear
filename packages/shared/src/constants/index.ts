@@ -116,6 +116,34 @@ export const SHIFT_STATUSES = ["active", "completed"] as const;
 // Trip classifications
 export const TRIP_CLASSIFICATIONS = ["business", "personal"] as const;
 
+export const TRIP_CATEGORIES = [
+  "commute",
+  "school_run",
+  "road_trip",
+  "shopping",
+  "social",
+  "errands",
+  "leisure",
+  "medical",
+  "airport",
+  "other",
+] as const;
+
+export const TRIP_CATEGORY_META = [
+  { value: "commute", label: "Commute", icon: "briefcase-outline" },
+  { value: "school_run", label: "School Run", icon: "school-outline" },
+  { value: "road_trip", label: "Road Trip", icon: "car-sport-outline" },
+  { value: "shopping", label: "Shopping", icon: "cart-outline" },
+  { value: "social", label: "Social", icon: "people-outline" },
+  { value: "errands", label: "Errands", icon: "clipboard-outline" },
+  { value: "leisure", label: "Leisure", icon: "sunny-outline" },
+  { value: "medical", label: "Medical", icon: "medkit-outline" },
+  { value: "airport", label: "Airport", icon: "airplane-outline" },
+  { value: "other", label: "Other", icon: "ellipsis-horizontal-outline" },
+] as const;
+
+export const USER_INTENTS = ["work", "personal", "both"] as const;
+
 // Earning sources
 export const EARNING_SOURCES = ["manual", "csv", "open_banking", "ocr"] as const;
 

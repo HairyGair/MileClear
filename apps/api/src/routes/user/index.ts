@@ -9,6 +9,8 @@ const updateProfileSchema = z.object({
   displayName: z.string().max(100).nullable().optional(),
   fullName: z.string().max(200).nullable().optional(),
   avatarId: z.string().max(50).nullable().optional(),
+  userIntent: z.enum(["work", "personal", "both"]).nullable().optional(),
+  dashboardMode: z.enum(["both", "work", "personal"]).optional(),
   email: z.string().email().optional(),
   currentPassword: z.string().optional(),
 });
@@ -23,6 +25,8 @@ const USER_SELECT = {
   displayName: true,
   fullName: true,
   avatarId: true,
+  userIntent: true,
+  dashboardMode: true,
   emailVerified: true,
   isPremium: true,
   isAdmin: true,
@@ -55,7 +59,7 @@ export async function userRoutes(app: FastifyInstance) {
     }
 
     const userId = request.userId!;
-    const { displayName, fullName, avatarId, email, currentPassword } = parsed.data;
+    const { displayName, fullName, avatarId, userIntent, dashboardMode, email, currentPassword } = parsed.data;
 
     const currentUser = await prisma.user.findUnique({
       where: { id: userId },
@@ -81,6 +85,16 @@ export async function userRoutes(app: FastifyInstance) {
     // Avatar can always be updated
     if (avatarId !== undefined) {
       updateData.avatarId = avatarId;
+    }
+
+    // User intent can always be updated
+    if (userIntent !== undefined) {
+      updateData.userIntent = userIntent;
+    }
+
+    // Dashboard mode can always be updated
+    if (dashboardMode !== undefined) {
+      updateData.dashboardMode = dashboardMode;
     }
 
     // Email change requires password verification

@@ -2,11 +2,10 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { api } from "../../lib/api";
-import { PageHeader } from "../../components/dashboard/PageHeader";
-import { Card } from "../../components/ui/Card";
-import { Badge } from "../../components/ui/Badge";
-import { DashboardSkeleton } from "../../components/ui/LoadingSkeleton";
+import { api } from "../../../lib/api";
+import { PageHeader } from "../../../components/dashboard/PageHeader";
+import { Card } from "../../../components/ui/Card";
+import { DashboardSkeleton } from "../../../components/ui/LoadingSkeleton";
 import type {
   GamificationStats,
   AchievementWithMeta,
@@ -42,15 +41,14 @@ function getDistanceEquivalent(miles: number): string | null {
 
 type RecapView = "weekly" | "monthly" | "yearly";
 
-export default function DashboardPage() {
+export default function PersonalPage() {
   const [stats, setStats] = useState<GamificationStats | null>(null);
   const [achievements, setAchievements] = useState<AchievementWithMeta[]>([]);
   const [weeklyRecap, setWeeklyRecap] = useState<PeriodRecap | null>(null);
   const [monthlyRecap, setMonthlyRecap] = useState<PeriodRecap | null>(null);
   const [recentTrips, setRecentTrips] = useState<Trip[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [recapView, setRecapView] = useState<RecapView>("weekly");
+  const [recapView, setRecapView] = useState<RecapView>("monthly");
 
   useEffect(() => {
     async function load() {
@@ -60,15 +58,15 @@ export default function DashboardPage() {
           api.get<{ data: AchievementWithMeta[] }>("/gamification/achievements"),
           api.get<{ data: PeriodRecap }>("/gamification/recap?period=weekly"),
           api.get<{ data: PeriodRecap }>("/gamification/recap?period=monthly"),
-          api.get<PaginatedResponse<Trip>>("/trips/?pageSize=5"),
+          api.get<PaginatedResponse<Trip>>("/trips/?pageSize=5&classification=personal"),
         ]);
         setStats(statsRes.data);
         setAchievements(achRes.data);
         setWeeklyRecap(weeklyRes.data);
         setMonthlyRecap(monthlyRes.data);
         setRecentTrips(tripsRes.data);
-      } catch (err: any) {
-        setError(err.message || "Failed to load dashboard");
+      } catch {
+        // Handled by empty state
       } finally {
         setLoading(false);
       }
@@ -78,41 +76,11 @@ export default function DashboardPage() {
 
   if (loading) return <DashboardSkeleton />;
 
-  if (error) {
-    return (
-      <>
-        <PageHeader title="Dashboard" />
-        <div className="alert alert--error">{error}</div>
-      </>
-    );
-  }
-
   const earnedTypes = new Set(achievements.map((a) => a.type));
 
   return (
     <>
-      <PageHeader title="Dashboard" subtitle="Your driving overview" />
-
-      {/* Tax Deduction Hero */}
-      {stats && (
-        <div className="hero-card" style={{ marginBottom: "var(--dash-gap)" }}>
-          <div className="hero-card__label">
-            Tax Deduction ({stats.taxYear})
-          </div>
-          <div className="hero-card__value">{formatPence(stats.deductionPence)}</div>
-          <div className="hero-card__meta">
-            <span>{formatMiles(stats.businessMiles)} business miles</span>
-            {stats.currentStreakDays > 0 && (
-              <span className="hero-card__streak">
-                <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-                  <path d="M7 1L8.5 5.5L13 7L8.5 8.5L7 13L5.5 8.5L1 7L5.5 5.5L7 1Z" fill="currentColor" />
-                </svg>
-                {stats.currentStreakDays} day streak
-              </span>
-            )}
-          </div>
-        </div>
-      )}
+      <PageHeader title="Personal" subtitle="Your driving journey and achievements" />
 
       {/* Stats Grid */}
       {stats && (
@@ -120,8 +88,8 @@ export default function DashboardPage() {
           {[
             { label: "Today", value: `${formatMiles(stats.todayMiles)} mi` },
             { label: "This Week", value: `${formatMiles(stats.weekMiles)} mi` },
-            { label: "Total Trips", value: String(stats.totalTrips) },
-            { label: "Total Shifts", value: String(stats.totalShifts) },
+            { label: "Total Miles", value: `${formatMiles(stats.totalMiles)} mi` },
+            { label: "Streak", value: stats.currentStreakDays > 0 ? `${stats.currentStreakDays}d` : "None" },
           ].map((item) => (
             <div key={item.label} className="stat-card">
               <div className="stat-card__value">{item.value}</div>
@@ -163,12 +131,10 @@ export default function DashboardPage() {
             {recapView === "yearly" && stats && `Tax Year ${stats.taxYear}`}
           </div>
 
-          {/* Stats grid */}
           {(() => {
             const miles = recapView === "yearly" ? (stats?.totalMiles ?? 0) : recapView === "monthly" ? (monthlyRecap?.totalMiles ?? 0) : (weeklyRecap?.totalMiles ?? 0);
             const trips = recapView === "yearly" ? (stats?.totalTrips ?? 0) : recapView === "monthly" ? (monthlyRecap?.totalTrips ?? 0) : (weeklyRecap?.totalTrips ?? 0);
             const avg = trips > 0 ? miles / trips : 0;
-            const deduction = recapView === "yearly" ? (stats?.deductionPence ?? 0) : recapView === "monthly" ? (monthlyRecap?.deductionPence ?? 0) : (weeklyRecap?.deductionPence ?? 0);
             const busiest = recapView !== "yearly" ? (recapView === "monthly" ? monthlyRecap?.busiestDayLabel : weeklyRecap?.busiestDayLabel) : null;
             const busiestMiles = recapView !== "yearly" ? (recapView === "monthly" ? monthlyRecap?.busiestDayMiles : weeklyRecap?.busiestDayMiles) : 0;
             const equiv = getDistanceEquivalent(miles);
@@ -195,28 +161,13 @@ export default function DashboardPage() {
                 <div className="driving-recap__insights">
                   {busiest && (
                     <div className="driving-recap__insight">
-                      <span className="driving-recap__insight-icon driving-recap__insight-icon--amber">★</span>
+                      <span className="driving-recap__insight-icon driving-recap__insight-icon--amber">&#9733;</span>
                       <span>Busiest day: <strong>{busiest}</strong> ({formatMiles(busiestMiles ?? 0)} mi)</span>
                     </div>
                   )}
-
-                  {recapView === "yearly" && stats && stats.businessMiles > 0 && (
-                    <div className="driving-recap__insight">
-                      <span className="driving-recap__insight-icon driving-recap__insight-icon--green">✓</span>
-                      <span>{formatMiles(stats.businessMiles)} business miles claimed</span>
-                    </div>
-                  )}
-
-                  {deduction > 0 && (
-                    <div className="driving-recap__insight">
-                      <span className="driving-recap__insight-icon driving-recap__insight-icon--green">£</span>
-                      <span>{formatPence(deduction)} HMRC deduction{recapView === "yearly" ? " so far" : ""}</span>
-                    </div>
-                  )}
-
                   {equiv && (
                     <div className="driving-recap__insight">
-                      <span className="driving-recap__insight-icon driving-recap__insight-icon--amber">↗</span>
+                      <span className="driving-recap__insight-icon driving-recap__insight-icon--amber">&#8599;</span>
                       <span>{equiv}</span>
                     </div>
                   )}
@@ -227,63 +178,9 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {/* Recent Trips */}
-      {recentTrips.length > 0 && (
-        <Card
-          title="Recent Trips"
-          action={
-            <Link href="/dashboard/trips" className="btn btn--ghost btn--sm">
-              View all
-            </Link>
-          }
-          style={{ marginBottom: "var(--dash-gap)" }}
-        >
-          <div className="table-wrap" style={{ border: "none", background: "transparent" }}>
-            <table className="table">
-              <thead>
-                <tr>
-                  <th>Date</th>
-                  <th>Route</th>
-                  <th>Distance</th>
-                  <th>Type</th>
-                </tr>
-              </thead>
-              <tbody>
-                {recentTrips.map((trip) => (
-                  <tr key={trip.id}>
-                    <td>
-                      {new Date(trip.startedAt).toLocaleDateString("en-GB", {
-                        day: "numeric",
-                        month: "short",
-                      })}
-                    </td>
-                    <td style={{ maxWidth: 220, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                      {trip.startAddress || "Unknown"} → {trip.endAddress || "Unknown"}
-                    </td>
-                    <td>{trip.distanceMiles?.toFixed(1) || "0"} mi</td>
-                    <td>
-                      <Badge variant={trip.classification === "business" ? "business" : "personal"}>
-                        {trip.classification}
-                      </Badge>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </Card>
-      )}
-
       {/* Achievements */}
       <Card
         title={`Achievements (${achievements.length}/${ACHIEVEMENT_TYPES.length})`}
-        action={
-          achievements.length > 8 ? (
-            <span style={{ fontSize: "0.8125rem", color: "var(--text-muted)" }}>
-              Scroll to see all
-            </span>
-          ) : undefined
-        }
         style={{ marginBottom: "var(--dash-gap)" }}
       >
         <div className="achievement-grid">
@@ -318,7 +215,7 @@ export default function DashboardPage() {
 
       {/* Personal Records */}
       {stats && stats.personalRecords && stats.personalRecords.mostMilesInDay > 0 && (
-        <Card title="Personal Records">
+        <Card title="Personal Records" style={{ marginBottom: "var(--dash-gap)" }}>
           <div className="stats-grid">
             {[
               { label: "Best Day", value: `${stats.personalRecords.mostMilesInDay.toFixed(1)} mi` },
@@ -331,6 +228,46 @@ export default function DashboardPage() {
                 <div className="stat-card__label">{item.label}</div>
               </div>
             ))}
+          </div>
+        </Card>
+      )}
+
+      {/* Recent Personal Trips */}
+      {recentTrips.length > 0 && (
+        <Card
+          title="Recent Trips"
+          action={
+            <Link href="/dashboard/trips" className="btn btn--ghost btn--sm">
+              View all
+            </Link>
+          }
+        >
+          <div className="table-wrap" style={{ border: "none", background: "transparent" }}>
+            <table className="table">
+              <thead>
+                <tr>
+                  <th>Date</th>
+                  <th>Route</th>
+                  <th>Distance</th>
+                </tr>
+              </thead>
+              <tbody>
+                {recentTrips.map((trip) => (
+                  <tr key={trip.id}>
+                    <td>
+                      {new Date(trip.startedAt).toLocaleDateString("en-GB", {
+                        day: "numeric",
+                        month: "short",
+                      })}
+                    </td>
+                    <td style={{ maxWidth: 260, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      {trip.startAddress || "Unknown"} &rarr; {trip.endAddress || "Unknown"}
+                    </td>
+                    <td>{trip.distanceMiles?.toFixed(1) || "0"} mi</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         </Card>
       )}

@@ -788,25 +788,28 @@ export default function TripsPage() {
                     <div className="trip-detail__insight-label">Stopped</div>
                   </div>
                   <div className="trip-detail__insight">
-                    <div className="trip-detail__insight-value">{detailTrip.insights.routeEfficiency}x</div>
-                    <div className="trip-detail__insight-label">Route</div>
+                    <div className="trip-detail__insight-value">{detailTrip.insights.numberOfStops ?? 0}</div>
+                    <div className="trip-detail__insight-label">Stops</div>
                   </div>
                 </div>
 
-                {(detailTrip.insights.longestNonStopMiles > 0.1 || detailTrip.insights.timeStoppedSecs > 60) && (
-                  <div className="trip-detail__insights-notes">
-                    {detailTrip.insights.longestNonStopMiles > 0.1 && (
-                      <span className="trip-detail__insights-note">
-                        Longest non-stop stretch: {detailTrip.insights.longestNonStopMiles} mi
-                      </span>
-                    )}
-                    {detailTrip.insights.timeStoppedSecs > 60 && detailTrip.insights.timeMovingSecs > 0 && (
-                      <span className="trip-detail__insights-note">
-                        {Math.round((detailTrip.insights.timeMovingSecs / (detailTrip.insights.timeMovingSecs + detailTrip.insights.timeStoppedSecs)) * 100)}% of your trip was spent moving
-                      </span>
-                    )}
-                  </div>
-                )}
+                <div className="trip-detail__insights-notes">
+                  {detailTrip.insights.routeDirectnessNote && (
+                    <span className="trip-detail__insights-note">
+                      {detailTrip.insights.routeDirectnessNote}
+                    </span>
+                  )}
+                  {detailTrip.insights.longestNonStopMiles > 0.1 && (
+                    <span className="trip-detail__insights-note">
+                      Longest non-stop: {detailTrip.insights.longestNonStopMiles} mi
+                    </span>
+                  )}
+                  {detailTrip.insights.timeStoppedSecs > 60 && detailTrip.insights.timeMovingSecs > 0 && (
+                    <span className="trip-detail__insights-note">
+                      {Math.round((detailTrip.insights.timeMovingSecs / (detailTrip.insights.timeMovingSecs + detailTrip.insights.timeStoppedSecs)) * 100)}% of your trip was moving
+                    </span>
+                  )}
+                </div>
 
                 {(detailTrip.insights.speedFunFact || detailTrip.insights.distanceFunFact) && (
                   <div className="trip-detail__fun-fact">

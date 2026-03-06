@@ -78,7 +78,7 @@ export default function FuelFormScreen() {
 
   useEffect(() => {
     if (!id) {
-      setLoggedAt(new Date().toISOString().slice(0, 10));
+      setLoggedAt(new Date());
       return;
     }
     const populateLog = (log: {

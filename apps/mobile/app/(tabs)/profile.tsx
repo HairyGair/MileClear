@@ -37,6 +37,7 @@ import {
   isDriveDetectionEnabled,
   setDriveDetectionEnabled,
 } from "../../lib/tracking/detection";
+import { getDatabase } from "../../lib/db/index";
 import {
   getNotificationPreferences,
   setNotificationPreferences,
@@ -87,6 +88,7 @@ export default function ProfileScreen() {
     streakReminder: true,
     taxDeadline: true,
   });
+  const [weeklyGoal, setWeeklyGoal] = useState<number | null>(null);
 
   const handleAvatarSelect = useCallback(async (avatarId: string | null) => {
     try {
@@ -100,12 +102,15 @@ export default function ProfileScreen() {
 
   const loadData = useCallback(async () => {
     try {
-      const [profileRes, vehiclesRes, billingRes, detectionEnabled, notifPrefsLoaded] = await Promise.all([
+      const [profileRes, vehiclesRes, billingRes, detectionEnabled, notifPrefsLoaded, goalRow] = await Promise.all([
         fetchProfile(),
         fetchVehicles(),
         fetchBillingStatus().catch(() => null),
         isDriveDetectionEnabled(),
         getNotificationPreferences(),
+        getDatabase().then((db) =>
+          db.getFirstAsync<{ value: string }>("SELECT value FROM tracking_state WHERE key = 'personal_goal_miles'")
+        ).catch(() => null),
       ]);
       setUser(profileRes.data);
       setVehicles(vehiclesRes.data);
@@ -113,6 +118,12 @@ export default function ProfileScreen() {
       if (billingRes) setBilling(billingRes.data);
       setDriveDetection(detectionEnabled);
       setNotifPrefs(notifPrefsLoaded);
+      if (goalRow) {
+        const parsed = parseFloat(goalRow.value);
+        setWeeklyGoal(parsed > 0 && isFinite(parsed) ? parsed : null);
+      } else {
+        setWeeklyGoal(null);
+      }
 
       // Fetch IAP product price if available
       if (isIapAvailable()) {
@@ -248,7 +259,7 @@ export default function ProfileScreen() {
           {
             text: "Delete",
             style: "destructive",
-            onPress: async (password) => {
+            onPress: async (password: string | undefined) => {
               if (!password) return;
               setDeletingAccount(true);
               try {
@@ -429,6 +440,89 @@ export default function ProfileScreen() {
                 thumbColor="#fff"
               />
             </View>
+
+            <TouchableOpacity
+              style={styles.actionRow}
+              onPress={() => {
+                if (Platform.OS === "ios") {
+                  Alert.prompt(
+                    "Weekly Miles Goal",
+                    "Set a target for your weekly driving (e.g. 50).\nLeave blank to remove.",
+                    [
+                      { text: "Cancel", style: "cancel" },
+                      ...(weeklyGoal !== null
+                        ? [{
+                            text: "Remove",
+                            style: "destructive" as const,
+                            onPress: async () => {
+                              const db = await getDatabase();
+                              await db.runAsync("DELETE FROM tracking_state WHERE key = 'personal_goal_miles'");
+                              setWeeklyGoal(null);
+                            },
+                          }]
+                        : []),
+                      {
+                        text: "Save",
+                        onPress: async (value: string | undefined) => {
+                          if (!value?.trim()) return;
+                          const parsed = parseFloat(value.trim());
+                          if (!isFinite(parsed) || parsed <= 0) {
+                            Alert.alert("Invalid", "Enter a positive number of miles.");
+                            return;
+                          }
+                          const rounded = Math.round(parsed * 10) / 10;
+                          const db = await getDatabase();
+                          await db.runAsync(
+                            "INSERT OR REPLACE INTO tracking_state (key, value) VALUES ('personal_goal_miles', ?)",
+                            [String(rounded)]
+                          );
+                          setWeeklyGoal(rounded);
+                        },
+                      },
+                    ],
+                    "plain-text",
+                    weeklyGoal ? String(weeklyGoal) : "",
+                    "number-pad"
+                  );
+                } else {
+                  Alert.alert(
+                    "Weekly Miles Goal",
+                    `Current: ${weeklyGoal ? `${weeklyGoal} miles` : "Not set"}`,
+                    [
+                      { text: "Cancel", style: "cancel" },
+                      ...(weeklyGoal !== null
+                        ? [{
+                            text: "Remove goal",
+                            style: "destructive" as const,
+                            onPress: async () => {
+                              const db = await getDatabase();
+                              await db.runAsync("DELETE FROM tracking_state WHERE key = 'personal_goal_miles'");
+                              setWeeklyGoal(null);
+                            },
+                          }]
+                        : []),
+                      { text: "25 mi", onPress: async () => { const db = await getDatabase(); await db.runAsync("INSERT OR REPLACE INTO tracking_state (key, value) VALUES ('personal_goal_miles', '25')"); setWeeklyGoal(25); } },
+                      { text: "50 mi", onPress: async () => { const db = await getDatabase(); await db.runAsync("INSERT OR REPLACE INTO tracking_state (key, value) VALUES ('personal_goal_miles', '50')"); setWeeklyGoal(50); } },
+                      { text: "100 mi", onPress: async () => { const db = await getDatabase(); await db.runAsync("INSERT OR REPLACE INTO tracking_state (key, value) VALUES ('personal_goal_miles', '100')"); setWeeklyGoal(100); } },
+                    ]
+                  );
+                }
+              }}
+              activeOpacity={0.7}
+            >
+              <View style={styles.actionRowLeft}>
+                <Ionicons name="flag-outline" size={18} color="#8494a7" />
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.actionText}>Weekly Goal</Text>
+                  <Text style={styles.settingHint}>
+                    {weeklyGoal ? `${weeklyGoal} miles per week` : "No goal set"}
+                  </Text>
+                </View>
+              </View>
+              <Text style={{ fontSize: 14, fontFamily: "PlusJakartaSans_500Medium", color: "#f5a623" }}>
+                {weeklyGoal ? "Edit" : "Set"}
+              </Text>
+            </TouchableOpacity>
 
             {/* Notifications Section */}
             <Text style={[styles.sectionTitle, { marginTop: 28 }]}>Notifications</Text>

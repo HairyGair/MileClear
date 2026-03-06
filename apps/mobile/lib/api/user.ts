@@ -3,9 +3,11 @@ import type { User } from "@mileclear/shared";
 
 export interface UpdateProfileData {
   displayName?: string | null;
+  fullName?: string | null;
   avatarId?: string | null;
   email?: string;
   currentPassword?: string;
+  userIntent?: "work" | "personal" | "both" | null;
 }
 
 export function fetchProfile() {

@@ -42,7 +42,8 @@
     "react-native-iap": "^14.7.12",
     "react-native-maps": "1.20.1",
     "react-native-safe-area-context": "5.6.2",
-    "react-native-screens": "~4.16.0"
+    "react-native-screens": "~4.16.0",
+    "react-native-view-shot": "^4.0.3"
   },
   "devDependencies": {
     "@types/react": "~19.1.17",

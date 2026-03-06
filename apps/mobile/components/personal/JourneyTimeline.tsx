@@ -1,6 +1,8 @@
 import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
 import { useRouter } from "expo-router";
+import { Ionicons } from "@expo/vector-icons";
 import { TripMapWidget } from "../map/TripMapWidget";
+import { TRIP_CATEGORY_META } from "@mileclear/shared";
 import type { TripDetail } from "../../lib/api/trips";
 
 interface JourneyTimelineProps {
@@ -43,13 +45,31 @@ export function JourneyTimeline({ trips }: JourneyTimelineProps) {
           activeOpacity={0.7}
         >
           <View style={styles.cardHeader}>
-            <Text style={styles.date}>
-              {formatDate(trip.startedAt)} {"\u00B7"} {formatTime(trip.startedAt)}
-            </Text>
+            <View style={styles.cardHeaderLeft}>
+              <Text style={styles.date}>
+                {formatDate(trip.startedAt)} {"\u00B7"} {formatTime(trip.startedAt)}
+              </Text>
+              {(trip as any).category && (() => {
+                const meta = TRIP_CATEGORY_META.find((c) => c.value === (trip as any).category);
+                return meta ? (
+                  <View style={styles.categoryBadge}>
+                    <Ionicons name={meta.icon as any} size={10} color="#f5a623" />
+                    <Text style={styles.categoryText}>{meta.label}</Text>
+                  </View>
+                ) : null;
+              })()}
+            </View>
             <Text style={styles.distance}>
               {trip.distanceMiles.toFixed(1)} mi
             </Text>
           </View>
+
+          {/* Journal note */}
+          {trip.notes && (
+            <Text style={styles.noteText} numberOfLines={2}>
+              {trip.notes}
+            </Text>
+          )}
 
           {(trip.startAddress || trip.endAddress) && (
             <View style={styles.addressRow}>
@@ -115,7 +135,34 @@ const styles = StyleSheet.create({
   cardHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
+    alignItems: "flex-start",
+    marginBottom: 6,
+  },
+  cardHeaderLeft: {
+    flex: 1,
+    gap: 4,
+  },
+  categoryBadge: {
+    flexDirection: "row",
     alignItems: "center",
+    gap: 4,
+    backgroundColor: "rgba(245, 166, 35, 0.08)",
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+    alignSelf: "flex-start",
+  },
+  categoryText: {
+    fontSize: 10,
+    fontFamily: "PlusJakartaSans_600SemiBold",
+    color: "#f5a623",
+  },
+  noteText: {
+    fontSize: 12,
+    fontFamily: "PlusJakartaSans_400Regular",
+    color: "#6b7280",
+    fontStyle: "italic",
+    lineHeight: 17,
     marginBottom: 6,
   },
   date: {

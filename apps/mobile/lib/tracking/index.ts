@@ -10,6 +10,7 @@ import { startDriveDetection, stopDriveDetection } from "./detection";
 import { reverseGeocode } from "../location/geocoding";
 
 const LOCATION_TASK_NAME = "mileclear-background-location";
+const QUICK_TRIP_SHIFT_ID = "__quick_trip__";
 const MIN_TRIP_DISTANCE_MILES = 0.1;
 const STOP_THRESHOLD_MS = 2 * 60 * 1000; // 2 minutes
 const STOP_SPEED_MS = 1.5; // m/s (~3.4 mph)
@@ -81,6 +82,67 @@ export async function stopShiftTracking(): Promise<void> {
   await db.runAsync("DELETE FROM tracking_state WHERE key = 'active_shift_id'");
 
   await startDriveDetection();
+}
+
+// ── Quick trip background tracking ──────────────────────────────────────────
+// Uses the same background location task as shift tracking, but with a
+// pseudo-shift ID. Ensures GPS breadcrumbs continue when the app is backgrounded.
+
+export async function startQuickTripTracking(): Promise<void> {
+  await stopDriveDetection();
+
+  const db = await getDatabase();
+  await db.runAsync(
+    "INSERT OR REPLACE INTO tracking_state (key, value) VALUES ('active_shift_id', ?)",
+    [QUICK_TRIP_SHIFT_ID]
+  );
+
+  const isRunning = await TaskManager.isTaskRegisteredAsync(LOCATION_TASK_NAME);
+  if (isRunning) return; // Already running (e.g. resumed after background)
+
+  await Location.startLocationUpdatesAsync(LOCATION_TASK_NAME, {
+    accuracy: Location.Accuracy.High,
+    distanceInterval: 50,
+    deferredUpdatesInterval: 10000,
+    showsBackgroundLocationIndicator: true,
+    foregroundService: {
+      notificationTitle: "MileClear is tracking your trip",
+      notificationBody: "Tap to open the app",
+    },
+  });
+}
+
+export async function stopQuickTripTracking(): Promise<StoredCoordinate[]> {
+  const isTracking = await TaskManager.isTaskRegisteredAsync(LOCATION_TASK_NAME);
+  if (isTracking) {
+    await Location.stopLocationUpdatesAsync(LOCATION_TASK_NAME);
+  }
+
+  const db = await getDatabase();
+
+  // Read all coordinates collected during the quick trip
+  const coords = await db.getAllAsync<StoredCoordinate>(
+    "SELECT lat, lng, speed, accuracy, recorded_at FROM shift_coordinates WHERE shift_id = ? ORDER BY recorded_at ASC",
+    [QUICK_TRIP_SHIFT_ID]
+  );
+
+  // Clean up
+  await db.runAsync("DELETE FROM shift_coordinates WHERE shift_id = ?", [QUICK_TRIP_SHIFT_ID]);
+  await db.runAsync("DELETE FROM tracking_state WHERE key = 'active_shift_id'");
+
+  // Restart drive detection for the next trip
+  await startDriveDetection();
+
+  return coords;
+}
+
+/**
+ * Clear the drive detection cooldown so the next drive triggers a notification.
+ * Call this after a trip is saved so the return journey gets detected promptly.
+ */
+export async function clearDetectionCooldown(): Promise<void> {
+  const db = await getDatabase();
+  await db.runAsync("DELETE FROM tracking_state WHERE key = 'last_detection_notification'");
 }
 
 /**

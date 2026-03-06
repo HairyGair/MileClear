@@ -1,0 +1,1 @@
+ALTER TABLE `users` ADD COLUMN `dashboardMode` VARCHAR(20) NOT NULL DEFAULT 'both';

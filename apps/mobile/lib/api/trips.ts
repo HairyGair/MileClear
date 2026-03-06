@@ -4,6 +4,7 @@ import type {
   TripCoordinate,
   TripInsights,
   TripClassification,
+  TripCategory,
   PlatformTag,
   Vehicle,
   Shift,
@@ -43,6 +44,7 @@ export interface CreateTripData {
   endedAt?: string;
   classification?: TripClassification;
   platformTag?: PlatformTag;
+  category?: TripCategory;
   notes?: string;
   coordinates?: CoordinateInput[];
 }
@@ -50,6 +52,7 @@ export interface CreateTripData {
 export interface UpdateTripData {
   classification?: TripClassification;
   platformTag?: PlatformTag | null;
+  category?: TripCategory | null;
   notes?: string | null;
   endAddress?: string | null;
   endLat?: number | null;

@@ -1,0 +1,2 @@
+ALTER TABLE `trips` ADD COLUMN `category` VARCHAR(191) NULL;
+ALTER TABLE `users` ADD COLUMN `userIntent` VARCHAR(20) NULL;
