@@ -17,7 +17,9 @@ import type {
 import {
   ACHIEVEMENT_TYPES,
   ACHIEVEMENT_META,
+  FREE_ACHIEVEMENT_TYPES,
 } from "@mileclear/shared";
+import { useAuth } from "../../../lib/auth-context";
 
 interface FuelLog {
   id: string;
@@ -56,7 +58,11 @@ function getDistanceEquivalent(miles: number): string | null {
 
 type RecapView = "weekly" | "monthly" | "yearly";
 
+const freeSet = new Set<string>(FREE_ACHIEVEMENT_TYPES);
+
 export default function PersonalPage() {
+  const { user } = useAuth();
+  const isPremium = user?.isPremium ?? false;
   const [stats, setStats] = useState<GamificationStats | null>(null);
   const [achievements, setAchievements] = useState<AchievementWithMeta[]>([]);
   const [weeklyRecap, setWeeklyRecap] = useState<PeriodRecap | null>(null);
@@ -76,20 +82,26 @@ export default function PersonalPage() {
         const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
         const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
 
-        const [statsRes, achRes, weeklyRes, monthlyRes, tripsRes, fuelRes, vehicleRes] = await Promise.all([
+        const [statsRes, achRes, tripsRes, fuelRes, vehicleRes] = await Promise.all([
           api.get<{ data: GamificationStats }>("/gamification/stats"),
           api.get<{ data: AchievementWithMeta[] }>("/gamification/achievements"),
-          api.get<{ data: PeriodRecap }>("/gamification/recap?period=weekly"),
-          api.get<{ data: PeriodRecap }>("/gamification/recap?period=monthly"),
           api.get<PaginatedResponse<Trip>>("/trips/?pageSize=5&classification=personal"),
           api.get<FuelLogsResponse>(`/fuel/logs?pageSize=5&from=${monthStart.toISOString()}&to=${monthEnd.toISOString()}`).catch(() => null),
           api.get<{ data: Vehicle[] }>("/vehicles/").catch(() => null),
         ]);
         setStats(statsRes.data);
         setAchievements(achRes.data);
-        setWeeklyRecap(weeklyRes.data);
-        setMonthlyRecap(monthlyRes.data);
         setRecentTrips(tripsRes.data);
+
+        // Recaps are premium — fetch separately
+        if (user?.isPremium) {
+          const [weeklyRes, monthlyRes] = await Promise.all([
+            api.get<{ data: PeriodRecap }>("/gamification/recap?period=weekly").catch(() => null),
+            api.get<{ data: PeriodRecap }>("/gamification/recap?period=monthly").catch(() => null),
+          ]);
+          if (weeklyRes) setWeeklyRecap(weeklyRes.data);
+          if (monthlyRes) setMonthlyRecap(monthlyRes.data);
+        }
         if (fuelRes) {
           setFuelLogs(fuelRes.data);
           setFuelTotal(fuelRes.total);
@@ -131,8 +143,8 @@ export default function PersonalPage() {
         </div>
       )}
 
-      {/* Driving Recap */}
-      {(weeklyRecap || monthlyRecap || stats) && (
+      {/* Driving Recap — premium */}
+      {isPremium && (weeklyRecap || monthlyRecap || stats) && (
         <div className="driving-recap" style={{ marginBottom: "var(--dash-gap)" }}>
           <div className="driving-recap__header">
             <div className="driving-recap__title">
@@ -221,16 +233,19 @@ export default function PersonalPage() {
             if (!meta) return null;
             const isEarned = earnedTypes.has(type);
             const ach = achievements.find((a) => a.type === type);
+            const isFree = freeSet.has(type);
+            const isLocked = !isPremium && !isFree;
 
             return (
               <div
                 key={type}
-                className={`achievement ${isEarned ? "achievement--earned" : "achievement--locked"}`}
+                className={`achievement ${isEarned && !isLocked ? "achievement--earned" : "achievement--locked"}`}
+                style={isLocked ? { opacity: 0.25 } : undefined}
               >
-                <div className="achievement__emoji">{meta.emoji}</div>
+                <div className="achievement__emoji">{isLocked ? "\uD83D\uDD12" : meta.emoji}</div>
                 <div className="achievement__name">{meta.label}</div>
-                <div className="achievement__desc">{meta.description}</div>
-                {isEarned && ach && (
+                <div className="achievement__desc">{isLocked ? "Pro feature" : meta.description}</div>
+                {isEarned && !isLocked && ach && (
                   <div className="achievement__date">
                     {new Date(ach.achievedAt).toLocaleDateString("en-GB", {
                       day: "numeric",
@@ -245,8 +260,8 @@ export default function PersonalPage() {
         </div>
       </Card>
 
-      {/* Personal Records */}
-      {stats && stats.personalRecords && stats.personalRecords.mostMilesInDay > 0 && (
+      {/* Personal Records — premium */}
+      {isPremium && stats && stats.personalRecords && stats.personalRecords.mostMilesInDay > 0 && (
         <Card title="Personal Records" style={{ marginBottom: "var(--dash-gap)" }}>
           <div className="stats-grid">
             {[
@@ -430,6 +445,18 @@ export default function PersonalPage() {
             </table>
           </div>
         </Card>
+      )}
+
+      {/* Premium upgrade teaser */}
+      {!isPremium && (
+        <div className="premium-gate" style={{ marginTop: "var(--dash-gap)" }}>
+          <div className="premium-gate__icon">&#9888;</div>
+          <h2 className="premium-gate__title">Unlock More Insights</h2>
+          <p className="premium-gate__text">
+            Driving recaps, personal records, all 18 achievements, and detailed analytics are available with MileClear Pro.
+          </p>
+          <a href="/dashboard/settings" className="btn btn--primary">Upgrade to Pro</a>
+        </div>
       )}
     </>
   );

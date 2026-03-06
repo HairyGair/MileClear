@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { api } from "../../../lib/api";
+import { useAuth } from "../../../lib/auth-context";
 import { PageHeader } from "../../../components/dashboard/PageHeader";
 import { Card } from "../../../components/ui/Card";
 import { Badge } from "../../../components/ui/Badge";
@@ -72,6 +73,8 @@ function gradeColor(grade: string): string {
 }
 
 export default function BusinessPage() {
+  const { user } = useAuth();
+  const isPremium = user?.isPremium ?? false;
   const [stats, setStats] = useState<GamificationStats | null>(null);
   const [insights, setInsights] = useState<BusinessInsights | null>(null);
   const [pnl, setPnl] = useState<WeeklyPnL | null>(null);
@@ -81,6 +84,10 @@ export default function BusinessPage() {
   const [pnlWeek, setPnlWeek] = useState(0);
 
   useEffect(() => {
+    if (!isPremium) {
+      setLoading(false);
+      return;
+    }
     async function load() {
       try {
         const [statsRes, insightsRes, pnlRes, recapRes, tripsRes] = await Promise.all([
@@ -102,7 +109,7 @@ export default function BusinessPage() {
       }
     }
     load();
-  }, []);
+  }, [isPremium]);
 
   // Fetch P&L for different weeks
   useEffect(() => {
@@ -112,6 +119,22 @@ export default function BusinessPage() {
       .then((res) => setPnl(res.data))
       .catch(() => {});
   }, [pnlWeek]);
+
+  if (!isPremium && !loading) {
+    return (
+      <>
+        <PageHeader title="Business" subtitle="Tax deductions, efficiency, and business intelligence" />
+        <div className="premium-gate">
+          <div className="premium-gate__icon">&#9888;</div>
+          <h2 className="premium-gate__title">Upgrade to Pro</h2>
+          <p className="premium-gate__text">
+            Business intelligence, tax deductions, platform comparison, shift grades, and weekly P&amp;L are available with a MileClear Pro subscription.
+          </p>
+          <a href="/dashboard/settings" className="btn btn--primary">Manage Subscription</a>
+        </div>
+      </>
+    );
+  }
 
   if (loading) return <DashboardSkeleton />;
 

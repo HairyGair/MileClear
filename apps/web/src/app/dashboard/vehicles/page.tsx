@@ -13,6 +13,7 @@ import { EmptyState } from "../../../components/ui/EmptyState";
 import { LoadingSkeleton } from "../../../components/ui/LoadingSkeleton";
 import type { Vehicle } from "@mileclear/shared";
 import { FUEL_TYPES, VEHICLE_TYPES } from "@mileclear/shared";
+import { useAuth } from "../../../lib/auth-context";
 
 const FUEL_OPTIONS = FUEL_TYPES.map((f) => ({
   value: f,
@@ -25,6 +26,8 @@ const VEHICLE_TYPE_OPTIONS = VEHICLE_TYPES.map((v) => ({
 }));
 
 export default function VehiclesPage() {
+  const { user } = useAuth();
+  const isPremium = user?.isPremium ?? false;
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -70,6 +73,10 @@ export default function VehiclesPage() {
   }, [loadVehicles]);
 
   const openAdd = () => {
+    if (!isPremium && vehicles.length >= 1) {
+      setError("Free accounts can have 1 vehicle. Upgrade to Pro for unlimited vehicles.");
+      return;
+    }
     setEditVehicle(null);
     setForm({
       make: "",
