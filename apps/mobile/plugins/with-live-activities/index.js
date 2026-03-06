@@ -111,7 +111,7 @@ function addNativeModuleToMainTarget(project, projectName) {
       isa: "PBXFileReference",
       lastKnownFileType: file.type,
       path: file.name,
-      sourceTree: "<group>",
+      sourceTree: '"<group>"',
     };
     project.hash.project.objects.PBXFileReference[`${fileRefUuid}_comment`] = file.name;
 
@@ -163,7 +163,7 @@ function addWidgetExtensionTarget(project, projectName) {
       isa: "PBXFileReference",
       lastKnownFileType: "sourcecode.swift",
       path: file,
-      sourceTree: "<group>",
+      sourceTree: '"<group>"',
     };
     project.hash.project.objects.PBXFileReference[`${uuid}_comment`] = file;
     fileRefUuids[file] = uuid;
@@ -174,7 +174,7 @@ function addWidgetExtensionTarget(project, projectName) {
     isa: "PBXFileReference",
     lastKnownFileType: "text.plist.xml",
     path: "Info.plist",
-    sourceTree: "<group>",
+    sourceTree: '"<group>"',
   };
   project.hash.project.objects.PBXFileReference[`${infoPlistUuid}_comment`] = "Info.plist";
 
@@ -191,7 +191,7 @@ function addWidgetExtensionTarget(project, projectName) {
     isa: "PBXGroup",
     children: groupChildren,
     path: WIDGET_TARGET,
-    sourceTree: "<group>",
+    sourceTree: '"<group>"',
   };
   project.hash.project.objects.PBXGroup[`${groupUuid}_comment`] = WIDGET_TARGET;
 

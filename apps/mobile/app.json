@@ -16,7 +16,7 @@
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "com.mileclear.app",
-      "buildNumber": "20",
+      "buildNumber": "21",
       "usesAppleSignIn": true,
       "infoPlist": {
         "NSLocationAlwaysAndWhenInUseUsageDescription": "MileClear needs location access to track your mileage during shifts and detect when you start driving.",
@@ -91,8 +91,7 @@
         }
       ],
       "@react-native-community/datetimepicker",
-      "react-native-iap",
-      "./plugins/with-live-activities/index"
+      "react-native-iap"
     ],
     "extra": {
       "router": {},
