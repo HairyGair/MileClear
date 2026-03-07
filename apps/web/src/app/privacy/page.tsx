@@ -23,7 +23,7 @@ export default function PrivacyPolicy() {
           {/* Header */}
           <div className="legal__header">
             <h1 className="heading">Privacy Policy</h1>
-            <p className="legal__date">Last updated: 25 February 2026</p>
+            <p className="legal__date">Last updated: 7 March 2026</p>
           </div>
 
           {/* Table of Contents */}
@@ -41,6 +41,7 @@ export default function PrivacyPolicy() {
               <li><a href="#cookies" className="legal__toc-link">Cookies &amp; Local Storage</a></li>
               <li><a href="#children" className="legal__toc-link">Children&apos;s Privacy</a></li>
               <li><a href="#security" className="legal__toc-link">Security</a></li>
+              <li><a href="#automated-decisions" className="legal__toc-link">Automated Decision-Making</a></li>
               <li><a href="#contact" className="legal__toc-link">Contact Us</a></li>
             </ul>
           </nav>
@@ -148,6 +149,44 @@ export default function PrivacyPolicy() {
                   <li className="legal__list-item">Error logs and crash reports</li>
                 </ul>
               </div>
+
+              <div className="legal__card">
+                <h3 className="legal__card-title">Driving Analytics Data</h3>
+                <ul className="legal__list">
+                  <li className="legal__list-item">Route patterns derived from trip start/end coordinates (clustered within 500m)</li>
+                  <li className="legal__list-item">Shift duration and earnings correlations</li>
+                  <li className="legal__list-item">Fuel cost calculations per vehicle</li>
+                  <li className="legal__list-item">Commute timing patterns between saved locations</li>
+                  <li className="legal__list-item">Day-of-week earnings distributions</li>
+                </ul>
+              </div>
+
+              <div className="legal__card">
+                <h3 className="legal__card-title">Saved Locations &amp; Geofencing</h3>
+                <ul className="legal__list">
+                  <li className="legal__list-item">Named GPS coordinates (home, work, depot, custom)</li>
+                  <li className="legal__list-item">Geofence entry/exit events for automatic trip detection</li>
+                  <li className="legal__list-item">Geofence radius settings (default 150m)</li>
+                </ul>
+              </div>
+
+              <div className="legal__card">
+                <h3 className="legal__card-title">Bluetooth Data</h3>
+                <ul className="legal__list">
+                  <li className="legal__list-item">Vehicle Bluetooth device names (user-configured, not scanned)</li>
+                  <li className="legal__list-item">Bluetooth pairing state used solely to confirm trip starts — no audio, contacts, or other Bluetooth data is accessed</li>
+                </ul>
+              </div>
+
+              <div className="legal__card">
+                <h3 className="legal__card-title">Local-Only Data (never synced to our servers)</h3>
+                <ul className="legal__list">
+                  <li className="legal__list-item">Dashboard alert dismiss timestamps (24-hour cooldown)</li>
+                  <li className="legal__list-item">Work schedule preferences (days and hours)</li>
+                  <li className="legal__list-item">Layout customisation preferences</li>
+                  <li className="legal__list-item">Notification preference toggles</li>
+                </ul>
+              </div>
             </section>
 
             {/* 3. How We Use Your Data */}
@@ -210,6 +249,10 @@ export default function PrivacyPolicy() {
                   <li className="legal__list-item">Debugging technical issues and improving app stability</li>
                   <li className="legal__list-item">Understanding user behaviour for feature development</li>
                   <li className="legal__list-item">Generating anonymised analytics and reports</li>
+                  <li className="legal__list-item">Generating driving analytics (route patterns, shift efficiency, fuel cost breakdowns)</li>
+                  <li className="legal__list-item">Providing smart dashboard alerts based on your driving patterns</li>
+                  <li className="legal__list-item">Sending scheduled push notifications (weekly summaries, streak reminders, tax deadline alerts)</li>
+                  <li className="legal__list-item">Detecting trip starts via Bluetooth vehicle pairing and geofence triggers</li>
                 </ul>
               </div>
 
@@ -319,6 +362,13 @@ export default function PrivacyPolicy() {
               </div>
 
               <div className="legal__card">
+                <h3 className="legal__card-title">Geofencing and Automatic Trip Detection</h3>
+                <p className="legal__card-text">
+                  Saved locations can trigger automatic trip detection when you enter or leave a geofenced area. Geofencing uses the same location permissions already granted for trip tracking. Geofence monitoring runs in the background only when enabled by the user.
+                </p>
+              </div>
+
+              <div className="legal__card">
                 <h3 className="legal__card-title">Privacy Implications</h3>
                 <p className="legal__card-text">We understand location data is highly sensitive and reveals personal habits, travel patterns, and private locations. Therefore:</p>
                 <ul className="legal__list">
@@ -347,6 +397,8 @@ export default function PrivacyPolicy() {
                 <p className="legal__card-text legal__text--small">Sign-in only. We share: email address (sometimes) and sign-in request. We verify the token on our servers; Apple/Google do not see your other data.</p>
                 <p className="legal__card-text" style={{marginTop: '0.75rem'}}><strong>Expo / EAS (App Infrastructure)</strong></p>
                 <p className="legal__card-text legal__text--small">App distribution and crash reporting only. No personal data is shared.</p>
+                <p className="legal__card-text" style={{marginTop: '0.75rem'}}><strong>Expo Push Notification Service (Expo/EAS)</strong></p>
+                <p className="legal__card-text legal__text--small">Push token and notification content only, used to deliver scheduled notifications (weekly summaries, streak reminders, tax deadline alerts).</p>
               </div>
 
               <div className="legal__card">
@@ -424,6 +476,14 @@ export default function PrivacyPolicy() {
               <p className="legal__text">
                 After retention periods expire, we securely delete or anonymise data. You can request deletion earlier (see Your Rights section). Anonymised data (aggregated stats with no identifiable information) may be retained indefinitely for analytics.
               </p>
+
+              <div className="legal__card">
+                <h3 className="legal__card-title">Trip Merging and Local Data</h3>
+                <ul className="legal__list">
+                  <li className="legal__list-item">Trip merging permanently combines 2-20 trips into one record. Original individual trip records are deleted and cannot be recovered.</li>
+                  <li className="legal__list-item">Local-only data (work schedule, alert dismissals, layout preferences) is stored on your device and deleted when you uninstall the app</li>
+                </ul>
+              </div>
             </section>
 
             {/* 8. Your Rights */}
@@ -694,6 +754,17 @@ export default function PrivacyPolicy() {
               </div>
             </section>
 
+            {/* 13. Automated Decision-Making */}
+            <section id="automated-decisions" className="legal__section">
+              <h2 className="legal__section-title">13. Automated Decision-Making</h2>
+
+              <div className="legal__card">
+                <p className="legal__card-text">
+                  MileClear uses automated processing to generate driving analytics, smart alerts, and trip classification suggestions. These are informational only and do not make decisions that produce legal or similarly significant effects. You can dismiss any automated insight from your dashboard.
+                </p>
+              </div>
+            </section>
+
             {/* 14. Contact Us */}
             <section id="contact" className="legal__section">
               <h2 className="legal__section-title">14. Contact Us &amp; Data Requests</h2>
@@ -746,7 +817,7 @@ export default function PrivacyPolicy() {
             {/* Footer */}
             <div className="legal__footer">
               <p className="legal__footer-text">&copy; 2026 MileClear Limited. All rights reserved.</p>
-              <p className="legal__footer-text">Version 1.0 &mdash; Effective 25 February 2026</p>
+              <p className="legal__footer-text">Version 1.0 &mdash; Effective 7 March 2026</p>
               <div className="legal__footer-links">
                 <a href="/terms" className="legal__footer-link">Terms of Service</a>
                 <a href="/privacy" className="legal__footer-link">Privacy Policy</a>

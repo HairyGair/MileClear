@@ -35,6 +35,38 @@ const faqs = [
     a: 'Go to Profile in the app and scroll to the Subscription section. Tap "Cancel subscription". You\'ll keep access to Pro features until the end of your current billing period.',
   },
   {
+    q: 'What is trip merging?',
+    a: 'If your journey gets split into multiple trips (for example, if you stop at a petrol station or get stuck in traffic), you can merge them back together. Long-press a trip to enter selection mode, pick 2 to 20 trips, and merge them into one. You\'ll choose the classification (business or personal) and optionally a platform. Merging is permanent — it can\'t be undone.',
+  },
+  {
+    q: 'What are Smart Alerts?',
+    a: 'Smart Alerts appear at the top of your dashboard with personalised insights based on your driving data. They might remind you about unclassified trips, celebrate a streak, or let you know you\'re approaching the HMRC 10,000-mile threshold. You can dismiss any alert and it won\'t return for 24 hours.',
+  },
+  {
+    q: 'What does Driving Analytics show me?',
+    a: 'The Analytics screen shows six insights computed from your existing data: a weekly report with business/personal split, your most frequent routes, the best shift length for earnings (work mode), fuel cost per mile by vehicle, which days of the week you earn most, and commute timing between your saved locations.',
+  },
+  {
+    q: 'How does route intelligence work?',
+    a: 'MileClear groups your trips by start and end location (within about 500 metres). If you regularly drive the same route, it shows you how many times you\'ve done it, your average and fastest journey times, and which days you drive it most. No extra tracking is needed — it uses trips you\'ve already logged.',
+  },
+  {
+    q: 'How do saved locations and geofencing work?',
+    a: 'You can save locations like Home, Work, or Depot with a custom geofence radius. When you enter or leave a geofenced area, MileClear can automatically suggest starting or ending a trip. Free users get 2 saved locations; Pro users get unlimited.',
+  },
+  {
+    q: 'How does Bluetooth auto-trip detection work?',
+    a: 'If you add your car\'s Bluetooth name in vehicle settings, MileClear can detect when you connect to your car and prompt you to start tracking. It only checks for the specific device name you configured — it doesn\'t scan for or connect to other Bluetooth devices.',
+  },
+  {
+    q: 'What notifications does MileClear send?',
+    a: 'MileClear can send weekly driving summaries, streak reminders (if your tracking streak is at risk), subscription expiry alerts, and tax deadline reminders. You can control which notifications you receive in the app\'s notification settings under Profile.',
+  },
+  {
+    q: 'What\'s the difference between the weekly report and the daily recap?',
+    a: 'The daily recap shows today\'s driving stats (miles, trips, deduction). The weekly report in Driving Analytics is more comprehensive — it compares your business and personal driving side by side, shows percentage changes from the previous week, and highlights any achievements you earned.',
+  },
+  {
     q: 'Is my data safe?',
     a: 'Yes. Your location data is stored locally on your device and only synced when you choose. We use encrypted connections, secure token storage, and never sell your data. You can export or delete your data at any time under Profile.',
   },

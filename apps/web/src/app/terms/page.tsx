@@ -23,7 +23,7 @@ export default function TermsOfService() {
           {/* Header */}
           <div className="legal__header">
             <h1 className="heading">Terms of Service</h1>
-            <p className="legal__date">Last updated: 25 February 2026</p>
+            <p className="legal__date">Last updated: 7 March 2026</p>
           </div>
 
           {/* Quick Navigation */}
@@ -38,6 +38,8 @@ export default function TermsOfService() {
               <li><a href="#no-warranty" className="legal__toc-link">Disclaimers</a></li>
               <li><a href="#limitation" className="legal__toc-link">Limitation of Liability</a></li>
               <li><a href="#indemnity" className="legal__toc-link">Indemnification</a></li>
+              <li><a href="#background-services" className="legal__toc-link">Background Services</a></li>
+              <li><a href="#notifications" className="legal__toc-link">Scheduled Notifications</a></li>
               <li><a href="#termination" className="legal__toc-link">Termination</a></li>
               <li><a href="#billing" className="legal__toc-link">Billing &amp; Payments</a></li>
               <li><a href="#ip" className="legal__toc-link">Intellectual Property</a></li>
@@ -57,7 +59,7 @@ export default function TermsOfService() {
                 <strong>Service Provider:</strong> MileClear Limited, a UK-registered company
               </p>
               <p className="legal__text">
-                <strong>Effective Date:</strong> 25 February 2026
+                <strong>Effective Date:</strong> 7 March 2026
               </p>
               <p className="legal__text legal__text--small">
                 We may update these Terms at any time. Continued use of the Service after changes constitutes acceptance. We will notify you of material changes via email or in-app notification.
@@ -190,6 +192,30 @@ export default function TermsOfService() {
                   You can disable location tracking at any time via device settings.
                 </p>
               </div>
+
+              <div className="legal__card">
+                <h3 className="legal__card-title">Trip Merging</h3>
+                <p className="legal__card-text">You may merge 2 to 20 trips into a single trip record through the MileClear interface:</p>
+                <ul className="legal__list">
+                  <li className="legal__list-item">Merging is permanent and irreversible — original trip records are deleted</li>
+                  <li className="legal__list-item">You are responsible for ensuring merged trips accurately reflect your journeys</li>
+                  <li className="legal__list-item">For HMRC purposes, merged trips appear as a single entry in exports</li>
+                  <li className="legal__list-item">You should retain any supporting evidence of the original journeys (vehicle odometer readings, business logs)</li>
+                </ul>
+              </div>
+
+              <div className="legal__card">
+                <h3 className="legal__card-title">Driving Analytics</h3>
+                <p className="legal__card-text">Analytics insights provided by MileClear include:</p>
+                <ul className="legal__list">
+                  <li className="legal__list-item">Route patterns and trip clustering (grouping trips with similar start/end points within approximately 500 metres)</li>
+                  <li className="legal__list-item">Shift sweet spots and optimal driving times</li>
+                  <li className="legal__list-item">Earnings heatmaps, fuel costs, and commute timing</li>
+                </ul>
+                <p className="legal__card-text legal__text--small" style={{ marginTop: '1rem' }}>
+                  <strong>Important:</strong> Analytics are informational tools only and do not constitute financial, tax, or legal advice. You should not rely solely on analytics for business decisions without independent verification.
+                </p>
+              </div>
             </section>
 
             {/* 5. User Content */}
@@ -284,6 +310,33 @@ export default function TermsOfService() {
               </div>
 
               <div className="legal__card">
+                <h3 className="legal__card-title">Smart Dashboard Alerts &amp; Analytics Accuracy</h3>
+                <p className="legal__card-text">
+                  Smart dashboard alerts and driving analytics are generated automatically from your data and may not reflect all circumstances. We do not warrant that:
+                </p>
+                <ul className="legal__list">
+                  <li className="legal__list-item">Alerts accurately represent real-world conditions</li>
+                  <li className="legal__list-item">Analytics capture all factors affecting your driving or earnings</li>
+                  <li className="legal__list-item">Commute timing predictions reflect real-time traffic or conditions</li>
+                </ul>
+                <p className="legal__card-text legal__text--small" style={{ marginTop: '1rem' }}>
+                  These are advisory tools only and should not be relied upon exclusively for business or tax decisions.
+                </p>
+              </div>
+
+              <div className="legal__card">
+                <h3 className="legal__card-title">HMRC Export Disclaimer</h3>
+                <p className="legal__card-text">
+                  HMRC export documents generated by MileClear are tools to assist with self-assessment filing:
+                </p>
+                <ul className="legal__list">
+                  <li className="legal__list-item">Exports do not guarantee acceptance by HMRC</li>
+                  <li className="legal__list-item">You remain solely responsible for the accuracy of your tax return</li>
+                  <li className="legal__list-item">You should retain supporting documentation (vehicle odometer readings, business records, fuel receipts) to defend your claim if audited</li>
+                </ul>
+              </div>
+
+              <div className="legal__card">
                 <h3 className="legal__card-title">Assumption of Risk</h3>
                 <p className="legal__card-text">
                   You use MileClear at your own risk. You assume all responsibility for any loss, damage, or inconvenience resulting from:
@@ -373,9 +426,86 @@ export default function TermsOfService() {
               </div>
             </section>
 
-            {/* 9. Termination */}
+            {/* 9. Background Services */}
+            <section id="background-services" className="legal__section">
+              <h2 className="legal__section-title">9. Background Services</h2>
+
+              <div className="legal__card">
+                <h3 className="legal__card-title">Background Operations</h3>
+                <p className="legal__card-text">
+                  MileClear may run background services with your permission to provide the Service. These include:
+                </p>
+                <ul className="legal__list">
+                  <li className="legal__list-item"><strong>GPS trip tracking:</strong> Continuous location capture during active shifts</li>
+                  <li className="legal__list-item"><strong>Geofence monitoring:</strong> Monitoring of saved locations (home, work, depot) for proximity alerts</li>
+                  <li className="legal__list-item"><strong>Bluetooth trip confirmation:</strong> Checking for previously configured vehicle names to auto-confirm trip start</li>
+                  <li className="legal__list-item"><strong>Push notifications:</strong> Delivery of streak reminders, subscription alerts, and weekly summaries</li>
+                </ul>
+              </div>
+
+              <div className="legal__card">
+                <h3 className="legal__card-title">Controlling Background Services</h3>
+                <p className="legal__card-text">You can disable any background service at any time:</p>
+                <ul className="legal__list">
+                  <li className="legal__list-item">Through your device settings (iOS/Android location, Bluetooth, notification permissions)</li>
+                  <li className="legal__list-item">Within the MileClear app (Settings &gt; Permissions &gt; toggle services off)</li>
+                </ul>
+                <p className="legal__card-text legal__text--small" style={{ marginTop: '1rem' }}>
+                  <strong>Background location tracking</strong> only occurs during active shifts or when drive detection is enabled. It does not run continuously in the background when the app is closed.
+                </p>
+              </div>
+
+              <div className="legal__card">
+                <h3 className="legal__card-title">Bluetooth Monitoring</h3>
+                <p className="legal__card-text">
+                  Bluetooth monitoring checks only for previously configured vehicle names (names you have explicitly added to MileClear). It does not:
+                </p>
+                <ul className="legal__list">
+                  <li className="legal__list-item">Scan for or connect to other devices</li>
+                  <li className="legal__list-item">Share Bluetooth data with third parties</li>
+                  <li className="legal__list-item">Monitor other Bluetooth activity on your device</li>
+                </ul>
+              </div>
+            </section>
+
+            {/* 10. Scheduled Notifications */}
+            <section id="notifications" className="legal__section">
+              <h2 className="legal__section-title">10. Scheduled Notifications</h2>
+
+              <div className="legal__card">
+                <h3 className="legal__card-title">Push Notifications</h3>
+                <p className="legal__card-text">
+                  MileClear sends push notifications to help you stay engaged. These may include:
+                </p>
+                <ul className="legal__list">
+                  <li className="legal__list-item">Weekly driving summaries and performance recaps</li>
+                  <li className="legal__list-item">Streak reminders (encouraging daily or weekly tracking)</li>
+                  <li className="legal__list-item">Subscription expiry alerts (7-day and 1-day before renewal)</li>
+                  <li className="legal__list-item">Tax deadline reminders (Self Assessment dates, quarterly reporting)</li>
+                  <li className="legal__list-item">Unclassified trip nudges (prompting you to classify business vs. personal)</li>
+                </ul>
+              </div>
+
+              <div className="legal__card">
+                <h3 className="legal__card-title">Opting Out</h3>
+                <p className="legal__card-text">You can opt out of any notification category at any time:</p>
+                <ul className="legal__list">
+                  <li className="legal__list-item">In-app: Settings &gt; Notifications &gt; toggle categories on/off</li>
+                  <li className="legal__list-item">Device level: Disable notifications in iOS/Android settings (disables all MileClear notifications)</li>
+                </ul>
+              </div>
+
+              <div className="legal__card">
+                <h3 className="legal__card-title">Technical Requirements</h3>
+                <p className="legal__card-text">
+                  Notifications require an active push token registered with Expo Push Service. If you have not enabled notifications or have revoked the app's permission, you will not receive push notifications.
+                </p>
+              </div>
+            </section>
+
+            {/* 11. Termination */}
             <section id="termination" className="legal__section">
-              <h2 className="legal__section-title">9. Termination of Account</h2>
+              <h2 className="legal__section-title">11. Termination of Account</h2>
 
               <div className="legal__card">
                 <h3 className="legal__card-title">Termination by You</h3>
@@ -415,16 +545,24 @@ export default function TermsOfService() {
               </div>
             </section>
 
-            {/* 10. Billing & Payments */}
+            {/* 12. Billing & Payments */}
             <section id="billing" className="legal__section">
-              <h2 className="legal__section-title">10. Billing &amp; Subscription Payments</h2>
+              <h2 className="legal__section-title">12. Billing &amp; Subscription Payments</h2>
 
               <div className="legal__card">
                 <h3 className="legal__card-title">Free &amp; Premium Tiers</h3>
                 <p className="legal__card-text"><strong>Free Tier</strong></p>
-                <p className="legal__card-text legal__text--small">Always free. Track mileage, gamification, basic analytics.</p>
+                <p className="legal__card-text legal__text--small">Always free. Track mileage, gamification, basic analytics, 2 saved locations.</p>
                 <p className="legal__card-text" style={{ marginTop: '0.75rem' }}><strong>Premium Tier (£4.99/month)</strong></p>
-                <p className="legal__card-text legal__text--small">HMRC exports, earnings tracking, advanced analytics, Open Banking.</p>
+                <p className="legal__card-text legal__text--small">Includes:</p>
+                <ul className="legal__list">
+                  <li className="legal__list-item">HMRC-stamped PDF exports and self-assessment documents</li>
+                  <li className="legal__list-item">CSV trip and earnings exports</li>
+                  <li className="legal__list-item">Unlimited saved locations (free tier capped at 2)</li>
+                  <li className="legal__list-item">CSV earnings import (bulk upload from platform CSVs)</li>
+                  <li className="legal__list-item">Open Banking integration (Plaid) for automatic transaction import</li>
+                  <li className="legal__list-item">Advanced analytics and business insights</li>
+                </ul>
               </div>
 
               <div className="legal__card">
@@ -476,9 +614,9 @@ export default function TermsOfService() {
               </div>
             </section>
 
-            {/* 11. Intellectual Property */}
+            {/* 13. Intellectual Property */}
             <section id="ip" className="legal__section">
-              <h2 className="legal__section-title">11. Intellectual Property Rights</h2>
+              <h2 className="legal__section-title">13. Intellectual Property Rights</h2>
 
               <div className="legal__card">
                 <h3 className="legal__card-title">MileClear IP</h3>
@@ -523,9 +661,9 @@ export default function TermsOfService() {
               </div>
             </section>
 
-            {/* 12. Governing Law & Jurisdiction */}
+            {/* 14. Governing Law & Jurisdiction */}
             <section id="governing" className="legal__section">
-              <h2 className="legal__section-title">12. Governing Law &amp; Dispute Resolution</h2>
+              <h2 className="legal__section-title">14. Governing Law &amp; Dispute Resolution</h2>
 
               <div className="legal__card">
                 <h3 className="legal__card-title">UK Law</h3>
@@ -552,9 +690,9 @@ export default function TermsOfService() {
               </div>
             </section>
 
-            {/* 13. Contact Us */}
+            {/* 15. Contact Us */}
             <section id="contact" className="legal__section">
-              <h2 className="legal__section-title">13. Contact Us</h2>
+              <h2 className="legal__section-title">15. Contact Us</h2>
 
               <div className="legal__card">
                 <h3 className="legal__card-title">For Questions or Issues</h3>
@@ -592,7 +730,7 @@ export default function TermsOfService() {
             {/* Footer */}
             <div className="legal__footer">
               <p className="legal__footer-text">© 2026 MileClear Limited. All rights reserved.</p>
-              <p className="legal__footer-text">Version 1.0 — Effective 25 February 2026</p>
+              <p className="legal__footer-text">Version 1.1 — Effective 7 March 2026</p>
               <div className="legal__footer-links">
                 <a href="/privacy" className="legal__footer-link">Privacy Policy</a>
                 <a href="/terms" className="legal__footer-link">Terms of Service</a>
