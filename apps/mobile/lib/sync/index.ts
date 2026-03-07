@@ -148,9 +148,17 @@ export async function processSyncQueue(): Promise<void> {
           break;
         }
 
+        const isSessionExpired =
+          err instanceof Error && /Session expired/.test(err.message);
+
+        if (isSessionExpired) {
+          // Session expired — stop processing, user needs to re-authenticate
+          // Leave items as pending so they sync after re-login
+          break;
+        }
+
         const is4xx =
-          err instanceof Error &&
-          (/HTTP 4\d\d/.test(err.message) || /Session expired/.test(err.message));
+          err instanceof Error && /HTTP 4\d\d/.test(err.message);
 
         if (is4xx) {
           // Permanent failure — stop retrying but preserve local data

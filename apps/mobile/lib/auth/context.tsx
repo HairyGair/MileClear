@@ -12,6 +12,8 @@ import {
   resetPassword as authResetPassword,
 } from "./index";
 import { deregisterPushToken } from "../api/notifications";
+import { onSessionExpired } from "../api/index";
+import { Alert } from "react-native";
 
 const ACCESS_TOKEN_KEY = "mileclear_access_token";
 
@@ -40,6 +42,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     SecureStore.getItemAsync(ACCESS_TOKEN_KEY)
       .then((token) => setIsAuthenticated(!!token))
       .finally(() => setIsLoading(false));
+
+    // Auto-logout when any API call detects an expired session
+    onSessionExpired(() => {
+      setIsAuthenticated(false);
+      Alert.alert(
+        "Session Expired",
+        "Please sign in again to continue.",
+        [{ text: "OK" }]
+      );
+    });
+    return () => onSessionExpired(null);
   }, []);
 
   const login = useCallback(async (email: string, password: string) => {

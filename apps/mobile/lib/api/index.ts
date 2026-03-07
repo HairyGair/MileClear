@@ -6,6 +6,15 @@ const API_URL = process.env.EXPO_PUBLIC_API_URL || "https://api.mileclear.com";
 const ACCESS_TOKEN_KEY = "mileclear_access_token";
 export const REFRESH_TOKEN_KEY = "mileclear_refresh_token";
 
+// Global session expiry listener — AuthContext subscribes to this
+// so that any 401 from any screen automatically triggers logout
+type SessionExpiredListener = () => void;
+let sessionExpiredListener: SessionExpiredListener | null = null;
+
+export function onSessionExpired(listener: SessionExpiredListener | null) {
+  sessionExpiredListener = listener;
+}
+
 if (!__DEV__ && API_URL.startsWith("http://")) {
   console.warn("WARNING: API_URL is not using HTTPS in production:", API_URL);
 }
@@ -98,6 +107,7 @@ export async function apiRequest<T>(
       res = await makeRequest(token);
     } else {
       await clearTokens();
+      sessionExpiredListener?.();
       throw new Error("Session expired");
     }
   }

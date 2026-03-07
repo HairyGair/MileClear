@@ -50,7 +50,7 @@
     "production": {
       "distribution": "store",
       "ios": {
-        "image": "macos-sequoia-15.4-xcode-16.3"
+        "image": "macos-sequoia-15.6-xcode-26.0"
       },
       "env": {
         "EXPO_PUBLIC_API_URL": "https://api.mileclear.com",

@@ -1,7 +1,7 @@
 import { FastifyInstance } from "fastify";
 import { z } from "zod";
 import crypto from "crypto";
-import { createRemoteJWKSet, jwtVerify } from "jose";
+import { createLocalJWKSet, jwtVerify, type JSONWebKeySet } from "jose";
 import { prisma } from "../../lib/prisma.js";
 import {
   hashPassword,
@@ -67,13 +67,25 @@ const googleAuthSchema = z.object({
   agreedToTerms: z.boolean().optional(),
 });
 
-const APPLE_JWKS = createRemoteJWKSet(
-  new URL("https://appleid.apple.com/auth/keys")
-);
+// Manual JWKS fetch + cache (jose v6 createRemoteJWKSet times out in PM2)
+const JWKS_CACHE_MAX_AGE = 10 * 60 * 1000; // 10 minutes
+const jwksCache = new Map<string, { keys: ReturnType<typeof createLocalJWKSet>; fetchedAt: number }>();
 
-const GOOGLE_JWKS = createRemoteJWKSet(
-  new URL("https://www.googleapis.com/oauth2/v3/certs")
-);
+async function getJWKS(url: string) {
+  const cached = jwksCache.get(url);
+  if (cached && Date.now() - cached.fetchedAt < JWKS_CACHE_MAX_AGE) {
+    return cached.keys;
+  }
+  const res = await fetch(url, { signal: AbortSignal.timeout(10000) });
+  if (!res.ok) throw new Error(`JWKS fetch failed: ${res.status}`);
+  const jwks = (await res.json()) as JSONWebKeySet;
+  const keyset = createLocalJWKSet(jwks);
+  jwksCache.set(url, { keys: keyset, fetchedAt: Date.now() });
+  return keyset;
+}
+
+const APPLE_JWKS_URL = "https://appleid.apple.com/auth/keys";
+const GOOGLE_JWKS_URL = "https://www.googleapis.com/oauth2/v3/certs";
 
 function generateOtp(): string {
   return crypto.randomInt(100000, 999999).toString();
@@ -451,16 +463,18 @@ export async function authRoutes(app: FastifyInstance) {
     ];
     let payload: { sub?: string; email?: string };
     try {
+      const appleJWKS = await getJWKS(APPLE_JWKS_URL);
       const { payload: verified } = await jwtVerify(
         identityToken,
-        APPLE_JWKS,
+        appleJWKS,
         {
           issuer: "https://appleid.apple.com",
           audience: appleAudiences,
         }
       );
       payload = verified as { sub?: string; email?: string };
-    } catch {
+    } catch (err) {
+      console.error("Apple identity token verification failed:", err);
       return reply.status(401).send({ error: "Invalid Apple identity token" });
     }
 
@@ -547,9 +561,10 @@ export async function authRoutes(app: FastifyInstance) {
     // Verify Google ID token via JWKS (cryptographic verification)
     let payload: { sub?: string; email?: string; name?: string; email_verified?: boolean };
     try {
+      const googleJWKS = await getJWKS(GOOGLE_JWKS_URL);
       const { payload: verified } = await jwtVerify(
         idToken,
-        GOOGLE_JWKS,
+        googleJWKS,
         {
           issuer: "https://accounts.google.com",
           audience: googleAudiences,
@@ -703,9 +718,10 @@ export async function authRoutes(app: FastifyInstance) {
     ];
     let payload: { sub?: string; email?: string };
     try {
+      const appleJWKS = await getJWKS(APPLE_JWKS_URL);
       const { payload: verified } = await jwtVerify(
         idToken,
-        APPLE_JWKS,
+        appleJWKS,
         {
           issuer: "https://appleid.apple.com",
           audience: appleAudiences,
