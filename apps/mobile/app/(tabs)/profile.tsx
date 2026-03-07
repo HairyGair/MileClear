@@ -953,6 +953,27 @@ export default function ProfileScreen() {
           </View>
         )}
 
+        {/* ── WEB DASHBOARD ── */}
+        <TouchableOpacity
+          style={styles.webCard}
+          onPress={() => WebBrowser.openBrowserAsync("https://mileclear.com/dashboard")}
+          activeOpacity={0.7}
+          accessibilityRole="link"
+          accessibilityLabel="Open MileClear web dashboard"
+          accessibilityHint="View your trips, exports, and analytics on a bigger screen"
+        >
+          <View style={styles.webCardIcon}>
+            <Ionicons name="laptop-outline" size={22} color={AMBER} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.webCardTitle}>Web Dashboard</Text>
+            <Text style={styles.webCardDesc}>
+              Log in at mileclear.com with the same account to manage trips, exports, and analytics on a bigger screen.
+            </Text>
+          </View>
+          <Ionicons name="open-outline" size={16} color={TEXT_3} />
+        </TouchableOpacity>
+
         {/* ── ACCOUNT ── */}
         <View style={styles.group}>
           <Text style={styles.groupLabel} accessibilityRole="header">ACCOUNT</Text>
@@ -1568,5 +1589,38 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontFamily: "PlusJakartaSans_600SemiBold",
     color: TEXT_1,
+  },
+
+  // Web dashboard card
+  webCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    backgroundColor: CARD_BG,
+    borderRadius: 14,
+    padding: 16,
+    marginBottom: 24,
+    borderWidth: 1,
+    borderColor: "rgba(245,166,35,0.15)",
+  },
+  webCardIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: "rgba(245,166,35,0.1)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  webCardTitle: {
+    fontSize: 15,
+    fontFamily: "PlusJakartaSans_600SemiBold",
+    color: TEXT_1,
+    marginBottom: 3,
+  },
+  webCardDesc: {
+    fontSize: 13,
+    fontFamily: "PlusJakartaSans_400Regular",
+    color: TEXT_2,
+    lineHeight: 18,
   },
 });
