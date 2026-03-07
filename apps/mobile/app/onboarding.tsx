@@ -5,7 +5,6 @@ import {
   StyleSheet,
   Image,
   ScrollView,
-  TextInput,
   TouchableOpacity,
   KeyboardAvoidingView,
   Platform,
@@ -17,12 +16,10 @@ import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import * as Location from "expo-location";
 import { Button } from "../components/Button";
-import { createVehicle } from "../lib/api/vehicles";
 import { updateProfile } from "../lib/api/user";
 import { getDatabase } from "../lib/db/index";
 import { useMode } from "../lib/mode/context";
-import type { FuelType, VehicleType, WorkType } from "@mileclear/shared";
-import { FUEL_TYPES, VEHICLE_TYPES, WORK_TYPES } from "@mileclear/shared";
+import type { WorkType } from "@mileclear/shared";
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
@@ -33,54 +30,11 @@ const AMBER = "#f5a623";
 const TEXT_1 = "#f0f2f5";
 const TEXT_2 = "#8494a7";
 const TEXT_3 = "#4a5568";
-const INPUT_BG = "rgba(255,255,255,0.03)";
-const INPUT_BORDER = "rgba(255,255,255,0.06)";
-const INPUT_FOCUSED_BORDER = "rgba(245, 166, 35, 0.35)";
 const ERROR_BG = "rgba(220, 38, 38, 0.1)";
 const ERROR_BORDER = "rgba(220, 38, 38, 0.2)";
 
-const TOTAL_STEPS = 5;
+const TOTAL_STEPS = 3;
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
-
-// Human-readable labels mirroring those in profile.tsx
-const FUEL_LABELS: Record<FuelType, string> = {
-  petrol: "Petrol",
-  diesel: "Diesel",
-  electric: "Electric",
-  hybrid: "Hybrid",
-};
-
-const VEHICLE_LABELS: Record<VehicleType, string> = {
-  car: "Car",
-  motorbike: "Motorbike",
-  van: "Van",
-};
-
-// ── How it works cards ────────────────────────────────────────────────────────
-
-interface HowItWorksCard {
-  icon: keyof typeof Ionicons.glyphMap;
-  title: string;
-  body: string;
-}
-
-const HOW_IT_WORKS: HowItWorksCard[] = [
-  {
-    icon: "play-circle-outline",
-    title: "Start a Shift",
-    body: "Tap once to begin tracking. GPS records every mile automatically while you drive.",
-  },
-  {
-    icon: "list-outline",
-    title: "Review Trips",
-    body: "After each shift, quickly classify your trips as business or personal.",
-  },
-  {
-    icon: "calculator-outline",
-    title: "Save on Tax",
-    body: "HMRC mileage deductions are calculated automatically — up to 45p per mile.",
-  },
-];
 
 // ── Main component ────────────────────────────────────────────────────────────
 
@@ -90,16 +44,6 @@ export default function OnboardingScreen() {
   const progressAnim = useRef(new Animated.Value(1 / TOTAL_STEPS)).current;
 
   const [step, setStep] = useState(1);
-
-  // Vehicle form state
-  const [make, setMake] = useState("");
-  const [model, setModel] = useState("");
-  const [yearText, setYearText] = useState("");
-  const [fuelType, setFuelType] = useState<FuelType>("petrol");
-  const [vehicleType, setVehicleType] = useState<VehicleType>("car");
-  const [vehicleError, setVehicleError] = useState("");
-  const [addingVehicle, setAddingVehicle] = useState(false);
-  const [focusedField, setFocusedField] = useState<string | null>(null);
 
   // User intent
   const [userIntent, setUserIntent] = useState<"work" | "personal" | "both" | null>(null);
@@ -114,63 +58,32 @@ export default function OnboardingScreen() {
 
   // ── Navigation helpers ─────────────────────────────────────────────────────
 
-  const animateProgress = useCallback((toStep: number) => {
-    Animated.spring(progressAnim, {
-      toValue: toStep / TOTAL_STEPS,
-      tension: 180,
-      friction: 18,
-      useNativeDriver: false,
-    }).start();
-  }, [progressAnim]);
+  const animateProgress = useCallback(
+    (toStep: number) => {
+      Animated.spring(progressAnim, {
+        toValue: toStep / TOTAL_STEPS,
+        tension: 180,
+        friction: 18,
+        useNativeDriver: false,
+      }).start();
+    },
+    [progressAnim]
+  );
 
-  const goToStep = useCallback((target: number) => {
-    const clamped = Math.min(Math.max(target, 1), TOTAL_STEPS);
-    setStep(clamped);
-    animateProgress(clamped);
-    scrollRef.current?.scrollTo({ x: (clamped - 1) * SCREEN_WIDTH, animated: true });
-  }, [animateProgress]);
+  const goToStep = useCallback(
+    (target: number) => {
+      const clamped = Math.min(Math.max(target, 1), TOTAL_STEPS);
+      setStep(clamped);
+      animateProgress(clamped);
+      scrollRef.current?.scrollTo({
+        x: (clamped - 1) * SCREEN_WIDTH,
+        animated: true,
+      });
+    },
+    [animateProgress]
+  );
 
   const goNext = useCallback(() => goToStep(step + 1), [goToStep, step]);
-
-  // ── Vehicle submission ─────────────────────────────────────────────────────
-
-  const handleAddVehicle = useCallback(async () => {
-    setVehicleError("");
-
-    if (!make.trim()) {
-      setVehicleError("Please enter the vehicle make.");
-      return;
-    }
-    if (!model.trim()) {
-      setVehicleError("Please enter the vehicle model.");
-      return;
-    }
-
-    const year = yearText.trim() ? parseInt(yearText.trim(), 10) : undefined;
-    if (yearText.trim() && (isNaN(year!) || year! < 1900 || year! > new Date().getFullYear() + 1)) {
-      setVehicleError("Enter a valid 4-digit year.");
-      return;
-    }
-
-    setAddingVehicle(true);
-    try {
-      await createVehicle({
-        make: make.trim(),
-        model: model.trim(),
-        year,
-        fuelType,
-        vehicleType,
-        isPrimary: true,
-      });
-      goNext();
-    } catch (err: unknown) {
-      setVehicleError(
-        err instanceof Error ? err.message : "Failed to add vehicle. Check your connection."
-      );
-    } finally {
-      setAddingVehicle(false);
-    }
-  }, [make, model, yearText, fuelType, vehicleType, goNext]);
 
   // ── Location permission ────────────────────────────────────────────────────
 
@@ -185,10 +98,15 @@ export default function OnboardingScreen() {
         return;
       }
 
-      const { status: bgStatus } =
+      // Foreground granted — that's enough to proceed.
+      // Try background but don't require it (may fail in Expo Go too).
+      try {
         await Location.requestBackgroundPermissionsAsync();
+      } catch {
+        // Expected in Expo Go — foreground-only is fine
+      }
 
-      setLocationStatus(bgStatus === "granted" ? "granted" : "denied");
+      setLocationStatus("granted");
     } catch {
       setLocationStatus("denied");
     }
@@ -196,47 +114,52 @@ export default function OnboardingScreen() {
 
   // ── Complete onboarding ────────────────────────────────────────────────────
 
-  const handleFinishSetup = useCallback(async () => {
-    setFinishingSetup(true);
-    try {
-      const db = await getDatabase();
-      await db.runAsync(
-        "INSERT OR REPLACE INTO tracking_state (key, value) VALUES ('onboarding_complete', 'true')"
-      );
+  const handleFinish = useCallback(
+    async (destination: "trip" | "dashboard") => {
+      setFinishingSetup(true);
+      try {
+        const db = await getDatabase();
+        await db.runAsync(
+          "INSERT OR REPLACE INTO tracking_state (key, value) VALUES ('onboarding_complete', 'true')"
+        );
 
-      // Set default mode based on user intent
-      if (userIntent === "personal") {
-        setAppMode("personal");
-      } else {
-        setAppMode("work");
+        // Set default mode based on user intent
+        if (userIntent === "personal") {
+          setAppMode("personal");
+        } else {
+          setAppMode("work");
+        }
+
+        // Save intent to server (fire-and-forget)
+        if (userIntent) {
+          updateProfile({
+            userIntent,
+            ...(userIntent !== "personal" && { workType }),
+          }).catch(() => {});
+        }
+
+        if (destination === "trip") {
+          router.replace("/trip-form" as any);
+        } else {
+          router.replace("/(tabs)/dashboard");
+        }
+      } catch {
+        Alert.alert(
+          "Something went wrong",
+          "Could not save your setup progress. You can still continue.",
+          [
+            {
+              text: "Continue",
+              onPress: () => router.replace("/(tabs)/dashboard"),
+            },
+          ]
+        );
+      } finally {
+        setFinishingSetup(false);
       }
-
-      // Save intent to server (fire-and-forget)
-      if (userIntent) {
-        updateProfile({
-          userIntent,
-          ...(userIntent !== "personal" && { workType }),
-        }).catch(() => {});
-      }
-
-      router.replace("/(tabs)/dashboard");
-    } catch {
-      Alert.alert(
-        "Something went wrong",
-        "Could not save your setup progress. You can still continue.",
-        [{ text: "Continue", onPress: () => router.replace("/(tabs)/dashboard") }]
-      );
-    } finally {
-      setFinishingSetup(false);
-    }
-  }, [router, userIntent, setAppMode]);
-
-  // ── Input style helper ─────────────────────────────────────────────────────
-
-  const inputStyle = (field: string) => [
-    s.input,
-    focusedField === field && s.inputFocused,
-  ];
+    },
+    [router, userIntent, workType, setAppMode]
+  );
 
   // ── Render ─────────────────────────────────────────────────────────────────
 
@@ -260,7 +183,6 @@ export default function OnboardingScreen() {
         />
       </View>
 
-      {/* Steps rendered in a horizontal ScrollView (disabled swipe — nav is code-controlled) */}
       <ScrollView
         ref={scrollRef}
         horizontal
@@ -270,7 +192,7 @@ export default function OnboardingScreen() {
         style={s.stepScroller}
         keyboardShouldPersistTaps="handled"
       >
-        {/* ── Step 1: Welcome ──────────────────────────────────────── */}
+        {/* ── Step 1: Welcome + Intent ──────────────────────────────── */}
         <View style={[s.stepPage, { width: SCREEN_WIDTH }]}>
           <ScrollView
             contentContainerStyle={s.stepContent}
@@ -289,144 +211,162 @@ export default function OnboardingScreen() {
               <Text style={s.wordmarkClear}>Clear</Text>
             </View>
 
-            <Text style={s.welcomeHeading}>Welcome to MileClear</Text>
+            <Text style={s.welcomeHeading}>
+              Track every mile.{"\n"}Claim what you're owed.
+            </Text>
             <Text style={s.welcomeSubtitle}>
-              Your friendly mileage tracking buddy.
+              GPS trip tracking, automatic HMRC deductions, and a personal driving journal — all in one app.
             </Text>
 
-            <View style={s.welcomeFeatureList}>
-              {[
-                "Automatic GPS trip tracking",
-                "HMRC tax deductions for work drivers",
-                "Personal mileage journal and goals",
-              ].map((item) => (
-                <View key={item} style={s.welcomeFeatureRow}>
-                  <Ionicons name="checkmark-circle" size={18} color="#10b981" />
-                  <Text style={s.welcomeFeatureText}>{item}</Text>
-                </View>
-              ))}
-            </View>
-
-            <Button
-              variant="hero"
-              title="Get Started"
-              icon="arrow-forward"
-              size="lg"
-              onPress={goNext}
-            />
-          </ScrollView>
-        </View>
-
-        {/* ── Step 2: How Will You Use MileClear? ────────────────────── */}
-        <View style={[s.stepPage, { width: SCREEN_WIDTH }]}>
-          <ScrollView
-            contentContainerStyle={s.stepContent}
-            keyboardShouldPersistTaps="handled"
-          >
-            <View style={s.stepIconWrap}>
-              <Ionicons name="compass-outline" size={32} color={AMBER} />
-            </View>
-
-            <Text style={s.stepHeading}>How will you use MileClear?</Text>
-            <Text style={s.stepSubtitle}>
-              This helps us tailor your experience. You can always switch later.
-            </Text>
+            <Text style={s.sectionLabel}>How will you use MileClear?</Text>
 
             <View style={s.intentCards}>
               <TouchableOpacity
-                style={[s.intentCard, userIntent === "work" && s.intentCardActive]}
+                style={[
+                  s.intentCard,
+                  userIntent === "work" && s.intentCardActive,
+                ]}
                 onPress={() => setUserIntent("work")}
                 activeOpacity={0.75}
               >
-                <View style={[s.intentIconWrap, userIntent === "work" && s.intentIconWrapActive]}>
-                  <Ionicons name="briefcase-outline" size={24} color={userIntent === "work" ? AMBER : TEXT_2} />
+                <View
+                  style={[
+                    s.intentIconWrap,
+                    userIntent === "work" && s.intentIconWrapActive,
+                  ]}
+                >
+                  <Ionicons
+                    name="briefcase-outline"
+                    size={22}
+                    color={userIntent === "work" ? AMBER : TEXT_2}
+                  />
                 </View>
-                <Text style={[s.intentTitle, userIntent === "work" && s.intentTitleActive]}>Work</Text>
-                <Text style={s.intentDesc}>
-                  Track mileage for tax deductions, manage shifts, and log earnings
-                </Text>
+                <View style={s.intentBody}>
+                  <Text
+                    style={[
+                      s.intentTitle,
+                      userIntent === "work" && s.intentTitleActive,
+                    ]}
+                  >
+                    Work
+                  </Text>
+                  <Text style={s.intentDesc}>
+                    Tax deductions, shift tracking, earnings
+                  </Text>
+                </View>
               </TouchableOpacity>
 
               <TouchableOpacity
-                style={[s.intentCard, userIntent === "personal" && s.intentCardActive]}
+                style={[
+                  s.intentCard,
+                  userIntent === "personal" && s.intentCardActive,
+                ]}
                 onPress={() => setUserIntent("personal")}
                 activeOpacity={0.75}
               >
-                <View style={[s.intentIconWrap, userIntent === "personal" && s.intentIconWrapActive]}>
-                  <Ionicons name="car-outline" size={24} color={userIntent === "personal" ? AMBER : TEXT_2} />
+                <View
+                  style={[
+                    s.intentIconWrap,
+                    userIntent === "personal" && s.intentIconWrapActive,
+                  ]}
+                >
+                  <Ionicons
+                    name="car-outline"
+                    size={22}
+                    color={userIntent === "personal" ? AMBER : TEXT_2}
+                  />
                 </View>
-                <Text style={[s.intentTitle, userIntent === "personal" && s.intentTitleActive]}>Personal</Text>
-                <Text style={s.intentDesc}>
-                  Track your journeys, set driving goals, and keep a mileage journal
-                </Text>
+                <View style={s.intentBody}>
+                  <Text
+                    style={[
+                      s.intentTitle,
+                      userIntent === "personal" && s.intentTitleActive,
+                    ]}
+                  >
+                    Personal
+                  </Text>
+                  <Text style={s.intentDesc}>
+                    Journey log, driving goals, mileage journal
+                  </Text>
+                </View>
               </TouchableOpacity>
 
               <TouchableOpacity
-                style={[s.intentCard, userIntent === "both" && s.intentCardActive]}
+                style={[
+                  s.intentCard,
+                  userIntent === "both" && s.intentCardActive,
+                ]}
                 onPress={() => setUserIntent("both")}
                 activeOpacity={0.75}
               >
-                <View style={[s.intentIconWrap, userIntent === "both" && s.intentIconWrapActive]}>
-                  <Ionicons name="swap-horizontal-outline" size={24} color={userIntent === "both" ? AMBER : TEXT_2} />
+                <View
+                  style={[
+                    s.intentIconWrap,
+                    userIntent === "both" && s.intentIconWrapActive,
+                  ]}
+                >
+                  <Ionicons
+                    name="swap-horizontal-outline"
+                    size={22}
+                    color={userIntent === "both" ? AMBER : TEXT_2}
+                  />
                 </View>
-                <Text style={[s.intentTitle, userIntent === "both" && s.intentTitleActive]}>Both</Text>
-                <Text style={s.intentDesc}>
-                  Switch between work and personal modes whenever you need
-                </Text>
+                <View style={s.intentBody}>
+                  <Text
+                    style={[
+                      s.intentTitle,
+                      userIntent === "both" && s.intentTitleActive,
+                    ]}
+                  >
+                    Both
+                  </Text>
+                  <Text style={s.intentDesc}>
+                    Switch between work and personal anytime
+                  </Text>
+                </View>
               </TouchableOpacity>
             </View>
 
+            {/* Work type sub-selection */}
             {(userIntent === "work" || userIntent === "both") && (
               <View style={s.workTypeSection}>
-                <Text style={s.workTypeHeading}>What kind of work?</Text>
-                <Text style={s.workTypeSubtext}>This helps us show the right trip tagging options.</Text>
-                <View style={s.intentCards}>
-                  <TouchableOpacity
-                    style={[s.intentCard, workType === "gig" && s.intentCardActive]}
-                    onPress={() => setWorkType("gig")}
-                    activeOpacity={0.75}
-                  >
-                    <View style={[s.intentIconWrap, workType === "gig" && s.intentIconWrapActive]}>
-                      <Ionicons name="bicycle-outline" size={24} color={workType === "gig" ? AMBER : TEXT_2} />
-                    </View>
-                    <Text style={[s.intentTitle, workType === "gig" && s.intentTitleActive]}>Gig / Delivery</Text>
-                    <Text style={s.intentDesc}>
-                      Uber, Deliveroo, Just Eat, Amazon Flex, and other platforms
-                    </Text>
-                  </TouchableOpacity>
-
-                  <TouchableOpacity
-                    style={[s.intentCard, workType === "employee" && s.intentCardActive]}
-                    onPress={() => setWorkType("employee")}
-                    activeOpacity={0.75}
-                  >
-                    <View style={[s.intentIconWrap, workType === "employee" && s.intentIconWrapActive]}>
-                      <Ionicons name="briefcase-outline" size={24} color={workType === "employee" ? AMBER : TEXT_2} />
-                    </View>
-                    <Text style={[s.intentTitle, workType === "employee" && s.intentTitleActive]}>Employee Driver</Text>
-                    <Text style={s.intentDesc}>
-                      I drive my own car for work — client visits, site trips, between offices
-                    </Text>
-                  </TouchableOpacity>
-
-                  <TouchableOpacity
-                    style={[s.intentCard, workType === "both" && s.intentCardActive]}
-                    onPress={() => setWorkType("both")}
-                    activeOpacity={0.75}
-                  >
-                    <View style={[s.intentIconWrap, workType === "both" && s.intentIconWrapActive]}>
-                      <Ionicons name="git-branch-outline" size={24} color={workType === "both" ? AMBER : TEXT_2} />
-                    </View>
-                    <Text style={[s.intentTitle, workType === "both" && s.intentTitleActive]}>Both</Text>
-                    <Text style={s.intentDesc}>
-                      I do gig work and also drive for my employer
-                    </Text>
-                  </TouchableOpacity>
+                <Text style={s.sectionLabel}>What kind of work?</Text>
+                <View style={s.workTypeRow}>
+                  {([
+                    { key: "gig" as WorkType, label: "Gig / Delivery", icon: "bicycle-outline" as const },
+                    { key: "employee" as WorkType, label: "Employee", icon: "briefcase-outline" as const },
+                    { key: "both" as WorkType, label: "Both", icon: "git-branch-outline" as const },
+                  ]).map((opt) => (
+                    <TouchableOpacity
+                      key={opt.key}
+                      style={[
+                        s.workTypeChip,
+                        workType === opt.key && s.workTypeChipActive,
+                      ]}
+                      onPress={() => setWorkType(opt.key)}
+                      activeOpacity={0.75}
+                    >
+                      <Ionicons
+                        name={opt.icon}
+                        size={16}
+                        color={workType === opt.key ? AMBER : TEXT_3}
+                      />
+                      <Text
+                        style={[
+                          s.workTypeChipText,
+                          workType === opt.key && s.workTypeChipTextActive,
+                        ]}
+                      >
+                        {opt.label}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
                 </View>
               </View>
             )}
 
             <Button
+              variant="hero"
               title="Continue"
               icon="arrow-forward"
               size="lg"
@@ -436,215 +376,48 @@ export default function OnboardingScreen() {
           </ScrollView>
         </View>
 
-        {/* ── Step 3: Add Vehicle ──────────────────────────────────── */}
+        {/* ── Step 2: Location Permission ────────────────────────────── */}
         <View style={[s.stepPage, { width: SCREEN_WIDTH }]}>
           <ScrollView
             contentContainerStyle={s.stepContent}
             keyboardShouldPersistTaps="handled"
           >
             <View style={s.stepIconWrap}>
-              <Ionicons name="car-outline" size={32} color={AMBER} />
-            </View>
-
-            <Text style={s.stepHeading}>Add Your Vehicle</Text>
-            <Text style={s.stepSubtitle}>
-              Accurate HMRC mileage calculations require your vehicle type.
-            </Text>
-
-            {vehicleError ? (
-              <View style={s.errorWrap}>
-                <Text style={s.errorText}>{vehicleError}</Text>
-              </View>
-            ) : null}
-
-            {/* Make */}
-            <Text style={s.label}>Make</Text>
-            <TextInput
-              style={inputStyle("make")}
-              value={make}
-              onChangeText={setMake}
-              onFocus={() => setFocusedField("make")}
-              onBlur={() => setFocusedField(null)}
-              placeholder="e.g. Ford"
-              placeholderTextColor={TEXT_3}
-              autoCapitalize="words"
-              autoCorrect={false}
-              returnKeyType="next"
-            />
-
-            {/* Model */}
-            <Text style={s.label}>Model</Text>
-            <TextInput
-              style={inputStyle("model")}
-              value={model}
-              onChangeText={setModel}
-              onFocus={() => setFocusedField("model")}
-              onBlur={() => setFocusedField(null)}
-              placeholder="e.g. Focus"
-              placeholderTextColor={TEXT_3}
-              autoCapitalize="words"
-              autoCorrect={false}
-              returnKeyType="next"
-            />
-
-            {/* Year */}
-            <Text style={s.label}>Year (optional)</Text>
-            <TextInput
-              style={inputStyle("year")}
-              value={yearText}
-              onChangeText={setYearText}
-              onFocus={() => setFocusedField("year")}
-              onBlur={() => setFocusedField(null)}
-              placeholder="e.g. 2021"
-              placeholderTextColor={TEXT_3}
-              keyboardType="number-pad"
-              maxLength={4}
-              returnKeyType="done"
-            />
-
-            {/* Vehicle type picker */}
-            <Text style={s.label}>Vehicle Type</Text>
-            <View style={s.segmentRow}>
-              {(VEHICLE_TYPES as readonly VehicleType[]).map((vt) => (
-                <TouchableOpacity
-                  key={vt}
-                  style={[
-                    s.segmentOption,
-                    vehicleType === vt && s.segmentOptionActive,
-                  ]}
-                  onPress={() => setVehicleType(vt)}
-                  activeOpacity={0.75}
-                >
-                  <Text
-                    style={[
-                      s.segmentOptionText,
-                      vehicleType === vt && s.segmentOptionTextActive,
-                    ]}
-                  >
-                    {VEHICLE_LABELS[vt]}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-
-            {/* Fuel type picker */}
-            <Text style={[s.label, { marginTop: 4 }]}>Fuel Type</Text>
-            <View style={[s.segmentRow, s.segmentRowWrap]}>
-              {(FUEL_TYPES as readonly FuelType[]).map((ft) => (
-                <TouchableOpacity
-                  key={ft}
-                  style={[
-                    s.segmentOption,
-                    s.segmentOptionHalf,
-                    fuelType === ft && s.segmentOptionActive,
-                  ]}
-                  onPress={() => setFuelType(ft)}
-                  activeOpacity={0.75}
-                >
-                  <Text
-                    style={[
-                      s.segmentOptionText,
-                      fuelType === ft && s.segmentOptionTextActive,
-                    ]}
-                  >
-                    {FUEL_LABELS[ft]}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-
-            <View style={s.buttonStack}>
-              <Button
-                title="Add Vehicle"
-                icon="checkmark"
-                size="lg"
-                onPress={handleAddVehicle}
-                loading={addingVehicle}
-              />
-              <Button
-                variant="ghost"
-                title="Skip for now"
-                onPress={goNext}
-                disabled={addingVehicle}
-              />
-            </View>
-          </ScrollView>
-        </View>
-
-        {/* ── Step 3: How It Works ─────────────────────────────────── */}
-        <View style={[s.stepPage, { width: SCREEN_WIDTH }]}>
-          <ScrollView
-            contentContainerStyle={s.stepContent}
-            keyboardShouldPersistTaps="handled"
-          >
-            <View style={s.stepIconWrap}>
-              <Ionicons name="information-circle-outline" size={32} color={AMBER} />
-            </View>
-
-            <Text style={s.stepHeading}>How It Works</Text>
-            <Text style={s.stepSubtitle}>
-              Everything you need to stay on top of your mileage.
-            </Text>
-
-            <View style={s.howItWorksCards}>
-              {HOW_IT_WORKS.map((card, index) => (
-                <View key={card.title} style={s.howCard}>
-                  <View style={s.howCardIconWrap}>
-                    <Text style={s.howCardStep}>{index + 1}</Text>
-                    <Ionicons name={card.icon} size={24} color={AMBER} />
-                  </View>
-                  <View style={s.howCardBody}>
-                    <Text style={s.howCardTitle}>{card.title}</Text>
-                    <Text style={s.howCardText}>{card.body}</Text>
-                  </View>
-                </View>
-              ))}
-            </View>
-
-            <Button
-              title="Next"
-              icon="arrow-forward"
-              size="lg"
-              onPress={goNext}
-            />
-          </ScrollView>
-        </View>
-
-        {/* ── Step 4: Location Permission ──────────────────────────── */}
-        <View style={[s.stepPage, { width: SCREEN_WIDTH }]}>
-          <ScrollView
-            contentContainerStyle={s.stepContent}
-            keyboardShouldPersistTaps="handled"
-          >
-            <View style={s.locationIconOuter}>
-              <View style={s.locationIconInner}>
-                <Ionicons name="location-outline" size={40} color={AMBER} />
-              </View>
+              <Ionicons name="location-outline" size={36} color={AMBER} />
             </View>
 
             <Text style={s.stepHeading}>Enable Location</Text>
             <Text style={s.stepSubtitle}>
-              MileClear uses GPS to automatically track your trips while you
-              drive — no manual logging required.
+              This is how MileClear tracks your trips automatically — GPS records your route while you drive.
             </Text>
 
             {/* Explanation cards */}
             <View style={s.permissionCards}>
               <View style={s.permCard}>
-                <Ionicons name="navigate-outline" size={20} color={AMBER} style={s.permCardIcon} />
+                <Ionicons
+                  name="navigate-outline"
+                  size={20}
+                  color={AMBER}
+                  style={s.permCardIcon}
+                />
                 <View style={s.permCardBody}>
-                  <Text style={s.permCardTitle}>Foreground location</Text>
+                  <Text style={s.permCardTitle}>While using the app</Text>
                   <Text style={s.permCardText}>
-                    Tracks your route while you have the app open.
+                    Tracks your route with the app open.
                   </Text>
                 </View>
               </View>
               <View style={s.permCard}>
-                <Ionicons name="radio-button-on-outline" size={20} color={AMBER} style={s.permCardIcon} />
+                <Ionicons
+                  name="radio-button-on-outline"
+                  size={20}
+                  color={AMBER}
+                  style={s.permCardIcon}
+                />
                 <View style={s.permCardBody}>
-                  <Text style={s.permCardTitle}>Background location</Text>
+                  <Text style={s.permCardTitle}>Always (recommended)</Text>
                   <Text style={s.permCardText}>
-                    Continues tracking with the screen off or app minimised.
+                    Continues tracking with the screen off. Required for automatic trip detection.
                   </Text>
                 </View>
               </View>
@@ -669,6 +442,7 @@ export default function OnboardingScreen() {
             <View style={s.buttonStack}>
               {locationStatus !== "granted" && (
                 <Button
+                  variant="hero"
                   title={
                     locationStatus === "requesting"
                       ? "Requesting..."
@@ -684,22 +458,72 @@ export default function OnboardingScreen() {
 
               <Button
                 variant={locationStatus === "granted" ? "hero" : "primary"}
-                title="Finish Setup"
-                icon="checkmark-circle-outline"
+                title="Continue"
+                icon="arrow-forward"
                 size="lg"
-                onPress={handleFinishSetup}
-                loading={finishingSetup}
+                onPress={goNext}
               />
 
               {locationStatus === "idle" && (
                 <Button
                   variant="ghost"
-                  title="Maybe Later"
-                  onPress={handleFinishSetup}
-                  disabled={finishingSetup}
+                  title="Skip for now"
+                  onPress={goNext}
                 />
               )}
             </View>
+          </ScrollView>
+        </View>
+
+        {/* ── Step 3: You're all set! ────────────────────────────────── */}
+        <View style={[s.stepPage, { width: SCREEN_WIDTH }]}>
+          <ScrollView
+            contentContainerStyle={[s.stepContent, s.readyContent]}
+            keyboardShouldPersistTaps="handled"
+          >
+            <View style={s.readyIconWrap}>
+              <Ionicons name="checkmark-circle" size={56} color="#10b981" />
+            </View>
+
+            <Text style={s.readyHeading}>You're all set!</Text>
+            <Text style={s.readySubtitle}>
+              MileClear is ready to track your first trip. You can add your vehicle and tweak settings from the dashboard anytime.
+            </Text>
+
+            {/* Quick setup hints */}
+            <View style={s.setupHints}>
+              <View style={s.setupHint}>
+                <Ionicons name="car-outline" size={18} color={TEXT_2} />
+                <Text style={s.setupHintText}>
+                  Add your vehicle for accurate HMRC rates
+                </Text>
+              </View>
+              <View style={s.setupHint}>
+                <Ionicons name="bluetooth" size={18} color={TEXT_2} />
+                <Text style={s.setupHintText}>
+                  Connect car Bluetooth for auto-trip detection
+                </Text>
+              </View>
+            </View>
+
+            <Button
+              variant="hero"
+              title="Start Your First Trip"
+              icon="navigate"
+              size="lg"
+              onPress={() => handleFinish("trip")}
+              loading={finishingSetup}
+            />
+
+            <TouchableOpacity
+              style={s.dashboardLink}
+              onPress={() => handleFinish("dashboard")}
+              activeOpacity={0.7}
+            >
+              <Text style={s.dashboardLinkText}>
+                or go to dashboard
+              </Text>
+            </TouchableOpacity>
           </ScrollView>
         </View>
       </ScrollView>
@@ -747,7 +571,7 @@ const s = StyleSheet.create({
   stepContent: {
     flexGrow: 1,
     paddingHorizontal: 24,
-    paddingTop: 40,
+    paddingTop: 36,
     paddingBottom: 16,
   },
 
@@ -773,58 +597,140 @@ const s = StyleSheet.create({
   // ── Welcome step ───────────────────────────────────────────────
   welcomeLogoWrap: {
     alignItems: "center",
-    marginBottom: 20,
+    marginBottom: 16,
   },
   welcomeLogo: {
-    width: 80,
-    height: 80,
-    borderRadius: 20,
+    width: 72,
+    height: 72,
+    borderRadius: 18,
   },
   wordmarkRow: {
     flexDirection: "row",
     justifyContent: "center",
-    marginBottom: 32,
+    marginBottom: 24,
   },
   wordmarkMile: {
-    fontSize: 28,
+    fontSize: 26,
     fontFamily: "PlusJakartaSans_600SemiBold",
     color: TEXT_1,
   },
   wordmarkClear: {
-    fontSize: 28,
+    fontSize: 26,
     fontFamily: "PlusJakartaSans_600SemiBold",
     color: AMBER,
   },
   welcomeHeading: {
-    fontSize: 28,
+    fontSize: 24,
     fontFamily: "PlusJakartaSans_300Light",
     color: TEXT_1,
     textAlign: "center",
-    letterSpacing: -0.5,
-    marginBottom: 10,
+    letterSpacing: -0.3,
+    marginBottom: 8,
+    lineHeight: 32,
   },
   welcomeSubtitle: {
-    fontSize: 16,
+    fontSize: 14,
     fontFamily: "PlusJakartaSans_400Regular",
     color: TEXT_2,
     textAlign: "center",
-    marginBottom: 36,
-    lineHeight: 24,
+    marginBottom: 28,
+    lineHeight: 22,
   },
-  welcomeFeatureList: {
-    gap: 12,
-    marginBottom: 40,
-    paddingHorizontal: 4,
+
+  // ── Section label ──────────────────────────────────────────────
+  sectionLabel: {
+    fontSize: 13,
+    fontFamily: "PlusJakartaSans_600SemiBold",
+    color: TEXT_2,
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+    marginBottom: 12,
   },
-  welcomeFeatureRow: {
+
+  // ── Intent cards ───────────────────────────────────────────────
+  intentCards: {
+    gap: 10,
+    marginBottom: 24,
+  },
+  intentCard: {
+    backgroundColor: CARD_BG,
+    borderRadius: 14,
+    borderWidth: 1.5,
+    borderColor: CARD_BORDER,
+    padding: 16,
     flexDirection: "row",
     alignItems: "center",
-    gap: 12,
+    gap: 14,
   },
-  welcomeFeatureText: {
-    fontSize: 15,
+  intentCardActive: {
+    borderColor: "rgba(245, 166, 35, 0.5)",
+    backgroundColor: "rgba(245, 166, 35, 0.04)",
+  },
+  intentIconWrap: {
+    width: 42,
+    height: 42,
+    borderRadius: 12,
+    backgroundColor: "rgba(255,255,255,0.03)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.06)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  intentIconWrapActive: {
+    backgroundColor: "rgba(245, 166, 35, 0.1)",
+    borderColor: "rgba(245, 166, 35, 0.25)",
+  },
+  intentBody: {
+    flex: 1,
+  },
+  intentTitle: {
+    fontSize: 16,
+    fontFamily: "PlusJakartaSans_600SemiBold",
+    color: TEXT_2,
+    marginBottom: 2,
+  },
+  intentTitleActive: {
+    color: AMBER,
+  },
+  intentDesc: {
+    fontSize: 13,
     fontFamily: "PlusJakartaSans_400Regular",
-    color: TEXT_1,
+    color: TEXT_3,
+    lineHeight: 18,
+  },
+
+  // ── Work type sub-selection ────────────────────────────────────
+  workTypeSection: {
+    marginBottom: 24,
+  },
+  workTypeRow: {
+    flexDirection: "row",
+    gap: 8,
+  },
+  workTypeChip: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    paddingVertical: 10,
+    borderRadius: 10,
+    backgroundColor: CARD_BG,
+    borderWidth: 1,
+    borderColor: CARD_BORDER,
+  },
+  workTypeChipActive: {
+    backgroundColor: "rgba(245, 166, 35, 0.08)",
+    borderColor: "rgba(245, 166, 35, 0.35)",
+  },
+  workTypeChipText: {
+    fontSize: 12,
+    fontFamily: "PlusJakartaSans_500Medium",
+    color: TEXT_3,
+  },
+  workTypeChipTextActive: {
+    color: AMBER,
+    fontFamily: "PlusJakartaSans_600SemiBold",
   },
 
   // ── Shared step chrome ─────────────────────────────────────────
@@ -854,221 +760,7 @@ const s = StyleSheet.create({
     marginBottom: 28,
   },
 
-  // ── Form elements ──────────────────────────────────────────────
-  label: {
-    fontSize: 11,
-    fontFamily: "PlusJakartaSans_600SemiBold",
-    color: TEXT_2,
-    textTransform: "uppercase",
-    letterSpacing: 0.5,
-    marginBottom: 8,
-  },
-  input: {
-    backgroundColor: INPUT_BG,
-    borderWidth: 1,
-    borderColor: INPUT_BORDER,
-    borderRadius: 10,
-    paddingHorizontal: 14,
-    paddingVertical: 14,
-    fontSize: 16,
-    fontFamily: "PlusJakartaSans_400Regular",
-    color: TEXT_1,
-    marginBottom: 18,
-  },
-  inputFocused: {
-    borderColor: INPUT_FOCUSED_BORDER,
-  },
-  errorWrap: {
-    backgroundColor: ERROR_BG,
-    borderWidth: 1,
-    borderColor: ERROR_BORDER,
-    borderRadius: 8,
-    padding: 12,
-    marginBottom: 18,
-  },
-  errorText: {
-    fontSize: 13,
-    fontFamily: "PlusJakartaSans_400Regular",
-    color: "#f87171",
-    textAlign: "center",
-  },
-
-  // Segmented picker
-  segmentRow: {
-    flexDirection: "row",
-    gap: 8,
-    marginBottom: 18,
-  },
-  segmentRowWrap: {
-    flexWrap: "wrap",
-  },
-  segmentOption: {
-    flex: 1,
-    paddingVertical: 12,
-    borderRadius: 10,
-    backgroundColor: CARD_BG,
-    borderWidth: 1,
-    borderColor: CARD_BORDER,
-    alignItems: "center",
-  },
-  segmentOptionHalf: {
-    flexBasis: "45%",
-    flexGrow: 0,
-  },
-  segmentOptionActive: {
-    backgroundColor: "rgba(245, 166, 35, 0.1)",
-    borderColor: "rgba(245, 166, 35, 0.4)",
-  },
-  segmentOptionText: {
-    fontSize: 14,
-    fontFamily: "PlusJakartaSans_500Medium",
-    color: TEXT_2,
-  },
-  segmentOptionTextActive: {
-    color: AMBER,
-    fontFamily: "PlusJakartaSans_600SemiBold",
-  },
-
-  // Button stack
-  buttonStack: {
-    gap: 10,
-    marginTop: 8,
-  },
-
-  // ── Intent step ──────────────────────────────────────────────
-  intentCards: {
-    gap: 12,
-    marginBottom: 32,
-  },
-  intentCard: {
-    backgroundColor: CARD_BG,
-    borderRadius: 14,
-    borderWidth: 1.5,
-    borderColor: CARD_BORDER,
-    padding: 18,
-    flexDirection: "row",
-    alignItems: "flex-start",
-    gap: 14,
-  },
-  intentCardActive: {
-    borderColor: "rgba(245, 166, 35, 0.5)",
-    backgroundColor: "rgba(245, 166, 35, 0.04)",
-  },
-  intentIconWrap: {
-    width: 44,
-    height: 44,
-    borderRadius: 14,
-    backgroundColor: "rgba(255,255,255,0.03)",
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.06)",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  intentIconWrapActive: {
-    backgroundColor: "rgba(245, 166, 35, 0.1)",
-    borderColor: "rgba(245, 166, 35, 0.25)",
-  },
-  intentTitle: {
-    fontSize: 16,
-    fontFamily: "PlusJakartaSans_600SemiBold",
-    color: TEXT_2,
-    marginBottom: 3,
-  },
-  intentTitleActive: {
-    color: AMBER,
-  },
-  intentDesc: {
-    fontSize: 13,
-    fontFamily: "PlusJakartaSans_400Regular",
-    color: TEXT_3,
-    lineHeight: 19,
-    flex: 1,
-  },
-
-  workTypeSection: {
-    marginTop: 4,
-    marginBottom: 24,
-  },
-  workTypeHeading: {
-    fontSize: 18,
-    fontFamily: "PlusJakartaSans_600SemiBold",
-    color: TEXT_1,
-    marginBottom: 4,
-  },
-  workTypeSubtext: {
-    fontSize: 13,
-    fontFamily: "PlusJakartaSans_400Regular",
-    color: TEXT_2,
-    marginBottom: 16,
-    lineHeight: 20,
-  },
-
-  // ── How It Works step ──────────────────────────────────────────
-  howItWorksCards: {
-    gap: 12,
-    marginBottom: 32,
-  },
-  howCard: {
-    backgroundColor: CARD_BG,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: CARD_BORDER,
-    padding: 16,
-    flexDirection: "row",
-    alignItems: "flex-start",
-    gap: 16,
-    ...Platform.select({
-      ios: {
-        shadowColor: "#000",
-        shadowOffset: { width: 0, height: 1 },
-        shadowOpacity: 0.08,
-        shadowRadius: 6,
-      },
-    }),
-  },
-  howCardIconWrap: {
-    flexDirection: "column",
-    alignItems: "center",
-    gap: 6,
-    minWidth: 36,
-  },
-  howCardStep: {
-    fontSize: 11,
-    fontFamily: "PlusJakartaSans_700Bold",
-    color: TEXT_3,
-    letterSpacing: 0.3,
-  },
-  howCardBody: {
-    flex: 1,
-  },
-  howCardTitle: {
-    fontSize: 16,
-    fontFamily: "PlusJakartaSans_600SemiBold",
-    color: TEXT_1,
-    marginBottom: 4,
-  },
-  howCardText: {
-    fontSize: 13,
-    fontFamily: "PlusJakartaSans_400Regular",
-    color: TEXT_2,
-    lineHeight: 20,
-  },
-
   // ── Location permission step ───────────────────────────────────
-  locationIconOuter: {
-    alignSelf: "flex-start",
-    marginBottom: 24,
-  },
-  locationIconInner: {
-    width: 64,
-    height: 64,
-    borderRadius: 20,
-    backgroundColor: "rgba(245, 166, 35, 0.1)",
-    borderWidth: 1,
-    borderColor: "rgba(245, 166, 35, 0.2)",
-    justifyContent: "center",
-    alignItems: "center",
-  },
   permissionCards: {
     gap: 10,
     marginBottom: 24,
@@ -1136,5 +828,68 @@ const s = StyleSheet.create({
     color: "#f87171",
     flex: 1,
     lineHeight: 19,
+  },
+
+  // Button stack
+  buttonStack: {
+    gap: 10,
+    marginTop: 8,
+  },
+
+  // ── Ready step ─────────────────────────────────────────────────
+  readyContent: {
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  readyIconWrap: {
+    marginBottom: 20,
+  },
+  readyHeading: {
+    fontSize: 28,
+    fontFamily: "PlusJakartaSans_600SemiBold",
+    color: TEXT_1,
+    textAlign: "center",
+    marginBottom: 10,
+  },
+  readySubtitle: {
+    fontSize: 15,
+    fontFamily: "PlusJakartaSans_400Regular",
+    color: TEXT_2,
+    textAlign: "center",
+    lineHeight: 23,
+    marginBottom: 28,
+    paddingHorizontal: 8,
+  },
+  setupHints: {
+    gap: 10,
+    marginBottom: 32,
+    alignSelf: "stretch",
+  },
+  setupHint: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    backgroundColor: CARD_BG,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: CARD_BORDER,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+  },
+  setupHintText: {
+    fontSize: 13,
+    fontFamily: "PlusJakartaSans_400Regular",
+    color: TEXT_2,
+    flex: 1,
+  },
+  dashboardLink: {
+    marginTop: 16,
+    paddingVertical: 8,
+  },
+  dashboardLinkText: {
+    fontSize: 14,
+    fontFamily: "PlusJakartaSans_400Regular",
+    color: TEXT_3,
+    textDecorationLine: "underline",
   },
 });

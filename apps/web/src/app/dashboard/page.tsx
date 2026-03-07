@@ -15,10 +15,13 @@ import type {
   PeriodRecap,
   Trip,
   PaginatedResponse,
+  Vehicle,
 } from "@mileclear/shared";
 import {
   ACHIEVEMENT_TYPES,
   ACHIEVEMENT_META,
+  HMRC_THRESHOLD_MILES,
+  MILESTONE_MILES,
   getDistanceEquivalent,
 } from "@mileclear/shared";
 
@@ -32,6 +35,142 @@ function formatMiles(miles: number): string {
 
 type RecapView = "daily" | "weekly" | "monthly" | "yearly";
 
+interface WebInsight {
+  id: string;
+  icon: string;
+  color: string;
+  title: string;
+  body: string;
+  actionLabel?: string;
+  actionHref?: string;
+}
+
+function generateWebInsights(
+  stats: GamificationStats | null,
+  unclassified: number,
+  vehicles: Vehicle[],
+  isPremium: boolean
+): WebInsight[] {
+  if (!stats) return [];
+  const out: WebInsight[] = [];
+
+  if (unclassified > 0) {
+    out.push({
+      id: "unclassified",
+      icon: "!",
+      color: "#ef4444",
+      title: `${unclassified} trip${unclassified === 1 ? "" : "s"} need classifying`,
+      body: "Business trips are tax deductible. Don't miss out.",
+      actionLabel: "Review trips",
+      actionHref: "/dashboard/trips?filter=unclassified",
+    });
+  }
+
+  if (stats.businessMiles >= 8000 && stats.businessMiles < HMRC_THRESHOLD_MILES) {
+    out.push({
+      id: "hmrc_threshold",
+      icon: "↗",
+      color: "#f59e0b",
+      title: `${(HMRC_THRESHOLD_MILES - stats.businessMiles).toFixed(0)} miles to the HMRC 10k threshold`,
+      body: "After 10,000 miles the rate drops from 45p to 25p per mile.",
+    });
+  }
+
+  if (stats.currentStreakDays >= 3 && stats.todayMiles === 0) {
+    out.push({
+      id: "streak_risk",
+      icon: "🔥",
+      color: "#f97316",
+      title: `Your ${stats.currentStreakDays}-day streak is at risk`,
+      body: "Log a trip today to keep it going.",
+    });
+  }
+
+  if (stats.currentStreakDays >= 7) {
+    out.push({
+      id: "streak_praise",
+      icon: "🔥",
+      color: "#f97316",
+      title: `${stats.currentStreakDays}-day driving streak`,
+      body: stats.currentStreakDays >= 30
+        ? "Incredible consistency."
+        : stats.currentStreakDays >= 14
+          ? "Two weeks strong."
+          : "A full week of tracking.",
+    });
+  }
+
+  const next = MILESTONE_MILES.find((m) => m > stats.totalMiles);
+  if (next && stats.totalMiles / next >= 0.85 && next - stats.totalMiles <= 500) {
+    out.push({
+      id: `milestone_${next}`,
+      icon: "🏁",
+      color: "#8b5cf6",
+      title: `${(next - stats.totalMiles).toFixed(0)} miles to ${next.toLocaleString()}`,
+      body: "You're closing in on your next milestone.",
+    });
+  }
+
+  if (stats.todayMiles >= stats.personalRecords.mostMilesInDay && stats.todayMiles > 5) {
+    out.push({
+      id: "daily_record",
+      icon: "🏆",
+      color: "#f5a623",
+      title: "New daily record!",
+      body: `${stats.todayMiles.toFixed(1)} miles today.`,
+    });
+  }
+
+  if (vehicles.length === 0) {
+    out.push({
+      id: "no_vehicle",
+      icon: "🚗",
+      color: "#f5a623",
+      title: "Add your vehicle",
+      body: "Different vehicle types have different HMRC rates.",
+      actionLabel: "Add vehicle",
+      actionHref: "/dashboard/vehicles",
+    });
+  }
+
+  if (!isPremium && stats.businessMiles > 100) {
+    out.push({
+      id: "upgrade",
+      icon: "💎",
+      color: "#f5a623",
+      title: "Unlock HMRC tax exports",
+      body: "Download CSV and PDF reports for self-assessment.",
+    });
+  }
+
+  return out;
+}
+
+function getDismissedWeb(): Set<string> {
+  try {
+    const raw = localStorage.getItem("mc_dismissed_insights");
+    if (!raw) return new Set();
+    const parsed: Record<string, number> = JSON.parse(raw);
+    const now = Date.now();
+    const active = new Set<string>();
+    for (const [k, ts] of Object.entries(parsed)) {
+      if (now - ts < 24 * 60 * 60 * 1000) active.add(k);
+    }
+    return active;
+  } catch {
+    return new Set();
+  }
+}
+
+function dismissWeb(id: string) {
+  try {
+    const raw = localStorage.getItem("mc_dismissed_insights");
+    const parsed: Record<string, number> = raw ? JSON.parse(raw) : {};
+    parsed[id] = Date.now();
+    localStorage.setItem("mc_dismissed_insights", JSON.stringify(parsed));
+  } catch {}
+}
+
 export default function DashboardPage() {
   const { user } = useAuth();
   const isPremium = user?.isPremium ?? false;
@@ -41,6 +180,9 @@ export default function DashboardPage() {
   const [weeklyRecap, setWeeklyRecap] = useState<PeriodRecap | null>(null);
   const [monthlyRecap, setMonthlyRecap] = useState<PeriodRecap | null>(null);
   const [recentTrips, setRecentTrips] = useState<Trip[]>([]);
+  const [vehicles, setVehicles] = useState<Vehicle[]>([]);
+  const [unclassifiedCount, setUnclassifiedCount] = useState(0);
+  const [insights, setInsights] = useState<WebInsight[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [recapView, setRecapView] = useState<RecapView>("daily");
@@ -49,16 +191,26 @@ export default function DashboardPage() {
   useEffect(() => {
     async function load() {
       try {
-        const [statsRes, achRes, dailyRes, tripsRes] = await Promise.all([
+        const [statsRes, achRes, dailyRes, tripsRes, unclassifiedRes, vehiclesRes] = await Promise.all([
           api.get<{ data: GamificationStats }>("/gamification/stats"),
           api.get<{ data: AchievementWithMeta[] }>("/gamification/achievements"),
           api.get<{ data: PeriodRecap }>("/gamification/recap?period=daily"),
           api.get<PaginatedResponse<Trip>>("/trips/?pageSize=5"),
+          api.get<PaginatedResponse<Trip>>("/trips/?classification=unclassified&pageSize=1").catch(() => null),
+          api.get<{ data: Vehicle[] }>("/vehicles").catch(() => ({ data: [] as Vehicle[] })),
         ]);
         setStats(statsRes.data);
         setAchievements(achRes.data);
         setDailyRecap(dailyRes.data);
         setRecentTrips(tripsRes.data);
+        setVehicles(vehiclesRes.data);
+        const ucCount = unclassifiedRes ? (unclassifiedRes as any).total ?? 0 : 0;
+        setUnclassifiedCount(ucCount);
+
+        // Generate insights
+        const dismissed = getDismissedWeb();
+        const allInsights = generateWebInsights(statsRes.data, ucCount, vehiclesRes.data, isPremium);
+        setInsights(allInsights.filter((i) => !dismissed.has(i.id)).slice(0, 3));
 
         // Weekly/monthly recaps require premium
         if (isPremium) {
@@ -94,6 +246,85 @@ export default function DashboardPage() {
   return (
     <>
       <PageHeader title="Dashboard" subtitle="Your driving overview" />
+
+      {/* Smart Insights */}
+      {insights.length > 0 && (
+        <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem", marginBottom: "var(--dash-gap)" }}>
+          {insights.map((insight) => (
+            <div
+              key={insight.id}
+              style={{
+                display: "flex",
+                alignItems: "flex-start",
+                gap: "0.75rem",
+                padding: "0.875rem 1rem",
+                background: "rgba(10, 17, 32, 0.8)",
+                border: "1px solid rgba(255,255,255,0.06)",
+                borderLeft: `3px solid ${insight.color}`,
+                borderRadius: "var(--radius-lg, 12px)",
+                fontSize: "0.875rem",
+              }}
+            >
+              <span
+                style={{
+                  width: 30,
+                  height: 30,
+                  borderRadius: 8,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  background: `${insight.color}18`,
+                  fontSize: "0.9rem",
+                  flexShrink: 0,
+                }}
+              >
+                {insight.icon}
+              </span>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ color: "var(--text-primary, #f0f2f5)", fontWeight: 600, marginBottom: 2 }}>
+                  {insight.title}
+                </div>
+                <div style={{ color: "var(--text-muted, #8494a7)", fontSize: "0.8125rem" }}>
+                  {insight.body}
+                </div>
+                {insight.actionLabel && insight.actionHref && (
+                  <Link
+                    href={insight.actionHref}
+                    style={{
+                      color: insight.color,
+                      fontWeight: 600,
+                      fontSize: "0.8125rem",
+                      textDecoration: "none",
+                      marginTop: 6,
+                      display: "inline-block",
+                    }}
+                  >
+                    {insight.actionLabel} &rarr;
+                  </Link>
+                )}
+              </div>
+              <button
+                onClick={() => {
+                  dismissWeb(insight.id);
+                  setInsights((prev) => prev.filter((i) => i.id !== insight.id));
+                }}
+                style={{
+                  background: "none",
+                  border: "none",
+                  color: "var(--text-muted, #6b7280)",
+                  cursor: "pointer",
+                  padding: 4,
+                  fontSize: "1rem",
+                  lineHeight: 1,
+                }}
+                title="Dismiss"
+              >
+                &times;
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* Tax Deduction Hero */}
       {stats && (

@@ -191,6 +191,7 @@ function RootNavigator() {
         <Stack.Screen name="(auth)" redirect={isAuthenticated} />
         <Stack.Screen name="trip-form" options={{ headerShown: true, title: "Add Trip" }} />
         <Stack.Screen name="vehicle-form" options={{ headerShown: true, title: "Add Vehicle" }} />
+        <Stack.Screen name="work-schedule" options={{ headerShown: true, title: "Work Schedule" }} />
         <Stack.Screen name="earning-form" options={{ headerShown: true, title: "Add Earning" }} />
         <Stack.Screen name="fuel-form" options={{ headerShown: true, title: "Log Fuel" }} />
         <Stack.Screen name="profile-edit" options={{ headerShown: true, title: "Edit Profile" }} />
@@ -208,6 +209,8 @@ function RootNavigator() {
         <Stack.Screen name="saved-locations" options={{ headerShown: true, title: "Saved Locations" }} />
         <Stack.Screen name="saved-location-form" options={{ headerShown: true, title: "Add Location" }} />
         <Stack.Screen name="insights" options={{ headerShown: true, title: "Insights & Analytics" }} />
+        <Stack.Screen name="analytics" options={{ headerShown: true, title: "Driving Analytics" }} />
+        <Stack.Screen name="customize-layout" options={{ headerShown: false }} />
       </Stack>
       {/* Loading overlay — covers Stack while auth/onboarding resolves */}
       {showLoading && (

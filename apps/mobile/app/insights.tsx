@@ -229,6 +229,40 @@ export default function InsightsScreen() {
         )}
         {isPersonal && trips.length > 0 && <JourneyTimeline trips={trips} />}
 
+        {/* Driving Analytics link */}
+        <TouchableOpacity
+          style={{
+            backgroundColor: "#0a1120",
+            borderRadius: 14,
+            borderWidth: 1,
+            borderColor: "rgba(255,255,255,0.05)",
+            padding: 16,
+            marginBottom: 12,
+            flexDirection: "row",
+            alignItems: "center",
+            gap: 12,
+          }}
+          onPress={() => router.push("/analytics")}
+          activeOpacity={0.7}
+        >
+          <View style={{
+            width: 40, height: 40, borderRadius: 12,
+            backgroundColor: "rgba(245,166,35,0.12)",
+            justifyContent: "center", alignItems: "center",
+          }}>
+            <Ionicons name="bar-chart-outline" size={20} color="#f5a623" />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={{ color: "#f0f2f5", fontSize: 15, fontFamily: "PlusJakartaSans_600SemiBold" }}>
+              Driving Analytics
+            </Text>
+            <Text style={{ color: "#8494a7", fontSize: 12.5, fontFamily: "PlusJakartaSans_400Regular" }}>
+              Routes, costs, earnings patterns, commute timing
+            </Text>
+          </View>
+          <Ionicons name="chevron-forward" size={18} color="#4a5568" />
+        </TouchableOpacity>
+
         {/* Achievements (both modes) */}
         {achievements.length > 0 && (
           <View style={styles.section}>

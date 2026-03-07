@@ -145,7 +145,7 @@ export default function ExportsScreen() {
         )}
 
         <Text style={styles.subtitle}>
-          Download your mileage data for HMRC self-assessment.
+          Professional HMRC-compliant reports with your mileage data, vehicle breakdown, and tax deduction summary.
         </Text>
 
         {/* Tax Year Picker */}
@@ -163,17 +163,25 @@ export default function ExportsScreen() {
 
         <TouchableOpacity
           style={styles.row}
-          onPress={() => handleDownload("csv")}
+          onPress={() => handleDownload("self-assessment")}
           disabled={loadingKey !== null}
           activeOpacity={0.7}
         >
+          <View style={styles.rowIconWrap}>
+            <Ionicons name="shield-checkmark" size={20} color="#10b981" />
+          </View>
           <View style={{ flex: 1 }}>
-            <Text style={styles.rowTitle}>Trip Data (CSV)</Text>
+            <View style={styles.rowTitleRow}>
+              <Text style={styles.rowTitle}>HMRC Self-Assessment</Text>
+              <View style={styles.hmrcBadge}>
+                <Text style={styles.hmrcBadgeText}>HMRC COMPLIANT</Text>
+              </View>
+            </View>
             <Text style={styles.rowDesc}>
-              All trips with HMRC rates. Import into Excel.
+              Complete tax report with vehicle breakdown, monthly summary, and HMRC rate explanation. Ready for your accountant.
             </Text>
           </View>
-          {loadingKey === "csv" ? (
+          {loadingKey === "self-assessment" ? (
             <ActivityIndicator color="#f5a623" />
           ) : (
             <Ionicons name="chevron-forward" size={18} color="#6b7280" style={{ marginLeft: 8 }} />
@@ -186,10 +194,13 @@ export default function ExportsScreen() {
           disabled={loadingKey !== null}
           activeOpacity={0.7}
         >
+          <View style={styles.rowIconWrap}>
+            <Ionicons name="document-text" size={20} color="#f5a623" />
+          </View>
           <View style={{ flex: 1 }}>
             <Text style={styles.rowTitle}>Trip Report (PDF)</Text>
             <Text style={styles.rowDesc}>
-              Formatted trip report with summary stats.
+              Branded trip-by-trip report with summary stats. Unique report reference for audit trail.
             </Text>
           </View>
           {loadingKey === "pdf" ? (
@@ -201,17 +212,20 @@ export default function ExportsScreen() {
 
         <TouchableOpacity
           style={styles.row}
-          onPress={() => handleDownload("self-assessment")}
+          onPress={() => handleDownload("csv")}
           disabled={loadingKey !== null}
           activeOpacity={0.7}
         >
+          <View style={styles.rowIconWrap}>
+            <Ionicons name="grid" size={20} color="#6b7280" />
+          </View>
           <View style={{ flex: 1 }}>
-            <Text style={styles.rowTitle}>Self-Assessment (PDF)</Text>
+            <Text style={styles.rowTitle}>Trip Data (CSV)</Text>
             <Text style={styles.rowDesc}>
-              HMRC mileage summary with vehicle breakdown.
+              Raw trip data with HMRC rates. Import into Excel or accounting software.
             </Text>
           </View>
-          {loadingKey === "self-assessment" ? (
+          {loadingKey === "csv" ? (
             <ActivityIndicator color="#f5a623" />
           ) : (
             <Ionicons name="chevron-forward" size={18} color="#6b7280" style={{ marginLeft: 8 }} />
@@ -293,6 +307,21 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#1f2937",
   },
+  rowIconWrap: {
+    width: 40,
+    height: 40,
+    borderRadius: 10,
+    backgroundColor: "rgba(255,255,255,0.05)",
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: 12,
+  },
+  rowTitleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginBottom: 4,
+  },
   rowTitle: {
     fontSize: 15,
     fontFamily: "PlusJakartaSans_600SemiBold",
@@ -303,6 +332,21 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontFamily: "PlusJakartaSans_400Regular",
     color: "#6b7280",
+    lineHeight: 18,
+  },
+  hmrcBadge: {
+    backgroundColor: "rgba(16, 185, 129, 0.12)",
+    borderRadius: 4,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderWidth: 1,
+    borderColor: "rgba(16, 185, 129, 0.3)",
+  },
+  hmrcBadgeText: {
+    fontSize: 8,
+    fontFamily: "PlusJakartaSans_700Bold",
+    color: "#10b981",
+    letterSpacing: 0.5,
   },
   comingSoonRow: {
     flexDirection: "row",

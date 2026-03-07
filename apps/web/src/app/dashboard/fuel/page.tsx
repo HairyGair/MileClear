@@ -11,6 +11,7 @@ import { ConfirmModal } from "../../../components/ui/ConfirmModal";
 import { Pagination } from "../../../components/ui/Pagination";
 import { EmptyState } from "../../../components/ui/EmptyState";
 import { LoadingSkeleton } from "../../../components/ui/LoadingSkeleton";
+import { useToast } from "../../../components/ui/Toast";
 
 const PAGE_SIZE = 20;
 
@@ -45,6 +46,8 @@ function formatPence(pence: number): string {
 }
 
 export default function FuelPage() {
+  const { toast } = useToast();
+
   const [logs, setLogs] = useState<FuelLog[]>([]);
   const [total, setTotal] = useState(0);
   const [totalPages, setTotalPages] = useState(0);
@@ -60,9 +63,22 @@ export default function FuelPage() {
     litres: "",
     costPounds: "",
     stationName: "",
+    odometerMiles: "",
     loggedAt: new Date().toISOString().slice(0, 16),
   });
   const [addLoading, setAddLoading] = useState(false);
+
+  // Edit modal
+  const [editLog, setEditLog] = useState<FuelLog | null>(null);
+  const [editForm, setEditForm] = useState({
+    vehicleId: "",
+    litres: "",
+    costPounds: "",
+    stationName: "",
+    odometerMiles: "",
+    loggedAt: "",
+  });
+  const [editLoading, setEditLoading] = useState(false);
 
   // Delete
   const [deleteLog, setDeleteLog] = useState<FuelLog | null>(null);
@@ -121,20 +137,71 @@ export default function FuelPage() {
     setAddLoading(true);
     setError(null);
     try {
+      const odometerMiles = addForm.odometerMiles ? parseFloat(addForm.odometerMiles) : undefined;
       await api.post("/fuel/logs", {
         vehicleId: addForm.vehicleId || undefined,
         litres,
         costPence: Math.round(costPounds * 100),
         stationName: addForm.stationName.trim() || undefined,
+        odometerReading: odometerMiles && !isNaN(odometerMiles) ? odometerMiles : undefined,
         loggedAt: new Date(addForm.loggedAt).toISOString(),
       });
       setShowAdd(false);
-      setAddForm({ vehicleId: "", litres: "", costPounds: "", stationName: "", loggedAt: new Date().toISOString().slice(0, 16) });
+      setAddForm({ vehicleId: "", litres: "", costPounds: "", stationName: "", odometerMiles: "", loggedAt: new Date().toISOString().slice(0, 16) });
       loadLogs();
+      toast("Fuel log added");
     } catch (err: any) {
       setError(err.message);
     } finally {
       setAddLoading(false);
+    }
+  };
+
+  // Open edit modal pre-filled
+  const openEdit = (log: FuelLog) => {
+    setEditLog(log);
+    setEditForm({
+      vehicleId: log.vehicleId ?? "",
+      litres: String(log.litres),
+      costPounds: (log.costPence / 100).toFixed(2),
+      stationName: log.stationName ?? "",
+      odometerMiles: log.odometerReading != null ? String(log.odometerReading) : "",
+      loggedAt: new Date(log.loggedAt).toISOString().slice(0, 16),
+    });
+  };
+
+  // Edit
+  const handleEdit = async () => {
+    if (!editLog) return;
+    const litres = parseFloat(editForm.litres);
+    const costPounds = parseFloat(editForm.costPounds);
+    if (!editForm.litres || isNaN(litres) || litres <= 0) {
+      setError("Please enter a valid number of litres");
+      return;
+    }
+    if (!editForm.costPounds || isNaN(costPounds) || costPounds <= 0) {
+      setError("Please enter a valid cost");
+      return;
+    }
+    setEditLoading(true);
+    setError(null);
+    try {
+      const odometerMiles = editForm.odometerMiles ? parseFloat(editForm.odometerMiles) : undefined;
+      await api.patch(`/fuel/logs/${editLog.id}`, {
+        vehicleId: editForm.vehicleId || undefined,
+        litres,
+        costPence: Math.round(costPounds * 100),
+        stationName: editForm.stationName.trim() || undefined,
+        odometerReading: odometerMiles && !isNaN(odometerMiles) ? odometerMiles : undefined,
+        loggedAt: new Date(editForm.loggedAt).toISOString(),
+      });
+      setEditLog(null);
+      loadLogs();
+      toast("Fuel log updated");
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setEditLoading(false);
     }
   };
 
@@ -146,6 +213,7 @@ export default function FuelPage() {
       await api.delete(`/fuel/logs/${deleteLog.id}`);
       setDeleteLog(null);
       loadLogs();
+      toast("Fuel log deleted");
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -225,6 +293,7 @@ export default function FuelPage() {
                   <th>Litres</th>
                   <th>Cost</th>
                   <th className="hide-mobile">Cost/L</th>
+                  <th className="hide-mobile">Odometer</th>
                   <th className="hide-mobile">Vehicle</th>
                   <th></th>
                 </tr>
@@ -248,6 +317,9 @@ export default function FuelPage() {
                       {(log.costPence / log.litres / 100).toFixed(1)}p/L
                     </td>
                     <td className="hide-mobile">
+                      {log.odometerReading ? `${log.odometerReading.toLocaleString()} mi` : <span style={{ color: "var(--text-faint)" }}>—</span>}
+                    </td>
+                    <td className="hide-mobile">
                       {log.vehicle ? (
                         `${log.vehicle.make} ${log.vehicle.model}`
                       ) : (
@@ -256,6 +328,12 @@ export default function FuelPage() {
                     </td>
                     <td>
                       <div className="table__actions">
+                        <button
+                          className="table__action-btn"
+                          onClick={() => openEdit(log)}
+                        >
+                          Edit
+                        </button>
                         <button
                           className="table__action-btn table__action-btn--danger"
                           onClick={() => setDeleteLog(log)}
@@ -327,13 +405,96 @@ export default function FuelPage() {
             options={vehicleOptions}
           />
           <Input
-            id="addDate"
-            label="Date"
-            type="datetime-local"
-            value={addForm.loggedAt}
-            onChange={(e) => setAddForm((f) => ({ ...f, loggedAt: e.target.value }))}
+            id="addOdometer"
+            label="Odometer (miles)"
+            type="number"
+            step="1"
+            min="0"
+            value={addForm.odometerMiles}
+            onChange={(e) => setAddForm((f) => ({ ...f, odometerMiles: e.target.value }))}
+            placeholder="e.g. 45230"
           />
         </div>
+        <Input
+          id="addDate"
+          label="Date"
+          type="datetime-local"
+          value={addForm.loggedAt}
+          onChange={(e) => setAddForm((f) => ({ ...f, loggedAt: e.target.value }))}
+        />
+      </Modal>
+
+      {/* Edit Modal */}
+      <Modal
+        open={!!editLog}
+        onClose={() => setEditLog(null)}
+        title="Edit Fuel Fill-up"
+        footer={
+          <>
+            <Button variant="ghost" size="sm" onClick={() => setEditLog(null)}>
+              Cancel
+            </Button>
+            <Button variant="primary" size="sm" onClick={handleEdit} disabled={editLoading}>
+              {editLoading ? "Saving..." : "Save changes"}
+            </Button>
+          </>
+        }
+      >
+        <div className="form-row">
+          <Input
+            id="editLitres"
+            label="Litres"
+            type="number"
+            step="0.1"
+            min="0"
+            value={editForm.litres}
+            onChange={(e) => setEditForm((f) => ({ ...f, litres: e.target.value }))}
+            placeholder="e.g. 45.5"
+          />
+          <Input
+            id="editCost"
+            label="Cost (pounds)"
+            type="number"
+            step="0.01"
+            min="0"
+            value={editForm.costPounds}
+            onChange={(e) => setEditForm((f) => ({ ...f, costPounds: e.target.value }))}
+            placeholder="e.g. 72.50"
+          />
+        </div>
+        <Input
+          id="editStation"
+          label="Station name"
+          value={editForm.stationName}
+          onChange={(e) => setEditForm((f) => ({ ...f, stationName: e.target.value }))}
+          placeholder="e.g. Tesco Extra"
+        />
+        <div className="form-row">
+          <Select
+            id="editVehicle"
+            label="Vehicle"
+            value={editForm.vehicleId}
+            onChange={(e) => setEditForm((f) => ({ ...f, vehicleId: e.target.value }))}
+            options={vehicleOptions}
+          />
+          <Input
+            id="editOdometer"
+            label="Odometer (miles)"
+            type="number"
+            step="1"
+            min="0"
+            value={editForm.odometerMiles}
+            onChange={(e) => setEditForm((f) => ({ ...f, odometerMiles: e.target.value }))}
+            placeholder="e.g. 45230"
+          />
+        </div>
+        <Input
+          id="editDate"
+          label="Date"
+          type="datetime-local"
+          value={editForm.loggedAt}
+          onChange={(e) => setEditForm((f) => ({ ...f, loggedAt: e.target.value }))}
+        />
       </Modal>
 
       {/* Delete Confirmation */}

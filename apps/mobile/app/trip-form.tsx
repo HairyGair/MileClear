@@ -12,12 +12,13 @@ import {
   Animated,
   LayoutAnimation,
   UIManager,
+  AppState,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter, useLocalSearchParams, Stack } from "expo-router";
 import * as Location from "expo-location";
 import { getCurrentLocation, reverseGeocode } from "../lib/location/geocoding";
-import { fetchTrip, CreateTripData, submitTripAnomaly } from "../lib/api/trips";
+import { fetchTrip, CreateTripData, submitTripAnomaly, fetchClassificationSuggestion, ClassificationSuggestion } from "../lib/api/trips";
 import { getLocalTrip } from "../lib/db/queries";
 import {
   syncCreateTrip,
@@ -28,7 +29,7 @@ import { fetchVehicles } from "../lib/api/vehicles";
 import { GIG_PLATFORMS, BUSINESS_PURPOSES, TRIP_CATEGORY_META, haversineDistance, fetchRouteDistance } from "@mileclear/shared";
 import type { TripClassification, TripCategory, PlatformTag, BusinessPurpose, Vehicle } from "@mileclear/shared";
 import { getDatabase } from "../lib/db/index";
-import { startQuickTripTracking, stopQuickTripTracking, clearDetectionCooldown } from "../lib/tracking";
+import { startQuickTripTracking, stopQuickTripTracking, clearDetectionCooldown, peekBackgroundCoordinates } from "../lib/tracking";
 import { setLastSavedTrip } from "../lib/events/lastTrip";
 import { LocationPickerField } from "../components/LocationPickerField";
 import { DateTimePickerField } from "../components/DateTimePickerField";
@@ -286,6 +287,7 @@ function getPositiveMessage(distanceMiles: number | null, numberOfStops: number,
 const CLASSIFICATIONS: { value: TripClassification; label: string }[] = [
   { value: "business", label: "Business" },
   { value: "personal", label: "Personal" },
+  { value: "unclassified", label: "Classify Later" },
 ];
 
 export default function TripFormScreen() {
@@ -311,7 +313,7 @@ export default function TripFormScreen() {
 
   // Trip metadata
   const [distanceMiles, setDistanceMiles] = useState<number | null>(null);
-  const [classification, setClassification] = useState<TripClassification>("business");
+  const [classification, setClassification] = useState<TripClassification>("unclassified");
   const [platformTag, setPlatformTag] = useState<PlatformTag | undefined>(undefined);
   const [businessPurpose, setBusinessPurpose] = useState<BusinessPurpose | undefined>(undefined);
   const [category, setCategory] = useState<TripCategory | undefined>(undefined);
@@ -319,6 +321,10 @@ export default function TripFormScreen() {
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [notes, setNotes] = useState("");
   const [showDetails, setShowDetails] = useState(false);
+
+  // Smart suggestion
+  const [suggestion, setSuggestion] = useState<ClassificationSuggestion | null>(null);
+  const [suggestionApplied, setSuggestionApplied] = useState(false);
 
   // UI state
   const [saving, setSaving] = useState(false);
@@ -646,6 +652,67 @@ export default function TripFormScreen() {
     return () => { if (sub) sub.remove(); locationSubRef.current = null; };
   }, [mode, followUser]);
 
+  // Sync live distance from background coordinates when returning from another app
+  // (e.g. user was using Google Maps / Waze as SatNav)
+  useEffect(() => {
+    if (mode !== "driving") return;
+    const handleAppState = async (nextState: string) => {
+      if (nextState !== "active") return;
+      try {
+        const bgCoords = await peekBackgroundCoordinates();
+        if (bgCoords.length < 2) return;
+
+        // Merge background coords into breadcrumbs and recalculate distance
+        const fgCrumbs = breadcrumbsRef.current;
+        const bgCrumbs = bgCoords.map((c) => ({
+          lat: c.lat,
+          lng: c.lng,
+          speed: c.speed,
+          accuracy: c.accuracy,
+          recordedAt: c.recorded_at,
+        }));
+        const allPoints = [...fgCrumbs, ...bgCrumbs];
+        allPoints.sort((a, b) => new Date(a.recordedAt).getTime() - new Date(b.recordedAt).getTime());
+        // Deduplicate points within 2 seconds
+        const merged: typeof allPoints = [];
+        for (const p of allPoints) {
+          const t = new Date(p.recordedAt).getTime();
+          if (merged.length === 0 || t - new Date(merged[merged.length - 1].recordedAt).getTime() > 2000) {
+            merged.push(p);
+          }
+        }
+        breadcrumbsRef.current = merged;
+
+        // Recalculate running distance from full merged trail
+        let totalDist = 0;
+        for (let i = 1; i < merged.length; i++) {
+          totalDist += haversineDistance(
+            merged[i - 1].lat, merged[i - 1].lng,
+            merged[i].lat, merged[i].lng
+          );
+        }
+        runningDistanceRef.current = totalDist;
+        setLiveDistance(Math.round(totalDist * 100) / 100);
+
+        // Update map position to latest known location
+        const latest = merged[merged.length - 1];
+        setUserLat(latest.lat);
+        setUserLng(latest.lng);
+
+        // Rebuild map trail from merged points
+        setDrivingTrail(merged.map((c) => ({
+          latitude: c.lat,
+          longitude: c.lng,
+          speed: c.speed != null ? Math.round(c.speed * 2.23694) : 0,
+        })));
+      } catch {
+        // Non-critical — foreground watcher will resume
+      }
+    };
+    const sub = AppState.addEventListener("change", handleAppState);
+    return () => sub.remove();
+  }, [mode]);
+
   // Pulsing live dot
   useEffect(() => {
     if (mode !== "driving") return;
@@ -822,6 +889,23 @@ export default function TripFormScreen() {
 
       LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
       setMode("arrived");
+
+      // Fetch smart classification suggestion based on end location
+      if (loc.coords.latitude && loc.coords.longitude) {
+        fetchClassificationSuggestion(loc.coords.latitude, loc.coords.longitude, "end")
+          .then((res) => {
+            if (res.suggestion) {
+              setSuggestion(res.suggestion);
+              // Auto-apply suggestion (user can override)
+              setClassification(res.suggestion.classification);
+              if (res.suggestion.platformTag) setPlatformTag(res.suggestion.platformTag as PlatformTag);
+              if (res.suggestion.businessPurpose) setBusinessPurpose(res.suggestion.businessPurpose as BusinessPurpose);
+              if (res.suggestion.category) setCategory(res.suggestion.category as TripCategory);
+              setSuggestionApplied(true);
+            }
+          })
+          .catch(() => {}); // Suggestion is best-effort
+      }
 
       // Trigger celebration animations
       celebHeaderAnim.setValue(0);
@@ -1592,13 +1676,28 @@ export default function TripFormScreen() {
               </View>
             )}
 
+            {/* Smart suggestion banner */}
+            {suggestionApplied && suggestion && (
+              <View style={styles.suggestionBanner}>
+                <Ionicons name="sparkles" size={14} color="#f5a623" />
+                <Text style={styles.suggestionText}>
+                  Suggested from {suggestion.matchCount} previous trip{suggestion.matchCount !== 1 ? "s" : ""} here
+                </Text>
+              </View>
+            )}
+
             {/* Classification */}
             <View style={styles.classRow}>
               {CLASSIFICATIONS.map((opt) => (
                 <TouchableOpacity
                   key={opt.value}
                   style={[styles.classChip, classification === opt.value && styles.classChipActive]}
-                  onPress={() => setClassification(opt.value)}
+                  onPress={() => {
+                    setClassification(opt.value);
+                    if (suggestion && opt.value !== suggestion.classification) {
+                      setSuggestionApplied(false);
+                    }
+                  }}
                 >
                   <Text
                     style={[styles.classChipText, classification === opt.value && styles.classChipTextActive]}
@@ -2550,6 +2649,25 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontFamily: "PlusJakartaSans_600SemiBold",
     color: AMBER,
+  },
+  // ── Smart suggestion ──────────────────────────────────
+  suggestionBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: "rgba(245, 166, 35, 0.08)",
+    borderWidth: 1,
+    borderColor: "rgba(245, 166, 35, 0.15)",
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    marginBottom: 10,
+  },
+  suggestionText: {
+    fontSize: 12,
+    fontFamily: "PlusJakartaSans_500Medium",
+    color: "#d4a053",
+    flex: 1,
   },
   // ── Classification / platform chips ──────────────────
   classRow: {

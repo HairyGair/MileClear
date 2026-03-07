@@ -8,6 +8,7 @@ import { getDatabase } from "../db/index";
 import { syncCreateTrip } from "../sync/actions";
 import { startDriveDetection, stopDriveDetection } from "./detection";
 import { reverseGeocode } from "../location/geocoding";
+import { getScheduleClassification } from "../schedule/index";
 
 const LOCATION_TASK_NAME = "mileclear-background-location";
 const QUICK_TRIP_SHIFT_ID = "__quick_trip__";
@@ -79,10 +80,13 @@ export async function startShiftTracking(shiftId: string): Promise<void> {
       accuracy: Location.Accuracy.High,
       distanceInterval: 50,
       deferredUpdatesInterval: 10000,
+      activityType: Location.ActivityType.AutomotiveNavigation,
+      pausesUpdatesAutomatically: false,
       showsBackgroundLocationIndicator: true,
       foregroundService: {
         notificationTitle: "MileClear is tracking your shift",
         notificationBody: "Tap to open the app",
+        killServiceOnDestroy: false,
       },
     });
   } catch {
@@ -127,10 +131,13 @@ export async function startQuickTripTracking(): Promise<void> {
       accuracy: Location.Accuracy.High,
       distanceInterval: 50,
       deferredUpdatesInterval: 10000,
+      activityType: Location.ActivityType.AutomotiveNavigation,
+      pausesUpdatesAutomatically: false,
       showsBackgroundLocationIndicator: true,
       foregroundService: {
         notificationTitle: "MileClear is tracking your trip",
         notificationBody: "Tap to open the app",
+        killServiceOnDestroy: false,
       },
     });
   } catch {
@@ -160,6 +167,20 @@ export async function stopQuickTripTracking(): Promise<StoredCoordinate[]> {
   await startDriveDetection();
 
   return coords;
+}
+
+/**
+ * Read background coordinates collected so far without clearing them.
+ * Used to update the UI with distance covered while the app was backgrounded
+ * (e.g. when the user was using a SatNav app).
+ */
+export async function peekBackgroundCoordinates(shiftId?: string): Promise<StoredCoordinate[]> {
+  const db = await getDatabase();
+  const id = shiftId ?? QUICK_TRIP_SHIFT_ID;
+  return db.getAllAsync<StoredCoordinate>(
+    "SELECT lat, lng, speed, accuracy, recorded_at FROM shift_coordinates WHERE shift_id = ? ORDER BY recorded_at ASC",
+    [id]
+  );
 }
 
 /**
@@ -224,6 +245,10 @@ export async function processShiftTrips(
     ]);
 
     try {
+      // Check work schedule for auto-classification
+      const tripTime = new Date(first.recorded_at);
+      const classification = await getScheduleClassification(tripTime);
+
       await syncCreateTrip({
         shiftId,
         vehicleId,
@@ -236,7 +261,7 @@ export async function processShiftTrips(
         distanceMiles: Math.round(totalDistance * 100) / 100,
         startedAt: first.recorded_at,
         endedAt: last.recorded_at,
-        classification: "business",
+        classification,
         coordinates: segment.map((c) => ({
           lat: c.lat,
           lng: c.lng,

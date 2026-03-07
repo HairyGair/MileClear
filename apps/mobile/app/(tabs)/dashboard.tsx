@@ -35,6 +35,7 @@ import {
   processShiftTrips,
   isTrackingActive,
 } from "../../lib/tracking/index";
+import { fetchUnclassifiedCount } from "../../lib/api/trips";
 import type {
   Vehicle,
   GamificationStats,
@@ -54,6 +55,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { startLiveActivity, updateLiveActivity, endLiveActivity } from "../../lib/liveActivity";
 import { useLayoutPrefs } from "../../lib/layout/index";
 import { PremiumGate, PremiumTeaser, useIsPremium } from "../../components/PremiumGate";
+import { SmartInsightCard } from "../../components/SmartInsightCard";
 
 function formatElapsed(seconds: number): string {
   const h = Math.floor(seconds / 3600);
@@ -96,6 +98,35 @@ export default function DashboardScreen() {
   const workLayout = useLayoutPrefs("dashboard_work");
   const personalLayout = useLayoutPrefs("dashboard_personal");
   const isPremium = useIsPremium();
+
+  // Unclassified trip count for smart insights
+  const [unclassifiedCount, setUnclassifiedCount] = useState(0);
+
+  // Vehicle nudge — show when user has no vehicles at all
+  const showVehicleNudge = !loading && vehicles.length === 0;
+
+  // Bluetooth promo card — show when vehicles exist but none have BT configured
+  const [btPromoDismissed, setBtPromoDismissed] = useState(true); // default hidden until loaded
+  const hasVehiclesNoBt = vehicles.length > 0 && !vehicles.some((v) => v.bluetoothName);
+  const showBtPromo = hasVehiclesNoBt && !btPromoDismissed;
+
+  useEffect(() => {
+    (async () => {
+      const db = await getDatabase();
+      const row = await db.getFirstAsync<{ value: string }>(
+        "SELECT value FROM tracking_state WHERE key = 'bt_promo_dismissed'"
+      );
+      setBtPromoDismissed(row?.value === "1");
+    })();
+  }, []);
+
+  const dismissBtPromo = useCallback(async () => {
+    setBtPromoDismissed(true);
+    const db = await getDatabase();
+    await db.runAsync(
+      "INSERT OR REPLACE INTO tracking_state (key, value) VALUES ('bt_promo_dismissed', '1')"
+    );
+  }, []);
 
   // Trip segment bottom sheet
   const [tripTapInfo, setTripTapInfo] = useState<TripTapInfo | null>(null);
@@ -157,8 +188,11 @@ export default function DashboardScreen() {
       setVehicles(vehicleRes.data);
       if (statsRes) setStats(statsRes.data);
 
-      // Fetch daily recap (free for all users)
+      // Fetch daily recap (free for all users) + unclassified count for insights
       fetchRecap("daily").then((res) => setDailyRecap(res.data)).catch(() => {});
+      fetchUnclassifiedCount()
+        .then((res) => setUnclassifiedCount(res.count ?? 0))
+        .catch(() => {});
 
       if (active) {
         // Resume GPS tracking if app was killed/backgrounded during a shift
@@ -553,6 +587,15 @@ export default function DashboardScreen() {
       {/* Mode Toggle */}
       <ModeToggle />
 
+      {/* Smart Insights */}
+      <SmartInsightCard
+        stats={stats}
+        vehicles={vehicles}
+        isPremium={isPremium}
+        isWork={isWork}
+        unclassifiedCount={unclassifiedCount}
+      />
+
       {/* ── Work Mode (layout-aware) ── */}
       {isWork && workLayout.visibleKeys.map((key) => {
         switch (key) {
@@ -717,6 +760,60 @@ export default function DashboardScreen() {
         }
       })}
 
+      {/* Vehicle Nudge — no vehicles yet */}
+      {isWork && showVehicleNudge && (
+        <TouchableOpacity
+          style={s.vehicleNudgeCard}
+          onPress={() => router.push("/vehicle-form" as any)}
+          activeOpacity={0.7}
+        >
+          <View style={s.vehicleNudgeIcon}>
+            <Ionicons name="car-outline" size={24} color={AMBER} />
+          </View>
+          <Text style={s.btPromoTitle}>Add your vehicle</Text>
+          <Text style={s.btPromoBody}>
+            For accurate HMRC mileage rates, add your vehicle. Cars, vans, and motorbikes each have different rates.
+          </Text>
+          <View style={s.btPromoCta}>
+            <Text style={s.vehicleNudgeCtaText}>Add vehicle</Text>
+            <Ionicons name="chevron-forward" size={14} color={AMBER} />
+          </View>
+        </TouchableOpacity>
+      )}
+
+      {/* Bluetooth Auto-Trip Promo */}
+      {isWork && showBtPromo && (
+        <TouchableOpacity
+          style={s.btPromoCard}
+          onPress={() => {
+            const firstVehicle = vehicles[0];
+            if (firstVehicle) {
+              router.push(`/vehicle-form?id=${firstVehicle.id}` as any);
+            }
+          }}
+          activeOpacity={0.7}
+        >
+          <TouchableOpacity
+            style={s.btPromoDismiss}
+            onPress={dismissBtPromo}
+            hitSlop={{ top: 12, right: 12, bottom: 12, left: 12 }}
+          >
+            <Ionicons name="close" size={16} color="#6b7280" />
+          </TouchableOpacity>
+          <View style={s.btPromoIcon}>
+            <Ionicons name="bluetooth" size={24} color="#3b82f6" />
+          </View>
+          <Text style={s.btPromoTitle}>Auto-detect your trips</Text>
+          <Text style={s.btPromoBody}>
+            Connect your car's Bluetooth and MileClear will know when you're driving — trips start automatically.
+          </Text>
+          <View style={s.btPromoCta}>
+            <Text style={s.btPromoCtaText}>Set up now</Text>
+            <Ionicons name="chevron-forward" size={14} color="#3b82f6" />
+          </View>
+        </TouchableOpacity>
+      )}
+
       {/* ── Personal Dashboard (layout-aware) ── */}
       {isPersonal && (
         <PersonalDashboard
@@ -727,6 +824,60 @@ export default function DashboardScreen() {
           dailyRecap={dailyRecap}
           onShowRecap={(recap) => { setRecapData(recap); setShowRecap(true); }}
         />
+      )}
+
+      {/* Vehicle Nudge — personal mode */}
+      {isPersonal && showVehicleNudge && (
+        <TouchableOpacity
+          style={s.vehicleNudgeCard}
+          onPress={() => router.push("/vehicle-form" as any)}
+          activeOpacity={0.7}
+        >
+          <View style={s.vehicleNudgeIcon}>
+            <Ionicons name="car-outline" size={24} color={AMBER} />
+          </View>
+          <Text style={s.btPromoTitle}>Add your vehicle</Text>
+          <Text style={s.btPromoBody}>
+            Track which car you're driving and get personalised fuel economy stats.
+          </Text>
+          <View style={s.btPromoCta}>
+            <Text style={s.vehicleNudgeCtaText}>Add vehicle</Text>
+            <Ionicons name="chevron-forward" size={14} color={AMBER} />
+          </View>
+        </TouchableOpacity>
+      )}
+
+      {/* Bluetooth Auto-Trip Promo (personal mode) */}
+      {isPersonal && showBtPromo && (
+        <TouchableOpacity
+          style={s.btPromoCard}
+          onPress={() => {
+            const firstVehicle = vehicles[0];
+            if (firstVehicle) {
+              router.push(`/vehicle-form?id=${firstVehicle.id}` as any);
+            }
+          }}
+          activeOpacity={0.7}
+        >
+          <TouchableOpacity
+            style={s.btPromoDismiss}
+            onPress={dismissBtPromo}
+            hitSlop={{ top: 12, right: 12, bottom: 12, left: 12 }}
+          >
+            <Ionicons name="close" size={16} color="#6b7280" />
+          </TouchableOpacity>
+          <View style={s.btPromoIcon}>
+            <Ionicons name="bluetooth" size={24} color="#3b82f6" />
+          </View>
+          <Text style={s.btPromoTitle}>Auto-detect your trips</Text>
+          <Text style={s.btPromoBody}>
+            Connect your car's Bluetooth and MileClear will know when you're driving — trips start automatically.
+          </Text>
+          <View style={s.btPromoCta}>
+            <Text style={s.btPromoCtaText}>Set up now</Text>
+            <Ionicons name="chevron-forward" size={14} color="#3b82f6" />
+          </View>
+        </TouchableOpacity>
       )}
 
       <View style={{ height: 24 }} />
@@ -1376,5 +1527,78 @@ const s = StyleSheet.create({
     fontSize: 12,
     fontFamily: "PlusJakartaSans_400Regular",
     color: TEXT_2,
+  },
+
+  // Bluetooth promo
+  btPromoCard: {
+    backgroundColor: "rgba(59, 130, 246, 0.06)",
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: "rgba(59, 130, 246, 0.15)",
+    padding: 20,
+    marginTop: 16,
+    position: "relative" as const,
+  },
+  btPromoDismiss: {
+    position: "absolute" as const,
+    top: 12,
+    right: 12,
+    zIndex: 1,
+  },
+  btPromoIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: "rgba(59, 130, 246, 0.12)",
+    justifyContent: "center" as const,
+    alignItems: "center" as const,
+    marginBottom: 12,
+  },
+  btPromoTitle: {
+    fontSize: 16,
+    fontFamily: "PlusJakartaSans_700Bold",
+    color: TEXT_1,
+    marginBottom: 6,
+  },
+  btPromoBody: {
+    fontSize: 13,
+    fontFamily: "PlusJakartaSans_400Regular",
+    color: TEXT_2,
+    lineHeight: 19,
+    marginBottom: 14,
+  },
+  btPromoCta: {
+    flexDirection: "row" as const,
+    alignItems: "center" as const,
+    gap: 4,
+  },
+  btPromoCtaText: {
+    fontSize: 14,
+    fontFamily: "PlusJakartaSans_600SemiBold",
+    color: "#3b82f6",
+  },
+
+  // Vehicle nudge card
+  vehicleNudgeCard: {
+    backgroundColor: "rgba(245, 166, 35, 0.06)",
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: "rgba(245, 166, 35, 0.15)",
+    padding: 20,
+    marginTop: 16,
+  },
+  vehicleNudgeIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: "rgba(245, 166, 35, 0.12)",
+    justifyContent: "center" as const,
+    alignItems: "center" as const,
+    marginBottom: 12,
+  },
+  vehicleNudgeCtaText: {
+    fontSize: 14,
+    fontFamily: "PlusJakartaSans_600SemiBold",
+    color: AMBER,
   },
 });

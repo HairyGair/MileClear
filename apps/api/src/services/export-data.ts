@@ -10,6 +10,7 @@ import type {
   ExportSummary,
   ExportVehicleBreakdown,
   ExportEarningsByPlatform,
+  ExportMonthlyBreakdown,
   VehicleType,
 } from "@mileclear/shared";
 
@@ -209,6 +210,42 @@ export async function fetchExportSummary(
     });
   }
 
+  // Monthly breakdown (ordered by tax year month: April → March)
+  const monthlyMap = new Map<string, { trips: number; miles: number; businessMiles: number; deductionPence: number }>();
+  const MONTH_NAMES = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+
+  for (const trip of trips) {
+    const d = new Date(trip.startedAt);
+    const key = `${MONTH_NAMES[d.getMonth()]} ${d.getFullYear()}`;
+    const existing = monthlyMap.get(key) || { trips: 0, miles: 0, businessMiles: 0, deductionPence: 0 };
+    existing.trips += 1;
+    existing.miles += trip.distanceMiles;
+    if (trip.classification === "business") {
+      existing.businessMiles += trip.distanceMiles;
+    }
+    monthlyMap.set(key, existing);
+  }
+
+  // Build ordered monthly breakdown (April → March)
+  const { start: tyStart } = parseTaxYear(taxYear);
+  const monthlyBreakdown: ExportMonthlyBreakdown[] = [];
+  for (let i = 0; i < 12; i++) {
+    const d = new Date(tyStart.getFullYear(), tyStart.getMonth() + i, 1);
+    const key = `${MONTH_NAMES[d.getMonth()]} ${d.getFullYear()}`;
+    const data = monthlyMap.get(key);
+    if (data && data.trips > 0) {
+      // Calculate deduction for this month's business miles
+      const deduction = calculateHmrcDeduction("car", data.businessMiles);
+      monthlyBreakdown.push({
+        month: key,
+        trips: data.trips,
+        miles: Math.round(data.miles * 100) / 100,
+        businessMiles: Math.round(data.businessMiles * 100) / 100,
+        deductionPence: deduction,
+      });
+    }
+  }
+
   // Earnings by platform
   const earningsMap = new Map<string, number>();
   let totalEarningsPence = 0;
@@ -232,6 +269,7 @@ export async function fetchExportSummary(
     businessMiles: Math.round(businessMiles * 100) / 100,
     personalMiles: Math.round(personalMiles * 100) / 100,
     vehicleBreakdown,
+    monthlyBreakdown,
     totalDeductionPence,
     totalEarningsPence,
     earningsByPlatform,

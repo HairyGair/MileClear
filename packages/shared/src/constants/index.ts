@@ -114,7 +114,7 @@ export const VEHICLE_TYPES = ["car", "motorbike", "van"] as const;
 export const SHIFT_STATUSES = ["active", "completed"] as const;
 
 // Trip classifications
-export const TRIP_CLASSIFICATIONS = ["business", "personal"] as const;
+export const TRIP_CLASSIFICATIONS = ["business", "personal", "unclassified"] as const;
 
 export const TRIP_CATEGORIES = [
   "commute",

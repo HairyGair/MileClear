@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { api } from "../../../lib/api";
 import { useAuth } from "../../../lib/auth-context";
+import { useToast } from "../../../components/ui/Toast";
 import { PageHeader } from "../../../components/dashboard/PageHeader";
 import { Button } from "../../../components/ui/Button";
 import { Badge } from "../../../components/ui/Badge";
@@ -38,6 +39,7 @@ function formatPence(pence: number): string {
 
 export default function EarningsPage() {
   const { user } = useAuth();
+  const { toast } = useToast();
   const [earnings, setEarnings] = useState<Earning[]>([]);
   const [total, setTotal] = useState(0);
   const [totalAmount, setTotalAmount] = useState(0);
@@ -56,6 +58,16 @@ export default function EarningsPage() {
     periodEnd: "",
   });
   const [addLoading, setAddLoading] = useState(false);
+
+  // Edit modal
+  const [editEarning, setEditEarning] = useState<Earning | null>(null);
+  const [editForm, setEditForm] = useState({
+    platform: "uber",
+    amount: "",
+    periodStart: "",
+    periodEnd: "",
+  });
+  const [editLoading, setEditLoading] = useState(false);
 
   // CSV import
   const [showCsv, setShowCsv] = useState(false);
@@ -118,10 +130,53 @@ export default function EarningsPage() {
       setShowAdd(false);
       setAddForm({ platform: "uber", amount: "", periodStart: "", periodEnd: "" });
       loadEarnings();
+      toast("Earning added");
     } catch (err: any) {
       setError(err.message);
     } finally {
       setAddLoading(false);
+    }
+  };
+
+  // Open edit modal pre-filled with earning data
+  const openEdit = (earning: Earning) => {
+    setEditEarning(earning);
+    setEditForm({
+      platform: earning.platform,
+      amount: (earning.amountPence / 100).toFixed(2),
+      periodStart: earning.periodStart.slice(0, 10),
+      periodEnd: earning.periodEnd.slice(0, 10),
+    });
+  };
+
+  // Edit earning
+  const handleEdit = async () => {
+    if (!editEarning) return;
+    if (!editForm.amount || isNaN(parseFloat(editForm.amount))) {
+      setError("Please enter a valid amount");
+      return;
+    }
+    if (!editForm.periodStart || !editForm.periodEnd) {
+      setError("Please select both start and end dates");
+      return;
+    }
+    setEditLoading(true);
+    setError(null);
+    try {
+      const amountPence = Math.round(parseFloat(editForm.amount) * 100);
+      await api.patch(`/earnings/${editEarning.id}`, {
+        platform: editForm.platform,
+        amountPence,
+        periodStart: editForm.periodStart,
+        periodEnd: editForm.periodEnd,
+      });
+      setEditEarning(null);
+      loadEarnings();
+      toast("Earning updated");
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setEditLoading(false);
     }
   };
 
@@ -153,6 +208,7 @@ export default function EarningsPage() {
 
   const handleCsvConfirm = async () => {
     if (!csvPreview?.rows) return;
+    const importCount = csvPreview.rows.length;
     setCsvLoading(true);
     try {
       await api.post("/earnings/csv/confirm", csvPreview.rows);
@@ -160,6 +216,7 @@ export default function EarningsPage() {
       setCsvContent("");
       setCsvPreview(null);
       loadEarnings();
+      toast(`CSV import complete: ${importCount} earning${importCount !== 1 ? "s" : ""} imported`);
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -175,6 +232,7 @@ export default function EarningsPage() {
       await api.delete(`/earnings/${deleteEarning.id}`);
       setDeleteEarning(null);
       loadEarnings();
+      toast("Earning deleted");
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -267,7 +325,7 @@ export default function EarningsPage() {
                         day: "numeric",
                         month: "short",
                       })}
-                      {" – "}
+                      {" \u2013 "}
                       {new Date(earning.periodEnd).toLocaleDateString("en-GB", {
                         day: "numeric",
                         month: "short",
@@ -278,6 +336,12 @@ export default function EarningsPage() {
                   </div>
                 </div>
                 <div className="earning-card__right">
+                  <button
+                    className="table__action-btn"
+                    onClick={() => openEdit(earning)}
+                  >
+                    Edit
+                  </button>
                   <button
                     className="table__action-btn table__action-btn--danger"
                     onClick={() => setDeleteEarning(earning)}
@@ -339,6 +403,57 @@ export default function EarningsPage() {
             type="date"
             value={addForm.periodEnd}
             onChange={(e) => setAddForm((f) => ({ ...f, periodEnd: e.target.value }))}
+          />
+        </div>
+      </Modal>
+
+      {/* Edit Earning Modal */}
+      <Modal
+        open={!!editEarning}
+        onClose={() => setEditEarning(null)}
+        title="Edit Earning"
+        footer={
+          <>
+            <Button variant="ghost" size="sm" onClick={() => setEditEarning(null)}>
+              Cancel
+            </Button>
+            <Button variant="primary" size="sm" onClick={handleEdit} disabled={editLoading}>
+              {editLoading ? "Saving..." : "Save changes"}
+            </Button>
+          </>
+        }
+      >
+        <Select
+          id="editPlatform"
+          label="Platform"
+          value={editForm.platform}
+          onChange={(e) => setEditForm((f) => ({ ...f, platform: e.target.value }))}
+          options={GIG_PLATFORMS.map((p) => ({ value: p.value, label: p.label }))}
+        />
+        <Input
+          id="editAmount"
+          label="Amount (pounds)"
+          type="number"
+          step="0.01"
+          min="0"
+          value={editForm.amount}
+          onChange={(e) => setEditForm((f) => ({ ...f, amount: e.target.value }))}
+          placeholder="e.g. 150.00"
+        />
+        <div className="form-row">
+          <Input
+            id="editPeriodStart"
+            label="Period start"
+            type="date"
+            value={editForm.periodStart}
+            onChange={(e) => setEditForm((f) => ({ ...f, periodStart: e.target.value }))}
+          />
+          <Input
+            id="editPeriodEnd"
+            label="Period end"
+            type="date"
+            value={editForm.periodEnd}
+            onChange={(e) => setEditForm((f) => ({ ...f, periodEnd: e.target.value }))}
           />
         </div>
       </Modal>
@@ -409,9 +524,23 @@ export default function EarningsPage() {
           </>
         ) : (
           <div className="csv-preview">
-            <p style={{ fontSize: "0.875rem", color: "var(--text-secondary)", marginBottom: "0.75rem" }}>
-              Found {csvPreview.rows?.length || 0} earnings to import. Review before confirming.
+            <p style={{ fontSize: "0.875rem", color: "var(--text-secondary)", marginBottom: "0.5rem" }}>
+              Found {csvPreview.rows?.length || 0} earning{(csvPreview.rows?.length || 0) !== 1 ? "s" : ""} to import. Review before confirming.
             </p>
+            {(csvPreview.duplicateCount > 0 || csvPreview.totalAmountPence != null) && (
+              <div style={{ display: "flex", gap: "1rem", marginBottom: "0.75rem", flexWrap: "wrap" }}>
+                {csvPreview.totalAmountPence != null && (
+                  <span style={{ fontSize: "0.8125rem", color: "var(--text-secondary)" }}>
+                    Total: <strong style={{ color: "var(--text-primary)" }}>{formatPence(csvPreview.totalAmountPence)}</strong>
+                  </span>
+                )}
+                {csvPreview.duplicateCount > 0 && (
+                  <span style={{ fontSize: "0.8125rem", color: "var(--color-warning, #f59e0b)" }}>
+                    {csvPreview.duplicateCount} duplicate{csvPreview.duplicateCount !== 1 ? "s" : ""} detected (shown with reduced opacity)
+                  </span>
+                )}
+              </div>
+            )}
             {csvPreview.rows && csvPreview.rows.length > 0 && (
               <div className="table-wrap">
                 <table className="table">
@@ -424,11 +553,15 @@ export default function EarningsPage() {
                   </thead>
                   <tbody>
                     {csvPreview.rows.slice(0, 20).map((row: any, i: number) => (
-                      <tr key={i}>
+                      <tr
+                        key={i}
+                        style={row.isDuplicate ? { opacity: 0.4 } : undefined}
+                        title={row.isDuplicate ? "Duplicate — already imported" : undefined}
+                      >
                         <td>{row.platform}</td>
                         <td>{formatPence(row.amountPence)}</td>
                         <td>
-                          {row.periodStart} – {row.periodEnd}
+                          {row.periodStart} \u2013 {row.periodEnd}
                         </td>
                       </tr>
                     ))}

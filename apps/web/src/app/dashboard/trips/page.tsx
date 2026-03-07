@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback, useRef } from "react";
+import { useSearchParams } from "next/navigation";
 import { api } from "../../../lib/api";
 import { PageHeader } from "../../../components/dashboard/PageHeader";
 import { Button } from "../../../components/ui/Button";
@@ -15,6 +16,7 @@ import { LoadingSkeleton } from "../../../components/ui/LoadingSkeleton";
 import type { Trip, TripInsights, TripCoordinate, PaginatedResponse } from "@mileclear/shared";
 import { GIG_PLATFORMS, BUSINESS_PURPOSES, fetchRouteDistance } from "@mileclear/shared";
 import { useAuth } from "../../../lib/auth-context";
+import { useToast } from "../../../components/ui/Toast";
 
 interface DetailTrip extends Trip {
   insights?: TripInsights | null;
@@ -35,15 +37,21 @@ const PURPOSE_OPTIONS = BUSINESS_PURPOSES.map((bp) => ({
 
 export default function TripsPage() {
   const { user } = useAuth();
+  const { toast } = useToast();
+  const searchParams = useSearchParams();
   const workType = (user as any)?.workType ?? "gig";
   const isGigDriver = workType === "gig" || workType === "both";
   const isEmployeeDriver = workType === "employee" || workType === "both";
+
+  const initialFilter = (searchParams?.get("filter") as "all" | "business" | "personal" | "unclassified") || "all";
 
   const [trips, setTrips] = useState<Trip[]>([]);
   const [total, setTotal] = useState(0);
   const [totalPages, setTotalPages] = useState(0);
   const [page, setPage] = useState(1);
-  const [filter, setFilter] = useState<"all" | "business" | "personal">("all");
+  const [filter, setFilter] = useState<"all" | "business" | "personal" | "unclassified">(initialFilter);
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -54,6 +62,47 @@ export default function TripsPage() {
   const [editBusinessPurpose, setEditBusinessPurpose] = useState("");
   const [editNotes, setEditNotes] = useState("");
   const [editLoading, setEditLoading] = useState(false);
+
+  // Merge state
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [showMerge, setShowMerge] = useState(false);
+  const [mergeClass, setMergeClass] = useState("business");
+  const [mergePlatform, setMergePlatform] = useState("");
+  const [mergeLoading, setMergeLoading] = useState(false);
+
+  const toggleSelect = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const handleMerge = async () => {
+    if (selectedIds.size < 2) return;
+    setMergeLoading(true);
+    try {
+      const sorted = trips
+        .filter((t) => selectedIds.has(t.id))
+        .sort((a, b) => new Date(a.startedAt).getTime() - new Date(b.startedAt).getTime());
+      await api.post("/trips/merge", {
+        tripIds: sorted.map((t) => t.id),
+        classification: mergeClass,
+        platformTag: mergePlatform || null,
+      });
+      setShowMerge(false);
+      setSelectedIds(new Set());
+      setMergeClass("business");
+      setMergePlatform("");
+      toast("Trips merged successfully", "success");
+      loadTrips();
+    } catch (err: any) {
+      toast(err.message || "Failed to merge trips", "error");
+    } finally {
+      setMergeLoading(false);
+    }
+  };
 
   // Add manual trip modal
   const [showAdd, setShowAdd] = useState(false);
@@ -177,6 +226,12 @@ export default function TripsPage() {
       if (filter !== "all") {
         params.set("classification", filter);
       }
+      if (dateFrom) params.set("from", new Date(dateFrom).toISOString());
+      if (dateTo) {
+        const end = new Date(dateTo);
+        end.setHours(23, 59, 59, 999);
+        params.set("to", end.toISOString());
+      }
       const res = await api.get<PaginatedResponse<Trip>>(`/trips/?${params}`);
       setTrips(res.data);
       setTotal(res.total);
@@ -186,13 +241,13 @@ export default function TripsPage() {
     } finally {
       setLoading(false);
     }
-  }, [page, filter]);
+  }, [page, filter, dateFrom, dateTo]);
 
   useEffect(() => {
     loadTrips();
   }, [loadTrips]);
 
-  const handleFilterChange = (f: "all" | "business" | "personal") => {
+  const handleFilterChange = (f: "all" | "business" | "personal" | "unclassified") => {
     setFilter(f);
     setPage(1);
   };
@@ -217,6 +272,7 @@ export default function TripsPage() {
         notes: editNotes || null,
       });
       setEditTrip(null);
+      toast("Trip updated");
       loadTrips();
     } catch (err: any) {
       setError(err.message);
@@ -270,6 +326,7 @@ export default function TripsPage() {
         notes: "",
         startedAt: new Date().toISOString().slice(0, 16),
       });
+      toast("Trip added");
       loadTrips();
     } catch (err: any) {
       setError(err.message);
@@ -285,6 +342,7 @@ export default function TripsPage() {
     try {
       await api.delete(`/trips/${deleteTrip.id}`);
       setDeleteTrip(null);
+      toast("Trip deleted");
       loadTrips();
     } catch (err: any) {
       setError(err.message);
@@ -431,15 +489,44 @@ export default function TripsPage() {
 
       {/* Filters */}
       <div className="filter-chips" style={{ marginBottom: "1.25rem" }}>
-        {(["all", "business", "personal"] as const).map((f) => (
+        {(["all", "unclassified", "business", "personal"] as const).map((f) => (
           <button
             key={f}
             className={`filter-chip ${filter === f ? "filter-chip--active" : ""}`}
             onClick={() => handleFilterChange(f)}
           >
-            {f === "all" ? "All" : f.charAt(0).toUpperCase() + f.slice(1)}
+            {f === "all" ? "All" : f === "unclassified" ? "Inbox" : f.charAt(0).toUpperCase() + f.slice(1)}
           </button>
         ))}
+      </div>
+
+      {/* Date range filter */}
+      <div style={{ display: "flex", gap: "0.75rem", marginBottom: "1.25rem", alignItems: "flex-end" }}>
+        <Input
+          id="dateFrom"
+          label="From"
+          type="date"
+          value={dateFrom}
+          onChange={(e) => { setDateFrom(e.target.value); setPage(1); }}
+          style={{ maxWidth: 180 }}
+        />
+        <Input
+          id="dateTo"
+          label="To"
+          type="date"
+          value={dateTo}
+          onChange={(e) => { setDateTo(e.target.value); setPage(1); }}
+          style={{ maxWidth: 180 }}
+        />
+        {(dateFrom || dateTo) && (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => { setDateFrom(""); setDateTo(""); setPage(1); }}
+          >
+            Clear
+          </Button>
+        )}
       </div>
 
       {error && (
@@ -467,10 +554,56 @@ export default function TripsPage() {
         />
       ) : (
         <>
+          {/* Merge controls */}
+          {selectedIds.size > 0 && (
+            <div style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "0.75rem",
+              padding: "0.75rem 1rem",
+              marginBottom: "0.75rem",
+              background: "rgba(96, 165, 250, 0.08)",
+              border: "1px solid rgba(96, 165, 250, 0.25)",
+              borderRadius: "var(--radius-lg, 12px)",
+              fontSize: "0.875rem",
+            }}>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#60a5fa" strokeWidth="2" strokeLinecap="round">
+                <circle cx="18" cy="18" r="3" /><circle cx="6" cy="6" r="3" />
+                <path d="M6 21V9a9 9 0 009 9" />
+              </svg>
+              <span style={{ color: "#93c5fd", fontWeight: 600 }}>
+                {selectedIds.size} trip{selectedIds.size !== 1 ? "s" : ""} selected
+              </span>
+              <span style={{ flex: 1 }} />
+              <button
+                style={{
+                  color: "var(--text-muted)",
+                  background: "none",
+                  border: "none",
+                  cursor: "pointer",
+                  fontSize: "0.8125rem",
+                  padding: "0.375rem 0.75rem",
+                }}
+                onClick={() => setSelectedIds(new Set())}
+              >
+                Clear
+              </button>
+              <Button
+                variant="primary"
+                size="sm"
+                onClick={() => setShowMerge(true)}
+                disabled={selectedIds.size < 2}
+              >
+                Merge {selectedIds.size} Trips
+              </Button>
+            </div>
+          )}
+
           <div className="table-wrap">
             <table className="table">
               <thead>
                 <tr>
+                  <th style={{ width: 40 }}></th>
                   <th>Date</th>
                   <th>Route</th>
                   <th>Distance</th>
@@ -481,7 +614,15 @@ export default function TripsPage() {
               </thead>
               <tbody>
                 {trips.map((trip) => (
-                  <tr key={trip.id}>
+                  <tr key={trip.id} style={selectedIds.has(trip.id) ? { background: "rgba(96, 165, 250, 0.06)" } : undefined}>
+                    <td>
+                      <input
+                        type="checkbox"
+                        checked={selectedIds.has(trip.id)}
+                        onChange={() => toggleSelect(trip.id)}
+                        style={{ accentColor: "#60a5fa", width: 16, height: 16, cursor: "pointer" }}
+                      />
+                    </td>
                     <td style={{ whiteSpace: "nowrap" }}>
                       {new Date(trip.startedAt).toLocaleDateString("en-GB", {
                         day: "numeric",
@@ -494,8 +635,8 @@ export default function TripsPage() {
                     </td>
                     <td>{trip.distanceMiles?.toFixed(1) || "0"} mi</td>
                     <td>
-                      <Badge variant={trip.classification === "business" ? "business" : "personal"}>
-                        {trip.classification}
+                      <Badge variant={trip.classification === "business" ? "business" : trip.classification === "personal" ? "personal" : "warning"}>
+                        {trip.classification === "unclassified" ? "Unclassified" : trip.classification}
                       </Badge>
                     </td>
                     <td className="hide-mobile">
@@ -560,6 +701,7 @@ export default function TripsPage() {
           options={[
             { value: "business", label: "Business" },
             { value: "personal", label: "Personal" },
+            { value: "unclassified", label: "Unclassified" },
           ]}
         />
         {isGigDriver && (
@@ -786,8 +928,8 @@ export default function TripsPage() {
                 <div className="trip-detail__stat-label">Duration</div>
               </div>
               <div className="trip-detail__stat">
-                <Badge variant={detailTrip.classification === "business" ? "business" : "personal"}>
-                  {detailTrip.classification}
+                <Badge variant={detailTrip.classification === "business" ? "business" : detailTrip.classification === "personal" ? "personal" : "warning"}>
+                  {detailTrip.classification === "unclassified" ? "Unclassified" : detailTrip.classification}
                 </Badge>
                 <div className="trip-detail__stat-label">Type</div>
               </div>
@@ -898,6 +1040,79 @@ export default function TripsPage() {
               )}
             </div>
           </div>
+        )}
+      </Modal>
+
+      {/* Merge Modal */}
+      <Modal
+        open={showMerge}
+        onClose={() => setShowMerge(false)}
+        title={`Merge ${selectedIds.size} Trips`}
+        footer={
+          <>
+            <Button variant="ghost" size="sm" onClick={() => setShowMerge(false)}>
+              Cancel
+            </Button>
+            <Button variant="primary" size="sm" onClick={handleMerge} disabled={mergeLoading}>
+              {mergeLoading ? "Merging..." : "Merge Trips"}
+            </Button>
+          </>
+        }
+      >
+        {(() => {
+          const selected = trips
+            .filter((t) => selectedIds.has(t.id))
+            .sort((a, b) => new Date(a.startedAt).getTime() - new Date(b.startedAt).getTime());
+          const first = selected[0];
+          const last = selected[selected.length - 1];
+          const totalMiles = selected.reduce((sum, t) => sum + (t.distanceMiles ?? 0), 0);
+          if (!first || !last) return null;
+          return (
+            <div style={{
+              background: "rgba(255,255,255,0.03)",
+              border: "1px solid rgba(255,255,255,0.06)",
+              borderRadius: 10,
+              padding: "0.875rem",
+              marginBottom: "1.25rem",
+              fontSize: "0.8125rem",
+              color: "var(--text-secondary, #9ca3af)",
+              lineHeight: 1.7,
+            }}>
+              <div><strong style={{ color: "#10b981" }}>Start:</strong> {first.startAddress || "Unknown"}</div>
+              <div><strong style={{ color: "#ef4444" }}>End:</strong> {last.endAddress || "Unknown"}</div>
+              <div style={{ marginTop: 6, display: "flex", gap: "1.5rem" }}>
+                <span><strong>{totalMiles.toFixed(1)}</strong> mi total</span>
+                <span>
+                  {new Date(first.startedAt).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}
+                  {" — "}
+                  {last.endedAt ? new Date(last.endedAt).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" }) : "ongoing"}
+                </span>
+              </div>
+            </div>
+          );
+        })()}
+
+        <Select
+          id="mergeClass"
+          label="Classification"
+          value={mergeClass}
+          onChange={(e) => setMergeClass(e.target.value)}
+          options={[
+            { value: "business", label: "Business" },
+            { value: "personal", label: "Personal" },
+          ]}
+        />
+        {mergeClass === "business" && (
+          <Select
+            id="mergePlatform"
+            label="Platform (optional)"
+            value={mergePlatform}
+            onChange={(e) => setMergePlatform(e.target.value)}
+            options={[
+              { value: "", label: "None" },
+              ...GIG_PLATFORMS.map((p) => ({ value: p.value, label: p.label })),
+            ]}
+          />
         )}
       </Modal>
     </>

@@ -62,7 +62,7 @@ export interface Shift {
 }
 
 // Trip types
-export type TripClassification = "business" | "personal";
+export type TripClassification = "business" | "personal" | "unclassified";
 export type TripCategory =
   | "commute"
   | "school_run"
@@ -338,6 +338,14 @@ export interface ExportEarningsByPlatform {
   totalPence: number;
 }
 
+export interface ExportMonthlyBreakdown {
+  month: string;
+  trips: number;
+  miles: number;
+  businessMiles: number;
+  deductionPence: number;
+}
+
 export interface ExportSummary {
   taxYear: string;
   totalTrips: number;
@@ -345,6 +353,7 @@ export interface ExportSummary {
   businessMiles: number;
   personalMiles: number;
   vehicleBreakdown: ExportVehicleBreakdown[];
+  monthlyBreakdown: ExportMonthlyBreakdown[];
   totalDeductionPence: number;
   totalEarningsPence: number;
   earningsByPlatform: ExportEarningsByPlatform[];
@@ -536,6 +545,125 @@ export interface WeeklyPnL {
   hmrcDeductionPence: number;
   businessMiles: number;
   totalTrips: number;
+}
+
+// ── Driving Analytics ────────────────────────────────────────────────
+
+export interface WeeklyReport {
+  weekLabel: string;               // "24 Feb – 2 Mar 2026"
+  // Business stats
+  business: {
+    miles: number;
+    trips: number;
+    deductionPence: number;
+    earningsPence: number;
+    shifts: number;
+    avgShiftHours: number;
+    bestShiftGrade: string | null;
+    fuelCostPence: number | null;
+    topPlatform: string | null;
+  };
+  // Personal stats
+  personal: {
+    miles: number;
+    trips: number;
+    avgTripMiles: number;
+    longestTripMiles: number;
+  };
+  // Combined
+  totalMiles: number;
+  totalTrips: number;
+  streakDays: number;
+  newAchievements: string[];       // achievement type labels earned this week
+  // Comparison to previous week
+  milesDelta: number | null;       // percentage change vs prev week
+  tripsDelta: number | null;
+  earningsDelta: number | null;
+}
+
+export interface FrequentRoute {
+  startLat: number;
+  startLng: number;
+  endLat: number;
+  endLng: number;
+  startAddress: string;
+  endAddress: string;
+  tripCount: number;
+  avgDurationMinutes: number;
+  fastestDurationMinutes: number;
+  avgDistanceMiles: number;
+  classification: string;          // most common classification
+  platformTag: string | null;      // most common platform
+  dayBreakdown: number[];          // trips per day: 0=Mon..6=Sun
+  timeBreakdown: number[];         // trips per 4-hour block: 0=00-04..5=20-24
+}
+
+export interface ShiftSweetSpot {
+  durationBucket: string;          // "4-6 hrs", "6-8 hrs", etc.
+  shiftCount: number;
+  avgEarningsPerHourPence: number;
+  avgTrips: number;
+  avgMiles: number;
+  totalEarningsPence: number;
+}
+
+export interface FuelCostBreakdown {
+  actualMpg: number | null;
+  estimatedMpg: number | null;
+  fuelCostPerMilePence: number | null;
+  totalFuelCostPence: number;
+  totalMilesDriven: number;
+  perVehicle: {
+    vehicleId: string;
+    make: string;
+    model: string;
+    fuelType: string;
+    mpg: number | null;
+    costPerMilePence: number | null;
+    totalCostPence: number;
+    milesDriven: number;
+  }[];
+  recentFillUps: {
+    date: string;
+    litres: number;
+    costPence: number;
+    costPerLitrePence: number;
+    stationName: string | null;
+  }[];
+}
+
+export interface EarningsDayPattern {
+  day: string;                     // "Monday", "Tuesday", etc.
+  dayIndex: number;                // 0=Mon..6=Sun
+  totalEarningsPence: number;
+  avgEarningsPence: number;
+  tripCount: number;
+  entryCount: number;              // earning entries (not trips)
+}
+
+export interface CommuteTiming {
+  routeLabel: string;              // "Home → Work"
+  locationFrom: string;
+  locationTo: string;
+  avgDurationMinutes: number;
+  bestDurationMinutes: number;
+  worstDurationMinutes: number;
+  bestDepartureHour: number;       // hour (0-23) with shortest avg duration
+  bestDepartureLabel: string;      // "Leave by 7am"
+  byHour: {
+    hour: number;
+    avgMinutes: number;
+    tripCount: number;
+  }[];
+}
+
+export interface DrivingAnalytics {
+  weeklyReport: WeeklyReport;
+  frequentRoutes: FrequentRoute[];
+  shiftSweetSpots: ShiftSweetSpot[];       // business only
+  fuelCost: FuelCostBreakdown;
+  earningsByDay: EarningsDayPattern[];     // business only
+  commuteTiming: CommuteTiming[];
 }
 
 // Feedback types

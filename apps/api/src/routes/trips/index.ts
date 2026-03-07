@@ -79,7 +79,7 @@ const createTripSchema = z.object({
   distanceMiles: z.number().nonnegative().max(2000, "Distance exceeds reasonable limit").optional(),
   startedAt: z.coerce.date().refine((d) => d <= new Date(Date.now() + 86400000), "Start date cannot be in the future"),
   endedAt: z.coerce.date().refine((d) => d <= new Date(Date.now() + 86400000), "End date cannot be in the future").optional(),
-  classification: z.enum(TRIP_CLASSIFICATIONS).default("business"),
+  classification: z.enum(TRIP_CLASSIFICATIONS).default("unclassified"),
   platformTag: z.enum(PLATFORM_TAGS).optional(),
   businessPurpose: z.enum(BUSINESS_PURPOSE_VALUES).optional(),
   notes: z.string().max(2000).optional(),
@@ -278,6 +278,222 @@ export async function tripRoutes(app: FastifyInstance) {
       pageSize,
       totalPages: Math.ceil(total / pageSize),
     });
+  });
+
+  // Count of unclassified trips (for inbox badge)
+  // Must be registered before /:id to avoid route conflict
+  app.get("/unclassified/count", async (request, reply) => {
+    const count = await prisma.trip.count({
+      where: { userId: request.userId!, classification: "unclassified" },
+    });
+    return reply.send({ count });
+  });
+
+  // Suggest classification based on past trips near a location
+  const suggestQuery = z.object({
+    lat: z.coerce.number().min(-90).max(90),
+    lng: z.coerce.number().min(-180).max(180),
+    type: z.enum(["start", "end"]).default("end"),
+  });
+
+  app.get("/suggest", async (request, reply) => {
+    const parsed = suggestQuery.safeParse(request.query);
+    if (!parsed.success) {
+      return reply.status(400).send({ error: parsed.error.issues[0].message });
+    }
+
+    const { lat, lng, type } = parsed.data;
+    const userId = request.userId!;
+
+    // Find classified trips where start or end point is within ~500m
+    // Using bounding box approximation: ~0.0045 degrees latitude ≈ 500m
+    const latDelta = 0.0045;
+    const lngDelta = 0.0045 / Math.cos((lat * Math.PI) / 180);
+
+    const latField = type === "start" ? "startLat" : "endLat";
+    const lngField = type === "start" ? "startLng" : "endLng";
+
+    const nearby = await prisma.trip.findMany({
+      where: {
+        userId,
+        classification: { not: "unclassified" },
+        [latField]: { gte: lat - latDelta, lte: lat + latDelta },
+        [lngField]: { gte: lng - lngDelta, lte: lng + lngDelta },
+      },
+      select: {
+        classification: true,
+        platformTag: true,
+        businessPurpose: true,
+        category: true,
+      },
+      orderBy: { startedAt: "desc" },
+      take: 20,
+    });
+
+    if (nearby.length < 3) {
+      return reply.send({ suggestion: null });
+    }
+
+    // Count classifications
+    const counts: Record<string, number> = {};
+    for (const t of nearby) {
+      counts[t.classification] = (counts[t.classification] ?? 0) + 1;
+    }
+    const topClassification = Object.entries(counts).sort((a, b) => b[1] - a[1])[0];
+    const confidence = topClassification[1] / nearby.length;
+
+    // Only suggest if >60% agreement
+    if (confidence < 0.6) {
+      return reply.send({ suggestion: null });
+    }
+
+    // Find most common platform tag / business purpose / category among matching classification
+    const matching = nearby.filter((t) => t.classification === topClassification[0]);
+
+    const platformCounts: Record<string, number> = {};
+    const purposeCounts: Record<string, number> = {};
+    const categoryCounts: Record<string, number> = {};
+    for (const t of matching) {
+      if (t.platformTag) platformCounts[t.platformTag] = (platformCounts[t.platformTag] ?? 0) + 1;
+      if (t.businessPurpose) purposeCounts[t.businessPurpose] = (purposeCounts[t.businessPurpose] ?? 0) + 1;
+      if (t.category) categoryCounts[t.category] = (categoryCounts[t.category] ?? 0) + 1;
+    }
+
+    const topPlatform = Object.entries(platformCounts).sort((a, b) => b[1] - a[1])[0];
+    const topPurpose = Object.entries(purposeCounts).sort((a, b) => b[1] - a[1])[0];
+    const topCategory = Object.entries(categoryCounts).sort((a, b) => b[1] - a[1])[0];
+
+    return reply.send({
+      suggestion: {
+        classification: topClassification[0],
+        platformTag: topPlatform ? topPlatform[0] : null,
+        businessPurpose: topPurpose ? topPurpose[0] : null,
+        category: topCategory ? topCategory[0] : null,
+        matchCount: nearby.length,
+        confidence: Math.round(confidence * 100),
+      },
+    });
+  });
+
+  // Merge multiple trips into one
+  const mergeTripSchema = z.object({
+    tripIds: z.array(z.string().uuid()).min(2).max(20),
+    classification: z.enum(TRIP_CLASSIFICATIONS),
+    platformTag: z.enum(PLATFORM_TAGS).nullable().optional(),
+    businessPurpose: z.enum(BUSINESS_PURPOSE_VALUES).nullable().optional(),
+    notes: z.string().max(2000).nullable().optional(),
+    category: z.enum(TRIP_CATEGORIES).nullable().optional(),
+  });
+
+  app.post("/merge", async (request, reply) => {
+    const parsed = mergeTripSchema.safeParse(request.body);
+    if (!parsed.success) {
+      return reply.status(400).send({ error: parsed.error.issues[0].message });
+    }
+
+    const userId = request.userId!;
+    const { tripIds, classification, platformTag, businessPurpose, notes, category } = parsed.data;
+
+    // Fetch all trips and verify ownership
+    const trips = await prisma.trip.findMany({
+      where: { id: { in: tripIds }, userId },
+      include: { coordinates: { orderBy: { recordedAt: "asc" } } },
+      orderBy: { startedAt: "asc" },
+    });
+
+    if (trips.length !== tripIds.length) {
+      return reply.status(404).send({ error: "One or more trips not found" });
+    }
+
+    // Use the first trip's start and last trip's end
+    const first = trips[0];
+    const last = trips[trips.length - 1];
+
+    // Combine all coordinates from all trips, sorted by time
+    const allCoords = trips
+      .flatMap((t) => t.coordinates)
+      .sort((a, b) => a.recordedAt.getTime() - b.recordedAt.getTime());
+
+    // Calculate total distance via OSRM or sum of individual distances
+    let totalDistance = 0;
+    const startLat = first.startLat;
+    const startLng = first.startLng;
+    const endLat = last.endLat;
+    const endLng = last.endLng;
+
+    if (endLat != null && endLng != null && hasValidCoords(startLat, startLng)) {
+      const route = await fetchRouteDistance(startLat, startLng, endLat, endLng);
+      if (route) {
+        totalDistance = route.distanceMiles;
+      } else {
+        // Fallback: sum individual distances
+        totalDistance = trips.reduce((sum, t) => sum + t.distanceMiles, 0);
+      }
+    } else {
+      totalDistance = trips.reduce((sum, t) => sum + t.distanceMiles, 0);
+    }
+
+    // Create merged trip and delete originals in a transaction
+    const mergedTrip = await prisma.$transaction(async (tx) => {
+      // Create the merged trip
+      const created = await tx.trip.create({
+        data: {
+          userId,
+          shiftId: first.shiftId,
+          vehicleId: first.vehicleId,
+          startLat,
+          startLng,
+          endLat: endLat ?? null,
+          endLng: endLng ?? null,
+          startAddress: first.startAddress,
+          endAddress: last.endAddress,
+          distanceMiles: totalDistance,
+          startedAt: first.startedAt,
+          endedAt: last.endedAt,
+          isManualEntry: false,
+          classification,
+          platformTag: platformTag ?? null,
+          businessPurpose: businessPurpose ?? null,
+          category: category ?? null,
+          notes: notes ?? null,
+        },
+      });
+
+      // Copy all coordinates to the merged trip
+      if (allCoords.length > 0) {
+        await tx.tripCoordinate.createMany({
+          data: allCoords.map((c) => ({
+            tripId: created.id,
+            lat: c.lat,
+            lng: c.lng,
+            speed: c.speed,
+            accuracy: c.accuracy,
+            recordedAt: c.recordedAt,
+          })),
+        });
+      }
+
+      // Delete original trips (cascade deletes their coordinates and anomalies)
+      await tx.trip.deleteMany({
+        where: { id: { in: tripIds } },
+      });
+
+      return tx.trip.findUniqueOrThrow({
+        where: { id: created.id },
+        include: { vehicle: true, shift: true },
+      });
+    });
+
+    // Fire-and-forget: update mileage summary
+    const taxYear = getTaxYear(first.startedAt);
+    upsertMileageSummary(userId, taxYear).catch(() => {});
+
+    request.log.info(
+      { userId, mergedTripId: mergedTrip.id, originalIds: tripIds, action: "trip.merge" },
+      `Merged ${tripIds.length} trips into ${mergedTrip.id}`
+    );
+
+    return reply.status(201).send({ data: mergedTrip });
   });
 
   // Get single trip

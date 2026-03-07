@@ -107,11 +107,46 @@ export function deleteTrip(id: string) {
   });
 }
 
+export function fetchUnclassifiedCount() {
+  return apiRequest<{ count: number }>("/trips/unclassified/count");
+}
+
+export interface ClassificationSuggestion {
+  classification: "business" | "personal";
+  platformTag: string | null;
+  businessPurpose: string | null;
+  category: string | null;
+  matchCount: number;
+  confidence: number;
+}
+
+export function fetchClassificationSuggestion(lat: number, lng: number, type: "start" | "end" = "end") {
+  return apiRequest<{ suggestion: ClassificationSuggestion | null }>(
+    `/trips/suggest?lat=${lat}&lng=${lng}&type=${type}`
+  );
+}
+
 export function submitTripAnomaly(
   tripId: string,
   data: { type: string; response: string; customNote?: string | null; lat?: number; lng?: number; placeName?: string | null }
 ) {
   return apiRequest<{ data: unknown }>(`/trips/${tripId}/anomaly`, {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+}
+
+export interface MergeTripsData {
+  tripIds: string[];
+  classification: TripClassification;
+  platformTag?: PlatformTag | null;
+  businessPurpose?: BusinessPurpose | null;
+  category?: TripCategory | null;
+  notes?: string | null;
+}
+
+export function mergeTrips(data: MergeTripsData) {
+  return apiRequest<{ data: TripWithVehicle }>("/trips/merge", {
     method: "POST",
     body: JSON.stringify(data),
   });

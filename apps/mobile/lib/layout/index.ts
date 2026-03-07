@@ -202,6 +202,11 @@ export const SECTION_REGISTRY: Record<ScreenKey, SectionDef[]> = {
       icon: "stats-chart-outline",
     },
     {
+      key: "menu_analytics",
+      label: "Analytics",
+      icon: "bar-chart-outline",
+    },
+    {
       key: "menu_exports",
       label: "Tax Exports",
       icon: "download-outline",
@@ -210,6 +215,11 @@ export const SECTION_REGISTRY: Record<ScreenKey, SectionDef[]> = {
       key: "menu_suggestions",
       label: "Suggestions",
       icon: "bulb-outline",
+    },
+    {
+      key: "menu_schedule",
+      label: "Work Schedule",
+      icon: "time-outline",
     },
     {
       key: "menu_logout",

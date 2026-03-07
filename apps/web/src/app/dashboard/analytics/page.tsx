@@ -1,221 +1,151 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { api } from "../../../lib/api";
 import { useAuth } from "../../../lib/auth-context";
 import { PageHeader } from "../../../components/dashboard/PageHeader";
 import { Card } from "../../../components/ui/Card";
-import { LoadingSkeleton } from "../../../components/ui/LoadingSkeleton";
-import type { GamificationStats, Trip, PaginatedResponse } from "@mileclear/shared";
+import { Badge } from "../../../components/ui/Badge";
+import { DashboardSkeleton } from "../../../components/ui/LoadingSkeleton";
+import type {
+  DrivingAnalytics,
+  WeeklyReport,
+  FrequentRoute,
+  ShiftSweetSpot,
+  FuelCostBreakdown,
+  EarningsDayPattern,
+  CommuteTiming,
+} from "@mileclear/shared";
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
-function formatPence(p: number) {
-  return `\u00A3${(p / 100).toFixed(2)}`;
+function formatPence(pence: number): string {
+  return `\u00A3${(pence / 100).toFixed(2)}`;
 }
 
-function formatMiles(m: number) {
-  return m.toLocaleString("en-GB", { maximumFractionDigits: 1 });
+function formatMiles(miles: number): string {
+  return miles.toLocaleString("en-GB", { maximumFractionDigits: 1 });
 }
 
-/** Return the ISO year + week number (Mon-based) for a given date as a string key "YYYY-WW". */
-function isoWeekKey(date: Date): string {
-  // Copy date so we don't mutate
-  const d = new Date(date.getTime());
-  // Set to nearest Thursday: current date + 4 - current day number (Mon=1, Sun=7)
-  d.setUTCHours(0, 0, 0, 0);
-  d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay() || 7));
-  const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
-  const week = Math.ceil(((d.getTime() - yearStart.getTime()) / 86400000 + 1) / 7);
-  return `${d.getUTCFullYear()}-${String(week).padStart(2, "0")}`;
+function formatDuration(minutes: number): string {
+  if (minutes < 60) return `${Math.round(minutes)}m`;
+  const h = Math.floor(minutes / 60);
+  const m = Math.round(minutes % 60);
+  return m > 0 ? `${h}h ${m}m` : `${h}h`;
 }
 
-/** Format the Monday of the week containing `date` as "6 Jan" style. */
-function weekLabel(date: Date): string {
-  const d = new Date(date.getTime());
-  const day = d.getUTCDay() || 7; // Mon=1 ... Sun=7
-  d.setUTCDate(d.getUTCDate() - day + 1); // rewind to Monday
-  return d.toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: "UTC" });
+function platformLabel(tag: string): string {
+  const map: Record<string, string> = {
+    uber: "Uber",
+    deliveroo: "Deliveroo",
+    just_eat: "Just Eat",
+    amazon_flex: "Amazon Flex",
+    stuart: "Stuart",
+    gophr: "Gophr",
+    dpd: "DPD",
+    yodel: "Yodel",
+    evri: "Evri",
+    other: "Other",
+  };
+  return map[tag] ?? tag;
 }
 
-interface WeekBucket {
-  key: string;
-  label: string;
-  miles: number;
-  trips: number;
+function trendLabel(delta: number | null, label: string): string | null {
+  if (delta === null) return null;
+  if (delta > 0) return `\u2191 ${delta.toFixed(0)}% ${label}`;
+  if (delta < 0) return `\u2193 ${Math.abs(delta).toFixed(0)}% ${label}`;
+  return `\u2014 ${label}`;
 }
 
-/** Aggregate trips into the last N complete weeks (Mon–Sun), returning chronological buckets. */
-function buildWeekBuckets(trips: Trip[], numWeeks = 12): WeekBucket[] {
-  // Build the last numWeeks Monday-anchored week boundaries
-  const now = new Date();
-  const currentDayOfWeek = now.getUTCDay() || 7; // Mon=1
-  // Start of the current week (Monday)
-  const thisMonday = new Date(
-    Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() - currentDayOfWeek + 1)
+const DAY_LABELS_SHORT = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+const DAY_LABELS_LONG = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+
+// ---------------------------------------------------------------------------
+// Sub-components
+// ---------------------------------------------------------------------------
+
+// Delta badge
+function DeltaBadge({ delta, label }: { delta: number | null; label: string }) {
+  if (delta === null) return null;
+  const positive = delta > 0;
+  const neutral = delta === 0;
+  const color = neutral ? "var(--text-muted)" : positive ? "#10b981" : "#ef4444";
+  const arrow = neutral ? "\u2014" : positive ? "\u2191" : "\u2193";
+  return (
+    <span
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        gap: "0.2rem",
+        fontSize: "0.75rem",
+        fontWeight: 600,
+        color,
+        background: neutral
+          ? "rgba(255,255,255,0.05)"
+          : positive
+          ? "rgba(16,185,129,0.12)"
+          : "rgba(239,68,68,0.12)",
+        padding: "0.2rem 0.5rem",
+        borderRadius: "20px",
+      }}
+    >
+      {arrow} {Math.abs(delta).toFixed(0)}% {label}
+    </span>
   );
-
-  const buckets: WeekBucket[] = [];
-  for (let i = numWeeks - 1; i >= 0; i--) {
-    const monday = new Date(thisMonday.getTime() - i * 7 * 86400000);
-    buckets.push({
-      key: isoWeekKey(monday),
-      label: weekLabel(monday),
-      miles: 0,
-      trips: 0,
-    });
-  }
-
-  // Index buckets by key for quick lookup
-  const bucketMap = new Map<string, WeekBucket>();
-  for (const b of buckets) {
-    bucketMap.set(b.key, b);
-  }
-
-  for (const trip of trips) {
-    const tripDate = new Date(trip.startedAt);
-    const key = isoWeekKey(tripDate);
-    const bucket = bucketMap.get(key);
-    if (bucket) {
-      bucket.miles += trip.distanceMiles ?? 0;
-      bucket.trips += 1;
-    }
-  }
-
-  return buckets;
 }
 
-// ---------------------------------------------------------------------------
-// UK tax year helpers
-// ---------------------------------------------------------------------------
-
-/** UK tax year starts 6 April. Returns the year the tax year *starts* in. */
-function currentTaxYearStart(): Date {
-  const today = new Date();
-  const year = today.getFullYear();
-  const aprilSixth = new Date(year, 3, 6); // month is 0-indexed
-  return today >= aprilSixth
-    ? new Date(year, 3, 6)
-    : new Date(year - 1, 3, 6);
+// Day-of-week indicator dots
+function DayDots({ breakdown }: { breakdown: number[] }) {
+  const max = Math.max(...breakdown, 1);
+  return (
+    <div style={{ display: "flex", gap: "3px", alignItems: "flex-end", height: "16px" }}>
+      {breakdown.map((count, i) => {
+        const intensity = count / max;
+        return (
+          <div
+            key={i}
+            title={`${DAY_LABELS_LONG[i]}: ${count} trip${count !== 1 ? "s" : ""}`}
+            style={{
+              width: "8px",
+              height: `${Math.max(4, intensity * 16)}px`,
+              borderRadius: "2px",
+              background:
+                intensity > 0
+                  ? `rgba(251,191,36,${0.3 + intensity * 0.7})`
+                  : "rgba(255,255,255,0.08)",
+              flexShrink: 0,
+            }}
+          />
+        );
+      })}
+    </div>
+  );
 }
 
-function currentTaxYearEnd(start: Date): Date {
-  return new Date(start.getFullYear() + 1, 3, 5, 23, 59, 59);
-}
-
-const MONTH_NAMES = [
-  "January", "February", "March", "April", "May", "June",
-  "July", "August", "September", "October", "November", "December",
-];
-
-interface MonthBucket {
-  label: string;
-  year: number;
-  month: number; // 0-indexed
-  miles: number;
-  trips: number;
-  deductionPence: number;
-}
-
-/**
- * HMRC deduction (car/van rate: 45p first 10k, 25p after).
- * cumulativeMilesBefore = business miles already driven before this month.
- */
-function calcMonthDeduction(monthMiles: number, cumulativeMilesBefore: number): number {
-  const THRESHOLD = 10000;
-  const HIGH_RATE = 45; // pence
-  const LOW_RATE = 25; // pence
-
-  let deduction = 0;
-  let remaining = monthMiles;
-
-  if (cumulativeMilesBefore < THRESHOLD) {
-    const atHighRate = Math.min(remaining, THRESHOLD - cumulativeMilesBefore);
-    deduction += atHighRate * HIGH_RATE;
-    remaining -= atHighRate;
-  }
-
-  if (remaining > 0) {
-    deduction += remaining * LOW_RATE;
-  }
-
-  return deduction;
-}
-
-function buildMonthBuckets(trips: Trip[], taxYearStart: Date): MonthBucket[] {
-  // Tax year months in order: April(3) → March(2) of next year
-  const buckets: MonthBucket[] = [];
-  for (let i = 0; i < 12; i++) {
-    const rawMonth = (taxYearStart.getMonth() + i) % 12; // 0-indexed
-    const year =
-      taxYearStart.getFullYear() + Math.floor((taxYearStart.getMonth() + i) / 12);
-    buckets.push({
-      label: MONTH_NAMES[rawMonth],
-      year,
-      month: rawMonth,
-      miles: 0,
-      trips: 0,
-      deductionPence: 0,
-    });
-  }
-
-  for (const trip of trips) {
-    const d = new Date(trip.startedAt);
-    const m = d.getMonth();
-    const y = d.getFullYear();
-    const bucket = buckets.find((b) => b.month === m && b.year === y);
-    if (bucket) {
-      bucket.miles += trip.distanceMiles ?? 0;
-      bucket.trips += 1;
-    }
-  }
-
-  // Calculate deductions in order, carrying cumulative mileage
-  let cumulative = 0;
-  for (const bucket of buckets) {
-    bucket.deductionPence = calcMonthDeduction(bucket.miles, cumulative);
-    cumulative += bucket.miles;
-  }
-
-  return buckets;
-}
-
-// ---------------------------------------------------------------------------
-// Bar chart sub-components (pure CSS, no library)
-// ---------------------------------------------------------------------------
-
-interface BarChartProps {
+// Horizontal bar chart for shift sweet spots
+function HorizontalBarChart({
+  title,
+  data,
+  highlight,
+  formatBar,
+  formatSub,
+}: {
   title: string;
-  data: { label: string; value: number }[];
-  color: "amber" | "emerald";
-  formatValue?: (v: number) => string;
-}
-
-function BarChart({ title, data, color, formatValue }: BarChartProps) {
-  const maxValue = Math.max(...data.map((d) => d.value), 1);
-
-  const barGradient =
-    color === "amber"
-      ? "linear-gradient(to top, var(--amber-500, #f59e0b), var(--amber-400, #fbbf24))"
-      : "linear-gradient(to top, #059669, #34d399)";
-
-  const barGlowColor =
-    color === "amber"
-      ? "rgba(245, 158, 11, 0.25)"
-      : "rgba(52, 211, 153, 0.2)";
-
-  const display = formatValue ?? ((v: number) => v.toFixed(0));
-
+  data: { label: string; value: number; sub?: string }[];
+  highlight: number;
+  formatBar: (v: number) => string;
+  formatSub?: (item: { label: string; value: number; sub?: string }) => string;
+}) {
+  const max = Math.max(...data.map((d) => d.value), 1);
   return (
     <div
       style={{
-        background: "var(--dash-card-bg)",
-        border: "1px solid var(--dash-card-border)",
-        borderRadius: "var(--r-md)",
+        background: "rgba(10, 17, 32, 0.8)",
+        border: "1px solid rgba(255,255,255,0.07)",
+        borderRadius: "var(--radius-lg, 12px)",
         padding: "1.25rem",
-        backdropFilter: "blur(12px)",
       }}
     >
       <div
@@ -223,26 +153,147 @@ function BarChart({ title, data, color, formatValue }: BarChartProps) {
           fontFamily: "var(--font-display)",
           fontSize: "0.9375rem",
           fontWeight: 600,
-          color: "var(--text-white)",
-          marginBottom: "1.25rem",
+          color: "var(--text-primary, #f0f2f5)",
+          marginBottom: "1rem",
         }}
       >
         {title}
       </div>
+      <div style={{ display: "flex", flexDirection: "column", gap: "0.625rem" }}>
+        {data.map((item, idx) => {
+          const pct = (item.value / max) * 100;
+          const isBest = idx === highlight;
+          return (
+            <div key={idx} style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
+              <div
+                style={{
+                  width: "80px",
+                  fontSize: "0.75rem",
+                  color: isBest ? "var(--amber-400, #fbbf24)" : "var(--text-muted, #8494a7)",
+                  fontWeight: isBest ? 600 : 400,
+                  flexShrink: 0,
+                  textAlign: "right",
+                }}
+              >
+                {item.label}
+              </div>
+              <div style={{ flex: 1, position: "relative", height: "24px" }}>
+                <div
+                  style={{
+                    position: "absolute",
+                    inset: 0,
+                    background: "rgba(255,255,255,0.04)",
+                    borderRadius: "4px",
+                  }}
+                />
+                <div
+                  style={{
+                    position: "absolute",
+                    top: 0,
+                    left: 0,
+                    height: "100%",
+                    width: `${pct}%`,
+                    background: isBest
+                      ? "linear-gradient(to right, var(--amber-500, #f59e0b), var(--amber-400, #fbbf24))"
+                      : "rgba(251,191,36,0.25)",
+                    borderRadius: "4px",
+                    transition: "width 0.4s ease",
+                    boxShadow: isBest ? "0 0 10px rgba(251,191,36,0.3)" : "none",
+                  }}
+                />
+                <span
+                  style={{
+                    position: "absolute",
+                    right: "8px",
+                    top: "50%",
+                    transform: "translateY(-50%)",
+                    fontSize: "0.75rem",
+                    fontWeight: 600,
+                    color: isBest ? "var(--amber-400, #fbbf24)" : "var(--text-muted, #8494a7)",
+                  }}
+                >
+                  {formatBar(item.value)}
+                </span>
+              </div>
+              {formatSub && item.sub && (
+                <div
+                  style={{
+                    width: "60px",
+                    fontSize: "0.6875rem",
+                    color: "var(--text-muted, #8494a7)",
+                    flexShrink: 0,
+                  }}
+                >
+                  {item.sub}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
 
-      {/* Bar area */}
+// Vertical bar chart (days of week / earnings)
+function VerticalBarChart({
+  title,
+  data,
+  subtitle,
+  formatValue,
+}: {
+  title: string;
+  data: { label: string; value: number; highlight?: boolean }[];
+  subtitle?: string;
+  formatValue?: (v: number) => string;
+}) {
+  const max = Math.max(...data.map((d) => d.value), 1);
+  const fmt = formatValue ?? ((v: number) => v.toFixed(0));
+
+  return (
+    <div
+      style={{
+        background: "rgba(10, 17, 32, 0.8)",
+        border: "1px solid rgba(255,255,255,0.07)",
+        borderRadius: "var(--radius-lg, 12px)",
+        padding: "1.25rem",
+      }}
+    >
+      <div
+        style={{
+          fontFamily: "var(--font-display)",
+          fontSize: "0.9375rem",
+          fontWeight: 600,
+          color: "var(--text-primary, #f0f2f5)",
+          marginBottom: subtitle ? "0.25rem" : "1.25rem",
+        }}
+      >
+        {title}
+      </div>
+      {subtitle && (
+        <p
+          style={{
+            fontSize: "0.8125rem",
+            color: "var(--text-muted, #8494a7)",
+            marginBottom: "1rem",
+          }}
+        >
+          {subtitle}
+        </p>
+      )}
       <div
         style={{
           display: "flex",
           alignItems: "flex-end",
-          gap: "4px",
-          height: "200px",
-          padding: "0 4px",
+          gap: "6px",
+          height: "140px",
+          padding: "0 2px",
         }}
       >
         {data.map((d, idx) => {
-          const heightPct = maxValue > 0 ? (d.value / maxValue) * 100 : 0;
+          const heightPct = max > 0 ? (d.value / max) * 100 : 0;
           const isEmpty = d.value === 0;
+          const isHighlight = d.highlight ?? false;
 
           return (
             <div
@@ -258,48 +309,53 @@ function BarChart({ title, data, color, formatValue }: BarChartProps) {
                 minWidth: 0,
               }}
             >
-              {/* Value label above bar */}
               <span
                 style={{
-                  fontSize: "0.625rem",
+                  fontSize: "0.5625rem",
                   fontWeight: 600,
-                  color: isEmpty ? "transparent" : (color === "amber" ? "var(--amber-400)" : "#34d399"),
+                  color: isEmpty
+                    ? "transparent"
+                    : isHighlight
+                    ? "var(--amber-400, #fbbf24)"
+                    : "#10b981",
                   whiteSpace: "nowrap",
                   lineHeight: 1,
                   marginBottom: "2px",
                 }}
               >
-                {isEmpty ? "0" : display(d.value)}
+                {isEmpty ? "0" : fmt(d.value)}
               </span>
-
-              {/* The bar itself */}
               <div
                 style={{
                   width: "100%",
                   height: isEmpty ? "3px" : `${heightPct}%`,
                   background: isEmpty
                     ? "rgba(255,255,255,0.06)"
-                    : barGradient,
+                    : isHighlight
+                    ? "linear-gradient(to top, var(--amber-500, #f59e0b), var(--amber-400, #fbbf24))"
+                    : "linear-gradient(to top, #059669, #34d399)",
                   borderRadius: isEmpty ? "2px" : "4px 4px 2px 2px",
-                  boxShadow: isEmpty ? "none" : `0 0 8px ${barGlowColor}`,
+                  boxShadow:
+                    !isEmpty && isHighlight
+                      ? "0 0 8px rgba(251,191,36,0.3)"
+                      : !isEmpty
+                      ? "0 0 6px rgba(52,211,153,0.2)"
+                      : "none",
                   transition: "height 0.3s ease",
                   minHeight: isEmpty ? undefined : "4px",
                   flexShrink: 0,
                 }}
               />
-
-              {/* Week label below bar */}
               <span
                 style={{
                   fontSize: "0.5625rem",
-                  color: "var(--text-muted)",
+                  color: "var(--text-muted, #8494a7)",
                   whiteSpace: "nowrap",
                   overflow: "hidden",
                   textOverflow: "ellipsis",
                   maxWidth: "100%",
                   textAlign: "center",
                   lineHeight: 1.2,
-                  paddingTop: "2px",
                 }}
               >
                 {d.label}
@@ -308,43 +364,1076 @@ function BarChart({ title, data, color, formatValue }: BarChartProps) {
           );
         })}
       </div>
-
-      {/* Baseline rule */}
       <div
         style={{
           height: "1px",
-          background: "var(--border-subtle)",
-          marginTop: "2px",
+          background: "rgba(255,255,255,0.06)",
+          marginTop: "4px",
         }}
       />
     </div>
   );
 }
 
+// Hour mini chart for commute timing
+function HourMiniChart({ byHour }: { byHour: CommuteTiming["byHour"] }) {
+  const filtered = byHour.filter((h) => h.tripCount > 0);
+  if (filtered.length === 0) {
+    return (
+      <p style={{ fontSize: "0.75rem", color: "var(--text-muted, #8494a7)" }}>
+        No hourly data available.
+      </p>
+    );
+  }
+  const max = Math.max(...filtered.map((h) => h.avgMinutes), 1);
+  const best = filtered.reduce((a, b) => (a.avgMinutes < b.avgMinutes ? a : b));
+
+  return (
+    <div style={{ display: "flex", alignItems: "flex-end", gap: "4px", height: "48px" }}>
+      {filtered.map((h, idx) => {
+        const heightPct = (h.avgMinutes / max) * 100;
+        const isBest = h.hour === best.hour;
+        return (
+          <div
+            key={idx}
+            title={`${h.hour}:00 — ${Math.round(h.avgMinutes)}m avg (${h.tripCount} trip${h.tripCount !== 1 ? "s" : ""})`}
+            style={{
+              flex: 1,
+              height: `${heightPct}%`,
+              minHeight: "3px",
+              background: isBest
+                ? "var(--amber-400, #fbbf24)"
+                : "rgba(251,191,36,0.25)",
+              borderRadius: "2px 2px 1px 1px",
+              boxShadow: isBest ? "0 0 6px rgba(251,191,36,0.4)" : "none",
+              cursor: "default",
+            }}
+          />
+        );
+      })}
+    </div>
+  );
+}
+
 // ---------------------------------------------------------------------------
-// Analytics skeleton
+// Section: Weekly Report
 // ---------------------------------------------------------------------------
 
-function AnalyticsSkeleton() {
+function WeeklyReportSection({
+  report,
+  weeksBack,
+  onPrev,
+  onNext,
+  loading,
+}: {
+  report: WeeklyReport;
+  weeksBack: number;
+  onPrev: () => void;
+  onNext: () => void;
+  loading: boolean;
+}) {
+  const hasMilesDelta = report.milesDelta !== null;
+  const hasEarnDelta = report.earningsDelta !== null;
+  const hasTripsDelta = report.tripsDelta !== null;
+
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
-      <div className="skeleton skeleton--title" style={{ width: "28%" }} />
-      <div className="skeleton skeleton--text" style={{ width: "44%" }} />
+    <div
+      style={{
+        background: "rgba(10, 17, 32, 0.9)",
+        border: "1px solid rgba(251,191,36,0.2)",
+        borderRadius: "var(--radius-lg, 12px)",
+        padding: "1.5rem",
+        marginBottom: "var(--dash-gap, 1.5rem)",
+        opacity: loading ? 0.5 : 1,
+        transition: "opacity 0.2s",
+      }}
+    >
+      {/* Header row */}
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          marginBottom: "1.25rem",
+          flexWrap: "wrap",
+          gap: "0.5rem",
+        }}
+      >
+        <div>
+          <h2
+            style={{
+              fontFamily: "var(--font-display)",
+              fontSize: "1.0625rem",
+              fontWeight: 700,
+              color: "var(--text-primary, #f0f2f5)",
+              margin: 0,
+            }}
+          >
+            Weekly Report
+          </h2>
+          <p
+            style={{
+              fontSize: "0.8125rem",
+              color: "var(--text-muted, #8494a7)",
+              marginTop: "0.125rem",
+            }}
+          >
+            {report.weekLabel}
+          </p>
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+          <button
+            onClick={onPrev}
+            disabled={loading}
+            aria-label="Previous week"
+            style={{
+              background: "rgba(255,255,255,0.06)",
+              border: "1px solid rgba(255,255,255,0.1)",
+              borderRadius: "8px",
+              width: "34px",
+              height: "34px",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              cursor: loading ? "not-allowed" : "pointer",
+              color: "var(--text-primary, #f0f2f5)",
+              fontSize: "1rem",
+            }}
+          >
+            &larr;
+          </button>
+          <span
+            style={{
+              fontSize: "0.75rem",
+              color: "var(--text-muted, #8494a7)",
+              minWidth: "60px",
+              textAlign: "center",
+            }}
+          >
+            {weeksBack === 0 ? "This week" : `${weeksBack}w ago`}
+          </span>
+          <button
+            onClick={onNext}
+            disabled={loading || weeksBack === 0}
+            aria-label="Next week"
+            style={{
+              background: "rgba(255,255,255,0.06)",
+              border: "1px solid rgba(255,255,255,0.1)",
+              borderRadius: "8px",
+              width: "34px",
+              height: "34px",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              cursor: loading || weeksBack === 0 ? "not-allowed" : "pointer",
+              color:
+                weeksBack === 0
+                  ? "var(--text-muted, #8494a7)"
+                  : "var(--text-primary, #f0f2f5)",
+              fontSize: "1rem",
+              opacity: weeksBack === 0 ? 0.4 : 1,
+            }}
+          >
+            &rarr;
+          </button>
+        </div>
+      </div>
+
+      {/* Business + Personal two-col grid */}
       <div
         style={{
           display: "grid",
-          gridTemplateColumns: "repeat(4, 1fr)",
+          gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
           gap: "1rem",
+          marginBottom: "1rem",
         }}
       >
-        {[1, 2, 3, 4].map((i) => (
-          <div key={i} className="skeleton skeleton--card" style={{ height: 90 }} />
+        {/* Business col */}
+        <div
+          style={{
+            background: "rgba(251,191,36,0.04)",
+            border: "1px solid rgba(251,191,36,0.12)",
+            borderRadius: "10px",
+            padding: "1rem",
+          }}
+        >
+          <div
+            style={{
+              fontSize: "0.6875rem",
+              fontWeight: 700,
+              textTransform: "uppercase",
+              letterSpacing: "0.08em",
+              color: "var(--amber-400, #fbbf24)",
+              marginBottom: "0.75rem",
+            }}
+          >
+            Business
+          </div>
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(3, 1fr)",
+              gap: "0.625rem",
+            }}
+          >
+            <StatMini label="Miles" value={`${formatMiles(report.business.miles)} mi`} />
+            <StatMini label="Trips" value={String(report.business.trips)} />
+            <StatMini
+              label="Earnings"
+              value={formatPence(report.business.earningsPence)}
+              highlight
+            />
+            <StatMini
+              label="Deduction"
+              value={formatPence(report.business.deductionPence)}
+              highlight
+            />
+            <StatMini label="Shifts" value={String(report.business.shifts)} />
+            <StatMini
+              label="Avg shift"
+              value={
+                report.business.avgShiftHours > 0
+                  ? `${report.business.avgShiftHours.toFixed(1)}h`
+                  : "—"
+              }
+            />
+            {report.business.topPlatform && (
+              <div style={{ gridColumn: "1 / -1" }}>
+                <StatMini
+                  label="Top platform"
+                  value={platformLabel(report.business.topPlatform)}
+                />
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Personal col */}
+        <div
+          style={{
+            background: "rgba(16,185,129,0.04)",
+            border: "1px solid rgba(16,185,129,0.12)",
+            borderRadius: "10px",
+            padding: "1rem",
+          }}
+        >
+          <div
+            style={{
+              fontSize: "0.6875rem",
+              fontWeight: 700,
+              textTransform: "uppercase",
+              letterSpacing: "0.08em",
+              color: "#10b981",
+              marginBottom: "0.75rem",
+            }}
+          >
+            Personal
+          </div>
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(2, 1fr)",
+              gap: "0.625rem",
+            }}
+          >
+            <StatMini label="Miles" value={`${formatMiles(report.personal.miles)} mi`} />
+            <StatMini label="Trips" value={String(report.personal.trips)} />
+            <StatMini
+              label="Avg trip"
+              value={`${formatMiles(report.personal.avgTripMiles)} mi`}
+            />
+            <StatMini
+              label="Longest trip"
+              value={`${formatMiles(report.personal.longestTripMiles)} mi`}
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* Bottom row: totals + streak + deltas */}
+      <div
+        style={{
+          display: "flex",
+          flexWrap: "wrap",
+          alignItems: "center",
+          gap: "0.625rem",
+          paddingTop: "0.75rem",
+          borderTop: "1px solid rgba(255,255,255,0.06)",
+        }}
+      >
+        <span style={{ fontSize: "0.8125rem", color: "var(--text-muted, #8494a7)" }}>
+          Total: <strong style={{ color: "var(--text-primary, #f0f2f5)" }}>
+            {formatMiles(report.totalMiles)} mi
+          </strong>{" "}
+          &middot;{" "}
+          <strong style={{ color: "var(--text-primary, #f0f2f5)" }}>
+            {report.totalTrips} trip{report.totalTrips !== 1 ? "s" : ""}
+          </strong>
+        </span>
+        {report.streakDays > 0 && (
+          <span
+            style={{
+              fontSize: "0.8125rem",
+              color: "var(--amber-400, #fbbf24)",
+              fontWeight: 600,
+            }}
+          >
+            {report.streakDays}-day streak
+          </span>
+        )}
+        {hasMilesDelta && (
+          <DeltaBadge delta={report.milesDelta} label="miles" />
+        )}
+        {hasTripsDelta && (
+          <DeltaBadge delta={report.tripsDelta} label="trips" />
+        )}
+        {hasEarnDelta && (
+          <DeltaBadge delta={report.earningsDelta} label="earnings" />
+        )}
+
+        {/* Achievements earned this week */}
+        {report.newAchievements.length > 0 && (
+          <div
+            style={{
+              width: "100%",
+              display: "flex",
+              flexWrap: "wrap",
+              gap: "0.375rem",
+              marginTop: "0.375rem",
+            }}
+          >
+            {report.newAchievements.map((ach, i) => (
+              <span
+                key={i}
+                style={{
+                  fontSize: "0.6875rem",
+                  fontWeight: 600,
+                  padding: "0.2rem 0.5rem",
+                  borderRadius: "20px",
+                  background: "rgba(251,191,36,0.12)",
+                  color: "var(--amber-400, #fbbf24)",
+                  border: "1px solid rgba(251,191,36,0.2)",
+                }}
+              >
+                {ach}
+              </span>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function StatMini({
+  label,
+  value,
+  highlight,
+}: {
+  label: string;
+  value: string;
+  highlight?: boolean;
+}) {
+  return (
+    <div>
+      <div
+        style={{
+          fontSize: "0.9375rem",
+          fontWeight: 700,
+          color: highlight ? "var(--amber-400, #fbbf24)" : "var(--text-primary, #f0f2f5)",
+          lineHeight: 1.1,
+        }}
+      >
+        {value}
+      </div>
+      <div
+        style={{
+          fontSize: "0.625rem",
+          color: "var(--text-muted, #8494a7)",
+          marginTop: "0.125rem",
+          textTransform: "uppercase",
+          letterSpacing: "0.04em",
+        }}
+      >
+        {label}
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Section: Frequent Routes
+// ---------------------------------------------------------------------------
+
+function FrequentRoutesSection({ routes }: { routes: FrequentRoute[] }) {
+  if (routes.length === 0) {
+    return (
+      <Card title="Frequent Routes" subtitle="Routes you drive regularly">
+        <p style={{ fontSize: "0.875rem", color: "var(--text-muted, #8494a7)", padding: "0.5rem 0" }}>
+          No frequent routes detected yet. Keep tracking trips to see patterns here.
+        </p>
+      </Card>
+    );
+  }
+
+  return (
+    <Card title="Frequent Routes" subtitle="Routes you drive most often">
+      <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+        {routes.map((route, idx) => (
+          <div
+            key={idx}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "1rem",
+              padding: "0.875rem 1rem",
+              background: "rgba(255,255,255,0.03)",
+              border: "1px solid rgba(255,255,255,0.06)",
+              borderRadius: "8px",
+              flexWrap: "wrap",
+            }}
+          >
+            {/* Route label */}
+            <div style={{ flex: 1, minWidth: "160px" }}>
+              <div
+                style={{
+                  fontSize: "0.875rem",
+                  fontWeight: 600,
+                  color: "var(--text-primary, #f0f2f5)",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "0.375rem",
+                  flexWrap: "wrap",
+                }}
+              >
+                <span style={{ maxWidth: "180px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  {route.startAddress}
+                </span>
+                <span style={{ color: "var(--text-muted, #8494a7)", fontWeight: 400 }}>&rarr;</span>
+                <span style={{ maxWidth: "180px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  {route.endAddress}
+                </span>
+              </div>
+              <div
+                style={{
+                  fontSize: "0.75rem",
+                  color: "var(--text-muted, #8494a7)",
+                  marginTop: "0.25rem",
+                  display: "flex",
+                  gap: "0.75rem",
+                  flexWrap: "wrap",
+                }}
+              >
+                <span>avg {formatDuration(route.avgDurationMinutes)}</span>
+                <span>fastest {formatDuration(route.fastestDurationMinutes)}</span>
+                <span>{formatMiles(route.avgDistanceMiles)} mi</span>
+              </div>
+            </div>
+
+            {/* Trip count badge */}
+            <Badge variant="primary">{route.tripCount} trips</Badge>
+
+            {/* Classification */}
+            <Badge variant={route.classification === "business" ? "business" : "personal"}>
+              {route.classification === "business" ? "Business" : "Personal"}
+            </Badge>
+
+            {/* Day dots */}
+            <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+              <DayDots breakdown={route.dayBreakdown} />
+              <div
+                style={{
+                  display: "flex",
+                  gap: "3px",
+                }}
+              >
+                {DAY_LABELS_SHORT.map((d, i) => (
+                  <div
+                    key={i}
+                    style={{
+                      width: "8px",
+                      fontSize: "0.4375rem",
+                      color: "var(--text-muted, #8494a7)",
+                      textAlign: "center",
+                    }}
+                  >
+                    {d[0]}
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
         ))}
       </div>
-      <div className="skeleton skeleton--card" style={{ height: 260 }} />
-      <div className="skeleton skeleton--card" style={{ height: 260 }} />
-      <div className="skeleton skeleton--card" style={{ height: 320 }} />
-    </div>
+    </Card>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Section: Shift Sweet Spots
+// ---------------------------------------------------------------------------
+
+function ShiftSweetSpotsSection({ sweetSpots }: { sweetSpots: ShiftSweetSpot[] }) {
+  if (sweetSpots.length === 0) {
+    return (
+      <Card title="Shift Sweet Spots" subtitle="Discover your most productive shift durations">
+        <p style={{ fontSize: "0.875rem", color: "var(--text-muted, #8494a7)", padding: "0.5rem 0" }}>
+          Complete more shifts to see which durations earn you the most per hour.
+        </p>
+      </Card>
+    );
+  }
+
+  const best = sweetSpots.reduce(
+    (max, s, i) => (s.avgEarningsPerHourPence > sweetSpots[max].avgEarningsPerHourPence ? i : max),
+    0
+  );
+
+  const chartData = sweetSpots.map((s) => ({
+    label: s.durationBucket,
+    value: s.avgEarningsPerHourPence,
+    sub: `${s.shiftCount} shift${s.shiftCount !== 1 ? "s" : ""}`,
+  }));
+
+  return (
+    <Card
+      title="Shift Sweet Spots"
+      subtitle="Average earnings per hour by shift duration"
+    >
+      <div style={{ marginBottom: "1rem" }}>
+        <HorizontalBarChart
+          title=""
+          data={chartData}
+          highlight={best}
+          formatBar={(v) => `${formatPence(v)}/hr`}
+          formatSub={(item) => item.sub ?? ""}
+        />
+      </div>
+
+      {/* Best bucket callout */}
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: "0.75rem",
+          padding: "0.75rem 1rem",
+          background: "rgba(251,191,36,0.06)",
+          border: "1px solid rgba(251,191,36,0.15)",
+          borderRadius: "8px",
+        }}
+      >
+        <span style={{ fontSize: "1.25rem" }}>&#9733;</span>
+        <div>
+          <div
+            style={{
+              fontSize: "0.875rem",
+              fontWeight: 600,
+              color: "var(--amber-400, #fbbf24)",
+            }}
+          >
+            Sweet spot: {sweetSpots[best].durationBucket} shifts
+          </div>
+          <div style={{ fontSize: "0.75rem", color: "var(--text-muted, #8494a7)" }}>
+            {formatPence(sweetSpots[best].avgEarningsPerHourPence)}/hr avg &middot;{" "}
+            {sweetSpots[best].avgTrips.toFixed(1)} trips &middot;{" "}
+            {formatMiles(sweetSpots[best].avgMiles)} mi avg
+          </div>
+        </div>
+      </div>
+    </Card>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Section: Fuel Cost Breakdown
+// ---------------------------------------------------------------------------
+
+function FuelCostSection({ fuel }: { fuel: FuelCostBreakdown }) {
+  const mpg = fuel.actualMpg ?? fuel.estimatedMpg;
+  const hasVehicles = fuel.perVehicle.length > 0;
+  const hasFillUps = fuel.recentFillUps.length > 0;
+
+  return (
+    <Card title="Fuel Cost Breakdown" subtitle="Running costs and fuel efficiency">
+      {/* Hero stats */}
+      <div
+        className="stats-grid"
+        style={{ marginBottom: "1.25rem" }}
+      >
+        <div className="stat-card">
+          <div className="stat-card__value stat-card__value--amber">
+            {fuel.fuelCostPerMilePence !== null
+              ? `${fuel.fuelCostPerMilePence.toFixed(1)}p`
+              : "—"}
+          </div>
+          <div className="stat-card__label">Cost per mile</div>
+        </div>
+        <div className="stat-card">
+          <div className="stat-card__value">
+            {mpg !== null ? `${mpg.toFixed(1)} MPG` : "—"}
+          </div>
+          <div className="stat-card__label">
+            {fuel.actualMpg !== null ? "Actual MPG" : "Estimated MPG"}
+          </div>
+        </div>
+        <div className="stat-card">
+          <div className="stat-card__value">
+            {formatPence(fuel.totalFuelCostPence)}
+          </div>
+          <div className="stat-card__label">Total fuel spend</div>
+        </div>
+        <div className="stat-card">
+          <div className="stat-card__value">
+            {formatMiles(fuel.totalMilesDriven)} mi
+          </div>
+          <div className="stat-card__label">Total miles driven</div>
+        </div>
+      </div>
+
+      {/* Per-vehicle table */}
+      {hasVehicles && fuel.perVehicle.length > 1 && (
+        <div style={{ marginBottom: "1.25rem" }}>
+          <h4
+            style={{
+              fontSize: "0.8125rem",
+              fontWeight: 600,
+              color: "var(--text-primary, #f0f2f5)",
+              marginBottom: "0.625rem",
+            }}
+          >
+            By Vehicle
+          </h4>
+          <div className="table-wrap" style={{ border: "none", background: "transparent" }}>
+            <table className="table">
+              <thead>
+                <tr>
+                  <th>Vehicle</th>
+                  <th>MPG</th>
+                  <th>Cost/mile</th>
+                  <th>Total cost</th>
+                  <th>Miles</th>
+                </tr>
+              </thead>
+              <tbody>
+                {fuel.perVehicle.map((v) => (
+                  <tr key={v.vehicleId}>
+                    <td>
+                      {v.make} {v.model}
+                      <span
+                        style={{
+                          marginLeft: "0.375rem",
+                          fontSize: "0.6875rem",
+                          color: "var(--text-muted, #8494a7)",
+                        }}
+                      >
+                        {v.fuelType}
+                      </span>
+                    </td>
+                    <td>{v.mpg !== null ? v.mpg.toFixed(1) : "—"}</td>
+                    <td>
+                      {v.costPerMilePence !== null
+                        ? `${v.costPerMilePence.toFixed(1)}p`
+                        : "—"}
+                    </td>
+                    <td style={{ color: "#10b981", fontWeight: 600 }}>
+                      {formatPence(v.totalCostPence)}
+                    </td>
+                    <td>{formatMiles(v.milesDriven)} mi</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* Recent fill-ups */}
+      {hasFillUps && (
+        <div>
+          <h4
+            style={{
+              fontSize: "0.8125rem",
+              fontWeight: 600,
+              color: "var(--text-primary, #f0f2f5)",
+              marginBottom: "0.625rem",
+            }}
+          >
+            Recent Fill-ups
+          </h4>
+          <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+            {fuel.recentFillUps.slice(0, 5).map((f, idx) => (
+              <div
+                key={idx}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  padding: "0.625rem 0.875rem",
+                  background: "rgba(255,255,255,0.02)",
+                  border: "1px solid rgba(255,255,255,0.05)",
+                  borderRadius: "6px",
+                  gap: "0.5rem",
+                  flexWrap: "wrap",
+                }}
+              >
+                <div style={{ display: "flex", alignItems: "center", gap: "0.625rem" }}>
+                  <span
+                    style={{
+                      fontSize: "0.75rem",
+                      color: "var(--text-muted, #8494a7)",
+                      minWidth: "60px",
+                    }}
+                  >
+                    {new Date(f.date).toLocaleDateString("en-GB", {
+                      day: "numeric",
+                      month: "short",
+                    })}
+                  </span>
+                  <span style={{ fontSize: "0.8125rem", color: "var(--text-primary, #f0f2f5)" }}>
+                    {f.stationName ?? "Unknown station"}
+                  </span>
+                </div>
+                <div
+                  style={{
+                    display: "flex",
+                    gap: "1rem",
+                    alignItems: "center",
+                  }}
+                >
+                  <span style={{ fontSize: "0.75rem", color: "var(--text-muted, #8494a7)" }}>
+                    {f.litres.toFixed(1)} L
+                  </span>
+                  <span style={{ fontSize: "0.75rem", color: "var(--text-muted, #8494a7)" }}>
+                    {f.costPerLitrePence.toFixed(1)}p/L
+                  </span>
+                  <span
+                    style={{
+                      fontSize: "0.875rem",
+                      fontWeight: 600,
+                      color: "var(--text-primary, #f0f2f5)",
+                    }}
+                  >
+                    {formatPence(f.costPence)}
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {!hasVehicles && !hasFillUps && (
+        <p style={{ fontSize: "0.875rem", color: "var(--text-muted, #8494a7)" }}>
+          Log fuel fill-ups to see cost breakdowns and MPG calculations here.
+        </p>
+      )}
+    </Card>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Section: Earnings by Day
+// ---------------------------------------------------------------------------
+
+function EarningsByDaySection({ patterns }: { patterns: EarningsDayPattern[] }) {
+  if (patterns.length === 0) {
+    return (
+      <Card title="Earnings by Day" subtitle="Which days earn you the most">
+        <p style={{ fontSize: "0.875rem", color: "var(--text-muted, #8494a7)", padding: "0.5rem 0" }}>
+          Add earnings data to see which days of the week are most profitable.
+        </p>
+      </Card>
+    );
+  }
+
+  const maxEarn = Math.max(...patterns.map((p) => p.avgEarningsPence), 1);
+  const bestDay = patterns.reduce(
+    (best, p) => (p.avgEarningsPence > best.avgEarningsPence ? p : best),
+    patterns[0]
+  );
+
+  const chartData = patterns.map((p) => ({
+    label: p.day.slice(0, 3),
+    value: p.avgEarningsPence,
+    highlight: p.dayIndex === bestDay.dayIndex,
+  }));
+
+  const totalEarnings = patterns.reduce((sum, p) => sum + p.totalEarningsPence, 0);
+  const totalTrips = patterns.reduce((sum, p) => sum + p.tripCount, 0);
+
+  return (
+    <Card title="Earnings by Day" subtitle="Average earnings per day of the week">
+      <div style={{ marginBottom: "1rem" }}>
+        <VerticalBarChart
+          title=""
+          data={chartData}
+          formatValue={(v) => formatPence(v)}
+        />
+      </div>
+
+      {/* Summary text */}
+      <div
+        style={{
+          display: "flex",
+          flexWrap: "wrap",
+          gap: "1rem",
+          padding: "0.75rem 1rem",
+          background: "rgba(251,191,36,0.04)",
+          border: "1px solid rgba(251,191,36,0.1)",
+          borderRadius: "8px",
+          alignItems: "center",
+        }}
+      >
+        <div>
+          <span style={{ fontSize: "0.875rem", color: "var(--text-muted, #8494a7)" }}>
+            Best day:{" "}
+          </span>
+          <span
+            style={{
+              fontWeight: 700,
+              color: "var(--amber-400, #fbbf24)",
+              fontSize: "0.9375rem",
+            }}
+          >
+            {bestDay.day}
+          </span>
+          <span style={{ fontSize: "0.8125rem", color: "var(--text-muted, #8494a7)" }}>
+            {" "}
+            — {formatPence(bestDay.avgEarningsPence)} avg
+          </span>
+        </div>
+        <div style={{ fontSize: "0.8125rem", color: "var(--text-muted, #8494a7)" }}>
+          Total: {formatPence(totalEarnings)} &middot; {totalTrips} trips
+        </div>
+      </div>
+
+      {/* Day detail table */}
+      <div
+        className="table-wrap"
+        style={{ border: "none", background: "transparent", marginTop: "1rem" }}
+      >
+        <table className="table">
+          <thead>
+            <tr>
+              <th>Day</th>
+              <th>Avg Earnings</th>
+              <th>Total Earnings</th>
+              <th>Trips</th>
+            </tr>
+          </thead>
+          <tbody>
+            {patterns.map((p) => (
+              <tr
+                key={p.dayIndex}
+                style={
+                  p.dayIndex === bestDay.dayIndex
+                    ? { background: "rgba(251,191,36,0.04)" }
+                    : undefined
+                }
+              >
+                <td>
+                  <span
+                    style={{
+                      fontWeight: p.dayIndex === bestDay.dayIndex ? 700 : undefined,
+                      color:
+                        p.dayIndex === bestDay.dayIndex
+                          ? "var(--amber-400, #fbbf24)"
+                          : undefined,
+                    }}
+                  >
+                    {p.day}
+                    {p.dayIndex === bestDay.dayIndex && (
+                      <span
+                        style={{
+                          marginLeft: "0.4rem",
+                          fontSize: "0.625rem",
+                          fontWeight: 700,
+                          textTransform: "uppercase",
+                          letterSpacing: "0.06em",
+                          color: "var(--amber-400, #fbbf24)",
+                          opacity: 0.7,
+                        }}
+                      >
+                        best
+                      </span>
+                    )}
+                  </span>
+                </td>
+                <td style={{ fontWeight: 600 }}>{formatPence(p.avgEarningsPence)}</td>
+                <td>{formatPence(p.totalEarningsPence)}</td>
+                <td style={{ color: "var(--text-muted, #8494a7)" }}>{p.tripCount}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </Card>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Section: Commute Timing
+// ---------------------------------------------------------------------------
+
+function CommuteTimingSection({ routes }: { routes: CommuteTiming[] }) {
+  if (routes.length === 0) {
+    return (
+      <Card title="Commute Timing" subtitle="Journey time insights for your regular routes">
+        <p style={{ fontSize: "0.875rem", color: "var(--text-muted, #8494a7)", padding: "0.5rem 0" }}>
+          No commute patterns detected yet. Regular trips between saved locations will appear here.
+        </p>
+      </Card>
+    );
+  }
+
+  return (
+    <Card title="Commute Timing" subtitle="Best departure times for your regular routes">
+      <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+        {routes.map((route, idx) => (
+          <div
+            key={idx}
+            style={{
+              padding: "1rem",
+              background: "rgba(255,255,255,0.02)",
+              border: "1px solid rgba(255,255,255,0.06)",
+              borderRadius: "10px",
+            }}
+          >
+            {/* Route header */}
+            <div
+              style={{
+                fontSize: "0.9375rem",
+                fontWeight: 600,
+                color: "var(--text-primary, #f0f2f5)",
+                marginBottom: "0.5rem",
+              }}
+            >
+              {route.routeLabel}
+            </div>
+            <div
+              style={{
+                fontSize: "0.75rem",
+                color: "var(--text-muted, #8494a7)",
+                marginBottom: "0.875rem",
+              }}
+            >
+              {route.locationFrom} &rarr; {route.locationTo}
+            </div>
+
+            {/* Avg / Best / Worst stats */}
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(3, 1fr)",
+                gap: "0.5rem",
+                marginBottom: "0.875rem",
+              }}
+            >
+              <div
+                style={{
+                  textAlign: "center",
+                  padding: "0.5rem",
+                  background: "rgba(255,255,255,0.03)",
+                  borderRadius: "6px",
+                }}
+              >
+                <div
+                  style={{
+                    fontSize: "1rem",
+                    fontWeight: 700,
+                    color: "var(--text-primary, #f0f2f5)",
+                  }}
+                >
+                  {formatDuration(route.avgDurationMinutes)}
+                </div>
+                <div style={{ fontSize: "0.625rem", color: "var(--text-muted, #8494a7)", marginTop: "2px" }}>
+                  avg
+                </div>
+              </div>
+              <div
+                style={{
+                  textAlign: "center",
+                  padding: "0.5rem",
+                  background: "rgba(16,185,129,0.06)",
+                  borderRadius: "6px",
+                  border: "1px solid rgba(16,185,129,0.15)",
+                }}
+              >
+                <div
+                  style={{ fontSize: "1rem", fontWeight: 700, color: "#10b981" }}
+                >
+                  {formatDuration(route.bestDurationMinutes)}
+                </div>
+                <div style={{ fontSize: "0.625rem", color: "#10b981", opacity: 0.7, marginTop: "2px" }}>
+                  best
+                </div>
+              </div>
+              <div
+                style={{
+                  textAlign: "center",
+                  padding: "0.5rem",
+                  background: "rgba(239,68,68,0.06)",
+                  borderRadius: "6px",
+                  border: "1px solid rgba(239,68,68,0.15)",
+                }}
+              >
+                <div
+                  style={{ fontSize: "1rem", fontWeight: 700, color: "#ef4444" }}
+                >
+                  {formatDuration(route.worstDurationMinutes)}
+                </div>
+                <div style={{ fontSize: "0.625rem", color: "#ef4444", opacity: 0.7, marginTop: "2px" }}>
+                  worst
+                </div>
+              </div>
+            </div>
+
+            {/* Best departure callout */}
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "0.625rem",
+                padding: "0.625rem 0.875rem",
+                background: "rgba(251,191,36,0.06)",
+                border: "1px solid rgba(251,191,36,0.15)",
+                borderRadius: "6px",
+                marginBottom: "0.75rem",
+              }}
+            >
+              <span style={{ fontSize: "0.875rem" }}>&#8987;</span>
+              <span
+                style={{
+                  fontSize: "0.8125rem",
+                  fontWeight: 600,
+                  color: "var(--amber-400, #fbbf24)",
+                }}
+              >
+                {route.bestDepartureLabel}
+              </span>
+            </div>
+
+            {/* Hour-by-hour mini chart */}
+            {route.byHour.length > 0 && (
+              <div>
+                <div
+                  style={{
+                    fontSize: "0.6875rem",
+                    color: "var(--text-muted, #8494a7)",
+                    marginBottom: "0.375rem",
+                    textTransform: "uppercase",
+                    letterSpacing: "0.05em",
+                  }}
+                >
+                  Journey time by hour (shorter = better)
+                </div>
+                <HourMiniChart byHour={route.byHour} />
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+    </Card>
   );
 }
 
@@ -352,50 +1441,25 @@ function AnalyticsSkeleton() {
 // Main page
 // ---------------------------------------------------------------------------
 
-export default function AnalyticsPage() {
+export default function DrivingAnalyticsPage() {
   const { user } = useAuth();
-  const [stats, setStats] = useState<GamificationStats | null>(null);
-  const [trips, setTrips] = useState<Trip[]>([]);
+  const mode = user?.dashboardMode ?? "both";
+  const isWorkMode = mode === "work" || mode === "both";
+
+  const [analytics, setAnalytics] = useState<DrivingAnalytics | null>(null);
+  const [weeklyReport, setWeeklyReport] = useState<WeeklyReport | null>(null);
+  const [weeksBack, setWeeksBack] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [weekLoading, setWeekLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const isPremium = user?.isPremium ?? false;
-
+  // Load main analytics data on mount
   useEffect(() => {
-    if (!isPremium) {
-      setLoading(false);
-      return;
-    }
     async function load() {
       try {
-        // Determine date range: start of 12 weeks ago → now
-        const now = new Date();
-        const currentDayOfWeek = now.getUTCDay() || 7;
-        const thisMonday = new Date(
-          Date.UTC(
-            now.getUTCFullYear(),
-            now.getUTCMonth(),
-            now.getUTCDate() - currentDayOfWeek + 1
-          )
-        );
-        const twelveWeeksAgo = new Date(thisMonday.getTime() - 11 * 7 * 86400000);
-
-        // Also fetch from tax year start for the monthly table
-        const taxYearStart = currentTaxYearStart();
-        const taxYearEnd = currentTaxYearEnd(taxYearStart);
-
-        // Use the earlier of the two start dates
-        const fetchFrom = taxYearStart < twelveWeeksAgo ? taxYearStart : twelveWeeksAgo;
-
-        const [statsRes, tripsRes] = await Promise.all([
-          api.get<{ data: GamificationStats }>("/gamification/stats"),
-          api.get<PaginatedResponse<Trip>>(
-            `/trips/?pageSize=100&classification=business&from=${fetchFrom.toISOString()}&to=${taxYearEnd.toISOString()}`
-          ),
-        ]);
-
-        setStats(statsRes.data);
-        setTrips(tripsRes.data);
+        const res = await api.get<{ data: DrivingAnalytics }>("/analytics");
+        setAnalytics(res.data);
+        setWeeklyReport(res.data.weeklyReport);
       } catch (err: unknown) {
         const msg = err instanceof Error ? err.message : "Failed to load analytics";
         setError(msg);
@@ -403,24 +1467,45 @@ export default function AnalyticsPage() {
         setLoading(false);
       }
     }
-
     load();
-  }, [isPremium]);
+  }, []);
 
-  if (loading) return <AnalyticsSkeleton />;
+  // Load weekly report when week navigation changes
+  const loadWeeklyReport = useCallback(
+    async (wb: number) => {
+      setWeekLoading(true);
+      try {
+        const res = await api.get<{ data: WeeklyReport }>(
+          `/analytics/weekly-report?weeksBack=${wb}`
+        );
+        setWeeklyReport(res.data);
+      } catch {
+        // Silently keep current report on week nav error
+      } finally {
+        setWeekLoading(false);
+      }
+    },
+    []
+  );
 
-  if (!isPremium) {
+  const handlePrevWeek = useCallback(() => {
+    const next = weeksBack + 1;
+    setWeeksBack(next);
+    loadWeeklyReport(next);
+  }, [weeksBack, loadWeeklyReport]);
+
+  const handleNextWeek = useCallback(() => {
+    if (weeksBack === 0) return;
+    const next = weeksBack - 1;
+    setWeeksBack(next);
+    loadWeeklyReport(next);
+  }, [weeksBack, loadWeeklyReport]);
+
+  if (loading) {
     return (
       <>
-        <PageHeader title="Analytics" subtitle="Your driving trends and insights" />
-        <div className="premium-gate">
-          <div className="premium-gate__icon">&#9888;</div>
-          <h2 className="premium-gate__title">Upgrade to Pro</h2>
-          <p className="premium-gate__text">
-            Detailed analytics, weekly trends, and monthly HMRC breakdowns are available with a MileClear Pro subscription.
-          </p>
-          <a href="/dashboard/settings" className="btn btn--primary">Manage Subscription</a>
-        </div>
+        <PageHeader title="Driving Analytics" subtitle="Patterns, routes, and performance insights" />
+        <DashboardSkeleton />
       </>
     );
   }
@@ -428,281 +1513,62 @@ export default function AnalyticsPage() {
   if (error) {
     return (
       <>
-        <PageHeader title="Analytics" subtitle="Your driving trends and insights" />
-        <div className="alert alert--error">{error}</div>
+        <PageHeader title="Driving Analytics" subtitle="Patterns, routes, and performance insights" />
+        <div className="alert alert--error" role="alert">
+          {error}
+        </div>
       </>
     );
   }
 
-  // -------------------------------------------------------------------------
-  // Aggregations
-  // -------------------------------------------------------------------------
-
-  const taxYearStart = currentTaxYearStart();
-  const weekBuckets = buildWeekBuckets(trips, 12);
-  const monthBuckets = buildMonthBuckets(trips, taxYearStart);
-
-  const totalMilesYear = stats?.businessMiles ?? 0;
-  const totalTripsYear = stats?.totalTrips ?? 0;
-  const taxDeduction = stats?.deductionPence ?? 0;
-
-  // Average miles per day — days elapsed in current tax year
-  const today = new Date();
-  const daysElapsed = Math.max(
-    1,
-    Math.floor((today.getTime() - taxYearStart.getTime()) / (1000 * 60 * 60 * 24))
-  );
-  const avgMilesPerDay = totalMilesYear / daysElapsed;
-
-  // Chart data
-  const milesChartData = weekBuckets.map((b) => ({
-    label: b.label,
-    value: parseFloat(b.miles.toFixed(1)),
-  }));
-
-  const tripsChartData = weekBuckets.map((b) => ({
-    label: b.label,
-    value: b.trips,
-  }));
-
-  // -------------------------------------------------------------------------
-  // Render
-  // -------------------------------------------------------------------------
+  if (!analytics) return null;
 
   return (
     <>
-      <PageHeader title="Analytics" subtitle="Your driving trends and insights" />
+      <PageHeader
+        title="Driving Analytics"
+        subtitle="Patterns, routes, and performance insights"
+      />
 
-      {/* Stats grid */}
-      <div className="stats-grid" style={{ marginBottom: "var(--dash-gap)" }}>
-        <div className="stat-card">
-          <div className="stat-card__value stat-card__value--amber">
-            {formatMiles(totalMilesYear)} mi
-          </div>
-          <div className="stat-card__label">Business miles this year</div>
-        </div>
-
-        <div className="stat-card">
-          <div className="stat-card__value">{totalTripsYear.toLocaleString("en-GB")}</div>
-          <div className="stat-card__label">Total trips this year</div>
-        </div>
-
-        <div className="stat-card">
-          <div className="stat-card__value stat-card__value--emerald">
-            {formatMiles(avgMilesPerDay)} mi
-          </div>
-          <div className="stat-card__label">Avg miles per day</div>
-        </div>
-
-        <div className="stat-card">
-          <div className="stat-card__value stat-card__value--amber">
-            {formatPence(taxDeduction)}
-          </div>
-          <div className="stat-card__label">Tax deduction ({stats?.taxYear})</div>
-        </div>
-      </div>
-
-      {/* Miles per week bar chart */}
-      <div style={{ marginBottom: "var(--dash-gap)" }}>
-        <BarChart
-          title="Business Miles per Week (last 12 weeks)"
-          data={milesChartData}
-          color="amber"
-          formatValue={(v) => (v >= 1000 ? `${(v / 1000).toFixed(1)}k` : v.toFixed(0))}
+      {/* 1. Weekly Report — always shown */}
+      {weeklyReport && (
+        <WeeklyReportSection
+          report={weeklyReport}
+          weeksBack={weeksBack}
+          onPrev={handlePrevWeek}
+          onNext={handleNextWeek}
+          loading={weekLoading}
         />
+      )}
+
+      {/* 2. Frequent Routes — always shown */}
+      <div style={{ marginBottom: "var(--dash-gap, 1.5rem)" }}>
+        <FrequentRoutesSection routes={analytics.frequentRoutes} />
       </div>
 
-      {/* Trips per week bar chart */}
-      <div style={{ marginBottom: "var(--dash-gap)" }}>
-        <BarChart
-          title="Business Trips per Week (last 12 weeks)"
-          data={tripsChartData}
-          color="emerald"
-          formatValue={(v) => String(Math.round(v))}
-        />
-      </div>
-
-      {/* Monthly breakdown table */}
-      <Card
-        title={`Monthly Breakdown — ${stats?.taxYear ?? "Current Tax Year"}`}
-        subtitle="Business miles, trips, and HMRC deduction per month (Apr–Mar)"
-      >
-        <div className="table-wrap" style={{ border: "none", background: "transparent" }}>
-          <table className="table">
-            <thead>
-              <tr>
-                <th>Month</th>
-                <th>Miles</th>
-                <th>Trips</th>
-                <th>HMRC Deduction</th>
-                <th>Cumulative Miles</th>
-              </tr>
-            </thead>
-            <tbody>
-              {(() => {
-                let cumulative = 0;
-                return monthBuckets.map((bucket, idx) => {
-                  const prevCumulative = cumulative;
-                  cumulative += bucket.miles;
-
-                  const isCurrentMonth =
-                    today.getMonth() === bucket.month &&
-                    today.getFullYear() === bucket.year;
-
-                  const isFuture =
-                    new Date(bucket.year, bucket.month, 1) > today;
-
-                  return (
-                    <tr
-                      key={idx}
-                      style={
-                        isCurrentMonth
-                          ? { background: "rgba(234,179,8,0.04)" }
-                          : undefined
-                      }
-                    >
-                      <td>
-                        <span
-                          style={{
-                            fontWeight: isCurrentMonth ? 600 : undefined,
-                            color: isCurrentMonth
-                              ? "var(--amber-400)"
-                              : isFuture
-                              ? "var(--text-faint, var(--text-muted))"
-                              : undefined,
-                          }}
-                        >
-                          {bucket.label} {bucket.year}
-                          {isCurrentMonth && (
-                            <span
-                              style={{
-                                marginLeft: "0.5rem",
-                                fontSize: "0.625rem",
-                                fontWeight: 700,
-                                textTransform: "uppercase",
-                                letterSpacing: "0.06em",
-                                color: "var(--amber-400)",
-                                opacity: 0.8,
-                              }}
-                            >
-                              current
-                            </span>
-                          )}
-                        </span>
-                      </td>
-                      <td
-                        style={{
-                          color: isFuture
-                            ? "var(--text-faint, var(--text-muted))"
-                            : undefined,
-                        }}
-                      >
-                        {isFuture ? "—" : `${formatMiles(bucket.miles)} mi`}
-                      </td>
-                      <td
-                        style={{
-                          color: isFuture
-                            ? "var(--text-faint, var(--text-muted))"
-                            : undefined,
-                        }}
-                      >
-                        {isFuture ? "—" : bucket.trips}
-                      </td>
-                      <td
-                        style={{
-                          color: isFuture
-                            ? "var(--text-faint, var(--text-muted))"
-                            : "var(--emerald-400)",
-                          fontWeight: isFuture ? undefined : 600,
-                        }}
-                      >
-                        {isFuture ? "—" : formatPence(bucket.deductionPence)}
-                      </td>
-                      <td
-                        style={{
-                          color: isFuture
-                            ? "var(--text-faint, var(--text-muted))"
-                            : "var(--text-secondary)",
-                          fontSize: "0.8125rem",
-                        }}
-                      >
-                        {isFuture
-                          ? "—"
-                          : `${formatMiles(prevCumulative + bucket.miles)} mi`}
-                      </td>
-                    </tr>
-                  );
-                });
-              })()}
-            </tbody>
-
-            {/* Totals footer */}
-            <tfoot>
-              <tr
-                style={{
-                  borderTop: "1px solid var(--border-default)",
-                  background: "rgba(255,255,255,0.02)",
-                }}
-              >
-                <td
-                  style={{
-                    padding: "0.75rem 1rem",
-                    fontWeight: 700,
-                    color: "var(--text-white)",
-                    fontSize: "0.875rem",
-                  }}
-                >
-                  Total
-                </td>
-                <td
-                  style={{
-                    padding: "0.75rem 1rem",
-                    fontWeight: 700,
-                    color: "var(--amber-400)",
-                    fontSize: "0.875rem",
-                  }}
-                >
-                  {formatMiles(monthBuckets.reduce((s, b) => s + b.miles, 0))} mi
-                </td>
-                <td
-                  style={{
-                    padding: "0.75rem 1rem",
-                    fontWeight: 700,
-                    color: "var(--text-white)",
-                    fontSize: "0.875rem",
-                  }}
-                >
-                  {monthBuckets.reduce((s, b) => s + b.trips, 0)}
-                </td>
-                <td
-                  style={{
-                    padding: "0.75rem 1rem",
-                    fontWeight: 700,
-                    color: "var(--emerald-400)",
-                    fontSize: "0.875rem",
-                  }}
-                >
-                  {formatPence(monthBuckets.reduce((s, b) => s + b.deductionPence, 0))}
-                </td>
-                <td style={{ padding: "0.75rem 1rem" }} />
-              </tr>
-            </tfoot>
-          </table>
+      {/* 3. Shift Sweet Spots — business/both mode only */}
+      {isWorkMode && analytics.shiftSweetSpots.length > 0 && (
+        <div style={{ marginBottom: "var(--dash-gap, 1.5rem)" }}>
+          <ShiftSweetSpotsSection sweetSpots={analytics.shiftSweetSpots} />
         </div>
+      )}
 
-        {/* HMRC rate note */}
-        <p
-          style={{
-            marginTop: "0.875rem",
-            fontSize: "0.75rem",
-            color: "var(--text-muted)",
-            lineHeight: 1.5,
-          }}
-        >
-          Deductions calculated using HMRC approved mileage rates: 45p/mi for the first 10,000 business miles,
-          25p/mi thereafter. Car and van rates applied.
-        </p>
-      </Card>
+      {/* 4. Fuel Cost Breakdown — always shown */}
+      <div style={{ marginBottom: "var(--dash-gap, 1.5rem)" }}>
+        <FuelCostSection fuel={analytics.fuelCost} />
+      </div>
+
+      {/* 5. Earnings by Day — business/both mode only */}
+      {isWorkMode && (
+        <div style={{ marginBottom: "var(--dash-gap, 1.5rem)" }}>
+          <EarningsByDaySection patterns={analytics.earningsByDay} />
+        </div>
+      )}
+
+      {/* 6. Commute Timing — always shown */}
+      <div style={{ marginBottom: "var(--dash-gap, 1.5rem)" }}>
+        <CommuteTimingSection routes={analytics.commuteTiming} />
+      </div>
     </>
   );
 }

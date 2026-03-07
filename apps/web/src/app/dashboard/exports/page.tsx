@@ -137,7 +137,7 @@ export default function ExportsPage() {
     <>
       <PageHeader
         title="Tax Exports"
-        subtitle="Download your mileage data for HMRC self-assessment or your accountant."
+        subtitle="Professional HMRC-compliant reports with branded trip data, vehicle breakdowns, and tax deduction summaries."
       />
 
       {premiumError && (
@@ -160,21 +160,23 @@ export default function ExportsPage() {
       {/* Downloads */}
       <h2 className="section-title">Downloads</h2>
       <div className="grid-auto" style={{ marginBottom: "2.5rem" }}>
-        {/* CSV */}
-        <div className="export-card">
-          <div className="export-card__title">Trip Data (CSV)</div>
+        {/* Self-Assessment — featured */}
+        <div className="export-card" style={{ borderColor: "rgba(16, 185, 129, 0.3)" }}>
+          <div className="export-card__title">
+            HMRC Self-Assessment
+            <Badge variant="success">HMRC COMPLIANT</Badge>
+          </div>
           <p className="export-card__desc">
-            All trips with HMRC rates and deductions. Import into Excel or Google Sheets.
+            Complete tax report with vehicle breakdown, monthly summary, HMRC rate explanation, and unique report reference. Ready for your accountant.
           </p>
           <Button
             variant="primary"
             size="sm"
-            onClick={() => handleDownload("csv", setCsvState)}
-            disabled={csvState === "loading"}
-            className={btnVariant(csvState)}
+            onClick={() => handleDownload("self-assessment", setSaState)}
+            disabled={saState === "loading"}
             style={{ marginTop: "auto" }}
           >
-            {stateLabel(csvState, "Download CSV")}
+            {stateLabel(saState, "Download PDF")}
           </Button>
         </div>
 
@@ -182,7 +184,7 @@ export default function ExportsPage() {
         <div className="export-card">
           <div className="export-card__title">Trip Report (PDF)</div>
           <p className="export-card__desc">
-            Formatted trip report with summary stats. Great for record keeping.
+            Branded trip-by-trip report with summary statistics and unique audit reference. Professional record keeping.
           </p>
           <Button
             variant="primary"
@@ -195,20 +197,21 @@ export default function ExportsPage() {
           </Button>
         </div>
 
-        {/* Self-Assessment */}
+        {/* CSV */}
         <div className="export-card">
-          <div className="export-card__title">Self-Assessment (PDF)</div>
+          <div className="export-card__title">Trip Data (CSV)</div>
           <p className="export-card__desc">
-            HMRC mileage summary with vehicle breakdown and rate tiers.
+            Raw trip data with HMRC rates and deductions. Import into Excel, Google Sheets, or accounting software.
           </p>
           <Button
             variant="primary"
             size="sm"
-            onClick={() => handleDownload("self-assessment", setSaState)}
-            disabled={saState === "loading"}
+            onClick={() => handleDownload("csv", setCsvState)}
+            disabled={csvState === "loading"}
+            className={btnVariant(csvState)}
             style={{ marginTop: "auto" }}
           >
-            {stateLabel(saState, "Download PDF")}
+            {stateLabel(csvState, "Download CSV")}
           </Button>
         </div>
       </div>

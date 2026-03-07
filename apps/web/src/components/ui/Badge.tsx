@@ -1,5 +1,5 @@
 interface BadgeProps {
-  variant?: "business" | "personal" | "pro" | "source" | "success" | "danger" | "primary" | "coming-soon";
+  variant?: "business" | "personal" | "pro" | "source" | "success" | "danger" | "primary" | "coming-soon" | "warning";
   children: React.ReactNode;
 }
 

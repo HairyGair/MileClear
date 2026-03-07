@@ -85,15 +85,38 @@ export async function shiftRoutes(app: FastifyInstance) {
       prisma.shift.findMany({
         where,
         orderBy: { startedAt: "desc" },
-        include: { vehicle: true },
+        include: {
+          vehicle: true,
+          _count: { select: { trips: true } },
+        },
         skip: (page - 1) * pageSize,
         take: pageSize,
       }),
       prisma.shift.count({ where }),
     ]);
 
+    // Aggregate trip miles per shift
+    const shiftIds = data.map((s) => s.id);
+    const tripAggregates = shiftIds.length > 0
+      ? await prisma.trip.groupBy({
+          by: ["shiftId"],
+          where: { shiftId: { in: shiftIds } },
+          _sum: { distanceMiles: true },
+        })
+      : [];
+    const milesByShift = new Map(
+      tripAggregates.map((a) => [a.shiftId, a._sum.distanceMiles ?? 0])
+    );
+
+    const enriched = data.map((s) => ({
+      ...s,
+      tripCount: s._count.trips,
+      tripMiles: milesByShift.get(s.id) ?? 0,
+      _count: undefined,
+    }));
+
     return reply.send({
-      data,
+      data: enriched,
       total,
       page,
       pageSize,

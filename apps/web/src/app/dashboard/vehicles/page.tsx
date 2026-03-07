@@ -14,6 +14,7 @@ import { LoadingSkeleton } from "../../../components/ui/LoadingSkeleton";
 import type { Vehicle } from "@mileclear/shared";
 import { FUEL_TYPES, VEHICLE_TYPES } from "@mileclear/shared";
 import { useAuth } from "../../../lib/auth-context";
+import { useToast } from "../../../components/ui/Toast";
 
 const FUEL_OPTIONS = FUEL_TYPES.map((f) => ({
   value: f,
@@ -27,6 +28,7 @@ const VEHICLE_TYPE_OPTIONS = VEHICLE_TYPES.map((v) => ({
 
 export default function VehiclesPage() {
   const { user } = useAuth();
+  const { toast } = useToast();
   const isPremium = user?.isPremium ?? false;
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [loading, setLoading] = useState(true);
@@ -151,6 +153,7 @@ export default function VehiclesPage() {
       }
       setShowModal(false);
       loadVehicles();
+      toast(editVehicle ? "Vehicle updated" : "Vehicle added");
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -162,6 +165,7 @@ export default function VehiclesPage() {
     try {
       await api.patch(`/vehicles/${v.id}`, { isPrimary: true });
       loadVehicles();
+      toast("Primary vehicle updated");
     } catch (err: any) {
       setError(err.message);
     }
@@ -174,6 +178,7 @@ export default function VehiclesPage() {
       await api.delete(`/vehicles/${deleteVehicle.id}`);
       setDeleteVehicle(null);
       loadVehicles();
+      toast("Vehicle deleted");
     } catch (err: any) {
       setError(err.message);
     } finally {

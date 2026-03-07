@@ -2,7 +2,7 @@
 
 import * as SQLite from "expo-sqlite";
 
-const CURRENT_SCHEMA_VERSION = 6;
+const CURRENT_SCHEMA_VERSION = 7;
 
 let db: SQLite.SQLiteDatabase | null = null;
 
@@ -130,6 +130,13 @@ async function initializeSchema(database: SQLite.SQLiteDatabase): Promise<void> 
       visible INTEGER NOT NULL DEFAULT 1,
       position INTEGER NOT NULL DEFAULT 0,
       PRIMARY KEY (screen, section_key)
+    );
+
+    CREATE TABLE IF NOT EXISTS work_schedule (
+      day_of_week INTEGER PRIMARY KEY,
+      start_time TEXT NOT NULL,
+      end_time TEXT NOT NULL,
+      enabled INTEGER NOT NULL DEFAULT 1
     );
   `);
 

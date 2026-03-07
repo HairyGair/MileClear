@@ -118,7 +118,7 @@ model Trip {
   startedAt      DateTime
   endedAt        DateTime?
   isManualEntry  Boolean   @default(false)
-  classification String    @default("business")
+  classification String    @default("unclassified")
   platformTag    String?
   businessPurpose String?
   category       String?

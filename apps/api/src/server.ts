@@ -23,6 +23,7 @@ import { notificationRoutes } from "./routes/notifications/index.js";
 import { savedLocationRoutes } from "./routes/savedLocations/index.js";
 import { businessInsightRoutes } from "./routes/businessInsights/index.js";
 import { communityInsightRoutes } from "./routes/communityInsights/index.js";
+import { analyticsRoutes } from "./routes/analytics/index.js";
 import { startNotificationJobs } from "./jobs/notifications.js";
 
 // Validate required secrets at startup
@@ -109,6 +110,7 @@ await app.register(notificationRoutes, { prefix: "/notifications" });
 await app.register(savedLocationRoutes, { prefix: "/saved-locations" });
 await app.register(businessInsightRoutes, { prefix: "/business-insights" });
 await app.register(communityInsightRoutes, { prefix: "/community-insights" });
+await app.register(analyticsRoutes, { prefix: "/analytics" });
 // Health check
 app.get("/health", async () => ({ status: "ok" }));
 

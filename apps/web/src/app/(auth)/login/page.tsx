@@ -96,6 +96,11 @@ export default function LoginPage() {
             required
             autoComplete="current-password"
           />
+          <div style={{ textAlign: "right", marginTop: "-0.5rem" }}>
+            <Link href="/forgot-password" className="auth-card__inline-link">
+              Forgot your password?
+            </Link>
+          </div>
           <Button
             type="submit"
             variant="primary"

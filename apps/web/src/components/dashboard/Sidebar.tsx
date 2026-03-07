@@ -121,7 +121,6 @@ const BUSINESS_ITEMS: NavItem[] = [
 
 const PERSONAL_ITEMS: NavItem[] = [
   { href: "/dashboard/personal", label: "Personal", icon: icons.personal },
-  { href: "/dashboard/analytics", label: "Analytics", icon: icons.analytics },
 ];
 
 const SHARED_ITEMS: NavItem[] = [
@@ -129,6 +128,7 @@ const SHARED_ITEMS: NavItem[] = [
   { href: "/dashboard/vehicles", label: "Vehicles", icon: icons.vehicles },
   { href: "/dashboard/fuel", label: "Fuel", icon: icons.fuel },
   { href: "/dashboard/locations", label: "Locations", icon: icons.locations },
+  { href: "/dashboard/analytics", label: "Analytics", icon: icons.analytics },
 ];
 
 const BOTTOM_ITEMS: NavItem[] = [

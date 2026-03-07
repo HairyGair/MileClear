@@ -64,6 +64,69 @@ export async function sendDrivingDetectedNotification(): Promise<void> {
 }
 
 /**
+ * Schedule daily shift reminder notifications based on work schedule.
+ * Cancels existing reminders and reschedules for the next 7 days.
+ * Called when the schedule changes or app starts.
+ */
+export async function scheduleShiftReminders(): Promise<void> {
+  try {
+    const { getSchedule, getScheduleSetting } = await import("../schedule/index");
+    const reminderEnabled = await getScheduleSetting("schedule_reminder");
+    if (!reminderEnabled) {
+      // Cancel any existing shift reminders
+      const all = await Notifications.getAllScheduledNotificationsAsync();
+      for (const n of all) {
+        if (n.content.data?.type === "shift_reminder") {
+          await Notifications.cancelScheduledNotificationAsync(n.identifier);
+        }
+      }
+      return;
+    }
+
+    const schedule = await getSchedule();
+    const enabled = schedule.filter((s) => s.enabled);
+    if (enabled.length === 0) return;
+
+    // Cancel existing shift reminders
+    const all = await Notifications.getAllScheduledNotificationsAsync();
+    for (const n of all) {
+      if (n.content.data?.type === "shift_reminder") {
+        await Notifications.cancelScheduledNotificationAsync(n.identifier);
+      }
+    }
+
+    // Schedule for each enabled day, 10 minutes before start time
+    for (const slot of enabled) {
+      const [h, m] = slot.startTime.split(":").map(Number);
+      let reminderH = h;
+      let reminderM = m - 10;
+      if (reminderM < 0) {
+        reminderM += 60;
+        reminderH -= 1;
+        if (reminderH < 0) reminderH = 23;
+      }
+
+      await Notifications.scheduleNotificationAsync({
+        content: {
+          title: "Work hours starting soon",
+          body: `Your shift starts at ${slot.startTime}. Ready to track?`,
+          data: { type: "shift_reminder", action: "open_dashboard" },
+          sound: "default",
+        },
+        trigger: {
+          type: Notifications.SchedulableTriggerInputTypes.WEEKLY,
+          weekday: slot.dayOfWeek === 0 ? 1 : slot.dayOfWeek + 1, // expo uses 1=Sunday
+          hour: reminderH,
+          minute: reminderM,
+        },
+      });
+    }
+  } catch (err) {
+    console.warn("Failed to schedule shift reminders:", err);
+  }
+}
+
+/**
  * Registers the device for Expo push notifications and returns the push token
  * string, or null if registration fails (e.g. simulator, Expo Go without a
  * real device, or permission denied).

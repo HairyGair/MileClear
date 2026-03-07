@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useState, useRef } from "react";
 import { Ionicons } from "@expo/vector-icons";
 import {
   View,
@@ -8,18 +8,32 @@ import {
   RefreshControl,
   ActivityIndicator,
   StyleSheet,
+  Animated,
+  LayoutAnimation,
+  Platform,
+  UIManager,
+  Modal,
+  Pressable,
+  ScrollView,
+  Alert,
 } from "react-native";
 import { useRouter, useFocusEffect } from "expo-router";
 import { Button } from "../../components/Button";
-import { fetchTrips, TripWithVehicle } from "../../lib/api/trips";
+import { fetchTrips, fetchUnclassifiedCount, fetchClassificationSuggestion, mergeTrips, TripWithVehicle, ClassificationSuggestion } from "../../lib/api/trips";
+import { syncUpdateTrip } from "../../lib/sync/actions";
 import { getLocalTrips, getLocalUnsyncedTrips } from "../../lib/db/queries";
 import { GIG_PLATFORMS } from "@mileclear/shared";
-import type { TripClassification } from "@mileclear/shared";
+import type { TripClassification, PlatformTag, BusinessPurpose } from "@mileclear/shared";
+
+if (Platform.OS === "android" && UIManager.setLayoutAnimationEnabledExperimental) {
+  UIManager.setLayoutAnimationEnabledExperimental(true);
+}
 
 type TripItem = TripWithVehicle & { _isLocal?: boolean };
 
-const FILTERS: { label: string; value: TripClassification | undefined }[] = [
-  { label: "All", value: undefined },
+const FILTERS: { label: string; value: TripClassification | "all" }[] = [
+  { label: "All", value: "all" },
+  { label: "Inbox", value: "unclassified" },
   { label: "Business", value: "business" },
   { label: "Personal", value: "personal" },
 ];
@@ -45,19 +59,69 @@ function formatTime(iso: string): string {
 export default function TripsScreen() {
   const router = useRouter();
   const [trips, setTrips] = useState<TripItem[]>([]);
-  const [filter, setFilter] = useState<TripClassification | undefined>(undefined);
+  const [filter, setFilter] = useState<TripClassification | "all">("all");
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
   const [isOffline, setIsOffline] = useState(false);
+  const [unclassifiedCount, setUnclassifiedCount] = useState(0);
+  const [classifyingId, setClassifyingId] = useState<string | null>(null);
+  const [suggestions, setSuggestions] = useState<Record<string, ClassificationSuggestion>>({});
+
+  // Merge mode state
+  const [mergeMode, setMergeMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [mergeModalVisible, setMergeModalVisible] = useState(false);
+  const [mergeClassification, setMergeClassification] = useState<TripClassification>("business");
+  const [mergePlatform, setMergePlatform] = useState<string | null>(null);
+  const [mergeLoading, setMergeLoading] = useState(false);
+
+  const loadUnclassifiedCount = useCallback(async () => {
+    try {
+      const res = await fetchUnclassifiedCount();
+      setUnclassifiedCount(res.count);
+    } catch {
+      // Ignore — badge just won't show
+    }
+  }, []);
+
+  // Fetch classification suggestions for unclassified trips
+  const loadSuggestions = useCallback(async (tripList: TripItem[]) => {
+    const unclassified = tripList.filter(
+      (t) => t.classification === "unclassified" && t.endLat && t.endLng
+    );
+    if (unclassified.length === 0) return;
+
+    // Fetch suggestions in parallel (max 10 to avoid flooding)
+    const toFetch = unclassified.slice(0, 10);
+    const results = await Promise.allSettled(
+      toFetch.map((t) =>
+        fetchClassificationSuggestion(t.endLat!, t.endLng!, "end").then((res) => ({
+          tripId: t.id,
+          suggestion: res.suggestion,
+        }))
+      )
+    );
+
+    const newSuggestions: Record<string, ClassificationSuggestion> = {};
+    for (const result of results) {
+      if (result.status === "fulfilled" && result.value.suggestion) {
+        newSuggestions[result.value.tripId] = result.value.suggestion;
+      }
+    }
+    if (Object.keys(newSuggestions).length > 0) {
+      setSuggestions((prev) => ({ ...prev, ...newSuggestions }));
+    }
+  }, []);
 
   const loadTrips = useCallback(
     async (pageNum: number, append = false) => {
       try {
+        const classification = filter === "all" ? undefined : filter;
         const res = await fetchTrips({
-          classification: filter,
+          classification,
           page: pageNum,
           pageSize: 20,
         });
@@ -67,17 +131,22 @@ export default function TripsScreen() {
           setTrips((prev) => [...prev, ...res.data]);
         } else {
           // Merge unsynced local items on first page
-          const unsynced = await getLocalUnsyncedTrips({ classification: filter });
+          const unsynced = await getLocalUnsyncedTrips({ classification });
           const apiIds = new Set(res.data.map((t) => t.id));
           const uniqueLocal = unsynced.filter((t) => !apiIds.has(t.id)) as TripItem[];
-          setTrips([...uniqueLocal, ...res.data]);
+          const allTrips = [...uniqueLocal, ...res.data];
+          setTrips(allTrips);
+
+          // Fetch smart suggestions for unclassified trips (non-blocking)
+          loadSuggestions(allTrips).catch(() => {});
         }
         setPage(res.page);
         setTotalPages(res.totalPages);
       } catch {
         // Offline fallback — show all local data
         if (!append) {
-          const local = await getLocalTrips({ classification: filter });
+          const classification = filter === "all" ? undefined : filter;
+          const local = await getLocalTrips({ classification });
           setTrips(local as TripItem[]);
           setIsOffline(true);
           setTotalPages(1);
@@ -88,20 +157,24 @@ export default function TripsScreen() {
         setLoadingMore(false);
       }
     },
-    [filter]
+    [filter, loadSuggestions]
   );
 
   useFocusEffect(
     useCallback(() => {
       setLoading(true);
-      loadTrips(1);
-    }, [loadTrips])
+      loadTrips(1).then(() => {
+        // Suggestions fetched after trips render — non-blocking
+      });
+      loadUnclassifiedCount();
+    }, [loadTrips, loadUnclassifiedCount])
   );
 
   const onRefresh = useCallback(() => {
     setRefreshing(true);
     loadTrips(1);
-  }, [loadTrips]);
+    loadUnclassifiedCount();
+  }, [loadTrips, loadUnclassifiedCount]);
 
   const onEndReached = useCallback(() => {
     if (loadingMore || page >= totalPages) return;
@@ -110,7 +183,7 @@ export default function TripsScreen() {
   }, [loadingMore, page, totalPages, loadTrips]);
 
   const handleFilterChange = useCallback(
-    (value: TripClassification | undefined) => {
+    (value: TripClassification | "all") => {
       setFilter(value);
       setLoading(true);
     },
@@ -122,74 +195,246 @@ export default function TripsScreen() {
     onEndReached();
   }, [isOffline, onEndReached]);
 
-  const renderTrip = ({ item }: { item: TripItem }) => (
-    <TouchableOpacity
-      style={styles.tripCard}
-      onPress={() => router.push(`/trip-form?id=${item.id}`)}
-      activeOpacity={0.7}
-    >
-      <View style={styles.tripHeader}>
-        <Text style={styles.tripDate}>{formatDate(item.startedAt)}</Text>
-        <Text
-          style={[
-            styles.classificationBadge,
-            item.classification === "business"
-              ? styles.businessBadge
-              : styles.personalBadge,
-          ]}
-        >
-          {item.classification === "business" ? "Business" : "Personal"}
-        </Text>
-      </View>
+  // Quick classify a trip directly from the list
+  const handleQuickClassify = useCallback(
+    async (tripId: string, classification: "business" | "personal") => {
+      setClassifyingId(tripId);
+      try {
+        await syncUpdateTrip(tripId, { classification });
+        LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+        setTrips((prev) => prev.map((t) =>
+          t.id === tripId ? { ...t, classification } : t
+        ));
+        setUnclassifiedCount((prev) => Math.max(0, prev - 1));
 
-      <View style={styles.tripDetails}>
-        <Text style={styles.distanceText}>
-          {item.distanceMiles.toFixed(1)} mi
-        </Text>
-        <Text style={styles.timeText}>
-          {formatTime(item.startedAt)}
-          {item.endedAt ? ` — ${formatTime(item.endedAt)}` : ""}
-        </Text>
-      </View>
+        // If viewing inbox and trip is now classified, remove it from view
+        if (filter === "unclassified") {
+          setTrips((prev) => prev.filter((t) => t.id !== tripId));
+        }
+      } catch {
+        // Failed — trip stays, user can retry
+      } finally {
+        setClassifyingId(null);
+      }
+    },
+    [filter]
+  );
 
-      {(item.startAddress || item.endAddress) && (
-        <View style={styles.addressRow}>
-          {item.startAddress && (
-            <Text style={styles.addressText} numberOfLines={1}>
-              {item.startAddress}
-            </Text>
+  const toggleSelect = useCallback((id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }, []);
+
+  const exitMergeMode = useCallback(() => {
+    setMergeMode(false);
+    setSelectedIds(new Set());
+  }, []);
+
+  const handleMerge = useCallback(async () => {
+    if (selectedIds.size < 2) return;
+    setMergeLoading(true);
+    try {
+      // Sort selected trips by startedAt to ensure correct order
+      const selectedTrips = trips
+        .filter((t) => selectedIds.has(t.id))
+        .sort((a, b) => new Date(a.startedAt).getTime() - new Date(b.startedAt).getTime());
+
+      await mergeTrips({
+        tripIds: selectedTrips.map((t) => t.id),
+        classification: mergeClassification,
+        platformTag: (mergePlatform as PlatformTag) || null,
+      });
+
+      setMergeModalVisible(false);
+      exitMergeMode();
+      setMergeClassification("business");
+      setMergePlatform(null);
+
+      // Refresh
+      setLoading(true);
+      loadTrips(1);
+      loadUnclassifiedCount();
+    } catch (err: any) {
+      Alert.alert("Merge Failed", err.message || "Something went wrong merging your trips.");
+    } finally {
+      setMergeLoading(false);
+    }
+  }, [selectedIds, trips, mergeClassification, mergePlatform, exitMergeMode, loadTrips, loadUnclassifiedCount]);
+
+  const renderTrip = ({ item }: { item: TripItem }) => {
+    const isUnclassified = item.classification === "unclassified";
+    const isClassifying = classifyingId === item.id;
+    const tripSuggestion = isUnclassified ? suggestions[item.id] : null;
+    const isSelected = mergeMode && selectedIds.has(item.id);
+
+    return (
+      <TouchableOpacity
+        style={[
+          styles.tripCard,
+          isUnclassified && styles.tripCardUnclassified,
+          isSelected && styles.tripCardSelected,
+        ]}
+        onPress={() => {
+          if (mergeMode) {
+            toggleSelect(item.id);
+          } else {
+            router.push(`/trip-form?id=${item.id}`);
+          }
+        }}
+        onLongPress={() => {
+          if (!mergeMode && !item._isLocal) {
+            setMergeMode(true);
+            setSelectedIds(new Set([item.id]));
+          }
+        }}
+        activeOpacity={0.7}
+      >
+        <View style={styles.tripHeader}>
+          {mergeMode && (
+            <View style={[styles.selectCircle, isSelected && styles.selectCircleActive]}>
+              {isSelected && <Ionicons name="checkmark" size={14} color="#030712" />}
+            </View>
           )}
-          {item.startAddress && item.endAddress && (
-            <Text style={styles.arrowText}> → </Text>
-          )}
-          {item.endAddress && (
-            <Text style={styles.addressText} numberOfLines={1}>
-              {item.endAddress}
+          <Text style={[styles.tripDate, mergeMode && { flex: 1 }]}>{formatDate(item.startedAt)}</Text>
+          {isUnclassified ? (
+            <View style={styles.unclassifiedBadge}>
+              <Ionicons name="help-circle" size={12} color="#f5a623" />
+              <Text style={styles.unclassifiedBadgeText}>Needs classifying</Text>
+            </View>
+          ) : (
+            <Text
+              style={[
+                styles.classificationBadge,
+                item.classification === "business"
+                  ? styles.businessBadge
+                  : styles.personalBadge,
+              ]}
+            >
+              {item.classification === "business" ? "Business" : "Personal"}
             </Text>
           )}
         </View>
-      )}
 
-      <View style={styles.tripMeta}>
-        {item._isLocal && (
-          <Text style={styles.syncBadge}>Pending sync</Text>
-        )}
-        {item.platformTag && (
-          <Text style={styles.platformBadge}>
-            {PLATFORM_LABELS[item.platformTag] ?? item.platformTag}
+        <View style={styles.tripDetails}>
+          <Text style={styles.distanceText}>
+            {item.distanceMiles.toFixed(1)} mi
           </Text>
-        )}
-        {item.vehicle && (
-          <Text style={styles.metaText}>
-            {item.vehicle.make} {item.vehicle.model}
+          <Text style={styles.timeText}>
+            {formatTime(item.startedAt)}
+            {item.endedAt ? ` — ${formatTime(item.endedAt)}` : ""}
           </Text>
+        </View>
+
+        {(item.startAddress || item.endAddress) && (
+          <View style={styles.addressRow}>
+            {item.startAddress && (
+              <Text style={styles.addressText} numberOfLines={1}>
+                {item.startAddress}
+              </Text>
+            )}
+            {item.startAddress && item.endAddress && (
+              <Text style={styles.arrowText}> → </Text>
+            )}
+            {item.endAddress && (
+              <Text style={styles.addressText} numberOfLines={1}>
+                {item.endAddress}
+              </Text>
+            )}
+          </View>
         )}
-        {item.isManualEntry && (
-          <Text style={styles.manualBadge}>Manual</Text>
+
+        <View style={styles.tripMeta}>
+          {item._isLocal && (
+            <Text style={styles.syncBadge}>Pending sync</Text>
+          )}
+          {item.platformTag && (
+            <Text style={styles.platformBadge}>
+              {PLATFORM_LABELS[item.platformTag] ?? item.platformTag}
+            </Text>
+          )}
+          {item.vehicle && (
+            <Text style={styles.metaText}>
+              {item.vehicle.make} {item.vehicle.model}
+            </Text>
+          )}
+          {item.isManualEntry && (
+            <Text style={styles.manualBadge}>Manual</Text>
+          )}
+        </View>
+
+        {/* Quick classify buttons for unclassified trips */}
+        {isUnclassified && (
+          <View style={styles.quickClassifyWrap}>
+            {tripSuggestion && (
+              <View style={styles.inlineSuggestion}>
+                <Ionicons name="sparkles" size={12} color="#f5a623" />
+                <Text style={styles.inlineSuggestionText}>
+                  Looks like {tripSuggestion.classification} ({tripSuggestion.matchCount} previous trip{tripSuggestion.matchCount !== 1 ? "s" : ""} here)
+                </Text>
+              </View>
+            )}
+            <View style={styles.quickClassifyRow}>
+              <TouchableOpacity
+                style={[
+                  styles.quickClassifyBtn,
+                  styles.quickClassifyBusiness,
+                  tripSuggestion?.classification === "business" && styles.quickClassifySuggested,
+                ]}
+                onPress={(e) => {
+                  e.stopPropagation?.();
+                  handleQuickClassify(item.id, "business");
+                }}
+                disabled={isClassifying}
+                activeOpacity={0.7}
+              >
+                {isClassifying ? (
+                  <ActivityIndicator size="small" color="#030712" />
+                ) : (
+                  <>
+                    {tripSuggestion?.classification === "business" && (
+                      <Ionicons name="sparkles" size={12} color="#030712" />
+                    )}
+                    <Ionicons name="briefcase" size={14} color="#030712" />
+                    <Text style={styles.quickClassifyBtnTextDark}>Business</Text>
+                  </>
+                )}
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[
+                  styles.quickClassifyBtn,
+                  tripSuggestion?.classification === "personal"
+                    ? styles.quickClassifyPersonalSuggested
+                    : styles.quickClassifyPersonal,
+                ]}
+                onPress={(e) => {
+                  e.stopPropagation?.();
+                  handleQuickClassify(item.id, "personal");
+                }}
+                disabled={isClassifying}
+                activeOpacity={0.7}
+              >
+                {isClassifying ? (
+                  <ActivityIndicator size="small" color="#d1d5db" />
+                ) : (
+                  <>
+                    {tripSuggestion?.classification === "personal" && (
+                      <Ionicons name="sparkles" size={12} color="#030712" />
+                    )}
+                    <Ionicons name="car" size={14} color={tripSuggestion?.classification === "personal" ? "#030712" : "#d1d5db"} />
+                    <Text style={tripSuggestion?.classification === "personal" ? styles.quickClassifyBtnTextDark : styles.quickClassifyBtnTextLight}>Personal</Text>
+                  </>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
         )}
-      </View>
-    </TouchableOpacity>
-  );
+      </TouchableOpacity>
+    );
+  };
 
   return (
     <View style={styles.container}>
@@ -216,6 +461,31 @@ export default function TripsScreen() {
                 </Text>
               </View>
             )}
+
+            {/* Inbox banner — shows when there are unclassified trips and not already viewing inbox */}
+            {unclassifiedCount > 0 && filter !== "unclassified" && (
+              <TouchableOpacity
+                style={styles.inboxBanner}
+                onPress={() => handleFilterChange("unclassified")}
+                activeOpacity={0.7}
+              >
+                <View style={styles.inboxBannerLeft}>
+                  <View style={styles.inboxBannerIcon}>
+                    <Ionicons name="file-tray" size={18} color="#f5a623" />
+                  </View>
+                  <View>
+                    <Text style={styles.inboxBannerTitle}>
+                      {unclassifiedCount} trip{unclassifiedCount !== 1 ? "s" : ""} to classify
+                    </Text>
+                    <Text style={styles.inboxBannerSubtitle}>
+                      Tap to review and classify
+                    </Text>
+                  </View>
+                </View>
+                <Ionicons name="chevron-forward" size={18} color="#6b7280" />
+              </TouchableOpacity>
+            )}
+
             <View style={styles.filterRow}>
               {FILTERS.map((f) => (
                 <TouchableOpacity
@@ -234,20 +504,75 @@ export default function TripsScreen() {
                   >
                     {f.label}
                   </Text>
+                  {f.value === "unclassified" && unclassifiedCount > 0 && (
+                    <View style={styles.filterBadge}>
+                      <Text style={styles.filterBadgeText}>
+                        {unclassifiedCount > 99 ? "99+" : unclassifiedCount}
+                      </Text>
+                    </View>
+                  )}
                 </TouchableOpacity>
               ))}
             </View>
+
+            {/* Merge mode banner */}
+            {mergeMode && (
+              <View style={styles.mergeBanner}>
+                <View style={styles.mergeBannerLeft}>
+                  <Ionicons name="git-merge-outline" size={18} color="#60a5fa" />
+                  <Text style={styles.mergeBannerText}>
+                    {selectedIds.size} trip{selectedIds.size !== 1 ? "s" : ""} selected
+                  </Text>
+                </View>
+                <View style={styles.mergeBannerActions}>
+                  <TouchableOpacity
+                    style={styles.mergeBannerCancel}
+                    onPress={exitMergeMode}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={styles.mergeBannerCancelText}>Cancel</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[
+                      styles.mergeBannerBtn,
+                      selectedIds.size < 2 && styles.mergeBannerBtnDisabled,
+                    ]}
+                    onPress={() => selectedIds.size >= 2 && setMergeModalVisible(true)}
+                    disabled={selectedIds.size < 2}
+                    activeOpacity={0.7}
+                  >
+                    <Ionicons name="git-merge-outline" size={14} color={selectedIds.size >= 2 ? "#030712" : "#6b7280"} />
+                    <Text style={[
+                      styles.mergeBannerBtnText,
+                      selectedIds.size < 2 && styles.mergeBannerBtnTextDisabled,
+                    ]}>
+                      Merge
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            )}
           </View>
         }
         ListEmptyComponent={
           !loading ? (
             <View style={styles.emptyState}>
               <View style={styles.emptyIcon}>
-                <Ionicons name="car-outline" size={40} color="#4a5568" />
+                <Ionicons
+                  name={filter === "unclassified" ? "checkmark-circle-outline" : "car-outline"}
+                  size={40}
+                  color="#4a5568"
+                />
               </View>
-              <Text style={styles.emptyTitle}>No trips recorded yet</Text>
+              <Text style={styles.emptyTitle}>
+                {filter === "unclassified"
+                  ? "All caught up!"
+                  : "No trips recorded yet"}
+              </Text>
               <Text style={styles.emptyText}>
-                Tap the button below to add your first trip
+                {filter === "unclassified"
+                  ? "All your trips have been classified"
+                  : "Tap the button below to add your first trip"}
               </Text>
             </View>
           ) : null
@@ -273,6 +598,129 @@ export default function TripsScreen() {
           <ActivityIndicator size="large" color="#f5a623" />
         </View>
       )}
+
+      {/* Merge classification modal */}
+      {mergeModalVisible && (
+        <Modal visible transparent animationType="slide" onRequestClose={() => setMergeModalVisible(false)}>
+          <Pressable style={styles.mergeBackdrop} onPress={() => setMergeModalVisible(false)}>
+            <View style={styles.mergeSheet} onStartShouldSetResponder={() => true}>
+              <View style={styles.mergeHandle} />
+
+              <Text style={styles.mergeTitle}>Merge {selectedIds.size} Trips</Text>
+
+              {/* Preview: first → last trip summary */}
+              {(() => {
+                const selected = trips
+                  .filter((t) => selectedIds.has(t.id))
+                  .sort((a, b) => new Date(a.startedAt).getTime() - new Date(b.startedAt).getTime());
+                const first = selected[0];
+                const last = selected[selected.length - 1];
+                const totalMiles = selected.reduce((sum, t) => sum + t.distanceMiles, 0);
+                if (!first || !last) return null;
+                return (
+                  <View style={styles.mergePreview}>
+                    <View style={styles.mergePreviewRow}>
+                      <Ionicons name="location" size={14} color="#10b981" />
+                      <Text style={styles.mergePreviewText} numberOfLines={1}>
+                        {first.startAddress || `${first.startLat.toFixed(4)}, ${first.startLng.toFixed(4)}`}
+                      </Text>
+                    </View>
+                    <View style={styles.mergePreviewDots}>
+                      <View style={styles.mergePreviewDot} />
+                      <View style={styles.mergePreviewDot} />
+                      <View style={styles.mergePreviewDot} />
+                    </View>
+                    <View style={styles.mergePreviewRow}>
+                      <Ionicons name="flag" size={14} color="#ef4444" />
+                      <Text style={styles.mergePreviewText} numberOfLines={1}>
+                        {last.endAddress || last.startAddress || "End point"}
+                      </Text>
+                    </View>
+                    <View style={styles.mergePreviewStats}>
+                      <Text style={styles.mergePreviewStat}>{totalMiles.toFixed(1)} mi total</Text>
+                      <Text style={styles.mergePreviewStat}>
+                        {formatTime(first.startedAt)} — {last.endedAt ? formatTime(last.endedAt) : "ongoing"}
+                      </Text>
+                    </View>
+                  </View>
+                );
+              })()}
+
+              <Text style={styles.mergeLabel}>Classification</Text>
+              <View style={styles.mergeClassRow}>
+                {(["business", "personal"] as const).map((cls) => (
+                  <TouchableOpacity
+                    key={cls}
+                    style={[
+                      styles.mergeClassBtn,
+                      mergeClassification === cls && (cls === "business" ? styles.mergeClassBtnBusiness : styles.mergeClassBtnPersonal),
+                    ]}
+                    onPress={() => setMergeClassification(cls)}
+                    activeOpacity={0.7}
+                  >
+                    <Ionicons
+                      name={cls === "business" ? "briefcase" : "car"}
+                      size={16}
+                      color={mergeClassification === cls ? "#030712" : "#9ca3af"}
+                    />
+                    <Text style={[
+                      styles.mergeClassBtnText,
+                      mergeClassification === cls && styles.mergeClassBtnTextActive,
+                    ]}>
+                      {cls === "business" ? "Business" : "Personal"}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              {mergeClassification === "business" && (
+                <>
+                  <Text style={styles.mergeLabel}>Platform (optional)</Text>
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.mergePlatformScroll}>
+                    <TouchableOpacity
+                      style={[styles.mergePlatformChip, !mergePlatform && styles.mergePlatformChipActive]}
+                      onPress={() => setMergePlatform(null)}
+                      activeOpacity={0.7}
+                    >
+                      <Text style={[styles.mergePlatformText, !mergePlatform && styles.mergePlatformTextActive]}>None</Text>
+                    </TouchableOpacity>
+                    {GIG_PLATFORMS.map((p) => (
+                      <TouchableOpacity
+                        key={p.value}
+                        style={[styles.mergePlatformChip, mergePlatform === p.value && styles.mergePlatformChipActive]}
+                        onPress={() => setMergePlatform(p.value)}
+                        activeOpacity={0.7}
+                      >
+                        <Text style={[styles.mergePlatformText, mergePlatform === p.value && styles.mergePlatformTextActive]}>
+                          {p.label}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </ScrollView>
+                </>
+              )}
+
+              <TouchableOpacity
+                style={[styles.mergeConfirmBtn, mergeLoading && { opacity: 0.6 }]}
+                onPress={handleMerge}
+                disabled={mergeLoading}
+                activeOpacity={0.7}
+              >
+                {mergeLoading ? (
+                  <ActivityIndicator size="small" color="#030712" />
+                ) : (
+                  <>
+                    <Ionicons name="git-merge-outline" size={18} color="#030712" />
+                    <Text style={styles.mergeConfirmText}>
+                      Merge into 1 Trip
+                    </Text>
+                  </>
+                )}
+              </TouchableOpacity>
+            </View>
+          </Pressable>
+        </Modal>
+      )}
     </View>
   );
 }
@@ -284,6 +732,43 @@ const styles = StyleSheet.create({
   },
   listContent: {
     padding: 16,
+  },
+  // Inbox banner
+  inboxBanner: {
+    backgroundColor: "rgba(245, 166, 35, 0.08)",
+    borderWidth: 1,
+    borderColor: "rgba(245, 166, 35, 0.2)",
+    borderRadius: 12,
+    padding: 14,
+    marginBottom: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  inboxBannerLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    flex: 1,
+  },
+  inboxBannerIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    backgroundColor: "rgba(245, 166, 35, 0.12)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  inboxBannerTitle: {
+    fontSize: 15,
+    fontFamily: "PlusJakartaSans_600SemiBold",
+    color: "#f5a623",
+  },
+  inboxBannerSubtitle: {
+    fontSize: 12,
+    fontFamily: "PlusJakartaSans_400Regular",
+    color: "#8494a7",
+    marginTop: 1,
   },
   // Filter chips
   filterRow: {
@@ -298,6 +783,9 @@ const styles = StyleSheet.create({
     backgroundColor: "#111827",
     borderWidth: 1,
     borderColor: "#1f2937",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
   },
   filterChipActive: {
     backgroundColor: "#f5a623",
@@ -312,6 +800,20 @@ const styles = StyleSheet.create({
     fontFamily: "PlusJakartaSans_600SemiBold",
     color: "#030712",
   },
+  filterBadge: {
+    backgroundColor: "#f5a623",
+    borderRadius: 10,
+    minWidth: 20,
+    height: 20,
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: 5,
+  },
+  filterBadgeText: {
+    fontSize: 11,
+    fontFamily: "PlusJakartaSans_700Bold",
+    color: "#030712",
+  },
   // Trip cards
   tripCard: {
     backgroundColor: "#111827",
@@ -320,6 +822,9 @@ const styles = StyleSheet.create({
     borderColor: "#1f2937",
     padding: 16,
     marginBottom: 10,
+  },
+  tripCardUnclassified: {
+    borderColor: "rgba(245, 166, 35, 0.25)",
   },
   tripHeader: {
     flexDirection: "row",
@@ -347,6 +852,20 @@ const styles = StyleSheet.create({
   personalBadge: {
     color: "#d1d5db",
     backgroundColor: "#374151",
+  },
+  unclassifiedBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: "rgba(245, 166, 35, 0.1)",
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 4,
+  },
+  unclassifiedBadgeText: {
+    fontSize: 11,
+    fontFamily: "PlusJakartaSans_600SemiBold",
+    color: "#f5a623",
   },
   tripDetails: {
     flexDirection: "row",
@@ -420,6 +939,60 @@ const styles = StyleSheet.create({
     borderRadius: 4,
     overflow: "hidden",
   },
+  // Quick classify buttons
+  quickClassifyWrap: {
+    marginTop: 12,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: "rgba(255,255,255,0.06)",
+  },
+  quickClassifyRow: {
+    flexDirection: "row",
+    gap: 10,
+  },
+  quickClassifyBtn: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    paddingVertical: 10,
+    borderRadius: 8,
+  },
+  quickClassifyBusiness: {
+    backgroundColor: "#f5a623",
+  },
+  quickClassifyPersonal: {
+    backgroundColor: "#374151",
+  },
+  quickClassifySuggested: {
+    borderWidth: 2,
+    borderColor: "#ca8a04",
+  },
+  quickClassifyPersonalSuggested: {
+    backgroundColor: "#f5a623",
+  },
+  inlineSuggestion: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    marginBottom: 8,
+  },
+  inlineSuggestionText: {
+    fontSize: 12,
+    fontFamily: "PlusJakartaSans_500Medium",
+    color: "#d4a053",
+  },
+  quickClassifyBtnTextDark: {
+    fontSize: 14,
+    fontFamily: "PlusJakartaSans_600SemiBold",
+    color: "#030712",
+  },
+  quickClassifyBtnTextLight: {
+    fontSize: 14,
+    fontFamily: "PlusJakartaSans_600SemiBold",
+    color: "#d1d5db",
+  },
   offlineBanner: {
     backgroundColor: "#92400e",
     borderRadius: 8,
@@ -471,5 +1044,236 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     backgroundColor: "rgba(3, 7, 18, 0.7)",
+  },
+  // Select mode
+  tripCardSelected: {
+    borderColor: "#60a5fa",
+    backgroundColor: "rgba(96, 165, 250, 0.06)",
+  },
+  selectCircle: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    borderWidth: 2,
+    borderColor: "#374151",
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: 10,
+  },
+  selectCircleActive: {
+    backgroundColor: "#60a5fa",
+    borderColor: "#60a5fa",
+  },
+  // Merge banner
+  mergeBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    backgroundColor: "rgba(96, 165, 250, 0.08)",
+    borderWidth: 1,
+    borderColor: "rgba(96, 165, 250, 0.25)",
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 12,
+  },
+  mergeBannerLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  mergeBannerText: {
+    fontSize: 14,
+    fontFamily: "PlusJakartaSans_600SemiBold",
+    color: "#93c5fd",
+  },
+  mergeBannerActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  mergeBannerCancel: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+  },
+  mergeBannerCancelText: {
+    fontSize: 13,
+    fontFamily: "PlusJakartaSans_500Medium",
+    color: "#9ca3af",
+  },
+  mergeBannerBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    backgroundColor: "#60a5fa",
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    borderRadius: 8,
+  },
+  mergeBannerBtnDisabled: {
+    backgroundColor: "#1f2937",
+  },
+  mergeBannerBtnText: {
+    fontSize: 13,
+    fontFamily: "PlusJakartaSans_700Bold",
+    color: "#030712",
+  },
+  mergeBannerBtnTextDisabled: {
+    color: "#6b7280",
+  },
+  // Merge modal
+  mergeBackdrop: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    justifyContent: "flex-end",
+  },
+  mergeSheet: {
+    backgroundColor: "#0a1120",
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    paddingTop: 8,
+    paddingHorizontal: 20,
+    paddingBottom: 40,
+    borderWidth: 1,
+    borderBottomWidth: 0,
+    borderColor: "rgba(255,255,255,0.06)",
+  },
+  mergeHandle: {
+    width: 36,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: "rgba(255,255,255,0.15)",
+    alignSelf: "center",
+    marginBottom: 16,
+  },
+  mergeTitle: {
+    fontSize: 20,
+    fontFamily: "PlusJakartaSans_700Bold",
+    color: "#f0f2f5",
+    marginBottom: 16,
+  },
+  mergePreview: {
+    backgroundColor: "rgba(255,255,255,0.03)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.06)",
+    borderRadius: 12,
+    padding: 14,
+    marginBottom: 20,
+  },
+  mergePreviewRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  mergePreviewText: {
+    fontSize: 14,
+    fontFamily: "PlusJakartaSans_500Medium",
+    color: "#d1d5db",
+    flex: 1,
+  },
+  mergePreviewDots: {
+    flexDirection: "column",
+    alignItems: "center",
+    gap: 3,
+    paddingLeft: 6,
+    paddingVertical: 4,
+  },
+  mergePreviewDot: {
+    width: 3,
+    height: 3,
+    borderRadius: 1.5,
+    backgroundColor: "#4b5563",
+  },
+  mergePreviewStats: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginTop: 10,
+    paddingTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: "rgba(255,255,255,0.06)",
+  },
+  mergePreviewStat: {
+    fontSize: 13,
+    fontFamily: "PlusJakartaSans_600SemiBold",
+    color: "#8494a7",
+  },
+  mergeLabel: {
+    fontSize: 13,
+    fontFamily: "PlusJakartaSans_600SemiBold",
+    color: "#8494a7",
+    marginBottom: 8,
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+  },
+  mergeClassRow: {
+    flexDirection: "row",
+    gap: 10,
+    marginBottom: 16,
+  },
+  mergeClassBtn: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    paddingVertical: 12,
+    borderRadius: 10,
+    backgroundColor: "#111827",
+    borderWidth: 1,
+    borderColor: "#1f2937",
+  },
+  mergeClassBtnBusiness: {
+    backgroundColor: "#f5a623",
+    borderColor: "#f5a623",
+  },
+  mergeClassBtnPersonal: {
+    backgroundColor: "#60a5fa",
+    borderColor: "#60a5fa",
+  },
+  mergeClassBtnText: {
+    fontSize: 15,
+    fontFamily: "PlusJakartaSans_600SemiBold",
+    color: "#9ca3af",
+  },
+  mergeClassBtnTextActive: {
+    color: "#030712",
+  },
+  mergePlatformScroll: {
+    marginBottom: 20,
+  },
+  mergePlatformChip: {
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    borderRadius: 20,
+    backgroundColor: "#111827",
+    borderWidth: 1,
+    borderColor: "#1f2937",
+    marginRight: 8,
+  },
+  mergePlatformChipActive: {
+    backgroundColor: "rgba(245, 166, 35, 0.15)",
+    borderColor: "rgba(245, 166, 35, 0.4)",
+  },
+  mergePlatformText: {
+    fontSize: 13,
+    fontFamily: "PlusJakartaSans_500Medium",
+    color: "#9ca3af",
+  },
+  mergePlatformTextActive: {
+    color: "#f5a623",
+    fontFamily: "PlusJakartaSans_600SemiBold",
+  },
+  mergeConfirmBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    backgroundColor: "#60a5fa",
+    paddingVertical: 14,
+    borderRadius: 12,
+  },
+  mergeConfirmText: {
+    fontSize: 16,
+    fontFamily: "PlusJakartaSans_700Bold",
+    color: "#030712",
   },
 });

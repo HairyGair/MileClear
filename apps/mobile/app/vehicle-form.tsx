@@ -20,6 +20,7 @@ import {
   lookupVehicle,
 } from "../lib/api/vehicles";
 import type { FuelType, VehicleType } from "@mileclear/shared";
+import { Ionicons } from "@expo/vector-icons";
 import { Button } from "../components/Button";
 import { useUser } from "../lib/user/context";
 
@@ -337,21 +338,30 @@ export default function VehicleFormScreen() {
           </>
         )}
 
-        {/* Bluetooth Name (for auto-confirm trips) */}
-        <Text style={styles.label}>Car Bluetooth Name</Text>
-        <TextInput
-          style={styles.input}
-          value={bluetoothName}
-          onChangeText={setBluetoothName}
-          placeholder="e.g. Toyota Prius, My Car"
-          placeholderTextColor="#6b7280"
-          autoCapitalize="words"
-          autoCorrect={false}
-          maxLength={100}
-        />
-        <Text style={styles.btHint}>
-          If set, trips are auto-confirmed when your phone is connected to this Bluetooth device
-        </Text>
+        {/* Bluetooth Auto-Trip */}
+        <View style={styles.btCard}>
+          <View style={styles.btHeader}>
+            <Ionicons name="bluetooth" size={20} color="#3b82f6" />
+            <Text style={styles.btTitle}>Auto-Trip Detection</Text>
+          </View>
+          <Text style={styles.btDescription}>
+            Enter your car's Bluetooth name and MileClear will automatically detect when you're driving — no need to manually start trips.
+          </Text>
+          <Text style={[styles.label, { marginTop: 0 }]}>Bluetooth Device Name</Text>
+          <TextInput
+            style={styles.input}
+            value={bluetoothName}
+            onChangeText={setBluetoothName}
+            placeholder="e.g. Toyota Prius, My Car BT"
+            placeholderTextColor="#6b7280"
+            autoCapitalize="words"
+            autoCorrect={false}
+            maxLength={100}
+          />
+          <Text style={styles.btHint}>
+            Find this in Settings → Bluetooth on your phone. It's the name shown when your car is connected.
+          </Text>
+        </View>
 
         {/* Primary toggle */}
         <TouchableOpacity
@@ -448,6 +458,32 @@ const styles = StyleSheet.create({
     fontFamily: "PlusJakartaSans_400Regular",
     color: "#22c55e",
     marginTop: 6,
+  },
+  btCard: {
+    marginTop: 24,
+    backgroundColor: "rgba(59, 130, 246, 0.06)",
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "rgba(59, 130, 246, 0.15)",
+    padding: 16,
+  },
+  btHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginBottom: 8,
+  },
+  btTitle: {
+    fontSize: 16,
+    fontFamily: "PlusJakartaSans_700Bold",
+    color: "#93c5fd",
+  },
+  btDescription: {
+    fontSize: 13,
+    fontFamily: "PlusJakartaSans_400Regular",
+    color: "#9ca3af",
+    lineHeight: 19,
+    marginBottom: 12,
   },
   btHint: {
     fontSize: 12,

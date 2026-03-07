@@ -703,6 +703,24 @@ export default function ProfileScreen() {
                 />
               </View>
 
+              {/* Work Schedule */}
+              <TouchableOpacity
+                style={[styles.settingItem, styles.itemBorder]}
+                onPress={() => router.push("/work-schedule" as any)}
+                activeOpacity={0.6}
+              >
+                <View style={styles.iconCircle}>
+                  <Ionicons name="time-outline" size={18} color={AMBER} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.itemLabel}>Work Schedule</Text>
+                  <Text style={styles.itemHint}>
+                    Auto-classify trips during work hours
+                  </Text>
+                </View>
+                <Ionicons name="chevron-forward" size={16} color="#4a5568" />
+              </TouchableOpacity>
+
               {/* Weekly Goal */}
               <TouchableOpacity
                 style={styles.settingItem}

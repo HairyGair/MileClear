@@ -597,7 +597,7 @@ export default function PersonalPage() {
           <div className="premium-gate__icon">&#9888;</div>
           <h2 className="premium-gate__title">Unlock More Insights</h2>
           <p className="premium-gate__text">
-            Driving recaps, personal records, all 18 achievements, and detailed analytics are available with MileClear Pro.
+            Driving recaps, personal records, all {ACHIEVEMENT_TYPES.length} achievements, and detailed analytics are available with MileClear Pro.
           </p>
           <a href="/dashboard/settings" className="btn btn--primary">Upgrade to Pro</a>
         </div>

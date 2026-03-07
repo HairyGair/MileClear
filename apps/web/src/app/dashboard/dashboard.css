@@ -630,6 +630,12 @@
   border: 1px solid var(--dash-red-border);
 }
 
+.badge--warning {
+  color: var(--amber-400);
+  background: rgba(245, 166, 35, 0.1);
+  border: 1px solid rgba(245, 166, 35, 0.25);
+}
+
 .badge--primary {
   color: var(--emerald-400);
   background: var(--emerald-glow);
@@ -1313,6 +1319,19 @@
 
 .auth-card__footer a:hover {
   color: var(--amber-300);
+}
+
+.auth-card__inline-link {
+  color: var(--amber-400);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  text-decoration: none;
+  transition: color 0.15s;
+}
+
+.auth-card__inline-link:hover {
+  color: var(--amber-300);
+  text-decoration: underline;
 }
 
 /* ================================================================
