@@ -32,7 +32,11 @@ export function JourneyTimeline({ trips }: JourneyTimelineProps) {
     <View style={styles.container}>
       <View style={styles.header}>
         <Text style={styles.title}>Recent Journeys</Text>
-        <TouchableOpacity onPress={() => router.push("/(tabs)/trips" as any)}>
+        <TouchableOpacity
+          onPress={() => router.push("/(tabs)/trips" as any)}
+          accessibilityRole="button"
+          accessibilityLabel="See all trips"
+        >
           <Text style={styles.seeAll}>See all</Text>
         </TouchableOpacity>
       </View>
@@ -43,6 +47,8 @@ export function JourneyTimeline({ trips }: JourneyTimelineProps) {
           style={styles.card}
           onPress={() => router.push(`/trip-form?id=${trip.id}`)}
           activeOpacity={0.7}
+          accessibilityRole="button"
+          accessibilityLabel={`Trip on ${formatDate(trip.startedAt)}, ${trip.distanceMiles.toFixed(1)} miles${trip.startAddress ? ` from ${trip.startAddress}` : ""}${trip.endAddress ? ` to ${trip.endAddress}` : ""}. Tap to view`}
         >
           <View style={styles.cardHeader}>
             <View style={styles.cardHeaderLeft}>
@@ -183,13 +189,13 @@ const styles = StyleSheet.create({
   address: {
     fontSize: 12,
     fontFamily: "PlusJakartaSans_400Regular",
-    color: "#4a5568",
+    color: "#64748b",
     flexShrink: 1,
   },
   arrow: {
     fontSize: 12,
     fontFamily: "PlusJakartaSans_400Regular",
-    color: "#4a5568",
+    color: "#64748b",
   },
   mapWrap: {
     borderRadius: 10,

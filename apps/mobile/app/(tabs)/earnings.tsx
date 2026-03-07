@@ -130,6 +130,8 @@ export default function EarningsScreen() {
       style={styles.card}
       onPress={() => router.push(`/earning-form?id=${item.id}`)}
       activeOpacity={0.7}
+      accessibilityRole="button"
+      accessibilityLabel={`${PLATFORM_LABELS[item.platform] ?? item.platform} earning, ${formatPence(item.amountPence)}, ${formatDate(item.periodStart)} to ${formatDate(item.periodEnd)}, source: ${SOURCE_LABELS[item.source] ?? item.source}. Tap to edit.`}
     >
       <View style={styles.cardHeader}>
         <Text style={styles.platformText}>
@@ -196,6 +198,9 @@ export default function EarningsScreen() {
                   !platformFilter && styles.filterChipActive,
                 ]}
                 onPress={() => handleFilterChange(undefined)}
+                accessibilityRole="button"
+                accessibilityLabel="All platforms"
+                accessibilityState={{ selected: !platformFilter }}
               >
                 <Text
                   style={[
@@ -214,6 +219,9 @@ export default function EarningsScreen() {
                     platformFilter === p.value && styles.filterChipActive,
                   ]}
                   onPress={() => handleFilterChange(p.value)}
+                  accessibilityRole="button"
+                  accessibilityLabel={p.label}
+                  accessibilityState={{ selected: platformFilter === p.value }}
                 >
                   <Text
                     style={[
@@ -230,9 +238,13 @@ export default function EarningsScreen() {
         }
         ListEmptyComponent={
           !loading ? (
-            <View style={styles.emptyState}>
+            <View
+              style={styles.emptyState}
+              accessibilityRole="text"
+              accessibilityLiveRegion="polite"
+            >
               <View style={styles.emptyIcon}>
-                <Ionicons name="cash-outline" size={40} color="#4a5568" />
+                <Ionicons name="cash-outline" size={40} color="#64748b" accessible={false} />
               </View>
               <Text style={styles.emptyTitle}>No earnings recorded yet</Text>
               <Text style={styles.emptyText}>
@@ -273,7 +285,7 @@ export default function EarningsScreen() {
       />
       {loading && !refreshing && (
         <View style={styles.loadingOverlay}>
-          <ActivityIndicator size="large" color="#f5a623" />
+          <ActivityIndicator size="large" color="#f5a623" accessibilityLabel="Loading earnings" />
         </View>
       )}
     </View>
@@ -290,7 +302,7 @@ const styles = StyleSheet.create({
   },
   // Summary card
   summaryCard: {
-    backgroundColor: "#111827",
+    backgroundColor: "#0a1120",
     borderRadius: 12,
     padding: 16,
     marginBottom: 16,
@@ -317,9 +329,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 20,
-    backgroundColor: "#111827",
+    backgroundColor: "#0a1120",
     borderWidth: 1,
-    borderColor: "#1f2937",
+    borderColor: "rgba(255,255,255,0.06)",
   },
   filterChipActive: {
     backgroundColor: "#f5a623",
@@ -336,12 +348,12 @@ const styles = StyleSheet.create({
   },
   // Earning cards
   card: {
-    backgroundColor: "#111827",
+    backgroundColor: "#0a1120",
     borderRadius: 12,
     padding: 16,
     marginBottom: 10,
     borderWidth: 1,
-    borderColor: "#1f2937",
+    borderColor: "rgba(255,255,255,0.06)",
   },
   cardHeader: {
     flexDirection: "row",
@@ -358,7 +370,7 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontFamily: "PlusJakartaSans_700Bold",
     color: "#d1d5db",
-    backgroundColor: "#1f2937",
+    backgroundColor: "rgba(255,255,255,0.08)",
     paddingHorizontal: 8,
     paddingVertical: 2,
     borderRadius: 4,
@@ -411,9 +423,9 @@ const styles = StyleSheet.create({
     width: 72,
     height: 72,
     borderRadius: 36,
-    backgroundColor: "#111827",
+    backgroundColor: "#0a1120",
     borderWidth: 1,
-    borderColor: "#1f2937",
+    borderColor: "rgba(255,255,255,0.06)",
     justifyContent: "center",
     alignItems: "center",
     marginBottom: 16,

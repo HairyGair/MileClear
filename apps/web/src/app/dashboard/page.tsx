@@ -58,7 +58,7 @@ function generateWebInsights(
     out.push({
       id: "unclassified",
       icon: "!",
-      color: "#ef4444",
+      color: "var(--dash-red)",
       title: `${unclassified} trip${unclassified === 1 ? "" : "s"} need classifying`,
       body: "Business trips are tax deductible. Don't miss out.",
       actionLabel: "Review trips",

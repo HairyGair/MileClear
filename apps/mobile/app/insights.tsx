@@ -121,8 +121,8 @@ export default function InsightsScreen() {
         onRequestClose={() => setShowRecap(false)}
       >
         <View style={styles.modalOverlay}>
-          <View style={styles.modalSheet}>
-            <View style={styles.modalHandle} />
+          <View style={styles.modalSheet} accessibilityViewIsModal={true}>
+            <View style={styles.modalHandle} accessible={false} />
             <Text style={styles.modalTitle}>
               {recapData?.period === "daily" ? "Daily" : recapData?.period === "weekly" ? "Weekly" : "Monthly"} Recap
             </Text>
@@ -164,7 +164,7 @@ export default function InsightsScreen() {
       >
         {/* Recaps */}
         <View style={styles.recapRow}>
-          <TouchableOpacity style={styles.recapBtn} onPress={() => handleRecap("daily")} activeOpacity={0.7}>
+          <TouchableOpacity style={styles.recapBtn} onPress={() => handleRecap("daily")} activeOpacity={0.7} accessibilityRole="button" accessibilityLabel="View today's recap">
             <Ionicons name="today-outline" size={16} color="#f5a623" />
             <Text style={styles.recapBtnLabel}>Today</Text>
           </TouchableOpacity>
@@ -172,16 +172,20 @@ export default function InsightsScreen() {
             style={[styles.recapBtn, !isPremium && styles.recapBtnLocked]}
             onPress={() => isPremium ? handleRecap("weekly") : router.push("/(tabs)/profile" as any)}
             activeOpacity={0.7}
+            accessibilityRole="button"
+            accessibilityLabel={isPremium ? "View this week's recap" : "Weekly recap, Pro feature. Tap to upgrade"}
           >
-            <Ionicons name={isPremium ? "calendar-outline" : "lock-closed"} size={16} color={isPremium ? "#f5a623" : "#4a5568"} />
+            <Ionicons name={isPremium ? "calendar-outline" : "lock-closed"} size={16} color={isPremium ? "#f5a623" : "#64748b"} />
             <Text style={[styles.recapBtnLabel, !isPremium && styles.recapBtnLabelLocked]}>Week</Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={[styles.recapBtn, !isPremium && styles.recapBtnLocked]}
             onPress={() => isPremium ? handleRecap("monthly") : router.push("/(tabs)/profile" as any)}
             activeOpacity={0.7}
+            accessibilityRole="button"
+            accessibilityLabel={isPremium ? "View this month's recap" : "Monthly recap, Pro feature. Tap to upgrade"}
           >
-            <Ionicons name={isPremium ? "calendar-outline" : "lock-closed"} size={16} color={isPremium ? "#f5a623" : "#4a5568"} />
+            <Ionicons name={isPremium ? "calendar-outline" : "lock-closed"} size={16} color={isPremium ? "#f5a623" : "#64748b"} />
             <Text style={[styles.recapBtnLabel, !isPremium && styles.recapBtnLabelLocked]}>Month</Text>
           </TouchableOpacity>
         </View>
@@ -244,6 +248,8 @@ export default function InsightsScreen() {
           }}
           onPress={() => router.push("/analytics")}
           activeOpacity={0.7}
+          accessibilityRole="button"
+          accessibilityLabel="Go to Driving Analytics"
         >
           <View style={{
             width: 40, height: 40, borderRadius: 12,
@@ -260,7 +266,7 @@ export default function InsightsScreen() {
               Routes, costs, earnings patterns, commute timing
             </Text>
           </View>
-          <Ionicons name="chevron-forward" size={18} color="#4a5568" />
+          <Ionicons name="chevron-forward" size={18} color="#64748b" />
         </TouchableOpacity>
 
         {/* Achievements (both modes) */}
@@ -268,7 +274,7 @@ export default function InsightsScreen() {
           <View style={styles.section}>
             <View style={styles.sectionHead}>
               <Text style={styles.sectionTitle}>Achievements</Text>
-              <TouchableOpacity onPress={() => router.push("/achievements")}>
+              <TouchableOpacity onPress={() => router.push("/achievements")} accessibilityRole="button" accessibilityLabel="See all achievements">
                 <Text style={styles.seeAll}>See all</Text>
               </TouchableOpacity>
             </View>
@@ -339,7 +345,7 @@ const styles = StyleSheet.create({
     borderColor: "rgba(255,255,255,0.03)",
   },
   recapBtnLabelLocked: {
-    color: "#4a5568",
+    color: "#64748b",
   },
   // Sections
   section: { marginBottom: 16 },
@@ -359,7 +365,7 @@ const styles = StyleSheet.create({
     borderColor: "rgba(255,255,255,0.05)",
   },
   badgeEmoji: { fontSize: 22, marginBottom: 4 },
-  badgeLabel: { fontSize: 10, fontFamily: "PlusJakartaSans_500Medium", color: "#8494a7", textAlign: "center" },
+  badgeLabel: { fontSize: 11, fontFamily: "PlusJakartaSans_500Medium", color: "#8494a7", textAlign: "center" },
   // Records
   recordGrid: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
   recordCell: {
@@ -375,7 +381,7 @@ const styles = StyleSheet.create({
   recordLabel: { fontSize: 11, fontFamily: "PlusJakartaSans_500Medium", color: "#6b7280" },
   // Modal
   modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "flex-end" },
-  modalSheet: { backgroundColor: "#0f1729", borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 24, paddingBottom: 40 },
+  modalSheet: { backgroundColor: "#0a1120", borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 24, paddingBottom: 40 },
   modalHandle: { width: 36, height: 4, backgroundColor: "rgba(255,255,255,0.15)", borderRadius: 2, alignSelf: "center", marginBottom: 16 },
   modalTitle: { fontSize: 20, fontFamily: "PlusJakartaSans_700Bold", color: "#f0f2f5", textAlign: "center", marginBottom: 8 },
   recapSubtitle: { fontSize: 14, fontFamily: "PlusJakartaSans_500Medium", color: "#8494a7", textAlign: "center", marginBottom: 16 },

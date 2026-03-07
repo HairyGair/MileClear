@@ -81,6 +81,9 @@ function RadiusSlider({
             ]}
             onPress={() => onChange(step)}
             activeOpacity={0.7}
+            accessibilityRole="button"
+            accessibilityLabel={`${step} metres radius`}
+            accessibilityState={{ selected: value === step }}
           >
             <Text
               style={[
@@ -118,10 +121,10 @@ const sliderStyles = StyleSheet.create({
     flex: 1,
     paddingVertical: 7,
     borderRadius: 6,
-    backgroundColor: "#111827",
+    backgroundColor: "rgba(255,255,255,0.08)",
     alignItems: "center",
     borderWidth: 1,
-    borderColor: "#1f2937",
+    borderColor: "rgba(255,255,255,0.06)",
   },
   stepBtnActive: {
     backgroundColor: "#f5a623",
@@ -137,7 +140,7 @@ const sliderStyles = StyleSheet.create({
   },
   track: {
     height: 4,
-    backgroundColor: "#1f2937",
+    backgroundColor: "rgba(255,255,255,0.08)",
     borderRadius: 2,
     position: "relative",
     overflow: "visible",
@@ -336,7 +339,7 @@ export default function SavedLocationFormScreen() {
     return (
       <View style={styles.loadingContainer}>
         <Stack.Screen options={{ title: isEditing ? "Edit Location" : "Add Location" }} />
-        <ActivityIndicator size="large" color="#f5a623" />
+        <ActivityIndicator size="large" color="#f5a623" accessibilityLabel="Loading" />
       </View>
     );
   }
@@ -362,6 +365,7 @@ export default function SavedLocationFormScreen() {
           autoCapitalize="words"
           autoCorrect={false}
           maxLength={60}
+          accessibilityLabel="Location name"
         />
 
         {/* Location Type */}
@@ -380,11 +384,15 @@ export default function SavedLocationFormScreen() {
                 ]}
                 onPress={() => setLocationType(opt.value as LocationType)}
                 activeOpacity={0.7}
+                accessibilityRole="button"
+                accessibilityLabel={`${opt.label} location type`}
+                accessibilityState={{ selected: isActive }}
               >
                 <Ionicons
                   name={iconName}
                   size={18}
                   color={isActive ? "#030712" : "#6b7280"}
+                  accessible={false}
                 />
                 <Text
                   style={[
@@ -405,7 +413,7 @@ export default function SavedLocationFormScreen() {
         {/* Address preview */}
         {hasCoords ? (
           <View style={styles.addressCard}>
-            <Ionicons name="location" size={16} color="#f5a623" />
+            <Ionicons name="location" size={16} color="#f5a623" accessible={false} />
             <View style={{ flex: 1 }}>
               <Text style={styles.addressText} numberOfLines={2}>
                 {address ?? `${latitude!.toFixed(5)}, ${longitude!.toFixed(5)}`}
@@ -417,7 +425,7 @@ export default function SavedLocationFormScreen() {
           </View>
         ) : (
           <View style={styles.noLocationCard}>
-            <Ionicons name="location-outline" size={20} color="#4b5563" />
+            <Ionicons name="location-outline" size={20} color="#4b5563" accessible={false} />
             <Text style={styles.noLocationText}>No location selected</Text>
           </View>
         )}
@@ -428,8 +436,10 @@ export default function SavedLocationFormScreen() {
             style={styles.locationBtn}
             onPress={() => setMapPickerVisible(true)}
             activeOpacity={0.7}
+            accessibilityRole="button"
+            accessibilityLabel="Pick location on map"
           >
-            <Ionicons name="map-outline" size={16} color="#f5a623" />
+            <Ionicons name="map-outline" size={16} color="#f5a623" accessible={false} />
             <Text style={styles.locationBtnText}>Pick on Map</Text>
           </TouchableOpacity>
 
@@ -438,11 +448,14 @@ export default function SavedLocationFormScreen() {
             onPress={handleUseCurrentLocation}
             disabled={loadingLocation}
             activeOpacity={0.7}
+            accessibilityRole="button"
+            accessibilityLabel={loadingLocation ? "Getting current location" : "Use current location"}
+            accessibilityState={{ disabled: loadingLocation }}
           >
             {loadingLocation ? (
-              <ActivityIndicator size="small" color="#f5a623" />
+              <ActivityIndicator size="small" color="#f5a623" accessibilityLabel="Getting location" />
             ) : (
-              <Ionicons name="navigate-outline" size={16} color="#f5a623" />
+              <Ionicons name="navigate-outline" size={16} color="#f5a623" accessible={false} />
             )}
             <Text style={styles.locationBtnText}>
               {loadingLocation ? "Locating..." : "Use Current Location"}
@@ -472,6 +485,9 @@ export default function SavedLocationFormScreen() {
             onValueChange={setGeofenceEnabled}
             trackColor={{ false: "#374151", true: "#f5a623" }}
             thumbColor="#fff"
+            accessibilityLabel="Geofence active"
+            accessibilityHint="Auto-detect trips near this location"
+            accessibilityRole="switch"
           />
         </View>
 
@@ -540,14 +556,14 @@ const styles = StyleSheet.create({
     lineHeight: 17,
   },
   input: {
-    backgroundColor: "#111827",
+    backgroundColor: "#0a1120",
     borderRadius: 10,
     padding: 14,
     fontSize: 16,
     fontFamily: "PlusJakartaSans_400Regular",
     color: "#fff",
     borderWidth: 1,
-    borderColor: "#1f2937",
+    borderColor: "rgba(255,255,255,0.06)",
   },
   // Location type selector
   typeRow: {
@@ -558,10 +574,10 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingVertical: 10,
     borderRadius: 8,
-    backgroundColor: "#111827",
+    backgroundColor: "rgba(255,255,255,0.08)",
     alignItems: "center",
     borderWidth: 1,
-    borderColor: "#1f2937",
+    borderColor: "rgba(255,255,255,0.06)",
     gap: 4,
   },
   typeBtnText: {
@@ -574,7 +590,7 @@ const styles = StyleSheet.create({
   },
   // Address display
   addressCard: {
-    backgroundColor: "#111827",
+    backgroundColor: "#0a1120",
     borderRadius: 10,
     padding: 12,
     flexDirection: "row",
@@ -595,14 +611,14 @@ const styles = StyleSheet.create({
     color: "#6b7280",
   },
   noLocationCard: {
-    backgroundColor: "#111827",
+    backgroundColor: "#0a1120",
     borderRadius: 10,
     padding: 14,
     flexDirection: "row",
     alignItems: "center",
     gap: 10,
     borderWidth: 1,
-    borderColor: "#1f2937",
+    borderColor: "rgba(255,255,255,0.06)",
     borderStyle: "dashed",
   },
   noLocationText: {
@@ -622,12 +638,12 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     gap: 6,
-    backgroundColor: "#111827",
+    backgroundColor: "#0a1120",
     borderRadius: 10,
     paddingVertical: 11,
     paddingHorizontal: 12,
     borderWidth: 1,
-    borderColor: "#1f2937",
+    borderColor: "rgba(255,255,255,0.06)",
   },
   locationBtnText: {
     fontSize: 13,
@@ -639,12 +655,12 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    backgroundColor: "#111827",
+    backgroundColor: "#0a1120",
     borderRadius: 12,
     padding: 16,
     marginTop: 20,
     borderWidth: 1,
-    borderColor: "#1f2937",
+    borderColor: "rgba(255,255,255,0.06)",
   },
   toggleLabel: {
     fontSize: 15,

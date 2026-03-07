@@ -106,7 +106,12 @@ export function DateTimePickerField({
       <View style={styles.container}>
         <View style={styles.labelRow}>
           <Text style={styles.label}>{label}</Text>
-          <TouchableOpacity onPress={handleSetNow} disabled={disabled}>
+          <TouchableOpacity
+            onPress={handleSetNow}
+            disabled={disabled}
+            accessibilityRole="button"
+            accessibilityLabel={`Set ${label} to now`}
+          >
             <Text style={styles.nowBtn}>Now</Text>
           </TouchableOpacity>
         </View>
@@ -122,9 +127,16 @@ export function DateTimePickerField({
             placeholder="DD/MM/YYYY HH:MM"
             placeholderTextColor="#6b7280"
             editable={!disabled}
+            accessibilityLabel={`${label}, format: day month year hour minute`}
           />
           {onClear && value && (
-            <TouchableOpacity onPress={onClear} style={styles.clearBtn} disabled={disabled}>
+            <TouchableOpacity
+              onPress={onClear}
+              style={styles.clearBtn}
+              disabled={disabled}
+              accessibilityRole="button"
+              accessibilityLabel={`Clear ${label}`}
+            >
               <Text style={styles.clearText}>x</Text>
             </TouchableOpacity>
           )}
@@ -139,7 +151,12 @@ export function DateTimePickerField({
       <View style={styles.container}>
         <View style={styles.labelRow}>
           <Text style={styles.label}>{label}</Text>
-          <TouchableOpacity onPress={handleSetNow} disabled={disabled}>
+          <TouchableOpacity
+            onPress={handleSetNow}
+            disabled={disabled}
+            accessibilityRole="button"
+            accessibilityLabel={`Set ${label} to now`}
+          >
             <Text style={styles.nowBtn}>Now</Text>
           </TouchableOpacity>
         </View>
@@ -152,12 +169,20 @@ export function DateTimePickerField({
             }
           }}
           activeOpacity={0.7}
+          accessibilityRole="button"
+          accessibilityLabel={`${label}: ${value ? formatDateTime(value) : "not set"}. Tap to change`}
         >
           <Text style={value ? styles.fieldText : styles.fieldPlaceholder}>
             {value ? formatDateTime(value) : "Tap to set"}
           </Text>
           {onClear && value && (
-            <TouchableOpacity onPress={onClear} hitSlop={8} disabled={disabled}>
+            <TouchableOpacity
+              onPress={onClear}
+              hitSlop={8}
+              disabled={disabled}
+              accessibilityRole="button"
+              accessibilityLabel={`Clear ${label}`}
+            >
               <Text style={styles.clearText}>x</Text>
             </TouchableOpacity>
           )}
@@ -170,10 +195,14 @@ export function DateTimePickerField({
           onRequestClose={() => setShowModal(false)}
         >
           <View style={styles.modalOverlay}>
-            <View style={styles.modalSheet}>
+            <View style={styles.modalSheet} accessibilityViewIsModal>
               <View style={styles.modalHandle} />
               <View style={styles.modalHeader}>
-                <TouchableOpacity onPress={() => setShowModal(false)}>
+                <TouchableOpacity
+                  onPress={() => setShowModal(false)}
+                  accessibilityRole="button"
+                  accessibilityLabel="Cancel"
+                >
                   <Text style={styles.modalCancel}>Cancel</Text>
                 </TouchableOpacity>
                 <Text style={styles.modalTitle}>{label}</Text>
@@ -182,6 +211,8 @@ export function DateTimePickerField({
                     onChange(tempDate);
                     setShowModal(false);
                   }}
+                  accessibilityRole="button"
+                  accessibilityLabel="Confirm date and time"
                 >
                   <Text style={styles.modalDone}>Done</Text>
                 </TouchableOpacity>
@@ -209,7 +240,12 @@ export function DateTimePickerField({
     <View style={styles.container}>
       <View style={styles.labelRow}>
         <Text style={styles.label}>{label}</Text>
-        <TouchableOpacity onPress={handleSetNow} disabled={disabled}>
+        <TouchableOpacity
+          onPress={handleSetNow}
+          disabled={disabled}
+          accessibilityRole="button"
+          accessibilityLabel={`Set ${label} to now`}
+        >
           <Text style={styles.nowBtn}>Now</Text>
         </TouchableOpacity>
       </View>
@@ -223,12 +259,20 @@ export function DateTimePickerField({
           }
         }}
         activeOpacity={0.7}
+        accessibilityRole="button"
+        accessibilityLabel={`${label}: ${value ? formatDateTime(value) : "not set"}. Tap to change`}
       >
         <Text style={value ? styles.fieldText : styles.fieldPlaceholder}>
           {value ? formatDateTime(value) : "Tap to set"}
         </Text>
         {onClear && value && (
-          <TouchableOpacity onPress={onClear} hitSlop={8} disabled={disabled}>
+          <TouchableOpacity
+            onPress={onClear}
+            hitSlop={8}
+            disabled={disabled}
+            accessibilityRole="button"
+            accessibilityLabel={`Clear ${label}`}
+          >
             <Text style={styles.clearText}>x</Text>
           </TouchableOpacity>
         )}
@@ -283,11 +327,11 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    backgroundColor: "#111827",
+    backgroundColor: "#0a1120",
     borderRadius: 10,
     padding: 14,
     borderWidth: 1,
-    borderColor: "#1f2937",
+    borderColor: "rgba(255,255,255,0.06)",
   },
   fieldRow: {
     flexDirection: "row",
@@ -306,14 +350,14 @@ const styles = StyleSheet.create({
   },
   input: {
     flex: 1,
-    backgroundColor: "#111827",
+    backgroundColor: "#0a1120",
     borderRadius: 10,
     padding: 14,
     fontSize: 16,
     fontFamily: "PlusJakartaSans_400Regular",
     color: "#fff",
     borderWidth: 1,
-    borderColor: "#1f2937",
+    borderColor: "rgba(255,255,255,0.06)",
   },
   inputDisabled: {
     opacity: 0.5,
@@ -333,7 +377,7 @@ const styles = StyleSheet.create({
     justifyContent: "flex-end",
   },
   modalSheet: {
-    backgroundColor: "#0c1425",
+    backgroundColor: "#0a1120",
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     paddingHorizontal: 24,

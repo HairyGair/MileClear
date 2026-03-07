@@ -23,7 +23,7 @@ const CARD_BG = "#0a1120";
 const BORDER = "rgba(255,255,255,0.06)";
 const TEXT_1 = "#f0f2f5";
 const TEXT_2 = "#8494a7";
-const TEXT_3 = "#4a5568";
+const TEXT_3 = "#64748b";
 
 export default function RegisterScreen() {
   const { register, loginWithApple, loginWithGoogle } = useAuth();
@@ -105,6 +105,7 @@ export default function RegisterScreen() {
             source={require("../../assets/branding/logo-original.png")}
             style={s.brandIcon}
             resizeMode="contain"
+            accessible={false}
           />
           <View style={s.brandText}>
             <Text style={s.brandName}>Mile</Text>
@@ -117,7 +118,11 @@ export default function RegisterScreen() {
           <Text style={s.title}>Get started</Text>
 
           {error ? (
-            <View style={s.errorWrap}>
+            <View
+              style={s.errorWrap}
+              accessibilityLiveRegion="polite"
+              accessibilityRole="alert"
+            >
               <Text style={s.errorText}>{error}</Text>
             </View>
           ) : null}
@@ -155,6 +160,7 @@ export default function RegisterScreen() {
             autoCapitalize="none"
             autoCorrect={false}
             editable={!loading}
+            accessibilityLabel="Email address"
           />
 
           <Text style={s.label}>Display name</Text>
@@ -168,6 +174,7 @@ export default function RegisterScreen() {
             placeholderTextColor={TEXT_3}
             autoCorrect={false}
             editable={!loading}
+            accessibilityLabel="Display name"
           />
 
           <Text style={s.label}>Password</Text>
@@ -181,6 +188,7 @@ export default function RegisterScreen() {
             placeholderTextColor={TEXT_3}
             secureTextEntry
             editable={!loading}
+            accessibilityLabel="Password"
           />
 
           <Text style={s.label}>Confirm password</Text>
@@ -194,6 +202,7 @@ export default function RegisterScreen() {
             placeholderTextColor={TEXT_3}
             secureTextEntry
             editable={!loading}
+            accessibilityLabel="Confirm password"
           />
 
           {/* Terms notice */}
@@ -202,6 +211,7 @@ export default function RegisterScreen() {
             <Text
               style={s.termsLink}
               onPress={() => Linking.openURL("https://mileclear.com/terms")}
+              accessibilityRole="link"
             >
               Terms of Service
             </Text>
@@ -209,6 +219,7 @@ export default function RegisterScreen() {
             <Text
               style={s.termsLink}
               onPress={() => Linking.openURL("https://mileclear.com/privacy")}
+              accessibilityRole="link"
             >
               Privacy Policy
             </Text>
@@ -219,9 +230,12 @@ export default function RegisterScreen() {
             onPress={handleRegister}
             disabled={loading}
             activeOpacity={0.8}
+            accessibilityRole="button"
+            accessibilityLabel="Create account"
+            accessibilityState={{ disabled: loading }}
           >
             {loading ? (
-              <ActivityIndicator color="#030712" />
+              <ActivityIndicator color="#030712" accessibilityLabel="Loading" />
             ) : (
               <Text style={s.buttonText}>Create account</Text>
             )}
@@ -230,7 +244,10 @@ export default function RegisterScreen() {
           <View style={s.footer}>
             <Text style={s.footerText}>Already have an account? </Text>
             <Link href="/(auth)/login" asChild>
-              <TouchableOpacity>
+              <TouchableOpacity
+                accessibilityRole="link"
+                accessibilityLabel="Sign in"
+              >
                 <Text style={s.link}>Sign in</Text>
               </TouchableOpacity>
             </Link>

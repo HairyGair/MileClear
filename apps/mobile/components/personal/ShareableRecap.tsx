@@ -407,7 +407,7 @@ const s = StyleSheet.create({
     textAlign: "center",
     fontSize: 13,
     fontFamily: "PlusJakartaSans_500Medium",
-    color: "#4a5568",
+    color: "#64748b",
     letterSpacing: 0.2,
   },
   footer: {
@@ -422,7 +422,7 @@ const s = StyleSheet.create({
   footerTagline: {
     fontSize: 10,
     fontFamily: "PlusJakartaSans_400Regular",
-    color: "#4a5568",
+    color: "#64748b",
     letterSpacing: 0.5,
   },
 });

@@ -52,8 +52,8 @@ import { PremiumTeaser } from "../../components/PremiumGate";
 const AMBER = "#f5a623";
 const TEXT_1 = "#f0f2f5";
 const TEXT_2 = "#8494a7";
-const TEXT_3 = "#4a5568";
-const CARD_BG = "#0c1425";
+const TEXT_3 = "#64748b";
+const CARD_BG = "#0a1120";
 const BG = "#030712";
 
 const VEHICLE_TYPE_LABELS: Record<string, string> = {
@@ -473,7 +473,7 @@ export default function ProfileScreen() {
         {/* ── QUICK ACTIONS ── */}
         {profileLayout.isVisible("profile_actions") && (
           <View style={styles.group}>
-            <Text style={styles.groupLabel}>QUICK ACTIONS</Text>
+            <Text style={styles.groupLabel} accessibilityRole="header">QUICK ACTIONS</Text>
             <View style={styles.groupCard}>
               <GroupItem
                 icon="create-outline"
@@ -512,7 +512,7 @@ export default function ProfileScreen() {
         {/* ── MY VEHICLES ── */}
         {profileLayout.isVisible("profile_vehicles") && (
           <View style={styles.group}>
-            <Text style={styles.groupLabel}>MY VEHICLES</Text>
+            <Text style={styles.groupLabel} accessibilityRole="header">MY VEHICLES</Text>
             <View style={styles.groupCard}>
               {vehicles.length === 0 && !loading ? (
                 <View style={styles.emptyVehicles}>
@@ -529,6 +529,8 @@ export default function ProfileScreen() {
                     ]}
                     onPress={() => router.push(`/vehicle-form?id=${v.id}`)}
                     activeOpacity={0.6}
+                    accessibilityRole="button"
+                    accessibilityLabel={`${v.make} ${v.model}${v.isPrimary ? ", primary vehicle" : ""}, ${VEHICLE_TYPE_LABELS[v.vehicleType] ?? v.vehicleType}, ${FUEL_TYPE_LABELS[v.fuelType] ?? v.fuelType}${v.year ? `, ${v.year}` : ""}. Tap to edit.`}
                   >
                     <View style={styles.iconCircle}>
                       <Ionicons name="car-outline" size={18} color={AMBER} />
@@ -550,7 +552,7 @@ export default function ProfileScreen() {
                         {v.year && <Text style={styles.metaText}>{v.year}</Text>}
                       </View>
                     </View>
-                    <Ionicons name="chevron-forward" size={16} color={TEXT_3} />
+                    <Ionicons name="chevron-forward" size={16} color={TEXT_3} accessible={false} />
                   </TouchableOpacity>
                 ))
               )}
@@ -559,6 +561,8 @@ export default function ProfileScreen() {
                 style={[styles.addVehicleRow, vehicles.length > 0 && styles.itemBorder]}
                 onPress={() => router.push("/vehicle-form")}
                 activeOpacity={0.6}
+                accessibilityRole="button"
+                accessibilityLabel="Add vehicle"
               >
                 <View style={[styles.iconCircle, { backgroundColor: "rgba(16, 185, 129, 0.1)" }]}>
                   <Ionicons name="add" size={18} color="#10b981" />
@@ -572,13 +576,16 @@ export default function ProfileScreen() {
         {/* ── SUBSCRIPTION ── */}
         {profileLayout.isVisible("profile_subscription") && (
           <View style={styles.group}>
-            <Text style={styles.groupLabel}>SUBSCRIPTION</Text>
+            <Text style={styles.groupLabel} accessibilityRole="header">SUBSCRIPTION</Text>
             {!user?.isPremium ? (
               <>
                 <TouchableOpacity
                   style={styles.upgradeCard}
                   onPress={handleUpgrade}
                   activeOpacity={0.7}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Upgrade to MileClear Pro, ${iapPrice ?? "£4.99"} per month`}
+                  accessibilityHint="Opens the upgrade checkout"
                 >
                   <View style={styles.upgradeHeader}>
                     <Ionicons name="diamond-outline" size={22} color={AMBER} />
@@ -609,6 +616,9 @@ export default function ProfileScreen() {
                     onPress={handleRestorePurchases}
                     disabled={restoring}
                     activeOpacity={0.7}
+                    accessibilityRole="button"
+                    accessibilityLabel={restoring ? "Restoring purchases" : "Restore previous purchases"}
+                    accessibilityState={{ disabled: restoring, busy: restoring }}
                   >
                     <Text style={styles.restoreButtonText}>
                       {restoring ? "Restoring..." : "Restore Purchases"}
@@ -635,6 +645,8 @@ export default function ProfileScreen() {
                             wb.openBrowserAsync(url)
                           );
                         }}
+                        accessibilityRole="link"
+                        accessibilityLabel="Manage subscription in App Store"
                       >
                         <Text style={[styles.subLink, { color: "#3b82f6" }]}>
                           Manage in App Store
@@ -664,7 +676,11 @@ export default function ProfileScreen() {
                             })
                           : "—"}
                       </Text>
-                      <TouchableOpacity onPress={handleCancelSubscription}>
+                      <TouchableOpacity
+                        onPress={handleCancelSubscription}
+                        accessibilityRole="button"
+                        accessibilityLabel="Cancel subscription"
+                      >
                         <Text style={styles.subLink}>Cancel subscription</Text>
                       </TouchableOpacity>
                     </>
@@ -678,12 +694,12 @@ export default function ProfileScreen() {
         {/* ── SETTINGS ── */}
         {profileLayout.isVisible("profile_settings") && (
           <View style={styles.group}>
-            <Text style={styles.groupLabel}>SETTINGS</Text>
+            <Text style={styles.groupLabel} accessibilityRole="header">SETTINGS</Text>
             <View style={styles.groupCard}>
               {/* Drive Detection */}
               <View style={[styles.settingItem, styles.itemBorder]}>
                 <View style={styles.iconCircle}>
-                  <Ionicons name="navigate-outline" size={18} color={AMBER} />
+                  <Ionicons name="navigate-outline" size={18} color={AMBER} accessible={false} />
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.itemLabel}>Drive Detection</Text>
@@ -700,6 +716,10 @@ export default function ProfileScreen() {
                   trackColor={{ false: "#374151", true: AMBER }}
                   thumbColor="#fff"
                   style={styles.toggle}
+                  accessibilityRole="switch"
+                  accessibilityLabel="Drive Detection"
+                  accessibilityHint="Get notified when driving without a shift"
+                  accessibilityState={{ checked: driveDetection }}
                 />
               </View>
 
@@ -708,6 +728,9 @@ export default function ProfileScreen() {
                 style={[styles.settingItem, styles.itemBorder]}
                 onPress={() => router.push("/work-schedule" as any)}
                 activeOpacity={0.6}
+                accessibilityRole="button"
+                accessibilityLabel="Work Schedule"
+                accessibilityHint="Auto-classify trips during work hours"
               >
                 <View style={styles.iconCircle}>
                   <Ionicons name="time-outline" size={18} color={AMBER} />
@@ -718,7 +741,7 @@ export default function ProfileScreen() {
                     Auto-classify trips during work hours
                   </Text>
                 </View>
-                <Ionicons name="chevron-forward" size={16} color="#4a5568" />
+                <Ionicons name="chevron-forward" size={16} color="#64748b" />
               </TouchableOpacity>
 
               {/* Weekly Goal */}
@@ -726,6 +749,9 @@ export default function ProfileScreen() {
                 style={styles.settingItem}
                 onPress={handleWeeklyGoal}
                 activeOpacity={0.6}
+                accessibilityRole="button"
+                accessibilityLabel={`Weekly Goal, ${weeklyGoal ? `${weeklyGoal} miles per week` : "not set"}`}
+                accessibilityHint={weeklyGoal ? "Tap to edit your weekly miles goal" : "Tap to set a weekly miles goal"}
               >
                 <View style={styles.iconCircle}>
                   <Ionicons name="flag-outline" size={18} color={AMBER} />
@@ -747,7 +773,7 @@ export default function ProfileScreen() {
         {/* ── WORK SETTINGS ── */}
         {profileLayout.isVisible("profile_work_settings") && user && (user.userIntent === "work" || user.userIntent === "both") && (
           <View style={styles.group}>
-            <Text style={styles.groupLabel}>WORK SETTINGS</Text>
+            <Text style={styles.groupLabel} accessibilityRole="header">WORK SETTINGS</Text>
             <View style={styles.groupCard}>
               {/* Work Type */}
               <View style={[styles.settingItem, styles.itemBorder]}>
@@ -776,6 +802,9 @@ export default function ProfileScreen() {
                     ]}
                     onPress={() => handleWorkTypeChange(opt.value)}
                     activeOpacity={0.7}
+                    accessibilityRole="button"
+                    accessibilityLabel={opt.label}
+                    accessibilityState={{ selected: workType === opt.value }}
                   >
                     <Text style={[
                       styles.pillText,
@@ -793,6 +822,9 @@ export default function ProfileScreen() {
                   style={[styles.settingItem, styles.itemBorder]}
                   onPress={handleEmployerRateChange}
                   activeOpacity={0.6}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Employer Mileage Rate, ${employerRate ? `${employerRate} pence per mile` : "not set"}`}
+                  accessibilityHint="Tap to set how much your employer reimburses per mile"
                 >
                   <View style={styles.iconCircle}>
                     <Ionicons name="cash-outline" size={18} color={AMBER} />
@@ -815,7 +847,7 @@ export default function ProfileScreen() {
         {/* ── NOTIFICATIONS ── */}
         {profileLayout.isVisible("profile_notifications") && (
           <View style={styles.group}>
-            <Text style={styles.groupLabel}>NOTIFICATIONS</Text>
+            <Text style={styles.groupLabel} accessibilityRole="header">NOTIFICATIONS</Text>
             <View style={styles.groupCard}>
               {/* Free notifications */}
               <NotifToggle
@@ -897,7 +929,7 @@ export default function ProfileScreen() {
         {/* ── DATA & EXPORTS ── */}
         {profileLayout.isVisible("profile_actions") && (
           <View style={styles.group}>
-            <Text style={styles.groupLabel}>DATA & EXPORTS</Text>
+            <Text style={styles.groupLabel} accessibilityRole="header">DATA & EXPORTS</Text>
             <View style={styles.groupCard}>
               <GroupItem
                 icon="download-outline"
@@ -923,7 +955,7 @@ export default function ProfileScreen() {
 
         {/* ── ACCOUNT ── */}
         <View style={styles.group}>
-          <Text style={styles.groupLabel}>ACCOUNT</Text>
+          <Text style={styles.groupLabel} accessibilityRole="header">ACCOUNT</Text>
           <View style={styles.groupCard}>
             <TouchableOpacity
               style={[styles.accountItem, styles.itemBorder]}
@@ -946,6 +978,9 @@ export default function ProfileScreen() {
                 );
               }}
               activeOpacity={0.6}
+              accessibilityRole="button"
+              accessibilityLabel="Reset Layout"
+              accessibilityHint="Restores the default layout for all screens"
             >
               <View style={styles.iconCircle}>
                 <Ionicons name="refresh-outline" size={18} color={TEXT_2} />
@@ -956,9 +991,11 @@ export default function ProfileScreen() {
               style={[styles.accountItem, styles.itemBorder]}
               onPress={handleLogout}
               activeOpacity={0.6}
+              accessibilityRole="button"
+              accessibilityLabel="Log out"
             >
               <View style={[styles.iconCircle, { backgroundColor: "rgba(239, 68, 68, 0.1)" }]}>
-                <Ionicons name="log-out-outline" size={18} color="#ef4444" />
+                <Ionicons name="log-out-outline" size={18} color="#ef4444" accessible={false} />
               </View>
               <Text style={[styles.itemLabel, { color: "#ef4444" }]}>Log out</Text>
             </TouchableOpacity>
@@ -967,6 +1004,10 @@ export default function ProfileScreen() {
               onPress={handleDeleteAccount}
               disabled={deletingAccount}
               activeOpacity={0.6}
+              accessibilityRole="button"
+              accessibilityLabel={deletingAccount ? "Deleting account" : "Delete Account"}
+              accessibilityHint="Permanently deletes your account. This cannot be undone."
+              accessibilityState={{ disabled: deletingAccount, busy: deletingAccount }}
             >
               <View style={[styles.iconCircle, { backgroundColor: "rgba(239, 68, 68, 0.1)" }]}>
                 <Ionicons name="trash-outline" size={18} color="#ef4444" />
@@ -989,14 +1030,15 @@ export default function ProfileScreen() {
         onRequestClose={() => setShowDeleteModal(false)}
       >
         <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Delete Account</Text>
+          <View style={styles.modalContent} accessibilityViewIsModal={true}>
+            <Text style={styles.modalTitle} accessibilityRole="header">Delete Account</Text>
             <Text style={styles.modalMessage}>
               This is permanent and cannot be undone. Enter your password to confirm.
             </Text>
             <TextInput
               style={styles.modalInput}
               value={deletePassword}
+              accessibilityLabel="Password"
               onChangeText={setDeletePassword}
               placeholder="Password"
               placeholderTextColor="#6b7280"
@@ -1007,6 +1049,8 @@ export default function ProfileScreen() {
               <TouchableOpacity
                 style={styles.modalCancel}
                 onPress={() => setShowDeleteModal(false)}
+                accessibilityRole="button"
+                accessibilityLabel="Cancel"
               >
                 <Text style={styles.modalCancelText}>Cancel</Text>
               </TouchableOpacity>
@@ -1014,6 +1058,9 @@ export default function ProfileScreen() {
                 style={[styles.modalDelete, !deletePassword && styles.buttonDisabled]}
                 onPress={confirmDeleteAndroid}
                 disabled={!deletePassword || deletingAccount}
+                accessibilityRole="button"
+                accessibilityLabel={deletingAccount ? "Deleting account" : "Confirm delete account"}
+                accessibilityState={{ disabled: !deletePassword || deletingAccount, busy: deletingAccount }}
               >
                 <Text style={styles.modalDeleteText}>
                   {deletingAccount ? "Deleting..." : "Delete"}
@@ -1047,17 +1094,19 @@ function GroupItem({
       style={[styles.groupItem, border && styles.itemBorder]}
       onPress={onPress}
       activeOpacity={0.6}
+      accessibilityRole="button"
+      accessibilityLabel={badge ? `${label}, ${badge}` : label}
     >
       <View style={styles.iconCircle}>
-        <Ionicons name={icon as any} size={18} color={AMBER} />
+        <Ionicons name={icon as any} size={18} color={AMBER} accessible={false} />
       </View>
       <Text style={[styles.itemLabel, { flex: 1 }]}>{label}</Text>
       {badge && (
-        <View style={styles.badgeChip}>
+        <View style={styles.badgeChip} accessible={false}>
           <Text style={styles.badgeChipText}>{badge}</Text>
         </View>
       )}
-      <Ionicons name="chevron-forward" size={16} color={TEXT_3} />
+      <Ionicons name="chevron-forward" size={16} color={TEXT_3} accessible={false} />
     </TouchableOpacity>
   );
 }
@@ -1080,7 +1129,7 @@ function NotifToggle({
   return (
     <View style={[styles.settingItem, border && styles.itemBorder]}>
       <View style={styles.iconCircle}>
-        <Ionicons name={icon as any} size={18} color={AMBER} />
+        <Ionicons name={icon as any} size={18} color={AMBER} accessible={false} />
       </View>
       <View style={{ flex: 1 }}>
         <Text style={styles.itemLabel}>{label}</Text>
@@ -1092,6 +1141,10 @@ function NotifToggle({
         trackColor={{ false: "#374151", true: AMBER }}
         thumbColor="#fff"
         style={styles.toggle}
+        accessibilityRole="switch"
+        accessibilityLabel={label}
+        accessibilityHint={hint}
+        accessibilityState={{ checked: value }}
       />
     </View>
   );
@@ -1214,7 +1267,7 @@ const styles = StyleSheet.create({
     borderRadius: 4,
   },
   badgeChipText: {
-    fontSize: 9,
+    fontSize: 11,
     fontFamily: "PlusJakartaSans_700Bold",
     color: "#030712",
     letterSpacing: 0.3,
@@ -1240,7 +1293,7 @@ const styles = StyleSheet.create({
     borderRadius: 3,
   },
   primaryBadgeText: {
-    fontSize: 9,
+    fontSize: 11,
     fontFamily: "PlusJakartaSans_700Bold",
     color: "#030712",
   },
@@ -1422,7 +1475,7 @@ const styles = StyleSheet.create({
     borderColor: "rgba(16, 185, 129, 0.3)",
   },
   activeBadgeText: {
-    fontSize: 9,
+    fontSize: 11,
     fontFamily: "PlusJakartaSans_700Bold",
     color: "#10b981",
     letterSpacing: 0.3,
@@ -1460,7 +1513,7 @@ const styles = StyleSheet.create({
     padding: 24,
   },
   modalContent: {
-    backgroundColor: "#1f2937",
+    backgroundColor: "rgba(255,255,255,0.08)",
     borderRadius: 14,
     padding: 20,
   },

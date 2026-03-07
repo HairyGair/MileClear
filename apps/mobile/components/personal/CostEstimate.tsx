@@ -125,7 +125,7 @@ const styles = StyleSheet.create({
   subtitle: {
     fontSize: 12,
     fontFamily: "PlusJakartaSans_400Regular",
-    color: "#4a5568",
+    color: "#64748b",
     marginTop: 1,
   },
   cost: {
@@ -153,7 +153,7 @@ const styles = StyleSheet.create({
   breakdownLabel: {
     fontSize: 10,
     fontFamily: "PlusJakartaSans_400Regular",
-    color: "#4a5568",
+    color: "#64748b",
     marginTop: 2,
   },
   breakdownDot: {

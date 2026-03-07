@@ -83,6 +83,8 @@ export default function AdminUsersScreen() {
         style={s.userCard}
         onPress={() => router.push(`/admin-user-detail?userId=${item.id}`)}
         activeOpacity={0.7}
+        accessibilityRole="button"
+        accessibilityLabel={`User: ${item.displayName || item.email}${item.isPremium ? ", Pro" : ""}${item.isAdmin ? ", Admin" : ""}`}
       >
         <View style={s.userTop}>
           <View style={{ flex: 1 }}>
@@ -124,9 +126,10 @@ export default function AdminUsersScreen() {
           onChangeText={setQuery}
           autoCapitalize="none"
           autoCorrect={false}
+          accessibilityLabel="Search users by email or name"
         />
         {query.length > 0 && (
-          <TouchableOpacity onPress={() => setQuery("")} hitSlop={8}>
+          <TouchableOpacity onPress={() => setQuery("")} hitSlop={8} accessibilityRole="button" accessibilityLabel="Clear search">
             <Ionicons name="close-circle" size={18} color={TEXT_3} />
           </TouchableOpacity>
         )}
@@ -134,7 +137,7 @@ export default function AdminUsersScreen() {
 
       {loading ? (
         <View style={s.centered}>
-          <ActivityIndicator size="large" color={AMBER} />
+          <ActivityIndicator size="large" color={AMBER} accessibilityLabel="Loading users" />
         </View>
       ) : (
         <FlatList
@@ -166,7 +169,7 @@ export default function AdminUsersScreen() {
 const AMBER = "#f5a623";
 const TEXT_1 = "#f0f2f5";
 const TEXT_2 = "#8494a7";
-const TEXT_3 = "#4a5568";
+const TEXT_3 = "#64748b";
 const CARD_BG = "#0a1120";
 const CARD_BORDER = "rgba(255,255,255,0.05)";
 
@@ -230,7 +233,7 @@ const s = StyleSheet.create({
     borderRadius: 3,
   },
   proBadgeText: {
-    fontSize: 9,
+    fontSize: 11,
     fontFamily: "PlusJakartaSans_700Bold",
     color: "#030712",
     letterSpacing: 0.3,
@@ -242,7 +245,7 @@ const s = StyleSheet.create({
     borderRadius: 3,
   },
   adminBadgeText: {
-    fontSize: 9,
+    fontSize: 11,
     fontFamily: "PlusJakartaSans_700Bold",
     color: "#fff",
     letterSpacing: 0.3,

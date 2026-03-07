@@ -275,7 +275,7 @@ export default function FuelFormScreen() {
 
   // Price colour: green if cheap, amber if mid, red if expensive
   const priceColour = (pence: number): string => {
-    if (pence < 130) return "#22c55e";
+    if (pence < 130) return "#10b981";
     if (pence < 145) return "#f5a623";
     return "#ef4444";
   };
@@ -283,7 +283,7 @@ export default function FuelFormScreen() {
   if (loadingExisting) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#f5a623" />
+        <ActivityIndicator size="large" color="#f5a623" accessibilityLabel="Loading" />
       </View>
     );
   }
@@ -305,12 +305,13 @@ export default function FuelFormScreen() {
           onChangeText={handleStationNameChange}
           placeholder="Station name (optional)"
           placeholderTextColor="#6b7280"
+          accessibilityLabel="Station name"
         />
 
         {/* Nearby station picker */}
         {loadingStations && (
           <View style={styles.stationsLoading}>
-            <ActivityIndicator size="small" color="#f5a623" />
+            <ActivityIndicator size="small" color="#f5a623" accessibilityLabel="Finding nearby stations" />
             <Text style={styles.stationsLoadingText}>Finding nearby stations...</Text>
           </View>
         )}
@@ -329,6 +330,9 @@ export default function FuelFormScreen() {
                   style={[styles.stationCard, isSelected && styles.stationCardSelected]}
                   onPress={() => handleSelectStation(station)}
                   activeOpacity={0.7}
+                  accessibilityRole="button"
+                  accessibilityLabel={`${station.brand}, ${station.address}, ${price != null ? `${price.toFixed(1)} pence per litre, ` : ""}${station.distanceMiles.toFixed(1)} miles away`}
+                  accessibilityState={{ selected: isSelected }}
                 >
                   <Text style={styles.stationBrand} numberOfLines={1}>
                     {station.brand}
@@ -369,6 +373,9 @@ export default function FuelFormScreen() {
                   setStationName(brand);
                   setSelectedStation(null);
                 }}
+                accessibilityRole="button"
+                accessibilityLabel={`${brand} fuel brand`}
+                accessibilityState={{ selected: stationName === brand }}
               >
                 <Text
                   style={[
@@ -385,7 +392,16 @@ export default function FuelFormScreen() {
 
         {/* Vehicle */}
         <Text style={styles.label}>Vehicle</Text>
-        <TouchableOpacity style={styles.input} onPress={showVehiclePicker}>
+        <TouchableOpacity
+          style={styles.input}
+          onPress={showVehiclePicker}
+          accessibilityRole="button"
+          accessibilityLabel={
+            selectedVehicle
+              ? `Selected vehicle: ${selectedVehicle.make} ${selectedVehicle.model}. Tap to change`
+              : "Select vehicle, optional"
+          }
+        >
           <Text style={selectedVehicle ? styles.inputValue : styles.inputPlaceholder}>
             {selectedVehicle
               ? `${selectedVehicle.make} ${selectedVehicle.model}`
@@ -407,6 +423,7 @@ export default function FuelFormScreen() {
           placeholder="0.0"
           placeholderTextColor="#6b7280"
           keyboardType="decimal-pad"
+          accessibilityLabel="Litres of fuel"
         />
 
         {/* Cost */}
@@ -414,7 +431,7 @@ export default function FuelFormScreen() {
           Cost *{selectedStation && lastEditedRef.current === "litres" ? "  (estimated)" : ""}
         </Text>
         <View style={styles.amountRow}>
-          <Text style={styles.currencyPrefix}>£</Text>
+          <Text style={styles.currencyPrefix} accessible={false}>£</Text>
           <TextInput
             style={[styles.input, styles.amountInput]}
             value={cost}
@@ -422,6 +439,7 @@ export default function FuelFormScreen() {
             placeholder="0.00"
             placeholderTextColor="#6b7280"
             keyboardType="decimal-pad"
+            accessibilityLabel="Total cost in pounds"
           />
         </View>
 
@@ -434,6 +452,7 @@ export default function FuelFormScreen() {
           placeholder="Miles (optional)"
           placeholderTextColor="#6b7280"
           keyboardType="decimal-pad"
+          accessibilityLabel="Odometer reading in miles, optional"
         />
 
         {/* Date */}
@@ -494,14 +513,14 @@ const styles = StyleSheet.create({
     marginTop: 16,
   },
   input: {
-    backgroundColor: "#111827",
+    backgroundColor: "#0a1120",
     borderRadius: 10,
     padding: 14,
     fontSize: 16,
     fontFamily: "PlusJakartaSans_400Regular",
     color: "#fff",
     borderWidth: 1,
-    borderColor: "#1f2937",
+    borderColor: "rgba(255,255,255,0.06)",
   },
   inputValue: {
     fontSize: 16,
@@ -522,9 +541,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 8,
     borderRadius: 20,
-    backgroundColor: "#111827",
+    backgroundColor: "rgba(255,255,255,0.08)",
     borderWidth: 1,
-    borderColor: "#1f2937",
+    borderColor: "rgba(255,255,255,0.06)",
   },
   chipActive: {
     backgroundColor: "#f5a623",
@@ -557,11 +576,11 @@ const styles = StyleSheet.create({
   },
   stationCard: {
     width: 160,
-    backgroundColor: "#111827",
+    backgroundColor: "#0a1120",
     borderRadius: 12,
     padding: 12,
     borderWidth: 1.5,
-    borderColor: "#1f2937",
+    borderColor: "rgba(255,255,255,0.06)",
   },
   stationCardSelected: {
     borderColor: "#f5a623",

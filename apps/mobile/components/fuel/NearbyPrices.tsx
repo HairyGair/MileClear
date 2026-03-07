@@ -87,6 +87,8 @@ function StationCard({
             openDirections(station.latitude, station.longitude, station.brand)
           }
           activeOpacity={0.7}
+          accessibilityRole="button"
+          accessibilityLabel={`Get directions to ${station.brand}, ${station.address || station.postcode}, ${formatDistance(station.distanceMiles)} away`}
         >
           <Text style={styles.directionsPillText}>Directions</Text>
         </TouchableOpacity>
@@ -186,7 +188,12 @@ export default function NearbyPrices() {
         <Text style={styles.sectionTitle}>Nearby Fuel Prices</Text>
         <View style={styles.messageBox}>
           <Text style={styles.messageText}>{error}</Text>
-          <TouchableOpacity onPress={load} style={styles.retryButton}>
+          <TouchableOpacity
+            onPress={load}
+            style={styles.retryButton}
+            accessibilityRole="button"
+            accessibilityLabel="Retry loading nearby fuel prices"
+          >
             <Text style={styles.retryText}>Retry</Text>
           </TouchableOpacity>
         </View>
@@ -202,6 +209,9 @@ export default function NearbyPrices() {
           <TouchableOpacity
             style={[styles.toggleBtn, viewMode === "list" && styles.toggleBtnActive]}
             onPress={() => setViewMode("list")}
+            accessibilityRole="tab"
+            accessibilityLabel="List view"
+            accessibilityState={{ selected: viewMode === "list" }}
           >
             <Text
               style={[styles.toggleText, viewMode === "list" && styles.toggleTextActive]}
@@ -212,6 +222,9 @@ export default function NearbyPrices() {
           <TouchableOpacity
             style={[styles.toggleBtn, viewMode === "map" && styles.toggleBtnActive]}
             onPress={() => setViewMode("map")}
+            accessibilityRole="tab"
+            accessibilityLabel="Map view"
+            accessibilityState={{ selected: viewMode === "map" }}
           >
             <Text
               style={[styles.toggleText, viewMode === "map" && styles.toggleTextActive]}
@@ -253,8 +266,10 @@ export default function NearbyPrices() {
             style={styles.expandBtn}
             onPress={() => setMapModalVisible(true)}
             activeOpacity={0.8}
+            accessibilityRole="button"
+            accessibilityLabel="Expand map to full screen"
           >
-            <Text style={styles.expandBtnText}>⛶</Text>
+            <Text style={styles.expandBtnText} accessible={false}>⛶</Text>
           </TouchableOpacity>
         </View>
       )}
@@ -370,7 +385,7 @@ const styles = StyleSheet.create({
   // Toggle
   toggle: {
     flexDirection: "row",
-    backgroundColor: "#111827",
+    backgroundColor: "rgba(255,255,255,0.08)",
     borderRadius: 8,
     padding: 2,
   },
@@ -392,7 +407,7 @@ const styles = StyleSheet.create({
   },
   // National average banner
   avgBanner: {
-    backgroundColor: "#111827",
+    backgroundColor: "#0a1120",
     borderRadius: 10,
     padding: 12,
     marginBottom: 10,
@@ -424,7 +439,7 @@ const styles = StyleSheet.create({
   },
   // Station cards
   stationCard: {
-    backgroundColor: "#111827",
+    backgroundColor: "#0a1120",
     borderRadius: 10,
     padding: 12,
     marginBottom: 8,
@@ -493,12 +508,12 @@ const styles = StyleSheet.create({
   skeletonCard: {
     flex: 1,
     height: 70,
-    backgroundColor: "#111827",
+    backgroundColor: "#0a1120",
     borderRadius: 10,
   },
   // Message / empty state
   messageBox: {
-    backgroundColor: "#111827",
+    backgroundColor: "#0a1120",
     borderRadius: 10,
     padding: 16,
     alignItems: "center",
@@ -513,7 +528,7 @@ const styles = StyleSheet.create({
     marginTop: 10,
     paddingHorizontal: 16,
     paddingVertical: 8,
-    backgroundColor: "#1f2937",
+    backgroundColor: "rgba(255,255,255,0.08)",
     borderRadius: 8,
   },
   retryText: {

@@ -390,7 +390,7 @@ const styles = StyleSheet.create({
   fallbackClose: {
     paddingVertical: 12,
     paddingHorizontal: 24,
-    backgroundColor: "#1f2937",
+    backgroundColor: "rgba(255,255,255,0.08)",
     borderRadius: 10,
   },
   fallbackCloseText: {

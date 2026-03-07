@@ -52,7 +52,13 @@ function LocationCard({
   const typeColor = LOCATION_TYPE_COLORS[item.locationType];
 
   return (
-    <TouchableOpacity style={styles.card} onPress={onPress} activeOpacity={0.7}>
+    <TouchableOpacity
+      style={styles.card}
+      onPress={onPress}
+      activeOpacity={0.7}
+      accessibilityRole="button"
+      accessibilityLabel={`${item.name}, ${typeLabel}, ${item.radiusMeters}m radius. Tap to edit`}
+    >
       <View style={[styles.cardIconWrap, { backgroundColor: `${typeColor}1a` }]}>
         <Ionicons name={iconName} size={22} color={typeColor} />
       </View>
@@ -80,6 +86,8 @@ function LocationCard({
           onPress={onDelete}
           hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
           style={styles.deleteBtn}
+          accessibilityRole="button"
+          accessibilityLabel={`Delete ${item.name}`}
         >
           <Ionicons name="trash-outline" size={18} color="#6b7280" />
         </TouchableOpacity>
@@ -179,7 +187,7 @@ export default function SavedLocationsScreen() {
           !loading ? (
             <View style={styles.emptyState}>
               <View style={styles.emptyIcon}>
-                <Ionicons name="location-outline" size={40} color="#4a5568" />
+                <Ionicons name="location-outline" size={40} color="#64748b" />
               </View>
               <Text style={styles.emptyTitle}>No saved locations</Text>
               <Text style={styles.emptyText}>
@@ -195,6 +203,8 @@ export default function SavedLocationsScreen() {
                 style={styles.lockedAddBtn}
                 onPress={() => router.push("/saved-location-form")}
                 activeOpacity={0.7}
+                accessibilityRole="button"
+                accessibilityLabel="Add location — upgrade to Pro for unlimited saved locations"
               >
                 <View style={styles.lockedAddBtnRow}>
                   <Ionicons name="lock-closed" size={18} color="#9ca3af" />
@@ -225,14 +235,14 @@ const styles = StyleSheet.create({
   },
   // Card
   card: {
-    backgroundColor: "#111827",
+    backgroundColor: "#0a1120",
     borderRadius: 12,
     padding: 14,
     marginBottom: 10,
     flexDirection: "row",
     alignItems: "center",
     borderWidth: 1,
-    borderColor: "#1f2937",
+    borderColor: "rgba(255,255,255,0.06)",
     gap: 12,
   },
   cardIconWrap: {
@@ -281,7 +291,8 @@ const styles = StyleSheet.create({
     borderRadius: 4,
   },
   deleteBtn: {
-    padding: 2,
+    padding: 10,
+    margin: -8,
   },
   // Empty state
   emptyState: {
@@ -293,9 +304,9 @@ const styles = StyleSheet.create({
     width: 72,
     height: 72,
     borderRadius: 36,
-    backgroundColor: "#111827",
+    backgroundColor: "#0a1120",
     borderWidth: 1,
-    borderColor: "#1f2937",
+    borderColor: "rgba(255,255,255,0.06)",
     justifyContent: "center",
     alignItems: "center",
     marginBottom: 16,
@@ -320,12 +331,12 @@ const styles = StyleSheet.create({
   },
   // Locked add button
   lockedAddBtn: {
-    backgroundColor: "#111827",
+    backgroundColor: "#0a1120",
     borderRadius: 12,
     padding: 16,
     alignItems: "center",
     borderWidth: 1,
-    borderColor: "#1f2937",
+    borderColor: "rgba(255,255,255,0.06)",
     gap: 6,
   },
   lockedAddBtnRow: {

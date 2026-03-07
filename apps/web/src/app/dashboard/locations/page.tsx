@@ -426,7 +426,7 @@ export default function LocationsPage() {
                 type="checkbox"
                 checked={form.geofenceEnabled}
                 onChange={(e) => setForm((f) => ({ ...f, geofenceEnabled: e.target.checked }))}
-                style={{ width: 18, height: 18, accentColor: "var(--amber)" }}
+                style={{ width: 18, height: 18, accentColor: "var(--amber-400)" }}
               />
               <span style={{ fontSize: "0.875rem", color: "var(--text-primary)" }}>
                 {form.geofenceEnabled ? "On" : "Off"}

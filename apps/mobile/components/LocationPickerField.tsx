@@ -79,8 +79,13 @@ export function LocationPickerField({
       <View style={styles.headerRow}>
         <Text style={styles.label}>{label}</Text>
         {onClear && hasValue && !disabled && (
-          <TouchableOpacity onPress={onClear} hitSlop={8}>
-            <Ionicons name="close-circle" size={18} color="#6b7280" />
+          <TouchableOpacity
+            onPress={onClear}
+            hitSlop={8}
+            accessibilityRole="button"
+            accessibilityLabel={`Clear ${label}`}
+          >
+            <Ionicons name="close-circle" size={18} color="#6b7280" accessible={false} />
           </TouchableOpacity>
         )}
       </View>
@@ -88,7 +93,7 @@ export function LocationPickerField({
       {/* Address display */}
       <View style={styles.addressBox}>
         {loading ? (
-          <ActivityIndicator size="small" color="#f5a623" />
+          <ActivityIndicator size="small" color="#f5a623" accessibilityLabel="Loading location" />
         ) : hasValue ? (
           <>
             <Text style={styles.addressText} numberOfLines={2}>
@@ -111,8 +116,10 @@ export function LocationPickerField({
             onPress={handleCurrentLocation}
             disabled={loading}
             activeOpacity={0.7}
+            accessibilityRole="button"
+            accessibilityLabel={`Use current location for ${label}`}
           >
-            <Ionicons name="locate-outline" size={16} color="#f5a623" />
+            <Ionicons name="locate-outline" size={16} color="#f5a623" accessible={false} />
             <Text style={styles.actionLabel}>Current</Text>
           </TouchableOpacity>
 
@@ -121,8 +128,10 @@ export function LocationPickerField({
             onPress={() => setShowMap(true)}
             disabled={loading}
             activeOpacity={0.7}
+            accessibilityRole="button"
+            accessibilityLabel={`Pick ${label} on map`}
           >
-            <Ionicons name="map-outline" size={16} color="#f5a623" />
+            <Ionicons name="map-outline" size={16} color="#f5a623" accessible={false} />
             <Text style={styles.actionLabel}>Map</Text>
           </TouchableOpacity>
 
@@ -131,8 +140,11 @@ export function LocationPickerField({
             onPress={() => setShowSearch(!showSearch)}
             disabled={loading}
             activeOpacity={0.7}
+            accessibilityRole="button"
+            accessibilityLabel={showSearch ? `Hide address search for ${label}` : `Search address for ${label}`}
+            accessibilityState={{ expanded: showSearch }}
           >
-            <Ionicons name="search-outline" size={16} color={showSearch ? "#f5a623" : "#f5a623"} />
+            <Ionicons name="search-outline" size={16} color={showSearch ? "#f5a623" : "#f5a623"} accessible={false} />
             <Text style={[styles.actionLabel, showSearch && styles.actionLabelActive]}>Search</Text>
           </TouchableOpacity>
         </View>
@@ -150,11 +162,14 @@ export function LocationPickerField({
             returnKeyType="search"
             onSubmitEditing={handleSearch}
             autoFocus
+            accessibilityLabel={`Search address for ${label}`}
           />
           <TouchableOpacity
             style={styles.searchBtn}
             onPress={handleSearch}
             disabled={loading || !searchText.trim()}
+            accessibilityRole="button"
+            accessibilityLabel="Search"
           >
             <Text style={styles.searchBtnText}>Go</Text>
           </TouchableOpacity>
@@ -193,11 +208,11 @@ const styles = StyleSheet.create({
   },
   // Address display
   addressBox: {
-    backgroundColor: "#111827",
+    backgroundColor: "#0a1120",
     borderRadius: 10,
     padding: 14,
     borderWidth: 1,
-    borderColor: "#1f2937",
+    borderColor: "rgba(255,255,255,0.06)",
     minHeight: 52,
     justifyContent: "center",
   },
@@ -255,14 +270,14 @@ const styles = StyleSheet.create({
   },
   searchInput: {
     flex: 1,
-    backgroundColor: "#111827",
+    backgroundColor: "#0a1120",
     borderRadius: 10,
     padding: 12,
     fontSize: 14,
     fontFamily: "PlusJakartaSans_400Regular",
     color: "#fff",
     borderWidth: 1,
-    borderColor: "#1f2937",
+    borderColor: "rgba(255,255,255,0.06)",
   },
   searchBtn: {
     backgroundColor: "#f5a623",

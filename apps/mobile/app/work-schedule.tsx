@@ -35,7 +35,7 @@ const CARD_BORDER = "rgba(255,255,255,0.05)";
 const AMBER = "#f5a623";
 const TEXT_1 = "#f0f2f5";
 const TEXT_2 = "#8494a7";
-const TEXT_3 = "#4a5568";
+const TEXT_3 = "#64748b";
 const GREEN = "#10b981";
 
 // Days ordered Mon–Sun for UK users
@@ -241,6 +241,9 @@ export default function WorkScheduleScreen() {
                 style={[s.dayChip, active && s.dayChipActive]}
                 onPress={() => toggleDay(day)}
                 activeOpacity={0.7}
+                accessibilityRole="button"
+                accessibilityLabel={`${dayName(day)}: ${active ? "work day, tap to remove" : "not a work day, tap to add"}`}
+                accessibilityState={{ selected: active }}
               >
                 <Text style={[s.dayChipText, active && s.dayChipTextActive]}>
                   {dayNameShort(day)}
@@ -266,6 +269,7 @@ export default function WorkScheduleScreen() {
                       onValueChange={() => toggleSlotEnabled(day)}
                       trackColor={{ false: "#374151", true: "rgba(245, 166, 35, 0.4)" }}
                       thumbColor={slot.enabled ? AMBER : "#9ca3af"}
+                      accessibilityLabel={`${dayName(day)} schedule ${slot.enabled ? "enabled" : "disabled"}`}
                     />
                   </View>
 
@@ -275,6 +279,9 @@ export default function WorkScheduleScreen() {
                       onPress={() => openTimePicker(day, "start")}
                       activeOpacity={0.7}
                       disabled={!slot.enabled}
+                      accessibilityRole="button"
+                      accessibilityLabel={`${dayName(day)} start time: ${formatTimeDisplay(slot.startTime)}. Tap to change`}
+                      accessibilityState={{ disabled: !slot.enabled }}
                     >
                       <Ionicons name="time-outline" size={14} color={slot.enabled ? AMBER : TEXT_3} />
                       <Text style={[s.timeText, !slot.enabled && s.timeTextDisabled]}>
@@ -289,6 +296,9 @@ export default function WorkScheduleScreen() {
                       onPress={() => openTimePicker(day, "end")}
                       activeOpacity={0.7}
                       disabled={!slot.enabled}
+                      accessibilityRole="button"
+                      accessibilityLabel={`${dayName(day)} end time: ${formatTimeDisplay(slot.endTime)}. Tap to change`}
+                      accessibilityState={{ disabled: !slot.enabled }}
                     >
                       <Ionicons name="time-outline" size={14} color={slot.enabled ? AMBER : TEXT_3} />
                       <Text style={[s.timeText, !slot.enabled && s.timeTextDisabled]}>
@@ -320,7 +330,7 @@ export default function WorkScheduleScreen() {
                   <Text style={s.pickerLabel}>
                     {dayName(editingDay)} — {editingField === "start" ? "Start" : "End"} time
                   </Text>
-                  <TouchableOpacity onPress={dismissPicker}>
+                  <TouchableOpacity onPress={dismissPicker} accessibilityRole="button" accessibilityLabel="Done, close time picker">
                     <Text style={s.pickerDone}>Done</Text>
                   </TouchableOpacity>
                 </View>
@@ -364,6 +374,7 @@ export default function WorkScheduleScreen() {
                   onValueChange={(v) => handleSettingToggle("schedule_auto_classify", v)}
                   trackColor={{ false: "#374151", true: "rgba(245, 166, 35, 0.4)" }}
                   thumbColor={autoClassify ? AMBER : "#9ca3af"}
+                  accessibilityLabel="Auto-classify trips during work hours as business"
                 />
               </View>
 
@@ -381,6 +392,7 @@ export default function WorkScheduleScreen() {
                   onValueChange={(v) => handleSettingToggle("schedule_auto_mode", v)}
                   trackColor={{ false: "#374151", true: "rgba(245, 166, 35, 0.4)" }}
                   thumbColor={autoMode ? AMBER : "#9ca3af"}
+                  accessibilityLabel="Auto-switch dashboard to Work mode during scheduled hours"
                 />
               </View>
 
@@ -398,6 +410,7 @@ export default function WorkScheduleScreen() {
                   onValueChange={(v) => handleSettingToggle("schedule_reminder", v)}
                   trackColor={{ false: "#374151", true: "rgba(245, 166, 35, 0.4)" }}
                   thumbColor={reminder ? AMBER : "#9ca3af"}
+                  accessibilityLabel="Shift reminder notification 10 minutes before scheduled start"
                 />
               </View>
             </View>

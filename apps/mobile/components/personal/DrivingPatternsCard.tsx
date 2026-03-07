@@ -56,7 +56,7 @@ export function DrivingPatternsCard({ patterns }: Props) {
               <Ionicons
                 name={slot.icon}
                 size={14}
-                color={isPeak ? "#f5a623" : "#4a5568"}
+                color={isPeak ? "#f5a623" : "#64748b"}
                 style={{ width: 20 }}
               />
               <View style={s.timeBarWrap}>
@@ -133,7 +133,7 @@ const s = StyleSheet.create({
   sectionTitle: {
     fontSize: 10,
     fontFamily: "PlusJakartaSans_600SemiBold",
-    color: "#4a5568",
+    color: "#64748b",
     textTransform: "uppercase",
     letterSpacing: 0.5,
     marginBottom: 8,
@@ -164,9 +164,9 @@ const s = StyleSheet.create({
     minHeight: 2,
   },
   dayLabel: {
-    fontSize: 9,
+    fontSize: 11,
     fontFamily: "PlusJakartaSans_500Medium",
-    color: "#4a5568",
+    color: "#64748b",
     marginTop: 4,
   },
   // Times
@@ -197,7 +197,7 @@ const s = StyleSheet.create({
   timeCount: {
     fontSize: 10,
     fontFamily: "PlusJakartaSans_500Medium",
-    color: "#4a5568",
+    color: "#64748b",
     width: 22,
     textAlign: "right",
   },
@@ -223,7 +223,7 @@ const s = StyleSheet.create({
   avgLabel: {
     fontSize: 12,
     fontFamily: "PlusJakartaSans_400Regular",
-    color: "#4a5568",
+    color: "#64748b",
   },
   // Places
   places: {
@@ -259,6 +259,6 @@ const s = StyleSheet.create({
   placeCount: {
     fontSize: 11,
     fontFamily: "PlusJakartaSans_500Medium",
-    color: "#4a5568",
+    color: "#64748b",
   },
 });

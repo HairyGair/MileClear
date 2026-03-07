@@ -35,7 +35,7 @@ const CARD_BG = "#0a1120";
 const BORDER = "rgba(255,255,255,0.05)";
 const TEXT_1 = "#f0f2f5";
 const TEXT_2 = "#8494a7";
-const TEXT_3 = "#4a5568";
+const TEXT_3 = "#64748b";
 const BG = "#030712";
 
 const DAY_ABBREVS = ["M", "T", "W", "T", "F", "S", "S"];
@@ -80,6 +80,7 @@ function DeltaBadge({ delta }: { delta: number | null }) {
         name={info.positive ? "trending-up" : "trending-down"}
         size={10}
         color={info.positive ? GREEN : RED}
+        accessible={false}
       />
       <Text
         style={[
@@ -114,7 +115,7 @@ function WeeklyReportCard({
       {/* Header row */}
       <View style={s.cardHeaderRow}>
         <View style={s.cardTitleRow}>
-          <Ionicons name="calendar-outline" size={16} color={AMBER} />
+          <Ionicons name="calendar-outline" size={16} color={AMBER} accessible={false} />
           <Text style={s.cardTitle}>This Week</Text>
           {report && (
             <View style={s.weekLabelChip}>
@@ -127,19 +128,25 @@ function WeeklyReportCard({
             onPress={onPrev}
             style={s.navBtn}
             activeOpacity={0.7}
+            accessibilityRole="button"
+            accessibilityLabel="Previous week"
           >
-            <Ionicons name="chevron-back" size={18} color={TEXT_2} />
+            <Ionicons name="chevron-back" size={18} color={TEXT_2} accessible={false} />
           </TouchableOpacity>
           <TouchableOpacity
             onPress={onNext}
             style={[s.navBtn, weeksBack === 0 && s.navBtnDisabled]}
             activeOpacity={weeksBack === 0 ? 1 : 0.7}
             disabled={weeksBack === 0}
+            accessibilityRole="button"
+            accessibilityLabel="Next week"
+            accessibilityState={{ disabled: weeksBack === 0 }}
           >
             <Ionicons
               name="chevron-forward"
               size={18}
               color={weeksBack === 0 ? TEXT_3 : TEXT_2}
+              accessible={false}
             />
           </TouchableOpacity>
         </View>
@@ -147,7 +154,7 @@ function WeeklyReportCard({
 
       {loading || !report ? (
         <View style={s.cardLoading}>
-          <ActivityIndicator size="small" color={AMBER} />
+          <ActivityIndicator size="small" color={AMBER} accessibilityLabel="Loading weekly report" />
         </View>
       ) : (
         <>
@@ -210,7 +217,7 @@ function WeeklyReportCard({
             {report.streakDays > 0 && (
               <View style={[s.weekTotal, s.weekTotalStreak]}>
                 <Text style={s.streakValue}>
-                  <Ionicons name="flame" size={14} color={AMBER} />{" "}
+                  <Ionicons name="flame" size={14} color={AMBER} accessible={false} />{" "}
                   {report.streakDays}d
                 </Text>
                 <Text style={s.weekTotalLabel}>streak</Text>
@@ -240,7 +247,7 @@ function WeeklyReportCard({
           {/* New achievements earned this week */}
           {report.newAchievements.length > 0 && (
             <View style={s.achievementRow}>
-              <Ionicons name="trophy-outline" size={13} color={AMBER} />
+              <Ionicons name="trophy-outline" size={13} color={AMBER} accessible={false} />
               <Text style={s.achievementRowLabel}>New this week:</Text>
               {report.newAchievements.slice(0, 3).map((label, i) => (
                 <View key={i} style={s.achievementChip}>
@@ -280,7 +287,7 @@ function FrequentRoutesCard({ routes }: { routes: FrequentRoute[] }) {
     <View style={s.card}>
       <View style={s.cardHeaderRow}>
         <View style={s.cardTitleRow}>
-          <Ionicons name="navigate-outline" size={16} color={AMBER} />
+          <Ionicons name="navigate-outline" size={16} color={AMBER} accessible={false} />
           <Text style={s.cardTitle}>Your Routes</Text>
           <View style={s.countChip}>
             <Text style={s.countChipText}>{routes.length}</Text>
@@ -313,24 +320,24 @@ function FrequentRoutesCard({ routes }: { routes: FrequentRoute[] }) {
           {/* Stats row */}
           <View style={s.routeStatsRow}>
             <View style={s.routeStatChip}>
-              <Ionicons name="repeat-outline" size={11} color={AMBER} />
+              <Ionicons name="repeat-outline" size={11} color={AMBER} accessible={false} />
               <Text style={s.routeStatText}>{route.tripCount} trips</Text>
             </View>
             <View style={s.routeStatChip}>
-              <Ionicons name="time-outline" size={11} color={TEXT_2} />
+              <Ionicons name="time-outline" size={11} color={TEXT_2} accessible={false} />
               <Text style={s.routeStatText}>
                 {fmtMinutes(route.avgDurationMinutes)} avg
               </Text>
             </View>
             <View style={s.routeStatChip}>
-              <Ionicons name="flash-outline" size={11} color={GREEN} />
+              <Ionicons name="flash-outline" size={11} color={GREEN} accessible={false} />
               <Text style={s.routeStatText}>
                 {fmtMinutes(route.fastestDurationMinutes)} best
               </Text>
             </View>
             {route.avgDistanceMiles > 0 && (
               <View style={s.routeStatChip}>
-                <Ionicons name="map-outline" size={11} color={TEXT_2} />
+                <Ionicons name="map-outline" size={11} color={TEXT_2} accessible={false} />
                 <Text style={s.routeStatText}>
                   {route.avgDistanceMiles.toFixed(1)} mi
                 </Text>
@@ -367,6 +374,8 @@ function FrequentRoutesCard({ routes }: { routes: FrequentRoute[] }) {
           style={s.seeAllBtn}
           onPress={() => setExpanded((v) => !v)}
           activeOpacity={0.7}
+          accessibilityRole="button"
+          accessibilityLabel={expanded ? "Show fewer routes" : `See all ${routes.length} routes`}
         >
           <Text style={s.seeAllText}>
             {expanded
@@ -377,6 +386,7 @@ function FrequentRoutesCard({ routes }: { routes: FrequentRoute[] }) {
             name={expanded ? "chevron-up" : "chevron-down"}
             size={14}
             color={AMBER}
+            accessible={false}
           />
         </TouchableOpacity>
       )}
@@ -400,7 +410,7 @@ function ShiftSweetSpotsCard({ spots }: { spots: ShiftSweetSpot[] }) {
     <View style={s.card}>
       <View style={s.cardHeaderRow}>
         <View style={s.cardTitleRow}>
-          <Ionicons name="timer-outline" size={16} color={AMBER} />
+          <Ionicons name="timer-outline" size={16} color={AMBER} accessible={false} />
           <Text style={s.cardTitle}>Best Shift Length</Text>
         </View>
       </View>
@@ -435,7 +445,7 @@ function ShiftSweetSpotsCard({ spots }: { spots: ShiftSweetSpot[] }) {
 
       {/* Best bucket callout */}
       <View style={s.sweetSpotCallout}>
-        <Ionicons name="star" size={13} color={AMBER} />
+        <Ionicons name="star" size={13} color={AMBER} accessible={false} />
         <Text style={s.sweetSpotCalloutText}>
           Best: {best.durationBucket} shifts —{" "}
           {best.avgTrips.toFixed(1)} trips &amp; {best.avgMiles.toFixed(1)} mi avg
@@ -451,7 +461,7 @@ function FuelCostCard({ fuel }: { fuel: FuelCostBreakdown }) {
     <View style={s.card}>
       <View style={s.cardHeaderRow}>
         <View style={s.cardTitleRow}>
-          <Ionicons name="speedometer-outline" size={16} color={AMBER} />
+          <Ionicons name="speedometer-outline" size={16} color={AMBER} accessible={false} />
           <Text style={s.cardTitle}>Running Costs</Text>
         </View>
       </View>
@@ -470,14 +480,14 @@ function FuelCostCard({ fuel }: { fuel: FuelCostBreakdown }) {
       <View style={s.fuelMpgRow}>
         {fuel.actualMpg != null ? (
           <View style={s.fuelMpgChip}>
-            <Ionicons name="checkmark-circle" size={13} color={GREEN} />
+            <Ionicons name="checkmark-circle" size={13} color={GREEN} accessible={false} />
             <Text style={[s.fuelMpgText, { color: GREEN }]}>
               {fuel.actualMpg.toFixed(1)} MPG (actual)
             </Text>
           </View>
         ) : fuel.estimatedMpg != null ? (
           <View style={s.fuelMpgChip}>
-            <Ionicons name="information-circle-outline" size={13} color={TEXT_2} />
+            <Ionicons name="information-circle-outline" size={13} color={TEXT_2} accessible={false} />
             <Text style={s.fuelMpgText}>
               {fuel.estimatedMpg.toFixed(1)} MPG (estimated)
             </Text>
@@ -498,7 +508,7 @@ function FuelCostCard({ fuel }: { fuel: FuelCostBreakdown }) {
           {fuel.perVehicle.map((v, i) => (
             <View key={i} style={s.fuelVehicleRow}>
               <View style={s.fuelVehicleInfo}>
-                <Ionicons name="car-outline" size={13} color={TEXT_2} />
+                <Ionicons name="car-outline" size={13} color={TEXT_2} accessible={false} />
                 <Text style={s.fuelVehicleName} numberOfLines={1}>
                   {v.make} {v.model}
                 </Text>
@@ -579,7 +589,7 @@ function EarningsByDayCard({ patterns }: { patterns: EarningsDayPattern[] }) {
     <View style={s.card}>
       <View style={s.cardHeaderRow}>
         <View style={s.cardTitleRow}>
-          <Ionicons name="bar-chart-outline" size={16} color={AMBER} />
+          <Ionicons name="bar-chart-outline" size={16} color={AMBER} accessible={false} />
           <Text style={s.cardTitle}>Best Earning Days</Text>
         </View>
       </View>
@@ -615,7 +625,7 @@ function EarningsByDayCard({ patterns }: { patterns: EarningsDayPattern[] }) {
 
       {/* Best day callout */}
       <View style={s.earningsCallout}>
-        <Ionicons name="trophy-outline" size={13} color={AMBER} />
+        <Ionicons name="trophy-outline" size={13} color={AMBER} accessible={false} />
         <Text style={s.earningsCalloutText}>
           Best day:{" "}
           <Text style={{ color: AMBER }}>
@@ -636,7 +646,7 @@ function CommuteTimingCard({ commutes }: { commutes: CommuteTiming[] }) {
     <View style={s.card}>
       <View style={s.cardHeaderRow}>
         <View style={s.cardTitleRow}>
-          <Ionicons name="car-outline" size={16} color={AMBER} />
+          <Ionicons name="car-outline" size={16} color={AMBER} accessible={false} />
           <Text style={s.cardTitle}>Commute Intelligence</Text>
         </View>
       </View>
@@ -681,7 +691,7 @@ function CommuteTimingCard({ commutes }: { commutes: CommuteTiming[] }) {
 
             {/* Best departure time */}
             <View style={s.commuteBestDepart}>
-              <Ionicons name="alarm-outline" size={13} color={AMBER} />
+              <Ionicons name="alarm-outline" size={13} color={AMBER} accessible={false} />
               <Text style={s.commuteBestDepartText}>
                 {commute.bestDepartureLabel} for quickest journey
               </Text>
@@ -804,7 +814,7 @@ export default function AnalyticsScreen() {
             },
           }}
         />
-        <ActivityIndicator size="large" color={AMBER} />
+        <ActivityIndicator size="large" color={AMBER} accessibilityLabel="Loading analytics" />
         <Text style={s.loadingText}>Loading analytics…</Text>
       </View>
     );
@@ -876,7 +886,7 @@ export default function AnalyticsScreen() {
           analytics.commuteTiming.length === 0 &&
           analytics.fuelCost.recentFillUps.length === 0 && (
             <View style={s.emptyState}>
-              <Ionicons name="analytics-outline" size={40} color={TEXT_3} />
+              <Ionicons name="analytics-outline" size={40} color={TEXT_3} accessible={false} />
               <Text style={s.emptyTitle}>No data yet</Text>
               <Text style={s.emptySubtitle}>
                 Complete a few trips and shifts to see your driving analytics.
@@ -1222,7 +1232,7 @@ const s = StyleSheet.create({
     borderRadius: 4,
   },
   dayDotLabel: {
-    fontSize: 9,
+    fontSize: 11,
     fontFamily: "PlusJakartaSans_500Medium",
     color: TEXT_3,
   },
@@ -1587,7 +1597,7 @@ const s = StyleSheet.create({
     backgroundColor: "rgba(255,255,255,0.14)",
   },
   commuteHourLabel: {
-    fontSize: 8,
+    fontSize: 11,
     fontFamily: "PlusJakartaSans_400Regular",
     color: TEXT_3,
   },

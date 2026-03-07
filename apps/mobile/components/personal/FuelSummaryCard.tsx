@@ -83,6 +83,8 @@ export function FuelSummaryCard({ monthMiles, estimatedMpg, fuelType }: FuelSumm
       style={styles.card}
       onPress={() => router.push("/(tabs)/fuel")}
       activeOpacity={0.7}
+      accessibilityRole="button"
+      accessibilityLabel={`Fuel and running costs. ${isEstimate ? "Estimated" : `${fillUpCount} fill-up${fillUpCount !== 1 ? "s" : ""}`} this month. Tap to view fuel logs`}
     >
       {/* Header */}
       <View style={styles.header}>
@@ -95,7 +97,7 @@ export function FuelSummaryCard({ monthMiles, estimatedMpg, fuelType }: FuelSumm
             {isEstimate ? "Estimated this month" : `${fillUpCount} fill-up${fillUpCount !== 1 ? "s" : ""} this month`}
           </Text>
         </View>
-        <Ionicons name="chevron-forward" size={16} color="#4a5568" />
+        <Ionicons name="chevron-forward" size={16} color="#64748b" />
       </View>
 
       {/* Stats row */}
@@ -203,7 +205,7 @@ const styles = StyleSheet.create({
   subtitle: {
     fontSize: 12,
     fontFamily: "PlusJakartaSans_400Regular",
-    color: "#4a5568",
+    color: "#64748b",
     marginTop: 1,
   },
   statsRow: {
@@ -226,7 +228,7 @@ const styles = StyleSheet.create({
   statLabel: {
     fontSize: 10,
     fontFamily: "PlusJakartaSans_400Regular",
-    color: "#4a5568",
+    color: "#64748b",
     marginTop: 2,
   },
   statDot: {
@@ -266,7 +268,7 @@ const styles = StyleSheet.create({
   logDetail: {
     fontSize: 11,
     fontFamily: "PlusJakartaSans_400Regular",
-    color: "#4a5568",
+    color: "#64748b",
     marginTop: 2,
   },
   logCost: {
@@ -277,7 +279,7 @@ const styles = StyleSheet.create({
   logDate: {
     fontSize: 11,
     fontFamily: "PlusJakartaSans_400Regular",
-    color: "#4a5568",
+    color: "#64748b",
     marginTop: 2,
   },
   hint: {

@@ -22,7 +22,7 @@ const BG = "#030712";
 const CARD_BG = "#0a1120";
 const TEXT_1 = "#f0f2f5";
 const TEXT_2 = "#8494a7";
-const TEXT_3 = "#4a5568";
+const TEXT_3 = "#64748b";
 const CARD_BORDER = "rgba(255,255,255,0.05)";
 
 const CATEGORY_COLORS: Record<string, string> = {
@@ -195,6 +195,9 @@ export default function FeedbackScreen() {
             style={[s.voteButton, item.hasVoted && s.voteButtonActive]}
             onPress={() => handleVote(item.id)}
             activeOpacity={0.6}
+            accessibilityRole="button"
+            accessibilityLabel={`${item.hasVoted ? "Remove upvote" : "Upvote"}: ${item.title}, ${item.upvoteCount} votes`}
+            accessibilityState={{ selected: item.hasVoted }}
           >
             <Ionicons
               name={item.hasVoted ? "arrow-up" : "arrow-up-outline"}
@@ -222,6 +225,8 @@ export default function FeedbackScreen() {
           style={s.submitButton}
           onPress={() => router.push("/feedback-form")}
           activeOpacity={0.7}
+          accessibilityRole="button"
+          accessibilityLabel="Share your idea"
         >
           <Ionicons name="chatbubble-ellipses-outline" size={16} color="#030712" />
           <Text style={s.submitButtonText}>Share Your Idea</Text>
@@ -241,6 +246,9 @@ export default function FeedbackScreen() {
               style={[s.filterChip, filter === opt.key && s.filterChipActive]}
               onPress={() => setFilter(opt.key)}
               activeOpacity={0.7}
+              accessibilityRole="button"
+              accessibilityLabel={`Filter by ${opt.label}`}
+              accessibilityState={{ selected: filter === opt.key }}
             >
               <Text style={[s.filterChipText, filter === opt.key && s.filterChipTextActive]}>
                 {opt.label}
@@ -252,6 +260,8 @@ export default function FeedbackScreen() {
           style={s.sortToggle}
           onPress={() => setSort((v) => (v === "most_voted" ? "newest" : "most_voted"))}
           activeOpacity={0.7}
+          accessibilityRole="button"
+          accessibilityLabel={`Sort by ${sort === "most_voted" ? "newest" : "most voted"}`}
         >
           <Ionicons
             name={sort === "most_voted" ? "trending-up" : "time-outline"}
@@ -263,7 +273,7 @@ export default function FeedbackScreen() {
 
       {loading ? (
         <View style={s.centered}>
-          <ActivityIndicator size="large" color={AMBER} />
+          <ActivityIndicator size="large" color={AMBER} accessibilityLabel="Loading" />
         </View>
       ) : error ? (
         <View style={s.centered}>
@@ -374,8 +384,8 @@ const s = StyleSheet.create({
     fontFamily: "PlusJakartaSans_600SemiBold",
   },
   sortToggle: {
-    padding: 8,
-    borderRadius: 20,
+    padding: 12,
+    borderRadius: 22,
     backgroundColor: "rgba(255,255,255,0.05)",
   },
   list: { paddingHorizontal: 16, paddingBottom: 24 },

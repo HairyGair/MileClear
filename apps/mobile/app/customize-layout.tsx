@@ -67,6 +67,8 @@ export default function CustomizeLayoutScreen() {
           onPress={() => router.back()}
           hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
           style={styles.backBtn}
+          accessibilityRole="button"
+          accessibilityLabel="Go back"
         >
           <Ionicons name="chevron-back" size={24} color="#f0f2f5" />
         </TouchableOpacity>
@@ -82,6 +84,9 @@ export default function CustomizeLayoutScreen() {
             style={[styles.tab, activeTab === screen && styles.tabActive]}
             onPress={() => setActiveTab(screen)}
             activeOpacity={0.7}
+            accessibilityRole="tab"
+            accessibilityLabel={`${TAB_LABELS[screen]} screen layout`}
+            accessibilityState={{ selected: activeTab === screen }}
           >
             <Text
               style={[
@@ -104,6 +109,8 @@ export default function CustomizeLayoutScreen() {
           style={styles.resetBtn}
           onPress={handleResetAll}
           activeOpacity={0.7}
+          accessibilityRole="button"
+          accessibilityLabel="Reset all layouts to default"
         >
           <Ionicons name="refresh-outline" size={16} color="#ef4444" />
           <Text style={styles.resetText}>Reset All to Default</Text>
@@ -151,11 +158,14 @@ function SectionList({ screen }: { screen: ScreenKey }) {
                 disabled={isFirst}
                 hitSlop={{ top: 4, bottom: 4, left: 8, right: 8 }}
                 activeOpacity={0.5}
+                accessibilityRole="button"
+                accessibilityLabel={`Move ${section?.label ?? pref.key} up`}
+                accessibilityState={{ disabled: isFirst }}
               >
                 <Ionicons
                   name="chevron-up"
                   size={18}
-                  color={isFirst ? "#1f2937" : "#8494a7"}
+                  color={isFirst ? "rgba(255,255,255,0.08)" : "#8494a7"}
                 />
               </TouchableOpacity>
               <TouchableOpacity
@@ -163,11 +173,14 @@ function SectionList({ screen }: { screen: ScreenKey }) {
                 disabled={isLast}
                 hitSlop={{ top: 4, bottom: 4, left: 8, right: 8 }}
                 activeOpacity={0.5}
+                accessibilityRole="button"
+                accessibilityLabel={`Move ${section?.label ?? pref.key} down`}
+                accessibilityState={{ disabled: isLast }}
               >
                 <Ionicons
                   name="chevron-down"
                   size={18}
-                  color={isLast ? "#1f2937" : "#8494a7"}
+                  color={isLast ? "rgba(255,255,255,0.08)" : "#8494a7"}
                 />
               </TouchableOpacity>
             </View>
@@ -212,6 +225,7 @@ function SectionList({ screen }: { screen: ScreenKey }) {
                 trackColor={{ false: "#374151", true: "#f5a623" }}
                 thumbColor="#fff"
                 style={styles.toggle}
+                accessibilityLabel={`${section.label}: ${pref.visible ? "visible" : "hidden"}. Toggle visibility`}
               />
             )}
           </View>
@@ -220,6 +234,8 @@ function SectionList({ screen }: { screen: ScreenKey }) {
 
       <TouchableOpacity
         style={styles.resetScreenBtn}
+        accessibilityRole="button"
+        accessibilityLabel={`Reset ${SCREEN_LABELS[screen]} layout to default`}
         onPress={() => {
           Alert.alert(
             `Reset ${SCREEN_LABELS[screen]}`,
@@ -361,7 +377,7 @@ const styles = StyleSheet.create({
   description: {
     fontSize: 11,
     fontFamily: "PlusJakartaSans_400Regular",
-    color: "#4a5568",
+    color: "#64748b",
     marginTop: 2,
   },
   lockedBadge: {
@@ -371,7 +387,7 @@ const styles = StyleSheet.create({
     borderRadius: 4,
   },
   lockedText: {
-    fontSize: 9,
+    fontSize: 11,
     fontFamily: "PlusJakartaSans_700Bold",
     color: "#6b7280",
     letterSpacing: 0.5,

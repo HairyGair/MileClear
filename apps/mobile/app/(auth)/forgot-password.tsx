@@ -19,7 +19,7 @@ const CARD_BG = "#0a1120";
 const BORDER = "rgba(255,255,255,0.06)";
 const TEXT_1 = "#f0f2f5";
 const TEXT_2 = "#8494a7";
-const TEXT_3 = "#4a5568";
+const TEXT_3 = "#64748b";
 
 export default function ForgotPasswordScreen() {
   const { forgotPassword } = useAuth();
@@ -64,6 +64,7 @@ export default function ForgotPasswordScreen() {
             source={require("../../assets/branding/logo-original.png")}
             style={s.brandIcon}
             resizeMode="contain"
+            accessible={false}
           />
           <View style={s.brandText}>
             <Text style={s.brandName}>Mile</Text>
@@ -79,7 +80,11 @@ export default function ForgotPasswordScreen() {
           </Text>
 
           {error ? (
-            <View style={s.errorWrap}>
+            <View
+              style={s.errorWrap}
+              accessibilityLiveRegion="polite"
+              accessibilityRole="alert"
+            >
               <Text style={s.errorText}>{error}</Text>
             </View>
           ) : null}
@@ -101,6 +106,7 @@ export default function ForgotPasswordScreen() {
             autoCorrect={false}
             autoFocus
             editable={!loading}
+            accessibilityLabel="Email address"
           />
 
           <TouchableOpacity
@@ -108,9 +114,12 @@ export default function ForgotPasswordScreen() {
             onPress={handleSubmit}
             disabled={loading}
             activeOpacity={0.8}
+            accessibilityRole="button"
+            accessibilityLabel="Send reset code"
+            accessibilityState={{ disabled: loading }}
           >
             {loading ? (
-              <ActivityIndicator color="#030712" />
+              <ActivityIndicator color="#030712" accessibilityLabel="Loading" />
             ) : (
               <Text style={s.buttonText}>Send reset code</Text>
             )}
@@ -119,7 +128,10 @@ export default function ForgotPasswordScreen() {
           <View style={s.footer}>
             <Text style={s.footerText}>Remember your password? </Text>
             <Link href="/(auth)/login" asChild>
-              <TouchableOpacity>
+              <TouchableOpacity
+                accessibilityRole="link"
+                accessibilityLabel="Sign in"
+              >
                 <Text style={s.link}>Sign in</Text>
               </TouchableOpacity>
             </Link>

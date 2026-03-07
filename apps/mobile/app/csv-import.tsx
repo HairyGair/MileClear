@@ -248,6 +248,9 @@ export default function CsvImportScreen() {
                 selectedPlatform === p.value && styles.chipActive,
               ]}
               onPress={() => setSelectedPlatform(p.value)}
+              accessibilityRole="button"
+              accessibilityLabel={`Platform: ${p.label}`}
+              accessibilityState={{ selected: selectedPlatform === p.value }}
             >
               <Text
                 style={[
@@ -314,9 +317,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 8,
     borderRadius: 20,
-    backgroundColor: "#111827",
+    backgroundColor: "rgba(255,255,255,0.08)",
     borderWidth: 1,
-    borderColor: "#1f2937",
+    borderColor: "rgba(255,255,255,0.06)",
   },
   chipActive: {
     backgroundColor: "#f5a623",
@@ -340,7 +343,7 @@ const styles = StyleSheet.create({
   previewHeader: {
     padding: 16,
     borderBottomWidth: 1,
-    borderBottomColor: "#1f2937",
+    borderBottomColor: "rgba(255,255,255,0.06)",
   },
   previewTitle: {
     fontSize: 18,
@@ -363,12 +366,12 @@ const styles = StyleSheet.create({
     padding: 16,
   },
   rowCard: {
-    backgroundColor: "#111827",
+    backgroundColor: "#0a1120",
     borderRadius: 10,
     padding: 12,
     marginBottom: 8,
     borderWidth: 1,
-    borderColor: "#1f2937",
+    borderColor: "rgba(255,255,255,0.06)",
   },
   rowDuplicate: {
     opacity: 0.5,
@@ -413,7 +416,7 @@ const styles = StyleSheet.create({
     gap: 12,
     padding: 16,
     borderTopWidth: 1,
-    borderTopColor: "#1f2937",
+    borderTopColor: "rgba(255,255,255,0.06)",
   },
   // Result
   resultCard: {

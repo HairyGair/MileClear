@@ -1078,8 +1078,8 @@ export default function TripsPage() {
               color: "var(--text-secondary, #9ca3af)",
               lineHeight: 1.7,
             }}>
-              <div><strong style={{ color: "#10b981" }}>Start:</strong> {first.startAddress || "Unknown"}</div>
-              <div><strong style={{ color: "#ef4444" }}>End:</strong> {last.endAddress || "Unknown"}</div>
+              <div><strong style={{ color: "var(--emerald-500)" }}>Start:</strong> {first.startAddress || "Unknown"}</div>
+              <div><strong style={{ color: "var(--dash-red)" }}>End:</strong> {last.endAddress || "Unknown"}</div>
               <div style={{ marginTop: 6, display: "flex", gap: "1.5rem" }}>
                 <span><strong>{totalMiles.toFixed(1)}</strong> mi total</span>
                 <span>

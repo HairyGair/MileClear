@@ -179,18 +179,27 @@ export function PersonalRecapCard({
             <Pressable
               style={[styles.toggleBtn, isToday && styles.toggleBtnActive]}
               onPress={() => setView("today")}
+              accessibilityRole="tab"
+              accessibilityLabel="Today"
+              accessibilityState={{ selected: isToday }}
             >
               <Text style={[styles.toggleText, isToday && styles.toggleTextActive]}>Today</Text>
             </Pressable>
             <Pressable
               style={[styles.toggleBtn, view === "month" && styles.toggleBtnActive]}
               onPress={() => setView("month")}
+              accessibilityRole="tab"
+              accessibilityLabel="This month"
+              accessibilityState={{ selected: view === "month" }}
             >
               <Text style={[styles.toggleText, view === "month" && styles.toggleTextActive]}>Month</Text>
             </Pressable>
             <Pressable
               style={[styles.toggleBtn, isYear && styles.toggleBtnActive]}
               onPress={() => setView("year")}
+              accessibilityRole="tab"
+              accessibilityLabel="This year"
+              accessibilityState={{ selected: isYear }}
             >
               <Text style={[styles.toggleText, isYear && styles.toggleTextActive]}>Year</Text>
             </Pressable>
@@ -337,6 +346,8 @@ export function PersonalRecapCard({
             pressed && styles.shareButtonPressed,
           ]}
           onPress={handleShare}
+          accessibilityRole="button"
+          accessibilityLabel={`Share ${displayLabel} driving recap`}
         >
           <Ionicons name="share-outline" size={16} color="#f5a623" />
           <Text style={styles.shareText}>Share Recap</Text>
@@ -407,7 +418,7 @@ const styles = StyleSheet.create({
   toggleText: {
     fontSize: 11,
     fontFamily: "PlusJakartaSans_500Medium",
-    color: "#4a5568",
+    color: "#64748b",
   },
   toggleTextActive: {
     color: "#f5a623",

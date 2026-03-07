@@ -208,7 +208,7 @@ export function RecapShareModal({
                 <>
                   <div className="recap-card__stat-divider" />
                   <div className="recap-card__stat">
-                    <span className="recap-card__stat-value" style={{ color: "#10b981" }}>{deductionStr}</span>
+                    <span className="recap-card__stat-value" style={{ color: "var(--emerald-500)" }}>{deductionStr}</span>
                     <span className="recap-card__stat-label">HMRC deduction</span>
                   </div>
                 </>

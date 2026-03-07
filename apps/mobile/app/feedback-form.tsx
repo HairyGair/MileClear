@@ -22,8 +22,8 @@ const BG = "#030712";
 const CARD_BG = "#0a1120";
 const TEXT_1 = "#f0f2f5";
 const TEXT_2 = "#8494a7";
-const TEXT_3 = "#4a5568";
-const INPUT_BG = "#0c1425";
+const TEXT_3 = "#64748b";
+const INPUT_BG = "#0a1120";
 const CARD_BORDER = "rgba(255,255,255,0.08)";
 
 const CATEGORY_COLORS: Record<string, string> = {
@@ -96,6 +96,7 @@ export default function FeedbackFormScreen() {
             placeholderTextColor={TEXT_3}
             maxLength={100}
             autoCapitalize="words"
+            accessibilityLabel="Display name, optional, shown publicly"
           />
         </View>
 
@@ -116,6 +117,9 @@ export default function FeedbackFormScreen() {
                   ]}
                   onPress={() => setCategory(cat.value as FeedbackCategory)}
                   activeOpacity={0.7}
+                  accessibilityRole="button"
+                  accessibilityLabel={`${cat.label} category`}
+                  accessibilityState={{ selected: active }}
                 >
                   <Text
                     style={[
@@ -147,9 +151,16 @@ export default function FeedbackFormScreen() {
             placeholderTextColor={TEXT_3}
             maxLength={200}
             autoCapitalize="sentences"
+            accessibilityLabel="Feedback title"
           />
           {title.length > 0 && title.length < 3 && (
-            <Text style={s.validationText}>At least 3 characters</Text>
+            <Text
+              style={s.validationText}
+              accessibilityLiveRegion="polite"
+              accessibilityRole="alert"
+            >
+              At least 3 characters
+            </Text>
           )}
         </View>
 
@@ -172,9 +183,16 @@ export default function FeedbackFormScreen() {
             numberOfLines={6}
             textAlignVertical="top"
             autoCapitalize="sentences"
+            accessibilityLabel="Feedback description"
           />
           {body.length > 0 && body.length < 10 && (
-            <Text style={s.validationText}>At least 10 characters</Text>
+            <Text
+              style={s.validationText}
+              accessibilityLiveRegion="polite"
+              accessibilityRole="alert"
+            >
+              At least 10 characters
+            </Text>
           )}
         </View>
 
@@ -184,9 +202,12 @@ export default function FeedbackFormScreen() {
           onPress={handleSubmit}
           disabled={!canSubmit}
           activeOpacity={0.7}
+          accessibilityRole="button"
+          accessibilityLabel="Submit suggestion"
+          accessibilityState={{ disabled: !canSubmit }}
         >
           {submitting ? (
-            <ActivityIndicator color="#030712" />
+            <ActivityIndicator color="#030712" accessibilityLabel="Loading" />
           ) : (
             <Text style={s.submitButtonText}>Submit Suggestion</Text>
           )}

@@ -29,7 +29,7 @@ const CARD_BORDER = "rgba(255,255,255,0.05)";
 const AMBER = "#f5a623";
 const TEXT_1 = "#f0f2f5";
 const TEXT_2 = "#8494a7";
-const TEXT_3 = "#4a5568";
+const TEXT_3 = "#64748b";
 const ERROR_BG = "rgba(220, 38, 38, 0.1)";
 const ERROR_BORDER = "rgba(220, 38, 38, 0.2)";
 
@@ -228,6 +228,9 @@ export default function OnboardingScreen() {
                 ]}
                 onPress={() => setUserIntent("work")}
                 activeOpacity={0.75}
+                accessibilityRole="button"
+                accessibilityLabel="Work: tax deductions, shift tracking, earnings"
+                accessibilityState={{ selected: userIntent === "work" }}
               >
                 <View
                   style={[
@@ -263,6 +266,9 @@ export default function OnboardingScreen() {
                 ]}
                 onPress={() => setUserIntent("personal")}
                 activeOpacity={0.75}
+                accessibilityRole="button"
+                accessibilityLabel="Personal: journey log, driving goals, mileage journal"
+                accessibilityState={{ selected: userIntent === "personal" }}
               >
                 <View
                   style={[
@@ -298,6 +304,9 @@ export default function OnboardingScreen() {
                 ]}
                 onPress={() => setUserIntent("both")}
                 activeOpacity={0.75}
+                accessibilityRole="button"
+                accessibilityLabel="Both: switch between work and personal anytime"
+                accessibilityState={{ selected: userIntent === "both" }}
               >
                 <View
                   style={[
@@ -345,6 +354,9 @@ export default function OnboardingScreen() {
                       ]}
                       onPress={() => setWorkType(opt.key)}
                       activeOpacity={0.75}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Work type: ${opt.label}`}
+                      accessibilityState={{ selected: workType === opt.key }}
                     >
                       <Ionicons
                         name={opt.icon}
@@ -519,6 +531,8 @@ export default function OnboardingScreen() {
               style={s.dashboardLink}
               onPress={() => handleFinish("dashboard")}
               activeOpacity={0.7}
+              accessibilityRole="button"
+              accessibilityLabel="Go to dashboard instead"
             >
               <Text style={s.dashboardLinkText}>
                 or go to dashboard

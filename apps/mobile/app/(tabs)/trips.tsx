@@ -292,17 +292,28 @@ export default function TripsScreen() {
           }
         }}
         activeOpacity={0.7}
+        accessibilityRole="button"
+        accessibilityLabel={
+          mergeMode
+            ? `${isSelected ? "Deselect" : "Select"} trip on ${formatDate(item.startedAt)}, ${item.distanceMiles.toFixed(1)} miles`
+            : `Trip on ${formatDate(item.startedAt)}, ${item.distanceMiles.toFixed(1)} miles${item.classification !== "unclassified" ? `, ${item.classification}` : ", needs classifying"}. Tap to edit.`
+        }
+        accessibilityState={mergeMode ? { selected: isSelected } : undefined}
+        accessibilityHint={mergeMode ? undefined : "Long press to enter merge mode"}
       >
         <View style={styles.tripHeader}>
           {mergeMode && (
-            <View style={[styles.selectCircle, isSelected && styles.selectCircleActive]}>
-              {isSelected && <Ionicons name="checkmark" size={14} color="#030712" />}
+            <View
+              style={[styles.selectCircle, isSelected && styles.selectCircleActive]}
+              accessible={false}
+            >
+              {isSelected && <Ionicons name="checkmark" size={14} color="#030712" accessible={false} />}
             </View>
           )}
           <Text style={[styles.tripDate, mergeMode && { flex: 1 }]}>{formatDate(item.startedAt)}</Text>
           {isUnclassified ? (
             <View style={styles.unclassifiedBadge}>
-              <Ionicons name="help-circle" size={12} color="#f5a623" />
+              <Ionicons name="help-circle" size={12} color="#f5a623" accessible={false} />
               <Text style={styles.unclassifiedBadgeText}>Needs classifying</Text>
             </View>
           ) : (
@@ -390,15 +401,18 @@ export default function TripsScreen() {
                 }}
                 disabled={isClassifying}
                 activeOpacity={0.7}
+                accessibilityRole="button"
+                accessibilityLabel={`Classify as Business${tripSuggestion?.classification === "business" ? " (suggested)" : ""}`}
+                accessibilityState={{ disabled: isClassifying }}
               >
                 {isClassifying ? (
-                  <ActivityIndicator size="small" color="#030712" />
+                  <ActivityIndicator size="small" color="#030712" accessibilityLabel="Classifying" />
                 ) : (
                   <>
                     {tripSuggestion?.classification === "business" && (
-                      <Ionicons name="sparkles" size={12} color="#030712" />
+                      <Ionicons name="sparkles" size={12} color="#030712" accessible={false} />
                     )}
-                    <Ionicons name="briefcase" size={14} color="#030712" />
+                    <Ionicons name="briefcase" size={14} color="#030712" accessible={false} />
                     <Text style={styles.quickClassifyBtnTextDark}>Business</Text>
                   </>
                 )}
@@ -416,15 +430,18 @@ export default function TripsScreen() {
                 }}
                 disabled={isClassifying}
                 activeOpacity={0.7}
+                accessibilityRole="button"
+                accessibilityLabel={`Classify as Personal${tripSuggestion?.classification === "personal" ? " (suggested)" : ""}`}
+                accessibilityState={{ disabled: isClassifying }}
               >
                 {isClassifying ? (
-                  <ActivityIndicator size="small" color="#d1d5db" />
+                  <ActivityIndicator size="small" color="#d1d5db" accessibilityLabel="Classifying" />
                 ) : (
                   <>
                     {tripSuggestion?.classification === "personal" && (
-                      <Ionicons name="sparkles" size={12} color="#030712" />
+                      <Ionicons name="sparkles" size={12} color="#030712" accessible={false} />
                     )}
-                    <Ionicons name="car" size={14} color={tripSuggestion?.classification === "personal" ? "#030712" : "#d1d5db"} />
+                    <Ionicons name="car" size={14} color={tripSuggestion?.classification === "personal" ? "#030712" : "#d1d5db"} accessible={false} />
                     <Text style={tripSuggestion?.classification === "personal" ? styles.quickClassifyBtnTextDark : styles.quickClassifyBtnTextLight}>Personal</Text>
                   </>
                 )}
@@ -468,10 +485,12 @@ export default function TripsScreen() {
                 style={styles.inboxBanner}
                 onPress={() => handleFilterChange("unclassified")}
                 activeOpacity={0.7}
+                accessibilityRole="button"
+                accessibilityLabel={`${unclassifiedCount} trip${unclassifiedCount !== 1 ? "s" : ""} need classifying. Tap to review.`}
               >
                 <View style={styles.inboxBannerLeft}>
                   <View style={styles.inboxBannerIcon}>
-                    <Ionicons name="file-tray" size={18} color="#f5a623" />
+                    <Ionicons name="file-tray" size={18} color="#f5a623" accessible={false} />
                   </View>
                   <View>
                     <Text style={styles.inboxBannerTitle}>
@@ -482,7 +501,7 @@ export default function TripsScreen() {
                     </Text>
                   </View>
                 </View>
-                <Ionicons name="chevron-forward" size={18} color="#6b7280" />
+                <Ionicons name="chevron-forward" size={18} color="#6b7280" accessible={false} />
               </TouchableOpacity>
             )}
 
@@ -495,6 +514,9 @@ export default function TripsScreen() {
                     filter === f.value && styles.filterChipActive,
                   ]}
                   onPress={() => handleFilterChange(f.value)}
+                  accessibilityRole="button"
+                  accessibilityLabel={f.value === "unclassified" && unclassifiedCount > 0 ? `${f.label}, ${unclassifiedCount} trip${unclassifiedCount !== 1 ? "s" : ""}` : f.label}
+                  accessibilityState={{ selected: filter === f.value }}
                 >
                   <Text
                     style={[
@@ -529,6 +551,8 @@ export default function TripsScreen() {
                     style={styles.mergeBannerCancel}
                     onPress={exitMergeMode}
                     activeOpacity={0.7}
+                    accessibilityRole="button"
+                    accessibilityLabel="Cancel merge mode"
                   >
                     <Text style={styles.mergeBannerCancelText}>Cancel</Text>
                   </TouchableOpacity>
@@ -540,6 +564,10 @@ export default function TripsScreen() {
                     onPress={() => selectedIds.size >= 2 && setMergeModalVisible(true)}
                     disabled={selectedIds.size < 2}
                     activeOpacity={0.7}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Merge ${selectedIds.size} selected trip${selectedIds.size !== 1 ? "s" : ""}`}
+                    accessibilityState={{ disabled: selectedIds.size < 2 }}
+                    accessibilityHint={selectedIds.size < 2 ? "Select at least 2 trips to merge" : undefined}
                   >
                     <Ionicons name="git-merge-outline" size={14} color={selectedIds.size >= 2 ? "#030712" : "#6b7280"} />
                     <Text style={[
@@ -556,12 +584,17 @@ export default function TripsScreen() {
         }
         ListEmptyComponent={
           !loading ? (
-            <View style={styles.emptyState}>
+            <View
+              style={styles.emptyState}
+              accessibilityRole="text"
+              accessibilityLiveRegion="polite"
+            >
               <View style={styles.emptyIcon}>
                 <Ionicons
                   name={filter === "unclassified" ? "checkmark-circle-outline" : "car-outline"}
                   size={40}
-                  color="#4a5568"
+                  color="#64748b"
+                  accessible={false}
                 />
               </View>
               <Text style={styles.emptyTitle}>
@@ -595,15 +628,20 @@ export default function TripsScreen() {
       />
       {loading && !refreshing && (
         <View style={styles.loadingOverlay}>
-          <ActivityIndicator size="large" color="#f5a623" />
+          <ActivityIndicator size="large" color="#f5a623" accessibilityLabel="Loading trips" />
         </View>
       )}
 
       {/* Merge classification modal */}
       {mergeModalVisible && (
         <Modal visible transparent animationType="slide" onRequestClose={() => setMergeModalVisible(false)}>
-          <Pressable style={styles.mergeBackdrop} onPress={() => setMergeModalVisible(false)}>
-            <View style={styles.mergeSheet} onStartShouldSetResponder={() => true}>
+          <Pressable
+            style={styles.mergeBackdrop}
+            onPress={() => setMergeModalVisible(false)}
+            accessibilityRole="button"
+            accessibilityLabel="Close merge dialog"
+          >
+            <View style={styles.mergeSheet} onStartShouldSetResponder={() => true} accessibilityViewIsModal={true}>
               <View style={styles.mergeHandle} />
 
               <Text style={styles.mergeTitle}>Merge {selectedIds.size} Trips</Text>
@@ -646,7 +684,7 @@ export default function TripsScreen() {
                 );
               })()}
 
-              <Text style={styles.mergeLabel}>Classification</Text>
+              <Text style={styles.mergeLabel} accessibilityRole="header">Classification</Text>
               <View style={styles.mergeClassRow}>
                 {(["business", "personal"] as const).map((cls) => (
                   <TouchableOpacity
@@ -657,6 +695,9 @@ export default function TripsScreen() {
                     ]}
                     onPress={() => setMergeClassification(cls)}
                     activeOpacity={0.7}
+                    accessibilityRole="button"
+                    accessibilityLabel={cls === "business" ? "Business" : "Personal"}
+                    accessibilityState={{ selected: mergeClassification === cls }}
                   >
                     <Ionicons
                       name={cls === "business" ? "briefcase" : "car"}
@@ -681,6 +722,9 @@ export default function TripsScreen() {
                       style={[styles.mergePlatformChip, !mergePlatform && styles.mergePlatformChipActive]}
                       onPress={() => setMergePlatform(null)}
                       activeOpacity={0.7}
+                      accessibilityRole="button"
+                      accessibilityLabel="No platform"
+                      accessibilityState={{ selected: !mergePlatform }}
                     >
                       <Text style={[styles.mergePlatformText, !mergePlatform && styles.mergePlatformTextActive]}>None</Text>
                     </TouchableOpacity>
@@ -690,6 +734,9 @@ export default function TripsScreen() {
                         style={[styles.mergePlatformChip, mergePlatform === p.value && styles.mergePlatformChipActive]}
                         onPress={() => setMergePlatform(p.value)}
                         activeOpacity={0.7}
+                        accessibilityRole="button"
+                        accessibilityLabel={p.label}
+                        accessibilityState={{ selected: mergePlatform === p.value }}
                       >
                         <Text style={[styles.mergePlatformText, mergePlatform === p.value && styles.mergePlatformTextActive]}>
                           {p.label}
@@ -705,9 +752,12 @@ export default function TripsScreen() {
                 onPress={handleMerge}
                 disabled={mergeLoading}
                 activeOpacity={0.7}
+                accessibilityRole="button"
+                accessibilityLabel={`Merge ${selectedIds.size} trips into one`}
+                accessibilityState={{ disabled: mergeLoading, busy: mergeLoading }}
               >
                 {mergeLoading ? (
-                  <ActivityIndicator size="small" color="#030712" />
+                  <ActivityIndicator size="small" color="#030712" accessibilityLabel="Merging trips" />
                 ) : (
                   <>
                     <Ionicons name="git-merge-outline" size={18} color="#030712" />
@@ -780,9 +830,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 20,
-    backgroundColor: "#111827",
+    backgroundColor: "#0a1120",
     borderWidth: 1,
-    borderColor: "#1f2937",
+    borderColor: "rgba(255,255,255,0.06)",
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
@@ -816,10 +866,10 @@ const styles = StyleSheet.create({
   },
   // Trip cards
   tripCard: {
-    backgroundColor: "#111827",
+    backgroundColor: "#0a1120",
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: "#1f2937",
+    borderColor: "rgba(255,255,255,0.06)",
     padding: 16,
     marginBottom: 10,
   },
@@ -908,7 +958,7 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontFamily: "PlusJakartaSans_400Regular",
     color: "#d1d5db",
-    backgroundColor: "#1f2937",
+    backgroundColor: "rgba(255,255,255,0.08)",
     paddingHorizontal: 8,
     paddingVertical: 2,
     borderRadius: 4,
@@ -923,7 +973,7 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontFamily: "PlusJakartaSans_400Regular",
     color: "#9ca3af",
-    backgroundColor: "#1f2937",
+    backgroundColor: "rgba(255,255,255,0.08)",
     paddingHorizontal: 6,
     paddingVertical: 2,
     borderRadius: 4,
@@ -1014,9 +1064,9 @@ const styles = StyleSheet.create({
     width: 72,
     height: 72,
     borderRadius: 36,
-    backgroundColor: "#111827",
+    backgroundColor: "#0a1120",
     borderWidth: 1,
-    borderColor: "#1f2937",
+    borderColor: "rgba(255,255,255,0.06)",
     justifyContent: "center",
     alignItems: "center",
     marginBottom: 16,
@@ -1110,7 +1160,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
   },
   mergeBannerBtnDisabled: {
-    backgroundColor: "#1f2937",
+    backgroundColor: "rgba(255,255,255,0.08)",
   },
   mergeBannerBtnText: {
     fontSize: 13,
@@ -1217,9 +1267,9 @@ const styles = StyleSheet.create({
     gap: 8,
     paddingVertical: 12,
     borderRadius: 10,
-    backgroundColor: "#111827",
+    backgroundColor: "#0a1120",
     borderWidth: 1,
-    borderColor: "#1f2937",
+    borderColor: "rgba(255,255,255,0.06)",
   },
   mergeClassBtnBusiness: {
     backgroundColor: "#f5a623",
@@ -1244,9 +1294,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 7,
     borderRadius: 20,
-    backgroundColor: "#111827",
+    backgroundColor: "#0a1120",
     borderWidth: 1,
-    borderColor: "#1f2937",
+    borderColor: "rgba(255,255,255,0.06)",
     marginRight: 8,
   },
   mergePlatformChipActive: {

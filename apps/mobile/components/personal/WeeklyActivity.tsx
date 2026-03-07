@@ -128,7 +128,7 @@ const styles = StyleSheet.create({
   subtitle: {
     fontSize: 12,
     fontFamily: "PlusJakartaSans_400Regular",
-    color: "#4a5568",
+    color: "#64748b",
   },
   barRow: {
     flexDirection: "row",
@@ -151,7 +151,7 @@ const styles = StyleSheet.create({
     minHeight: 2,
   },
   barValue: {
-    fontSize: 9,
+    fontSize: 11,
     fontFamily: "PlusJakartaSans_600SemiBold",
     color: "#8494a7",
     marginBottom: 3,
@@ -159,7 +159,7 @@ const styles = StyleSheet.create({
   dayLabel: {
     fontSize: 11,
     fontFamily: "PlusJakartaSans_500Medium",
-    color: "#4a5568",
+    color: "#64748b",
     marginTop: 6,
   },
   dayLabelToday: {

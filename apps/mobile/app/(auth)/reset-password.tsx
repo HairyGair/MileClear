@@ -19,7 +19,7 @@ const CARD_BG = "#0a1120";
 const BORDER = "rgba(255,255,255,0.06)";
 const TEXT_1 = "#f0f2f5";
 const TEXT_2 = "#8494a7";
-const TEXT_3 = "#4a5568";
+const TEXT_3 = "#64748b";
 
 export default function ResetPasswordScreen() {
   const { resetPassword } = useAuth();
@@ -78,6 +78,7 @@ export default function ResetPasswordScreen() {
             source={require("../../assets/branding/logo-original.png")}
             style={s.brandIcon}
             resizeMode="contain"
+            accessible={false}
           />
           <View style={s.brandText}>
             <Text style={s.brandName}>Mile</Text>
@@ -94,7 +95,11 @@ export default function ResetPasswordScreen() {
           </Text>
 
           {error ? (
-            <View style={s.errorWrap}>
+            <View
+              style={s.errorWrap}
+              accessibilityLiveRegion="polite"
+              accessibilityRole="alert"
+            >
               <Text style={s.errorText}>{error}</Text>
             </View>
           ) : null}
@@ -110,6 +115,7 @@ export default function ResetPasswordScreen() {
             maxLength={6}
             autoFocus
             editable={!loading}
+            accessibilityLabel="Password reset code"
           />
 
           <Text style={s.label}>New password</Text>
@@ -123,6 +129,7 @@ export default function ResetPasswordScreen() {
             placeholderTextColor={TEXT_3}
             secureTextEntry
             editable={!loading}
+            accessibilityLabel="New password"
           />
 
           <Text style={s.label}>Confirm new password</Text>
@@ -136,6 +143,7 @@ export default function ResetPasswordScreen() {
             placeholderTextColor={TEXT_3}
             secureTextEntry
             editable={!loading}
+            accessibilityLabel="Confirm new password"
           />
 
           <TouchableOpacity
@@ -143,9 +151,12 @@ export default function ResetPasswordScreen() {
             onPress={handleReset}
             disabled={loading}
             activeOpacity={0.8}
+            accessibilityRole="button"
+            accessibilityLabel="Reset password"
+            accessibilityState={{ disabled: loading }}
           >
             {loading ? (
-              <ActivityIndicator color="#030712" />
+              <ActivityIndicator color="#030712" accessibilityLabel="Loading" />
             ) : (
               <Text style={s.buttonText}>Reset password</Text>
             )}
@@ -153,7 +164,11 @@ export default function ResetPasswordScreen() {
 
           <View style={s.footer}>
             <Text style={s.footerText}>Back to </Text>
-            <TouchableOpacity onPress={() => router.replace("/(auth)/login")}>
+            <TouchableOpacity
+              onPress={() => router.replace("/(auth)/login")}
+              accessibilityRole="link"
+              accessibilityLabel="Sign in"
+            >
               <Text style={s.link}>Sign in</Text>
             </TouchableOpacity>
           </View>

@@ -37,6 +37,8 @@ export function AvatarPicker({ currentAvatarId, onSelect }: AvatarPickerProps) {
         style={styles.trigger}
         onPress={() => setVisible(true)}
         activeOpacity={0.7}
+        accessibilityRole="button"
+        accessibilityLabel={`Change avatar. Current: ${currentAvatarId ?? "initials"}`}
       >
         <UserAvatar avatarId={currentAvatarId} name="?" size={64} />
         <Text style={styles.changeText}>Change Avatar</Text>
@@ -49,7 +51,7 @@ export function AvatarPicker({ currentAvatarId, onSelect }: AvatarPickerProps) {
         onRequestClose={() => setVisible(false)}
       >
         <View style={styles.overlay}>
-          <View style={styles.sheet}>
+          <View style={styles.sheet} accessibilityViewIsModal>
             <View style={styles.handle} />
             <Text style={styles.title}>Choose Your Ride</Text>
 
@@ -65,6 +67,9 @@ export function AvatarPicker({ currentAvatarId, onSelect }: AvatarPickerProps) {
                 ]}
                 onPress={() => handleSelect(null)}
                 activeOpacity={0.7}
+                accessibilityRole="button"
+                accessibilityLabel="Initials avatar"
+                accessibilityState={{ selected: currentAvatarId === null }}
               >
                 <UserAvatar name="A" size={52} />
                 <Text style={styles.cellLabel} numberOfLines={1}>
@@ -81,6 +86,9 @@ export function AvatarPicker({ currentAvatarId, onSelect }: AvatarPickerProps) {
                   ]}
                   onPress={() => handleSelect(avatar.id)}
                   activeOpacity={0.7}
+                  accessibilityRole="button"
+                  accessibilityLabel={`${avatar.label} avatar`}
+                  accessibilityState={{ selected: currentAvatarId === avatar.id }}
                 >
                   <AvatarIcon avatarId={avatar.id} size={52} />
                   <Text style={styles.cellLabel} numberOfLines={1}>
@@ -94,6 +102,8 @@ export function AvatarPicker({ currentAvatarId, onSelect }: AvatarPickerProps) {
               style={styles.closeBtn}
               onPress={() => setVisible(false)}
               activeOpacity={0.7}
+              accessibilityRole="button"
+              accessibilityLabel="Cancel avatar selection"
             >
               <Text style={styles.closeBtnText}>Cancel</Text>
             </TouchableOpacity>
@@ -121,7 +131,7 @@ const styles = StyleSheet.create({
     justifyContent: "flex-end",
   },
   sheet: {
-    backgroundColor: "#0c1425",
+    backgroundColor: "#0a1120",
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     paddingHorizontal: 20,
@@ -167,7 +177,7 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(245, 166, 35, 0.08)",
   },
   cellLabel: {
-    fontSize: 9,
+    fontSize: 11,
     fontFamily: "PlusJakartaSans_500Medium",
     color: TEXT_2,
     marginTop: 4,

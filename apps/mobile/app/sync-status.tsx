@@ -48,7 +48,7 @@ const CARD_BORDER = "rgba(255,255,255,0.05)";
 const AMBER = "#f5a623";
 const TEXT_1 = "#f0f2f5";
 const TEXT_2 = "#8494a7";
-const TEXT_3 = "#4a5568";
+const TEXT_3 = "#64748b";
 const GREEN = "#34c759";
 const RED = "#ef4444";
 const ORANGE = "#f97316";
@@ -211,6 +211,8 @@ function QueueItemRow({ item, onRetry, onDelete }: QueueItemRowProps) {
           onPress={() => setExpanded((v) => !v)}
           activeOpacity={0.7}
           style={styles.errorRow}
+          accessibilityRole="button"
+          accessibilityLabel={expanded ? "Collapse error details" : "Expand error details"}
         >
           <Text
             style={styles.errorText}
@@ -231,6 +233,8 @@ function QueueItemRow({ item, onRetry, onDelete }: QueueItemRowProps) {
             style={styles.retryBtn}
             onPress={() => onRetry(item.id)}
             activeOpacity={0.75}
+            accessibilityRole="button"
+            accessibilityLabel={`Retry ${actionLabel(item.action)} ${entityLabel(item.entity_type)}`}
           >
             <Ionicons name="refresh-outline" size={14} color={AMBER} />
             <Text style={styles.retryBtnText}>Retry</Text>
@@ -240,6 +244,8 @@ function QueueItemRow({ item, onRetry, onDelete }: QueueItemRowProps) {
           style={styles.deleteBtn}
           onPress={() => onDelete(item.id)}
           activeOpacity={0.75}
+          accessibilityRole="button"
+          accessibilityLabel={`Remove ${actionLabel(item.action)} ${entityLabel(item.entity_type)} from queue`}
         >
           <Ionicons name="trash-outline" size={14} color={RED} />
           <Text style={styles.deleteBtnText}>Remove</Text>
@@ -434,6 +440,7 @@ export default function SyncStatusScreen() {
                 size="small"
                 color={AMBER}
                 style={{ marginTop: 32 }}
+                accessibilityLabel="Loading sync queue"
               />
             )}
           </View>

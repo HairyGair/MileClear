@@ -9,7 +9,7 @@ import { UserAvatar } from "./avatars/AvatarRegistry";
 const AMBER = "#f5a623";
 const TEXT_1 = "#f0f2f5";
 const TEXT_2 = "#8494a7";
-const CARD_BG = "#0c1425";
+const CARD_BG = "#0a1120";
 
 interface MenuItem {
   label: string;
@@ -280,7 +280,7 @@ const styles = StyleSheet.create({
     borderRadius: 3,
   },
   badgeText: {
-    fontSize: 9,
+    fontSize: 11,
     fontFamily: "PlusJakartaSans_700Bold",
     color: "#030712",
     letterSpacing: 0.3,
@@ -298,7 +298,7 @@ const styles = StyleSheet.create({
     borderRadius: 3,
   },
   adminBadgeText: {
-    fontSize: 9,
+    fontSize: 11,
     fontFamily: "PlusJakartaSans_700Bold",
     color: "#fff",
     letterSpacing: 0.3,

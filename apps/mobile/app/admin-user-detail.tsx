@@ -86,7 +86,7 @@ export default function AdminUserDetailScreen() {
   if (loading) {
     return (
       <View style={[s.container, s.centered]}>
-        <ActivityIndicator size="large" color={AMBER} />
+        <ActivityIndicator size="large" color={AMBER} accessibilityLabel="Loading user details" />
       </View>
     );
   }
@@ -244,9 +244,12 @@ export default function AdminUserDetailScreen() {
           onPress={handleTogglePremium}
           activeOpacity={0.7}
           disabled={toggling}
+          accessibilityRole="button"
+          accessibilityLabel={user.isPremium ? "Revoke Premium from this user" : "Grant Premium to this user"}
+          accessibilityState={{ disabled: toggling }}
         >
           {toggling ? (
-            <ActivityIndicator size="small" color={user.isPremium ? "#ef4444" : AMBER} />
+            <ActivityIndicator size="small" color={user.isPremium ? "#ef4444" : AMBER} accessibilityLabel="Loading" />
           ) : (
             <>
               <Ionicons
@@ -265,6 +268,8 @@ export default function AdminUserDetailScreen() {
           style={[s.actionBtn, s.actionBtnGhost]}
           onPress={handleDelete}
           activeOpacity={0.7}
+          accessibilityRole="button"
+          accessibilityLabel={`Delete user ${user.email}`}
         >
           <Ionicons name="trash-outline" size={18} color="#ef4444" />
           <Text style={[s.actionBtnText, s.actionTextDestructive]}>Delete User</Text>
@@ -279,7 +284,7 @@ export default function AdminUserDetailScreen() {
 const AMBER = "#f5a623";
 const TEXT_1 = "#f0f2f5";
 const TEXT_2 = "#8494a7";
-const TEXT_3 = "#4a5568";
+const TEXT_3 = "#64748b";
 const CARD_BG = "#0a1120";
 const CARD_BORDER = "rgba(255,255,255,0.05)";
 
@@ -350,7 +355,7 @@ const s = StyleSheet.create({
     borderRadius: 3,
   },
   proBadgeText: {
-    fontSize: 9,
+    fontSize: 11,
     fontFamily: "PlusJakartaSans_700Bold",
     color: "#030712",
     letterSpacing: 0.3,
@@ -362,7 +367,7 @@ const s = StyleSheet.create({
     borderRadius: 3,
   },
   adminBadgeText: {
-    fontSize: 9,
+    fontSize: 11,
     fontFamily: "PlusJakartaSans_700Bold",
     color: "#fff",
     letterSpacing: 0.3,

@@ -83,7 +83,7 @@ const styles = StyleSheet.create({
   taxYear: {
     fontSize: 11,
     fontFamily: "PlusJakartaSans_400Regular",
-    color: "#4a5568",
+    color: "#64748b",
     marginTop: 1,
   },
   amount: {

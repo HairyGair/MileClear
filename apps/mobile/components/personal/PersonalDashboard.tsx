@@ -150,6 +150,8 @@ export function PersonalDashboard({ avatarId, stats, visibleKeys, recentTrips, d
             style={styles.startTripBtn}
             onPress={() => router.push("/trip-form")}
             activeOpacity={0.7}
+            accessibilityRole="button"
+            accessibilityLabel="Start a new trip"
           >
             <Ionicons name="navigate" size={20} color="#030712" />
             <Text style={styles.startTripBtnText}>Start Trip</Text>
@@ -162,32 +164,40 @@ export function PersonalDashboard({ avatarId, stats, visibleKeys, recentTrips, d
               style={styles.quickAction}
               onPress={() => router.push("/insights")}
               activeOpacity={0.7}
+              accessibilityRole="button"
+              accessibilityLabel="View insights"
             >
-              <Ionicons name="analytics-outline" size={22} color="#10b981" style={{ marginBottom: 4 }} />
+              <Ionicons name="analytics-outline" size={22} color="#10b981" style={{ marginBottom: 4 }} accessible={false} />
               <Text style={styles.quickActionLabel}>Insights</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={styles.quickAction}
               onPress={() => router.replace("/(tabs)/trips" as any)}
               activeOpacity={0.7}
+              accessibilityRole="button"
+              accessibilityLabel="View trips"
             >
-              <Ionicons name="list-outline" size={22} color="#10b981" style={{ marginBottom: 4 }} />
+              <Ionicons name="list-outline" size={22} color="#10b981" style={{ marginBottom: 4 }} accessible={false} />
               <Text style={styles.quickActionLabel}>Trips</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={styles.quickAction}
               onPress={() => router.replace("/(tabs)/fuel" as any)}
               activeOpacity={0.7}
+              accessibilityRole="button"
+              accessibilityLabel="View fuel logs"
             >
-              <Ionicons name="water-outline" size={22} color="#10b981" style={{ marginBottom: 4 }} />
+              <Ionicons name="water-outline" size={22} color="#10b981" style={{ marginBottom: 4 }} accessible={false} />
               <Text style={styles.quickActionLabel}>Fuel</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={styles.quickAction}
               onPress={() => router.push("/achievements")}
               activeOpacity={0.7}
+              accessibilityRole="button"
+              accessibilityLabel="View badges and achievements"
             >
-              <Ionicons name="trophy-outline" size={22} color="#10b981" style={{ marginBottom: 4 }} />
+              <Ionicons name="trophy-outline" size={22} color="#10b981" style={{ marginBottom: 4 }} accessible={false} />
               <Text style={styles.quickActionLabel}>Badges</Text>
             </TouchableOpacity>
           </View>

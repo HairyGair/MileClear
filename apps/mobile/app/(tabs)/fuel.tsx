@@ -155,6 +155,8 @@ export default function FuelScreen() {
       style={styles.card}
       onPress={() => router.push(`/fuel-form?id=${item.id}`)}
       activeOpacity={0.7}
+      accessibilityRole="button"
+      accessibilityLabel={`Fuel log at ${item.stationName ?? "Unknown Station"}, ${formatPence(item.costPence)}, ${item.litres.toFixed(1)} litres, ${formatDate(item.loggedAt)}. Tap to edit.`}
     >
       <View style={styles.cardHeader}>
         <Text style={styles.stationText}>
@@ -241,6 +243,9 @@ export default function FuelScreen() {
                   !stationFilter && styles.filterChipActive,
                 ]}
                 onPress={() => handleFilterChange(undefined)}
+                accessibilityRole="button"
+                accessibilityLabel="All stations"
+                accessibilityState={{ selected: !stationFilter }}
               >
                 <Text
                   style={[
@@ -259,6 +264,9 @@ export default function FuelScreen() {
                     stationFilter === brand && styles.filterChipActive,
                   ]}
                   onPress={() => handleFilterChange(brand)}
+                  accessibilityRole="button"
+                  accessibilityLabel={brand}
+                  accessibilityState={{ selected: stationFilter === brand }}
                 >
                   <Text
                     style={[
@@ -275,9 +283,13 @@ export default function FuelScreen() {
         }
         ListEmptyComponent={
           !loading ? (
-            <View style={styles.emptyState}>
+            <View
+              style={styles.emptyState}
+              accessibilityRole="text"
+              accessibilityLiveRegion="polite"
+            >
               <View style={styles.emptyIcon}>
-                <Ionicons name="water-outline" size={40} color="#4a5568" />
+                <Ionicons name="water-outline" size={40} color="#64748b" accessible={false} />
               </View>
               <Text style={styles.emptyTitle}>No fuel logs yet</Text>
               <Text style={styles.emptyText}>
@@ -304,7 +316,7 @@ export default function FuelScreen() {
       />
       {loading && !refreshing && (
         <View style={styles.loadingOverlay}>
-          <ActivityIndicator size="large" color="#f5a623" />
+          <ActivityIndicator size="large" color="#f5a623" accessibilityLabel="Loading fuel logs" />
         </View>
       )}
     </View>
@@ -321,7 +333,7 @@ const styles = StyleSheet.create({
   },
   // Summary card
   summaryCard: {
-    backgroundColor: "#111827",
+    backgroundColor: "#0a1120",
     borderRadius: 12,
     padding: 16,
     marginBottom: 16,
@@ -359,9 +371,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 20,
-    backgroundColor: "#111827",
+    backgroundColor: "#0a1120",
     borderWidth: 1,
-    borderColor: "#1f2937",
+    borderColor: "rgba(255,255,255,0.06)",
   },
   filterChipActive: {
     backgroundColor: "#f5a623",
@@ -378,12 +390,12 @@ const styles = StyleSheet.create({
   },
   // Log cards
   card: {
-    backgroundColor: "#111827",
+    backgroundColor: "#0a1120",
     borderRadius: 12,
     padding: 16,
     marginBottom: 10,
     borderWidth: 1,
-    borderColor: "#1f2937",
+    borderColor: "rgba(255,255,255,0.06)",
   },
   cardHeader: {
     flexDirection: "row",
@@ -400,7 +412,7 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontFamily: "PlusJakartaSans_700Bold",
     color: "#d1d5db",
-    backgroundColor: "#1f2937",
+    backgroundColor: "rgba(255,255,255,0.08)",
     paddingHorizontal: 8,
     paddingVertical: 2,
     borderRadius: 4,
@@ -463,9 +475,9 @@ const styles = StyleSheet.create({
     width: 72,
     height: 72,
     borderRadius: 36,
-    backgroundColor: "#111827",
+    backgroundColor: "#0a1120",
     borderWidth: 1,
-    borderColor: "#1f2937",
+    borderColor: "rgba(255,255,255,0.06)",
     justifyContent: "center",
     alignItems: "center",
     marginBottom: 16,

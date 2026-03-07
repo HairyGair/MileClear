@@ -21,7 +21,7 @@ const CARD_BG = "#0a1120";
 const BORDER = "rgba(255,255,255,0.05)";
 const TEXT_1 = "#f0f2f5";
 const TEXT_2 = "#8494a7";
-const TEXT_3 = "#4a5568";
+const TEXT_3 = "#64748b";
 
 const freeSet = new Set<string>(FREE_ACHIEVEMENT_TYPES);
 
@@ -52,7 +52,7 @@ export default function AchievementsScreen() {
   if (loading) {
     return (
       <View style={[s.container, s.centered]}>
-        <ActivityIndicator size="large" color={AMBER} />
+        <ActivityIndicator size="large" color={AMBER} accessibilityLabel="Loading achievements" />
       </View>
     );
   }
@@ -93,6 +93,14 @@ export default function AchievementsScreen() {
                 isEarned && !isLocked && s.badgeEarned,
                 isLocked && s.badgePremium,
               ]}
+              accessible={true}
+              accessibilityLabel={
+                isLocked
+                  ? `${meta.label}: Pro feature, locked`
+                  : isEarned
+                  ? `${meta.label}: ${meta.description}. Earned`
+                  : `${meta.label}: ${meta.description}. Not yet earned`
+              }
             >
               <Text style={[s.badgeEmoji, (!isEarned || isLocked) && s.emojiLocked]}>
                 {isLocked ? "🔒" : meta.emoji}
@@ -231,7 +239,7 @@ const s = StyleSheet.create({
     color: TEXT_3,
   },
   badgeDesc: {
-    fontSize: 9,
+    fontSize: 11,
     fontFamily: "PlusJakartaSans_400Regular",
     color: TEXT_2,
     textAlign: "center",
@@ -241,7 +249,7 @@ const s = StyleSheet.create({
     color: "#374151",
   },
   badgeDate: {
-    fontSize: 9,
+    fontSize: 11,
     fontFamily: "PlusJakartaSans_500Medium",
     color: AMBER,
     marginTop: 4,

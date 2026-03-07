@@ -14,7 +14,7 @@ interface DrivingSummaryCardProps {
 const AMBER = "#f5a623";
 const TEXT_1 = "#f0f2f5";
 const TEXT_2 = "#8494a7";
-const TEXT_3 = "#4a5568";
+const TEXT_3 = "#64748b";
 
 function formatMilesHero(miles: number): string {
   if (miles < 100) return miles.toFixed(1);

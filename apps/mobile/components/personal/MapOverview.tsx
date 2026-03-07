@@ -223,6 +223,8 @@ export function MapOverview({ trips, title }: MapOverviewProps) {
         style={styles.card}
         activeOpacity={0.9}
         onPress={() => setFullscreen(true)}
+        accessibilityRole="button"
+        accessibilityLabel={`Journey map, ${tripsWithCoords.length} trip${tripsWithCoords.length !== 1 ? "s" : ""}. Tap to expand`}
       >
         {title && <Text style={styles.cardTitle}>{title}</Text>}
         <View style={styles.mapContainer}>
@@ -245,7 +247,7 @@ export function MapOverview({ trips, title }: MapOverviewProps) {
         animationType="slide"
         onRequestClose={() => { dismissSheet(); setFullscreen(false); }}
       >
-        <View style={styles.fullscreenContainer}>
+        <View style={styles.fullscreenContainer} accessibilityViewIsModal>
           {mapContent(true, "full")}
 
           {/* Trip info bottom sheet */}
@@ -260,6 +262,8 @@ export function MapOverview({ trips, title }: MapOverviewProps) {
                 style={styles.tripSheetDismiss}
                 onPress={dismissSheet}
                 activeOpacity={0.7}
+                accessibilityRole="button"
+                accessibilityLabel="Dismiss trip details"
               >
                 <View style={styles.sheetHandle} />
               </TouchableOpacity>
@@ -346,6 +350,9 @@ export function MapOverview({ trips, title }: MapOverviewProps) {
                   ]}
                   onPress={() => showSheet(i)}
                   activeOpacity={0.7}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Trip ${i + 1}, ${trip.distanceMiles.toFixed(1)} miles`}
+                  accessibilityState={{ selected: selectedTrip === i }}
                 >
                   <View style={[styles.legendDot, { backgroundColor: color }]} />
                   <Text style={styles.fullLegendText} numberOfLines={1}>
@@ -363,6 +370,8 @@ export function MapOverview({ trips, title }: MapOverviewProps) {
                 dismissSheet();
                 setFullscreen(false);
               }}
+              accessibilityRole="button"
+              accessibilityLabel="Close journey map"
             >
               <Text style={styles.closeBtnText}>Close</Text>
             </TouchableOpacity>
@@ -469,7 +478,7 @@ const styles = StyleSheet.create({
   emptyText: {
     fontSize: 13,
     fontFamily: "PlusJakartaSans_400Regular",
-    color: "#4a5568",
+    color: "#64748b",
     textAlign: "center",
     lineHeight: 18,
   },
@@ -516,7 +525,7 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     right: 0,
-    backgroundColor: "#0f1729",
+    backgroundColor: "#0a1120",
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     paddingHorizontal: 20,

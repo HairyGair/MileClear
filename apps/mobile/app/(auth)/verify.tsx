@@ -17,7 +17,7 @@ const CARD_BG = "#0a1120";
 const BORDER = "rgba(255,255,255,0.06)";
 const TEXT_1 = "#f0f2f5";
 const TEXT_2 = "#8494a7";
-const TEXT_3 = "#4a5568";
+const TEXT_3 = "#64748b";
 
 export default function VerifyScreen() {
   const { completeAuth, sendVerificationCode, verifyEmail } = useAuth();
@@ -107,7 +107,11 @@ export default function VerifyScreen() {
           </Text>
 
           {error ? (
-            <View style={s.errorWrap}>
+            <View
+              style={s.errorWrap}
+              accessibilityLiveRegion="polite"
+              accessibilityRole="alert"
+            >
               <Text style={s.errorText}>{error}</Text>
             </View>
           ) : null}
@@ -124,6 +128,7 @@ export default function VerifyScreen() {
             maxLength={6}
             autoFocus
             editable={!loading}
+            accessibilityLabel="Verification code"
           />
 
           <TouchableOpacity
@@ -131,9 +136,12 @@ export default function VerifyScreen() {
             onPress={handleVerify}
             disabled={loading}
             activeOpacity={0.8}
+            accessibilityRole="button"
+            accessibilityLabel="Verify email"
+            accessibilityState={{ disabled: loading }}
           >
             {loading ? (
-              <ActivityIndicator color="#030712" />
+              <ActivityIndicator color="#030712" accessibilityLabel="Loading" />
             ) : (
               <Text style={s.buttonText}>Verify</Text>
             )}
@@ -144,9 +152,16 @@ export default function VerifyScreen() {
             onPress={handleResend}
             disabled={resendCooldown > 0 || resendLoading}
             style={s.resendWrap}
+            accessibilityRole="button"
+            accessibilityLabel={
+              resendCooldown > 0
+                ? `Resend code, available in ${resendCooldown} seconds`
+                : "Resend verification code"
+            }
+            accessibilityState={{ disabled: resendCooldown > 0 || resendLoading }}
           >
             {resendLoading ? (
-              <ActivityIndicator size="small" color={AMBER} />
+              <ActivityIndicator size="small" color={AMBER} accessibilityLabel="Loading" />
             ) : (
               <Text
                 style={[
@@ -165,6 +180,8 @@ export default function VerifyScreen() {
           <TouchableOpacity
             onPress={() => completeAuth()}
             style={s.skipWrap}
+            accessibilityRole="button"
+            accessibilityLabel="Skip verification for now"
           >
             <Text style={s.skipText}>Skip for now</Text>
           </TouchableOpacity>

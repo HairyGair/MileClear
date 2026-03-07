@@ -8,21 +8,30 @@ export function SyncStatusBar() {
 
   if (pendingCount === 0) return null;
 
+  const statusText = syncState === "syncing"
+    ? "Syncing..."
+    : `${pendingCount} ${pendingCount === 1 ? "item" : "items"} pending sync`;
+
   return (
-    <TouchableOpacity style={styles.container} onPress={triggerSync} activeOpacity={0.7}>
-      <View style={styles.row}>
+    <TouchableOpacity
+      style={styles.container}
+      onPress={triggerSync}
+      activeOpacity={0.7}
+      accessibilityRole="button"
+      accessibilityLabel={syncState === "syncing" ? "Syncing data, please wait" : `${statusText}. Tap to sync now`}
+      accessibilityLiveRegion="polite"
+    >
+      <View style={styles.row} accessibilityRole="summary">
         {syncState === "syncing" ? (
-          <ActivityIndicator size="small" color="#f5a623" />
+          <ActivityIndicator size="small" color="#f5a623" accessibilityLabel="Loading" />
         ) : (
-          <Ionicons name="cloud-upload-outline" size={14} color="#f5a623" />
+          <Ionicons name="cloud-upload-outline" size={14} color="#f5a623" accessible={false} />
         )}
         <Text style={styles.text}>
-          {syncState === "syncing"
-            ? "Syncing..."
-            : `${pendingCount} ${pendingCount === 1 ? "item" : "items"} pending sync`}
+          {statusText}
         </Text>
         {syncState !== "syncing" && (
-          <Ionicons name="chevron-forward" size={12} color="#4a5568" />
+          <Ionicons name="chevron-forward" size={12} color="#64748b" accessible={false} />
         )}
       </View>
     </TouchableOpacity>
@@ -36,7 +45,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     alignItems: "center",
     borderBottomWidth: 1,
-    borderBottomColor: "#1f2937",
+    borderBottomColor: "rgba(255,255,255,0.06)",
   },
   row: {
     flexDirection: "row",

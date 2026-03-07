@@ -19,8 +19,8 @@ import { useLayoutPrefs } from "../lib/layout/index";
 const AMBER = "#f5a623";
 const TEXT_1 = "#f0f2f5";
 const TEXT_2 = "#8494a7";
-const TEXT_3 = "#4a5568";
-const CARD_BG = "#0c1425";
+const TEXT_3 = "#64748b";
+const CARD_BG = "#0a1120";
 const SHEET_BG = "#0a1120";
 
 // ── Menu item definitions ──────────────────────────────────────────
@@ -108,6 +108,8 @@ export default function AvatarMenuButton() {
           onPress={() => router.push("/(tabs)/profile" as any)}
           hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
           style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1 })}
+          accessibilityRole="button"
+          accessibilityLabel={`${shortName}, go to profile`}
         >
           <Text style={styles.headerName} numberOfLines={1}>{shortName}</Text>
         </Pressable>
@@ -117,6 +119,8 @@ export default function AvatarMenuButton() {
           onPress={() => setMenuVisible(true)}
           hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
           style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1 })}
+          accessibilityRole="button"
+          accessibilityLabel="Open navigation menu"
         >
           <UserAvatar
             avatarId={user?.avatarId}
@@ -138,10 +142,13 @@ export default function AvatarMenuButton() {
           <Pressable
             style={styles.backdrop}
             onPress={() => setMenuVisible(false)}
+            accessibilityRole="button"
+            accessibilityLabel="Close menu"
           >
             <View
               style={[styles.sheet, { paddingBottom: insets.bottom + 12 }]}
               onStartShouldSetResponder={() => true}
+              accessibilityViewIsModal
             >
               {/* Handle */}
               <View style={styles.handle} />
@@ -152,6 +159,8 @@ export default function AvatarMenuButton() {
                   style={styles.userCard}
                   onPress={() => handleNav("/(tabs)/profile", true)}
                   activeOpacity={0.7}
+                  accessibilityRole="button"
+                  accessibilityLabel={`${user.displayName || "Driver"}, ${user.email}. Go to profile`}
                 >
                   <UserAvatar
                     avatarId={user.avatarId}
@@ -203,6 +212,9 @@ export default function AvatarMenuButton() {
                             ]}
                             onPress={() => handleNav(item.route, item.replace)}
                             activeOpacity={0.6}
+                            accessibilityRole="menuitem"
+                            accessibilityLabel={item.badge ? `${item.label} — ${item.badge}` : item.label}
+                            accessibilityState={{ selected: isActive(item.route) }}
                           >
                             <View style={[
                               styles.iconCircle,
@@ -247,6 +259,9 @@ export default function AvatarMenuButton() {
                         ]}
                         onPress={() => handleNav("/(tabs)/admin", true)}
                         activeOpacity={0.6}
+                        accessibilityRole="menuitem"
+                        accessibilityLabel="Admin Panel"
+                        accessibilityState={{ selected: isActive("/(tabs)/admin") }}
                       >
                         <View style={[
                           styles.iconCircle,
@@ -273,6 +288,8 @@ export default function AvatarMenuButton() {
                   style={styles.logoutBtn}
                   onPress={handleLogout}
                   activeOpacity={0.6}
+                  accessibilityRole="button"
+                  accessibilityLabel="Log out"
                 >
                   <Ionicons name="log-out-outline" size={18} color="#ef4444" />
                   <Text style={styles.logoutLabel}>Log out</Text>
@@ -429,7 +446,7 @@ const styles = StyleSheet.create({
     borderRadius: 4,
   },
   badgeText: {
-    fontSize: 9,
+    fontSize: 11,
     fontFamily: "PlusJakartaSans_700Bold",
     color: "#030712",
     letterSpacing: 0.3,
@@ -445,7 +462,7 @@ const styles = StyleSheet.create({
     borderColor: "rgba(239, 68, 68, 0.3)",
   },
   adminBadgeText: {
-    fontSize: 9,
+    fontSize: 11,
     fontFamily: "PlusJakartaSans_700Bold",
     color: "#ef4444",
     letterSpacing: 0.3,

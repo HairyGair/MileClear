@@ -192,7 +192,7 @@ export default function OpenBankingScreen() {
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#f5a623" />
+        <ActivityIndicator size="large" color="#f5a623" accessibilityLabel="Loading" />
       </View>
     );
   }
@@ -221,7 +221,7 @@ export default function OpenBankingScreen() {
         ListEmptyComponent={
           <View style={styles.emptyState}>
             <View style={styles.emptyIcon}>
-              <Ionicons name="business-outline" size={40} color="#4a5568" />
+              <Ionicons name="business-outline" size={40} color="#64748b" />
             </View>
             <Text style={styles.emptyTitle}>No banks connected</Text>
             <Text style={styles.emptyText}>
@@ -291,12 +291,12 @@ const styles = StyleSheet.create({
   },
   // Bank cards
   card: {
-    backgroundColor: "#111827",
+    backgroundColor: "#0a1120",
     borderRadius: 12,
     padding: 16,
     marginBottom: 12,
     borderWidth: 1,
-    borderColor: "#1f2937",
+    borderColor: "rgba(255,255,255,0.06)",
   },
   cardHeader: {
     flexDirection: "row",
@@ -344,9 +344,9 @@ const styles = StyleSheet.create({
     width: 72,
     height: 72,
     borderRadius: 36,
-    backgroundColor: "#111827",
+    backgroundColor: "#0a1120",
     borderWidth: 1,
-    borderColor: "#1f2937",
+    borderColor: "rgba(255,255,255,0.06)",
     justifyContent: "center",
     alignItems: "center",
     marginBottom: 16,

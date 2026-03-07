@@ -20,6 +20,9 @@ export function ModeToggle() {
             style={[styles.segment, active && styles.segmentActive]}
             onPress={() => setMode(seg.value)}
             activeOpacity={0.7}
+            accessibilityRole="tab"
+            accessibilityLabel={`${seg.label} mode`}
+            accessibilityState={{ selected: active }}
           >
             <Text style={[styles.label, active && styles.labelActive]}>
               {seg.label}
@@ -34,18 +37,18 @@ export function ModeToggle() {
 const styles = StyleSheet.create({
   container: {
     flexDirection: "row",
-    backgroundColor: "#111827",
+    backgroundColor: "rgba(255,255,255,0.08)",
     borderRadius: 20,
     padding: 3,
     marginBottom: 16,
     alignSelf: "center",
     borderWidth: 1,
-    borderColor: "#1f2937",
+    borderColor: "rgba(255,255,255,0.06)",
   },
   segment: {
     paddingHorizontal: 20,
-    paddingVertical: 8,
-    borderRadius: 17,
+    paddingVertical: 12,
+    borderRadius: 20,
   },
   segmentActive: {
     backgroundColor: "#f5a623",

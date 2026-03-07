@@ -1231,7 +1231,7 @@ export default function TripFormScreen() {
 
           {/* Recenter button */}
           {!followUser && (
-            <TouchableOpacity style={styles.drivingRecenterBtn} onPress={handleRecenter} activeOpacity={0.7}>
+            <TouchableOpacity style={styles.drivingRecenterBtn} onPress={handleRecenter} activeOpacity={0.7} accessibilityRole="button" accessibilityLabel="Re-centre map on current location">
               <Ionicons name="locate-outline" size={20} color="#f0f2f5" />
             </TouchableOpacity>
           )}
@@ -1310,7 +1310,7 @@ export default function TripFormScreen() {
               loading={loading}
               size="lg"
             />
-            <TouchableOpacity onPress={handleCancel} style={styles.dashCancelBtn} activeOpacity={0.7}>
+            <TouchableOpacity onPress={handleCancel} style={styles.dashCancelBtn} activeOpacity={0.7} accessibilityRole="button" accessibilityLabel="Cancel trip">
               <Text style={styles.dashCancelText}>Cancel trip</Text>
             </TouchableOpacity>
           </View>
@@ -1462,6 +1462,8 @@ export default function TripFormScreen() {
               style={styles.manualLink}
               onPress={handleSwitchToManual}
               activeOpacity={0.7}
+              accessibilityRole="button"
+              accessibilityLabel="Log a past trip manually instead"
             >
               <Ionicons name="create-outline" size={16} color="#8494a7" />
               <Text style={styles.manualLinkText}>Log a past trip instead</Text>
@@ -1597,6 +1599,9 @@ export default function TripFormScreen() {
                       key={opt}
                       style={[styles.anomalyChip, anomalyResponse === opt && styles.anomalyChipActive]}
                       onPress={() => setAnomalyResponse(opt)}
+                      accessibilityRole="button"
+                      accessibilityLabel={opt}
+                      accessibilityState={{ selected: anomalyResponse === opt }}
                     >
                       <Text style={[styles.anomalyChipText, anomalyResponse === opt && styles.anomalyChipTextActive]}>
                         {opt}
@@ -1611,6 +1616,7 @@ export default function TripFormScreen() {
                     onChangeText={setAnomalyCustomNote}
                     placeholder="Tell us more..."
                     placeholderTextColor="#6b7280"
+                    accessibilityLabel="Custom explanation for anomaly"
                   />
                 )}
               </View>
@@ -1642,6 +1648,9 @@ export default function TripFormScreen() {
                             <TouchableOpacity
                               key={opt}
                               style={[styles.anomalyChip, isSelected && styles.anomalyChipActive]}
+                              accessibilityRole="button"
+                              accessibilityLabel={opt}
+                              accessibilityState={{ selected: isSelected }}
                               onPress={() => {
                                 setLocationResponses((prev) => {
                                   const current = prev[qIdx] || [];
@@ -1668,6 +1677,7 @@ export default function TripFormScreen() {
                           }
                           placeholder="Tell us more..."
                           placeholderTextColor="#6b7280"
+                          accessibilityLabel="Custom explanation for location question"
                         />
                       )}
                     </View>
@@ -1698,6 +1708,9 @@ export default function TripFormScreen() {
                       setSuggestionApplied(false);
                     }
                   }}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Classify trip as ${opt.label}`}
+                  accessibilityState={{ selected: classification === opt.value }}
                 >
                   <Text
                     style={[styles.classChipText, classification === opt.value && styles.classChipTextActive]}
@@ -1721,6 +1734,9 @@ export default function TripFormScreen() {
                   <TouchableOpacity
                     style={[styles.platformChip, !platformTag && styles.platformChipActive]}
                     onPress={() => setPlatformTag(undefined)}
+                    accessibilityRole="button"
+                    accessibilityLabel="No platform"
+                    accessibilityState={{ selected: !platformTag }}
                   >
                     <Text style={[styles.platformChipText, !platformTag && styles.platformChipTextActive]}>
                       None
@@ -1731,6 +1747,9 @@ export default function TripFormScreen() {
                       key={p.value}
                       style={[styles.platformChip, platformTag === p.value && styles.platformChipActive]}
                       onPress={() => setPlatformTag(p.value as PlatformTag)}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Platform: ${p.label}`}
+                      accessibilityState={{ selected: platformTag === p.value }}
                     >
                       <Text
                         style={[styles.platformChipText, platformTag === p.value && styles.platformChipTextActive]}
@@ -1756,6 +1775,9 @@ export default function TripFormScreen() {
                   <TouchableOpacity
                     style={[styles.platformChip, !businessPurpose && styles.platformChipActive]}
                     onPress={() => setBusinessPurpose(undefined)}
+                    accessibilityRole="button"
+                    accessibilityLabel="No business purpose"
+                    accessibilityState={{ selected: !businessPurpose }}
                   >
                     <Text style={[styles.platformChipText, !businessPurpose && styles.platformChipTextActive]}>
                       None
@@ -1766,6 +1788,9 @@ export default function TripFormScreen() {
                       key={bp.value}
                       style={[styles.platformChip, businessPurpose === bp.value && styles.platformChipActive]}
                       onPress={() => setBusinessPurpose(bp.value as BusinessPurpose)}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Business purpose: ${bp.label}`}
+                      accessibilityState={{ selected: businessPurpose === bp.value }}
                     >
                       <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
                         <Ionicons
@@ -1796,6 +1821,9 @@ export default function TripFormScreen() {
                 <TouchableOpacity
                   style={[styles.platformChip, !category && styles.platformChipActive]}
                   onPress={() => setCategory(undefined)}
+                  accessibilityRole="button"
+                  accessibilityLabel="Category: None"
+                  accessibilityState={{ selected: !category }}
                 >
                   <Text style={[styles.platformChipText, !category && styles.platformChipTextActive]}>
                     None
@@ -1806,12 +1834,16 @@ export default function TripFormScreen() {
                     key={c.value}
                     style={[styles.platformChip, category === c.value && styles.platformChipActive]}
                     onPress={() => setCategory(c.value as TripCategory)}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Category: ${c.label}`}
+                    accessibilityState={{ selected: category === c.value }}
                   >
                     <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
                       <Ionicons
                         name={c.icon as any}
                         size={14}
                         color={category === c.value ? "#030712" : "#8494a7"}
+                        accessible={false}
                       />
                       <Text
                         style={[styles.platformChipText, category === c.value && styles.platformChipTextActive]}
@@ -1832,10 +1864,11 @@ export default function TripFormScreen() {
                   value={notes}
                   onChangeText={setNotes}
                   placeholder="Add a note about this journey..."
-                  placeholderTextColor="#4a5568"
+                  placeholderTextColor="#64748b"
                   multiline
                   numberOfLines={3}
                   textAlignVertical="top"
+                  accessibilityLabel="Journey note"
                 />
               </View>
             )}
@@ -1848,7 +1881,7 @@ export default function TripFormScreen() {
         {/* ── Saving State ── */}
         {mode === "saving" && (
           <View style={styles.centered}>
-            <ActivityIndicator size="large" color="#f5a623" />
+            <ActivityIndicator size="large" color="#f5a623" accessibilityLabel="Saving trip" />
             <Text style={styles.loadingText}>Saving trip...</Text>
           </View>
         )}
@@ -1861,8 +1894,10 @@ export default function TripFormScreen() {
                 style={styles.backToQuickLink}
                 onPress={handleSwitchToQuick}
                 activeOpacity={0.7}
+                accessibilityRole="button"
+                accessibilityLabel="Track a trip live instead"
               >
-                <Ionicons name="navigate-outline" size={16} color="#f5a623" />
+                <Ionicons name="navigate-outline" size={16} color="#f5a623" accessible={false} />
                 <Text style={styles.backToQuickText}>Track a trip live instead</Text>
               </TouchableOpacity>
             )}
@@ -2013,6 +2048,9 @@ export default function TripFormScreen() {
                   key={opt.value}
                   style={[styles.classChip, classification === opt.value && styles.classChipActive]}
                   onPress={() => setClassification(opt.value)}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Classify trip as ${opt.label}`}
+                  accessibilityState={{ selected: classification === opt.value }}
                 >
                   <Text
                     style={[styles.classChipText, classification === opt.value && styles.classChipTextActive]}
@@ -2036,6 +2074,9 @@ export default function TripFormScreen() {
                   <TouchableOpacity
                     style={[styles.platformChip, !category && styles.platformChipActive]}
                     onPress={() => setCategory(undefined)}
+                    accessibilityRole="button"
+                    accessibilityLabel="Category: None"
+                    accessibilityState={{ selected: !category }}
                   >
                     <Text style={[styles.platformChipText, !category && styles.platformChipTextActive]}>
                       None
@@ -2046,6 +2087,9 @@ export default function TripFormScreen() {
                       key={c.value}
                       style={[styles.platformChip, category === c.value && styles.platformChipActive]}
                       onPress={() => setCategory(c.value as TripCategory)}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Category: ${c.label}`}
+                      accessibilityState={{ selected: category === c.value }}
                     >
                       <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
                         <Ionicons
@@ -2073,12 +2117,16 @@ export default function TripFormScreen() {
                 setShowDetails(!showDetails);
               }}
               activeOpacity={0.7}
+              accessibilityRole="button"
+              accessibilityLabel={showDetails ? "Hide trip details" : "Show trip details"}
+              accessibilityState={{ selected: showDetails }}
             >
               <Text style={styles.detailsToggleText}>Details</Text>
               <Ionicons
                 name={showDetails ? "chevron-up" : "chevron-down"}
                 size={18}
                 color="#6b7280"
+                accessible={false}
               />
             </TouchableOpacity>
 
@@ -2096,6 +2144,9 @@ export default function TripFormScreen() {
                       <TouchableOpacity
                         style={[styles.platformChip, !platformTag && styles.platformChipActive]}
                         onPress={() => setPlatformTag(undefined)}
+                        accessibilityRole="button"
+                        accessibilityLabel="Platform: None"
+                        accessibilityState={{ selected: !platformTag }}
                       >
                         <Text style={[styles.platformChipText, !platformTag && styles.platformChipTextActive]}>
                           None
@@ -2106,6 +2157,9 @@ export default function TripFormScreen() {
                           key={p.value}
                           style={[styles.platformChip, platformTag === p.value && styles.platformChipActive]}
                           onPress={() => setPlatformTag(p.value as PlatformTag)}
+                          accessibilityRole="button"
+                          accessibilityLabel={`Platform: ${p.label}`}
+                          accessibilityState={{ selected: platformTag === p.value }}
                         >
                           <Text
                             style={[styles.platformChipText, platformTag === p.value && styles.platformChipTextActive]}
@@ -2130,6 +2184,9 @@ export default function TripFormScreen() {
                       <TouchableOpacity
                         style={[styles.platformChip, !businessPurpose && styles.platformChipActive]}
                         onPress={() => setBusinessPurpose(undefined)}
+                        accessibilityRole="button"
+                        accessibilityLabel="Business purpose: None"
+                        accessibilityState={{ selected: !businessPurpose }}
                       >
                         <Text style={[styles.platformChipText, !businessPurpose && styles.platformChipTextActive]}>
                           None
@@ -2140,12 +2197,16 @@ export default function TripFormScreen() {
                           key={bp.value}
                           style={[styles.platformChip, businessPurpose === bp.value && styles.platformChipActive]}
                           onPress={() => setBusinessPurpose(bp.value as BusinessPurpose)}
+                          accessibilityRole="button"
+                          accessibilityLabel={`Business purpose: ${bp.label}`}
+                          accessibilityState={{ selected: businessPurpose === bp.value }}
                         >
                           <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
                             <Ionicons
                               name={bp.icon as any}
                               size={14}
                               color={businessPurpose === bp.value ? "#030712" : "#8494a7"}
+                              accessible={false}
                             />
                             <Text
                               style={[styles.platformChipText, businessPurpose === bp.value && styles.platformChipTextActive]}
@@ -2165,13 +2226,19 @@ export default function TripFormScreen() {
                   style={styles.vehiclePicker}
                   onPress={handleSelectVehicle}
                   activeOpacity={0.7}
+                  accessibilityRole="button"
+                  accessibilityLabel={
+                    selectedVehicle
+                      ? `Vehicle: ${selectedVehicle.make} ${selectedVehicle.model}, tap to change`
+                      : "Vehicle: None selected, tap to choose"
+                  }
                 >
                   <Text style={styles.vehiclePickerText}>
                     {selectedVehicle
                       ? `${selectedVehicle.make} ${selectedVehicle.model}`
                       : "None selected"}
                   </Text>
-                  <Ionicons name="chevron-forward" size={18} color="#6b7280" />
+                  <Ionicons name="chevron-forward" size={18} color="#6b7280" accessible={false} />
                 </TouchableOpacity>
 
                 {/* Notes */}
@@ -2185,6 +2252,7 @@ export default function TripFormScreen() {
                   multiline
                   numberOfLines={3}
                   textAlignVertical="top"
+                  accessibilityLabel="Notes about this trip"
                 />
               </View>
             )}
@@ -2247,7 +2315,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   mapFallback: {
-    backgroundColor: "#111827",
+    backgroundColor: "#0a1120",
     justifyContent: "center",
     alignItems: "center",
     gap: 8,
@@ -2497,7 +2565,7 @@ const styles = StyleSheet.create({
     color: AMBER,
   },
   dashStatLabel: {
-    fontSize: 9,
+    fontSize: 11,
     fontFamily: "PlusJakartaSans_600SemiBold",
     color: TEXT_2,
     marginTop: 2,
@@ -2679,10 +2747,10 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingVertical: 10,
     borderRadius: 8,
-    backgroundColor: "#111827",
+    backgroundColor: "rgba(255,255,255,0.08)",
     alignItems: "center",
     borderWidth: 1,
-    borderColor: "#1f2937",
+    borderColor: "rgba(255,255,255,0.06)",
   },
   classChipActive: {
     backgroundColor: AMBER,
@@ -2704,9 +2772,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 8,
     borderRadius: 20,
-    backgroundColor: "#111827",
+    backgroundColor: "rgba(255,255,255,0.08)",
     borderWidth: 1,
-    borderColor: "#1f2937",
+    borderColor: "rgba(255,255,255,0.06)",
   },
   platformChipActive: {
     backgroundColor: AMBER,
@@ -2737,14 +2805,14 @@ const styles = StyleSheet.create({
     marginTop: 16,
   },
   input: {
-    backgroundColor: "#111827",
+    backgroundColor: "#0a1120",
     borderRadius: 10,
     padding: 14,
     fontSize: 16,
     fontFamily: "PlusJakartaSans_400Regular",
     color: "#fff",
     borderWidth: 1,
-    borderColor: "#1f2937",
+    borderColor: "rgba(255,255,255,0.06)",
   },
   notesInput: {
     minHeight: 80,
@@ -2782,7 +2850,7 @@ const styles = StyleSheet.create({
   distanceHint: {
     fontSize: 11,
     fontFamily: "PlusJakartaSans_400Regular",
-    color: "#4a5568",
+    color: "#64748b",
     marginTop: 4,
   },
   detailsToggle: {
@@ -2803,11 +2871,11 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    backgroundColor: "#111827",
+    backgroundColor: "#0a1120",
     borderRadius: 10,
     padding: 14,
     borderWidth: 1,
-    borderColor: "#1f2937",
+    borderColor: "rgba(255,255,255,0.06)",
   },
   vehiclePickerText: {
     fontSize: 16,
@@ -2892,9 +2960,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: 20,
-    backgroundColor: "#111827",
+    backgroundColor: "rgba(255,255,255,0.08)",
     borderWidth: 1,
-    borderColor: "#1f2937",
+    borderColor: "rgba(255,255,255,0.06)",
   },
   anomalyChipActive: {
     backgroundColor: AMBER,

@@ -82,7 +82,10 @@ export function SmartInsightCard({
           : "#6366f1";
 
   return (
-    <View style={[s.card, { borderLeftColor: borderColor }]}>
+    <View
+      style={[s.card, { borderLeftColor: borderColor }]}
+      accessibilityLiveRegion="polite"
+    >
       <View style={s.header}>
         <View style={[s.iconWrap, { backgroundColor: insight.iconColor + "18" }]}>
           <Ionicons
@@ -103,6 +106,8 @@ export function SmartInsightCard({
           onPress={handleDismiss}
           hitSlop={{ top: 12, right: 12, bottom: 12, left: 12 }}
           style={s.dismissBtn}
+          accessibilityRole="button"
+          accessibilityLabel={`Dismiss insight: ${insight.title}`}
         >
           <Ionicons name="close" size={16} color="#6b7280" />
         </TouchableOpacity>
@@ -111,7 +116,12 @@ export function SmartInsightCard({
       {(insight.actionLabel || insights.length > 1) && (
         <View style={s.footer}>
           {insight.actionLabel ? (
-            <TouchableOpacity onPress={handleAction} style={s.actionBtn}>
+            <TouchableOpacity
+              onPress={handleAction}
+              style={s.actionBtn}
+              accessibilityRole="button"
+              accessibilityLabel={insight.actionLabel}
+            >
               <Text style={[s.actionText, { color: insight.iconColor }]}>
                 {insight.actionLabel}
               </Text>
@@ -125,12 +135,18 @@ export function SmartInsightCard({
             <View />
           )}
           {insights.length > 1 && (
-            <TouchableOpacity onPress={handleCycle} style={s.cycleBtn}>
+            <TouchableOpacity
+              onPress={handleCycle}
+              style={s.cycleBtn}
+              accessibilityRole="button"
+              accessibilityLabel={`Insight ${currentIndex + 1} of ${insights.length}. Tap to see next insight`}
+            >
               <View style={s.dots}>
                 {insights.map((_, i) => (
                   <View
                     key={i}
                     style={[s.dot, i === currentIndex && s.dotActive]}
+                    accessible={false}
                   />
                 ))}
               </View>

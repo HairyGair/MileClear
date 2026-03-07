@@ -20,7 +20,7 @@ const GREEN = "#10b981";
 const RED = "#ef4444";
 const TEXT_1 = "#f0f2f5";
 const TEXT_2 = "#8494a7";
-const TEXT_3 = "#4a5568";
+const TEXT_3 = "#64748b";
 
 function platformLabel(tag: string): string {
   const map: Record<string, string> = {
@@ -156,7 +156,14 @@ export function BusinessInsightsCard() {
 
       {/* Platform / Purpose Performance */}
       {insights.platformPerformance.length > 0 && (
-        <TouchableOpacity style={s.card} onPress={() => toggle("platforms")} activeOpacity={0.7}>
+        <TouchableOpacity
+          style={s.card}
+          onPress={() => toggle("platforms")}
+          activeOpacity={0.7}
+          accessibilityRole="button"
+          accessibilityLabel={`${isGigDriver ? "Platform Performance" : "Trip Breakdown"}. Tap to ${expanded === "platforms" ? "collapse" : "expand"}`}
+          accessibilityState={{ expanded: expanded === "platforms" }}
+        >
           <View style={s.expandHeader}>
             <View style={{ flex: 1 }}>
               <Text style={s.sectionLabel}>{isGigDriver ? "Platform Performance" : "Trip Breakdown"}</Text>
@@ -195,7 +202,14 @@ export function BusinessInsightsCard() {
 
       {/* Shift Grades */}
       {insights.recentShifts.length > 0 && (
-        <TouchableOpacity style={s.card} onPress={() => toggle("shifts")} activeOpacity={0.7}>
+        <TouchableOpacity
+          style={s.card}
+          onPress={() => toggle("shifts")}
+          activeOpacity={0.7}
+          accessibilityRole="button"
+          accessibilityLabel={`Shift Grades. Tap to ${expanded === "shifts" ? "collapse" : "expand"}`}
+          accessibilityState={{ expanded: expanded === "shifts" }}
+        >
           <View style={s.expandHeader}>
             <View style={{ flex: 1 }}>
               <Text style={s.sectionLabel}>Shift Grades</Text>
@@ -271,12 +285,24 @@ export function BusinessInsightsCard() {
           <View style={s.expandHeader}>
             <Text style={s.sectionLabel}>Weekly P&L</Text>
             <View style={s.pnlNav}>
-              <TouchableOpacity onPress={() => setPnlWeek((w) => w + 1)} disabled={pnlWeek >= 12}>
-                <Ionicons name="chevron-back" size={18} color={pnlWeek >= 12 ? TEXT_3 : TEXT_2} />
+              <TouchableOpacity
+                onPress={() => setPnlWeek((w) => w + 1)}
+                disabled={pnlWeek >= 12}
+                accessibilityRole="button"
+                accessibilityLabel="Go to previous week"
+                accessibilityState={{ disabled: pnlWeek >= 12 }}
+              >
+                <Ionicons name="chevron-back" size={18} color={pnlWeek >= 12 ? TEXT_3 : TEXT_2} accessible={false} />
               </TouchableOpacity>
               <Text style={s.pnlPeriod}>{pnl.periodLabel}</Text>
-              <TouchableOpacity onPress={() => setPnlWeek((w) => Math.max(0, w - 1))} disabled={pnlWeek === 0}>
-                <Ionicons name="chevron-forward" size={18} color={pnlWeek === 0 ? TEXT_3 : TEXT_2} />
+              <TouchableOpacity
+                onPress={() => setPnlWeek((w) => Math.max(0, w - 1))}
+                disabled={pnlWeek === 0}
+                accessibilityRole="button"
+                accessibilityLabel="Go to next week"
+                accessibilityState={{ disabled: pnlWeek === 0 }}
+              >
+                <Ionicons name="chevron-forward" size={18} color={pnlWeek === 0 ? TEXT_3 : TEXT_2} accessible={false} />
               </TouchableOpacity>
             </View>
           </View>

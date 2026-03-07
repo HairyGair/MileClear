@@ -14,7 +14,7 @@ const AMBER = "#f5a623";
 const GREEN = "#10b981";
 const TEXT_1 = "#f0f2f5";
 const TEXT_2 = "#8494a7";
-const TEXT_3 = "#4a5568";
+const TEXT_3 = "#64748b";
 
 function platformLabel(tag: string): string {
   const map: Record<string, string> = {
@@ -111,12 +111,18 @@ export function BusinessRecapCard() {
             <Pressable
               style={[styles.toggleBtn, !isWeek && styles.toggleBtnActive]}
               onPress={() => setView("month")}
+              accessibilityRole="tab"
+              accessibilityLabel="Monthly earnings view"
+              accessibilityState={{ selected: !isWeek }}
             >
               <Text style={[styles.toggleText, !isWeek && styles.toggleTextActive]}>Month</Text>
             </Pressable>
             <Pressable
               style={[styles.toggleBtn, isWeek && styles.toggleBtnActive]}
               onPress={() => setView("week")}
+              accessibilityRole="tab"
+              accessibilityLabel="Weekly earnings view"
+              accessibilityState={{ selected: isWeek }}
             >
               <Text style={[styles.toggleText, isWeek && styles.toggleTextActive]}>Week</Text>
             </Pressable>
@@ -225,6 +231,8 @@ export function BusinessRecapCard() {
             pressed && styles.shareButtonPressed,
           ]}
           onPress={handleShare}
+          accessibilityRole="button"
+          accessibilityLabel={`Share ${displayLabel} earnings report`}
         >
           <Ionicons name="share-outline" size={16} color={AMBER} />
           <Text style={styles.shareText}>Share Earnings Report</Text>

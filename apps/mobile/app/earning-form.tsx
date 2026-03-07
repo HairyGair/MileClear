@@ -126,7 +126,7 @@ export default function EarningFormScreen() {
   if (loadingExisting) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#f5a623" />
+        <ActivityIndicator size="large" color="#f5a623" accessibilityLabel="Loading" />
       </View>
     );
   }
@@ -155,6 +155,9 @@ export default function EarningFormScreen() {
                 platform === p.value && styles.platformChipActive,
               ]}
               onPress={() => setPlatform(p.value)}
+              accessibilityRole="button"
+              accessibilityLabel={`${p.label} platform`}
+              accessibilityState={{ selected: platform === p.value }}
             >
               <Text
                 style={[
@@ -171,7 +174,7 @@ export default function EarningFormScreen() {
         {/* Amount */}
         <Text style={styles.label}>Amount *</Text>
         <View style={styles.amountRow}>
-          <Text style={styles.currencyPrefix}>£</Text>
+          <Text style={styles.currencyPrefix} accessible={false}>£</Text>
           <TextInput
             style={[styles.input, styles.amountInput]}
             value={amount}
@@ -179,6 +182,7 @@ export default function EarningFormScreen() {
             placeholder="0.00"
             placeholderTextColor="#6b7280"
             keyboardType="decimal-pad"
+            accessibilityLabel="Amount in pounds"
           />
         </View>
 
@@ -248,14 +252,14 @@ const styles = StyleSheet.create({
     marginTop: 16,
   },
   input: {
-    backgroundColor: "#111827",
+    backgroundColor: "#0a1120",
     borderRadius: 10,
     padding: 14,
     fontSize: 16,
     fontFamily: "PlusJakartaSans_400Regular",
     color: "#fff",
     borderWidth: 1,
-    borderColor: "#1f2937",
+    borderColor: "rgba(255,255,255,0.06)",
   },
   // Platform chips
   platformRow: {
@@ -266,9 +270,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 8,
     borderRadius: 20,
-    backgroundColor: "#111827",
+    backgroundColor: "rgba(255,255,255,0.08)",
     borderWidth: 1,
-    borderColor: "#1f2937",
+    borderColor: "rgba(255,255,255,0.06)",
   },
   platformChipActive: {
     backgroundColor: "#f5a623",

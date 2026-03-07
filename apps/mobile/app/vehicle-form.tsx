@@ -194,7 +194,7 @@ export default function VehicleFormScreen() {
   if (loadingExisting) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#f5a623" />
+        <ActivityIndicator size="large" color="#f5a623" accessibilityLabel="Loading" />
       </View>
     );
   }
@@ -223,6 +223,7 @@ export default function VehicleFormScreen() {
             autoCapitalize="characters"
             autoCorrect={false}
             maxLength={10}
+            accessibilityLabel="Registration plate"
           />
           <Button
             title="Look up"
@@ -250,6 +251,7 @@ export default function VehicleFormScreen() {
           placeholder="e.g. Toyota"
           placeholderTextColor="#6b7280"
           autoCapitalize="words"
+          accessibilityLabel="Vehicle make"
         />
 
         {/* Model */}
@@ -261,6 +263,7 @@ export default function VehicleFormScreen() {
           placeholder="e.g. Prius"
           placeholderTextColor="#6b7280"
           autoCapitalize="words"
+          accessibilityLabel="Vehicle model"
         />
 
         {/* Year */}
@@ -273,6 +276,7 @@ export default function VehicleFormScreen() {
           placeholderTextColor="#6b7280"
           keyboardType="number-pad"
           maxLength={4}
+          accessibilityLabel="Year of manufacture"
         />
 
         {/* Vehicle Type */}
@@ -286,6 +290,9 @@ export default function VehicleFormScreen() {
                 vehicleType === opt.value && styles.segmentActive,
               ]}
               onPress={() => setVehicleType(opt.value)}
+              accessibilityRole="button"
+              accessibilityLabel={`${opt.label} vehicle type`}
+              accessibilityState={{ selected: vehicleType === opt.value }}
             >
               <Text
                 style={[
@@ -310,6 +317,9 @@ export default function VehicleFormScreen() {
                 fuelType === opt.value && styles.segmentActive,
               ]}
               onPress={() => setFuelType(opt.value)}
+              accessibilityRole="button"
+              accessibilityLabel={`${opt.label} fuel type`}
+              accessibilityState={{ selected: fuelType === opt.value }}
             >
               <Text
                 style={[
@@ -334,6 +344,7 @@ export default function VehicleFormScreen() {
               placeholder="e.g. 45"
               placeholderTextColor="#6b7280"
               keyboardType="decimal-pad"
+              accessibilityLabel="Estimated miles per gallon"
             />
           </>
         )}
@@ -357,6 +368,7 @@ export default function VehicleFormScreen() {
             autoCapitalize="words"
             autoCorrect={false}
             maxLength={100}
+            accessibilityLabel="Bluetooth device name"
           />
           <Text style={styles.btHint}>
             Find this in Settings → Bluetooth on your phone. It's the name shown when your car is connected.
@@ -368,9 +380,12 @@ export default function VehicleFormScreen() {
           style={styles.toggleRow}
           onPress={() => setIsPrimary(!isPrimary)}
           activeOpacity={0.7}
+          accessibilityRole="switch"
+          accessibilityLabel="Set as primary vehicle"
+          accessibilityState={{ checked: isPrimary }}
         >
           <Text style={styles.toggleLabel}>Set as primary vehicle</Text>
-          <View style={[styles.toggle, isPrimary && styles.toggleActive]}>
+          <View style={[styles.toggle, isPrimary && styles.toggleActive]} accessible={false}>
             <View
               style={[styles.toggleThumb, isPrimary && styles.toggleThumbActive]}
             />
@@ -427,14 +442,14 @@ const styles = StyleSheet.create({
     marginTop: 16,
   },
   input: {
-    backgroundColor: "#111827",
+    backgroundColor: "#0a1120",
     borderRadius: 10,
     padding: 14,
     fontSize: 16,
     fontFamily: "PlusJakartaSans_400Regular",
     color: "#fff",
     borderWidth: 1,
-    borderColor: "#1f2937",
+    borderColor: "rgba(255,255,255,0.06)",
   },
   lookupRow: {
     flexDirection: "row",
@@ -442,7 +457,7 @@ const styles = StyleSheet.create({
   },
   plateInput: {
     flex: 1,
-    backgroundColor: "#111827",
+    backgroundColor: "#0a1120",
     borderRadius: 10,
     padding: 14,
     fontSize: 18,
@@ -450,13 +465,13 @@ const styles = StyleSheet.create({
     color: "#fff",
     letterSpacing: 2,
     borderWidth: 1,
-    borderColor: "#1f2937",
+    borderColor: "rgba(255,255,255,0.06)",
     textTransform: "uppercase",
   },
   lookupHint: {
     fontSize: 13,
     fontFamily: "PlusJakartaSans_400Regular",
-    color: "#22c55e",
+    color: "#10b981",
     marginTop: 6,
   },
   btCard: {
@@ -500,10 +515,10 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingVertical: 10,
     borderRadius: 8,
-    backgroundColor: "#111827",
+    backgroundColor: "rgba(255,255,255,0.08)",
     alignItems: "center",
     borderWidth: 1,
-    borderColor: "#1f2937",
+    borderColor: "rgba(255,255,255,0.06)",
   },
   segmentActive: {
     backgroundColor: "#f5a623",

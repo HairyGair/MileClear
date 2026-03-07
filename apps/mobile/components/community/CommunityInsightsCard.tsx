@@ -204,6 +204,9 @@ export function CommunityInsightsCard({ isWork = true }: CommunityInsightsCardPr
         style={styles.header}
         onPress={() => setExpanded((p) => !p)}
         activeOpacity={0.7}
+        accessibilityRole="button"
+        accessibilityLabel={`Community Intelligence. ${stats.driversNearby} driver${stats.driversNearby !== 1 ? "s" : ""} nearby. Tap to ${expanded ? "collapse" : "expand"}`}
+        accessibilityState={{ expanded }}
       >
         <View style={styles.headerLeft}>
           <Ionicons name="people-outline" size={18} color="#f5a623" />

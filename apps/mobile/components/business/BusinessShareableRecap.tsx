@@ -346,7 +346,7 @@ const s = StyleSheet.create({
   effLabel: {
     fontSize: 10,
     fontFamily: "PlusJakartaSans_400Regular",
-    color: "#4a5568",
+    color: "#64748b",
     marginTop: 1,
   },
   effDot: {
@@ -396,7 +396,7 @@ const s = StyleSheet.create({
   footerTagline: {
     fontSize: 10,
     fontFamily: "PlusJakartaSans_400Regular",
-    color: "#4a5568",
+    color: "#64748b",
     letterSpacing: 0.5,
   },
 });

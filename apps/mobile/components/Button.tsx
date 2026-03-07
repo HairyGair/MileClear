@@ -10,6 +10,7 @@ import {
 } from "react-native";
 import type { ViewStyle } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { useReducedMotion } from "../lib/accessibility";
 
 type ButtonVariant = "primary" | "secondary" | "destructive" | "ghost" | "hero";
 type ButtonSize = "sm" | "md" | "lg";
@@ -25,6 +26,8 @@ interface ButtonProps {
   fullWidth?: boolean;
   size?: ButtonSize;
   style?: ViewStyle;
+  accessibilityLabel?: string;
+  accessibilityHint?: string;
 }
 
 // Size system — vertical padding, horizontal padding, font size, icon size, icon gap
@@ -84,7 +87,10 @@ export function Button({
   fullWidth = true,
   size = "md",
   style,
+  accessibilityLabel,
+  accessibilityHint,
 }: ButtonProps) {
+  const reducedMotion = useReducedMotion();
   const scaleAnim = useRef(new Animated.Value(1)).current;
   const contentOpacity = useRef(new Animated.Value(1)).current;
   const spinnerOpacity = useRef(new Animated.Value(0)).current;
@@ -92,9 +98,9 @@ export function Button({
   const glowRadius = useRef(new Animated.Value(10)).current;
   const glowRef = useRef<Animated.CompositeAnimation | null>(null);
 
-  // ── Hero breathing glow (iOS only) ──────────────────────────
+  // ── Hero breathing glow (iOS only, skipped when reduce motion is on) ──────────────────────────
   useEffect(() => {
-    if (variant !== "hero" || Platform.OS !== "ios") return;
+    if (variant !== "hero" || Platform.OS !== "ios" || reducedMotion) return;
 
     if (loading || disabled) {
       glowRef.current?.stop();
@@ -135,7 +141,7 @@ export function Button({
     breathe.start();
 
     return () => breathe.stop();
-  }, [variant, loading, disabled, glowOpacity, glowRadius]);
+  }, [variant, loading, disabled, glowOpacity, glowRadius, reducedMotion]);
 
   // ── Loading crossfade ───────────────────────────────────────
   useEffect(() => {
@@ -223,6 +229,10 @@ export function Button({
           onPressIn={handlePressIn}
           onPressOut={handlePressOut}
           disabled={disabled || loading}
+          accessibilityRole="button"
+          accessibilityLabel={loading ? `${accessibilityLabel ?? title}, loading` : (accessibilityLabel ?? title)}
+          accessibilityHint={accessibilityHint}
+          accessibilityState={{ disabled: disabled || loading }}
           style={[
             styles.base,
             {
@@ -253,6 +263,7 @@ export function Button({
                 size={s.icon}
                 color={textColor}
                 style={{ marginRight: s.gap }}
+                accessible={false}
               />
             )}
             <Text
@@ -272,7 +283,7 @@ export function Button({
             style={[styles.spinnerOverlay, { opacity: spinnerOpacity }]}
             pointerEvents="none"
           >
-            <ActivityIndicator color={textColor} size="small" />
+            <ActivityIndicator color={textColor} size="small" accessibilityLabel="Loading" />
           </Animated.View>
         </Pressable>
       </Animated.View>

@@ -5,9 +5,9 @@ import { StyleSheet } from "react-native";
 export const colors = {
   // Backgrounds
   bg: "#030712",
-  surface: "#111827",
+  surface: "#0a1120",
   surfaceElevated: "#0a1120",
-  surfaceBorder: "#1f2937",
+  surfaceBorder: "rgba(255,255,255,0.06)",
 
   // Brand
   amber: "#f5a623",
@@ -17,7 +17,7 @@ export const colors = {
   // Text
   text1: "#f0f2f5",
   text2: "#8494a7",
-  text3: "#4a5568",
+  text3: "#64748b",
 
   // Semantic
   green: "#10b981",
@@ -190,7 +190,7 @@ export const shared = StyleSheet.create({
     borderRadius: 6,
   },
   proBadgeText: {
-    fontSize: 10,
+    fontSize: 11,
     fontFamily: fonts.bold,
     color: colors.bg,
   },

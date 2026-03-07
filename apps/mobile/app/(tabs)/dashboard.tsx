@@ -34,6 +34,7 @@ import {
   stopShiftTracking,
   processShiftTrips,
   isTrackingActive,
+  peekBackgroundCoordinates,
 } from "../../lib/tracking/index";
 import { fetchUnclassifiedCount } from "../../lib/api/trips";
 import type {
@@ -70,6 +71,22 @@ function formatMilesShort(miles: number): string {
     : `${(miles / 1000).toFixed(1)}k`;
 }
 
+function calcDistance(coords: { lat: number; lng: number }[]): number {
+  let total = 0;
+  for (let i = 1; i < coords.length; i++) {
+    const R = 3958.8;
+    const dLat = ((coords[i].lat - coords[i - 1].lat) * Math.PI) / 180;
+    const dLng = ((coords[i].lng - coords[i - 1].lng) * Math.PI) / 180;
+    const a =
+      Math.sin(dLat / 2) ** 2 +
+      Math.cos((coords[i - 1].lat * Math.PI) / 180) *
+        Math.cos((coords[i].lat * Math.PI) / 180) *
+        Math.sin(dLng / 2) ** 2;
+    total += R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  }
+  return total;
+}
+
 export default function DashboardScreen() {
   const router = useRouter();
   const { isPersonal, isWork } = useMode();
@@ -78,6 +95,7 @@ export default function DashboardScreen() {
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [selectedVehicleId, setSelectedVehicleId] = useState<string | undefined>();
   const [elapsed, setElapsed] = useState(0);
+  const [liveDistance, setLiveDistance] = useState(0);
   const [loading, setLoading] = useState(true);
   const [starting, setStarting] = useState(false);
   const [ending, setEnding] = useState(false);
@@ -231,8 +249,7 @@ export default function DashboardScreen() {
         // Update Dynamic Island every 5 seconds
         tick++;
         if (tick % 5 === 0) {
-          const todayMi = stats?.todayMiles ?? 0;
-          updateLiveActivity({ elapsedSeconds: secs, distanceMiles: todayMi, speedMph: 0, tripCount: 0 });
+          updateLiveActivity({ elapsedSeconds: secs, distanceMiles: liveDistRef.current, speedMph: 0, tripCount: 0 });
         }
       };
       updateElapsed();
@@ -245,6 +262,36 @@ export default function DashboardScreen() {
       if (timerRef.current) clearInterval(timerRef.current);
     }
   }, [activeShift, stats]);
+
+  // ── Live distance polling — reads shift_coordinates from SQLite ────────
+  const liveDistRef = useRef(0);
+  useEffect(() => {
+    if (!activeShift) {
+      setLiveDistance(0);
+      liveDistRef.current = 0;
+      return;
+    }
+
+    let mounted = true;
+    const poll = async () => {
+      try {
+        const coords = await peekBackgroundCoordinates(activeShift.id);
+        if (!mounted) return;
+        const dist = coords.length >= 2 ? calcDistance(coords) : 0;
+        setLiveDistance(dist);
+        liveDistRef.current = dist;
+      } catch {
+        // DB not ready
+      }
+    };
+
+    poll();
+    const interval = setInterval(poll, 3000);
+    return () => {
+      mounted = false;
+      clearInterval(interval);
+    };
+  }, [activeShift?.id]);
 
   const handleStartShift = useCallback(async () => {
     setStarting(true);
@@ -361,7 +408,7 @@ export default function DashboardScreen() {
   if (loading) {
     return (
       <View style={[s.container, s.centered]}>
-        <ActivityIndicator size="large" color="#f5a623" />
+        <ActivityIndicator size="large" color="#f5a623" accessibilityLabel="Loading dashboard" />
       </View>
     );
   }
@@ -377,7 +424,7 @@ export default function DashboardScreen() {
       onRequestClose={() => setShowScorecard(false)}
     >
       <View style={s.modalOverlay}>
-        <View style={s.modalSheet}>
+        <View style={s.modalSheet} accessibilityViewIsModal={true}>
           <View style={s.modalHandle} />
           <Text style={s.modalTitle}>Shift Complete</Text>
 
@@ -456,7 +503,7 @@ export default function DashboardScreen() {
       onRequestClose={() => setShowRecap(false)}
     >
       <View style={s.modalOverlay}>
-        <View style={s.modalSheet}>
+        <View style={s.modalSheet} accessibilityViewIsModal={true}>
           <View style={s.modalHandle} />
           <Text style={s.modalTitle}>
             {recapData?.period === "daily" ? "Daily" : recapData?.period === "weekly" ? "Weekly" : "Monthly"} Recap
@@ -546,6 +593,12 @@ export default function DashboardScreen() {
         />
 
         <View style={s.statsRow}>
+          <View style={[s.statCard, s.statCardLive]}>
+            <Text style={s.statNumLive}>
+              {liveDistance.toFixed(1)}
+            </Text>
+            <Text style={s.statUnit}>mi this shift</Text>
+          </View>
           <View style={s.statCard}>
             <Text style={s.statNum}>
               {stats ? formatMilesShort(stats.todayMiles) : "0"}
@@ -638,11 +691,13 @@ export default function DashboardScreen() {
                 style={s.dailyRecapCard}
                 onPress={() => { setRecapData(dailyRecap); setShowRecap(true); }}
                 activeOpacity={0.7}
+                accessibilityRole="button"
+                accessibilityLabel={`Today's recap: ${dailyRecap.totalMiles.toFixed(1)} miles, ${dailyRecap.totalTrips} trip${dailyRecap.totalTrips !== 1 ? "s" : ""}${dailyRecap.deductionPence > 0 ? `, ${formatPence(dailyRecap.deductionPence)} deduction` : ""}. Tap to share.`}
               >
                 <View style={s.dailyRecapHeader}>
-                  <Ionicons name="today-outline" size={16} color="#f5a623" />
+                  <Ionicons name="today-outline" size={16} color="#f5a623" accessible={false} />
                   <Text style={s.dailyRecapTitle}>Today</Text>
-                  <Ionicons name="share-outline" size={14} color="#4a5568" style={{ marginLeft: "auto" }} />
+                  <Ionicons name="share-outline" size={14} color="#64748b" style={{ marginLeft: "auto" }} accessible={false} />
                 </View>
                 <View style={s.dailyRecapStats}>
                   <View style={s.dailyRecapStat}>
@@ -673,16 +728,20 @@ export default function DashboardScreen() {
                   style={s.ctaPrimary}
                   onPress={() => router.push("/trip-form")}
                   activeOpacity={0.7}
+                  accessibilityRole="button"
+                  accessibilityLabel="Start Trip"
                 >
-                  <Ionicons name="navigate" size={18} color="#030712" />
+                  <Ionicons name="navigate" size={18} color="#030712" accessible={false} />
                   <Text style={s.ctaPrimaryText}>Start Trip</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={s.ctaSecondary}
                   onPress={handleSelectVehicle}
                   activeOpacity={0.7}
+                  accessibilityRole="button"
+                  accessibilityLabel={selectedVehicle ? `Vehicle: ${selectedVehicle.make} ${selectedVehicle.model}. Tap to change.` : "Select a vehicle"}
                 >
-                  <Ionicons name="car-outline" size={16} color="#f5a623" />
+                  <Ionicons name="car-outline" size={16} color="#f5a623" accessible={false} />
                   <Text style={s.ctaSecondaryText} numberOfLines={1}>
                     {selectedVehicle ? `${selectedVehicle.make} ${selectedVehicle.model}` : "Vehicle"}
                   </Text>
@@ -709,32 +768,40 @@ export default function DashboardScreen() {
                   style={s.quickAction}
                   onPress={() => router.push("/insights")}
                   activeOpacity={0.7}
+                  accessibilityRole="button"
+                  accessibilityLabel="Business Insights"
                 >
-                  <Ionicons name="analytics-outline" size={22} color="#f5a623" style={{ marginBottom: 4 }} />
+                  <Ionicons name="analytics-outline" size={22} color="#f5a623" style={{ marginBottom: 4 }} accessible={false} />
                   <Text style={s.quickActionLabel}>Insights</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={s.quickAction}
                   onPress={() => router.replace("/(tabs)/trips" as any)}
                   activeOpacity={0.7}
+                  accessibilityRole="button"
+                  accessibilityLabel="View Trips"
                 >
-                  <Ionicons name="list-outline" size={22} color="#f5a623" style={{ marginBottom: 4 }} />
+                  <Ionicons name="list-outline" size={22} color="#f5a623" style={{ marginBottom: 4 }} accessible={false} />
                   <Text style={s.quickActionLabel}>Trips</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={s.quickAction}
                   onPress={() => router.push("/exports")}
                   activeOpacity={0.7}
+                  accessibilityRole="button"
+                  accessibilityLabel="Tax Exports"
                 >
-                  <Ionicons name="download-outline" size={22} color="#f5a623" style={{ marginBottom: 4 }} />
+                  <Ionicons name="download-outline" size={22} color="#f5a623" style={{ marginBottom: 4 }} accessible={false} />
                   <Text style={s.quickActionLabel}>Exports</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={s.quickAction}
                   onPress={() => router.push("/achievements")}
                   activeOpacity={0.7}
+                  accessibilityRole="button"
+                  accessibilityLabel="View Badges and Achievements"
                 >
-                  <Ionicons name="trophy-outline" size={22} color="#f5a623" style={{ marginBottom: 4 }} />
+                  <Ionicons name="trophy-outline" size={22} color="#f5a623" style={{ marginBottom: 4 }} accessible={false} />
                   <Text style={s.quickActionLabel}>Badges</Text>
                 </TouchableOpacity>
               </View>
@@ -766,9 +833,11 @@ export default function DashboardScreen() {
           style={s.vehicleNudgeCard}
           onPress={() => router.push("/vehicle-form" as any)}
           activeOpacity={0.7}
+          accessibilityRole="button"
+          accessibilityLabel="Add your vehicle. Tap to set up your vehicle for accurate HMRC mileage rates."
         >
           <View style={s.vehicleNudgeIcon}>
-            <Ionicons name="car-outline" size={24} color={AMBER} />
+            <Ionicons name="car-outline" size={24} color={AMBER} accessible={false} />
           </View>
           <Text style={s.btPromoTitle}>Add your vehicle</Text>
           <Text style={s.btPromoBody}>
@@ -776,7 +845,7 @@ export default function DashboardScreen() {
           </Text>
           <View style={s.btPromoCta}>
             <Text style={s.vehicleNudgeCtaText}>Add vehicle</Text>
-            <Ionicons name="chevron-forward" size={14} color={AMBER} />
+            <Ionicons name="chevron-forward" size={14} color={AMBER} accessible={false} />
           </View>
         </TouchableOpacity>
       )}
@@ -792,16 +861,20 @@ export default function DashboardScreen() {
             }
           }}
           activeOpacity={0.7}
+          accessibilityRole="button"
+          accessibilityLabel="Set up Bluetooth auto-detect for automatic trip tracking"
         >
           <TouchableOpacity
             style={s.btPromoDismiss}
             onPress={dismissBtPromo}
             hitSlop={{ top: 12, right: 12, bottom: 12, left: 12 }}
+            accessibilityRole="button"
+            accessibilityLabel="Dismiss Bluetooth tip"
           >
-            <Ionicons name="close" size={16} color="#6b7280" />
+            <Ionicons name="close" size={16} color="#6b7280" accessible={false} />
           </TouchableOpacity>
           <View style={s.btPromoIcon}>
-            <Ionicons name="bluetooth" size={24} color="#3b82f6" />
+            <Ionicons name="bluetooth" size={24} color="#3b82f6" accessible={false} />
           </View>
           <Text style={s.btPromoTitle}>Auto-detect your trips</Text>
           <Text style={s.btPromoBody}>
@@ -809,7 +882,7 @@ export default function DashboardScreen() {
           </Text>
           <View style={s.btPromoCta}>
             <Text style={s.btPromoCtaText}>Set up now</Text>
-            <Ionicons name="chevron-forward" size={14} color="#3b82f6" />
+            <Ionicons name="chevron-forward" size={14} color="#3b82f6" accessible={false} />
           </View>
         </TouchableOpacity>
       )}
@@ -832,9 +905,11 @@ export default function DashboardScreen() {
           style={s.vehicleNudgeCard}
           onPress={() => router.push("/vehicle-form" as any)}
           activeOpacity={0.7}
+          accessibilityRole="button"
+          accessibilityLabel="Add your vehicle. Tap to get personalised fuel economy stats."
         >
           <View style={s.vehicleNudgeIcon}>
-            <Ionicons name="car-outline" size={24} color={AMBER} />
+            <Ionicons name="car-outline" size={24} color={AMBER} accessible={false} />
           </View>
           <Text style={s.btPromoTitle}>Add your vehicle</Text>
           <Text style={s.btPromoBody}>
@@ -842,7 +917,7 @@ export default function DashboardScreen() {
           </Text>
           <View style={s.btPromoCta}>
             <Text style={s.vehicleNudgeCtaText}>Add vehicle</Text>
-            <Ionicons name="chevron-forward" size={14} color={AMBER} />
+            <Ionicons name="chevron-forward" size={14} color={AMBER} accessible={false} />
           </View>
         </TouchableOpacity>
       )}
@@ -858,16 +933,20 @@ export default function DashboardScreen() {
             }
           }}
           activeOpacity={0.7}
+          accessibilityRole="button"
+          accessibilityLabel="Set up Bluetooth auto-detect for automatic trip tracking"
         >
           <TouchableOpacity
             style={s.btPromoDismiss}
             onPress={dismissBtPromo}
             hitSlop={{ top: 12, right: 12, bottom: 12, left: 12 }}
+            accessibilityRole="button"
+            accessibilityLabel="Dismiss Bluetooth tip"
           >
-            <Ionicons name="close" size={16} color="#6b7280" />
+            <Ionicons name="close" size={16} color="#6b7280" accessible={false} />
           </TouchableOpacity>
           <View style={s.btPromoIcon}>
-            <Ionicons name="bluetooth" size={24} color="#3b82f6" />
+            <Ionicons name="bluetooth" size={24} color="#3b82f6" accessible={false} />
           </View>
           <Text style={s.btPromoTitle}>Auto-detect your trips</Text>
           <Text style={s.btPromoBody}>
@@ -875,7 +954,7 @@ export default function DashboardScreen() {
           </Text>
           <View style={s.btPromoCta}>
             <Text style={s.btPromoCtaText}>Set up now</Text>
-            <Ionicons name="chevron-forward" size={14} color="#3b82f6" />
+            <Ionicons name="chevron-forward" size={14} color="#3b82f6" accessible={false} />
           </View>
         </TouchableOpacity>
       )}
@@ -894,6 +973,8 @@ export default function DashboardScreen() {
             style={s.tripSheetDismiss}
             onPress={dismissTripSheet}
             activeOpacity={0.7}
+            accessibilityRole="button"
+            accessibilityLabel="Dismiss trip details"
           >
             <View style={s.tripSheetHandle} />
           </TouchableOpacity>
@@ -944,7 +1025,7 @@ const CARD_BORDER = "rgba(255,255,255,0.05)";
 const AMBER = "#f5a623";
 const TEXT_1 = "#f0f2f5";
 const TEXT_2 = "#8494a7";
-const TEXT_3 = "#4a5568";
+const TEXT_3 = "#64748b";
 
 const s = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#030712" },
@@ -1108,7 +1189,7 @@ const s = StyleSheet.create({
     borderColor: CARD_BORDER,
   },
   quickActionLabel: {
-    fontSize: 10,
+    fontSize: 11,
     fontFamily: "PlusJakartaSans_600SemiBold",
     color: TEXT_2,
     letterSpacing: 0.2,
@@ -1130,10 +1211,19 @@ const s = StyleSheet.create({
     borderWidth: 1,
     borderColor: CARD_BORDER,
   },
+  statCardLive: {
+    borderColor: "rgba(245,166,35,0.3)",
+  },
   statNum: {
     fontSize: 22,
     fontFamily: "PlusJakartaSans_600SemiBold",
     color: TEXT_1,
+    letterSpacing: -0.5,
+  },
+  statNumLive: {
+    fontSize: 24,
+    fontFamily: "PlusJakartaSans_700Bold",
+    color: "#f5a623",
     letterSpacing: -0.5,
   },
   statUnit: {
@@ -1178,7 +1268,7 @@ const s = StyleSheet.create({
   },
   badgeEmoji: { fontSize: 26, marginBottom: 4 },
   badgeLabel: {
-    fontSize: 10,
+    fontSize: 11,
     fontFamily: "PlusJakartaSans_500Medium",
     color: TEXT_2,
     textAlign: "center",
@@ -1302,7 +1392,7 @@ const s = StyleSheet.create({
     justifyContent: "flex-end",
   },
   modalSheet: {
-    backgroundColor: "#0c1425",
+    backgroundColor: "#0a1120",
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     paddingHorizontal: 24,

@@ -77,7 +77,7 @@ export default function ProfileEditScreen() {
   if (loadingProfile) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#f5a623" />
+        <ActivityIndicator size="large" color="#f5a623" accessibilityLabel="Loading" />
       </View>
     );
   }
@@ -101,6 +101,7 @@ export default function ProfileEditScreen() {
           placeholderTextColor="#6b7280"
           autoCapitalize="words"
           maxLength={200}
+          accessibilityLabel="Full name, used on PDF exports and tax documents"
         />
 
         <Text style={styles.label}>Display Name</Text>
@@ -113,6 +114,7 @@ export default function ProfileEditScreen() {
           placeholderTextColor="#6b7280"
           autoCapitalize="words"
           maxLength={100}
+          accessibilityLabel="Display name, public nickname, optional"
         />
 
         <Text style={styles.label}>Email</Text>
@@ -125,6 +127,7 @@ export default function ProfileEditScreen() {
           keyboardType="email-address"
           autoCapitalize="none"
           autoCorrect={false}
+          accessibilityLabel="Email address"
         />
 
         {emailChanged && (
@@ -140,6 +143,7 @@ export default function ProfileEditScreen() {
               placeholder="Enter current password"
               placeholderTextColor="#6b7280"
               secureTextEntry
+              accessibilityLabel="Current password, required to change email"
             />
           </>
         )}
@@ -179,14 +183,14 @@ const styles = StyleSheet.create({
     marginTop: 16,
   },
   input: {
-    backgroundColor: "#111827",
+    backgroundColor: "#0a1120",
     borderRadius: 10,
     padding: 14,
     fontSize: 16,
     fontFamily: "PlusJakartaSans_400Regular",
     color: "#fff",
     borderWidth: 1,
-    borderColor: "#1f2937",
+    borderColor: "rgba(255,255,255,0.06)",
   },
   fieldHint: {
     fontSize: 12,

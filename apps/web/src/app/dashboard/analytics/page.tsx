@@ -71,7 +71,7 @@ function DeltaBadge({ delta, label }: { delta: number | null; label: string }) {
   if (delta === null) return null;
   const positive = delta > 0;
   const neutral = delta === 0;
-  const color = neutral ? "var(--text-muted)" : positive ? "#10b981" : "#ef4444";
+  const color = neutral ? "var(--text-muted)" : positive ? "var(--emerald-500)" : "var(--dash-red)";
   const arrow = neutral ? "\u2014" : positive ? "\u2191" : "\u2193";
   return (
     <span
@@ -144,7 +144,7 @@ function HorizontalBarChart({
       style={{
         background: "rgba(10, 17, 32, 0.8)",
         border: "1px solid rgba(255,255,255,0.07)",
-        borderRadius: "var(--radius-lg, 12px)",
+        borderRadius: "var(--r-lg, 12px)",
         padding: "1.25rem",
       }}
     >
@@ -255,7 +255,7 @@ function VerticalBarChart({
       style={{
         background: "rgba(10, 17, 32, 0.8)",
         border: "1px solid rgba(255,255,255,0.07)",
-        borderRadius: "var(--radius-lg, 12px)",
+        borderRadius: "var(--r-lg, 12px)",
         padding: "1.25rem",
       }}
     >
@@ -317,7 +317,7 @@ function VerticalBarChart({
                     ? "transparent"
                     : isHighlight
                     ? "var(--amber-400, #fbbf24)"
-                    : "#10b981",
+                    : "var(--emerald-500)",
                   whiteSpace: "nowrap",
                   lineHeight: 1,
                   marginBottom: "2px",
@@ -441,7 +441,7 @@ function WeeklyReportSection({
       style={{
         background: "rgba(10, 17, 32, 0.9)",
         border: "1px solid rgba(251,191,36,0.2)",
-        borderRadius: "var(--radius-lg, 12px)",
+        borderRadius: "var(--r-lg, 12px)",
         padding: "1.5rem",
         marginBottom: "var(--dash-gap, 1.5rem)",
         opacity: loading ? 0.5 : 1,
@@ -623,7 +623,7 @@ function WeeklyReportSection({
               fontWeight: 700,
               textTransform: "uppercase",
               letterSpacing: "0.08em",
-              color: "#10b981",
+              color: "var(--emerald-500)",
               marginBottom: "0.75rem",
             }}
           >
@@ -1035,7 +1035,7 @@ function FuelCostSection({ fuel }: { fuel: FuelCostBreakdown }) {
                         ? `${v.costPerMilePence.toFixed(1)}p`
                         : "—"}
                     </td>
-                    <td style={{ color: "#10b981", fontWeight: 600 }}>
+                    <td style={{ color: "var(--emerald-500)", fontWeight: 600 }}>
                       {formatPence(v.totalCostPence)}
                     </td>
                     <td>{formatMiles(v.milesDriven)} mi</td>
@@ -1360,11 +1360,11 @@ function CommuteTimingSection({ routes }: { routes: CommuteTiming[] }) {
                 }}
               >
                 <div
-                  style={{ fontSize: "1rem", fontWeight: 700, color: "#10b981" }}
+                  style={{ fontSize: "1rem", fontWeight: 700, color: "var(--emerald-500)" }}
                 >
                   {formatDuration(route.bestDurationMinutes)}
                 </div>
-                <div style={{ fontSize: "0.625rem", color: "#10b981", opacity: 0.7, marginTop: "2px" }}>
+                <div style={{ fontSize: "0.625rem", color: "var(--emerald-500)", opacity: 0.7, marginTop: "2px" }}>
                   best
                 </div>
               </div>
@@ -1378,11 +1378,11 @@ function CommuteTimingSection({ routes }: { routes: CommuteTiming[] }) {
                 }}
               >
                 <div
-                  style={{ fontSize: "1rem", fontWeight: 700, color: "#ef4444" }}
+                  style={{ fontSize: "1rem", fontWeight: 700, color: "var(--dash-red)" }}
                 >
                   {formatDuration(route.worstDurationMinutes)}
                 </div>
-                <div style={{ fontSize: "0.625rem", color: "#ef4444", opacity: 0.7, marginTop: "2px" }}>
+                <div style={{ fontSize: "0.625rem", color: "var(--dash-red)", opacity: 0.7, marginTop: "2px" }}>
                   worst
                 </div>
               </div>

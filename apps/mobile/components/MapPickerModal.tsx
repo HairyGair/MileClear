@@ -148,12 +148,17 @@ export function MapPickerModal({
   if (!MapView) {
     return (
       <Modal visible={visible} animationType="slide" onRequestClose={onCancel}>
-        <View style={styles.fallbackContainer}>
+        <View style={styles.fallbackContainer} accessibilityViewIsModal>
           <Text style={styles.fallbackText}>
             Map view requires a development build.{"\n"}
             Use GPS or address search instead.
           </Text>
-          <TouchableOpacity style={styles.cancelBtn} onPress={onCancel}>
+          <TouchableOpacity
+            style={styles.cancelBtn}
+            onPress={onCancel}
+            accessibilityRole="button"
+            accessibilityLabel="Close map picker"
+          >
             <Text style={styles.cancelBtnText}>Close</Text>
           </TouchableOpacity>
         </View>
@@ -163,7 +168,7 @@ export function MapPickerModal({
 
   return (
     <Modal visible={visible} animationType="slide" onRequestClose={onCancel}>
-      <View style={styles.container}>
+      <View style={styles.container} accessibilityViewIsModal>
         <MapView
           ref={mapRef}
           style={styles.map}
@@ -189,12 +194,18 @@ export function MapPickerModal({
               onSubmitEditing={handleSearch}
               returnKeyType="search"
               autoCorrect={false}
+              accessibilityLabel="Search address or postcode"
             />
             {searching ? (
-              <ActivityIndicator size="small" color="#f5a623" />
+              <ActivityIndicator size="small" color="#f5a623" accessibilityLabel="Searching" />
             ) : searchQuery.length > 0 ? (
-              <TouchableOpacity onPress={handleSearch} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                <Ionicons name="arrow-forward-circle" size={24} color="#f5a623" />
+              <TouchableOpacity
+                onPress={handleSearch}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                accessibilityRole="button"
+                accessibilityLabel="Search for this address"
+              >
+                <Ionicons name="arrow-forward-circle" size={24} color="#f5a623" accessible={false} />
               </TouchableOpacity>
             ) : null}
           </View>
@@ -228,6 +239,8 @@ export function MapPickerModal({
             style={styles.confirmBtn}
             onPress={() => onConfirm(region.latitude, region.longitude, address)}
             activeOpacity={0.8}
+            accessibilityRole="button"
+            accessibilityLabel={`Confirm location${address ? `: ${address}` : ""}`}
           >
             <Text style={styles.confirmBtnText}>Confirm Location</Text>
           </TouchableOpacity>
@@ -236,6 +249,8 @@ export function MapPickerModal({
             style={styles.cancelBtn}
             onPress={onCancel}
             activeOpacity={0.7}
+            accessibilityRole="button"
+            accessibilityLabel="Cancel and close map"
           >
             <Text style={styles.cancelBtnText}>Cancel</Text>
           </TouchableOpacity>

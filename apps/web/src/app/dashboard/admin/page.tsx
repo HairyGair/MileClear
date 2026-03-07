@@ -385,7 +385,7 @@ function UserDetailModal({
                       fontSize: "0.875rem",
                       color: "var(--text-secondary)",
                       padding: "0.375rem 0.5rem",
-                      background: "var(--surface-2)",
+                      background: "var(--bg-secondary)",
                       borderRadius: 6,
                     }}
                   >
@@ -772,7 +772,7 @@ function HealthTab() {
               <div
                 style={{
                   height: 1,
-                  background: "var(--border)",
+                  background: "var(--border-default)",
                   margin: "0 -1.25rem",
                 }}
               />

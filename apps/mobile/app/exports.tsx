@@ -135,6 +135,8 @@ export default function ExportsScreen() {
             style={styles.paywallBanner}
             onPress={handleUpgrade}
             activeOpacity={0.7}
+            accessibilityRole="button"
+            accessibilityLabel="Upgrade to MileClear Pro for £4.99 per month"
           >
             <Text style={styles.paywallTitle}>Pro Feature</Text>
             <Text style={styles.paywallText}>
@@ -153,6 +155,8 @@ export default function ExportsScreen() {
           style={styles.yearPicker}
           onPress={pickTaxYear}
           activeOpacity={0.7}
+          accessibilityRole="button"
+          accessibilityLabel={`Tax year: ${selectedYear}. Tap to change`}
         >
           <Text style={styles.yearLabel}>Tax Year</Text>
           <Text style={styles.yearValue}>{selectedYear}</Text>
@@ -166,6 +170,9 @@ export default function ExportsScreen() {
           onPress={() => handleDownload("self-assessment")}
           disabled={loadingKey !== null}
           activeOpacity={0.7}
+          accessibilityRole="button"
+          accessibilityLabel="Download HMRC Self-Assessment PDF for tax year"
+          accessibilityState={{ disabled: loadingKey !== null }}
         >
           <View style={styles.rowIconWrap}>
             <Ionicons name="shield-checkmark" size={20} color="#10b981" />
@@ -182,9 +189,9 @@ export default function ExportsScreen() {
             </Text>
           </View>
           {loadingKey === "self-assessment" ? (
-            <ActivityIndicator color="#f5a623" />
+            <ActivityIndicator color="#f5a623" accessibilityLabel="Loading" />
           ) : (
-            <Ionicons name="chevron-forward" size={18} color="#6b7280" style={{ marginLeft: 8 }} />
+            <Ionicons name="chevron-forward" size={18} color="#6b7280" style={{ marginLeft: 8 }} accessible={false} />
           )}
         </TouchableOpacity>
 
@@ -193,6 +200,9 @@ export default function ExportsScreen() {
           onPress={() => handleDownload("pdf")}
           disabled={loadingKey !== null}
           activeOpacity={0.7}
+          accessibilityRole="button"
+          accessibilityLabel="Download Trip Report PDF for tax year"
+          accessibilityState={{ disabled: loadingKey !== null }}
         >
           <View style={styles.rowIconWrap}>
             <Ionicons name="document-text" size={20} color="#f5a623" />
@@ -204,9 +214,9 @@ export default function ExportsScreen() {
             </Text>
           </View>
           {loadingKey === "pdf" ? (
-            <ActivityIndicator color="#f5a623" />
+            <ActivityIndicator color="#f5a623" accessibilityLabel="Loading" />
           ) : (
-            <Ionicons name="chevron-forward" size={18} color="#6b7280" style={{ marginLeft: 8 }} />
+            <Ionicons name="chevron-forward" size={18} color="#6b7280" style={{ marginLeft: 8 }} accessible={false} />
           )}
         </TouchableOpacity>
 
@@ -215,6 +225,9 @@ export default function ExportsScreen() {
           onPress={() => handleDownload("csv")}
           disabled={loadingKey !== null}
           activeOpacity={0.7}
+          accessibilityRole="button"
+          accessibilityLabel="Download Trip Data CSV for tax year"
+          accessibilityState={{ disabled: loadingKey !== null }}
         >
           <View style={styles.rowIconWrap}>
             <Ionicons name="grid" size={20} color="#6b7280" />
@@ -226,9 +239,9 @@ export default function ExportsScreen() {
             </Text>
           </View>
           {loadingKey === "csv" ? (
-            <ActivityIndicator color="#f5a623" />
+            <ActivityIndicator color="#f5a623" accessibilityLabel="Loading" />
           ) : (
-            <Ionicons name="chevron-forward" size={18} color="#6b7280" style={{ marginLeft: 8 }} />
+            <Ionicons name="chevron-forward" size={18} color="#6b7280" style={{ marginLeft: 8 }} accessible={false} />
           )}
         </TouchableOpacity>
 
@@ -271,7 +284,7 @@ const styles = StyleSheet.create({
     marginBottom: 24,
   },
   yearPicker: {
-    backgroundColor: "#111827",
+    backgroundColor: "#0a1120",
     borderRadius: 12,
     padding: 16,
     flexDirection: "row",
@@ -279,7 +292,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginBottom: 28,
     borderWidth: 1,
-    borderColor: "#1f2937",
+    borderColor: "rgba(255,255,255,0.06)",
   },
   yearLabel: {
     fontSize: 15,
@@ -298,14 +311,14 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   row: {
-    backgroundColor: "#111827",
+    backgroundColor: "#0a1120",
     borderRadius: 12,
     padding: 16,
     marginBottom: 10,
     flexDirection: "row",
     alignItems: "center",
     borderWidth: 1,
-    borderColor: "#1f2937",
+    borderColor: "rgba(255,255,255,0.06)",
   },
   rowIconWrap: {
     width: 40,
@@ -343,7 +356,7 @@ const styles = StyleSheet.create({
     borderColor: "rgba(16, 185, 129, 0.3)",
   },
   hmrcBadgeText: {
-    fontSize: 8,
+    fontSize: 11,
     fontFamily: "PlusJakartaSans_700Bold",
     color: "#10b981",
     letterSpacing: 0.5,
@@ -365,7 +378,7 @@ const styles = StyleSheet.create({
     overflow: "hidden",
   },
   paywallBanner: {
-    backgroundColor: "#111827",
+    backgroundColor: "#0a1120",
     borderRadius: 12,
     padding: 16,
     marginBottom: 16,

@@ -42,7 +42,13 @@ export function HydrationOverlay({
       onRequestClose={() => {}}
       statusBarTranslucent={Platform.OS === "android"}
     >
-      <View style={styles.overlay}>
+      <View
+        style={styles.overlay}
+        accessibilityViewIsModal
+        accessibilityLiveRegion="polite"
+        accessible
+        accessibilityLabel={`Setting up offline access. ${step} ${done} of ${total} complete`}
+      >
         <View style={styles.card}>
           <Text style={styles.title}>Setting up offline access...</Text>
 
@@ -50,6 +56,7 @@ export function HydrationOverlay({
             size="large"
             color="#f5a623"
             style={styles.spinner}
+            accessibilityLabel="Loading"
           />
 
           <Text style={styles.stepText}>{step}</Text>

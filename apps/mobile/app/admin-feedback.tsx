@@ -27,7 +27,7 @@ const BG = "#030712";
 const CARD_BG = "#0a1120";
 const TEXT_1 = "#f0f2f5";
 const TEXT_2 = "#8494a7";
-const TEXT_3 = "#4a5568";
+const TEXT_3 = "#64748b";
 const CARD_BORDER = "rgba(255,255,255,0.05)";
 
 const CATEGORY_COLORS: Record<string, string> = {
@@ -190,6 +190,8 @@ export default function AdminFeedbackScreen() {
         style={s.card}
         onPress={() => setExpandedId(expanded ? null : item.id)}
         activeOpacity={0.7}
+        accessibilityRole="button"
+        accessibilityLabel={`${item.title}. ${item.upvoteCount} votes. Tap to ${expanded ? "collapse" : "expand"}`}
       >
         <View style={s.cardHeader}>
           <View style={s.cardBadges}>
@@ -237,6 +239,9 @@ export default function AdminFeedbackScreen() {
                     }}
                     disabled={updatingId === item.id}
                     activeOpacity={0.7}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Set status to ${st.label}`}
+                    accessibilityState={{ selected: active, disabled: updatingId === item.id }}
                   >
                     {updatingId === item.id ? (
                       <ActivityIndicator size={10} color={st.color} />
@@ -255,6 +260,8 @@ export default function AdminFeedbackScreen() {
               style={s.deleteButton}
               onPress={() => handleDelete(item.id, item.title)}
               activeOpacity={0.7}
+              accessibilityRole="button"
+              accessibilityLabel={`Delete feedback: ${item.title}`}
             >
               <Ionicons name="trash-outline" size={16} color="#ef4444" />
               <Text style={s.deleteButtonText}>Delete</Text>
@@ -275,7 +282,7 @@ export default function AdminFeedbackScreen() {
     <View style={s.container}>
       {loading ? (
         <View style={s.centered}>
-          <ActivityIndicator size="large" color={AMBER} />
+          <ActivityIndicator size="large" color={AMBER} accessibilityLabel="Loading feedback" />
         </View>
       ) : error ? (
         <View style={s.centered}>
@@ -305,6 +312,9 @@ export default function AdminFeedbackScreen() {
                 style={[s.filterChip, statusFilter === opt.key && s.filterChipActive]}
                 onPress={() => setStatusFilter(opt.key)}
                 activeOpacity={0.7}
+                accessibilityRole="button"
+                accessibilityLabel={`Filter by ${opt.label}`}
+                accessibilityState={{ selected: statusFilter === opt.key }}
               >
                 <Text style={[s.filterChipText, statusFilter === opt.key && s.filterChipTextActive]}>
                   {opt.label}
@@ -365,7 +375,7 @@ const s = StyleSheet.create({
     fontFamily: "PlusJakartaSans_700Bold",
   },
   statLabel: {
-    fontSize: 9,
+    fontSize: 11,
     fontFamily: "PlusJakartaSans_500Medium",
     color: TEXT_2,
     marginTop: 2,
@@ -424,7 +434,7 @@ const s = StyleSheet.create({
     borderRadius: 5,
   },
   pillText: {
-    fontSize: 9,
+    fontSize: 11,
     fontFamily: "PlusJakartaSans_600SemiBold",
     textTransform: "uppercase",
     letterSpacing: 0.3,

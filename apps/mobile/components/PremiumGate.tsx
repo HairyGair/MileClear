@@ -45,12 +45,14 @@ export function PremiumTeaser({
         style={styles.compactCard}
         onPress={() => router.push("/(tabs)/profile" as any)}
         activeOpacity={0.7}
+        accessibilityRole="button"
+        accessibilityLabel={feature ? `${feature} requires Pro. Upgrade to unlock` : "Upgrade to Pro to unlock this feature"}
       >
         <Ionicons name="diamond-outline" size={16} color={AMBER} />
         <Text style={styles.compactText}>
           {feature ? `${feature} — ` : ""}Upgrade to Pro
         </Text>
-        <Ionicons name="chevron-forward" size={14} color="#4a5568" />
+        <Ionicons name="chevron-forward" size={14} color="#64748b" />
       </TouchableOpacity>
     );
   }
@@ -60,6 +62,8 @@ export function PremiumTeaser({
       style={styles.card}
       onPress={() => router.push("/(tabs)/profile" as any)}
       activeOpacity={0.7}
+      accessibilityRole="button"
+      accessibilityLabel={feature ? `${feature} is a Pro feature. Tap to upgrade to MileClear Pro` : "Upgrade to MileClear Pro to unlock this feature"}
     >
       <View style={styles.iconRow}>
         <View style={styles.iconCircle}>
@@ -90,7 +94,7 @@ export function useIsPremium(): boolean {
 
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: "#0c1425",
+    backgroundColor: "#0a1120",
     borderRadius: 14,
     padding: 20,
     borderWidth: 1,
@@ -140,7 +144,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
-    backgroundColor: "#0c1425",
+    backgroundColor: "#0a1120",
     borderRadius: 10,
     paddingVertical: 10,
     paddingHorizontal: 14,

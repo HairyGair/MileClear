@@ -48,7 +48,7 @@ function getStatusMessage(
   const pct = Math.round((weekMiles / target) * 100);
 
   if (weekMiles === 0) {
-    return { text: "No miles recorded yet this week", color: "#4a5568" };
+    return { text: "No miles recorded yet this week", color: "#64748b" };
   }
   if (remaining <= 0) {
     const over = Math.abs(remaining);
@@ -291,7 +291,7 @@ export function DrivingGoals({ weekMiles }: DrivingGoalsProps) {
             onPress={confirmClearGoal}
             hitSlop={{ top: 8, bottom: 8, left: 4, right: 8 }}
           >
-            <Ionicons name="close" size={15} color="#4a5568" />
+            <Ionicons name="close" size={15} color="#64748b" />
           </TouchableOpacity>
         </View>
       </View>
@@ -410,7 +410,7 @@ const styles = StyleSheet.create({
   emptySubtitle: {
     fontSize: 12,
     fontFamily: "PlusJakartaSans_400Regular",
-    color: "#4a5568",
+    color: "#64748b",
     marginTop: 2,
   },
   setGoalBtn: {
@@ -452,7 +452,7 @@ const styles = StyleSheet.create({
   subtitle: {
     fontSize: 12,
     fontFamily: "PlusJakartaSans_400Regular",
-    color: "#4a5568",
+    color: "#64748b",
     marginTop: 1,
   },
   actions: {
@@ -488,7 +488,7 @@ const styles = StyleSheet.create({
   milesSlash: {
     fontSize: 18,
     fontFamily: "PlusJakartaSans_300Light",
-    color: "#4a5568",
+    color: "#64748b",
   },
   milesTarget: {
     fontSize: 18,
@@ -498,7 +498,7 @@ const styles = StyleSheet.create({
   milesUnit: {
     fontSize: 14,
     fontFamily: "PlusJakartaSans_400Regular",
-    color: "#4a5568",
+    color: "#64748b",
     marginLeft: 2,
   },
   pctBadge: {

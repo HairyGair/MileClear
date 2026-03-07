@@ -22,7 +22,7 @@ const CARD_BG = "#0a1120";
 const BORDER = "rgba(255,255,255,0.06)";
 const TEXT_1 = "#f0f2f5";
 const TEXT_2 = "#8494a7";
-const TEXT_3 = "#4a5568";
+const TEXT_3 = "#64748b";
 
 export default function LoginScreen() {
   const { login, loginWithApple, loginWithGoogle } = useAuth();
@@ -88,6 +88,7 @@ export default function LoginScreen() {
             source={require("../../assets/branding/logo-original.png")}
             style={s.brandIcon}
             resizeMode="contain"
+            accessible={false}
           />
           <View style={s.brandText}>
             <Text style={s.brandName}>Mile</Text>
@@ -100,7 +101,11 @@ export default function LoginScreen() {
           <Text style={s.title}>Sign in</Text>
 
           {error ? (
-            <View style={s.errorWrap}>
+            <View
+              style={s.errorWrap}
+              accessibilityLiveRegion="polite"
+              accessibilityRole="alert"
+            >
               <Text style={s.errorText}>{error}</Text>
             </View>
           ) : null}
@@ -141,6 +146,7 @@ export default function LoginScreen() {
             autoCapitalize="none"
             autoCorrect={false}
             editable={!loading}
+            accessibilityLabel="Email address"
           />
 
           <Text style={s.label}>Password</Text>
@@ -157,10 +163,15 @@ export default function LoginScreen() {
             placeholderTextColor={TEXT_3}
             secureTextEntry
             editable={!loading}
+            accessibilityLabel="Password"
           />
 
           <Link href="/(auth)/forgot-password" asChild>
-            <TouchableOpacity style={s.forgotWrap}>
+            <TouchableOpacity
+              style={s.forgotWrap}
+              accessibilityRole="link"
+              accessibilityLabel="Forgot password"
+            >
               <Text style={s.forgotText}>Forgot password?</Text>
             </TouchableOpacity>
           </Link>
@@ -170,9 +181,12 @@ export default function LoginScreen() {
             onPress={handleLogin}
             disabled={loading}
             activeOpacity={0.8}
+            accessibilityRole="button"
+            accessibilityLabel="Sign in"
+            accessibilityState={{ disabled: loading }}
           >
             {loading ? (
-              <ActivityIndicator color="#030712" />
+              <ActivityIndicator color="#030712" accessibilityLabel="Loading" />
             ) : (
               <Text style={s.buttonText}>Sign in</Text>
             )}
@@ -181,7 +195,10 @@ export default function LoginScreen() {
           <View style={s.footer}>
             <Text style={s.footerText}>Don't have an account? </Text>
             <Link href="/(auth)/register" asChild>
-              <TouchableOpacity>
+              <TouchableOpacity
+                accessibilityRole="link"
+                accessibilityLabel="Create an account"
+              >
                 <Text style={s.link}>Create one</Text>
               </TouchableOpacity>
             </Link>
