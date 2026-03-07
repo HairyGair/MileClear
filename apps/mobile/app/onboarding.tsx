@@ -254,7 +254,7 @@ export default function OnboardingScreen() {
                     Work
                   </Text>
                   <Text style={s.intentDesc}>
-                    Tax deductions, shift tracking, earnings
+                    For self-employed and gig workers. Track business miles, log platform earnings, and calculate your HMRC tax deduction.
                   </Text>
                 </View>
               </TouchableOpacity>
@@ -267,7 +267,7 @@ export default function OnboardingScreen() {
                 onPress={() => setUserIntent("personal")}
                 activeOpacity={0.75}
                 accessibilityRole="button"
-                accessibilityLabel="Personal: journey log, driving goals, mileage journal"
+                accessibilityLabel="Personal: for everyday drivers. Log journeys, track fuel costs, and see driving habits."
                 accessibilityState={{ selected: userIntent === "personal" }}
               >
                 <View
@@ -292,7 +292,7 @@ export default function OnboardingScreen() {
                     Personal
                   </Text>
                   <Text style={s.intentDesc}>
-                    Journey log, driving goals, mileage journal
+                    For everyday drivers. Log your journeys, track fuel costs, and see your driving habits over time.
                   </Text>
                 </View>
               </TouchableOpacity>
@@ -305,7 +305,7 @@ export default function OnboardingScreen() {
                 onPress={() => setUserIntent("both")}
                 activeOpacity={0.75}
                 accessibilityRole="button"
-                accessibilityLabel="Both: switch between work and personal anytime"
+                accessibilityLabel="Both: use Work mode when on the clock, Personal for everything else"
                 accessibilityState={{ selected: userIntent === "both" }}
               >
                 <View
@@ -330,7 +330,7 @@ export default function OnboardingScreen() {
                     Both
                   </Text>
                   <Text style={s.intentDesc}>
-                    Switch between work and personal anytime
+                    Use Work mode when you're on the clock, Personal for everything else. Switch anytime.
                   </Text>
                 </View>
               </TouchableOpacity>

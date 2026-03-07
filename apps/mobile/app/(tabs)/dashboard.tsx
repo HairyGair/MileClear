@@ -87,6 +87,17 @@ function calcDistance(coords: { lat: number; lng: number }[]): number {
   return total;
 }
 
+function ExplainerItem({ icon, text }: { icon: keyof typeof Ionicons.glyphMap; text: string }) {
+  return (
+    <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 10, marginBottom: 10 }}>
+      <Ionicons name={icon} size={18} color="#f5a623" style={{ marginTop: 1 }} />
+      <Text style={{ color: "#c9d1db", fontSize: 14, fontFamily: "PlusJakartaSans_400Regular", flex: 1, lineHeight: 20 }}>
+        {text}
+      </Text>
+    </View>
+  );
+}
+
 export default function DashboardScreen() {
   const router = useRouter();
   const { isPersonal, isWork } = useMode();
@@ -120,6 +131,10 @@ export default function DashboardScreen() {
   // Unclassified trip count for smart insights
   const [unclassifiedCount, setUnclassifiedCount] = useState(0);
 
+  // Work mode explainer — shown once on first Work mode visit
+  const [showWorkExplainer, setShowWorkExplainer] = useState(false);
+  const [workExplainerSeen, setWorkExplainerSeen] = useState(true); // default true until loaded
+
   // Vehicle nudge — show when user has no vehicles at all
   const showVehicleNudge = !loading && vehicles.length === 0;
 
@@ -143,6 +158,33 @@ export default function DashboardScreen() {
     const db = await getDatabase();
     await db.runAsync(
       "INSERT OR REPLACE INTO tracking_state (key, value) VALUES ('bt_promo_dismissed', '1')"
+    );
+  }, []);
+
+  // Load work explainer flag
+  useEffect(() => {
+    (async () => {
+      const db = await getDatabase();
+      const row = await db.getFirstAsync<{ value: string }>(
+        "SELECT value FROM tracking_state WHERE key = 'work_explainer_seen'"
+      );
+      setWorkExplainerSeen(row?.value === "1");
+    })();
+  }, []);
+
+  // Auto-show work explainer on first Work mode visit
+  useEffect(() => {
+    if (isWork && !workExplainerSeen && !loading) {
+      setShowWorkExplainer(true);
+    }
+  }, [isWork, workExplainerSeen, loading]);
+
+  const dismissWorkExplainer = useCallback(async () => {
+    setShowWorkExplainer(false);
+    setWorkExplainerSeen(true);
+    const db = await getDatabase();
+    await db.runAsync(
+      "INSERT OR REPLACE INTO tracking_state (key, value) VALUES ('work_explainer_seen', '1')"
     );
   }, []);
 
@@ -557,6 +599,62 @@ export default function DashboardScreen() {
     </Modal>
   );
 
+  // ── Work Mode Explainer Modal ─────────────────────────────────
+  const workExplainerModal = (
+    <Modal
+      visible={showWorkExplainer}
+      transparent
+      animationType="fade"
+      onRequestClose={dismissWorkExplainer}
+    >
+      <View style={s.explainerOverlay}>
+        <View style={s.explainerCard}>
+          <ScrollView showsVerticalScrollIndicator={false}>
+            <View style={s.explainerIconWrap}>
+              <Ionicons name="briefcase" size={28} color="#f5a623" />
+            </View>
+            <Text style={s.explainerTitle}>Who is Work mode for?</Text>
+            <Text style={s.explainerBody}>
+              Work mode is for <Text style={s.explainerBold}>self-employed drivers</Text> who use their own vehicle for business. This includes:
+            </Text>
+
+            <View style={s.explainerList}>
+              <ExplainerItem icon="bicycle-outline" text="Gig & delivery drivers (Uber, Deliveroo, Just Eat, Amazon Flex)" />
+              <ExplainerItem icon="cube-outline" text="Couriers & freelance drivers (Stuart, Gophr, DPD, Yodel, Evri)" />
+              <ExplainerItem icon="construct-outline" text="Self-employed tradespeople, estate agents, carers" />
+              <ExplainerItem icon="business-outline" text="Anyone who drives for their own business" />
+            </View>
+
+            <View style={s.explainerDivider} />
+
+            <Text style={s.explainerSubhead}>How it works</Text>
+            <Text style={s.explainerBody}>
+              Business trips are tracked separately and used to calculate your <Text style={s.explainerBold}>HMRC mileage deduction</Text> — 45p per mile for the first 10,000, then 25p after that. This reduces your tax bill at the end of the year.
+            </Text>
+
+            <View style={s.explainerDivider} />
+
+            <Text style={s.explainerSubhead}>Not sure if you qualify?</Text>
+            <Text style={s.explainerBody}>
+              If you're employed and your employer reimburses mileage, you may still be able to claim the difference from HMRC. However, regular commuting to a fixed office is <Text style={s.explainerBold}>not</Text> claimable.
+            </Text>
+            <Text style={[s.explainerBody, { marginTop: 8 }]}>
+              If you just want to track personal driving, switch to <Text style={s.explainerBold}>Personal</Text> mode — you can always switch back later.
+            </Text>
+          </ScrollView>
+
+          <Button
+            title="Got it"
+            icon="checkmark"
+            size="lg"
+            onPress={dismissWorkExplainer}
+            style={{ marginTop: 16 }}
+          />
+        </View>
+      </View>
+    </Modal>
+  );
+
   // ── Active Shift ──────────────────────────────────────────────
   if (activeShift) {
     return (
@@ -636,9 +734,10 @@ export default function DashboardScreen() {
     >
       {scorecardModal}
       {recapModal}
+      {workExplainerModal}
 
       {/* Mode Toggle */}
-      <ModeToggle />
+      <ModeToggle onInfoPress={() => setShowWorkExplainer(true)} />
 
       {/* Smart Insights */}
       <SmartInsightCard
@@ -1690,5 +1789,66 @@ const s = StyleSheet.create({
     fontSize: 14,
     fontFamily: "PlusJakartaSans_600SemiBold",
     color: AMBER,
+  },
+
+  // Work mode explainer
+  explainerOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.7)",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 24,
+  },
+  explainerCard: {
+    backgroundColor: "#0a1120",
+    borderRadius: 20,
+    padding: 24,
+    maxHeight: "85%",
+    width: "100%",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.08)",
+  },
+  explainerIconWrap: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    backgroundColor: "rgba(245,166,35,0.12)",
+    alignItems: "center",
+    justifyContent: "center",
+    alignSelf: "center",
+    marginBottom: 16,
+  },
+  explainerTitle: {
+    fontSize: 20,
+    fontFamily: "PlusJakartaSans_700Bold",
+    color: TEXT_1,
+    textAlign: "center",
+    marginBottom: 16,
+  },
+  explainerBody: {
+    fontSize: 14,
+    fontFamily: "PlusJakartaSans_400Regular",
+    color: TEXT_2,
+    lineHeight: 21,
+    marginBottom: 12,
+  },
+  explainerBold: {
+    fontFamily: "PlusJakartaSans_600SemiBold",
+    color: TEXT_1,
+  },
+  explainerList: {
+    marginTop: 4,
+    marginBottom: 4,
+  },
+  explainerDivider: {
+    height: 1,
+    backgroundColor: "rgba(255,255,255,0.06)",
+    marginVertical: 16,
+  },
+  explainerSubhead: {
+    fontSize: 15,
+    fontFamily: "PlusJakartaSans_600SemiBold",
+    color: TEXT_1,
+    marginBottom: 8,
   },
 });

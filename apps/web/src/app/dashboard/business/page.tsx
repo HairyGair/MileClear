@@ -72,6 +72,44 @@ function gradeColor(grade: string): string {
   }
 }
 
+function WorkModeInfo({ dismissed, onDismiss }: { dismissed: boolean; onDismiss: () => void }) {
+  if (dismissed) return null;
+  return (
+    <div className="card" style={{ marginBottom: "var(--dash-gap)", borderLeft: "3px solid var(--amber-400)" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "1rem" }}>
+        <div>
+          <h3 style={{ fontSize: "1rem", fontWeight: 700, color: "var(--text-white)", marginBottom: "0.5rem" }}>
+            Who is Work mode for?
+          </h3>
+          <p style={{ fontSize: "0.875rem", color: "var(--text-muted)", lineHeight: 1.6, margin: 0 }}>
+            Work mode is for <strong style={{ color: "var(--text-secondary)" }}>self-employed drivers</strong> who
+            use their own vehicle for business — gig and delivery drivers (Uber, Deliveroo, Just Eat, Amazon Flex),
+            couriers, self-employed tradespeople, and anyone who drives for their own business.
+          </p>
+          <p style={{ fontSize: "0.875rem", color: "var(--text-muted)", lineHeight: 1.6, margin: "0.5rem 0 0" }}>
+            Business trips are tracked separately and used to calculate your <strong style={{ color: "var(--text-secondary)" }}>HMRC
+            mileage deduction</strong> — 45p/mile for the first 10,000 miles, then 25p after that.
+            Regular commuting to a fixed office is not claimable. If you just want to track personal driving,
+            switch to the Personal dashboard instead.
+          </p>
+        </div>
+        <button
+          onClick={onDismiss}
+          style={{
+            background: "none", border: "none", color: "var(--text-muted)", cursor: "pointer",
+            padding: "0.25rem", flexShrink: 0, marginTop: "0.125rem",
+          }}
+          aria-label="Dismiss"
+        >
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+            <path d="M12 4L4 12M4 4l8 8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+          </svg>
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export default function BusinessPage() {
   const { user } = useAuth();
   const isPremium = user?.isPremium ?? false;
@@ -82,6 +120,16 @@ export default function BusinessPage() {
   const [recentTrips, setRecentTrips] = useState<Trip[]>([]);
   const [loading, setLoading] = useState(true);
   const [pnlWeek, setPnlWeek] = useState(0);
+  const [infoDismissed, setInfoDismissed] = useState(true);
+
+  useEffect(() => {
+    setInfoDismissed(localStorage.getItem("mc_work_info_dismissed") === "1");
+  }, []);
+
+  const dismissInfo = () => {
+    setInfoDismissed(true);
+    localStorage.setItem("mc_work_info_dismissed", "1");
+  };
 
   useEffect(() => {
     if (!isPremium) {
@@ -143,6 +191,8 @@ export default function BusinessPage() {
   return (
     <>
       <PageHeader title="Business" subtitle="Tax deductions, efficiency, and business intelligence" />
+
+      <WorkModeInfo dismissed={infoDismissed} onDismiss={dismissInfo} />
 
       {/* Tax Deduction Hero */}
       {stats && (
