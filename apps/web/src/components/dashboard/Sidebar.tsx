@@ -3,7 +3,8 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useAuth } from "../../lib/auth-context";
-import type { ReactNode } from "react";
+import { api } from "../../lib/api";
+import { useState, type ReactNode } from "react";
 
 interface NavItem {
   href: string;
@@ -144,9 +145,23 @@ interface SidebarProps {
 
 export function Sidebar({ open, onClose }: SidebarProps) {
   const pathname = usePathname();
-  const { user, logout } = useAuth();
+  const { user, logout, refreshUser } = useAuth();
+  const [modeLoading, setModeLoading] = useState(false);
 
   const mode = user?.dashboardMode ?? "both";
+
+  const handleModeChange = async (newMode: "both" | "work" | "personal") => {
+    if (newMode === mode || modeLoading) return;
+    setModeLoading(true);
+    try {
+      await api.patch("/user/profile", { dashboardMode: newMode });
+      await refreshUser();
+    } catch {
+      // silently fail — mode will stay the same
+    } finally {
+      setModeLoading(false);
+    }
+  };
 
   const isActive = (href: string) => {
     if (!pathname) return false;
@@ -203,7 +218,17 @@ export function Sidebar({ open, onClose }: SidebarProps) {
 
         {user && (
           <div className="sidebar__user">
-            <div className="sidebar__avatar">{initials}</div>
+            <div className="sidebar__avatar">
+              {(user as any).avatarId ? (
+                <img
+                  src={`/avatars/avatar-${String((user as any).avatarId).padStart(2, "0")}.png`}
+                  alt=""
+                  className="sidebar__avatar-img"
+                />
+              ) : (
+                initials
+              )}
+            </div>
             <div className="sidebar__user-info">
               <div className="sidebar__user-name">
                 {user.displayName || user.email}
@@ -218,6 +243,24 @@ export function Sidebar({ open, onClose }: SidebarProps) {
             </div>
           </div>
         )}
+
+        {/* Quick mode toggle */}
+        <div className="sidebar__mode-toggle">
+          {([
+            { value: "work" as const, label: "Work" },
+            { value: "both" as const, label: "Both" },
+            { value: "personal" as const, label: "Personal" },
+          ]).map((opt) => (
+            <button
+              key={opt.value}
+              className={`sidebar__mode-btn${mode === opt.value ? " sidebar__mode-btn--active" : ""}`}
+              onClick={() => handleModeChange(opt.value)}
+              disabled={modeLoading}
+            >
+              {opt.label}
+            </button>
+          ))}
+        </div>
 
         <nav className="sidebar__nav">
           {/* Overview — always visible */}

@@ -236,15 +236,21 @@ export const DRIVER_TYPES = [
 ] as const;
 
 // Gamification — milestones & thresholds
-export const MILESTONE_MILES = [100, 500, 1000, 2500, 5000, 10000, 25000, 50000] as const;
-export const STREAK_THRESHOLDS = [3, 7, 14, 30] as const;
-export const TRIP_COUNT_THRESHOLDS = [10, 50, 100, 500] as const;
+export const MILESTONE_MILES = [50, 100, 250, 500, 1000, 2500, 5000, 10000, 25000, 50000, 100000] as const;
+export const STREAK_THRESHOLDS = [3, 7, 14, 30, 60, 90, 365] as const;
+export const TRIP_COUNT_THRESHOLDS = [1, 10, 25, 50, 100, 250, 500, 1000] as const;
+export const SHIFT_COUNT_THRESHOLDS = [1, 10, 50, 100, 500] as const;
+export const EARNING_THRESHOLDS = [100, 500, 1000, 5000, 10000, 50000] as const; // in pounds
 
 // Achievement type identifiers
 export const ACHIEVEMENT_TYPES = [
+  // Firsts
   "first_trip",
   "first_shift",
+  // Mileage milestones
+  "miles_50",
   "miles_100",
+  "miles_250",
   "miles_500",
   "miles_1000",
   "miles_2500",
@@ -252,14 +258,37 @@ export const ACHIEVEMENT_TYPES = [
   "miles_10000",
   "miles_25000",
   "miles_50000",
+  "miles_100000",
+  // Trip count
+  "trips_1",
   "trips_10",
+  "trips_25",
   "trips_50",
   "trips_100",
+  "trips_250",
   "trips_500",
+  "trips_1000",
+  // Shift count
+  "shifts_1",
+  "shifts_10",
+  "shifts_50",
+  "shifts_100",
+  "shifts_500",
+  // Streaks
   "streak_3",
   "streak_7",
   "streak_14",
   "streak_30",
+  "streak_60",
+  "streak_90",
+  "streak_365",
+  // Earnings
+  "earned_100",
+  "earned_500",
+  "earned_1000",
+  "earned_5000",
+  "earned_10000",
+  "earned_50000",
 ] as const;
 
 export type AchievementType = (typeof ACHIEVEMENT_TYPES)[number];
@@ -268,10 +297,16 @@ export type AchievementType = (typeof ACHIEVEMENT_TYPES)[number];
 export const FREE_ACHIEVEMENT_TYPES: readonly AchievementType[] = [
   "first_trip",
   "first_shift",
+  "miles_50",
   "miles_100",
   "miles_500",
+  "trips_1",
   "trips_10",
+  "trips_25",
+  "shifts_1",
   "streak_3",
+  "streak_7",
+  "earned_100",
 ];
 
 // Achievement display metadata
@@ -279,22 +314,49 @@ export const ACHIEVEMENT_META: Record<
   AchievementType,
   { label: string; description: string; emoji: string }
 > = {
-  first_trip: { label: "First Trip", description: "Completed your first trip", emoji: "🚗" },
-  first_shift: { label: "First Shift", description: "Completed your first shift", emoji: "🏁" },
-  miles_100: { label: "Century", description: "Driven 100 miles", emoji: "💯" },
-  miles_500: { label: "Road Warrior", description: "Driven 500 miles", emoji: "🛣️" },
-  miles_1000: { label: "1K Club", description: "Driven 1,000 miles", emoji: "🏅" },
-  miles_2500: { label: "Long Hauler", description: "Driven 2,500 miles", emoji: "🚀" },
-  miles_5000: { label: "5K Legend", description: "Driven 5,000 miles", emoji: "⭐" },
-  miles_10000: { label: "10K Champion", description: "Driven 10,000 miles", emoji: "🏆" },
-  miles_25000: { label: "25K Elite", description: "Driven 25,000 miles", emoji: "👑" },
-  miles_50000: { label: "50K Master", description: "Driven 50,000 miles", emoji: "💎" },
-  trips_10: { label: "Getting Started", description: "Completed 10 trips", emoji: "📍" },
-  trips_50: { label: "Regular", description: "Completed 50 trips", emoji: "📌" },
-  trips_100: { label: "Century Rider", description: "Completed 100 trips", emoji: "🎯" },
-  trips_500: { label: "Road Master", description: "Completed 500 trips", emoji: "🗺️" },
-  streak_3: { label: "Hat Trick", description: "3-day driving streak", emoji: "🔥" },
-  streak_7: { label: "Week Warrior", description: "7-day driving streak", emoji: "🔥" },
-  streak_14: { label: "Fortnight Force", description: "14-day driving streak", emoji: "🔥" },
-  streak_30: { label: "Monthly Machine", description: "30-day driving streak", emoji: "🔥" },
+  // Firsts
+  first_trip: { label: "Ignition", description: "You turned the key — first trip logged!", emoji: "🔑" },
+  first_shift: { label: "Clocked In", description: "First shift on the books. The grind begins!", emoji: "🏁" },
+  // Mileage milestones
+  miles_50: { label: "Warming Up", description: "50 miles down — just getting the tyres warm", emoji: "🌡️" },
+  miles_100: { label: "Century", description: "100 miles! That's London to Oxford and back", emoji: "💯" },
+  miles_250: { label: "Cruiser", description: "250 miles — you could've driven to Paris by now", emoji: "🚙" },
+  miles_500: { label: "Road Warrior", description: "500 miles and you would walk 500 more", emoji: "🛣️" },
+  miles_1000: { label: "1K Club", description: "1,000 miles — that's Land's End to John o' Groats!", emoji: "🏅" },
+  miles_2500: { label: "Long Hauler", description: "2,500 miles — you've crossed Europe by now", emoji: "🚀" },
+  miles_5000: { label: "Trailblazer", description: "5,000 miles — further than London to New York (if you could drive)", emoji: "⚡" },
+  miles_10000: { label: "10K Titan", description: "10,000 miles — HMRC's favourite number. Higher rate unlocked!", emoji: "🏆" },
+  miles_25000: { label: "Quarter Century", description: "25,000 miles — you've driven around the Earth", emoji: "🌍" },
+  miles_50000: { label: "Legend of the Road", description: "50,000 miles — twice around the world. Absolute legend", emoji: "👑" },
+  miles_100000: { label: "Hundred Grand", description: "100,000 miles — that's to the Moon and halfway back!", emoji: "💎" },
+  // Trip count
+  trips_1: { label: "First Wheels", description: "Trip number one — everyone starts somewhere!", emoji: "🚗" },
+  trips_10: { label: "Getting Rolling", description: "10 trips logged — you're building a habit", emoji: "📍" },
+  trips_25: { label: "Quarter Ton", description: "25 trips — a solid month's worth of driving", emoji: "📋" },
+  trips_50: { label: "Regular", description: "50 trips — the app practically drives itself now", emoji: "📌" },
+  trips_100: { label: "Century Rider", description: "100 trips! Your tax return is going to love this", emoji: "🎯" },
+  trips_250: { label: "Delivery Legend", description: "250 trips — you know every shortcut in town", emoji: "🗺️" },
+  trips_500: { label: "Road Scholar", description: "500 trips — you could teach a masterclass in driving", emoji: "🎓" },
+  trips_1000: { label: "Thousand Tripper", description: "1,000 trips — that's not a hobby, it's a lifestyle", emoji: "🏛️" },
+  // Shift count
+  shifts_1: { label: "Punched In", description: "First shift complete — welcome to the gig!", emoji: "⏰" },
+  shifts_10: { label: "Shift Regular", description: "10 shifts — you've found your rhythm", emoji: "🔄" },
+  shifts_50: { label: "Shift Veteran", description: "50 shifts — rain or shine, you show up", emoji: "🌧️" },
+  shifts_100: { label: "Century Shift", description: "100 shifts — you could do this in your sleep (please don't)", emoji: "😴" },
+  shifts_500: { label: "Iron Will", description: "500 shifts — they should name a road after you", emoji: "🦾" },
+  // Streaks
+  streak_3: { label: "Hat Trick", description: "3 days straight — that's a proper hat trick!", emoji: "🔥" },
+  streak_7: { label: "Week Warrior", description: "7-day streak — you didn't miss a single day", emoji: "💪" },
+  streak_14: { label: "Fortnight Force", description: "14 days strong — that's serious dedication", emoji: "⚔️" },
+  streak_30: { label: "Monthly Machine", description: "30-day streak — you're basically unstoppable", emoji: "🤖" },
+  streak_60: { label: "Two Month Terror", description: "60 days — your car thinks it lives at the depot", emoji: "😤" },
+  streak_90: { label: "Quarterly King", description: "90-day streak — take a bow, you've earned it", emoji: "🫅" },
+  streak_365: { label: "Year-Round Legend", description: "365 days straight?! You absolute machine", emoji: "🏅" },
+  // Earnings
+  earned_100: { label: "First Ton", description: "£100 earned — that's your first tank of fuel covered", emoji: "💰" },
+  earned_500: { label: "Half a Grand", description: "£500 earned — rent money, sorted", emoji: "💵" },
+  earned_1000: { label: "Grand Master", description: "£1,000 earned — now we're talking real money", emoji: "🤑" },
+  earned_5000: { label: "Five Grand Slam", description: "£5,000 earned — that's a proper holiday fund", emoji: "🏖️" },
+  earned_10000: { label: "10K Earner", description: "£10,000 earned — you're making serious moves", emoji: "📈" },
+  earned_50000: { label: "Fifty Grand", description: "£50,000 earned on the road — absolute boss", emoji: "💸" },
 };

@@ -2,6 +2,7 @@
 
 import { AuthProvider } from "../../lib/auth-context";
 import { DashboardShell } from "../../components/dashboard/DashboardShell";
+import { ToastProvider } from "../../components/ui/Toast";
 import "./dashboard.css";
 
 export default function DashboardClientLayout({
@@ -11,7 +12,9 @@ export default function DashboardClientLayout({
 }) {
   return (
     <AuthProvider>
-      <DashboardShell>{children}</DashboardShell>
+      <ToastProvider>
+        <DashboardShell>{children}</DashboardShell>
+      </ToastProvider>
     </AuthProvider>
   );
 }

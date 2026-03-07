@@ -8,6 +8,8 @@ import {
   MILESTONE_MILES,
   STREAK_THRESHOLDS,
   TRIP_COUNT_THRESHOLDS,
+  SHIFT_COUNT_THRESHOLDS,
+  EARNING_THRESHOLDS,
   type AchievementType,
   type GamificationStats,
   type AchievementWithMeta,
@@ -322,7 +324,7 @@ export async function checkAndAwardAchievements(
   userId: string
 ): Promise<AchievementWithMeta[]> {
   // Fetch existing achievements + stats in parallel
-  const [existing, totalTrips, totalShifts, totalMilesAgg, tripDates] =
+  const [existing, totalTrips, totalShifts, totalMilesAgg, totalEarningsAgg, tripDates] =
     await Promise.all([
       prisma.achievement.findMany({
         where: { userId },
@@ -334,6 +336,10 @@ export async function checkAndAwardAchievements(
         where: { userId },
         _sum: { distanceMiles: true },
       }),
+      prisma.earning.aggregate({
+        where: { userId },
+        _sum: { amountPence: true },
+      }),
       prisma.$queryRaw<{ tripDate: string }[]>`
         SELECT DISTINCT DATE(startedAt) as tripDate
         FROM trips
@@ -344,6 +350,7 @@ export async function checkAndAwardAchievements(
 
   const existingTypes = new Set(existing.map((a) => a.type));
   const totalMiles = totalMilesAgg._sum.distanceMiles ?? 0;
+  const totalEarningsPounds = (totalEarningsAgg._sum.amountPence ?? 0) / 100;
   const { longest: longestStreak } = computeStreak(
     tripDates.map((r) => {
       const d = r.tripDate;
@@ -375,9 +382,23 @@ export async function checkAndAwardAchievements(
     }
   }
 
+  for (const threshold of SHIFT_COUNT_THRESHOLDS) {
+    const type = `shifts_${threshold}` as AchievementType;
+    if (totalShifts >= threshold && !existingTypes.has(type)) {
+      earned.push(type);
+    }
+  }
+
   for (const threshold of STREAK_THRESHOLDS) {
     const type = `streak_${threshold}` as AchievementType;
     if (longestStreak >= threshold && !existingTypes.has(type)) {
+      earned.push(type);
+    }
+  }
+
+  for (const threshold of EARNING_THRESHOLDS) {
+    const type = `earned_${threshold}` as AchievementType;
+    if (totalEarningsPounds >= threshold && !existingTypes.has(type)) {
       earned.push(type);
     }
   }

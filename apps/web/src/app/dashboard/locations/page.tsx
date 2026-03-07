@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { api } from "../../../lib/api";
 import { useAuth } from "../../../lib/auth-context";
+import { useToast } from "../../../components/ui/Toast";
 import { PageHeader } from "../../../components/dashboard/PageHeader";
 import { Button } from "../../../components/ui/Button";
 import { Badge } from "../../../components/ui/Badge";
@@ -32,9 +33,13 @@ const TYPE_ICONS: Record<string, string> = {
 
 export default function LocationsPage() {
   const { user } = useAuth();
+  const { toast } = useToast();
   const [locations, setLocations] = useState<SavedLocation[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const mapContainerRef = useRef<HTMLDivElement>(null);
+  const mapInstanceRef = useRef<any>(null);
+  const markerRef = useRef<any>(null);
 
   // Add/Edit modal
   const [showForm, setShowForm] = useState(false);
@@ -139,8 +144,9 @@ export default function LocationsPage() {
       }
       setShowForm(false);
       loadLocations();
+      toast(editId ? "Location updated" : "Location added");
     } catch (err: any) {
-      setError(err.message);
+      toast(err.message, "error");
     } finally {
       setFormLoading(false);
     }
@@ -153,12 +159,96 @@ export default function LocationsPage() {
       await api.delete(`/saved-locations/${deleteLocation.id}`);
       setDeleteLocation(null);
       loadLocations();
+      toast("Location deleted");
     } catch (err: any) {
-      setError(err.message);
+      toast(err.message, "error");
     } finally {
       setDeleteLoading(false);
     }
   };
+
+  // Initialize Leaflet map when form modal opens
+  useEffect(() => {
+    if (!showForm) {
+      // Clean up map on close
+      if (mapInstanceRef.current) {
+        mapInstanceRef.current.remove();
+        mapInstanceRef.current = null;
+        markerRef.current = null;
+      }
+      return;
+    }
+
+    // Small delay to let DOM render
+    const timer = setTimeout(() => {
+      if (!mapContainerRef.current || mapInstanceRef.current) return;
+
+      function initMap() {
+        const L = (window as any).L;
+        if (!L || !mapContainerRef.current) return;
+
+        const lat = parseFloat(form.latitude) || 51.5074;
+        const lng = parseFloat(form.longitude) || -0.1278;
+
+        const map = L.map(mapContainerRef.current, {
+          zoomControl: true,
+          attributionControl: false,
+        }).setView([lat, lng], form.latitude ? 15 : 6);
+
+        L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", {
+          maxZoom: 19,
+        }).addTo(map);
+
+        const markerIcon = L.divIcon({
+          className: "map-picker__marker",
+          iconSize: [16, 16],
+          iconAnchor: [8, 8],
+        });
+
+        const marker = L.marker([lat, lng], { icon: markerIcon, draggable: true }).addTo(map);
+        markerRef.current = marker;
+
+        marker.on("dragend", () => {
+          const pos = marker.getLatLng();
+          setForm((f) => ({
+            ...f,
+            latitude: pos.lat.toFixed(6),
+            longitude: pos.lng.toFixed(6),
+          }));
+        });
+
+        map.on("click", (e: any) => {
+          marker.setLatLng(e.latlng);
+          setForm((f) => ({
+            ...f,
+            latitude: e.latlng.lat.toFixed(6),
+            longitude: e.latlng.lng.toFixed(6),
+          }));
+        });
+
+        mapInstanceRef.current = map;
+      }
+
+      if ((window as any).L) {
+        initMap();
+        return;
+      }
+
+      if (!document.querySelector('link[href*="leaflet"]')) {
+        const link = document.createElement("link");
+        link.rel = "stylesheet";
+        link.href = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.css";
+        document.head.appendChild(link);
+      }
+
+      const script = document.createElement("script");
+      script.src = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.js";
+      script.onload = () => initMap();
+      document.head.appendChild(script);
+    }, 100);
+
+    return () => clearTimeout(timer);
+  }, [showForm]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <>
@@ -279,23 +369,42 @@ export default function LocationsPage() {
           onChange={(e) => setForm((f) => ({ ...f, locationType: e.target.value }))}
           options={LOCATION_TYPE_OPTIONS}
         />
+        <div className="map-picker" ref={mapContainerRef}>
+          <div className="map-picker__hint">Click or drag the marker to set location</div>
+        </div>
         <div className="form-row">
           <Input
             id="locLat"
             label="Latitude"
             type="number"
-            step="0.0001"
+            step="0.000001"
             value={form.latitude}
-            onChange={(e) => setForm((f) => ({ ...f, latitude: e.target.value }))}
+            onChange={(e) => {
+              setForm((f) => ({ ...f, latitude: e.target.value }));
+              const lat = parseFloat(e.target.value);
+              const lng = parseFloat(form.longitude);
+              if (!isNaN(lat) && !isNaN(lng) && markerRef.current && mapInstanceRef.current) {
+                markerRef.current.setLatLng([lat, lng]);
+                mapInstanceRef.current.setView([lat, lng]);
+              }
+            }}
             placeholder="e.g. 51.5074"
           />
           <Input
             id="locLng"
             label="Longitude"
             type="number"
-            step="0.0001"
+            step="0.000001"
             value={form.longitude}
-            onChange={(e) => setForm((f) => ({ ...f, longitude: e.target.value }))}
+            onChange={(e) => {
+              setForm((f) => ({ ...f, longitude: e.target.value }));
+              const lat = parseFloat(form.latitude);
+              const lng = parseFloat(e.target.value);
+              if (!isNaN(lat) && !isNaN(lng) && markerRef.current && mapInstanceRef.current) {
+                markerRef.current.setLatLng([lat, lng]);
+                mapInstanceRef.current.setView([lat, lng]);
+              }
+            }}
             placeholder="e.g. -0.1278"
           />
         </div>
@@ -325,9 +434,6 @@ export default function LocationsPage() {
             </label>
           </div>
         </div>
-        <p style={{ fontSize: "0.75rem", color: "var(--text-faint)", marginTop: "0.25rem" }}>
-          Tip: Use Google Maps to find coordinates. Right-click any point and copy the lat/lng.
-        </p>
       </Modal>
 
       {/* Delete Confirmation */}

@@ -3,34 +3,41 @@
 import { useState, useEffect } from "react";
 import { api } from "../../../lib/api";
 import { useAuth } from "../../../lib/auth-context";
+import { useToast } from "../../../components/ui/Toast";
 import { PageHeader } from "../../../components/dashboard/PageHeader";
 import { Input } from "../../../components/ui/Input";
 import { Button } from "../../../components/ui/Button";
 import { Badge } from "../../../components/ui/Badge";
 import { ConfirmModal } from "../../../components/ui/ConfirmModal";
+import { Modal } from "../../../components/ui/Modal";
 import type { BillingStatus, WorkType } from "@mileclear/shared";
 import { Select } from "../../../components/ui/Select";
 
+const AVATAR_COUNT = 30;
+
 export default function SettingsPage() {
   const { user, refreshUser } = useAuth();
+  const { toast } = useToast();
+
+  // Avatar picker
+  const [showAvatarPicker, setShowAvatarPicker] = useState(false);
+  const [avatarId, setAvatarId] = useState<number | null>(null);
+  const [avatarLoading, setAvatarLoading] = useState(false);
 
   // Dashboard mode
   const [dashboardMode, setDashboardMode] = useState<"both" | "work" | "personal">("both");
   const [modeLoading, setModeLoading] = useState(false);
-  const [modeSaved, setModeSaved] = useState(false);
 
   // Work settings
   const [workType, setWorkType] = useState<WorkType>("gig");
   const [employerRate, setEmployerRate] = useState("");
   const [workSaving, setWorkSaving] = useState(false);
-  const [workSaved, setWorkSaved] = useState(false);
 
   // Profile
   const [displayName, setDisplayName] = useState("");
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [profileLoading, setProfileLoading] = useState(false);
-  const [profileSuccess, setProfileSuccess] = useState(false);
 
   // Password reset
   const [resetLoading, setResetLoading] = useState(false);
@@ -58,6 +65,7 @@ export default function SettingsPage() {
       setDashboardMode(user.dashboardMode ?? "both");
       setWorkType((user as any).workType ?? "gig");
       setEmployerRate((user as any).employerMileageRatePence != null ? String((user as any).employerMileageRatePence) : "");
+      setAvatarId((user as any).avatarId ?? null);
     }
   }, [user]);
 
@@ -80,12 +88,27 @@ export default function SettingsPage() {
         email: email !== user?.email ? email : undefined,
       });
       await refreshUser();
-      setProfileSuccess(true);
-      setTimeout(() => setProfileSuccess(false), 3000);
+      toast("Profile updated");
     } catch (err: any) {
-      setError(err.message);
+      toast(err.message, "error");
     } finally {
       setProfileLoading(false);
+    }
+  };
+
+  // Avatar save
+  const handleAvatarSelect = async (id: number) => {
+    setAvatarLoading(true);
+    try {
+      await api.patch("/user/profile", { avatarId: id });
+      setAvatarId(id);
+      await refreshUser();
+      setShowAvatarPicker(false);
+      toast("Avatar updated");
+    } catch (err: any) {
+      toast(err.message, "error");
+    } finally {
+      setAvatarLoading(false);
     }
   };
 
@@ -96,10 +119,9 @@ export default function SettingsPage() {
     try {
       await api.patch("/user/profile", { dashboardMode: mode });
       await refreshUser();
-      setModeSaved(true);
-      setTimeout(() => setModeSaved(false), 3000);
+      toast("Dashboard mode updated");
     } catch (err: any) {
-      setError(err.message);
+      toast(err.message, "error");
     } finally {
       setModeLoading(false);
     }
@@ -116,10 +138,9 @@ export default function SettingsPage() {
         employerMileageRatePence: rateParsed,
       });
       await refreshUser();
-      setWorkSaved(true);
-      setTimeout(() => setWorkSaved(false), 3000);
+      toast("Work settings saved");
     } catch (err: any) {
-      setError(err.message);
+      toast(err.message, "error");
     } finally {
       setWorkSaving(false);
     }
@@ -208,6 +229,34 @@ export default function SettingsPage() {
         </div>
       )}
 
+      {/* Avatar */}
+      <div className="settings-section">
+        <h2 className="settings-section__title">Avatar</h2>
+        <p className="settings-section__desc">
+          Choose a vehicle avatar for your profile.
+        </p>
+        <div style={{ display: "flex", alignItems: "center", gap: "1rem" }}>
+          <div
+            className="sidebar__avatar"
+            style={{ width: 64, height: 64, fontSize: "1.5rem", cursor: "pointer", flexShrink: 0 }}
+            onClick={() => setShowAvatarPicker(true)}
+          >
+            {avatarId ? (
+              <img
+                src={`/avatars/avatar-${String(avatarId).padStart(2, "0")}.png`}
+                alt=""
+                className="sidebar__avatar-img"
+              />
+            ) : (
+              user?.displayName?.[0]?.toUpperCase() || user?.email?.[0]?.toUpperCase() || "?"
+            )}
+          </div>
+          <Button variant="secondary" size="sm" onClick={() => setShowAvatarPicker(true)}>
+            {avatarId ? "Change avatar" : "Pick an avatar"}
+          </Button>
+        </div>
+      </div>
+
       {/* Profile */}
       <div className="settings-section">
         <h2 className="settings-section__title">Profile</h2>
@@ -245,11 +294,6 @@ export default function SettingsPage() {
             >
               {profileLoading ? "Saving..." : "Save changes"}
             </Button>
-            {profileSuccess && (
-              <span style={{ fontSize: "0.875rem", color: "var(--emerald-400)" }}>
-                Saved!
-              </span>
-            )}
           </div>
         </div>
       </div>
@@ -282,11 +326,6 @@ export default function SettingsPage() {
             </button>
           ))}
         </div>
-        {modeSaved && (
-          <span style={{ fontSize: "0.875rem", color: "var(--emerald-400)", marginTop: "0.5rem", display: "block" }}>
-            Saved! Sidebar updated.
-          </span>
-        )}
       </div>
 
       {/* Work Settings — only for work/both */}
@@ -329,11 +368,6 @@ export default function SettingsPage() {
               >
                 {workSaving ? "Saving..." : "Save work settings"}
               </Button>
-              {workSaved && (
-                <span style={{ fontSize: "0.875rem", color: "var(--emerald-400)" }}>
-                  Saved!
-                </span>
-              )}
             </div>
             {(workType === "employee" || workType === "both") && employerRate && (
               <p style={{ fontSize: "0.8125rem", color: "var(--text-muted)", margin: 0 }}>
@@ -461,6 +495,30 @@ export default function SettingsPage() {
         confirmLabel="Delete my account"
         loading={deleteLoading}
       />
+
+      {/* Avatar Picker Modal */}
+      <Modal
+        open={showAvatarPicker}
+        onClose={() => setShowAvatarPicker(false)}
+        title="Choose Your Avatar"
+      >
+        <div className="avatar-picker">
+          {Array.from({ length: AVATAR_COUNT }, (_, i) => i + 1).map((id) => (
+            <button
+              key={id}
+              className={`avatar-picker__item${avatarId === id ? " avatar-picker__item--selected" : ""}`}
+              onClick={() => handleAvatarSelect(id)}
+              disabled={avatarLoading}
+            >
+              <img
+                src={`/avatars/avatar-${String(id).padStart(2, "0")}.png`}
+                alt={`Avatar ${id}`}
+                className="avatar-picker__img"
+              />
+            </button>
+          ))}
+        </div>
+      </Modal>
     </>
   );
 }
