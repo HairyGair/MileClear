@@ -181,9 +181,15 @@ async function fetchAllBatches<T>(token: string, path: string): Promise<T[]> {
   const all: T[] = [];
 
   for (let batch = 1; batch <= MAX_BATCHES; batch++) {
-    const items = await fetchBatch<T>(token, path, batch);
-    if (items.length === 0) break;
-    all.push(...items);
+    try {
+      const items = await fetchBatch<T>(token, path, batch);
+      if (items.length === 0) break;
+      all.push(...items);
+    } catch (err: any) {
+      // 404 = batch doesn't exist = we've fetched all available batches
+      if (err?.message?.includes("HTTP 404")) break;
+      throw err;
+    }
   }
 
   return all;

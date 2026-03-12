@@ -10,8 +10,9 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import {
   getCurrentLocation,
-  forwardGeocode,
   reverseGeocode,
+  forwardGeocodeMultiple,
+  type GeocodeSuggestion,
 } from "../lib/location/geocoding";
 import { MapPickerModal } from "./MapPickerModal";
 
@@ -38,6 +39,8 @@ export function LocationPickerField({
   const [showSearch, setShowSearch] = useState(false);
   const [searchText, setSearchText] = useState("");
   const [showMap, setShowMap] = useState(false);
+  const [suggestions, setSuggestions] = useState<GeocodeSuggestion[]>([]);
+  const [noResults, setNoResults] = useState(false);
 
   const hasValue = lat != null && lng != null;
 
@@ -56,17 +59,35 @@ export function LocationPickerField({
   const handleSearch = async () => {
     if (!searchText.trim()) return;
     setLoading(true);
+    setSuggestions([]);
+    setNoResults(false);
     try {
-      const coords = await forwardGeocode(searchText.trim());
-      if (coords) {
-        const addr = await reverseGeocode(coords.lat, coords.lng);
-        onLocationChange(coords.lat, coords.lng, addr);
+      const query = searchText.trim();
+      const results = await forwardGeocodeMultiple(query);
+
+      if (results.length === 0) {
+        setNoResults(true);
+      } else if (results.length === 1) {
+        // Single result — use it directly, keep user's query as the display name
+        onLocationChange(results[0].lat, results[0].lng, query);
         setShowSearch(false);
         setSearchText("");
+        setSuggestions([]);
+      } else {
+        // Multiple results — show suggestions for the user to pick
+        setSuggestions(results);
       }
     } finally {
       setLoading(false);
     }
+  };
+
+  const handlePickSuggestion = (s: GeocodeSuggestion) => {
+    onLocationChange(s.lat, s.lng, s.address);
+    setShowSearch(false);
+    setSearchText("");
+    setSuggestions([]);
+    setNoResults(false);
   };
 
   const handleMapConfirm = (mapLat: number, mapLng: number, mapAddress: string | null) => {
@@ -137,14 +158,20 @@ export function LocationPickerField({
 
           <TouchableOpacity
             style={[styles.actionBtn, showSearch && styles.actionBtnActive]}
-            onPress={() => setShowSearch(!showSearch)}
+            onPress={() => {
+              setShowSearch(!showSearch);
+              if (showSearch) {
+                setSuggestions([]);
+                setNoResults(false);
+              }
+            }}
             disabled={loading}
             activeOpacity={0.7}
             accessibilityRole="button"
             accessibilityLabel={showSearch ? `Hide address search for ${label}` : `Search address for ${label}`}
             accessibilityState={{ expanded: showSearch }}
           >
-            <Ionicons name="search-outline" size={16} color={showSearch ? "#f5a623" : "#f5a623"} accessible={false} />
+            <Ionicons name="search-outline" size={16} color="#f5a623" accessible={false} />
             <Text style={[styles.actionLabel, showSearch && styles.actionLabelActive]}>Search</Text>
           </TouchableOpacity>
         </View>
@@ -152,28 +179,64 @@ export function LocationPickerField({
 
       {/* Search input */}
       {showSearch && !disabled && (
-        <View style={styles.searchRow}>
-          <TextInput
-            style={styles.searchInput}
-            value={searchText}
-            onChangeText={setSearchText}
-            placeholder="e.g. SW1A 1AA or 10 Downing Street"
-            placeholderTextColor="#6b7280"
-            returnKeyType="search"
-            onSubmitEditing={handleSearch}
-            autoFocus
-            accessibilityLabel={`Search address for ${label}`}
-          />
-          <TouchableOpacity
-            style={styles.searchBtn}
-            onPress={handleSearch}
-            disabled={loading || !searchText.trim()}
-            accessibilityRole="button"
-            accessibilityLabel="Search"
-          >
-            <Text style={styles.searchBtnText}>Go</Text>
-          </TouchableOpacity>
-        </View>
+        <>
+          <View style={styles.searchRow}>
+            <TextInput
+              style={styles.searchInput}
+              value={searchText}
+              onChangeText={(t) => {
+                setSearchText(t);
+                setSuggestions([]);
+                setNoResults(false);
+              }}
+              placeholder="e.g. PureGym Sunderland or SR3 1AA"
+              placeholderTextColor="#6b7280"
+              returnKeyType="search"
+              onSubmitEditing={handleSearch}
+              autoFocus
+              accessibilityLabel={`Search address for ${label}`}
+            />
+            <TouchableOpacity
+              style={styles.searchBtn}
+              onPress={handleSearch}
+              disabled={loading || !searchText.trim()}
+              accessibilityRole="button"
+              accessibilityLabel="Search"
+            >
+              <Text style={styles.searchBtnText}>Go</Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* No results message */}
+          {noResults && (
+            <View style={styles.noResults}>
+              <Ionicons name="alert-circle-outline" size={15} color="#6b7280" accessible={false} />
+              <Text style={styles.noResultsText}>
+                No results found. Try a postcode, street name, or place name.
+              </Text>
+            </View>
+          )}
+
+          {/* Suggestion list */}
+          {suggestions.length > 1 && (
+            <View style={styles.suggestionList}>
+              <Text style={styles.suggestionHint}>Multiple matches — pick one:</Text>
+              {suggestions.map((s, i) => (
+                <TouchableOpacity
+                  key={i}
+                  style={styles.suggestionRow}
+                  onPress={() => handlePickSuggestion(s)}
+                  activeOpacity={0.7}
+                  accessibilityRole="button"
+                  accessibilityLabel={s.address}
+                >
+                  <Ionicons name="location-outline" size={15} color="#f5a623" accessible={false} />
+                  <Text style={styles.suggestionText} numberOfLines={2}>{s.address}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          )}
+        </>
       )}
 
       {/* Map picker modal */}
@@ -289,5 +352,51 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontFamily: "PlusJakartaSans_700Bold",
     color: "#030712",
+  },
+  // No results
+  noResults: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginTop: 8,
+    paddingHorizontal: 4,
+  },
+  noResultsText: {
+    fontSize: 13,
+    fontFamily: "PlusJakartaSans_400Regular",
+    color: "#6b7280",
+    flex: 1,
+  },
+  // Suggestions
+  suggestionList: {
+    marginTop: 8,
+    backgroundColor: "#0a1120",
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.06)",
+    overflow: "hidden",
+  },
+  suggestionHint: {
+    fontSize: 11,
+    fontFamily: "PlusJakartaSans_500Medium",
+    color: "#6b7280",
+    paddingHorizontal: 12,
+    paddingTop: 10,
+    paddingBottom: 4,
+  },
+  suggestionRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingVertical: 12,
+    paddingHorizontal: 12,
+    borderTopWidth: 1,
+    borderTopColor: "rgba(255,255,255,0.04)",
+  },
+  suggestionText: {
+    fontSize: 14,
+    fontFamily: "PlusJakartaSans_500Medium",
+    color: "#f0f2f5",
+    flex: 1,
   },
 });

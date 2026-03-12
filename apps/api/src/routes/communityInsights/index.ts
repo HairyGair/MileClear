@@ -43,7 +43,7 @@ export async function communityInsightRoutes(app: FastifyInstance) {
           const price = cheapest.prices.E5 ?? cheapest.prices.B7;
           const fuelType = cheapest.prices.E5 ? "unleaded" : "diesel";
           if (price != null) {
-            insights.fuelTipNearby = `${cheapest.brand ?? cheapest.stationName}: ${(price / 10).toFixed(1)}p/L ${fuelType}`;
+            insights.fuelTipNearby = `${cheapest.brand ?? cheapest.stationName}: ${price.toFixed(1)}p/L ${fuelType}`;
           }
         }
       } catch {

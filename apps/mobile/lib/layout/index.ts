@@ -87,6 +87,12 @@ export const SECTION_REGISTRY: Record<ScreenKey, SectionDef[]> = {
   ],
   dashboard_personal: [
     {
+      key: "personal_cta",
+      label: "Start Trip & Quick Actions",
+      icon: "navigate",
+      locked: true,
+    },
+    {
       key: "personal_summary",
       label: "Driving Summary",
       icon: "speedometer-outline",
@@ -97,18 +103,6 @@ export const SECTION_REGISTRY: Record<ScreenKey, SectionDef[]> = {
       label: "Today's Recap",
       icon: "today-outline",
       description: "Daily driving summary card",
-    },
-    {
-      key: "personal_cta",
-      label: "Start Trip",
-      icon: "navigate",
-      locked: true,
-    },
-    {
-      key: "personal_quicknav",
-      label: "Quick Actions",
-      icon: "grid-outline",
-      description: "Insights, Trips, Fuel, Badges",
     },
     {
       key: "milestone",

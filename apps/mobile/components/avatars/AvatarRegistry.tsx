@@ -134,8 +134,13 @@ export function UserAvatar({ avatarId, name, email, size }: UserAvatarProps) {
     return <AvatarIcon avatarId={avatarId} size={size} />;
   }
 
-  const initial = (name || email || "?")[0].toUpperCase();
-  const fontSize = Math.round(size * 0.42);
+  // Build initials: "James Taylor" → "JT", "james" → "J", fallback "?"
+  const source = name || email?.split("@")[0] || "?";
+  const words = source.trim().split(/\s+/);
+  const initials = words.length >= 2
+    ? (words[0][0] + words[words.length - 1][0]).toUpperCase()
+    : source[0].toUpperCase();
+  const fontSize = Math.round(size * (initials.length > 1 ? 0.34 : 0.42));
   const ringWidth = size >= 44 ? 1.5 : 1;
 
   return (
@@ -170,7 +175,7 @@ export function UserAvatar({ avatarId, name, email, size }: UserAvatarProps) {
           ]}
           allowFontScaling={false}
         >
-          {initial}
+          {initials}
         </Text>
       </View>
     </View>

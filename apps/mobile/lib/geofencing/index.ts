@@ -232,6 +232,10 @@ async function processGeofenceTrip(
     "SELECT lat, lng, speed, accuracy, recorded_at FROM detection_coordinates ORDER BY recorded_at ASC"
   );
   await db.runAsync("DELETE FROM detection_coordinates");
+  // Clear auto-recording state to prevent duplicate trip creation
+  await db.runAsync(
+    "DELETE FROM tracking_state WHERE key IN ('auto_recording_active', 'last_driving_speed_at')"
+  );
 
   // Check if any coordinates indicate actual driving (speed > threshold)
   const drivingCoords = coords.filter(

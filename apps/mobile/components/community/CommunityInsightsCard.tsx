@@ -149,6 +149,9 @@ export function CommunityInsightsCard({ isWork = true }: CommunityInsightsCardPr
 
   const { stats, areaEarnings, peakHours, nearbyAnomalies, bestPlatformNearby, bestTimeNearby, fuelTipNearby } = data;
 
+  // Hide the card entirely when there's not enough community data to be meaningful
+  if (stats.totalDrivers < 20 && stats.driversNearby < 3) return null;
+
   // Build headline insights
   const headlines: { icon: string; text: string; color: string }[] = [];
 

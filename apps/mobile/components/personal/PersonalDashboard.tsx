@@ -14,6 +14,10 @@ import { MilestoneTracker } from "./MilestoneTracker";
 import { DrivingPatternsCard } from "./DrivingPatternsCard";
 import type { GamificationStats, PeriodRecap } from "@mileclear/shared";
 
+const EMERALD = "#10b981";
+const CARD_BG = "#0a1120";
+const CARD_BORDER = "rgba(255,255,255,0.05)";
+
 interface PersonalDashboardProps {
   avatarId?: string | null;
   stats: GamificationStats | null;
@@ -77,7 +81,7 @@ export function PersonalDashboard({ avatarId, stats, visibleKeys, recentTrips, d
   if (statsLoading) {
     return (
       <View style={styles.loading}>
-        <ActivityIndicator color="#10b981" />
+        <ActivityIndicator color={EMERALD} />
       </View>
     );
   }
@@ -98,6 +102,66 @@ export function PersonalDashboard({ avatarId, stats, visibleKeys, recentTrips, d
 
   const renderSection = (key: string) => {
     switch (key) {
+      case "personal_cta":
+        return (
+          <View key={key}>
+            {/* Primary CTA — Start Trip */}
+            <TouchableOpacity
+              style={styles.startTripBtn}
+              onPress={() => router.push("/trip-form")}
+              activeOpacity={0.7}
+              accessibilityRole="button"
+              accessibilityLabel="Start a new trip"
+            >
+              <Ionicons name="navigate" size={20} color="#030712" />
+              <Text style={styles.startTripBtnText}>Start Trip</Text>
+            </TouchableOpacity>
+
+            {/* Quick actions row */}
+            <View style={styles.quickActions}>
+              <TouchableOpacity
+                style={styles.quickAction}
+                onPress={() => router.replace("/(tabs)/trips" as any)}
+                activeOpacity={0.7}
+                accessibilityRole="button"
+                accessibilityLabel="View trips"
+              >
+                <Ionicons name="list-outline" size={20} color={EMERALD} accessible={false} />
+                <Text style={styles.quickActionLabel}>Trips</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.quickAction}
+                onPress={() => router.replace("/(tabs)/fuel" as any)}
+                activeOpacity={0.7}
+                accessibilityRole="button"
+                accessibilityLabel="View fuel logs"
+              >
+                <Ionicons name="water-outline" size={20} color={EMERALD} accessible={false} />
+                <Text style={styles.quickActionLabel}>Fuel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.quickAction}
+                onPress={() => router.push("/insights")}
+                activeOpacity={0.7}
+                accessibilityRole="button"
+                accessibilityLabel="View insights"
+              >
+                <Ionicons name="analytics-outline" size={20} color={EMERALD} accessible={false} />
+                <Text style={styles.quickActionLabel}>Insights</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.quickAction}
+                onPress={() => router.push("/achievements")}
+                activeOpacity={0.7}
+                accessibilityRole="button"
+                accessibilityLabel="View badges and achievements"
+              >
+                <Ionicons name="trophy-outline" size={20} color={EMERALD} accessible={false} />
+                <Text style={styles.quickActionLabel}>Badges</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        );
       case "personal_summary":
         return (
           <DrivingSummaryCard
@@ -143,65 +207,6 @@ export function PersonalDashboard({ avatarId, stats, visibleKeys, recentTrips, d
           </View>
         );
       }
-      case "personal_cta":
-        return (
-          <TouchableOpacity
-            key={key}
-            style={styles.startTripBtn}
-            onPress={() => router.push("/trip-form")}
-            activeOpacity={0.7}
-            accessibilityRole="button"
-            accessibilityLabel="Start a new trip"
-          >
-            <Ionicons name="navigate" size={20} color="#030712" />
-            <Text style={styles.startTripBtnText}>Start Trip</Text>
-          </TouchableOpacity>
-        );
-      case "personal_quicknav":
-        return (
-          <View key={key} style={styles.quickActions}>
-            <TouchableOpacity
-              style={styles.quickAction}
-              onPress={() => router.push("/insights")}
-              activeOpacity={0.7}
-              accessibilityRole="button"
-              accessibilityLabel="View insights"
-            >
-              <Ionicons name="analytics-outline" size={22} color="#10b981" style={{ marginBottom: 4 }} accessible={false} />
-              <Text style={styles.quickActionLabel}>Insights</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.quickAction}
-              onPress={() => router.replace("/(tabs)/trips" as any)}
-              activeOpacity={0.7}
-              accessibilityRole="button"
-              accessibilityLabel="View trips"
-            >
-              <Ionicons name="list-outline" size={22} color="#10b981" style={{ marginBottom: 4 }} accessible={false} />
-              <Text style={styles.quickActionLabel}>Trips</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.quickAction}
-              onPress={() => router.replace("/(tabs)/fuel" as any)}
-              activeOpacity={0.7}
-              accessibilityRole="button"
-              accessibilityLabel="View fuel logs"
-            >
-              <Ionicons name="water-outline" size={22} color="#10b981" style={{ marginBottom: 4 }} accessible={false} />
-              <Text style={styles.quickActionLabel}>Fuel</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.quickAction}
-              onPress={() => router.push("/achievements")}
-              activeOpacity={0.7}
-              accessibilityRole="button"
-              accessibilityLabel="View badges and achievements"
-            >
-              <Ionicons name="trophy-outline" size={22} color="#10b981" style={{ marginBottom: 4 }} accessible={false} />
-              <Text style={styles.quickActionLabel}>Badges</Text>
-            </TouchableOpacity>
-          </View>
-        );
       case "milestone":
         return stats && stats.totalMiles >= 5 ? (
           <MilestoneTracker key={key} totalMiles={stats.totalMiles} />
@@ -232,7 +237,7 @@ export function PersonalDashboard({ avatarId, stats, visibleKeys, recentTrips, d
   };
 
   const sectionOrder = visibleKeys || [
-    "personal_summary", "personal_cta", "personal_quicknav",
+    "personal_cta", "personal_summary", "daily_recap",
     "milestone", "driving_patterns",
     "journey_map", "community",
   ];
@@ -257,29 +262,30 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     gap: 8,
-    backgroundColor: "#10b981",
+    backgroundColor: EMERALD,
     borderRadius: 14,
-    paddingVertical: 14,
-    marginBottom: 12,
+    paddingVertical: 16,
+    marginBottom: 10,
   },
   startTripBtnText: {
-    fontSize: 16,
+    fontSize: 17,
     fontFamily: "PlusJakartaSans_700Bold",
     color: "#030712",
   },
   quickActions: {
     flexDirection: "row",
-    gap: 10,
-    marginBottom: 16,
+    gap: 8,
+    marginBottom: 14,
   },
   quickAction: {
     flex: 1,
-    backgroundColor: "#0a1120",
-    borderRadius: 12,
-    paddingVertical: 12,
+    backgroundColor: CARD_BG,
+    borderRadius: 10,
+    paddingVertical: 10,
     alignItems: "center",
+    gap: 4,
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.05)",
+    borderColor: CARD_BORDER,
   },
   quickActionLabel: {
     fontSize: 10,

@@ -21,14 +21,14 @@ function cacheKey(lat: number, lng: number): string {
   return `${lat.toFixed(3)},${lng.toFixed(3)}`;
 }
 
-export function formatAddress(geo: Location.LocationGeocodedAddress): string {
+export function formatAddress(geo: Location.LocationGeocodedAddress): string | null {
   const parts = [
     geo.streetNumber,
     geo.street,
     geo.city,
     geo.postalCode,
   ].filter(Boolean);
-  return parts.join(", ") || "Unknown location";
+  return parts.length > 0 ? parts.join(", ") : null;
 }
 
 export async function reverseGeocode(lat: number, lng: number): Promise<string | null> {
@@ -79,21 +79,41 @@ export async function reverseGeocode(lat: number, lng: number): Promise<string |
 }
 
 export async function forwardGeocode(address: string): Promise<{ lat: number; lng: number } | null> {
+  const results = await forwardGeocodeMultiple(address);
+  return results.length > 0 ? { lat: results[0].lat, lng: results[0].lng } : null;
+}
+
+export interface GeocodeSuggestion {
+  lat: number;
+  lng: number;
+  address: string;
+}
+
+export async function forwardGeocodeMultiple(address: string): Promise<GeocodeSuggestion[]> {
   try {
     // If input looks like a UK postcode, use Postcodes.io (faster + more accurate)
     if (UK_POSTCODE_REGEX.test(address.trim())) {
       const result = await lookupPostcode(address);
       if (result) {
-        return { lat: result.lat, lng: result.lng };
+        const addr = await reverseGeocode(result.lat, result.lng);
+        return [{ lat: result.lat, lng: result.lng, address: addr ?? address }];
       }
-      // Fall through to expo-location if Postcodes.io fails
     }
 
     const results = await Location.geocodeAsync(address);
-    if (results.length === 0) return null;
-    return { lat: results[0].latitude, lng: results[0].longitude };
+    if (results.length === 0) return [];
+
+    // Reverse-geocode each result in parallel to get readable addresses
+    const suggestions = await Promise.all(
+      results.slice(0, 5).map(async (r) => {
+        const addr = await reverseGeocode(r.latitude, r.longitude);
+        return { lat: r.latitude, lng: r.longitude, address: addr ?? `${r.latitude.toFixed(4)}, ${r.longitude.toFixed(4)}` };
+      })
+    );
+
+    return suggestions;
   } catch {
-    return null;
+    return [];
   }
 }
 

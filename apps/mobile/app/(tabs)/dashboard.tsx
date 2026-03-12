@@ -57,6 +57,7 @@ import { startLiveActivity, updateLiveActivity, endLiveActivity } from "../../li
 import { useLayoutPrefs } from "../../lib/layout/index";
 import { PremiumGate, PremiumTeaser, useIsPremium } from "../../components/PremiumGate";
 import { SmartInsightCard } from "../../components/SmartInsightCard";
+import * as Location from "expo-location";
 
 function formatElapsed(seconds: number): string {
   const h = Math.floor(seconds / 3600);
@@ -134,6 +135,9 @@ export default function DashboardScreen() {
   // Work mode explainer — shown once on first Work mode visit
   const [showWorkExplainer, setShowWorkExplainer] = useState(false);
   const [workExplainerSeen, setWorkExplainerSeen] = useState(true); // default true until loaded
+
+  // Background location permission — needed for auto trip detection
+  const [bgLocationGranted, setBgLocationGranted] = useState(true); // default true until checked
 
   // Vehicle nudge — show when user has no vehicles at all
   const showVehicleNudge = !loading && vehicles.length === 0;
@@ -278,6 +282,10 @@ export default function DashboardScreen() {
   useFocusEffect(
     useCallback(() => {
       loadData();
+      // Check background location permission on each focus
+      Location.getBackgroundPermissionsAsync().then((res) => {
+        setBgLocationGranted(res.status === Location.PermissionStatus.GRANTED);
+      }).catch(() => {});
     }, [loadData])
   );
 
@@ -739,6 +747,30 @@ export default function DashboardScreen() {
       {/* Mode Toggle */}
       <ModeToggle onInfoPress={() => setShowWorkExplainer(true)} />
 
+      {/* Background location nudge — auto trip detection requires "Always" */}
+      {!bgLocationGranted && !activeShift && (
+        <TouchableOpacity
+          style={s.bgLocNudge}
+          onPress={() => Linking.openSettings()}
+          activeOpacity={0.7}
+          accessibilityRole="button"
+          accessibilityLabel="Background location not enabled. Tap to open Settings and enable Always location access for automatic trip detection."
+        >
+          <View style={s.bgLocNudgeRow}>
+            <View style={s.bgLocNudgeIcon}>
+              <Ionicons name="location-outline" size={20} color="#f59e0b" accessible={false} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={s.bgLocNudgeTitle}>Enable background location</Text>
+              <Text style={s.bgLocNudgeBody}>
+                Automatic trip detection needs "Always" location access. Tap to open Settings.
+              </Text>
+            </View>
+            <Ionicons name="chevron-forward" size={16} color="#64748b" accessible={false} />
+          </View>
+        </TouchableOpacity>
+      )}
+
       {/* Smart Insights */}
       <SmartInsightCard
         stats={stats}
@@ -834,32 +866,24 @@ export default function DashboardScreen() {
                   <Text style={s.ctaPrimaryText}>Start Trip</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
-                  style={s.ctaSecondary}
-                  onPress={handleSelectVehicle}
+                  style={s.ctaShift}
+                  onPress={handleStartShift}
                   activeOpacity={0.7}
                   accessibilityRole="button"
-                  accessibilityLabel={selectedVehicle ? `Vehicle: ${selectedVehicle.make} ${selectedVehicle.model}. Tap to change.` : "Select a vehicle"}
+                  accessibilityLabel="Start Shift"
+                  disabled={starting}
                 >
-                  <Ionicons name="car-outline" size={16} color="#f5a623" accessible={false} />
-                  <Text style={s.ctaSecondaryText} numberOfLines={1}>
-                    {selectedVehicle ? `${selectedVehicle.make} ${selectedVehicle.model}` : "Vehicle"}
-                  </Text>
+                  {starting ? (
+                    <ActivityIndicator size="small" color={AMBER} />
+                  ) : (
+                    <Ionicons name="play" size={18} color={AMBER} accessible={false} />
+                  )}
+                  <Text style={s.ctaShiftText}>Start Shift</Text>
                 </TouchableOpacity>
               </View>
             );
           case "work_shift":
-            return (
-              <View key={key}>
-                <Button
-                  variant="hero"
-                  title="Start Shift"
-                  icon="play"
-                  onPress={handleStartShift}
-                  loading={starting}
-                  size="lg"
-                />
-              </View>
-            );
+            return null;
           case "work_quicknav":
             return (
               <View key={key} style={s.quickActions}>
@@ -1254,22 +1278,22 @@ const s = StyleSheet.create({
     fontFamily: "PlusJakartaSans_700Bold",
     color: "#030712",
   },
-  ctaSecondary: {
+  ctaShift: {
+    flex: 1,
     flexDirection: "row",
     alignItems: "center",
+    justifyContent: "center",
     gap: 6,
     backgroundColor: CARD_BG,
     borderRadius: 14,
-    paddingHorizontal: 14,
     paddingVertical: 14,
-    borderWidth: 1,
-    borderColor: CARD_BORDER,
+    borderWidth: 1.5,
+    borderColor: AMBER,
   },
-  ctaSecondaryText: {
-    fontSize: 13,
-    fontFamily: "PlusJakartaSans_500Medium",
-    color: TEXT_2,
-    maxWidth: 90,
+  ctaShiftText: {
+    fontSize: 15,
+    fontFamily: "PlusJakartaSans_700Bold",
+    color: AMBER,
   },
 
   // Quick actions
@@ -1789,6 +1813,41 @@ const s = StyleSheet.create({
     fontSize: 14,
     fontFamily: "PlusJakartaSans_600SemiBold",
     color: AMBER,
+  },
+
+  // Background location nudge
+  bgLocNudge: {
+    backgroundColor: "rgba(245, 158, 11, 0.08)",
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "rgba(245, 158, 11, 0.2)",
+    padding: 14,
+    marginBottom: 12,
+  },
+  bgLocNudgeRow: {
+    flexDirection: "row" as const,
+    alignItems: "center" as const,
+    gap: 12,
+  },
+  bgLocNudgeIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "rgba(245, 158, 11, 0.15)",
+    justifyContent: "center" as const,
+    alignItems: "center" as const,
+  },
+  bgLocNudgeTitle: {
+    fontSize: 14,
+    fontFamily: "PlusJakartaSans_600SemiBold",
+    color: "#f59e0b",
+    marginBottom: 2,
+  },
+  bgLocNudgeBody: {
+    fontSize: 12,
+    fontFamily: "PlusJakartaSans_400Regular",
+    color: TEXT_2,
+    lineHeight: 17,
   },
 
   // Work mode explainer

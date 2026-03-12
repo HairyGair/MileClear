@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useMemo } from "react";
 import {
   View,
   Text,
@@ -9,6 +9,7 @@ import {
   Platform,
   Animated,
   SafeAreaView,
+  ScrollView,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { haversineDistance, formatMiles } from "@mileclear/shared";
@@ -43,6 +44,15 @@ const TRIP_COLOURS = [
   "#eab308", // yellow
 ];
 
+type TimeFilter = "today" | "week" | "month" | "all";
+
+const FILTER_LABELS: Record<TimeFilter, string> = {
+  today: "Today",
+  week: "This Week",
+  month: "This Month",
+  all: "All",
+};
+
 interface MapOverviewProps {
   trips: TripDetail[];
   title?: string;
@@ -61,12 +71,56 @@ function formatTime(iso: string): string {
   return d.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
 }
 
+function formatDate(iso: string): string {
+  const d = new Date(iso);
+  return d.toLocaleDateString("en-GB", { day: "numeric", month: "short" });
+}
+
+function getStartOfDay(): Date {
+  const d = new Date();
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
+
+function getStartOfWeek(): Date {
+  const d = getStartOfDay();
+  const day = d.getDay();
+  // Monday = start of week (UK)
+  d.setDate(d.getDate() - ((day + 6) % 7));
+  return d;
+}
+
+function getStartOfMonth(): Date {
+  const d = new Date();
+  d.setDate(1);
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
+
+function filterTrips(trips: TripDetail[], filter: TimeFilter): TripDetail[] {
+  if (filter === "all") return trips;
+  const cutoff = filter === "today" ? getStartOfDay()
+    : filter === "week" ? getStartOfWeek()
+    : getStartOfMonth();
+  return trips.filter((t) => new Date(t.startedAt) >= cutoff);
+}
+
 export function MapOverview({ trips, title }: MapOverviewProps) {
   const [fullscreen, setFullscreen] = useState(false);
   const [selectedTrip, setSelectedTrip] = useState<number | null>(null);
   const [sheetAnim] = useState(() => new Animated.Value(250));
+  const [timeFilter, setTimeFilter] = useState<TimeFilter>("all");
 
-  const tripsWithCoords = trips.filter((t) => t.coordinates.length >= 2);
+  const allTripsWithCoords = useMemo(
+    () => trips.filter((t) => t.coordinates.length >= 2),
+    [trips]
+  );
+
+  // Inline card always shows all trips; fullscreen respects the filter
+  const filteredTrips = useMemo(
+    () => filterTrips(allTripsWithCoords, timeFilter),
+    [allTripsWithCoords, timeFilter]
+  );
 
   const showSheet = useCallback(
     (index: number) => {
@@ -90,7 +144,7 @@ export function MapOverview({ trips, title }: MapOverviewProps) {
     }).start(() => setSelectedTrip(null));
   }, [sheetAnim]);
 
-  if (tripsWithCoords.length === 0) {
+  if (allTripsWithCoords.length === 0) {
     return (
       <View style={styles.emptyCard}>
         <Ionicons name="map-outline" size={28} color="rgba(245, 166, 35, 0.3)" />
@@ -102,26 +156,31 @@ export function MapOverview({ trips, title }: MapOverviewProps) {
     );
   }
 
-  // Compute region from all coordinates
-  const allCoords = tripsWithCoords.flatMap((t) => t.coordinates);
-  let minLat = allCoords[0].lat;
-  let maxLat = allCoords[0].lat;
-  let minLng = allCoords[0].lng;
-  let maxLng = allCoords[0].lng;
-  for (const c of allCoords) {
-    if (c.lat < minLat) minLat = c.lat;
-    if (c.lat > maxLat) maxLat = c.lat;
-    if (c.lng < minLng) minLng = c.lng;
-    if (c.lng > maxLng) maxLng = c.lng;
-  }
-  const region = {
-    latitude: (minLat + maxLat) / 2,
-    longitude: (minLng + maxLng) / 2,
-    latitudeDelta: Math.max((maxLat - minLat) * 1.4, 0.01),
-    longitudeDelta: Math.max((maxLng - minLng) * 1.4, 0.01),
+  const computeRegion = (tripsToShow: TripDetail[]) => {
+    const allCoords = tripsToShow.flatMap((t) => t.coordinates);
+    if (allCoords.length === 0) return null;
+    let minLat = allCoords[0].lat;
+    let maxLat = allCoords[0].lat;
+    let minLng = allCoords[0].lng;
+    let maxLng = allCoords[0].lng;
+    for (const c of allCoords) {
+      if (c.lat < minLat) minLat = c.lat;
+      if (c.lat > maxLat) maxLat = c.lat;
+      if (c.lng < minLng) minLng = c.lng;
+      if (c.lng > maxLng) maxLng = c.lng;
+    }
+    return {
+      latitude: (minLat + maxLat) / 2,
+      longitude: (minLng + maxLng) / 2,
+      latitudeDelta: Math.max((maxLat - minLat) * 1.4, 0.01),
+      longitudeDelta: Math.max((maxLng - minLng) * 1.4, 0.01),
+    };
   };
 
-  if (!MapViewComponent || !PolylineComponent) {
+  const inlineRegion = computeRegion(allTripsWithCoords);
+  const fullscreenRegion = computeRegion(filteredTrips) ?? inlineRegion;
+
+  if (!MapViewComponent || !PolylineComponent || !inlineRegion) {
     return (
       <View style={styles.emptyCard}>
         <Ionicons name="map-outline" size={28} color="rgba(245, 166, 35, 0.3)" />
@@ -133,10 +192,10 @@ export function MapOverview({ trips, title }: MapOverviewProps) {
     );
   }
 
-  const selectedInfo = selectedTrip != null ? tripsWithCoords[selectedTrip] : null;
+  const selectedInfo = selectedTrip != null ? filteredTrips[selectedTrip] : null;
   const selectedColor = selectedTrip != null ? TRIP_COLOURS[selectedTrip % TRIP_COLOURS.length] : "#f5a623";
 
-  const mapContent = (interactive: boolean, height: number | "full") => (
+  const renderMapContent = (tripsToShow: TripDetail[], interactive: boolean, height: number | "full", region: any) => (
     <MapViewComponent
       style={height === "full" ? StyleSheet.absoluteFillObject : { height }}
       region={region}
@@ -151,7 +210,7 @@ export function MapOverview({ trips, title }: MapOverviewProps) {
       showsScale={false}
       showsPointsOfInterest={false}
     >
-      {tripsWithCoords.map((trip, i) => {
+      {tripsToShow.map((trip, i) => {
         const color = TRIP_COLOURS[i % TRIP_COLOURS.length];
         const isSelected = selectedTrip === i;
         const isDimmed = selectedTrip != null && !isSelected;
@@ -171,7 +230,6 @@ export function MapOverview({ trips, title }: MapOverviewProps) {
               tappable
               onPress={() => showSheet(i)}
             />
-            {/* Start marker */}
             {MarkerComponent && interactive && (
               <>
                 <MarkerComponent
@@ -200,10 +258,10 @@ export function MapOverview({ trips, title }: MapOverviewProps) {
     </MapViewComponent>
   );
 
-  // Trip legend for inline card
+  // Inline legend
   const legend = (
     <View style={styles.legendRow}>
-      {tripsWithCoords.map((trip, i) => {
+      {allTripsWithCoords.map((trip, i) => {
         const color = TRIP_COLOURS[i % TRIP_COLOURS.length];
         return (
           <View key={trip.id} style={styles.legendItem}>
@@ -224,31 +282,63 @@ export function MapOverview({ trips, title }: MapOverviewProps) {
         activeOpacity={0.9}
         onPress={() => setFullscreen(true)}
         accessibilityRole="button"
-        accessibilityLabel={`Journey map, ${tripsWithCoords.length} trip${tripsWithCoords.length !== 1 ? "s" : ""}. Tap to expand`}
+        accessibilityLabel={`Journey map, ${allTripsWithCoords.length} trip${allTripsWithCoords.length !== 1 ? "s" : ""}. Tap to expand`}
       >
         {title && <Text style={styles.cardTitle}>{title}</Text>}
         <View style={styles.mapContainer}>
-          {mapContent(false, 240)}
+          {renderMapContent(allTripsWithCoords, false, 240, inlineRegion)}
           <View style={styles.tapHint}>
             <Ionicons name="expand-outline" size={12} color="#8494a7" />
             <Text style={styles.tapHintText}>Tap to expand</Text>
           </View>
           <View style={styles.tripCountBadge}>
             <Text style={styles.tripCountText}>
-              {tripsWithCoords.length} trip{tripsWithCoords.length !== 1 ? "s" : ""}
+              {allTripsWithCoords.length} trip{allTripsWithCoords.length !== 1 ? "s" : ""}
             </Text>
           </View>
         </View>
         {legend}
       </TouchableOpacity>
 
+      {/* ── Fullscreen Modal ── */}
       <Modal
         visible={fullscreen}
         animationType="slide"
         onRequestClose={() => { dismissSheet(); setFullscreen(false); }}
       >
         <View style={styles.fullscreenContainer} accessibilityViewIsModal>
-          {mapContent(true, "full")}
+          {renderMapContent(filteredTrips, true, "full", fullscreenRegion)}
+
+          {/* Time filter pills */}
+          <SafeAreaView style={styles.filterBar}>
+            <View style={styles.filterRow}>
+              {(Object.keys(FILTER_LABELS) as TimeFilter[]).map((f) => {
+                const isActive = timeFilter === f;
+                const count = filterTrips(allTripsWithCoords, f).length;
+                return (
+                  <TouchableOpacity
+                    key={f}
+                    style={[styles.filterPill, isActive && styles.filterPillActive]}
+                    onPress={() => {
+                      setTimeFilter(f);
+                      setSelectedTrip(null);
+                    }}
+                    activeOpacity={0.7}
+                    accessibilityRole="button"
+                    accessibilityLabel={`${FILTER_LABELS[f]}, ${count} trips`}
+                    accessibilityState={{ selected: isActive }}
+                  >
+                    <Text style={[styles.filterPillText, isActive && styles.filterPillTextActive]}>
+                      {FILTER_LABELS[f]}
+                    </Text>
+                    <Text style={[styles.filterPillCount, isActive && styles.filterPillCountActive]}>
+                      {count}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          </SafeAreaView>
 
           {/* Trip info bottom sheet */}
           {selectedInfo && (
@@ -337,43 +427,66 @@ export function MapOverview({ trips, title }: MapOverviewProps) {
             </Animated.View>
           )}
 
-          {/* Fullscreen legend */}
-          <SafeAreaView style={styles.fullscreenLegend}>
-            {tripsWithCoords.map((trip, i) => {
-              const color = TRIP_COLOURS[i % TRIP_COLOURS.length];
-              return (
-                <TouchableOpacity
-                  key={trip.id}
-                  style={[
-                    styles.fullLegendItem,
-                    selectedTrip === i && { borderColor: color },
-                  ]}
-                  onPress={() => showSheet(i)}
-                  activeOpacity={0.7}
-                  accessibilityRole="button"
-                  accessibilityLabel={`Trip ${i + 1}, ${trip.distanceMiles.toFixed(1)} miles`}
-                  accessibilityState={{ selected: selectedTrip === i }}
-                >
-                  <View style={[styles.legendDot, { backgroundColor: color }]} />
-                  <Text style={styles.fullLegendText} numberOfLines={1}>
-                    {trip.distanceMiles.toFixed(1)} mi
-                  </Text>
-                </TouchableOpacity>
-              );
-            })}
-          </SafeAreaView>
+          {/* Trip list — scrollable at bottom when no trip selected */}
+          {selectedTrip == null && (
+            <View style={styles.tripListContainer}>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.tripListScroll}
+              >
+                {filteredTrips.map((trip, i) => {
+                  const color = TRIP_COLOURS[i % TRIP_COLOURS.length];
+                  return (
+                    <TouchableOpacity
+                      key={trip.id}
+                      style={styles.tripListCard}
+                      onPress={() => showSheet(i)}
+                      activeOpacity={0.7}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Trip ${i + 1}, ${trip.distanceMiles.toFixed(1)} miles, ${trip.startAddress ?? "Unknown"} to ${trip.endAddress ?? "Unknown"}`}
+                    >
+                      <View style={styles.tripListHeader}>
+                        <View style={[styles.legendDot, { backgroundColor: color }]} />
+                        <Text style={styles.tripListDate}>{formatDate(trip.startedAt)}</Text>
+                        <Text style={[styles.tripListDistance, { color }]}>
+                          {trip.distanceMiles.toFixed(1)} mi
+                        </Text>
+                      </View>
+                      <Text style={styles.tripListAddress} numberOfLines={1}>
+                        {trip.startAddress ?? "Unknown"}
+                      </Text>
+                      <View style={styles.tripListArrow}>
+                        <Ionicons name="arrow-forward" size={10} color="#64748b" />
+                      </View>
+                      <Text style={styles.tripListAddress} numberOfLines={1}>
+                        {trip.endAddress ?? "Unknown"}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+                {filteredTrips.length === 0 && (
+                  <View style={styles.tripListEmpty}>
+                    <Text style={styles.tripListEmptyText}>No trips for this period</Text>
+                  </View>
+                )}
+              </ScrollView>
+            </View>
+          )}
 
+          {/* Close button */}
           <SafeAreaView style={styles.closeBtnSafe}>
             <TouchableOpacity
               style={styles.closeBtn}
               onPress={() => {
                 dismissSheet();
                 setFullscreen(false);
+                setTimeFilter("all");
               }}
               accessibilityRole="button"
               accessibilityLabel="Close journey map"
             >
-              <Text style={styles.closeBtnText}>Close</Text>
+              <Ionicons name="close" size={18} color="#f0f2f5" />
             </TouchableOpacity>
           </SafeAreaView>
         </View>
@@ -486,24 +599,67 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: "#030712",
   },
+  // Close button
   closeBtnSafe: {
     position: "absolute",
     top: 0,
-    right: 20,
+    right: 16,
   },
   closeBtn: {
     marginTop: 12,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     backgroundColor: "rgba(3, 7, 18, 0.85)",
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 10,
+    justifyContent: "center",
+    alignItems: "center",
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.1)",
   },
-  closeBtnText: {
-    fontSize: 15,
+  // Filter bar
+  filterBar: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 56,
+  },
+  filterRow: {
+    flexDirection: "row",
+    gap: 6,
+    marginTop: 14,
+    marginLeft: 16,
+  },
+  filterPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: "rgba(3, 7, 18, 0.8)",
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.08)",
+  },
+  filterPillActive: {
+    backgroundColor: "rgba(245, 166, 35, 0.15)",
+    borderColor: "rgba(245, 166, 35, 0.4)",
+  },
+  filterPillText: {
+    fontSize: 12,
+    fontFamily: "PlusJakartaSans_500Medium",
+    color: "#8494a7",
+  },
+  filterPillTextActive: {
+    color: "#f5a623",
     fontFamily: "PlusJakartaSans_600SemiBold",
-    color: "#f0f2f5",
+  },
+  filterPillCount: {
+    fontSize: 11,
+    fontFamily: "PlusJakartaSans_700Bold",
+    color: "#64748b",
+  },
+  filterPillCountActive: {
+    color: "#f5a623",
   },
   // Trip dot markers
   tripDot: {
@@ -641,32 +797,64 @@ const styles = StyleSheet.create({
     fontFamily: "PlusJakartaSans_500Medium",
     color: "#93c5fd",
   },
-  // Fullscreen legend (bottom)
-  fullscreenLegend: {
+  // Trip list (horizontal scroll at bottom of fullscreen)
+  tripListContainer: {
     position: "absolute",
     bottom: 0,
     left: 0,
     right: 0,
-    flexDirection: "row",
-    flexWrap: "wrap",
-    paddingHorizontal: 16,
-    paddingBottom: 16,
-    gap: 8,
+    paddingBottom: 34,
   },
-  fullLegendItem: {
+  tripListScroll: {
+    paddingHorizontal: 16,
+    gap: 10,
+    paddingTop: 8,
+    paddingBottom: 8,
+  },
+  tripListCard: {
+    width: 180,
+    backgroundColor: "rgba(10, 17, 32, 0.92)",
+    borderRadius: 12,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.08)",
+  },
+  tripListHeader: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 5,
-    backgroundColor: "rgba(3, 7, 18, 0.8)",
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.1)",
+    gap: 6,
+    marginBottom: 6,
   },
-  fullLegendText: {
-    fontSize: 12,
+  tripListDate: {
+    fontSize: 11,
     fontFamily: "PlusJakartaSans_500Medium",
+    color: "#8494a7",
+    flex: 1,
+  },
+  tripListDistance: {
+    fontSize: 13,
+    fontFamily: "PlusJakartaSans_700Bold",
+  },
+  tripListAddress: {
+    fontSize: 12,
+    fontFamily: "PlusJakartaSans_400Regular",
     color: "#c9d1d9",
+  },
+  tripListArrow: {
+    marginVertical: 2,
+    marginLeft: 2,
+  },
+  tripListEmpty: {
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    backgroundColor: "rgba(10, 17, 32, 0.92)",
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.08)",
+  },
+  tripListEmptyText: {
+    fontSize: 13,
+    fontFamily: "PlusJakartaSans_500Medium",
+    color: "#6b7280",
   },
 });

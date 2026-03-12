@@ -28,6 +28,7 @@ const headerStyles = StyleSheet.create({
   rightRow: {
     flexDirection: "row",
     alignItems: "center",
+    alignSelf: "center",
     gap: 8,
   },
 });

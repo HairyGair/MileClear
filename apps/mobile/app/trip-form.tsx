@@ -891,8 +891,8 @@ export default function TripFormScreen() {
       setMode("arrived");
 
       // Fetch smart classification suggestion based on end location
-      if (loc.coords.latitude && loc.coords.longitude) {
-        fetchClassificationSuggestion(loc.coords.latitude, loc.coords.longitude, "end")
+      if (loc.lat && loc.lng) {
+        fetchClassificationSuggestion(loc.lat, loc.lng, "end")
           .then((res) => {
             if (res.suggestion) {
               setSuggestion(res.suggestion);
@@ -1496,14 +1496,14 @@ export default function TripFormScreen() {
               <View style={styles.routeRow}>
                 <View style={[styles.routeDot, { backgroundColor: "#34c759" }]} />
                 <Text style={styles.routeText} numberOfLines={1}>
-                  {startAddress ?? "Start location"}
+                  {startAddress ?? (startLat != null ? `${startLat.toFixed(4)}, ${startLng!.toFixed(4)}` : "Start")}
                 </Text>
               </View>
               <View style={styles.routeLine} />
               <View style={styles.routeRow}>
                 <View style={[styles.routeDot, { backgroundColor: "#ef4444" }]} />
                 <Text style={styles.routeText} numberOfLines={1}>
-                  {endAddress ?? "End location"}
+                  {endAddress ?? (endLat != null ? `${endLat.toFixed(4)}, ${endLng!.toFixed(4)}` : "End")}
                 </Text>
               </View>
             </Animated.View>
