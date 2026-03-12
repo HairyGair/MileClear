@@ -231,7 +231,11 @@ export default function InsightsScreen() {
             region={stats?.region}
           />
         )}
-        {isPersonal && trips.length > 0 && <JourneyTimeline trips={trips} />}
+        {isPersonal && trips.length > 0 && (
+          <PremiumGate feature="Journey Timeline">
+            <JourneyTimeline trips={trips} />
+          </PremiumGate>
+        )}
 
         {/* Driving Analytics link */}
         <TouchableOpacity
@@ -246,27 +250,33 @@ export default function InsightsScreen() {
             alignItems: "center",
             gap: 12,
           }}
-          onPress={() => router.push("/analytics")}
+          onPress={() => isPremium ? router.push("/analytics") : router.push("/(tabs)/profile" as any)}
           activeOpacity={0.7}
           accessibilityRole="button"
-          accessibilityLabel="Go to Driving Analytics"
+          accessibilityLabel={isPremium ? "Go to Driving Analytics" : "Driving Analytics, Pro feature. Tap to upgrade"}
         >
           <View style={{
             width: 40, height: 40, borderRadius: 12,
-            backgroundColor: "rgba(245,166,35,0.12)",
+            backgroundColor: isPremium ? "rgba(245,166,35,0.12)" : "rgba(255,255,255,0.04)",
             justifyContent: "center", alignItems: "center",
           }}>
-            <Ionicons name="bar-chart-outline" size={20} color="#f5a623" />
+            <Ionicons name={isPremium ? "bar-chart-outline" : "lock-closed"} size={20} color={isPremium ? "#f5a623" : "#64748b"} />
           </View>
           <View style={{ flex: 1 }}>
-            <Text style={{ color: "#f0f2f5", fontSize: 15, fontFamily: "PlusJakartaSans_600SemiBold" }}>
+            <Text style={{ color: isPremium ? "#f0f2f5" : "#8494a7", fontSize: 15, fontFamily: "PlusJakartaSans_600SemiBold" }}>
               Driving Analytics
             </Text>
             <Text style={{ color: "#8494a7", fontSize: 12.5, fontFamily: "PlusJakartaSans_400Regular" }}>
               Routes, costs, earnings patterns, commute timing
             </Text>
           </View>
-          <Ionicons name="chevron-forward" size={18} color="#64748b" />
+          {isPremium ? (
+            <Ionicons name="chevron-forward" size={18} color="#64748b" />
+          ) : (
+            <View style={{ backgroundColor: "#f5a623", paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 }}>
+              <Text style={{ fontSize: 11, fontFamily: "PlusJakartaSans_700Bold", color: "#030712" }}>PRO</Text>
+            </View>
+          )}
         </TouchableOpacity>
 
         {/* Achievements (both modes) */}

@@ -3,11 +3,11 @@ import { z } from "zod";
 import { authMiddleware } from "../../middleware/auth.js";
 import { premiumMiddleware } from "../../middleware/premium.js";
 import { prisma } from "../../lib/prisma.js";
-import { plaidClient } from "../../lib/plaid.js";
+import { truelayerEnabled } from "../../lib/truelayer.js";
 import { parseCsvPreview, confirmCsvImport } from "../../services/csvParser.js";
 import {
-  createLinkToken,
-  exchangePublicToken,
+  buildAuthLink,
+  exchangeCode,
   syncTransactions,
   getConnections,
   disconnectConnection,
@@ -237,43 +237,46 @@ export async function earningRoutes(app: FastifyInstance) {
     return reply.status(501).send({ error: "Not implemented" });
   });
 
-  // ── Open Banking (Plaid) ──────────────────────────────────────────
+  // ── Open Banking (TrueLayer) ──────────────────────────────────────
 
-  // Create Plaid link token (premium only)
+  // Generate auth link (premium only)
   app.post(
     "/open-banking/link-token",
     { preHandler: premiumMiddleware },
     async (request, reply) => {
-      if (!plaidClient) {
+      if (!truelayerEnabled) {
         return reply
           .status(503)
           .send({ error: "Open Banking is not configured. Please try again later." });
       }
 
       try {
-        const linkToken = await createLinkToken(request.userId!);
-        return reply.send({ data: { linkToken } });
+        // Use userId as state to verify on callback
+        const state = Buffer.from(
+          JSON.stringify({ userId: request.userId, ts: Date.now() })
+        ).toString("base64url");
+        const authLink = buildAuthLink(state);
+        return reply.send({ data: { authLink } });
       } catch (err: any) {
-        request.log.error(err, "Failed to create Plaid link token");
+        request.log.error(err, "Failed to create auth link");
         return reply.status(500).send({ error: "Failed to create bank link" });
       }
     }
   );
 
-  // Exchange public token after Plaid Link (premium only)
+  // Exchange auth code after TrueLayer redirect (premium only)
   app.post(
     "/open-banking/exchange",
     { preHandler: premiumMiddleware },
     async (request, reply) => {
-      if (!plaidClient) {
+      if (!truelayerEnabled) {
         return reply
           .status(503)
           .send({ error: "Open Banking is not configured" });
       }
 
       const schema = z.object({
-        publicToken: z.string().min(1),
-        institutionId: z.string().optional(),
+        code: z.string().min(1),
         institutionName: z.string().optional(),
       });
       const parsed = schema.safeParse(request.body);
@@ -282,15 +285,14 @@ export async function earningRoutes(app: FastifyInstance) {
       }
 
       try {
-        const connection = await exchangePublicToken(
+        const connection = await exchangeCode(
           request.userId!,
-          parsed.data.publicToken,
-          parsed.data.institutionId,
+          parsed.data.code,
           parsed.data.institutionName
         );
         return reply.status(201).send({ data: connection });
       } catch (err: any) {
-        request.log.error(err, "Failed to exchange Plaid token");
+        request.log.error(err, "Failed to exchange TrueLayer code");
         return reply.status(500).send({ error: "Failed to connect bank" });
       }
     }
@@ -311,7 +313,7 @@ export async function earningRoutes(app: FastifyInstance) {
     "/open-banking/sync",
     { preHandler: premiumMiddleware },
     async (request, reply) => {
-      if (!plaidClient) {
+      if (!truelayerEnabled) {
         return reply
           .status(503)
           .send({ error: "Open Banking is not configured" });
@@ -359,19 +361,17 @@ export async function earningRoutes(app: FastifyInstance) {
     }
   );
 
-  // ── Plaid Link HTML pages (unauthenticated, opened in WebBrowser) ──
+  // ── TrueLayer callback page (opened in WebBrowser after bank auth) ──
 
-  // Serves HTML page that loads Plaid Link JS SDK
-  app.get("/open-banking/link", async (request, reply) => {
-    const { token } = request.query as { token?: string };
-
-    if (!token || !/^link-[\w\-]+$/.test(token)) {
-      return reply.status(400).send({ error: "Invalid or missing link token" });
-    }
+  app.get("/open-banking/callback", async (request, reply) => {
+    const { code, error: tlError } = request.query as {
+      code?: string;
+      error?: string;
+    };
 
     const apiBaseUrl = process.env.API_BASE_URL || `http://localhost:${process.env.API_PORT || 3002}`;
-    const safeToken = JSON.stringify(token); // Safe for embedding in JS
 
+    // Build the callback HTML page
     const html = `<!DOCTYPE html>
 <html><head>
 <meta charset="utf-8">
@@ -386,20 +386,20 @@ export async function earningRoutes(app: FastifyInstance) {
   .spinner { width: 40px; height: 40px; border: 3px solid #1f2937; border-top-color: #f5a623; border-radius: 50%; animation: spin 1s linear infinite; margin: 0 auto 16px; }
   @keyframes spin { to { transform: rotate(360deg); } }
   .btn { display: inline-block; background: #f5a623; color: #030712; font-weight: 700; padding: 14px 32px; border-radius: 10px; text-decoration: none; font-size: 16px; cursor: pointer; border: none; }
-  .error { color: #ef4444; margin-top: 16px; }
+  .success { color: #10b981; }
   .hidden { display: none; }
 </style>
 </head><body>
 <div class="container">
   <div id="loading">
     <div class="spinner"></div>
-    <h1>Connecting to your bank...</h1>
-    <p>Plaid Link will open momentarily</p>
+    <h1>Connecting your bank...</h1>
+    <p>Please wait while we complete the connection</p>
   </div>
   <div id="success" class="hidden">
-    <h1>Bank Connected!</h1>
+    <h1 class="success">Bank Connected!</h1>
     <p>Your bank has been linked successfully. You can now sync your transactions.</p>
-    <a href="${apiBaseUrl}/earnings/open-banking/callback" class="btn">Return to App</a>
+    <p style="margin-bottom: 16px;">You can close this window and return to the MileClear app.</p>
   </div>
   <div id="error" class="hidden">
     <h1>Connection Failed</h1>
@@ -407,66 +407,80 @@ export async function earningRoutes(app: FastifyInstance) {
     <button onclick="window.close()" class="btn" style="margin-top: 16px;">Close</button>
   </div>
 </div>
-<script src="https://cdn.plaid.com/link/v2/stable/link-initialize.js"></script>
 <script>
-  const linkToken = ${safeToken};
-  const handler = Plaid.create({
-    token: linkToken,
-    onSuccess: async function(publicToken, metadata) {
-      document.getElementById("loading").classList.add("hidden");
-      try {
-        const res = await fetch("${apiBaseUrl}/earnings/open-banking/exchange", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            publicToken: publicToken,
-            institutionId: metadata.institution ? metadata.institution.institution_id : null,
-            institutionName: metadata.institution ? metadata.institution.name : null,
-          }),
-        });
-        if (!res.ok) throw new Error("Exchange failed");
-        document.getElementById("success").classList.remove("hidden");
-      } catch (e) {
-        document.getElementById("errorMsg").textContent = "Failed to save connection: " + e.message;
-        document.getElementById("error").classList.remove("hidden");
-      }
-    },
-    onExit: function(err) {
-      if (err) {
-        document.getElementById("loading").classList.add("hidden");
-        document.getElementById("errorMsg").textContent = err.display_message || "Connection was cancelled.";
-        document.getElementById("error").classList.remove("hidden");
-      } else {
-        window.close();
-      }
-    },
-  });
-  handler.open();
+(async function() {
+  const code = ${JSON.stringify(code || "")};
+  const tlError = ${JSON.stringify(tlError || "")};
+
+  if (tlError || !code) {
+    document.getElementById("loading").classList.add("hidden");
+    document.getElementById("errorMsg").textContent = tlError || "Bank authorisation was cancelled.";
+    document.getElementById("error").classList.remove("hidden");
+    return;
+  }
+
+  try {
+    // Retrieve saved auth token from sessionStorage
+    const authToken = sessionStorage.getItem("mc_ob_token");
+    if (!authToken) throw new Error("Session expired. Please try again from the app.");
+
+    const res = await fetch("${apiBaseUrl}/earnings/open-banking/exchange", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer " + authToken,
+      },
+      body: JSON.stringify({ code: code }),
+    });
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      throw new Error(body.error || "Exchange failed");
+    }
+    document.getElementById("loading").classList.add("hidden");
+    document.getElementById("success").classList.remove("hidden");
+    sessionStorage.removeItem("mc_ob_token");
+  } catch (e) {
+    document.getElementById("loading").classList.add("hidden");
+    document.getElementById("errorMsg").textContent = e.message || "Failed to save connection.";
+    document.getElementById("error").classList.remove("hidden");
+  }
+})();
 </script>
 </body></html>`;
 
     return reply.type("text/html").send(html);
   });
 
-  // Success callback page
-  app.get("/open-banking/callback", async (request, reply) => {
+  // ── Pre-auth page (stores JWT in sessionStorage before redirect) ──
+
+  app.get("/open-banking/link", async (request, reply) => {
+    const { authLink, token } = request.query as {
+      authLink?: string;
+      token?: string;
+    };
+
+    if (!authLink) {
+      return reply.status(400).send({ error: "Missing authLink parameter" });
+    }
+
+    const safeAuthLink = JSON.stringify(authLink);
+    const safeToken = JSON.stringify(token || "");
+
     const html = `<!DOCTYPE html>
 <html><head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Bank Connected - MileClear</title>
+<title>Connect Your Bank - MileClear</title>
 <style>
-  * { margin: 0; padding: 0; box-sizing: border-box; }
-  body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; background: #030712; color: #fff; display: flex; justify-content: center; align-items: center; min-height: 100vh; padding: 20px; }
-  .container { text-align: center; max-width: 400px; }
-  h1 { font-size: 24px; margin-bottom: 8px; color: #10b981; }
-  p { color: #9ca3af; font-size: 15px; margin-bottom: 24px; }
+  body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; background: #030712; }
 </style>
 </head><body>
-<div class="container">
-  <h1>Bank Connected Successfully</h1>
-  <p>You can close this window and return to the MileClear app.</p>
-</div>
+<script>
+  // Store the auth token so the callback page can use it
+  sessionStorage.setItem("mc_ob_token", ${safeToken});
+  // Redirect to TrueLayer auth dialog
+  window.location.href = ${safeAuthLink};
+</script>
 </body></html>`;
 
     return reply.type("text/html").send(html);

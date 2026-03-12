@@ -26,6 +26,7 @@ import {
   fetchWeeklyReport,
 } from "../lib/api/analytics";
 import { useMode } from "../lib/mode/context";
+import { PremiumGate } from "../components/PremiumGate";
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 const AMBER = "#f5a623";
@@ -834,6 +835,7 @@ export default function AnalyticsScreen() {
         }}
       />
 
+      <PremiumGate feature="Driving Analytics">
       <ScrollView
         contentContainerStyle={s.content}
         showsVerticalScrollIndicator={false}
@@ -896,6 +898,7 @@ export default function AnalyticsScreen() {
 
         <View style={{ height: 40 }} />
       </ScrollView>
+      </PremiumGate>
     </View>
   );
 }

@@ -26,6 +26,7 @@ import {
   type ScheduleSetting,
 } from "../lib/schedule/index";
 import { scheduleShiftReminders } from "../lib/notifications/index";
+import { PremiumGate } from "../components/PremiumGate";
 
 // ── Constants ──────────────────────────────────────────────────────
 
@@ -226,6 +227,7 @@ export default function WorkScheduleScreen() {
   return (
     <View style={s.container}>
       <Stack.Screen options={{ title: "Work Schedule" }} />
+      <PremiumGate feature="Work Schedule & Auto-Classify">
       <ScrollView contentContainerStyle={s.content}>
         <Text style={s.subtitle}>
           Set your regular work hours. Trips during these times can be auto-classified as business.
@@ -417,6 +419,7 @@ export default function WorkScheduleScreen() {
           </>
         )}
       </ScrollView>
+      </PremiumGate>
     </View>
   );
 }

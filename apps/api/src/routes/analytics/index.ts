@@ -1,6 +1,7 @@
 import { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { authMiddleware } from "../../middleware/auth.js";
+import { premiumMiddleware } from "../../middleware/premium.js";
 import {
   getDrivingAnalytics,
   getWeeklyReport,
@@ -13,6 +14,7 @@ import {
 
 export async function analyticsRoutes(app: FastifyInstance) {
   app.addHook("preHandler", authMiddleware);
+  app.addHook("preHandler", premiumMiddleware);
 
   // GET /analytics — full driving analytics
   app.get("/", async (request, reply) => {

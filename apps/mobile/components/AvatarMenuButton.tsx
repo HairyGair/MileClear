@@ -39,11 +39,11 @@ const MENU_ITEMS: Record<string, MenuItem> = {
   menu_trips: { key: "menu_trips", label: "Trips", route: "/(tabs)/trips", icon: "car-outline", replace: true },
   menu_fuel: { key: "menu_fuel", label: "Fuel", route: "/(tabs)/fuel", icon: "water-outline", replace: true },
   menu_earnings: { key: "menu_earnings", label: "Earnings", route: "/(tabs)/earnings", icon: "cash-outline", replace: true },
-  menu_insights: { key: "menu_insights", label: "Insights", route: "/insights", icon: "stats-chart-outline" },
-  menu_analytics: { key: "menu_analytics", label: "Analytics", route: "/analytics", icon: "bar-chart-outline" },
+  menu_insights: { key: "menu_insights", label: "Insights", route: "/insights", icon: "stats-chart-outline", badge: "PRO" },
+  menu_analytics: { key: "menu_analytics", label: "Analytics", route: "/analytics", icon: "bar-chart-outline", badge: "PRO" },
   menu_exports: { key: "menu_exports", label: "Tax Exports", route: "/exports", icon: "download-outline", badge: "PRO" },
   menu_suggestions: { key: "menu_suggestions", label: "Suggestions", route: "/feedback", icon: "bulb-outline" },
-  menu_schedule: { key: "menu_schedule", label: "Work Schedule", route: "/work-schedule", icon: "time-outline" },
+  menu_schedule: { key: "menu_schedule", label: "Work Schedule", route: "/work-schedule", icon: "time-outline", badge: "PRO" },
 };
 
 // Group definitions — items render in layout-pref order within each group
@@ -95,41 +95,23 @@ export default function AvatarMenuButton() {
     [menuLayout.visibleKeys]
   );
 
-  const displayName = user?.displayName || user?.email?.split("@")[0] || "";
-  const shortName = displayName.length > 10
-    ? displayName.slice(0, 10)
-    : displayName;
-
   return (
-    <>
-      <View style={styles.headerRow}>
-        {/* Username — taps to profile */}
-        <Pressable
-          onPress={() => router.push("/(tabs)/profile" as any)}
-          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-          style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1 })}
-          accessibilityRole="button"
-          accessibilityLabel={`${shortName}, go to profile`}
-        >
-          <Text style={styles.headerName} numberOfLines={1}>{shortName}</Text>
-        </Pressable>
-
-        {/* Avatar — taps to open menu */}
-        <Pressable
-          onPress={() => setMenuVisible(true)}
-          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-          style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1 })}
-          accessibilityRole="button"
-          accessibilityLabel="Open navigation menu"
-        >
-          <UserAvatar
-            avatarId={user?.avatarId}
-            name={user?.displayName}
-            email={user?.email}
-            size={32}
-          />
-        </Pressable>
-      </View>
+    <View style={styles.avatarBtn}>
+      {/* Avatar with initials — taps to open menu */}
+      <Pressable
+        onPress={() => setMenuVisible(true)}
+        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+        style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1 })}
+        accessibilityRole="button"
+        accessibilityLabel="Open navigation menu"
+      >
+        <UserAvatar
+          avatarId={user?.avatarId}
+          name={user?.displayName}
+          email={user?.email}
+          size={36}
+        />
+      </Pressable>
 
       {/* ── Bottom Sheet Menu ── */}
       {menuVisible && (
@@ -299,25 +281,19 @@ export default function AvatarMenuButton() {
           </Pressable>
         </Modal>
       )}
-    </>
+    </View>
   );
 }
 
 // ── Styles ────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
-  // Header trigger
-  headerRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
+  // Header avatar button — fixed size to prevent React Navigation stretch
+  avatarBtn: {
+    width: 36,
+    height: 36,
     marginRight: 8,
-  },
-  headerName: {
-    fontSize: 13,
-    fontFamily: "PlusJakartaSans_600SemiBold",
-    color: TEXT_2,
-    maxWidth: 100,
+    alignSelf: "center",
   },
   // Bottom sheet
   backdrop: {

@@ -4,6 +4,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { getDistanceEquivalent } from "@mileclear/shared";
 import { RecapShareCard, captureAndShareRecap } from "./ShareableRecap";
 import type { RecapShareCardProps } from "./ShareableRecap";
+import { useIsPremium } from "../PremiumGate";
 
 interface PersonalRecapCardProps {
   monthMiles: number;
@@ -110,9 +111,11 @@ export function PersonalRecapCard({
   region,
 }: PersonalRecapCardProps) {
   const shareCardRef = useRef<View>(null);
+  const isPremium = useIsPremium();
   const [view, setView] = useState<"today" | "month" | "year">("today");
   const isToday = view === "today";
   const isYear = view === "year";
+  const isGatedView = !isToday && !isPremium;
 
   // Monthly insights
   const hasPrev = prevMonthMiles !== null && prevMonthTrips !== null;
@@ -189,18 +192,20 @@ export function PersonalRecapCard({
               style={[styles.toggleBtn, view === "month" && styles.toggleBtnActive]}
               onPress={() => setView("month")}
               accessibilityRole="tab"
-              accessibilityLabel="This month"
+              accessibilityLabel={isPremium ? "This month" : "This month, Pro feature"}
               accessibilityState={{ selected: view === "month" }}
             >
+              {!isPremium && <Ionicons name="lock-closed" size={10} color="#64748b" />}
               <Text style={[styles.toggleText, view === "month" && styles.toggleTextActive]}>Month</Text>
             </Pressable>
             <Pressable
               style={[styles.toggleBtn, isYear && styles.toggleBtnActive]}
               onPress={() => setView("year")}
               accessibilityRole="tab"
-              accessibilityLabel="This year"
+              accessibilityLabel={isPremium ? "This year" : "This year, Pro feature"}
               accessibilityState={{ selected: isYear }}
             >
+              {!isPremium && <Ionicons name="lock-closed" size={10} color="#64748b" />}
               <Text style={[styles.toggleText, isYear && styles.toggleTextActive]}>Year</Text>
             </Pressable>
           </View>
@@ -232,7 +237,17 @@ export function PersonalRecapCard({
           </View>
         </View>
 
-        {/* Insights */}
+        {/* Insights — gated for Month/Year on free tier */}
+        {isGatedView ? (
+          <View style={styles.insightList}>
+            <View style={{ alignItems: "center", paddingVertical: 8 }}>
+              <Ionicons name="lock-closed" size={18} color="#64748b" />
+              <Text style={{ color: "#64748b", fontSize: 12, fontFamily: "PlusJakartaSans_500Medium", marginTop: 6, textAlign: "center" }}>
+                Upgrade to Pro for monthly & yearly insights
+              </Text>
+            </View>
+          </View>
+        ) : (
         <View style={styles.insightList}>
           {!isToday && !isYear && milesChange && milesChange.text !== "" && (
             <View style={styles.insightRow}>
@@ -336,10 +351,12 @@ export function PersonalRecapCard({
             );
           })()}
         </View>
+        )}
 
         <View style={styles.separator} />
 
-        {/* Share button */}
+        {/* Share button — gated for Month/Year on free tier */}
+        {isGatedView ? null : (
         <Pressable
           style={({ pressed }) => [
             styles.shareButton,
@@ -352,6 +369,7 @@ export function PersonalRecapCard({
           <Ionicons name="share-outline" size={16} color="#f5a623" />
           <Text style={styles.shareText}>Share Recap</Text>
         </Pressable>
+        )}
       </View>
     </View>
   );

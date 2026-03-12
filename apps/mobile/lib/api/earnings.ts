@@ -81,22 +81,22 @@ export function confirmCsvImport(rows: CsvEarningRow[], filename?: string) {
   });
 }
 
-// ── Open Banking (Plaid) ────────────────────────────────────────────
+// ── Open Banking (TrueLayer) ────────────────────────────────────────
 
-export function createPlaidLinkToken() {
-  return apiRequest<{ data: { linkToken: string } }>(
+export function createOpenBankingAuthLink() {
+  return apiRequest<{ data: { authLink: string } }>(
     "/earnings/open-banking/link-token",
     { method: "POST" }
   );
 }
 
-export function fetchPlaidConnections() {
+export function fetchBankConnections() {
   return apiRequest<{ data: PlaidConnection[] }>(
     "/earnings/open-banking/connections"
   );
 }
 
-export function syncPlaidConnection(
+export function syncBankConnection(
   connectionId: string,
   fromDate?: string,
   toDate?: string
@@ -109,7 +109,7 @@ export function syncPlaidConnection(
   });
 }
 
-export function disconnectPlaidConnection(connectionId: string) {
+export function disconnectBankConnection(connectionId: string) {
   return apiRequest<{ message: string }>(
     `/earnings/open-banking/connections/${connectionId}`,
     { method: "DELETE" }

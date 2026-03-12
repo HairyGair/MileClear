@@ -12,13 +12,17 @@ import { Ionicons } from "@expo/vector-icons";
 import { useRouter, useFocusEffect } from "expo-router";
 import * as WebBrowser from "expo-web-browser";
 import {
-  createPlaidLinkToken,
-  fetchPlaidConnections,
-  syncPlaidConnection,
-  disconnectPlaidConnection,
+  createOpenBankingAuthLink,
+  fetchBankConnections,
+  syncBankConnection,
+  disconnectBankConnection,
 } from "../lib/api/earnings";
 import type { PlaidConnection } from "@mileclear/shared";
 import { Button } from "../components/Button";
+import { useUser } from "../lib/user/context";
+import { isIapAvailable, purchaseSubscription } from "../lib/iap/index";
+import { createCheckoutSession } from "../lib/api/billing";
+import * as SecureStore from "expo-secure-store";
 
 const API_URL = process.env.EXPO_PUBLIC_API_URL || "https://api.mileclear.com";
 
@@ -40,14 +44,16 @@ const STATUS_COLORS: Record<string, string> = {
 
 export default function OpenBankingScreen() {
   const router = useRouter();
+  const { user } = useUser();
   const [connections, setConnections] = useState<PlaidConnection[]>([]);
   const [loading, setLoading] = useState(true);
   const [connecting, setConnecting] = useState(false);
   const [syncingId, setSyncingId] = useState<string | null>(null);
+  const [upgrading, setUpgrading] = useState(false);
 
   const loadConnections = useCallback(async () => {
     try {
-      const res = await fetchPlaidConnections();
+      const res = await fetchBankConnections();
       setConnections(res.data);
     } catch (err: any) {
       if (err.message?.includes("403") || err.message?.includes("Premium")) {
@@ -72,9 +78,12 @@ export default function OpenBankingScreen() {
   const handleConnect = async () => {
     setConnecting(true);
     try {
-      const res = await createPlaidLinkToken();
-      const linkToken = res.data.linkToken;
-      const linkUrl = `${API_URL}/earnings/open-banking/link?token=${encodeURIComponent(linkToken)}`;
+      const res = await createOpenBankingAuthLink();
+      const authLink = res.data.authLink;
+
+      // Get current auth token so the callback page can exchange the code
+      const token = await SecureStore.getItemAsync("access_token");
+      const linkUrl = `${API_URL}/earnings/open-banking/link?authLink=${encodeURIComponent(authLink)}&token=${encodeURIComponent(token || "")}`;
 
       await WebBrowser.openBrowserAsync(linkUrl);
 
@@ -102,7 +111,7 @@ export default function OpenBankingScreen() {
   const handleSync = async (connectionId: string) => {
     setSyncingId(connectionId);
     try {
-      const res = await syncPlaidConnection(connectionId);
+      const res = await syncBankConnection(connectionId);
       const { imported, skipped, unmatched } = res.data;
 
       let message = `${imported} earning${imported !== 1 ? "s" : ""} imported`;
@@ -130,7 +139,7 @@ export default function OpenBankingScreen() {
           style: "destructive",
           onPress: async () => {
             try {
-              await disconnectPlaidConnection(connection.id);
+              await disconnectBankConnection(connection.id);
               await loadConnections();
             } catch (err: any) {
               Alert.alert("Error", err.message || "Failed to disconnect");
@@ -188,6 +197,53 @@ export default function OpenBankingScreen() {
       </View>
     </View>
   );
+
+  const handleUpgrade = async () => {
+    setUpgrading(true);
+    try {
+      const iap = await isIapAvailable();
+      if (iap) {
+        await purchaseSubscription();
+      } else {
+        const res = await createCheckoutSession();
+        if (res.data?.url) {
+          await WebBrowser.openBrowserAsync(res.data.url);
+        }
+      }
+    } catch (err: any) {
+      if (!err.message?.includes("cancel")) {
+        Alert.alert("Error", err.message || "Failed to start upgrade");
+      }
+    } finally {
+      setUpgrading(false);
+    }
+  };
+
+  if (!user?.isPremium) {
+    return (
+      <View style={styles.container}>
+        <View style={styles.gateContainer}>
+          <View style={styles.gateIcon}>
+            <Ionicons name="business-outline" size={44} color="#f5a623" />
+          </View>
+          <Text style={styles.gateTitle}>Open Banking</Text>
+          <View style={styles.proBadge}>
+            <Text style={styles.proBadgeText}>PRO</Text>
+          </View>
+          <Text style={styles.gateDesc}>
+            Automatically import earnings from your bank account. Connect Uber, Deliveroo, Amazon Flex, and more — no manual entry needed.
+          </Text>
+          <Button
+            title={upgrading ? "Loading..." : "Upgrade to Pro"}
+            onPress={handleUpgrade}
+            loading={upgrading}
+            style={{ marginTop: 20, width: "100%" }}
+          />
+          <Text style={styles.gatePrice}>£4.99/month — cancel anytime</Text>
+        </View>
+      </View>
+    );
+  }
 
   if (loading) {
     return (
@@ -367,5 +423,41 @@ const styles = StyleSheet.create({
   footer: {
     marginTop: 16,
     paddingBottom: 20,
+  },
+  // Premium gate
+  gateContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 32,
+  },
+  gateIcon: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: "rgba(245, 166, 35, 0.1)",
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 20,
+  },
+  gateTitle: {
+    fontSize: 22,
+    fontFamily: "PlusJakartaSans_700Bold",
+    color: "#fff",
+    marginBottom: 8,
+  },
+  gateDesc: {
+    fontSize: 14,
+    fontFamily: "PlusJakartaSans_400Regular",
+    color: "#9ca3af",
+    textAlign: "center",
+    lineHeight: 20,
+    marginTop: 12,
+  },
+  gatePrice: {
+    fontSize: 13,
+    fontFamily: "PlusJakartaSans_400Regular",
+    color: "#6b7280",
+    marginTop: 10,
   },
 });

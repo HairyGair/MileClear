@@ -6,14 +6,14 @@ import * as Location from "expo-location";
 import * as TaskManager from "expo-task-manager";
 import { getDatabase } from "../db/index";
 import { syncCreateTrip } from "../sync/actions";
-import { startDriveDetection, stopDriveDetection } from "./detection";
+import { startDriveDetection, stopDriveDetection, cancelAutoRecording } from "./detection";
 import { reverseGeocode } from "../location/geocoding";
 import { getScheduleClassification } from "../schedule/index";
 
 const LOCATION_TASK_NAME = "mileclear-background-location";
 const QUICK_TRIP_SHIFT_ID = "__quick_trip__";
 const MIN_TRIP_DISTANCE_MILES = 0.1;
-const STOP_THRESHOLD_MS = 2 * 60 * 1000; // 2 minutes
+const STOP_THRESHOLD_MS = 5 * 60 * 1000; // 5 minutes — prevents traffic lights / brief stops from splitting trips
 const STOP_SPEED_MS = 1.5; // m/s (~3.4 mph)
 
 export interface StoredCoordinate {
@@ -68,6 +68,7 @@ export async function isTrackingActive(): Promise<boolean> {
 
 export async function startShiftTracking(shiftId: string): Promise<void> {
   await stopDriveDetection();
+  await cancelAutoRecording();
 
   const db = await getDatabase();
   await db.runAsync(
@@ -116,6 +117,7 @@ export async function stopShiftTracking(): Promise<void> {
 
 export async function startQuickTripTracking(): Promise<void> {
   await stopDriveDetection();
+  await cancelAutoRecording();
 
   const db = await getDatabase();
   await db.runAsync(

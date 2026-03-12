@@ -741,6 +741,9 @@ export default function ProfileScreen() {
                     Auto-classify trips during work hours
                   </Text>
                 </View>
+                <View style={{ backgroundColor: AMBER, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4, marginRight: 8 }}>
+                  <Text style={{ fontSize: 11, fontFamily: "PlusJakartaSans_700Bold", color: "#030712" }}>PRO</Text>
+                </View>
                 <Ionicons name="chevron-forward" size={16} color="#64748b" />
               </TouchableOpacity>
 
@@ -973,6 +976,24 @@ export default function ProfileScreen() {
           </View>
           <Ionicons name="open-outline" size={16} color={TEXT_3} />
         </TouchableOpacity>
+
+        {/* ── LEGAL ── */}
+        <View style={styles.group}>
+          <Text style={styles.groupLabel} accessibilityRole="header">LEGAL</Text>
+          <View style={styles.groupCard}>
+            <GroupItem
+              icon="document-text-outline"
+              label="Terms of Use"
+              onPress={() => WebBrowser.openBrowserAsync("https://mileclear.com/terms")}
+              border
+            />
+            <GroupItem
+              icon="shield-checkmark-outline"
+              label="Privacy Policy"
+              onPress={() => WebBrowser.openBrowserAsync("https://mileclear.com/privacy")}
+            />
+          </View>
+        </View>
 
         {/* ── ACCOUNT ── */}
         <View style={styles.group}>

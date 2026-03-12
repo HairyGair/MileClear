@@ -1,13 +1,8 @@
 import * as Notifications from "expo-notifications";
 import Constants from "expo-constants";
 import { router } from "expo-router";
-import { syncStartShift } from "../sync/actions";
-import {
-  requestLocationPermissions,
-  startShiftTracking,
-} from "../tracking/index";
-import { getAndClearBufferedCoordinates } from "../tracking/detection";
-import { getDatabase } from "../db/index";
+import { Linking } from "react-native";
+import { cancelAutoRecording, upgradeDetectionAccuracy } from "../tracking/detection";
 
 try {
   Notifications.setNotificationHandler({
@@ -155,27 +150,16 @@ export async function registerForPushNotifications(): Promise<string | null> {
   }
 }
 
-async function startShiftWithBufferedCoords(): Promise<void> {
-  const res = await syncStartShift();
-  const shift = res.data;
-
-  const hasPermission = await requestLocationPermissions();
-  if (hasPermission) {
-    await startShiftTracking(shift.id);
-  }
-
-  // Transfer buffered detection coordinates into shift_coordinates
-  // so the trip starts from where driving actually began
-  const buffered = await getAndClearBufferedCoordinates();
-  if (buffered.length > 0) {
-    const db = await getDatabase();
-    for (const coord of buffered) {
-      await db.runAsync(
-        `INSERT INTO shift_coordinates (shift_id, lat, lng, speed, accuracy, recorded_at)
-         VALUES (?, ?, ?, ?, ?, ?)`,
-        [shift.id, coord.lat, coord.lng, coord.speed, coord.accuracy, coord.recorded_at]
-      );
-    }
+/**
+ * Upgrade detection accuracy when user confirms driving via "Track Trip".
+ * The auto-recording is already active — this just improves GPS quality
+ * and shows the blue background indicator. Trip auto-finalizes when stopped.
+ */
+async function startTripFromDetection(): Promise<void> {
+  try {
+    await upgradeDetectionAccuracy();
+  } catch (err) {
+    console.error("Failed to upgrade detection accuracy:", err);
   }
 }
 
@@ -187,17 +171,17 @@ export function setupNotificationResponseHandler(): void {
 
     // Handle action buttons pressed from lock screen / notification banner
     if (action === "start_shift" && actionId === "not_driving") {
-      // User confirmed they're not driving — clear buffered coords
-      await getAndClearBufferedCoordinates();
+      // User confirmed they're not driving — clear buffered coords + auto-recording state
+      await cancelAutoRecording(true);
       return;
     }
 
     if (action === "start_shift" && (actionId === "track_trip" || actionId === Notifications.DEFAULT_ACTION_IDENTIFIER)) {
-      // "Track Trip" button or regular tap — start shift with buffered coords
+      // "Track Trip" button or regular tap — upgrade GPS accuracy for active recording
       try {
-        await startShiftWithBufferedCoords();
+        await startTripFromDetection();
       } catch (err) {
-        console.error("Auto-start shift failed:", err);
+        console.error("Track trip from notification failed:", err);
       }
 
       // Only navigate to dashboard if app was opened (regular tap)
@@ -224,6 +208,10 @@ export function setupNotificationResponseHandler(): void {
       case "open_achievements":
         router.navigate("/achievements" as any);
         break;
+
+      case "open_settings":
+        Linking.openSettings();
+        return;
 
       case "billing":
         router.navigate("/(tabs)/profile");

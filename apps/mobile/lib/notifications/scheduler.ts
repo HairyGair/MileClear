@@ -281,7 +281,7 @@ export async function checkStreakAtRisk(): Promise<void> {
   await Notifications.scheduleNotificationAsync({
     content: {
       title: "Keep your streak going",
-      body: `It's been ${daysRounded} days since your last trip — jump back in to keep your streak alive`,
+      body: `It's been ${daysRounded} days since your last trip. Whenever you're next on the road, we've got you covered.`,
       data: { action: "open_dashboard" },
       ...(require("react-native").Platform.OS === "android" && {
         channelId: "reminders",

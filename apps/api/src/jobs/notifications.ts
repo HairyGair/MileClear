@@ -99,8 +99,8 @@ async function runStreakAtRiskJob(): Promise<void> {
 
       messages.push({
         to: user.pushToken!,
-        title: "Keep Your Streak Going!",
-        body: "You haven't logged any trips today. Head out and keep your streak alive.",
+        title: "Keep your streak going!",
+        body: "Heading out today? We'll track your miles automatically. Just drive and we'll handle the rest.",
         sound: "default",
         data: { type: "streak_at_risk", action: "open_dashboard" },
       });
