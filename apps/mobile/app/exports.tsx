@@ -143,6 +143,14 @@ export default function ExportsScreen() {
               Tax exports require MileClear Pro. Upgrade for £4.99/mo to download HMRC-ready reports.
             </Text>
             <Text style={styles.paywallCta}>Upgrade Now</Text>
+            <Text style={styles.paywallLegal}>
+              Auto-renews monthly. Cancel anytime.
+            </Text>
+            <View style={styles.paywallLinks}>
+              <Text style={styles.paywallLink} onPress={() => WebBrowser.openBrowserAsync("https://mileclear.com/terms")}>Terms of Use</Text>
+              <Text style={styles.paywallSep}>|</Text>
+              <Text style={styles.paywallLink} onPress={() => WebBrowser.openBrowserAsync("https://mileclear.com/privacy")}>Privacy Policy</Text>
+            </View>
           </TouchableOpacity>
         )}
 
@@ -402,5 +410,26 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontFamily: "PlusJakartaSans_700Bold",
     color: "#f5a623",
+  },
+  paywallLegal: {
+    fontSize: 11,
+    fontFamily: "PlusJakartaSans_400Regular",
+    color: "#6b7280",
+    marginTop: 8,
+  },
+  paywallLinks: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginTop: 4,
+  },
+  paywallLink: {
+    fontSize: 11,
+    fontFamily: "PlusJakartaSans_500Medium",
+    color: "#3b82f6",
+  },
+  paywallSep: {
+    fontSize: 11,
+    color: "#4b5563",
   },
 });

@@ -29,6 +29,12 @@ import {
   endShift as apiEndShift,
 } from "../api/shifts";
 import type { ShiftWithVehicle } from "../api/shifts";
+import {
+  createSavedLocation as apiCreateSavedLocation,
+  updateSavedLocation as apiUpdateSavedLocation,
+  deleteSavedLocation as apiDeleteSavedLocation,
+} from "../api/savedLocations";
+import type { CreateSavedLocationData, UpdateSavedLocationData } from "../api/savedLocations";
 
 function isNetworkError(err: unknown): boolean {
   if (err instanceof TypeError && err.message.includes("Network request failed")) {
@@ -445,6 +451,107 @@ export async function syncEndShift(id: string) {
     );
     await db.runAsync(
       "DELETE FROM sync_queue WHERE entity_id = ? AND entity_type = 'shift' AND action = 'update' AND status = 'pending'",
+      [id]
+    );
+    throw err;
+  }
+}
+
+// ─── Saved Locations ─────────────────────────────────────────────────────────
+
+export async function syncCreateSavedLocation(data: CreateSavedLocationData) {
+  const localId = randomUUID();
+  const db = await getDatabase();
+  const now = new Date().toISOString();
+
+  await db.runAsync(
+    `INSERT INTO saved_locations (id, name, location_type, latitude, longitude, radius_meters, geofence_enabled, synced_at, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, NULL, ?, ?)`,
+    [
+      localId,
+      data.name,
+      data.locationType,
+      data.latitude,
+      data.longitude,
+      data.radiusMeters ?? 150,
+      data.geofenceEnabled !== false ? 1 : 0,
+      now,
+      now,
+    ]
+  );
+
+  await enqueueSync("saved_location", localId, "create", data as unknown as Record<string, unknown>);
+
+  try {
+    const result = await apiCreateSavedLocation(data);
+    const syncNow = new Date().toISOString();
+    const serverId = result.data.id;
+    await db.runAsync("UPDATE saved_locations SET id = ?, synced_at = ? WHERE id = ?", [
+      serverId, syncNow, localId,
+    ]);
+    await db.runAsync(
+      "UPDATE sync_queue SET entity_id = ?, status = 'synced', updated_at = ? WHERE entity_id = ? AND entity_type = 'saved_location' AND action = 'create'",
+      [serverId, syncNow, localId]
+    );
+    return result;
+  } catch (err) {
+    if (isNetworkError(err)) return null;
+    await db.runAsync("DELETE FROM sync_queue WHERE entity_id = ? AND entity_type = 'saved_location'", [localId]);
+    await db.runAsync("DELETE FROM saved_locations WHERE id = ?", [localId]);
+    throw err;
+  }
+}
+
+export async function syncUpdateSavedLocation(id: string, data: UpdateSavedLocationData) {
+  const db = await getDatabase();
+  const now = new Date().toISOString();
+
+  const setClauses: string[] = ["updated_at = ?"];
+  const values: SQLiteBindValue[] = [now];
+  if (data.name !== undefined) { setClauses.push("name = ?"); values.push(data.name); }
+  if (data.locationType !== undefined) { setClauses.push("location_type = ?"); values.push(data.locationType); }
+  if (data.latitude !== undefined) { setClauses.push("latitude = ?"); values.push(data.latitude); }
+  if (data.longitude !== undefined) { setClauses.push("longitude = ?"); values.push(data.longitude); }
+  if (data.radiusMeters !== undefined) { setClauses.push("radius_meters = ?"); values.push(data.radiusMeters); }
+  if (data.geofenceEnabled !== undefined) { setClauses.push("geofence_enabled = ?"); values.push(data.geofenceEnabled ? 1 : 0); }
+  values.push(id);
+  await db.runAsync(`UPDATE saved_locations SET ${setClauses.join(", ")} WHERE id = ?`, values);
+
+  await enqueueSync("saved_location", id, "update", { id, ...data } as unknown as Record<string, unknown>);
+
+  try {
+    const result = await apiUpdateSavedLocation(id, data);
+    await db.runAsync(
+      "UPDATE sync_queue SET status = 'synced', updated_at = ? WHERE entity_id = ? AND entity_type = 'saved_location' AND action = 'update' AND status = 'pending'",
+      [new Date().toISOString(), id]
+    );
+    return result;
+  } catch (err) {
+    if (isNetworkError(err)) return null;
+    await db.runAsync(
+      "DELETE FROM sync_queue WHERE entity_id = ? AND entity_type = 'saved_location' AND action = 'update' AND status = 'pending'",
+      [id]
+    );
+    throw err;
+  }
+}
+
+export async function syncDeleteSavedLocation(id: string) {
+  const db = await getDatabase();
+  await db.runAsync("DELETE FROM saved_locations WHERE id = ?", [id]);
+  await enqueueSync("saved_location", id, "delete");
+
+  try {
+    const result = await apiDeleteSavedLocation(id);
+    await db.runAsync(
+      "UPDATE sync_queue SET status = 'synced', updated_at = ? WHERE entity_id = ? AND entity_type = 'saved_location' AND action = 'delete'",
+      [new Date().toISOString(), id]
+    );
+    return result;
+  } catch (err) {
+    if (isNetworkError(err)) return null;
+    await db.runAsync(
+      "DELETE FROM sync_queue WHERE entity_id = ? AND entity_type = 'saved_location' AND action = 'delete' AND status = 'pending'",
       [id]
     );
     throw err;

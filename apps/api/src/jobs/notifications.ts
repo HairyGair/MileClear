@@ -16,6 +16,7 @@ const streakNotifiedToday = new Set<string>();
 const subExpireNotifiedToday = new Set<string>();
 const weeklyRecapNotifiedToday = new Set<string>();
 const monthlyRecapNotifiedToday = new Set<string>();
+const welcomeNudgeNotified = new Set<string>(); // lifetime dedup — only once per user ever
 
 function todayKey(userId: string): string {
   return `${new Date().toISOString().slice(0, 10)}:${userId}`;
@@ -286,6 +287,62 @@ async function runMonthlyRecapJob(): Promise<void> {
   }
 }
 
+/**
+ * Welcome nudge — find users who signed up 24–72 hours ago, have a push
+ * token registered, but have zero trips. Send a one-time nudge encouraging
+ * them to record their first trip.
+ */
+async function runWelcomeNudgeJob(): Promise<void> {
+  try {
+    const now = new Date();
+    const oneDayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+    const threeDaysAgo = new Date(now.getTime() - 3 * 24 * 60 * 60 * 1000);
+
+    // Users who signed up 24h–72h ago with a push token
+    const candidates = await prisma.user.findMany({
+      where: {
+        createdAt: { gte: threeDaysAgo, lte: oneDayAgo },
+        pushToken: { not: null },
+      },
+      select: { id: true, pushToken: true, displayName: true },
+    });
+
+    if (candidates.length === 0) return;
+
+    // Filter to users with zero trips and not already nudged
+    const messages: ExpoPushMessage[] = [];
+    for (const user of candidates) {
+      if (welcomeNudgeNotified.has(user.id)) continue;
+
+      const tripCount = await prisma.trip.count({
+        where: { userId: user.id },
+      });
+      if (tripCount > 0) {
+        welcomeNudgeNotified.add(user.id); // Don't check again
+        continue;
+      }
+
+      welcomeNudgeNotified.add(user.id);
+
+      const name = user.displayName ? `, ${user.displayName}` : "";
+      messages.push({
+        to: user.pushToken!,
+        title: "Ready to track your first trip?",
+        body: `Hey${name}! Tap Start Trip or just drive — MileClear will record your miles automatically.`,
+        sound: "default",
+        data: { type: "welcome_nudge", action: "open_dashboard" },
+      });
+    }
+
+    if (messages.length > 0) {
+      await sendPushNotifications(messages);
+      console.log(`[jobs/notifications] Welcome nudge: sent ${messages.length} push(es)`);
+    }
+  } catch (err) {
+    console.error("[jobs/notifications] Welcome nudge job failed:", err);
+  }
+}
+
 // ── Event-driven push helpers (called from routes) ────────────────────
 
 /**
@@ -404,12 +461,14 @@ export function startNotificationJobs(): void {
     void runSubExpiringJob();
     void runWeeklyRecapJob();
     void runMonthlyRecapJob();
+    void runWelcomeNudgeJob();
 
     setInterval(() => {
       void runStreakAtRiskJob();
       void runSubExpiringJob();
       void runWeeklyRecapJob();
       void runMonthlyRecapJob();
+      void runWelcomeNudgeJob();
     }, INTERVAL_MS);
   }, INITIAL_DELAY_MS);
 

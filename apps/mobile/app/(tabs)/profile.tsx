@@ -625,6 +625,18 @@ export default function ProfileScreen() {
                     </Text>
                   </TouchableOpacity>
                 )}
+                <Text style={styles.subLegalText}>
+                  MileClear Pro auto-renews monthly. Cancel anytime in Settings.
+                </Text>
+                <View style={styles.subLegalLinks}>
+                  <TouchableOpacity onPress={() => WebBrowser.openBrowserAsync("https://mileclear.com/terms")}>
+                    <Text style={styles.subLegalLink}>Terms of Use</Text>
+                  </TouchableOpacity>
+                  <Text style={styles.subLegalSep}>|</Text>
+                  <TouchableOpacity onPress={() => WebBrowser.openBrowserAsync("https://mileclear.com/privacy")}>
+                    <Text style={styles.subLegalLink}>Privacy Policy</Text>
+                  </TouchableOpacity>
+                </View>
               </>
             ) : (
               <View style={styles.groupCard}>
@@ -1493,6 +1505,30 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontFamily: "PlusJakartaSans_500Medium",
     color: "#3b82f6",
+  },
+  subLegalText: {
+    fontSize: 11,
+    fontFamily: "PlusJakartaSans_400Regular",
+    color: "#6b7280",
+    textAlign: "center",
+    marginTop: 10,
+  },
+  subLegalLinks: {
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
+    gap: 8,
+    marginTop: 6,
+    marginBottom: 4,
+  },
+  subLegalLink: {
+    fontSize: 11,
+    fontFamily: "PlusJakartaSans_500Medium",
+    color: "#3b82f6",
+  },
+  subLegalSep: {
+    fontSize: 11,
+    color: "#4b5563",
   },
   subCard: {
     padding: 14,

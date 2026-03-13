@@ -16,12 +16,12 @@ import { Ionicons } from "@expo/vector-icons";
 import { useRouter, useLocalSearchParams, Stack } from "expo-router";
 import { MapPickerModal } from "../components/MapPickerModal";
 import { getCurrentLocation, reverseGeocode } from "../lib/location/geocoding";
+import { fetchSavedLocation } from "../lib/api/savedLocations";
 import {
-  fetchSavedLocation,
-  createSavedLocation,
-  updateSavedLocation,
-  deleteSavedLocation,
-} from "../lib/api/savedLocations";
+  syncCreateSavedLocation,
+  syncUpdateSavedLocation,
+  syncDeleteSavedLocation,
+} from "../lib/sync/actions";
 import { useUser } from "../lib/user/context";
 import { registerGeofences } from "../lib/geofencing/index";
 import { Button } from "../components/Button";
@@ -285,9 +285,9 @@ export default function SavedLocationFormScreen() {
       };
 
       if (isEditing) {
-        await updateSavedLocation(id!, payload);
+        await syncUpdateSavedLocation(id!, payload);
       } else {
-        await createSavedLocation(payload);
+        await syncCreateSavedLocation(payload);
       }
       registerGeofences().catch(() => {});
       router.back();
@@ -323,7 +323,7 @@ export default function SavedLocationFormScreen() {
           onPress: async () => {
             setDeleting(true);
             try {
-              await deleteSavedLocation(id!);
+              await syncDeleteSavedLocation(id!);
               router.back();
             } catch (err: unknown) {
               Alert.alert("Error", err instanceof Error ? err.message : "Failed to delete");

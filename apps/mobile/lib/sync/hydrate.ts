@@ -7,8 +7,10 @@ import { fetchShifts } from "../api/shifts";
 import { fetchTrips } from "../api/trips";
 import { fetchEarnings } from "../api/earnings";
 import { fetchFuelLogs } from "../api/fuel";
+import { fetchSavedLocations } from "../api/savedLocations";
 import { cacheVehicleBluetoothNames } from "../bluetooth/index";
-import type { Vehicle, Shift, Earning, FuelLogWithVehicle, PaginatedResponse } from "@mileclear/shared";
+import { registerGeofences } from "../geofencing/index";
+import type { Vehicle, Shift, Earning, FuelLogWithVehicle, PaginatedResponse, SavedLocation } from "@mileclear/shared";
 import type { TripWithVehicle } from "../api/trips";
 
 export type HydrationProgressCallback = (
@@ -17,7 +19,7 @@ export type HydrationProgressCallback = (
   total: number
 ) => void;
 
-const TOTAL_STEPS = 5;
+const TOTAL_STEPS = 6;
 
 // 90 days ago in ISO format — limits how far back we hydrate
 function ninetyDaysAgo(): string {
@@ -190,6 +192,33 @@ async function hydrateFuelLogs(logs: FuelLogWithVehicle[]): Promise<void> {
   }
 }
 
+async function hydrateSavedLocations(locations: SavedLocation[]): Promise<void> {
+  if (!locations.length) return;
+  const db = await getDatabase();
+  const now = new Date().toISOString();
+
+  for (const loc of locations) {
+    await db.runAsync(
+      `INSERT OR IGNORE INTO saved_locations
+         (id, name, location_type, latitude, longitude, radius_meters,
+          geofence_enabled, synced_at, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        loc.id,
+        loc.name,
+        loc.locationType,
+        loc.latitude,
+        loc.longitude,
+        loc.radiusMeters,
+        loc.geofenceEnabled ? 1 : 0,
+        now,
+        loc.createdAt,
+        loc.updatedAt,
+      ]
+    );
+  }
+}
+
 // ── Main hydration entry point ─────────────────────────────────────────────
 
 export async function hydrateLocalData(
@@ -217,7 +246,7 @@ export async function hydrateLocalData(
 
   onProgress?.("Fetching your data...", 0, TOTAL_STEPS);
 
-  const [vehiclesResult, shiftsResult, tripsResult, earningsResult, fuelResult] =
+  const [vehiclesResult, shiftsResult, tripsResult, earningsResult, fuelResult, savedLocationsResult] =
     await Promise.all([
       attempt(() => fetchVehicles()),
       attempt(() => fetchShifts()),
@@ -229,6 +258,9 @@ export async function hydrateLocalData(
       ),
       attempt(() =>
         fetchFuelLogs({ from, pageSize: 100 }) as Promise<PaginatedResponse<FuelLogWithVehicle>>
+      ),
+      attempt(() =>
+        fetchSavedLocations() as Promise<{ data: SavedLocation[] }>
       ),
     ]);
 
@@ -279,6 +311,17 @@ export async function hydrateLocalData(
     }
   } catch (err) {
     console.warn("[hydrate] fuel log insert failed:", err);
+  }
+
+  onProgress?.("Syncing saved locations...", 6, TOTAL_STEPS);
+  try {
+    if (savedLocationsResult.ok) {
+      await hydrateSavedLocations(savedLocationsResult.data.data);
+      // Register geofences now that locations are in SQLite
+      await registerGeofences();
+    }
+  } catch (err) {
+    console.warn("[hydrate] saved locations insert failed:", err);
   }
 
   // Mark hydration complete regardless of partial failures. This prevents

@@ -9,6 +9,7 @@ import { syncCreateTrip } from "../sync/actions";
 import { startDriveDetection, stopDriveDetection, cancelAutoRecording } from "./detection";
 import { reverseGeocode } from "../location/geocoding";
 import { getScheduleClassification } from "../schedule/index";
+import { setDepartureAnchor } from "../geofencing/index";
 
 const LOCATION_TASK_NAME = "mileclear-background-location";
 const QUICK_TRIP_SHIFT_ID = "__quick_trip__";
@@ -109,6 +110,10 @@ export async function stopShiftTracking(): Promise<void> {
   await db.runAsync("DELETE FROM tracking_state WHERE key = 'active_shift_id'");
 
   await startDriveDetection();
+
+  // Set departure anchor at the shift end point — if iOS terminates the app,
+  // the geofence will reliably wake it when the user starts driving again
+  setDepartureAnchor().catch(() => {});
 }
 
 // ── Quick trip background tracking ──────────────────────────────────────────
@@ -167,6 +172,9 @@ export async function stopQuickTripTracking(): Promise<StoredCoordinate[]> {
 
   // Restart drive detection for the next trip
   await startDriveDetection();
+
+  // Set departure anchor so iOS can wake the app for the next trip
+  setDepartureAnchor().catch(() => {});
 
   return coords;
 }

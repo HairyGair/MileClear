@@ -2,6 +2,14 @@ import * as Notifications from "expo-notifications";
 import { getDatabase } from "../db/index";
 import { getNotificationPreferences } from "./preferences";
 
+const QUIET_HOURS_START = 22; // 10pm
+const QUIET_HOURS_END = 7;   // 7am
+
+function isQuietHours(): boolean {
+  const hour = new Date().getHours();
+  return hour >= QUIET_HOURS_START || hour < QUIET_HOURS_END;
+}
+
 // ─── Android notification channels ───────────────────────────────────────────
 
 export async function setupNotificationChannels(): Promise<void> {
@@ -113,6 +121,7 @@ const UNCLASSIFIED_COOLDOWN_KEY = "last_unclassified_nudge";
 const UNCLASSIFIED_COOLDOWN_MS = 24 * 60 * 60 * 1000; // 24 hours
 
 export async function checkUnclassifiedTripsNudge(): Promise<void> {
+  if (isQuietHours()) return;
   const prefs = await getNotificationPreferences();
   if (!prefs.unclassifiedNudge) return;
 
@@ -183,6 +192,7 @@ const LONG_SHIFT_COOLDOWN_MS = 6 * 60 * 60 * 1000; // 6 hours
 const LONG_SHIFT_THRESHOLD_MS = 12 * 60 * 60 * 1000; // 12 hours
 
 export async function checkLongRunningShift(): Promise<void> {
+  if (isQuietHours()) return;
   const prefs = await getNotificationPreferences();
   if (!prefs.shiftReminder) return;
 
@@ -245,6 +255,7 @@ const STREAK_WARN_MIN_DAYS = 2;
 const STREAK_WARN_MAX_DAYS = 4;
 
 export async function checkStreakAtRisk(): Promise<void> {
+  if (isQuietHours()) return;
   const prefs = await getNotificationPreferences();
   if (!prefs.streakReminder) return;
 

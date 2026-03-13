@@ -11,11 +11,19 @@ import { getDatabase } from "../db/index";
 import { reverseGeocode } from "../location/geocoding";
 import { DRIVING_SPEED_THRESHOLD_MPH } from "@mileclear/shared";
 import { checkBluetoothVehicleConnected } from "../bluetooth/index";
+import { stopDriveDetection, startDriveDetection, cancelAutoRecording } from "../tracking/detection";
 
 const GEOFENCE_TASK_NAME = "mileclear-geofence-monitor";
 const GEOFENCE_TRACKING_TASK_NAME = "mileclear-geofence-tracking";
 const SPEED_THRESHOLD_MS = DRIVING_SPEED_THRESHOLD_MPH * 0.44704; // mph → m/s
 const MIN_TRIP_DISTANCE_MILES = 0.1;
+const QUIET_HOURS_START = 22; // 10pm
+const QUIET_HOURS_END = 7;   // 7am
+
+function isQuietHours(): boolean {
+  const hour = new Date().getHours();
+  return hour >= QUIET_HOURS_START || hour < QUIET_HOURS_END;
+}
 
 function haversine(lat1: number, lng1: number, lat2: number, lng2: number): number {
   const R = 3958.8;
@@ -53,6 +61,16 @@ try {
       );
       if (activeShift) return;
 
+      if (eventType === Location.GeofencingEventType.Exit && region.identifier === "__departure_anchor__") {
+        // User left their last stationary position — ensure detection is running.
+        // This handles the case where iOS terminated the app AND cleared the
+        // location subscription. Geofences are OS-level and survive app termination,
+        // so this is the most reliable way to restart detection.
+        await db.runAsync("DELETE FROM tracking_state WHERE key LIKE 'departure_anchor_%'");
+        await startDriveDetection();
+        return;
+      }
+
       if (eventType === Location.GeofencingEventType.Exit) {
         // User left a saved location — arm geofence tracking
         // Store which location they left and when
@@ -66,6 +84,10 @@ try {
         );
         // Clear any previous arrival data
         await db.runAsync("DELETE FROM tracking_state WHERE key = 'geofence_arrived_location'");
+
+        // Stop drive detection to prevent both systems writing to detection_coordinates
+        await stopDriveDetection();
+        await cancelAutoRecording();
 
         // Start GPS tracking to collect coordinates
         await startGeofenceTracking();
@@ -97,6 +119,9 @@ try {
           "INSERT OR REPLACE INTO tracking_state (key, value) VALUES ('geofence_arrived_location', ?)",
           [region.identifier ?? "unknown"]
         );
+
+        // Resume drive detection for the next trip
+        await startDriveDetection();
       }
     } catch (err) {
       console.error("Geofence handler error:", err);
@@ -160,12 +185,6 @@ export async function registerGeofences(): Promise<void> {
     "SELECT id, name, latitude, longitude, radius_meters, geofence_enabled FROM saved_locations WHERE geofence_enabled = 1"
   );
 
-  if (locations.length === 0) {
-    // Stop geofencing if no locations are enabled
-    await stopGeofencing();
-    return;
-  }
-
   const regions: Location.LocationRegion[] = locations.map((loc) => ({
     identifier: loc.id,
     latitude: loc.latitude,
@@ -175,22 +194,58 @@ export async function registerGeofences(): Promise<void> {
     notifyOnExit: true,
   }));
 
+  // Include departure anchor — a temporary geofence around the user's last
+  // stationary position. iOS manages geofences at the OS level, so they survive
+  // app termination. When the user leaves this radius, iOS wakes the app and
+  // the handler restarts drive detection. This is the most reliable way to
+  // ensure detection starts immediately for terminated apps.
+  const anchorLat = await db.getFirstAsync<{ value: string }>(
+    "SELECT value FROM tracking_state WHERE key = 'departure_anchor_lat'"
+  );
+  const anchorLng = await db.getFirstAsync<{ value: string }>(
+    "SELECT value FROM tracking_state WHERE key = 'departure_anchor_lng'"
+  );
+  if (anchorLat && anchorLng) {
+    regions.push({
+      identifier: "__departure_anchor__",
+      latitude: parseFloat(anchorLat.value),
+      longitude: parseFloat(anchorLng.value),
+      radius: 200, // 200m — covers typical residential properties
+      notifyOnEnter: false,
+      notifyOnExit: true,
+    });
+  }
+
+  if (regions.length === 0) {
+    // Stop geofencing if no locations and no anchor
+    await stopGeofencing();
+    return;
+  }
+
   await Location.startGeofencingAsync(GEOFENCE_TASK_NAME, regions);
 }
 
 export async function stopGeofencing(): Promise<void> {
-  const isRunning = await TaskManager.isTaskRegisteredAsync(GEOFENCE_TASK_NAME);
-  if (isRunning) {
-    await Location.stopGeofencingAsync(GEOFENCE_TASK_NAME);
+  try {
+    const isRunning = await Location.hasStartedGeofencingAsync(GEOFENCE_TASK_NAME);
+    if (isRunning) {
+      await Location.stopGeofencingAsync(GEOFENCE_TASK_NAME);
+    }
+  } catch {
+    // Best effort
   }
 }
 
 export async function isGeofencingActive(): Promise<boolean> {
-  return TaskManager.isTaskRegisteredAsync(GEOFENCE_TASK_NAME);
+  try {
+    return await Location.hasStartedGeofencingAsync(GEOFENCE_TASK_NAME);
+  } catch {
+    return false;
+  }
 }
 
 async function startGeofenceTracking(): Promise<void> {
-  const isRunning = await TaskManager.isTaskRegisteredAsync(GEOFENCE_TRACKING_TASK_NAME);
+  const isRunning = await Location.hasStartedLocationUpdatesAsync(GEOFENCE_TRACKING_TASK_NAME);
   if (isRunning) return;
 
   await Location.startLocationUpdatesAsync(GEOFENCE_TRACKING_TASK_NAME, {
@@ -206,9 +261,53 @@ async function startGeofenceTracking(): Promise<void> {
 }
 
 async function stopGeofenceTracking(): Promise<void> {
-  const isRunning = await TaskManager.isTaskRegisteredAsync(GEOFENCE_TRACKING_TASK_NAME);
-  if (isRunning) {
-    await Location.stopLocationUpdatesAsync(GEOFENCE_TRACKING_TASK_NAME);
+  try {
+    const isRunning = await Location.hasStartedLocationUpdatesAsync(GEOFENCE_TRACKING_TASK_NAME);
+    if (isRunning) {
+      await Location.stopLocationUpdatesAsync(GEOFENCE_TRACKING_TASK_NAME);
+    }
+  } catch {
+    // Best effort
+  }
+}
+
+// ─── Departure anchor ───────────────────────────────────────────────────
+
+/**
+ * Register a geofence around the user's current (or specified) position.
+ * When the user exits this 200m radius, iOS reliably wakes the app —
+ * even if it was terminated — and we restart drive detection.
+ *
+ * Call this after trips finish (user is stationary) and on app startup.
+ * iOS limits to ~20 geofences per app, so this adds just 1 region.
+ */
+export async function setDepartureAnchor(lat?: number, lng?: number): Promise<void> {
+  try {
+    const db = await getDatabase();
+
+    let latitude = lat;
+    let longitude = lng;
+
+    if (latitude == null || longitude == null) {
+      const loc = await Location.getLastKnownPositionAsync();
+      if (!loc) return;
+      latitude = loc.coords.latitude;
+      longitude = loc.coords.longitude;
+    }
+
+    await db.runAsync(
+      "INSERT OR REPLACE INTO tracking_state (key, value) VALUES ('departure_anchor_lat', ?)",
+      [latitude.toString()]
+    );
+    await db.runAsync(
+      "INSERT OR REPLACE INTO tracking_state (key, value) VALUES ('departure_anchor_lng', ?)",
+      [longitude.toString()]
+    );
+
+    // Re-register geofences to include the new anchor
+    await registerGeofences();
+  } catch {
+    // Best effort — detection will still work via showsBackgroundLocationIndicator
   }
 }
 
@@ -314,14 +413,18 @@ async function processGeofenceTrip(
 
   if (isAutoConfirmed) {
     // Bluetooth confirmed — no notification needed, trip is fully saved
+    await setDepartureAnchor(last.lat, last.lng).catch(() => {});
     return;
   }
 
-  // No Bluetooth match — send confirmation notification
-  await sendTripConfirmationNotification(tripId, startAddress, endAddress, totalDistance);
+  // No Bluetooth match — send confirmation notification (skip during quiet hours)
+  if (!isQuietHours()) {
+    await sendTripConfirmationNotification(tripId, startAddress, endAddress, totalDistance);
+    await scheduleConfirmationReminder(tripId, startAddress, endAddress, totalDistance);
+  }
 
-  // Schedule reminder for personal mode (3 hours)
-  await scheduleConfirmationReminder(tripId, startAddress, endAddress, totalDistance);
+  // Set departure anchor at trip end point
+  await setDepartureAnchor(last.lat, last.lng).catch(() => {});
 }
 
 // ─── Notifications ──────────────────────────────────────────────────────

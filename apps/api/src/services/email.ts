@@ -180,6 +180,130 @@ export async function sendWelcomeEmail(
   await transporter.sendMail({ from: FROM_PERSONAL, to: email, replyTo: "gair@mileclear.com", subject, html });
 }
 
+export async function sendReEngagementEmail(
+  email: string,
+  displayName?: string | null,
+  stats?: { totalTrips: number; totalMiles: number } | null
+): Promise<void> {
+  const greeting = displayName ? `Hi ${escapeHtml(displayName)},` : "Hi there,";
+
+  // Personalise based on whether they've used the app
+  const hasUsed = stats && stats.totalTrips > 0;
+  const heroLine = hasUsed
+    ? `You've already tracked <strong style="color: #f5a623;">${stats!.totalTrips} trip${stats!.totalTrips !== 1 ? "s" : ""}</strong> and <strong style="color: #f5a623;">${stats!.totalMiles.toFixed(1)} miles</strong> — nice work! Here's a quick reminder of what MileClear can do for you.`
+    : "We noticed you haven't recorded your first trip yet. Here's a quick reminder of what MileClear can do for you.";
+
+  const subject = hasUsed
+    ? "Your miles are adding up — here's what's new in MileClear"
+    : "You're all set up — ready to track your first trip?";
+
+  const html = `
+    <!DOCTYPE html>
+    <html>
+    <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
+    <body style="margin: 0; padding: 0; background-color: #030712; font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color: #030712;">
+        <tr><td align="center" style="padding: 32px 16px;">
+          <table role="presentation" width="520" cellpadding="0" cellspacing="0" style="max-width: 520px; width: 100%;">
+
+            <!-- Header with logo -->
+            <tr><td align="center" style="padding: 24px 0 32px;">
+              <img src="https://mileclear.com/branding/logo-120x120.png" alt="MileClear" width="56" height="56" style="display: block; border: 0; border-radius: 12px;" />
+            </td></tr>
+
+            <!-- Main card -->
+            <tr><td style="background-color: #0a1120; border-radius: 16px; border: 1px solid rgba(255,255,255,0.06);">
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+
+                <!-- Amber top accent bar -->
+                <tr><td style="height: 3px; background: linear-gradient(90deg, #f5a623, #e8950f); border-radius: 16px 16px 0 0; font-size: 0; line-height: 0;">&nbsp;</td></tr>
+
+                <!-- Content -->
+                <tr><td style="padding: 36px 32px 32px;">
+
+                  <h1 style="margin: 0 0 24px; font-size: 22px; font-weight: 700; color: #f0f2f5;">${hasUsed ? "Your MileClear Update" : "Don't Forget About <span style=\"color: #f5a623;\">MileClear</span>"}</h1>
+
+                  <p style="color: #c0c8d4; font-size: 15px; line-height: 1.7; margin: 0 0 16px;">${greeting}</p>
+
+                  <p style="color: #c0c8d4; font-size: 15px; line-height: 1.7; margin: 0 0 20px;">${heroLine}</p>
+
+                  <!-- Feature reminders -->
+                  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin: 0 0 24px;">
+                    <tr><td style="padding: 10px 0; border-bottom: 1px solid rgba(255,255,255,0.04);">
+                      <table role="presentation" cellpadding="0" cellspacing="0"><tr>
+                        <td style="width: 32px; vertical-align: top; padding-top: 1px; color: #f5a623; font-size: 16px;">&#9672;</td>
+                        <td style="color: #c0c8d4; font-size: 14px; line-height: 1.6;"><strong style="color: #f0f2f5;">Automatic trip recording</strong> &mdash; just drive and MileClear detects your trips in the background. No buttons to press</td>
+                      </tr></table>
+                    </td></tr>
+                    <tr><td style="padding: 10px 0; border-bottom: 1px solid rgba(255,255,255,0.04);">
+                      <table role="presentation" cellpadding="0" cellspacing="0"><tr>
+                        <td style="width: 32px; vertical-align: top; padding-top: 1px; color: #f5a623; font-size: 16px;">&#9672;</td>
+                        <td style="color: #c0c8d4; font-size: 14px; line-height: 1.6;"><strong style="color: #f0f2f5;">HMRC tax deductions</strong> &mdash; 45p/mile calculated automatically, ready for your self-assessment</td>
+                      </tr></table>
+                    </td></tr>
+                    <tr><td style="padding: 10px 0; border-bottom: 1px solid rgba(255,255,255,0.04);">
+                      <table role="presentation" cellpadding="0" cellspacing="0"><tr>
+                        <td style="width: 32px; vertical-align: top; padding-top: 1px; color: #f5a623; font-size: 16px;">&#9672;</td>
+                        <td style="color: #c0c8d4; font-size: 14px; line-height: 1.6;"><strong style="color: #f0f2f5;">Fuel costs &amp; nearby prices</strong> &mdash; log fill-ups and find the cheapest fuel near you from 8,300+ UK stations</td>
+                      </tr></table>
+                    </td></tr>
+                    <tr><td style="padding: 10px 0; border-bottom: 1px solid rgba(255,255,255,0.04);">
+                      <table role="presentation" cellpadding="0" cellspacing="0"><tr>
+                        <td style="width: 32px; vertical-align: top; padding-top: 1px; color: #f5a623; font-size: 16px;">&#9672;</td>
+                        <td style="color: #c0c8d4; font-size: 14px; line-height: 1.6;"><strong style="color: #f0f2f5;">Achievements &amp; streaks</strong> &mdash; earn badges, hit milestones, and track your driving consistency</td>
+                      </tr></table>
+                    </td></tr>
+                    <tr><td style="padding: 10px 0;">
+                      <table role="presentation" cellpadding="0" cellspacing="0"><tr>
+                        <td style="width: 32px; vertical-align: top; padding-top: 1px; color: #f5a623; font-size: 16px;">&#9672;</td>
+                        <td style="color: #c0c8d4; font-size: 14px; line-height: 1.6;"><strong style="color: #f0f2f5;">Works for everyone</strong> &mdash; whether you're a gig driver claiming tax or just want to track personal driving and costs</td>
+                      </tr></table>
+                    </td></tr>
+                  </table>
+
+                  ${!hasUsed ? `
+                  <!-- CTA for new users -->
+                  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin: 0 0 24px;">
+                    <tr><td style="background-color: rgba(245,166,35,0.08); border: 1px solid rgba(245,166,35,0.15); border-radius: 10px; padding: 18px 20px;">
+                      <p style="color: #d4b87a; font-size: 14px; line-height: 1.65; margin: 0;"><strong style="color: #f5a623;">Quick tip:</strong> Make sure background location is set to "Always" in your phone settings so MileClear can detect your trips automatically. Then just open the app, and you're good to go.</p>
+                    </td></tr>
+                  </table>` : `
+                  <!-- CTA for active users -->
+                  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin: 0 0 24px;">
+                    <tr><td style="background-color: rgba(245,166,35,0.08); border: 1px solid rgba(245,166,35,0.15); border-radius: 10px; padding: 18px 20px;">
+                      <p style="color: #d4b87a; font-size: 14px; line-height: 1.65; margin: 0;"><strong style="color: #f5a623;">What's new in Build 27:</strong> Smarter automatic trip detection, fewer false notifications, and quiet hours between 10pm&ndash;7am so we won't disturb you at night.</p>
+                    </td></tr>
+                  </table>`}
+
+                  <p style="color: #c0c8d4; font-size: 15px; line-height: 1.7; margin: 0 0 8px;">Got feedback? Just reply to this email &mdash; I read every message.</p>
+
+                  <p style="color: #c0c8d4; font-size: 15px; line-height: 1.7; margin: 16px 0 0;">Cheers,</p>
+                  <p style="color: #f0f2f5; font-size: 15px; font-weight: 600; margin: 4px 0 0;">Gair</p>
+
+                </td></tr>
+              </table>
+            </td></tr>
+
+            <!-- Footer -->
+            <tr><td align="center" style="padding: 28px 0 8px;">
+              <p style="color: #4a5568; font-size: 12px; line-height: 1.5; margin: 0;">You're receiving this because you have a MileClear account.<br/>If you'd rather not receive these emails, reply with "unsubscribe" and we'll remove you.</p>
+            </td></tr>
+
+          </table>
+        </td></tr>
+      </table>
+    </body>
+    </html>
+  `;
+
+  if (!transporter) {
+    console.log(`[EMAIL] Re-engagement email for ${email}`);
+    return;
+  }
+
+  await transporter.sendMail({ from: FROM_PERSONAL, to: email, replyTo: "gair@mileclear.com", subject, html });
+}
+
 export async function sendWaitlistConfirmation(
   email: string
 ): Promise<void> {

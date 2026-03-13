@@ -217,6 +217,14 @@ export default function CsvImportScreen() {
             CSV import is a Pro feature. Upgrade to bulk-import earnings from Uber, Deliveroo, Amazon Flex, and more.
           </Text>
           <Button title="Upgrade to Pro — £4.99/mo" onPress={handleUpgrade} />
+          <Text style={{ fontSize: 11, fontFamily: "PlusJakartaSans_400Regular", color: "#6b7280", textAlign: "center", marginTop: 10 }}>
+            Auto-renews monthly. Cancel anytime.
+          </Text>
+          <View style={{ flexDirection: "row", justifyContent: "center", alignItems: "center", gap: 8, marginTop: 4 }}>
+            <Text style={{ fontSize: 11, fontFamily: "PlusJakartaSans_500Medium", color: "#3b82f6" }} onPress={() => WebBrowser.openBrowserAsync("https://mileclear.com/terms")}>Terms of Use</Text>
+            <Text style={{ fontSize: 11, color: "#4b5563" }}>|</Text>
+            <Text style={{ fontSize: 11, fontFamily: "PlusJakartaSans_500Medium", color: "#3b82f6" }} onPress={() => WebBrowser.openBrowserAsync("https://mileclear.com/privacy")}>Privacy Policy</Text>
+          </View>
           <Button
             variant="ghost"
             title="Go Back"

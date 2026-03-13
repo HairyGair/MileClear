@@ -23,7 +23,7 @@ export default function PrivacyPolicy() {
           {/* Header */}
           <div className="legal__header">
             <h1 className="heading">Privacy Policy</h1>
-            <p className="legal__date">Last updated: 7 March 2026</p>
+            <p className="legal__date">Last updated: 13 March 2026</p>
           </div>
 
           {/* Table of Contents */}
@@ -78,6 +78,7 @@ export default function PrivacyPolicy() {
                   <li className="legal__list-item">Password (hashed with bcryptjs, never stored in plain text)</li>
                   <li className="legal__list-item">Apple ID (if using Apple Sign-In)</li>
                   <li className="legal__list-item">Google ID (if using Google Sign-In)</li>
+                  <li className="legal__list-item">Full name (optional, used on tax documents and PDF exports)</li>
                   <li className="legal__list-item">Account creation date and login history</li>
                 </ul>
               </div>
@@ -124,9 +125,10 @@ export default function PrivacyPolicy() {
                 <ul className="legal__list">
                   <li className="legal__list-item">Earnings from gig platforms (manually entered)</li>
                   <li className="legal__list-item">CSV import of earnings data</li>
-                  <li className="legal__list-item">Open Banking data via TrueLayer/Plaid (premium users only)</li>
-                  <li className="legal__list-item">Payment method information (card details are processed by Stripe only, we never store them)</li>
-                  <li className="legal__list-item">Stripe customer ID and subscription ID</li>
+                  <li className="legal__list-item">Open Banking data via TrueLayer (premium users only)</li>
+                  <li className="legal__list-item">Payment method information (card details are processed by Stripe or Apple; we never store them)</li>
+                  <li className="legal__list-item">Stripe customer ID and subscription ID (web purchases)</li>
+                  <li className="legal__list-item">Apple original transaction ID (iOS In-App Purchases)</li>
                 </ul>
               </div>
 
@@ -167,6 +169,7 @@ export default function PrivacyPolicy() {
                   <li className="legal__list-item">Named GPS coordinates (home, work, depot, custom)</li>
                   <li className="legal__list-item">Geofence entry/exit events for automatic trip detection</li>
                   <li className="legal__list-item">Geofence radius settings (default 150m)</li>
+                  <li className="legal__list-item">Departure anchor coordinates (temporary, your last stationary position, stored locally on device only)</li>
                 </ul>
               </div>
 
@@ -207,7 +210,7 @@ export default function PrivacyPolicy() {
               <div className="legal__card">
                 <h3 className="legal__card-title">Premium Features</h3>
                 <ul className="legal__list">
-                  <li className="legal__list-item">Earnings tracking and automatic import via Open Banking (TrueLayer/Plaid)</li>
+                  <li className="legal__list-item">Earnings tracking and automatic import via Open Banking (TrueLayer)</li>
                   <li className="legal__list-item">Advanced analytics and performance metrics</li>
                   <li className="legal__list-item">HMRC export functionality</li>
                 </ul>
@@ -225,7 +228,8 @@ export default function PrivacyPolicy() {
               <div className="legal__card">
                 <h3 className="legal__card-title">Billing and Subscriptions</h3>
                 <ul className="legal__list">
-                  <li className="legal__list-item">Processing subscription payments via Stripe</li>
+                  <li className="legal__list-item">Processing subscription payments via Stripe (web) or Apple In-App Purchase (iOS)</li>
+                  <li className="legal__list-item">Validating Apple IAP receipts and transaction IDs with Apple&apos;s App Store Server API</li>
                   <li className="legal__list-item">Managing premium feature access</li>
                   <li className="legal__list-item">Handling refunds and cancellations</li>
                   <li className="legal__list-item">Sending billing notifications and receipts</li>
@@ -280,7 +284,7 @@ export default function PrivacyPolicy() {
                   <li className="legal__list-item">Background location tracking during active shifts</li>
                   <li className="legal__list-item">Significant location change detection outside shifts</li>
                   <li className="legal__list-item">Sending marketing communications or newsletters (opt-in)</li>
-                  <li className="legal__list-item">Using Open Banking/Plaid to import earnings data</li>
+                  <li className="legal__list-item">Using Open Banking (TrueLayer) to import earnings data</li>
                 </ul>
                 <p className="legal__card-text legal__text--small" style={{marginTop: '1rem'}}>
                   You can withdraw consent at any time by disabling location permissions on your device settings or unsubscribing from communications.
@@ -336,8 +340,10 @@ export default function PrivacyPolicy() {
                 <h3 className="legal__card-title">How We Collect Location Data</h3>
                 <ul className="legal__list">
                   <li className="legal__list-item"><strong>During Active Shifts:</strong> When you start a shift, we continuously record GPS coordinates at intervals (approximately every 50 metres or 10 seconds) to track your route and calculate distance. This requires your explicit permission via the &ldquo;Allow Background Location&rdquo; prompt on your device.</li>
-                  <li className="legal__list-item"><strong>Outside Shifts:</strong> When shifts are inactive, we monitor for significant location changes (speed &gt; 15mph) to detect if you&apos;re driving. This uses low-power location services and requires separate permission.</li>
-                  <li className="legal__list-item"><strong>Stop Detection:</strong> We identify stops and trip boundaries by detecting when speed = 0 for more than 2 minutes.</li>
+                  <li className="legal__list-item"><strong>Drive Detection:</strong> When shifts are inactive, we monitor for significant location changes (speed &gt; 15mph) to detect if you&apos;re driving. GPS readings with poor accuracy (&gt; 50m) are automatically filtered out to prevent false detections from indoor signal drift. Two or more consecutive high-speed readings are required before detection triggers. This uses low-power location services and requires background location permission.</li>
+                  <li className="legal__list-item"><strong>Departure Anchor:</strong> A temporary 200-metre geofence is placed around your last known stationary position. When you physically leave this area, drive detection is activated. This geofence operates at the OS level and can detect movement even if the app has been closed.</li>
+                  <li className="legal__list-item"><strong>Automatic Trip Recording:</strong> When driving is detected outside an active shift, MileClear may silently record GPS coordinates and automatically save a trip when a stop is detected (5+ minutes idle). These auto-recorded trips are stored as &ldquo;unclassified&rdquo; for your review.</li>
+                  <li className="legal__list-item"><strong>Stop Detection:</strong> We identify stops and trip boundaries by detecting when movement drops below 2.2 mph for more than 5 minutes during automatic recording, or when speed = 0 for more than 2 minutes during active shifts.</li>
                 </ul>
               </div>
 
@@ -364,7 +370,7 @@ export default function PrivacyPolicy() {
               <div className="legal__card">
                 <h3 className="legal__card-title">Geofencing and Automatic Trip Detection</h3>
                 <p className="legal__card-text">
-                  Saved locations can trigger automatic trip detection when you enter or leave a geofenced area. Geofencing uses the same location permissions already granted for trip tracking. Geofence monitoring runs in the background only when enabled by the user.
+                  Saved locations can trigger automatic trip detection when you enter or leave a geofenced area. Additionally, a temporary &ldquo;departure anchor&rdquo; geofence (200m radius) is placed around your last stationary position to reliably detect when you start moving. Geofencing uses the same location permissions already granted for trip tracking. Geofence monitoring runs at the OS level in the background, which means it can function even when the app is not actively running.
                 </p>
               </div>
 
@@ -389,10 +395,12 @@ export default function PrivacyPolicy() {
 
               <div className="legal__card">
                 <h3 className="legal__card-title">Essential Service Providers (Data Processors)</h3>
-                <p className="legal__card-text"><strong>Stripe (Payment Processing)</strong></p>
+                <p className="legal__card-text"><strong>Stripe (Payment Processing — Web)</strong></p>
                 <p className="legal__card-text legal__text--small">PCI DSS Level 1 compliant. We share: Stripe customer ID, subscription status, and transaction records. Card details are entered directly into Stripe&apos;s secure forms — we never see them.</p>
-                <p className="legal__card-text" style={{marginTop: '0.75rem'}}><strong>TrueLayer / Plaid (Open Banking)</strong></p>
-                <p className="legal__card-text legal__text--small">Premium users only. We share: request to connect your bank account for earnings auto-import. TrueLayer/Plaid acts as intermediary — they do not store your bank login, only aggregated transaction data.</p>
+                <p className="legal__card-text" style={{marginTop: '0.75rem'}}><strong>Apple (In-App Purchase — iOS)</strong></p>
+                <p className="legal__card-text legal__text--small">iOS subscriptions are processed by Apple via the App Store. We share: transaction ID and receipt data for validation with Apple&apos;s App Store Server API. Payment details are managed entirely by Apple — we never see them.</p>
+                <p className="legal__card-text" style={{marginTop: '0.75rem'}}><strong>TrueLayer (Open Banking)</strong></p>
+                <p className="legal__card-text legal__text--small">Premium users only. We share: request to connect your bank account for earnings auto-import. TrueLayer acts as intermediary — they do not store your bank login, only aggregated transaction data. Access tokens are encrypted AES-256-GCM at rest on our servers.</p>
                 <p className="legal__card-text" style={{marginTop: '0.75rem'}}><strong>Apple &amp; Google (Authentication)</strong></p>
                 <p className="legal__card-text legal__text--small">Sign-in only. We share: email address (sometimes) and sign-in request. We verify the token on our servers; Apple/Google do not see your other data.</p>
                 <p className="legal__card-text" style={{marginTop: '0.75rem'}}><strong>Expo / EAS (App Infrastructure)</strong></p>
@@ -725,8 +733,9 @@ export default function PrivacyPolicy() {
                 </p>
                 <ul className="legal__list">
                   <li className="legal__list-item"><strong>Stripe (USA):</strong> Subject to Data Processing Agreement and Standard Contractual Clauses (SCCs)</li>
-                  <li className="legal__list-item"><strong>TrueLayer/Plaid (EU/USA):</strong> Subject to DPA and SCCs</li>
-                  <li className="legal__list-item"><strong>Apple/Google (USA):</strong> Limited data transfer for authentication verification only</li>
+                  <li className="legal__list-item"><strong>TrueLayer (EU/UK):</strong> FCA regulated, UK-based. Subject to DPA</li>
+                  <li className="legal__list-item"><strong>Apple (USA):</strong> Authentication verification and In-App Purchase transaction validation. Subject to Apple&apos;s Data Processing Agreement</li>
+                  <li className="legal__list-item"><strong>Google (USA):</strong> Limited data transfer for authentication verification only</li>
                 </ul>
                 <p className="legal__card-text legal__text--small" style={{marginTop: '1rem'}}>
                   All international transfers comply with UK GDPR Article 46 (SCCs) and Data Protection Act 2018 Chapter 5. We have reviewed these services&apos; security certifications and compliance frameworks.
@@ -817,7 +826,7 @@ export default function PrivacyPolicy() {
             {/* Footer */}
             <div className="legal__footer">
               <p className="legal__footer-text">&copy; 2026 MileClear Limited. All rights reserved.</p>
-              <p className="legal__footer-text">Version 1.0 &mdash; Effective 7 March 2026</p>
+              <p className="legal__footer-text">Version 1.1 &mdash; Effective 13 March 2026</p>
               <div className="legal__footer-links">
                 <a href="/terms" className="legal__footer-link">Terms of Service</a>
                 <a href="/privacy" className="legal__footer-link">Privacy Policy</a>

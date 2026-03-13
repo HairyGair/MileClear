@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
-import { View, Text, ActivityIndicator, LogBox, ScrollView, StyleSheet, Alert } from "react-native";
+import { View, Text, ActivityIndicator, LogBox, ScrollView, StyleSheet, Alert, AppState } from "react-native";
 import { Stack } from "expo-router";
 import * as Font from "expo-font";
 import {
@@ -55,7 +55,7 @@ import {
 import { setupNotificationChannels, scheduleWeeklyMileageSummary, scheduleTaxYearDeadlineReminder, checkUnclassifiedTripsNudge, checkStreakAtRisk, checkLongRunningShift } from "../lib/notifications/scheduler";
 import { registerPushToken } from "../lib/api/notifications";
 import { startDriveDetection, finalizeStaleAutoRecordings } from "../lib/tracking/detection";
-import { registerGeofences, shadeExpiredUnconfirmedTrips } from "../lib/geofencing/index";
+import { registerGeofences, shadeExpiredUnconfirmedTrips, setDepartureAnchor } from "../lib/geofencing/index";
 import { getDatabase } from "../lib/db/index";
 import { hydrateLocalData, isHydrationComplete } from "../lib/sync/hydrate";
 import { isIapAvailable, initializeIap, setupPurchaseListeners, endIapConnection } from "../lib/iap/index";
@@ -131,6 +131,7 @@ function RootNavigator() {
       startDriveDetection();
       finalizeStaleAutoRecordings().catch(() => {});
       registerGeofences().catch(() => {});
+      setDepartureAnchor().catch(() => {});
       shadeExpiredUnconfirmedTrips().catch(() => {});
       registerForPushNotifications()
         .then((token) => { if (token) return registerPushToken(token); })
@@ -141,6 +142,21 @@ function RootNavigator() {
       checkStreakAtRisk().catch(() => {});
       checkLongRunningShift().catch(() => {});
     }
+  }, [isAuthenticated, isLoading]);
+
+  // Restart drive detection every time the app comes to foreground.
+  // iOS can clear the location subscription overnight (app kill, reboot, update),
+  // and the old isTaskRegisteredAsync guard silently prevented re-registration.
+  // This ensures detection is always running when the app is active.
+  useEffect(() => {
+    if (!isAuthenticated || isLoading) return;
+    const sub = AppState.addEventListener("change", (state) => {
+      if (state === "active") {
+        startDriveDetection();
+        finalizeStaleAutoRecordings().catch(() => {});
+      }
+    });
+    return () => sub.remove();
   }, [isAuthenticated, isLoading]);
 
   // Apple In-App Purchase: global listener for StoreKit transactions
@@ -219,7 +235,7 @@ function RootNavigator() {
           <ActivityIndicator size="large" color="#f5a623" />
         </View>
       )}
-      <HydrationOverlay visible={hydrating} step={hydrateStep} done={hydrateDone} total={5} />
+      <HydrationOverlay visible={hydrating} step={hydrateStep} done={hydrateDone} total={6} />
     </>
   );
 }

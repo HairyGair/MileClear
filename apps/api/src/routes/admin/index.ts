@@ -4,6 +4,7 @@ import { prisma } from "../../lib/prisma.js";
 import { authMiddleware } from "../../middleware/auth.js";
 import { adminMiddleware } from "../../middleware/admin.js";
 import { stripe } from "../../lib/stripe.js";
+import { sendReEngagementEmail } from "../../services/email.js";
 
 const premiumToggleSchema = z.object({
   isPremium: z.boolean(),
@@ -234,6 +235,89 @@ export async function adminRoutes(app: FastifyInstance) {
     await prisma.user.delete({ where: { id: userId } });
 
     return reply.send({ message: "User deleted" });
+  });
+
+  // POST /admin/send-re-engagement
+  // Sends a personalised re-engagement email to all users (or a subset).
+  // Query params: ?dryRun=true (preview without sending), ?onlyInactive=true (only users with 0 trips)
+  app.post("/send-re-engagement", async (request, reply) => {
+    const { dryRun, onlyInactive } = request.query as {
+      dryRun?: string;
+      onlyInactive?: string;
+    };
+    const isDryRun = dryRun === "true";
+    const inactiveOnly = onlyInactive === "true";
+
+    const users = await prisma.user.findMany({
+      select: {
+        id: true,
+        email: true,
+        displayName: true,
+        _count: { select: { trips: true } },
+      },
+    });
+
+    // Get trip stats for users who have trips
+    const userIds = users.filter((u) => u._count.trips > 0).map((u) => u.id);
+    const tripStats = userIds.length > 0
+      ? await prisma.trip.groupBy({
+          by: ["userId"],
+          where: { userId: { in: userIds } },
+          _count: { id: true },
+          _sum: { distanceMiles: true },
+        })
+      : [];
+
+    const statsMap = new Map(
+      tripStats.map((s) => [
+        s.userId,
+        { totalTrips: s._count.id, totalMiles: s._sum.distanceMiles ?? 0 },
+      ])
+    );
+
+    let sent = 0;
+    let skipped = 0;
+    const errors: string[] = [];
+
+    for (const user of users) {
+      const stats = statsMap.get(user.id) ?? null;
+
+      // If onlyInactive, skip users who have trips
+      if (inactiveOnly && stats && stats.totalTrips > 0) {
+        skipped++;
+        continue;
+      }
+
+      if (isDryRun) {
+        sent++;
+        continue;
+      }
+
+      try {
+        await sendReEngagementEmail(user.email, user.displayName, stats);
+        sent++;
+        // Small delay to avoid hitting Brevo rate limits (300/day free tier)
+        await new Promise((r) => setTimeout(r, 200));
+      } catch (err: any) {
+        errors.push(`${user.email}: ${err.message}`);
+      }
+    }
+
+    request.log.info(
+      { adminId: request.userId, action: "re-engagement-email", sent, skipped, errors: errors.length, isDryRun },
+      `Re-engagement email: ${sent} sent, ${skipped} skipped, ${errors.length} errors${isDryRun ? " (DRY RUN)" : ""}`
+    );
+
+    return reply.send({
+      data: {
+        sent,
+        skipped,
+        errors: errors.length,
+        errorDetails: errors.slice(0, 10),
+        dryRun: isDryRun,
+        totalUsers: users.length,
+      },
+    });
   });
 
   // GET /admin/health

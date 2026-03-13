@@ -23,7 +23,7 @@ export default function TermsOfService() {
           {/* Header */}
           <div className="legal__header">
             <h1 className="heading">Terms of Service</h1>
-            <p className="legal__date">Last updated: 7 March 2026</p>
+            <p className="legal__date">Last updated: 13 March 2026</p>
           </div>
 
           {/* Quick Navigation */}
@@ -59,7 +59,7 @@ export default function TermsOfService() {
                 <strong>Service Provider:</strong> MileClear Limited, a UK-registered company
               </p>
               <p className="legal__text">
-                <strong>Effective Date:</strong> 7 March 2026
+                <strong>Effective Date:</strong> 13 March 2026
               </p>
               <p className="legal__text legal__text--small">
                 We may update these Terms at any time. Continued use of the Service after changes constitutes acceptance. We will notify you of material changes via email or in-app notification.
@@ -436,8 +436,11 @@ export default function TermsOfService() {
                   MileClear may run background services with your permission to provide the Service. These include:
                 </p>
                 <ul className="legal__list">
-                  <li className="legal__list-item"><strong>GPS trip tracking:</strong> Continuous location capture during active shifts</li>
-                  <li className="legal__list-item"><strong>Geofence monitoring:</strong> Monitoring of saved locations (home, work, depot) for proximity alerts</li>
+                  <li className="legal__list-item"><strong>GPS trip tracking:</strong> Continuous location capture during active shifts or quick trips</li>
+                  <li className="legal__list-item"><strong>Automatic trip recording:</strong> When driving is detected outside of an active shift, MileClear may silently record GPS coordinates and automatically save a trip when you stop (5+ minutes idle). These trips are saved as &ldquo;unclassified&rdquo; for you to review later</li>
+                  <li className="legal__list-item"><strong>Drive detection:</strong> Low-power monitoring of significant location changes to detect when you start driving (speed &gt; 15mph). GPS readings with poor accuracy (&gt; 50m) are filtered out to prevent false detections</li>
+                  <li className="legal__list-item"><strong>Departure anchor geofencing:</strong> A temporary 200-metre geofence is registered around your last stationary position. When you leave this area, drive detection activates. This runs as an OS-level event and does not require the app to be open</li>
+                  <li className="legal__list-item"><strong>Saved location geofences:</strong> Monitoring of saved locations (home, work, depot) for automatic trip detection on entry/exit</li>
                   <li className="legal__list-item"><strong>Bluetooth trip confirmation:</strong> Checking for previously configured vehicle names to auto-confirm trip start</li>
                   <li className="legal__list-item"><strong>Push notifications:</strong> Delivery of streak reminders, subscription alerts, and weekly summaries</li>
                 </ul>
@@ -451,7 +454,7 @@ export default function TermsOfService() {
                   <li className="legal__list-item">Within the MileClear app (Settings &gt; Permissions &gt; toggle services off)</li>
                 </ul>
                 <p className="legal__card-text legal__text--small" style={{ marginTop: '1rem' }}>
-                  <strong>Background location tracking</strong> only occurs during active shifts or when drive detection is enabled. It does not run continuously in the background when the app is closed.
+                  <strong>Background location tracking</strong> only occurs during active shifts, automatic trip recording, or when drive detection is enabled. Location data is not collected continuously when the app is closed and no driving activity is detected.
                 </p>
               </div>
 
@@ -484,6 +487,13 @@ export default function TermsOfService() {
                   <li className="legal__list-item">Tax deadline reminders (Self Assessment dates, quarterly reporting)</li>
                   <li className="legal__list-item">Unclassified trip nudges (prompting you to classify business vs. personal)</li>
                 </ul>
+              </div>
+
+              <div className="legal__card">
+                <h3 className="legal__card-title">Quiet Hours</h3>
+                <p className="legal__card-text">
+                  MileClear suppresses non-essential push notifications between <strong>10:00 PM and 7:00 AM</strong> (local device time). During quiet hours, driving detection notifications, streak reminders, trip classification nudges, and other advisory notifications are not sent. However, automatic trip recording continues silently in the background if driving is detected — trips are saved for review when you next open the app.
+                </p>
               </div>
 
               <div className="legal__card">
@@ -560,27 +570,45 @@ export default function TermsOfService() {
                   <li className="legal__list-item">CSV trip and earnings exports</li>
                   <li className="legal__list-item">Unlimited saved locations (free tier capped at 2)</li>
                   <li className="legal__list-item">CSV earnings import (bulk upload from platform CSVs)</li>
-                  <li className="legal__list-item">Open Banking integration (Plaid) for automatic transaction import</li>
+                  <li className="legal__list-item">Open Banking integration (TrueLayer) for automatic transaction import</li>
                   <li className="legal__list-item">Advanced analytics and business insights</li>
                 </ul>
               </div>
 
               <div className="legal__card">
                 <h3 className="legal__card-title">Subscription Terms</h3>
+                <p className="legal__card-text">
+                  <strong>MileClear Pro</strong> is an auto-renewable subscription priced at <strong>&pound;4.99 per month</strong>. By subscribing, you agree to the following:
+                </p>
                 <ul className="legal__list">
-                  <li className="legal__list-item"><strong>Auto-renewal:</strong> Your subscription renews automatically each month unless cancelled</li>
-                  <li className="legal__list-item"><strong>Billing:</strong> Charged on the same day each month (e.g., if you start on Feb 20, you'll be charged on Mar 20, Apr 20, etc.)</li>
-                  <li className="legal__list-item"><strong>Payment method:</strong> Stripe processes all payments (we never store card details)</li>
-                  <li className="legal__list-item"><strong>Failed payments:</strong> If a payment fails, we'll retry a few times. Repeated failures may suspend your premium access</li>
+                  <li className="legal__list-item"><strong>Auto-renewal:</strong> Your subscription automatically renews each month at &pound;4.99/month unless you cancel at least 24 hours before the end of the current billing period</li>
+                  <li className="legal__list-item"><strong>Billing cycle:</strong> Charged on the same day each month (e.g., if you start on Feb 20, you&apos;ll be charged on Mar 20, Apr 20, etc.)</li>
+                  <li className="legal__list-item"><strong>Payment processing:</strong> Payments are processed by Stripe (web) or Apple via In-App Purchase (iOS). We never store your card details</li>
+                  <li className="legal__list-item"><strong>Failed payments:</strong> If a payment fails, we&apos;ll retry a few times. Repeated failures may suspend your premium access</li>
+                </ul>
+              </div>
+
+              <div className="legal__card">
+                <h3 className="legal__card-title">Apple In-App Purchase (iOS)</h3>
+                <p className="legal__card-text">
+                  If you subscribe via the MileClear iOS app, your purchase is processed by Apple through the App Store:
+                </p>
+                <ul className="legal__list">
+                  <li className="legal__list-item"><strong>Payment:</strong> Charged to your Apple ID account at confirmation of purchase</li>
+                  <li className="legal__list-item"><strong>Auto-renewal:</strong> Your subscription automatically renews unless you turn off auto-renewal at least 24 hours before the end of the current period</li>
+                  <li className="legal__list-item"><strong>Renewal charge:</strong> Your account will be charged &pound;4.99 for renewal within 24 hours prior to the end of the current period</li>
+                  <li className="legal__list-item"><strong>Management:</strong> You can manage and cancel your subscription in your Apple ID Account Settings (Settings &gt; [your name] &gt; Subscriptions)</li>
+                  <li className="legal__list-item"><strong>Free trial:</strong> Any unused portion of a free trial period (if offered) will be forfeited when you purchase a subscription</li>
+                  <li className="legal__list-item"><strong>Terms:</strong> Apple&apos;s standard Terms and Conditions for auto-renewable subscriptions apply in addition to these Terms</li>
                 </ul>
               </div>
 
               <div className="legal__card">
                 <h3 className="legal__card-title">Cancellation &amp; Refunds</h3>
                 <ul className="legal__list">
-                  <li className="legal__list-item"><strong>Cancel anytime:</strong> Settings &gt; Billing &gt; Cancel Subscription (or email legal@mileclear.com)</li>
-                  <li className="legal__list-item"><strong>No refunds:</strong> Subscription cancels at the end of your current billing period. No refunds for unused time</li>
-                  <li className="legal__list-item"><strong>Cancellation effect:</strong> Premium features become unavailable immediately. Free tracking continues</li>
+                  <li className="legal__list-item"><strong>Cancel anytime:</strong> For Stripe subscriptions, cancel via Settings &gt; Billing &gt; Cancel Subscription (or email legal@mileclear.com). For Apple subscriptions, cancel via your Apple ID Account Settings (Settings &gt; [your name] &gt; Subscriptions)</li>
+                  <li className="legal__list-item"><strong>No refunds:</strong> Subscription cancels at the end of your current billing period. No partial refunds for unused time. For Apple subscriptions, refund requests must be made through Apple</li>
+                  <li className="legal__list-item"><strong>Cancellation effect:</strong> Premium features remain available until the end of your current billing period, then revert to the free tier. Free tracking continues</li>
                   <li className="legal__list-item"><strong>Reactivation:</strong> You can reactivate premium anytime; new subscription starts immediately</li>
                 </ul>
               </div>
@@ -607,7 +635,8 @@ export default function TermsOfService() {
                 <h3 className="legal__card-title">Consumer Rights (UK)</h3>
                 <p className="legal__card-text">If you have a valid complaint about billing:</p>
                 <ul className="legal__list">
-                  <li className="legal__list-item"><strong>Dispute a charge:</strong> Contact Stripe support or your bank within 60 days</li>
+                  <li className="legal__list-item"><strong>Dispute a Stripe charge:</strong> Contact Stripe support or your bank within 60 days</li>
+                  <li className="legal__list-item"><strong>Dispute an Apple charge:</strong> Request a refund through Apple at reportaproblem.apple.com</li>
                   <li className="legal__list-item"><strong>Consumer rights:</strong> UK Consumer Rights Act 2015 applies; you have rights to cancel within 14 days of purchase if you change your mind</li>
                   <li className="legal__list-item"><strong>Complaint process:</strong> Email legal@mileclear.com if you believe you were charged in error</li>
                 </ul>
@@ -730,7 +759,7 @@ export default function TermsOfService() {
             {/* Footer */}
             <div className="legal__footer">
               <p className="legal__footer-text">© 2026 MileClear Limited. All rights reserved.</p>
-              <p className="legal__footer-text">Version 1.1 — Effective 7 March 2026</p>
+              <p className="legal__footer-text">Version 1.2 — Effective 13 March 2026</p>
               <div className="legal__footer-links">
                 <a href="/privacy" className="legal__footer-link">Privacy Policy</a>
                 <a href="/terms" className="legal__footer-link">Terms of Service</a>

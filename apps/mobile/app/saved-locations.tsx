@@ -10,7 +10,9 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter, useFocusEffect, Stack } from "expo-router";
-import { fetchSavedLocations, deleteSavedLocation } from "../lib/api/savedLocations";
+import { fetchSavedLocations } from "../lib/api/savedLocations";
+import { syncDeleteSavedLocation } from "../lib/sync/actions";
+import { getDatabase } from "../lib/db/index";
 import { useUser } from "../lib/user/context";
 import { registerGeofences } from "../lib/geofencing/index";
 import { Button } from "../components/Button";
@@ -106,10 +108,61 @@ export default function SavedLocationsScreen() {
 
   const loadLocations = useCallback(async () => {
     try {
-      const res = await fetchSavedLocations();
-      setLocations(res.data);
+      // Load from local SQLite first (offline-first)
+      const db = await getDatabase();
+      const localRows = await db.getAllAsync<{
+        id: string;
+        name: string;
+        location_type: string;
+        latitude: number;
+        longitude: number;
+        radius_meters: number;
+        geofence_enabled: number;
+        created_at: string;
+        updated_at: string;
+      }>("SELECT * FROM saved_locations ORDER BY created_at DESC");
+      if (localRows.length > 0) {
+        setLocations(localRows.map((r) => ({
+          id: r.id,
+          userId: "",
+          name: r.name,
+          locationType: r.location_type as any,
+          latitude: r.latitude,
+          longitude: r.longitude,
+          radiusMeters: r.radius_meters,
+          geofenceEnabled: r.geofence_enabled === 1,
+          createdAt: r.created_at,
+          updatedAt: r.updated_at,
+        })));
+        setLoading(false);
+      }
+      // Refresh from API in background
+      try {
+        const res = await fetchSavedLocations();
+        setLocations(res.data);
+        // Update local SQLite with latest server data
+        const now = new Date().toISOString();
+        for (const loc of res.data) {
+          await db.runAsync(
+            `INSERT OR REPLACE INTO saved_locations
+               (id, name, location_type, latitude, longitude, radius_meters,
+                geofence_enabled, synced_at, created_at, updated_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            [loc.id, loc.name, loc.locationType, loc.latitude, loc.longitude,
+             loc.radiusMeters, loc.geofenceEnabled ? 1 : 0, now, loc.createdAt, loc.updatedAt]
+          );
+        }
+      } catch {
+        // API unavailable — local data is shown
+      }
     } catch {
-      // Silently fail — will show empty state
+      // SQLite read failed — try API directly
+      try {
+        const res = await fetchSavedLocations();
+        setLocations(res.data);
+      } catch {
+        // Fully offline with no local data
+      }
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -139,7 +192,7 @@ export default function SavedLocationsScreen() {
             style: "destructive",
             onPress: async () => {
               try {
-                await deleteSavedLocation(item.id);
+                await syncDeleteSavedLocation(item.id);
                 setLocations((prev) => prev.filter((l) => l.id !== item.id));
                 registerGeofences().catch(() => {});
               } catch {
