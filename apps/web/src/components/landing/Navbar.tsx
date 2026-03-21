@@ -26,6 +26,7 @@ export default function Navbar() {
           <li><a href="#features" className="nav__link">Features</a></li>
           <li><a href="#pricing" className="nav__link">Pricing</a></li>
           <li><a href="#faq" className="nav__link">FAQ</a></li>
+          <li><a href="/updates" className="nav__link">Updates</a></li>
         </ul>
 
         <a href="#early-access" className="nav__cta">Try it free</a>
@@ -44,6 +45,7 @@ export default function Navbar() {
         <a href="#features" onClick={close}>Features</a>
         <a href="#pricing" onClick={close}>Pricing</a>
         <a href="#faq" onClick={close}>FAQ</a>
+        <a href="/updates" onClick={close}>Updates</a>
         <a href="#early-access" className="nav__mobile-cta" onClick={close}>
           Try it free
         </a>
