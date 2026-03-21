@@ -211,6 +211,18 @@ async function _finalizeAutoTripInner(): Promise<void> {
 
   // Save trip as unclassified — lands in inbox
   try {
+    // Look up the most recently used vehicle from local trips, so auto-detected
+    // trips inherit a vehicle rather than appearing as "Unknown vehicle" in exports.
+    let vehicleId: string | undefined;
+    try {
+      const lastTrip = await db.getFirstAsync<{ vehicle_id: string | null }>(
+        "SELECT vehicle_id FROM trips WHERE vehicle_id IS NOT NULL ORDER BY started_at DESC LIMIT 1"
+      );
+      if (lastTrip?.vehicle_id) vehicleId = lastTrip.vehicle_id;
+    } catch {
+      // Best-effort — trip will just have no vehicle
+    }
+
     const { syncCreateTrip } = await import("../sync/actions");
     await syncCreateTrip({
       startLat: first.lat,
@@ -223,6 +235,7 @@ async function _finalizeAutoTripInner(): Promise<void> {
       startedAt: first.recorded_at,
       endedAt: last.recorded_at,
       classification: "unclassified",
+      vehicleId,
       coordinates: coords.map((c) => ({
         lat: c.lat,
         lng: c.lng,

@@ -39,25 +39,34 @@ export async function fetchExportTrips(
     throw new Error("Either taxYear or from+to must be provided");
   }
 
-  const trips = await prisma.trip.findMany({
-    where: {
-      userId: opts.userId,
-      startedAt: { gte: start, lte: end },
-      ...(opts.classification ? { classification: opts.classification } : {}),
-    },
-    include: {
-      vehicle: {
-        select: { make: true, model: true, vehicleType: true },
+  const [trips, primaryVehicle] = await Promise.all([
+    prisma.trip.findMany({
+      where: {
+        userId: opts.userId,
+        startedAt: { gte: start, lte: end },
+        ...(opts.classification ? { classification: opts.classification } : {}),
       },
-    },
-    orderBy: { startedAt: "asc" },
-  });
+      include: {
+        vehicle: {
+          select: { make: true, model: true, vehicleType: true },
+        },
+      },
+      orderBy: { startedAt: "asc" },
+    }),
+    // Fetch primary vehicle for trips without a vehicleId
+    prisma.vehicle.findFirst({
+      where: { userId: opts.userId },
+      orderBy: [{ isPrimary: "desc" }, { createdAt: "asc" }],
+      select: { make: true, model: true, vehicleType: true },
+    }),
+  ]);
 
   // Running tally of business miles per vehicle type for HMRC rate tiers
   const businessMilesByType: Record<string, number> = {};
 
   return trips.map((trip) => {
-    const vType = (trip.vehicle?.vehicleType || "car") as VehicleType;
+    const vehicle = trip.vehicle ?? primaryVehicle;
+    const vType = (vehicle?.vehicleType || "car") as VehicleType;
     const prevBusinessMiles = businessMilesByType[vType] || 0;
 
     let hmrcRatePence = 0;
@@ -114,9 +123,9 @@ export async function fetchExportTrips(
       classification: trip.classification as "business" | "personal",
       platform: trip.platformTag,
       businessPurpose: trip.businessPurpose,
-      vehicleType: trip.vehicle?.vehicleType as VehicleType | null,
-      vehicleName: trip.vehicle
-        ? `${trip.vehicle.make} ${trip.vehicle.model}`
+      vehicleType: (vehicle?.vehicleType || null) as VehicleType | null,
+      vehicleName: vehicle
+        ? `${vehicle.make} ${vehicle.model}`
         : null,
       hmrcRatePence,
       deductionPence,
@@ -130,7 +139,7 @@ export async function fetchExportSummary(
 ): Promise<ExportSummary> {
   const { start, end } = parseTaxYear(taxYear);
 
-  const [trips, earnings, user] = await Promise.all([
+  const [trips, earnings, user, primaryVehicle] = await Promise.all([
     prisma.trip.findMany({
       where: { userId, startedAt: { gte: start, lte: end } },
       include: {
@@ -149,6 +158,12 @@ export async function fetchExportSummary(
     prisma.user.findUnique({
       where: { id: userId },
       select: { fullName: true, displayName: true, email: true },
+    }),
+    // Fetch primary vehicle (or first vehicle) for trips without a vehicleId
+    prisma.vehicle.findFirst({
+      where: { userId },
+      orderBy: [{ isPrimary: "desc" }, { createdAt: "asc" }],
+      select: { id: true, make: true, model: true, vehicleType: true },
     }),
   ]);
 
@@ -175,7 +190,9 @@ export async function fetchExportSummary(
       personalMiles += trip.distanceMiles;
     }
 
-    const vKey = trip.vehicleId || "unknown";
+    // For trips without a vehicle, fall back to the user's primary vehicle
+    const vehicle = trip.vehicle ?? primaryVehicle;
+    const vKey = trip.vehicleId || (primaryVehicle ? primaryVehicle.id : "unassigned");
     const existing = vehicleMap.get(vKey);
     if (existing) {
       existing.totalMiles += trip.distanceMiles;
@@ -184,10 +201,10 @@ export async function fetchExportSummary(
       }
     } else {
       vehicleMap.set(vKey, {
-        name: trip.vehicle
-          ? `${trip.vehicle.make} ${trip.vehicle.model}`
-          : "Unknown vehicle",
-        type: (trip.vehicle?.vehicleType || "car") as VehicleType,
+        name: vehicle
+          ? `${vehicle.make} ${vehicle.model}`
+          : "Unassigned trips",
+        type: (vehicle?.vehicleType || "car") as VehicleType,
         totalMiles: trip.distanceMiles,
         businessMiles:
           trip.classification === "business" ? trip.distanceMiles : 0,
