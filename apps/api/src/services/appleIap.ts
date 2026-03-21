@@ -8,7 +8,9 @@ import {
 import * as fs from "fs";
 import * as path from "path";
 
-const PRODUCT_ID = "com.mileclear.premium.monthly";
+const PRODUCT_ID_MONTHLY = "com.mileclear.premium.monthly";
+const PRODUCT_ID_ANNUAL = "com.mileclear.premium.annual";
+const VALID_PRODUCT_IDS = [PRODUCT_ID_MONTHLY, PRODUCT_ID_ANNUAL];
 
 // --- Singleton client (null if not configured, same pattern as lib/stripe.ts) ---
 
@@ -132,4 +134,4 @@ export function isTransactionActive(transaction: JWSTransactionDecodedPayload): 
   return expiresDate > Date.now();
 }
 
-export { PRODUCT_ID, bundleId };
+export { PRODUCT_ID_MONTHLY, PRODUCT_ID_ANNUAL, VALID_PRODUCT_IDS, bundleId };

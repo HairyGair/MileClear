@@ -239,7 +239,7 @@ export default function OpenBankingScreen() {
             loading={upgrading}
             style={{ marginTop: 20, width: "100%" }}
           />
-          <Text style={styles.gatePrice}>£4.99/month — auto-renews, cancel anytime</Text>
+          <Text style={styles.gatePrice}>Auto-renews, cancel anytime</Text>
           <View style={styles.gateLegalLinks}>
             <Text style={styles.gateLegalLink} onPress={() => WebBrowser.openBrowserAsync("https://mileclear.com/terms")}>Terms of Use</Text>
             <Text style={styles.gateLegalSep}>|</Text>

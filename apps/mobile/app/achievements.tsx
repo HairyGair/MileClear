@@ -15,6 +15,7 @@ import {
 import type { AchievementWithMeta, GamificationStats } from "@mileclear/shared";
 import { useIsPremium } from "../components/PremiumGate";
 import { PremiumTeaser } from "../components/PremiumGate";
+import { maybeRequestReview } from "../lib/rating/index";
 
 const AMBER = "#f5a623";
 const CARD_BG = "#0a1120";
@@ -48,6 +49,16 @@ export default function AchievementsScreen() {
   useEffect(() => {
     load();
   }, [load]);
+
+  // Rating prompt if user earned an achievement in last 24h
+  useEffect(() => {
+    if (earned.length === 0) return;
+    const oneDayAgo = Date.now() - 24 * 60 * 60 * 1000;
+    const hasRecent = earned.some((a) => new Date(a.achievedAt).getTime() > oneDayAgo);
+    if (hasRecent) {
+      setTimeout(() => maybeRequestReview("achievement_earned"), 3000);
+    }
+  }, [earned]);
 
   if (loading) {
     return (

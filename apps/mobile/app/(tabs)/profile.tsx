@@ -27,7 +27,8 @@ import {
   validateApplePurchase,
 } from "../../lib/api/billing";
 import type { Vehicle, User, BillingStatus, WorkType } from "@mileclear/shared";
-import { WORK_TYPES } from "@mileclear/shared";
+import { WORK_TYPES, formatPence, calculateHmrcDeduction } from "@mileclear/shared";
+import { fetchGamificationStats } from "../../lib/api/gamification";
 import {
   isIapAvailable,
   purchaseSubscription,
@@ -48,6 +49,7 @@ import { cacheVehicleBluetoothNames } from "../../lib/bluetooth/index";
 import { AvatarPicker } from "../../components/avatars/AvatarPicker";
 import { useLayoutPrefs, resetAllLayouts } from "../../lib/layout/index";
 import { PremiumTeaser } from "../../components/PremiumGate";
+import { usePaywall } from "../../components/paywall";
 
 const AMBER = "#f5a623";
 const TEXT_1 = "#f0f2f5";
@@ -77,6 +79,7 @@ function formatDate(dateString: string): string {
 export default function ProfileScreen() {
   const { logout } = useAuth();
   const { refreshUser } = useUser();
+  const { showPaywall } = usePaywall();
   const router = useRouter();
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [user, setUser] = useState<User | null>(null);
@@ -236,10 +239,19 @@ export default function ProfileScreen() {
     }
   }, [loadData]);
 
-  const handleCancelSubscription = useCallback(() => {
+  const handleCancelSubscription = useCallback(async () => {
+    let message = "You'll keep Pro features until the end of your billing period. Are you sure?";
+    try {
+      const res = await fetchGamificationStats();
+      const s = res.data;
+      if (s.totalTrips > 0) {
+        const deduction = calculateHmrcDeduction("car", s.businessMiles);
+        message = `You've tracked ${s.totalTrips} trips and ${s.totalMiles.toFixed(0)} miles worth ${formatPence(deduction)} in HMRC deductions.\n\nYou'll keep Pro features until the end of your billing period. Are you sure?`;
+      }
+    } catch {}
     Alert.alert(
       "Cancel Subscription",
-      "You'll keep Pro features until the end of your billing period. Are you sure?",
+      message,
       [
         { text: "Keep Pro", style: "cancel" },
         {
@@ -261,11 +273,19 @@ export default function ProfileScreen() {
     );
   }, [loadData]);
 
-  const handleDeleteAccount = useCallback(() => {
+  const handleDeleteAccount = useCallback(async () => {
+    let message = "This is permanent and cannot be undone. Enter your password to confirm.";
+    try {
+      const res = await fetchGamificationStats();
+      const s = res.data;
+      if (s.totalTrips > 0) {
+        message = `You've tracked ${s.totalTrips} trips and ${s.totalMiles.toFixed(0)} miles. This is permanent and cannot be undone. Enter your password to confirm.`;
+      }
+    } catch {}
     if (Platform.OS === "ios") {
       Alert.prompt(
         "Delete Account",
-        "This is permanent and cannot be undone. Enter your password to confirm.",
+        message,
         [
           { text: "Cancel", style: "cancel" },
           {
@@ -581,17 +601,17 @@ export default function ProfileScreen() {
               <>
                 <TouchableOpacity
                   style={styles.upgradeCard}
-                  onPress={handleUpgrade}
+                  onPress={() => showPaywall("profile")}
                   activeOpacity={0.7}
                   accessibilityRole="button"
-                  accessibilityLabel={`Upgrade to MileClear Pro, ${iapPrice ?? "£4.99"} per month`}
+                  accessibilityLabel={`Upgrade to MileClear Pro${iapPrice ? `, ${iapPrice} per month` : ""}`}
                   accessibilityHint="Opens the upgrade checkout"
                 >
                   <View style={styles.upgradeHeader}>
                     <Ionicons name="diamond-outline" size={22} color={AMBER} />
                     <Text style={styles.upgradeTitle}>Upgrade to Pro</Text>
                   </View>
-                  <Text style={styles.upgradePrice}>{iapPrice ?? "£4.99"}/mo</Text>
+                  <Text style={styles.upgradePrice}>{iapPrice ? `${iapPrice}/mo` : "Pro"}</Text>
                   <View style={styles.featureList}>
                     <View style={styles.featureRow}>
                       <Ionicons name="checkmark-circle" size={18} color="#10b981" />

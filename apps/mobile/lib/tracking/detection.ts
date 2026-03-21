@@ -123,15 +123,31 @@ function detectMovement(locations: Location.LocationObject[]): boolean {
 
 // ── Auto-trip finalization ────────────────────────────────────────────────
 
+// Lock prevents concurrent finalizeAutoTrip() calls from both creating a trip.
+// The background detection task and finalizeStaleAutoRecordings() (AppState
+// foreground handler) can interleave at await points, both reading the same
+// coordinates before either deletes them.
+let finalizingTrip = false;
+
 /**
  * Process buffered detection coordinates into a saved trip.
  * Called when driving stops (no driving-speed location for 3+ min) or on app startup.
  */
 async function finalizeAutoTrip(): Promise<void> {
+  if (finalizingTrip) return;
+  finalizingTrip = true;
+  try {
+    await _finalizeAutoTripInner();
+  } finally {
+    finalizingTrip = false;
+  }
+}
+
+async function _finalizeAutoTripInner(): Promise<void> {
   const db = await getDatabase();
 
   // Read all buffered coordinates
-  const coords = await db.getAllAsync<BufferedCoordinate>(
+  const allCoords = await db.getAllAsync<BufferedCoordinate>(
     "SELECT lat, lng, speed, accuracy, recorded_at FROM detection_coordinates ORDER BY recorded_at ASC"
   );
 
@@ -141,6 +157,29 @@ async function finalizeAutoTrip(): Promise<void> {
     "DELETE FROM tracking_state WHERE key IN ('auto_recording_active', 'last_driving_speed_at', 'driving_detection_count')"
   );
 
+  if (allCoords.length < 2) return;
+
+  // Trim trailing stationary coordinates to find the true trip end.
+  // After the user parks, GPS pings continue at the same location — these
+  // inflate the end time to when the trip was finalized (or when the app
+  // was next opened for stale recordings) instead of when driving actually stopped.
+  let endIdx = allCoords.length - 1;
+  for (let i = allCoords.length - 1; i > 0; i--) {
+    const curr = allCoords[i];
+    const prev = allCoords[i - 1];
+    const distM = haversineMeters(prev.lat, prev.lng, curr.lat, curr.lng);
+    const speed = curr.speed != null && curr.speed > 0 ? curr.speed : 0;
+
+    // This coordinate represents real movement — use it as the trip endpoint
+    if (speed >= CONTINUE_SPEED_MS || distM > 30) {
+      endIdx = i;
+      break;
+    }
+    // If we've walked all the way back, keep at least the second coordinate
+    if (i === 1) endIdx = 1;
+  }
+
+  const coords = allCoords.slice(0, endIdx + 1);
   if (coords.length < 2) return;
 
   // Calculate total distance
@@ -303,9 +342,25 @@ try {
       const isRecording = recording?.value === "1";
 
       if (isRecording) {
-        // ── Active recording: buffer ALL coords FIRST, then check staleness ──
-        // Critical: we must buffer before checking staleness so that coords
-        // from resumed driving aren't lost to a premature finalization.
+        // ── Active recording ──
+        // Check if the recording is clearly stale (e.g. app was killed and just
+        // reopened). If the last driving activity was long ago, finalize
+        // immediately WITHOUT buffering these new coords — they'd set the trip
+        // end time to "now" instead of when driving actually stopped.
+        const lastDrivingCheck = await db.getFirstAsync<{ value: string }>(
+          "SELECT value FROM tracking_state WHERE key = 'last_driving_speed_at'"
+        );
+        if (lastDrivingCheck) {
+          const staleElapsed = Date.now() - parseInt(lastDrivingCheck.value, 10);
+          if (staleElapsed > STOP_TIMEOUT_MS * 2) {
+            // Recording is very stale — finalize with existing coords only
+            await finalizeAutoTrip();
+            downgradeToDetectionMode().catch(() => {});
+            return;
+          }
+        }
+
+        // Buffer coords — recording is recent enough that this could be resumed driving.
         for (const loc of locations) {
           await db.runAsync(
             `INSERT INTO detection_coordinates (lat, lng, speed, accuracy, recorded_at)
@@ -512,17 +567,16 @@ export async function startDriveDetection(): Promise<void> {
   if (isRunning) return;
 
   await Location.startLocationUpdatesAsync(DETECTION_TASK_NAME, {
-    accuracy: Location.Accuracy.High,
-    distanceInterval: 100,
-    deferredUpdatesInterval: 5000,
+    accuracy: Location.Accuracy.Balanced,
+    distanceInterval: 200,
+    deferredUpdatesInterval: 15000,
     activityType: Location.ActivityType.AutomotiveNavigation,
     pausesUpdatesAutomatically: false,
-    // Must be true — without the blue location indicator, iOS treats this as
-    // low-priority and can defer delivery 10+ minutes after relaunching a
-    // terminated app. With it on, iOS keeps the app alive longer and delivers
-    // locations within seconds of movement. This is why Norman's trips only
-    // captured the last few miles — iOS took ~10 min to start delivering.
-    showsBackgroundLocationIndicator: true,
+    // Hide the blue indicator in detection mode — the app appears "always on"
+    // otherwise. Lower accuracy + wider intervals keep iOS delivering updates
+    // without terminating the app, while avoiding the persistent blue pill.
+    // Active recording (upgradeDetectionAccuracy) switches to High + visible.
+    showsBackgroundLocationIndicator: false,
     foregroundService: {
       notificationTitle: "MileClear",
       notificationBody: "Monitoring for driving activity",
@@ -576,7 +630,7 @@ export async function upgradeDetectionAccuracy(): Promise<void> {
     deferredUpdatesInterval: 10000,
     activityType: Location.ActivityType.AutomotiveNavigation,
     pausesUpdatesAutomatically: false,
-    showsBackgroundLocationIndicator: true,
+    showsBackgroundLocationIndicator: false,
     foregroundService: {
       notificationTitle: "MileClear is recording your trip",
       notificationBody: "Tap to open the app",
@@ -596,12 +650,12 @@ async function downgradeToDetectionMode(): Promise<void> {
     }
 
     await Location.startLocationUpdatesAsync(DETECTION_TASK_NAME, {
-      accuracy: Location.Accuracy.High,
-      distanceInterval: 100,
-      deferredUpdatesInterval: 5000,
+      accuracy: Location.Accuracy.Balanced,
+      distanceInterval: 200,
+      deferredUpdatesInterval: 15000,
       activityType: Location.ActivityType.AutomotiveNavigation,
       pausesUpdatesAutomatically: false,
-      showsBackgroundLocationIndicator: true,
+      showsBackgroundLocationIndicator: false,
       foregroundService: {
         notificationTitle: "MileClear",
         notificationBody: "Monitoring for driving activity",

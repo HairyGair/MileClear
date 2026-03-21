@@ -31,9 +31,11 @@ import type { TripClassification, TripCategory, PlatformTag, BusinessPurpose, Ve
 import { getDatabase } from "../lib/db/index";
 import { startQuickTripTracking, stopQuickTripTracking, clearDetectionCooldown, peekBackgroundCoordinates } from "../lib/tracking";
 import { setLastSavedTrip } from "../lib/events/lastTrip";
+import { maybeRequestReview } from "../lib/rating/index";
 import { LocationPickerField } from "../components/LocationPickerField";
 import { DateTimePickerField } from "../components/DateTimePickerField";
 import { Button } from "../components/Button";
+import { usePaywall } from "../components/paywall";
 import { useMode } from "../lib/mode/context";
 import { useUser } from "../lib/user/context";
 import { fetchBusinessInsights } from "../lib/api/businessInsights";
@@ -48,6 +50,37 @@ import {
 import type { CommunityInsights } from "@mileclear/shared";
 import { startLiveActivity, updateLiveActivity, endLiveActivity } from "../lib/liveActivity";
 import { fetchCommunityInsights } from "../lib/api/communityInsights";
+import * as Notifications from "expo-notifications";
+
+/**
+ * One-time contextual notification permission ask for users who skipped onboarding.
+ * Only fires once — after first trip save, if notifications aren't granted yet.
+ */
+async function askNotificationPermissionOnce(): Promise<void> {
+  try {
+    const { status } = await Notifications.getPermissionsAsync();
+    if (status === "granted") return;
+    const db = await getDatabase();
+    const asked = await db.getFirstAsync<{ value: string }>(
+      "SELECT value FROM tracking_state WHERE key = 'notification_contextual_asked'"
+    );
+    if (asked) return;
+    await db.runAsync(
+      "INSERT OR REPLACE INTO tracking_state (key, value) VALUES ('notification_contextual_asked', 'true')"
+    );
+    Alert.alert(
+      "Stay on track",
+      "Get streak reminders, weekly summaries, and trip detection alerts?",
+      [
+        { text: "Not now", style: "cancel" },
+        {
+          text: "Enable",
+          onPress: () => Notifications.requestPermissionsAsync().catch(() => {}),
+        },
+      ]
+    );
+  } catch {}
+}
 
 // Enable LayoutAnimation on Android
 if (Platform.OS === "android" && UIManager.setLayoutAnimationEnabledExperimental) {
@@ -78,6 +111,13 @@ try {
   Haptics = require("expo-haptics");
 } catch {
   // Not available
+}
+
+/** Check if dateB is exactly one day after dateA (YYYY-MM-DD strings) */
+function isConsecutiveDay(dateA: string, dateB: string): boolean {
+  const a = new Date(dateA + "T00:00:00");
+  const b = new Date(dateB + "T00:00:00");
+  return b.getTime() - a.getTime() === 24 * 60 * 60 * 1000;
 }
 
 type TripMode = "ready" | "driving" | "arrived" | "saving" | "manual" | "editing";
@@ -295,6 +335,7 @@ export default function TripFormScreen() {
   const { id } = useLocalSearchParams<{ id?: string }>();
   const isEditing = !!id;
   const { user: currentUser } = useUser();
+  const { showPaywall } = usePaywall();
 
   const [mode, setMode] = useState<TripMode>(isEditing ? "editing" : "ready");
   const [loading, setLoading] = useState(true);
@@ -1044,6 +1085,86 @@ export default function TripFormScreen() {
         savedAt: Date.now(),
       });
 
+      // Rating prompt (fire-and-forget, 2s delay)
+      setTimeout(() => maybeRequestReview("trip_saved"), 2000);
+
+      // One-time notification permission nudge for users who skipped onboarding
+      askNotificationPermissionOnce().catch(() => {});
+
+      // Paywall after 5th trip (new trips only, once ever)
+      if (!isEditing) {
+        try {
+          const db2 = await getDatabase();
+          const shown = await db2.getFirstAsync<{ value: string }>(
+            "SELECT value FROM tracking_state WHERE key = 'paywall_5th_trip_shown'"
+          );
+          if (!shown) {
+            const countRow = await db2.getFirstAsync<{ count: number }>(
+              "SELECT COUNT(*) as count FROM trips"
+            );
+            if (countRow && countRow.count >= 5) {
+              await db2.runAsync(
+                "INSERT OR REPLACE INTO tracking_state (key, value) VALUES ('paywall_5th_trip_shown', 'true')"
+              );
+              setTimeout(() => showPaywall("5th_trip"), 1500);
+            }
+          }
+        } catch {}
+      }
+
+      // Challenge progress tracking (new trips only)
+      if (!isEditing) {
+        try {
+          const db3 = await getDatabase();
+          const challengeStart = await db3.getFirstAsync<{ value: string }>(
+            "SELECT value FROM tracking_state WHERE key = 'challenge_start_date'"
+          );
+          const challengeComplete = await db3.getFirstAsync<{ value: string }>(
+            "SELECT value FROM tracking_state WHERE key = 'challenge_complete'"
+          );
+          if (challengeStart && !challengeComplete) {
+            const today = new Date().toISOString().slice(0, 10);
+            const lastTracked = await db3.getFirstAsync<{ value: string }>(
+              "SELECT value FROM tracking_state WHERE key = 'challenge_last_tracked_date'"
+            );
+            const daysRow = await db3.getFirstAsync<{ value: string }>(
+              "SELECT value FROM tracking_state WHERE key = 'challenge_days_completed'"
+            );
+            let days = daysRow ? parseInt(daysRow.value, 10) : 0;
+
+            if (lastTracked?.value !== today) {
+              // Check if consecutive (yesterday or first day)
+              if (!lastTracked || isConsecutiveDay(lastTracked.value, today)) {
+                days += 1;
+              } else {
+                days = 1; // streak broken, reset
+              }
+              await db3.runAsync(
+                "INSERT OR REPLACE INTO tracking_state (key, value) VALUES ('challenge_days_completed', ?)",
+                [String(days)]
+              );
+              await db3.runAsync(
+                "INSERT OR REPLACE INTO tracking_state (key, value) VALUES ('challenge_last_tracked_date', ?)",
+                [today]
+              );
+
+              if (days >= 3) {
+                await db3.runAsync(
+                  "INSERT OR REPLACE INTO tracking_state (key, value) VALUES ('challenge_complete', 'true')"
+                );
+                setTimeout(() => {
+                  Alert.alert(
+                    "Challenge Complete!",
+                    "You tracked 3 days in a row. Here's your special Pro offer.",
+                    [{ text: "See offer", onPress: () => showPaywall("challenge_complete") }]
+                  );
+                }, 2000);
+              }
+            }
+          }
+        } catch {}
+      }
+
       router.back();
     } catch (err: unknown) {
       Alert.alert("Error", err instanceof Error ? err.message : "Failed to save trip");
@@ -1053,7 +1174,7 @@ export default function TripFormScreen() {
   }, [
     isEditing, id, classification, platformTag, businessPurpose, category, vehicleId,
     startAddress, endAddress, startLat, startLng, endLat, endLng,
-    distanceMiles, startedAt, endedAt, notes, router,
+    distanceMiles, startedAt, endedAt, notes, router, showPaywall,
   ]);
 
   const handleCancel = useCallback(() => {

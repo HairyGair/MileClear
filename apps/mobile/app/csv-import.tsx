@@ -216,7 +216,7 @@ export default function CsvImportScreen() {
           <Text style={styles.description}>
             CSV import is a Pro feature. Upgrade to bulk-import earnings from Uber, Deliveroo, Amazon Flex, and more.
           </Text>
-          <Button title="Upgrade to Pro — £4.99/mo" onPress={handleUpgrade} />
+          <Button title="Upgrade to Pro" onPress={handleUpgrade} />
           <Text style={{ fontSize: 11, fontFamily: "PlusJakartaSans_400Regular", color: "#6b7280", textAlign: "center", marginTop: 10 }}>
             Auto-renews monthly. Cancel anytime.
           </Text>

@@ -12,10 +12,8 @@ import {
   resetPassword as authResetPassword,
 } from "./index";
 import { deregisterPushToken } from "../api/notifications";
-import { onSessionExpired } from "../api/index";
+import { onSessionExpired, REFRESH_TOKEN_KEY } from "../api/index";
 import { Alert } from "react-native";
-
-const ACCESS_TOKEN_KEY = "mileclear_access_token";
 
 interface AuthContextValue {
   isLoading: boolean;
@@ -39,12 +37,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
 
   useEffect(() => {
-    SecureStore.getItemAsync(ACCESS_TOKEN_KEY)
+    // Check the refresh token (30-day lifetime) rather than the access token
+    // (15-min lifetime). The access token will almost always be expired when
+    // the app cold-starts, but the session is still valid as long as we can
+    // refresh it. Checking the access token caused false "not authenticated"
+    // states that cascaded into forced re-logins.
+    SecureStore.getItemAsync(REFRESH_TOKEN_KEY)
       .then((token) => setIsAuthenticated(!!token))
       .finally(() => setIsLoading(false));
 
-    // Auto-logout when any API call detects an expired session
+    // Auto-logout when any API call detects an expired session.
+    // Guard prevents multiple alerts from concurrent 401s during hydration.
+    let sessionExpired = false;
     onSessionExpired(() => {
+      if (sessionExpired) return;
+      sessionExpired = true;
       setIsAuthenticated(false);
       Alert.alert(
         "Session Expired",

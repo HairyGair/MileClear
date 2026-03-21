@@ -1,7 +1,9 @@
 import { Platform } from "react-native";
 import Constants from "expo-constants";
 
-const PRODUCT_ID = "com.mileclear.premium.monthly";
+const PRODUCT_ID_MONTHLY = "com.mileclear.premium.monthly";
+const PRODUCT_ID_ANNUAL = "com.mileclear.premium.annual";
+const ALL_PRODUCT_IDS = [PRODUCT_ID_MONTHLY, PRODUCT_ID_ANNUAL];
 
 // Detect Expo Go — NitroModules (used by react-native-iap) fatally crashes
 // in Expo Go before try/catch can intercept, so we must guard before require().
@@ -48,42 +50,62 @@ export async function initializeIap(): Promise<boolean> {
   }
 }
 
-/**
- * Fetch the subscription product details from App Store.
- * Returns null if product not found or IAP unavailable.
- */
-export async function getSubscriptionProduct(): Promise<{
+export interface SubscriptionProduct {
   productId: string;
   localizedPrice: string;
   currency: string;
-} | null> {
+}
+
+/**
+ * Fetch the monthly subscription product details from App Store.
+ * Returns null if product not found or IAP unavailable.
+ */
+export async function getSubscriptionProduct(): Promise<SubscriptionProduct | null> {
+  const products = await getSubscriptionProducts();
+  return products.monthly;
+}
+
+/**
+ * Fetch both subscription product details from App Store.
+ * Returns localized prices for monthly and annual plans.
+ */
+export async function getSubscriptionProducts(): Promise<{
+  monthly: SubscriptionProduct | null;
+  annual: SubscriptionProduct | null;
+}> {
   const iap = loadIapModule();
-  if (!iap) return null;
+  if (!iap) return { monthly: null, annual: null };
   try {
-    const products = await iap.fetchProducts({ skus: [PRODUCT_ID], type: "subs" });
-    if (!products) return null;
-    const product = products.find((p) => p.id === PRODUCT_ID);
-    if (!product) return null;
+    const products = await iap.fetchProducts({ skus: ALL_PRODUCT_IDS, type: "subs" });
+    if (!products) return { monthly: null, annual: null };
+
+    const toProduct = (id: string): SubscriptionProduct | null => {
+      const p = products.find((prod) => prod.id === id);
+      if (!p) return null;
+      return { productId: p.id, localizedPrice: p.displayPrice, currency: p.currency };
+    };
+
     return {
-      productId: product.id,
-      localizedPrice: product.displayPrice,
-      currency: product.currency,
+      monthly: toProduct(PRODUCT_ID_MONTHLY),
+      annual: toProduct(PRODUCT_ID_ANNUAL),
     };
   } catch (err) {
-    console.warn("Failed to fetch subscription product:", err);
-    return null;
+    console.warn("Failed to fetch subscription products:", err);
+    return { monthly: null, annual: null };
   }
 }
 
 /**
- * Trigger the StoreKit purchase sheet for the monthly subscription.
+ * Trigger the StoreKit purchase sheet for a subscription.
+ * @param plan - "monthly" or "annual" (defaults to "monthly")
  */
-export async function purchaseSubscription(): Promise<void> {
+export async function purchaseSubscription(plan: "monthly" | "annual" = "monthly"): Promise<void> {
   const iap = loadIapModule();
   if (!iap) throw new Error("IAP not available");
+  const sku = plan === "annual" ? PRODUCT_ID_ANNUAL : PRODUCT_ID_MONTHLY;
   await iap.requestPurchase({
     type: "subs",
-    request: { apple: { sku: PRODUCT_ID } },
+    request: { apple: { sku } },
   });
 }
 
@@ -97,7 +119,7 @@ export async function restorePurchases(): Promise<string[]> {
     const purchases = await iap.getAvailablePurchases();
     if (!purchases) return [];
     return (purchases as Array<{ productId: string; transactionId: string }>)
-      .filter((p) => p.productId === PRODUCT_ID)
+      .filter((p) => ALL_PRODUCT_IDS.includes(p.productId))
       .map((p) => p.transactionId)
       .filter((id): id is string => !!id);
   } catch (err) {
@@ -162,4 +184,4 @@ export async function endIapConnection(): Promise<void> {
   }
 }
 
-export { PRODUCT_ID };
+export { PRODUCT_ID_MONTHLY, PRODUCT_ID_ANNUAL };

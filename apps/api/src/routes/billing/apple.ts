@@ -7,7 +7,7 @@ import {
   getSignedDataVerifier,
   decodeNotification,
   isTransactionActive,
-  PRODUCT_ID,
+  VALID_PRODUCT_IDS,
   bundleId,
 } from "../../services/appleIap.js";
 
@@ -45,7 +45,7 @@ export async function appleBillingRoutes(app: FastifyInstance) {
         if (transaction.bundleId !== bundleId) {
           return reply.status(400).send({ error: "Bundle ID mismatch" });
         }
-        if (transaction.productId !== PRODUCT_ID) {
+        if (!transaction.productId || !VALID_PRODUCT_IDS.includes(transaction.productId)) {
           return reply.status(400).send({ error: "Product ID mismatch" });
         }
 

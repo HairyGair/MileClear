@@ -16,6 +16,7 @@ import { downloadAndShareExport } from "../lib/api/exports";
 import { fetchProfile } from "../lib/api/user";
 import { createCheckoutSession } from "../lib/api/billing";
 import { isIapAvailable, purchaseSubscription } from "../lib/iap/index";
+import { usePaywall } from "../components/paywall";
 
 function generateTaxYears(count: number): string[] {
   const current = getTaxYear(new Date());
@@ -29,6 +30,7 @@ function generateTaxYears(count: number): string[] {
 type LoadingKey = "csv" | "pdf" | "self-assessment" | null;
 
 export default function ExportsScreen() {
+  const { showPaywall } = usePaywall();
   const taxYears = generateTaxYears(4);
   const [selectedYear, setSelectedYear] = useState(taxYears[0]);
   const [loadingKey, setLoadingKey] = useState<LoadingKey>(null);
@@ -105,17 +107,7 @@ export default function ExportsScreen() {
         const msg =
           err instanceof Error ? err.message : "Download failed";
         if (msg === "Premium subscription required") {
-          Alert.alert(
-            "Pro Feature",
-            "Tax exports require MileClear Pro (£4.99/mo).",
-            [
-              { text: "Not now", style: "cancel" },
-              {
-                text: "Upgrade — £4.99/mo",
-                onPress: handleUpgrade,
-              },
-            ]
-          );
+          showPaywall("exports");
           return;
         }
         Alert.alert("Export failed", msg);
@@ -133,14 +125,14 @@ export default function ExportsScreen() {
         {isPremium === false && (
           <TouchableOpacity
             style={styles.paywallBanner}
-            onPress={handleUpgrade}
+            onPress={() => showPaywall("exports")}
             activeOpacity={0.7}
             accessibilityRole="button"
-            accessibilityLabel="Upgrade to MileClear Pro for £4.99 per month"
+            accessibilityLabel="Upgrade to MileClear Pro"
           >
             <Text style={styles.paywallTitle}>Pro Feature</Text>
             <Text style={styles.paywallText}>
-              Tax exports require MileClear Pro. Upgrade for £4.99/mo to download HMRC-ready reports.
+              Tax exports require MileClear Pro. Upgrade to download HMRC-ready reports.
             </Text>
             <Text style={styles.paywallCta}>Upgrade Now</Text>
             <Text style={styles.paywallLegal}>

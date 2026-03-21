@@ -1,6 +1,8 @@
 // Sync-aware write wrappers
-// Write to SQLite first, enqueue for sync, then attempt API call immediately.
-// Network errors are caught (item stays queued). API validation errors (4xx) re-throw.
+// Write to SQLite first, then attempt API call immediately.
+// Creates only enqueue on network failure to prevent duplicate records from
+// race conditions with processSyncQueue(). Updates/deletes enqueue eagerly
+// since they are idempotent. API validation errors (4xx) re-throw.
 
 import { randomUUID } from "expo-crypto";
 import type { SQLiteBindValue } from "expo-sqlite";
@@ -49,8 +51,25 @@ function isNetworkError(err: unknown): boolean {
 // ─── Trips ───────────────────────────────────────────────────────────────────
 
 export async function syncCreateTrip(data: CreateTripData) {
-  const localId = randomUUID();
   const db = await getDatabase();
+
+  // Dedup: skip if a trip with nearly identical start and end times already exists.
+  // Multiple systems (auto-detection, geofencing, shift processing) can race to
+  // create trips from the same GPS data. A 2-minute window catches duplicates
+  // while allowing legitimate back-to-back trips.
+  if (data.startedAt && data.endedAt) {
+    const existing = await db.getFirstAsync<{ id: string }>(
+      `SELECT id FROM trips
+       WHERE ABS(CAST(strftime('%s', started_at) AS INTEGER) - CAST(strftime('%s', ?) AS INTEGER)) < 120
+         AND ABS(CAST(strftime('%s', ended_at) AS INTEGER) - CAST(strftime('%s', ?) AS INTEGER)) < 120`,
+      [data.startedAt, data.endedAt]
+    );
+    if (existing) {
+      return null;
+    }
+  }
+
+  const localId = randomUUID();
 
   // Write to local SQLite
   await db.runAsync(
@@ -80,30 +99,22 @@ export async function syncCreateTrip(data: CreateTripData) {
     ]
   );
 
-  // Enqueue for sync
-  await enqueueSync("trip", localId, "create", data as unknown as Record<string, unknown>);
-
-  // Attempt API call immediately
+  // Attempt API call immediately — only enqueue on network failure to prevent
+  // race condition with processSyncQueue() that causes duplicate trips
   try {
     const result = await apiCreateTrip(data);
     const now = new Date().toISOString();
     const serverId = result.data.id;
-    // Reconcile local ID to server-assigned ID
     await db.runAsync("UPDATE trips SET id = ?, synced_at = ? WHERE id = ?", [
       serverId, now, localId,
     ]);
-    await db.runAsync(
-      "UPDATE sync_queue SET entity_id = ?, status = 'synced', updated_at = ? WHERE entity_id = ? AND entity_type = 'trip' AND action = 'create'",
-      [serverId, now, localId]
-    );
     return result;
   } catch (err) {
     if (isNetworkError(err)) {
-      // Swallow — stays queued for later sync
+      await enqueueSync("trip", localId, "create", data as unknown as Record<string, unknown>);
       return null;
     }
-    // API validation error — remove from queue and re-throw
-    await db.runAsync("DELETE FROM sync_queue WHERE entity_id = ? AND entity_type = 'trip'", [localId]);
+    // API validation error — clean up local row and re-throw
     await db.runAsync("DELETE FROM trips WHERE id = ?", [localId]);
     throw err;
   }
@@ -183,8 +194,6 @@ export async function syncCreateEarning(data: CreateEarningData) {
     [localId, data.platform, data.amountPence, data.periodStart, data.periodEnd]
   );
 
-  await enqueueSync("earning", localId, "create", data as unknown as Record<string, unknown>);
-
   try {
     const result = await apiCreateEarning(data);
     const now = new Date().toISOString();
@@ -192,14 +201,12 @@ export async function syncCreateEarning(data: CreateEarningData) {
     await db.runAsync("UPDATE earnings SET id = ?, synced_at = ? WHERE id = ?", [
       serverId, now, localId,
     ]);
-    await db.runAsync(
-      "UPDATE sync_queue SET entity_id = ?, status = 'synced', updated_at = ? WHERE entity_id = ? AND entity_type = 'earning' AND action = 'create'",
-      [serverId, now, localId]
-    );
     return result;
   } catch (err) {
-    if (isNetworkError(err)) return null;
-    await db.runAsync("DELETE FROM sync_queue WHERE entity_id = ? AND entity_type = 'earning'", [localId]);
+    if (isNetworkError(err)) {
+      await enqueueSync("earning", localId, "create", data as unknown as Record<string, unknown>);
+      return null;
+    }
     await db.runAsync("DELETE FROM earnings WHERE id = ?", [localId]);
     throw err;
   }
@@ -283,8 +290,6 @@ export async function syncCreateFuelLog(data: CreateFuelLogData) {
     ]
   );
 
-  await enqueueSync("fuel_log", localId, "create", data as unknown as Record<string, unknown>);
-
   try {
     const result = await apiCreateFuelLog(data);
     const now = new Date().toISOString();
@@ -292,14 +297,12 @@ export async function syncCreateFuelLog(data: CreateFuelLogData) {
     await db.runAsync("UPDATE fuel_logs SET id = ?, synced_at = ? WHERE id = ?", [
       serverId, now, localId,
     ]);
-    await db.runAsync(
-      "UPDATE sync_queue SET entity_id = ?, status = 'synced', updated_at = ? WHERE entity_id = ? AND entity_type = 'fuel_log' AND action = 'create'",
-      [serverId, now, localId]
-    );
     return result;
   } catch (err) {
-    if (isNetworkError(err)) return null;
-    await db.runAsync("DELETE FROM sync_queue WHERE entity_id = ? AND entity_type = 'fuel_log'", [localId]);
+    if (isNetworkError(err)) {
+      await enqueueSync("fuel_log", localId, "create", data as unknown as Record<string, unknown>);
+      return null;
+    }
     await db.runAsync("DELETE FROM fuel_logs WHERE id = ?", [localId]);
     throw err;
   }
@@ -391,8 +394,6 @@ export async function syncStartShift(
     vehicle: null,
   };
 
-  await enqueueSync("shift", localId, "create", (data ?? {}) as Record<string, unknown>);
-
   try {
     const result = await apiStartShift(data);
     const serverId = result.data.id;
@@ -401,8 +402,6 @@ export async function syncStartShift(
     // Reconcile local ID → server ID + cascade to related tables
     await db.execAsync(`
       UPDATE shifts SET id = '${serverId}', synced_at = '${syncNow}' WHERE id = '${localId}';
-      UPDATE sync_queue SET entity_id = '${serverId}', status = 'synced', updated_at = '${syncNow}'
-        WHERE entity_id = '${localId}' AND entity_type = 'shift' AND action = 'create';
       UPDATE shift_coordinates SET shift_id = '${serverId}' WHERE shift_id = '${localId}';
       UPDATE trips SET shift_id = '${serverId}' WHERE shift_id = '${localId}';
     `);
@@ -410,11 +409,9 @@ export async function syncStartShift(
     return result;
   } catch (err) {
     if (isNetworkError(err)) {
-      // Return local object so UI works offline
+      await enqueueSync("shift", localId, "create", (data ?? {}) as Record<string, unknown>);
       return { data: localShift };
     }
-    // API validation error — cleanup
-    await db.runAsync("DELETE FROM sync_queue WHERE entity_id = ? AND entity_type = 'shift'", [localId]);
     await db.runAsync("DELETE FROM shifts WHERE id = ?", [localId]);
     throw err;
   }
@@ -480,8 +477,6 @@ export async function syncCreateSavedLocation(data: CreateSavedLocationData) {
     ]
   );
 
-  await enqueueSync("saved_location", localId, "create", data as unknown as Record<string, unknown>);
-
   try {
     const result = await apiCreateSavedLocation(data);
     const syncNow = new Date().toISOString();
@@ -489,14 +484,12 @@ export async function syncCreateSavedLocation(data: CreateSavedLocationData) {
     await db.runAsync("UPDATE saved_locations SET id = ?, synced_at = ? WHERE id = ?", [
       serverId, syncNow, localId,
     ]);
-    await db.runAsync(
-      "UPDATE sync_queue SET entity_id = ?, status = 'synced', updated_at = ? WHERE entity_id = ? AND entity_type = 'saved_location' AND action = 'create'",
-      [serverId, syncNow, localId]
-    );
     return result;
   } catch (err) {
-    if (isNetworkError(err)) return null;
-    await db.runAsync("DELETE FROM sync_queue WHERE entity_id = ? AND entity_type = 'saved_location'", [localId]);
+    if (isNetworkError(err)) {
+      await enqueueSync("saved_location", localId, "create", data as unknown as Record<string, unknown>);
+      return null;
+    }
     await db.runAsync("DELETE FROM saved_locations WHERE id = ?", [localId]);
     throw err;
   }

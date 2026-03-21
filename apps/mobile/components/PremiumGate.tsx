@@ -1,7 +1,7 @@
 import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { useRouter } from "expo-router";
 import { useUser } from "../lib/user/context";
+import { usePaywall } from "./paywall";
 
 const AMBER = "#f5a623";
 
@@ -37,13 +37,13 @@ export function PremiumTeaser({
   feature?: string;
   compact?: boolean;
 }) {
-  const router = useRouter();
+  const { showPaywall } = usePaywall();
 
   if (compact) {
     return (
       <TouchableOpacity
         style={styles.compactCard}
-        onPress={() => router.push("/(tabs)/profile" as any)}
+        onPress={() => showPaywall(feature ?? "premium_gate")}
         activeOpacity={0.7}
         accessibilityRole="button"
         accessibilityLabel={feature ? `${feature} requires Pro. Upgrade to unlock` : "Upgrade to Pro to unlock this feature"}
@@ -60,7 +60,7 @@ export function PremiumTeaser({
   return (
     <TouchableOpacity
       style={styles.card}
-      onPress={() => router.push("/(tabs)/profile" as any)}
+      onPress={() => showPaywall(feature ?? "premium_gate")}
       activeOpacity={0.7}
       accessibilityRole="button"
       accessibilityLabel={feature ? `${feature} is a Pro feature. Tap to upgrade to MileClear Pro` : "Upgrade to MileClear Pro to unlock this feature"}

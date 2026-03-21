@@ -55,13 +55,16 @@ async function refreshAccessToken(): Promise<string | null> {
         body: JSON.stringify({ refreshToken }),
       });
 
-      if (!res.ok) return null;
+      if (!res.ok) return null; // Server rejected token — session truly expired
 
       const data = await res.json();
       await setTokens(data.data.accessToken, data.data.refreshToken);
       return data.data.accessToken;
     } catch {
-      return null;
+      // Network error — throw so caller can distinguish from a genuine
+      // token rejection. The session may still be valid; the server was
+      // just unreachable. We must NOT clear tokens for this case.
+      throw new Error("REFRESH_NETWORK_ERROR");
     }
   })();
 
@@ -102,10 +105,20 @@ export async function apiRequest<T>(
 
   // If 401 on a protected endpoint, try refreshing the token
   if (res.status === 401 && !isAuthEndpoint) {
-    token = await refreshAccessToken();
+    try {
+      token = await refreshAccessToken();
+    } catch {
+      // Network error during refresh — don't clear the session.
+      // The refresh token is probably still valid; the server was
+      // just unreachable. Clearing tokens here would force re-login
+      // every time the app opens without connectivity.
+      throw new Error("Network error");
+    }
+
     if (token) {
       res = await makeRequest(token);
     } else {
+      // Server explicitly rejected the refresh token — session truly expired
       await clearTokens();
       sessionExpiredListener?.();
       throw new Error("Session expired");

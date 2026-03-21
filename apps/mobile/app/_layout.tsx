@@ -47,7 +47,6 @@ import { SyncStatusBar } from "../components/SyncStatusBar";
 import { HydrationOverlay } from "../components/HydrationOverlay";
 import "../lib/tracking/detection";
 import {
-  requestNotificationPermissions,
   setupNotificationResponseHandler,
   registerForPushNotifications,
   registerNotificationCategories,
@@ -60,6 +59,7 @@ import { getDatabase } from "../lib/db/index";
 import { hydrateLocalData, isHydrationComplete } from "../lib/sync/hydrate";
 import { isIapAvailable, initializeIap, setupPurchaseListeners, endIapConnection } from "../lib/iap/index";
 import { validateApplePurchase } from "../lib/api/billing";
+import { PaywallProvider } from "../components/paywall";
 
 const HEADER_STYLE = { backgroundColor: "#030712" } as const;
 const HEADER_TINT = "#f0f2f5";
@@ -128,8 +128,12 @@ function RootNavigator() {
 
   useEffect(() => {
     if (isAuthenticated && !isLoading) {
-      startDriveDetection();
-      finalizeStaleAutoRecordings().catch(() => {});
+      // Finalize stale recordings BEFORE starting detection — otherwise
+      // startDriveDetection() fires a location update that the task buffers
+      // with the current timestamp, making the trip end time = app open time.
+      finalizeStaleAutoRecordings()
+        .catch(() => {})
+        .finally(() => startDriveDetection());
       registerGeofences().catch(() => {});
       setDepartureAnchor().catch(() => {});
       shadeExpiredUnconfirmedTrips().catch(() => {});
@@ -152,8 +156,9 @@ function RootNavigator() {
     if (!isAuthenticated || isLoading) return;
     const sub = AppState.addEventListener("change", (state) => {
       if (state === "active") {
-        startDriveDetection();
-        finalizeStaleAutoRecordings().catch(() => {});
+        finalizeStaleAutoRecordings()
+          .catch(() => {})
+          .finally(() => startDriveDetection());
       }
     });
     return () => sub.remove();
@@ -253,7 +258,6 @@ export default function RootLayout() {
   }, []);
 
   useEffect(() => {
-    requestNotificationPermissions();
     registerNotificationCategories();
     setupNotificationResponseHandler();
     setupNotificationChannels().catch(console.error);
@@ -263,11 +267,13 @@ export default function RootLayout() {
     <ErrorBoundary>
       <AuthProvider>
         <UserProvider>
-          <ModeProvider>
-            <SyncProvider>
-              <RootNavigator />
-            </SyncProvider>
-          </ModeProvider>
+          <PaywallProvider>
+            <ModeProvider>
+              <SyncProvider>
+                <RootNavigator />
+              </SyncProvider>
+            </ModeProvider>
+          </PaywallProvider>
         </UserProvider>
       </AuthProvider>
     </ErrorBoundary>

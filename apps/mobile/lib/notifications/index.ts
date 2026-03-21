@@ -23,13 +23,13 @@ export async function registerNotificationCategories(): Promise<void> {
   try {
     await Notifications.setNotificationCategoryAsync("driving_detected", [
       {
-        identifier: "track_trip",
-        buttonTitle: "Track Trip",
+        identifier: "driver",
+        buttonTitle: "Driver",
         options: { opensAppToForeground: false },
       },
       {
-        identifier: "not_driving",
-        buttonTitle: "Not Driving",
+        identifier: "passenger",
+        buttonTitle: "Passenger",
         options: { isDestructive: true, opensAppToForeground: false },
       },
     ]);
@@ -49,8 +49,8 @@ export async function requestNotificationPermissions(): Promise<boolean> {
 export async function sendDrivingDetectedNotification(): Promise<void> {
   await Notifications.scheduleNotificationAsync({
     content: {
-      title: "Looks like you're driving",
-      body: "Tap 'Track Trip' to record your mileage from when you set off.",
+      title: "Are you driving?",
+      body: "We detected a journey. Tap Driver to record your mileage, or Passenger to ignore.",
       data: { action: "start_shift" },
       categoryIdentifier: "driving_detected",
     },
@@ -170,14 +170,14 @@ export function setupNotificationResponseHandler(): void {
     const actionId = response.actionIdentifier;
 
     // Handle action buttons pressed from lock screen / notification banner
-    if (action === "start_shift" && actionId === "not_driving") {
-      // User confirmed they're not driving — clear buffered coords + auto-recording state
+    if (action === "start_shift" && actionId === "passenger") {
+      // User is a passenger — clear buffered coords + auto-recording state
       await cancelAutoRecording(true);
       return;
     }
 
-    if (action === "start_shift" && (actionId === "track_trip" || actionId === Notifications.DEFAULT_ACTION_IDENTIFIER)) {
-      // "Track Trip" button or regular tap — upgrade GPS accuracy for active recording
+    if (action === "start_shift" && (actionId === "driver" || actionId === Notifications.DEFAULT_ACTION_IDENTIFIER)) {
+      // "Driver" button or regular tap — upgrade GPS accuracy for active recording
       try {
         await startTripFromDetection();
       } catch (err) {

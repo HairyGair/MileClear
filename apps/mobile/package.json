@@ -34,6 +34,7 @@
     "expo-splash-screen": "~31.0.13",
     "expo-sqlite": "~16.0.10",
     "expo-status-bar": "~3.0.9",
+    "expo-store-review": "^55.0.8",
     "expo-task-manager": "~14.0.9",
     "expo-web-browser": "^15.0.10",
     "metro-runtime": "^0.83.3",

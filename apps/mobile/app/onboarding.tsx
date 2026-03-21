@@ -15,6 +15,7 @@ import {
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import * as Location from "expo-location";
+import * as Notifications from "expo-notifications";
 import { Button } from "../components/Button";
 import { updateProfile } from "../lib/api/user";
 import { getDatabase } from "../lib/db/index";
@@ -32,8 +33,9 @@ const TEXT_2 = "#8494a7";
 const TEXT_3 = "#64748b";
 const ERROR_BG = "rgba(220, 38, 38, 0.1)";
 const ERROR_BORDER = "rgba(220, 38, 38, 0.2)";
+const SUCCESS = "#10b981";
 
-const TOTAL_STEPS = 3;
+const TOTAL_STEPS = 7;
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
 // ── Main component ────────────────────────────────────────────────────────────
@@ -54,6 +56,16 @@ export default function OnboardingScreen() {
   const [locationStatus, setLocationStatus] = useState<
     "idle" | "requesting" | "granted" | "denied"
   >("idle");
+
+  // Notification state
+  const [notifStatus, setNotifStatus] = useState<
+    "idle" | "requesting" | "granted" | "denied"
+  >("idle");
+  const [reminderTime, setReminderTime] = useState<"morning" | "evening" | "none" | null>(null);
+
+  // Goal commitment
+  const [weeklyGoal, setWeeklyGoal] = useState<number | null>(null);
+
   const [finishingSetup, setFinishingSetup] = useState(false);
 
   // ── Navigation helpers ─────────────────────────────────────────────────────
@@ -112,6 +124,18 @@ export default function OnboardingScreen() {
     }
   }, []);
 
+  // ── Notification permission ────────────────────────────────────────────────
+
+  const handleRequestNotifications = useCallback(async () => {
+    setNotifStatus("requesting");
+    try {
+      const { status } = await Notifications.requestPermissionsAsync();
+      setNotifStatus(status === "granted" ? "granted" : "denied");
+    } catch {
+      setNotifStatus("denied");
+    }
+  }, []);
+
   // ── Complete onboarding ────────────────────────────────────────────────────
 
   const handleFinish = useCallback(
@@ -122,6 +146,27 @@ export default function OnboardingScreen() {
         await db.runAsync(
           "INSERT OR REPLACE INTO tracking_state (key, value) VALUES ('onboarding_complete', 'true')"
         );
+
+        // Save notification reminder preference
+        if (reminderTime && reminderTime !== "none") {
+          await db.runAsync(
+            "INSERT OR REPLACE INTO tracking_state (key, value) VALUES ('notification_reminder_time', ?)",
+            [reminderTime]
+          );
+        }
+
+        // Mark that we've gone through the notification step (so trip-form fallback skips)
+        await db.runAsync(
+          "INSERT OR REPLACE INTO tracking_state (key, value) VALUES ('notification_contextual_asked', 'true')"
+        );
+
+        // Save weekly goal if set
+        if (weeklyGoal) {
+          await db.runAsync(
+            "INSERT OR REPLACE INTO tracking_state (key, value) VALUES ('personal_goal_miles', ?)",
+            [String(weeklyGoal)]
+          );
+        }
 
         // Set default mode based on user intent
         if (userIntent === "personal") {
@@ -158,7 +203,7 @@ export default function OnboardingScreen() {
         setFinishingSetup(false);
       }
     },
-    [router, userIntent, workType, setAppMode]
+    [router, userIntent, workType, setAppMode, reminderTime, weeklyGoal]
   );
 
   // ── Render ─────────────────────────────────────────────────────────────────
@@ -192,7 +237,137 @@ export default function OnboardingScreen() {
         style={s.stepScroller}
         keyboardShouldPersistTaps="handled"
       >
-        {/* ── Step 1: Welcome + Intent ──────────────────────────────── */}
+        {/* ── Step 1: Before (Pain) ────────────────────────────────── */}
+        <View style={[s.stepPage, { width: SCREEN_WIDTH }]}>
+          <ScrollView
+            contentContainerStyle={[s.stepContent, s.painContent]}
+            keyboardShouldPersistTaps="handled"
+          >
+            <View style={s.painIconWrap}>
+              <Ionicons name="warning-outline" size={40} color="#f87171" />
+            </View>
+
+            <Text style={s.painHeading}>
+              Are you losing money{"\n"}every time you drive?
+            </Text>
+
+            <View style={s.painBullets}>
+              <View style={s.painBullet}>
+                <View style={s.painBulletDot} />
+                <Text style={s.painBulletText}>
+                  No records means no tax deduction at year-end
+                </Text>
+              </View>
+              <View style={s.painBullet}>
+                <View style={s.painBulletDot} />
+                <Text style={s.painBulletText}>
+                  Scrambling through receipts and bank statements every April
+                </Text>
+              </View>
+              <View style={s.painBullet}>
+                <View style={s.painBulletDot} />
+                <Text style={s.painBulletText}>
+                  Every forgotten mile is 45p lost in HMRC deductions
+                </Text>
+              </View>
+            </View>
+
+            <Text style={s.painSecondary}>
+              Or maybe you just want a record of every journey you take.
+            </Text>
+
+            {/* Trust signals */}
+            <View style={s.trustSignals}>
+              <View style={s.trustSignalRow}>
+                <Ionicons name="shield-checkmark-outline" size={14} color={SUCCESS} />
+                <Text style={s.trustSignalText}>Free forever for trip tracking</Text>
+              </View>
+              <View style={s.trustSignalRow}>
+                <Ionicons name="card-outline" size={14} color={SUCCESS} />
+                <Text style={s.trustSignalText}>No credit card required</Text>
+              </View>
+              <View style={s.trustSignalRow}>
+                <Ionicons name="lock-closed-outline" size={14} color={SUCCESS} />
+                <Text style={s.trustSignalText}>Your data stays private</Text>
+              </View>
+            </View>
+
+            <View style={{ flex: 1 }} />
+
+            <Button
+              variant="hero"
+              title="There's a better way"
+              icon="arrow-forward"
+              size="lg"
+              onPress={goNext}
+            />
+          </ScrollView>
+        </View>
+
+        {/* ── Step 2: After (Transformation) ───────────────────────── */}
+        <View style={[s.stepPage, { width: SCREEN_WIDTH }]}>
+          <ScrollView
+            contentContainerStyle={[s.stepContent, s.transformContent]}
+            keyboardShouldPersistTaps="handled"
+          >
+            <View style={s.transformIconWrap}>
+              <Ionicons name="checkmark-circle" size={40} color={SUCCESS} />
+            </View>
+
+            <Text style={s.transformHeading}>
+              Track every mile.{"\n"}Claim every penny.
+            </Text>
+
+            <View style={s.transformBullets}>
+              <View style={s.transformBullet}>
+                <Ionicons name="navigate" size={20} color={AMBER} />
+                <View style={s.transformBulletBody}>
+                  <Text style={s.transformBulletTitle}>Automatic GPS tracking</Text>
+                  <Text style={s.transformBulletText}>
+                    Start driving and we'll record your route in the background
+                  </Text>
+                </View>
+              </View>
+              <View style={s.transformBullet}>
+                <Ionicons name="calculator" size={20} color={AMBER} />
+                <View style={s.transformBulletBody}>
+                  <Text style={s.transformBulletTitle}>Instant HMRC calculation</Text>
+                  <Text style={s.transformBulletText}>
+                    See your tax deduction update in real time as you drive
+                  </Text>
+                </View>
+              </View>
+              <View style={s.transformBullet}>
+                <Ionicons name="document-text" size={20} color={AMBER} />
+                <View style={s.transformBulletBody}>
+                  <Text style={s.transformBulletTitle}>One-tap export</Text>
+                  <Text style={s.transformBulletText}>
+                    PDF and CSV ready for your self-assessment
+                  </Text>
+                </View>
+              </View>
+            </View>
+
+            <View style={s.socialProofBadge}>
+              <Ionicons name="people" size={16} color={TEXT_3} />
+              <Text style={s.socialProofText}>
+                Trusted by gig workers across the UK
+              </Text>
+            </View>
+
+            <View style={{ flex: 1 }} />
+
+            <Button
+              variant="hero"
+              title="Let's get started"
+              icon="arrow-forward"
+              size="lg"
+              onPress={goNext}
+            />
+          </ScrollView>
+        </View>
+
+        {/* ── Step 3: Welcome + Intent ──────────────────────────────── */}
         <View style={[s.stepPage, { width: SCREEN_WIDTH }]}>
           <ScrollView
             contentContainerStyle={s.stepContent}
@@ -388,7 +563,7 @@ export default function OnboardingScreen() {
           </ScrollView>
         </View>
 
-        {/* ── Step 2: Location Permission ────────────────────────────── */}
+        {/* ── Step 4: Location Permission ────────────────────────────── */}
         <View style={[s.stepPage, { width: SCREEN_WIDTH }]}>
           <ScrollView
             contentContainerStyle={s.stepContent}
@@ -437,7 +612,7 @@ export default function OnboardingScreen() {
 
             {locationStatus === "granted" && (
               <View style={s.grantedBanner}>
-                <Ionicons name="checkmark-circle" size={20} color="#10b981" />
+                <Ionicons name="checkmark-circle" size={20} color={SUCCESS} />
                 <Text style={s.grantedText}>Location access enabled</Text>
               </View>
             )}
@@ -487,14 +662,211 @@ export default function OnboardingScreen() {
           </ScrollView>
         </View>
 
-        {/* ── Step 3: You're all set! ────────────────────────────────── */}
+        {/* ── Step 5: Notification Permission ──────────────────────── */}
+        <View style={[s.stepPage, { width: SCREEN_WIDTH }]}>
+          <ScrollView
+            contentContainerStyle={s.stepContent}
+            keyboardShouldPersistTaps="handled"
+          >
+            <View style={s.stepIconWrap}>
+              <Ionicons name="notifications-outline" size={36} color={AMBER} />
+            </View>
+
+            <Text style={s.stepHeading}>Stay on track</Text>
+            <Text style={s.stepSubtitle}>
+              Notifications help you build a tracking habit and never miss a drive.
+            </Text>
+
+            <View style={s.permissionCards}>
+              <View style={s.permCard}>
+                <Ionicons name="flame-outline" size={20} color={AMBER} style={s.permCardIcon} />
+                <View style={s.permCardBody}>
+                  <Text style={s.permCardTitle}>Streak reminders</Text>
+                  <Text style={s.permCardText}>
+                    A gentle nudge if you're about to lose your driving streak.
+                  </Text>
+                </View>
+              </View>
+              <View style={s.permCard}>
+                <Ionicons name="car-outline" size={20} color={AMBER} style={s.permCardIcon} />
+                <View style={s.permCardBody}>
+                  <Text style={s.permCardTitle}>Trip detection</Text>
+                  <Text style={s.permCardText}>
+                    Get notified when we detect you're driving so you can start recording.
+                  </Text>
+                </View>
+              </View>
+              <View style={s.permCard}>
+                <Ionicons name="bar-chart-outline" size={20} color={AMBER} style={s.permCardIcon} />
+                <View style={s.permCardBody}>
+                  <Text style={s.permCardTitle}>Weekly summary</Text>
+                  <Text style={s.permCardText}>
+                    Your miles, deductions, and progress — delivered every Sunday.
+                  </Text>
+                </View>
+              </View>
+            </View>
+
+            {/* Reminder time chips */}
+            <Text style={s.sectionLabel}>When should we nudge you?</Text>
+            <View style={s.workTypeRow}>
+              {([
+                { key: "morning" as const, label: "Morning 9am", icon: "sunny-outline" as const },
+                { key: "evening" as const, label: "Evening 7pm", icon: "moon-outline" as const },
+                { key: "none" as const, label: "Don't remind me", icon: "notifications-off-outline" as const },
+              ]).map((opt) => (
+                <TouchableOpacity
+                  key={opt.key}
+                  style={[
+                    s.workTypeChip,
+                    reminderTime === opt.key && s.workTypeChipActive,
+                  ]}
+                  onPress={() => setReminderTime(opt.key)}
+                  activeOpacity={0.75}
+                  accessibilityRole="button"
+                  accessibilityLabel={opt.label}
+                  accessibilityState={{ selected: reminderTime === opt.key }}
+                >
+                  <Ionicons
+                    name={opt.icon}
+                    size={14}
+                    color={reminderTime === opt.key ? AMBER : TEXT_3}
+                  />
+                  <Text
+                    style={[
+                      s.workTypeChipText,
+                      reminderTime === opt.key && s.workTypeChipTextActive,
+                    ]}
+                  >
+                    {opt.label}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            {notifStatus === "granted" && (
+              <View style={[s.grantedBanner, { marginTop: 16 }]}>
+                <Ionicons name="checkmark-circle" size={20} color={SUCCESS} />
+                <Text style={s.grantedText}>Notifications enabled</Text>
+              </View>
+            )}
+
+            {notifStatus === "denied" && (
+              <View style={[s.deniedBanner, { marginTop: 16 }]}>
+                <Ionicons name="warning-outline" size={20} color="#f87171" />
+                <Text style={s.deniedText}>
+                  Notifications denied — you can enable them later in Settings.
+                </Text>
+              </View>
+            )}
+
+            <View style={[s.buttonStack, { marginTop: 16 }]}>
+              {notifStatus !== "granted" && reminderTime !== "none" && (
+                <Button
+                  variant="hero"
+                  title={notifStatus === "requesting" ? "Requesting..." : "Enable Notifications"}
+                  icon="notifications-outline"
+                  size="lg"
+                  onPress={handleRequestNotifications}
+                  loading={notifStatus === "requesting"}
+                  disabled={notifStatus === "denied"}
+                />
+              )}
+
+              <Button
+                variant={notifStatus === "granted" || reminderTime === "none" ? "hero" : "primary"}
+                title="Continue"
+                icon="arrow-forward"
+                size="lg"
+                onPress={goNext}
+              />
+
+              {notifStatus === "idle" && reminderTime !== "none" && (
+                <Button
+                  variant="ghost"
+                  title="Skip for now"
+                  onPress={goNext}
+                />
+              )}
+            </View>
+          </ScrollView>
+        </View>
+
+        {/* ── Step 6: Goal Commitment ────────────────────────────────── */}
+        <View style={[s.stepPage, { width: SCREEN_WIDTH }]}>
+          <ScrollView
+            contentContainerStyle={s.stepContent}
+            keyboardShouldPersistTaps="handled"
+          >
+            <View style={s.stepIconWrap}>
+              <Ionicons name="flag-outline" size={36} color={AMBER} />
+            </View>
+
+            <Text style={s.stepHeading}>Set your weekly goal</Text>
+            <Text style={s.stepSubtitle}>
+              A small commitment helps you build the tracking habit.
+            </Text>
+
+            <View style={s.workTypeRow}>
+              {([
+                { miles: 50, label: "50 miles" },
+                { miles: 100, label: "100 miles" },
+                { miles: 200, label: "200 miles" },
+              ]).map((opt) => (
+                <TouchableOpacity
+                  key={opt.miles}
+                  style={[
+                    s.workTypeChip,
+                    weeklyGoal === opt.miles && s.workTypeChipActive,
+                  ]}
+                  onPress={() => setWeeklyGoal(weeklyGoal === opt.miles ? null : opt.miles)}
+                  activeOpacity={0.75}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Weekly goal: ${opt.label}`}
+                  accessibilityState={{ selected: weeklyGoal === opt.miles }}
+                >
+                  <Ionicons
+                    name="flag-outline"
+                    size={14}
+                    color={weeklyGoal === opt.miles ? AMBER : TEXT_3}
+                  />
+                  <Text
+                    style={[
+                      s.workTypeChipText,
+                      weeklyGoal === opt.miles && s.workTypeChipTextActive,
+                    ]}
+                  >
+                    {opt.label}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            <View style={[s.buttonStack, { marginTop: 24 }]}>
+              <Button
+                variant="hero"
+                title="Continue"
+                icon="arrow-forward"
+                size="lg"
+                onPress={goNext}
+              />
+              <Button
+                variant="ghost"
+                title="Skip"
+                onPress={goNext}
+              />
+            </View>
+          </ScrollView>
+        </View>
+
+        {/* ── Step 7: You're all set! ────────────────────────────────── */}
         <View style={[s.stepPage, { width: SCREEN_WIDTH }]}>
           <ScrollView
             contentContainerStyle={[s.stepContent, s.readyContent]}
             keyboardShouldPersistTaps="handled"
           >
             <View style={s.readyIconWrap}>
-              <Ionicons name="checkmark-circle" size={56} color="#10b981" />
+              <Ionicons name="checkmark-circle" size={56} color={SUCCESS} />
             </View>
 
             <Text style={s.readyHeading}>You're all set!</Text>
@@ -594,7 +966,7 @@ const s = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "center",
     alignItems: "center",
-    gap: 8,
+    gap: 6,
     paddingVertical: 20,
   },
   dot: {
@@ -604,8 +976,147 @@ const s = StyleSheet.create({
     backgroundColor: "rgba(255,255,255,0.12)",
   },
   dotActive: {
-    width: 20,
+    width: 16,
     backgroundColor: AMBER,
+  },
+
+  // ── Pain (Before) step ───────────────────────────────────────
+  painContent: {
+    justifyContent: "center",
+  },
+  painIconWrap: {
+    width: 72,
+    height: 72,
+    borderRadius: 22,
+    backgroundColor: "rgba(248, 113, 113, 0.1)",
+    borderWidth: 1,
+    borderColor: "rgba(248, 113, 113, 0.2)",
+    justifyContent: "center",
+    alignItems: "center",
+    alignSelf: "center",
+    marginBottom: 24,
+  },
+  painHeading: {
+    fontSize: 26,
+    fontFamily: "PlusJakartaSans_600SemiBold",
+    color: TEXT_1,
+    textAlign: "center",
+    lineHeight: 34,
+    marginBottom: 28,
+  },
+  painBullets: {
+    gap: 16,
+    marginBottom: 24,
+  },
+  painBullet: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 12,
+    paddingHorizontal: 4,
+  },
+  painBulletDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: "#f87171",
+    marginTop: 6,
+  },
+  painBulletText: {
+    fontSize: 15,
+    fontFamily: "PlusJakartaSans_400Regular",
+    color: TEXT_2,
+    lineHeight: 22,
+    flex: 1,
+  },
+  painSecondary: {
+    fontSize: 14,
+    fontFamily: "PlusJakartaSans_400Regular",
+    color: TEXT_3,
+    textAlign: "center",
+    fontStyle: "italic",
+    marginBottom: 16,
+  },
+  trustSignals: {
+    gap: 8,
+    marginBottom: 24,
+  },
+  trustSignalRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+  },
+  trustSignalText: {
+    fontSize: 12,
+    fontFamily: "PlusJakartaSans_400Regular",
+    color: TEXT_3,
+  },
+
+  // ── Transform (After) step ───────────────────────────────────
+  transformContent: {
+    justifyContent: "center",
+  },
+  transformIconWrap: {
+    width: 72,
+    height: 72,
+    borderRadius: 22,
+    backgroundColor: "rgba(16, 185, 129, 0.1)",
+    borderWidth: 1,
+    borderColor: "rgba(16, 185, 129, 0.2)",
+    justifyContent: "center",
+    alignItems: "center",
+    alignSelf: "center",
+    marginBottom: 24,
+  },
+  transformHeading: {
+    fontSize: 26,
+    fontFamily: "PlusJakartaSans_600SemiBold",
+    color: TEXT_1,
+    textAlign: "center",
+    lineHeight: 34,
+    marginBottom: 28,
+  },
+  transformBullets: {
+    gap: 18,
+    marginBottom: 24,
+  },
+  transformBullet: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 14,
+    backgroundColor: CARD_BG,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: CARD_BORDER,
+    padding: 16,
+  },
+  transformBulletBody: {
+    flex: 1,
+  },
+  transformBulletTitle: {
+    fontSize: 15,
+    fontFamily: "PlusJakartaSans_600SemiBold",
+    color: TEXT_1,
+    marginBottom: 3,
+  },
+  transformBulletText: {
+    fontSize: 13,
+    fontFamily: "PlusJakartaSans_400Regular",
+    color: TEXT_2,
+    lineHeight: 19,
+  },
+  socialProofBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    paddingVertical: 10,
+    marginBottom: 32,
+  },
+  socialProofText: {
+    fontSize: 13,
+    fontFamily: "PlusJakartaSans_400Regular",
+    color: TEXT_3,
   },
 
   // ── Welcome step ───────────────────────────────────────────────
@@ -822,7 +1333,7 @@ const s = StyleSheet.create({
   grantedText: {
     fontSize: 14,
     fontFamily: "PlusJakartaSans_500Medium",
-    color: "#10b981",
+    color: SUCCESS,
   },
   deniedBanner: {
     flexDirection: "row",

@@ -84,7 +84,7 @@ export async function startShiftTracking(shiftId: string): Promise<void> {
       deferredUpdatesInterval: 10000,
       activityType: Location.ActivityType.AutomotiveNavigation,
       pausesUpdatesAutomatically: false,
-      showsBackgroundLocationIndicator: true,
+      showsBackgroundLocationIndicator: false,
       foregroundService: {
         notificationTitle: "MileClear is tracking your shift",
         notificationBody: "Tap to open the app",
@@ -108,6 +108,10 @@ export async function stopShiftTracking(): Promise<void> {
 
   const db = await getDatabase();
   await db.runAsync("DELETE FROM tracking_state WHERE key = 'active_shift_id'");
+
+  // Clear any leftover detection coordinates and auto-recording state so the
+  // detection system cannot finalize a duplicate trip for the same journey.
+  await cancelAutoRecording(true);
 
   await startDriveDetection();
 
@@ -140,7 +144,7 @@ export async function startQuickTripTracking(): Promise<void> {
       deferredUpdatesInterval: 10000,
       activityType: Location.ActivityType.AutomotiveNavigation,
       pausesUpdatesAutomatically: false,
-      showsBackgroundLocationIndicator: true,
+      showsBackgroundLocationIndicator: false,
       foregroundService: {
         notificationTitle: "MileClear is tracking your trip",
         notificationBody: "Tap to open the app",
@@ -169,6 +173,9 @@ export async function stopQuickTripTracking(): Promise<StoredCoordinate[]> {
   // Clean up
   await db.runAsync("DELETE FROM shift_coordinates WHERE shift_id = ?", [QUICK_TRIP_SHIFT_ID]);
   await db.runAsync("DELETE FROM tracking_state WHERE key = 'active_shift_id'");
+
+  // Clear detection coordinates to prevent duplicate trip finalization
+  await cancelAutoRecording(true);
 
   // Restart drive detection for the next trip
   await startDriveDetection();

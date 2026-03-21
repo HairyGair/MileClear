@@ -20,7 +20,7 @@ import {
 import { useRouter, useFocusEffect } from "expo-router";
 import { Button } from "../../components/Button";
 import { fetchTrips, fetchUnclassifiedCount, fetchClassificationSuggestion, mergeTrips, TripWithVehicle, ClassificationSuggestion } from "../../lib/api/trips";
-import { syncUpdateTrip } from "../../lib/sync/actions";
+import { syncUpdateTrip, syncDeleteTrip } from "../../lib/sync/actions";
 import { getLocalTrips, getLocalUnsyncedTrips } from "../../lib/db/queries";
 import { GIG_PLATFORMS } from "@mileclear/shared";
 import type { TripClassification, PlatformTag, BusinessPurpose } from "@mileclear/shared";
@@ -220,6 +220,57 @@ export default function TripsScreen() {
     [filter]
   );
 
+  const handleDeleteTrip = useCallback(
+    (tripId: string) => {
+      Alert.alert("Delete trip?", "This will permanently remove this trip.", [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              await syncDeleteTrip(tripId);
+              LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+              setTrips((prev) => prev.filter((t) => t.id !== tripId));
+              if (filter === "unclassified") {
+                setUnclassifiedCount((prev) => Math.max(0, prev - 1));
+              }
+            } catch {
+              Alert.alert("Error", "Failed to delete trip. Please try again.");
+            }
+          },
+        },
+      ]);
+    },
+    [filter]
+  );
+
+  const handleLongPress = useCallback(
+    (item: TripItem) => {
+      if (mergeMode || item._isLocal) return;
+      Alert.alert(
+        "",
+        "",
+        [
+          {
+            text: "Delete Trip",
+            style: "destructive",
+            onPress: () => handleDeleteTrip(item.id),
+          },
+          {
+            text: "Merge Trips",
+            onPress: () => {
+              setMergeMode(true);
+              setSelectedIds(new Set([item.id]));
+            },
+          },
+          { text: "Cancel", style: "cancel" },
+        ]
+      );
+    },
+    [mergeMode, handleDeleteTrip]
+  );
+
   const toggleSelect = useCallback((id: string) => {
     setSelectedIds((prev) => {
       const next = new Set(prev);
@@ -285,12 +336,7 @@ export default function TripsScreen() {
             router.push(`/trip-form?id=${item.id}`);
           }
         }}
-        onLongPress={() => {
-          if (!mergeMode && !item._isLocal) {
-            setMergeMode(true);
-            setSelectedIds(new Set([item.id]));
-          }
-        }}
+        onLongPress={() => handleLongPress(item)}
         activeOpacity={0.7}
         accessibilityRole="button"
         accessibilityLabel={

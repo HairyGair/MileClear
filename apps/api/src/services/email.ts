@@ -304,6 +304,75 @@ export async function sendReEngagementEmail(
   await transporter.sendMail({ from: FROM_PERSONAL, to: email, replyTo: "gair@mileclear.com", subject, html });
 }
 
+export async function sendServiceStatusEmail(
+  email: string,
+  displayName?: string | null
+): Promise<void> {
+  const greeting = displayName ? `Hi ${escapeHtml(displayName)},` : "Hi there,";
+  const subject = "MileClear is back up and running";
+  const html = `
+    <!DOCTYPE html>
+    <html>
+    <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
+    <body style="margin: 0; padding: 0; background-color: #030712; font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color: #030712;">
+        <tr><td align="center" style="padding: 32px 16px;">
+          <table role="presentation" width="520" cellpadding="0" cellspacing="0" style="max-width: 520px; width: 100%;">
+
+            <!-- Header with logo -->
+            <tr><td align="center" style="padding: 24px 0 32px;">
+              <img src="https://mileclear.com/branding/logo-120x120.png" alt="MileClear" width="56" height="56" style="display: block; border: 0; border-radius: 12px;" />
+            </td></tr>
+
+            <!-- Main card -->
+            <tr><td style="background-color: #0a1120; border-radius: 16px; border: 1px solid rgba(255,255,255,0.06);">
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+
+                <!-- Amber top accent bar -->
+                <tr><td style="height: 3px; background: linear-gradient(90deg, #f5a623, #e8950f); border-radius: 16px 16px 0 0; font-size: 0; line-height: 0;">&nbsp;</td></tr>
+
+                <!-- Content -->
+                <tr><td style="padding: 36px 32px 32px;">
+
+                  <h1 style="margin: 0 0 24px; font-size: 22px; font-weight: 700; color: #f0f2f5;">We're Back <span style="color: #10b981;">&#10003;</span></h1>
+
+                  <p style="color: #c0c8d4; font-size: 15px; line-height: 1.7; margin: 0 0 16px;">${greeting}</p>
+
+                  <p style="color: #c0c8d4; font-size: 15px; line-height: 1.7; margin: 0 0 16px;">Just a quick heads-up &mdash; you may have experienced some issues signing in or syncing earlier today. Our server had a hiccup, but everything is now back up and running as normal.</p>
+
+                  <p style="color: #c0c8d4; font-size: 15px; line-height: 1.7; margin: 0 0 16px;"><strong style="color: #f0f2f5;">No data was lost.</strong> All your trips, earnings, and records are safe. The app should work normally now &mdash; just open it up and you're good to go.</p>
+
+                  <p style="color: #c0c8d4; font-size: 15px; line-height: 1.7; margin: 0 0 16px;">If you were tracking a trip when the issue happened, any locally recorded data will sync automatically next time you open the app.</p>
+
+                  <p style="color: #c0c8d4; font-size: 15px; line-height: 1.7; margin: 0 0 8px;">Sorry for any inconvenience, and thanks for your patience. If anything still seems off, just reply to this email.</p>
+
+                  <p style="color: #c0c8d4; font-size: 15px; line-height: 1.7; margin: 16px 0 0;">Cheers,</p>
+                  <p style="color: #f0f2f5; font-size: 15px; font-weight: 600; margin: 4px 0 0;">Gair</p>
+
+                </td></tr>
+              </table>
+            </td></tr>
+
+            <!-- Footer -->
+            <tr><td align="center" style="padding: 28px 0 8px;">
+              <p style="color: #4a5568; font-size: 12px; line-height: 1.5; margin: 0;">You're receiving this because you have a MileClear account.<br/>If you'd rather not receive these emails, reply with "unsubscribe" and we'll remove you.</p>
+            </td></tr>
+
+          </table>
+        </td></tr>
+      </table>
+    </body>
+    </html>
+  `;
+
+  if (!transporter) {
+    console.log(`[EMAIL] Service status email for ${email}`);
+    return;
+  }
+
+  await transporter.sendMail({ from: FROM_PERSONAL, to: email, replyTo: "gair@mileclear.com", subject, html });
+}
+
 export async function sendWaitlistConfirmation(
   email: string
 ): Promise<void> {

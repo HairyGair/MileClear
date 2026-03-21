@@ -141,6 +141,20 @@ export async function tripRoutes(app: FastifyInstance) {
       }
     }
 
+    // Deduplication: reject if an identical trip already exists (same user, start time, start coords)
+    const existing = await prisma.trip.findFirst({
+      where: {
+        userId,
+        startedAt: data.startedAt,
+        startLat: data.startLat,
+        startLng: data.startLng,
+      },
+      include: { vehicle: true, shift: true },
+    });
+    if (existing) {
+      return reply.send({ data: existing });
+    }
+
     // Server-side geocoding fallback: resolve addresses to coordinates if missing/zero
     let resolvedStartLat = data.startLat;
     let resolvedStartLng = data.startLng;
@@ -414,22 +428,23 @@ export async function tripRoutes(app: FastifyInstance) {
       .flatMap((t) => t.coordinates)
       .sort((a, b) => a.recordedAt.getTime() - b.recordedAt.getTime());
 
-    // Calculate total distance via OSRM or sum of individual distances
+    // Calculate total distance from coordinate trail if available, else sum individual trips
     let totalDistance = 0;
     const startLat = first.startLat;
     const startLng = first.startLng;
     const endLat = last.endLat;
     const endLng = last.endLng;
 
-    if (endLat != null && endLng != null && hasValidCoords(startLat, startLng)) {
-      const route = await fetchRouteDistance(startLat, startLng, endLat, endLng);
-      if (route) {
-        totalDistance = route.distanceMiles;
-      } else {
-        // Fallback: sum individual distances
-        totalDistance = trips.reduce((sum, t) => sum + t.distanceMiles, 0);
+    if (allCoords.length >= 2) {
+      // Sum haversine across all GPS breadcrumbs for accurate trail distance
+      for (let i = 1; i < allCoords.length; i++) {
+        totalDistance += haversineDistance(
+          allCoords[i - 1].lat, allCoords[i - 1].lng,
+          allCoords[i].lat, allCoords[i].lng
+        );
       }
     } else {
+      // No coordinates — sum the pre-calculated individual trip distances
       totalDistance = trips.reduce((sum, t) => sum + t.distanceMiles, 0);
     }
 
@@ -556,10 +571,12 @@ export async function tripRoutes(app: FastifyInstance) {
       }
     }
 
-    // Recalculate distance if end coords updated
+    // Recalculate distance only if end coords actually changed
     let distanceMiles: number | undefined;
+    const endLatChanged = updates.endLat !== undefined && updates.endLat !== existing.endLat;
+    const endLngChanged = updates.endLng !== undefined && updates.endLng !== existing.endLng;
     if (
-      (updates.endLat !== undefined || updates.endLng !== undefined) &&
+      (endLatChanged || endLngChanged) &&
       newEndLat != null &&
       newEndLng != null
     ) {

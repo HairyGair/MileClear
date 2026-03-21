@@ -44,6 +44,7 @@ import type {
   PeriodRecap,
 } from "@mileclear/shared";
 import { formatPence } from "@mileclear/shared";
+import { maybeRequestReview } from "../../lib/rating/index";
 import { useMode } from "../../lib/mode/context";
 import { ModeToggle } from "../../components/ModeToggle";
 import { PersonalDashboard } from "../../components/personal/PersonalDashboard";
@@ -57,6 +58,7 @@ import { startLiveActivity, updateLiveActivity, endLiveActivity } from "../../li
 import { useLayoutPrefs } from "../../lib/layout/index";
 import { PremiumGate, PremiumTeaser, useIsPremium } from "../../components/PremiumGate";
 import { SmartInsightCard } from "../../components/SmartInsightCard";
+import { usePaywall } from "../../components/paywall";
 import * as Location from "expo-location";
 
 function formatElapsed(seconds: number): string {
@@ -147,13 +149,36 @@ export default function DashboardScreen() {
   const hasVehiclesNoBt = vehicles.length > 0 && !vehicles.some((v) => v.bluetoothName);
   const showBtPromo = hasVehiclesNoBt && !btPromoDismissed;
 
+  // Pro nudge card — dismissible, for free users with 5+ trips
+  const { showPaywall } = usePaywall();
+  const [proNudgeDismissedUntil, setProNudgeDismissedUntil] = useState<number>(Date.now() + 999999999);
+  const showProNudge = !isPremium && !loading && (stats?.totalTrips ?? 0) >= 5 && Date.now() >= proNudgeDismissedUntil;
+  const proNudgeMessages = [
+    stats ? `You've saved ${formatPence(stats.deductionPence)} in deductions — export them with Pro` : "Export your HMRC deductions with Pro",
+    "See which platform pays best with business insights",
+    "Save unlimited work locations with Pro",
+    "Get monthly and yearly recap reports",
+  ];
+  const proNudgeIndex = Math.floor(Date.now() / (24 * 60 * 60 * 1000)) % proNudgeMessages.length;
+
   useEffect(() => {
     (async () => {
       const db = await getDatabase();
-      const row = await db.getFirstAsync<{ value: string }>(
-        "SELECT value FROM tracking_state WHERE key = 'bt_promo_dismissed'"
-      );
-      setBtPromoDismissed(row?.value === "1");
+      const [btRow, nudgeRow] = await Promise.all([
+        db.getFirstAsync<{ value: string }>(
+          "SELECT value FROM tracking_state WHERE key = 'bt_promo_dismissed'"
+        ),
+        db.getFirstAsync<{ value: string }>(
+          "SELECT value FROM tracking_state WHERE key = 'pro_nudge_dismissed_at'"
+        ),
+      ]);
+      setBtPromoDismissed(btRow?.value === "1");
+      if (nudgeRow) {
+        const dismissedAt = parseInt(nudgeRow.value, 10);
+        setProNudgeDismissedUntil(dismissedAt + 3 * 24 * 60 * 60 * 1000);
+      } else {
+        setProNudgeDismissedUntil(0);
+      }
     })();
   }, []);
 
@@ -162,6 +187,16 @@ export default function DashboardScreen() {
     const db = await getDatabase();
     await db.runAsync(
       "INSERT OR REPLACE INTO tracking_state (key, value) VALUES ('bt_promo_dismissed', '1')"
+    );
+  }, []);
+
+  const dismissProNudge = useCallback(async () => {
+    const now = Date.now();
+    setProNudgeDismissedUntil(now + 3 * 24 * 60 * 60 * 1000);
+    const db = await getDatabase();
+    await db.runAsync(
+      "INSERT OR REPLACE INTO tracking_state (key, value) VALUES ('pro_nudge_dismissed_at', ?)",
+      [String(now)]
     );
   }, []);
 
@@ -191,6 +226,19 @@ export default function DashboardScreen() {
       "INSERT OR REPLACE INTO tracking_state (key, value) VALUES ('work_explainer_seen', '1')"
     );
   }, []);
+
+  // Streak milestone rating trigger
+  const streakMilestoneRef = useRef<number>(0);
+  useEffect(() => {
+    const streak = stats?.currentStreakDays ?? 0;
+    const prev = streakMilestoneRef.current;
+    streakMilestoneRef.current = streak;
+    if (prev === streak || streak === 0) return;
+    const milestones = [7, 14, 30, 60, 100];
+    if (milestones.includes(streak) && !milestones.includes(prev)) {
+      setTimeout(() => maybeRequestReview("streak_milestone"), 3000);
+    }
+  }, [stats?.currentStreakDays]);
 
   // Trip segment bottom sheet
   const [tripTapInfo, setTripTapInfo] = useState<TripTapInfo | null>(null);
@@ -404,6 +452,7 @@ export default function DashboardScreen() {
               if (resAny.scorecard) {
                 setScorecard(resAny.scorecard);
                 setShowScorecard(true);
+                setTimeout(() => maybeRequestReview("scorecard_shown"), 3000);
               }
             }
             loadData();
@@ -438,6 +487,9 @@ export default function DashboardScreen() {
       const res = await fetchRecap(period);
       setRecapData(res.data);
       setShowRecap(true);
+      if (period === "weekly" || period === "monthly") {
+        setTimeout(() => maybeRequestReview("recap_shown"), 3000);
+      }
     } catch {
       Alert.alert("Error", "Failed to load recap");
     }
@@ -779,6 +831,36 @@ export default function DashboardScreen() {
         isWork={isWork}
         unclassifiedCount={unclassifiedCount}
       />
+
+      {/* Pro Nudge Card — free users with 5+ trips */}
+      {showProNudge && (
+        <TouchableOpacity
+          style={s.proNudgeCard}
+          onPress={() => showPaywall("dashboard_nudge")}
+          activeOpacity={0.7}
+          accessibilityRole="button"
+          accessibilityLabel="Upgrade to Pro"
+        >
+          <TouchableOpacity
+            style={s.btPromoDismiss}
+            onPress={dismissProNudge}
+            hitSlop={{ top: 12, right: 12, bottom: 12, left: 12 }}
+            accessibilityRole="button"
+            accessibilityLabel="Dismiss Pro nudge"
+          >
+            <Ionicons name="close" size={16} color="#6b7280" accessible={false} />
+          </TouchableOpacity>
+          <View style={s.proNudgeIcon}>
+            <Ionicons name="star" size={24} color={AMBER} accessible={false} />
+          </View>
+          <Text style={s.btPromoTitle}>Upgrade to Pro</Text>
+          <Text style={s.btPromoBody}>{proNudgeMessages[proNudgeIndex]}</Text>
+          <View style={s.btPromoCta}>
+            <Text style={s.vehicleNudgeCtaText}>See plans</Text>
+            <Ionicons name="chevron-forward" size={14} color={AMBER} accessible={false} />
+          </View>
+        </TouchableOpacity>
+      )}
 
       {/* ── Work Mode (layout-aware) ── */}
       {isWork && workLayout.visibleKeys.map((key) => {
@@ -1813,6 +1895,26 @@ const s = StyleSheet.create({
     fontSize: 14,
     fontFamily: "PlusJakartaSans_600SemiBold",
     color: AMBER,
+  },
+
+  // Pro nudge card
+  proNudgeCard: {
+    backgroundColor: "rgba(245, 166, 35, 0.06)",
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: "rgba(245, 166, 35, 0.15)",
+    padding: 20,
+    marginTop: 16,
+    position: "relative" as const,
+  },
+  proNudgeIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: "rgba(245, 166, 35, 0.12)",
+    justifyContent: "center" as const,
+    alignItems: "center" as const,
+    marginBottom: 12,
   },
 
   // Background location nudge

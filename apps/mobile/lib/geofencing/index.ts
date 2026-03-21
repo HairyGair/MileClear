@@ -252,7 +252,7 @@ async function startGeofenceTracking(): Promise<void> {
     accuracy: Location.Accuracy.High,
     distanceInterval: 50,
     deferredUpdatesInterval: 10000,
-    showsBackgroundLocationIndicator: true,
+    showsBackgroundLocationIndicator: false,
     foregroundService: {
       notificationTitle: "MileClear",
       notificationBody: "Tracking your trip...",
