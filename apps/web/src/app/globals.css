@@ -187,13 +187,15 @@ body::after {
 }
 .nav__link:hover { color: var(--text-primary); background: rgba(255,255,255,0.04); }
 
+.nav__actions {
+  display: flex; align-items: center; gap: 0.75rem;
+}
 .nav__cta {
   font-size: 0.8125rem; font-weight: 600;
   color: var(--bg-deep);
   background: var(--amber-400);
   padding: 0.45rem 1.1rem;
   border-radius: var(--r-full);
-  margin-left: 0.5rem;
   transition: background .2s, transform .15s;
 }
 .nav__cta:hover { background: var(--amber-300); transform: translateY(-1px); }
@@ -238,7 +240,7 @@ body::after {
 }
 
 @media (max-width: 768px) {
-  .nav__links, .nav__cta { display: none; }
+  .nav__links, .nav__actions { display: none; }
   .nav__burger { display: flex; }
 }
 
