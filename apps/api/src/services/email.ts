@@ -16,7 +16,7 @@ const transporter =
     : null;
 
 const FROM = process.env.EMAIL_FROM || "MileClear <noreply@mileclear.com>";
-const FROM_PERSONAL = "Gair — MileClear <gair@mileclear.com>";
+const FROM_PERSONAL = "Gair - MileClear <gair@mileclear.com>";
 
 function escapeHtml(str: string): string {
   return str
