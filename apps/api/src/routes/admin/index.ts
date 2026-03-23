@@ -4,7 +4,7 @@ import { prisma } from "../../lib/prisma.js";
 import { authMiddleware } from "../../middleware/auth.js";
 import { adminMiddleware } from "../../middleware/admin.js";
 import { stripe } from "../../lib/stripe.js";
-import { sendReEngagementEmail, sendServiceStatusEmail } from "../../services/email.js";
+import { sendReEngagementEmail, sendServiceStatusEmail, sendUpdateEmail } from "../../services/email.js";
 
 const premiumToggleSchema = z.object({
   isPremium: z.boolean(),
@@ -312,6 +312,51 @@ export async function adminRoutes(app: FastifyInstance) {
       data: {
         sent,
         skipped,
+        errors: errors.length,
+        errorDetails: errors.slice(0, 10),
+        dryRun: isDryRun,
+        totalUsers: users.length,
+      },
+    });
+  });
+
+  // POST /admin/send-update
+  // Sends the latest update/changelog email to all users.
+  // Query params: ?dryRun=true (preview without sending)
+  app.post("/send-update", async (request, reply) => {
+    const { dryRun } = request.query as { dryRun?: string };
+    const isDryRun = dryRun === "true";
+
+    const users = await prisma.user.findMany({
+      select: { id: true, email: true, displayName: true },
+    });
+
+    let sent = 0;
+    const errors: string[] = [];
+
+    for (const user of users) {
+      if (isDryRun) {
+        sent++;
+        continue;
+      }
+
+      try {
+        await sendUpdateEmail(user.email, user.displayName);
+        sent++;
+        await new Promise((r) => setTimeout(r, 200));
+      } catch (err: any) {
+        errors.push(`${user.email}: ${err.message}`);
+      }
+    }
+
+    request.log.info(
+      { adminId: request.userId, action: "update-email", sent, errors: errors.length, isDryRun },
+      `Update email: ${sent} sent, ${errors.length} errors${isDryRun ? " (DRY RUN)" : ""}`
+    );
+
+    return reply.send({
+      data: {
+        sent,
         errors: errors.length,
         errorDetails: errors.slice(0, 10),
         dryRun: isDryRun,
