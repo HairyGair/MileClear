@@ -70,6 +70,76 @@ export const RELEASE_NOTES: ReleaseNote[] = [
 // ----------------------------------------------------------------
 export const BLOG_POSTS: BlogPost[] = [
   {
+    slug: "tax-year-ends-5-april-mileage-checklist",
+    title: "Tax Year Ends 5 April - Here's Your Mileage Checklist",
+    excerpt:
+      "The 2025-26 tax year ends on 5 April. Here's a quick checklist to make sure your mileage records are ready before the deadline.",
+    date: "1 April 2026",
+    author: "Gair",
+    category: "guide",
+    content: `
+<p>The 2025-26 UK tax year ends on 5 April. If you've been driving for work - whether that's Uber, Deliveroo, Amazon Flex, courier work, or any other self-employed driving - now is the time to get your mileage records in order.</p>
+
+<p>You don't need to file your Self Assessment until January 2027, but the tax year boundary is what matters for your numbers. Any business miles driven after 5 April count towards next year's return, not this one.</p>
+
+<p>Here's a quick checklist to make sure you're sorted.</p>
+
+<h2>1. Check your trip classifications</h2>
+
+<p>Open MileClear and go to your Trips tab. Filter by "Unclassified" - these are trips the app recorded but you haven't confirmed as business or personal yet. Go through them and classify each one. It only takes a tap per trip, but it makes a big difference to your deduction total.</p>
+
+<p>If you're not sure whether a trip counts as business, the general rule is: if you were driving to earn money (heading to a pickup, driving between deliveries, going to a depot), it's business. Driving from home to your first job of the day is commuting and doesn't count - but once you're "on the clock", everything in between does.</p>
+
+<h2>2. Check your vehicle details</h2>
+
+<p>HMRC rates differ by vehicle type. Cars and vans get 45p/25p, motorbikes get 24p flat. Make sure your vehicle in MileClear is set to the right type - it affects every calculation.</p>
+
+<p>If you changed vehicles during the year, make sure both are in the app and trips are assigned to the correct one.</p>
+
+<h2>3. Fill in any gaps</h2>
+
+<p>Did you do any business trips that MileClear didn't record? Maybe your phone was dead, or you hadn't installed the app yet at the start of the tax year. You can add manual trips with the date, start/end locations, and distance. MileClear will calculate the route distance for you if you enter the addresses.</p>
+
+<p>It's better to add them now while you remember than to try and reconstruct them in January.</p>
+
+<h2>4. Review your totals</h2>
+
+<p>Go to your dashboard and check the tax year summary. You should see:</p>
+<ul>
+<li>Total business miles</li>
+<li>Total personal miles</li>
+<li>Your HMRC deduction amount</li>
+</ul>
+
+<p>Does the business mileage look about right for the year? If you drove 200 miles a week for work across 48 weeks, you'd expect roughly 9,600 business miles. If your number is wildly different, some trips might be misclassified or missing.</p>
+
+<h2>5. Export your records</h2>
+
+<p>Once everything looks right, export your records. MileClear Pro lets you download:</p>
+<ul>
+<li><strong>CSV</strong> - for your accountant or bookkeeping software</li>
+<li><strong>PDF Trip Report</strong> - a detailed log of every trip with dates, times, routes, and distances</li>
+<li><strong>HMRC Self Assessment PDF</strong> - a summary with your total deduction, broken down by vehicle and month</li>
+</ul>
+
+<p>Save these somewhere safe. If HMRC ever asks questions about your mileage claim, this is your evidence.</p>
+
+<h2>The numbers that matter</h2>
+
+<p>As a reminder, the HMRC mileage rates for 2025-26 are:</p>
+<ul>
+<li><strong>Cars and vans:</strong> 45p per mile (first 10,000 miles), 25p per mile (after 10,000)</li>
+<li><strong>Motorbikes:</strong> 24p per mile (flat rate)</li>
+</ul>
+
+<p>These rates cover fuel, wear and tear, insurance, and servicing - you can't claim those separately if you're using the mileage allowance.</p>
+
+<p>If you haven't been tracking your mileage yet, it's not too late to start for the new tax year beginning 6 April. Download MileClear, add your vehicle, and every trip gets recorded automatically from day one.</p>
+
+<p>Get started free at <a href="https://mileclear.com">mileclear.com</a>.</p>
+`,
+  },
+  {
     slug: "5-things-uber-drivers-should-track-for-tax",
     title: "5 Things Every Uber Driver Should Track for Tax (That Most Don't)",
     excerpt:
