@@ -44,7 +44,7 @@ export async function sendVerificationEmail(
 
   if (!transporter) {
     if (process.env.NODE_ENV === "production") {
-      throw new Error("SMTP not configured — cannot send verification email in production");
+      throw new Error("SMTP not configured  - cannot send verification email in production");
     }
     console.log(`[EMAIL] Verification code for ${email} (dev only)`);
     return;
@@ -71,7 +71,7 @@ export async function sendPasswordResetEmail(
 
   if (!transporter) {
     if (process.env.NODE_ENV === "production") {
-      throw new Error("SMTP not configured — cannot send password reset email in production");
+      throw new Error("SMTP not configured  - cannot send password reset email in production");
     }
     console.log(`[EMAIL] Password reset code for ${email} (dev only)`);
     return;
@@ -121,35 +121,35 @@ export async function sendWelcomeEmail(
                     <tr><td style="padding: 10px 0; border-bottom: 1px solid rgba(255,255,255,0.04);">
                       <table role="presentation" cellpadding="0" cellspacing="0"><tr>
                         <td style="width: 32px; vertical-align: top; padding-top: 1px; color: #f5a623; font-size: 16px;">&#9672;</td>
-                        <td style="color: #c0c8d4; font-size: 14px; line-height: 1.6;"><strong style="color: #f0f2f5;">Track your miles</strong> &mdash; automatic GPS tracking while you work</td>
+                        <td style="color: #c0c8d4; font-size: 14px; line-height: 1.6;"><strong style="color: #f0f2f5;">Track your miles</strong>  - automatic GPS tracking while you work</td>
                       </tr></table>
                     </td></tr>
                     <tr><td style="padding: 10px 0; border-bottom: 1px solid rgba(255,255,255,0.04);">
                       <table role="presentation" cellpadding="0" cellspacing="0"><tr>
                         <td style="width: 32px; vertical-align: top; padding-top: 1px; color: #f5a623; font-size: 16px;">&#9672;</td>
-                        <td style="color: #c0c8d4; font-size: 14px; line-height: 1.6;"><strong style="color: #f0f2f5;">HMRC deductions</strong> &mdash; calculated at the correct rates, ready for your tax return</td>
+                        <td style="color: #c0c8d4; font-size: 14px; line-height: 1.6;"><strong style="color: #f0f2f5;">HMRC deductions</strong>  - calculated at the correct rates, ready for your tax return</td>
                       </tr></table>
                     </td></tr>
                     <tr><td style="padding: 10px 0; border-bottom: 1px solid rgba(255,255,255,0.04);">
                       <table role="presentation" cellpadding="0" cellspacing="0"><tr>
                         <td style="width: 32px; vertical-align: top; padding-top: 1px; color: #f5a623; font-size: 16px;">&#9672;</td>
-                        <td style="color: #c0c8d4; font-size: 14px; line-height: 1.6;"><strong style="color: #f0f2f5;">Log earnings</strong> &mdash; keep everything in one place</td>
+                        <td style="color: #c0c8d4; font-size: 14px; line-height: 1.6;"><strong style="color: #f0f2f5;">Log earnings</strong>  - keep everything in one place</td>
                       </tr></table>
                     </td></tr>
                     <tr><td style="padding: 10px 0;">
                       <table role="presentation" cellpadding="0" cellspacing="0"><tr>
                         <td style="width: 32px; vertical-align: top; padding-top: 1px; color: #f5a623; font-size: 16px;">&#9672;</td>
-                        <td style="color: #c0c8d4; font-size: 14px; line-height: 1.6;"><strong style="color: #f0f2f5;">Export reports</strong> &mdash; PDF, CSV, or straight to your accountancy software</td>
+                        <td style="color: #c0c8d4; font-size: 14px; line-height: 1.6;"><strong style="color: #f0f2f5;">Export reports</strong>  - PDF, CSV, or straight to your accountancy software</td>
                       </tr></table>
                     </td></tr>
                   </table>
 
-                  <p style="color: #c0c8d4; font-size: 15px; line-height: 1.7; margin: 0 0 24px;"><strong style="color: #f0f2f5;">To get started:</strong> add a vehicle, then start your first shift &mdash; the app handles the rest.</p>
+                  <p style="color: #c0c8d4; font-size: 15px; line-height: 1.7; margin: 0 0 24px;"><strong style="color: #f0f2f5;">To get started:</strong> add a vehicle, then start your first shift  - the app handles the rest.</p>
 
                   <!-- Feedback callout -->
                   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin: 0 0 28px;">
                     <tr><td style="background-color: rgba(245,166,35,0.08); border: 1px solid rgba(245,166,35,0.15); border-radius: 10px; padding: 18px 20px;">
-                      <p style="color: #d4b87a; font-size: 14px; line-height: 1.65; margin: 0;">MileClear is always a work in progress and your input genuinely shapes what gets built next. If you have any suggestions, feature requests, or spot something that could be better, head to the <strong style="color: #f5a623;">Suggestions</strong> section in the app &mdash; or just reply to this email. I read every message.</p>
+                      <p style="color: #d4b87a; font-size: 14px; line-height: 1.65; margin: 0;">MileClear is always a work in progress and your input genuinely shapes what gets built next. If you have any suggestions, feature requests, or spot something that could be better, head to the <strong style="color: #f5a623;">Suggestions</strong> section in the app  - or just reply to this email. I read every message.</p>
                     </td></tr>
                   </table>
 
@@ -190,12 +190,12 @@ export async function sendReEngagementEmail(
   // Personalise based on whether they've used the app
   const hasUsed = stats && stats.totalTrips > 0;
   const heroLine = hasUsed
-    ? `You've already tracked <strong style="color: #f5a623;">${stats!.totalTrips} trip${stats!.totalTrips !== 1 ? "s" : ""}</strong> and <strong style="color: #f5a623;">${stats!.totalMiles.toFixed(1)} miles</strong> — nice work! Here's a quick reminder of what MileClear can do for you.`
+    ? `You've already tracked <strong style="color: #f5a623;">${stats!.totalTrips} trip${stats!.totalTrips !== 1 ? "s" : ""}</strong> and <strong style="color: #f5a623;">${stats!.totalMiles.toFixed(1)} miles</strong>  - nice work! Here's a quick reminder of what MileClear can do for you.`
     : "We noticed you haven't recorded your first trip yet. Here's a quick reminder of what MileClear can do for you.";
 
   const subject = hasUsed
-    ? "Your miles are adding up — here's what's new in MileClear"
-    : "You're all set up — ready to track your first trip?";
+    ? "Your miles are adding up  - here's what's new in MileClear"
+    : "You're all set up  - ready to track your first trip?";
 
   const html = `
     <!DOCTYPE html>
@@ -232,31 +232,31 @@ export async function sendReEngagementEmail(
                     <tr><td style="padding: 10px 0; border-bottom: 1px solid rgba(255,255,255,0.04);">
                       <table role="presentation" cellpadding="0" cellspacing="0"><tr>
                         <td style="width: 32px; vertical-align: top; padding-top: 1px; color: #f5a623; font-size: 16px;">&#9672;</td>
-                        <td style="color: #c0c8d4; font-size: 14px; line-height: 1.6;"><strong style="color: #f0f2f5;">Automatic trip recording</strong> &mdash; just drive and MileClear detects your trips in the background. No buttons to press</td>
+                        <td style="color: #c0c8d4; font-size: 14px; line-height: 1.6;"><strong style="color: #f0f2f5;">Automatic trip recording</strong>  - just drive and MileClear detects your trips in the background. No buttons to press</td>
                       </tr></table>
                     </td></tr>
                     <tr><td style="padding: 10px 0; border-bottom: 1px solid rgba(255,255,255,0.04);">
                       <table role="presentation" cellpadding="0" cellspacing="0"><tr>
                         <td style="width: 32px; vertical-align: top; padding-top: 1px; color: #f5a623; font-size: 16px;">&#9672;</td>
-                        <td style="color: #c0c8d4; font-size: 14px; line-height: 1.6;"><strong style="color: #f0f2f5;">HMRC tax deductions</strong> &mdash; 45p/mile calculated automatically, ready for your self-assessment</td>
+                        <td style="color: #c0c8d4; font-size: 14px; line-height: 1.6;"><strong style="color: #f0f2f5;">HMRC tax deductions</strong>  - 45p/mile calculated automatically, ready for your self-assessment</td>
                       </tr></table>
                     </td></tr>
                     <tr><td style="padding: 10px 0; border-bottom: 1px solid rgba(255,255,255,0.04);">
                       <table role="presentation" cellpadding="0" cellspacing="0"><tr>
                         <td style="width: 32px; vertical-align: top; padding-top: 1px; color: #f5a623; font-size: 16px;">&#9672;</td>
-                        <td style="color: #c0c8d4; font-size: 14px; line-height: 1.6;"><strong style="color: #f0f2f5;">Fuel costs &amp; nearby prices</strong> &mdash; log fill-ups and find the cheapest fuel near you from 8,300+ UK stations</td>
+                        <td style="color: #c0c8d4; font-size: 14px; line-height: 1.6;"><strong style="color: #f0f2f5;">Fuel costs &amp; nearby prices</strong>  - log fill-ups and find the cheapest fuel near you from 8,300+ UK stations</td>
                       </tr></table>
                     </td></tr>
                     <tr><td style="padding: 10px 0; border-bottom: 1px solid rgba(255,255,255,0.04);">
                       <table role="presentation" cellpadding="0" cellspacing="0"><tr>
                         <td style="width: 32px; vertical-align: top; padding-top: 1px; color: #f5a623; font-size: 16px;">&#9672;</td>
-                        <td style="color: #c0c8d4; font-size: 14px; line-height: 1.6;"><strong style="color: #f0f2f5;">Achievements &amp; streaks</strong> &mdash; earn badges, hit milestones, and track your driving consistency</td>
+                        <td style="color: #c0c8d4; font-size: 14px; line-height: 1.6;"><strong style="color: #f0f2f5;">Achievements &amp; streaks</strong>  - earn badges, hit milestones, and track your driving consistency</td>
                       </tr></table>
                     </td></tr>
                     <tr><td style="padding: 10px 0;">
                       <table role="presentation" cellpadding="0" cellspacing="0"><tr>
                         <td style="width: 32px; vertical-align: top; padding-top: 1px; color: #f5a623; font-size: 16px;">&#9672;</td>
-                        <td style="color: #c0c8d4; font-size: 14px; line-height: 1.6;"><strong style="color: #f0f2f5;">Works for everyone</strong> &mdash; whether you're a gig driver claiming tax or just want to track personal driving and costs</td>
+                        <td style="color: #c0c8d4; font-size: 14px; line-height: 1.6;"><strong style="color: #f0f2f5;">Works for everyone</strong>  - whether you're a gig driver claiming tax or just want to track personal driving and costs</td>
                       </tr></table>
                     </td></tr>
                   </table>
@@ -275,7 +275,7 @@ export async function sendReEngagementEmail(
                     </td></tr>
                   </table>`}
 
-                  <p style="color: #c0c8d4; font-size: 15px; line-height: 1.7; margin: 0 0 8px;">Got feedback? Just reply to this email &mdash; I read every message.</p>
+                  <p style="color: #c0c8d4; font-size: 15px; line-height: 1.7; margin: 0 0 8px;">Got feedback? Just reply to this email  - I read every message.</p>
 
                   <p style="color: #c0c8d4; font-size: 15px; line-height: 1.7; margin: 16px 0 0;">Cheers,</p>
                   <p style="color: #f0f2f5; font-size: 15px; font-weight: 600; margin: 4px 0 0;">Gair</p>
@@ -371,9 +371,9 @@ export async function sendServiceStatusEmail(
 
                   <p style="color: #c0c8d4; font-size: 15px; line-height: 1.7; margin: 0 0 16px;">${greeting}</p>
 
-                  <p style="color: #c0c8d4; font-size: 15px; line-height: 1.7; margin: 0 0 16px;">Just a quick heads-up &mdash; you may have experienced some issues signing in or syncing earlier today. Our server had a hiccup, but everything is now back up and running as normal.</p>
+                  <p style="color: #c0c8d4; font-size: 15px; line-height: 1.7; margin: 0 0 16px;">Just a quick heads-up  - you may have experienced some issues signing in or syncing earlier today. Our server had a hiccup, but everything is now back up and running as normal.</p>
 
-                  <p style="color: #c0c8d4; font-size: 15px; line-height: 1.7; margin: 0 0 16px;"><strong style="color: #f0f2f5;">No data was lost.</strong> All your trips, earnings, and records are safe. The app should work normally now &mdash; just open it up and you're good to go.</p>
+                  <p style="color: #c0c8d4; font-size: 15px; line-height: 1.7; margin: 0 0 16px;"><strong style="color: #f0f2f5;">No data was lost.</strong> All your trips, earnings, and records are safe. The app should work normally now  - just open it up and you're good to go.</p>
 
                   <p style="color: #c0c8d4; font-size: 15px; line-height: 1.7; margin: 0 0 16px;">If you were tracking a trip when the issue happened, any locally recorded data will sync automatically next time you open the app.</p>
 
@@ -414,7 +414,7 @@ export async function sendWaitlistConfirmation(
     <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 480px; margin: 0 auto; padding: 32px 24px;">
       <h2 style="color: #1a1a1a; margin-bottom: 8px;">You're on the list!</h2>
       <p style="color: #555; font-size: 15px; line-height: 1.5;">Thanks for signing up for MileClear. We'll let you know as soon as it's ready.</p>
-      <p style="color: #555; font-size: 15px; line-height: 1.5;">MileClear helps UK gig workers track mileage, calculate HMRC deductions, and save time on tax returns — all from your phone.</p>
+      <p style="color: #555; font-size: 15px; line-height: 1.5;">MileClear helps UK gig workers track mileage, calculate HMRC deductions, and save time on tax returns  - all from your phone.</p>
       <p style="color: #888; font-size: 13px;">If you didn't sign up, you can ignore this email.</p>
     </div>
   `;

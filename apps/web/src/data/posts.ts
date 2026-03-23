@@ -1,5 +1,5 @@
 // ================================================================
-// MileClear — Posts data: Release Notes + Blog
+// MileClear  - Posts data: Release Notes + Blog
 // Add new blog posts to the BLOG_POSTS array.
 // Add new release notes to the RELEASE_NOTES array.
 // ================================================================
@@ -7,7 +7,7 @@
 export interface ReleaseNote {
   version: string;
   date: string;
-  label?: "Latest" | "Major";
+  label?: "Latest" | "Major" | "Pending Review";
   items: string[];
 }
 
@@ -18,7 +18,7 @@ export interface BlogPost {
   date: string;
   author: string;
   category: "engineering" | "guide" | "announcement";
-  content: string; // full HTML string — trusted, developer-authored
+  content: string; // full HTML string  - trusted, developer-authored
 }
 
 // ----------------------------------------------------------------
@@ -26,16 +26,25 @@ export interface BlogPost {
 // ----------------------------------------------------------------
 export const RELEASE_NOTES: ReleaseNote[] = [
   {
+    version: "1.0.2",
+    date: "23 March 2026",
+    label: "Pending Review",
+    items: [
+      "Auto-detected trips now correctly show your vehicle in PDF and CSV exports (previously showed 'Unknown vehicle')",
+      "Updates & Blog page added to the web dashboard  - mileclear.com/updates",
+      "Sign in and Get Started buttons added to landing page navbar",
+    ],
+  },
+  {
     version: "1.0.1",
     date: "20 March 2026",
-    label: "Latest",
     items: [
-      "Annual plan available — save 25% with yearly billing",
-      "Smarter trip detection — Driver/Passenger notification buttons so you can confirm or dismiss without unlocking",
-      "More accurate trip end times — timestamps now reflect when you actually stopped driving, not when you tapped the app",
+      "Annual plan available  - save 25% with yearly billing",
+      "Smarter trip detection  - Driver/Passenger notification buttons so you can confirm or dismiss without unlocking",
+      "More accurate trip end times  - timestamps now reflect when you actually stopped driving, not when you tapped the app",
       "Improved sign-in reliability across iOS 18 and iOS 26 betas",
-      "Expanded onboarding — set your driving goals and notification preferences during setup",
-      "Delete trips with a long-press — tap to select, then delete",
+      "Expanded onboarding  - set your driving goals and notification preferences during setup",
+      "Delete trips with a long-press  - tap to select, then delete",
       "Web dashboard: forgot password and email verification pages added",
     ],
   },
@@ -44,10 +53,10 @@ export const RELEASE_NOTES: ReleaseNote[] = [
     date: "1 March 2026",
     label: "Major",
     items: [
-      "Initial release — MileClear is live on the App Store",
+      "Initial release  - MileClear is live on the App Store",
       "GPS trip tracking with background detection and an offline-first local database",
       "HMRC mileage deduction calculator (45p/25p car, 24p motorbike)",
-      "Shift management for gig workers — start a shift, group your trips, see your scorecard",
+      "Shift management for gig workers  - start a shift, group your trips, see your scorecard",
       "Fuel price finder covering 8,300+ UK stations from government-mandated feeds",
       "Gamification with 43 achievements, streaks, and personal records",
       "Apple Sign-In for one-tap iOS onboarding",
@@ -71,47 +80,47 @@ export const BLOG_POSTS: BlogPost[] = [
     content: `
 <p>I built MileClear because I couldn't find a mileage tracker that did what I actually needed.</p>
 
-<p>A couple of years back, I was doing some delivery driving on the side — nothing serious, a few Deliveroo and Amazon Flex shifts a week. I knew I could claim mileage back against my tax bill (45p per mile, first 10,000 miles — it adds up faster than you'd think), but keeping a proper log was a nightmare. I tried the popular apps. Most of them were clearly designed for American users: they talked about "IRS rates" and "Schedule C", the UI looked like it hadn't been touched since 2018, and they wanted £8–12 a month for basic export functionality. For someone doing part-time gig work, that felt completely wrong.</p>
+<p>A couple of years back, I was doing some delivery driving on the side  - nothing serious, a few Deliveroo and Amazon Flex shifts a week. I knew I could claim mileage back against my tax bill (45p per mile, first 10,000 miles  - it adds up faster than you'd think), but keeping a proper log was a nightmare. I tried the popular apps. Most of them were clearly designed for American users: they talked about "IRS rates" and "Schedule C", the UI looked like it hadn't been touched since 2018, and they wanted £8–12 a month for basic export functionality. For someone doing part-time gig work, that felt completely wrong.</p>
 
 <h2>The UK gig worker gap</h2>
 
-<p>What struck me was how specifically UK this problem is. Uber, Deliveroo, Just Eat, Amazon Flex, Stuart, DPD — we have a huge population of self-employed drivers who are leaving real money on the table because they don't track their mileage properly. And HMRC is pretty generous about it: you don't need receipts, you don't need to justify anything. You just need a log of your business trips with dates, start and end points, and distances.</p>
+<p>What struck me was how specifically UK this problem is. Uber, Deliveroo, Just Eat, Amazon Flex, Stuart, DPD  - we have a huge population of self-employed drivers who are leaving real money on the table because they don't track their mileage properly. And HMRC is pretty generous about it: you don't need receipts, you don't need to justify anything. You just need a log of your business trips with dates, start and end points, and distances.</p>
 
-<p>That's a solved problem, technically. GPS can do all of it automatically. But none of the existing apps were thinking about the UK gig worker specifically. There was no concept of "platforms" — you couldn't tag a trip as an Uber job versus a personal run to the shops. There was no shift model that matched how gig work actually happens (you clock on, do several jobs, clock off — that's a shift). And the pricing was just wrong for the market.</p>
+<p>That's a solved problem, technically. GPS can do all of it automatically. But none of the existing apps were thinking about the UK gig worker specifically. There was no concept of "platforms"  - you couldn't tag a trip as an Uber job versus a personal run to the shops. There was no shift model that matched how gig work actually happens (you clock on, do several jobs, clock off  - that's a shift). And the pricing was just wrong for the market.</p>
 
 <h2>What I wanted to build</h2>
 
 <p>MileClear started as a notes file. My rough spec was:</p>
 
 <ul>
-  <li>Free trip tracking — no artificial limits on the core feature</li>
-  <li>Platform tags — Uber, Deliveroo, Amazon Flex, etc., so you can see which platforms are worth your time</li>
-  <li>Shift model — clock on, do your jobs, clock off</li>
-  <li>HMRC-native — UK tax year (6 April boundary), pence not dollars, 45p/25p rates baked in</li>
-  <li>Exports behind a paywall, but a cheap one — £4.99/month felt right</li>
-  <li>Offline first — your GPS data shouldn't need an internet connection</li>
+  <li>Free trip tracking  - no artificial limits on the core feature</li>
+  <li>Platform tags  - Uber, Deliveroo, Amazon Flex, etc., so you can see which platforms are worth your time</li>
+  <li>Shift model  - clock on, do your jobs, clock off</li>
+  <li>HMRC-native  - UK tax year (6 April boundary), pence not dollars, 45p/25p rates baked in</li>
+  <li>Exports behind a paywall, but a cheap one  - £4.99/month felt right</li>
+  <li>Offline first  - your GPS data shouldn't need an internet connection</li>
 </ul>
 
-<p>The gamification came later, and honestly it's one of my favourite parts of the app now. Streaks, achievements, personal records — it sounds silly for a tax tool, but it actually works. Tracking mileage is one of those habits that's easy to forget about until it's too late (hello, January scramble). Having a streak to protect keeps you honest.</p>
+<p>The gamification came later, and honestly it's one of my favourite parts of the app now. Streaks, achievements, personal records  - it sounds silly for a tax tool, but it actually works. Tracking mileage is one of those habits that's easy to forget about until it's too late (hello, January scramble). Having a streak to protect keeps you honest.</p>
 
 <h2>The technical reality of building this solo</h2>
 
-<p>Building a production iOS app solo is humbling. Background GPS tracking alone has about fifteen different failure modes across different iPhone models and iOS versions. Auto-trip detection — where the app figures out you're driving without you tapping anything — took months to get right. I'm still tuning it.</p>
+<p>Building a production iOS app solo is humbling. Background GPS tracking alone has about fifteen different failure modes across different iPhone models and iOS versions. Auto-trip detection  - where the app figures out you're driving without you tapping anything  - took months to get right. I'm still tuning it.</p>
 
 <p>I made a deliberate choice to keep the stack boring: React Native with Expo, Fastify API, MySQL, no fancy infrastructure. Self-hosted on a cPanel server. The whole thing costs less than a coffee a month to run. That matters when you're bootstrapping something and you don't know if it's going to work.</p>
 
 <h2>What's next</h2>
 
-<p>MileClear is live on the App Store now, in early access. The core loop — track trips, see your HMRC deduction, export when you need to — works well. I'm adding an annual plan, improving the auto-trip detection, and listening carefully to what beta testers actually want before I build anything else.</p>
+<p>MileClear is live on the App Store now, in early access. The core loop  - track trips, see your HMRC deduction, export when you need to  - works well. I'm adding an annual plan, improving the auto-trip detection, and listening carefully to what beta testers actually want before I build anything else.</p>
 
-<p>If you're a UK driver of any kind — gig worker, sole trader, employee who uses their personal car for work — and you're not tracking your mileage, you're leaving money with HMRC that's legally yours. MileClear is free to try. Give it a go.</p>
+<p>If you're a UK driver of any kind  - gig worker, sole trader, employee who uses their personal car for work  - and you're not tracking your mileage, you're leaving money with HMRC that's legally yours. MileClear is free to try. Give it a go.</p>
     `.trim(),
   },
   {
     slug: "how-auto-trip-detection-works",
     title: "How Auto-Trip Detection Works",
     excerpt:
-      "Getting an app to reliably know you're driving — without draining your battery or triggering false positives on the sofa — is harder than it sounds. Here's how MileClear does it.",
+      "Getting an app to reliably know you're driving  - without draining your battery or triggering false positives on the sofa  - is harder than it sounds. Here's how MileClear does it.",
     date: "18 March 2026",
     author: "Gair",
     category: "engineering",
@@ -124,11 +133,11 @@ export const BLOG_POSTS: BlogPost[] = [
 
 <p>MileClear uses iOS's significant location change monitoring as the trigger. This is a low-power mode that wakes the app when the phone moves roughly 500 metres. The moment that happens, we check speed. If the phone is moving faster than about 15mph, we assume driving has started and begin recording coordinates at tighter intervals (100 metres).</p>
 
-<p>Coordinates are buffered silently — no notification, no UI, nothing. We're just collecting GPS breadcrumbs in the background.</p>
+<p>Coordinates are buffered silently  - no notification, no UI, nothing. We're just collecting GPS breadcrumbs in the background.</p>
 
 <h2>When does a trip end?</h2>
 
-<p>This is where it gets more nuanced. We don't end a trip the moment you stop — you might be at a red light, or queuing at a McDonald's drive-through, or briefly parked to drop off a package. Instead, we wait for five consecutive minutes of movement below 2.2mph (about walking pace).</p>
+<p>This is where it gets more nuanced. We don't end a trip the moment you stop  - you might be at a red light, or queuing at a McDonald's drive-through, or briefly parked to drop off a package. Instead, we wait for five consecutive minutes of movement below 2.2mph (about walking pace).</p>
 
 <p>Once that threshold is hit, we finalise the trip: calculate the distance, record the start and end times, save it to the local SQLite database, and mark it as "unclassified". It lands in your trip inbox waiting for you to tag it as business or personal.</p>
 
@@ -138,23 +147,23 @@ export const BLOG_POSTS: BlogPost[] = [
 
 <p>The solution is a lock-screen notification. When MileClear detects a trip starting, it fires a notification with two action buttons: "Driver" and "Passenger". You can tap one without even unlocking your phone. If you're the passenger, the recording is cancelled and a 20-minute cooldown starts so you're not pestered again.</p>
 
-<p>If you don't respond at all, the trip still gets recorded — we'd rather have a false positive you can delete than miss a real business journey.</p>
+<p>If you don't respond at all, the trip still gets recorded  - we'd rather have a false positive you can delete than miss a real business journey.</p>
 
 <h2>GPS accuracy filtering</h2>
 
-<p>Raw GPS is noisy. A phone sitting still on a desk will drift by 10–15 metres. When you're doing speed calculations from sequential coordinates, that drift can make a stationary phone look like it's moving at 5mph — enough to cause false positives if you're not careful.</p>
+<p>Raw GPS is noisy. A phone sitting still on a desk will drift by 10–15 metres. When you're doing speed calculations from sequential coordinates, that drift can make a stationary phone look like it's moving at 5mph  - enough to cause false positives if you're not careful.</p>
 
 <p>We filter out any location fix where iOS reports accuracy worse than 65 metres horizontal. We also require two consecutive readings above the speed threshold before registering movement. One blip doesn't start a trip.</p>
 
 <h2>Quiet hours</h2>
 
-<p>Nobody wants a phone notification at 2am because iOS decided to wake up the location service. Detection notifications are suppressed between 10pm and 7am. Trips still get recorded silently during those hours — the quiet hours only affect the Driver/Passenger prompt.</p>
+<p>Nobody wants a phone notification at 2am because iOS decided to wake up the location service. Detection notifications are suppressed between 10pm and 7am. Trips still get recorded silently during those hours  - the quiet hours only affect the Driver/Passenger prompt.</p>
 
 <h2>The battery reality</h2>
 
 <p>Background GPS is the number one complaint in every mileage app review section. MileClear uses significant location changes (not continuous GPS) when not actively recording, which is very low power. Even during active recording, 100-metre intervals are much less aggressive than the 50-metre intervals used during manual shift tracking.</p>
 
-<p>The honest answer is: it does use some battery. Any app that tracks your location uses battery. But "significant location change" monitoring adds maybe 2–5% battery drain per day in practice — about the same as having Wi-Fi enabled. We're constantly tuning this.</p>
+<p>The honest answer is: it does use some battery. Any app that tracks your location uses battery. But "significant location change" monitoring adds maybe 2–5% battery drain per day in practice  - about the same as having Wi-Fi enabled. We're constantly tuning this.</p>
 
 <h2>What doesn't work yet</h2>
 
@@ -167,12 +176,12 @@ export const BLOG_POSTS: BlogPost[] = [
     slug: "hmrc-mileage-deduction-guide",
     title: "Understanding Your HMRC Mileage Deduction",
     excerpt:
-      "If you drive for work in the UK — whether that's gig work, visiting clients, or using your personal car for your employer — you can claim up to 45p per mile back from HMRC. Here's exactly how it works.",
+      "If you drive for work in the UK  - whether that's gig work, visiting clients, or using your personal car for your employer  - you can claim up to 45p per mile back from HMRC. Here's exactly how it works.",
     date: "20 March 2026",
     author: "Gair",
     category: "guide",
     content: `
-<p>The HMRC Approved Mileage Allowance Payment (AMAP) scheme is one of the most straightforward tax reliefs available to UK drivers — but a surprising number of people who are entitled to it never claim it. This guide explains who qualifies, what the rates are, what counts as business mileage, and how to calculate your deduction.</p>
+<p>The HMRC Approved Mileage Allowance Payment (AMAP) scheme is one of the most straightforward tax reliefs available to UK drivers  - but a surprising number of people who are entitled to it never claim it. This guide explains who qualifies, what the rates are, what counts as business mileage, and how to calculate your deduction.</p>
 
 <h2>The rates</h2>
 
@@ -184,15 +193,15 @@ export const BLOG_POSTS: BlogPost[] = [
   <li><strong>Bicycles:</strong> 20p per mile</li>
 </ul>
 
-<p>These rates have been frozen since 2011, which is a mild annoyance given that fuel costs have roughly doubled since then — but they're still a meaningful deduction, especially if you're putting in high mileage.</p>
+<p>These rates have been frozen since 2011, which is a mild annoyance given that fuel costs have roughly doubled since then  - but they're still a meaningful deduction, especially if you're putting in high mileage.</p>
 
 <h2>What does "business mileage" actually mean?</h2>
 
-<p>This is where a lot of people get confused. The key rule is that business mileage is travel you do in the course of your work — it is <em>not</em> your commute.</p>
+<p>This is where a lot of people get confused. The key rule is that business mileage is travel you do in the course of your work  - it is <em>not</em> your commute.</p>
 
 <p>For a typical employee: driving from your home to your regular office is commuting and you can't claim it. But driving from your office to visit a client, or from one work site to another, counts as business mileage.</p>
 
-<p>For self-employed gig workers, the picture is simpler. If you're an Uber driver, Deliveroo rider, or Amazon Flex courier, <strong>every mile you drive during your working shift is business mileage</strong> — including deadmiles (driving to pick up a delivery, for example). Your home is your base of operations, so journeys from home to your first job and from your last job home can also qualify.</p>
+<p>For self-employed gig workers, the picture is simpler. If you're an Uber driver, Deliveroo rider, or Amazon Flex courier, <strong>every mile you drive during your working shift is business mileage</strong>  - including deadmiles (driving to pick up a delivery, for example). Your home is your base of operations, so journeys from home to your first job and from your last job home can also qualify.</p>
 
 <h2>The 10,000-mile threshold</h2>
 
@@ -204,7 +213,7 @@ export const BLOG_POSTS: BlogPost[] = [
 
 <p>The mileage deduction reduces your taxable profit, not your tax bill directly. If you're a basic rate taxpayer (20%), a £4,500 mileage deduction reduces your tax bill by £900. If you're a higher rate taxpayer (40%), it's £1,800.</p>
 
-<p>On your Self Assessment return, you enter your total business miles on the Self-employment pages. HMRC applies the approved rates automatically. You don't need to show your calculations — you just need to have records if they ask.</p>
+<p>On your Self Assessment return, you enter your total business miles on the Self-employment pages. HMRC applies the approved rates automatically. You don't need to show your calculations  - you just need to have records if they ask.</p>
 
 <h2>What records do you need to keep?</h2>
 
@@ -217,19 +226,19 @@ export const BLOG_POSTS: BlogPost[] = [
   <li>Miles driven</li>
 </ul>
 
-<p>You need to keep these records for at least five years after the relevant tax return deadline. HMRC can ask to see them in an investigation, and a handwritten log in a notebook is perfectly acceptable — though GPS evidence from an app like MileClear is considerably more convincing.</p>
+<p>You need to keep these records for at least five years after the relevant tax return deadline. HMRC can ask to see them in an investigation, and a handwritten log in a notebook is perfectly acceptable  - though GPS evidence from an app like MileClear is considerably more convincing.</p>
 
 <h2>Employees vs self-employed</h2>
 
-<p>If you're an <strong>employee</strong> who uses their personal vehicle for work, your employer can pay you up to the AMAP rates tax-free. If your employer pays you less than the approved rate (or nothing), you can claim the difference as a <em>Mileage Allowance Relief</em> deduction — same calculation, just a different box on your Self Assessment return.</p>
+<p>If you're an <strong>employee</strong> who uses their personal vehicle for work, your employer can pay you up to the AMAP rates tax-free. If your employer pays you less than the approved rate (or nothing), you can claim the difference as a <em>Mileage Allowance Relief</em> deduction  - same calculation, just a different box on your Self Assessment return.</p>
 
-<p>If you're <strong>self-employed</strong>, you claim it as a business expense under the simplified expenses method (which is what the AMAP rates are). You can't also claim actual fuel costs and vehicle expenses separately — it's one or the other. For most drivers, AMAP wins.</p>
+<p>If you're <strong>self-employed</strong>, you claim it as a business expense under the simplified expenses method (which is what the AMAP rates are). You can't also claim actual fuel costs and vehicle expenses separately  - it's one or the other. For most drivers, AMAP wins.</p>
 
 <h2>How MileClear calculates it</h2>
 
 <p>Every trip you classify as "business" in MileClear gets counted towards your annual total. The app tracks your cumulative business mileage per tax year across all your vehicles, applies the 45p rate until you hit 10,000 miles, then switches to 25p automatically. You can see your running deduction total on the Work dashboard at any time.</p>
 
-<p>When you export at the end of the year, the PDF includes a vehicle-by-vehicle breakdown of your business miles, the deduction calculations, and the tax year totals — everything you need for your Self Assessment return in one document.</p>
+<p>When you export at the end of the year, the PDF includes a vehicle-by-vehicle breakdown of your business miles, the deduction calculations, and the tax year totals  - everything you need for your Self Assessment return in one document.</p>
 
 <h2>One more thing</h2>
 

@@ -65,7 +65,7 @@ export default function TabSwitcher({
                   <h2 className="release-card__version">v{note.version}</h2>
                   {note.label && (
                     <span
-                      className={`release-card__badge release-card__badge--${note.label.toLowerCase()}`}
+                      className={`release-card__badge release-card__badge--${note.label.toLowerCase().replace(/\s+/g, "-")}`}
                     >
                       {note.label}
                     </span>
