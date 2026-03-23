@@ -70,6 +70,73 @@ export const RELEASE_NOTES: ReleaseNote[] = [
 // ----------------------------------------------------------------
 export const BLOG_POSTS: BlogPost[] = [
   {
+    slug: "5-things-uber-drivers-should-track-for-tax",
+    title: "5 Things Every Uber Driver Should Track for Tax (That Most Don't)",
+    excerpt:
+      "Most gig drivers know about mileage. But there are at least four other things you can claim that most people completely miss - and they add up fast.",
+    date: "23 March 2026",
+    author: "Gair",
+    category: "guide",
+    content: `
+<p>If you drive for Uber, Deliveroo, Amazon Flex, or any other gig platform in the UK, you're self-employed. That means you file a Self Assessment tax return, and you can deduct legitimate business expenses from your earnings before you pay tax on them.</p>
+
+<p>Most drivers know about mileage. But there are at least four other things you can claim that most people completely miss - and they add up to hundreds of pounds a year.</p>
+
+<h2>1. Mileage (obviously)</h2>
+
+<p>This is the big one. HMRC lets you claim 45p per mile for the first 10,000 business miles in a tax year, then 25p per mile after that. If you're on a motorbike, it's 24p per mile flat.</p>
+
+<p>Let's say you drive 12,000 business miles in a year. That's:</p>
+<ul>
+<li>10,000 miles x 45p = £4,500</li>
+<li>2,000 miles x 25p = £500</li>
+<li><strong>Total deduction: £5,000</strong></li>
+</ul>
+
+<p>That £5,000 comes off your taxable income. If you're a basic rate taxpayer (20%), that's £1,000 back in your pocket. And you don't need receipts - just a log of your business trips with dates, distances, and start/end points.</p>
+
+<p>The catch? You need to actually track it. HMRC won't accept a guess. You need a proper mileage log, which is exactly what MileClear does automatically in the background.</p>
+
+<h2>2. Your phone bill</h2>
+
+<p>You can't do gig work without a phone. The Uber app, Google Maps, the Deliveroo rider app - they all run on your phone, and you're paying for that phone and the data it uses.</p>
+
+<p>If you use your phone for both personal and business, you can claim the business proportion. A common approach is to estimate the split - if you reckon 60% of your phone usage is for work (maps, rider apps, customer calls), you can claim 60% of your monthly bill.</p>
+
+<p>On a £30/month contract, that's £216 a year. Not huge on its own, but it adds up when you combine it with everything else.</p>
+
+<h2>3. Car cleaning and valeting</h2>
+
+<p>If you drive passengers (Uber, Bolt) or deliver food, keeping your car clean is a business expense. Regular car washes, interior valeting, air fresheners - all claimable as long as they're for the business vehicle.</p>
+
+<p>Even if you're just doing deliveries, a monthly wash at £8 is nearly £100 a year. Keep the receipts or bank statements.</p>
+
+<h2>4. Parking and tolls</h2>
+
+<p>Any parking charges or road tolls you pay while working are fully deductible. The Dartford Crossing, congestion charges, parking at a collection point - all of it counts.</p>
+
+<p>This one catches out a lot of drivers because parking charges feel like they're just part of driving. They are - but they're a deductible part. The key is keeping a record. A photo of the parking receipt or a note in your mileage log is enough.</p>
+
+<p>Note: parking fines and speeding tickets are NOT deductible. HMRC draws the line at penalties.</p>
+
+<h2>5. Equipment and accessories</h2>
+
+<p>Phone mounts, charging cables, delivery bags, hi-vis vests, phone cases - anything you buy specifically for your gig work is a business expense. If you bought a thermal bag for Deliveroo deliveries, that's claimable. If you bought a phone mount so you can see Google Maps while driving, that's claimable too.</p>
+
+<p>Some drivers also claim for dashcams on the basis that they protect them while working. This is a grey area - talk to an accountant if you want to be sure - but it's worth knowing about.</p>
+
+<h2>The bottom line</h2>
+
+<p>Most gig drivers only track mileage - if they track anything at all. But when you add up your phone bill, car cleaning, parking, and equipment, you could easily be looking at an extra £500-800 in deductions per year on top of your mileage.</p>
+
+<p>At the 20% basic tax rate, that's £100-160 extra back from HMRC. Not life-changing, but not nothing either - especially when you're already doing the work.</p>
+
+<p>The mileage is the biggest piece by far, and it's the one most people get wrong because they don't track it properly. MileClear handles that automatically - your phone records every business trip in the background, calculates the HMRC deduction, and gives you a ready-to-export report when Self Assessment time comes around.</p>
+
+<p>Start tracking for free at <a href="https://mileclear.com">mileclear.com</a>, or download the app from the App Store.</p>
+`,
+  },
+  {
     slug: "why-i-built-mileclear",
     title: "Why I Built MileClear",
     excerpt:
