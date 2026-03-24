@@ -11,39 +11,30 @@ import {
 import { sendCheckinEmail } from "../services/email.js";
 import { logEvent } from "../services/appEvents.js";
 
-// In-memory dedup sets — keyed by "YYYY-MM-DD:userId" so each user receives
-// at most one of each notification type per calendar day, even if the job
-// fires multiple times.
-const streakNotifiedToday = new Set<string>();
-const subExpireNotifiedToday = new Set<string>();
-const weeklyRecapNotifiedToday = new Set<string>();
-const monthlyRecapNotifiedToday = new Set<string>();
-const welcomeNudgeNotified = new Set<string>(); // lifetime dedup — only once per user ever
+// Persistent dedup via AppEvent table — survives PM2 restarts.
+// Checks if a notification event was already logged for a user today.
+async function wasNotifiedToday(userId: string, eventType: string): Promise<boolean> {
+  const todayStart = new Date();
+  todayStart.setHours(0, 0, 0, 0);
 
-function todayKey(userId: string): string {
-  return `${new Date().toISOString().slice(0, 10)}:${userId}`;
+  const existing = await prisma.appEvent.findFirst({
+    where: {
+      type: eventType,
+      userId,
+      createdAt: { gte: todayStart },
+    },
+    select: { id: true },
+  });
+  return existing !== null;
 }
 
-// Reset the dedup sets at midnight so they don't grow forever.
-function scheduleMidnightReset() {
-  const now = new Date();
-  const midnight = new Date(
-    now.getFullYear(),
-    now.getMonth(),
-    now.getDate() + 1,
-    0,
-    0,
-    5 // 5 seconds past midnight to be safe
-  );
-  const msUntilMidnight = midnight.getTime() - now.getTime();
-
-  setTimeout(() => {
-    streakNotifiedToday.clear();
-    subExpireNotifiedToday.clear();
-    weeklyRecapNotifiedToday.clear();
-    monthlyRecapNotifiedToday.clear();
-    scheduleMidnightReset(); // reschedule for the next day
-  }, msUntilMidnight);
+// Lifetime dedup — checks if a notification event was ever logged for a user.
+async function wasEverNotified(userId: string, eventType: string): Promise<boolean> {
+  const existing = await prisma.appEvent.findFirst({
+    where: { type: eventType, userId },
+    select: { id: true },
+  });
+  return existing !== null;
 }
 
 /**
@@ -96,10 +87,9 @@ async function runStreakAtRiskJob(): Promise<void> {
 
     const messages: ExpoPushMessage[] = [];
     for (const user of candidates) {
-      const key = todayKey(user.id);
-      if (streakNotifiedToday.has(key)) continue;
-      streakNotifiedToday.add(key);
+      if (await wasNotifiedToday(user.id, "notification.streak_at_risk")) continue;
 
+      logEvent("notification.streak_at_risk", user.id);
       messages.push({
         to: user.pushToken!,
         title: "Keep your streak going!",
@@ -141,9 +131,8 @@ async function runSubExpiringJob(): Promise<void> {
 
     const messages: ExpoPushMessage[] = [];
     for (const user of expiring) {
-      const key = todayKey(user.id);
-      if (subExpireNotifiedToday.has(key)) continue;
-      subExpireNotifiedToday.add(key);
+      if (await wasNotifiedToday(user.id, "notification.sub_expiring")) continue;
+      logEvent("notification.sub_expiring", user.id);
 
       const daysLeft = Math.ceil(
         (user.premiumExpiresAt!.getTime() - now.getTime()) / (24 * 60 * 60 * 1000)
@@ -187,9 +176,7 @@ async function runWeeklyRecapJob(): Promise<void> {
 
     const messages: ExpoPushMessage[] = [];
     for (const user of users) {
-      const key = todayKey(user.id);
-      if (weeklyRecapNotifiedToday.has(key)) continue;
-      weeklyRecapNotifiedToday.add(key);
+      if (await wasNotifiedToday(user.id, "notification.weekly_recap")) continue;
 
       try {
         // Use last week's data (reference = 3 days ago to land in the previous Monday–Sunday)
@@ -202,6 +189,7 @@ async function runWeeklyRecapJob(): Promise<void> {
           ? `${recap.totalTrips} trips, ${formatMiles(recap.totalMiles)} driven, ${formatPence(recap.deductionPence)} tax deduction earned`
           : `${recap.totalTrips} trips, ${formatMiles(recap.totalMiles)} driven last week`;
 
+        logEvent("notification.weekly_recap", user.id);
         messages.push({
           to: user.pushToken!,
           title: "Your Weekly Recap",
@@ -247,9 +235,7 @@ async function runMonthlyRecapJob(): Promise<void> {
 
     const messages: ExpoPushMessage[] = [];
     for (const user of users) {
-      const key = todayKey(user.id);
-      if (monthlyRecapNotifiedToday.has(key)) continue;
-      monthlyRecapNotifiedToday.add(key);
+      if (await wasNotifiedToday(user.id, "notification.monthly_recap")) continue;
 
       try {
         // Reference last month
@@ -263,6 +249,7 @@ async function runMonthlyRecapJob(): Promise<void> {
           ? `${formatMiles(recap.totalMiles)} driven across ${recap.totalTrips} trips. ${formatPence(recap.deductionPence)} in tax deductions!`
           : `${formatMiles(recap.totalMiles)} driven across ${recap.totalTrips} trips in ${monthName}`;
 
+        logEvent("notification.monthly_recap", user.id);
         messages.push({
           to: user.pushToken!,
           title: `Your ${monthName} Recap`,
@@ -314,17 +301,14 @@ async function runWelcomeNudgeJob(): Promise<void> {
     // Filter to users with zero trips and not already nudged
     const messages: ExpoPushMessage[] = [];
     for (const user of candidates) {
-      if (welcomeNudgeNotified.has(user.id)) continue;
+      if (await wasEverNotified(user.id, "notification.welcome_nudge")) continue;
 
       const tripCount = await prisma.trip.count({
         where: { userId: user.id },
       });
-      if (tripCount > 0) {
-        welcomeNudgeNotified.add(user.id); // Don't check again
-        continue;
-      }
+      if (tripCount > 0) continue;
 
-      welcomeNudgeNotified.add(user.id);
+      logEvent("notification.welcome_nudge", user.id);
 
       const name = user.displayName ? `, ${user.displayName}` : "";
       messages.push({
@@ -350,8 +334,6 @@ async function runWelcomeNudgeJob(): Promise<void> {
  * asking how things are going and inviting them to reply with questions.
  * One-time per user.
  */
-const checkinEmailSent = new Set<string>(); // lifetime dedup
-
 async function runCheckinEmailJob(): Promise<void> {
   try {
     const now = new Date();
@@ -373,8 +355,7 @@ async function runCheckinEmailJob(): Promise<void> {
 
     let sent = 0;
     for (const user of candidates) {
-      if (checkinEmailSent.has(user.id)) continue;
-      checkinEmailSent.add(user.id);
+      if (await wasEverNotified(user.id, "email.checkin_sent")) continue;
 
       // Get their trip stats
       const tripStats = await prisma.trip.aggregate({
@@ -516,8 +497,6 @@ export async function sendShiftSummaryPush(
 export function startNotificationJobs(): void {
   const INITIAL_DELAY_MS = 60 * 1000;       // 60 seconds
   const INTERVAL_MS = 6 * 60 * 60 * 1000;  // 6 hours
-
-  scheduleMidnightReset();
 
   setTimeout(() => {
     // Run all jobs immediately after the initial delay, then on the interval
