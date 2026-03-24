@@ -114,42 +114,96 @@ export async function sendWelcomeEmail(
 
                   <p style="color: #c0c8d4; font-size: 15px; line-height: 1.7; margin: 0 0 16px;">${greeting}</p>
 
-                  <p style="color: #c0c8d4; font-size: 15px; line-height: 1.7; margin: 0 0 20px;">Thanks for signing up! MileClear is built to make mileage tracking effortless for UK gig workers and self-employed drivers. Here's what you can do:</p>
+                  <p style="color: #c0c8d4; font-size: 15px; line-height: 1.7; margin: 0 0 20px;">Thanks for signing up! MileClear is built for UK gig workers, delivery drivers, and anyone who drives for work. Here's everything that's included:</p>
 
-                  <!-- Feature list -->
-                  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin: 0 0 24px;">
-                    <tr><td style="padding: 10px 0; border-bottom: 1px solid rgba(255,255,255,0.04);">
+                  <!-- Free features -->
+                  <p style="color: #f5a623; font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; margin: 0 0 8px;">Free for everyone</p>
+                  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin: 0 0 20px;">
+                    <tr><td style="padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.04);">
                       <table role="presentation" cellpadding="0" cellspacing="0"><tr>
-                        <td style="width: 32px; vertical-align: top; padding-top: 1px; color: #f5a623; font-size: 16px;">&#9672;</td>
-                        <td style="color: #c0c8d4; font-size: 14px; line-height: 1.6;"><strong style="color: #f0f2f5;">Track your miles</strong>  - automatic GPS tracking while you work</td>
+                        <td style="width: 28px; vertical-align: top; padding-top: 1px; color: #f5a623; font-size: 14px;">&#9672;</td>
+                        <td style="color: #c0c8d4; font-size: 14px; line-height: 1.6;"><strong style="color: #f0f2f5;">Automatic trip recording</strong> - just drive and MileClear detects your trips in the background. No buttons to press.</td>
                       </tr></table>
                     </td></tr>
-                    <tr><td style="padding: 10px 0; border-bottom: 1px solid rgba(255,255,255,0.04);">
+                    <tr><td style="padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.04);">
                       <table role="presentation" cellpadding="0" cellspacing="0"><tr>
-                        <td style="width: 32px; vertical-align: top; padding-top: 1px; color: #f5a623; font-size: 16px;">&#9672;</td>
-                        <td style="color: #c0c8d4; font-size: 14px; line-height: 1.6;"><strong style="color: #f0f2f5;">HMRC deductions</strong>  - calculated at the correct rates, ready for your tax return</td>
+                        <td style="width: 28px; vertical-align: top; padding-top: 1px; color: #f5a623; font-size: 14px;">&#9672;</td>
+                        <td style="color: #c0c8d4; font-size: 14px; line-height: 1.6;"><strong style="color: #f0f2f5;">HMRC tax deductions</strong> - 45p/mile calculated automatically, with your running total on the dashboard.</td>
                       </tr></table>
                     </td></tr>
-                    <tr><td style="padding: 10px 0; border-bottom: 1px solid rgba(255,255,255,0.04);">
+                    <tr><td style="padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.04);">
                       <table role="presentation" cellpadding="0" cellspacing="0"><tr>
-                        <td style="width: 32px; vertical-align: top; padding-top: 1px; color: #f5a623; font-size: 16px;">&#9672;</td>
-                        <td style="color: #c0c8d4; font-size: 14px; line-height: 1.6;"><strong style="color: #f0f2f5;">Log earnings</strong>  - keep everything in one place</td>
+                        <td style="width: 28px; vertical-align: top; padding-top: 1px; color: #f5a623; font-size: 14px;">&#9672;</td>
+                        <td style="color: #c0c8d4; font-size: 14px; line-height: 1.6;"><strong style="color: #f0f2f5;">Smart classification</strong> - trips near your saved work locations are auto-tagged as business. Platform tags suggested from your history.</td>
                       </tr></table>
                     </td></tr>
-                    <tr><td style="padding: 10px 0;">
+                    <tr><td style="padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.04);">
                       <table role="presentation" cellpadding="0" cellspacing="0"><tr>
-                        <td style="width: 32px; vertical-align: top; padding-top: 1px; color: #f5a623; font-size: 16px;">&#9672;</td>
-                        <td style="color: #c0c8d4; font-size: 14px; line-height: 1.6;"><strong style="color: #f0f2f5;">Export reports</strong>  - PDF, CSV, or straight to your accountancy software</td>
+                        <td style="width: 28px; vertical-align: top; padding-top: 1px; color: #f5a623; font-size: 14px;">&#9672;</td>
+                        <td style="color: #c0c8d4; font-size: 14px; line-height: 1.6;"><strong style="color: #f0f2f5;">Shift management</strong> - start a shift, group your trips, see your scorecard with honest A-F grades based on real profit.</td>
+                      </tr></table>
+                    </td></tr>
+                    <tr><td style="padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.04);">
+                      <table role="presentation" cellpadding="0" cellspacing="0"><tr>
+                        <td style="width: 28px; vertical-align: top; padding-top: 1px; color: #f5a623; font-size: 14px;">&#9672;</td>
+                        <td style="color: #c0c8d4; font-size: 14px; line-height: 1.6;"><strong style="color: #f0f2f5;">Earnings tracking</strong> - log what you earn per platform. See which apps pay best per mile.</td>
+                      </tr></table>
+                    </td></tr>
+                    <tr><td style="padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.04);">
+                      <table role="presentation" cellpadding="0" cellspacing="0"><tr>
+                        <td style="width: 28px; vertical-align: top; padding-top: 1px; color: #f5a623; font-size: 14px;">&#9672;</td>
+                        <td style="color: #c0c8d4; font-size: 14px; line-height: 1.6;"><strong style="color: #f0f2f5;">Fuel prices</strong> - find the cheapest fuel near you from 8,300+ UK stations, and log your fill-ups.</td>
+                      </tr></table>
+                    </td></tr>
+                    <tr><td style="padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.04);">
+                      <table role="presentation" cellpadding="0" cellspacing="0"><tr>
+                        <td style="width: 28px; vertical-align: top; padding-top: 1px; color: #f5a623; font-size: 14px;">&#9672;</td>
+                        <td style="color: #c0c8d4; font-size: 14px; line-height: 1.6;"><strong style="color: #f0f2f5;">Achievements &amp; streaks</strong> - 43 badges, personal records, weekly and monthly recaps you can share.</td>
+                      </tr></table>
+                    </td></tr>
+                    <tr><td style="padding: 8px 0;">
+                      <table role="presentation" cellpadding="0" cellspacing="0"><tr>
+                        <td style="width: 28px; vertical-align: top; padding-top: 1px; color: #f5a623; font-size: 14px;">&#9672;</td>
+                        <td style="color: #c0c8d4; font-size: 14px; line-height: 1.6;"><strong style="color: #f0f2f5;">Trip insights</strong> - top speed, average speed, stopped time, route efficiency, and fun facts for every tracked trip.</td>
                       </tr></table>
                     </td></tr>
                   </table>
 
-                  <p style="color: #c0c8d4; font-size: 15px; line-height: 1.7; margin: 0 0 24px;"><strong style="color: #f0f2f5;">To get started:</strong> add a vehicle, then start your first shift  - the app handles the rest.</p>
+                  <!-- Pro features -->
+                  <p style="color: #10b981; font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; margin: 0 0 8px;">Pro features</p>
+                  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin: 0 0 20px;">
+                    <tr><td style="padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.04);">
+                      <table role="presentation" cellpadding="0" cellspacing="0"><tr>
+                        <td style="width: 28px; vertical-align: top; padding-top: 1px; color: #10b981; font-size: 14px;">&#9672;</td>
+                        <td style="color: #c0c8d4; font-size: 14px; line-height: 1.6;"><strong style="color: #f0f2f5;">HMRC exports</strong> - CSV, PDF trip report, and Self Assessment PDF ready for your tax return.</td>
+                      </tr></table>
+                    </td></tr>
+                    <tr><td style="padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.04);">
+                      <table role="presentation" cellpadding="0" cellspacing="0"><tr>
+                        <td style="width: 28px; vertical-align: top; padding-top: 1px; color: #10b981; font-size: 14px;">&#9672;</td>
+                        <td style="color: #c0c8d4; font-size: 14px; line-height: 1.6;"><strong style="color: #f0f2f5;">CSV earnings import</strong> - bulk import from Uber, Deliveroo, Just Eat, Amazon Flex, and Stuart.</td>
+                      </tr></table>
+                    </td></tr>
+                    <tr><td style="padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.04);">
+                      <table role="presentation" cellpadding="0" cellspacing="0"><tr>
+                        <td style="width: 28px; vertical-align: top; padding-top: 1px; color: #10b981; font-size: 14px;">&#9672;</td>
+                        <td style="color: #c0c8d4; font-size: 14px; line-height: 1.6;"><strong style="color: #f0f2f5;">Business analytics</strong> - earnings per mile, golden hours, platform comparison, weekly P&amp;L.</td>
+                      </tr></table>
+                    </td></tr>
+                    <tr><td style="padding: 8px 0;">
+                      <table role="presentation" cellpadding="0" cellspacing="0"><tr>
+                        <td style="width: 28px; vertical-align: top; padding-top: 1px; color: #10b981; font-size: 14px;">&#9672;</td>
+                        <td style="color: #c0c8d4; font-size: 14px; line-height: 1.6;"><strong style="color: #f0f2f5;">Unlimited saved locations</strong> - save your depots, regular stops, and work zones for auto-classification.</td>
+                      </tr></table>
+                    </td></tr>
+                  </table>
 
-                  <!-- Feedback callout -->
+                  <p style="color: #c0c8d4; font-size: 15px; line-height: 1.7; margin: 0 0 24px;"><strong style="color: #f0f2f5;">To get started:</strong> add a vehicle, set your home and work locations, then just drive. MileClear handles the rest.</p>
+
+                  <!-- Support callout -->
                   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin: 0 0 28px;">
                     <tr><td style="background-color: rgba(245,166,35,0.08); border: 1px solid rgba(245,166,35,0.15); border-radius: 10px; padding: 18px 20px;">
-                      <p style="color: #d4b87a; font-size: 14px; line-height: 1.65; margin: 0;">MileClear is always a work in progress and your input genuinely shapes what gets built next. If you have any suggestions, feature requests, or spot something that could be better, head to the <strong style="color: #f5a623;">Suggestions</strong> section in the app  - or just reply to this email. I read every message.</p>
+                      <p style="color: #d4b87a; font-size: 14px; line-height: 1.65; margin: 0;"><strong style="color: #f5a623;">Need help?</strong> Head to <strong style="color: #f5a623;">Help &amp; Support</strong> in your profile, or just reply to this email. I read every message and I'll get back to you personally.</p>
                     </td></tr>
                   </table>
 
@@ -310,23 +364,76 @@ export async function sendUpdateEmail(
 ): Promise<void> {
   const greeting = displayName ? `Hi ${escapeHtml(displayName)},` : "Hi there,";
   const subject = "What's new in MileClear";
-  const html = `<div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;max-width:520px;margin:0 auto;padding:32px 24px;color:#333;">
-<h2 style="color:#1a1a1a;margin:0 0 20px;">What's new in MileClear</h2>
-<p>${greeting}</p>
-<p>We've been busy making MileClear smarter and more accurate. Here's what's new:</p>
-<ul style="padding-left:20px;line-height:1.8;">
-<li><strong>Smart trip classification</strong> - Trips near your saved work or depot locations are now automatically classified as business. No more manually tagging every trip.</li>
-<li><strong>Honest shift grades</strong> - Your A-F shift grades now factor in fuel and wear costs, so you see real profit, not just gross earnings.</li>
-<li><strong>Tax savings on dashboard</strong> - Your running HMRC deduction total is now front and centre on the work dashboard, so every trip feels like money saved.</li>
-<li><strong>Help &amp; Support</strong> - New section in your profile with direct email support, feedback, and FAQ. Error messages now include a Contact Support button.</li>
-<li><strong>3-day check-in email</strong> - A personal email from me a few days after you sign up, making sure everything's working.</li>
-</ul>
-<p>More on the way. Check out our <a href="https://mileclear.com/updates" style="color:#f5a623;">Updates &amp; Blog</a> for the full story.</p>
-<p>As always, if anything doesn't feel right or you've got ideas, just reply to this email.</p>
-<p>Cheers,<br/><strong>Gair</strong></p>
-<hr style="border:none;border-top:1px solid #eee;margin:24px 0 16px;"/>
-<p style="color:#999;font-size:12px;">You're receiving this because you have a MileClear account. Reply with "unsubscribe" to opt out.</p>
-</div>`;
+  const html = `<!DOCTYPE html>
+<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
+<body style="margin: 0; padding: 0; background-color: #030712; font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color: #030712;">
+<tr><td align="center" style="padding: 32px 16px;">
+<table role="presentation" width="520" cellpadding="0" cellspacing="0" style="max-width: 520px; width: 100%;">
+  <tr><td align="center" style="padding: 24px 0 32px;">
+    <img src="https://mileclear.com/branding/logo-120x120.png" alt="MileClear" width="56" height="56" style="display: block; border: 0; border-radius: 12px;" />
+  </td></tr>
+  <tr><td style="background-color: #0a1120; border-radius: 16px; border: 1px solid rgba(255,255,255,0.06);">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+      <tr><td style="height: 3px; background: linear-gradient(90deg, #f5a623, #e8950f); border-radius: 16px 16px 0 0; font-size: 0; line-height: 0;">&nbsp;</td></tr>
+      <tr><td style="padding: 36px 32px 32px;">
+        <h1 style="margin: 0 0 24px; font-size: 22px; font-weight: 700; color: #f0f2f5;">What's new in <span style="color: #f5a623;">MileClear</span></h1>
+        <p style="color: #c0c8d4; font-size: 15px; line-height: 1.7; margin: 0 0 16px;">${greeting}</p>
+        <p style="color: #c0c8d4; font-size: 15px; line-height: 1.7; margin: 0 0 20px;">We've been busy making MileClear smarter and more accurate. Here's what's changed:</p>
+
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin: 0 0 20px;">
+          <tr><td style="padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.04);">
+            <table role="presentation" cellpadding="0" cellspacing="0"><tr>
+              <td style="width: 28px; vertical-align: top; padding-top: 1px; color: #f5a623; font-size: 14px;">&#9672;</td>
+              <td style="color: #c0c8d4; font-size: 14px; line-height: 1.6;"><strong style="color: #f0f2f5;">Smart trip classification</strong> - trips near your saved work or depot locations are now auto-tagged as business. Platform tags suggested from your history.</td>
+            </tr></table>
+          </td></tr>
+          <tr><td style="padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.04);">
+            <table role="presentation" cellpadding="0" cellspacing="0"><tr>
+              <td style="width: 28px; vertical-align: top; padding-top: 1px; color: #f5a623; font-size: 14px;">&#9672;</td>
+              <td style="color: #c0c8d4; font-size: 14px; line-height: 1.6;"><strong style="color: #f0f2f5;">Honest shift grades</strong> - your A-F grades now factor in fuel and wear costs, so you see real profit, not just gross earnings.</td>
+            </tr></table>
+          </td></tr>
+          <tr><td style="padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.04);">
+            <table role="presentation" cellpadding="0" cellspacing="0"><tr>
+              <td style="width: 28px; vertical-align: top; padding-top: 1px; color: #f5a623; font-size: 14px;">&#9672;</td>
+              <td style="color: #c0c8d4; font-size: 14px; line-height: 1.6;"><strong style="color: #f0f2f5;">Tax savings on dashboard</strong> - your running HMRC deduction total is now front and centre, so every trip feels like money saved.</td>
+            </tr></table>
+          </td></tr>
+          <tr><td style="padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.04);">
+            <table role="presentation" cellpadding="0" cellspacing="0"><tr>
+              <td style="width: 28px; vertical-align: top; padding-top: 1px; color: #f5a623; font-size: 14px;">&#9672;</td>
+              <td style="color: #c0c8d4; font-size: 14px; line-height: 1.6;"><strong style="color: #f0f2f5;">Help &amp; Support</strong> - new section in your profile with direct email support, feedback, and FAQ. Error messages now include a Contact Support button.</td>
+            </tr></table>
+          </td></tr>
+          <tr><td style="padding: 8px 0;">
+            <table role="presentation" cellpadding="0" cellspacing="0"><tr>
+              <td style="width: 28px; vertical-align: top; padding-top: 1px; color: #f5a623; font-size: 14px;">&#9672;</td>
+              <td style="color: #c0c8d4; font-size: 14px; line-height: 1.6;"><strong style="color: #f0f2f5;">Feedback confirmation</strong> - when you submit a suggestion, you'll get a personal email confirming it was received.</td>
+            </tr></table>
+          </td></tr>
+        </table>
+
+        <p style="color: #c0c8d4; font-size: 15px; line-height: 1.7; margin: 0 0 20px;">More on the way. Check out our <a href="https://mileclear.com/updates" style="color: #f5a623; text-decoration: none;">Updates &amp; Blog</a> for the full story.</p>
+
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin: 0 0 28px;">
+          <tr><td style="background-color: rgba(245,166,35,0.08); border: 1px solid rgba(245,166,35,0.15); border-radius: 10px; padding: 18px 20px;">
+            <p style="color: #d4b87a; font-size: 14px; line-height: 1.65; margin: 0;">Something not working? Got ideas? Just reply to this email. I read every message and I'll get back to you personally.</p>
+          </td></tr>
+        </table>
+
+        <p style="color: #c0c8d4; font-size: 15px; line-height: 1.7; margin: 0;">Cheers,</p>
+        <p style="color: #f0f2f5; font-size: 15px; font-weight: 600; margin: 4px 0 0;">Gair</p>
+      </td></tr>
+    </table>
+  </td></tr>
+  <tr><td align="center" style="padding: 28px 0 8px;">
+    <p style="color: #4a5568; font-size: 12px; line-height: 1.5; margin: 0;">You're receiving this because you have a MileClear account.<br/>Reply with "unsubscribe" to opt out of update emails.</p>
+  </td></tr>
+</table>
+</td></tr>
+</table>
+</body></html>`;
 
   if (!transporter) {
     console.log(`[EMAIL] Update email for ${email}`);
