@@ -359,18 +359,29 @@ async function processGeofenceTrip(
   const first = coords[0] || { lat: 0, lng: 0, recorded_at: departedAt };
   const last = coords[coords.length - 1] || first;
 
-  // Look up location names from saved_locations
-  const departedLoc = await db.getFirstAsync<{ name: string }>(
-    "SELECT name FROM saved_locations WHERE id = ?",
+  // Look up location names and types from saved_locations
+  const departedLoc = await db.getFirstAsync<{ name: string; location_type: string }>(
+    "SELECT name, location_type FROM saved_locations WHERE id = ?",
     [departedLocationId]
   );
-  const arrivedLoc = await db.getFirstAsync<{ name: string }>(
-    "SELECT name FROM saved_locations WHERE id = ?",
+  const arrivedLoc = await db.getFirstAsync<{ name: string; location_type: string }>(
+    "SELECT name, location_type FROM saved_locations WHERE id = ?",
     [arrivedLocationId]
   );
 
   const startAddress = departedLoc?.name || (await reverseGeocode(first.lat, first.lng)) || null;
   const endAddress = arrivedLoc?.name || (await reverseGeocode(last.lat, last.lng)) || null;
+
+  // Auto-classify based on saved location types
+  const startType = departedLoc?.location_type ?? null;
+  const endType = arrivedLoc?.location_type ?? null;
+  const workTypes = ["work", "depot"];
+  let classification: "business" | "personal" | "unclassified" = "unclassified";
+  if ((startType && workTypes.includes(startType)) || (endType && workTypes.includes(endType))) {
+    classification = "business";
+  } else if (startType === "home" && endType === "home") {
+    classification = "personal";
+  }
 
   // Check Bluetooth — if a vehicle's BT device is connected, auto-confirm the trip
   const btMatch = await checkBluetoothVehicleConnected();
@@ -386,7 +397,7 @@ async function processGeofenceTrip(
   await db.runAsync(
     `INSERT INTO trips (id, start_lat, start_lng, end_lat, end_lng, start_address, end_address,
       distance_miles, started_at, ended_at, is_manual_entry, classification, notes)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 'personal', ?)`,
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?)`,
     [
       tripId,
       first.lat,
@@ -398,6 +409,7 @@ async function processGeofenceTrip(
       Math.round(totalDistance * 100) / 100,
       departedAt,
       now,
+      classification,
       notes,
     ]
   );

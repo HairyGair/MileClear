@@ -271,7 +271,7 @@ export async function sendReEngagementEmail(
                   <!-- CTA for active users -->
                   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin: 0 0 24px;">
                     <tr><td style="background-color: rgba(245,166,35,0.08); border: 1px solid rgba(245,166,35,0.15); border-radius: 10px; padding: 18px 20px;">
-                      <p style="color: #d4b87a; font-size: 14px; line-height: 1.65; margin: 0;"><strong style="color: #f5a623;">What's new in Build 27:</strong> Smarter automatic trip detection, fewer false notifications, and quiet hours between 10pm&ndash;7am so we won't disturb you at night.</p>
+                      <p style="color: #d4b87a; font-size: 14px; line-height: 1.65; margin: 0;"><strong style="color: #f5a623;">What's new:</strong> Trips near your saved work locations are now auto-classified as business. Shift grades reflect real profit after fuel and wear costs. And if something goes wrong, there's a Contact Support button right in the error message.</p>
                     </td></tr>
                   </table>`}
 
@@ -313,16 +313,15 @@ export async function sendUpdateEmail(
   const html = `<div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;max-width:520px;margin:0 auto;padding:32px 24px;color:#333;">
 <h2 style="color:#1a1a1a;margin:0 0 20px;">What's new in MileClear</h2>
 <p>${greeting}</p>
-<p>We've just pushed a big update. Here's what's changed:</p>
+<p>We've been busy making MileClear smarter and more accurate. Here's what's new:</p>
 <ul style="padding-left:20px;line-height:1.8;">
-<li><strong>Driver or Passenger?</strong> - When we detect a journey, you'll get a notification asking if you're the driver or a passenger. Passenger trips are ignored automatically.</li>
-<li><strong>Accurate trip end times</strong> - Trip end times now show when you actually stopped driving, not when you opened the app.</li>
-<li><strong>Annual plan</strong> - Save 25% with yearly billing.</li>
-<li><strong>Better sign-in reliability</strong> - No more unnecessary logouts.</li>
-<li><strong>Delete trips</strong> - Long-press any trip to remove it.</li>
-<li><strong>Export fix</strong> - Auto-detected trips now show your vehicle correctly in PDF and CSV exports.</li>
+<li><strong>Smart trip classification</strong> - Trips near your saved work or depot locations are now automatically classified as business. No more manually tagging every trip.</li>
+<li><strong>Honest shift grades</strong> - Your A-F shift grades now factor in fuel and wear costs, so you see real profit, not just gross earnings.</li>
+<li><strong>Tax savings on dashboard</strong> - Your running HMRC deduction total is now front and centre on the work dashboard, so every trip feels like money saved.</li>
+<li><strong>Help &amp; Support</strong> - New section in your profile with direct email support, feedback, and FAQ. Error messages now include a Contact Support button.</li>
+<li><strong>3-day check-in email</strong> - A personal email from me a few days after you sign up, making sure everything's working.</li>
 </ul>
-<p>Want to know the thinking behind these changes? Check out our new <a href="https://mileclear.com/updates" style="color:#f5a623;">Updates &amp; Blog</a> page.</p>
+<p>More on the way. Check out our <a href="https://mileclear.com/updates" style="color:#f5a623;">Updates &amp; Blog</a> for the full story.</p>
 <p>As always, if anything doesn't feel right or you've got ideas, just reply to this email.</p>
 <p>Cheers,<br/><strong>Gair</strong></p>
 <hr style="border:none;border-top:1px solid #eee;margin:24px 0 16px;"/>

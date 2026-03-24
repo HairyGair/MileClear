@@ -877,10 +877,13 @@ export default function DashboardScreen() {
                   )}
                 </View>
                 <Text style={s.heroValue}>
-                  {isPremium ? formatPence(stats.deductionPence) : `${stats.businessMiles.toFixed(0)} mi`}
+                  {formatPence(stats.deductionPence)}
                 </Text>
-                {!isPremium && (
-                  <Text style={s.heroLockedHint}>Upgrade to see tax deduction</Text>
+                {stats.deductionPence > 0 && (
+                  <Text style={s.heroSavedLabel}>saved in tax this year</Text>
+                )}
+                {!isPremium && stats.deductionPence > 0 && (
+                  <Text style={s.heroLockedHint}>Upgrade to export for your tax return</Text>
                 )}
                 <View style={s.heroMeta}>
                   <Text style={s.heroMetaText}>
@@ -1296,6 +1299,13 @@ const s = StyleSheet.create({
     color: AMBER,
     letterSpacing: -1,
     marginBottom: 10,
+  },
+  heroSavedLabel: {
+    fontSize: 13,
+    fontFamily: "PlusJakartaSans_500Medium",
+    color: "#10b981",
+    marginBottom: 6,
+    marginTop: -6,
   },
   heroLockedHint: {
     fontSize: 12,
