@@ -12,6 +12,7 @@ import {
   TextInput,
   Share,
   Switch,
+  Linking,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter, useFocusEffect } from "expo-router";
@@ -1008,6 +1009,30 @@ export default function ProfileScreen() {
           </View>
           <Ionicons name="open-outline" size={16} color={TEXT_3} />
         </TouchableOpacity>
+
+        {/* ── HELP & SUPPORT ── */}
+        <View style={styles.group}>
+          <Text style={styles.groupLabel} accessibilityRole="header">HELP & SUPPORT</Text>
+          <View style={styles.groupCard}>
+            <GroupItem
+              icon="chatbubble-ellipses-outline"
+              label="Suggestions & Feedback"
+              onPress={() => router.push("/feedback")}
+              border
+            />
+            <GroupItem
+              icon="mail-outline"
+              label="Email Support"
+              onPress={() => Linking.openURL("mailto:support@mileclear.com?subject=MileClear%20Support")}
+              border
+            />
+            <GroupItem
+              icon="help-circle-outline"
+              label="FAQ & Help"
+              onPress={() => WebBrowser.openBrowserAsync("https://mileclear.com/support")}
+            />
+          </View>
+        </View>
 
         {/* ── LEGAL ── */}
         <View style={styles.group}>

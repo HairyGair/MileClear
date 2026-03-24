@@ -25,6 +25,8 @@ import { businessInsightRoutes } from "./routes/businessInsights/index.js";
 import { communityInsightRoutes } from "./routes/communityInsights/index.js";
 import { analyticsRoutes } from "./routes/analytics/index.js";
 import { startNotificationJobs } from "./jobs/notifications.js";
+import { startBriefingJobs } from "./jobs/briefing.js";
+import { logEvent, trackErrorForAlert } from "./services/appEvents.js";
 
 // Validate required secrets at startup
 const JWT_SECRET = process.env.JWT_SECRET;
@@ -86,9 +88,29 @@ app.setErrorHandler((error: Error & { statusCode?: number; validation?: unknown 
   request.log.error(error);
   const statusCode = error.statusCode && error.statusCode < 500 ? error.statusCode : 500;
   if (statusCode >= 500) {
+    logEvent("error.500", (request as any).userId ?? null, {
+      path: request.url,
+      method: request.method,
+      message: error.message,
+    });
+    trackErrorForAlert();
     return reply.status(500).send({ error: "Internal server error" });
   }
   return reply.status(statusCode).send({ error: error.message });
+});
+
+// Log slow requests (>2s response time)
+app.addHook("onResponse", (request, reply, done) => {
+  const duration = reply.elapsedTime;
+  if (duration > 2000) {
+    logEvent("perf.slow_request", (request as any).userId ?? null, {
+      path: request.url,
+      method: request.method,
+      statusCode: reply.statusCode,
+      durationMs: Math.round(duration),
+    });
+  }
+  done();
 });
 
 // Routes
@@ -119,6 +141,7 @@ try {
   await app.listen({ port: PORT, host: HOST });
   console.log(`MileClear API running on http://${HOST}:${PORT}`);
   startNotificationJobs();
+  startBriefingJobs();
 } catch (err) {
   app.log.error(err);
   process.exit(1);

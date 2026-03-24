@@ -15,6 +15,7 @@ import {
   sendWelcomeEmail,
 } from "../../services/email.js";
 import { authMiddleware } from "../../middleware/auth.js";
+import { logEvent } from "../../services/appEvents.js";
 import { REFRESH_TOKEN_EXPIRY_DAYS } from "@mileclear/shared";
 
 const registerSchema = z.object({
@@ -180,6 +181,8 @@ export async function authRoutes(app: FastifyInstance) {
       console.error("Failed to send welcome email:", err)
     );
 
+    logEvent("user.registered", user.id, { method: "email" });
+
     return reply.status(201).send({
       data: { accessToken, refreshToken },
     });
@@ -205,17 +208,20 @@ export async function authRoutes(app: FastifyInstance) {
       const user = await prisma.user.findUnique({ where: { email } });
       if (!user || !user.passwordHash) {
         recordFailedLogin(email);
+        logEvent("auth.login_failed", null, { email, reason: "invalid_credentials" });
         return reply.status(401).send({ error: "Invalid email or password" });
       }
 
       const valid = await verifyPassword(password, user.passwordHash);
       if (!valid) {
         recordFailedLogin(email);
+        logEvent("auth.login_failed", user.id, { reason: "wrong_password" });
         return reply.status(401).send({ error: "Invalid email or password" });
       }
 
       // Successful login — clear failed attempts
       clearFailedLogins(email);
+      logEvent("user.login", user.id, { method: "email" });
 
       const accessToken = generateAccessToken(user.id, user.isAdmin);
       const refreshToken = generateRefreshToken(user.id);
@@ -361,6 +367,8 @@ export async function authRoutes(app: FastifyInstance) {
           data: { emailVerified: true },
         }),
       ]);
+
+      logEvent("user.verified", userId);
 
       return reply.status(200).send({ message: "Email verified" });
     }
@@ -531,6 +539,8 @@ export async function authRoutes(app: FastifyInstance) {
       );
     }
 
+    logEvent(isNewUser ? "user.registered" : "user.login", user.id, { method: "apple" });
+
     const accessToken = generateAccessToken(user.id, user.isAdmin);
     const refreshToken = generateRefreshToken(user.id);
     await storeRefreshToken(user.id, refreshToken);
@@ -627,6 +637,8 @@ export async function authRoutes(app: FastifyInstance) {
         console.error("Failed to send welcome email:", err)
       );
     }
+
+    logEvent(isNewUser ? "user.registered" : "user.login", user.id, { method: "google" });
 
     const accessToken = generateAccessToken(user.id, user.isAdmin);
     const refreshToken = generateRefreshToken(user.id);
@@ -776,6 +788,8 @@ export async function authRoutes(app: FastifyInstance) {
         console.error("Failed to send welcome email:", err)
       );
     }
+
+    logEvent(isNewUser ? "user.registered" : "user.login", user.id, { method: "apple_web" });
 
     const accessToken = generateAccessToken(user.id, user.isAdmin);
     const refreshToken = generateRefreshToken(user.id);

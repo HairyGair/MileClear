@@ -12,6 +12,7 @@ import {
   Platform,
 } from "react-native";
 import { useRouter, useLocalSearchParams, Stack } from "expo-router";
+import { showSupportAlert } from "../lib/support";
 import {
   createVehicle,
   updateVehicle,
@@ -161,7 +162,7 @@ export default function VehicleFormScreen() {
       }
       router.back();
     } catch (err: unknown) {
-      Alert.alert("Error", err instanceof Error ? err.message : "Failed to save vehicle");
+      showSupportAlert("Save Failed", err instanceof Error ? err.message : "Failed to save vehicle.");
     } finally {
       setSaving(false);
     }

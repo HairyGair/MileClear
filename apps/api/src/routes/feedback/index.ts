@@ -3,6 +3,8 @@ import { z } from "zod";
 import { prisma } from "../../lib/prisma.js";
 import { authMiddleware, optionalAuthMiddleware } from "../../middleware/auth.js";
 import { adminMiddleware } from "../../middleware/admin.js";
+import { sendFeedbackAcknowledgement } from "../../services/email.js";
+import { logEvent } from "../../services/appEvents.js";
 
 function sanitizeText(input: string): string {
   return input
@@ -71,6 +73,25 @@ export async function feedbackRoutes(app: FastifyInstance) {
           createdAt: true,
         },
       });
+
+      logEvent("feedback.submitted", request.userId ?? null, {
+        category,
+        title: sanitizeText(title),
+      });
+
+      // Send acknowledgement email (fire-and-forget) if user is authenticated
+      if (request.userId) {
+        prisma.user
+          .findUnique({ where: { id: request.userId }, select: { email: true, displayName: true } })
+          .then((user) => {
+            if (user) {
+              sendFeedbackAcknowledgement(user.email, user.displayName, sanitizeText(title)).catch(
+                (err) => console.error("[feedback] Acknowledgement email failed:", err)
+              );
+            }
+          })
+          .catch(() => {});
+      }
 
       return reply.status(201).send({
         data: {

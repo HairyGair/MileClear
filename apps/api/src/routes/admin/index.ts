@@ -5,6 +5,7 @@ import { authMiddleware } from "../../middleware/auth.js";
 import { adminMiddleware } from "../../middleware/admin.js";
 import { stripe } from "../../lib/stripe.js";
 import { sendReEngagementEmail, sendServiceStatusEmail, sendUpdateEmail } from "../../services/email.js";
+import { logEvent } from "../../services/appEvents.js";
 
 const premiumToggleSchema = z.object({
   isPremium: z.boolean(),
@@ -194,6 +195,11 @@ export async function adminRoutes(app: FastifyInstance) {
       select: { id: true, email: true, isPremium: true },
     });
 
+    logEvent("admin.premium_toggled", request.userId!, {
+      targetUserId: userId,
+      newValue: parsed.data.isPremium,
+    });
+
     request.log.warn(
       { adminId: request.userId, targetUserId: userId, action: "premium.toggle", newValue: parsed.data.isPremium },
       `Admin toggled premium: ${userId} → ${parsed.data.isPremium}`
@@ -226,6 +232,11 @@ export async function adminRoutes(app: FastifyInstance) {
         request.log.error(err, `Failed to cancel Stripe subscription for ${userId}`);
       }
     }
+
+    logEvent("admin.user_deleted", request.userId!, {
+      targetUserId: userId,
+      targetEmail: user.email,
+    });
 
     request.log.warn(
       { adminId: request.userId, targetUserId: userId, targetEmail: user.email, action: "user.delete" },

@@ -18,6 +18,7 @@ import {
   DEFAULT_PAGE_SIZE,
   MAX_PAGE_SIZE,
 } from "@mileclear/shared";
+import { logEvent } from "../../services/appEvents.js";
 
 const createEarningSchema = z.object({
   platform: z.string().min(1, "Platform is required"),
@@ -68,6 +69,8 @@ export async function earningRoutes(app: FastifyInstance) {
         source: "manual",
       },
     });
+
+    logEvent("earnings.created", userId, { platform, amountPence, source: "manual" });
 
     return reply.status(201).send({ data: earning });
   });
@@ -225,6 +228,10 @@ export async function earningRoutes(app: FastifyInstance) {
         parsed.data.rows,
         parsed.data.filename
       );
+      logEvent("earnings.csv_imported", request.userId!, {
+        rowCount: result.imported,
+        filename: parsed.data.filename,
+      });
       return reply.send({ data: result });
     } catch (err: any) {
       request.log.error(err, "CSV confirm import failed");
@@ -336,6 +343,9 @@ export async function earningRoutes(app: FastifyInstance) {
           parsed.data.fromDate,
           parsed.data.toDate
         );
+        logEvent("earnings.open_banking_synced", request.userId!, {
+          connectionId: parsed.data.connectionId,
+        });
         return reply.send({ data: result });
       } catch (err: any) {
         request.log.error(err, "Failed to sync transactions");

@@ -890,6 +890,16 @@ export default function OnboardingScreen() {
               </View>
             </View>
 
+            {/* Support message */}
+            <View style={s.supportCard}>
+              <Ionicons name="chatbubble-ellipses-outline" size={20} color={AMBER} />
+              <Text style={s.supportCardText}>
+                Got a question or something not working? I'm here to help. Tap{" "}
+                <Text style={s.supportCardBold}>Help & Support</Text> in your profile, or email{" "}
+                <Text style={s.supportCardBold}>support@mileclear.com</Text> any time.
+              </Text>
+            </View>
+
             <Button
               variant="hero"
               title="Start Your First Trip"
@@ -1406,6 +1416,29 @@ const s = StyleSheet.create({
     fontFamily: "PlusJakartaSans_400Regular",
     color: TEXT_2,
     flex: 1,
+  },
+  supportCard: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 12,
+    backgroundColor: "rgba(245, 166, 35, 0.06)",
+    borderWidth: 1,
+    borderColor: "rgba(245, 166, 35, 0.15)",
+    borderRadius: 12,
+    padding: 16,
+    marginTop: 16,
+    marginBottom: 24,
+  },
+  supportCardText: {
+    fontSize: 13,
+    fontFamily: "PlusJakartaSans_400Regular",
+    color: "#c0c8d4",
+    flex: 1,
+    lineHeight: 20,
+  },
+  supportCardBold: {
+    fontFamily: "PlusJakartaSans_600SemiBold",
+    color: "#f5a623",
   },
   dashboardLink: {
     marginTop: 16,

@@ -12,6 +12,7 @@ import {
   Platform,
 } from "react-native";
 import { useRouter, useLocalSearchParams, Stack } from "expo-router";
+import { showSupportAlert } from "../lib/support";
 import { fetchEarning } from "../lib/api/earnings";
 import { getLocalEarning } from "../lib/db/queries";
 import {
@@ -97,7 +98,7 @@ export default function EarningFormScreen() {
       }
       router.back();
     } catch (err: unknown) {
-      Alert.alert("Error", err instanceof Error ? err.message : "Failed to save earning");
+      showSupportAlert("Save Failed", err instanceof Error ? err.message : "Failed to save earning.");
     } finally {
       setSaving(false);
     }

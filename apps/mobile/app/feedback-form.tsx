@@ -14,6 +14,7 @@ import {
 import { useRouter } from "expo-router";
 import { useUser } from "../lib/user/context";
 import { submitFeedback } from "../lib/api/feedback";
+import { showSupportAlert } from "../lib/support";
 import { FEEDBACK_CATEGORIES } from "@mileclear/shared";
 import type { FeedbackCategory } from "@mileclear/shared";
 
@@ -61,7 +62,7 @@ export default function FeedbackFormScreen() {
         { text: "OK", onPress: () => router.back() },
       ]);
     } catch (e: any) {
-      Alert.alert("Error", e.message || "Failed to submit. Please try again.");
+      showSupportAlert("Submission Failed", e.message || "Failed to submit your feedback.");
     } finally {
       setSubmitting(false);
     }

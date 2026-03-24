@@ -8,6 +8,8 @@ import {
   ACHIEVEMENT_META,
   type AchievementType,
 } from "@mileclear/shared";
+import { sendCheckinEmail } from "../services/email.js";
+import { logEvent } from "../services/appEvents.js";
 
 // In-memory dedup sets — keyed by "YYYY-MM-DD:userId" so each user receives
 // at most one of each notification type per calendar day, even if the job
@@ -343,6 +345,68 @@ async function runWelcomeNudgeJob(): Promise<void> {
   }
 }
 
+/**
+ * Check-in email — sent 3 days after signup. Personal email from Gair
+ * asking how things are going and inviting them to reply with questions.
+ * One-time per user.
+ */
+const checkinEmailSent = new Set<string>(); // lifetime dedup
+
+async function runCheckinEmailJob(): Promise<void> {
+  try {
+    const now = new Date();
+    // Only run between 9am-11am UTC
+    if (now.getUTCHours() < 9 || now.getUTCHours() >= 11) return;
+
+    const threeDaysAgo = new Date(now.getTime() - 3 * 24 * 60 * 60 * 1000);
+    const fourDaysAgo = new Date(now.getTime() - 4 * 24 * 60 * 60 * 1000);
+
+    // Users who signed up 3-4 days ago
+    const candidates = await prisma.user.findMany({
+      where: {
+        createdAt: { gte: fourDaysAgo, lte: threeDaysAgo },
+      },
+      select: { id: true, email: true, displayName: true },
+    });
+
+    if (candidates.length === 0) return;
+
+    let sent = 0;
+    for (const user of candidates) {
+      if (checkinEmailSent.has(user.id)) continue;
+      checkinEmailSent.add(user.id);
+
+      // Get their trip stats
+      const tripStats = await prisma.trip.aggregate({
+        where: { userId: user.id },
+        _count: { id: true },
+        _sum: { distanceMiles: true },
+      });
+
+      const stats = {
+        totalTrips: tripStats._count.id,
+        totalMiles: tripStats._sum.distanceMiles ?? 0,
+      };
+
+      try {
+        await sendCheckinEmail(user.email, user.displayName, stats);
+        logEvent("email.checkin_sent", user.id);
+        sent++;
+        // Small delay between emails
+        await new Promise((r) => setTimeout(r, 300));
+      } catch (err) {
+        console.error(`[jobs/notifications] Check-in email failed for ${user.email}:`, err);
+      }
+    }
+
+    if (sent > 0) {
+      console.log(`[jobs/notifications] Check-in email: sent ${sent}`);
+    }
+  } catch (err) {
+    console.error("[jobs/notifications] Check-in email job failed:", err);
+  }
+}
+
 // ── Event-driven push helpers (called from routes) ────────────────────
 
 /**
@@ -462,6 +526,7 @@ export function startNotificationJobs(): void {
     void runWeeklyRecapJob();
     void runMonthlyRecapJob();
     void runWelcomeNudgeJob();
+    void runCheckinEmailJob();
 
     setInterval(() => {
       void runStreakAtRiskJob();
@@ -469,6 +534,7 @@ export function startNotificationJobs(): void {
       void runWeeklyRecapJob();
       void runMonthlyRecapJob();
       void runWelcomeNudgeJob();
+      void runCheckinEmailJob();
     }, INTERVAL_MS);
   }, INITIAL_DELAY_MS);
 

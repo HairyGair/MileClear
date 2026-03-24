@@ -10,6 +10,7 @@ import {
   VALID_PRODUCT_IDS,
   bundleId,
 } from "../../services/appleIap.js";
+import { logEvent } from "../../services/appEvents.js";
 
 export async function appleBillingRoutes(app: FastifyInstance) {
   // --- Validate purchase (auth required) ---
@@ -85,6 +86,7 @@ export async function appleBillingRoutes(app: FastifyInstance) {
           },
         });
 
+        logEvent("billing.apple_iap_validated", request.userId!, { originalTransactionId });
         app.log.info(
           `User ${request.userId} validated Apple purchase ${originalTransactionId}`
         );

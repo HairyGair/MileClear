@@ -6,6 +6,7 @@ import { SHIFT_STATUSES, getTaxYear, DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE } from "@m
 import { upsertMileageSummary } from "../../services/mileage.js";
 import { checkAndAwardAchievements, getShiftScorecard } from "../../services/gamification.js";
 import { sendShiftSummaryPush, sendAchievementPush } from "../../jobs/notifications.js";
+import { logEvent } from "../../services/appEvents.js";
 
 const startShiftSchema = z.object({
   vehicleId: z.string().uuid().optional(),
@@ -55,6 +56,8 @@ export async function shiftRoutes(app: FastifyInstance) {
       },
       include: { vehicle: true },
     });
+
+    logEvent("shift.started", userId, { vehicleId: vehicleId ?? null });
 
     return reply.status(201).send({ data: shift });
   });
@@ -191,6 +194,11 @@ export async function shiftRoutes(app: FastifyInstance) {
     if (newAchievements && newAchievements.length > 0) {
       sendAchievementPush(request.userId!, newAchievements).catch(() => {});
     }
+
+    logEvent("shift.completed", request.userId!, {
+      durationSeconds: scorecard?.durationSeconds,
+      tripCount: scorecard?.tripsCompleted,
+    });
 
     return reply.send({ data: updated, scorecard });
   });

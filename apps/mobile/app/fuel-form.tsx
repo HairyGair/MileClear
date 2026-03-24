@@ -12,6 +12,7 @@ import {
   Platform,
 } from "react-native";
 import { useRouter, useLocalSearchParams, Stack } from "expo-router";
+import { showSupportAlert } from "../lib/support";
 import { fetchFuelLog, fetchNearbyPrices } from "../lib/api/fuel";
 import { getLocalFuelLog } from "../lib/db/queries";
 import {
@@ -247,7 +248,7 @@ export default function FuelFormScreen() {
       }
       router.back();
     } catch (err: unknown) {
-      Alert.alert("Error", err instanceof Error ? err.message : "Failed to save fuel log");
+      showSupportAlert("Save Failed", err instanceof Error ? err.message : "Failed to save fuel log.");
     } finally {
       setSaving(false);
     }

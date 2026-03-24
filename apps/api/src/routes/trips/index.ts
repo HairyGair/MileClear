@@ -15,6 +15,7 @@ import { haversineDistance, fetchRouteDistance, computeTripInsights } from "@mil
 import { upsertMileageSummary } from "../../services/mileage.js";
 import { checkAndAwardAchievements } from "../../services/gamification.js";
 import { sendMilestonePush, sendAchievementPush } from "../../jobs/notifications.js";
+import { logEvent } from "../../services/appEvents.js";
 
 // Server-side geocoding: resolve an address to coordinates via Postcodes.io or Nominatim
 async function geocodeAddress(addr: string): Promise<{ lat: number; lng: number } | null> {
@@ -250,6 +251,13 @@ export async function tripRoutes(app: FastifyInstance) {
         sendMilestonePush(userId).catch(() => {});
       })
       .catch(() => {});
+
+    logEvent("trip.created", userId, {
+      distanceMiles,
+      classification: data.classification,
+      isManualEntry: !hasCoordinates,
+      platformTag: data.platformTag ?? null,
+    });
 
     return reply.status(201).send({ data: trip });
   });
@@ -600,6 +608,8 @@ export async function tripRoutes(app: FastifyInstance) {
     upsertMileageSummary(userId, taxYear).catch(() => {});
     checkAndAwardAchievements(userId).catch(() => {});
 
+    logEvent("trip.updated", userId, { classification: updates.classification });
+
     return reply.send({ data: trip });
   });
 
@@ -627,6 +637,8 @@ export async function tripRoutes(app: FastifyInstance) {
 
     // Fire-and-forget: update mileage summary
     upsertMileageSummary(userId, taxYear).catch(() => {});
+
+    logEvent("trip.deleted", userId, { distanceMiles: existing.distanceMiles });
 
     return reply.send({ message: "Trip deleted" });
   });

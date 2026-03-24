@@ -5,6 +5,7 @@ import { prisma } from "../../lib/prisma.js";
 import { stripe } from "../../lib/stripe.js";
 import { sendPushNotification } from "../../lib/push.js";
 import { appleBillingRoutes } from "./apple.js";
+import { logEvent } from "../../services/appEvents.js";
 
 function getPeriodEnd(sub: Stripe.Subscription): number {
   return sub.items.data[0]?.current_period_end ?? 0;
@@ -112,6 +113,7 @@ export async function billingRoutes(app: FastifyInstance) {
           },
         });
 
+        logEvent("billing.subscription_activated", userId, { platform: "stripe", subscriptionId });
         app.log.info(`User ${userId} upgraded to premium`);
         break;
       }
@@ -165,6 +167,7 @@ export async function billingRoutes(app: FastifyInstance) {
           },
         });
 
+        logEvent("billing.subscription_cancelled", null, { platform: "stripe", customerId });
         app.log.info(`Premium cancelled for customer ${customerId}`);
         break;
       }
@@ -326,6 +329,8 @@ export async function billingRoutes(app: FastifyInstance) {
         success_url: `${API_BASE_URL}/billing/success`,
         cancel_url: `${API_BASE_URL}/billing/cancel`,
       });
+
+      logEvent("billing.checkout_created", user.id, { platform: "stripe" });
 
       return reply.send({ data: { url: session.url } });
     }

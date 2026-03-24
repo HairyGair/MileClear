@@ -9,6 +9,7 @@ import {
   formatFreeAgentExpense,
   formatQuickBooksExpense,
 } from "../../services/export.js";
+import { logEvent } from "../../services/appEvents.js";
 
 interface DateRangeQuery {
   taxYear?: string;
@@ -54,6 +55,8 @@ export async function exportRoutes(app: FastifyInstance) {
     const csv = await generateTripsCsv(request.userId!, opts);
     const filename = buildFilename("trips", opts.taxYear || "custom", "csv");
 
+    logEvent("export.csv", request.userId!, { taxYear: opts.taxYear });
+
     return reply
       .header("Content-Type", "text/csv")
       .header("Content-Disposition", `attachment; filename="${filename}"`)
@@ -65,6 +68,8 @@ export async function exportRoutes(app: FastifyInstance) {
     const opts = parseQueryOpts(request.query);
     const pdf = await generateTripsPdf(request.userId!, opts);
     const filename = buildFilename("trips", opts.taxYear || "custom", "pdf");
+
+    logEvent("export.pdf", request.userId!, { taxYear: opts.taxYear });
 
     return reply
       .header("Content-Type", "application/pdf")
@@ -83,6 +88,8 @@ export async function exportRoutes(app: FastifyInstance) {
 
       const pdf = await generateSelfAssessmentPdf(request.userId!, taxYear);
       const filename = buildFilename("self-assessment", taxYear, "pdf");
+
+      logEvent("export.self_assessment", request.userId!, { taxYear });
 
       return reply
         .header("Content-Type", "application/pdf")

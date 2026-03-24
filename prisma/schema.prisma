@@ -48,6 +48,7 @@ model User {
   feedbackVotes       FeedbackVote[]
   savedLocations      SavedLocation[]
   tripAnomalies       TripAnomaly[]
+  appEvents           AppEvent[]
 
   @@map("users")
 }
@@ -345,4 +346,19 @@ model SavedLocation {
 
   @@index([userId])
   @@map("saved_locations")
+}
+
+model AppEvent {
+  id        String   @id @default(uuid())
+  type      String   @db.VarChar(100)
+  userId    String?
+  metadata  Json?
+  createdAt DateTime @default(now())
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([type, createdAt])
+  @@index([createdAt])
+  @@index([userId])
+  @@map("app_events")
 }
