@@ -26,9 +26,29 @@ export interface BlogPost {
 // ----------------------------------------------------------------
 export const RELEASE_NOTES: ReleaseNote[] = [
   {
-    version: "1.0.2",
+    version: "1.0.2 (Build 30)",
+    date: "24 March 2026",
+    label: "Latest",
+    items: [
+      "Smart trip classification  - trips near your saved work or depot locations are now automatically classified as business, no more manual tagging every trip",
+      "Platform tag suggestions  - if your last 10 trips from a location were all Uber, the next one auto-suggests Uber",
+      "Honest shift grades  - your A-F shift grades now factor in fuel and wear costs so you see real profit, not just gross earnings",
+      "Tax savings on dashboard  - your running HMRC deduction total is now front and centre on the work dashboard for all users",
+      "Help & Support section  - new section in your profile with direct email support, feedback, and FAQ links",
+      "Contact Support in errors  - if something goes wrong, error messages now include a button to email support with context pre-filled",
+      "Onboarding support card  - final setup step now shows how to get help if you need it",
+      "3-day check-in email  - a personal email from Gair a few days after signup to make sure everything's working",
+      "Feedback acknowledgement  - submitting feedback now sends a confirmation email so you know it was received",
+      "App event logging  - behind the scenes, key actions are now tracked for the daily admin briefing",
+      "Daily admin briefing email  - summary of signups, trips, errors, and billing activity sent to admins each morning",
+      "Error alerting  - admins are emailed immediately if server errors spike above threshold",
+      "Slow request tracking  - API responses over 2 seconds are logged automatically",
+      "Auto-detected trips now correctly show your vehicle in PDF and CSV exports",
+    ],
+  },
+  {
+    version: "1.0.2 (Build 29)",
     date: "23 March 2026",
-    label: "Pending Review",
     items: [
       "Auto-detected trips now correctly show your vehicle in PDF and CSV exports (previously showed 'Unknown vehicle')",
       "Updates & Blog page added to the web dashboard  - mileclear.com/updates",
