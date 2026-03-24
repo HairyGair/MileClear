@@ -16,6 +16,7 @@ import { upsertMileageSummary } from "../../services/mileage.js";
 import { checkAndAwardAchievements } from "../../services/gamification.js";
 import { sendMilestonePush, sendAchievementPush } from "../../jobs/notifications.js";
 import { logEvent } from "../../services/appEvents.js";
+import { autoClassifyTrip } from "../../services/tripClassification.js";
 
 // Server-side geocoding: resolve an address to coordinates via Postcodes.io or Nominatim
 async function geocodeAddress(addr: string): Promise<{ lat: number; lng: number } | null> {
@@ -190,6 +191,37 @@ export async function tripRoutes(app: FastifyInstance) {
     const { coordinates, ...tripData } = data;
     const hasCoordinates = coordinates && coordinates.length > 0;
 
+    // Auto-classify unclassified trips based on saved locations + patterns
+    let finalClassification = tripData.classification;
+    let finalPlatformTag: string | null = tripData.platformTag ?? null;
+    if (finalClassification === "unclassified") {
+      try {
+        const suggestion = await autoClassifyTrip(
+          userId,
+          resolvedStartLat,
+          resolvedStartLng,
+          resolvedEndLat,
+          resolvedEndLng,
+          tripData.shiftId
+        );
+        if (suggestion.classification) {
+          finalClassification = suggestion.classification;
+          if (suggestion.platformTag && !finalPlatformTag) {
+            finalPlatformTag = suggestion.platformTag;
+          }
+          if (suggestion.matchedLocations.length > 0) {
+            logEvent("trip.auto_classified", userId, {
+              classification: suggestion.classification,
+              platformTag: suggestion.platformTag,
+              matchedLocations: suggestion.matchedLocations,
+            });
+          }
+        }
+      } catch {
+        // Auto-classification is best-effort, don't block trip creation
+      }
+    }
+
     const tripPayload = {
       userId,
       shiftId: tripData.shiftId ?? null,
@@ -204,8 +236,8 @@ export async function tripRoutes(app: FastifyInstance) {
       startedAt: tripData.startedAt,
       endedAt: tripData.endedAt ?? null,
       isManualEntry: !hasCoordinates,
-      classification: tripData.classification,
-      platformTag: tripData.platformTag ?? null,
+      classification: finalClassification,
+      platformTag: finalPlatformTag,
       businessPurpose: tripData.businessPurpose ?? null,
       category: tripData.category ?? null,
       notes: tripData.notes ?? null,
@@ -254,9 +286,10 @@ export async function tripRoutes(app: FastifyInstance) {
 
     logEvent("trip.created", userId, {
       distanceMiles,
-      classification: data.classification,
+      classification: finalClassification,
       isManualEntry: !hasCoordinates,
-      platformTag: data.platformTag ?? null,
+      platformTag: finalPlatformTag,
+      autoClassified: finalClassification !== data.classification,
     });
 
     return reply.status(201).send({ data: trip });

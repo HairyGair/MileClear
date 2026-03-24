@@ -15,18 +15,28 @@ const WEAR_COST_PENCE_PER_MILE = 8;
 
 // ── Shift grading ─────────────────────────────────────────────────
 
-function gradeShift(earningsPerHourPence: number, utilisationPercent: number): "A" | "B" | "C" | "D" | "F" {
-  // Composite score: 70% earnings weight, 30% utilisation
-  // A: excellent (>£15/hr equivalent), B: good (>£11), C: average (>£8), D: below average (>£5), F: poor
-  const hourlyPounds = earningsPerHourPence / 100;
-  const utilisationBonus = utilisationPercent / 100; // 0-1
+function gradeShift(
+  earningsPerHourPence: number,
+  utilisationPercent: number,
+  costPerMilePence: number,
+  milesPerHour: number
+): "A" | "B" | "C" | "D" | "F" {
+  // Net earnings: deduct estimated costs (fuel + wear) from gross
+  const grossHourlyPounds = earningsPerHourPence / 100;
+  const costPerHourPounds = (costPerMilePence * milesPerHour) / 100;
+  const netHourlyPounds = Math.max(0, grossHourlyPounds - costPerHourPounds);
 
-  const score = hourlyPounds * 0.7 + hourlyPounds * utilisationBonus * 0.3;
+  // Composite score: 70% net earnings, 30% active time bonus (0-15 scale)
+  const utilisationFactor = utilisationPercent / 100; // 0-1
+  const activeTimeBonus = utilisationFactor * 15; // max 15 points for 100% active
 
-  if (score >= 15) return "A";
-  if (score >= 11) return "B";
-  if (score >= 8) return "C";
-  if (score >= 5) return "D";
+  const score = netHourlyPounds * 0.7 + activeTimeBonus * 0.3;
+
+  // A: excellent (>12 net), B: good (>9), C: average (>6), D: below average (>3), F: poor
+  if (score >= 12) return "A";
+  if (score >= 9) return "B";
+  if (score >= 6) return "C";
+  if (score >= 3) return "D";
   return "F";
 }
 
@@ -293,8 +303,9 @@ export async function getBusinessInsights(userId: string): Promise<BusinessInsig
       );
     }
 
-    // Utilisation: estimate from trip count and average trip duration
-    // If we have coordinates, we could compute exact moving time, but for now use trip time
+    // Active time: time spent on trips (start to end) as a percentage of total shift time.
+    // This includes dead miles between orders and brief stops (traffic, loading).
+    // It's a rough measure of how much of the shift was spent on deliveries vs. idle.
     const tripTimeSeconds = shiftTrips.reduce((sum, t) => {
       if (!t.endedAt) return sum;
       return sum + (new Date(t.endedAt).getTime() - new Date(t.startedAt).getTime()) / 1000;
@@ -305,6 +316,10 @@ export async function getBusinessInsights(userId: string): Promise<BusinessInsig
 
     const ePerMile = shiftBusinessMiles > 0 ? Math.round(shiftEarningsPence / shiftBusinessMiles) : 0;
     const ePerHour = durationHours > 0 ? Math.round(shiftEarningsPence / durationHours) : 0;
+    const milesPerHour = durationHours > 0 ? shiftMiles / durationHours : 0;
+
+    // Estimated cost per mile: fuel + wear
+    const shiftCostPerMile = (fuelCostPerMilePence ?? 0) + WEAR_COST_PENCE_PER_MILE;
 
     recentShifts.push({
       shiftId: shift.id,
@@ -318,7 +333,7 @@ export async function getBusinessInsights(userId: string): Promise<BusinessInsig
       earningsPerMilePence: ePerMile,
       earningsPerHourPence: ePerHour,
       utilisationPercent,
-      grade: gradeShift(ePerHour, utilisationPercent),
+      grade: gradeShift(ePerHour, utilisationPercent, shiftCostPerMile, milesPerHour),
     });
   }
 
