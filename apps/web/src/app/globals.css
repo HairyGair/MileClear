@@ -865,6 +865,7 @@ body::after {
 }
 .ea__notify .ea__form { margin-top: 0; }
 .ea__notify .ea__ok { margin-top: 0; }
+.ea__notify .ea__row { flex-direction: column; }
 
 /* Form elements */
 .ea__form { margin-top: 2.5rem; display: flex; flex-direction: column; gap: 0.875rem; }
