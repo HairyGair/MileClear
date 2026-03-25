@@ -47,6 +47,9 @@ export const metadata: Metadata = {
   },
   alternates: {
     canonical: "https://mileclear.com",
+    languages: {
+      "en-GB": "https://mileclear.com",
+    },
   },
   openGraph: {
     title: "MileClear — Track every mile. Keep every penny.",

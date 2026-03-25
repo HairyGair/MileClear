@@ -16,6 +16,14 @@ export const metadata: Metadata = {
     description:
       "Release notes and the development blog. Follow the latest improvements to the MileClear mileage tracker.",
     url: "https://mileclear.com/updates",
+    images: [{ url: "/branding/og-image.png", width: 1200, height: 628 }],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Updates | MileClear",
+    description:
+      "Release notes and the development blog. Follow the latest improvements to the MileClear mileage tracker.",
+    images: ["/branding/og-image.png"],
   },
 };
 

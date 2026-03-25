@@ -10,6 +10,18 @@ export const metadata: Metadata = {
   alternates: {
     canonical: 'https://mileclear.com/terms',
   },
+  openGraph: {
+    title: 'Terms of Service | MileClear',
+    description: 'Terms of Service for MileClear. Account usage, subscriptions, and data ownership.',
+    url: 'https://mileclear.com/terms',
+    images: [{ url: '/branding/og-image.png', width: 1200, height: 628 }],
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'Terms of Service | MileClear',
+    description: 'Terms of Service for MileClear. Account usage, subscriptions, and data ownership.',
+    images: ['/branding/og-image.png'],
+  },
 };
 
 export default function TermsOfService() {

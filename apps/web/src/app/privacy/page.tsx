@@ -10,6 +10,18 @@ export const metadata: Metadata = {
   alternates: {
     canonical: 'https://mileclear.com/privacy',
   },
+  openGraph: {
+    title: 'Privacy Policy | MileClear',
+    description: 'How MileClear collects, uses, and protects your data. Fully GDPR compliant.',
+    url: 'https://mileclear.com/privacy',
+    images: [{ url: '/branding/og-image.png', width: 1200, height: 628 }],
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'Privacy Policy | MileClear',
+    description: 'How MileClear collects, uses, and protects your data. Fully GDPR compliant.',
+    images: ['/branding/og-image.png'],
+  },
 };
 
 export default function PrivacyPolicy() {

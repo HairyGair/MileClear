@@ -17,7 +17,7 @@ export default function Navbar() {
   return (
     <nav className={`nav${scrolled ? " nav--scrolled" : ""}`}>
       <div className="nav__inner">
-        <a href="#" className="nav__logo">
+        <a href="/" className="nav__logo">
           <img src="/branding/logo-120x120.png" alt="" className="logo-mark" aria-hidden="true" />
           MileClear
         </a>
