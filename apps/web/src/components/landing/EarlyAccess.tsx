@@ -17,12 +17,6 @@ const types = [
   { value: "other", label: "Other" },
 ];
 
-const AppleIcon = () => (
-  <svg width="20" height="24" viewBox="0 0 17 20" fill="currentColor" aria-hidden="true">
-    <path d="M13.545 10.239c-.022-2.234 1.823-3.306 1.906-3.358-.037-.058-1.499-1.559-3.036-1.559-1.294-.131-2.53.764-3.186.764-.671 0-1.687-.748-2.781-.726A4.107 4.107 0 003.03 7.417c-1.48 2.565-.378 6.352 1.058 8.432.712 1.018 1.553 2.158 2.657 2.118 1.073-.044 1.475-.687 2.77-.687 1.28 0 1.651.687 2.767.663 1.15-.02 1.876-1.03 2.572-2.054.822-1.176 1.155-2.327 1.172-2.387-.025-.01-2.243-.86-2.268-3.414l-.213.151zm-2.12-6.273A3.68 3.68 0 0012.285.37a3.752 3.752 0 00-2.427 1.256 3.51 3.51 0 00-.88 2.544 3.107 3.107 0 002.447-1.204z"/>
-  </svg>
-);
-
 const stats = [
   { value: "8,300+", label: "UK fuel stations" },
   { value: "43", label: "achievements" },
@@ -92,15 +86,13 @@ export default function EarlyAccess() {
             href={APP_STORE_URL}
             target="_blank"
             rel="noopener noreferrer"
-            className="ea__download-btn"
+            className="ea__appstore-link"
           >
-            <span className="ea__download-icon">
-              <AppleIcon />
-            </span>
-            <span className="ea__download-text">
-              <span className="ea__download-sub">Download on the</span>
-              <span className="ea__download-main">App Store</span>
-            </span>
+            <img
+              src="/branding/app-store-badge.svg"
+              alt="Download on the App Store"
+              className="ea__appstore-badge"
+            />
           </a>
           <p className="ea__download-note">Free on iPhone and iPad</p>
         </Reveal>
