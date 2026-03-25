@@ -8,9 +8,9 @@ export default function Footer() {
         </span>
 
         <ul className="footer__links">
-          <li><a href="#features" className="footer__link">Features</a></li>
-          <li><a href="#pricing" className="footer__link">Pricing</a></li>
-          <li><a href="#faq" className="footer__link">FAQ</a></li>
+          <li><a href="/#features" className="footer__link">Features</a></li>
+          <li><a href="/#pricing" className="footer__link">Pricing</a></li>
+          <li><a href="/#faq" className="footer__link">FAQ</a></li>
           <li><a href="/privacy" className="footer__link">Privacy Policy</a></li>
           <li><a href="/terms" className="footer__link">Terms of Service</a></li>
         </ul>
