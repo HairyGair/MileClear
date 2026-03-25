@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Reveal from "./Reveal";
 
-const faqs = [
+const faqs: { q: string; a: React.ReactNode }[] = [
   {
     q: "Is MileClear really free?",
     a: "Yes. Trip tracking, shift mode, auto detection, fuel prices, achievements, and your HMRC deduction total are all completely free with no limits. Pro features like PDF exports, earnings tracking, and Open Banking are \u00A34.99/month or \u00A344.99/year.",
@@ -34,7 +34,7 @@ const faqs = [
   },
   {
     q: "Is it available on Android?",
-    a: "MileClear is currently available on the App Store for iPhone. Android is on the roadmap. Leave your email on our site and we will let you know as soon as it launches.",
+    a: <>MileClear is currently available on the App Store for iPhone. Android is on the roadmap. <a href="#early-access" style={{ color: "var(--amber-400)", textDecoration: "underline" }}>Leave your email below</a> and we will let you know as soon as it launches.</>,
   },
 ];
 

@@ -120,7 +120,7 @@ export default function StructuredData() {
         name: "Is it available on Android?",
         acceptedAnswer: {
           "@type": "Answer",
-          text: "MileClear is currently available on the App Store for iPhone. Android is on the roadmap. Leave your email on our site and we will let you know as soon as it launches.",
+          text: "MileClear is currently available on the App Store for iPhone. Android is on the roadmap. You can leave your email at mileclear.com to get notified as soon as it launches.",
         },
       },
     ],
