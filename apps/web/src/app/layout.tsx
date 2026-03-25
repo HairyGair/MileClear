@@ -58,10 +58,10 @@ export const metadata: Metadata = {
     locale: "en_GB",
     images: [
       {
-        url: "/branding/wordmark-dark.png",
-        width: 2752,
-        height: 1536,
-        alt: "MileClear — Mileage tracking app for UK gig workers and self-employed drivers",
+        url: "/branding/og-image.png",
+        width: 1200,
+        height: 628,
+        alt: "MileClear — Mileage Tracker UK. Download on the App Store.",
       },
     ],
   },
@@ -70,7 +70,7 @@ export const metadata: Metadata = {
     title: "MileClear — Track every mile. Keep every penny.",
     description:
       "The mileage tracker that actually works. Built for gig drivers, delivery riders, and anyone who drives for a living.",
-    images: ["/branding/wordmark-dark.png"],
+    images: ["/branding/og-image.png"],
   },
   robots: {
     index: true,

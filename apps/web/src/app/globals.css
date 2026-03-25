@@ -779,6 +779,31 @@ body::after {
   height: 56px;
   width: auto;
 }
+/* Download row: badge + QR side by side */
+.ea__download-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 2.5rem;
+}
+.ea__qr {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+}
+.ea__qr-img {
+  border-radius: var(--r-md);
+  box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+}
+.ea__qr-label {
+  font-size: 0.6875rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-weight: 500;
+}
+
 .ea__download-note {
   margin-top: 0.875rem;
   font-size: 0.8125rem;
@@ -926,6 +951,7 @@ body::after {
   .ea__stats { gap: 1.5rem; }
   .ea__stat-value { font-size: 1.125rem; }
   .ea__appstore-badge { height: 48px; }
+  .ea__qr { display: none; }
 }
 
 /* ================================================================

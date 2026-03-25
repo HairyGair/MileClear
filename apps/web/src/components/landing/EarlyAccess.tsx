@@ -82,18 +82,30 @@ export default function EarlyAccess() {
         </Reveal>
 
         <Reveal delay="reveal-d1">
-          <a
-            href={APP_STORE_URL}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="ea__appstore-link"
-          >
-            <img
-              src="/branding/app-store-badge.svg"
-              alt="Download on the App Store"
-              className="ea__appstore-badge"
-            />
-          </a>
+          <div className="ea__download-row">
+            <a
+              href={APP_STORE_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="ea__appstore-link"
+            >
+              <img
+                src="/branding/app-store-badge.svg"
+                alt="Download on the App Store"
+                className="ea__appstore-badge"
+              />
+            </a>
+            <div className="ea__qr">
+              <img
+                src="/branding/qr-code.png"
+                alt="Scan to download MileClear"
+                className="ea__qr-img"
+                width={100}
+                height={100}
+              />
+              <span className="ea__qr-label">Scan to download</span>
+            </div>
+          </div>
           <p className="ea__download-note">Free on iPhone and iPad</p>
         </Reveal>
 
