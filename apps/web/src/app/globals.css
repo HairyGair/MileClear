@@ -810,6 +810,30 @@ body::after {
   text-align: center;
 }
 
+.ea__appstore-link {
+  display: inline-block;
+  margin-top: 2rem;
+  transition: transform 0.2s, opacity 0.2s;
+}
+.ea__appstore-link:hover { transform: scale(1.05); opacity: 0.9; }
+.ea__appstore-badge { height: 54px; width: auto; }
+
+.ea__notify {
+  margin-top: 2.5rem;
+  padding: 1.5rem 2rem;
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--r-lg);
+}
+.ea__notify-label {
+  font-size: 0.875rem;
+  color: var(--text-muted);
+  text-align: center;
+  margin-bottom: 1rem;
+}
+.ea__notify .ea__form { margin-top: 0; }
+.ea__notify .ea__ok { margin-top: 0; }
+
 .ea__features {
   margin-top: 2rem;
   margin-bottom: 2rem;

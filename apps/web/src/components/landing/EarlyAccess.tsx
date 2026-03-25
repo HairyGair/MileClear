@@ -5,6 +5,8 @@ import Reveal from "./Reveal";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3002";
 
+const APP_STORE_URL = "https://apps.apple.com/app/mileclear/id6742500648";
+
 const types = [
   { value: "", label: "What do you drive for? (optional)" },
   { value: "uber", label: "Uber / Uber Eats" },
@@ -15,18 +17,19 @@ const types = [
   { value: "other", label: "Other" },
 ];
 
-const liveFeatures = [
-  "GPS mileage tracking with shift mode",
-  "Smart drive detection when off-shift",
-  "HMRC tax deduction calculator (45p/25p rates)",
-  "Offline-first — trips saved locally, synced when online",
-  "Cheapest fuel prices from 13 UK retailers",
-  "Earnings tracking — manual, CSV import, or Open Banking",
-  "Sign in with Apple, Google, or email",
-  "Milestones, streaks & shift scorecards",
-  "HMRC-ready PDF & CSV exports",
-  "Full GDPR controls — export or delete your data any time",
-  "Community suggestions board — shape the app",
+const features = [
+  "Auto trip recording - detects driving and logs trips in the background",
+  "Live Activities on lock screen and Dynamic Island during trips",
+  "HMRC tax deduction calculator (45p/25p rates, updated per tax year)",
+  "Shift mode for gig workers - group trips, see scorecards, track platforms",
+  "Fuel price finder - 8,300+ UK stations from government-mandated feeds",
+  "Earnings tracking - manual, CSV import, or Open Banking",
+  "Business insights - earnings/mile, platform comparison, golden hours, weekly P&L",
+  "43 achievements, streaks, and personal driving records",
+  "HMRC-ready PDF and CSV exports for Self Assessment",
+  "Saved locations with geofencing - auto-classify trips near home, work, or depots",
+  "Offline-first - trips saved locally, synced when online",
+  "Full GDPR controls - export or delete your data any time",
 ];
 
 export default function EarlyAccess() {
@@ -71,19 +74,31 @@ export default function EarlyAccess() {
           width={56}
           height={56}
         />
-        <p className="label">Early access — live now</p>
-        <h2 className="heading">MileClear is ready to try</h2>
+        <p className="label">Available on the App Store</p>
+        <h2 className="heading">Start tracking your miles today</h2>
         <p className="subtext">
-          We&apos;re not just collecting emails anymore. The app is live and being
-          used by real drivers. Join early access to get in first and help shape
-          what we build next.
+          Free to download. Unlimited trip tracking, shift management, and HMRC
+          deduction calculations. Upgrade to Pro for exports, Open Banking, and
+          unlimited saved locations.
         </p>
 
         <Reveal delay="reveal-d1">
+          <a href={APP_STORE_URL} target="_blank" rel="noopener noreferrer" className="ea__appstore-link">
+            <img
+              src="/branding/app-store-badge.svg"
+              alt="Download on the App Store"
+              className="ea__appstore-badge"
+              width={180}
+              height={60}
+            />
+          </a>
+        </Reveal>
+
+        <Reveal delay="reveal-d2">
           <div className="ea__features">
-            <p className="ea__features-label">What&apos;s already working:</p>
+            <p className="ea__features-label">Everything included:</p>
             <ul className="ea__features-list">
-              {liveFeatures.map((f) => (
+              {features.map((f) => (
                 <li key={f} className="ea__features-item">
                   <svg className="ea__features-check" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                     <polyline points="20 6 9 17 4 12" />
@@ -95,41 +110,43 @@ export default function EarlyAccess() {
           </div>
         </Reveal>
 
-        {status === "ok" ? (
-          <div className="ea__ok">
-            You&apos;re in! We&apos;ll send you an invite to download MileClear shortly.
+        <Reveal delay="reveal-d3">
+          <div className="ea__notify">
+            <p className="ea__notify-label">Not on iOS? Get notified when Android launches.</p>
+            {status === "ok" ? (
+              <div className="ea__ok">
+                You&apos;re on the list! We&apos;ll let you know when MileClear is available on Android.
+              </div>
+            ) : (
+              <form className="ea__form" onSubmit={submit}>
+                <div className="ea__row">
+                  <input
+                    type="email"
+                    required
+                    placeholder="Your email address"
+                    className="ea__input"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    autoComplete="email"
+                  />
+                  <select
+                    className="ea__select"
+                    value={driverType}
+                    onChange={(e) => setDriverType(e.target.value)}
+                  >
+                    {types.map((t) => (
+                      <option key={t.value} value={t.value}>{t.label}</option>
+                    ))}
+                  </select>
+                </div>
+                <button type="submit" className="ea__btn" disabled={status === "loading"}>
+                  {status === "loading" ? "Joining..." : "Notify me"}
+                </button>
+                {status === "err" && <p className="ea__err">{errMsg}</p>}
+              </form>
+            )}
           </div>
-        ) : (
-          <form className="ea__form" onSubmit={submit}>
-            <div className="ea__row">
-              <input
-                type="email"
-                required
-                placeholder="Your email address"
-                className="ea__input"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                autoComplete="email"
-              />
-              <select
-                className="ea__select"
-                value={driverType}
-                onChange={(e) => setDriverType(e.target.value)}
-              >
-                {types.map((t) => (
-                  <option key={t.value} value={t.value}>{t.label}</option>
-                ))}
-              </select>
-            </div>
-            <button type="submit" className="ea__btn" disabled={status === "loading"}>
-              {status === "loading" ? "Joining\u2026" : "Get early access"}
-            </button>
-            {status === "err" && <p className="ea__err">{errMsg}</p>}
-            <p className="ea__note">
-              Free during early access. Premium features unlocked. No card required.
-            </p>
-          </form>
-        )}
+        </Reveal>
       </div>
     </section>
   );

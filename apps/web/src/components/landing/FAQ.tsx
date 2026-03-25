@@ -29,8 +29,8 @@ const faqs = [
     a: "Cars, motorbikes, and vans. Bicycle and e-bike support is coming later.",
   },
   {
-    q: "When is it launching?",
-    a: "MileClear is live right now in early access. The core app is fully functional \u2014 mileage tracking, fuel prices, earnings, exports, and gamification all work. Sign up above to get your invite.",
+    q: "Is MileClear available now?",
+    a: "Yes - MileClear is live on the App Store for iPhone. Download it free and start tracking straight away. Android is coming soon.",
   },
 ];
 

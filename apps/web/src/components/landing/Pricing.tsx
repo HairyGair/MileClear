@@ -78,7 +78,7 @@ export default function Pricing() {
 
         <Reveal delay="reveal-d2">
           <p className="pricing__footnote">
-            Free during early access. No card needed.
+            Free plan includes unlimited tracking. No card needed.
           </p>
         </Reveal>
       </div>

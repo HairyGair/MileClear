@@ -7,7 +7,7 @@ export default function Hero() {
         <div className="hero__text">
           <div className="hero__badge">
             <span className="hero__badge-dot" />
-            Early access — live now
+            Available on the App Store
           </div>
           <h1 className="hero__h1">
             Track every mile.
@@ -18,8 +18,8 @@ export default function Hero() {
             The mileage tracker that actually works. Built for gig drivers,
             delivery riders, and anyone who drives for a living.
           </p>
-          <a href="#early-access" className="hero__cta">
-            Try it free
+          <a href="https://apps.apple.com/app/mileclear/id6742500648" target="_blank" rel="noopener noreferrer" className="hero__cta">
+            Download free
             <span className="hero__cta-arrow" aria-hidden="true">&rarr;</span>
           </a>
           <p className="hero__trust">

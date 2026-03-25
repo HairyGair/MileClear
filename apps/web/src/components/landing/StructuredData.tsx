@@ -106,10 +106,10 @@ export default function StructuredData() {
       },
       {
         "@type": "Question",
-        name: "When is it launching?",
+        name: "Is MileClear available now?",
         acceptedAnswer: {
           "@type": "Answer",
-          text: "MileClear is live right now in early access. The core app is fully functional \u2014 mileage tracking, fuel prices, earnings, exports, and gamification all work. Sign up above to get your invite.",
+          text: "Yes - MileClear is live on the App Store for iPhone. Download it free and start tracking straight away. Android is coming soon.",
         },
       },
     ],
