@@ -1,6 +1,6 @@
 import PhoneMockup from "./PhoneMockup";
 
-const APP_STORE_URL = "https://apps.apple.com/app/mileclear/id6742500648";
+const APP_STORE_URL = "https://apps.apple.com/app/mileclear/id6759671005";
 
 export default function Hero() {
   return (

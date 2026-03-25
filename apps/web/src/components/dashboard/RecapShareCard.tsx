@@ -112,7 +112,7 @@ export function RecapShareModal({
       `- ${Math.round(data.totalMiles).toLocaleString("en-GB")} total miles tracked!`,
       "",
       "Tracked with MileClear \u2014 your mileage journal",
-      "https://apps.apple.com/app/mileclear/id6740041879",
+      "https://apps.apple.com/app/mileclear/id6759671005",
     );
     navigator.clipboard.writeText(lines.join("\n")).then(() => {
       setCopied(true);

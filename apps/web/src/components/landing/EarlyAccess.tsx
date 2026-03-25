@@ -4,7 +4,7 @@ import { useState, type FormEvent } from "react";
 import Reveal from "./Reveal";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3002";
-const APP_STORE_URL = "https://apps.apple.com/app/mileclear/id6742500648";
+const APP_STORE_URL = "https://apps.apple.com/app/mileclear/id6759671005";
 
 const types = [
   { value: "", label: "What do you drive for? (optional)" },
