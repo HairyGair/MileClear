@@ -49,20 +49,25 @@ function withLiveActivitiesFiles(config) {
         );
       }
 
-      // Copy shared Attributes to main app (native module needs it)
+      // Copy shared Attributes + native module files to main app.
+      // Copy to BOTH ios/ root and ios/<ProjectName>/ because the Xcode
+      // group path resolution varies between Expo SDK versions.
       const mainAppDir = path.join(iosRoot, projectName);
-      fs.copyFileSync(
-        path.join(widgetSrc, "MileClearAttributes.swift"),
-        path.join(mainAppDir, "MileClearAttributes.swift")
-      );
+      const destinations = [iosRoot, mainAppDir];
 
-      // Copy native module files to main app
-      const nativeSrc = path.join(pluginDir, "native");
-      for (const file of fs.readdirSync(nativeSrc)) {
+      for (const dest of destinations) {
+        fs.mkdirSync(dest, { recursive: true });
         fs.copyFileSync(
-          path.join(nativeSrc, file),
-          path.join(mainAppDir, file)
+          path.join(widgetSrc, "MileClearAttributes.swift"),
+          path.join(dest, "MileClearAttributes.swift")
         );
+        const nativeSrc = path.join(pluginDir, "native");
+        for (const file of fs.readdirSync(nativeSrc)) {
+          fs.copyFileSync(
+            path.join(nativeSrc, file),
+            path.join(dest, file)
+          );
+        }
       }
 
       return mod;
@@ -277,7 +282,8 @@ function addWidgetExtensionTarget(project, projectName) {
   const commonSettings = {
     CLANG_CXX_LANGUAGE_STANDARD: '"gnu++20"',
     CODE_SIGN_STYLE: "Automatic",
-    CURRENT_PROJECT_VERSION: 1,
+    DEVELOPMENT_TEAM: "EG4MH38B54",
+    CURRENT_PROJECT_VERSION: "$(CURRENT_PROJECT_VERSION)",
     GENERATE_INFOPLIST_FILE: "YES",
     INFOPLIST_FILE: `${WIDGET_TARGET}/Info.plist`,
     INFOPLIST_KEY_CFBundleDisplayName: "MileClear",

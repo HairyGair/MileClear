@@ -48,7 +48,7 @@ import {
   type LocationQuestion,
 } from "@mileclear/shared";
 import type { CommunityInsights } from "@mileclear/shared";
-import { startLiveActivity, updateLiveActivity, endLiveActivity } from "../lib/liveActivity";
+import { startLiveActivity, updateLiveActivity, endLiveActivity, endLiveActivityWithSummary } from "../lib/liveActivity";
 import { fetchCommunityInsights } from "../lib/api/communityInsights";
 import * as Notifications from "expo-notifications";
 
@@ -657,8 +657,7 @@ export default function TripFormScreen() {
               setLiveDistance(dist);
 
               // Update Dynamic Island
-              const elapsedSecs = startedAt ? Math.floor((Date.now() - startedAt.getTime()) / 1000) : 0;
-              updateLiveActivity({ elapsedSeconds: elapsedSecs, distanceMiles: dist, speedMph: mph });
+              updateLiveActivity({ distanceMiles: dist, speedMph: mph });
             }
 
             // Build speed-coloured trail point
@@ -925,8 +924,8 @@ export default function TripFormScreen() {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
       }
 
-      // End Dynamic Island live activity
-      endLiveActivity();
+      // End Dynamic Island live activity with summary
+      endLiveActivityWithSummary({ distanceMiles: runningDistanceRef.current });
 
       LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
       setMode("arrived");

@@ -2,7 +2,7 @@
   "expo": {
     "name": "MileClear",
     "slug": "mileclear",
-    "version": "1.0.2",
+    "version": "1.0.3",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "scheme": "mileclear",
@@ -16,7 +16,7 @@
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "com.mileclear.app",
-      "buildNumber": "30",
+      "buildNumber": "32",
       "usesAppleSignIn": true,
       "infoPlist": {
         "NSLocationAlwaysAndWhenInUseUsageDescription": "MileClear needs location access to track your mileage during shifts and detect when you start driving.",
@@ -91,12 +91,25 @@
         }
       ],
       "@react-native-community/datetimepicker",
-      "react-native-iap"
+      "react-native-iap",
+      "./plugins/with-live-activities"
     ],
     "extra": {
       "router": {},
       "eas": {
-        "projectId": "db25fbc4-87aa-4b72-bcf8-e6b382e8a5ee"
+        "projectId": "db25fbc4-87aa-4b72-bcf8-e6b382e8a5ee",
+        "build": {
+          "experimental": {
+            "ios": {
+              "appExtensions": [
+                {
+                  "targetName": "MileClearWidgets",
+                  "bundleIdentifier": "com.mileclear.app.MileClearWidgets"
+                }
+              ]
+            }
+          }
+        }
       }
     },
     "owner": "hairygair00"

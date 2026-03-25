@@ -4,6 +4,7 @@ import * as Notifications from "expo-notifications";
 import { getDatabase } from "../db/index";
 import { sendDrivingDetectedNotification } from "../notifications/index";
 import { DRIVING_SPEED_THRESHOLD_MPH } from "@mileclear/shared";
+import { startLiveActivity, updateLiveActivity, endLiveActivity } from "../liveActivity";
 
 const DETECTION_TASK_NAME = "mileclear-drive-detection";
 const COOLDOWN_MS = 20 * 60 * 1000; // 20 minutes
@@ -121,6 +122,28 @@ function detectMovement(locations: Location.LocationObject[]): boolean {
   return false;
 }
 
+// ── Live Activity helpers for auto-trip ───────────────────────────────────
+
+/** Calculate running distance from all buffered detection coordinates. */
+async function getAutoTripRunningDistance(): Promise<{ miles: number; speedMph: number }> {
+  try {
+    const db = await getDatabase();
+    const coords = await db.getAllAsync<{ lat: number; lng: number; speed: number | null }>(
+      "SELECT lat, lng, speed FROM detection_coordinates ORDER BY recorded_at ASC"
+    );
+    let total = 0;
+    for (let i = 1; i < coords.length; i++) {
+      total += haversineMiles(coords[i - 1].lat, coords[i - 1].lng, coords[i].lat, coords[i].lng);
+    }
+    // Use latest speed if available
+    const lastSpeed = coords.length > 0 ? (coords[coords.length - 1].speed ?? 0) : 0;
+    const speedMph = lastSpeed > 0 ? lastSpeed * 2.23694 : 0; // m/s to mph
+    return { miles: Math.round(total * 100) / 100, speedMph: Math.round(speedMph) };
+  } catch {
+    return { miles: 0, speedMph: 0 };
+  }
+}
+
 // ── Auto-trip finalization ────────────────────────────────────────────────
 
 // Lock prevents concurrent finalizeAutoTrip() calls from both creating a trip.
@@ -145,6 +168,9 @@ async function finalizeAutoTrip(): Promise<void> {
 
 async function _finalizeAutoTripInner(): Promise<void> {
   const db = await getDatabase();
+
+  // End Live Activity for auto-trip
+  endLiveActivity().catch(() => {});
 
   // Read all buffered coordinates
   const allCoords = await db.getAllAsync<BufferedCoordinate>(
@@ -324,6 +350,8 @@ export async function cancelAutoRecording(clearCoords = false): Promise<void> {
   );
   if (clearCoords) {
     await db.runAsync("DELETE FROM detection_coordinates");
+    // Dismiss Live Activity when user taps "Not Driving"
+    endLiveActivity().catch(() => {});
   }
 }
 
@@ -394,6 +422,10 @@ try {
             "INSERT OR REPLACE INTO tracking_state (key, value) VALUES ('last_driving_speed_at', ?)",
             [Date.now().toString()]
           );
+          // Update Live Activity with running distance
+          getAutoTripRunningDistance().then(({ miles, speedMph }) => {
+            updateLiveActivity({ distanceMiles: miles, speedMph }).catch(() => {});
+          }).catch(() => {});
         } else {
           // No movement in this batch — check if the trip should end.
           // Only finalize when stationary, never when we just received driving coords.
@@ -505,6 +537,9 @@ try {
       // Auto-upgrade to 50m intervals for better trip recording accuracy.
       // Detection mode uses 100m which produces sparse GPS and underestimates distance.
       upgradeDetectionAccuracy().catch(() => {});
+
+      // Start Live Activity so the user can see the trip recording on their lock screen
+      startLiveActivity({ activityType: "trip", isBusinessMode: true }).catch(() => {});
 
       // Quiet hours: still record the trip, just don't buzz the user at 3am
       if (isQuietHours()) return;

@@ -11,22 +11,8 @@ private let cardBg = Color(red: 0.039, green: 0.067, blue: 0.125)       // #0A11
 private let textMuted = Color(red: 0.518, green: 0.580, blue: 0.655)    // #8494A7
 private let textDim = Color(red: 0.290, green: 0.333, blue: 0.408)      // #4A5568
 
-private func accentColor(_ isBusiness: Bool) -> Color {
+private func modeAccent(_ isBusiness: Bool) -> Color {
     isBusiness ? amberColor : emeraldColor
-}
-
-private func formatTimer(_ seconds: Int) -> String {
-    let h = seconds / 3600
-    let m = (seconds % 3600) / 60
-    let s = seconds % 60
-    return String(format: "%02d:%02d:%02d", h, m, s)
-}
-
-private func formatTimerShort(_ seconds: Int) -> String {
-    let h = seconds / 3600
-    let m = (seconds % 3600) / 60
-    if h > 0 { return String(format: "%d:%02d", h, m) }
-    return String(format: "%dm", m)
 }
 
 // MARK: - Live Activity Widget
@@ -40,10 +26,11 @@ struct MileClearLiveActivity: Widget {
                 attrs: context.attributes
             )
             .activityBackgroundTint(bgColor)
+            .widgetURL(URL(string: "mileclear://dashboard"))
         } dynamicIsland: { context in
-            let accent = accentColor(context.attributes.isBusinessMode)
+            let accent = modeAccent(context.attributes.isBusinessMode)
 
-            DynamicIsland {
+            return DynamicIsland {
                 // --- Expanded regions ---
                 DynamicIslandExpandedRegion(.leading) {
                     VStack(alignment: .leading, spacing: 2) {
@@ -73,7 +60,7 @@ struct MileClearLiveActivity: Widget {
                             Image(systemName: "timer")
                                 .font(.system(size: 11))
                                 .foregroundColor(textDim)
-                            Text(formatTimer(context.state.elapsedSeconds))
+                            Text(context.state.startDate, style: .timer)
                                 .font(.system(size: 13, weight: .medium, design: .monospaced))
                                 .foregroundColor(.white)
                         }
@@ -107,7 +94,7 @@ struct MileClearLiveActivity: Widget {
                     .foregroundColor(accent)
             } compactTrailing: {
                 // --- Compact pill: trailing ---
-                Text(formatTimerShort(context.state.elapsedSeconds))
+                Text(context.state.startDate, style: .timer)
                     .font(.system(size: 14, weight: .semibold, design: .monospaced))
                     .foregroundColor(.white)
             } minimal: {
@@ -127,7 +114,7 @@ private struct LockScreenView: View {
     let state: MileClearAttributes.ContentState
     let attrs: MileClearAttributes
 
-    private var accent: Color { accentColor(attrs.isBusinessMode) }
+    private var accent: Color { modeAccent(attrs.isBusinessMode) }
     private var isShift: Bool { attrs.activityType == "shift" }
 
     var body: some View {
@@ -148,9 +135,9 @@ private struct LockScreenView: View {
 
             // Stats row
             HStack(spacing: 0) {
-                // Timer
+                // Timer (native iOS counting)
                 VStack(spacing: 2) {
-                    Text(formatTimer(state.elapsedSeconds))
+                    Text(state.startDate, style: .timer)
                         .font(.system(size: 24, weight: .light, design: .monospaced))
                         .foregroundColor(.white)
                     Text("DURATION")

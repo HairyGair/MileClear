@@ -54,7 +54,7 @@ import { LiveMapTracker, type TripTapInfo } from "../../components/map/LiveMapTr
 import { useUser } from "../../lib/user/context";
 import { useRecentTripsWithCoords } from "../../hooks/useRecentTripsWithCoords";
 import { Ionicons } from "@expo/vector-icons";
-import { startLiveActivity, updateLiveActivity, endLiveActivity } from "../../lib/liveActivity";
+import { startLiveActivity, updateLiveActivity, endLiveActivity, endLiveActivityWithSummary, recoverLiveActivity } from "../../lib/liveActivity";
 import { useLayoutPrefs } from "../../lib/layout/index";
 import { PremiumGate, PremiumTeaser, useIsPremium } from "../../components/PremiumGate";
 import { SmartInsightCard } from "../../components/SmartInsightCard";
@@ -315,6 +315,15 @@ export default function DashboardScreen() {
             await startShiftTracking(active.id);
           }
         }
+        // Recover Live Activity if it's still running after app restart
+        const startMs = new Date(active.startedAt).getTime();
+        const recovered = await recoverLiveActivity(startMs);
+        if (!recovered) {
+          // Live Activity expired or was dismissed - start a fresh one
+          const v = vehicleRes.data.find((veh) => veh.id === active.vehicleId);
+          const vehicleName = v ? `${v.make} ${v.model}` : "";
+          startLiveActivity({ activityType: "shift", vehicleName, isBusinessMode: isWork });
+        }
       } else {
         const primary = vehicleRes.data.find((v) => v.isPrimary);
         setSelectedVehicleId(primary?.id);
@@ -347,7 +356,7 @@ export default function DashboardScreen() {
         // Update Dynamic Island every 5 seconds
         tick++;
         if (tick % 5 === 0) {
-          updateLiveActivity({ elapsedSeconds: secs, distanceMiles: liveDistRef.current, speedMph: 0, tripCount: 0 });
+          updateLiveActivity({ distanceMiles: liveDistRef.current, speedMph: 0, tripCount: 0 });
         }
       };
       updateElapsed();
@@ -436,7 +445,7 @@ export default function DashboardScreen() {
           try {
             // 1. Stop GPS tracking + Live Activity
             await stopShiftTracking();
-            endLiveActivity();
+            endLiveActivityWithSummary({ distanceMiles: liveDistRef.current, tripCount: 0 });
 
             // 2. Process GPS coordinates into trips (before ending shift so scorecard counts them)
             await processShiftTrips(

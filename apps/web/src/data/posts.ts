@@ -7,7 +7,7 @@
 export interface ReleaseNote {
   version: string;
   date: string;
-  label?: "Latest" | "Major" | "Pending Review";
+  label?: "Latest" | "Major" | "Pending Review" | "App Store";
   items: string[];
 }
 
@@ -26,9 +26,24 @@ export interface BlogPost {
 // ----------------------------------------------------------------
 export const RELEASE_NOTES: ReleaseNote[] = [
   {
+    version: "1.0.3 (Build 31)",
+    date: "25 March 2026",
+    label: "Latest",
+    items: [
+      "Live Activities  - your trip or shift now appears on the Dynamic Island and lock screen with a real-time timer, miles driven, and speed",
+      "Native iOS timer  - the lock screen timer counts every second using iOS's built-in clock, no lag even when the app is fully backgrounded",
+      "Dynamic Island  - compact pill shows a car icon and timer, expanded view shows speed, miles, timer, and trip count",
+      "Tap to open  - tapping the Live Activity opens MileClear straight to your dashboard",
+      "End summary  - when you finish a trip or shift, the final miles and duration stay on your lock screen for a few minutes",
+      "Auto-trip Live Activities  - background-detected trips also show on the Dynamic Island while recording",
+      "App kill recovery  - if iOS kills the app during a shift, reopening it restarts the Live Activity automatically",
+      "Work vs Personal branding  - amber accent in work mode, green in personal mode",
+    ],
+  },
+  {
     version: "1.0.2 (Build 30)",
     date: "24 March 2026",
-    label: "Latest",
+    label: "App Store",
     items: [
       "Smart trip classification  - trips near your saved work or depot locations are now automatically classified as business, no more manual tagging every trip",
       "Platform tag suggestions  - if your last 10 trips from a location were all Uber, the next one auto-suggests Uber",
@@ -71,7 +86,6 @@ export const RELEASE_NOTES: ReleaseNote[] = [
   {
     version: "1.0.0",
     date: "1 March 2026",
-    label: "Major",
     items: [
       "Initial release  - MileClear is live on the App Store",
       "GPS trip tracking with background detection and an offline-first local database",

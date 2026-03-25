@@ -4,10 +4,10 @@ import Foundation
 @available(iOS 16.1, *)
 struct MileClearAttributes: ActivityAttributes {
     struct ContentState: Codable, Hashable {
-        var elapsedSeconds: Int
         var distanceMiles: Double
         var speedMph: Double
         var tripCount: Int
+        var startDate: Date
     }
 
     var activityType: String // "trip" or "shift"
