@@ -8,18 +8,19 @@ const features = [
         <circle cx="12" cy="10" r="3" />
       </svg>
     ),
-    title: "Bulletproof tracking",
-    desc: "Start your shift, drive, end your shift. Every mile is logged — even when you lose signal.",
+    title: "Auto trip recording",
+    desc: "MileClear detects when you start driving and records the trip automatically. No buttons to press, no shifts to remember.",
   },
   {
     icon: (
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9" />
-        <path d="M13.73 21a2 2 0 01-3.46 0" />
+        <rect x="5" y="2" width="14" height="20" rx="2" />
+        <path d="M12 18h.01" />
       </svg>
     ),
-    title: "Smart detection",
-    desc: "Forgot to start a shift? MileClear notices you\u2019re driving and asks if you want to record.",
+    title: "Live Activities",
+    desc: "See your miles, speed, and timer right on the lock screen and Dynamic Island while you drive. No need to open the app.",
+    alt: true,
   },
   {
     icon: (
@@ -28,8 +29,30 @@ const features = [
         <path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6" />
       </svg>
     ),
-    title: "Tax savings counter",
-    desc: "See exactly how much you\u2019re saving in real time. Watch it climb with every trip.",
+    title: "HMRC tax deductions",
+    desc: "Your running tax deduction total updates with every trip. 45p/25p for cars, 24p for motorbikes, calculated automatically per tax year.",
+  },
+  {
+    icon: (
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <line x1="18" y1="20" x2="18" y2="10" />
+        <line x1="12" y1="20" x2="12" y2="4" />
+        <line x1="6" y1="20" x2="6" y2="14" />
+      </svg>
+    ),
+    title: "Earnings and business insights",
+    desc: "Track what you earn across platforms. See your real earnings per mile, per hour, and a weekly profit and loss breakdown.",
+    alt: true,
+  },
+  {
+    icon: (
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9" />
+        <path d="M13.73 21a2 2 0 01-3.46 0" />
+      </svg>
+    ),
+    title: "Shift mode for gig workers",
+    desc: "Clock on, do your deliveries, clock off. Your trips are grouped by shift with a scorecard showing distance, earnings, and an A-F grade.",
   },
   {
     icon: (
@@ -39,9 +62,19 @@ const features = [
         <path d="M2 12l10 5 10-5" />
       </svg>
     ),
-    title: "Cheapest fuel nearby",
-    desc: "Find the best fuel prices near you, filtered by your preferred brand.",
+    title: "UK fuel prices",
+    desc: "Find the cheapest fuel near you from over 8,300 UK stations. Government-mandated price data updated daily.",
     alt: true,
+  },
+  {
+    icon: (
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z" />
+        <circle cx="12" cy="10" r="3" />
+      </svg>
+    ),
+    title: "Saved locations and geofencing",
+    desc: "Save your home, depot, or regular stops. Trips near saved locations are automatically classified as business or personal.",
   },
   {
     icon: (
@@ -49,8 +82,8 @@ const features = [
         <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
       </svg>
     ),
-    title: "Milestones & streaks",
-    desc: "Hit milestones, keep streaks alive, and get a daily scorecard after every shift.",
+    title: "43 achievements and streaks",
+    desc: "Unlock badges for milestones, keep your driving streak alive, and get weekly recaps with shareable stats.",
     alt: true,
   },
   {
@@ -62,8 +95,8 @@ const features = [
         <line x1="12" y1="20" x2="12.01" y2="20" />
       </svg>
     ),
-    title: "Works offline",
-    desc: "No signal? No problem. Your trips are saved on your phone and sync when you\u2019re back online.",
+    title: "Offline first",
+    desc: "Every trip is saved to your phone first and synced when you have signal. No dropped trips, no missing data.",
   },
   {
     icon: (
@@ -71,29 +104,8 @@ const features = [
         <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
       </svg>
     ),
-    title: "HMRC ready",
-    desc: "Export your mileage log for Self Assessment. Classified, timestamped, audit-friendly.",
-  },
-  {
-    icon: (
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <line x1="18" y1="20" x2="18" y2="10" />
-        <line x1="12" y1="20" x2="12" y2="4" />
-        <line x1="6" y1="20" x2="6" y2="14" />
-      </svg>
-    ),
-    title: "Know your real earnings",
-    desc: "Track what you earn across platforms via manual entry, CSV import, or Open Banking. See your actual hourly rate after costs.",
-  },
-  {
-    icon: (
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M12 2a10 10 0 00-6.88 17.23l1.15-2.3A1 1 0 017.16 16h9.68a1 1 0 01.89.54l1.15 2.3A10 10 0 0012 2z" />
-        <circle cx="12" cy="10" r="3" />
-      </svg>
-    ),
-    title: "Sign in your way",
-    desc: "Create an account with email, or sign in instantly with Apple or Google. Fast, secure, no friction.",
+    title: "HMRC-ready exports",
+    desc: "Download PDF trip reports and Self Assessment summaries with every trip dated, classified, and distance-verified. Ready for your tax return.",
     alt: true,
   },
   {
@@ -104,8 +116,18 @@ const features = [
       </svg>
     ),
     title: "Your data, your control",
-    desc: "Export all your data or delete your account any time. Fully GDPR compliant — we never sell your data.",
+    desc: "Export everything or delete your account any time. Fully GDPR compliant. We never sell your data.",
     alt: true,
+  },
+  {
+    icon: (
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M12 2a10 10 0 00-6.88 17.23l1.15-2.3A1 1 0 017.16 16h9.68a1 1 0 01.89.54l1.15 2.3A10 10 0 0012 2z" />
+        <circle cx="12" cy="10" r="3" />
+      </svg>
+    ),
+    title: "Quick and easy setup",
+    desc: "Sign in with Apple or email. Add your vehicle (or look it up by registration). You can be tracking in under a minute.",
   },
 ];
 
@@ -116,9 +138,9 @@ export default function Features() {
         <Reveal>
           <div className="features__head">
             <p className="label">Features</p>
-            <h2 className="heading">Everything you need, nothing you don&apos;t</h2>
+            <h2 className="heading">Everything you need to track, claim, and earn more</h2>
             <p className="subtext">
-              Built from scratch for drivers who need reliable tracking, not another bloated app.
+              Built from scratch for UK drivers. Reliable tracking, real tax savings, and the tools to understand what your driving is actually worth.
             </p>
           </div>
         </Reveal>

@@ -18,17 +18,20 @@ export default function StructuredData() {
     "@type": "SoftwareApplication",
     name: "MileClear",
     applicationCategory: "BusinessApplication",
-    operatingSystem: "iOS, Android",
+    operatingSystem: "iOS",
     description:
-      "The mileage tracker that actually works. Built for gig drivers, delivery riders, and anyone who drives for a living. Free to use, offline-first, HMRC ready.",
+      "The UK mileage tracker built for gig workers, delivery drivers, and anyone who drives for a living. Automatic trip recording, HMRC tax deductions, and real earnings insights.",
     featureList: [
-      "Automatic GPS mileage tracking",
-      "HMRC tax deduction calculator",
-      "Business and personal trip classification",
-      "Earnings tracking by platform",
-      "Fuel price comparison",
-      "PDF and CSV exports for self-assessment",
-      "Gamification with achievements and streaks",
+      "Automatic GPS trip recording with background detection",
+      "Live Activities on lock screen and Dynamic Island",
+      "HMRC tax deduction calculator (45p/25p car, 24p motorbike)",
+      "Shift mode with scorecards and platform tagging",
+      "Business insights with earnings per mile, per hour, and weekly P&L",
+      "UK fuel prices from 8,300+ government-mandated stations",
+      "Saved locations with geofencing for auto-classification",
+      "43 achievements, streaks, and driving records",
+      "PDF and CSV exports for Self Assessment",
+      "Open Banking earnings sync",
       "Offline-first with background tracking",
     ],
     offers: [
@@ -38,16 +41,16 @@ export default function StructuredData() {
         price: "0",
         priceCurrency: "GBP",
         description:
-          "Unlimited trip tracking, drive detection, trip classification, fuel prices, earnings tracking, achievements, weekly summaries.",
+          "Unlimited trip tracking, auto detection, shift mode, fuel prices, HMRC calculator, achievements, Live Activities, saved locations, vehicle management.",
       },
       {
         "@type": "Offer",
-        name: "Premium",
+        name: "Pro",
         price: "4.99",
         priceCurrency: "GBP",
         billingIncrement: "P1M",
         description:
-          "HMRC-ready PDF and CSV exports, accounting integration, advanced analytics, Open Banking earnings import.",
+          "PDF and CSV exports, Self Assessment summary, earnings tracking, Open Banking sync, business insights, platform comparison, unlimited saved locations.",
       },
     ],
   };
@@ -61,7 +64,7 @@ export default function StructuredData() {
         name: "Is MileClear really free?",
         acceptedAnswer: {
           "@type": "Answer",
-          text: "Yes. Mileage tracking, shift mode, and gamification are completely free, forever. Premium features like tax exports and earnings tracking are \u00A34.99/month, but you\u2019ll never be forced to pay to track your miles.",
+          text: "Yes. Trip tracking, shift mode, auto detection, fuel prices, achievements, and your HMRC deduction total are all completely free with no limits. Pro features like PDF exports, earnings tracking, and Open Banking are available from \u00A34.99/month or \u00A344.99/year.",
         },
       },
       {
@@ -69,15 +72,15 @@ export default function StructuredData() {
         name: "How is this different from MileIQ?",
         acceptedAnswer: {
           "@type": "Answer",
-          text: "Reliability. MileClear is built offline-first \u2014 your trips are saved on your phone before they ever touch the cloud. If your signal drops, nothing is lost. We also show you exactly which trips were captured so you can trust your records.",
+          text: "MileClear is built for UK drivers from the ground up. It uses HMRC rates (not IRS), tracks by gig platform (Uber, Deliveroo, Amazon Flex), groups trips into shifts, and costs half the price. It also works offline, so you never lose a trip when you lose signal.",
         },
       },
       {
         "@type": "Question",
-        name: "Does it work in the background?",
+        name: "Does it track in the background?",
         acceptedAnswer: {
           "@type": "Answer",
-          text: "Yes. During a shift, MileClear tracks in the background. Outside of a shift, it uses low-power detection to notice when you\u2019re driving and asks if you want to record \u2014 no battery drain when you\u2019re not working.",
+          text: "Yes. MileClear detects when you start driving and records trips automatically in the background. You can also start a shift manually if you prefer. Either way, your miles are captured even when the app is not on screen.",
         },
       },
       {
@@ -85,7 +88,7 @@ export default function StructuredData() {
         name: "Is my data safe?",
         acceptedAnswer: {
           "@type": "Answer",
-          text: "Your location data is encrypted and stored securely. We never sell your data. You can export a full copy of everything we hold or delete your account entirely at any time \u2014 it\u2019s all in your settings. We\u2019re fully GDPR compliant.",
+          text: "Your location data is encrypted and stored securely. We never sell your data to anyone. You can export a full copy of everything we hold, or delete your account entirely, at any time from your settings. Fully GDPR compliant.",
         },
       },
       {
@@ -93,7 +96,7 @@ export default function StructuredData() {
         name: "Can I use it for HMRC Self Assessment?",
         acceptedAnswer: {
           "@type": "Answer",
-          text: "Yes (Premium feature). MileClear generates reports that match HMRC requirements \u2014 every trip is dated, timed, classified, and distance-verified.",
+          text: "Yes. Pro users can download PDF trip reports and a Self Assessment summary with every trip dated, timed, classified by business or personal, and distance-verified.",
         },
       },
       {
@@ -101,15 +104,23 @@ export default function StructuredData() {
         name: "What vehicles are supported?",
         acceptedAnswer: {
           "@type": "Answer",
-          text: "Cars, motorbikes, and vans. Bicycle and e-bike support is coming later.",
+          text: "Cars, vans, and motorbikes. You can add vehicles manually or look them up by registration plate using the DVLA database. HMRC rates are applied automatically based on vehicle type.",
         },
       },
       {
         "@type": "Question",
-        name: "Is MileClear available now?",
+        name: "Does it work with Uber, Deliveroo, and other platforms?",
         acceptedAnswer: {
           "@type": "Answer",
-          text: "Yes - MileClear is live on the App Store for iPhone. Download it free and start tracking straight away. Android is coming soon.",
+          text: "Yes. You can tag every trip with the platform you were driving for. MileClear then shows you earnings per mile, earnings per hour, and a platform comparison so you can see which ones are actually worth your time.",
+        },
+      },
+      {
+        "@type": "Question",
+        name: "Is it available on Android?",
+        acceptedAnswer: {
+          "@type": "Answer",
+          text: "MileClear is currently available on the App Store for iPhone. Android is on the roadmap. Leave your email on our site and we will let you know as soon as it launches.",
         },
       },
     ],

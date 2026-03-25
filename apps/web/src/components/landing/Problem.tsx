@@ -6,13 +6,13 @@ export default function Problem() {
       <div className="container problem__wrap">
         <Reveal>
           <p className="label">The problem</p>
-          <h2 className="heading">Sick of losing miles?</h2>
+          <h2 className="heading">Most mileage apps let you down</h2>
         </Reveal>
         <Reveal delay="reveal-d1">
           <p className="problem__body" style={{ marginTop: "1.5rem" }}>
-            Other mileage trackers promise to run in the background. Then they
-            don&apos;t. Trips vanish. Months of data disappear. You end up
-            paying more tax than you should because your records have gaps.
+            They promise background tracking, then miss half your trips. Your
+            records end up full of gaps, and come tax time you&apos;re guessing
+            instead of claiming what you&apos;re actually owed.
           </p>
         </Reveal>
         <Reveal delay="reveal-d2">
@@ -20,7 +20,7 @@ export default function Problem() {
             <span className="problem__em">
               MileClear was built to fix that.
             </span>{" "}
-            Every mile, every trip, every time.
+            Automatic detection, offline-first storage, and every trip accounted for.
           </p>
         </Reveal>
       </div>

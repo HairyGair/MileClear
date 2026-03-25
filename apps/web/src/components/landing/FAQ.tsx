@@ -6,31 +6,35 @@ import Reveal from "./Reveal";
 const faqs = [
   {
     q: "Is MileClear really free?",
-    a: "Yes. Mileage tracking, shift mode, and gamification are completely free, forever. Premium features like tax exports and earnings tracking are \u00A34.99/month, but you\u2019ll never be forced to pay to track your miles.",
+    a: "Yes. Trip tracking, shift mode, auto detection, fuel prices, achievements, and your HMRC deduction total are all completely free with no limits. Pro features like PDF exports, earnings tracking, and Open Banking are \u00A34.99/month or \u00A344.99/year.",
   },
   {
     q: "How is this different from MileIQ?",
-    a: "Reliability. MileClear is built offline-first \u2014 your trips are saved on your phone before they ever touch the cloud. If your signal drops, nothing is lost. We also show you exactly which trips were captured so you can trust your records.",
+    a: "MileClear is built for UK drivers from the ground up. It uses HMRC rates (not IRS), tracks by gig platform (Uber, Deliveroo, Amazon Flex), groups trips into shifts, and costs half the price. It also works offline, so you never lose a trip when you lose signal.",
   },
   {
-    q: "Does it work in the background?",
-    a: "Yes. During a shift, MileClear tracks in the background. Outside of a shift, it uses low-power detection to notice when you\u2019re driving and asks if you want to record \u2014 no battery drain when you\u2019re not working.",
+    q: "Does it track in the background?",
+    a: "Yes. MileClear detects when you start driving and records trips automatically in the background. You can also start a shift manually if you prefer. Either way, your miles are captured even when the app is not on screen.",
   },
   {
     q: "Is my data safe?",
-    a: "Your location data is encrypted and stored securely. We never sell your data. You can export a full copy of everything we hold or delete your account entirely at any time — it\u2019s all in your settings. We\u2019re fully GDPR compliant.",
+    a: "Your location data is encrypted and stored securely. We never sell your data to anyone. You can export a full copy of everything we hold, or delete your account entirely, at any time from your settings. Fully GDPR compliant.",
   },
   {
     q: "Can I use it for HMRC Self Assessment?",
-    a: "Yes (Premium feature). MileClear generates reports that match HMRC requirements \u2014 every trip is dated, timed, classified, and distance-verified.",
+    a: "Yes. Pro users can download PDF trip reports and a Self Assessment summary with every trip dated, timed, classified by business or personal, and distance-verified. Your accountant will thank you.",
   },
   {
     q: "What vehicles are supported?",
-    a: "Cars, motorbikes, and vans. Bicycle and e-bike support is coming later.",
+    a: "Cars, vans, and motorbikes. You can add vehicles manually or look them up by registration plate using the DVLA database. HMRC rates are applied automatically based on vehicle type.",
   },
   {
-    q: "Is MileClear available now?",
-    a: "Yes - MileClear is live on the App Store for iPhone. Download it free and start tracking straight away. Android is coming soon.",
+    q: "Does it work with Uber, Deliveroo, and other platforms?",
+    a: "Yes. You can tag every trip with the platform you were driving for. MileClear then shows you earnings per mile, earnings per hour, and a platform comparison so you can see which ones are actually worth your time.",
+  },
+  {
+    q: "Is it available on Android?",
+    a: "MileClear is currently available on the App Store for iPhone. Android is on the roadmap. Leave your email on our site and we will let you know as soon as it launches.",
   },
 ];
 
@@ -50,7 +54,7 @@ export default function FAQ() {
       <div className="container faq__center">
         <Reveal>
           <p className="label">FAQ</p>
-          <h2 className="heading">Questions? Answered.</h2>
+          <h2 className="heading">Common questions</h2>
         </Reveal>
 
         <Reveal delay="reveal-d1">

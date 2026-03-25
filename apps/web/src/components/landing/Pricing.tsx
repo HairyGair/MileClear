@@ -7,27 +7,29 @@ const Tick = () => (
 );
 
 const free = [
-  "Mileage tracking with shift mode",
-  "Smart trip detection",
-  "Offline support",
-  "Daily scorecards & streaks",
-  "Tax savings counter",
-  "Manual trip entry",
-  "Vehicle management",
-  "Apple & Google sign-in",
+  "Unlimited trip tracking (GPS and manual)",
+  "Auto trip detection and recording",
+  "Shift mode with scorecards",
+  "HMRC tax deduction calculator",
+  "Fuel prices from 8,300+ UK stations",
+  "43 achievements, streaks, and recaps",
+  "Live Activities on lock screen",
+  "2 saved locations with geofencing",
+  "Vehicle management with DVLA lookup",
+  "Apple Sign-In and email auth",
 ];
 
 const pro = [
   "Everything in Free, plus:",
-  "HMRC-compliant exports",
-  "Xero, FreeAgent & QuickBooks",
-  "Earnings tracking & real hourly rate",
+  "PDF trip reports and Self Assessment exports",
+  "CSV exports for accountants",
+  "Earnings tracking across platforms",
+  "CSV earnings import (bulk)",
   "Open Banking earnings sync",
-  "CSV earnings import",
-  "Fuel price finder with brand preference",
-  "Audit protection & trip classification",
-  "Advanced analytics & reports",
-  "Multi-vehicle support",
+  "Business insights and weekly P&L",
+  "Platform comparison and golden hours",
+  "Unlimited saved locations",
+  "Priority support",
 ];
 
 export default function Pricing() {
@@ -36,7 +38,10 @@ export default function Pricing() {
       <div className="container pricing__center">
         <Reveal>
           <p className="label">Pricing</p>
-          <h2 className="heading">Simple pricing. No surprises.</h2>
+          <h2 className="heading">Simple, honest pricing</h2>
+          <p className="subtext">
+            The free plan is genuinely free. No trip limits, no time limits, no surprise paywalls on basic features.
+          </p>
         </Reveal>
 
         <Reveal delay="reveal-d1">
@@ -45,10 +50,10 @@ export default function Pricing() {
             <div className="p-card">
               <p className="p-card__name">Free</p>
               <p className="p-card__price">
-                &pound;0<span className="p-card__period"> /forever</span>
+                &pound;0<span className="p-card__period"> /month</span>
               </p>
               <p className="p-card__desc">
-                Everything you need to track your miles reliably.
+                Full mileage tracking with everything you need to record your driving.
               </p>
               <ul className="p-card__list">
                 {free.map((f) => (
@@ -60,12 +65,12 @@ export default function Pricing() {
             {/* Premium */}
             <div className="p-card p-card--pro">
               <span className="p-card__badge">Most popular</span>
-              <p className="p-card__name">Premium</p>
+              <p className="p-card__name">Pro</p>
               <p className="p-card__price">
                 &pound;4.99<span className="p-card__period"> /month</span>
               </p>
               <p className="p-card__desc">
-                Tax-ready exports, earnings insights, and full control.
+                Tax-ready exports, earnings insights, and the full toolkit for self-employed drivers.
               </p>
               <ul className="p-card__list">
                 {pro.map((f) => (
@@ -78,7 +83,7 @@ export default function Pricing() {
 
         <Reveal delay="reveal-d2">
           <p className="pricing__footnote">
-            Free plan includes unlimited tracking. No card needed.
+            Annual plan available at &pound;44.99/year (save 25%). No card needed to start.
           </p>
         </Reveal>
       </div>

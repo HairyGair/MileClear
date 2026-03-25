@@ -1,5 +1,7 @@
 import PhoneMockup from "./PhoneMockup";
 
+const APP_STORE_URL = "https://apps.apple.com/app/mileclear/id6742500648";
+
 export default function Hero() {
   return (
     <section className="hero">
@@ -12,13 +14,14 @@ export default function Hero() {
           <h1 className="hero__h1">
             Track every mile.
             <br />
-            <em>Keep every penny.</em>
+            <em>Claim every penny.</em>
           </h1>
           <p className="hero__sub">
-            The mileage tracker that actually works. Built for gig drivers,
-            delivery riders, and anyone who drives for a living.
+            The UK mileage tracker built for gig workers, delivery drivers, and
+            anyone who drives for a living. Automatic trip recording, HMRC tax
+            deductions, and real earnings insights.
           </p>
-          <a href="https://apps.apple.com/app/mileclear/id6742500648" target="_blank" rel="noopener noreferrer" className="hero__cta">
+          <a href={APP_STORE_URL} target="_blank" rel="noopener noreferrer" className="hero__cta">
             Download free
             <span className="hero__cta-arrow" aria-hidden="true">&rarr;</span>
           </a>
