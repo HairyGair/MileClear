@@ -816,7 +816,7 @@ body::after {
   transition: transform 0.2s, opacity 0.2s;
 }
 .ea__appstore-link:hover { transform: scale(1.05); opacity: 0.9; }
-.ea__appstore-badge { height: 54px; width: auto; }
+.ea__appstore-badge { height: 60px; width: auto; }
 
 .ea__notify {
   margin-top: 2.5rem;
