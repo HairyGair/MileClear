@@ -83,7 +83,7 @@ function withLiveActivitiesXcode(config) {
     const projectName = mod.modRequest.projectName;
 
     addNativeModuleToMainTarget(project, projectName);
-    addWidgetExtensionTarget(project, projectName);
+    addWidgetExtensionTarget(project, projectName, config);
 
     return mod;
   });
@@ -148,7 +148,7 @@ function addNativeModuleToMainTarget(project, projectName) {
 /**
  * Create the MileClearWidgets extension target in the Xcode project.
  */
-function addWidgetExtensionTarget(project, projectName) {
+function addWidgetExtensionTarget(project, projectName, config) {
   // Skip if target already exists
   const existingTarget = findTargetByName(project, WIDGET_TARGET);
   if (existingTarget) return;
@@ -283,7 +283,7 @@ function addWidgetExtensionTarget(project, projectName) {
     CLANG_CXX_LANGUAGE_STANDARD: '"gnu++20"',
     CODE_SIGN_STYLE: "Automatic",
     DEVELOPMENT_TEAM: "EG4MH38B54",
-    CURRENT_PROJECT_VERSION: "$(CURRENT_PROJECT_VERSION)",
+    CURRENT_PROJECT_VERSION: config.ios?.buildNumber || "1",
     GENERATE_INFOPLIST_FILE: "YES",
     INFOPLIST_FILE: `${WIDGET_TARGET}/Info.plist`,
     INFOPLIST_KEY_CFBundleDisplayName: "MileClear",
