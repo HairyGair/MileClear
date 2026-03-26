@@ -140,6 +140,29 @@ export async function syncUpdateTrip(id: string, data: UpdateTripData) {
     await db.runAsync(`UPDATE trips SET ${setClauses.join(", ")} WHERE id = ?`, values);
   }
 
+  // Learn from manual classification changes for future auto-classification
+  if (data.classification && data.classification !== "unclassified") {
+    try {
+      const trip = await db.getFirstAsync<{ start_lat: number; start_lng: number; end_lat: number | null; end_lng: number | null }>(
+        "SELECT start_lat, start_lng, end_lat, end_lng FROM trips WHERE id = ?",
+        [id]
+      );
+      if (trip && trip.end_lat && trip.end_lng) {
+        const { learnFromClassification } = await import("../classification");
+        await learnFromClassification({
+          startLat: trip.start_lat,
+          startLng: trip.start_lng,
+          endLat: trip.end_lat,
+          endLng: trip.end_lng,
+          classification: data.classification,
+          platformTag: data.platformTag ?? null,
+        });
+      }
+    } catch {
+      // Route learning is best-effort
+    }
+  }
+
   await enqueueSync("trip", id, "update", { id, ...data } as unknown as Record<string, unknown>);
 
   try {

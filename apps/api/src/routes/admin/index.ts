@@ -6,9 +6,20 @@ import { adminMiddleware } from "../../middleware/admin.js";
 import { stripe } from "../../lib/stripe.js";
 import { sendReEngagementEmail, sendServiceStatusEmail, sendUpdateEmail } from "../../services/email.js";
 import { logEvent } from "../../services/appEvents.js";
+import { sendPushNotifications } from "../../lib/push.js";
+import { PREMIUM_PRICE_MONTHLY_PENCE } from "@mileclear/shared";
 
 const premiumToggleSchema = z.object({
   isPremium: z.boolean(),
+});
+
+const pushSchema = z.object({
+  audience: z.enum(["all", "premium", "inactive", "specific"]),
+  userId: z.string().optional(),
+  inactiveDays: z.number().int().min(1).max(365).optional(),
+  title: z.string().min(1).max(200),
+  body: z.string().min(1).max(500),
+  dryRun: z.boolean().optional().default(true),
 });
 
 export async function adminRoutes(app: FastifyInstance) {
@@ -419,6 +430,366 @@ export async function adminRoutes(app: FastifyInstance) {
         dryRun: isDryRun,
         totalUsers: users.length,
       },
+    });
+  });
+
+  // GET /admin/revenue
+  app.get("/revenue", async (_request, reply) => {
+    const now = new Date();
+    const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+
+    const [stripeSubscribers, appleSubscribers, adminGranted, totalUsers, churned] =
+      await Promise.all([
+        prisma.user.count({
+          where: { isPremium: true, stripeSubscriptionId: { not: null } },
+        }),
+        prisma.user.count({
+          where: { isPremium: true, appleOriginalTransactionId: { not: null } },
+        }),
+        prisma.user.count({
+          where: {
+            isPremium: true,
+            stripeSubscriptionId: null,
+            appleOriginalTransactionId: null,
+          },
+        }),
+        prisma.user.count(),
+        prisma.user.count({
+          where: {
+            isPremium: false,
+            premiumExpiresAt: { gte: thirtyDaysAgo, lt: now },
+          },
+        }),
+      ]);
+
+    const currentPremiumCount = stripeSubscribers + appleSubscribers + adminGranted;
+    const mrrPence = currentPremiumCount * PREMIUM_PRICE_MONTHLY_PENCE;
+    const churnBase = churned + currentPremiumCount;
+    const churnRatePercent = churnBase > 0
+      ? Math.round((churned / churnBase) * 1000) / 10
+      : 0;
+    const arpuPence = totalUsers > 0
+      ? Math.round(mrrPence / totalUsers)
+      : 0;
+
+    // Monthly premium trend (last 6 months)
+    const sixMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 5, 1);
+    const trendRows = await prisma.$queryRaw<
+      Array<{ month: string; premiumCount: bigint; newPremium: bigint; churned: bigint }>
+    >`
+      SELECT
+        DATE_FORMAT(months.m, '%Y-%m') AS month,
+        (SELECT COUNT(*) FROM users
+         WHERE isPremium = true
+         AND createdAt <= LAST_DAY(months.m)) AS premiumCount,
+        (SELECT COUNT(*) FROM users
+         WHERE isPremium = true
+         AND DATE_FORMAT(createdAt, '%Y-%m') = DATE_FORMAT(months.m, '%Y-%m')) AS newPremium,
+        (SELECT COUNT(*) FROM users
+         WHERE isPremium = false
+         AND premiumExpiresAt IS NOT NULL
+         AND DATE_FORMAT(premiumExpiresAt, '%Y-%m') = DATE_FORMAT(months.m, '%Y-%m')) AS churned
+      FROM (
+        SELECT DATE_ADD(${sixMonthsAgo}, INTERVAL n MONTH) AS m
+        FROM (SELECT 0 AS n UNION SELECT 1 UNION SELECT 2 UNION SELECT 3 UNION SELECT 4 UNION SELECT 5) nums
+      ) months
+      ORDER BY months.m
+    `;
+
+    return reply.send({
+      data: {
+        currentPremiumCount,
+        mrrPence,
+        stripeSubscribers,
+        appleSubscribers,
+        adminGranted,
+        churnedLast30d: churned,
+        churnRatePercent,
+        arpuPence,
+        monthlyTrend: trendRows.map((r) => ({
+          month: r.month,
+          premiumCount: Number(r.premiumCount),
+          newPremium: Number(r.newPremium),
+          churned: Number(r.churned),
+        })),
+      },
+    });
+  });
+
+  // GET /admin/engagement
+  app.get("/engagement", async (_request, reply) => {
+    const now = new Date();
+    const oneDayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+    const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+    const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+
+    const [dauRows, wauRows, mauRows, totalUsers, usersWithTrips] =
+      await Promise.all([
+        prisma.trip.findMany({
+          where: { startedAt: { gte: oneDayAgo } },
+          select: { userId: true },
+          distinct: ["userId"],
+        }),
+        prisma.trip.findMany({
+          where: { startedAt: { gte: sevenDaysAgo } },
+          select: { userId: true },
+          distinct: ["userId"],
+        }),
+        prisma.trip.findMany({
+          where: { startedAt: { gte: thirtyDaysAgo } },
+          select: { userId: true },
+          distinct: ["userId"],
+        }),
+        prisma.user.count(),
+        prisma.trip.findMany({
+          select: { userId: true },
+          distinct: ["userId"],
+        }),
+      ]);
+
+    // Retention curve (last 6 months)
+    const sixMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 5, 1);
+    const retentionRows = await prisma.$queryRaw<
+      Array<{ signup_month: string; signups: bigint; retained: bigint }>
+    >`
+      SELECT
+        DATE_FORMAT(u.createdAt, '%Y-%m') AS signup_month,
+        COUNT(DISTINCT u.id) AS signups,
+        COUNT(DISTINCT CASE WHEN t.startedAt >= ${thirtyDaysAgo} THEN u.id END) AS retained
+      FROM users u
+      LEFT JOIN trips t ON t.userId = u.id
+      WHERE u.createdAt >= ${sixMonthsAgo}
+      GROUP BY signup_month
+      ORDER BY signup_month
+    `;
+
+    // Recently active users
+    const recentlyActiveRows = await prisma.$queryRaw<
+      Array<{ userId: string; email: string; displayName: string | null; lastTripAt: Date; tripCount: bigint }>
+    >`
+      SELECT
+        u.id AS userId, u.email, u.displayName,
+        MAX(t.startedAt) AS lastTripAt,
+        COUNT(t.id) AS tripCount
+      FROM users u
+      INNER JOIN trips t ON t.userId = u.id
+      GROUP BY u.id, u.email, u.displayName
+      ORDER BY lastTripAt DESC
+      LIMIT 20
+    `;
+
+    return reply.send({
+      data: {
+        dau: dauRows.length,
+        wau: wauRows.length,
+        mau: mauRows.length,
+        totalUsers,
+        usersWithZeroTrips: totalUsers - usersWithTrips.length,
+        retentionCurve: retentionRows.map((r) => {
+          const signups = Number(r.signups);
+          const retainedCount = Number(r.retained);
+          return {
+            month: r.signup_month,
+            signups,
+            retainedCount,
+            retentionPercent: signups > 0
+              ? Math.round((retainedCount / signups) * 1000) / 10
+              : 0,
+          };
+        }),
+        recentlyActive: recentlyActiveRows.map((r) => ({
+          userId: r.userId,
+          email: r.email,
+          displayName: r.displayName,
+          lastTripAt: r.lastTripAt.toISOString(),
+          tripCount: Number(r.tripCount),
+        })),
+      },
+    });
+  });
+
+  // GET /admin/auto-trip-health
+  app.get("/auto-trip-health", async (_request, reply) => {
+    const now = new Date();
+    const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+    const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+
+    const [
+      autoTripsTotal,
+      autoTripsClassified,
+      autoTripsUnclassified,
+      manualTripsTotal,
+      autoTripAgg,
+      usersWithAutoTrips7dRows,
+      usersWithPushToken,
+    ] = await Promise.all([
+      prisma.trip.count({
+        where: { isManualEntry: false, startedAt: { gte: thirtyDaysAgo } },
+      }),
+      prisma.trip.count({
+        where: {
+          isManualEntry: false,
+          startedAt: { gte: thirtyDaysAgo },
+          classification: { not: "unclassified" },
+        },
+      }),
+      prisma.trip.count({
+        where: {
+          isManualEntry: false,
+          startedAt: { gte: thirtyDaysAgo },
+          classification: "unclassified",
+        },
+      }),
+      prisma.trip.count({
+        where: { isManualEntry: true, startedAt: { gte: thirtyDaysAgo } },
+      }),
+      prisma.trip.aggregate({
+        where: {
+          isManualEntry: false,
+          startedAt: { gte: thirtyDaysAgo },
+          endedAt: { not: null },
+        },
+        _avg: { distanceMiles: true },
+      }),
+      prisma.trip.findMany({
+        where: { isManualEntry: false, startedAt: { gte: sevenDaysAgo } },
+        select: { userId: true },
+        distinct: ["userId"],
+      }),
+      prisma.user.count({ where: { pushToken: { not: null } } }),
+    ]);
+
+    // Average duration via raw SQL
+    const durationRows = await prisma.$queryRaw<Array<{ avgMinutes: number | null }>>`
+      SELECT AVG(TIMESTAMPDIFF(MINUTE, startedAt, endedAt)) AS avgMinutes
+      FROM trips
+      WHERE isManualEntry = false
+      AND startedAt >= ${thirtyDaysAgo}
+      AND endedAt IS NOT NULL
+    `;
+
+    // Daily breakdown (last 7 days)
+    const dailyRows = await prisma.$queryRaw<
+      Array<{ date: string; autoCount: bigint; manualCount: bigint }>
+    >`
+      SELECT
+        DATE_FORMAT(startedAt, '%Y-%m-%d') AS date,
+        SUM(CASE WHEN isManualEntry = false THEN 1 ELSE 0 END) AS autoCount,
+        SUM(CASE WHEN isManualEntry = true THEN 1 ELSE 0 END) AS manualCount
+      FROM trips
+      WHERE startedAt >= ${sevenDaysAgo}
+      GROUP BY date
+      ORDER BY date
+    `;
+
+    const classificationRatePercent = autoTripsTotal > 0
+      ? Math.round((autoTripsClassified / autoTripsTotal) * 1000) / 10
+      : 0;
+    const detectionAdoptionPercent = usersWithPushToken > 0
+      ? Math.round((usersWithAutoTrips7dRows.length / usersWithPushToken) * 1000) / 10
+      : 0;
+
+    return reply.send({
+      data: {
+        autoTripsTotal,
+        autoTripsClassified,
+        autoTripsUnclassified,
+        manualTripsTotal,
+        classificationRatePercent,
+        usersWithAutoTrips7d: usersWithAutoTrips7dRows.length,
+        usersWithPushToken,
+        detectionAdoptionPercent,
+        avgTripDurationMinutes: Math.round(durationRows[0]?.avgMinutes ?? 0),
+        avgAutoTripDistanceMiles:
+          Math.round((autoTripAgg._avg.distanceMiles ?? 0) * 10) / 10,
+        dailyAutoTrips: dailyRows.map((r) => ({
+          date: r.date,
+          autoCount: Number(r.autoCount),
+          manualCount: Number(r.manualCount),
+        })),
+      },
+    });
+  });
+
+  // POST /admin/send-push
+  app.post("/send-push", async (request, reply) => {
+    const parsed = pushSchema.safeParse(request.body);
+    if (!parsed.success) {
+      return reply.status(400).send({ error: parsed.error.errors[0].message });
+    }
+
+    const { audience, userId, inactiveDays, title, body, dryRun } = parsed.data;
+
+    if (audience === "specific" && !userId) {
+      return reply.status(400).send({ error: "userId required for specific audience" });
+    }
+
+    // Build user query based on audience
+    let users: Array<{ id: string; pushToken: string | null }>;
+
+    if (audience === "specific") {
+      users = await prisma.user.findMany({
+        where: { id: userId, pushToken: { not: null } },
+        select: { id: true, pushToken: true },
+      });
+    } else if (audience === "premium") {
+      users = await prisma.user.findMany({
+        where: { isPremium: true, pushToken: { not: null } },
+        select: { id: true, pushToken: true },
+      });
+    } else if (audience === "inactive") {
+      const cutoff = new Date(Date.now() - (inactiveDays ?? 14) * 24 * 60 * 60 * 1000);
+      // Users with push token who have no trips since the cutoff
+      const activeUserIds = await prisma.trip.findMany({
+        where: { startedAt: { gte: cutoff } },
+        select: { userId: true },
+        distinct: ["userId"],
+      });
+      const activeSet = new Set(activeUserIds.map((r) => r.userId));
+      const allWithToken = await prisma.user.findMany({
+        where: { pushToken: { not: null } },
+        select: { id: true, pushToken: true },
+      });
+      users = allWithToken.filter((u) => !activeSet.has(u.id));
+    } else {
+      // all
+      users = await prisma.user.findMany({
+        where: { pushToken: { not: null } },
+        select: { id: true, pushToken: true },
+      });
+    }
+
+    const totalTargeted = users.length;
+
+    if (dryRun) {
+      return reply.send({
+        data: { sent: 0, failed: 0, totalTargeted, dryRun: true },
+      });
+    }
+
+    const messages = users
+      .filter((u) => u.pushToken)
+      .map((u) => ({
+        to: u.pushToken!,
+        title,
+        body,
+        sound: "default" as const,
+      }));
+
+    const tickets = await sendPushNotifications(messages);
+    const sent = tickets.filter((t) => t.status === "ok").length;
+    const failed = tickets.filter((t) => t.status === "error").length;
+
+    logEvent("admin.push_sent", request.userId!, {
+      audience,
+      totalTargeted,
+      sent,
+      failed,
+      title,
+    });
+
+    return reply.send({
+      data: { sent, failed, totalTargeted, dryRun: false },
     });
   });
 

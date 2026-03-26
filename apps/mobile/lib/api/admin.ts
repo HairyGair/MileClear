@@ -4,6 +4,11 @@ import type {
   AdminUserSummary,
   AdminUserDetail,
   AdminHealthStatus,
+  AdminRevenue,
+  AdminEngagement,
+  AdminAutoTripHealth,
+  AdminPushRequest,
+  AdminPushResult,
   PaginatedResponse,
 } from "@mileclear/shared";
 
@@ -37,4 +42,34 @@ export function deleteAdminUser(userId: string) {
 
 export function fetchAdminHealth() {
   return apiRequest<{ data: AdminHealthStatus }>("/admin/health");
+}
+
+export function fetchAdminRevenue() {
+  return apiRequest<{ data: AdminRevenue }>("/admin/revenue");
+}
+
+export function fetchAdminEngagement() {
+  return apiRequest<{ data: AdminEngagement }>("/admin/engagement");
+}
+
+export function fetchAdminAutoTripHealth() {
+  return apiRequest<{ data: AdminAutoTripHealth }>("/admin/auto-trip-health");
+}
+
+export function sendAdminPush(payload: AdminPushRequest) {
+  return apiRequest<{ data: AdminPushResult }>("/admin/send-push", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function sendAdminEmail(type: string, options?: { dryRun?: boolean; onlyInactive?: boolean }) {
+  const params = new URLSearchParams();
+  if (options?.dryRun) params.set("dryRun", "true");
+  if (options?.onlyInactive) params.set("onlyInactive", "true");
+  const qs = params.toString();
+  return apiRequest<{ data: { sent: number; errors: number; totalUsers: number; dryRun: boolean } }>(
+    `/admin/send-${type}${qs ? `?${qs}` : ""}`,
+    { method: "POST" }
+  );
 }

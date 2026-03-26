@@ -2,7 +2,7 @@
 
 import * as SQLite from "expo-sqlite";
 
-const CURRENT_SCHEMA_VERSION = 7;
+const CURRENT_SCHEMA_VERSION = 8;
 
 let db: SQLite.SQLiteDatabase | null = null;
 
@@ -138,6 +138,30 @@ async function initializeSchema(database: SQLite.SQLiteDatabase): Promise<void> 
       end_time TEXT NOT NULL,
       enabled INTEGER NOT NULL DEFAULT 1
     );
+
+    CREATE TABLE IF NOT EXISTS learned_routes (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      start_lat REAL NOT NULL,
+      start_lng REAL NOT NULL,
+      end_lat REAL NOT NULL,
+      end_lng REAL NOT NULL,
+      classification TEXT NOT NULL,
+      platform_tag TEXT,
+      match_count INTEGER NOT NULL DEFAULT 1,
+      last_matched_at TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS classification_rules (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      rule_type TEXT NOT NULL,
+      name TEXT NOT NULL,
+      classification TEXT NOT NULL,
+      platform_tag TEXT,
+      config TEXT NOT NULL,
+      priority INTEGER NOT NULL DEFAULT 0,
+      enabled INTEGER NOT NULL DEFAULT 1,
+      created_at TEXT NOT NULL
+    );
   `);
 
   // Schema versioning — upgrade sync_queue if needed
@@ -213,6 +237,23 @@ async function initializeSchema(database: SQLite.SQLiteDatabase): Promise<void> 
     }
     if (!tripCols.includes("business_purpose")) {
       await database.execAsync("ALTER TABLE trips ADD COLUMN business_purpose TEXT;");
+    }
+  }
+
+  if (currentVersion < 8) {
+    // Add classification intelligence columns to trips
+    const tripsInfo8 = await database.getAllAsync<{ name: string }>(
+      "PRAGMA table_info(trips)"
+    );
+    const tripCols8 = tripsInfo8.map((c) => c.name);
+    if (!tripCols8.includes("classification_source")) {
+      await database.execAsync("ALTER TABLE trips ADD COLUMN classification_source TEXT;");
+    }
+    if (!tripCols8.includes("suggested_classification")) {
+      await database.execAsync("ALTER TABLE trips ADD COLUMN suggested_classification TEXT;");
+    }
+    if (!tripCols8.includes("suggested_platform")) {
+      await database.execAsync("ALTER TABLE trips ADD COLUMN suggested_platform TEXT;");
     }
   }
 

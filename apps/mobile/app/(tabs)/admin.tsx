@@ -122,6 +122,66 @@ export default function AdminDashboardScreen() {
         <Ionicons name="chevron-forward" size={20} color={TEXT_3} />
       </TouchableOpacity>
 
+      <TouchableOpacity
+        style={s.navCard}
+        onPress={() => router.push("/admin-revenue")}
+        activeOpacity={0.7}
+      >
+        <View style={s.navCardLeft}>
+          <Ionicons name="cash-outline" size={22} color={AMBER} />
+          <Text style={s.navCardLabel}>Revenue</Text>
+        </View>
+        <Ionicons name="chevron-forward" size={20} color={TEXT_3} />
+      </TouchableOpacity>
+
+      <TouchableOpacity
+        style={s.navCard}
+        onPress={() => router.push("/admin-engagement")}
+        activeOpacity={0.7}
+      >
+        <View style={s.navCardLeft}>
+          <Ionicons name="trending-up-outline" size={22} color={AMBER} />
+          <Text style={s.navCardLabel}>Engagement</Text>
+        </View>
+        <Ionicons name="chevron-forward" size={20} color={TEXT_3} />
+      </TouchableOpacity>
+
+      <TouchableOpacity
+        style={s.navCard}
+        onPress={() => router.push("/admin-auto-trips")}
+        activeOpacity={0.7}
+      >
+        <View style={s.navCardLeft}>
+          <Ionicons name="car-outline" size={22} color={AMBER} />
+          <Text style={s.navCardLabel}>Auto-trip Health</Text>
+        </View>
+        <Ionicons name="chevron-forward" size={20} color={TEXT_3} />
+      </TouchableOpacity>
+
+      <TouchableOpacity
+        style={s.navCard}
+        onPress={() => router.push("/admin-push")}
+        activeOpacity={0.7}
+      >
+        <View style={s.navCardLeft}>
+          <Ionicons name="notifications-outline" size={22} color={AMBER} />
+          <Text style={s.navCardLabel}>Push Notifications</Text>
+        </View>
+        <Ionicons name="chevron-forward" size={20} color={TEXT_3} />
+      </TouchableOpacity>
+
+      <TouchableOpacity
+        style={s.navCard}
+        onPress={() => router.push("/admin-email")}
+        activeOpacity={0.7}
+      >
+        <View style={s.navCardLeft}>
+          <Ionicons name="mail-outline" size={22} color={AMBER} />
+          <Text style={s.navCardLabel}>Email Campaigns</Text>
+        </View>
+        <Ionicons name="chevron-forward" size={20} color={TEXT_3} />
+      </TouchableOpacity>
+
       <View style={{ height: 24 }} />
     </ScrollView>
   );

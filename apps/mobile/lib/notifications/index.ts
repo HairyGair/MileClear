@@ -33,6 +33,18 @@ export async function registerNotificationCategories(): Promise<void> {
         options: { isDestructive: true, opensAppToForeground: false },
       },
     ]);
+    await Notifications.setNotificationCategoryAsync("trip_recorded", [
+      {
+        identifier: "classify_business",
+        buttonTitle: "Business",
+        options: { opensAppToForeground: false },
+      },
+      {
+        identifier: "classify_personal",
+        buttonTitle: "Personal",
+        options: { opensAppToForeground: false },
+      },
+    ]);
   } catch (err) {
     console.warn("Failed to register notification categories:", err);
   }
@@ -188,6 +200,37 @@ export function setupNotificationResponseHandler(): void {
       if (actionId === Notifications.DEFAULT_ACTION_IDENTIFIER) {
         router.navigate("/(tabs)/dashboard");
       }
+      return;
+    }
+
+    // Handle trip classification from lock screen
+    if (action === "classify_trip" && actionId !== Notifications.DEFAULT_ACTION_IDENTIFIER) {
+      const tripId = data?.tripId as string | undefined;
+      if (tripId && (actionId === "classify_business" || actionId === "classify_personal")) {
+        const classification = actionId === "classify_business" ? "business" : "personal";
+        try {
+          const { syncUpdateTrip } = await import("../sync/actions");
+          await syncUpdateTrip(tripId, { classification });
+          // Learn from this classification for future auto-classification
+          const startLat = data?.startLat as number | undefined;
+          const startLng = data?.startLng as number | undefined;
+          const endLat = data?.endLat as number | undefined;
+          const endLng = data?.endLng as number | undefined;
+          if (startLat != null && startLng != null && endLat != null && endLng != null) {
+            const { learnFromClassification } = await import("../classification");
+            await learnFromClassification({
+              startLat, startLng, endLat, endLng,
+              classification,
+              platformTag: null,
+            });
+          }
+        } catch (err) {
+          console.error("Lock screen classification failed:", err);
+        }
+        return;
+      }
+      // Default tap on classify_trip notification — open trips screen
+      router.navigate("/(tabs)/trips");
       return;
     }
 

@@ -232,6 +232,12 @@ function RootNavigator() {
         <Stack.Screen name="saved-location-form" options={{ headerShown: true, title: "Add Location" }} />
         <Stack.Screen name="insights" options={{ headerShown: true, title: "Insights & Analytics" }} />
         <Stack.Screen name="analytics" options={{ headerShown: true, title: "Driving Analytics" }} />
+        <Stack.Screen name="classification-rules" options={{ headerShown: true, title: "Classification Rules" }} />
+        <Stack.Screen name="admin-revenue" options={{ headerShown: true, title: "Revenue" }} />
+        <Stack.Screen name="admin-engagement" options={{ headerShown: true, title: "Engagement" }} />
+        <Stack.Screen name="admin-auto-trips" options={{ headerShown: true, title: "Auto-trip Health" }} />
+        <Stack.Screen name="admin-push" options={{ headerShown: true, title: "Push Notifications" }} />
+        <Stack.Screen name="admin-email" options={{ headerShown: true, title: "Email Campaigns" }} />
         <Stack.Screen name="customize-layout" options={{ headerShown: false }} />
       </Stack>
       {/* Loading overlay — covers Stack while auth/onboarding resolves */}

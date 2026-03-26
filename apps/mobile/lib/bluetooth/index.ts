@@ -120,3 +120,39 @@ export async function checkBluetoothVehicleConnected(): Promise<string | null> {
 export function isBluetoothAvailable(): boolean {
   return isNativeBuild && BleManager != null;
 }
+
+// ── Bluetooth trip lifecycle signals ──────────────────────────────────────
+// During active recording, periodically check if the user is still connected
+// to their vehicle's Bluetooth. If they were connected and then disconnect,
+// that's a strong "trip ended" signal (engine off / left the car).
+
+let wasConnectedAtRecordingStart = false;
+
+/**
+ * Snapshot the Bluetooth connection state when a recording begins.
+ * Call this when auto-recording or a shift starts.
+ * If connected to a known vehicle, we'll watch for disconnection.
+ */
+export async function markBluetoothStateAtStart(): Promise<void> {
+  const connected = await checkBluetoothVehicleConnected();
+  wasConnectedAtRecordingStart = connected != null;
+}
+
+/**
+ * Check if a Bluetooth disconnection has occurred since recording started.
+ * Returns true if the user WAS connected to a vehicle BT at start but
+ * is no longer connected — a strong signal the trip has ended.
+ * Returns false if BT wasn't connected at start (can't detect disconnect).
+ */
+export async function hasBluetoothDisconnected(): Promise<boolean> {
+  if (!wasConnectedAtRecordingStart) return false;
+  const connected = await checkBluetoothVehicleConnected();
+  return connected == null;
+}
+
+/**
+ * Reset the Bluetooth tracking state. Call when recording ends.
+ */
+export function resetBluetoothState(): void {
+  wasConnectedAtRecordingStart = false;
+}

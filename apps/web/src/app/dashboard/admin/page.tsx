@@ -865,10 +865,588 @@ function HealthTab() {
 }
 
 // ---------------------------------------------------------------------------
+// Revenue Tab
+// ---------------------------------------------------------------------------
+
+interface RevenueData {
+  currentPremiumCount: number;
+  mrrPence: number;
+  stripeSubscribers: number;
+  appleSubscribers: number;
+  adminGranted: number;
+  churnedLast30d: number;
+  churnRatePercent: number;
+  arpuPence: number;
+  monthlyTrend: Array<{
+    month: string;
+    premiumCount: number;
+    newPremium: number;
+    churned: number;
+  }>;
+}
+
+function RevenueTab() {
+  const [data, setData] = useState<RevenueData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    api
+      .get<{ data: RevenueData }>("/admin/revenue")
+      .then((res) => setData(res.data))
+      .catch((err: Error) => setError(err.message))
+      .finally(() => setLoading(false));
+  }, []);
+
+  if (loading) return <LoadingSkeleton variant="card" count={2} style={{ height: 90 }} />;
+  if (error) return <div className="alert alert--error">{error}</div>;
+  if (!data) return null;
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: "1.25rem" }}>
+      <div className="stats-grid">
+        <div className="stat-card">
+          <p className="stat-card__label">MRR</p>
+          <p className="stat-card__value stat-card__value--emerald">{formatPence(data.mrrPence)}</p>
+        </div>
+        <div className="stat-card">
+          <p className="stat-card__label">Subscribers</p>
+          <p className="stat-card__value stat-card__value--amber">{data.currentPremiumCount}</p>
+        </div>
+        <div className="stat-card">
+          <p className="stat-card__label">Churn (30d)</p>
+          <p className="stat-card__value">{data.churnRatePercent}%</p>
+          <p style={{ fontSize: "0.75rem", color: "var(--text-secondary)", marginTop: 2 }}>
+            {data.churnedLast30d} lost
+          </p>
+        </div>
+        <div className="stat-card">
+          <p className="stat-card__label">ARPU</p>
+          <p className="stat-card__value">{formatPence(data.arpuPence)}</p>
+        </div>
+      </div>
+
+      {/* Platform split */}
+      <Card title="Subscription Platform">
+        <div style={{ display: "flex", gap: "1.5rem", fontSize: "0.9375rem" }}>
+          <div>
+            <span style={{ color: "var(--text-secondary)" }}>Stripe </span>
+            <strong>{data.stripeSubscribers}</strong>
+          </div>
+          <div>
+            <span style={{ color: "var(--text-secondary)" }}>Apple IAP </span>
+            <strong>{data.appleSubscribers}</strong>
+          </div>
+          <div>
+            <span style={{ color: "var(--text-secondary)" }}>Admin-granted </span>
+            <strong>{data.adminGranted}</strong>
+          </div>
+        </div>
+      </Card>
+
+      {/* Monthly trend */}
+      {data.monthlyTrend.length > 0 && (
+        <Card title="Monthly Trend">
+          <div className="table-wrap">
+            <table className="table">
+              <thead>
+                <tr>
+                  <th>Month</th>
+                  <th style={{ textAlign: "right" }}>Premium</th>
+                  <th style={{ textAlign: "right" }}>New</th>
+                  <th style={{ textAlign: "right" }}>Churned</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.monthlyTrend.map((row) => (
+                  <tr key={row.month}>
+                    <td>{row.month}</td>
+                    <td style={{ textAlign: "right", fontVariantNumeric: "tabular-nums" }}>{row.premiumCount}</td>
+                    <td style={{ textAlign: "right", fontVariantNumeric: "tabular-nums", color: "var(--emerald-400)" }}>
+                      +{row.newPremium}
+                    </td>
+                    <td style={{ textAlign: "right", fontVariantNumeric: "tabular-nums", color: row.churned > 0 ? "var(--dash-red)" : undefined }}>
+                      {row.churned > 0 ? `-${row.churned}` : "0"}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </Card>
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Engagement Tab
+// ---------------------------------------------------------------------------
+
+interface EngagementData {
+  dau: number;
+  wau: number;
+  mau: number;
+  totalUsers: number;
+  usersWithZeroTrips: number;
+  retentionCurve: Array<{
+    month: string;
+    signups: number;
+    retainedCount: number;
+    retentionPercent: number;
+  }>;
+  recentlyActive: Array<{
+    userId: string;
+    email: string;
+    displayName: string | null;
+    lastTripAt: string;
+    tripCount: number;
+  }>;
+}
+
+function EngagementTab() {
+  const [data, setData] = useState<EngagementData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    api
+      .get<{ data: EngagementData }>("/admin/engagement")
+      .then((res) => setData(res.data))
+      .catch((err: Error) => setError(err.message))
+      .finally(() => setLoading(false));
+  }, []);
+
+  if (loading) return <LoadingSkeleton variant="card" count={2} style={{ height: 90 }} />;
+  if (error) return <div className="alert alert--error">{error}</div>;
+  if (!data) return null;
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: "1.25rem" }}>
+      <div className="stats-grid">
+        <div className="stat-card">
+          <p className="stat-card__label">DAU</p>
+          <p className="stat-card__value stat-card__value--emerald">{data.dau}</p>
+        </div>
+        <div className="stat-card">
+          <p className="stat-card__label">WAU</p>
+          <p className="stat-card__value">{data.wau}</p>
+        </div>
+        <div className="stat-card">
+          <p className="stat-card__label">MAU</p>
+          <p className="stat-card__value">{data.mau}</p>
+        </div>
+        <div className="stat-card">
+          <p className="stat-card__label">Zero Trips</p>
+          <p className="stat-card__value" style={{ color: data.usersWithZeroTrips > 0 ? "var(--dash-red)" : undefined }}>
+            {data.usersWithZeroTrips}
+          </p>
+          <p style={{ fontSize: "0.75rem", color: "var(--text-secondary)", marginTop: 2 }}>
+            of {data.totalUsers} users
+          </p>
+        </div>
+      </div>
+
+      {/* Retention curve */}
+      {data.retentionCurve.length > 0 && (
+        <Card title="Retention by Signup Month">
+          <div className="table-wrap">
+            <table className="table">
+              <thead>
+                <tr>
+                  <th>Cohort</th>
+                  <th style={{ textAlign: "right" }}>Signups</th>
+                  <th style={{ textAlign: "right" }}>Active (30d)</th>
+                  <th style={{ textAlign: "right" }}>Retention</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.retentionCurve.map((row) => (
+                  <tr key={row.month}>
+                    <td>{row.month}</td>
+                    <td style={{ textAlign: "right", fontVariantNumeric: "tabular-nums" }}>{row.signups}</td>
+                    <td style={{ textAlign: "right", fontVariantNumeric: "tabular-nums" }}>{row.retainedCount}</td>
+                    <td style={{
+                      textAlign: "right",
+                      fontVariantNumeric: "tabular-nums",
+                      fontWeight: 500,
+                      color: row.retentionPercent >= 50 ? "var(--emerald-400)" : row.retentionPercent >= 25 ? "var(--amber-400)" : "var(--dash-red)",
+                    }}>
+                      {row.retentionPercent}%
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </Card>
+      )}
+
+      {/* Recently active */}
+      {data.recentlyActive.length > 0 && (
+        <Card title="Recently Active Users">
+          <div className="table-wrap">
+            <table className="table">
+              <thead>
+                <tr>
+                  <th>Email</th>
+                  <th>Name</th>
+                  <th style={{ textAlign: "right" }}>Trips</th>
+                  <th>Last Active</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.recentlyActive.map((u) => (
+                  <tr key={u.userId}>
+                    <td style={{ fontSize: "0.875rem" }}>{u.email}</td>
+                    <td style={{ fontSize: "0.875rem", color: "var(--text-secondary)" }}>{u.displayName || "-"}</td>
+                    <td style={{ textAlign: "right", fontVariantNumeric: "tabular-nums" }}>{u.tripCount}</td>
+                    <td style={{ fontSize: "0.8125rem", whiteSpace: "nowrap" }}>
+                      {new Date(u.lastTripAt).toLocaleDateString("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </Card>
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Auto-trip Health Tab
+// ---------------------------------------------------------------------------
+
+interface AutoTripData {
+  autoTripsTotal: number;
+  autoTripsClassified: number;
+  autoTripsUnclassified: number;
+  manualTripsTotal: number;
+  classificationRatePercent: number;
+  usersWithAutoTrips7d: number;
+  usersWithPushToken: number;
+  detectionAdoptionPercent: number;
+  avgTripDurationMinutes: number;
+  avgAutoTripDistanceMiles: number;
+  dailyAutoTrips: Array<{ date: string; autoCount: number; manualCount: number }>;
+}
+
+function AutoTripsTab() {
+  const [data, setData] = useState<AutoTripData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    api
+      .get<{ data: AutoTripData }>("/admin/auto-trip-health")
+      .then((res) => setData(res.data))
+      .catch((err: Error) => setError(err.message))
+      .finally(() => setLoading(false));
+  }, []);
+
+  if (loading) return <LoadingSkeleton variant="card" count={2} style={{ height: 90 }} />;
+  if (error) return <div className="alert alert--error">{error}</div>;
+  if (!data) return null;
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: "1.25rem" }}>
+      <div className="stats-grid">
+        <div className="stat-card">
+          <p className="stat-card__label">Auto Trips (30d)</p>
+          <p className="stat-card__value stat-card__value--amber">{data.autoTripsTotal}</p>
+        </div>
+        <div className="stat-card">
+          <p className="stat-card__label">Classification Rate</p>
+          <p className="stat-card__value" style={{
+            color: data.classificationRatePercent >= 70 ? "var(--emerald-400)" : data.classificationRatePercent >= 40 ? "var(--amber-400)" : "var(--dash-red)",
+          }}>
+            {data.classificationRatePercent}%
+          </p>
+          <p style={{ fontSize: "0.75rem", color: "var(--text-secondary)", marginTop: 2 }}>
+            {data.autoTripsClassified} classified / {data.autoTripsUnclassified} pending
+          </p>
+        </div>
+        <div className="stat-card">
+          <p className="stat-card__label">Detection Adoption</p>
+          <p className="stat-card__value">{data.detectionAdoptionPercent}%</p>
+          <p style={{ fontSize: "0.75rem", color: "var(--text-secondary)", marginTop: 2 }}>
+            {data.usersWithAutoTrips7d} of {data.usersWithPushToken} with app
+          </p>
+        </div>
+        <div className="stat-card">
+          <p className="stat-card__label">Manual Trips (30d)</p>
+          <p className="stat-card__value">{data.manualTripsTotal}</p>
+        </div>
+      </div>
+
+      <div className="stats-grid" style={{ gridTemplateColumns: "1fr 1fr" }}>
+        <div className="stat-card">
+          <p className="stat-card__label">Avg Duration</p>
+          <p className="stat-card__value">{data.avgTripDurationMinutes} min</p>
+        </div>
+        <div className="stat-card">
+          <p className="stat-card__label">Avg Distance</p>
+          <p className="stat-card__value">{data.avgAutoTripDistanceMiles} mi</p>
+        </div>
+      </div>
+
+      {data.dailyAutoTrips.length > 0 && (
+        <Card title="Daily Breakdown (7d)">
+          <div className="table-wrap">
+            <table className="table">
+              <thead>
+                <tr>
+                  <th>Date</th>
+                  <th style={{ textAlign: "right" }}>Auto</th>
+                  <th style={{ textAlign: "right" }}>Manual</th>
+                  <th style={{ textAlign: "right" }}>Total</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.dailyAutoTrips.map((row) => (
+                  <tr key={row.date}>
+                    <td>{row.date}</td>
+                    <td style={{ textAlign: "right", fontVariantNumeric: "tabular-nums", color: "var(--amber-400)" }}>{row.autoCount}</td>
+                    <td style={{ textAlign: "right", fontVariantNumeric: "tabular-nums" }}>{row.manualCount}</td>
+                    <td style={{ textAlign: "right", fontVariantNumeric: "tabular-nums", fontWeight: 500 }}>{row.autoCount + row.manualCount}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </Card>
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Push Notifications Tab
+// ---------------------------------------------------------------------------
+
+function PushTab() {
+  const [audience, setAudience] = useState<"all" | "premium" | "inactive" | "specific">("all");
+  const [userId, setUserId] = useState("");
+  const [inactiveDays, setInactiveDays] = useState("14");
+  const [title, setTitle] = useState("");
+  const [body, setBody] = useState("");
+  const [sending, setSending] = useState(false);
+  const [result, setResult] = useState<{ sent: number; failed: number; totalTargeted: number; dryRun: boolean } | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [showConfirm, setShowConfirm] = useState(false);
+
+  const send = async (dryRun: boolean) => {
+    setSending(true);
+    setError(null);
+    setResult(null);
+    try {
+      const res = await api.post<{ data: typeof result }>("/admin/send-push", {
+        audience,
+        userId: audience === "specific" ? userId : undefined,
+        inactiveDays: audience === "inactive" ? parseInt(inactiveDays) || 14 : undefined,
+        title,
+        body,
+        dryRun,
+      });
+      setResult(res.data);
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setSending(false);
+      setShowConfirm(false);
+    }
+  };
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: "1.25rem", maxWidth: 600 }}>
+      <Card title="Send Push Notification">
+        <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+          {/* Audience */}
+          <div>
+            <label style={{ display: "block", fontSize: "0.8125rem", color: "var(--text-secondary)", marginBottom: 6 }}>
+              Audience
+            </label>
+            <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
+              {(["all", "premium", "inactive", "specific"] as const).map((a) => (
+                <button
+                  key={a}
+                  className={`filter-chip ${audience === a ? "filter-chip--active" : ""}`}
+                  onClick={() => setAudience(a)}
+                >
+                  {a === "all" ? "All Users" : a === "premium" ? "Premium Only" : a === "inactive" ? "Inactive" : "Specific User"}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {audience === "specific" && (
+            <Input id="push-user-id" label="User ID" value={userId} onChange={(e) => setUserId(e.target.value)} placeholder="Enter user ID..." />
+          )}
+          {audience === "inactive" && (
+            <Input id="push-inactive-days" label="Inactive for (days)" value={inactiveDays} onChange={(e) => setInactiveDays(e.target.value)} type="number" />
+          )}
+
+          <Input id="push-title" label="Title" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Notification title..." />
+          <div>
+            <label htmlFor="push-body" style={{ display: "block", fontSize: "0.8125rem", color: "var(--text-secondary)", marginBottom: 6 }}>Body</label>
+            <textarea
+              id="push-body"
+              value={body}
+              onChange={(e) => setBody(e.target.value)}
+              placeholder="Notification body..."
+              rows={3}
+              style={{
+                width: "100%",
+                padding: "0.625rem 0.75rem",
+                background: "var(--bg-secondary)",
+                border: "1px solid var(--border-default)",
+                borderRadius: 8,
+                color: "var(--text-primary)",
+                fontSize: "0.9375rem",
+                resize: "vertical",
+              }}
+            />
+          </div>
+
+          <div style={{ display: "flex", gap: "0.75rem" }}>
+            <Button variant="secondary" onClick={() => send(true)} disabled={!title || !body || sending}>
+              {sending ? "Checking..." : "Preview (Dry Run)"}
+            </Button>
+            <Button variant="primary" onClick={() => setShowConfirm(true)} disabled={!title || !body || sending}>
+              Send
+            </Button>
+          </div>
+        </div>
+      </Card>
+
+      {error && <div className="alert alert--error">{error}</div>}
+
+      {result && (
+        <Card>
+          <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem", fontSize: "0.9375rem" }}>
+            <p>
+              <strong>{result.dryRun ? "Dry run" : "Sent"}:</strong>{" "}
+              {result.dryRun ? `Would send to ${result.totalTargeted} user${result.totalTargeted !== 1 ? "s" : ""}` : `${result.sent} sent, ${result.failed} failed`}
+            </p>
+            <p style={{ color: "var(--text-secondary)", fontSize: "0.8125rem" }}>
+              Total targeted: {result.totalTargeted}
+            </p>
+          </div>
+        </Card>
+      )}
+
+      <ConfirmModal
+        open={showConfirm}
+        onClose={() => setShowConfirm(false)}
+        onConfirm={() => send(false)}
+        title="Send Push Notification"
+        message={`This will send a push notification to ${audience === "specific" ? "1 user" : audience === "all" ? "ALL users" : `${audience} users`}. Are you sure?`}
+        confirmLabel="Send Now"
+        loading={sending}
+      />
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Email Campaigns Tab
+// ---------------------------------------------------------------------------
+
+function EmailTab() {
+  const [sending, setSending] = useState<string | null>(null);
+  const [result, setResult] = useState<{ type: string; sent: number; errors: number; dryRun: boolean; totalUsers: number } | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [showConfirm, setShowConfirm] = useState<string | null>(null);
+  const [onlyInactive, setOnlyInactive] = useState(false);
+
+  const sendEmail = async (type: string, dryRun: boolean) => {
+    setSending(type);
+    setError(null);
+    setResult(null);
+    try {
+      const params = new URLSearchParams();
+      if (dryRun) params.set("dryRun", "true");
+      if (type === "re-engagement" && onlyInactive) params.set("onlyInactive", "true");
+      const res = await api.post<{ data: any }>(`/admin/send-${type}?${params}`, {});
+      setResult({ type, sent: res.data.sent, errors: res.data.errors, dryRun, totalUsers: res.data.totalUsers });
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setSending(null);
+      setShowConfirm(null);
+    }
+  };
+
+  const campaigns = [
+    { id: "re-engagement", title: "Re-engagement", desc: "Personalised email to bring users back, with their trip stats." },
+    { id: "update", title: "Product Update", desc: "Send the latest changelog/update email to all users." },
+    { id: "service-status", title: "Service Status", desc: "Quick 'we're back up' or status notification to all users." },
+  ];
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: "1.25rem" }}>
+      {error && <div className="alert alert--error">{error}</div>}
+
+      {result && (
+        <Card>
+          <p style={{ fontSize: "0.9375rem" }}>
+            <strong>{result.dryRun ? "Dry run" : "Sent"} ({result.type}):</strong>{" "}
+            {result.dryRun ? `Would send to ${result.sent} of ${result.totalUsers} users` : `${result.sent} sent, ${result.errors} errors`}
+          </p>
+        </Card>
+      )}
+
+      {campaigns.map((c) => (
+        <Card key={c.id} title={c.title}>
+          <p style={{ fontSize: "0.875rem", color: "var(--text-secondary)", marginBottom: "1rem" }}>{c.desc}</p>
+          {c.id === "re-engagement" && (
+            <label style={{ display: "flex", alignItems: "center", gap: "0.5rem", fontSize: "0.875rem", marginBottom: "1rem", cursor: "pointer" }}>
+              <input type="checkbox" checked={onlyInactive} onChange={(e) => setOnlyInactive(e.target.checked)} />
+              Only users with 0 trips
+            </label>
+          )}
+          <div style={{ display: "flex", gap: "0.75rem" }}>
+            <Button variant="secondary" size="sm" onClick={() => sendEmail(c.id, true)} disabled={sending === c.id}>
+              {sending === c.id ? "..." : "Dry Run"}
+            </Button>
+            <Button variant="primary" size="sm" onClick={() => setShowConfirm(c.id)} disabled={sending === c.id}>
+              Send
+            </Button>
+          </div>
+        </Card>
+      ))}
+
+      <ConfirmModal
+        open={!!showConfirm}
+        onClose={() => setShowConfirm(null)}
+        onConfirm={() => showConfirm && sendEmail(showConfirm, false)}
+        title="Send Email Campaign"
+        message="This will send emails to users. Brevo's free tier has a 300/day limit. Are you sure?"
+        confirmLabel="Send Now"
+        loading={!!sending}
+      />
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Main Page
 // ---------------------------------------------------------------------------
 
-type Tab = "overview" | "users" | "health";
+type Tab = "overview" | "users" | "health" | "revenue" | "engagement" | "auto-trips" | "push" | "email";
+
+const tabLabels: Record<Tab, string> = {
+  overview: "Overview",
+  users: "Users",
+  health: "Health",
+  revenue: "Revenue",
+  engagement: "Engagement",
+  "auto-trips": "Auto-trips",
+  push: "Push",
+  email: "Email",
+};
 
 export default function AdminPage() {
   const [tab, setTab] = useState<Tab>("overview");
@@ -915,15 +1493,15 @@ export default function AdminPage() {
       />
 
       {/* Tab navigation */}
-      <div className="filter-chips" style={{ marginBottom: "1.25rem" }}>
-        {(["overview", "users", "health"] as const).map((t) => (
+      <div className="filter-chips" style={{ marginBottom: "1.25rem", overflowX: "auto" }}>
+        {(Object.keys(tabLabels) as Tab[]).map((t) => (
           <button
             key={t}
             className={`filter-chip ${tab === t ? "filter-chip--active" : ""}`}
             onClick={() => setTab(t)}
             aria-pressed={tab === t}
           >
-            {t.charAt(0).toUpperCase() + t.slice(1)}
+            {tabLabels[t]}
           </button>
         ))}
       </div>
@@ -932,6 +1510,11 @@ export default function AdminPage() {
       {tab === "overview" && <OverviewTab />}
       {tab === "users" && <UsersTab />}
       {tab === "health" && <HealthTab />}
+      {tab === "revenue" && <RevenueTab />}
+      {tab === "engagement" && <EngagementTab />}
+      {tab === "auto-trips" && <AutoTripsTab />}
+      {tab === "push" && <PushTab />}
+      {tab === "email" && <EmailTab />}
     </>
   );
 }

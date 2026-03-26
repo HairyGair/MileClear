@@ -79,7 +79,7 @@ export async function startShiftTracking(shiftId: string): Promise<void> {
 
   try {
     await Location.startLocationUpdatesAsync(LOCATION_TASK_NAME, {
-      accuracy: Location.Accuracy.High,
+      accuracy: Location.Accuracy.BestForNavigation,
       distanceInterval: 50,
       deferredUpdatesInterval: 10000,
       activityType: Location.ActivityType.AutomotiveNavigation,
@@ -139,7 +139,7 @@ export async function startQuickTripTracking(): Promise<void> {
 
   try {
     await Location.startLocationUpdatesAsync(LOCATION_TASK_NAME, {
-      accuracy: Location.Accuracy.High,
+      accuracy: Location.Accuracy.BestForNavigation,
       distanceInterval: 50,
       deferredUpdatesInterval: 10000,
       activityType: Location.ActivityType.AutomotiveNavigation,

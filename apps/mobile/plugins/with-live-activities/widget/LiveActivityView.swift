@@ -33,35 +33,37 @@ struct MileClearLiveActivity: Widget {
             return DynamicIsland {
                 // --- Expanded regions ---
                 DynamicIslandExpandedRegion(.leading) {
-                    VStack(alignment: .leading, spacing: 2) {
+                    VStack(alignment: .leading, spacing: 3) {
                         Text(String(format: "%.0f", context.state.speedMph))
-                            .font(.system(size: 24, weight: .bold, design: .rounded))
+                            .font(.system(size: 26, weight: .bold, design: .rounded))
                             .foregroundColor(accent)
                         Text("MPH")
-                            .font(.system(size: 9, weight: .semibold))
+                            .font(.system(size: 8, weight: .bold))
                             .foregroundColor(textMuted)
+                            .kerning(1.2)
                     }
                 }
 
                 DynamicIslandExpandedRegion(.trailing) {
-                    VStack(alignment: .trailing, spacing: 2) {
+                    VStack(alignment: .trailing, spacing: 3) {
                         Text(String(format: "%.1f", context.state.distanceMiles))
-                            .font(.system(size: 24, weight: .bold, design: .rounded))
+                            .font(.system(size: 26, weight: .bold, design: .rounded))
                             .foregroundColor(.white)
                         Text("MILES")
-                            .font(.system(size: 9, weight: .semibold))
+                            .font(.system(size: 8, weight: .bold))
                             .foregroundColor(textMuted)
+                            .kerning(1.2)
                     }
                 }
 
                 DynamicIslandExpandedRegion(.bottom) {
                     HStack {
                         HStack(spacing: 4) {
-                            Image(systemName: "timer")
-                                .font(.system(size: 11))
-                                .foregroundColor(textDim)
+                            Circle()
+                                .fill(accent)
+                                .frame(width: 5, height: 5)
                             Text(context.state.startDate, style: .timer)
-                                .font(.system(size: 13, weight: .medium, design: .monospaced))
+                                .font(.system(size: 13, weight: .semibold, design: .monospaced))
                                 .foregroundColor(.white)
                         }
 
@@ -72,7 +74,7 @@ struct MileClearLiveActivity: Widget {
                                     .font(.system(size: 11))
                                     .foregroundColor(textDim)
                                 Text("\(context.state.tripCount) trips")
-                                    .font(.system(size: 13, weight: .medium))
+                                    .font(.system(size: 13, weight: .semibold))
                                     .foregroundColor(.white)
                             }
                         }
@@ -80,7 +82,7 @@ struct MileClearLiveActivity: Widget {
                         if !context.attributes.vehicleName.isEmpty {
                             Spacer()
                             Text(context.attributes.vehicleName)
-                                .font(.system(size: 11))
+                                .font(.system(size: 11, weight: .medium))
                                 .foregroundColor(textDim)
                                 .lineLimit(1)
                         }
@@ -118,83 +120,120 @@ private struct LockScreenView: View {
     private var isShift: Bool { attrs.activityType == "shift" }
 
     var body: some View {
-        VStack(spacing: 12) {
-            // Header
-            HStack {
-                Image(systemName: "car.fill")
-                    .foregroundColor(accent)
-                    .font(.system(size: 13))
-                Text(isShift ? "Shift Active" : "Trip Active")
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundColor(.white)
-                Spacer()
-                Text("MileClear")
-                    .font(.system(size: 10, weight: .medium))
-                    .foregroundColor(textDim)
-            }
+        VStack(spacing: 0) {
+            // Accent bar
+            Rectangle()
+                .fill(
+                    LinearGradient(
+                        colors: [accent.opacity(0.8), accent.opacity(0.2), .clear],
+                        startPoint: .leading,
+                        endPoint: .trailing
+                    )
+                )
+                .frame(height: 2)
 
-            // Stats row
-            HStack(spacing: 0) {
-                // Timer (native iOS counting)
-                VStack(spacing: 2) {
-                    Text(state.startDate, style: .timer)
-                        .font(.system(size: 24, weight: .light, design: .monospaced))
-                        .foregroundColor(.white)
-                    Text("DURATION")
-                        .font(.system(size: 9, weight: .semibold))
-                        .foregroundColor(textMuted)
-                }
-                .frame(maxWidth: .infinity)
+            VStack(spacing: 14) {
+                // Header
+                HStack(spacing: 6) {
+                    // Live indicator
+                    Circle()
+                        .fill(accent)
+                        .frame(width: 6, height: 6)
 
-                divider
-
-                // Distance
-                VStack(spacing: 2) {
-                    Text(String(format: "%.1f", state.distanceMiles))
-                        .font(.system(size: 24, weight: .light, design: .rounded))
+                    Image(systemName: isShift ? "briefcase.fill" : "car.fill")
                         .foregroundColor(accent)
-                    Text("MILES")
-                        .font(.system(size: 9, weight: .semibold))
-                        .foregroundColor(textMuted)
-                }
-                .frame(maxWidth: .infinity)
+                        .font(.system(size: 12))
+                    Text(isShift ? "Shift Active" : "Trip Active")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundColor(.white)
 
-                divider
+                    Spacer()
 
-                // Speed or trip count
-                VStack(spacing: 2) {
-                    if isShift {
-                        Text("\(state.tripCount)")
-                            .font(.system(size: 24, weight: .light, design: .rounded))
-                            .foregroundColor(.white)
-                        Text("TRIPS")
-                            .font(.system(size: 9, weight: .semibold))
-                            .foregroundColor(textMuted)
-                    } else {
-                        Text(String(format: "%.0f", state.speedMph))
-                            .font(.system(size: 24, weight: .light, design: .rounded))
-                            .foregroundColor(.white)
-                        Text("MPH")
-                            .font(.system(size: 9, weight: .semibold))
-                            .foregroundColor(textMuted)
+                    // Branded wordmark
+                    HStack(spacing: 0) {
+                        Text("Mile")
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundColor(.white.opacity(0.7))
+                        Text("Clear")
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundColor(accent.opacity(0.7))
                     }
                 }
-                .frame(maxWidth: .infinity)
-            }
 
-            // Vehicle
-            if !attrs.vehicleName.isEmpty {
-                Text(attrs.vehicleName)
-                    .font(.system(size: 11))
-                    .foregroundColor(textDim)
+                // Stats row
+                HStack(spacing: 0) {
+                    // Timer (native iOS counting)
+                    VStack(spacing: 4) {
+                        Text(state.startDate, style: .timer)
+                            .font(.system(size: 26, weight: .semibold, design: .monospaced))
+                            .foregroundColor(.white)
+                        Text("DURATION")
+                            .font(.system(size: 8, weight: .bold))
+                            .foregroundColor(textMuted)
+                            .kerning(1.2)
+                    }
+                    .frame(maxWidth: .infinity)
+
+                    divider
+
+                    // Distance
+                    VStack(spacing: 4) {
+                        Text(String(format: "%.1f", state.distanceMiles))
+                            .font(.system(size: 26, weight: .semibold, design: .rounded))
+                            .foregroundColor(accent)
+                        Text("MILES")
+                            .font(.system(size: 8, weight: .bold))
+                            .foregroundColor(textMuted)
+                            .kerning(1.2)
+                    }
+                    .frame(maxWidth: .infinity)
+
+                    divider
+
+                    // Speed or trip count
+                    VStack(spacing: 4) {
+                        if isShift {
+                            Text("\(state.tripCount)")
+                                .font(.system(size: 26, weight: .semibold, design: .rounded))
+                                .foregroundColor(.white)
+                            Text("TRIPS")
+                                .font(.system(size: 8, weight: .bold))
+                                .foregroundColor(textMuted)
+                                .kerning(1.2)
+                        } else {
+                            Text(String(format: "%.0f", state.speedMph))
+                                .font(.system(size: 26, weight: .semibold, design: .rounded))
+                                .foregroundColor(.white)
+                            Text("MPH")
+                                .font(.system(size: 8, weight: .bold))
+                                .foregroundColor(textMuted)
+                                .kerning(1.2)
+                        }
+                    }
+                    .frame(maxWidth: .infinity)
+                }
+
+                // Vehicle
+                if !attrs.vehicleName.isEmpty {
+                    HStack(spacing: 4) {
+                        Image(systemName: "car.side")
+                            .font(.system(size: 9))
+                            .foregroundColor(textDim)
+                        Text(attrs.vehicleName)
+                            .font(.system(size: 11, weight: .medium))
+                            .foregroundColor(textDim)
+                    }
+                }
             }
+            .padding(.horizontal, 16)
+            .padding(.top, 12)
+            .padding(.bottom, 14)
         }
-        .padding(16)
     }
 
     private var divider: some View {
         Rectangle()
-            .fill(Color.white.opacity(0.08))
-            .frame(width: 1, height: 32)
+            .fill(accent.opacity(0.15))
+            .frame(width: 1, height: 36)
     }
 }

@@ -51,7 +51,7 @@ class LiveActivityModule: NSObject {
         )
 
         do {
-            let staleDate = Date().addingTimeInterval(120) // 2 min stale timeout
+            let staleDate = Date().addingTimeInterval(480) // 8 min stale timeout (background GPS updates can be sparse)
             let content = ActivityContent(state: initialState, staleDate: staleDate)
             let activity = try Activity.request(
                 attributes: attributes,
@@ -89,7 +89,7 @@ class LiveActivityModule: NSObject {
             startDate: startDate
         )
 
-        let staleDate = Date().addingTimeInterval(120) // Push stale deadline forward
+        let staleDate = Date().addingTimeInterval(480) // Push stale deadline forward
         let content = ActivityContent(state: state, staleDate: staleDate)
 
         Task {

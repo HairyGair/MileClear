@@ -22,6 +22,7 @@ import { Button } from "../../components/Button";
 import { fetchTrips, fetchUnclassifiedCount, fetchClassificationSuggestion, mergeTrips, TripWithVehicle, ClassificationSuggestion } from "../../lib/api/trips";
 import { syncUpdateTrip, syncDeleteTrip } from "../../lib/sync/actions";
 import { getLocalTrips, getLocalUnsyncedTrips } from "../../lib/db/queries";
+import { learnFromClassification } from "../../lib/classification";
 import { GIG_PLATFORMS } from "@mileclear/shared";
 import type { TripClassification, PlatformTag, BusinessPurpose } from "@mileclear/shared";
 
@@ -30,6 +31,112 @@ if (Platform.OS === "android" && UIManager.setLayoutAnimationEnabledExperimental
 }
 
 type TripItem = TripWithVehicle & { _isLocal?: boolean };
+
+// ─── Route grouping ──────────────────────────────────────────────────────────
+
+function haversineMeters(lat1: number, lng1: number, lat2: number, lng2: number): number {
+  const R = 6371000;
+  const dLat = ((lat2 - lat1) * Math.PI) / 180;
+  const dLng = ((lng2 - lng1) * Math.PI) / 180;
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos((lat1 * Math.PI) / 180) *
+      Math.cos((lat2 * Math.PI) / 180) *
+      Math.sin(dLng / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+const ROUTE_GROUP_RADIUS_M = 300;
+
+export interface RouteGroup {
+  /** Stable key derived from the representative trip id. */
+  key: string;
+  trips: TripItem[];
+  /** Representative start/end coords (from first trip in group). */
+  startLat: number;
+  startLng: number;
+  endLat: number;
+  endLng: number;
+  /** Display label: "Start address → End address" using the first trip that has addresses. */
+  routeLabel: string;
+  totalDistanceMiles: number;
+}
+
+/**
+ * Groups an array of unclassified trips by route similarity.
+ * Two trips share a route when start coords are within 300 m of each other
+ * AND end coords are within 300 m of each other.
+ * Trips without end coordinates are placed into their own singleton groups.
+ */
+function groupUnclassifiedTrips(trips: TripItem[]): RouteGroup[] {
+  const groups: RouteGroup[] = [];
+
+  for (const trip of trips) {
+    const { startLat, startLng, endLat, endLng } = trip;
+
+    // Trips with no end coordinates cannot be grouped — they get their own group.
+    if (endLat == null || endLng == null) {
+      groups.push({
+        key: trip.id,
+        trips: [trip],
+        startLat,
+        startLng,
+        endLat: startLat,
+        endLng: startLng,
+        routeLabel: trip.startAddress ?? "Unknown start",
+        totalDistanceMiles: trip.distanceMiles,
+      });
+      continue;
+    }
+
+    // Try to find an existing group whose representative coords match.
+    let matched = false;
+    for (const group of groups) {
+      // Skip singleton groups created for trips without end coordinates —
+      // these can only match themselves.
+      if (group.trips.length === 1 && group.trips[0].endLat == null) {
+        continue;
+      }
+      const startDist = haversineMeters(startLat, startLng, group.startLat, group.startLng);
+      const endDist = haversineMeters(endLat, endLng, group.endLat, group.endLng);
+      if (startDist <= ROUTE_GROUP_RADIUS_M && endDist <= ROUTE_GROUP_RADIUS_M) {
+        group.trips.push(trip);
+        group.totalDistanceMiles += trip.distanceMiles;
+        // If this trip has better address info, upgrade the label.
+        if (!group.routeLabel.includes("→") && trip.startAddress && trip.endAddress) {
+          group.routeLabel = `${trip.startAddress} → ${trip.endAddress}`;
+        }
+        matched = true;
+        break;
+      }
+    }
+
+    if (!matched) {
+      const startLabel = trip.startAddress ?? `${startLat.toFixed(3)}, ${startLng.toFixed(3)}`;
+      const endLabel = trip.endAddress ?? `${endLat.toFixed(3)}, ${endLng.toFixed(3)}`;
+      groups.push({
+        key: trip.id,
+        trips: [trip],
+        startLat,
+        startLng,
+        endLat,
+        endLng,
+        routeLabel: `${startLabel} → ${endLabel}`,
+        totalDistanceMiles: trip.distanceMiles,
+      });
+    }
+  }
+
+  // Sort groups: largest trip count first, then most recent trip first.
+  groups.sort((a, b) => {
+    if (b.trips.length !== a.trips.length) return b.trips.length - a.trips.length;
+    const aLatest = Math.max(...a.trips.map((t) => new Date(t.startedAt).getTime()));
+    const bLatest = Math.max(...b.trips.map((t) => new Date(t.startedAt).getTime()));
+    return bLatest - aLatest;
+  });
+
+  return groups;
+}
 
 const FILTERS: { label: string; value: TripClassification | "all" }[] = [
   { label: "All", value: "all" },
@@ -77,6 +184,10 @@ export default function TripsScreen() {
   const [mergeClassification, setMergeClassification] = useState<TripClassification>("business");
   const [mergePlatform, setMergePlatform] = useState<string | null>(null);
   const [mergeLoading, setMergeLoading] = useState(false);
+
+  // Route grouping state (inbox view)
+  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
+  const [batchClassifyingKey, setBatchClassifyingKey] = useState<string | null>(null);
 
   const loadUnclassifiedCount = useCallback(async () => {
     try {
@@ -316,6 +427,57 @@ export default function TripsScreen() {
     }
   }, [selectedIds, trips, mergeClassification, mergePlatform, exitMergeMode, loadTrips, loadUnclassifiedCount]);
 
+  const toggleGroupExpanded = useCallback((key: string) => {
+    setExpandedGroups((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  }, []);
+
+  const handleBatchClassify = useCallback(
+    async (group: RouteGroup, classification: "business" | "personal") => {
+      setBatchClassifyingKey(group.key);
+      try {
+        // Classify all trips in the group.
+        await Promise.all(
+          group.trips.map((t) => syncUpdateTrip(t.id, { classification }))
+        );
+
+        // Learn from the representative trip (first in group that has end coords).
+        const representative = group.trips.find((t) => t.endLat != null && t.endLng != null);
+        if (representative && representative.endLat != null && representative.endLng != null) {
+          await learnFromClassification({
+            startLat: representative.startLat,
+            startLng: representative.startLng,
+            endLat: representative.endLat,
+            endLng: representative.endLng,
+            classification,
+            platformTag: representative.platformTag ?? null,
+          }).catch(() => {
+            // Non-fatal: learning failure doesn't block classification.
+          });
+        }
+
+        LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+        const classifiedIds = new Set(group.trips.map((t) => t.id));
+        setTrips((prev) => prev.filter((t) => !classifiedIds.has(t.id)));
+        setUnclassifiedCount((prev) => Math.max(0, prev - group.trips.length));
+        setExpandedGroups((prev) => {
+          const next = new Set(prev);
+          next.delete(group.key);
+          return next;
+        });
+      } catch {
+        Alert.alert("Error", "Failed to classify trips. Please try again.");
+      } finally {
+        setBatchClassifyingKey(null);
+      }
+    },
+    []
+  );
+
   const renderTrip = ({ item }: { item: TripItem }) => {
     const isUnclassified = item.classification === "unclassified";
     const isClassifying = classifyingId === item.id;
@@ -499,12 +661,127 @@ export default function TripsScreen() {
     );
   };
 
+  const routeGroups: RouteGroup[] = filter === "unclassified"
+    ? groupUnclassifiedTrips(trips)
+    : [];
+
+  const renderRouteGroup = ({ item: group }: { item: RouteGroup }) => {
+    const isExpanded = expandedGroups.has(group.key);
+    const isBatchClassifying = batchClassifyingKey === group.key;
+    const isSingleton = group.trips.length === 1;
+
+    return (
+      <View style={styles.routeGroup}>
+        {/* Group header */}
+        <TouchableOpacity
+          style={styles.routeGroupHeader}
+          onPress={() => toggleGroupExpanded(group.key)}
+          activeOpacity={0.75}
+          accessibilityRole="button"
+          accessibilityLabel={`Route group: ${group.routeLabel}, ${group.trips.length} trip${group.trips.length !== 1 ? "s" : ""}, ${group.totalDistanceMiles.toFixed(1)} miles total. Tap to ${isExpanded ? "collapse" : "expand"}.`}
+          accessibilityState={{ expanded: isExpanded }}
+        >
+          <View style={styles.routeGroupHeaderTop}>
+            <View style={styles.routeGroupInfo}>
+              <Ionicons name="git-branch-outline" size={14} color="#f5a623" accessible={false} />
+              <Text style={styles.routeGroupLabel} numberOfLines={1}>
+                {group.routeLabel}
+              </Text>
+            </View>
+            <Ionicons
+              name={isExpanded ? "chevron-up" : "chevron-down"}
+              size={16}
+              color="#6b7280"
+              accessible={false}
+            />
+          </View>
+
+          <View style={styles.routeGroupMeta}>
+            <View style={styles.routeGroupMetaPill}>
+              <Text style={styles.routeGroupMetaText}>
+                {group.trips.length} trip{group.trips.length !== 1 ? "s" : ""}
+              </Text>
+            </View>
+            <View style={styles.routeGroupMetaPill}>
+              <Text style={styles.routeGroupMetaText}>
+                {group.totalDistanceMiles.toFixed(1)} mi total
+              </Text>
+            </View>
+          </View>
+
+          {/* Batch action buttons */}
+          <View style={styles.routeGroupActions}>
+            <TouchableOpacity
+              style={[styles.routeGroupBtn, styles.routeGroupBtnBusiness]}
+              onPress={(e) => {
+                e.stopPropagation?.();
+                handleBatchClassify(group, "business");
+              }}
+              disabled={isBatchClassifying}
+              activeOpacity={0.7}
+              accessibilityRole="button"
+              accessibilityLabel={`Classify all ${group.trips.length} trip${group.trips.length !== 1 ? "s" : ""} as Business`}
+              accessibilityState={{ disabled: isBatchClassifying, busy: isBatchClassifying }}
+            >
+              {isBatchClassifying ? (
+                <ActivityIndicator size="small" color="#030712" accessibilityLabel="Classifying" />
+              ) : (
+                <>
+                  <Ionicons name="briefcase" size={14} color="#030712" accessible={false} />
+                  <Text style={styles.routeGroupBtnTextDark}>
+                    {isSingleton ? "Business" : `Business (${group.trips.length})`}
+                  </Text>
+                </>
+              )}
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.routeGroupBtn, styles.routeGroupBtnPersonal]}
+              onPress={(e) => {
+                e.stopPropagation?.();
+                handleBatchClassify(group, "personal");
+              }}
+              disabled={isBatchClassifying}
+              activeOpacity={0.7}
+              accessibilityRole="button"
+              accessibilityLabel={`Classify all ${group.trips.length} trip${group.trips.length !== 1 ? "s" : ""} as Personal`}
+              accessibilityState={{ disabled: isBatchClassifying, busy: isBatchClassifying }}
+            >
+              {isBatchClassifying ? (
+                <ActivityIndicator size="small" color="#d1d5db" accessibilityLabel="Classifying" />
+              ) : (
+                <>
+                  <Ionicons name="car" size={14} color="#d1d5db" accessible={false} />
+                  <Text style={styles.routeGroupBtnTextLight}>
+                    {isSingleton ? "Personal" : `Personal (${group.trips.length})`}
+                  </Text>
+                </>
+              )}
+            </TouchableOpacity>
+          </View>
+        </TouchableOpacity>
+
+        {/* Expanded individual trips */}
+        {isExpanded && (
+          <View style={styles.routeGroupTrips}>
+            {group.trips.map((trip) => (
+              <View key={trip.id} style={styles.routeGroupTripItem}>
+                {renderTrip({ item: trip })}
+              </View>
+            ))}
+          </View>
+        )}
+      </View>
+    );
+  };
+
   return (
     <View style={styles.container}>
       <FlatList
-        data={trips}
-        keyExtractor={(item) => item.id}
-        renderItem={renderTrip}
+        key={filter === "unclassified" ? "grouped" : "flat"}
+        data={filter === "unclassified" ? (routeGroups as any[]) : trips}
+        keyExtractor={(item) => (filter === "unclassified" ? (item as RouteGroup).key : (item as TripItem).id)}
+        renderItem={filter === "unclassified" ? (renderRouteGroup as any) : renderTrip}
         onEndReached={onEndReachedSafe}
         onEndReachedThreshold={0.3}
         refreshControl={
@@ -1371,5 +1648,89 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontFamily: "PlusJakartaSans_700Bold",
     color: "#030712",
+  },
+  // Route group (inbox grouped view)
+  routeGroup: {
+    marginBottom: 14,
+  },
+  routeGroupHeader: {
+    backgroundColor: "#0d1726",
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "rgba(245, 166, 35, 0.2)",
+    padding: 14,
+  },
+  routeGroupHeaderTop: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 8,
+  },
+  routeGroupInfo: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    flex: 1,
+    marginRight: 8,
+  },
+  routeGroupLabel: {
+    fontSize: 14,
+    fontFamily: "PlusJakartaSans_600SemiBold",
+    color: "#f0f2f5",
+    flex: 1,
+  },
+  routeGroupMeta: {
+    flexDirection: "row",
+    gap: 8,
+    marginBottom: 12,
+  },
+  routeGroupMetaPill: {
+    backgroundColor: "rgba(255,255,255,0.06)",
+    borderRadius: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+  },
+  routeGroupMetaText: {
+    fontSize: 12,
+    fontFamily: "PlusJakartaSans_500Medium",
+    color: "#8494a7",
+  },
+  routeGroupActions: {
+    flexDirection: "row",
+    gap: 10,
+  },
+  routeGroupBtn: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    paddingVertical: 9,
+    borderRadius: 8,
+  },
+  routeGroupBtnBusiness: {
+    backgroundColor: "#f5a623",
+  },
+  routeGroupBtnPersonal: {
+    backgroundColor: "#374151",
+  },
+  routeGroupBtnTextDark: {
+    fontSize: 13,
+    fontFamily: "PlusJakartaSans_600SemiBold",
+    color: "#030712",
+  },
+  routeGroupBtnTextLight: {
+    fontSize: 13,
+    fontFamily: "PlusJakartaSans_600SemiBold",
+    color: "#d1d5db",
+  },
+  routeGroupTrips: {
+    marginTop: 4,
+    paddingLeft: 12,
+    borderLeftWidth: 2,
+    borderLeftColor: "rgba(245, 166, 35, 0.15)",
+  },
+  routeGroupTripItem: {
+    marginTop: 4,
   },
 });

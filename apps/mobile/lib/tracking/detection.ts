@@ -4,7 +4,9 @@ import * as Notifications from "expo-notifications";
 import { getDatabase } from "../db/index";
 import { sendDrivingDetectedNotification } from "../notifications/index";
 import { DRIVING_SPEED_THRESHOLD_MPH } from "@mileclear/shared";
-import { startLiveActivity, updateLiveActivity, endLiveActivity } from "../liveActivity";
+import { startLiveActivity, updateLiveActivity, endLiveActivity, endLiveActivityWithSummary, recoverLiveActivity } from "../liveActivity";
+import { markBluetoothStateAtStart, hasBluetoothDisconnected, resetBluetoothState } from "../bluetooth";
+import type { TripClassification, PlatformTag } from "@mileclear/shared";
 
 const DETECTION_TASK_NAME = "mileclear-drive-detection";
 const COOLDOWN_MS = 20 * 60 * 1000; // 20 minutes
@@ -168,9 +170,10 @@ async function finalizeAutoTrip(): Promise<void> {
 
 async function _finalizeAutoTripInner(): Promise<void> {
   const db = await getDatabase();
+  resetBluetoothState();
 
-  // End Live Activity for auto-trip
-  endLiveActivity().catch(() => {});
+  // Calculate final distance for the Live Activity summary before clearing coords
+  const finalStats = await getAutoTripRunningDistance();
 
   // Read all buffered coordinates
   const allCoords = await db.getAllAsync<BufferedCoordinate>(
@@ -180,10 +183,14 @@ async function _finalizeAutoTripInner(): Promise<void> {
   // Clear state regardless of outcome
   await db.runAsync("DELETE FROM detection_coordinates");
   await db.runAsync(
-    "DELETE FROM tracking_state WHERE key IN ('auto_recording_active', 'last_driving_speed_at', 'driving_detection_count')"
+    "DELETE FROM tracking_state WHERE key IN ('auto_recording_active', 'last_driving_speed_at', 'driving_detection_count', 'finalization_mode')"
   );
 
-  if (allCoords.length < 2) return;
+  if (allCoords.length < 2) {
+    // No meaningful trip - dismiss Live Activity immediately
+    endLiveActivity().catch(() => {});
+    return;
+  }
 
   // Trim trailing stationary coordinates to find the true trip end.
   // After the user parks, GPS pings continue at the same location — these
@@ -217,7 +224,11 @@ async function _finalizeAutoTripInner(): Promise<void> {
     );
   }
 
-  if (totalDistance < MIN_AUTO_TRIP_DISTANCE_MILES) return;
+  if (totalDistance < MIN_AUTO_TRIP_DISTANCE_MILES) {
+    // Too short to save - dismiss Live Activity immediately
+    endLiveActivity().catch(() => {});
+    return;
+  }
 
   const first = coords[0];
   const last = coords[coords.length - 1];
@@ -235,7 +246,31 @@ async function _finalizeAutoTripInner(): Promise<void> {
     // Geocoding is best-effort
   }
 
-  // Save trip as unclassified — lands in inbox
+  // Run classification engine to determine trip type before saving
+  let classification: TripClassification = "unclassified";
+  let platformTag: PlatformTag | undefined = undefined;
+  let classificationSource: string | null = null;
+  try {
+    const { classifyTrip, AUTO_CLASSIFY_THRESHOLD } = await import("../classification");
+    const result = await classifyTrip({
+      startLat: first.lat,
+      startLng: first.lng,
+      endLat: last.lat,
+      endLng: last.lng,
+      startedAt: first.recorded_at,
+      endedAt: last.recorded_at,
+    });
+    if (result) {
+      classificationSource = result.source;
+      if (result.confidence >= AUTO_CLASSIFY_THRESHOLD) {
+        classification = result.classification as TripClassification;
+        platformTag = result.platformTag ? (result.platformTag as PlatformTag) : undefined;
+      }
+    }
+  } catch {
+    // Classification engine failure is non-fatal — save as unclassified
+  }
+
   try {
     // Look up the most recently used vehicle from local trips, so auto-detected
     // trips inherit a vehicle rather than appearing as "Unknown vehicle" in exports.
@@ -250,7 +285,7 @@ async function _finalizeAutoTripInner(): Promise<void> {
     }
 
     const { syncCreateTrip } = await import("../sync/actions");
-    await syncCreateTrip({
+    const tripResult = await syncCreateTrip({
       startLat: first.lat,
       startLng: first.lng,
       endLat: last.lat,
@@ -260,7 +295,8 @@ async function _finalizeAutoTripInner(): Promise<void> {
       distanceMiles: Math.round(totalDistance * 100) / 100,
       startedAt: first.recorded_at,
       endedAt: last.recorded_at,
-      classification: "unclassified",
+      classification,
+      platformTag: platformTag ?? undefined,
       vehicleId,
       coordinates: coords.map((c) => ({
         lat: c.lat,
@@ -271,15 +307,59 @@ async function _finalizeAutoTripInner(): Promise<void> {
       })),
     });
 
+    // Store classification source on the local trip row
+    const savedTripId = tripResult?.data?.id;
+    if (classificationSource && savedTripId) {
+      db.runAsync(
+        "UPDATE trips SET classification_source = ? WHERE id = ?",
+        [classificationSource, savedTripId]
+      ).catch(() => {});
+    }
+
+    // If auto-classified, learn from it to reinforce the route pattern
+    if (classification !== "unclassified") {
+      try {
+        const { learnFromClassification } = await import("../classification");
+        await learnFromClassification({
+          startLat: first.lat, startLng: first.lng,
+          endLat: last.lat, endLng: last.lng,
+          classification, platformTag: platformTag ?? null,
+        });
+      } catch {}
+    }
+
+    // End Live Activity with summary so user sees final trip stats on lock screen
+    endLiveActivityWithSummary({
+      distanceMiles: Math.round(totalDistance * 100) / 100,
+    }).catch(() => {});
+
     // Notify user (skip during quiet hours — trip is still saved)
     if (!isQuietHours()) {
       const from = startAddress || "Unknown";
       const to = endAddress || "Unknown";
+      const wasAutoClassified = classification !== "unclassified";
+      const tripId = tripResult?.data?.id;
+      // Only show lock screen classify buttons if we have a trip ID to update
+      const canClassifyFromNotification = !wasAutoClassified && !!tripId;
+
       await Notifications.scheduleNotificationAsync({
         content: {
-          title: "Trip recorded",
+          title: wasAutoClassified
+            ? `Trip recorded as ${classification}`
+            : "Trip recorded - classify it",
           body: `${from} → ${to} (${totalDistance.toFixed(1)} mi)`,
-          data: { action: "open_trips" },
+          data: canClassifyFromNotification
+            ? {
+                action: "classify_trip",
+                tripId,
+                startLat: first.lat,
+                startLng: first.lng,
+                endLat: last.lat,
+                endLng: last.lng,
+              }
+            : { action: "open_trips" },
+          // Show Business/Personal buttons only when classification is actionable
+          ...(canClassifyFromNotification ? { categoryIdentifier: "trip_recorded" } : {}),
         },
         trigger: null,
       }).catch(() => {});
@@ -295,6 +375,8 @@ async function _finalizeAutoTripInner(): Promise<void> {
     }
   } catch (err) {
     console.error("Auto-trip save failed:", err);
+    // Dismiss Live Activity on failure
+    endLiveActivity().catch(() => {});
   }
 }
 
@@ -346,8 +428,9 @@ export async function finalizeStaleAutoRecordings(): Promise<void> {
 export async function cancelAutoRecording(clearCoords = false): Promise<void> {
   const db = await getDatabase();
   await db.runAsync(
-    "DELETE FROM tracking_state WHERE key IN ('auto_recording_active', 'last_driving_speed_at', 'driving_detection_count')"
+    "DELETE FROM tracking_state WHERE key IN ('auto_recording_active', 'last_driving_speed_at', 'driving_detection_count', 'finalization_mode')"
   );
+  resetBluetoothState();
   if (clearCoords) {
     await db.runAsync("DELETE FROM detection_coordinates");
     // Dismiss Live Activity when user taps "Not Driving"
@@ -384,6 +467,16 @@ try {
 
       if (isRecording) {
         // ── Active recording ──
+
+        // Recover Live Activity if JS process was restarted (iOS killed app between
+        // background callbacks). The in-memory currentActivityId would be null, causing
+        // updateLiveActivity() to silently skip. This re-links to the existing activity
+        // or starts a fresh one if it expired.
+        const recovered = await recoverLiveActivity();
+        if (!recovered) {
+          startLiveActivity({ activityType: "trip", isBusinessMode: true }).catch(() => {});
+        }
+
         // Check if the recording is clearly stale (e.g. app was killed and just
         // reopened). If the last driving activity was long ago, finalize
         // immediately WITHOUT buffering these new coords — they'd set the trip
@@ -426,6 +519,15 @@ try {
           getAutoTripRunningDistance().then(({ miles, speedMph }) => {
             updateLiveActivity({ distanceMiles: miles, speedMph }).catch(() => {});
           }).catch(() => {});
+          // If we were in finalization mode (waiting for stop timeout), switch back
+          // to recording mode since the user is moving again.
+          const wasFinalization = await db.getFirstAsync<{ value: string }>(
+            "SELECT value FROM tracking_state WHERE key = 'finalization_mode'"
+          );
+          if (wasFinalization) {
+            await db.runAsync("DELETE FROM tracking_state WHERE key = 'finalization_mode'");
+            upgradeDetectionAccuracy().catch(() => {});
+          }
         } else {
           // No movement in this batch — check if the trip should end.
           // Only finalize when stationary, never when we just received driving coords.
@@ -434,10 +536,41 @@ try {
           );
           if (lastDriving) {
             const elapsed = Date.now() - parseInt(lastDriving.value, 10);
-            if (elapsed > STOP_TIMEOUT_MS) {
+
+            // Bluetooth disconnection = fast trip end. If the user was connected
+            // to their car's Bluetooth when recording started and now they're not,
+            // that means the engine is off / they've left the car. Finalize after
+            // a shorter grace period (90s) to avoid false positives from brief
+            // BT dropouts.
+            const BT_DISCONNECT_GRACE_MS = 90 * 1000;
+            let btDisconnected = false;
+            if (elapsed > BT_DISCONNECT_GRACE_MS) {
+              try {
+                btDisconnected = await hasBluetoothDisconnected();
+              } catch {
+                // BT check is best-effort
+              }
+            }
+
+            if (elapsed > STOP_TIMEOUT_MS || btDisconnected) {
               await finalizeAutoTrip();
+              resetBluetoothState();
               // Downgrade back to low-power detection mode
               downgradeToDetectionMode().catch(() => {});
+            } else {
+              // Not timed out yet — switch to finalization mode so callbacks keep
+              // flowing even while stationary. Normal recording mode uses 50m distance
+              // intervals, which means no callbacks when parked. GPS drift at 5m
+              // intervals ensures we get regular callbacks to check the timeout.
+              const alreadyFinalization = await db.getFirstAsync<{ value: string }>(
+                "SELECT value FROM tracking_state WHERE key = 'finalization_mode'"
+              );
+              if (!alreadyFinalization) {
+                await db.runAsync(
+                  "INSERT OR REPLACE INTO tracking_state (key, value) VALUES ('finalization_mode', '1')"
+                );
+                switchToFinalizationMode().catch(() => {});
+              }
             }
           }
         }
@@ -534,9 +667,13 @@ try {
         [Date.now().toString()]
       );
 
-      // Auto-upgrade to 50m intervals for better trip recording accuracy.
-      // Detection mode uses 100m which produces sparse GPS and underestimates distance.
+      // Auto-upgrade to navigation-grade accuracy for better trip recording.
+      // Detection mode uses 200m/Balanced which produces sparse GPS and underestimates distance.
       upgradeDetectionAccuracy().catch(() => {});
+
+      // Snapshot Bluetooth connection state — if connected to a known vehicle now,
+      // we can detect disconnection later as a fast trip-end signal.
+      markBluetoothStateAtStart().catch(() => {});
 
       // Start Live Activity so the user can see the trip recording on their lock screen
       startLiveActivity({ activityType: "trip", isBusinessMode: true }).catch(() => {});
@@ -673,7 +810,7 @@ export async function upgradeDetectionAccuracy(): Promise<void> {
   }
 
   await Location.startLocationUpdatesAsync(DETECTION_TASK_NAME, {
-    accuracy: Location.Accuracy.High,
+    accuracy: Location.Accuracy.BestForNavigation,
     distanceInterval: 50,
     deferredUpdatesInterval: 10000,
     activityType: Location.ActivityType.AutomotiveNavigation,
@@ -684,6 +821,37 @@ export async function upgradeDetectionAccuracy(): Promise<void> {
       notificationBody: "Tap to open the app",
     },
   });
+}
+
+/**
+ * Switch to finalization mode when the user has parked but the stop timeout
+ * hasn't elapsed yet. Uses a very small distance interval (5m) so that
+ * natural GPS drift keeps generating callbacks even while stationary.
+ * This ensures the timeout check runs regularly instead of waiting for
+ * the user to open the app or drive again.
+ */
+async function switchToFinalizationMode(): Promise<void> {
+  try {
+    const isRunning = await TaskManager.isTaskRegisteredAsync(DETECTION_TASK_NAME);
+    if (isRunning) {
+      await Location.stopLocationUpdatesAsync(DETECTION_TASK_NAME);
+    }
+
+    await Location.startLocationUpdatesAsync(DETECTION_TASK_NAME, {
+      accuracy: Location.Accuracy.Balanced,
+      distanceInterval: 5, // GPS drift (~5-30m) generates callbacks while stationary
+      deferredUpdatesInterval: 30000, // At least every 30s
+      activityType: Location.ActivityType.AutomotiveNavigation,
+      pausesUpdatesAutomatically: false,
+      showsBackgroundLocationIndicator: false,
+      foregroundService: {
+        notificationTitle: "MileClear",
+        notificationBody: "Saving your trip...",
+      },
+    });
+  } catch {
+    // Best-effort
+  }
 }
 
 /**
@@ -722,7 +890,7 @@ export async function getAndClearBufferedCoordinates(): Promise<BufferedCoordina
   await db.runAsync("DELETE FROM detection_coordinates");
   // Also clear auto-recording state since coords are being consumed
   await db.runAsync(
-    "DELETE FROM tracking_state WHERE key IN ('auto_recording_active', 'last_driving_speed_at')"
+    "DELETE FROM tracking_state WHERE key IN ('auto_recording_active', 'last_driving_speed_at', 'finalization_mode')"
   );
   return rows;
 }

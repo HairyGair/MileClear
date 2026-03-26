@@ -508,6 +508,12 @@ export default function ProfileScreen() {
                 border
               />
               <GroupItem
+                icon="bulb-outline"
+                label="Classification Rules"
+                onPress={() => router.push("/classification-rules")}
+                border
+              />
+              <GroupItem
                 icon="grid-outline"
                 label="Customize Layout"
                 onPress={() => router.push("/customize-layout")}

@@ -814,3 +814,91 @@ export interface AdminHealthStatus {
   memoryUsageMb: number;
   nodeVersion: string;
 }
+
+// Revenue Dashboard
+export interface AdminRevenue {
+  currentPremiumCount: number;
+  mrrPence: number;
+  stripeSubscribers: number;
+  appleSubscribers: number;
+  adminGranted: number;
+  churnedLast30d: number;
+  churnRatePercent: number;
+  arpuPence: number;
+  monthlyTrend: Array<{
+    month: string;
+    premiumCount: number;
+    newPremium: number;
+    churned: number;
+  }>;
+}
+
+// User Engagement
+export interface AdminEngagement {
+  dau: number;
+  wau: number;
+  mau: number;
+  totalUsers: number;
+  usersWithZeroTrips: number;
+  retentionCurve: Array<{
+    month: string;
+    signups: number;
+    retainedCount: number;
+    retentionPercent: number;
+  }>;
+  recentlyActive: Array<{
+    userId: string;
+    email: string;
+    displayName: string | null;
+    lastTripAt: string;
+    tripCount: number;
+  }>;
+}
+
+// Auto-trip Health
+export interface AdminAutoTripHealth {
+  autoTripsTotal: number;
+  autoTripsClassified: number;
+  autoTripsUnclassified: number;
+  manualTripsTotal: number;
+  classificationRatePercent: number;
+  usersWithAutoTrips7d: number;
+  usersWithPushToken: number;
+  detectionAdoptionPercent: number;
+  avgTripDurationMinutes: number;
+  avgAutoTripDistanceMiles: number;
+  dailyAutoTrips: Array<{
+    date: string;
+    autoCount: number;
+    manualCount: number;
+  }>;
+}
+
+// Push Notification Sender
+export type AdminPushAudience = "all" | "premium" | "inactive" | "specific";
+
+export interface AdminPushRequest {
+  audience: AdminPushAudience;
+  userId?: string;
+  inactiveDays?: number;
+  title: string;
+  body: string;
+  dryRun?: boolean;
+}
+
+export interface AdminPushResult {
+  sent: number;
+  failed: number;
+  totalTargeted: number;
+  dryRun: boolean;
+}
+
+// Email Campaign
+export interface AdminEmailResult {
+  sent: number;
+  skipped: number;
+  errors: number;
+  errorDetails: string[];
+  dryRun: boolean;
+  totalUsers: number;
+}
