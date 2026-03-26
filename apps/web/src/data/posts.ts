@@ -26,9 +26,26 @@ export interface BlogPost {
 // ----------------------------------------------------------------
 export const RELEASE_NOTES: ReleaseNote[] = [
   {
+    version: "1.0.3 (Build 33)",
+    date: "26 March 2026",
+    label: "Latest",
+    items: [
+      "Smart classification  - MileClear now auto-classifies your trips using your saved locations, work schedule, and driving patterns. No more manually tagging every trip",
+      "Route learning  - classify the same route 3 times and MileClear remembers. Future trips on that route are classified automatically",
+      "Lock screen classification  - when an auto-detected trip can't be classified, Business and Personal buttons appear right on the notification. Classify without opening the app",
+      "Classification rules  - set up rules like 'Mon-Fri 6am-2pm = Business' or 'Trips from Home Depot = Business' in Profile > Classification Rules",
+      "Inbox triage  - unclassified trips are now grouped by route. Tap 'Business (5)' to classify all 5 trips on the same route with one tap",
+      "Faster trip finalization  - auto-detected trips now appear in your inbox within about 6 minutes of parking, not 30+ minutes",
+      "Bluetooth trip end  - if your car's Bluetooth disconnects (engine off), the trip finalizes in about 90 seconds instead of 5 minutes",
+      "Navigation-grade GPS  - all trip recording now uses iOS's highest accuracy mode with sensor fusion and dead reckoning through tunnels",
+      "Live Activity redesign  - new accent gradient bar, branded MileClear wordmark, live indicator dot, bolder numbers for at-a-glance readability",
+      "Live Activity reliability  - auto-trips now reliably show on the Dynamic Island, with recovery after iOS kills the app between GPS callbacks",
+      "Admin dashboard  - revenue metrics, user engagement, auto-trip health monitor, push notification sender, and email campaign tools",
+    ],
+  },
+  {
     version: "1.0.3 (Build 31)",
     date: "25 March 2026",
-    label: "Latest",
     items: [
       "Live Activities  - your trip or shift now appears on the Dynamic Island and lock screen with a real-time timer, miles driven, and speed",
       "Native iOS timer  - the lock screen timer counts every second using iOS's built-in clock, no lag even when the app is fully backgrounded",

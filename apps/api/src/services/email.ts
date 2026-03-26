@@ -379,37 +379,37 @@ export async function sendUpdateEmail(
       <tr><td style="padding: 36px 32px 32px;">
         <h1 style="margin: 0 0 24px; font-size: 22px; font-weight: 700; color: #f0f2f5;">What's new in <span style="color: #f5a623;">MileClear</span></h1>
         <p style="color: #c0c8d4; font-size: 15px; line-height: 1.7; margin: 0 0 16px;">${greeting}</p>
-        <p style="color: #c0c8d4; font-size: 15px; line-height: 1.7; margin: 0 0 20px;">We've been busy making MileClear smarter and more accurate. Here's what's changed:</p>
+        <p style="color: #c0c8d4; font-size: 15px; line-height: 1.7; margin: 0 0 20px;">Big update this week. MileClear now classifies your trips automatically so you don't have to.</p>
 
         <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin: 0 0 20px;">
           <tr><td style="padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.04);">
             <table role="presentation" cellpadding="0" cellspacing="0"><tr>
               <td style="width: 28px; vertical-align: top; padding-top: 1px; color: #f5a623; font-size: 14px;">&#9672;</td>
-              <td style="color: #c0c8d4; font-size: 14px; line-height: 1.6;"><strong style="color: #f0f2f5;">Smart trip classification</strong> - trips near your saved work or depot locations are now auto-tagged as business. Platform tags suggested from your history.</td>
+              <td style="color: #c0c8d4; font-size: 14px; line-height: 1.6;"><strong style="color: #f0f2f5;">Smart auto-classification</strong> - trips are now classified using your saved locations, work schedule, and driving patterns. Classify a route 3 times and MileClear learns it permanently.</td>
             </tr></table>
           </td></tr>
           <tr><td style="padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.04);">
             <table role="presentation" cellpadding="0" cellspacing="0"><tr>
               <td style="width: 28px; vertical-align: top; padding-top: 1px; color: #f5a623; font-size: 14px;">&#9672;</td>
-              <td style="color: #c0c8d4; font-size: 14px; line-height: 1.6;"><strong style="color: #f0f2f5;">Honest shift grades</strong> - your A-F grades now factor in fuel and wear costs, so you see real profit, not just gross earnings.</td>
+              <td style="color: #c0c8d4; font-size: 14px; line-height: 1.6;"><strong style="color: #f0f2f5;">Classify from your lock screen</strong> - Business and Personal buttons now appear right on the trip notification. No need to open the app.</td>
             </tr></table>
           </td></tr>
           <tr><td style="padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.04);">
             <table role="presentation" cellpadding="0" cellspacing="0"><tr>
               <td style="width: 28px; vertical-align: top; padding-top: 1px; color: #f5a623; font-size: 14px;">&#9672;</td>
-              <td style="color: #c0c8d4; font-size: 14px; line-height: 1.6;"><strong style="color: #f0f2f5;">Tax savings on dashboard</strong> - your running HMRC deduction total is now front and centre, so every trip feels like money saved.</td>
+              <td style="color: #c0c8d4; font-size: 14px; line-height: 1.6;"><strong style="color: #f0f2f5;">Batch classify</strong> - unclassified trips on the same route are grouped together. Tap once to classify them all.</td>
             </tr></table>
           </td></tr>
           <tr><td style="padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.04);">
             <table role="presentation" cellpadding="0" cellspacing="0"><tr>
               <td style="width: 28px; vertical-align: top; padding-top: 1px; color: #f5a623; font-size: 14px;">&#9672;</td>
-              <td style="color: #c0c8d4; font-size: 14px; line-height: 1.6;"><strong style="color: #f0f2f5;">Help &amp; Support</strong> - new section in your profile with direct email support, feedback, and FAQ. Error messages now include a Contact Support button.</td>
+              <td style="color: #c0c8d4; font-size: 14px; line-height: 1.6;"><strong style="color: #f0f2f5;">Faster trip recording</strong> - auto-detected trips now appear within minutes of parking, not 30+. If your car has Bluetooth, it's even faster.</td>
             </tr></table>
           </td></tr>
           <tr><td style="padding: 8px 0;">
             <table role="presentation" cellpadding="0" cellspacing="0"><tr>
               <td style="width: 28px; vertical-align: top; padding-top: 1px; color: #f5a623; font-size: 14px;">&#9672;</td>
-              <td style="color: #c0c8d4; font-size: 14px; line-height: 1.6;"><strong style="color: #f0f2f5;">Feedback confirmation</strong> - when you submit a suggestion, you'll get a personal email confirming it was received.</td>
+              <td style="color: #c0c8d4; font-size: 14px; line-height: 1.6;"><strong style="color: #f0f2f5;">Live Activity redesign</strong> - bolder numbers, branded look, and more reliable on auto-detected trips.</td>
             </tr></table>
           </td></tr>
         </table>
