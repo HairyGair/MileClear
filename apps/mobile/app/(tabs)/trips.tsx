@@ -671,6 +671,14 @@ export default function TripsScreen() {
     const isBatchClassifying = batchClassifyingKey === group.key;
     const isSingleton = group.trips.length === 1;
 
+    // Date info from trips
+    const sortedTrips = [...group.trips].sort(
+      (a, b) => new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime()
+    );
+    const latestTrip = sortedTrips[0];
+    const latestDate = formatDate(latestTrip.startedAt);
+    const latestTime = formatTime(latestTrip.startedAt);
+
     return (
       <View style={styles.routeGroup}>
         {/* Group header */}
@@ -696,6 +704,13 @@ export default function TripsScreen() {
               accessible={false}
             />
           </View>
+
+          {/* Date and time */}
+          <Text style={styles.routeGroupDate}>
+            {isSingleton
+              ? `${latestDate} at ${latestTime}`
+              : `Latest: ${latestDate} at ${latestTime}`}
+          </Text>
 
           <View style={styles.routeGroupMeta}>
             <View style={styles.routeGroupMetaPill}>
@@ -1679,6 +1694,13 @@ const styles = StyleSheet.create({
     fontFamily: "PlusJakartaSans_600SemiBold",
     color: "#f0f2f5",
     flex: 1,
+  },
+  routeGroupDate: {
+    fontSize: 12,
+    fontFamily: "PlusJakartaSans_400Regular",
+    color: "#8494a7",
+    marginTop: 4,
+    marginLeft: 22,
   },
   routeGroupMeta: {
     flexDirection: "row",
