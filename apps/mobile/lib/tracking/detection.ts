@@ -154,6 +154,11 @@ async function getAutoTripRunningDistance(): Promise<{ miles: number; speedMph: 
 // coordinates before either deletes them.
 let finalizingTrip = false;
 
+// Lock prevents concurrent "confirmed driving" blocks from each sending
+// a notification. Multiple background location callbacks can fire at once,
+// each reading the same cooldown timestamp before any writes the new one.
+let startingRecording = false;
+
 /**
  * Process buffered detection coordinates into a saved trip.
  * Called when driving stops (no driving-speed location for 3+ min) or on app startup.
@@ -666,53 +671,60 @@ try {
         return; // Wait for more confirmation
       }
 
-      // Confirmed driving — clear counter and start recording
-      await db.runAsync("DELETE FROM tracking_state WHERE key = 'driving_detection_count'");
-
-      // Mark auto-recording as active + update last driving timestamp
-      await db.runAsync(
-        "INSERT OR REPLACE INTO tracking_state (key, value) VALUES ('auto_recording_active', '1')"
-      );
-      await db.runAsync(
-        "INSERT OR REPLACE INTO tracking_state (key, value) VALUES ('last_driving_speed_at', ?)",
-        [Date.now().toString()]
-      );
-
-      // Start Live Activity FIRST — must be awaited so the native Activity.request()
-      // call completes before iOS suspends the background task. Fire-and-forget
-      // (.catch) allowed the RN bridge to flush before the native call executed.
+      // Confirmed driving — use lock to prevent concurrent callbacks from
+      // each sending a notification. Multiple location updates can arrive
+      // simultaneously and interleave at await points.
+      if (startingRecording) return;
+      startingRecording = true;
       try {
-        await startLiveActivity({ activityType: "trip", isBusinessMode: true });
-      } catch {}
+        await db.runAsync("DELETE FROM tracking_state WHERE key = 'driving_detection_count'");
 
-      // Auto-upgrade to navigation-grade accuracy for better trip recording.
-      try {
-        await upgradeDetectionAccuracy();
-      } catch {}
+        // Mark auto-recording as active + update last driving timestamp
+        await db.runAsync(
+          "INSERT OR REPLACE INTO tracking_state (key, value) VALUES ('auto_recording_active', '1')"
+        );
+        await db.runAsync(
+          "INSERT OR REPLACE INTO tracking_state (key, value) VALUES ('last_driving_speed_at', ?)",
+          [Date.now().toString()]
+        );
 
-      // Snapshot Bluetooth connection state for trip-end detection.
-      try {
-        await markBluetoothStateAtStart();
-      } catch {}
+        // Start Live Activity — must be awaited so the native Activity.request()
+        // completes before iOS suspends the background task.
+        try {
+          await startLiveActivity({ activityType: "trip", isBusinessMode: true });
+        } catch {}
 
-      // Quiet hours: still record the trip, just don't buzz the user at 3am
-      if (isQuietHours()) return;
+        // Auto-upgrade to navigation-grade accuracy for better trip recording.
+        try {
+          await upgradeDetectionAccuracy();
+        } catch {}
 
-      // Cooldown: don't spam detection notifications
-      const lastNotif = await db.getFirstAsync<{ value: string }>(
-        "SELECT value FROM tracking_state WHERE key = 'last_detection_notification'"
-      );
-      if (lastNotif) {
-        const elapsed = Date.now() - parseInt(lastNotif.value, 10);
-        if (elapsed < COOLDOWN_MS) return;
+        // Snapshot Bluetooth connection state for trip-end detection.
+        try {
+          await markBluetoothStateAtStart();
+        } catch {}
+
+        // Quiet hours: still record the trip, just don't buzz the user at 3am
+        if (isQuietHours()) return;
+
+        // Cooldown: don't spam detection notifications
+        const lastNotif = await db.getFirstAsync<{ value: string }>(
+          "SELECT value FROM tracking_state WHERE key = 'last_detection_notification'"
+        );
+        if (lastNotif) {
+          const elapsed = Date.now() - parseInt(lastNotif.value, 10);
+          if (elapsed < COOLDOWN_MS) return;
+        }
+
+        // Send "Looks like you're driving" notification
+        await sendDrivingDetectedNotification();
+        await db.runAsync(
+          "INSERT OR REPLACE INTO tracking_state (key, value) VALUES ('last_detection_notification', ?)",
+          [Date.now().toString()]
+        );
+      } finally {
+        startingRecording = false;
       }
-
-      // Send "Looks like you're driving" notification (user can optionally start a shift)
-      await sendDrivingDetectedNotification();
-      await db.runAsync(
-        "INSERT OR REPLACE INTO tracking_state (key, value) VALUES ('last_detection_notification', ?)",
-        [Date.now().toString()]
-      );
     } catch (err) {
       console.error("Drive detection task error:", err);
     }
