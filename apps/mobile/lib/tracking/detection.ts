@@ -474,7 +474,9 @@ try {
         // or starts a fresh one if it expired.
         const recovered = await recoverLiveActivity();
         if (!recovered) {
-          startLiveActivity({ activityType: "trip", isBusinessMode: true }).catch(() => {});
+          try {
+            await startLiveActivity({ activityType: "trip", isBusinessMode: true });
+          } catch {}
         }
 
         // Check if the recording is clearly stale (e.g. app was killed and just
@@ -676,16 +678,22 @@ try {
         [Date.now().toString()]
       );
 
+      // Start Live Activity FIRST — must be awaited so the native Activity.request()
+      // call completes before iOS suspends the background task. Fire-and-forget
+      // (.catch) allowed the RN bridge to flush before the native call executed.
+      try {
+        await startLiveActivity({ activityType: "trip", isBusinessMode: true });
+      } catch {}
+
       // Auto-upgrade to navigation-grade accuracy for better trip recording.
-      // Detection mode uses 200m/Balanced which produces sparse GPS and underestimates distance.
-      upgradeDetectionAccuracy().catch(() => {});
+      try {
+        await upgradeDetectionAccuracy();
+      } catch {}
 
-      // Snapshot Bluetooth connection state — if connected to a known vehicle now,
-      // we can detect disconnection later as a fast trip-end signal.
-      markBluetoothStateAtStart().catch(() => {});
-
-      // Start Live Activity so the user can see the trip recording on their lock screen
-      startLiveActivity({ activityType: "trip", isBusinessMode: true }).catch(() => {});
+      // Snapshot Bluetooth connection state for trip-end detection.
+      try {
+        await markBluetoothStateAtStart();
+      } catch {}
 
       // Quiet hours: still record the trip, just don't buzz the user at 3am
       if (isQuietHours()) return;
