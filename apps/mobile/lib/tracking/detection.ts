@@ -582,7 +582,16 @@ try {
       // Clean up any orphaned recording state (e.g., app was killed mid-recording)
       await checkStaleAutoRecording();
 
-      // Purge stale detection coordinates (>30 min old)
+      // Purge stale detection coordinates (>30 min old), but only pre-detection
+      // buffering points. If there are many coordinates (a real trip was recorded
+      // but finalization was missed), attempt finalization first.
+      const coordCount = await db.getFirstAsync<{ cnt: number }>(
+        "SELECT COUNT(*) as cnt FROM detection_coordinates"
+      );
+      if (coordCount && coordCount.cnt > 5) {
+        // Looks like an un-finalized trip — try to finalize before purging
+        await finalizeAutoTrip();
+      }
       const cutoff = new Date(Date.now() - BUFFER_MAX_AGE_MS).toISOString();
       await db.runAsync(
         "DELETE FROM detection_coordinates WHERE recorded_at < ?",

@@ -15,8 +15,11 @@ export interface ClassificationResult {
   source: "shift" | "rule" | "route_learning" | "saved_location" | "work_schedule" | "none";
 }
 
-/** Only auto-apply a result when confidence is at or above this threshold. */
-export const AUTO_CLASSIFY_THRESHOLD = 75;
+/** Only auto-apply a result when confidence is at or above this threshold.
+ * Set above saved-location confidence (75%) so only shift, rules, and
+ * confirmed route patterns (3+ matches) auto-classify. Saved locations
+ * and work schedule produce suggestions, not auto-classifications. */
+export const AUTO_CLASSIFY_THRESHOLD = 80;
 
 // ─── Internal row types ────────────────────────────────────────────────────────
 
