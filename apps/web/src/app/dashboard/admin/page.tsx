@@ -49,14 +49,14 @@ interface AdminUserDetail extends AdminUser {
   stripeSubscriptionId: string | null;
   appleId: string | null;
   googleId: string | null;
-  vehicles: { id: string; make: string; model: string; year: number }[];
-  recentTrips: {
+  premiumExpiresAt: string | null;
+  vehicles: { id: string; make: string; model: string; fuelType: string; vehicleType: string }[];
+  trips: {
     id: string;
-    startAddress: string | null;
-    endAddress: string | null;
     distanceMiles: number;
     classification: string;
     startedAt: string;
+    platformTag: string | null;
   }[];
 }
 
@@ -389,7 +389,7 @@ function UserDetailModal({
                       borderRadius: 6,
                     }}
                   >
-                    {v.year} {v.make} {v.model}
+                    {v.make} {v.model} ({v.fuelType})
                   </div>
                 ))}
               </div>
@@ -397,7 +397,7 @@ function UserDetailModal({
           )}
 
           {/* Recent Trips */}
-          {user.recentTrips.length > 0 && (
+          {user.trips.length > 0 && (
             <div className="settings-section">
               <h4 className="settings-section__title">Recent Trips</h4>
               <div className="table-wrap">
@@ -405,13 +405,13 @@ function UserDetailModal({
                   <thead>
                     <tr>
                       <th>Date</th>
-                      <th>Route</th>
                       <th>Distance</th>
                       <th>Type</th>
+                      <th>Platform</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {user.recentTrips.map((trip) => (
+                    {user.trips.map((trip) => (
                       <tr key={trip.id}>
                         <td style={{ whiteSpace: "nowrap", fontSize: "0.8125rem" }}>
                           {new Date(trip.startedAt).toLocaleDateString("en-GB", {
@@ -420,26 +420,18 @@ function UserDetailModal({
                             year: "2-digit",
                           })}
                         </td>
-                        <td
-                          style={{
-                            maxWidth: 200,
-                            overflow: "hidden",
-                            textOverflow: "ellipsis",
-                            whiteSpace: "nowrap",
-                            fontSize: "0.8125rem",
-                          }}
-                        >
-                          {trip.startAddress || "Unknown"} → {trip.endAddress || "Unknown"}
-                        </td>
                         <td style={{ fontSize: "0.8125rem" }}>
                           {trip.distanceMiles.toFixed(1)} mi
                         </td>
                         <td>
                           <Badge
-                            variant={trip.classification === "business" ? "business" : "personal"}
+                            variant={trip.classification === "business" ? "business" : trip.classification === "personal" ? "personal" : "source"}
                           >
                             {trip.classification}
                           </Badge>
+                        </td>
+                        <td style={{ fontSize: "0.8125rem", color: "var(--text-secondary)" }}>
+                          {trip.platformTag || "-"}
                         </td>
                       </tr>
                     ))}
