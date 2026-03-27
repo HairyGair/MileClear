@@ -296,6 +296,7 @@ export default function TripsScreen() {
   const handleFilterChange = useCallback(
     (value: TripClassification | "all") => {
       setFilter(value);
+      setTrips([]); // Clear stale data to prevent flash of wrong trips
       setLoading(true);
     },
     []
@@ -662,7 +663,7 @@ export default function TripsScreen() {
   };
 
   const routeGroups: RouteGroup[] = filter === "unclassified"
-    ? groupUnclassifiedTrips(trips)
+    ? groupUnclassifiedTrips(trips.filter((t) => t.classification === "unclassified"))
     : [];
 
   const renderRouteGroup = ({ item: group }: { item: RouteGroup }) => {
