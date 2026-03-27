@@ -191,36 +191,11 @@ export async function tripRoutes(app: FastifyInstance) {
     const { coordinates, ...tripData } = data;
     const hasCoordinates = coordinates && coordinates.length > 0;
 
-    // Auto-classify unclassified trips based on saved locations + patterns
+    // Classification is now handled by the mobile classification engine
+    // (lib/classification/). The API respects whatever the client sends.
+    // The /trips/suggest endpoint is still available for UI suggestions.
     let finalClassification = tripData.classification;
     let finalPlatformTag: string | null = tripData.platformTag ?? null;
-    if (finalClassification === "unclassified") {
-      try {
-        const suggestion = await autoClassifyTrip(
-          userId,
-          resolvedStartLat,
-          resolvedStartLng,
-          resolvedEndLat,
-          resolvedEndLng,
-          tripData.shiftId
-        );
-        if (suggestion.classification) {
-          finalClassification = suggestion.classification;
-          if (suggestion.platformTag && !finalPlatformTag) {
-            finalPlatformTag = suggestion.platformTag;
-          }
-          if (suggestion.matchedLocations.length > 0) {
-            logEvent("trip.auto_classified", userId, {
-              classification: suggestion.classification,
-              platformTag: suggestion.platformTag,
-              matchedLocations: suggestion.matchedLocations,
-            });
-          }
-        }
-      } catch {
-        // Auto-classification is best-effort, don't block trip creation
-      }
-    }
 
     const tripPayload = {
       userId,
