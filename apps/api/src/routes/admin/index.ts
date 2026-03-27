@@ -793,6 +793,68 @@ export async function adminRoutes(app: FastifyInstance) {
     });
   });
 
+  // POST /admin/users/:userId/reset-classifications
+  // Moves auto-classified trips back to "unclassified" so the user can review them.
+  // Only affects non-manual trips that were classified as business/personal but
+  // have no platform tag (strong indicator of server-side auto-classification).
+  app.post("/users/:userId/reset-classifications", async (request, reply) => {
+    const { userId } = request.params as { userId: string };
+    const { dryRun } = request.query as { dryRun?: string };
+    const isDryRun = dryRun === "true";
+
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true, email: true },
+    });
+    if (!user) {
+      return reply.status(404).send({ error: "User not found" });
+    }
+
+    // Find trips that were likely auto-classified by the API:
+    // - Not manual entries (auto-detected)
+    // - Currently classified as business or personal
+    // - No platform tag set (the API auto-classifier never set platform tags)
+    const affected = await prisma.trip.findMany({
+      where: {
+        userId,
+        isManualEntry: false,
+        classification: { in: ["business", "personal"] },
+        platformTag: null,
+      },
+      select: { id: true, classification: true, startedAt: true, distanceMiles: true },
+    });
+
+    if (!isDryRun && affected.length > 0) {
+      await prisma.trip.updateMany({
+        where: {
+          id: { in: affected.map((t) => t.id) },
+        },
+        data: { classification: "unclassified" },
+      });
+
+      logEvent("admin.classifications_reset", request.userId!, {
+        targetUserId: userId,
+        targetEmail: user.email,
+        tripsReset: affected.length,
+      });
+    }
+
+    return reply.send({
+      data: {
+        userId,
+        email: user.email,
+        tripsAffected: affected.length,
+        dryRun: isDryRun,
+        trips: affected.slice(0, 20).map((t) => ({
+          id: t.id,
+          classification: t.classification,
+          startedAt: t.startedAt,
+          distanceMiles: t.distanceMiles,
+        })),
+      },
+    });
+  });
+
   // GET /admin/health
   app.get("/health", async (_request, reply) => {
     let dbStatus: "ok" | "error" = "ok";
