@@ -227,10 +227,15 @@ export default function TripsScreen() {
     }
   }, []);
 
+  // Use a ref to track current filter so loadTrips always reads the latest
+  // value without needing filter as a dependency (which causes effect churn).
+  const filterRef = useRef(filter);
+  filterRef.current = filter;
+
   const loadTrips = useCallback(
     async (pageNum: number, append = false) => {
       try {
-        const classification = filter === "all" ? undefined : filter;
+        const classification = filterRef.current === "all" ? undefined : filterRef.current;
         const res = await fetchTrips({
           classification,
           page: pageNum,
@@ -256,7 +261,7 @@ export default function TripsScreen() {
       } catch {
         // Offline fallback — show all local data
         if (!append) {
-          const classification = filter === "all" ? undefined : filter;
+          const classification = filterRef.current === "all" ? undefined : filterRef.current;
           const local = await getLocalTrips({ classification });
           setTrips(local as TripItem[]);
           setIsOffline(true);
@@ -268,15 +273,13 @@ export default function TripsScreen() {
         setLoadingMore(false);
       }
     },
-    [filter, loadSuggestions]
+    [loadSuggestions]
   );
 
   useFocusEffect(
     useCallback(() => {
       setLoading(true);
-      loadTrips(1).then(() => {
-        // Suggestions fetched after trips render — non-blocking
-      });
+      loadTrips(1);
       loadUnclassifiedCount();
     }, [loadTrips, loadUnclassifiedCount])
   );
@@ -296,10 +299,14 @@ export default function TripsScreen() {
   const handleFilterChange = useCallback(
     (value: TripClassification | "all") => {
       setFilter(value);
-      setTrips([]); // Clear stale data to prevent flash of wrong trips
+      setTrips([]); // Clear stale data immediately
       setLoading(true);
+      // Directly reload - don't wait for useFocusEffect dependency chain
+      // which causes a render gap where stale data can flash.
+      loadTrips(1);
+      loadUnclassifiedCount();
     },
-    []
+    [loadTrips, loadUnclassifiedCount]
   );
 
   const onEndReachedSafe = useCallback(() => {
