@@ -26,9 +26,23 @@ export interface BlogPost {
 // ----------------------------------------------------------------
 export const RELEASE_NOTES: ReleaseNote[] = [
   {
+    version: "1.0.3 (Build 34)",
+    date: "28 March 2026",
+    label: "Latest",
+    items: [
+      "Live Activity action buttons  - 'End Trip' and 'Not Driving' buttons now appear directly on the lock screen widget. End a trip or dismiss a false detection without unlocking your phone",
+      "Live Activity auto-start fixed  - the Dynamic Island and lock screen widget now reliably appears during auto-detected trips, not just manual ones",
+      "No more duplicate Live Activities  - if multiple GPS callbacks fire at once, only one Live Activity is created",
+      "No more notification spam  - the 'Are you driving?' notification now only fires once per detection, even if multiple GPS updates arrive simultaneously",
+      "Inbox trips no longer disappear  - fixed a bug where switching to the Inbox tab briefly showed all trips then emptied. Trips now load cleanly",
+      "Trips no longer silently reclassified  - the API was overriding your unclassified trips and tagging them as business. Trips now stay in your inbox until you classify them",
+      "Dates on inbox groups  - route groups in the inbox now show when the trips were taken",
+      "Orphaned trip rescue  - if the app was killed during recording, buffered coordinates are now recovered into a trip instead of being discarded",
+    ],
+  },
+  {
     version: "1.0.3 (Build 33)",
     date: "26 March 2026",
-    label: "Latest",
     items: [
       "Smart classification  - MileClear now auto-classifies your trips using your saved locations, work schedule, and driving patterns. No more manually tagging every trip",
       "Route learning  - classify the same route 3 times and MileClear remembers. Future trips on that route are classified automatically",
