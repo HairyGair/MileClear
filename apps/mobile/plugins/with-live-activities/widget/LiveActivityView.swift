@@ -224,6 +224,37 @@ private struct LockScreenView: View {
                             .foregroundColor(textDim)
                     }
                 }
+
+                // Action buttons
+                HStack(spacing: 10) {
+                    Link(destination: URL(string: "mileclear://end-trip")!) {
+                        HStack(spacing: 5) {
+                            Image(systemName: "flag.checkered")
+                                .font(.system(size: 11))
+                            Text(isShift ? "End Shift" : "End Trip")
+                                .font(.system(size: 12, weight: .semibold))
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 8)
+                        .background(accent.opacity(0.15))
+                        .foregroundColor(accent)
+                        .cornerRadius(8)
+                    }
+
+                    Link(destination: URL(string: "mileclear://cancel-trip")!) {
+                        HStack(spacing: 5) {
+                            Image(systemName: "xmark")
+                                .font(.system(size: 11))
+                            Text("Not Driving")
+                                .font(.system(size: 12, weight: .semibold))
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 8)
+                        .background(Color.white.opacity(0.06))
+                        .foregroundColor(textMuted)
+                        .cornerRadius(8)
+                    }
+                }
             }
             .padding(.horizontal, 16)
             .padding(.top, 12)

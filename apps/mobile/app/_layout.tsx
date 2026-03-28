@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
-import { View, Text, ActivityIndicator, LogBox, ScrollView, StyleSheet, Alert, AppState } from "react-native";
-import { Stack } from "expo-router";
+import { View, Text, ActivityIndicator, LogBox, ScrollView, StyleSheet, Alert, AppState, Linking } from "react-native";
+import { Stack, useRouter } from "expo-router";
 import * as Font from "expo-font";
 import {
   PlusJakartaSans_300Light,
@@ -67,6 +67,7 @@ const HEADER_TITLE_STYLE = { fontFamily: "PlusJakartaSans_300Light", color: "#f0
 
 function RootNavigator() {
   const { isLoading, isAuthenticated } = useAuth();
+  const router = useRouter();
 
   const [onboardingChecked, setOnboardingChecked] = useState(false);
   const [onboardingComplete, setOnboardingComplete] = useState(false);
@@ -163,6 +164,44 @@ function RootNavigator() {
     });
     return () => sub.remove();
   }, [isAuthenticated, isLoading]);
+
+  // Handle deep links from Live Activity buttons (end-trip, cancel-trip)
+  useEffect(() => {
+    const handleUrl = async (event: { url: string }) => {
+      const url = event.url;
+      if (url === "mileclear://end-trip") {
+        try {
+          const { finalizeAutoTrip } = await import("../lib/tracking/detection");
+          // Check if there's an active shift first
+          const db = await getDatabase();
+          const activeShift = await db.getFirstAsync<{ value: string }>(
+            "SELECT value FROM tracking_state WHERE key = 'active_shift_id'"
+          );
+          if (activeShift) {
+            // Navigate to dashboard where they can end the shift properly
+            router.navigate("/(tabs)/dashboard");
+          } else {
+            // Auto-trip: finalize immediately
+            await finalizeAutoTrip();
+          }
+        } catch {}
+      } else if (url === "mileclear://cancel-trip") {
+        try {
+          const { cancelAutoRecording } = await import("../lib/tracking/detection");
+          await cancelAutoRecording(true);
+          const { endLiveActivity } = await import("../lib/liveActivity");
+          await endLiveActivity();
+        } catch {}
+      }
+    };
+
+    const sub = Linking.addEventListener("url", handleUrl);
+    // Also handle cold launch from deep link
+    Linking.getInitialURL().then((url) => {
+      if (url) handleUrl({ url });
+    });
+    return () => sub.remove();
+  }, []);
 
   // Apple In-App Purchase: global listener for StoreKit transactions
   const { refreshUser } = useUser();

@@ -163,7 +163,7 @@ let startingRecording = false;
  * Process buffered detection coordinates into a saved trip.
  * Called when driving stops (no driving-speed location for 3+ min) or on app startup.
  */
-async function finalizeAutoTrip(): Promise<void> {
+export async function finalizeAutoTrip(): Promise<void> {
   if (finalizingTrip) return;
   finalizingTrip = true;
   try {

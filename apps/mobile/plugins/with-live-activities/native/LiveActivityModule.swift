@@ -50,6 +50,17 @@ class LiveActivityModule: NSObject {
             startDate: Date()
         )
 
+        // End any existing activities first to prevent duplicates
+        // (concurrent background callbacks can each start one)
+        let existingActivities = Activity<MileClearAttributes>.activities
+        if !existingActivities.isEmpty {
+            Task {
+                for activity in existingActivities {
+                    await activity.end(nil, dismissalPolicy: .immediate)
+                }
+            }
+        }
+
         do {
             let staleDate = Date().addingTimeInterval(480) // 8 min stale timeout (background GPS updates can be sparse)
             let content = ActivityContent(state: initialState, staleDate: staleDate)
