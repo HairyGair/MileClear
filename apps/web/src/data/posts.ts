@@ -7,7 +7,7 @@
 export interface ReleaseNote {
   version: string;
   date: string;
-  label?: "Latest" | "Major" | "Pending Review" | "App Store";
+  label?: "Latest" | "Major" | "Pending Review" | "App Store" | "In Testing";
   items: string[];
 }
 
@@ -28,7 +28,7 @@ export const RELEASE_NOTES: ReleaseNote[] = [
   {
     version: "1.0.3",
     date: "28 March 2026",
-    label: "Latest",
+    label: "In Testing",
     items: [
       "Smart classification  - MileClear now auto-classifies your trips using your saved locations, work schedule, and driving patterns. No more manually tagging every trip",
       "Route learning  - classify the same route 3 times and MileClear remembers. Future trips on that route are classified automatically",
