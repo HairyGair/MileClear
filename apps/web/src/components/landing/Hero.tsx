@@ -18,8 +18,9 @@ export default function Hero() {
           </h1>
           <p className="hero__sub">
             The UK mileage tracker built for gig workers, delivery drivers, and
-            anyone who drives for a living. Automatic trip recording, HMRC tax
-            deductions, and real earnings insights.
+            anyone who drives for a living. Automatic trip recording, smart
+            classification that learns your routes, and HMRC tax deductions
+            calculated in real time.
           </p>
           <a href={APP_STORE_URL} target="_blank" rel="noopener noreferrer" className="hero__cta">
             Download free

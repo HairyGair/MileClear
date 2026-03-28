@@ -8,8 +8,8 @@ const features = [
         <circle cx="12" cy="10" r="3" />
       </svg>
     ),
-    title: "Auto trip recording",
-    desc: "MileClear detects when you start driving and records the trip automatically. No buttons to press, no shifts to remember.",
+    title: "Auto trip recording and smart classification",
+    desc: "MileClear detects when you start driving and records the trip automatically. It learns your routes - classify a trip three times and it's automatic from then on.",
   },
   {
     icon: (
@@ -19,7 +19,7 @@ const features = [
       </svg>
     ),
     title: "Live Activities",
-    desc: "See your miles, speed, and timer right on the lock screen and Dynamic Island while you drive. No need to open the app.",
+    desc: "See your miles, speed, and timer on the lock screen and Dynamic Island. End a trip or dismiss a false detection with buttons right on the widget.",
     alt: true,
   },
   {
@@ -73,8 +73,8 @@ const features = [
         <circle cx="12" cy="10" r="3" />
       </svg>
     ),
-    title: "Saved locations and geofencing",
-    desc: "Save your home, depot, or regular stops. Trips near saved locations are automatically classified as business or personal.",
+    title: "Saved locations and classification rules",
+    desc: "Save your home, depot, or regular stops. Set rules like 'Mon-Fri 6am-2pm = Business' or 'Trips from Depot = Business' and trips classify themselves.",
   },
   {
     icon: (
@@ -140,7 +140,7 @@ export default function Features() {
             <p className="label">Features</p>
             <h2 className="heading">Everything you need to track, claim, and earn more</h2>
             <p className="subtext">
-              Built from scratch for UK drivers. Reliable tracking, real tax savings, and the tools to understand what your driving is actually worth.
+              Built from scratch for UK drivers. Automatic tracking, smart classification that learns your patterns, real tax savings, and the tools to understand what your driving is actually worth.
             </p>
           </div>
         </Reveal>
