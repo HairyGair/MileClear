@@ -94,6 +94,72 @@ export const RELEASE_NOTES: ReleaseNote[] = [
 // ----------------------------------------------------------------
 export const BLOG_POSTS: BlogPost[] = [
   {
+    slug: "why-we-built-smart-classification",
+    title: "Why We Built Smart Classification (And Why You'll Never Need to Swipe)",
+    excerpt:
+      "Most mileage apps make you classify every single trip manually. We think you shouldn't have to classify at all. Here's how MileClear learns your patterns and does it for you.",
+    date: "28 March 2026",
+    author: "Gair",
+    category: "engineering",
+    content: `
+<p>Every mileage tracking app has the same problem: you drive somewhere, the app records the trip, and then you have to tell it whether it was business or personal. Every. Single. Time.</p>
+
+<p>Some competitors solve this with a swipe gesture. Left for business, right for personal. It's satisfying the first few times. It's tedious by trip number fifty. And by trip number two hundred, most people stop doing it altogether. Their mileage log fills up with unclassified trips, their HMRC deduction is wrong, and the whole point of tracking is undermined.</p>
+
+<p>We think the answer isn't a better swipe. It's no swipe at all.</p>
+
+<h2>The insight: you already know</h2>
+
+<p>Think about your driving for a second. If you're a Deliveroo rider, you probably drive the same route to the same area every shift. If you're an Uber driver, you leave from home, drive to a busy area, and come back. If you visit clients, you drive to the same offices on the same days.</p>
+
+<p>Your driving is far more predictable than you think. And if a human can look at your trip history and say "obviously that's a work trip", so can software - it just needs enough context.</p>
+
+<h2>Five signals, one answer</h2>
+
+<p>MileClear's classification engine checks five things, in order, every time an auto-detected trip is recorded:</p>
+
+<ol>
+<li><strong>Were you on a shift?</strong> If you started a shift in MileClear and the trip happened during it, it's business. 100% confidence. No question.</li>
+<li><strong>Do your classification rules match?</strong> You can set rules like "Monday to Friday, 6am to 2pm = business" or "any trip starting from my depot = business". If a rule matches, the trip is classified automatically.</li>
+<li><strong>Has this route been classified before?</strong> If you've classified the same route (within 300 metres of the same start and end points) three times with the same answer, MileClear remembers. The fourth time, it's automatic.</li>
+<li><strong>Is the trip near a saved location?</strong> If you've saved your workplace or depot as a location, trips starting or ending there get a suggested classification.</li>
+<li><strong>Does it fall within your work schedule?</strong> If you've set up a work schedule, trips during those hours get a suggestion.</li>
+</ol>
+
+<p>The engine evaluates these from top to bottom and stops at the first confident match. Shifts and rules auto-classify immediately. Route learning auto-classifies after three confirmations. Saved locations and work schedules produce suggestions that you confirm with one tap.</p>
+
+<h2>When it can't decide, you get buttons - not a form</h2>
+
+<p>For trips where the engine isn't confident enough to auto-classify, we don't dump you into a classification screen. Instead, the "Trip recorded" notification on your lock screen gets two buttons: <strong>Business</strong> and <strong>Personal</strong>. Tap one. Done. You never opened the app.</p>
+
+<p>And that tap isn't wasted - it feeds back into the route learning system. Classify that route three times from your lock screen, and the fourth time it's automatic.</p>
+
+<h2>When you fall behind, batch classify</h2>
+
+<p>Life happens. Maybe you ignored your notifications for a week and now you've got twenty unclassified trips. Competitors would make you swipe through each one individually.</p>
+
+<p>MileClear groups your unclassified trips by route. If you drove the same route five times this week, they're grouped together with a header showing the route, the dates, and the total distance. Tap "Business (5)" and all five are classified in one go. The route is learned. You're caught up in seconds, not minutes.</p>
+
+<h2>The goal: invisible classification</h2>
+
+<p>The ideal mileage tracker is one where you never think about classification. You drive, the app records, and when tax time comes your trips are already sorted. That's what we're building towards.</p>
+
+<p>Right now, the system gets smarter every time you classify a trip. After a few weeks of normal use, most regular routes are learned. Your work hours are set. Your saved locations are configured. The percentage of trips that need manual attention drops rapidly.</p>
+
+<p>We're not there yet for every edge case. A trip to a new client, a one-off delivery to an unusual address, a personal errand in the middle of a work day - these still need a tap. But the everyday commute to the depot, the regular route to the sorting centre, the drive home after a shift - those should just work.</p>
+
+<h2>Why this matters for your tax return</h2>
+
+<p>The biggest risk with mileage tracking isn't that the GPS is inaccurate. It's that you stop classifying. An unclassified trip is a trip that doesn't count towards your HMRC deduction. If you drove 15,000 business miles but only classified 8,000 of them, you're leaving roughly 3,150 in unclaimed deductions on the table - that's over 600 in tax at the basic rate.</p>
+
+<p>The classification UX isn't a nice-to-have. It's the difference between the app actually saving you money and the app being a GPS logger you forget about.</p>
+
+<p>Try it out. Set up a classification rule, save your work location, and drive your normal routes for a week. You'll be surprised how quickly the inbox empties itself.</p>
+
+<p>MileClear is free to download from the <a href="https://apps.apple.com/gb/app/mileclear-mileage-tracker-uk/id6759671005">App Store</a>.</p>
+    `.trim(),
+  },
+  {
     slug: "tax-year-ends-5-april-mileage-checklist",
     title: "Tax Year Ends 5 April - Here's Your Mileage Checklist",
     excerpt:
