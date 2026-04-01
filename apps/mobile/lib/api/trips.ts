@@ -61,6 +61,7 @@ export interface UpdateTripData {
   endLat?: number | null;
   endLng?: number | null;
   endedAt?: string | null;
+  distanceMiles?: number;
 }
 
 export interface ListTripsParams {

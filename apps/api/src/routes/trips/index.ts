@@ -99,6 +99,7 @@ const updateTripSchema = z.object({
   endLat: z.number().min(-90).max(90).nullable().optional(),
   endLng: z.number().min(-180).max(180).nullable().optional(),
   endedAt: z.coerce.date().nullable().optional(),
+  distanceMiles: z.number().min(0).optional(),
 });
 
 const listTripsQuery = z.object({
@@ -587,19 +588,22 @@ export async function tripRoutes(app: FastifyInstance) {
       }
     }
 
-    // Recalculate distance only if end coords actually changed
-    let distanceMiles: number | undefined;
-    const endLatChanged = updates.endLat !== undefined && updates.endLat !== existing.endLat;
-    const endLngChanged = updates.endLng !== undefined && updates.endLng !== existing.endLng;
-    if (
-      (endLatChanged || endLngChanged) &&
-      newEndLat != null &&
-      newEndLng != null
-    ) {
-      const route = await fetchRouteDistance(existing.startLat, existing.startLng, newEndLat, newEndLng);
-      distanceMiles = route
-        ? route.distanceMiles
-        : haversineDistance(existing.startLat, existing.startLng, newEndLat, newEndLng);
+    // Use explicit distanceMiles if provided (e.g. merged trip with GPS-measured distance),
+    // otherwise recalculate via OSRM if end coords changed
+    let distanceMiles: number | undefined = updates.distanceMiles;
+    if (distanceMiles === undefined) {
+      const endLatChanged = updates.endLat !== undefined && updates.endLat !== existing.endLat;
+      const endLngChanged = updates.endLng !== undefined && updates.endLng !== existing.endLng;
+      if (
+        (endLatChanged || endLngChanged) &&
+        newEndLat != null &&
+        newEndLng != null
+      ) {
+        const route = await fetchRouteDistance(existing.startLat, existing.startLng, newEndLat, newEndLng);
+        distanceMiles = route
+          ? route.distanceMiles
+          : haversineDistance(existing.startLat, existing.startLng, newEndLat, newEndLng);
+      }
     }
 
     const trip = await prisma.trip.update({

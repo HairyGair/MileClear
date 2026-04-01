@@ -7,6 +7,7 @@ import { Card } from "../../../components/ui/Card";
 import { Button } from "../../../components/ui/Button";
 import { Badge } from "../../../components/ui/Badge";
 import { Input } from "../../../components/ui/Input";
+import { Select } from "../../../components/ui/Select";
 import { Modal } from "../../../components/ui/Modal";
 import { ConfirmModal } from "../../../components/ui/ConfirmModal";
 import { Pagination } from "../../../components/ui/Pagination";
@@ -101,6 +102,18 @@ function formatUptime(seconds: number): string {
   return d > 0 ? `${d}d ${h}h` : h > 0 ? `${h}h ${m}m` : `${m}m`;
 }
 
+function timeAgo(date: string): string {
+  const seconds = Math.floor((Date.now() - new Date(date).getTime()) / 1000);
+  if (seconds < 60) return "just now";
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  if (days < 30) return `${days}d ago`;
+  return new Date(date).toLocaleDateString("en-GB", { day: "numeric", month: "short" });
+}
+
 function formatNumber(n: number): string {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
   if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
@@ -132,13 +145,19 @@ function StatusDot({ status }: { status: string }) {
 
 function OverviewTab() {
   const [analytics, setAnalytics] = useState<Analytics | null>(null);
+  const [feedbackStats, setFeedbackStats] = useState<{ total: number; byStatus: Record<string, number> } | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    api
-      .get<{ data: Analytics }>("/admin/analytics")
-      .then((res) => setAnalytics(res.data))
+    Promise.all([
+      api.get<{ data: Analytics }>("/admin/analytics"),
+      api.get<{ data: { total: number; byStatus: Record<string, number> } }>("/feedback/stats"),
+    ])
+      .then(([analyticsRes, fbRes]) => {
+        setAnalytics(analyticsRes.data);
+        setFeedbackStats(fbRes.data);
+      })
       .catch((err: Error) => setError(err.message))
       .finally(() => setLoading(false));
   }, []);
@@ -213,6 +232,28 @@ function OverviewTab() {
           <p className="stat-card__value">{formatNumber(analytics.tripsThisMonth)}</p>
         </div>
       </div>
+
+      {/* Row 3: Feedback */}
+      {feedbackStats && (
+        <div className="stats-grid" style={{ marginTop: "1rem" }}>
+          <div className="stat-card">
+            <p className="stat-card__label">Feedback Total</p>
+            <p className="stat-card__value">{feedbackStats.total}</p>
+          </div>
+          <div className="stat-card">
+            <p className="stat-card__label">New</p>
+            <p className="stat-card__value" style={{ color: "#8494a7" }}>{feedbackStats.byStatus["new"] || 0}</p>
+          </div>
+          <div className="stat-card">
+            <p className="stat-card__label">Planned</p>
+            <p className="stat-card__value" style={{ color: "#3b82f6" }}>{feedbackStats.byStatus["planned"] || 0}</p>
+          </div>
+          <div className="stat-card">
+            <p className="stat-card__label">In Progress</p>
+            <p className="stat-card__value stat-card__value--amber">{feedbackStats.byStatus["in_progress"] || 0}</p>
+          </div>
+        </div>
+      )}
     </>
   );
 }
@@ -234,17 +275,47 @@ function UserDetailModal({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Push notification to specific user
+  const [pushTitle, setPushTitle] = useState("");
+  const [pushBody, setPushBody] = useState("");
+  const [pushSending, setPushSending] = useState(false);
+  const [pushResult, setPushResult] = useState<string | null>(null);
+
   useEffect(() => {
     if (!userId || !open) return;
     setLoading(true);
     setError(null);
     setUser(null);
+    setPushTitle("");
+    setPushBody("");
+    setPushResult(null);
     api
       .get<{ data: AdminUserDetail }>(`/admin/users/${userId}`)
       .then((res) => setUser(res.data))
       .catch((err: Error) => setError(err.message))
       .finally(() => setLoading(false));
   }, [userId, open]);
+
+  const handleSendPush = async (dryRun: boolean) => {
+    if (!pushTitle.trim() || !pushBody.trim() || !userId) return;
+    setPushSending(true);
+    setPushResult(null);
+    try {
+      const res = await api.post<{ data: { sent: number; dryRun: boolean } }>("/admin/send-push", {
+        audience: "specific",
+        userId,
+        title: pushTitle.trim(),
+        body: pushBody.trim(),
+        dryRun,
+      });
+      setPushResult(dryRun ? `Dry run: would send to ${res.data.sent} device(s)` : `Sent to ${res.data.sent} device(s)`);
+      if (!dryRun) { setPushTitle(""); setPushBody(""); }
+    } catch (err: any) {
+      setPushResult(`Error: ${err.message}`);
+    } finally {
+      setPushSending(false);
+    }
+  };
 
   return (
     <Modal open={open} onClose={onClose} title="User Details" large>
@@ -440,6 +511,50 @@ function UserDetailModal({
               </div>
             </div>
           )}
+
+          {/* Send Push Notification */}
+          <div className="settings-section">
+            <h4 className="settings-section__title">Send Push Notification</h4>
+            <div style={{ display: "flex", flexDirection: "column", gap: "0.625rem" }}>
+              <Input
+                id="pushTitle"
+                placeholder="Notification title"
+                value={pushTitle}
+                onChange={(e) => setPushTitle(e.target.value)}
+                maxLength={100}
+              />
+              <Input
+                id="pushBody"
+                placeholder="Notification body"
+                value={pushBody}
+                onChange={(e) => setPushBody(e.target.value)}
+                maxLength={200}
+              />
+              <div style={{ display: "flex", gap: "0.5rem" }}>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => handleSendPush(true)}
+                  disabled={pushSending || !pushTitle.trim() || !pushBody.trim()}
+                >
+                  Dry Run
+                </Button>
+                <Button
+                  variant="primary"
+                  size="sm"
+                  onClick={() => handleSendPush(false)}
+                  disabled={pushSending || !pushTitle.trim() || !pushBody.trim()}
+                >
+                  {pushSending ? "Sending..." : "Send"}
+                </Button>
+              </div>
+              {pushResult && (
+                <p style={{ fontSize: "0.8125rem", color: pushResult.startsWith("Error") ? "var(--dash-red)" : "var(--emerald-400)", margin: 0 }}>
+                  {pushResult}
+                </p>
+              )}
+            </div>
+          </div>
         </div>
       )}
     </Modal>
@@ -1424,13 +1539,469 @@ function EmailTab() {
 }
 
 // ---------------------------------------------------------------------------
+// Feedback Tab
+// ---------------------------------------------------------------------------
+
+const FB_STATUS_OPTIONS = [
+  { value: "", label: "All statuses" },
+  { value: "new", label: "New" },
+  { value: "planned", label: "Planned" },
+  { value: "in_progress", label: "In Progress" },
+  { value: "done", label: "Done" },
+  { value: "declined", label: "Declined" },
+];
+
+const FB_CATEGORY_OPTIONS = [
+  { value: "", label: "All categories" },
+  { value: "feature_request", label: "Feature Request" },
+  { value: "bug_report", label: "Bug Report" },
+  { value: "improvement", label: "Improvement" },
+  { value: "other", label: "Other" },
+];
+
+const FB_STATUSES = [
+  { value: "new", label: "New", color: "#8494a7" },
+  { value: "planned", label: "Planned", color: "#3b82f6" },
+  { value: "in_progress", label: "In Progress", color: "#f5a623" },
+  { value: "done", label: "Done", color: "#34c759" },
+  { value: "declined", label: "Declined", color: "#ef4444" },
+];
+
+const KI_STATUSES = [
+  { value: "investigating", label: "Investigating", color: "#f59e0b" },
+  { value: "fix_in_progress", label: "Fix in Progress", color: "#3b82f6" },
+  { value: "fixed", label: "Fixed", color: "#10b981" },
+];
+
+interface FbItem {
+  id: string;
+  displayName: string | null;
+  title: string;
+  body: string;
+  category: string;
+  status: string;
+  upvoteCount: number;
+  replyCount: number;
+  isKnownIssue: boolean;
+  knownIssueStatus: string | null;
+  createdAt: string;
+  hasVoted: boolean;
+  isOwner: boolean;
+  replies: { id: string; body: string; adminName: string; createdAt: string }[];
+}
+
+function FeedbackTab() {
+  const [items, setItems] = useState<FbItem[]>([]);
+  const [stats, setStats] = useState<{ total: number; byStatus: Record<string, number> } | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(0);
+  const [statusFilter, setStatusFilter] = useState("");
+  const [categoryFilter, setCategoryFilter] = useState("");
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [replyText, setReplyText] = useState("");
+  const [sendingReply, setSendingReply] = useState(false);
+  const [updatingId, setUpdatingId] = useState<string | null>(null);
+  const [deleteId, setDeleteId] = useState<string | null>(null);
+
+  const loadData = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const params = new URLSearchParams({ page: String(page), pageSize: "20", sort: "newest" });
+      if (statusFilter) params.set("status", statusFilter);
+      if (categoryFilter) params.set("category", categoryFilter);
+      const [listRes, statsRes] = await Promise.all([
+        api.get<{ data: FbItem[]; totalPages: number }>(`/feedback/?${params}`),
+        api.get<{ data: { total: number; byStatus: Record<string, number> } }>("/feedback/stats"),
+      ]);
+      setItems(listRes.data);
+      setTotalPages(listRes.totalPages);
+      setStats(statsRes.data);
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  }, [page, statusFilter, categoryFilter]);
+
+  useEffect(() => { loadData(); }, [loadData]);
+
+  const handleStatusChange = async (id: string, newStatus: string) => {
+    setUpdatingId(id);
+    try {
+      await api.patch(`/feedback/${id}/status`, { status: newStatus });
+      setItems((prev) => prev.map((i) => (i.id === id ? { ...i, status: newStatus } : i)));
+    } catch {} finally { setUpdatingId(null); }
+  };
+
+  const handleToggleKnownIssue = async (id: string, currentlyKnown: boolean) => {
+    const newVal = !currentlyKnown;
+    try {
+      await api.patch(`/feedback/${id}/known-issue`, { isKnownIssue: newVal, knownIssueStatus: newVal ? "investigating" : null });
+      setItems((prev) => prev.map((i) => (i.id === id ? { ...i, isKnownIssue: newVal, knownIssueStatus: newVal ? "investigating" : null } : i)));
+    } catch {}
+  };
+
+  const handleKnownIssueStatus = async (id: string, status: string) => {
+    try {
+      await api.patch(`/feedback/${id}/known-issue`, { isKnownIssue: true, knownIssueStatus: status });
+      setItems((prev) => prev.map((i) => (i.id === id ? { ...i, isKnownIssue: true, knownIssueStatus: status } : i)));
+    } catch {}
+  };
+
+  const handleSendReply = async (feedbackId: string) => {
+    const body = replyText.trim();
+    if (!body) return;
+    setSendingReply(true);
+    try {
+      const res = await api.post<{ data: { id: string; body: string; adminName: string; createdAt: string } }>(`/feedback/${feedbackId}/reply`, { body });
+      setItems((prev) => prev.map((i) => (i.id === feedbackId ? { ...i, replyCount: i.replyCount + 1, replies: [...i.replies, res.data] } : i)));
+      setReplyText("");
+    } catch {} finally { setSendingReply(false); }
+  };
+
+  const handleDeleteReply = async (feedbackId: string, replyId: string) => {
+    try {
+      await api.delete(`/feedback/reply/${replyId}`);
+      setItems((prev) => prev.map((i) => (i.id === feedbackId ? { ...i, replyCount: Math.max(0, i.replyCount - 1), replies: i.replies.filter((r) => r.id !== replyId) } : i)));
+    } catch {}
+  };
+
+  const handleDelete = async () => {
+    if (!deleteId) return;
+    try {
+      await api.delete(`/feedback/${deleteId}`);
+      setItems((prev) => prev.filter((i) => i.id !== deleteId));
+      if (expandedId === deleteId) setExpandedId(null);
+    } catch {} finally { setDeleteId(null); }
+  };
+
+  if (loading && items.length === 0) return <LoadingSkeleton variant="card" count={3} style={{ height: 90 }} />;
+  if (error) return <div className="alert alert--error">{error}</div>;
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: "1.25rem" }}>
+      {/* Stats row */}
+      {stats && (
+        <div className="stats-grid">
+          <div className="stat-card">
+            <p className="stat-card__label">Total</p>
+            <p className="stat-card__value">{stats.total}</p>
+          </div>
+          {FB_STATUSES.map((st) => (
+            <div className="stat-card" key={st.value}>
+              <p className="stat-card__label">{st.label}</p>
+              <p className="stat-card__value" style={{ color: st.color }}>{stats.byStatus[st.value] || 0}</p>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Filters */}
+      <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap" }}>
+        <div style={{ minWidth: 160 }}>
+          <Select id="fbStatus" value={statusFilter} onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }} options={FB_STATUS_OPTIONS} />
+        </div>
+        <div style={{ minWidth: 160 }}>
+          <Select id="fbCategory" value={categoryFilter} onChange={(e) => { setCategoryFilter(e.target.value); setPage(1); }} options={FB_CATEGORY_OPTIONS} />
+        </div>
+      </div>
+
+      {/* Feedback list */}
+      {items.length === 0 ? (
+        <p style={{ color: "var(--text-secondary)", textAlign: "center", padding: "2rem 0" }}>No feedback found</p>
+      ) : (
+        <div style={{ display: "flex", flexDirection: "column", gap: "0.625rem" }}>
+          {items.map((item) => {
+            const expanded = expandedId === item.id;
+            const statusMeta = FB_STATUSES.find((s) => s.value === item.status);
+            return (
+              <div key={item.id}>
+                <div
+                  onClick={() => { setExpandedId(expanded ? null : item.id); if (!expanded) setReplyText(""); }}
+                  style={{
+                    display: "flex", gap: "1rem", padding: "1rem 1.25rem",
+                    background: "var(--dash-card-bg)", border: "1px solid var(--dash-card-border)",
+                    borderRadius: expanded ? "var(--r-md) var(--r-md) 0 0" : "var(--r-md)",
+                    cursor: "pointer", transition: "background 0.15s",
+                  }}
+                >
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", flexWrap: "wrap", marginBottom: "0.25rem" }}>
+                      <span style={{ fontWeight: 600, fontSize: "0.9375rem", color: "var(--text-primary)" }}>{item.title}</span>
+                      {item.isKnownIssue && (
+                        <span style={{ fontSize: "0.6875rem", fontWeight: 600, color: "#ef4444", background: "rgba(239,68,68,0.12)", padding: "1px 6px", borderRadius: 4, textTransform: "uppercase" }}>Known Issue</span>
+                      )}
+                    </div>
+                    <div style={{ display: "flex", alignItems: "center", gap: "0.375rem", flexWrap: "wrap", fontSize: "0.75rem" }}>
+                      <Badge variant="source">{FB_CATEGORY_OPTIONS.find((c) => c.value === item.category)?.label || item.category}</Badge>
+                      {statusMeta && <Badge variant={item.status === "done" ? "success" : item.status === "declined" ? "danger" : item.status === "planned" ? "business" : "source"}>{statusMeta.label}</Badge>}
+                      <span style={{ color: "var(--text-faint)" }}>by {item.displayName || "Anonymous"}</span>
+                      <span style={{ color: "var(--text-faint)" }}>{timeAgo(item.createdAt)}</span>
+                    </div>
+                  </div>
+                  <div style={{ display: "flex", gap: "0.75rem", alignItems: "center", flexShrink: 0, fontSize: "0.8125rem", color: "var(--text-secondary)" }}>
+                    <span title="Votes" style={{ display: "flex", alignItems: "center", gap: "0.25rem" }}>
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="18 15 12 9 6 15" /></svg>
+                      {item.upvoteCount}
+                    </span>
+                    {item.replyCount > 0 && (
+                      <span title="Replies" style={{ display: "flex", alignItems: "center", gap: "0.25rem", color: "var(--emerald-400)" }}>
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" /></svg>
+                        {item.replyCount}
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                {/* Expanded detail */}
+                {expanded && (
+                  <div style={{
+                    padding: "1.25rem", background: "var(--dash-card-bg)",
+                    border: "1px solid var(--dash-card-border)", borderTop: "none",
+                    borderRadius: "0 0 var(--r-md) var(--r-md)",
+                  }}>
+                    <p style={{ fontSize: "0.875rem", color: "var(--text-secondary)", lineHeight: 1.6, margin: "0 0 1.25rem" }}>{item.body}</p>
+
+                    {/* Status */}
+                    <p style={{ fontSize: "0.6875rem", fontWeight: 600, color: "var(--text-faint)", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "0.5rem" }}>Status</p>
+                    <div style={{ display: "flex", gap: "0.375rem", flexWrap: "wrap", marginBottom: "1rem" }}>
+                      {FB_STATUSES.map((st) => (
+                        <button key={st.value} onClick={() => handleStatusChange(item.id, st.value)} disabled={updatingId === item.id}
+                          style={{
+                            padding: "0.25rem 0.625rem", borderRadius: 6, fontSize: "0.75rem", fontWeight: 600, cursor: "pointer",
+                            border: `1px solid ${item.status === st.value ? st.color : "var(--border-default)"}`,
+                            background: item.status === st.value ? st.color + "18" : "transparent",
+                            color: item.status === st.value ? st.color : "var(--text-secondary)",
+                            opacity: updatingId === item.id ? 0.5 : 1, transition: "all 0.15s",
+                          }}
+                        >{st.label}</button>
+                      ))}
+                    </div>
+
+                    {/* Known Issue */}
+                    <p style={{ fontSize: "0.6875rem", fontWeight: 600, color: "var(--text-faint)", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "0.5rem" }}>Known Issue</p>
+                    <div style={{ display: "flex", gap: "0.375rem", flexWrap: "wrap", marginBottom: item.isKnownIssue ? "0.5rem" : "1rem" }}>
+                      <button onClick={() => handleToggleKnownIssue(item.id, item.isKnownIssue)}
+                        style={{
+                          padding: "0.25rem 0.625rem", borderRadius: 6, fontSize: "0.75rem", fontWeight: 600, cursor: "pointer",
+                          border: `1px solid ${item.isKnownIssue ? "rgba(239,68,68,0.3)" : "var(--border-default)"}`,
+                          background: item.isKnownIssue ? "rgba(239,68,68,0.08)" : "transparent",
+                          color: item.isKnownIssue ? "#ef4444" : "var(--text-secondary)", transition: "all 0.15s",
+                        }}
+                      >{item.isKnownIssue ? "Remove Known Issue" : "Mark as Known Issue"}</button>
+                    </div>
+                    {item.isKnownIssue && (
+                      <div style={{ display: "flex", gap: "0.375rem", flexWrap: "wrap", marginBottom: "1rem" }}>
+                        {KI_STATUSES.map((st) => (
+                          <button key={st.value} onClick={() => handleKnownIssueStatus(item.id, st.value)}
+                            style={{
+                              padding: "0.25rem 0.625rem", borderRadius: 6, fontSize: "0.75rem", fontWeight: 600, cursor: "pointer",
+                              border: `1px solid ${item.knownIssueStatus === st.value ? st.color : "var(--border-default)"}`,
+                              background: item.knownIssueStatus === st.value ? st.color + "18" : "transparent",
+                              color: item.knownIssueStatus === st.value ? st.color : "var(--text-secondary)", transition: "all 0.15s",
+                            }}
+                          >{st.label}</button>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Replies */}
+                    {item.replies.length > 0 && (
+                      <div style={{ marginBottom: "1rem" }}>
+                        <p style={{ fontSize: "0.6875rem", fontWeight: 600, color: "var(--text-faint)", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "0.5rem" }}>Replies</p>
+                        {item.replies.map((r) => (
+                          <div key={r.id} style={{ borderLeft: "2px solid var(--amber-400, #f5a623)", background: "rgba(245,166,35,0.05)", borderRadius: "0 6px 6px 0", padding: "0.625rem 0.875rem", marginBottom: "0.375rem", position: "relative" }}>
+                            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.25rem" }}>
+                              <span style={{ fontSize: "0.6875rem", fontWeight: 600, color: "var(--amber-400, #f5a623)" }}>{r.adminName}</span>
+                              <span style={{ fontSize: "0.625rem", color: "var(--text-faint)" }}>{timeAgo(r.createdAt)}</span>
+                            </div>
+                            <p style={{ margin: 0, fontSize: "0.8125rem", color: "var(--text-secondary)", lineHeight: 1.5, paddingRight: "1.5rem" }}>{r.body}</p>
+                            <button onClick={() => handleDeleteReply(item.id, r.id)} title="Delete reply"
+                              style={{ position: "absolute", bottom: 8, right: 8, background: "none", border: "none", cursor: "pointer", color: "var(--text-faint)", fontSize: "0.75rem" }}
+                            >&times;</button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Reply input */}
+                    <div style={{ display: "flex", gap: "0.5rem", alignItems: "flex-end", marginBottom: "1rem" }}>
+                      <div style={{ flex: 1 }}>
+                        <Input id={`reply-${item.id}`} placeholder="Write a reply..." value={replyText} onChange={(e) => setReplyText(e.target.value)} />
+                      </div>
+                      <Button variant="primary" size="sm" onClick={() => handleSendReply(item.id)} disabled={sendingReply || !replyText.trim()}>
+                        {sendingReply ? "Sending..." : "Reply"}
+                      </Button>
+                    </div>
+
+                    {/* Delete */}
+                    <Button variant="danger" size="sm" onClick={() => setDeleteId(item.id)}>Delete Feedback</Button>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {totalPages > 1 && (
+        <Pagination page={page} totalPages={totalPages} onPageChange={setPage} />
+      )}
+
+      <ConfirmModal
+        open={!!deleteId}
+        onClose={() => setDeleteId(null)}
+        onConfirm={handleDelete}
+        title="Delete Feedback"
+        message="This will permanently delete this feedback and all its votes. This can't be undone."
+        confirmLabel="Delete"
+      />
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Activity Tab
+// ---------------------------------------------------------------------------
+
+function ActivityTab() {
+  const [recentUsers, setRecentUsers] = useState<AdminUser[]>([]);
+  const [premiumUsers, setPremiumUsers] = useState<AdminUser[]>([]);
+  const [recentFeedback, setRecentFeedback] = useState<FbItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [detailUserId, setDetailUserId] = useState<string | null>(null);
+
+  useEffect(() => {
+    Promise.all([
+      api.get<{ data: AdminUser[] }>("/admin/users?page=1&pageSize=15"),
+      api.get<{ data: FbItem[] }>("/feedback/?page=1&pageSize=10&sort=newest"),
+    ])
+      .then(([usersRes, fbRes]) => {
+        const allUsers = usersRes.data;
+        setRecentUsers(allUsers.slice(0, 10));
+        setPremiumUsers(allUsers.filter((u) => u.isPremium).slice(0, 10));
+        setRecentFeedback(fbRes.data);
+      })
+      .catch((err: Error) => setError(err.message))
+      .finally(() => setLoading(false));
+  }, []);
+
+  if (loading) return <LoadingSkeleton variant="card" count={3} style={{ height: 120 }} />;
+  if (error) return <div className="alert alert--error">{error}</div>;
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: "1.25rem" }}>
+      {/* Recent Signups */}
+      <Card title={`Recent Signups (${recentUsers.length})`}>
+        <div className="table-wrap">
+          <table className="table">
+            <thead>
+              <tr>
+                <th>Email</th>
+                <th>Name</th>
+                <th>Status</th>
+                <th>Joined</th>
+              </tr>
+            </thead>
+            <tbody>
+              {recentUsers.map((u) => (
+                <tr key={u.id} onClick={() => setDetailUserId(u.id)} style={{ cursor: "pointer" }}>
+                  <td style={{ fontSize: "0.8125rem" }}>{u.email}</td>
+                  <td style={{ fontSize: "0.8125rem" }}>{u.displayName || "-"}</td>
+                  <td>
+                    <div style={{ display: "flex", gap: "0.25rem" }}>
+                      {u.isPremium && <Badge variant="pro">PRO</Badge>}
+                      {u.isAdmin && <Badge variant="primary">Admin</Badge>}
+                      {u.emailVerified ? <Badge variant="success">Verified</Badge> : <Badge variant="danger">Unverified</Badge>}
+                    </div>
+                  </td>
+                  <td style={{ fontSize: "0.8125rem", color: "var(--text-secondary)", whiteSpace: "nowrap" }}>
+                    {timeAgo(u.createdAt)}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </Card>
+
+      {/* Premium Users */}
+      {premiumUsers.length > 0 && (
+        <Card title={`Premium Users (${premiumUsers.length})`}>
+          <div className="table-wrap">
+            <table className="table">
+              <thead>
+                <tr>
+                  <th>Email</th>
+                  <th>Name</th>
+                  <th>Trips</th>
+                  <th>Joined</th>
+                </tr>
+              </thead>
+              <tbody>
+                {premiumUsers.map((u) => (
+                  <tr key={u.id} onClick={() => setDetailUserId(u.id)} style={{ cursor: "pointer" }}>
+                    <td style={{ fontSize: "0.8125rem" }}>{u.email}</td>
+                    <td style={{ fontSize: "0.8125rem" }}>{u.displayName || "-"}</td>
+                    <td style={{ fontSize: "0.8125rem" }}>{u._count.trips}</td>
+                    <td style={{ fontSize: "0.8125rem", color: "var(--text-secondary)", whiteSpace: "nowrap" }}>{timeAgo(u.createdAt)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </Card>
+      )}
+
+      {/* Recent Feedback */}
+      <Card title={`Recent Feedback (${recentFeedback.length})`}>
+        <div className="table-wrap">
+          <table className="table">
+            <thead>
+              <tr>
+                <th>Title</th>
+                <th>Category</th>
+                <th>Status</th>
+                <th>Votes</th>
+                <th>Submitted</th>
+              </tr>
+            </thead>
+            <tbody>
+              {recentFeedback.map((fb) => {
+                const statusMeta = FB_STATUSES.find((s) => s.value === fb.status);
+                return (
+                  <tr key={fb.id}>
+                    <td style={{ fontSize: "0.8125rem", fontWeight: 500, maxWidth: 250, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{fb.title}</td>
+                    <td><Badge variant="source">{FB_CATEGORY_OPTIONS.find((c) => c.value === fb.category)?.label || fb.category}</Badge></td>
+                    <td>{statusMeta && <Badge variant={fb.status === "done" ? "success" : fb.status === "declined" ? "danger" : "source"}>{statusMeta.label}</Badge>}</td>
+                    <td style={{ fontSize: "0.8125rem", textAlign: "center" }}>{fb.upvoteCount}</td>
+                    <td style={{ fontSize: "0.8125rem", color: "var(--text-secondary)", whiteSpace: "nowrap" }}>{timeAgo(fb.createdAt)}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </Card>
+
+      <UserDetailModal userId={detailUserId} open={!!detailUserId} onClose={() => setDetailUserId(null)} />
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Main Page
 // ---------------------------------------------------------------------------
 
-type Tab = "overview" | "users" | "health" | "revenue" | "engagement" | "auto-trips" | "push" | "email";
+type Tab = "overview" | "activity" | "users" | "health" | "revenue" | "engagement" | "auto-trips" | "push" | "email" | "feedback";
 
 const tabLabels: Record<Tab, string> = {
   overview: "Overview",
+  activity: "Activity",
   users: "Users",
   health: "Health",
   revenue: "Revenue",
@@ -1438,6 +2009,7 @@ const tabLabels: Record<Tab, string> = {
   "auto-trips": "Auto-trips",
   push: "Push",
   email: "Email",
+  feedback: "Feedback",
 };
 
 export default function AdminPage() {
@@ -1507,6 +2079,8 @@ export default function AdminPage() {
       {tab === "auto-trips" && <AutoTripsTab />}
       {tab === "push" && <PushTab />}
       {tab === "email" && <EmailTab />}
+      {tab === "feedback" && <FeedbackTab />}
+      {tab === "activity" && <ActivityTab />}
     </>
   );
 }

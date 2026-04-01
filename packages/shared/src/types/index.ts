@@ -669,6 +669,14 @@ export interface DrivingAnalytics {
 // Feedback types
 export type FeedbackCategory = "feature_request" | "bug_report" | "improvement" | "other";
 export type FeedbackStatus = "new" | "planned" | "in_progress" | "done" | "declined";
+export type KnownIssueStatus = "investigating" | "fix_in_progress" | "fixed";
+
+export interface FeedbackReply {
+  id: string;
+  body: string;
+  adminName: string;
+  createdAt: string;
+}
 
 export interface FeedbackItem {
   id: string;
@@ -678,8 +686,12 @@ export interface FeedbackItem {
   category: FeedbackCategory;
   status: FeedbackStatus;
   upvoteCount: number;
+  replyCount: number;
+  isKnownIssue: boolean;
+  knownIssueStatus: KnownIssueStatus | null;
   createdAt: string;
   isOwner: boolean;
+  replies: FeedbackReply[];
 }
 
 export interface FeedbackWithVoted extends FeedbackItem {

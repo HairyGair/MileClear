@@ -12,9 +12,9 @@ import {
 import { useFocusEffect, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useAuth } from "../lib/auth/context";
-import { fetchFeedbackList, toggleFeedbackVote } from "../lib/api/feedback";
+import { fetchFeedbackList, fetchKnownIssues, toggleFeedbackVote } from "../lib/api/feedback";
 import type { FeedbackListParams } from "../lib/api/feedback";
-import { FEEDBACK_CATEGORIES, FEEDBACK_STATUSES } from "@mileclear/shared";
+import { FEEDBACK_CATEGORIES, FEEDBACK_STATUSES, KNOWN_ISSUE_STATUSES } from "@mileclear/shared";
 import type { FeedbackWithVoted, FeedbackCategory } from "@mileclear/shared";
 
 const AMBER = "#f5a623";
@@ -47,6 +47,7 @@ export default function FeedbackScreen() {
   const [filter, setFilter] = useState<FilterOption>("all");
   const [sort, setSort] = useState<SortOption>("most_voted");
   const [error, setError] = useState(false);
+  const [knownIssues, setKnownIssues] = useState<FeedbackWithVoted[]>([]);
   const votingIds = useRef(new Set<string>());
 
   const loadData = useCallback(
@@ -55,13 +56,24 @@ export default function FeedbackScreen() {
         setError(false);
         const params: FeedbackListParams = { page: p, pageSize: 15, sort };
         if (filter !== "all") params.category = filter;
-        const res = await fetchFeedbackList(params);
-        if (append) {
-          setItems((prev) => [...prev, ...res.data]);
+
+        if (p === 1 && !append) {
+          const [listRes, kiRes] = await Promise.all([
+            fetchFeedbackList(params),
+            fetchKnownIssues(),
+          ]);
+          setItems(listRes.data);
+          setTotalPages(listRes.totalPages);
+          setKnownIssues(kiRes.data);
         } else {
-          setItems(res.data);
+          const res = await fetchFeedbackList(params);
+          if (append) {
+            setItems((prev) => [...prev, ...res.data]);
+          } else {
+            setItems(res.data);
+          }
+          setTotalPages(res.totalPages);
         }
-        setTotalPages(res.totalPages);
         setPage(p);
       } catch {
         if (!append) setError(true);
@@ -95,7 +107,7 @@ export default function FeedbackScreen() {
   const handleVote = useCallback(
     async (id: string) => {
       if (!isAuthenticated) {
-        Alert.alert("Sign In Required", "You need to be signed in to upvote suggestions.", [
+        Alert.alert("Sign In Required", "You need to be signed in to vote.", [
           { text: "OK" },
         ]);
         return;
@@ -103,39 +115,37 @@ export default function FeedbackScreen() {
       if (votingIds.current.has(id)) return;
       votingIds.current.add(id);
 
-      // Capture original state before mutation
-      const original = items.find((i) => i.id === id);
+      // Capture original state before mutation (check both lists)
+      const original = items.find((i) => i.id === id) ?? knownIssues.find((i) => i.id === id);
       if (!original) { votingIds.current.delete(id); return; }
       const origVoted = original.hasVoted;
       const origCount = original.upvoteCount;
 
-      // Optimistic update
-      setItems((prev) =>
-        prev.map((item) => {
+      const applyOptimistic = (list: FeedbackWithVoted[]) =>
+        list.map((item) => {
           if (item.id !== id) return item;
-          return {
-            ...item,
-            hasVoted: !origVoted,
-            upvoteCount: origCount + (origVoted ? -1 : 1),
-          };
-        })
-      );
+          return { ...item, hasVoted: !origVoted, upvoteCount: origCount + (origVoted ? -1 : 1) };
+        });
+
+      const applyRevert = (list: FeedbackWithVoted[]) =>
+        list.map((item) => {
+          if (item.id !== id) return item;
+          return { ...item, hasVoted: origVoted, upvoteCount: origCount };
+        });
+
+      setItems(applyOptimistic);
+      setKnownIssues(applyOptimistic);
 
       try {
         await toggleFeedbackVote(id);
       } catch {
-        // Revert to captured original state
-        setItems((prev) =>
-          prev.map((item) => {
-            if (item.id !== id) return item;
-            return { ...item, hasVoted: origVoted, upvoteCount: origCount };
-          })
-        );
+        setItems(applyRevert);
+        setKnownIssues(applyRevert);
       } finally {
         votingIds.current.delete(id);
       }
     },
-    [isAuthenticated]
+    [isAuthenticated, items, knownIssues]
   );
 
   const getStatusMeta = (status: string) =>
@@ -183,7 +193,24 @@ export default function FeedbackScreen() {
         </View>
 
         <Text style={s.cardTitle} numberOfLines={2}>{item.title}</Text>
-        <Text style={s.cardBody} numberOfLines={2}>{item.body}</Text>
+        <Text style={s.cardBody} numberOfLines={item.replies?.length > 0 ? undefined : 2}>{item.body}</Text>
+
+        {item.replies && item.replies.length > 0 && (
+          <View style={s.repliesSection}>
+            {item.replies.map((r) => (
+              <View key={r.id} style={s.replyCard}>
+                <View style={s.replyHeader}>
+                  <View style={s.replyAdminBadge}>
+                    <Ionicons name="shield-checkmark" size={10} color={AMBER} />
+                    <Text style={s.replyAdminName}>{r.adminName}</Text>
+                  </View>
+                  <Text style={s.replyDate}>{formatDate(r.createdAt)}</Text>
+                </View>
+                <Text style={s.replyBody}>{r.body}</Text>
+              </View>
+            ))}
+          </View>
+        )}
 
         <View style={s.cardBottom}>
           <View style={s.cardMeta}>
@@ -298,6 +325,55 @@ export default function FeedbackScreen() {
           }
           onEndReached={onEndReached}
           onEndReachedThreshold={0.3}
+          ListHeaderComponent={
+            knownIssues.length > 0 ? (
+              <View style={s.knownIssuesSection}>
+                <View style={s.knownIssuesHeader}>
+                  <Ionicons name="bug-outline" size={16} color="#ef4444" />
+                  <Text style={s.knownIssuesTitle}>Known Issues</Text>
+                </View>
+                {knownIssues.map((ki) => {
+                  const statusMeta = KNOWN_ISSUE_STATUSES.find((st) => st.value === ki.knownIssueStatus);
+                  return (
+                    <View key={ki.id} style={s.kiCard}>
+                      <View style={s.kiTop}>
+                        {statusMeta && (
+                          <View style={[s.kiStatusPill, { backgroundColor: statusMeta.color + "20" }]}>
+                            <Ionicons name={statusMeta.icon as any} size={11} color={statusMeta.color} />
+                            <Text style={[s.kiStatusText, { color: statusMeta.color }]}>{statusMeta.label}</Text>
+                          </View>
+                        )}
+                      </View>
+                      <Text style={s.kiTitle}>{ki.title}</Text>
+                      <Text style={s.kiBody} numberOfLines={2}>{ki.body}</Text>
+                      {ki.replies && ki.replies.length > 0 && (
+                        <View style={s.kiReply}>
+                          <Ionicons name="shield-checkmark" size={10} color={AMBER} />
+                          <Text style={s.kiReplyText} numberOfLines={2}>{ki.replies[ki.replies.length - 1].body}</Text>
+                        </View>
+                      )}
+                      <TouchableOpacity
+                        style={[s.kiMeToo, ki.hasVoted && s.kiMeTooActive]}
+                        onPress={() => handleVote(ki.id)}
+                        activeOpacity={0.6}
+                        accessibilityRole="button"
+                        accessibilityLabel={`${ki.hasVoted ? "Remove affected vote" : "Mark as affected"}: ${ki.title}`}
+                      >
+                        <Ionicons
+                          name={ki.hasVoted ? "hand-left" : "hand-left-outline"}
+                          size={14}
+                          color={ki.hasVoted ? "#030712" : TEXT_2}
+                        />
+                        <Text style={[s.kiMeTooText, ki.hasVoted && s.kiMeTooTextActive]}>
+                          {ki.hasVoted ? "Affected" : "Me too"} ({ki.upvoteCount})
+                        </Text>
+                      </TouchableOpacity>
+                    </View>
+                  );
+                })}
+              </View>
+            ) : null
+          }
           ListFooterComponent={
             loadingMore ? (
               <ActivityIndicator style={{ paddingVertical: 16 }} color={AMBER} />
@@ -487,6 +563,148 @@ const s = StyleSheet.create({
   },
   voteCountActive: {
     color: "#030712",
+  },
+  knownIssuesSection: {
+    marginBottom: 16,
+    paddingBottom: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: "rgba(255,255,255,0.06)",
+  },
+  knownIssuesHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginBottom: 10,
+  },
+  knownIssuesTitle: {
+    fontSize: 14,
+    fontFamily: "PlusJakartaSans_700Bold",
+    color: "#ef4444",
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+  },
+  kiCard: {
+    backgroundColor: "rgba(239,68,68,0.06)",
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: "rgba(239,68,68,0.12)",
+  },
+  kiTop: {
+    flexDirection: "row",
+    marginBottom: 6,
+  },
+  kiStatusPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+  },
+  kiStatusText: {
+    fontSize: 10,
+    fontFamily: "PlusJakartaSans_600SemiBold",
+    textTransform: "uppercase",
+    letterSpacing: 0.3,
+  },
+  kiTitle: {
+    fontSize: 14,
+    fontFamily: "PlusJakartaSans_600SemiBold",
+    color: TEXT_1,
+    marginBottom: 4,
+  },
+  kiBody: {
+    fontSize: 12,
+    fontFamily: "PlusJakartaSans_400Regular",
+    color: TEXT_2,
+    lineHeight: 17,
+    marginBottom: 8,
+  },
+  kiReply: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 5,
+    backgroundColor: "rgba(245,166,35,0.06)",
+    borderLeftWidth: 2,
+    borderLeftColor: AMBER,
+    borderRadius: 0,
+    borderTopRightRadius: 6,
+    borderBottomRightRadius: 6,
+    padding: 8,
+    marginBottom: 8,
+  },
+  kiReplyText: {
+    flex: 1,
+    fontSize: 12,
+    fontFamily: "PlusJakartaSans_400Regular",
+    color: TEXT_2,
+    lineHeight: 17,
+  },
+  kiMeToo: {
+    flexDirection: "row",
+    alignItems: "center",
+    alignSelf: "flex-start",
+    gap: 5,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+    backgroundColor: "rgba(255,255,255,0.05)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.08)",
+  },
+  kiMeTooActive: {
+    backgroundColor: "#ef4444",
+    borderColor: "#ef4444",
+  },
+  kiMeTooText: {
+    fontSize: 12,
+    fontFamily: "PlusJakartaSans_600SemiBold",
+    color: TEXT_2,
+  },
+  kiMeTooTextActive: {
+    color: "#030712",
+  },
+  repliesSection: {
+    marginBottom: 10,
+  },
+  replyCard: {
+    backgroundColor: "rgba(245,166,35,0.06)",
+    borderLeftWidth: 2,
+    borderLeftColor: AMBER,
+    borderRadius: 0,
+    borderTopRightRadius: 8,
+    borderBottomRightRadius: 8,
+    padding: 10,
+    marginBottom: 4,
+  },
+  replyHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 4,
+  },
+  replyAdminBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+  },
+  replyAdminName: {
+    fontSize: 11,
+    fontFamily: "PlusJakartaSans_600SemiBold",
+    color: AMBER,
+  },
+  replyDate: {
+    fontSize: 10,
+    fontFamily: "PlusJakartaSans_400Regular",
+    color: TEXT_3,
+  },
+  replyBody: {
+    fontSize: 13,
+    fontFamily: "PlusJakartaSans_400Regular",
+    color: TEXT_2,
+    lineHeight: 18,
   },
   emptyTitle: {
     fontSize: 17,

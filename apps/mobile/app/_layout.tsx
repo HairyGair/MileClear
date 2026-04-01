@@ -169,6 +169,10 @@ function RootNavigator() {
   useEffect(() => {
     const handleUrl = async (event: { url: string }) => {
       const url = event.url;
+      if (url === "mileclear://dashboard") {
+        router.navigate("/(tabs)/dashboard");
+        return;
+      }
       if (url === "mileclear://end-trip") {
         try {
           const { finalizeAutoTrip } = await import("../lib/tracking/detection");

@@ -225,6 +225,12 @@ export const FEEDBACK_STATUSES = [
   { value: "declined", label: "Declined", color: "#ef4444" },
 ] as const;
 
+export const KNOWN_ISSUE_STATUSES = [
+  { value: "investigating", label: "Investigating", color: "#f59e0b", icon: "search-outline" },
+  { value: "fix_in_progress", label: "Fix in Progress", color: "#3b82f6", icon: "construct-outline" },
+  { value: "fixed", label: "Fixed", color: "#10b981", icon: "checkmark-circle-outline" },
+] as const;
+
 // Driver type options (waitlist)
 export const DRIVER_TYPES = [
   { value: "uber", label: "Uber / Uber Eats" },

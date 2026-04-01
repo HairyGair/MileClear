@@ -18,7 +18,15 @@ import { LoadingSkeleton } from "../../../components/ui/LoadingSkeleton";
 
 type FeedbackCategory = "feature_request" | "bug_report" | "improvement" | "other";
 type FeedbackStatus = "new" | "planned" | "in_progress" | "done" | "declined";
+type KnownIssueStatus = "investigating" | "fix_in_progress" | "fixed";
 type SortOption = "newest" | "most_voted";
+
+interface FeedbackReply {
+  id: string;
+  body: string;
+  adminName: string;
+  createdAt: string;
+}
 
 interface FeedbackItem {
   id: string;
@@ -28,9 +36,13 @@ interface FeedbackItem {
   category: FeedbackCategory;
   status: FeedbackStatus;
   upvoteCount: number;
+  replyCount: number;
+  isKnownIssue: boolean;
+  knownIssueStatus: KnownIssueStatus | null;
   createdAt: string;
   hasVoted: boolean;
   isOwner: boolean;
+  replies: FeedbackReply[];
 }
 
 interface FeedbackResponse {
@@ -70,6 +82,12 @@ const STATUS_BADGE_VARIANT: Record<FeedbackStatus, BadgeVariant> = {
   in_progress: "primary",
   done: "success",
   declined: "danger",
+};
+
+const KNOWN_ISSUE_STATUS_META: Record<KnownIssueStatus, { label: string; color: string }> = {
+  investigating: { label: "Investigating", color: "#f59e0b" },
+  fix_in_progress: { label: "Fix in Progress", color: "#3b82f6" },
+  fixed: { label: "Fixed", color: "#10b981" },
 };
 
 const CATEGORY_OPTIONS = [
@@ -122,6 +140,7 @@ export default function FeedbackPage() {
   const [sort, setSort] = useState<SortOption>("most_voted");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [knownIssues, setKnownIssues] = useState<FeedbackItem[]>([]);
 
   // Submit modal state
   const [showSubmit, setShowSubmit] = useState(false);
@@ -147,10 +166,14 @@ export default function FeedbackPage() {
       if (category) {
         params.set("category", category);
       }
-      const res = await api.get<FeedbackResponse>(`/feedback/?${params}`);
+      const [res, kiRes] = await Promise.all([
+        api.get<FeedbackResponse>(`/feedback/?${params}`),
+        api.get<{ data: FeedbackItem[] }>("/feedback/known-issues"),
+      ]);
       setItems(res.data);
       setTotal(res.total);
       setTotalPages(res.totalPages);
+      setKnownIssues(kiRes.data);
     } catch (err: any) {
       setError(err.message || "Failed to load feedback");
     } finally {
@@ -167,34 +190,28 @@ export default function FeedbackPage() {
   // ---------------------------------------------------------------------------
 
   const handleVote = useCallback(async (id: string) => {
-    // Optimistically update UI
-    setItems((prev) =>
-      prev.map((item) => {
+    const optimistic = (list: FeedbackItem[]) =>
+      list.map((item) => {
         if (item.id !== id) return item;
         const willVote = !item.hasVoted;
-        return {
-          ...item,
-          hasVoted: willVote,
-          upvoteCount: item.upvoteCount + (willVote ? 1 : -1),
-        };
-      })
-    );
+        return { ...item, hasVoted: willVote, upvoteCount: item.upvoteCount + (willVote ? 1 : -1) };
+      });
+
+    const revert = (list: FeedbackItem[]) =>
+      list.map((item) => {
+        if (item.id !== id) return item;
+        const rev = !item.hasVoted;
+        return { ...item, hasVoted: rev, upvoteCount: item.upvoteCount + (rev ? 1 : -1) };
+      });
+
+    setItems(optimistic);
+    setKnownIssues(optimistic);
 
     try {
       await api.post<{ data: { voted: boolean } }>(`/feedback/${id}/vote`);
     } catch {
-      // Revert on error
-      setItems((prev) =>
-        prev.map((item) => {
-          if (item.id !== id) return item;
-          const revert = !item.hasVoted;
-          return {
-            ...item,
-            hasVoted: revert,
-            upvoteCount: item.upvoteCount + (revert ? 1 : -1),
-          };
-        })
-      );
+      setItems(revert);
+      setKnownIssues(revert);
     }
   }, []);
 
@@ -314,6 +331,108 @@ export default function FeedbackPage() {
       {error && (
         <div className="alert alert--error" style={{ marginBottom: "1rem" }}>
           {error}
+        </div>
+      )}
+
+      {/* Known Issues */}
+      {!loading && knownIssues.length > 0 && (
+        <div style={{ marginBottom: "1.5rem" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "0.75rem" }}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#ef4444" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="12" cy="12" r="10" />
+              <line x1="12" y1="8" x2="12" y2="12" />
+              <line x1="12" y1="16" x2="12.01" y2="16" />
+            </svg>
+            <span style={{ fontSize: "0.8125rem", fontWeight: 700, color: "#ef4444", textTransform: "uppercase", letterSpacing: "0.05em" }}>Known Issues</span>
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: "0.625rem" }}>
+            {knownIssues.map((ki) => {
+              const statusMeta = ki.knownIssueStatus ? KNOWN_ISSUE_STATUS_META[ki.knownIssueStatus] : null;
+              return (
+                <div
+                  key={ki.id}
+                  style={{
+                    display: "flex",
+                    gap: "1rem",
+                    padding: "1rem 1.25rem",
+                    background: "rgba(239, 68, 68, 0.04)",
+                    border: "1px solid rgba(239, 68, 68, 0.12)",
+                    borderRadius: "var(--r-md)",
+                  }}
+                >
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "0.375rem", flexWrap: "wrap" }}>
+                      {statusMeta && (
+                        <span style={{
+                          fontSize: "0.6875rem",
+                          fontWeight: 600,
+                          color: statusMeta.color,
+                          background: statusMeta.color + "18",
+                          padding: "0.125rem 0.5rem",
+                          borderRadius: "4px",
+                          textTransform: "uppercase",
+                          letterSpacing: "0.03em",
+                        }}>
+                          {statusMeta.label}
+                        </span>
+                      )}
+                      <span style={{ fontWeight: 600, fontSize: "0.9375rem", color: "var(--text-primary)" }}>{ki.title}</span>
+                    </div>
+                    <p style={{ margin: "0 0 0.5rem", fontSize: "0.8125rem", color: "var(--text-muted)", lineHeight: 1.5 }}>
+                      {ki.body}
+                    </p>
+                    {ki.replies?.length > 0 && (
+                      <div style={{
+                        borderLeft: "2px solid var(--amber-400, #f5a623)",
+                        background: "rgba(245, 166, 35, 0.05)",
+                        borderRadius: "0 6px 6px 0",
+                        padding: "0.5rem 0.75rem",
+                        marginBottom: "0.5rem",
+                      }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: "0.25rem", marginBottom: "0.125rem" }}>
+                          <svg width="10" height="10" viewBox="0 0 24 24" fill="var(--amber-400, #f5a623)" stroke="none">
+                            <path d="M12 1l3.09 6.26L22 8.27l-5 4.87 1.18 6.88L12 16.77l-6.18 3.25L7 13.14 2 8.27l6.91-1.01L12 1z" />
+                          </svg>
+                          <span style={{ fontSize: "0.6875rem", fontWeight: 600, color: "var(--amber-400, #f5a623)" }}>
+                            {ki.replies[ki.replies.length - 1].adminName}
+                          </span>
+                        </div>
+                        <p style={{ margin: 0, fontSize: "0.75rem", color: "var(--text-secondary)", lineHeight: 1.5 }}>
+                          {ki.replies[ki.replies.length - 1].body}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                  <button
+                    onClick={() => handleVote(ki.id)}
+                    aria-label={ki.hasVoted ? "Remove affected vote" : "Mark as affected"}
+                    style={{
+                      display: "flex",
+                      flexDirection: "column",
+                      alignItems: "center",
+                      gap: "0.25rem",
+                      padding: "0.5rem",
+                      borderRadius: "8px",
+                      minWidth: "56px",
+                      background: ki.hasVoted ? "rgba(239,68,68,0.15)" : "rgba(255,255,255,0.04)",
+                      border: `1px solid ${ki.hasVoted ? "rgba(239,68,68,0.3)" : "var(--border-default)"}`,
+                      color: ki.hasVoted ? "#ef4444" : "var(--text-muted)",
+                      cursor: "pointer",
+                      flexShrink: 0,
+                      alignSelf: "flex-start",
+                      transition: "all 0.15s",
+                    }}
+                  >
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M7 11v8a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-7a1 1 0 0 1 1-1h3zm0 0l4-8a3 3 0 0 1 3 3v4h5.5a2 2 0 0 1 2 2.3l-1.4 8A2 2 0 0 1 18.1 21H7" />
+                    </svg>
+                    <span style={{ fontSize: "0.6875rem", fontWeight: 700 }}>{ki.hasVoted ? "Affected" : "Me too"}</span>
+                    <span style={{ fontSize: "0.75rem", fontWeight: 700 }}>{ki.upvoteCount}</span>
+                  </button>
+                </div>
+              );
+            })}
+          </div>
         </div>
       )}
 
@@ -510,14 +629,53 @@ function FeedbackCard({ item, onVote }: FeedbackCardProps) {
             fontSize: "0.875rem",
             color: "var(--text-muted)",
             lineHeight: 1.55,
-            display: "-webkit-box",
-            WebkitLineClamp: 3,
-            WebkitBoxOrient: "vertical",
-            overflow: "hidden",
+            display: item.replies?.length > 0 ? "block" : "-webkit-box",
+            WebkitLineClamp: item.replies?.length > 0 ? undefined : 3,
+            WebkitBoxOrient: item.replies?.length > 0 ? undefined : "vertical",
+            overflow: item.replies?.length > 0 ? undefined : "hidden",
           }}
         >
           {item.body}
         </p>
+
+        {/* Admin replies */}
+        {item.replies?.length > 0 && (
+          <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem", marginBottom: "0.75rem" }}>
+            {item.replies.map((r) => (
+              <div
+                key={r.id}
+                style={{
+                  borderLeft: "2px solid var(--amber-400, #f5a623)",
+                  background: "rgba(245, 166, 35, 0.05)",
+                  borderRadius: "0 6px 6px 0",
+                  padding: "0.625rem 0.875rem",
+                }}
+              >
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "0.375rem",
+                    marginBottom: "0.25rem",
+                  }}
+                >
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="var(--amber-400, #f5a623)" stroke="none">
+                    <path d="M12 1l3.09 6.26L22 8.27l-5 4.87 1.18 6.88L12 16.77l-6.18 3.25L7 13.14 2 8.27l6.91-1.01L12 1z" />
+                  </svg>
+                  <span style={{ fontSize: "0.75rem", fontWeight: 600, color: "var(--amber-400, #f5a623)" }}>
+                    {r.adminName}
+                  </span>
+                  <span style={{ fontSize: "0.6875rem", color: "var(--text-faint)", marginLeft: "auto" }}>
+                    {timeAgo(r.createdAt)}
+                  </span>
+                </div>
+                <p style={{ margin: 0, fontSize: "0.8125rem", color: "var(--text-secondary)", lineHeight: 1.55 }}>
+                  {r.body}
+                </p>
+              </div>
+            ))}
+          </div>
+        )}
 
         {/* Meta row */}
         <div

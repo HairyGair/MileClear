@@ -1,5 +1,5 @@
 import { apiRequest } from "./index";
-import type { FeedbackWithVoted, FeedbackCategory, FeedbackStatus, PaginatedResponse } from "@mileclear/shared";
+import type { FeedbackWithVoted, FeedbackReply, FeedbackCategory, FeedbackStatus, KnownIssueStatus, PaginatedResponse } from "@mileclear/shared";
 
 export interface FeedbackListParams {
   page?: number;
@@ -61,4 +61,28 @@ export function fetchFeedbackStats() {
       byCategory: Record<string, number>;
     };
   }>("/feedback/stats");
+}
+
+export function postFeedbackReply(feedbackId: string, body: string) {
+  return apiRequest<{ data: FeedbackReply; message: string }>(`/feedback/${feedbackId}/reply`, {
+    method: "POST",
+    body: JSON.stringify({ body }),
+  });
+}
+
+export function deleteFeedbackReply(replyId: string) {
+  return apiRequest<{ message: string }>(`/feedback/reply/${replyId}`, {
+    method: "DELETE",
+  });
+}
+
+export function fetchKnownIssues() {
+  return apiRequest<{ data: FeedbackWithVoted[] }>("/feedback/known-issues");
+}
+
+export function updateKnownIssue(id: string, isKnownIssue: boolean, knownIssueStatus: KnownIssueStatus | null) {
+  return apiRequest<{ data: any; message: string }>(`/feedback/${id}/known-issue`, {
+    method: "PATCH",
+    body: JSON.stringify({ isKnownIssue, knownIssueStatus }),
+  });
 }

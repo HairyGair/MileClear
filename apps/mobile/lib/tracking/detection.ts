@@ -12,9 +12,12 @@ const DETECTION_TASK_NAME = "mileclear-drive-detection";
 const COOLDOWN_MS = 20 * 60 * 1000; // 20 minutes
 const BUFFER_MAX_AGE_MS = 30 * 60 * 1000; // 30 minutes
 const SPEED_THRESHOLD_MS = DRIVING_SPEED_THRESHOLD_MPH * 0.44704; // mph to m/s
-const STOP_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes — trip ends after this idle period
+const STOP_TIMEOUT_MS = 10 * 60 * 1000; // 10 minutes — trip ends after this idle period (covers fuel stops, drive-throughs)
 const CONTINUE_SPEED_MS = 1.0; // ~2.2 mph — any movement keeps an active recording alive
-const MIN_AUTO_TRIP_DISTANCE_MILES = 0.15; // Filter noise / parking lot shuffles
+const RESUME_DISPLACEMENT_M = 80; // metres — must move this far from stop anchor to resume trip (GPS drift stays within ~30m)
+const MIN_AUTO_TRIP_DISTANCE_MILES = 0.3; // Filter noise / parking lot shuffles / GPS drift mini-trips
+const MERGE_TIME_WINDOW_MS = 15 * 60 * 1000; // 15 minutes — merge trips that ended within this window
+const MERGE_DISTANCE_M = 500; // metres — merge trips whose end/start are within this radius
 const GPS_ACCURACY_THRESHOLD = 50; // metres — reject readings with worse accuracy (indoor GPS drift)
 const GPS_ACCURACY_STRICT = 30; // metres — stricter threshold for calculated speed (not iOS-reported)
 const CONSECUTIVE_DETECTIONS_REQUIRED = 2; // How many consecutive driving-speed callbacks before starting recording
@@ -188,7 +191,7 @@ async function _finalizeAutoTripInner(): Promise<void> {
   // Clear state regardless of outcome
   await db.runAsync("DELETE FROM detection_coordinates");
   await db.runAsync(
-    "DELETE FROM tracking_state WHERE key IN ('auto_recording_active', 'last_driving_speed_at', 'driving_detection_count', 'finalization_mode')"
+    "DELETE FROM tracking_state WHERE key IN ('auto_recording_active', 'last_driving_speed_at', 'driving_detection_count', 'finalization_mode', 'stop_anchor')"
   );
 
   if (allCoords.length < 2) {
@@ -277,6 +280,73 @@ async function _finalizeAutoTripInner(): Promise<void> {
   }
 
   try {
+    // ── Multi-stop merge check ──
+    // If a recent trip ended nearby, merge this segment into it instead of
+    // creating a new trip. This handles fuel stops, school drop-offs, drive-throughs
+    // where the driver stops briefly and then continues.
+    const recentTrip = await db.getFirstAsync<{
+      id: string;
+      end_lat: number | null;
+      end_lng: number | null;
+      ended_at: string | null;
+      distance_miles: number;
+      started_at: string;
+    }>(
+      "SELECT id, end_lat, end_lng, ended_at, distance_miles, started_at FROM trips ORDER BY ended_at DESC LIMIT 1"
+    );
+
+    let merged = false;
+    if (recentTrip?.ended_at && recentTrip.end_lat != null && recentTrip.end_lng != null) {
+      const timeSinceLastTrip = new Date(first.recorded_at).getTime() - new Date(recentTrip.ended_at).getTime();
+      const distFromLastEnd = haversineMeters(
+        recentTrip.end_lat, recentTrip.end_lng,
+        first.lat, first.lng
+      );
+
+      if (timeSinceLastTrip >= 0 && timeSinceLastTrip < MERGE_TIME_WINDOW_MS && distFromLastEnd < MERGE_DISTANCE_M) {
+        // Merge: extend the previous trip's end point, distance, and time
+        const { syncUpdateTrip } = await import("../sync/actions");
+        const newDistance = Math.round((recentTrip.distance_miles + totalDistance) * 100) / 100;
+        await syncUpdateTrip(recentTrip.id, {
+          endLat: last.lat,
+          endLng: last.lng,
+          endAddress: endAddress ?? null,
+          endedAt: last.recorded_at,
+          distanceMiles: newDistance,
+        });
+        merged = true;
+
+        // End Live Activity with the combined distance
+        endLiveActivityWithSummary({
+          distanceMiles: newDistance,
+        }).catch(() => {});
+
+        // Notify user of the merged trip
+        if (!isQuietHours()) {
+          const from = recentTrip.started_at
+            ? await (async () => {
+                try {
+                  const row = await db.getFirstAsync<{ start_address: string | null }>(
+                    "SELECT start_address FROM trips WHERE id = ?", [recentTrip.id]
+                  );
+                  return row?.start_address || "Unknown";
+                } catch { return "Unknown"; }
+              })()
+            : "Unknown";
+          const to = endAddress || "Unknown";
+          await Notifications.scheduleNotificationAsync({
+            content: {
+              title: `Trip extended - ${newDistance} mi`,
+              body: `${from} to ${to}`,
+              data: { action: "open_trips" },
+            },
+            trigger: null,
+          });
+        }
+      }
+    }
+
+    if (!merged) {
     // Look up the most recently used vehicle from local trips, so auto-detected
     // trips inherit a vehicle rather than appearing as "Unknown vehicle" in exports.
     let vehicleId: string | undefined;
@@ -370,6 +440,8 @@ async function _finalizeAutoTripInner(): Promise<void> {
       }).catch(() => {});
     }
 
+    } // end if (!merged)
+
     // Set departure anchor at trip end point — if iOS terminates the app,
     // this geofence will reliably wake it when the user starts moving again
     try {
@@ -433,7 +505,7 @@ export async function finalizeStaleAutoRecordings(): Promise<void> {
 export async function cancelAutoRecording(clearCoords = false): Promise<void> {
   const db = await getDatabase();
   await db.runAsync(
-    "DELETE FROM tracking_state WHERE key IN ('auto_recording_active', 'last_driving_speed_at', 'driving_detection_count', 'finalization_mode')"
+    "DELETE FROM tracking_state WHERE key IN ('auto_recording_active', 'last_driving_speed_at', 'driving_detection_count', 'finalization_mode', 'stop_anchor')"
   );
   resetBluetoothState();
   if (clearCoords) {
@@ -477,7 +549,18 @@ try {
         // background callbacks). The in-memory currentActivityId would be null, causing
         // updateLiveActivity() to silently skip. This re-links to the existing activity
         // or starts a fresh one if it expired.
-        const recovered = await recoverLiveActivity();
+        // Look up the trip start time from the earliest detection coordinate so the
+        // timer shows total elapsed time instead of resetting to zero.
+        let tripStartMs: number | undefined;
+        try {
+          const firstCoord = await db.getFirstAsync<{ recorded_at: string }>(
+            "SELECT recorded_at FROM detection_coordinates ORDER BY recorded_at ASC LIMIT 1"
+          );
+          if (firstCoord) {
+            tripStartMs = new Date(firstCoord.recorded_at).getTime();
+          }
+        } catch {}
+        const recovered = await recoverLiveActivity(tripStartMs);
         if (!recovered) {
           try {
             await startLiveActivity({ activityType: "trip", isBusinessMode: true });
@@ -516,8 +599,34 @@ try {
           );
         }
 
-        // Any movement (>~2mph) keeps the trip alive — not just driving speed (>15mph)
-        if (detectMovement(locations) || detectDrivingSpeed(locations)) {
+        // Check if we're in finalization mode — if so, require real displacement
+        // from the stop anchor, not just a speed reading (GPS drift reports movement)
+        const inFinalization = await db.getFirstAsync<{ value: string }>(
+          "SELECT value FROM tracking_state WHERE key = 'finalization_mode'"
+        );
+        let hasRealMovement = detectMovement(locations) || detectDrivingSpeed(locations);
+
+        if (hasRealMovement && inFinalization) {
+          // Verify actual displacement from stop anchor point
+          const anchorRow = await db.getFirstAsync<{ value: string }>(
+            "SELECT value FROM tracking_state WHERE key = 'stop_anchor'"
+          );
+          if (anchorRow) {
+            try {
+              const anchor = JSON.parse(anchorRow.value);
+              const latest = locations[locations.length - 1];
+              const displacement = haversineMeters(
+                anchor.lat, anchor.lng,
+                latest.coords.latitude, latest.coords.longitude
+              );
+              if (displacement < RESUME_DISPLACEMENT_M) {
+                hasRealMovement = false; // GPS drift, not real driving
+              }
+            } catch {}
+          }
+        }
+
+        if (hasRealMovement) {
           await db.runAsync(
             "INSERT OR REPLACE INTO tracking_state (key, value) VALUES ('last_driving_speed_at', ?)",
             [Date.now().toString()]
@@ -527,12 +636,9 @@ try {
             updateLiveActivity({ distanceMiles: miles, speedMph }).catch(() => {});
           }).catch(() => {});
           // If we were in finalization mode (waiting for stop timeout), switch back
-          // to recording mode since the user is moving again.
-          const wasFinalization = await db.getFirstAsync<{ value: string }>(
-            "SELECT value FROM tracking_state WHERE key = 'finalization_mode'"
-          );
-          if (wasFinalization) {
-            await db.runAsync("DELETE FROM tracking_state WHERE key = 'finalization_mode'");
+          // to recording mode since the user is genuinely moving again.
+          if (inFinalization) {
+            await db.runAsync("DELETE FROM tracking_state WHERE key IN ('finalization_mode', 'stop_anchor')");
             upgradeDetectionAccuracy().catch(() => {});
           }
         } else {
@@ -575,6 +681,12 @@ try {
               if (!alreadyFinalization) {
                 await db.runAsync(
                   "INSERT OR REPLACE INTO tracking_state (key, value) VALUES ('finalization_mode', '1')"
+                );
+                // Save the stop anchor point so we can detect real displacement vs GPS drift
+                const lastLoc = locations[locations.length - 1];
+                await db.runAsync(
+                  "INSERT OR REPLACE INTO tracking_state (key, value) VALUES ('stop_anchor', ?)",
+                  [JSON.stringify({ lat: lastLoc.coords.latitude, lng: lastLoc.coords.longitude })]
                 );
                 switchToFinalizationMode().catch(() => {});
               }

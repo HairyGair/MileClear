@@ -115,12 +115,24 @@ export async function processSyncQueue(): Promise<void> {
         if (!table) throw new Error(`Unknown entity type: ${item.entity_type}`);
 
         if (item.action === "create" && response?.data?.id) {
-          // Reconcile local UUID → server ID atomically
+          // Reconcile local UUID → server ID atomically.
+          // Check if server ID already exists locally (e.g. from hydration race) —
+          // if so, delete the local duplicate instead of updating.
           const serverId = response.data.id;
-          await db.execAsync(`
-            UPDATE ${table} SET id = '${serverId}', synced_at = '${now}' WHERE id = '${item.entity_id}';
-            UPDATE sync_queue SET entity_id = '${serverId}', status = 'synced', updated_at = '${now}' WHERE id = '${item.id}';
-          `);
+          const existingServer = await db.getFirstAsync<{ id: string }>(
+            `SELECT id FROM ${table} WHERE id = ?`, [serverId]
+          );
+          if (existingServer) {
+            await db.execAsync(`
+              DELETE FROM ${table} WHERE id = '${item.entity_id}';
+              UPDATE sync_queue SET entity_id = '${serverId}', status = 'synced', updated_at = '${now}' WHERE id = '${item.id}';
+            `);
+          } else {
+            await db.execAsync(`
+              UPDATE ${table} SET id = '${serverId}', synced_at = '${now}' WHERE id = '${item.entity_id}';
+              UPDATE sync_queue SET entity_id = '${serverId}', status = 'synced', updated_at = '${now}' WHERE id = '${item.id}';
+            `);
+          }
           // Cascade shift ID changes to related tables
           if (item.entity_type === "shift") {
             await db.execAsync(`

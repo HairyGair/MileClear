@@ -446,6 +446,34 @@ export default function TripFormScreen() {
           setMode("driving");
           // Re-start background tracking if it was killed
           startQuickTripTracking().catch(() => {});
+          // Load any background coordinates already collected (e.g. from auto-detection transfer)
+          peekBackgroundCoordinates().then((bgCoords) => {
+            if (bgCoords.length >= 2) {
+              const crumbs: Breadcrumb[] = bgCoords.map((c) => ({
+                lat: c.lat,
+                lng: c.lng,
+                speed: c.speed,
+                accuracy: c.accuracy,
+                recordedAt: c.recorded_at,
+              }));
+              breadcrumbsRef.current = crumbs;
+              let totalDist = 0;
+              for (let i = 1; i < crumbs.length; i++) {
+                totalDist += haversineDistance(crumbs[i - 1].lat, crumbs[i - 1].lng, crumbs[i].lat, crumbs[i].lng);
+              }
+              runningDistanceRef.current = totalDist;
+              setLiveDistance(Math.round(totalDist * 100) / 100);
+              setRouteTrail(crumbs.map((c) => ({ latitude: c.lat, longitude: c.lng })));
+              setDrivingTrail(crumbs.map((c) => ({
+                latitude: c.lat,
+                longitude: c.lng,
+                speed: Math.max(0, Math.round((c.speed ?? 0) * 2.23694)),
+              })));
+              const latest = crumbs[crumbs.length - 1];
+              setUserLat(latest.lat);
+              setUserLng(latest.lng);
+            }
+          }).catch(() => {});
         } else {
           // Get current location for the ready state map
           const loc = await getCurrentLocation();

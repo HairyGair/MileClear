@@ -3,6 +3,7 @@ import Constants from "expo-constants";
 import { router } from "expo-router";
 import { Linking } from "react-native";
 import { cancelAutoRecording, upgradeDetectionAccuracy } from "../tracking/detection";
+import { promoteDetectionToQuickTrip } from "../tracking/index";
 
 try {
   Notifications.setNotificationHandler({
@@ -188,18 +189,24 @@ export function setupNotificationResponseHandler(): void {
       return;
     }
 
-    if (action === "start_shift" && (actionId === "driver" || actionId === Notifications.DEFAULT_ACTION_IDENTIFIER)) {
-      // "Driver" button or regular tap — upgrade GPS accuracy for active recording
+    if (action === "start_shift" && actionId === "driver") {
+      // "Driver" button (background) — just upgrade GPS accuracy for active recording
       try {
         await startTripFromDetection();
       } catch (err) {
         console.error("Track trip from notification failed:", err);
       }
+      return;
+    }
 
-      // Only navigate to dashboard if app was opened (regular tap)
-      if (actionId === Notifications.DEFAULT_ACTION_IDENTIFIER) {
-        router.navigate("/(tabs)/dashboard");
+    if (action === "start_shift" && actionId === Notifications.DEFAULT_ACTION_IDENTIFIER) {
+      // Notification body tap — promote to interactive trip with live map
+      try {
+        await promoteDetectionToQuickTrip();
+      } catch (err) {
+        console.error("Promote detection to quick trip failed:", err);
       }
+      router.navigate("/trip-form");
       return;
     }
 

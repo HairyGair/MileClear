@@ -105,9 +105,18 @@ export async function syncCreateTrip(data: CreateTripData) {
     const result = await apiCreateTrip(data);
     const now = new Date().toISOString();
     const serverId = result.data.id;
-    await db.runAsync("UPDATE trips SET id = ?, synced_at = ? WHERE id = ?", [
-      serverId, now, localId,
-    ]);
+    // Check if the server ID already exists locally (e.g. from hydration race).
+    // If so, delete the local duplicate instead of updating — the hydrated row is canonical.
+    const existingServer = await db.getFirstAsync<{ id: string }>(
+      "SELECT id FROM trips WHERE id = ?", [serverId]
+    );
+    if (existingServer) {
+      await db.runAsync("DELETE FROM trips WHERE id = ?", [localId]);
+    } else {
+      await db.runAsync("UPDATE trips SET id = ?, synced_at = ? WHERE id = ?", [
+        serverId, now, localId,
+      ]);
+    }
     return result;
   } catch (err) {
     if (isNetworkError(err)) {
@@ -135,6 +144,7 @@ export async function syncUpdateTrip(id: string, data: UpdateTripData) {
   if (data.endLat !== undefined) { setClauses.push("end_lat = ?"); values.push(data.endLat); }
   if (data.endLng !== undefined) { setClauses.push("end_lng = ?"); values.push(data.endLng); }
   if (data.endedAt !== undefined) { setClauses.push("ended_at = ?"); values.push(data.endedAt); }
+  if (data.distanceMiles !== undefined) { setClauses.push("distance_miles = ?"); values.push(data.distanceMiles); }
   if (setClauses.length > 0) {
     values.push(id);
     await db.runAsync(`UPDATE trips SET ${setClauses.join(", ")} WHERE id = ?`, values);

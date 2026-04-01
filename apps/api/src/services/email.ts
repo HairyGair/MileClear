@@ -826,6 +826,56 @@ export async function sendFeedbackAcknowledgement(
   await transporter.sendMail({ from: FROM_PERSONAL, to: email, replyTo: "gair@mileclear.com", subject, html });
 }
 
+export async function sendFeedbackReplyNotification(
+  email: string,
+  displayName: string | null | undefined,
+  feedbackTitle: string,
+  replyBody: string
+): Promise<void> {
+  const greeting = displayName ? `Hi ${escapeHtml(displayName)},` : "Hi there,";
+
+  const subject = `Reply to your feedback - "${feedbackTitle.slice(0, 60)}"`;
+  const html = `<!DOCTYPE html>
+<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
+<body style="margin: 0; padding: 0; background-color: #030712; font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color: #030712;">
+<tr><td align="center" style="padding: 32px 16px;">
+<table role="presentation" width="520" cellpadding="0" cellspacing="0" style="max-width: 520px; width: 100%;">
+  <tr><td align="center" style="padding: 24px 0 32px;">
+    <img src="https://mileclear.com/branding/logo-120x120.png" alt="MileClear" width="56" height="56" style="display: block; border: 0; border-radius: 12px;" />
+  </td></tr>
+  <tr><td style="background-color: #0a1120; border-radius: 16px; border: 1px solid rgba(255,255,255,0.06);">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+      <tr><td style="height: 3px; background: linear-gradient(90deg, #f5a623, #ca8a04); border-radius: 16px 16px 0 0; font-size: 0; line-height: 0;">&nbsp;</td></tr>
+      <tr><td style="padding: 36px 32px 32px;">
+        <h1 style="margin: 0 0 24px; font-size: 22px; font-weight: 700; color: #f0f2f5;">You got a reply!</h1>
+        <p style="color: #c0c8d4; font-size: 15px; line-height: 1.7; margin: 0 0 16px;">${greeting}</p>
+        <p style="color: #c0c8d4; font-size: 15px; line-height: 1.7; margin: 0 0 20px;">I've replied to your feedback: "<em>${escapeHtml(feedbackTitle)}</em>"</p>
+        <div style="background-color: rgba(245,166,35,0.08); border-left: 3px solid #f5a623; border-radius: 0 8px 8px 0; padding: 16px 20px; margin: 0 0 20px;">
+          <p style="color: #f0f2f5; font-size: 15px; line-height: 1.7; margin: 0;">${escapeHtml(replyBody)}</p>
+        </div>
+        <p style="color: #c0c8d4; font-size: 15px; line-height: 1.7; margin: 0 0 20px;">Open the app to see the full thread, or just reply to this email if you have more thoughts.</p>
+        <p style="color: #c0c8d4; font-size: 15px; line-height: 1.7; margin: 0;">Cheers,</p>
+        <p style="color: #f0f2f5; font-size: 15px; font-weight: 600; margin: 4px 0 0;">Gair</p>
+      </td></tr>
+    </table>
+  </td></tr>
+  <tr><td align="center" style="padding: 28px 0 8px;">
+    <p style="color: #4a5568; font-size: 12px; line-height: 1.5; margin: 0;">MileClear Feedback Reply</p>
+  </td></tr>
+</table>
+</td></tr>
+</table>
+</body></html>`;
+
+  if (!transporter) {
+    console.log(`[EMAIL] Feedback reply notification for ${email}`);
+    return;
+  }
+
+  await transporter.sendMail({ from: FROM_PERSONAL, to: email, replyTo: "gair@mileclear.com", subject, html });
+}
+
 export async function sendWaitlistConfirmation(
   email: string
 ): Promise<void> {

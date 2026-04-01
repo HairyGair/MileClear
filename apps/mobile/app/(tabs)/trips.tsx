@@ -299,6 +299,7 @@ export default function TripsScreen() {
   const handleFilterChange = useCallback(
     (value: TripClassification | "all") => {
       setFilter(value);
+      filterRef.current = value; // Sync ref immediately so loadTrips reads the new value
       setTrips([]); // Clear stale data immediately
       setLoading(true);
       // Directly reload - don't wait for useFocusEffect dependency chain

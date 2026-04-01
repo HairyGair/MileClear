@@ -210,6 +210,65 @@ export async function clearDetectionCooldown(): Promise<void> {
 }
 
 /**
+ * Transition from auto-detection to an interactive quick trip.
+ * Transfers buffered detection_coordinates into shift_coordinates so the
+ * trip-form map shows the full route from the original detection point.
+ * Saves a QUICK_TRIP_KEY so trip-form resumes in "driving" mode.
+ * Returns the start coordinate for navigation context, or null if no coords.
+ */
+export async function promoteDetectionToQuickTrip(): Promise<{
+  lat: number;
+  lng: number;
+  address: string | null;
+  startedAt: string;
+} | null> {
+  const db = await getDatabase();
+
+  // Read buffered detection coordinates
+  const detectionCoords = await db.getAllAsync<StoredCoordinate>(
+    "SELECT lat, lng, speed, accuracy, recorded_at FROM detection_coordinates ORDER BY recorded_at ASC"
+  );
+
+  if (detectionCoords.length === 0) return null;
+
+  const first = detectionCoords[0];
+
+  // Transfer detection_coordinates → shift_coordinates under quick trip ID
+  for (const c of detectionCoords) {
+    await db.runAsync(
+      "INSERT INTO shift_coordinates (shift_id, lat, lng, speed, accuracy, recorded_at) VALUES (?, ?, ?, ?, ?, ?)",
+      [QUICK_TRIP_SHIFT_ID, c.lat, c.lng, c.speed, c.accuracy, c.recorded_at]
+    );
+  }
+
+  // Reverse geocode the start point for the address
+  let address: string | null = null;
+  try {
+    address = await reverseGeocode(first.lat, first.lng);
+  } catch {}
+
+  // Save quick trip start so trip-form resumes in "driving" mode
+  const tripStart = {
+    lat: first.lat,
+    lng: first.lng,
+    address,
+    startedAt: first.recorded_at,
+  };
+  await db.runAsync(
+    "INSERT OR REPLACE INTO tracking_state (key, value) VALUES (?, ?)",
+    ["quick_trip_start", JSON.stringify(tripStart)]
+  );
+
+  // Now start proper quick trip tracking (stops detection, clears auto-recording state, starts high-accuracy GPS)
+  await startQuickTripTracking();
+
+  // Clear the detection coordinates (already transferred)
+  await db.runAsync("DELETE FROM detection_coordinates");
+
+  return tripStart;
+}
+
+/**
  * Process collected GPS coordinates into trips for a completed shift.
  * Segments coordinates based on stop detection (>2 min stationary = trip boundary).
  * Creates each trip via the API. Returns the number of trips created.

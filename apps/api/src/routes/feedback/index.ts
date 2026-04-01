@@ -3,7 +3,7 @@ import { z } from "zod";
 import { prisma } from "../../lib/prisma.js";
 import { authMiddleware, optionalAuthMiddleware } from "../../middleware/auth.js";
 import { adminMiddleware } from "../../middleware/admin.js";
-import { sendFeedbackAcknowledgement } from "../../services/email.js";
+import { sendFeedbackAcknowledgement, sendFeedbackReplyNotification } from "../../services/email.js";
 import { logEvent } from "../../services/appEvents.js";
 
 function sanitizeText(input: string): string {
@@ -34,6 +34,15 @@ const listQuerySchema = z.object({
 
 const statusUpdateSchema = z.object({
   status: z.enum(["new", "planned", "in_progress", "done", "declined"]),
+});
+
+const knownIssueSchema = z.object({
+  isKnownIssue: z.boolean(),
+  knownIssueStatus: z.enum(["investigating", "fix_in_progress", "fixed"]).nullable(),
+});
+
+const replySchema = z.object({
+  body: z.string().min(1).max(2000),
 });
 
 export async function feedbackRoutes(app: FastifyInstance) {
@@ -98,6 +107,10 @@ export async function feedbackRoutes(app: FastifyInstance) {
           ...feedback,
           createdAt: feedback.createdAt.toISOString(),
           hasVoted: false,
+          replyCount: 0,
+          isKnownIssue: false,
+          knownIssueStatus: null,
+          replies: [],
         },
         message: "Feedback submitted!",
       });
@@ -144,6 +157,72 @@ export async function feedbackRoutes(app: FastifyInstance) {
     return reply.send({ data: { checked: allFeedback.length, fixed }, message: "Reconciliation complete" });
   });
 
+  // GET /feedback/known-issues — public list of known issues
+  app.get("/known-issues", { preHandler: [optionalAuthMiddleware] }, async (request, reply) => {
+    const items = await prisma.feedback.findMany({
+      where: { isKnownIssue: true },
+      orderBy: { updatedAt: "desc" },
+      select: {
+        id: true,
+        userId: true,
+        displayName: true,
+        title: true,
+        body: true,
+        category: true,
+        status: true,
+        upvoteCount: true,
+        isKnownIssue: true,
+        knownIssueStatus: true,
+        createdAt: true,
+        replies: {
+          select: {
+            id: true,
+            body: true,
+            createdAt: true,
+            user: { select: { displayName: true } },
+          },
+          orderBy: { createdAt: "asc" },
+        },
+      },
+    });
+
+    let votedSet = new Set<string>();
+    if (request.userId && items.length > 0) {
+      const votes = await prisma.feedbackVote.findMany({
+        where: {
+          userId: request.userId,
+          feedbackId: { in: items.map((i: { id: string }) => i.id) },
+        },
+        select: { feedbackId: true },
+      });
+      votedSet = new Set(votes.map((v: { feedbackId: string }) => v.feedbackId));
+    }
+
+    const data = items.map((item: { id: string; userId: string | null; displayName: string | null; title: string; body: string; category: string; status: string; upvoteCount: number; isKnownIssue: boolean; knownIssueStatus: string | null; createdAt: Date; replies: { id: string; body: string; createdAt: Date; user: { displayName: string | null } }[] }) => ({
+      id: item.id,
+      displayName: item.displayName,
+      title: item.title,
+      body: item.body,
+      category: item.category,
+      status: item.status,
+      upvoteCount: item.upvoteCount,
+      replyCount: item.replies.length,
+      isKnownIssue: item.isKnownIssue,
+      knownIssueStatus: item.knownIssueStatus,
+      createdAt: item.createdAt.toISOString(),
+      hasVoted: votedSet.has(item.id),
+      isOwner: request.userId ? item.userId === request.userId : false,
+      replies: item.replies.map((r) => ({
+        id: r.id,
+        body: r.body,
+        adminName: r.user.displayName || "MileClear Team",
+        createdAt: r.createdAt.toISOString(),
+      })),
+    }));
+
+    return reply.send({ data });
+  });
+
   // GET /feedback — list (optional auth for hasVoted)
   app.get("/", { preHandler: [optionalAuthMiddleware] }, async (request, reply) => {
     const parsed = listQuerySchema.safeParse(request.query);
@@ -177,7 +256,18 @@ export async function feedbackRoutes(app: FastifyInstance) {
           category: true,
           status: true,
           upvoteCount: true,
+          isKnownIssue: true,
+          knownIssueStatus: true,
           createdAt: true,
+          replies: {
+            select: {
+              id: true,
+              body: true,
+              createdAt: true,
+              user: { select: { displayName: true } },
+            },
+            orderBy: { createdAt: "asc" },
+          },
         },
       }),
       prisma.feedback.count({ where }),
@@ -195,7 +285,7 @@ export async function feedbackRoutes(app: FastifyInstance) {
       votedSet = new Set(votes.map((v: { feedbackId: string }) => v.feedbackId));
     }
 
-    const data = items.map((item: { id: string; userId: string | null; displayName: string | null; title: string; body: string; category: string; status: string; upvoteCount: number; createdAt: Date }) => ({
+    const data = items.map((item: { id: string; userId: string | null; displayName: string | null; title: string; body: string; category: string; status: string; upvoteCount: number; isKnownIssue: boolean; knownIssueStatus: string | null; createdAt: Date; replies: { id: string; body: string; createdAt: Date; user: { displayName: string | null } }[] }) => ({
       id: item.id,
       displayName: item.displayName,
       title: item.title,
@@ -203,9 +293,18 @@ export async function feedbackRoutes(app: FastifyInstance) {
       category: item.category,
       status: item.status,
       upvoteCount: item.upvoteCount,
+      replyCount: item.replies.length,
+      isKnownIssue: item.isKnownIssue,
+      knownIssueStatus: item.knownIssueStatus,
       createdAt: item.createdAt.toISOString(),
       hasVoted: votedSet.has(item.id),
       isOwner: request.userId ? item.userId === request.userId : false,
+      replies: item.replies.map((r) => ({
+        id: r.id,
+        body: r.body,
+        adminName: r.user.displayName || "MileClear Team",
+        createdAt: r.createdAt.toISOString(),
+      })),
     }));
 
     return reply.send({
@@ -294,6 +393,115 @@ export async function feedbackRoutes(app: FastifyInstance) {
     });
 
     return reply.send({ data: updated, message: "Status updated" });
+  });
+
+  // PATCH /feedback/:id/known-issue — admin only
+  app.patch("/:id/known-issue", { preHandler: [authMiddleware, adminMiddleware] }, async (request, reply) => {
+    const paramsParsed = idParamSchema.safeParse(request.params);
+    if (!paramsParsed.success) {
+      return reply.status(400).send({ error: "Invalid feedback ID" });
+    }
+    const { id } = paramsParsed.data;
+
+    const parsed = knownIssueSchema.safeParse(request.body);
+    if (!parsed.success) {
+      return reply.status(400).send({ error: "Invalid known issue data" });
+    }
+
+    const feedback = await prisma.feedback.findUnique({ where: { id } });
+    if (!feedback) {
+      return reply.status(404).send({ error: "Feedback not found" });
+    }
+
+    const updated = await prisma.feedback.update({
+      where: { id },
+      data: {
+        isKnownIssue: parsed.data.isKnownIssue,
+        knownIssueStatus: parsed.data.isKnownIssue ? parsed.data.knownIssueStatus : null,
+      },
+    });
+
+    return reply.send({ data: updated, message: parsed.data.isKnownIssue ? "Marked as known issue" : "Removed from known issues" });
+  });
+
+  // POST /feedback/:id/reply — admin only
+  app.post("/:id/reply", { preHandler: [authMiddleware, adminMiddleware] }, async (request, reply) => {
+    const paramsParsed = idParamSchema.safeParse(request.params);
+    if (!paramsParsed.success) {
+      return reply.status(400).send({ error: "Invalid feedback ID" });
+    }
+    const { id } = paramsParsed.data;
+
+    const parsed = replySchema.safeParse(request.body);
+    if (!parsed.success) {
+      return reply.status(400).send({ error: "Reply body is required (1-2000 chars)" });
+    }
+
+    const feedback = await prisma.feedback.findUnique({
+      where: { id },
+      select: { id: true, userId: true, title: true },
+    });
+    if (!feedback) {
+      return reply.status(404).send({ error: "Feedback not found" });
+    }
+
+    const replyRecord = await prisma.feedbackReply.create({
+      data: {
+        feedbackId: id,
+        userId: request.userId!,
+        body: sanitizeText(parsed.data.body),
+      },
+      select: {
+        id: true,
+        body: true,
+        createdAt: true,
+        user: { select: { displayName: true } },
+      },
+    });
+
+    // Send notification email to feedback author (fire-and-forget)
+    if (feedback.userId) {
+      prisma.user
+        .findUnique({ where: { id: feedback.userId }, select: { email: true, displayName: true } })
+        .then((feedbackAuthor) => {
+          if (feedbackAuthor) {
+            sendFeedbackReplyNotification(
+              feedbackAuthor.email,
+              feedbackAuthor.displayName,
+              feedback.title,
+              sanitizeText(parsed.data.body)
+            ).catch((err) => console.error("[feedback] Reply notification email failed:", err));
+          }
+        })
+        .catch(() => {});
+    }
+
+    return reply.status(201).send({
+      data: {
+        id: replyRecord.id,
+        body: replyRecord.body,
+        adminName: replyRecord.user.displayName || "MileClear Team",
+        createdAt: replyRecord.createdAt.toISOString(),
+      },
+      message: "Reply posted",
+    });
+  });
+
+  // DELETE /feedback/reply/:id — admin only
+  app.delete("/reply/:id", { preHandler: [authMiddleware, adminMiddleware] }, async (request, reply) => {
+    const paramsParsed = idParamSchema.safeParse(request.params);
+    if (!paramsParsed.success) {
+      return reply.status(400).send({ error: "Invalid reply ID" });
+    }
+    const { id } = paramsParsed.data;
+
+    const replyRecord = await prisma.feedbackReply.findUnique({ where: { id } });
+    if (!replyRecord) {
+      return reply.status(404).send({ error: "Reply not found" });
+    }
+
+    await prisma.feedbackReply.delete({ where: { id } });
+    return reply.send({ message: "Reply deleted" });
   });
 
   // DELETE /feedback/:id — admin only
