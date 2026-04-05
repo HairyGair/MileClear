@@ -26,9 +26,37 @@ export interface BlogPost {
 // ----------------------------------------------------------------
 export const RELEASE_NOTES: ReleaseNote[] = [
   {
+    version: "1.0.5",
+    date: "5 April 2026",
+    label: "In Testing",
+    items: [
+      "Smarter trip detection - multi-stop journeys (fuel stops, school drop-offs, drive-throughs) now record as one continuous trip instead of splitting into fragments",
+      "10-minute stop timeout - up from 5 minutes, so brief stops no longer end your trip prematurely",
+      "GPS drift filtering - a new stop anchor system prevents phantom mini-trips from GPS wobble while parked",
+      "Trip merging - if a trip does split, consecutive segments within 15 minutes and 500m are automatically merged",
+      "Live Activity timer fix - the timer no longer resets to zero when switching between apps",
+      "Notification tap opens live trip - tapping the driving notification now opens the trip map showing your full route from the detection point",
+      "Live Activity lock screen tap - now correctly opens the app to the dashboard",
+      "Trip filter fix - switching between Business, Personal, and Inbox no longer shows the wrong trips",
+      "Sync stability - fixed a crash when saving trips that were already synced via background hydration",
+    ],
+  },
+  {
+    version: "1.0.4",
+    date: "1 April 2026",
+    label: "App Store",
+    items: [
+      "Admin feedback replies - admin can now reply directly to user suggestions and bug reports, with email notifications",
+      "Known Issues section - pinned at the top of the feedback screen so you always know what bugs we're working on",
+      "Me too voting - tap to let us know if a known issue affects you",
+      "Web admin expansion - new Activity feed, Feedback management tab, push-to-user from user detail, feedback stats on overview",
+      "Known issue status tracking - Investigating, Fix in Progress, and Fixed badges visible to all users",
+    ],
+  },
+  {
     version: "1.0.3",
     date: "28 March 2026",
-    label: "In Testing",
+    label: "App Store",
     items: [
       "Smart classification  - MileClear now auto-classifies your trips using your saved locations, work schedule, and driving patterns. No more manually tagging every trip",
       "Route learning  - classify the same route 3 times and MileClear remembers. Future trips on that route are classified automatically",
@@ -47,7 +75,6 @@ export const RELEASE_NOTES: ReleaseNote[] = [
   {
     version: "1.0.2",
     date: "24 March 2026",
-    label: "App Store",
     items: [
       "Platform tag suggestions  - if your last 10 trips from a location were all Uber, the next one auto-suggests Uber",
       "Honest shift grades  - your A-F shift grades now factor in fuel and wear costs so you see real profit, not just gross earnings",
