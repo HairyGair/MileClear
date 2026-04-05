@@ -121,6 +121,51 @@ export const RELEASE_NOTES: ReleaseNote[] = [
 // ----------------------------------------------------------------
 export const BLOG_POSTS: BlogPost[] = [
   {
+    slug: "happy-easter-from-mileclear",
+    title: "Happy Easter from MileClear",
+    excerpt:
+      "A quick thank you to our beta testers, a look at what we shipped this week, and a reminder about the new tax year starting tomorrow.",
+    date: "5 April 2026",
+    author: "Gair",
+    category: "announcement",
+    content: `
+<p>Happy Easter from the MileClear team. Whether you're on the road today, spending the weekend with family, or doing both - we hope you're having a good one.</p>
+
+<h2>A quick thank you</h2>
+
+<p>We launched MileClear just over a month ago and the feedback from our beta testers has been brilliant. Every bug report, feature suggestion, and "me too" vote directly shapes what gets built next. If you've taken the time to report something or share an idea, thank you - it genuinely makes a difference.</p>
+
+<p>Speaking of which, you can now see our replies directly on your feedback in the app. We've also added a Known Issues section at the top of the feedback screen so you always know what bugs we're aware of and where we are with fixing them. If something affects you, tap "Me too" and we'll prioritise accordingly.</p>
+
+<h2>What we shipped this week</h2>
+
+<p>Version 1.0.4 went live on the App Store this week, and 1.0.5 is already in TestFlight. Here are the highlights:</p>
+
+<ul>
+<li><strong>Smarter trip detection</strong> - Multi-stop journeys now stay as one trip. Fuel stops, school drop-offs, and drive-throughs no longer split your route into fragments. We doubled the stop timeout and added GPS drift filtering so parked cars don't generate phantom mini-trips.</li>
+<li><strong>Trip merging</strong> - If a trip does split, consecutive segments are automatically merged back together.</li>
+<li><strong>Live Activity fixes</strong> - The timer no longer resets to zero when you switch apps, and tapping the lock screen widget now opens the app properly.</li>
+<li><strong>Notification tap opens your trip</strong> - Tapping the "Are you driving?" notification now opens the live trip map showing your full route from the moment we detected you driving.</li>
+</ul>
+
+<h2>New tax year starts tomorrow</h2>
+
+<p>The 2025-26 tax year ends today, 5 April. The new tax year begins tomorrow. If you haven't checked your mileage records for the year that's ending, now is the time. Open MileClear, check for any unclassified trips, and export your records while everything is fresh.</p>
+
+<p>If you're starting fresh for 2026-27, you're in a great position. Every trip from tomorrow is a clean slate. Set up your vehicle, save your regular locations, and let MileClear learn your routes over the first few weeks. By the end of April, most of your trips will classify themselves.</p>
+
+<p>HMRC rates for 2026-27 remain the same: 45p per mile for the first 10,000 business miles (cars and vans), 25p after that, and 24p flat for motorbikes.</p>
+
+<h2>What's next</h2>
+
+<p>We're working on business expense tracking so your weekly P&L shows real costs instead of estimates, receipt scanning for fuel and maintenance, and deeper analytics. More on all of that soon.</p>
+
+<p>Enjoy the bank holiday. And if you are driving this weekend, at least your miles are being tracked.</p>
+
+<p>- Gair</p>
+    `.trim(),
+  },
+  {
     slug: "why-we-built-smart-classification",
     title: "Why We Built Smart Classification (And Why You'll Never Need to Swipe)",
     excerpt:
