@@ -43,7 +43,7 @@ async function attemptRefresh(): Promise<boolean> {
     if (!res.ok) return false;
 
     const data = await res.json();
-    setTokens(data.accessToken, data.refreshToken);
+    setTokens(data.data.accessToken, data.data.refreshToken);
     return true;
   } catch {
     return false;
