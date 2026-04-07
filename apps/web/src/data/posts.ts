@@ -135,6 +135,93 @@ export const RELEASE_NOTES: ReleaseNote[] = [
 // ----------------------------------------------------------------
 export const BLOG_POSTS: BlogPost[] = [
   {
+    slug: "your-odometer-was-right-fixing-auto-trip-distance",
+    title: "Your Odometer Was Right: Fixing Auto Trip Distance in 1.0.6",
+    excerpt:
+      "Several testers told us their auto-tracked trips were reading short of the real distance. We dug into the code, found the bug, and 1.0.6 fixes it. Here is what was going wrong and what we changed.",
+    date: "7 April 2026",
+    author: "Gair",
+    category: "engineering",
+    content: `
+<p>Over the past couple of weeks we have heard the same thing from multiple testers: "MileClear says I drove 10.4 miles but my odometer says 12." That is not a small discrepancy. If you are claiming HMRC mileage for self-employed work, under-reporting by 5-10% on every trip adds up to real money over a tax year.</p>
+
+<p>We pulled the code apart, found the root cause, and shipped a fix in 1.0.6. Here is what was going wrong.</p>
+
+<h2>Why GPS undercounts winding roads</h2>
+
+<p>When MileClear records an auto trip, it gets a GPS point roughly every 50 metres. To calculate the total distance, the old code drew a straight line between each pair of consecutive points and added them all up.</p>
+
+<p>This works fine on a dead straight road. But on a winding country lane or a route with lots of gentle curves, the straight line between two GPS points is shorter than the road you actually drove. Mathematicians call this the "chord versus arc" problem. Each little chord shaves a couple of metres off the real distance. Over a 10 mile drive down B-roads, those shavings can add up to half a mile lost.</p>
+
+<p>The effect is worst on:</p>
+<ul>
+<li>Motorway exits, slip roads, and roundabouts</li>
+<li>Country lanes with lots of bends</li>
+<li>Hilly routes where samples cluster on flat sections</li>
+</ul>
+
+<p>Straight motorway driving was fine because the chords hugged the road. Dense city driving was fine because the samples were close together. But if you earn a living on the rural and suburban roads most gig workers and couriers see every day, you were losing miles.</p>
+
+<h2>The fix: cross-checking against real road data</h2>
+
+<p>Starting in 1.0.6, every auto-detected trip is now cross-checked against UK road data. For each trip we calculate two things: the GPS sum (what we were doing before) and the actual driving distance from start to end along real roads. Whichever is larger wins.</p>
+
+<p>This gives you the best of both worlds:</p>
+
+<ul>
+<li>On a simple A to B trip on a winding road, the road data corrects the GPS undercount.</li>
+<li>On a trip with detours or multiple stops, the GPS sum captures the full path you actually took.</li>
+<li>If the road data lookup fails for any reason (no signal, server blip), we fall back to the GPS sum. Your trip is still saved and still accurate to within a few percent.</li>
+</ul>
+
+<p>In testing we saw trips that were previously reading 10-11% short now matching the odometer within 2-3%. For HMRC purposes that is the difference between a defensible mileage claim and one that looks suspiciously round.</p>
+
+<h2>The other complaint: trips not starting at all</h2>
+
+<p>Alongside the distance reports we kept hearing "sometimes my trips are not starting, or they are starting a quarter mile down the road." Separate bug, separate cause.</p>
+
+<p>The old detection logic needed to see two consecutive bursts of driving-speed GPS readings before it would mark a trip as in progress. This was a safety measure to avoid false triggers from GPS drift and bad cold-start fixes. But it cost you the first 400 metres or so of every trip, because the app was still waiting for confirmation.</p>
+
+<p>1.0.6 changes this in three ways:</p>
+
+<ul>
+<li><strong>Leaving a saved location is now a high-confidence trip start.</strong> If you save your home, work, or a regular depot in MileClear, the app starts recording the moment you cross the geofence boundary. No more waiting for a second confirmation.</li>
+<li><strong>A single fast reading is enough.</strong> If the GPS reports 25 mph or faster with decent accuracy on one reading, we skip the two-burst gate entirely and start recording immediately. Nothing fakes highway speeds.</li>
+<li><strong>Cold-start GPS is trusted sooner.</strong> When you pull out of a garage or a shaded driveway, your first location fix might have 60-75 metres of accuracy while the chip is still settling. Previously we ignored those readings. Now we trust them for speed detection purposes.</li>
+</ul>
+
+<p>The net effect is that the first mile of your trip is captured properly. If your commute goes straight onto a motorway, the motorway entry is in the trip, not the second junction.</p>
+
+<h2>A few smaller fixes</h2>
+
+<ul>
+<li>If iOS downgrades your location permission (it happens, especially after iOS updates), the app now reminds you within 4 hours instead of waiting a full day. Permission issues were one of the stealthier reasons trips were going missing.</li>
+<li>The Trip Complete screen now formats long trips as HH:MM:SS. A bug in the formatter meant a 2 hour trip was displaying as a runaway four-digit minute counter, which was confusing at best.</li>
+<li>We added internal event logging across the entire auto-trip detection path. If you report a wrong or missing trip from 1.0.6 onwards, we can look at exactly what the detection engine was doing at that moment instead of guessing.</li>
+</ul>
+
+<h2>What we are still investigating</h2>
+
+<p>We are not calling auto-trip detection "done". The next edge cases on our list:</p>
+
+<ul>
+<li>Stop-start residential driving where the app never sees a single high-speed reading.</li>
+<li>Trips that begin inside underground car parks where GPS is blind for the first few minutes.</li>
+<li>Very short errands (under half a mile) that we currently filter out, which a few users have asked to be logged anyway.</li>
+</ul>
+
+<p>If you hit any of these or anything else, please use the Feedback button in your profile. With the new diagnostics we can actually debug what happened, not just shrug.</p>
+
+<h2>Thank you</h2>
+
+<p>Half the job of shipping software is hearing about the problems. Every person who took the time to say "my trip was wrong" made this fix happen. Particularly to the testers who included rough times and locations, that is what lets us narrow things down fast. Thank you.</p>
+
+<p>1.0.6 is rolling out to TestFlight now. It will hit the App Store after a few days of beta testing. If you are on TestFlight, please drive a familiar route and check the distance against your odometer. We want to know if we got it right.</p>
+
+<p>- Gair</p>
+    `.trim(),
+  },
+  {
     slug: "happy-easter-from-mileclear",
     title: "Happy Easter from MileClear",
     excerpt:
