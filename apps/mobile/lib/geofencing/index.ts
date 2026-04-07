@@ -9,9 +9,9 @@ import * as Notifications from "expo-notifications";
 import { randomUUID } from "expo-crypto";
 import { getDatabase } from "../db/index";
 import { reverseGeocode } from "../location/geocoding";
-import { DRIVING_SPEED_THRESHOLD_MPH } from "@mileclear/shared";
+import { DRIVING_SPEED_THRESHOLD_MPH, bestTripDistance } from "@mileclear/shared";
 import { checkBluetoothVehicleConnected } from "../bluetooth/index";
-import { stopDriveDetection, startDriveDetection, cancelAutoRecording } from "../tracking/detection";
+import { stopDriveDetection, startDriveDetection, cancelAutoRecording, forceStartRecording } from "../tracking/detection";
 
 const GEOFENCE_TASK_NAME = "mileclear-geofence-monitor";
 const GEOFENCE_TRACKING_TASK_NAME = "mileclear-geofence-tracking";
@@ -62,12 +62,17 @@ try {
       if (activeShift) return;
 
       if (eventType === Location.GeofencingEventType.Exit && region.identifier === "__departure_anchor__") {
-        // User left their last stationary position — ensure detection is running.
-        // This handles the case where iOS terminated the app AND cleared the
-        // location subscription. Geofences are OS-level and survive app termination,
-        // so this is the most reliable way to restart detection.
+        // User left their last stationary position - high-confidence trip start.
+        // Geofences are OS-level and survive app termination, so this is the
+        // most reliable signal that the user is starting to drive.
+        //
+        // forceStartRecording() marks recording active immediately and switches
+        // straight to high-accuracy GPS, so the first GPS update is treated as
+        // the start of a trip (no waiting for the consecutive detection gate).
+        // If the movement turns out to be too short (walking, false positive),
+        // the MIN_AUTO_TRIP_DISTANCE_MILES filter at finalization discards it.
         await db.runAsync("DELETE FROM tracking_state WHERE key LIKE 'departure_anchor_%'");
-        await startDriveDetection();
+        await forceStartRecording("anchor_exit");
         return;
       }
 
@@ -345,19 +350,26 @@ async function processGeofenceTrip(
     return;
   }
 
-  // Calculate total distance
-  let totalDistance = 0;
+  // Sum GPS chord segments, then correct for chord-to-arc undercount via OSRM.
+  // bestTripDistance() takes max(haversineSum, osrmRoute) so winding-road undercount
+  // is fixed without overwriting any real detour the GPS sum captured.
+  let gpsSumDistance = 0;
   for (let i = 1; i < coords.length; i++) {
-    totalDistance += haversine(
+    gpsSumDistance += haversine(
       coords[i - 1].lat, coords[i - 1].lng,
       coords[i].lat, coords[i].lng
     );
   }
 
-  if (totalDistance < MIN_TRIP_DISTANCE_MILES) return;
-
   const first = coords[0] || { lat: 0, lng: 0, recorded_at: departedAt };
   const last = coords[coords.length - 1] || first;
+  const totalDistance = await bestTripDistance(
+    gpsSumDistance,
+    first.lat, first.lng,
+    last.lat, last.lng,
+  );
+
+  if (totalDistance < MIN_TRIP_DISTANCE_MILES) return;
 
   // Look up location names and types from saved_locations
   const departedLoc = await db.getFirstAsync<{ name: string; location_type: string }>(

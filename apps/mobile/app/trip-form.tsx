@@ -54,7 +54,7 @@ import * as Notifications from "expo-notifications";
 
 /**
  * One-time contextual notification permission ask for users who skipped onboarding.
- * Only fires once — after first trip save, if notifications aren't granted yet.
+ * Only fires once - after first trip save, if notifications aren't granted yet.
  */
 async function askNotificationPermissionOnce(): Promise<void> {
   try {
@@ -154,10 +154,10 @@ interface TripInsights {
 }
 
 function getSpeedFunFact(topMph: number): string | null {
-  if (topMph >= 70) return "Motorway speed reached — 70 mph zone";
-  if (topMph >= 60) return "Dual carriageway pace — 60 mph zone";
+  if (topMph >= 70) return "Motorway speed reached - 70 mph zone";
+  if (topMph >= 60) return "Dual carriageway pace - 60 mph zone";
   if (topMph >= 40) return "Faster than Usain Bolt's 27 mph world record";
-  if (topMph >= 30) return "Town driving — nice and steady";
+  if (topMph >= 30) return "Town driving - nice and steady";
   if (topMph >= 15) return "Quicker than a London cyclist";
   return null;
 }
@@ -175,24 +175,24 @@ function getDistanceFunFact(miles: number): string | null {
 }
 
 function getRouteDirectnessNote(efficiency: number): string | null {
-  if (efficiency <= 1.3) return "Nearly a straight line — very direct route";
-  if (efficiency <= 2.0) return "Pretty direct — minimal detours";
+  if (efficiency <= 1.3) return "Nearly a straight line - very direct route";
+  if (efficiency <= 2.0) return "Pretty direct - minimal detours";
   if (efficiency <= 3.5) return "A few twists and turns along the way";
-  if (efficiency <= 6.0) return "Winding route — lots of turns";
-  return "Very indirect — you really explored the area";
+  if (efficiency <= 6.0) return "Winding route - lots of turns";
+  return "Very indirect - you really explored the area";
 }
 
 function getTimeOfDayNote(startedAt: string | null): string | null {
   if (!startedAt) return null;
   const hour = new Date(startedAt).getHours();
-  if (hour >= 5 && hour < 7) return "Early bird — on the road before most";
+  if (hour >= 5 && hour < 7) return "Early bird - on the road before most";
   if (hour >= 7 && hour < 9) return "Morning rush hour drive";
   if (hour >= 9 && hour < 12) return "Mid-morning drive";
   if (hour >= 12 && hour < 14) return "Lunchtime drive";
   if (hour >= 14 && hour < 16) return "Afternoon drive";
   if (hour >= 16 && hour < 19) return "Evening rush hour drive";
   if (hour >= 19 && hour < 22) return "Evening drive";
-  return "Night owl — driving after hours";
+  return "Night owl - driving after hours";
 }
 
 function computeInsights(crumbs: Breadcrumb[], distMiles: number, durationSecs: number): TripInsights | null {
@@ -278,10 +278,10 @@ function computeInsights(crumbs: Breadcrumb[], distMiles: number, durationSecs: 
 
 // Speed colour thresholds for trail segments
 function getSpeedColor(mph: number): string {
-  if (mph < 3) return "#ef4444";      // stopped — red
-  if (mph < 15) return "#f59e0b";     // slow — amber
-  if (mph < 50) return "#f5a623";     // cruising — brand amber
-  return "#10b981";                    // fast — green
+  if (mph < 3) return "#ef4444";      // stopped - red
+  if (mph < 15) return "#f59e0b";     // slow - amber
+  if (mph < 50) return "#f5a623";     // cruising - brand amber
+  return "#10b981";                    // fast - green
 }
 
 // Build speed-coloured polyline segments from trail points
@@ -318,7 +318,7 @@ function getPositiveMessage(distanceMiles: number | null, numberOfStops: number,
   const miles = distanceMiles ?? 0;
   if (miles >= 50) return "Epic journey!";
   if (miles >= 20) return "Great distance covered!";
-  if (numberOfStops === 0) return "Smooth sailing — no stops!";
+  if (numberOfStops === 0) return "Smooth sailing - no stops!";
   if (routeEfficiency <= 1.3 && routeEfficiency > 0) return "Super direct route!";
   if (miles >= 5) return "Solid trip logged!";
   return "Trip tracked!";
@@ -774,7 +774,7 @@ export default function TripFormScreen() {
           speed: c.speed != null ? Math.round(c.speed * 2.23694) : 0,
         })));
       } catch {
-        // Non-critical — foreground watcher will resume
+        // Non-critical - foreground watcher will resume
       }
     };
     const sub = AppState.addEventListener("change", handleAppState);
@@ -797,8 +797,13 @@ export default function TripFormScreen() {
   // ── Handlers ─────────────────────────────────────────────────────────────
 
   const formatTimer = (secs: number): string => {
-    const m = Math.floor(secs / 60);
-    const s = secs % 60;
+    const safeSecs = Math.max(0, Math.floor(secs));
+    const h = Math.floor(safeSecs / 3600);
+    const m = Math.floor((safeSecs % 3600) / 60);
+    const s = safeSecs % 60;
+    if (h > 0) {
+      return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+    }
     return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
   };
 
@@ -1465,7 +1470,7 @@ export default function TripFormScreen() {
         </View>
       )}
 
-      {/* Map — visible in ready/arrived modes */}
+      {/* Map - visible in ready/arrived modes */}
       {showMap && mode !== "driving" && (
         <View style={styles.mapArea}>
           {MapView && startLat != null && startLng != null ? (
@@ -1547,7 +1552,7 @@ export default function TripFormScreen() {
         </View>
       )}
 
-      {/* Bottom panel — hidden during driving (UI overlays the map) */}
+      {/* Bottom panel - hidden during driving (UI overlays the map) */}
       {mode !== "driving" && <ScrollView
         style={styles.panel}
         contentContainerStyle={styles.panelContent}
@@ -2083,7 +2088,7 @@ export default function TripFormScreen() {
               )}
             </View>
 
-            {/* Trip Insights (from GPS data — editing mode) */}
+            {/* Trip Insights (from GPS data - editing mode) */}
             {isEditing && insights && (
               <View style={styles.insightsCard}>
                 <Text style={styles.insightsTitle}>Trip Insights</Text>
@@ -2415,7 +2420,7 @@ export default function TripFormScreen() {
               style={{ marginTop: 28 }}
             />
 
-            {/* Delete — edit mode only */}
+            {/* Delete - edit mode only */}
             {isEditing && (
               <Button
                 variant="ghost"

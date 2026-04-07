@@ -2,7 +2,7 @@
 
 import * as SQLite from "expo-sqlite";
 
-const CURRENT_SCHEMA_VERSION = 8;
+const CURRENT_SCHEMA_VERSION = 9;
 
 let db: SQLite.SQLiteDatabase | null = null;
 
@@ -104,6 +104,13 @@ async function initializeSchema(database: SQLite.SQLiteDatabase): Promise<void> 
       speed REAL,
       accuracy REAL,
       recorded_at TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS detection_events (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      recorded_at TEXT NOT NULL,
+      event TEXT NOT NULL,
+      data TEXT
     );
 
     CREATE TABLE IF NOT EXISTS saved_locations (

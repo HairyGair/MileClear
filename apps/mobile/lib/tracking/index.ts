@@ -10,6 +10,7 @@ import { startDriveDetection, stopDriveDetection, cancelAutoRecording } from "./
 import { reverseGeocode } from "../location/geocoding";
 import { getScheduleClassification } from "../schedule/index";
 import { setDepartureAnchor } from "../geofencing/index";
+import { bestTripDistance } from "@mileclear/shared";
 
 const LOCATION_TASK_NAME = "mileclear-background-location";
 const QUICK_TRIP_SHIFT_ID = "__quick_trip__";
@@ -301,18 +302,26 @@ export async function processShiftTrips(
   for (const segment of segments) {
     if (segment.length < 2) continue;
 
-    let totalDistance = 0;
+    // Sum GPS chord segments, then correct for chord-to-arc undercount via OSRM.
+    // bestTripDistance() takes max(haversineSum, osrmRoute) so winding-road undercount
+    // is fixed without overwriting any real detour the GPS sum captured.
+    let gpsSumDistance = 0;
     for (let i = 1; i < segment.length; i++) {
-      totalDistance += haversine(
+      gpsSumDistance += haversine(
         segment[i - 1].lat, segment[i - 1].lng,
         segment[i].lat, segment[i].lng
       );
     }
 
-    if (totalDistance < MIN_TRIP_DISTANCE_MILES) continue;
-
     const first = segment[0];
     const last = segment[segment.length - 1];
+    const totalDistance = await bestTripDistance(
+      gpsSumDistance,
+      first.lat, first.lng,
+      last.lat, last.lng,
+    );
+
+    if (totalDistance < MIN_TRIP_DISTANCE_MILES) continue;
 
     // Reverse-geocode start and end points for human-readable addresses
     const [startAddress, endAddress] = await Promise.all([

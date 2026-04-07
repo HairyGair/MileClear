@@ -100,18 +100,23 @@ export function parseTaxYear(taxYear: string): { start: Date; end: Date } {
  * Fetch the actual driving distance between two points using OSRM.
  * Returns distance in miles, or null if the request fails.
  * Uses the free OSRM demo server (no API key needed).
+ *
+ * @param timeoutMs Abort the request after this many milliseconds (default 5000).
+ *   Important when called from background tasks where iOS may suspend the app
+ *   before a hung fetch completes.
  */
 export async function fetchRouteDistance(
   startLat: number,
   startLng: number,
   endLat: number,
-  endLng: number
+  endLng: number,
+  timeoutMs = 5000
 ): Promise<{ distanceMiles: number; durationSecs: number } | null> {
   try {
-    // Request alternatives and pick the shortest distance route —
+    // Request alternatives and pick the shortest distance route -
     // OSRM's default "fastest" route often overshoots on distance
     const url = `https://router.project-osrm.org/route/v1/driving/${startLng},${startLat};${endLng},${endLat}?overview=false&alternatives=true`;
-    const res = await fetch(url);
+    const res = await fetch(url, { signal: AbortSignal.timeout(timeoutMs) });
     if (!res.ok) return null;
     const data = await res.json();
     if (data.code !== "Ok" || !data.routes?.length) return null;
@@ -128,6 +133,34 @@ export async function fetchRouteDistance(
   } catch {
     return null;
   }
+}
+
+/**
+ * Returns the best-estimate trip distance in miles.
+ *
+ * GPS-based haversine sums systematically undercount actual road distance
+ * because the straight chord between samples is shorter than the road's arc.
+ * This is most pronounced on winding roads at typical 50m sampling intervals,
+ * leading to ~5-10% undercounts that users notice on HMRC mileage claims.
+ *
+ * Strategy: take the max of the haversine sum and the OSRM start->end route.
+ * - Boring A->B winding trip: OSRM > GPS sum -> use OSRM (fixes undercount)
+ * - Loop or detour-heavy trip: GPS sum > OSRM -> use GPS (preserves reality)
+ * - OSRM unreachable: fall back to GPS sum
+ *
+ * Never undercounts vs the existing GPS-only calculation.
+ */
+export async function bestTripDistance(
+  haversineSumMiles: number,
+  startLat: number,
+  startLng: number,
+  endLat: number,
+  endLng: number,
+  timeoutMs = 5000
+): Promise<number> {
+  const route = await fetchRouteDistance(startLat, startLng, endLat, endLng, timeoutMs);
+  if (!route) return haversineSumMiles;
+  return Math.max(haversineSumMiles, route.distanceMiles);
 }
 
 /**

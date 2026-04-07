@@ -3,7 +3,7 @@ import * as TaskManager from "expo-task-manager";
 import * as Notifications from "expo-notifications";
 import { getDatabase } from "../db/index";
 import { sendDrivingDetectedNotification } from "../notifications/index";
-import { DRIVING_SPEED_THRESHOLD_MPH } from "@mileclear/shared";
+import { DRIVING_SPEED_THRESHOLD_MPH, bestTripDistance } from "@mileclear/shared";
 import { startLiveActivity, updateLiveActivity, endLiveActivity, endLiveActivityWithSummary, recoverLiveActivity } from "../liveActivity";
 import { markBluetoothStateAtStart, hasBluetoothDisconnected, resetBluetoothState } from "../bluetooth";
 import type { TripClassification, PlatformTag } from "@mileclear/shared";
@@ -12,18 +12,24 @@ const DETECTION_TASK_NAME = "mileclear-drive-detection";
 const COOLDOWN_MS = 20 * 60 * 1000; // 20 minutes
 const BUFFER_MAX_AGE_MS = 30 * 60 * 1000; // 30 minutes
 const SPEED_THRESHOLD_MS = DRIVING_SPEED_THRESHOLD_MPH * 0.44704; // mph to m/s
-const STOP_TIMEOUT_MS = 10 * 60 * 1000; // 10 minutes — trip ends after this idle period (covers fuel stops, drive-throughs)
-const CONTINUE_SPEED_MS = 1.0; // ~2.2 mph — any movement keeps an active recording alive
-const RESUME_DISPLACEMENT_M = 80; // metres — must move this far from stop anchor to resume trip (GPS drift stays within ~30m)
+const FAST_GATE_SPEED_MS = 25 * 0.44704; // 25 mph - bypass consecutive detection gate
+const STOP_TIMEOUT_MS = 10 * 60 * 1000; // 10 minutes - trip ends after this idle period (covers fuel stops, drive-throughs)
+const CONTINUE_SPEED_MS = 1.0; // ~2.2 mph - any movement keeps an active recording alive
+const RESUME_DISPLACEMENT_M = 80; // metres - must move this far from stop anchor to resume trip (GPS drift stays within ~30m)
 const MIN_AUTO_TRIP_DISTANCE_MILES = 0.3; // Filter noise / parking lot shuffles / GPS drift mini-trips
-const MERGE_TIME_WINDOW_MS = 15 * 60 * 1000; // 15 minutes — merge trips that ended within this window
-const MERGE_DISTANCE_M = 500; // metres — merge trips whose end/start are within this radius
-const GPS_ACCURACY_THRESHOLD = 50; // metres — reject readings with worse accuracy (indoor GPS drift)
-const GPS_ACCURACY_STRICT = 30; // metres — stricter threshold for calculated speed (not iOS-reported)
-const CONSECUTIVE_DETECTIONS_REQUIRED = 2; // How many consecutive driving-speed callbacks before starting recording
+const MERGE_TIME_WINDOW_MS = 15 * 60 * 1000; // 15 minutes - merge trips that ended within this window
+const MERGE_DISTANCE_M = 500; // metres - merge trips whose end/start are within this radius
+const GPS_ACCURACY_THRESHOLD = 75; // metres - reject readings with worse accuracy (indoor GPS drift). Bumped from 50 to 75 to catch cold-start GPS fixes that are still accurate enough to trust the iOS-reported speed
+const GPS_ACCURACY_STRICT = 30; // metres - stricter threshold for calculated speed (not iOS-reported)
+const CONSECUTIVE_DETECTIONS_REQUIRED = 2; // How many consecutive driving-speed callbacks before starting recording (bypassed when speed >= FAST_GATE_SPEED_MS)
 const QUIET_HOURS_START = 22; // 10pm
 const QUIET_HOURS_END = 7;   // 7am
-const BG_PERMISSION_NUDGE_COOLDOWN_MS = 24 * 60 * 60 * 1000; // 24 hours
+const BG_PERMISSION_NUDGE_COOLDOWN_MS = 4 * 60 * 60 * 1000; // 4 hours - per-session, not persisted
+const DETECTION_EVENT_LOG_LIMIT = 500; // Cap rows in detection_events to keep storage bounded
+// Module-level state: resets on every cold start of the JS process. This means
+// the user gets the permission nudge every cold launch (not gated by the 4h cooldown),
+// which is intentional - if they ignored the previous nudge yesterday, they should
+// see it again on first launch today.
 let lastBgPermissionNudge = 0;
 
 /** Returns true during quiet hours (10pm–7am). Trips still record, just no notifications. */
@@ -58,10 +64,16 @@ function haversineMiles(lat1: number, lng1: number, lat2: number, lng2: number):
 
 /**
  * Determine if any locations indicate driving speed.
+ * Returns the highest detected speed in m/s, or null if no driving-speed reading.
+ *
  * Filters out locations with poor GPS accuracy to prevent indoor GPS drift
  * (common when stationary indoors) from triggering false driving detections.
+ *
+ * Returning the speed (instead of a bool) lets the caller apply a fast-gate:
+ * a single very-high-speed reading is unambiguous and can skip the consecutive
+ * detection gate that otherwise costs ~400m of driving before recording starts.
  */
-function detectDrivingSpeed(locations: Location.LocationObject[]): boolean {
+function detectDrivingSpeed(locations: Location.LocationObject[]): number | null {
   // Only consider locations with reasonable GPS accuracy.
   // Indoor GPS can drift 50-200m with accuracy values of 50-150+.
   const reliable = locations.filter(
@@ -70,16 +82,20 @@ function detectDrivingSpeed(locations: Location.LocationObject[]): boolean {
 
   // Trust iOS-reported speed (CoreLocation applies its own Kalman filter).
   // Require speed >= 0 (iOS reports -1 when speed fix is unavailable).
-  const hasReportedSpeed = reliable.some(
-    (loc) => loc.coords.speed != null && loc.coords.speed >= 0 && loc.coords.speed >= SPEED_THRESHOLD_MS
-  );
-  if (hasReportedSpeed) return true;
+  let maxReportedSpeed = -1;
+  for (const loc of reliable) {
+    if (loc.coords.speed != null && loc.coords.speed >= 0 && loc.coords.speed > maxReportedSpeed) {
+      maxReportedSpeed = loc.coords.speed;
+    }
+  }
+  if (maxReportedSpeed >= SPEED_THRESHOLD_MS) return maxReportedSpeed;
 
-  // Fall back to calculated speed — require stricter accuracy since distance/time
+  // Fall back to calculated speed - require stricter accuracy since distance/time
   // is much more susceptible to GPS drift than iOS's native speed estimation.
   const accurate = reliable.filter(
     (loc) => loc.coords.accuracy != null && loc.coords.accuracy <= GPS_ACCURACY_STRICT
   );
+  let maxCalcSpeed = -1;
   if (accurate.length >= 2) {
     for (let i = 1; i < accurate.length; i++) {
       const prev = accurate[i - 1];
@@ -90,12 +106,50 @@ function detectDrivingSpeed(locations: Location.LocationObject[]): boolean {
           prev.coords.latitude, prev.coords.longitude,
           curr.coords.latitude, curr.coords.longitude
         );
-        if (distM / dtSec >= SPEED_THRESHOLD_MS) return true;
+        const calcSpeed = distM / dtSec;
+        if (calcSpeed > maxCalcSpeed) maxCalcSpeed = calcSpeed;
       }
     }
   }
+  if (maxCalcSpeed >= SPEED_THRESHOLD_MS) return maxCalcSpeed;
 
-  return false;
+  return null;
+}
+
+/**
+ * Append an event to the detection_events log. Capped at DETECTION_EVENT_LOG_LIMIT
+ * rows so storage stays bounded. Best-effort: never throws, never blocks the caller.
+ *
+ * Used to diagnose "trip didn't start" / "wrong start time" reports without
+ * requiring users to plug in a debugger.
+ */
+async function logDetectionEvent(event: string, data?: Record<string, unknown>): Promise<void> {
+  try {
+    const db = await getDatabase();
+    await db.runAsync(
+      "INSERT INTO detection_events (recorded_at, event, data) VALUES (?, ?, ?)",
+      [new Date().toISOString(), event, data ? JSON.stringify(data) : null]
+    );
+    await db.runAsync(
+      "DELETE FROM detection_events WHERE id NOT IN (SELECT id FROM detection_events ORDER BY id DESC LIMIT ?)",
+      [DETECTION_EVENT_LOG_LIMIT]
+    );
+  } catch {
+    // Logging failures must never break detection
+  }
+}
+
+/** Public accessor for diagnostics screens / GDPR export. */
+export async function getRecentDetectionEvents(limit = 100): Promise<Array<{ recorded_at: string; event: string; data: string | null }>> {
+  try {
+    const db = await getDatabase();
+    return await db.getAllAsync<{ recorded_at: string; event: string; data: string | null }>(
+      "SELECT recorded_at, event, data FROM detection_events ORDER BY id DESC LIMIT ?",
+      [limit]
+    );
+  } catch {
+    return [];
+  }
 }
 
 /**
@@ -188,6 +242,8 @@ async function _finalizeAutoTripInner(): Promise<void> {
     "SELECT lat, lng, speed, accuracy, recorded_at FROM detection_coordinates ORDER BY recorded_at ASC"
   );
 
+  logDetectionEvent("finalize_called", { coordCount: allCoords.length }).catch(() => {});
+
   // Clear state regardless of outcome
   await db.runAsync("DELETE FROM detection_coordinates");
   await db.runAsync(
@@ -196,12 +252,13 @@ async function _finalizeAutoTripInner(): Promise<void> {
 
   if (allCoords.length < 2) {
     // No meaningful trip - dismiss Live Activity immediately
+    logDetectionEvent("finalize_no_coords").catch(() => {});
     endLiveActivity().catch(() => {});
     return;
   }
 
   // Trim trailing stationary coordinates to find the true trip end.
-  // After the user parks, GPS pings continue at the same location — these
+  // After the user parks, GPS pings continue at the same location - these
   // inflate the end time to when the trip was finalized (or when the app
   // was next opened for stale recordings) instead of when driving actually stopped.
   let endIdx = allCoords.length - 1;
@@ -211,7 +268,7 @@ async function _finalizeAutoTripInner(): Promise<void> {
     const distM = haversineMeters(prev.lat, prev.lng, curr.lat, curr.lng);
     const speed = curr.speed != null && curr.speed > 0 ? curr.speed : 0;
 
-    // This coordinate represents real movement — use it as the trip endpoint
+    // This coordinate represents real movement - use it as the trip endpoint
     if (speed >= CONTINUE_SPEED_MS || distM > 30) {
       endIdx = i;
       break;
@@ -223,23 +280,31 @@ async function _finalizeAutoTripInner(): Promise<void> {
   const coords = allCoords.slice(0, endIdx + 1);
   if (coords.length < 2) return;
 
-  // Calculate total distance
-  let totalDistance = 0;
+  // Calculate total distance: sum the GPS chord segments, then ask OSRM for
+  // the road distance between start and end. bestTripDistance() takes the max
+  // so we recover the chord-to-arc undercount on winding roads while preserving
+  // any real detour the user took (which the GPS sum captures but OSRM doesn't).
+  let gpsSumDistance = 0;
   for (let i = 1; i < coords.length; i++) {
-    totalDistance += haversineMiles(
+    gpsSumDistance += haversineMiles(
       coords[i - 1].lat, coords[i - 1].lng,
       coords[i].lat, coords[i].lng
     );
   }
+  const first = coords[0];
+  const last = coords[coords.length - 1];
+  const totalDistance = await bestTripDistance(
+    gpsSumDistance,
+    first.lat, first.lng,
+    last.lat, last.lng,
+  );
 
   if (totalDistance < MIN_AUTO_TRIP_DISTANCE_MILES) {
     // Too short to save - dismiss Live Activity immediately
+    logDetectionEvent("finalize_too_short", { distance: totalDistance, gpsSumDistance }).catch(() => {});
     endLiveActivity().catch(() => {});
     return;
   }
-
-  const first = coords[0];
-  const last = coords[coords.length - 1];
 
   // Reverse geocode start and end points
   let startAddress: string | null = null;
@@ -276,7 +341,7 @@ async function _finalizeAutoTripInner(): Promise<void> {
       }
     }
   } catch {
-    // Classification engine failure is non-fatal — save as unclassified
+    // Classification engine failure is non-fatal - save as unclassified
   }
 
   try {
@@ -315,6 +380,7 @@ async function _finalizeAutoTripInner(): Promise<void> {
           distanceMiles: newDistance,
         });
         merged = true;
+        logDetectionEvent("finalize_merged", { intoTripId: recentTrip.id, segmentMiles: totalDistance, mergedTotal: newDistance }).catch(() => {});
 
         // End Live Activity with the combined distance
         endLiveActivityWithSummary({
@@ -356,7 +422,7 @@ async function _finalizeAutoTripInner(): Promise<void> {
       );
       if (lastTrip?.vehicle_id) vehicleId = lastTrip.vehicle_id;
     } catch {
-      // Best-effort — trip will just have no vehicle
+      // Best-effort - trip will just have no vehicle
     }
 
     const { syncCreateTrip } = await import("../sync/actions");
@@ -391,6 +457,14 @@ async function _finalizeAutoTripInner(): Promise<void> {
       ).catch(() => {});
     }
 
+    logDetectionEvent("finalize_saved", {
+      tripId: savedTripId,
+      distance: totalDistance,
+      gpsSumDistance,
+      durationSecs: Math.round((new Date(last.recorded_at).getTime() - new Date(first.recorded_at).getTime()) / 1000),
+      classification,
+    }).catch(() => {});
+
     // If auto-classified, learn from it to reinforce the route pattern
     if (classification !== "unclassified") {
       try {
@@ -408,7 +482,7 @@ async function _finalizeAutoTripInner(): Promise<void> {
       distanceMiles: Math.round(totalDistance * 100) / 100,
     }).catch(() => {});
 
-    // Notify user (skip during quiet hours — trip is still saved)
+    // Notify user (skip during quiet hours - trip is still saved)
     if (!isQuietHours()) {
       const from = startAddress || "Unknown";
       const to = endAddress || "Unknown";
@@ -442,7 +516,7 @@ async function _finalizeAutoTripInner(): Promise<void> {
 
     } // end if (!merged)
 
-    // Set departure anchor at trip end point — if iOS terminates the app,
+    // Set departure anchor at trip end point - if iOS terminates the app,
     // this geofence will reliably wake it when the user starts moving again
     try {
       const { setDepartureAnchor } = await import("../geofencing/index");
@@ -473,13 +547,14 @@ async function checkStaleAutoRecording(): Promise<void> {
     "SELECT value FROM tracking_state WHERE key = 'last_driving_speed_at'"
   );
   if (!lastDriving) {
-    // Stale flag with no timestamp — clear it
+    // Stale flag with no timestamp - clear it
     await db.runAsync("DELETE FROM tracking_state WHERE key = 'auto_recording_active'");
     return;
   }
 
   const elapsed = Date.now() - parseInt(lastDriving.value, 10);
   if (elapsed > STOP_TIMEOUT_MS) {
+    logDetectionEvent("stale_finalize_triggered", { elapsedMs: elapsed }).catch(() => {});
     await finalizeAutoTrip();
   }
 }
@@ -569,7 +644,7 @@ try {
 
         // Check if the recording is clearly stale (e.g. app was killed and just
         // reopened). If the last driving activity was long ago, finalize
-        // immediately WITHOUT buffering these new coords — they'd set the trip
+        // immediately WITHOUT buffering these new coords - they'd set the trip
         // end time to "now" instead of when driving actually stopped.
         const lastDrivingCheck = await db.getFirstAsync<{ value: string }>(
           "SELECT value FROM tracking_state WHERE key = 'last_driving_speed_at'"
@@ -577,14 +652,14 @@ try {
         if (lastDrivingCheck) {
           const staleElapsed = Date.now() - parseInt(lastDrivingCheck.value, 10);
           if (staleElapsed > STOP_TIMEOUT_MS * 2) {
-            // Recording is very stale — finalize with existing coords only
+            // Recording is very stale - finalize with existing coords only
             await finalizeAutoTrip();
             downgradeToDetectionMode().catch(() => {});
             return;
           }
         }
 
-        // Buffer coords — recording is recent enough that this could be resumed driving.
+        // Buffer coords - recording is recent enough that this could be resumed driving.
         for (const loc of locations) {
           await db.runAsync(
             `INSERT INTO detection_coordinates (lat, lng, speed, accuracy, recorded_at)
@@ -599,12 +674,12 @@ try {
           );
         }
 
-        // Check if we're in finalization mode — if so, require real displacement
+        // Check if we're in finalization mode - if so, require real displacement
         // from the stop anchor, not just a speed reading (GPS drift reports movement)
         const inFinalization = await db.getFirstAsync<{ value: string }>(
           "SELECT value FROM tracking_state WHERE key = 'finalization_mode'"
         );
-        let hasRealMovement = detectMovement(locations) || detectDrivingSpeed(locations);
+        let hasRealMovement = detectMovement(locations) || detectDrivingSpeed(locations) != null;
 
         if (hasRealMovement && inFinalization) {
           // Verify actual displacement from stop anchor point
@@ -642,7 +717,7 @@ try {
             upgradeDetectionAccuracy().catch(() => {});
           }
         } else {
-          // No movement in this batch — check if the trip should end.
+          // No movement in this batch - check if the trip should end.
           // Only finalize when stationary, never when we just received driving coords.
           const lastDriving = await db.getFirstAsync<{ value: string }>(
             "SELECT value FROM tracking_state WHERE key = 'last_driving_speed_at'"
@@ -671,7 +746,7 @@ try {
               // Downgrade back to low-power detection mode
               downgradeToDetectionMode().catch(() => {});
             } else {
-              // Not timed out yet — switch to finalization mode so callbacks keep
+              // Not timed out yet - switch to finalization mode so callbacks keep
               // flowing even while stationary. Normal recording mode uses 50m distance
               // intervals, which means no callbacks when parked. GPS drift at 5m
               // intervals ensures we get regular callbacks to check the timeout.
@@ -708,7 +783,7 @@ try {
         "SELECT COUNT(*) as cnt FROM detection_coordinates"
       );
       if (coordCount && coordCount.cnt > 5) {
-        // Looks like an un-finalized trip — try to finalize before purging
+        // Looks like an un-finalized trip - try to finalize before purging
         await finalizeAutoTrip();
       }
       const cutoff = new Date(Date.now() - BUFFER_MAX_AGE_MS).toISOString();
@@ -717,7 +792,7 @@ try {
         [cutoff]
       );
 
-      // Buffer ALL incoming coords — even before driving speed is confirmed.
+      // Buffer ALL incoming coords - even before driving speed is confirmed.
       // This captures the departure point and early route through residential
       // streets where speed stays below 15mph. Without this, the first miles
       // of a trip are lost because detection only triggered on faster roads.
@@ -735,13 +810,14 @@ try {
         );
       }
 
-      // Check if locations indicate driving speed (>15mph to start recording)
-      let isDriving = detectDrivingSpeed(locations);
+      // Check if locations indicate driving speed (>15mph to start recording).
+      // Returns the highest detected speed in m/s, or null if no driving reading.
+      let detectedSpeedMs = detectDrivingSpeed(locations);
 
       // Single-location batch: compare against the previous buffered coordinate.
-      // Only trust this if the current location has good GPS accuracy —
+      // Only trust this if the current location has good GPS accuracy -
       // indoor drift with poor accuracy is the main source of false positives.
-      if (!isDriving && locations.length === 1) {
+      if (detectedSpeedMs == null && locations.length === 1) {
         const loc = locations[0];
         const locAccuracy = loc.coords.accuracy ?? 999;
         if (locAccuracy <= GPS_ACCURACY_STRICT) {
@@ -755,14 +831,15 @@ try {
                 lastCoord.lat, lastCoord.lng,
                 loc.coords.latitude, loc.coords.longitude
               );
-              isDriving = distM / dtSec >= SPEED_THRESHOLD_MS;
+              const calcSpeed = distM / dtSec;
+              if (calcSpeed >= SPEED_THRESHOLD_MS) detectedSpeedMs = calcSpeed;
             }
           }
         }
       }
 
-      if (!isDriving) {
-        // Reset consecutive driving detection counter — the user isn't driving
+      if (detectedSpeedMs == null) {
+        // Reset consecutive driving detection counter - the user isn't driving
         await db.runAsync("DELETE FROM tracking_state WHERE key = 'driving_detection_count'");
         return;
       }
@@ -771,19 +848,28 @@ try {
       // Require multiple consecutive callbacks showing driving speed before
       // starting a recording. A single GPS outlier (drift, bounce, stale cache)
       // can't trigger a false "Looks like you're driving" notification.
-      const countRow = await db.getFirstAsync<{ value: string }>(
-        "SELECT value FROM tracking_state WHERE key = 'driving_detection_count'"
-      );
-      const count = countRow ? parseInt(countRow.value, 10) + 1 : 1;
-      if (count < CONSECUTIVE_DETECTIONS_REQUIRED) {
-        await db.runAsync(
-          "INSERT OR REPLACE INTO tracking_state (key, value) VALUES ('driving_detection_count', ?)",
-          [count.toString()]
+      //
+      // Fast-gate exception: a single very-high-speed reading (>=25 mph) is
+      // unambiguous - GPS drift doesn't fake highway speeds. Skip the gate
+      // so the trip starts immediately instead of waiting another ~400m of
+      // driving for the second confirmation callback.
+      const fastGate = detectedSpeedMs >= FAST_GATE_SPEED_MS;
+      if (!fastGate) {
+        const countRow = await db.getFirstAsync<{ value: string }>(
+          "SELECT value FROM tracking_state WHERE key = 'driving_detection_count'"
         );
-        return; // Wait for more confirmation
+        const count = countRow ? parseInt(countRow.value, 10) + 1 : 1;
+        if (count < CONSECUTIVE_DETECTIONS_REQUIRED) {
+          await db.runAsync(
+            "INSERT OR REPLACE INTO tracking_state (key, value) VALUES ('driving_detection_count', ?)",
+            [count.toString()]
+          );
+          logDetectionEvent("driving_detected", { speedMs: detectedSpeedMs, count, gateRequired: CONSECUTIVE_DETECTIONS_REQUIRED }).catch(() => {});
+          return; // Wait for more confirmation
+        }
       }
 
-      // Confirmed driving — use lock to prevent concurrent callbacks from
+      // Confirmed driving - use lock to prevent concurrent callbacks from
       // each sending a notification. Multiple location updates can arrive
       // simultaneously and interleave at await points.
       if (startingRecording) return;
@@ -800,7 +886,13 @@ try {
           [Date.now().toString()]
         );
 
-        // Start Live Activity — must be awaited so the native Activity.request()
+        logDetectionEvent("recording_started", {
+          speedMs: detectedSpeedMs,
+          fastGate,
+          source: "detection_task",
+        }).catch(() => {});
+
+        // Start Live Activity - must be awaited so the native Activity.request()
         // completes before iOS suspends the background task.
         try {
           await startLiveActivity({ activityType: "trip", isBusinessMode: true });
@@ -842,7 +934,7 @@ try {
     }
   });
 } catch (err) {
-  console.warn("TaskManager.defineTask failed — drive detection disabled:", err);
+  console.warn("TaskManager.defineTask failed - drive detection disabled:", err);
 }
 
 // ── Public API ───────────────────────────────────────────────────────────
@@ -850,24 +942,34 @@ try {
 export async function startDriveDetection(): Promise<void> {
   // Guard: don't start if disabled by user
   const enabled = await isDriveDetectionEnabled();
-  if (!enabled) return;
+  if (!enabled) {
+    logDetectionEvent("detection_skipped", { reason: "disabled" }).catch(() => {});
+    return;
+  }
 
   // Guard: don't start if a shift is active
   const db = await getDatabase();
   const activeShift = await db.getFirstAsync<{ value: string }>(
     "SELECT value FROM tracking_state WHERE key = 'active_shift_id'"
   );
-  if (activeShift) return;
+  if (activeShift) {
+    logDetectionEvent("detection_skipped", { reason: "active_shift" }).catch(() => {});
+    return;
+  }
 
-  // Guard: don't restart if auto-recording is active (would downgrade 50m → 100m)
+  // Guard: don't restart if auto-recording is active (would downgrade 50m -> 100m)
   const recording = await db.getFirstAsync<{ value: string }>(
     "SELECT value FROM tracking_state WHERE key = 'auto_recording_active'"
   );
-  if (recording?.value === "1") return;
+  if (recording?.value === "1") {
+    logDetectionEvent("detection_skipped", { reason: "recording_active" }).catch(() => {});
+    return;
+  }
 
-  // Guard: check permissions — notify user if background location is missing
+  // Guard: check permissions - notify user if background location is missing
   const { status } = await Location.getBackgroundPermissionsAsync();
   if (status !== "granted") {
+    logDetectionEvent("permission_lost", { status }).catch(() => {});
     const now = Date.now();
     if (!isQuietHours() && now - lastBgPermissionNudge > BG_PERMISSION_NUDGE_COOLDOWN_MS) {
       lastBgPermissionNudge = now;
@@ -883,14 +985,17 @@ export async function startDriveDetection(): Promise<void> {
     return;
   }
 
-  // Use hasStartedLocationUpdatesAsync — checks if location updates are actually
+  // Use hasStartedLocationUpdatesAsync - checks if location updates are actually
   // being delivered. The old check (isTaskRegisteredAsync) only checked if the
   // task handler was defined, which is ALWAYS true after module import. This meant
   // startLocationUpdatesAsync was never called after iOS cleared the subscription
   // (overnight kill, TestFlight update, force quit, reboot), so detection silently
   // stopped working until the user happened to trigger a fresh registration.
   const isRunning = await Location.hasStartedLocationUpdatesAsync(DETECTION_TASK_NAME);
-  if (isRunning) return;
+  if (isRunning) {
+    logDetectionEvent("detection_already_running").catch(() => {});
+    return;
+  }
 
   await Location.startLocationUpdatesAsync(DETECTION_TASK_NAME, {
     accuracy: Location.Accuracy.Balanced,
@@ -898,7 +1003,7 @@ export async function startDriveDetection(): Promise<void> {
     deferredUpdatesInterval: 15000,
     activityType: Location.ActivityType.AutomotiveNavigation,
     pausesUpdatesAutomatically: false,
-    // Hide the blue indicator in detection mode — the app appears "always on"
+    // Hide the blue indicator in detection mode - the app appears "always on"
     // otherwise. Lower accuracy + wider intervals keep iOS delivering updates
     // without terminating the app, while avoiding the persistent blue pill.
     // Active recording (upgradeDetectionAccuracy) switches to High + visible.
@@ -908,6 +1013,75 @@ export async function startDriveDetection(): Promise<void> {
       notificationBody: "Monitoring for driving activity",
     },
   });
+  logDetectionEvent("detection_started").catch(() => {});
+}
+
+/**
+ * High-confidence trip start: mark recording active immediately and switch
+ * to high-accuracy GPS without waiting for the consecutive detection gate.
+ *
+ * Called when an external signal tells us the user has definitely started a
+ * trip - currently only the geofence departure-anchor exit handler. The
+ * standard detection task waits for 2 callbacks at >15mph (~400m of driving)
+ * before marking recording active, which loses the start of every trip.
+ *
+ * Safety: if movement turns out to be too short (false positive: walking,
+ * GPS bounce), the MIN_AUTO_TRIP_DISTANCE_MILES filter at finalization
+ * discards the trip with no user-visible artifact.
+ */
+export async function forceStartRecording(reason: string): Promise<void> {
+  // Same guards as startDriveDetection - don't override user disable / shift / permissions
+  const enabled = await isDriveDetectionEnabled();
+  if (!enabled) {
+    logDetectionEvent("force_start_skipped", { reason, cause: "disabled" }).catch(() => {});
+    return;
+  }
+  const { status } = await Location.getBackgroundPermissionsAsync();
+  if (status !== "granted") {
+    logDetectionEvent("force_start_skipped", { reason, cause: "permission" }).catch(() => {});
+    return;
+  }
+
+  const db = await getDatabase();
+  const activeShift = await db.getFirstAsync<{ value: string }>(
+    "SELECT value FROM tracking_state WHERE key = 'active_shift_id'"
+  );
+  if (activeShift) {
+    logDetectionEvent("force_start_skipped", { reason, cause: "active_shift" }).catch(() => {});
+    return;
+  }
+
+  // If recording is already active, nothing to do.
+  const existing = await db.getFirstAsync<{ value: string }>(
+    "SELECT value FROM tracking_state WHERE key = 'auto_recording_active'"
+  );
+  if (existing?.value === "1") {
+    logDetectionEvent("force_start_skipped", { reason, cause: "already_recording" }).catch(() => {});
+    return;
+  }
+
+  await db.runAsync("INSERT OR REPLACE INTO tracking_state (key, value) VALUES ('auto_recording_active', '1')");
+  await db.runAsync(
+    "INSERT OR REPLACE INTO tracking_state (key, value) VALUES ('last_driving_speed_at', ?)",
+    [Date.now().toString()]
+  );
+
+  // Snapshot Bluetooth state for trip-end detection (best-effort)
+  try { await markBluetoothStateAtStart(); } catch {}
+
+  // Start Live Activity so the user sees a trip in progress on the lock screen
+  try {
+    await startLiveActivity({ activityType: "trip", isBusinessMode: true });
+  } catch {}
+
+  // upgradeDetectionAccuracy() handles both "task already running" (restarts at
+  // BestForNavigation) and "task not running" (starts fresh at BestForNavigation),
+  // which is exactly what we want - skip detection mode entirely.
+  try {
+    await upgradeDetectionAccuracy();
+  } catch {}
+
+  logDetectionEvent("recording_started", { source: "force_start", reason }).catch(() => {});
 }
 
 export async function stopDriveDetection(): Promise<void> {
@@ -1019,7 +1193,7 @@ async function downgradeToDetectionMode(): Promise<void> {
       },
     });
   } catch {
-    // Best-effort — detection will restart next time startDriveDetection() is called
+    // Best-effort - detection will restart next time startDriveDetection() is called
   }
 }
 
