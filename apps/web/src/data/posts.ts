@@ -26,9 +26,23 @@ export interface BlogPost {
 // ----------------------------------------------------------------
 export const RELEASE_NOTES: ReleaseNote[] = [
   {
+    version: "1.0.6",
+    date: "7 April 2026",
+    label: "In Testing",
+    items: [
+      "More accurate auto trip distances - winding routes and country lanes no longer read 5-10% short. Distances are cross-checked against UK road data so your HMRC mileage claims match your odometer",
+      "Reliable trip starts - leaving home, work, or any saved location now records from the moment you drive off instead of a few hundred metres later",
+      "Faster highway detection - a single motorway-speed reading is now enough to start recording, no more waiting for a second confirmation on fast roads",
+      "Cold-start GPS trusted - the first location fix when leaving a garage or shaded driveway is no longer ignored while accuracy is still settling",
+      "Faster permission recovery - if location access gets downgraded the app nudges you every 4 hours instead of once per day, so trips do not silently stop recording",
+      "Trip Complete screen fix - long trips over an hour now display as HH:MM:SS instead of a runaway minute counter",
+      "Internal diagnostics added to help pin down the remaining auto-trip edge cases reported by users",
+    ],
+  },
+  {
     version: "1.0.5",
     date: "5 April 2026",
-    label: "In Testing",
+    label: "App Store",
     items: [
       "Smarter trip detection - multi-stop journeys (fuel stops, school drop-offs, drive-throughs) now record as one continuous trip instead of splitting into fragments",
       "10-minute stop timeout - up from 5 minutes, so brief stops no longer end your trip prematurely",
