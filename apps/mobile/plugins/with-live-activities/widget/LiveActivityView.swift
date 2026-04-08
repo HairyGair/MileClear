@@ -31,12 +31,24 @@ struct MileClearLiveActivity: Widget {
         } dynamicIsland: { context in
             let accent = modeAccent(context.attributes.isBusinessMode)
             let isEnded = context.state.phase == "ended"
+            let isSaving = context.state.phase == "saving"
+            let isShift = context.attributes.activityType == "shift"
+            let speedMph = context.state.speedMph
+            let isStopped = !isEnded && !isSaving && speedMph < 1
 
             return DynamicIsland {
-                // --- Expanded regions ---
+                // --- Expanded: leading (speed / state) ---
                 DynamicIslandExpandedRegion(.leading) {
                     VStack(alignment: .leading, spacing: 3) {
-                        if isEnded {
+                        if isSaving {
+                            Image(systemName: "arrow.triangle.2.circlepath")
+                                .font(.system(size: 22, weight: .bold))
+                                .foregroundColor(accent)
+                            Text("SAVING")
+                                .font(.system(size: 8, weight: .bold))
+                                .foregroundColor(textMuted)
+                                .kerning(1.2)
+                        } else if isEnded {
                             Image(systemName: "checkmark.circle.fill")
                                 .font(.system(size: 22, weight: .bold))
                                 .foregroundColor(accent)
@@ -44,8 +56,16 @@ struct MileClearLiveActivity: Widget {
                                 .font(.system(size: 8, weight: .bold))
                                 .foregroundColor(textMuted)
                                 .kerning(1.2)
+                        } else if isStopped {
+                            Text("—")
+                                .font(.system(size: 26, weight: .bold, design: .rounded))
+                                .foregroundColor(accent.opacity(0.6))
+                            Text("STOPPED")
+                                .font(.system(size: 8, weight: .bold))
+                                .foregroundColor(textMuted)
+                                .kerning(1.2)
                         } else {
-                            Text(String(format: "%.0f", context.state.speedMph))
+                            Text(String(format: "%.0f", speedMph))
                                 .font(.system(size: 26, weight: .bold, design: .rounded))
                                 .foregroundColor(accent)
                             Text("MPH")
@@ -56,6 +76,26 @@ struct MileClearLiveActivity: Widget {
                     }
                 }
 
+                // --- Expanded: center (brand wordmark) ---
+                DynamicIslandExpandedRegion(.center) {
+                    VStack(spacing: 2) {
+                        HStack(spacing: 0) {
+                            Text("Mile")
+                                .font(.system(size: 10, weight: .bold))
+                                .foregroundColor(.white.opacity(0.75))
+                            Text("Clear")
+                                .font(.system(size: 10, weight: .bold))
+                                .foregroundColor(accent)
+                        }
+                        Text(isShift ? "SHIFT" : "TRIP")
+                            .font(.system(size: 7, weight: .bold))
+                            .foregroundColor(textDim)
+                            .kerning(1.4)
+                    }
+                    .padding(.top, 2)
+                }
+
+                // --- Expanded: trailing (distance) ---
                 DynamicIslandExpandedRegion(.trailing) {
                     VStack(alignment: .trailing, spacing: 3) {
                         Text(String(format: "%.1f", context.state.distanceMiles))
@@ -68,75 +108,184 @@ struct MileClearLiveActivity: Widget {
                     }
                 }
 
+                // --- Expanded: bottom (two-line layout + action buttons) ---
                 DynamicIslandExpandedRegion(.bottom) {
-                    HStack {
-                        HStack(spacing: 4) {
-                            Circle()
-                                .fill(accent)
-                                .frame(width: 5, height: 5)
-                            if isEnded, let endDate = context.state.endDate {
-                                Text(dynamicIslandDurationString(
-                                    start: context.state.startDate,
-                                    end: endDate
-                                ))
-                                    .font(.system(size: 13, weight: .semibold, design: .monospaced))
-                                    .foregroundColor(.white)
-                            } else {
-                                Text(context.state.startDate, style: .timer)
-                                    .font(.system(size: 13, weight: .semibold, design: .monospaced))
-                                    .foregroundColor(.white)
+                    VStack(spacing: 8) {
+                        // Row 1: timer / status + vehicle or trip count
+                        HStack(spacing: 10) {
+                            HStack(spacing: 5) {
+                                Circle()
+                                    .fill(accent)
+                                    .frame(width: 5, height: 5)
+                                if isSaving {
+                                    Text("Saving trip...")
+                                        .font(.system(size: 12, weight: .medium))
+                                        .foregroundColor(textMuted)
+                                } else if isEnded, let endDate = context.state.endDate {
+                                    Text(dynamicIslandDurationString(
+                                        start: context.state.startDate,
+                                        end: endDate
+                                    ))
+                                        .font(.system(size: 13, weight: .semibold, design: .monospaced))
+                                        .foregroundColor(.white)
+                                } else {
+                                    Text(context.state.startDate, style: .timer)
+                                        .font(.system(size: 13, weight: .semibold, design: .monospaced))
+                                        .foregroundColor(.white)
+                                }
                             }
-                        }
 
-                        if context.attributes.activityType == "shift" && context.state.tripCount > 0 {
                             Spacer()
-                            HStack(spacing: 4) {
-                                Image(systemName: "point.topleft.down.to.point.bottomright.curvepath")
-                                    .font(.system(size: 11))
+
+                            if isShift && context.state.tripCount > 0 {
+                                HStack(spacing: 4) {
+                                    Image(systemName: "point.topleft.down.to.point.bottomright.curvepath")
+                                        .font(.system(size: 11))
+                                        .foregroundColor(textDim)
+                                    Text("\(context.state.tripCount) trips")
+                                        .font(.system(size: 12, weight: .semibold))
+                                        .foregroundColor(.white)
+                                }
+                            } else if !context.attributes.vehicleName.isEmpty {
+                                Text(context.attributes.vehicleName)
+                                    .font(.system(size: 11, weight: .medium))
                                     .foregroundColor(textDim)
-                                Text("\(context.state.tripCount) trips")
-                                    .font(.system(size: 13, weight: .semibold))
-                                    .foregroundColor(.white)
+                                    .lineLimit(1)
+                                    .truncationMode(.tail)
                             }
                         }
 
-                        if !context.attributes.vehicleName.isEmpty {
-                            Spacer()
-                            Text(context.attributes.vehicleName)
-                                .font(.system(size: 11, weight: .medium))
-                                .foregroundColor(textDim)
-                                .lineLimit(1)
+                        // Row 2: action buttons (active state only). iOS 17.2+
+                        // uses LiveActivityIntent so the tap runs instantly in
+                        // the widget extension process. Older iOS falls back to
+                        // deep-link URLs that open the main app.
+                        if !isEnded && !isSaving {
+                            if #available(iOS 17.2, *) {
+                                HStack(spacing: 8) {
+                                    Button(intent: EndTripIntent()) {
+                                        dynamicIslandButtonLabel(
+                                            icon: "flag.checkered",
+                                            text: isShift ? "End Shift" : "End Trip",
+                                            foreground: accent,
+                                            background: accent.opacity(0.2)
+                                        )
+                                    }
+                                    .buttonStyle(.plain)
+
+                                    Button(intent: CancelTripIntent()) {
+                                        dynamicIslandButtonLabel(
+                                            icon: "xmark",
+                                            text: "Not Driving",
+                                            foreground: textMuted,
+                                            background: Color.white.opacity(0.08)
+                                        )
+                                    }
+                                    .buttonStyle(.plain)
+                                }
+                            } else {
+                                HStack(spacing: 8) {
+                                    Link(destination: URL(string: "mileclear://end-trip")!) {
+                                        dynamicIslandButtonLabel(
+                                            icon: "flag.checkered",
+                                            text: isShift ? "End Shift" : "End Trip",
+                                            foreground: accent,
+                                            background: accent.opacity(0.2)
+                                        )
+                                    }
+                                    Link(destination: URL(string: "mileclear://cancel-trip")!) {
+                                        dynamicIslandButtonLabel(
+                                            icon: "xmark",
+                                            text: "Not Driving",
+                                            foreground: textMuted,
+                                            background: Color.white.opacity(0.08)
+                                        )
+                                    }
+                                }
+                            }
                         }
                     }
                     .padding(.top, 4)
                 }
             } compactLeading: {
-                // --- Compact pill: leading ---
-                Image(systemName: isEnded ? "checkmark.circle.fill" : "car.fill")
-                    .font(.system(size: 12))
-                    .foregroundColor(accent)
-            } compactTrailing: {
-                // --- Compact pill: trailing ---
-                if isEnded, let endDate = context.state.endDate {
-                    Text(dynamicIslandDurationString(
-                        start: context.state.startDate,
-                        end: endDate
-                    ))
-                        .font(.system(size: 14, weight: .semibold, design: .monospaced))
-                        .foregroundColor(.white)
+                // --- Compact pill: leading (branded speedometer badge) ---
+                if isSaving {
+                    Image(systemName: "arrow.triangle.2.circlepath")
+                        .font(.system(size: 13, weight: .bold))
+                        .foregroundColor(accent)
+                } else if isEnded {
+                    Image(systemName: "checkmark.circle.fill")
+                        .font(.system(size: 14, weight: .bold))
+                        .foregroundColor(accent)
                 } else {
-                    Text(context.state.startDate, style: .timer)
-                        .font(.system(size: 14, weight: .semibold, design: .monospaced))
-                        .foregroundColor(.white)
+                    ZStack {
+                        Circle()
+                            .fill(accent.opacity(0.22))
+                            .frame(width: 20, height: 20)
+                        Image(systemName: "speedometer")
+                            .font(.system(size: 12, weight: .bold))
+                            .foregroundColor(accent)
+                    }
+                }
+            } compactTrailing: {
+                // --- Compact pill: trailing (miles, not timer) ---
+                if isSaving {
+                    Text("...")
+                        .font(.system(size: 14, weight: .bold, design: .monospaced))
+                        .foregroundColor(.white.opacity(0.6))
+                } else {
+                    HStack(spacing: 2) {
+                        Text(String(format: "%.1f", context.state.distanceMiles))
+                            .font(.system(size: 14, weight: .bold, design: .rounded))
+                            .foregroundColor(isEnded ? accent : .white)
+                        Text("mi")
+                            .font(.system(size: 9, weight: .semibold))
+                            .foregroundColor(textMuted)
+                    }
                 }
             } minimal: {
                 // --- Minimal (shared Dynamic Island) ---
-                Image(systemName: isEnded ? "checkmark" : "car.fill")
-                    .font(.system(size: 10))
-                    .foregroundColor(accent)
+                if isSaving {
+                    Image(systemName: "arrow.triangle.2.circlepath")
+                        .font(.system(size: 11, weight: .bold))
+                        .foregroundColor(accent)
+                } else if isEnded {
+                    Image(systemName: "checkmark")
+                        .font(.system(size: 11, weight: .bold))
+                        .foregroundColor(accent)
+                } else {
+                    Image(systemName: "speedometer")
+                        .font(.system(size: 12, weight: .bold))
+                        .foregroundColor(accent)
+                }
             }
         }
     }
+}
+
+// MARK: - Dynamic Island button label helper
+
+/// Compact button label for the Dynamic Island expanded bottom region.
+/// The expanded bottom has less vertical room than the lock screen, so these
+/// buttons use smaller padding and font sizes than `LockScreenView.endTripLabel`.
+@available(iOS 16.2, *)
+@ViewBuilder
+private func dynamicIslandButtonLabel(
+    icon: String,
+    text: String,
+    foreground: Color,
+    background: Color
+) -> some View {
+    HStack(spacing: 4) {
+        Image(systemName: icon)
+            .font(.system(size: 10, weight: .semibold))
+        Text(text)
+            .font(.system(size: 11, weight: .semibold))
+    }
+    .frame(maxWidth: .infinity)
+    .padding(.vertical, 6)
+    .background(background)
+    .foregroundColor(foreground)
+    .cornerRadius(6)
 }
 
 // MARK: - Duration formatting helper
