@@ -342,21 +342,40 @@ async function _finalizeAutoTripInner(): Promise<void> {
   // Calculate final distance for the Live Activity summary before clearing coords
   const finalStats = await getAutoTripRunningDistance();
 
-  // Safety: drop any coordinates older than BUFFER_MAX_AGE_MS (30 min). If
-  // auto_recording_active got stuck ON across a crash, the buffer can contain
-  // coords from days ago. Without this purge, the saved trip's startedAt
-  // would be the stale first coord (e.g. resulting in "5369:16" elapsed on
-  // the Trip in Progress screen, or an impossibly long HMRC claim).
-  const staleCutoff = new Date(Date.now() - BUFFER_MAX_AGE_MS).toISOString();
-  await db.runAsync(
-    "DELETE FROM detection_coordinates WHERE recorded_at < ?",
-    [staleCutoff]
-  );
-
   // Read all buffered coordinates
-  const allCoords = await db.getAllAsync<BufferedCoordinate>(
+  const rawCoords = await db.getAllAsync<BufferedCoordinate>(
     "SELECT lat, lng, speed, accuracy, recorded_at FROM detection_coordinates ORDER BY recorded_at ASC"
   );
+
+  // Safety: if auto_recording_active got stuck ON across a crash, the buffer
+  // can contain ancient coords plus fresh ones, separated by a large time
+  // gap. Detect that gap and keep only the most recent contiguous segment.
+  //
+  // CRITICAL: do NOT purge by absolute age. A legitimate >30 min drive
+  // produces coords where the earliest is >30 min old at finalize time, but
+  // every pair of consecutive coords is only seconds apart. Those must all
+  // be kept or long commutes get saved as "half trips".
+  let allCoords = rawCoords;
+  if (rawCoords.length >= 2) {
+    let segmentStart = 0;
+    for (let i = 1; i < rawCoords.length; i++) {
+      const prev = new Date(rawCoords[i - 1].recorded_at).getTime();
+      const curr = new Date(rawCoords[i].recorded_at).getTime();
+      if (curr - prev > BUFFER_MAX_AGE_MS) {
+        // Large gap = boundary between a stale stuck-state buffer and fresh
+        // recording. Everything before this gap is garbage from a crash.
+        segmentStart = i;
+      }
+    }
+    if (segmentStart > 0) {
+      allCoords = rawCoords.slice(segmentStart);
+      logDetectionEvent("finalize_gap_trimmed", {
+        totalCoords: rawCoords.length,
+        keptCoords: allCoords.length,
+        droppedCoords: segmentStart,
+      }).catch(() => {});
+    }
+  }
 
   logDetectionEvent("finalize_called", { coordCount: allCoords.length }).catch(() => {});
 

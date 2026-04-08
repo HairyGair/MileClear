@@ -225,21 +225,31 @@ export async function promoteDetectionToQuickTrip(): Promise<{
 } | null> {
   const db = await getDatabase();
 
-  // Safety: purge any detection coordinates older than 30 minutes BEFORE
-  // reading them. If auto_recording_active got stuck ON (e.g. a crash before
-  // finalize fired), the buffer can contain coords from days ago. Without this
-  // purge, the "first" coord could be days old and the resulting trip would
-  // show an absurd elapsed time like "5369:16".
-  const cutoff = new Date(Date.now() - 30 * 60 * 1000).toISOString();
-  await db.runAsync(
-    "DELETE FROM detection_coordinates WHERE recorded_at < ?",
-    [cutoff]
-  );
-
   // Read buffered detection coordinates
-  const detectionCoords = await db.getAllAsync<StoredCoordinate>(
+  const rawCoords = await db.getAllAsync<StoredCoordinate>(
     "SELECT lat, lng, speed, accuracy, recorded_at FROM detection_coordinates ORDER BY recorded_at ASC"
   );
+
+  if (rawCoords.length === 0) return null;
+
+  // Safety: if auto_recording_active got stuck ON across a crash, the buffer
+  // can contain ancient coords plus fresh ones separated by a large time gap.
+  // Detect the gap and keep only the most recent contiguous segment.
+  //
+  // CRITICAL: do NOT purge by absolute age. A legitimately long drive (e.g.
+  // 45-min commute) has an earliest coord >30 min old by the time the user
+  // taps the detection notification, but every pair of consecutive coords is
+  // only seconds apart. Those must all be kept or the trip starts mid-drive.
+  const GAP_THRESHOLD_MS = 30 * 60 * 1000;
+  let segmentStart = 0;
+  for (let i = 1; i < rawCoords.length; i++) {
+    const prev = new Date(rawCoords[i - 1].recorded_at).getTime();
+    const curr = new Date(rawCoords[i].recorded_at).getTime();
+    if (curr - prev > GAP_THRESHOLD_MS) {
+      segmentStart = i;
+    }
+  }
+  const detectionCoords = segmentStart > 0 ? rawCoords.slice(segmentStart) : rawCoords;
 
   if (detectionCoords.length === 0) return null;
 

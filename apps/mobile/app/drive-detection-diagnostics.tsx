@@ -3,7 +3,7 @@
 // tracking_state so we can diagnose "autotrips aren't picking up" reports
 // without needing Xcode / DBeaver access to the device's SQLite file.
 
-import { useCallback, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import {
   View,
   Text,
@@ -14,9 +14,11 @@ import {
   Share,
   ActivityIndicator,
   Platform,
+  Linking,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect } from "expo-router";
+import Constants from "expo-constants";
 import {
   getRecentDetectionEvents,
   getDriveDetectionDiagnostics,
@@ -24,6 +26,7 @@ import {
   restartDriveDetection,
   type DriveDetectionDiagnostics,
 } from "../lib/tracking/detection";
+import { useUser } from "../lib/user/context";
 
 // ── Constants ──────────────────────────────────────────────────────────────
 
@@ -91,13 +94,214 @@ function boolColor(val: boolean, goodIsTrue = true): string {
   return good ? GREEN : RED;
 }
 
+// ── Health computation ────────────────────────────────────────────────────
+
+type Severity = "healthy" | "info" | "warning" | "error";
+
+interface Problem {
+  severity: Severity;
+  title: string;
+  cause: string;
+  action?: string;
+  onAction?: () => void;
+}
+
+interface Health {
+  verdict: Severity;
+  headline: string;
+  problems: Problem[];
+}
+
+/**
+ * Walk the diagnostics state and surface every known failure mode as a
+ * human-readable problem. Priority is expressed by list order: the first
+ * problem determines the top-level verdict banner. Lower-severity items
+ * (info) still render in the problems card so the user sees context.
+ */
+function computeHealth(d: DriveDetectionDiagnostics, events: DetectionEventRow[]): Health {
+  const problems: Problem[] = [];
+
+  // 1. Kill switches (highest severity - nothing can work)
+  if (!d.enabled) {
+    problems.push({
+      severity: "error",
+      title: "Drive Detection is OFF",
+      cause: "You've turned off the Drive Detection toggle in Profile → Settings.",
+      action: "Turn it back on to start detecting trips automatically.",
+    });
+  }
+
+  // 2. Permission issues
+  if (d.backgroundPermission !== "granted") {
+    const isDenied = d.backgroundPermission === "denied";
+    problems.push({
+      severity: "error",
+      title: isDenied ? "Background location is denied" : "Background location not granted",
+      cause: isDenied
+        ? "iOS Settings has location set to Never or While Using. MileClear can't detect trips when the app is in the background."
+        : "Location permission hasn't been granted yet. iOS won't send background location updates.",
+      action: "Open Settings → MileClear → Location → Always, then come back.",
+      onAction: () => {
+        Linking.openSettings().catch(() => {});
+      },
+    });
+  } else if (d.foregroundPermission !== "granted") {
+    problems.push({
+      severity: "error",
+      title: "Foreground location is denied",
+      cause: "Basic location access is turned off.",
+      action: "Open Settings → MileClear → Location and allow access.",
+      onAction: () => {
+        Linking.openSettings().catch(() => {});
+      },
+    });
+  }
+
+  // 3. Task should be running but isn't
+  if (d.enabled && d.backgroundPermission === "granted" && !d.taskRunning && !d.activeShiftId) {
+    problems.push({
+      severity: "error",
+      title: "Detection task isn't running",
+      cause:
+        "The background location subscription isn't registered with iOS. This usually means iOS killed the task after idle, a reboot, or a crash.",
+      action: "Tap Restart detection below. If it keeps happening, reboot the phone.",
+    });
+  }
+
+  // 4. Active shift (informational, not an error)
+  if (d.activeShiftId) {
+    problems.push({
+      severity: "info",
+      title: "A shift is currently active",
+      cause: `Auto-detection is paused while a shift runs (shift ID ${d.activeShiftId.slice(0, 8)}…).`,
+      action: "This is expected. End the shift to resume auto-detection.",
+    });
+  }
+
+  // 5. Auto-recording stuck — active but latest event is old
+  if (d.autoRecordingActive) {
+    problems.push({
+      severity: "warning",
+      title: "Auto-recording is marked active",
+      cause:
+        "A trip recording is in progress. If you're not currently driving, this is a stuck state from a crash and the buffer will be discarded by the gap detector on next finalize.",
+      action:
+        "If you're not driving right now, tap Restart detection below to clear the state.",
+    });
+  }
+
+  // 6. Repeated permission_lost events in recent history
+  const recentPermLost = events.slice(0, 10).filter((e) => e.event === "permission_lost").length;
+  if (recentPermLost >= 3) {
+    problems.push({
+      severity: "warning",
+      title: `Location permission dropped ${recentPermLost}x recently`,
+      cause:
+        "The detection task keeps seeing the background permission as lost. iOS may have downgraded the permission silently, or the device was set to Low Power Mode.",
+      action: "Verify Settings → MileClear → Location is set to Always, and disable Low Power Mode.",
+      onAction: () => {
+        Linking.openSettings().catch(() => {});
+      },
+    });
+  }
+
+  // 7. Recent gap trimming — this flags the build-39 purge bug resurfacing
+  const gapTrimmed = events.slice(0, 20).find((e) => e.event === "finalize_gap_trimmed");
+  if (gapTrimmed) {
+    problems.push({
+      severity: "warning",
+      title: "A trip was gap-trimmed",
+      cause:
+        "The finalize pass detected a large time gap in the buffer and kept only the most recent segment. This usually means a crash happened during a previous recording and stale coordinates were left behind.",
+      action: "If a recent trip looks short or is missing its start, this is why.",
+    });
+  }
+
+  // 8. Cooldown active (info)
+  if (d.cooldownRemainingMs > 0) {
+    problems.push({
+      severity: "info",
+      title: `Notification cooldown: ${formatMs(d.cooldownRemainingMs)} remaining`,
+      cause:
+        "Trips still record silently, but the 'Looks like you're driving' prompt won't fire again until the cooldown expires. Prevents notification spam between short trips.",
+    });
+  }
+
+  // 9. Quiet hours (info)
+  if (d.quietHours) {
+    problems.push({
+      severity: "info",
+      title: "Quiet hours active (22:00–07:00)",
+      cause:
+        "Trips still record, but driving-detected notifications are suppressed so the phone doesn't buzz at night.",
+    });
+  }
+
+  // 10. Buffered coords with nothing recording (possibly orphaned)
+  if (!d.autoRecordingActive && !d.activeShiftId && d.bufferedCoordinates > 5) {
+    problems.push({
+      severity: "warning",
+      title: `${d.bufferedCoordinates} orphaned GPS points in the buffer`,
+      cause:
+        "Detection coordinates are present but no recording is active. These should have been cleared on finalize or at task restart.",
+      action: "Tap Restart detection below to flush them.",
+    });
+  }
+
+  // Determine verdict from highest-severity problem
+  const severityOrder: Record<Severity, number> = { healthy: 0, info: 1, warning: 2, error: 3 };
+  let worst: Severity = "healthy";
+  for (const p of problems) {
+    if (severityOrder[p.severity] > severityOrder[worst]) worst = p.severity;
+  }
+
+  let headline: string;
+  if (worst === "healthy") {
+    headline = "Drive detection is healthy";
+  } else if (worst === "info") {
+    headline = "Drive detection is working";
+  } else if (worst === "warning") {
+    headline = "Drive detection has warnings";
+  } else {
+    // Use the first error's title as the headline
+    const firstError = problems.find((p) => p.severity === "error");
+    headline = firstError?.title ?? "Drive detection is broken";
+  }
+
+  return { verdict: worst, headline, problems };
+}
+
+function severityColor(s: Severity): string {
+  if (s === "healthy") return GREEN;
+  if (s === "info") return "#3b82f6";
+  if (s === "warning") return ORANGE;
+  return RED;
+}
+
+function severityIcon(s: Severity): keyof typeof Ionicons.glyphMap {
+  if (s === "healthy") return "checkmark-circle";
+  if (s === "info") return "information-circle";
+  if (s === "warning") return "warning";
+  return "alert-circle";
+}
+
 // ── Screen ─────────────────────────────────────────────────────────────────
 
+// App / device identifiers for the header strip. Read once at module level
+// since Constants.expoConfig and nativeBuildVersion don't change at runtime.
+const APP_VERSION = Constants.expoConfig?.version ?? "unknown";
+const BUILD_NUMBER =
+  Constants.expoConfig?.ios?.buildNumber ??
+  (Constants as unknown as { nativeBuildVersion?: string }).nativeBuildVersion ??
+  "?";
+
 export default function DriveDetectionDiagnosticsScreen() {
+  const { user } = useUser();
   const [loading, setLoading] = useState(true);
   const [diagnostics, setDiagnostics] = useState<DriveDetectionDiagnostics | null>(null);
   const [events, setEvents] = useState<DetectionEventRow[]>([]);
   const [busy, setBusy] = useState(false);
+  const [capturedAt, setCapturedAt] = useState<Date>(() => new Date());
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -108,12 +312,18 @@ export default function DriveDetectionDiagnosticsScreen() {
       ]);
       setDiagnostics(diag);
       setEvents(ev);
+      setCapturedAt(new Date());
     } catch (err) {
       console.error("Failed to load diagnostics", err);
     } finally {
       setLoading(false);
     }
   }, []);
+
+  const health = useMemo(
+    () => (diagnostics ? computeHealth(diagnostics, events) : null),
+    [diagnostics, events]
+  );
 
   useFocusEffect(
     useCallback(() => {
@@ -122,11 +332,26 @@ export default function DriveDetectionDiagnosticsScreen() {
   );
 
   const handleShare = useCallback(async () => {
-    if (!diagnostics) return;
+    if (!diagnostics || !health) return;
     const lines: string[] = [];
     lines.push("MileClear Drive Detection Diagnostics");
-    lines.push(`Captured: ${new Date().toISOString()}`);
+    lines.push(`App: v${APP_VERSION} (build ${BUILD_NUMBER})`);
+    lines.push(`User: ${user?.email ?? "(not signed in)"}`);
+    lines.push(`User ID: ${user?.id ?? "-"}`);
+    lines.push(`Captured: ${capturedAt.toISOString()}`);
     lines.push(`Platform: ${Platform.OS} ${Platform.Version}`);
+    lines.push("");
+    lines.push(`── Verdict: ${health.verdict.toUpperCase()} ──`);
+    lines.push(health.headline);
+    if (health.problems.length > 0) {
+      lines.push("");
+      lines.push("── Problems ──");
+      for (const p of health.problems) {
+        lines.push(`[${p.severity.toUpperCase()}] ${p.title}`);
+        lines.push(`  Cause: ${p.cause}`);
+        if (p.action) lines.push(`  Action: ${p.action}`);
+      }
+    }
     lines.push("");
     lines.push("── Status ──");
     lines.push(`Enabled: ${diagnostics.enabled}`);
@@ -158,7 +383,7 @@ export default function DriveDetectionDiagnosticsScreen() {
     try {
       await Share.share({ message: lines.join("\n") });
     } catch {}
-  }, [diagnostics, events]);
+  }, [diagnostics, events, health, user, capturedAt]);
 
   const handleClearEvents = useCallback(() => {
     Alert.alert(
@@ -216,12 +441,94 @@ export default function DriveDetectionDiagnosticsScreen() {
   }
 
   const d = diagnostics;
+  const h = health!;
+  const verdictColor = severityColor(h.verdict);
 
   return (
     <ScrollView
       style={styles.container}
       contentContainerStyle={styles.content}
     >
+      {/* Header strip — app version, user, capture time, OS. Always visible
+          at the top of a screenshot so we can identify the reporter at a glance. */}
+      <View style={styles.headerStrip}>
+        <View style={styles.headerRow}>
+          <Text style={styles.headerLabel}>App</Text>
+          <Text style={styles.headerValue}>v{APP_VERSION} (build {BUILD_NUMBER})</Text>
+        </View>
+        <View style={styles.headerRow}>
+          <Text style={styles.headerLabel}>User</Text>
+          <Text style={styles.headerValue} numberOfLines={1}>
+            {user?.email ?? "(not signed in)"}
+          </Text>
+        </View>
+        <View style={styles.headerRow}>
+          <Text style={styles.headerLabel}>Device</Text>
+          <Text style={styles.headerValue}>{Platform.OS} {Platform.Version}</Text>
+        </View>
+        <View style={styles.headerRow}>
+          <Text style={styles.headerLabel}>Captured</Text>
+          <Text style={styles.headerValue}>{capturedAt.toLocaleString()}</Text>
+        </View>
+      </View>
+
+      {/* Verdict banner — the headline answer at a glance */}
+      <View
+        style={[
+          styles.verdictBanner,
+          { backgroundColor: verdictColor + "22", borderColor: verdictColor },
+        ]}
+      >
+        <Ionicons name={severityIcon(h.verdict)} size={28} color={verdictColor} />
+        <View style={{ flex: 1 }}>
+          <Text style={[styles.verdictLabel, { color: verdictColor }]}>
+            {h.verdict.toUpperCase()}
+          </Text>
+          <Text style={styles.verdictHeadline}>{h.headline}</Text>
+        </View>
+      </View>
+
+      {/* Problems card — specific issues with cause + action */}
+      {h.problems.length > 0 && (
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>
+            Detected {h.problems.length === 1 ? "issue" : `${h.problems.length} issues`}
+          </Text>
+          {h.problems.map((p, i) => {
+            const color = severityColor(p.severity);
+            return (
+              <View
+                key={`${p.title}-${i}`}
+                style={[
+                  styles.problemRow,
+                  i < h.problems.length - 1 && styles.problemRowBorder,
+                ]}
+              >
+                <View style={styles.problemHeader}>
+                  <Ionicons name={severityIcon(p.severity)} size={18} color={color} />
+                  <Text style={[styles.problemTitle, { color }]}>{p.title}</Text>
+                </View>
+                <Text style={styles.problemCause}>{p.cause}</Text>
+                {p.action && (
+                  p.onAction ? (
+                    <TouchableOpacity
+                      onPress={p.onAction}
+                      accessibilityRole="button"
+                      style={styles.problemActionButton}
+                    >
+                      <Text style={styles.problemActionText}>{p.action}</Text>
+                      <Ionicons name="chevron-forward" size={14} color={AMBER} />
+                    </TouchableOpacity>
+                  ) : (
+                    <Text style={styles.problemAction}>→ {p.action}</Text>
+                  )
+                )}
+              </View>
+            );
+          })}
+        </View>
+      )}
+
       {/* Status card */}
       <View style={styles.card}>
         <Text style={styles.cardTitle}>Status</Text>
@@ -388,6 +695,102 @@ const styles = StyleSheet.create({
   content: {
     padding: 16,
     paddingBottom: 40,
+  },
+  headerStrip: {
+    backgroundColor: CARD_BG,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: CARD_BORDER,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    marginBottom: 12,
+  },
+  headerRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 3,
+    gap: 10,
+  },
+  headerLabel: {
+    fontFamily: "PlusJakartaSans_500Medium",
+    fontSize: 11,
+    color: TEXT_3,
+    width: 64,
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+  },
+  headerValue: {
+    flex: 1,
+    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontSize: 12,
+    color: TEXT_1,
+  },
+  verdictBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 14,
+    padding: 16,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    marginBottom: 16,
+  },
+  verdictLabel: {
+    fontFamily: "PlusJakartaSans_700Bold",
+    fontSize: 10,
+    letterSpacing: 1,
+    marginBottom: 2,
+  },
+  verdictHeadline: {
+    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontSize: 15,
+    color: TEXT_1,
+    lineHeight: 19,
+  },
+  problemRow: {
+    paddingVertical: 12,
+  },
+  problemRowBorder: {
+    borderBottomWidth: 1,
+    borderBottomColor: CARD_BORDER,
+  },
+  problemHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginBottom: 6,
+  },
+  problemTitle: {
+    flex: 1,
+    fontFamily: "PlusJakartaSans_700Bold",
+    fontSize: 13,
+  },
+  problemCause: {
+    fontFamily: "PlusJakartaSans_400Regular",
+    fontSize: 12,
+    color: TEXT_2,
+    lineHeight: 17,
+    marginLeft: 26,
+  },
+  problemAction: {
+    fontFamily: "PlusJakartaSans_500Medium",
+    fontSize: 12,
+    color: TEXT_1,
+    lineHeight: 17,
+    marginLeft: 26,
+    marginTop: 6,
+  },
+  problemActionButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginLeft: 26,
+    marginTop: 8,
+    paddingVertical: 6,
+  },
+  problemActionText: {
+    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontSize: 12,
+    color: AMBER,
   },
   card: {
     backgroundColor: CARD_BG,
