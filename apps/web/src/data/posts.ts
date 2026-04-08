@@ -28,7 +28,7 @@ export const RELEASE_NOTES: ReleaseNote[] = [
   {
     version: "1.0.7",
     date: "8 April 2026",
-    label: "In Testing",
+    label: "Pending Review",
     items: [
       "End Trip on the lock screen actually ends the trip now - tapping the button on the Live Activity flips it to a 'Saving trip' state instantly via iOS 17.2+ App Intents, then a 'Trip Complete' summary with your final distance and classify CTA",
       "New 'Trip Complete' Live Activity view - shows a checkmark, your frozen duration (HH:MM:SS for long trips), and a one-tap Classify Trip button when the trip needs classifying",
