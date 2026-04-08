@@ -217,6 +217,97 @@ function computeHealth(d: DriveDetectionDiagnostics, events: DetectionEventRow[]
     });
   }
 
+  // 7b. Phantom anchor exits — recording_started from anchor_exit followed
+  // by finalize_no_coords (or finalize_too_short). Two distinct patterns:
+  //
+  // - IMMEDIATE RE-EXIT: recording_started(anchor_exit) within 5 seconds of
+  //   a previous finalize_saved. iOS evaluated the newly-registered anchor
+  //   region and immediately determined the user is outside it, firing an
+  //   exit event instantly. Root cause: the anchor was set at a stale
+  //   trimmed last coord instead of the user's current position. Fixed in
+  //   build 42 by switching to current-position anchoring.
+  //
+  // - INDOOR-DRIFT PHANTOM: recording_started(anchor_exit) fires some time
+  //   after a stable anchor, with no preceding finalize_saved. Indoor GPS
+  //   drift crossed the 200m radius and iOS fired a real (but false) exit.
+  //   Both variants end in finalize_no_coords because no real movement
+  //   happens during the phantom window.
+  const phantomExits: Array<{ at: string; immediate: boolean; durationMs: number | null }> = [];
+  for (let i = 0; i < events.length; i++) {
+    const e = events[i];
+    if (e.event !== "recording_started") continue;
+    if (!e.data || !e.data.includes("anchor_exit")) continue;
+
+    // Check if this is an immediate re-exit: was the PREVIOUS event a
+    // finalize_saved within 5 seconds? (events are newest-first, so
+    // i+1 is the older neighbour)
+    let immediate = false;
+    for (let k = i + 1; k < Math.min(events.length, i + 5); k++) {
+      const prev = events[k];
+      if (prev.event === "finalize_saved") {
+        const gap =
+          new Date(e.recorded_at).getTime() - new Date(prev.recorded_at).getTime();
+        if (gap >= 0 && gap < 5000) immediate = true;
+        break;
+      }
+      if (prev.event === "recording_started") break;
+    }
+
+    // Walk newer events to find the terminating finalize
+    let durationMs: number | null = null;
+    for (let j = i - 1; j >= Math.max(0, i - 30); j--) {
+      const f = events[j];
+      if (f.event === "finalize_no_coords" || f.event === "finalize_too_short") {
+        durationMs =
+          new Date(f.recorded_at).getTime() - new Date(e.recorded_at).getTime();
+        phantomExits.push({ at: e.recorded_at, immediate, durationMs });
+        break;
+      }
+      if (f.event === "finalize_saved") break;
+    }
+  }
+
+  const immediatePhantoms = phantomExits.filter((p) => p.immediate);
+  const indoorPhantoms = phantomExits.filter((p) => !p.immediate);
+
+  if (immediatePhantoms.length > 0) {
+    const totalLostMs = immediatePhantoms.reduce(
+      (sum, p) => sum + (p.durationMs ?? 0),
+      0
+    );
+    problems.push({
+      severity: "warning",
+      title: `${immediatePhantoms.length} immediate phantom re-exit${immediatePhantoms.length === 1 ? "" : "s"}`,
+      cause:
+        `After a trip saved, iOS fired another exit event within milliseconds because the departure anchor was registered at a stale coordinate. MileClear started a phantom recording that burned ${formatMs(totalLostMs)} with no real movement. Fixed in build 42 by anchoring at the user's current position instead of the trimmed trip end.`,
+      action:
+        "If you're on build 42+ and still seeing this, tap Restart detection to force a fresh anchor registration.",
+    });
+  }
+
+  if (indoorPhantoms.length > 0) {
+    const totalLostMs = indoorPhantoms.reduce((sum, p) => sum + (p.durationMs ?? 0), 0);
+    problems.push({
+      severity: "warning",
+      title: `${indoorPhantoms.length} indoor-drift phantom exit${indoorPhantoms.length === 1 ? "" : "s"}`,
+      cause:
+        `iOS fired a geofence exit while you weren't actually moving — indoor GPS drift crossed the 200m anchor radius. MileClear started a phantom recording that burned ${formatMs(totalLostMs)} with no real movement. If this is recent, a legitimate trip may have been missed because the anchor was consumed.`,
+      action:
+        "Build 42+ re-arms the anchor after phantom exits, so the next real departure will still fire.",
+    });
+  }
+
+  // 7c. Anchor re-arm events — confirms the build-42 fix is firing
+  const anchorRearmed = events.slice(0, 30).find((e) => e.event === "anchor_rearmed_after_phantom");
+  if (anchorRearmed) {
+    problems.push({
+      severity: "info",
+      title: "Anchor re-armed after phantom exit",
+      cause:
+        "A false geofence exit was cleaned up and the departure anchor has been re-registered at the current location. This prevents the next real trip from being missed.",
+    });
+  }
+
   // 8. Cooldown active (info)
   if (d.cooldownRemainingMs > 0) {
     problems.push({

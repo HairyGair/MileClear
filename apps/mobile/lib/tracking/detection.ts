@@ -389,6 +389,18 @@ async function _finalizeAutoTripInner(): Promise<void> {
     // No meaningful trip - dismiss Live Activity immediately
     logDetectionEvent("finalize_no_coords").catch(() => {});
     endLiveActivity().catch(() => {});
+    // Re-arm the departure anchor at the current position. Critical for
+    // phantom anchor_exit recovery: indoor GPS drift fires a false exit,
+    // force_start begins a recording that never captures real movement,
+    // and this finalize runs with 0 coords. Without re-arming, iOS has
+    // no region left to fire on the next real departure and the actual
+    // trip is lost. setDepartureAnchor() with no args uses the current
+    // location, which is what we want.
+    try {
+      const { setDepartureAnchor } = await import("../geofencing/index");
+      await setDepartureAnchor();
+      logDetectionEvent("anchor_rearmed_after_phantom", { reason: "no_coords" }).catch(() => {});
+    } catch {}
     return;
   }
 
@@ -438,6 +450,15 @@ async function _finalizeAutoTripInner(): Promise<void> {
     // Too short to save - dismiss Live Activity immediately
     logDetectionEvent("finalize_too_short", { distance: totalDistance, gpsSumDistance }).catch(() => {});
     endLiveActivity().catch(() => {});
+    // Re-arm the departure anchor at the end of the brief movement so the
+    // next real trip gets a fresh exit event. Without this, a short walk
+    // or parking-lot shuffle consumes the anchor exit and leaves iOS with
+    // no region to fire on the next real departure.
+    try {
+      const { setDepartureAnchor } = await import("../geofencing/index");
+      await setDepartureAnchor(last.lat, last.lng);
+      logDetectionEvent("anchor_rearmed_after_phantom", { reason: "too_short" }).catch(() => {});
+    } catch {}
     return;
   }
 
@@ -690,11 +711,23 @@ async function _finalizeAutoTripInner(): Promise<void> {
 
     } // end if (!merged)
 
-    // Set departure anchor at trip end point - if iOS terminates the app,
-    // this geofence will reliably wake it when the user starts moving again
+    // Set departure anchor at the user's CURRENT position — not the trimmed
+    // "last coord" from the trip buffer. Using the last buffered coord is
+    // stale for two reasons: (1) the tail-trim earlier in this function
+    // removes trailing stationary coords, so last.lat/lng is often 30s+
+    // behind the user's current position; (2) finalize can run while the
+    // user is still physically moving (e.g. BT disconnect during drive).
+    // Registering a 200m region centered on a stale coord means iOS
+    // immediately re-evaluates the user as outside that region and fires
+    // another exit event within milliseconds — kicking off a phantom
+    // recording that captures zero real movement. Seen in the wild as a
+    // 72ms gap between finalize_saved and recording_started(anchor_exit).
+    // setDepartureAnchor() with no args uses getLastKnownPositionAsync(),
+    // which is fresh at finalize time since the task just processed a
+    // location batch.
     try {
       const { setDepartureAnchor } = await import("../geofencing/index");
-      await setDepartureAnchor(last.lat, last.lng);
+      await setDepartureAnchor();
     } catch {
       // Best effort
     }

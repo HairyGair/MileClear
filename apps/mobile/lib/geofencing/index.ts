@@ -71,7 +71,15 @@ try {
         // the start of a trip (no waiting for the consecutive detection gate).
         // If the movement turns out to be too short (walking, false positive),
         // the MIN_AUTO_TRIP_DISTANCE_MILES filter at finalization discards it.
-        await db.runAsync("DELETE FROM tracking_state WHERE key LIKE 'departure_anchor_%'");
+        //
+        // Keep the departure_anchor_* keys intact so subsequent
+        // registerGeofences() calls still know about the anchor. The previous
+        // implementation deleted them on exit, which broke re-registration
+        // after phantom exits: indoor GPS drift fires a false exit, the
+        // phantom recording bails via finalize_no_coords without re-arming,
+        // and iOS has no region left to fire on the real departure. Leaving
+        // the keys means the finalize path can re-arm the anchor at the
+        // current position whether or not a trip actually got saved.
         await forceStartRecording("anchor_exit");
         return;
       }
