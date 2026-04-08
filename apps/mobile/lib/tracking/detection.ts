@@ -237,6 +237,17 @@ async function _finalizeAutoTripInner(): Promise<void> {
   // Calculate final distance for the Live Activity summary before clearing coords
   const finalStats = await getAutoTripRunningDistance();
 
+  // Safety: drop any coordinates older than BUFFER_MAX_AGE_MS (30 min). If
+  // auto_recording_active got stuck ON across a crash, the buffer can contain
+  // coords from days ago. Without this purge, the saved trip's startedAt
+  // would be the stale first coord (e.g. resulting in "5369:16" elapsed on
+  // the Trip in Progress screen, or an impossibly long HMRC claim).
+  const staleCutoff = new Date(Date.now() - BUFFER_MAX_AGE_MS).toISOString();
+  await db.runAsync(
+    "DELETE FROM detection_coordinates WHERE recorded_at < ?",
+    [staleCutoff]
+  );
+
   // Read all buffered coordinates
   const allCoords = await db.getAllAsync<BufferedCoordinate>(
     "SELECT lat, lng, speed, accuracy, recorded_at FROM detection_coordinates ORDER BY recorded_at ASC"

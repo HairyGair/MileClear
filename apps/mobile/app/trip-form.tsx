@@ -436,9 +436,35 @@ export default function TripFormScreen() {
           "SELECT value FROM tracking_state WHERE key = ?",
           [QUICK_TRIP_KEY]
         );
-        if (row) {
+
+        // Resume guard: if the saved startedAt is absurdly old (> 12 hours),
+        // the row is stale from a previous crashed/killed session. Clear it
+        // and fall through to the fresh-start path below so the user does
+        // not see a runaway timer like "5369:16" on a fresh drive.
+        let resumeRow = row;
+        if (resumeRow) {
+          try {
+            const saved: QuickTripStart = JSON.parse(resumeRow.value);
+            const savedStartMs = new Date(saved.startedAt).getTime();
+            const ageMs = Date.now() - savedStartMs;
+            const MAX_QUICK_TRIP_AGE_MS = 12 * 60 * 60 * 1000; // 12 hours
+            if (!Number.isFinite(savedStartMs) || ageMs > MAX_QUICK_TRIP_AGE_MS || ageMs < 0) {
+              await db.runAsync("DELETE FROM tracking_state WHERE key = ?", [QUICK_TRIP_KEY]);
+              // Also drop any orphaned background coordinates under the quick trip shift id
+              await db.runAsync("DELETE FROM shift_coordinates WHERE shift_id = '__quick_trip__'").catch(() => {});
+              await stopQuickTripTracking().catch(() => []);
+              resumeRow = null;
+            }
+          } catch {
+            // Malformed row - clear and start fresh
+            await db.runAsync("DELETE FROM tracking_state WHERE key = ?", [QUICK_TRIP_KEY]);
+            resumeRow = null;
+          }
+        }
+
+        if (resumeRow) {
           // Resume in-progress trip
-          const saved: QuickTripStart = JSON.parse(row.value);
+          const saved: QuickTripStart = JSON.parse(resumeRow.value);
           setStartLat(saved.lat);
           setStartLng(saved.lng);
           setStartAddress(saved.address);
@@ -457,6 +483,32 @@ export default function TripFormScreen() {
                 recordedAt: c.recorded_at,
               }));
               breadcrumbsRef.current = crumbs;
+
+              // Safety re-anchor: if the earliest background coordinate is
+              // significantly more recent than the saved startedAt (e.g.
+              // promoteDetectionToQuickTrip used a stale detection buffer
+              // entry that slipped past the 30-min purge), trust the GPS
+              // data over the saved value. The first real movement is the
+              // true trip start.
+              const savedStartMs = new Date(saved.startedAt).getTime();
+              const firstCoordMs = new Date(crumbs[0].recordedAt).getTime();
+              if (
+                Number.isFinite(firstCoordMs) &&
+                firstCoordMs > savedStartMs &&
+                firstCoordMs - savedStartMs > 10 * 60 * 1000
+              ) {
+                setStartedAt(new Date(firstCoordMs));
+                // Also persist the corrected startedAt so a future resume
+                // does not rediscover the old stale value.
+                db.runAsync(
+                  "INSERT OR REPLACE INTO tracking_state (key, value) VALUES (?, ?)",
+                  [
+                    QUICK_TRIP_KEY,
+                    JSON.stringify({ ...saved, startedAt: new Date(firstCoordMs).toISOString() }),
+                  ]
+                ).catch(() => {});
+              }
+
               let totalDist = 0;
               for (let i = 1; i < crumbs.length; i++) {
                 totalDist += haversineDistance(crumbs[i - 1].lat, crumbs[i - 1].lng, crumbs[i].lat, crumbs[i].lng);
@@ -836,6 +888,14 @@ export default function TripFormScreen() {
       setMode("driving");
 
       const db = await getDatabase();
+      // Clear any leftover quick-trip background coordinates from a previous
+      // session. If a prior trip crashed or was force-killed, its shift_coordinates
+      // rows can persist and would otherwise be attributed to this fresh trip,
+      // inflating the distance and distorting the start point.
+      await db.runAsync(
+        "DELETE FROM shift_coordinates WHERE shift_id = '__quick_trip__'"
+      ).catch(() => {});
+
       const tripStart: QuickTripStart = { lat: loc.lat, lng: loc.lng, address: loc.address, startedAt: now.toISOString() };
       await db.runAsync(
         "INSERT OR REPLACE INTO tracking_state (key, value) VALUES (?, ?)",

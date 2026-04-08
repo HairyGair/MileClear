@@ -15,7 +15,7 @@ import { bestTripDistance } from "@mileclear/shared";
 const LOCATION_TASK_NAME = "mileclear-background-location";
 const QUICK_TRIP_SHIFT_ID = "__quick_trip__";
 const MIN_TRIP_DISTANCE_MILES = 0.1;
-const STOP_THRESHOLD_MS = 5 * 60 * 1000; // 5 minutes — prevents traffic lights / brief stops from splitting trips
+const STOP_THRESHOLD_MS = 5 * 60 * 1000; // 5 minutes - prevents traffic lights / brief stops from splitting trips
 const STOP_SPEED_MS = 1.5; // m/s (~3.4 mph)
 
 export interface StoredCoordinate {
@@ -39,7 +39,7 @@ function haversine(lat1: number, lng1: number, lat2: number, lng2: number): numb
 }
 
 export async function requestLocationPermissions(): Promise<boolean> {
-  // Foreground permission is sufficient — background is best-effort
+  // Foreground permission is sufficient - background is best-effort
   // (Expo Go can't grant background permission at all)
   try {
     const { status: foreground } =
@@ -58,7 +58,7 @@ export async function requestLocationPermissions(): Promise<boolean> {
   try {
     await Location.requestBackgroundPermissionsAsync();
   } catch {
-    // Expected in Expo Go — foreground-only is fine
+    // Expected in Expo Go - foreground-only is fine
   }
 
   return true;
@@ -93,9 +93,9 @@ export async function startShiftTracking(shiftId: string): Promise<void> {
       },
     });
   } catch {
-    // Background location updates not available (e.g. Expo Go) —
+    // Background location updates not available (e.g. Expo Go) -
     // shift still runs, GPS just won't record in background
-    console.warn("Background location updates unavailable — foreground only");
+    console.warn("Background location updates unavailable - foreground only");
   }
 }
 
@@ -116,7 +116,7 @@ export async function stopShiftTracking(): Promise<void> {
 
   await startDriveDetection();
 
-  // Set departure anchor at the shift end point — if iOS terminates the app,
+  // Set departure anchor at the shift end point - if iOS terminates the app,
   // the geofence will reliably wake it when the user starts driving again
   setDepartureAnchor().catch(() => {});
 }
@@ -153,7 +153,7 @@ export async function startQuickTripTracking(): Promise<void> {
       },
     });
   } catch {
-    console.warn("Background location updates unavailable — foreground only");
+    console.warn("Background location updates unavailable - foreground only");
   }
 }
 
@@ -225,6 +225,17 @@ export async function promoteDetectionToQuickTrip(): Promise<{
 } | null> {
   const db = await getDatabase();
 
+  // Safety: purge any detection coordinates older than 30 minutes BEFORE
+  // reading them. If auto_recording_active got stuck ON (e.g. a crash before
+  // finalize fired), the buffer can contain coords from days ago. Without this
+  // purge, the "first" coord could be days old and the resulting trip would
+  // show an absurd elapsed time like "5369:16".
+  const cutoff = new Date(Date.now() - 30 * 60 * 1000).toISOString();
+  await db.runAsync(
+    "DELETE FROM detection_coordinates WHERE recorded_at < ?",
+    [cutoff]
+  );
+
   // Read buffered detection coordinates
   const detectionCoords = await db.getAllAsync<StoredCoordinate>(
     "SELECT lat, lng, speed, accuracy, recorded_at FROM detection_coordinates ORDER BY recorded_at ASC"
@@ -280,7 +291,7 @@ export async function processShiftTrips(
 ): Promise<number> {
   const db = await getDatabase();
 
-  // Read coordinates atomically — copy to a processing flag to prevent
+  // Read coordinates atomically - copy to a processing flag to prevent
   // the background task from writing more while we process
   const coords = await db.getAllAsync<StoredCoordinate>(
     "SELECT lat, lng, speed, accuracy, recorded_at FROM shift_coordinates WHERE shift_id = ? ORDER BY recorded_at ASC",
@@ -394,7 +405,7 @@ export function segmentTrips(coords: StoredCoordinate[]): StoredCoordinate[][] {
       if (stoppedSince === null) stoppedSince = currTime;
 
       if (currTime - stoppedSince >= STOP_THRESHOLD_MS) {
-        // Stopped for >2 minutes — end current trip, start fresh
+        // Stopped for >2 minutes - end current trip, start fresh
         if (current.length >= 2) {
           trips.push(current);
         }
@@ -416,7 +427,7 @@ export function segmentTrips(coords: StoredCoordinate[]): StoredCoordinate[][] {
   return trips;
 }
 
-// Background task — runs when app is backgrounded, stores coords in SQLite
+// Background task - runs when app is backgrounded, stores coords in SQLite
 TaskManager.defineTask(LOCATION_TASK_NAME, async ({ data, error }) => {
   if (error) {
     console.error("Background location error:", error);
