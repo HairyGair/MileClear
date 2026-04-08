@@ -26,9 +26,21 @@ export interface BlogPost {
 // ----------------------------------------------------------------
 export const RELEASE_NOTES: ReleaseNote[] = [
   {
+    version: "1.0.7",
+    date: "8 April 2026",
+    label: "In Testing",
+    items: [
+      "End Trip on the lock screen actually ends the trip now - tapping the button on the Live Activity flips it to a 'Saving trip' state instantly via iOS 17.2+ App Intents, then a 'Trip Complete' summary with your final distance and classify CTA",
+      "New 'Trip Complete' Live Activity view - shows a checkmark, your frozen duration (HH:MM:SS for long trips), and a one-tap Classify Trip button when the trip needs classifying",
+      "Trips land in the inbox faster - reverse geocoding, classification, and road-data lookups now run in parallel during finalisation instead of sequentially, and the 'Trip recorded' notification fires before the API call for auto-classified trips",
+      "Fixed the runaway Trip In Progress timer that could show wildly incorrect elapsed times like '5369:16' on a fresh drive. A stale session from a previous crash no longer bleeds into new trips",
+      "Fresh trip starts now clear any leftover GPS breadcrumbs from a crashed previous session, so distance and start location are always accurate",
+    ],
+  },
+  {
     version: "1.0.6",
     date: "7 April 2026",
-    label: "In Testing",
+    label: "App Store",
     items: [
       "More accurate auto trip distances - winding routes and country lanes no longer read 5-10% short. Distances are cross-checked against UK road data so your HMRC mileage claims match your odometer",
       "Reliable trip starts - leaving home, work, or any saved location now records from the moment you drive off instead of a few hundred metres later",
