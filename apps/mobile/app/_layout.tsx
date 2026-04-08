@@ -339,6 +339,7 @@ function RootNavigator() {
         <Stack.Screen name="feedback-form" options={{ headerShown: true, title: "Submit Suggestion" }} />
         <Stack.Screen name="admin-feedback" options={{ headerShown: true, title: "Manage Feedback" }} />
         <Stack.Screen name="sync-status" options={{ headerShown: true, title: "Sync Status" }} />
+        <Stack.Screen name="drive-detection-diagnostics" options={{ headerShown: true, title: "Drive Detection" }} />
         <Stack.Screen name="saved-locations" options={{ headerShown: true, title: "Saved Locations" }} />
         <Stack.Screen name="saved-location-form" options={{ headerShown: true, title: "Add Location" }} />
         <Stack.Screen name="insights" options={{ headerShown: true, title: "Insights & Analytics" }} />

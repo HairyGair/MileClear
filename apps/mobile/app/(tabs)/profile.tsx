@@ -762,6 +762,27 @@ export default function ProfileScreen() {
                 />
               </View>
 
+              {/* Drive Detection Diagnostics */}
+              <TouchableOpacity
+                style={[styles.settingItem, styles.itemBorder]}
+                onPress={() => router.push("/drive-detection-diagnostics" as any)}
+                activeOpacity={0.6}
+                accessibilityRole="button"
+                accessibilityLabel="Drive Detection Diagnostics"
+                accessibilityHint="View detection events, permissions, and state"
+              >
+                <View style={styles.iconCircle}>
+                  <Ionicons name="pulse-outline" size={18} color={AMBER} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.itemLabel}>Diagnostics</Text>
+                  <Text style={styles.itemHint}>
+                    Troubleshoot drive detection
+                  </Text>
+                </View>
+                <Ionicons name="chevron-forward" size={16} color="#64748b" />
+              </TouchableOpacity>
+
               {/* Work Schedule */}
               <TouchableOpacity
                 style={[styles.settingItem, styles.itemBorder]}

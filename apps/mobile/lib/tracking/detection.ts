@@ -152,6 +152,111 @@ export async function getRecentDetectionEvents(limit = 100): Promise<Array<{ rec
   }
 }
 
+export interface DriveDetectionDiagnostics {
+  enabled: boolean;
+  taskRunning: boolean;
+  foregroundPermission: string;
+  backgroundPermission: string;
+  activeShiftId: string | null;
+  autoRecordingActive: boolean;
+  quietHours: boolean;
+  lastNotificationAt: string | null;
+  cooldownRemainingMs: number;
+  cooldownMs: number;
+  speedThresholdMph: number;
+  trackingState: Array<{ key: string; value: string }>;
+  bufferedCoordinates: number;
+}
+
+/**
+ * Gather everything a diagnostics screen needs in one call: runtime flags,
+ * permissions, tracking_state dump, and buffered coordinate count. Never throws.
+ */
+export async function getDriveDetectionDiagnostics(): Promise<DriveDetectionDiagnostics> {
+  const result: DriveDetectionDiagnostics = {
+    enabled: true,
+    taskRunning: false,
+    foregroundPermission: "unknown",
+    backgroundPermission: "unknown",
+    activeShiftId: null,
+    autoRecordingActive: false,
+    quietHours: isQuietHours(),
+    lastNotificationAt: null,
+    cooldownRemainingMs: 0,
+    cooldownMs: COOLDOWN_MS,
+    speedThresholdMph: DRIVING_SPEED_THRESHOLD_MPH,
+    trackingState: [],
+    bufferedCoordinates: 0,
+  };
+
+  try {
+    result.enabled = await isDriveDetectionEnabled();
+  } catch {}
+
+  try {
+    result.taskRunning = await Location.hasStartedLocationUpdatesAsync(DETECTION_TASK_NAME);
+  } catch {}
+
+  try {
+    const fg = await Location.getForegroundPermissionsAsync();
+    result.foregroundPermission = fg.status;
+  } catch {}
+
+  try {
+    const bg = await Location.getBackgroundPermissionsAsync();
+    result.backgroundPermission = bg.status;
+  } catch {}
+
+  try {
+    const db = await getDatabase();
+    const rows = await db.getAllAsync<{ key: string; value: string }>(
+      "SELECT key, value FROM tracking_state ORDER BY key ASC"
+    );
+    result.trackingState = rows;
+    for (const row of rows) {
+      if (row.key === "active_shift_id") result.activeShiftId = row.value;
+      if (row.key === "auto_recording_active") result.autoRecordingActive = row.value === "1";
+      if (row.key === "last_detection_notification") {
+        const ts = Number(row.value);
+        if (!Number.isNaN(ts)) {
+          result.lastNotificationAt = new Date(ts).toISOString();
+          result.cooldownRemainingMs = Math.max(0, COOLDOWN_MS - (Date.now() - ts));
+        }
+      }
+    }
+
+    const buffered = await db.getFirstAsync<{ count: number }>(
+      "SELECT COUNT(*) as count FROM detection_coordinates"
+    );
+    result.bufferedCoordinates = buffered?.count ?? 0;
+  } catch {}
+
+  return result;
+}
+
+/**
+ * Clear all rows from the detection_events log. Used by the diagnostics
+ * screen before reproducing a problem so the captured events are scoped to
+ * the repro window only.
+ */
+export async function clearDetectionEvents(): Promise<void> {
+  try {
+    const db = await getDatabase();
+    await db.runAsync("DELETE FROM detection_events");
+  } catch {}
+}
+
+/** Force-restart the detection task. Use from diagnostics when stuck. */
+export async function restartDriveDetection(): Promise<void> {
+  try {
+    const isRunning = await Location.hasStartedLocationUpdatesAsync(DETECTION_TASK_NAME);
+    if (isRunning) {
+      await Location.stopLocationUpdatesAsync(DETECTION_TASK_NAME);
+    }
+  } catch {}
+  await startDriveDetection();
+}
+
 /**
  * Check if any locations show movement above the lower "continue" threshold.
  * Used to keep an active recording alive during slow traffic / turns.

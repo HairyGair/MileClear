@@ -4,14 +4,27 @@ import * as SQLite from "expo-sqlite";
 
 const CURRENT_SCHEMA_VERSION = 9;
 
-let db: SQLite.SQLiteDatabase | null = null;
+let dbPromise: Promise<SQLite.SQLiteDatabase> | null = null;
 
 export async function getDatabase(): Promise<SQLite.SQLiteDatabase> {
-  if (!db) {
-    db = await SQLite.openDatabaseAsync("mileclear.db");
-    await initializeSchema(db);
+  // Cache the promise (not the resolved value) so concurrent callers on
+  // cold start all await the same single init. Otherwise multiple callers
+  // race past the `if` check before the first has resolved, and each runs
+  // initializeSchema() concurrently - causing "duplicate column name"
+  // errors when two concurrent ALTER TABLE migrations both see the same
+  // pre-migration schema via PRAGMA table_info.
+  if (!dbPromise) {
+    dbPromise = (async () => {
+      const database = await SQLite.openDatabaseAsync("mileclear.db");
+      await initializeSchema(database);
+      return database;
+    })().catch((err) => {
+      // Reset so a retry can recover instead of wedging the app forever
+      dbPromise = null;
+      throw err;
+    });
   }
-  return db;
+  return dbPromise;
 }
 
 async function initializeSchema(database: SQLite.SQLiteDatabase): Promise<void> {
