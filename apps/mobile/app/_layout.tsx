@@ -129,7 +129,7 @@ function RootNavigator() {
 
   useEffect(() => {
     if (isAuthenticated && !isLoading) {
-      // Finalize stale recordings BEFORE starting detection — otherwise
+      // Finalize stale recordings BEFORE starting detection - otherwise
       // startDriveDetection() fires a location update that the task buffers
       // with the current timestamp, making the trip end time = app open time.
       finalizeStaleAutoRecordings()
@@ -173,8 +173,25 @@ function RootNavigator() {
         router.navigate("/(tabs)/dashboard");
         return;
       }
+      if (url === "mileclear://trips") {
+        router.navigate("/(tabs)/trips");
+        return;
+      }
+      if (url === "mileclear://classify-trip") {
+        // Sent by the "Classify Trip" CTA on the ended-phase Live Activity.
+        // Route to the trips inbox so the user can tap Business/Personal.
+        router.navigate("/(tabs)/trips");
+        return;
+      }
       if (url === "mileclear://end-trip") {
         try {
+          // Instant visual feedback - flip the Live Activity into "saving"
+          // phase BEFORE running finalize, so the user sees "Saving trip..."
+          // regardless of whether we're on iOS 16.x (no App Intent) or 17+
+          // (App Intent already did this in the widget process).
+          const { markLiveActivitySaving } = await import("../lib/liveActivity");
+          await markLiveActivitySaving(0);
+
           const { finalizeAutoTrip } = await import("../lib/tracking/detection");
           // Check if there's an active shift first
           const db = await getDatabase();
@@ -185,7 +202,8 @@ function RootNavigator() {
             // Navigate to dashboard where they can end the shift properly
             router.navigate("/(tabs)/dashboard");
           } else {
-            // Auto-trip: finalize immediately
+            // Auto-trip: finalize immediately. The finalize flow will flip
+            // the Live Activity to the "ended" phase with final stats.
             await finalizeAutoTrip();
           }
         } catch {}
@@ -206,6 +224,56 @@ function RootNavigator() {
     });
     return () => sub.remove();
   }, []);
+
+  // Process pending finalization when the app opens or returns to foreground.
+  //
+  // On iOS 17+, the EndTripIntent runs in the widget extension process when
+  // the user taps "End Trip" on the lock screen. The intent flips the Live
+  // Activity to phase="saving" instantly and opens the main app via
+  // openAppWhenRun=true. The main app doesn't know it was launched by the
+  // intent per se, but it can detect the pending finalize by checking the
+  // Live Activity phase: if it's "saving" and we have an active auto-
+  // recording in SQLite, the intent is waiting for us to finish the job.
+  //
+  // This hook runs on app mount AND on every AppState -> active transition,
+  // covering: cold launch from intent, warm foreground from intent, and
+  // the iOS 16.x deep-link fallback (which also flips the LA via the URL
+  // handler above).
+  useEffect(() => {
+    if (!isAuthenticated || isLoading) return;
+
+    const checkPendingFinalize = async () => {
+      try {
+        const { getLiveActivityPhase } = await import("../lib/liveActivity");
+        const phase = await getLiveActivityPhase();
+        if (phase !== "saving") return;
+
+        // Confirm we actually have an active recording to finalize -
+        // otherwise the "saving" state is stale and we just dismiss it.
+        const db = await getDatabase();
+        const recording = await db.getFirstAsync<{ value: string }>(
+          "SELECT value FROM tracking_state WHERE key = 'auto_recording_active'"
+        );
+        if (recording?.value === "1") {
+          const { finalizeAutoTrip } = await import("../lib/tracking/detection");
+          await finalizeAutoTrip();
+        } else {
+          // Stale "saving" state with nothing to finalize - dismiss the LA.
+          const { endLiveActivity } = await import("../lib/liveActivity");
+          await endLiveActivity();
+        }
+      } catch {}
+    };
+
+    // Run once on mount (covers cold launch from intent)
+    checkPendingFinalize();
+
+    // And on every foreground transition (warm launch from intent)
+    const sub = AppState.addEventListener("change", (state) => {
+      if (state === "active") checkPendingFinalize();
+    });
+    return () => sub.remove();
+  }, [isAuthenticated, isLoading]);
 
   // Apple In-App Purchase: global listener for StoreKit transactions
   const { refreshUser } = useUser();
@@ -283,7 +351,7 @@ function RootNavigator() {
         <Stack.Screen name="admin-email" options={{ headerShown: true, title: "Email Campaigns" }} />
         <Stack.Screen name="customize-layout" options={{ headerShown: false }} />
       </Stack>
-      {/* Loading overlay — covers Stack while auth/onboarding resolves */}
+      {/* Loading overlay - covers Stack while auth/onboarding resolves */}
       {showLoading && (
         <View style={styles.loadingOverlay}>
           <ActivityIndicator size="large" color="#f5a623" />
@@ -295,7 +363,7 @@ function RootNavigator() {
 }
 
 export default function RootLayout() {
-  // Load fonts in background — never block the navigator
+  // Load fonts in background - never block the navigator
   useEffect(() => {
     Font.loadAsync({
       PlusJakartaSans_300Light,

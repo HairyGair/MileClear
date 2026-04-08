@@ -50,11 +50,21 @@ export async function startLiveActivity(params: {
 
 /**
  * Update the current Live Activity with new state.
+ *
+ * Phase semantics:
+ * - "active": normal in-progress view (timer counts up)
+ * - "saving": flipped by the App Intent (iOS 17+) or the URL handler fallback
+ *   immediately when the user taps End Trip - shows "Saving trip..." while the
+ *   main app does the actual finalize work
+ * - "ended": final "Trip Complete" view with frozen duration and classify CTA
  */
 export async function updateLiveActivity(params: {
   distanceMiles: number;
   speedMph: number;
   tripCount?: number;
+  phase?: "active" | "saving" | "ended";
+  endDateMs?: number;
+  needsClassification?: boolean;
 }): Promise<void> {
   if (Platform.OS !== "ios" || !LiveActivityModule || !currentActivityId) return;
   try {
@@ -64,8 +74,51 @@ export async function updateLiveActivity(params: {
       speedMph: params.speedMph,
       tripCount: params.tripCount ?? 0,
       startDateMs: activityStartDateMs ?? Date.now(),
+      phase: params.phase ?? "active",
+      endDateMs: params.endDateMs ?? 0,
+      needsClassification: params.needsClassification ?? false,
     });
   } catch {}
+}
+
+/**
+ * Flip the Live Activity into the "saving" phase immediately. Called as the
+ * first action when the user taps End Trip on the lock screen, so they see
+ * "Saving trip..." before the main app starts running finalize.
+ *
+ * On iOS 17+ the App Intent already does this in the widget process, so this
+ * is a no-op double-check. On iOS 16.x the URL handler relies on it for
+ * visual feedback.
+ */
+export async function markLiveActivitySaving(currentDistanceMiles: number): Promise<void> {
+  if (Platform.OS !== "ios" || !LiveActivityModule) return;
+  try {
+    await LiveActivityModule.updateActivity({
+      activityId: currentActivityId,
+      distanceMiles: currentDistanceMiles,
+      speedMph: 0,
+      tripCount: 0,
+      startDateMs: activityStartDateMs ?? Date.now(),
+      phase: "saving",
+      endDateMs: Date.now(),
+      needsClassification: false,
+    });
+  } catch {}
+}
+
+/**
+ * Read the current Live Activity phase, or null if none is running.
+ * Used on app startup / AppState active to detect when an App Intent has
+ * flipped the activity to "saving" and the main app now needs to finalize.
+ */
+export async function getLiveActivityPhase(): Promise<string | null> {
+  if (Platform.OS !== "ios" || !LiveActivityModule) return null;
+  try {
+    const phase = await LiveActivityModule.getLiveActivityPhase();
+    return phase ?? null;
+  } catch {
+    return null;
+  }
 }
 
 /**
@@ -82,10 +135,14 @@ export async function endLiveActivity(): Promise<void> {
 
 /**
  * End the current Live Activity with a final summary that stays on the lock screen briefly.
+ * The resulting state is rendered in the "Trip Complete" phase view with a frozen
+ * duration, large distance, and an optional "Classify Trip" CTA.
  */
 export async function endLiveActivityWithSummary(params: {
   distanceMiles: number;
   tripCount?: number;
+  endDateMs?: number;
+  needsClassification?: boolean;
 }): Promise<void> {
   if (Platform.OS !== "ios" || !LiveActivityModule) return;
   try {
@@ -93,6 +150,8 @@ export async function endLiveActivityWithSummary(params: {
       distanceMiles: params.distanceMiles,
       tripCount: params.tripCount ?? 0,
       startDateMs: activityStartDateMs ?? Date.now(),
+      endDateMs: params.endDateMs ?? Date.now(),
+      needsClassification: params.needsClassification ?? false,
     });
     currentActivityId = null;
     activityStartDateMs = null;

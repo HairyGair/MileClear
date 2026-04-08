@@ -306,42 +306,57 @@ async function _finalizeAutoTripInner(): Promise<void> {
     return;
   }
 
-  // Reverse geocode start and end points
-  let startAddress: string | null = null;
-  let endAddress: string | null = null;
-  try {
-    const { reverseGeocode } = await import("../location/geocoding");
-    [startAddress, endAddress] = await Promise.all([
-      reverseGeocode(first.lat, first.lng),
-      reverseGeocode(last.lat, last.lng),
-    ]);
-  } catch {
-    // Geocoding is best-effort
-  }
+  // Reverse geocode + classify in parallel. All three are independent network
+  // operations and previously ran sequentially, adding 1-3 seconds to the
+  // user-perceived "trip landed in inbox" latency. Running them together
+  // caps the total wait at the slowest call instead of the sum.
+  const [startAddress, endAddress, classificationResult] = await Promise.all([
+    (async () => {
+      try {
+        const { reverseGeocode } = await import("../location/geocoding");
+        return await reverseGeocode(first.lat, first.lng);
+      } catch {
+        return null;
+      }
+    })(),
+    (async () => {
+      try {
+        const { reverseGeocode } = await import("../location/geocoding");
+        return await reverseGeocode(last.lat, last.lng);
+      } catch {
+        return null;
+      }
+    })(),
+    (async () => {
+      try {
+        const { classifyTrip, AUTO_CLASSIFY_THRESHOLD } = await import("../classification");
+        const result = await classifyTrip({
+          startLat: first.lat,
+          startLng: first.lng,
+          endLat: last.lat,
+          endLng: last.lng,
+          startedAt: first.recorded_at,
+          endedAt: last.recorded_at,
+        });
+        return { result, threshold: AUTO_CLASSIFY_THRESHOLD };
+      } catch {
+        // Classification engine failure is non-fatal - save as unclassified
+        return null;
+      }
+    })(),
+  ]);
 
-  // Run classification engine to determine trip type before saving
   let classification: TripClassification = "unclassified";
   let platformTag: PlatformTag | undefined = undefined;
   let classificationSource: string | null = null;
-  try {
-    const { classifyTrip, AUTO_CLASSIFY_THRESHOLD } = await import("../classification");
-    const result = await classifyTrip({
-      startLat: first.lat,
-      startLng: first.lng,
-      endLat: last.lat,
-      endLng: last.lng,
-      startedAt: first.recorded_at,
-      endedAt: last.recorded_at,
-    });
-    if (result) {
-      classificationSource = result.source;
-      if (result.confidence >= AUTO_CLASSIFY_THRESHOLD) {
-        classification = result.classification as TripClassification;
-        platformTag = result.platformTag ? (result.platformTag as PlatformTag) : undefined;
-      }
+  if (classificationResult?.result) {
+    classificationSource = classificationResult.result.source;
+    if (classificationResult.result.confidence >= classificationResult.threshold) {
+      classification = classificationResult.result.classification as TripClassification;
+      platformTag = classificationResult.result.platformTag
+        ? (classificationResult.result.platformTag as PlatformTag)
+        : undefined;
     }
-  } catch {
-    // Classification engine failure is non-fatal - save as unclassified
   }
 
   try {
@@ -382,9 +397,13 @@ async function _finalizeAutoTripInner(): Promise<void> {
         merged = true;
         logDetectionEvent("finalize_merged", { intoTripId: recentTrip.id, segmentMiles: totalDistance, mergedTotal: newDistance }).catch(() => {});
 
-        // End Live Activity with the combined distance
+        // End Live Activity with the combined distance. Merged trips are
+        // already classified (we don't re-classify on merge), so no
+        // classification CTA is needed.
         endLiveActivityWithSummary({
           distanceMiles: newDistance,
+          endDateMs: new Date(last.recorded_at).getTime(),
+          needsClassification: false,
         }).catch(() => {});
 
         // Notify user of the merged trip
@@ -425,6 +444,36 @@ async function _finalizeAutoTripInner(): Promise<void> {
       // Best-effort - trip will just have no vehicle
     }
 
+    const wasAutoClassified = classification !== "unclassified";
+    const roundedDistance = Math.round(totalDistance * 100) / 100;
+
+    // Flip the Live Activity into the final "Trip Complete" state BEFORE the
+    // syncCreateTrip API call. The LA is a user-facing element and shouldn't
+    // wait for a network round trip to update - the local trip row gets
+    // written inside syncCreateTrip immediately anyway, so the inbox is
+    // already up to date by the time the user looks.
+    endLiveActivityWithSummary({
+      distanceMiles: roundedDistance,
+      endDateMs: new Date(last.recorded_at).getTime(),
+      needsClassification: !wasAutoClassified,
+    }).catch(() => {});
+
+    // For auto-classified trips, fire the "Trip recorded as X" notification
+    // BEFORE the API call - there are no action buttons that need the server
+    // tripId, so nothing depends on the sync completing.
+    if (wasAutoClassified && !isQuietHours()) {
+      const from = startAddress || "Unknown";
+      const to = endAddress || "Unknown";
+      Notifications.scheduleNotificationAsync({
+        content: {
+          title: `Trip recorded as ${classification}`,
+          body: `${from} to ${to} (${totalDistance.toFixed(1)} mi)`,
+          data: { action: "open_trips" },
+        },
+        trigger: null,
+      }).catch(() => {});
+    }
+
     const { syncCreateTrip } = await import("../sync/actions");
     const tripResult = await syncCreateTrip({
       startLat: first.lat,
@@ -433,7 +482,7 @@ async function _finalizeAutoTripInner(): Promise<void> {
       endLng: last.lng,
       startAddress: startAddress ?? undefined,
       endAddress: endAddress ?? undefined,
-      distanceMiles: Math.round(totalDistance * 100) / 100,
+      distanceMiles: roundedDistance,
       startedAt: first.recorded_at,
       endedAt: last.recorded_at,
       classification,
@@ -465,6 +514,33 @@ async function _finalizeAutoTripInner(): Promise<void> {
       classification,
     }).catch(() => {});
 
+    // For unclassified trips, fire the "classify it" notification NOW that
+    // we have the server tripId. The Business/Personal lock-screen buttons
+    // call syncUpdateTrip(tripId, ...) which needs the canonical ID.
+    if (!wasAutoClassified && !isQuietHours()) {
+      const from = startAddress || "Unknown";
+      const to = endAddress || "Unknown";
+      const tripId = savedTripId;
+      Notifications.scheduleNotificationAsync({
+        content: {
+          title: "Trip recorded - classify it",
+          body: `${from} to ${to} (${totalDistance.toFixed(1)} mi)`,
+          data: tripId
+            ? {
+                action: "classify_trip",
+                tripId,
+                startLat: first.lat,
+                startLng: first.lng,
+                endLat: last.lat,
+                endLng: last.lng,
+              }
+            : { action: "open_trips" },
+          ...(tripId ? { categoryIdentifier: "trip_recorded" } : {}),
+        },
+        trigger: null,
+      }).catch(() => {});
+    }
+
     // If auto-classified, learn from it to reinforce the route pattern
     if (classification !== "unclassified") {
       try {
@@ -475,43 +551,6 @@ async function _finalizeAutoTripInner(): Promise<void> {
           classification, platformTag: platformTag ?? null,
         });
       } catch {}
-    }
-
-    // End Live Activity with summary so user sees final trip stats on lock screen
-    endLiveActivityWithSummary({
-      distanceMiles: Math.round(totalDistance * 100) / 100,
-    }).catch(() => {});
-
-    // Notify user (skip during quiet hours - trip is still saved)
-    if (!isQuietHours()) {
-      const from = startAddress || "Unknown";
-      const to = endAddress || "Unknown";
-      const wasAutoClassified = classification !== "unclassified";
-      const tripId = tripResult?.data?.id;
-      // Only show lock screen classify buttons if we have a trip ID to update
-      const canClassifyFromNotification = !wasAutoClassified && !!tripId;
-
-      await Notifications.scheduleNotificationAsync({
-        content: {
-          title: wasAutoClassified
-            ? `Trip recorded as ${classification}`
-            : "Trip recorded - classify it",
-          body: `${from} → ${to} (${totalDistance.toFixed(1)} mi)`,
-          data: canClassifyFromNotification
-            ? {
-                action: "classify_trip",
-                tripId,
-                startLat: first.lat,
-                startLng: first.lng,
-                endLat: last.lat,
-                endLng: last.lng,
-              }
-            : { action: "open_trips" },
-          // Show Business/Personal buttons only when classification is actionable
-          ...(canClassifyFromNotification ? { categoryIdentifier: "trip_recorded" } : {}),
-        },
-        trigger: null,
-      }).catch(() => {});
     }
 
     } // end if (!merged)
@@ -616,6 +655,28 @@ try {
         "SELECT value FROM tracking_state WHERE key = 'auto_recording_active'"
       );
       const isRecording = recording?.value === "1";
+
+      // If the user tapped End Trip on the Live Activity (via the iOS 17.2+
+      // App Intent), the widget process has already flipped the LA phase to
+      // "saving" but the main app hasn't processed it yet. This is our third
+      // and most important trigger for running finalize: the background
+      // location task keeps firing for a few minutes after the user parks
+      // (iOS drip-feeds callbacks), so even if the user never opens the app,
+      // we'll catch the pending finalize within seconds of the tap.
+      if (isRecording) {
+        try {
+          const { getLiveActivityPhase } = await import("../liveActivity");
+          const phase = await getLiveActivityPhase();
+          if (phase === "saving") {
+            logDetectionEvent("pending_finalize_via_task", { source: "app_intent" }).catch(() => {});
+            await finalizeAutoTrip();
+            downgradeToDetectionMode().catch(() => {});
+            return;
+          }
+        } catch {
+          // LA phase check is best-effort
+        }
+      }
 
       if (isRecording) {
         // ── Active recording ──

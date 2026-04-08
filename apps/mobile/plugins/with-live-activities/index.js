@@ -49,9 +49,13 @@ function withLiveActivitiesFiles(config) {
         );
       }
 
-      // Copy shared Attributes + native module files to main app.
+      // Copy shared Attributes + LiveActivityIntents + native module files to main app.
       // Copy to BOTH ios/ root and ios/<ProjectName>/ because the Xcode
       // group path resolution varies between Expo SDK versions.
+      // LiveActivityIntents.swift must be in both the widget target (so the
+      // widget can invoke them from buttons) and the main app target (so
+      // iOS can resolve the same intent type when the app is opened via
+      // openAppWhenRun).
       const mainAppDir = path.join(iosRoot, projectName);
       const destinations = [iosRoot, mainAppDir];
 
@@ -60,6 +64,10 @@ function withLiveActivitiesFiles(config) {
         fs.copyFileSync(
           path.join(widgetSrc, "MileClearAttributes.swift"),
           path.join(dest, "MileClearAttributes.swift")
+        );
+        fs.copyFileSync(
+          path.join(widgetSrc, "LiveActivityIntents.swift"),
+          path.join(dest, "LiveActivityIntents.swift")
         );
         const nativeSrc = path.join(pluginDir, "native");
         for (const file of fs.readdirSync(nativeSrc)) {
@@ -101,6 +109,7 @@ function addNativeModuleToMainTarget(project, projectName) {
 
   const filesToAdd = [
     { name: "MileClearAttributes.swift", type: "sourcecode.swift" },
+    { name: "LiveActivityIntents.swift", type: "sourcecode.swift" },
     { name: "LiveActivityModule.swift", type: "sourcecode.swift" },
     { name: "LiveActivityBridge.m", type: "sourcecode.c.objc" },
   ];
@@ -156,6 +165,7 @@ function addWidgetExtensionTarget(project, projectName, config) {
   const swiftFiles = [
     "MileClearWidgetsBundle.swift",
     "MileClearAttributes.swift",
+    "LiveActivityIntents.swift",
     "LiveActivityView.swift",
   ];
 

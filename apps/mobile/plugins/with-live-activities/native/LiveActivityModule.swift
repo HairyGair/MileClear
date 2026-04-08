@@ -93,14 +93,32 @@ class LiveActivityModule: NSObject {
         let startDateMs = params["startDateMs"] as? Double ?? Date().timeIntervalSince1970 * 1000
         let startDate = Date(timeIntervalSince1970: startDateMs / 1000)
 
+        let phase = params["phase"] as? String ?? "active"
+        let needsClassification = params["needsClassification"] as? Bool ?? false
+
+        // endDate is optional - only present for saving/ended phases where the
+        // timer should freeze. Passed as ms since epoch, or null to keep the
+        // live-counting timer behavior from the active phase.
+        var endDate: Date? = nil
+        if let endDateMs = params["endDateMs"] as? Double, endDateMs > 0 {
+            endDate = Date(timeIntervalSince1970: endDateMs / 1000)
+        }
+
         let state = MileClearAttributes.ContentState(
             distanceMiles: params["distanceMiles"] as? Double ?? 0,
             speedMph: params["speedMph"] as? Double ?? 0,
             tripCount: params["tripCount"] as? Int ?? 0,
-            startDate: startDate
+            startDate: startDate,
+            phase: phase,
+            endDate: endDate,
+            needsClassification: needsClassification
         )
 
-        let staleDate = Date().addingTimeInterval(480) // Push stale deadline forward
+        // For ended/saving states, give iOS a shorter stale window so the
+        // summary view has time to be visible without holding the live
+        // activity open indefinitely. Active state uses the original 8min.
+        let staleInterval: TimeInterval = phase == "active" ? 480 : 300
+        let staleDate = Date().addingTimeInterval(staleInterval)
         let content = ActivityContent(state: state, staleDate: staleDate)
 
         Task {
@@ -147,11 +165,23 @@ class LiveActivityModule: NSObject {
         let startDateMs = params["startDateMs"] as? Double ?? Date().timeIntervalSince1970 * 1000
         let startDate = Date(timeIntervalSince1970: startDateMs / 1000)
 
+        // Ended phase freezes the timer at endDate (defaulting to now if
+        // the caller did not specify one - e.g. for legacy callers).
+        var endDate = Date()
+        if let endDateMs = params["endDateMs"] as? Double, endDateMs > 0 {
+            endDate = Date(timeIntervalSince1970: endDateMs / 1000)
+        }
+
+        let needsClassification = params["needsClassification"] as? Bool ?? false
+
         let finalState = MileClearAttributes.ContentState(
             distanceMiles: params["distanceMiles"] as? Double ?? 0,
             speedMph: 0,
             tripCount: params["tripCount"] as? Int ?? 0,
-            startDate: startDate
+            startDate: startDate,
+            phase: "ended",
+            endDate: endDate,
+            needsClassification: needsClassification
         )
 
         let finalContent = ActivityContent(
@@ -176,6 +206,28 @@ class LiveActivityModule: NSObject {
         if #available(iOS 16.2, *) {
             let activities = Activity<MileClearAttributes>.activities
             resolve(activities.first?.id)
+        } else {
+            resolve(nil)
+        }
+    }
+
+    // MARK: - getLiveActivityPhase
+    //
+    // Returns the phase of the current Live Activity, or nil if none is
+    // running. Used by the main app on startup / foreground to detect
+    // when an App Intent (EndTripIntent) has flipped the activity to
+    // "saving" and the main app now needs to finalize the trip.
+
+    @objc func getLiveActivityPhase(
+        _ resolve: @escaping RCTPromiseResolveBlock,
+        reject: @escaping RCTPromiseRejectBlock
+    ) {
+        if #available(iOS 16.2, *) {
+            if let activity = Activity<MileClearAttributes>.activities.first {
+                resolve(activity.content.state.phase)
+            } else {
+                resolve(nil)
+            }
         } else {
             resolve(nil)
         }
