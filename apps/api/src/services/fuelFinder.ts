@@ -15,6 +15,11 @@ const TOKEN_REFRESH_BUFFER_MS = 5 * 60 * 1000; // Refresh 5 min before expiry
 const REQUEST_TIMEOUT_MS = 15_000;
 const MAX_BATCHES = 200; // Safety limit to prevent infinite loops
 
+// Cooldown: after consecutive failures, stop hitting the API for a while to
+// avoid triggering the API's 429 "Too many failed attempts" rate limiter.
+const FAILURE_COOLDOWN_MS = 20 * 60 * 1000; // 20 min after repeated failures
+const MAX_CONSECUTIVE_FAILURES = 3;
+
 // --- Token management ---
 
 interface TokenData {
@@ -24,15 +29,29 @@ interface TokenData {
 }
 
 let cachedToken: TokenData | null = null;
+let consecutiveFailures = 0;
+let cooldownUntil = 0;
 
 export function isFuelFinderConfigured(): boolean {
   return !!(FUEL_FINDER_CLIENT_ID && FUEL_FINDER_CLIENT_SECRET);
 }
 
-async function getToken(): Promise<string> {
-  if (cachedToken && Date.now() < cachedToken.expiresAt - TOKEN_REFRESH_BUFFER_MS) {
+/** Invalidate the cached token so the next call does a fresh auth. */
+export function clearFuelFinderToken(): void {
+  cachedToken = null;
+}
+
+async function getToken(forceRefresh = false): Promise<string> {
+  if (
+    !forceRefresh &&
+    cachedToken &&
+    Date.now() < cachedToken.expiresAt - TOKEN_REFRESH_BUFFER_MS
+  ) {
     return cachedToken.accessToken;
   }
+
+  // Clear stale token before re-authenticating
+  cachedToken = null;
 
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
@@ -42,6 +61,7 @@ async function getToken(): Promise<string> {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
+        grant_type: "client_credentials",
         client_id: FUEL_FINDER_CLIENT_ID,
         client_secret: FUEL_FINDER_CLIENT_SECRET,
       }),
@@ -142,6 +162,13 @@ const FUEL_TYPE_MAP: Record<string, keyof InternalStation["prices"]> = {
 
 // --- Paginated batch fetching ---
 
+class TokenRevokedError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "TokenRevokedError";
+  }
+}
+
 async function fetchBatch<T>(token: string, path: string, batchNumber: number): Promise<T[]> {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
@@ -157,6 +184,11 @@ async function fetchBatch<T>(token: string, path: string, batchNumber: number): 
       },
       signal: controller.signal,
     });
+
+    if (res.status === 403 || res.status === 401) {
+      const text = await res.text().catch(() => "");
+      throw new TokenRevokedError(`HTTP ${res.status} — ${text}`);
+    }
 
     if (!res.ok) {
       const text = await res.text().catch(() => "");
@@ -202,18 +234,69 @@ async function fetchAllBatches<T>(token: string, path: string): Promise<T[]> {
  * 1. Fetch station details (location, brand) from /v1/pfs
  * 2. Fetch prices from /v1/pfs/fuel-prices
  * 3. Join by node_id and normalise to InternalStation format
+ *
+ * Handles token revocation: if the data API returns 401/403, we clear
+ * the cached token, obtain a fresh one, and retry once. If it fails
+ * again, we enter a 20-minute cooldown to avoid 429 rate limits.
  */
 export async function fetchFuelFinderStations(): Promise<{
   stations: InternalStation[];
   lastUpdated: string;
 }> {
-  const token = await getToken();
+  // Cooldown: if we recently failed multiple times, skip entirely so
+  // the fallback (retailer feeds) handles requests without us hammering
+  // the Fuel Finder API into a 429 rate-limit cycle.
+  if (Date.now() < cooldownUntil) {
+    throw new Error(`Fuel Finder API in cooldown until ${new Date(cooldownUntil).toISOString()} after ${consecutiveFailures} consecutive failures`);
+  }
 
-  // Fetch stations and prices in parallel
-  const [pfsStations, pfsStationPrices] = await Promise.all([
-    fetchAllBatches<FuelFinderPfsStation>(token, "/v1/pfs"),
-    fetchAllBatches<FuelFinderPriceStation>(token, "/v1/pfs/fuel-prices"),
-  ]);
+  async function attemptFetch(): Promise<{ pfsStations: FuelFinderPfsStation[]; pfsStationPrices: FuelFinderPriceStation[] }> {
+    const token = await getToken();
+    const [pfsStations, pfsStationPrices] = await Promise.all([
+      fetchAllBatches<FuelFinderPfsStation>(token, "/v1/pfs"),
+      fetchAllBatches<FuelFinderPriceStation>(token, "/v1/pfs/fuel-prices"),
+    ]);
+    return { pfsStations, pfsStationPrices };
+  }
+
+  let pfsStations: FuelFinderPfsStation[];
+  let pfsStationPrices: FuelFinderPriceStation[];
+
+  try {
+    const result = await attemptFetch();
+    pfsStations = result.pfsStations;
+    pfsStationPrices = result.pfsStationPrices;
+  } catch (err) {
+    if (err instanceof TokenRevokedError) {
+      // Token was rejected - clear it and retry with a fresh one
+      console.warn("[fuel-finder] Token rejected, clearing cache and retrying with fresh token");
+      clearFuelFinderToken();
+      try {
+        const result = await attemptFetch();
+        pfsStations = result.pfsStations;
+        pfsStationPrices = result.pfsStationPrices;
+      } catch (retryErr) {
+        // Second attempt also failed - enter cooldown
+        consecutiveFailures++;
+        if (consecutiveFailures >= MAX_CONSECUTIVE_FAILURES) {
+          cooldownUntil = Date.now() + FAILURE_COOLDOWN_MS;
+          console.error(`[fuel-finder] ${consecutiveFailures} consecutive failures, entering ${FAILURE_COOLDOWN_MS / 60000}min cooldown`);
+        }
+        throw retryErr;
+      }
+    } else {
+      consecutiveFailures++;
+      if (consecutiveFailures >= MAX_CONSECUTIVE_FAILURES) {
+        cooldownUntil = Date.now() + FAILURE_COOLDOWN_MS;
+        console.error(`[fuel-finder] ${consecutiveFailures} consecutive failures, entering ${FAILURE_COOLDOWN_MS / 60000}min cooldown`);
+      }
+      throw err;
+    }
+  }
+
+  // Success - reset failure tracking
+  consecutiveFailures = 0;
+  cooldownUntil = 0;
 
   console.log(`[fuel-finder] Raw data: ${pfsStations.length} stations, ${pfsStationPrices.length} price entries`);
 

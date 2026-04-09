@@ -80,7 +80,8 @@ export const FUEL_RETAILER_FEEDS = [
   { name: "Tesco", url: "https://www.tesco.com/fuel_prices/fuel_prices_data.json" },
   { name: "Ascona", url: "https://fuelprices.asconagroup.co.uk/newfuel.json" },
   { name: "Karan", url: "https://api.krl.live/integration/live_price/krl" },
-  { name: "BP", url: "https://www.bp.com/en_gb/united-kingdom/home/fuelprices/fuel_prices_data.json" },
+  // BP removed: voluntary CMA feed returned 403 since mandatory Fuel Finder
+  // reporting launched Feb 2026. BP stations are covered by Fuel Finder API.
 ] as const;
 
 // Fuel brands
