@@ -30,6 +30,9 @@ export const RELEASE_NOTES: ReleaseNote[] = [
     date: "8 April 2026",
     label: "Pending Review",
     items: [
+      "Long drives now save the whole drive - fixed a bug where any trip longer than about 25 minutes would lose its opening section, so commutes and road trips with delayed finalisation were saving as only their tail end. Full route end to end now",
+      "Phantom trip cycles eliminated - a pair of geofence bugs could cause iOS to fire false 'you're driving' events from indoor GPS drift or the instant a trip saved, then silently fail to fire on the real trip later. Your afternoon errands now record properly even after the phone has been sitting at home for a couple of hours",
+      "Drive Detection Diagnostics screen - new under Profile > Settings. Shows a verdict banner, a plain-English problems list, and the last 50 detection events so you (or we) can see exactly what the engine is doing. If something feels off, take a screenshot and send it over for instant triage",
       "End Trip on the lock screen actually ends the trip now - tapping the button on the Live Activity flips it to a 'Saving trip' state instantly via iOS 17.2+ App Intents, then a 'Trip Complete' summary with your final distance and classify CTA",
       "New 'Trip Complete' Live Activity view - shows a checkmark, your frozen duration (HH:MM:SS for long trips), and a one-tap Classify Trip button when the trip needs classifying",
       "Trips land in the inbox faster - reverse geocoding, classification, and road-data lookups now run in parallel during finalisation instead of sequentially, and the 'Trip recorded' notification fires before the API call for auto-classified trips",
@@ -146,6 +149,101 @@ export const RELEASE_NOTES: ReleaseNote[] = [
 // Blog Posts
 // ----------------------------------------------------------------
 export const BLOG_POSTS: BlogPost[] = [
+  {
+    slug: "case-of-the-phantom-trip",
+    title: "The Case of the Phantom Trip",
+    excerpt:
+      "Users were reporting trips that never showed up. We built a diagnostics screen to catch the bug red-handed, and what came back was a 5-hour phantom recording caused by two separate geofence bugs we never saw coming.",
+    date: "8 April 2026",
+    author: "Gair",
+    category: "engineering",
+    content: `
+<p>Last week a tester sent me a message: "only half of my trip was recorded." Then another: "my commute this morning is missing." Then I noticed my own Sunday afternoon drive to the golf club was not in my trip list either.</p>
+
+<p>Three reports, same shape. Auto-detection was broken, and we could not see why from the outside. Time to build a debugger.</p>
+
+<h2>Building the diagnostics screen</h2>
+
+<p>The problem with background bugs on mobile is that by the time a user notices, the context is gone. The app has moved on, iOS has flushed its buffers, and all you have is a report like "I drove to X but nothing saved." You cannot rewind time. You cannot attach Xcode to someone's iPhone in Doncaster.</p>
+
+<p>What you can do is build a log. Since 1.0.5 we have had an internal <code>detection_events</code> table that records every state transition the drive detection engine makes: recording started, skipped, finalized, stale, every one tagged with a reason. It has been sitting there collecting data for weeks. What we did not have was a way to see it without pulling the user's SQLite file via Xcode's device container download, which requires the phone to be plugged in and a matching Xcode release installed.</p>
+
+<p>1.0.7 adds a Drive Detection Diagnostics screen under Profile > Settings. It shows the current state of every relevant piece of data (permissions, task running, active shift, auto-recording flag, buffered coordinates, cooldown) plus the last 50 detection events with plain-English explanations. Crucially, it adds a Share button that exports the whole thing as text you can paste into a message or email.</p>
+
+<p>Within a couple of hours of the new build landing, I had a diagnostic dump from my own phone and one from James, one of our testers. What the logs told us was not what I expected.</p>
+
+<h2>Pattern one: the phantom on the sofa</h2>
+
+<p>The first bug was on my device. After getting home from a short drive at 16:15 and parking up, the app saved the trip cleanly. Three minutes later, while I was sitting on the sofa, the event log showed this:</p>
+
+<pre><code>16:31:41  finalize_saved  (1.92 mi, 6m 53s)
+16:34:21  recording_started  (force_start, anchor_exit)
+... 54 minutes of nothing ...
+17:28:11  finalize_no_coords</code></pre>
+
+<p>The geofence around my home had fired an "exit" event at 16:34. I had not moved. It was pure indoor GPS drift: the iPhone's location estimate jittered past the 200 metre anchor boundary while I was sitting still, iOS concluded I must be leaving, and the app dutifully marked a recording as in progress. 54 minutes later the stale-recording timeout fired and cleaned it up. Fine.</p>
+
+<p>Except that while the phantom recording was sitting there doing nothing, iOS Core Location considered the anchor geofence "consumed". A CLCircularRegion can only fire an exit event once per boundary crossing, and until the user re-enters the region, the OS will not fire another exit. I was still physically inside the region, but my location estimate had briefly flickered outside, fired the exit, then flickered back. The OS was now waiting for me to re-enter before it would consider firing another exit.</p>
+
+<p>About an hour later I actually did leave home, drove to Washington Golf Club, played a round, and drove back. The return trip was recorded perfectly. The outbound leg was completely missing. That 101 minute window of driving had zero detection events. iOS never fired the anchor exit, so the app never woke up to start a recording.</p>
+
+<p><strong>Pattern one: indoor drift fires a false exit that consumes the anchor geofence, and the real departure later goes silently untracked.</strong></p>
+
+<h2>Pattern two was worse</h2>
+
+<p>James's diagnostic dump arrived an hour after mine. He had a different, weirder problem. Reading his events in time order:</p>
+
+<pre><code>10:35:20.178  finalize_called (21 coords)
+10:35:20.558  finalize_saved  (6.97 mi, 20m 14s)
+10:35:20.630  recording_started  (force_start, anchor_exit)
+... 81 minutes of zero coordinates ...
+11:56:12      finalize_no_coords</code></pre>
+
+<p>Look at that third line. 72 milliseconds after the trip saved, a new recording started. That is not indoor drift. That is iOS firing an exit event the instant the geofence was registered.</p>
+
+<p>Here is what was happening. When a trip finalizes, the app registers a new departure anchor at the end of the drive so the next trip can be detected instantly from a high-confidence "user has moved away from where they last parked" signal. It was doing this by passing the trip's final GPS coordinate as the anchor centre.</p>
+
+<p>But the code that decides the final GPS coordinate trims off any trailing stationary readings. It is trying to find the "real" end of the drive, not a point 30 seconds into a car park. So the anchor was being registered at a coordinate from maybe 30 seconds before "now". By then James had usually rolled another 50 to 200 metres further into his parking spot. iOS takes the new region, asks "is the user currently inside it?", and answers "no, already 150 metres outside". It fires an exit event immediately, the app starts a phantom recording, and the whole 81 minute cycle begins. James had not moved an inch.</p>
+
+<p>James had this happen twice on the same day. Between the two phantom cycles, 5 hours 24 minutes of drive detection was burned on empty recordings. Any real trip he tried to take during those windows was lost.</p>
+
+<p><strong>Pattern two: registering the departure anchor at a stale trimmed coordinate causes an immediate false exit the moment the new geofence comes online.</strong></p>
+
+<h2>The fix, in three layers</h2>
+
+<p>1.0.7 ships three related fixes.</p>
+
+<p><strong>First</strong>, the trip-finalize path now registers the departure anchor using the user's current position from <code>getLastKnownPositionAsync()</code> instead of the trimmed last coord. Current position is fresh at finalize time because the detection task was just processing a location batch a few seconds ago. Centered on where the phone actually is, the user is inside the new region. iOS does not fire an immediate exit. No more 72 millisecond phantom cycles.</p>
+
+<p><strong>Second</strong>, if a phantom does somehow still fire (from indoor drift, say), the finalize bail-out branches now re-register the anchor at the current position before returning. Previously, a <code>finalize_no_coords</code> result would return early without touching the anchor, leaving iOS with a consumed geofence and no way to fire on the next real departure. Now every finalize path (save, too short, no coords) ends with a fresh anchor registration. iOS re-evaluates the user's position against the new region, finds them inside, and is ready to fire on the next real exit.</p>
+
+<p><strong>Third</strong>, the geofence handler no longer deletes the anchor keys from local state the moment an exit fires. Previously it did, which meant any subsequent call to re-register geofences would forget about the anchor entirely. The keys now persist until explicitly replaced.</p>
+
+<h2>A bonus fix from the same investigation</h2>
+
+<p>While I was in the detection code I found something else. A defensive purge added earlier was supposed to protect against stuck recordings from crashes by dropping any coordinates older than 30 minutes from the buffer. Good intent, terrible implementation: on any drive longer than about 25 minutes, the first half of the trip's coordinates were older than 30 minutes by the time finalize ran, and the purge would wipe them out. A 45 minute commute would save as its last 20 minutes only. That is the "only half of my trip was recorded" report.</p>
+
+<p>The fix: replace the blanket age-based purge with gap detection. Walk the buffer looking for large time gaps between consecutive coordinates. A real stuck state from a crash looks like "10 coordinates from a week ago, then 15 coordinates from today, no coordinates in between" - a massive gap. A legitimate 45 minute drive looks like "900 coordinates, each a few seconds apart, no gaps". Trim at the gap if there is one, keep the whole buffer otherwise. A 45 minute drive with no gaps saves as a 45 minute drive.</p>
+
+<h2>What to expect</h2>
+
+<p>If you install 1.0.7 and drive normally for a day or two, three things should be different:</p>
+
+<ol>
+<li>Long drives save the whole drive, not just the tail.</li>
+<li>Your afternoon trips record properly even if you sat at home for a couple of hours first.</li>
+<li>The Drive Detection Diagnostics screen in Profile > Settings will show zero phantom exits in a healthy week. If it ever shows some, send me the screenshot.</li>
+</ol>
+
+<h2>Thank you</h2>
+
+<p>None of this would have been caught from my own device alone. What moved this bug from "something feels off" to "root cause, exact line numbers, three layered fixes" was two testers spending twenty minutes each taking screenshots of their diagnostic dumps and sending them over.</p>
+
+<p>If you are on TestFlight and something feels wrong with auto-detection, please: Profile > Settings > Diagnostics, take a screenshot, send it in. The new screen is designed to be a one-glance bug report. The verdict banner tells you what MileClear thinks is wrong. The problems card lists everything suspicious with a plain-English explanation. Even if you cannot tell what it means, I can.</p>
+
+<p>- Gair</p>
+    `.trim(),
+  },
   {
     slug: "your-odometer-was-right-fixing-auto-trip-distance",
     title: "Your Odometer Was Right: Fixing Auto Trip Distance in 1.0.6",
