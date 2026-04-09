@@ -1298,9 +1298,48 @@ export async function forceStartRecording(reason: string): Promise<void> {
   // Snapshot Bluetooth state for trip-end detection (best-effort)
   try { await markBluetoothStateAtStart(); } catch {}
 
-  // Start Live Activity so the user sees a trip in progress on the lock screen
+  // Read the user's actual dashboard mode for Live Activity accent colour.
+  // Previously hardcoded to isBusinessMode: true which showed amber even
+  // when the user was in personal mode.
+  let isBusinessMode = true;
   try {
-    await startLiveActivity({ activityType: "trip", isBusinessMode: true });
+    const modeRow = await db.getFirstAsync<{ value: string }>(
+      "SELECT value FROM tracking_state WHERE key = 'app_mode'"
+    );
+    if (modeRow?.value === "personal") isBusinessMode = false;
+  } catch {}
+
+  // Start Live Activity so the user sees a trip in progress on the lock screen
+  // and Dynamic Island. Log the result so diagnostics can show whether it worked.
+  try {
+    await startLiveActivity({ activityType: "trip", isBusinessMode });
+    logDetectionEvent("live_activity_started", { source: "force_start" }).catch(() => {});
+  } catch (laErr) {
+    logDetectionEvent("live_activity_failed", {
+      source: "force_start",
+      error: (laErr as Error).message || "unknown",
+    }).catch(() => {});
+  }
+
+  // Send the "Looks like you're driving" notification so the user gets feedback
+  // even when force_start fires from a background geofence handler (where the
+  // Dynamic Island / Live Activity may be throttled by iOS). Previously
+  // force_start bypassed the notification entirely — the user had zero visual
+  // indication that a trip was recording.
+  try {
+    if (!isQuietHours()) {
+      const lastNotif = await db.getFirstAsync<{ value: string }>(
+        "SELECT value FROM tracking_state WHERE key = 'last_detection_notification'"
+      );
+      const elapsed = lastNotif ? Date.now() - parseInt(lastNotif.value, 10) : Infinity;
+      if (elapsed >= COOLDOWN_MS) {
+        await sendDrivingDetectedNotification();
+        await db.runAsync(
+          "INSERT OR REPLACE INTO tracking_state (key, value) VALUES ('last_detection_notification', ?)",
+          [Date.now().toString()]
+        );
+      }
+    }
   } catch {}
 
   // upgradeDetectionAccuracy() handles both "task already running" (restarts at
@@ -1311,6 +1350,17 @@ export async function forceStartRecording(reason: string): Promise<void> {
   } catch {}
 
   logDetectionEvent("recording_started", { source: "force_start", reason }).catch(() => {});
+
+  // Schedule a fallback finalize check. After the user parks and goes indoors,
+  // iOS often stops delivering location callbacks entirely (the 50m distance
+  // threshold is never met, and finalization mode can't be entered without a
+  // callback). This means the trip sits in the buffer until the user opens the
+  // app. A JS setTimeout is unreliable in suspended background processes, but
+  // if the process IS still alive (common for 1-5 min after backgrounding),
+  // it catches the stop far sooner than waiting for the user to open the app.
+  setTimeout(() => {
+    checkStaleAutoRecording().catch(() => {});
+  }, STOP_TIMEOUT_MS + 60_000); // 11 minutes: 10 min stop timeout + 1 min buffer
 }
 
 export async function stopDriveDetection(): Promise<void> {

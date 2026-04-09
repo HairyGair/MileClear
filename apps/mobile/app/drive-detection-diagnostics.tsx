@@ -308,6 +308,46 @@ function computeHealth(d: DriveDetectionDiagnostics, events: DetectionEventRow[]
     });
   }
 
+  // 7e. Live Activity failures — if startLiveActivity failed from force_start,
+  // the user would have had no Lock Screen or Dynamic Island feedback at all.
+  const laFailures = events.slice(0, 20).filter((e) => e.event === "live_activity_failed");
+  if (laFailures.length > 0) {
+    const lastError = laFailures[0].data
+      ? (() => { try { return JSON.parse(laFailures[0].data).error; } catch { return laFailures[0].data; } })()
+      : "unknown";
+    problems.push({
+      severity: "warning",
+      title: `Live Activity failed to start (${laFailures.length}x)`,
+      cause:
+        `The Live Activity could not start from the background geofence handler: "${lastError}". This means no lock screen banner or Dynamic Island pill appeared during the trip.`,
+      action:
+        "Check Settings → MileClear → Live Activities is enabled. If it is, this may be an iOS throttling issue in the background.",
+      onAction: () => {
+        Linking.openSettings().catch(() => {});
+      },
+    });
+  }
+
+  // 7f. Stale finalize delay — if a trip took a long time to appear because
+  // the app had to be foregrounded before finalize ran. Show how long the
+  // user waited.
+  const staleFinalize = events.slice(0, 10).find((e) => e.event === "stale_finalize_triggered");
+  if (staleFinalize?.data) {
+    try {
+      const { elapsedMs } = JSON.parse(staleFinalize.data);
+      if (typeof elapsedMs === "number" && elapsedMs > 15 * 60 * 1000) {
+        problems.push({
+          severity: "warning",
+          title: `Trip delayed ${formatMs(elapsedMs)} before saving`,
+          cause:
+            "After you parked, iOS stopped delivering location callbacks and the stop-detection timer couldn't run. The trip only saved when you opened the app.",
+          action:
+            "This is an iOS limitation when the phone goes indoors. Build 44+ adds a backup timer to catch this sooner.",
+        });
+      }
+    } catch {}
+  }
+
   // 8. Cooldown active (info)
   if (d.cooldownRemainingMs > 0) {
     problems.push({
