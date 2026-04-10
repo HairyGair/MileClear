@@ -41,6 +41,10 @@ interface AdminUser {
     vehicles: number;
     earnings: number;
   };
+  diagnosticDump?: {
+    verdict: string;
+    capturedAt: string;
+  } | null;
 }
 
 interface AdminUserDetail extends AdminUser {
@@ -807,7 +811,26 @@ function UsersTab() {
               <tbody>
                 {users.map((user) => (
                   <tr key={user.id}>
-                    <td style={{ fontSize: "0.875rem" }}>{user.email}</td>
+                    <td style={{ fontSize: "0.875rem" }}>
+                      <span style={{ display: "inline-flex", alignItems: "center", gap: "0.4rem" }}>
+                        {user.email}
+                        {user.diagnosticDump && user.diagnosticDump.verdict !== "healthy" && (
+                          <span
+                            title={`Detection: ${user.diagnosticDump.verdict} (${new Date(user.diagnosticDump.capturedAt).toLocaleString()})`}
+                            style={{
+                              display: "inline-block",
+                              width: 8,
+                              height: 8,
+                              borderRadius: "50%",
+                              flexShrink: 0,
+                              background: user.diagnosticDump.verdict === "error" ? "var(--dash-red)"
+                                : user.diagnosticDump.verdict === "warning" ? "var(--amber-500)"
+                                : "var(--dash-blue, #3b82f6)",
+                            }}
+                          />
+                        )}
+                      </span>
+                    </td>
                     <td style={{ fontSize: "0.875rem", color: "var(--text-secondary)" }}>
                       {user.displayName || "—"}
                     </td>
@@ -2013,7 +2036,26 @@ function ActivityTab() {
             <tbody>
               {recentUsers.map((u) => (
                 <tr key={u.id} onClick={() => setDetailUserId(u.id)} style={{ cursor: "pointer" }}>
-                  <td style={{ fontSize: "0.8125rem" }}>{u.email}</td>
+                  <td style={{ fontSize: "0.8125rem" }}>
+                    <span style={{ display: "inline-flex", alignItems: "center", gap: "0.35rem" }}>
+                      {u.email}
+                      {u.diagnosticDump && u.diagnosticDump.verdict !== "healthy" && (
+                        <span
+                          title={`Detection: ${u.diagnosticDump.verdict}`}
+                          style={{
+                            display: "inline-block",
+                            width: 7,
+                            height: 7,
+                            borderRadius: "50%",
+                            flexShrink: 0,
+                            background: u.diagnosticDump.verdict === "error" ? "var(--dash-red)"
+                              : u.diagnosticDump.verdict === "warning" ? "var(--amber-500)"
+                              : "var(--dash-blue, #3b82f6)",
+                          }}
+                        />
+                      )}
+                    </span>
+                  </td>
                   <td style={{ fontSize: "0.8125rem" }}>{u.displayName || "-"}</td>
                   <td>
                     <div style={{ display: "flex", gap: "0.25rem" }}>

@@ -103,6 +103,7 @@ export async function adminRoutes(app: FastifyInstance) {
           isAdmin: true,
           createdAt: true,
           _count: { select: { trips: true, vehicles: true, earnings: true } },
+          diagnosticDump: { select: { verdict: true, capturedAt: true } },
         },
         orderBy: { createdAt: "desc" },
         skip,
