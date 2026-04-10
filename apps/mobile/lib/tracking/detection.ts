@@ -931,6 +931,37 @@ try {
         }
 
         if (hasRealMovement) {
+          // Check if this is resuming driving after a long pause (e.g. parked
+          // at Aldi for 30 min, now driving home). If last movement was
+          // >STOP_TIMEOUT_MS ago, the previous trip should be finalized BEFORE
+          // we buffer coords for the new trip. Otherwise both legs end up in
+          // one recording, the gap detector drops the first segment at
+          // finalize time, and the outbound trip is lost.
+          const lastDrivingResume = await db.getFirstAsync<{ value: string }>(
+            "SELECT value FROM tracking_state WHERE key = 'last_driving_speed_at'"
+          );
+          if (lastDrivingResume) {
+            const resumeElapsed = Date.now() - parseInt(lastDrivingResume.value, 10);
+            if (resumeElapsed > STOP_TIMEOUT_MS) {
+              logDetectionEvent("split_trip_on_resume", { elapsedMs: resumeElapsed }).catch(() => {});
+              await finalizeAutoTrip();
+              // Finalize clears auto_recording_active. Re-set it so we continue
+              // recording the new trip without missing these fresh coords.
+              await db.runAsync(
+                "INSERT OR REPLACE INTO tracking_state (key, value) VALUES ('auto_recording_active', '1')"
+              );
+              // Start a fresh Live Activity for the new trip
+              try {
+                let isBusinessMode = true;
+                const modeRow = await db.getFirstAsync<{ value: string }>(
+                  "SELECT value FROM tracking_state WHERE key = 'app_mode'"
+                );
+                if (modeRow?.value === "personal") isBusinessMode = false;
+                await startLiveActivity({ activityType: "trip", isBusinessMode });
+              } catch {}
+            }
+          }
+
           await db.runAsync(
             "INSERT OR REPLACE INTO tracking_state (key, value) VALUES ('last_driving_speed_at', ?)",
             [Date.now().toString()]

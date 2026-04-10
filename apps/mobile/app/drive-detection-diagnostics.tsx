@@ -348,6 +348,17 @@ function computeHealth(d: DriveDetectionDiagnostics, events: DetectionEventRow[]
     } catch {}
   }
 
+  // 7g. Trip split on resume - confirms the multi-stop fix is working
+  const splitEvents = events.slice(0, 20).filter((e) => e.event === "split_trip_on_resume");
+  if (splitEvents.length > 0) {
+    problems.push({
+      severity: "info",
+      title: `${splitEvents.length} trip${splitEvents.length === 1 ? "" : "s"} auto-split on resume`,
+      cause:
+        "You stopped for more than 10 minutes then started driving again. MileClear saved the first trip and started recording a fresh one, so both legs appear separately in your trip list.",
+    });
+  }
+
   // 8. Cooldown active (info)
   if (d.cooldownRemainingMs > 0) {
     problems.push({
