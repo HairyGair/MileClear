@@ -211,7 +211,7 @@
   padding: 0.6rem 1.25rem;
   font-size: 0.875rem;
   font-weight: 600;
-  color: var(--bg-base);
+  color: var(--bg-deep);
   background: var(--amber-500);
   border-radius: var(--r-md);
   text-decoration: none;
