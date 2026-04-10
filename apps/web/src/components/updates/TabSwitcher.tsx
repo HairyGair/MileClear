@@ -84,6 +84,16 @@ export default function TabSwitcher({
                     </li>
                   ))}
                 </ul>
+                {note.ctaUrl && (
+                  <a
+                    href={note.ctaUrl}
+                    className="release-card__cta"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    {note.ctaLabel || "Try it now"} &rarr;
+                  </a>
+                )}
               </article>
             </li>
           ))}

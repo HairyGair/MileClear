@@ -203,6 +203,25 @@
   margin-top: 0.55em;
 }
 
+.release-card__cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35em;
+  margin-top: 1.25rem;
+  padding: 0.6rem 1.25rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--bg-base);
+  background: var(--amber-500);
+  border-radius: var(--r-md);
+  text-decoration: none;
+  transition: opacity 0.15s ease;
+}
+
+.release-card__cta:hover {
+  opacity: 0.85;
+}
+
 /* ----------------------------------------------------------------
    Blog post grid
    ---------------------------------------------------------------- */

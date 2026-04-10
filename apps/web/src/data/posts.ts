@@ -9,6 +9,8 @@ export interface ReleaseNote {
   date: string;
   label?: "Latest" | "Major" | "Pending Review" | "App Store" | "In Testing";
   items: string[];
+  ctaUrl?: string;
+  ctaLabel?: string;
 }
 
 export interface BlogPost {
@@ -28,7 +30,9 @@ export const RELEASE_NOTES: ReleaseNote[] = [
   {
     version: "1.0.7",
     date: "8 April 2026",
-    label: "Pending Review",
+    label: "In Testing",
+    ctaUrl: "https://testflight.apple.com/join/SGrmnaaH",
+    ctaLabel: "Join the beta on TestFlight",
     items: [
       "Long drives now save the whole drive - fixed a bug where any trip longer than about 25 minutes would lose its opening section, so commutes and road trips with delayed finalisation were saving as only their tail end. Full route end to end now",
       "Phantom trip cycles eliminated - a pair of geofence bugs could cause iOS to fire false 'you're driving' events from indoor GPS drift or the instant a trip saved, then silently fail to fire on the real trip later. Your afternoon errands now record properly even after the phone has been sitting at home for a couple of hours",
