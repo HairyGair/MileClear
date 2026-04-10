@@ -63,6 +63,24 @@ export function sendAdminPush(payload: AdminPushRequest) {
   });
 }
 
+export interface DiagnosticDumpResponse {
+  id: string;
+  userId: string;
+  capturedAt: string;
+  platform: string;
+  osVersion: string;
+  appVersion: string;
+  buildNumber: string;
+  verdict: string;
+  statusJson: Record<string, unknown>;
+  eventsJson: Array<{ recorded_at: string; event: string; data: string | null }>;
+  createdAt: string;
+}
+
+export function fetchUserDiagnostics(userId: string) {
+  return apiRequest<{ data: DiagnosticDumpResponse | null }>(`/admin/users/${userId}/diagnostics`);
+}
+
 export function sendAdminEmail(type: string, options?: { dryRun?: boolean; onlyInactive?: boolean }) {
   const params = new URLSearchParams();
   if (options?.dryRun) params.set("dryRun", "true");

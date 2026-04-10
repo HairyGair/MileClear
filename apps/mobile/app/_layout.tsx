@@ -57,6 +57,7 @@ import { startDriveDetection, finalizeStaleAutoRecordings } from "../lib/trackin
 import { registerGeofences, shadeExpiredUnconfirmedTrips, setDepartureAnchor } from "../lib/geofencing/index";
 import { getDatabase } from "../lib/db/index";
 import { hydrateLocalData, isHydrationComplete } from "../lib/sync/hydrate";
+import { uploadDiagnosticDump } from "../lib/api/diagnostics";
 import { isIapAvailable, initializeIap, setupPurchaseListeners, endIapConnection } from "../lib/iap/index";
 import { validateApplePurchase } from "../lib/api/billing";
 import { PaywallProvider } from "../components/paywall";
@@ -146,6 +147,7 @@ function RootNavigator() {
       checkUnclassifiedTripsNudge().catch(() => {});
       checkStreakAtRisk().catch(() => {});
       checkLongRunningShift().catch(() => {});
+      uploadDiagnosticDump().catch(() => {});
     }
   }, [isAuthenticated, isLoading]);
 

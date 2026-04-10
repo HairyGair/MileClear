@@ -187,6 +187,17 @@ export async function adminRoutes(app: FastifyInstance) {
     });
   });
 
+  // GET /admin/users/:userId/diagnostics
+  app.get("/users/:userId/diagnostics", async (request, reply) => {
+    const { userId } = request.params as { userId: string };
+
+    const dump = await prisma.diagnosticDump.findUnique({
+      where: { userId },
+    });
+
+    return reply.send({ data: dump });
+  });
+
   // PATCH /admin/users/:userId/premium
   app.patch("/users/:userId/premium", async (request, reply) => {
     const { userId } = request.params as { userId: string };

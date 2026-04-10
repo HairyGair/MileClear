@@ -11,7 +11,7 @@ import {
 } from "react-native";
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
-import { fetchAdminUserDetail, toggleUserPremium, deleteAdminUser } from "../lib/api/admin";
+import { fetchAdminUserDetail, toggleUserPremium, deleteAdminUser, fetchUserDiagnostics, type DiagnosticDumpResponse } from "../lib/api/admin";
 import { formatPence } from "@mileclear/shared";
 import type { AdminUserDetail } from "@mileclear/shared";
 
@@ -22,12 +22,17 @@ export default function AdminUserDetailScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [toggling, setToggling] = useState(false);
+  const [diagnostics, setDiagnostics] = useState<DiagnosticDumpResponse | null>(null);
 
   const loadData = useCallback(async () => {
     if (!userId) return;
     try {
-      const res = await fetchAdminUserDetail(userId);
-      setUser(res.data);
+      const [userRes, diagRes] = await Promise.all([
+        fetchAdminUserDetail(userId),
+        fetchUserDiagnostics(userId).catch(() => ({ data: null })),
+      ]);
+      setUser(userRes.data);
+      setDiagnostics(diagRes.data);
     } catch {
       // Silently fail
     } finally {
@@ -194,6 +199,68 @@ export default function AdminUserDetailScreen() {
           <Text style={s.statNum}>{formatPence(user.totalEarningsPence)}</Text>
           <Text style={s.statUnit}>earnings</Text>
         </View>
+      </View>
+
+      {/* Diagnostics */}
+      <View style={s.section}>
+        <Text style={s.sectionTitle}>Drive Detection</Text>
+        {diagnostics ? (
+          <View style={s.listCard}>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 8 }}>
+              <View style={{
+                paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6,
+                backgroundColor: diagnostics.verdict === "healthy" ? "#10b98133" : diagnostics.verdict === "error" ? "#ef444433" : diagnostics.verdict === "warning" ? "#f9731633" : "#3b82f633",
+              }}>
+                <Text style={{
+                  fontSize: 11, fontFamily: "PlusJakartaSans_700Bold", textTransform: "uppercase" as const, letterSpacing: 0.5,
+                  color: diagnostics.verdict === "healthy" ? "#10b981" : diagnostics.verdict === "error" ? "#ef4444" : diagnostics.verdict === "warning" ? "#f97316" : "#3b82f6",
+                }}>{diagnostics.verdict}</Text>
+              </View>
+              <Text style={s.listSecondary}>
+                v{diagnostics.appVersion} (build {diagnostics.buildNumber})
+              </Text>
+              <Text style={s.listSecondary}>
+                {diagnostics.platform} {diagnostics.osVersion}
+              </Text>
+            </View>
+            {(() => {
+              const st = diagnostics.statusJson as Record<string, unknown>;
+              return (
+                <>
+                  <DiagRow label="Task running" value={String(st.taskRunning ?? "-")} good={st.taskRunning === true} />
+                  <DiagRow label="BG permission" value={String(st.backgroundPermission ?? "-")} good={st.backgroundPermission === "granted"} />
+                  <DiagRow label="Enabled" value={String(st.enabled ?? "-")} good={st.enabled === true} />
+                  <DiagRow label="Auto-recording" value={String(st.autoRecordingActive ?? "-")} good={st.autoRecordingActive !== true} />
+                  <DiagRow label="Buffered coords" value={String(st.bufferedCoordinates ?? 0)} />
+                </>
+              );
+            })()}
+            <Text style={[s.listSecondary, { marginTop: 8 }]}>
+              Last upload: {new Date(diagnostics.capturedAt).toLocaleString()}
+            </Text>
+            {diagnostics.eventsJson.length > 0 && (
+              <View style={{ marginTop: 10 }}>
+                <Text style={[s.listSecondary, { marginBottom: 6, fontFamily: "PlusJakartaSans_600SemiBold" }]}>
+                  Recent events ({diagnostics.eventsJson.length})
+                </Text>
+                {(diagnostics.eventsJson as Array<{ recorded_at: string; event: string; data: string | null }>).slice(0, 10).map((ev, i) => (
+                  <Text key={i} style={{ fontSize: 11, fontFamily: "PlusJakartaSans_400Regular", color: "#8494a7", lineHeight: 16 }}>
+                    {ev.event}{ev.data ? ` ${ev.data}` : ""}
+                  </Text>
+                ))}
+                {diagnostics.eventsJson.length > 10 && (
+                  <Text style={{ fontSize: 11, color: "#64748b", marginTop: 2 }}>
+                    + {diagnostics.eventsJson.length - 10} more
+                  </Text>
+                )}
+              </View>
+            )}
+          </View>
+        ) : (
+          <View style={s.listCard}>
+            <Text style={s.listSecondary}>No diagnostics uploaded yet</Text>
+          </View>
+        )}
       </View>
 
       {/* Vehicles */}
@@ -511,3 +578,13 @@ const s = StyleSheet.create({
   actionTextPrimary: { color: AMBER },
   actionTextDestructive: { color: "#ef4444" },
 });
+
+function DiagRow({ label, value, good }: { label: string; value: string; good?: boolean }) {
+  const color = good === undefined ? "#8494a7" : good ? "#10b981" : "#ef4444";
+  return (
+    <View style={{ flexDirection: "row", justifyContent: "space-between", paddingVertical: 3 }}>
+      <Text style={{ fontSize: 12, fontFamily: "PlusJakartaSans_400Regular", color: "#8494a7" }}>{label}</Text>
+      <Text style={{ fontSize: 12, fontFamily: "PlusJakartaSans_600SemiBold", color }}>{value}</Text>
+    </View>
+  );
+}

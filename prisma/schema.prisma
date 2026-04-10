@@ -50,6 +50,7 @@ model User {
   savedLocations      SavedLocation[]
   tripAnomalies       TripAnomaly[]
   appEvents           AppEvent[]
+  diagnosticDump      DiagnosticDump?
 
   @@map("users")
 }
@@ -380,4 +381,22 @@ model AppEvent {
   @@index([createdAt])
   @@index([userId])
   @@map("app_events")
+}
+
+model DiagnosticDump {
+  id          String   @id @default(uuid())
+  userId      String   @unique
+  capturedAt  DateTime
+  platform    String   @db.VarChar(10)
+  osVersion   String   @db.VarChar(20)
+  appVersion  String   @db.VarChar(20)
+  buildNumber String   @db.VarChar(20)
+  verdict     String   @db.VarChar(20)
+  statusJson  Json
+  eventsJson  Json
+  createdAt   DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("diagnostic_dumps")
 }

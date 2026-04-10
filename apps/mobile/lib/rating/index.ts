@@ -1,14 +1,22 @@
 import * as StoreReview from "expo-store-review";
+import { Alert } from "react-native";
+import { router } from "expo-router";
 import { getDatabase } from "../db/index";
 
-const COOLDOWN_MS = 90 * 24 * 60 * 60 * 1000; // 90 days
-const MAX_LIFETIME_PROMPTS = 3;
+const COOLDOWN_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
 const MIN_TRIPS = 3;
 
 /**
- * Attempt to show the native App Store rating dialog.
- * Rate-limited: 90-day cooldown, max 3 lifetime prompts, requires >= 3 trips.
- * Fire-and-forget — never throws.
+ * Attempt to show a review prompt.
+ *
+ * Flow:
+ * 1. Guards: StoreReview available, 3+ trips, 7-day cooldown, not already reviewed.
+ * 2. Shows a custom Alert with "Rate Now", "Already Did", "Not Now".
+ * 3. "Rate Now" fires the native SKStoreReviewController dialog.
+ * 4. "Already Did" sets a permanent flag - never asks again.
+ * 5. "Not Now" dismisses - cooldown resets, asks again in 7 days.
+ *
+ * Fire-and-forget - never throws.
  */
 export async function maybeRequestReview(trigger: string): Promise<void> {
   try {
@@ -17,20 +25,19 @@ export async function maybeRequestReview(trigger: string): Promise<void> {
 
     const db = await getDatabase();
 
+    // Permanent opt-out: user said "Already Did"
+    const reviewedRow = await db.getFirstAsync<{ value: string }>(
+      "SELECT value FROM tracking_state WHERE key = 'review_given'"
+    );
+    if (reviewedRow?.value === "1") return;
+
     // Check trip count
     const tripRow = await db.getFirstAsync<{ count: number }>(
       "SELECT COUNT(*) as count FROM trips"
     );
     if (!tripRow || tripRow.count < MIN_TRIPS) return;
 
-    // Check lifetime prompt count
-    const countRow = await db.getFirstAsync<{ value: string }>(
-      "SELECT value FROM tracking_state WHERE key = 'review_prompt_count'"
-    );
-    const promptCount = countRow ? parseInt(countRow.value, 10) : 0;
-    if (promptCount >= MAX_LIFETIME_PROMPTS) return;
-
-    // Check cooldown
+    // Check cooldown (7 days)
     const lastRow = await db.getFirstAsync<{ value: string }>(
       "SELECT value FROM tracking_state WHERE key = 'last_review_prompt_at'"
     );
@@ -39,22 +46,57 @@ export async function maybeRequestReview(trigger: string): Promise<void> {
       if (Date.now() - lastPrompt < COOLDOWN_MS) return;
     }
 
-    // All guards passed — request review
-    await StoreReview.requestReview();
+    // All guards passed - show custom prompt with sentiment routing.
+    // Happy users go to the App Store, everyone else goes to feedback.
+    Alert.alert(
+      "Rate MileClear?",
+      "Your feedback helps other drivers find us and helps us improve.",
+      [
+        {
+          text: "Love it!",
+          onPress: async () => {
+            try {
+              await StoreReview.requestReview();
+              console.log(`[Rating] Native review dialog shown (trigger: ${trigger})`);
+            } catch {}
+          },
+        },
+        {
+          text: "Could be better",
+          onPress: () => {
+            // Route to in-app feedback form instead of App Store
+            try {
+              router.push("/feedback-form" as any);
+            } catch {}
+            console.log(`[Rating] Routed to feedback form (trigger: ${trigger})`);
+          },
+        },
+        {
+          text: "Already rated",
+          onPress: async () => {
+            try {
+              const d = await getDatabase();
+              await d.runAsync(
+                "INSERT OR REPLACE INTO tracking_state (key, value) VALUES ('review_given', '1')"
+              );
+              console.log("[Rating] User confirmed review given - will not ask again");
+            } catch {}
+          },
+        },
+        {
+          text: "Not now",
+          style: "cancel",
+        },
+      ]
+    );
 
-    // Update tracking state
+    // Update cooldown regardless of which button they tap
     await db.runAsync(
       "INSERT OR REPLACE INTO tracking_state (key, value) VALUES ('last_review_prompt_at', ?)",
       [String(Date.now())]
     );
-    await db.runAsync(
-      "INSERT OR REPLACE INTO tracking_state (key, value) VALUES ('review_prompt_count', ?)",
-      [String(promptCount + 1)]
-    );
-
-    console.log(`[Rating] Review prompt shown (trigger: ${trigger}, count: ${promptCount + 1})`);
   } catch (err) {
-    // Never throw — rating is non-critical
+    // Never throw - rating is non-critical
     console.warn("[Rating] maybeRequestReview failed:", err);
   }
 }

@@ -23,6 +23,7 @@ import { fetchTrips, fetchUnclassifiedCount, fetchClassificationSuggestion, merg
 import { syncUpdateTrip, syncDeleteTrip } from "../../lib/sync/actions";
 import { getLocalTrips, getLocalUnsyncedTrips } from "../../lib/db/queries";
 import { learnFromClassification } from "../../lib/classification";
+import { maybeRequestReview } from "../../lib/rating/index";
 import { GIG_PLATFORMS } from "@mileclear/shared";
 import type { TripClassification, PlatformTag, BusinessPurpose } from "@mileclear/shared";
 
@@ -331,6 +332,9 @@ export default function TripsScreen() {
         if (filter === "unclassified") {
           setTrips((prev) => prev.filter((t) => t.id !== tripId));
         }
+
+        // Classifying a trip is peak "this app works" moment
+        setTimeout(() => maybeRequestReview("trip_classified"), 2000);
       } catch {
         // Failed — trip stays, user can retry
       } finally {
@@ -478,6 +482,9 @@ export default function TripsScreen() {
           next.delete(group.key);
           return next;
         });
+
+        // Batch classifying a whole route group is a power-user moment
+        setTimeout(() => maybeRequestReview("batch_classified"), 2000);
       } catch {
         Alert.alert("Error", "Failed to classify trips. Please try again.");
       } finally {

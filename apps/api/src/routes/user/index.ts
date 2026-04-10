@@ -238,4 +238,57 @@ export async function userRoutes(app: FastifyInstance) {
 
     return reply.send({ message: "Account deleted" });
   });
+
+  // POST /user/diagnostics — upload drive detection diagnostics dump
+  const diagnosticsSchema = z.object({
+    capturedAt: z.string(),
+    platform: z.string().max(10),
+    osVersion: z.string().max(20),
+    appVersion: z.string().max(20),
+    buildNumber: z.string().max(20),
+    verdict: z.string().max(20),
+    statusJson: z.record(z.unknown()),
+    eventsJson: z.array(z.object({
+      recorded_at: z.string(),
+      event: z.string(),
+      data: z.string().nullable(),
+    })),
+  });
+
+  app.post("/diagnostics", async (request, reply) => {
+    const userId = request.userId!;
+    const parsed = diagnosticsSchema.safeParse(request.body);
+    if (!parsed.success) {
+      return reply.status(400).send({ error: parsed.error.errors[0].message });
+    }
+    const d = parsed.data;
+
+    await prisma.diagnosticDump.upsert({
+      where: { userId },
+      update: {
+        capturedAt: new Date(d.capturedAt),
+        platform: d.platform,
+        osVersion: d.osVersion,
+        appVersion: d.appVersion,
+        buildNumber: d.buildNumber,
+        verdict: d.verdict,
+        statusJson: d.statusJson as any,
+        eventsJson: d.eventsJson,
+        createdAt: new Date(),
+      },
+      create: {
+        userId,
+        capturedAt: new Date(d.capturedAt),
+        platform: d.platform,
+        osVersion: d.osVersion,
+        appVersion: d.appVersion,
+        buildNumber: d.buildNumber,
+        verdict: d.verdict,
+        statusJson: d.statusJson as any,
+        eventsJson: d.eventsJson,
+      },
+    });
+
+    return reply.send({ success: true });
+  });
 }
