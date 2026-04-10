@@ -272,6 +272,16 @@ export default function TermsOfService() {
               </div>
             </section>
 
+            {/* 5b. Diagnostic Data */}
+            <section id="diagnostic-data" className="legal__section">
+              <h2 className="legal__section-title">Diagnostic Data Collection</h2>
+              <div className="legal__card">
+                <p className="legal__card-text">
+                  MileClear automatically collects non-location diagnostic data (app version, GPS permission status, drive detection events) on each startup to improve service reliability. Sensitive personal data (coordinates, location names, device identities) is stripped before transmission. This data is associated with your account and used for debugging purposes only.
+                </p>
+              </div>
+            </section>
+
             {/* 6. Disclaimers & No Warranty */}
             <section id="no-warranty" className="legal__section">
               <h2 className="legal__section-title">6. Disclaimers &amp; No Warranty</h2>

@@ -161,6 +161,7 @@ export default function PrivacyPolicy() {
                   <li className="legal__list-item">Feature usage analytics (anonymous)</li>
                   <li className="legal__list-item">Session information (login/logout times)</li>
                   <li className="legal__list-item">Error logs and crash reports</li>
+                  <li className="legal__list-item">Diagnostic telemetry (drive detection status, GPS permission status, app configuration, last 50 detection events)</li>
                 </ul>
               </div>
 
@@ -320,11 +321,27 @@ export default function PrivacyPolicy() {
                 <ul className="legal__list">
                   <li className="legal__list-item">Analytics and service improvement (understanding usage patterns)</li>
                   <li className="legal__list-item">Fraud detection and abuse prevention</li>
-                  <li className="legal__list-item">App stability and debugging (error logs)</li>
+                  <li className="legal__list-item">App stability, debugging and drive detection improvement (error logs, diagnostic telemetry, event logs)</li>
                   <li className="legal__list-item">Security monitoring and protection against unauthorised access</li>
                 </ul>
                 <p className="legal__card-text legal__text--small" style={{marginTop: '1rem'}}>
                   We conduct balancing tests to ensure our interests do not override your privacy rights. You have the right to object to this processing.
+                </p>
+              </div>
+
+              <div className="legal__card">
+                <h3 className="legal__card-title">Diagnostic Telemetry</h3>
+                <p className="legal__card-text">
+                  To improve drive detection and troubleshoot issues, MileClear collects non-sensitive diagnostic data on each app startup:
+                </p>
+                <ul className="legal__list">
+                  <li className="legal__list-item">Drive detection status and GPS permission states (granted/denied)</li>
+                  <li className="legal__list-item">App version, build number, platform, and OS version</li>
+                  <li className="legal__list-item">Detection event log (last 50 events with timestamps and types only - no coordinates)</li>
+                  <li className="legal__list-item">App configuration settings (speed threshold, quiet hours, auto-recording status)</li>
+                </ul>
+                <p className="legal__card-text legal__text--small" style={{marginTop: '1rem'}}>
+                  We do <strong>not</strong> collect GPS coordinates, location names, Bluetooth device names, or any personally identifying location data in diagnostics. This data is tied to your account for debugging purposes only.
                 </p>
               </div>
 

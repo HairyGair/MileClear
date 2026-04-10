@@ -71,6 +71,10 @@ const faqs = [
     a: 'Yes. Your location data is stored locally on your device and only synced when you choose. We use encrypted connections, secure token storage, and never sell your data. You can export or delete your data at any time under Profile.',
   },
   {
+    q: 'What diagnostic data does MileClear collect?',
+    a: 'MileClear sends diagnostic telemetry on startup to help us fix drive detection issues. This includes app version, GPS permission status, detection event logs (timestamps and event types only), and configuration settings. We do not send GPS coordinates, Bluetooth device names, or any personal location information. The data is tied to your account for debugging only.',
+  },
+  {
     q: 'How do I delete my account?',
     a: 'Go to Profile, scroll to the bottom, and tap "Delete Account". This permanently removes all your data from our servers. This action cannot be undone.',
   },
