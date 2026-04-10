@@ -69,6 +69,20 @@ interface UsersResponse {
   totalPages: number;
 }
 
+interface DiagnosticDump {
+  id: string;
+  userId: string;
+  capturedAt: string;
+  platform: string;
+  osVersion: string;
+  appVersion: string;
+  buildNumber: string;
+  verdict: string;
+  statusJson: Record<string, unknown>;
+  eventsJson: Array<{ recorded_at: string; event: string; data: string | null }>;
+  createdAt: string;
+}
+
 interface HealthData {
   api: string;
   database: string;
@@ -274,6 +288,7 @@ function UserDetailModal({
   const [user, setUser] = useState<AdminUserDetail | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [diag, setDiag] = useState<DiagnosticDump | null>(null);
 
   // Push notification to specific user
   const [pushTitle, setPushTitle] = useState("");
@@ -286,12 +301,18 @@ function UserDetailModal({
     setLoading(true);
     setError(null);
     setUser(null);
+    setDiag(null);
     setPushTitle("");
     setPushBody("");
     setPushResult(null);
-    api
-      .get<{ data: AdminUserDetail }>(`/admin/users/${userId}`)
-      .then((res) => setUser(res.data))
+    Promise.all([
+      api.get<{ data: AdminUserDetail }>(`/admin/users/${userId}`),
+      api.get<{ data: DiagnosticDump | null }>(`/admin/users/${userId}/diagnostics`).catch(() => ({ data: null })),
+    ])
+      .then(([userRes, diagRes]) => {
+        setUser(userRes.data);
+        setDiag(diagRes.data);
+      })
       .catch((err: Error) => setError(err.message))
       .finally(() => setLoading(false));
   }, [userId, open]);
@@ -511,6 +532,88 @@ function UserDetailModal({
               </div>
             </div>
           )}
+
+          {/* Drive Detection Diagnostics */}
+          <div className="settings-section">
+            <h4 className="settings-section__title">Drive Detection</h4>
+            {diag ? (() => {
+              const st = diag.statusJson as Record<string, unknown>;
+              const verdictColor = diag.verdict === "healthy" ? "var(--emerald-400)"
+                : diag.verdict === "error" ? "var(--dash-red)"
+                : diag.verdict === "warning" ? "var(--amber-500)"
+                : "var(--dash-blue, #3b82f6)";
+              return (
+                <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", flexWrap: "wrap" }}>
+                    <span style={{
+                      padding: "0.15rem 0.5rem",
+                      borderRadius: "6px",
+                      fontSize: "0.6875rem",
+                      fontWeight: 700,
+                      textTransform: "uppercase",
+                      letterSpacing: "0.5px",
+                      color: verdictColor,
+                      background: `color-mix(in srgb, ${verdictColor} 15%, transparent)`,
+                    }}>
+                      {diag.verdict}
+                    </span>
+                    <span style={{ fontSize: "0.75rem", color: "var(--text-tertiary)" }}>
+                      v{diag.appVersion} (build {diag.buildNumber}) - {diag.platform} {diag.osVersion}
+                    </span>
+                    <span style={{ fontSize: "0.75rem", color: "var(--text-tertiary)" }}>
+                      {new Date(diag.capturedAt).toLocaleString()}
+                    </span>
+                  </div>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.25rem 1rem", fontSize: "0.8125rem" }}>
+                    {[
+                      ["Task running", st.taskRunning, st.taskRunning === true],
+                      ["BG permission", st.backgroundPermission, st.backgroundPermission === "granted"],
+                      ["Enabled", st.enabled, st.enabled === true],
+                      ["Auto-recording", st.autoRecordingActive, st.autoRecordingActive !== true],
+                      ["Buffered coords", st.bufferedCoordinates, undefined],
+                      ["Quiet hours", st.quietHours, undefined],
+                    ].map(([label, value, good], i) => (
+                      <div key={i} style={{ display: "flex", justifyContent: "space-between", padding: "0.15rem 0" }}>
+                        <span style={{ color: "var(--text-secondary)" }}>{String(label)}</span>
+                        <span style={{
+                          fontWeight: 600,
+                          color: good === undefined ? "var(--text-secondary)"
+                            : good ? "var(--emerald-400)" : "var(--dash-red)",
+                        }}>
+                          {String(value ?? "-")}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                  {diag.eventsJson.length > 0 && (
+                    <div>
+                      <p style={{ fontSize: "0.75rem", fontWeight: 600, color: "var(--text-secondary)", margin: "0 0 0.375rem" }}>
+                        Recent events ({diag.eventsJson.length})
+                      </p>
+                      <div style={{ maxHeight: "200px", overflow: "auto", fontSize: "0.75rem", lineHeight: 1.6, color: "var(--text-tertiary)" }}>
+                        {diag.eventsJson.slice(0, 20).map((ev, i) => (
+                          <div key={i}>
+                            <span style={{ color: "var(--text-secondary)", fontWeight: 500 }}>{ev.event}</span>
+                            {ev.data && <span> {ev.data}</span>}
+                            <span style={{ marginLeft: "0.5rem", opacity: 0.6 }}>
+                              {new Date(ev.recorded_at).toLocaleTimeString()}
+                            </span>
+                          </div>
+                        ))}
+                        {diag.eventsJson.length > 20 && (
+                          <div style={{ opacity: 0.5 }}>+ {diag.eventsJson.length - 20} more</div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })() : (
+              <p style={{ fontSize: "0.8125rem", color: "var(--text-tertiary)", margin: 0 }}>
+                No diagnostics uploaded yet
+              </p>
+            )}
+          </div>
 
           {/* Send Push Notification */}
           <div className="settings-section">
