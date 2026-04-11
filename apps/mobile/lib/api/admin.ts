@@ -16,13 +16,26 @@ export function fetchAdminAnalytics() {
   return apiRequest<{ data: AdminAnalytics }>("/admin/analytics");
 }
 
-export function fetchAdminUsers(params?: { q?: string; page?: number; pageSize?: number }) {
+export function fetchAdminUsers(params?: {
+  q?: string;
+  page?: number;
+  pageSize?: number;
+  sortBy?: "createdAt" | "lastTripAt" | "lastLoginAt";
+}) {
   const searchParams = new URLSearchParams();
   if (params?.q) searchParams.set("q", params.q);
   if (params?.page) searchParams.set("page", String(params.page));
   if (params?.pageSize) searchParams.set("pageSize", String(params.pageSize));
+  if (params?.sortBy) searchParams.set("sortBy", params.sortBy);
   const qs = searchParams.toString();
   return apiRequest<PaginatedResponse<AdminUserSummary>>(`/admin/users${qs ? `?${qs}` : ""}`);
+}
+
+export function updateUserNotes(userId: string, notes: string | null) {
+  return apiRequest<{ data: { id: string; notes: string | null } }>(
+    `/admin/users/${userId}/notes`,
+    { method: "PATCH", body: JSON.stringify({ notes }) }
+  );
 }
 
 export function fetchAdminUserDetail(userId: string) {

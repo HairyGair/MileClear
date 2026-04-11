@@ -2,6 +2,7 @@ import { useCallback, useState } from "react";
 import {
   View,
   Text,
+  TextInput,
   ScrollView,
   RefreshControl,
   TouchableOpacity,
@@ -11,9 +12,24 @@ import {
 } from "react-native";
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
-import { fetchAdminUserDetail, toggleUserPremium, deleteAdminUser, fetchUserDiagnostics, type DiagnosticDumpResponse } from "../lib/api/admin";
+import { fetchAdminUserDetail, toggleUserPremium, deleteAdminUser, fetchUserDiagnostics, updateUserNotes, type DiagnosticDumpResponse } from "../lib/api/admin";
 import { formatPence } from "@mileclear/shared";
 import type { AdminUserDetail } from "@mileclear/shared";
+
+function timeAgo(date: string | null | undefined): string {
+  if (!date) return "—";
+  const seconds = Math.floor((Date.now() - new Date(date).getTime()) / 1000);
+  if (seconds < 60) return "just now";
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  if (days < 30) return `${days}d ago`;
+  const months = Math.floor(days / 30);
+  if (months < 12) return `${months}mo ago`;
+  return `${Math.floor(months / 12)}y ago`;
+}
 
 export default function AdminUserDetailScreen() {
   const router = useRouter();
@@ -23,6 +39,9 @@ export default function AdminUserDetailScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [toggling, setToggling] = useState(false);
   const [diagnostics, setDiagnostics] = useState<DiagnosticDumpResponse | null>(null);
+  const [notesDraft, setNotesDraft] = useState("");
+  const [notesSaving, setNotesSaving] = useState(false);
+  const [notesMessage, setNotesMessage] = useState<string | null>(null);
 
   const loadData = useCallback(async () => {
     if (!userId) return;
@@ -33,6 +52,7 @@ export default function AdminUserDetailScreen() {
       ]);
       setUser(userRes.data);
       setDiagnostics(diagRes.data);
+      setNotesDraft(userRes.data.notes ?? "");
     } catch {
       // Silently fail
     } finally {
@@ -40,6 +60,22 @@ export default function AdminUserDetailScreen() {
       setRefreshing(false);
     }
   }, [userId]);
+
+  const handleSaveNotes = useCallback(async () => {
+    if (!userId) return;
+    setNotesSaving(true);
+    setNotesMessage(null);
+    try {
+      const res = await updateUserNotes(userId, notesDraft.trim() || null);
+      setUser((prev) => (prev ? { ...prev, notes: res.data.notes } : prev));
+      setNotesMessage("Saved");
+      setTimeout(() => setNotesMessage(null), 2000);
+    } catch (err: any) {
+      setNotesMessage(`Error: ${err.message || "Failed to save"}`);
+    } finally {
+      setNotesSaving(false);
+    }
+  }, [userId, notesDraft]);
 
   useFocusEffect(
     useCallback(() => {
@@ -198,6 +234,61 @@ export default function AdminUserDetailScreen() {
         <View style={s.statCard}>
           <Text style={s.statNum}>{formatPence(user.totalEarningsPence)}</Text>
           <Text style={s.statUnit}>earnings</Text>
+        </View>
+      </View>
+
+      {/* Activity */}
+      <View style={s.card}>
+        <Text style={s.cardTitle}>Activity</Text>
+        <View style={s.detailRow}>
+          <Text style={s.detailLabel}>Last trip</Text>
+          <Text style={s.detailValue}>{timeAgo(user.lastTripAt)}</Text>
+        </View>
+        <View style={s.detailRow}>
+          <Text style={s.detailLabel}>Last login</Text>
+          <Text style={s.detailValue}>{timeAgo(user.lastLoginAt)}</Text>
+        </View>
+      </View>
+
+      {/* Admin Notes */}
+      <View style={s.card}>
+        <Text style={s.cardTitle}>Admin Notes</Text>
+        <TextInput
+          style={s.notesInput}
+          value={notesDraft}
+          onChangeText={setNotesDraft}
+          placeholder="Private notes about this user..."
+          placeholderTextColor={TEXT_3}
+          multiline
+          numberOfLines={4}
+          maxLength={10000}
+          textAlignVertical="top"
+          accessibilityLabel="Admin notes for this user"
+        />
+        <View style={s.notesFooter}>
+          <TouchableOpacity
+            style={[s.notesSaveBtn, (notesSaving || notesDraft === (user.notes ?? "")) && s.notesSaveBtnDisabled]}
+            onPress={handleSaveNotes}
+            disabled={notesSaving || notesDraft === (user.notes ?? "")}
+            accessibilityRole="button"
+            accessibilityLabel="Save admin notes"
+          >
+            {notesSaving ? (
+              <ActivityIndicator size="small" color="#030712" />
+            ) : (
+              <Text style={s.notesSaveBtnText}>Save notes</Text>
+            )}
+          </TouchableOpacity>
+          {notesMessage && (
+            <Text
+              style={[
+                s.notesMessage,
+                { color: notesMessage.startsWith("Error") ? "#ef4444" : "#34c759" },
+              ]}
+            >
+              {notesMessage}
+            </Text>
+          )}
         </View>
       </View>
 
@@ -514,6 +605,42 @@ const s = StyleSheet.create({
     marginBottom: 6,
     borderWidth: 1,
     borderColor: CARD_BORDER,
+  },
+  notesInput: {
+    backgroundColor: "#030712",
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: CARD_BORDER,
+    padding: 10,
+    minHeight: 90,
+    fontSize: 13,
+    fontFamily: "PlusJakartaSans_400Regular",
+    color: TEXT_1,
+    marginTop: 4,
+  },
+  notesFooter: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    marginTop: 10,
+  },
+  notesSaveBtn: {
+    backgroundColor: AMBER,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 8,
+  },
+  notesSaveBtnDisabled: {
+    opacity: 0.4,
+  },
+  notesSaveBtnText: {
+    fontSize: 13,
+    fontFamily: "PlusJakartaSans_700Bold",
+    color: "#030712",
+  },
+  notesMessage: {
+    fontSize: 12,
+    fontFamily: "PlusJakartaSans_500Medium",
   },
   listPrimary: {
     fontSize: 14,

@@ -16,10 +16,34 @@ import type { AdminUserSummary } from "@mileclear/shared";
 
 const PAGE_SIZE = 20;
 
+type SortBy = "createdAt" | "lastTripAt" | "lastLoginAt";
+
+const SORT_OPTIONS: Array<{ v: SortBy; label: string }> = [
+  { v: "createdAt", label: "Newest" },
+  { v: "lastTripAt", label: "Last trip" },
+  { v: "lastLoginAt", label: "Last login" },
+];
+
+function timeAgo(date: string | null | undefined): string {
+  if (!date) return "—";
+  const seconds = Math.floor((Date.now() - new Date(date).getTime()) / 1000);
+  if (seconds < 60) return "just now";
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  if (days < 30) return `${days}d ago`;
+  const months = Math.floor(days / 30);
+  if (months < 12) return `${months}mo ago`;
+  return `${Math.floor(months / 12)}y ago`;
+}
+
 export default function AdminUsersScreen() {
   const router = useRouter();
   const [users, setUsers] = useState<AdminUserSummary[]>([]);
   const [query, setQuery] = useState("");
+  const [sortBy, setSortBy] = useState<SortBy>("createdAt");
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [loading, setLoading] = useState(true);
@@ -27,9 +51,9 @@ export default function AdminUsersScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const loadUsers = useCallback(async (searchQuery: string, pageNum: number, append: boolean) => {
+  const loadUsers = useCallback(async (searchQuery: string, pageNum: number, append: boolean, sort: SortBy) => {
     try {
-      const res = await fetchAdminUsers({ q: searchQuery || undefined, page: pageNum, pageSize: PAGE_SIZE });
+      const res = await fetchAdminUsers({ q: searchQuery || undefined, page: pageNum, pageSize: PAGE_SIZE, sortBy: sort });
       if (append) {
         setUsers((prev) => [...prev, ...res.data]);
       } else {
@@ -50,26 +74,26 @@ export default function AdminUsersScreen() {
     setPage(1);
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(() => {
-      loadUsers(query, 1, false);
+      loadUsers(query, 1, false, sortBy);
     }, 300);
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
     };
-  }, [query, loadUsers]);
+  }, [query, sortBy, loadUsers]);
 
   const onRefresh = useCallback(() => {
     setRefreshing(true);
     setPage(1);
-    loadUsers(query, 1, false);
-  }, [query, loadUsers]);
+    loadUsers(query, 1, false, sortBy);
+  }, [query, sortBy, loadUsers]);
 
   const onEndReached = useCallback(() => {
     if (loadingMore || page >= totalPages) return;
     const nextPage = page + 1;
     setPage(nextPage);
     setLoadingMore(true);
-    loadUsers(query, nextPage, true);
-  }, [loadingMore, page, totalPages, query, loadUsers]);
+    loadUsers(query, nextPage, true, sortBy);
+  }, [loadingMore, page, totalPages, query, sortBy, loadUsers]);
 
   const renderUser = useCallback(({ item }: { item: AdminUserSummary }) => {
     const dateStr = new Date(item.createdAt).toLocaleDateString("en-GB", {
@@ -126,6 +150,10 @@ export default function AdminUsersScreen() {
           <Text style={s.userMeta}>Joined {dateStr}</Text>
           <Text style={s.userMeta}>{item._count.trips} trips</Text>
         </View>
+        <View style={s.userBottom}>
+          <Text style={s.userMeta}>Last trip: {timeAgo(item.lastTripAt)}</Text>
+          <Text style={s.userMeta}>Login: {timeAgo(item.lastLoginAt)}</Text>
+        </View>
       </TouchableOpacity>
     );
   }, [router]);
@@ -149,6 +177,24 @@ export default function AdminUsersScreen() {
             <Ionicons name="close-circle" size={18} color={TEXT_3} />
           </TouchableOpacity>
         )}
+      </View>
+
+      <View style={s.sortRow}>
+        {SORT_OPTIONS.map((opt) => {
+          const active = sortBy === opt.v;
+          return (
+            <TouchableOpacity
+              key={opt.v}
+              onPress={() => setSortBy(opt.v)}
+              style={[s.sortChip, active && s.sortChipActive]}
+              accessibilityRole="button"
+              accessibilityState={{ selected: active }}
+              accessibilityLabel={`Sort by ${opt.label}`}
+            >
+              <Text style={[s.sortChipText, active && s.sortChipTextActive]}>{opt.label}</Text>
+            </TouchableOpacity>
+          );
+        })}
       </View>
 
       {loading ? (
@@ -211,6 +257,33 @@ const s = StyleSheet.create({
     fontSize: 15,
     fontFamily: "PlusJakartaSans_400Regular",
     color: TEXT_1,
+  },
+  sortRow: {
+    flexDirection: "row",
+    gap: 6,
+    paddingHorizontal: 20,
+    marginBottom: 8,
+  },
+  sortChip: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 999,
+    backgroundColor: CARD_BG,
+    borderWidth: 1,
+    borderColor: CARD_BORDER,
+  },
+  sortChipActive: {
+    backgroundColor: AMBER,
+    borderColor: AMBER,
+  },
+  sortChipText: {
+    fontSize: 12,
+    fontFamily: "PlusJakartaSans_500Medium",
+    color: TEXT_2,
+  },
+  sortChipTextActive: {
+    color: "#030712",
+    fontFamily: "PlusJakartaSans_700Bold",
   },
   listContent: { paddingHorizontal: 20, paddingBottom: 20 },
   userCard: {
