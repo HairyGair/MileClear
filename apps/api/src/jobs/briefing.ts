@@ -1,5 +1,6 @@
 import { prisma } from "../lib/prisma.js";
 import { sendAdminBriefingEmail, type BriefingData } from "../services/email.js";
+import { runJob } from "../services/jobRun.js";
 
 let briefingSentToday = false;
 
@@ -165,12 +166,12 @@ export function startBriefingJobs(): void {
   scheduleMidnightReset();
 
   setTimeout(() => {
-    void runDailyBriefingJob();
-    setInterval(() => void runDailyBriefingJob(), CHECK_INTERVAL_MS);
+    void runJob("daily_briefing", runDailyBriefingJob);
+    setInterval(() => void runJob("daily_briefing", runDailyBriefingJob), CHECK_INTERVAL_MS);
 
     // Run cleanup daily
-    void cleanupOldEvents();
-    setInterval(() => void cleanupOldEvents(), CLEANUP_INTERVAL_MS);
+    void runJob("event_cleanup", cleanupOldEvents);
+    setInterval(() => void runJob("event_cleanup", cleanupOldEvents), CLEANUP_INTERVAL_MS);
   }, INITIAL_DELAY_MS);
 
   console.log("[jobs/briefing] Briefing jobs scheduled (daily at ~8am UK)");

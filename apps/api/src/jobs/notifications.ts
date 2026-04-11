@@ -10,6 +10,7 @@ import {
 } from "@mileclear/shared";
 import { sendCheckinEmail } from "../services/email.js";
 import { logEvent } from "../services/appEvents.js";
+import { runJob } from "../services/jobRun.js";
 
 // Persistent dedup via AppEvent table — survives PM2 restarts.
 // Checks if a notification event was already logged for a user today.
@@ -498,23 +499,18 @@ export function startNotificationJobs(): void {
   const INITIAL_DELAY_MS = 60 * 1000;       // 60 seconds
   const INTERVAL_MS = 6 * 60 * 60 * 1000;  // 6 hours
 
-  setTimeout(() => {
-    // Run all jobs immediately after the initial delay, then on the interval
-    void runStreakAtRiskJob();
-    void runSubExpiringJob();
-    void runWeeklyRecapJob();
-    void runMonthlyRecapJob();
-    void runWelcomeNudgeJob();
-    void runCheckinEmailJob();
+  const runAll = () => {
+    void runJob("streak_at_risk", runStreakAtRiskJob);
+    void runJob("sub_expiring", runSubExpiringJob);
+    void runJob("weekly_recap", runWeeklyRecapJob);
+    void runJob("monthly_recap", runMonthlyRecapJob);
+    void runJob("welcome_nudge", runWelcomeNudgeJob);
+    void runJob("checkin_email", runCheckinEmailJob);
+  };
 
-    setInterval(() => {
-      void runStreakAtRiskJob();
-      void runSubExpiringJob();
-      void runWeeklyRecapJob();
-      void runMonthlyRecapJob();
-      void runWelcomeNudgeJob();
-      void runCheckinEmailJob();
-    }, INTERVAL_MS);
+  setTimeout(() => {
+    runAll();
+    setInterval(runAll, INTERVAL_MS);
   }, INITIAL_DELAY_MS);
 
   console.log("[jobs/notifications] Scheduled notification jobs started (first run in 60s)");

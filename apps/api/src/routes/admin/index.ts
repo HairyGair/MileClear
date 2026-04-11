@@ -239,6 +239,147 @@ export async function adminRoutes(app: FastifyInstance) {
     return reply.send({ data: dump });
   });
 
+  // GET /admin/users/:userId/trip-paths
+  // Returns recent trips with their coordinate arrays for admin map visualisation.
+  app.get("/users/:userId/trip-paths", async (request, reply) => {
+    const { userId } = request.params as { userId: string };
+    const { limit, days } = request.query as { limit?: string; days?: string };
+
+    const take = Math.min(100, Math.max(1, parseInt(limit || "20", 10) || 20));
+    const daysNum = days ? Math.max(1, parseInt(days, 10) || 0) : null;
+
+    const where: Record<string, unknown> = { userId };
+    if (daysNum) {
+      where.startedAt = { gte: new Date(Date.now() - daysNum * 24 * 60 * 60 * 1000) };
+    }
+
+    const trips = await prisma.trip.findMany({
+      where,
+      orderBy: { startedAt: "desc" },
+      take,
+      select: {
+        id: true,
+        startedAt: true,
+        endedAt: true,
+        distanceMiles: true,
+        classification: true,
+        startLat: true,
+        startLng: true,
+        endLat: true,
+        endLng: true,
+        isManualEntry: true,
+        coordinates: {
+          orderBy: { recordedAt: "asc" },
+          select: { lat: true, lng: true },
+        },
+      },
+    });
+
+    return reply.send({ data: trips });
+  });
+
+  // GET /admin/apple-webhooks
+  app.get("/apple-webhooks", async (request, reply) => {
+    const { page, pageSize, status } = request.query as {
+      page?: string;
+      pageSize?: string;
+      status?: string;
+    };
+
+    const pageNum = Math.max(1, parseInt(page || "1", 10) || 1);
+    const size = Math.min(100, Math.max(1, parseInt(pageSize || "50", 10) || 50));
+    const skip = (pageNum - 1) * size;
+
+    const where = status ? { status } : {};
+
+    const [logs, total] = await Promise.all([
+      prisma.appleIapWebhookLog.findMany({
+        where,
+        orderBy: { receivedAt: "desc" },
+        skip,
+        take: size,
+      }),
+      prisma.appleIapWebhookLog.count({ where }),
+    ]);
+
+    // Summary counts by status for the last 24 hours
+    const since = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    const last24hRows = await prisma.appleIapWebhookLog.groupBy({
+      by: ["status"],
+      where: { receivedAt: { gte: since } },
+      _count: { _all: true },
+    });
+    const last24h: Record<string, number> = {};
+    for (const row of last24hRows) {
+      last24h[row.status] = row._count._all;
+    }
+
+    return reply.send({
+      data: logs,
+      total,
+      page: pageNum,
+      pageSize: size,
+      totalPages: Math.ceil(total / size),
+      last24h,
+    });
+  });
+
+  // GET /admin/job-runs
+  app.get("/job-runs", async (request, reply) => {
+    const { page, pageSize, jobName, status } = request.query as {
+      page?: string;
+      pageSize?: string;
+      jobName?: string;
+      status?: string;
+    };
+
+    const pageNum = Math.max(1, parseInt(page || "1", 10) || 1);
+    const size = Math.min(100, Math.max(1, parseInt(pageSize || "50", 10) || 50));
+    const skip = (pageNum - 1) * size;
+
+    const where: Record<string, unknown> = {};
+    if (jobName) where.jobName = jobName;
+    if (status) where.status = status;
+
+    const [runs, total] = await Promise.all([
+      prisma.jobRun.findMany({
+        where,
+        orderBy: { startedAt: "desc" },
+        skip,
+        take: size,
+      }),
+      prisma.jobRun.count({ where }),
+    ]);
+
+    // Latest run per job name for quick health check
+    const latestRowsRaw = await prisma.$queryRaw<
+      Array<{
+        jobName: string;
+        startedAt: Date;
+        finishedAt: Date | null;
+        status: string;
+      }>
+    >`
+      SELECT r1.jobName, r1.startedAt, r1.finishedAt, r1.status
+      FROM job_runs r1
+      INNER JOIN (
+        SELECT jobName, MAX(startedAt) AS maxStarted
+        FROM job_runs
+        GROUP BY jobName
+      ) r2 ON r1.jobName = r2.jobName AND r1.startedAt = r2.maxStarted
+      ORDER BY r1.startedAt DESC
+    `;
+
+    return reply.send({
+      data: runs,
+      total,
+      page: pageNum,
+      pageSize: size,
+      totalPages: Math.ceil(total / size),
+      latestPerJob: latestRowsRaw,
+    });
+  });
+
   // PATCH /admin/users/:userId/premium
   app.patch("/users/:userId/premium", async (request, reply) => {
     const { userId } = request.params as { userId: string };

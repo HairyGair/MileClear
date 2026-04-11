@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { api } from "../../../lib/api";
 import { PageHeader } from "../../../components/dashboard/PageHeader";
 import { Card } from "../../../components/ui/Card";
@@ -69,6 +69,22 @@ interface AdminUserDetail extends AdminUser {
 }
 
 type UsersSortBy = "createdAt" | "lastTripAt" | "lastLoginAt";
+
+interface AdminTripPath {
+  id: string;
+  startedAt: string;
+  endedAt: string | null;
+  distanceMiles: number;
+  classification: string;
+  startLat: number;
+  startLng: number;
+  endLat: number | null;
+  endLng: number | null;
+  isManualEntry: boolean;
+  coordinates: Array<{ lat: number; lng: number }>;
+}
+
+type TripMapRange = "last20" | "last50" | "last7d";
 
 interface UsersResponse {
   data: AdminUser[];
@@ -391,6 +407,13 @@ function UserDetailModal({
   const [notesSaving, setNotesSaving] = useState(false);
   const [notesMessage, setNotesMessage] = useState<string | null>(null);
 
+  // Trip map
+  const [tripPaths, setTripPaths] = useState<AdminTripPath[] | null>(null);
+  const [tripMapRange, setTripMapRange] = useState<TripMapRange>("last20");
+  const [tripMapLoading, setTripMapLoading] = useState(false);
+  const mapContainerRef = useRef<HTMLDivElement>(null);
+  const mapInstanceRef = useRef<any>(null);
+
   // Add trip form
   const [tripOpen, setTripOpen] = useState(false);
   const [tripVehicleId, setTripVehicleId] = useState("");
@@ -438,6 +461,7 @@ function UserDetailModal({
     setNotesDraft("");
     setNotesMessage(null);
     setTripOpen(false);
+    setTripPaths(null);
     resetTripForm();
     Promise.all([
       api.get<{ data: AdminUserDetail }>(`/admin/users/${userId}`),
@@ -451,6 +475,105 @@ function UserDetailModal({
       .catch((err: Error) => setError(err.message))
       .finally(() => setLoading(false));
   }, [userId, open, resetTripForm]);
+
+  // Fetch trip paths whenever the modal opens or the range changes
+  useEffect(() => {
+    if (!userId || !open) return;
+    setTripMapLoading(true);
+    const params = new URLSearchParams();
+    if (tripMapRange === "last20") params.set("limit", "20");
+    else if (tripMapRange === "last50") params.set("limit", "50");
+    else if (tripMapRange === "last7d") { params.set("days", "7"); params.set("limit", "100"); }
+    api
+      .get<{ data: AdminTripPath[] }>(`/admin/users/${userId}/trip-paths?${params}`)
+      .then((res) => setTripPaths(res.data))
+      .catch(() => setTripPaths([]))
+      .finally(() => setTripMapLoading(false));
+  }, [userId, open, tripMapRange]);
+
+  // Render the Leaflet map when trip paths + container are ready
+  useEffect(() => {
+    if (!open || !tripPaths || tripPaths.length === 0 || !mapContainerRef.current) {
+      if (mapInstanceRef.current) {
+        mapInstanceRef.current.remove();
+        mapInstanceRef.current = null;
+      }
+      return;
+    }
+
+    const renderMap = () => {
+      const L = (window as any).L;
+      if (!L || !mapContainerRef.current) return;
+
+      if (mapInstanceRef.current) {
+        mapInstanceRef.current.remove();
+      }
+
+      const map = L.map(mapContainerRef.current, {
+        zoomControl: true,
+        attributionControl: false,
+      });
+      L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", {
+        maxZoom: 19,
+      }).addTo(map);
+
+      const colours = [
+        "#fbbf24", "#60a5fa", "#34d399", "#f472b6", "#a78bfa",
+        "#fb923c", "#2dd4bf", "#f87171", "#c084fc", "#facc15",
+      ];
+
+      const allLatlngs: [number, number][] = [];
+      tripPaths!.forEach((t, i) => {
+        const colour = colours[i % colours.length];
+        if (t.coordinates.length >= 2) {
+          const latlngs = t.coordinates.map((c) => [c.lat, c.lng] as [number, number]);
+          L.polyline(latlngs, { color: colour, weight: 3, opacity: 0.8, smoothFactor: 1.5 }).addTo(map);
+          allLatlngs.push(...latlngs);
+        } else if (t.endLat !== null && t.endLng !== null) {
+          const start: [number, number] = [t.startLat, t.startLng];
+          const end: [number, number] = [t.endLat, t.endLng];
+          L.polyline([start, end], {
+            color: colour,
+            weight: 2,
+            opacity: 0.6,
+            dashArray: "6, 8",
+          }).addTo(map);
+          allLatlngs.push(start, end);
+        }
+      });
+
+      if (allLatlngs.length > 0) {
+        map.fitBounds(L.latLngBounds(allLatlngs), { padding: [30, 30] });
+      } else {
+        map.setView([54.5, -2.5], 6);
+      }
+
+      mapInstanceRef.current = map;
+    };
+
+    if ((window as any).L) {
+      renderMap();
+      return;
+    }
+
+    if (!document.querySelector('link[href*="leaflet"]')) {
+      const link = document.createElement("link");
+      link.rel = "stylesheet";
+      link.href = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.css";
+      document.head.appendChild(link);
+    }
+    const script = document.createElement("script");
+    script.src = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.js";
+    script.onload = renderMap;
+    document.head.appendChild(script);
+
+    return () => {
+      if (mapInstanceRef.current) {
+        mapInstanceRef.current.remove();
+        mapInstanceRef.current = null;
+      }
+    };
+  }, [open, tripPaths]);
 
   const handleSaveNotes = async () => {
     if (!userId) return;
@@ -680,6 +803,52 @@ function UserDetailModal({
                 </p>
               </div>
             </div>
+          </div>
+
+          {/* Trip Map */}
+          <div className="settings-section">
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.5rem", gap: "0.5rem", flexWrap: "wrap" }}>
+              <h4 className="settings-section__title" style={{ margin: 0 }}>Trip Map</h4>
+              <div style={{ display: "flex", gap: "0.25rem" }}>
+                {([
+                  { v: "last20", label: "Last 20" },
+                  { v: "last50", label: "Last 50" },
+                  { v: "last7d", label: "Last 7 days" },
+                ] as Array<{ v: TripMapRange; label: string }>).map((opt) => (
+                  <button
+                    key={opt.v}
+                    className={`filter-chip ${tripMapRange === opt.v ? "filter-chip--active" : ""}`}
+                    onClick={() => setTripMapRange(opt.v)}
+                    type="button"
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+            {tripMapLoading ? (
+              <LoadingSkeleton variant="card" style={{ height: 320 }} />
+            ) : tripPaths && tripPaths.length > 0 ? (
+              <>
+                <div
+                  ref={mapContainerRef}
+                  style={{
+                    height: 320,
+                    width: "100%",
+                    borderRadius: 8,
+                    overflow: "hidden",
+                    border: "1px solid var(--border-subtle, rgba(255,255,255,0.08))",
+                  }}
+                />
+                <p style={{ fontSize: "0.75rem", color: "var(--text-tertiary)", margin: "0.5rem 0 0" }}>
+                  {tripPaths.length} trip{tripPaths.length !== 1 ? "s" : ""} plotted. Each colour is a different trip.
+                </p>
+              </>
+            ) : (
+              <p style={{ fontSize: "0.8125rem", color: "var(--text-tertiary)", margin: 0 }}>
+                No trips in the selected range.
+              </p>
+            )}
           </div>
 
           {/* Admin Notes */}
@@ -2590,7 +2759,316 @@ function ActivityTab() {
 // Main Page
 // ---------------------------------------------------------------------------
 
-type Tab = "overview" | "activity" | "users" | "health" | "revenue" | "engagement" | "auto-trips" | "push" | "email" | "feedback";
+// ---------------------------------------------------------------------------
+// Ops Tab — Apple IAP webhook log + Job run log
+// ---------------------------------------------------------------------------
+
+interface AppleWebhookLog {
+  id: string;
+  notificationType: string | null;
+  subtype: string | null;
+  originalTransactionId: string | null;
+  userId: string | null;
+  status: string;
+  errorMessage: string | null;
+  receivedAt: string;
+}
+
+interface JobRunLog {
+  id: string;
+  jobName: string;
+  startedAt: string;
+  finishedAt: string | null;
+  status: string;
+  errorMessage: string | null;
+  metadata: string | null;
+}
+
+interface AppleWebhookResponse {
+  data: AppleWebhookLog[];
+  total: number;
+  totalPages: number;
+  last24h: Record<string, number>;
+}
+
+interface JobRunResponse {
+  data: JobRunLog[];
+  total: number;
+  totalPages: number;
+  latestPerJob: Array<{
+    jobName: string;
+    startedAt: string;
+    finishedAt: string | null;
+    status: string;
+  }>;
+}
+
+function OpsTab() {
+  const [webhooks, setWebhooks] = useState<AppleWebhookResponse | null>(null);
+  const [webhookStatus, setWebhookStatus] = useState("");
+  const [jobs, setJobs] = useState<JobRunResponse | null>(null);
+  const [jobFilter, setJobFilter] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [expandedError, setExpandedError] = useState<string | null>(null);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const webhookParams = new URLSearchParams({ page: "1", pageSize: "50" });
+      if (webhookStatus) webhookParams.set("status", webhookStatus);
+      const jobParams = new URLSearchParams({ page: "1", pageSize: "50" });
+      if (jobFilter) jobParams.set("jobName", jobFilter);
+      const [wh, jr] = await Promise.all([
+        api.get<AppleWebhookResponse>(`/admin/apple-webhooks?${webhookParams}`),
+        api.get<JobRunResponse>(`/admin/job-runs?${jobParams}`),
+      ]);
+      setWebhooks(wh);
+      setJobs(jr);
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  }, [webhookStatus, jobFilter]);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  if (loading && !webhooks && !jobs) {
+    return <LoadingSkeleton variant="card" count={3} style={{ height: 120 }} />;
+  }
+  if (error) {
+    return <div className="alert alert--error" role="alert">{error}</div>;
+  }
+
+  const statusColor = (status: string) => {
+    if (status === "success") return "var(--emerald-400)";
+    if (status === "running") return "var(--dash-blue, #3b82f6)";
+    if (status === "unhandled") return "var(--amber-500)";
+    return "var(--dash-red)";
+  };
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
+      {/* Apple IAP Webhooks */}
+      <Card title="Apple IAP Webhooks">
+        {webhooks && (
+          <>
+            <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap", marginBottom: "0.75rem", fontSize: "0.8125rem" }}>
+              <span style={{ color: "var(--text-secondary)" }}>Last 24h:</span>
+              {Object.keys(webhooks.last24h).length === 0 ? (
+                <span style={{ color: "var(--text-tertiary)" }}>no events</span>
+              ) : (
+                Object.entries(webhooks.last24h).map(([status, count]) => (
+                  <span
+                    key={status}
+                    style={{
+                      padding: "0.1rem 0.5rem",
+                      borderRadius: 4,
+                      background: `color-mix(in srgb, ${statusColor(status)} 18%, transparent)`,
+                      color: statusColor(status),
+                      fontWeight: 600,
+                    }}
+                  >
+                    {status}: {count}
+                  </span>
+                ))
+              )}
+            </div>
+            <div style={{ display: "flex", gap: "0.5rem", alignItems: "center", marginBottom: "0.75rem" }}>
+              <span style={{ fontSize: "0.8125rem", color: "var(--text-secondary)" }}>Filter:</span>
+              <div style={{ minWidth: 180 }}>
+                <Select
+                  id="webhook-status-filter"
+                  value={webhookStatus}
+                  onChange={(e) => setWebhookStatus(e.target.value)}
+                  aria-label="Filter by status"
+                  options={[
+                    { value: "", label: "All statuses" },
+                    { value: "success", label: "success" },
+                    { value: "verification_failed", label: "verification_failed" },
+                    { value: "no_user", label: "no_user" },
+                    { value: "handler_error", label: "handler_error" },
+                    { value: "unhandled", label: "unhandled" },
+                    { value: "no_transaction_id", label: "no_transaction_id" },
+                    { value: "invalid_json", label: "invalid_json" },
+                    { value: "missing_payload", label: "missing_payload" },
+                    { value: "not_configured", label: "not_configured" },
+                  ]}
+                />
+              </div>
+              <Button variant="ghost" size="sm" onClick={load}>Refresh</Button>
+            </div>
+            {webhooks.data.length === 0 ? (
+              <p style={{ fontSize: "0.8125rem", color: "var(--text-tertiary)", margin: 0 }}>
+                No webhook entries yet.
+              </p>
+            ) : (
+              <div className="table-wrap">
+                <table className="table">
+                  <thead>
+                    <tr>
+                      <th>Received</th>
+                      <th>Type</th>
+                      <th>Subtype</th>
+                      <th>Status</th>
+                      <th>Txn ID</th>
+                      <th>User</th>
+                      <th>Error</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {webhooks.data.map((w) => (
+                      <tr key={w.id}>
+                        <td style={{ fontSize: "0.75rem", whiteSpace: "nowrap" }}>
+                          {new Date(w.receivedAt).toLocaleString()}
+                        </td>
+                        <td style={{ fontSize: "0.75rem" }}>{w.notificationType || "-"}</td>
+                        <td style={{ fontSize: "0.75rem" }}>{w.subtype || "-"}</td>
+                        <td style={{ fontSize: "0.75rem" }}>
+                          <span style={{ color: statusColor(w.status), fontWeight: 600 }}>{w.status}</span>
+                        </td>
+                        <td style={{ fontSize: "0.6875rem", fontFamily: "monospace", color: "var(--text-tertiary)" }}>
+                          {w.originalTransactionId ? w.originalTransactionId.slice(0, 12) + "..." : "-"}
+                        </td>
+                        <td style={{ fontSize: "0.6875rem", fontFamily: "monospace", color: "var(--text-tertiary)" }}>
+                          {w.userId ? w.userId.slice(0, 8) + "..." : "-"}
+                        </td>
+                        <td style={{ fontSize: "0.75rem", maxWidth: 280 }}>
+                          {w.errorMessage ? (
+                            <button
+                              onClick={() => setExpandedError(expandedError === w.id ? null : w.id)}
+                              style={{ background: "none", border: "none", color: "var(--dash-red)", cursor: "pointer", textAlign: "left", padding: 0, font: "inherit", whiteSpace: expandedError === w.id ? "normal" : "nowrap", overflow: "hidden", textOverflow: "ellipsis", display: "inline-block", maxWidth: 280 }}
+                              title="Click to toggle full error"
+                            >
+                              {w.errorMessage}
+                            </button>
+                          ) : (
+                            "-"
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </>
+        )}
+      </Card>
+
+      {/* Job Runs */}
+      <Card title="Background Jobs">
+        {jobs && (
+          <>
+            {jobs.latestPerJob.length > 0 && (
+              <div style={{ marginBottom: "0.75rem" }}>
+                <p style={{ fontSize: "0.75rem", color: "var(--text-secondary)", margin: "0 0 0.5rem", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.5px" }}>
+                  Latest run per job
+                </p>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(240px, 1fr))", gap: "0.5rem" }}>
+                  {jobs.latestPerJob.map((l) => (
+                    <div
+                      key={l.jobName}
+                      style={{
+                        padding: "0.5rem 0.75rem",
+                        background: "var(--bg-elevated, rgba(255,255,255,0.03))",
+                        border: `1px solid color-mix(in srgb, ${statusColor(l.status)} 30%, transparent)`,
+                        borderRadius: 6,
+                      }}
+                    >
+                      <div style={{ fontSize: "0.75rem", color: "var(--text-secondary)", fontFamily: "monospace" }}>
+                        {l.jobName}
+                      </div>
+                      <div style={{ fontSize: "0.875rem", color: statusColor(l.status), fontWeight: 600 }}>
+                        {l.status}
+                      </div>
+                      <div style={{ fontSize: "0.6875rem", color: "var(--text-tertiary)" }}>
+                        {timeAgo(l.startedAt)}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <div style={{ display: "flex", gap: "0.5rem", alignItems: "center", marginBottom: "0.75rem" }}>
+              <span style={{ fontSize: "0.8125rem", color: "var(--text-secondary)" }}>Filter:</span>
+              <div style={{ minWidth: 200 }}>
+                <Input
+                  id="job-filter"
+                  placeholder="Job name (e.g. streak_at_risk)"
+                  value={jobFilter}
+                  onChange={(e) => setJobFilter(e.target.value)}
+                />
+              </div>
+              <Button variant="ghost" size="sm" onClick={load}>Refresh</Button>
+            </div>
+
+            {jobs.data.length === 0 ? (
+              <p style={{ fontSize: "0.8125rem", color: "var(--text-tertiary)", margin: 0 }}>
+                No job runs yet.
+              </p>
+            ) : (
+              <div className="table-wrap">
+                <table className="table">
+                  <thead>
+                    <tr>
+                      <th>Started</th>
+                      <th>Job</th>
+                      <th>Status</th>
+                      <th>Duration</th>
+                      <th>Error</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {jobs.data.map((r) => {
+                      const dur = r.finishedAt
+                        ? Math.round((new Date(r.finishedAt).getTime() - new Date(r.startedAt).getTime()) / 10) / 100
+                        : null;
+                      return (
+                        <tr key={r.id}>
+                          <td style={{ fontSize: "0.75rem", whiteSpace: "nowrap" }}>
+                            {new Date(r.startedAt).toLocaleString()}
+                          </td>
+                          <td style={{ fontSize: "0.75rem", fontFamily: "monospace" }}>{r.jobName}</td>
+                          <td style={{ fontSize: "0.75rem" }}>
+                            <span style={{ color: statusColor(r.status), fontWeight: 600 }}>{r.status}</span>
+                          </td>
+                          <td style={{ fontSize: "0.75rem", whiteSpace: "nowrap" }}>
+                            {dur !== null ? `${dur.toFixed(2)}s` : "-"}
+                          </td>
+                          <td style={{ fontSize: "0.75rem", maxWidth: 320 }}>
+                            {r.errorMessage ? (
+                              <button
+                                onClick={() => setExpandedError(expandedError === r.id ? null : r.id)}
+                                style={{ background: "none", border: "none", color: "var(--dash-red)", cursor: "pointer", textAlign: "left", padding: 0, font: "inherit", whiteSpace: expandedError === r.id ? "normal" : "nowrap", overflow: "hidden", textOverflow: "ellipsis", display: "inline-block", maxWidth: 320 }}
+                                title="Click to toggle full error"
+                              >
+                                {r.errorMessage}
+                              </button>
+                            ) : (
+                              "-"
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </>
+        )}
+      </Card>
+    </div>
+  );
+}
+
+type Tab = "overview" | "activity" | "users" | "health" | "revenue" | "engagement" | "auto-trips" | "push" | "email" | "feedback" | "ops";
 
 const tabLabels: Record<Tab, string> = {
   overview: "Overview",
@@ -2603,6 +3081,7 @@ const tabLabels: Record<Tab, string> = {
   push: "Push",
   email: "Email",
   feedback: "Feedback",
+  ops: "Ops",
 };
 
 export default function AdminPage() {
@@ -2674,6 +3153,7 @@ export default function AdminPage() {
       {tab === "email" && <EmailTab />}
       {tab === "feedback" && <FeedbackTab />}
       {tab === "activity" && <ActivityTab />}
+      {tab === "ops" && <OpsTab />}
     </>
   );
 }
