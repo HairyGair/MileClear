@@ -688,10 +688,10 @@ function UserDetailModal({
                   {diag.eventsJson.length > 0 && (
                     <div>
                       <p style={{ fontSize: "0.75rem", fontWeight: 600, color: "var(--text-secondary)", margin: "0 0 0.375rem" }}>
-                        Recent events ({diag.eventsJson.length})
+                        Events ({diag.eventsJson.length})
                       </p>
-                      <div style={{ maxHeight: "200px", overflow: "auto", fontSize: "0.75rem", lineHeight: 1.6, color: "var(--text-tertiary)" }}>
-                        {diag.eventsJson.slice(0, 20).map((ev, i) => (
+                      <div style={{ maxHeight: "400px", overflow: "auto", fontSize: "0.75rem", lineHeight: 1.6, color: "var(--text-tertiary)", border: "1px solid var(--border-subtle, rgba(255,255,255,0.08))", borderRadius: "6px", padding: "0.5rem 0.625rem" }}>
+                        {diag.eventsJson.map((ev, i) => (
                           <div key={i}>
                             <span style={{ color: "var(--text-secondary)", fontWeight: 500 }}>{ev.event}</span>
                             {ev.data && <span> {ev.data}</span>}
@@ -700,9 +700,6 @@ function UserDetailModal({
                             </span>
                           </div>
                         ))}
-                        {diag.eventsJson.length > 20 && (
-                          <div style={{ opacity: 0.5 }}>+ {diag.eventsJson.length - 20} more</div>
-                        )}
                       </div>
                     </div>
                   )}
