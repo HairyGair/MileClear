@@ -719,6 +719,10 @@ export interface AdminUserSummary {
   isAdmin: boolean;
   createdAt: string;
   _count: { trips: number; vehicles: number; earnings: number };
+  diagnosticDump?: {
+    verdict: string;
+    capturedAt: string;
+  } | null;
 }
 
 export interface AdminUserDetail extends AdminUserSummary {

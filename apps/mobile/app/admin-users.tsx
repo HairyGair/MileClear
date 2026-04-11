@@ -94,6 +94,22 @@ export default function AdminUsersScreen() {
             )}
           </View>
           <View style={s.badgeRow}>
+            {item.diagnosticDump && item.diagnosticDump.verdict !== "healthy" && (
+              <View
+                style={[
+                  s.diagDot,
+                  {
+                    backgroundColor:
+                      item.diagnosticDump.verdict === "error"
+                        ? "#ef4444"
+                        : item.diagnosticDump.verdict === "warning"
+                          ? AMBER
+                          : "#3b82f6",
+                  },
+                ]}
+                accessibilityLabel={`Drive detection ${item.diagnosticDump.verdict}`}
+              />
+            )}
             {item.isAdmin && (
               <View style={s.adminBadge}>
                 <Text style={s.adminBadgeText}>ADMIN</Text>
@@ -224,7 +240,14 @@ const s = StyleSheet.create({
   },
   badgeRow: {
     flexDirection: "row",
+    alignItems: "center",
     gap: 4,
+  },
+  diagDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    marginRight: 2,
   },
   proBadge: {
     backgroundColor: AMBER,
