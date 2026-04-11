@@ -425,7 +425,17 @@ async function _finalizeAutoTripInner(): Promise<void> {
   }
 
   const coords = allCoords.slice(0, endIdx + 1);
-  if (coords.length < 2) return;
+  if (coords.length < 2) {
+    // Defensive: should be unreachable because allCoords.length >= 2 (checked
+    // above) and the tail-trim loop guarantees endIdx >= 1. Log if we ever
+    // hit it so the silent-exit class of bug stays visible.
+    logDetectionEvent("finalize_tail_trim_too_short", {
+      totalCoords: allCoords.length,
+      keptCoords: coords.length,
+      endIdx,
+    }).catch(() => {});
+    return;
+  }
 
   // Calculate total distance: sum the GPS chord segments, then ask OSRM for
   // the road distance between start and end. bestTripDistance() takes the max
@@ -662,13 +672,22 @@ async function _finalizeAutoTripInner(): Promise<void> {
       ).catch(() => {});
     }
 
-    logDetectionEvent("finalize_saved", {
-      tripId: savedTripId,
-      distance: totalDistance,
-      gpsSumDistance,
-      durationSecs: Math.round((new Date(last.recorded_at).getTime() - new Date(first.recorded_at).getTime()) / 1000),
-      classification,
-    }).catch(() => {});
+    if (tripResult === null) {
+      // syncCreateTrip returned null = hit the dedup window (another sync
+      // path already saved this trip within 2 minutes). Log explicitly so
+      // this path is distinguishable from a real save.
+      logDetectionEvent("finalize_dedup_skipped", {
+        distance: totalDistance,
+      }).catch(() => {});
+    } else {
+      logDetectionEvent("finalize_saved", {
+        tripId: savedTripId,
+        distance: totalDistance,
+        gpsSumDistance,
+        durationSecs: Math.round((new Date(last.recorded_at).getTime() - new Date(first.recorded_at).getTime()) / 1000),
+        classification,
+      }).catch(() => {});
+    }
 
     // For unclassified trips, fire the "classify it" notification NOW that
     // we have the server tripId. The Business/Personal lock-screen buttons
@@ -733,6 +752,19 @@ async function _finalizeAutoTripInner(): Promise<void> {
     }
   } catch (err) {
     console.error("Auto-trip save failed:", err);
+    // Critical: log the failure so it surfaces in the diagnostic dump.
+    // Without this, a throw inside the save path (e.g. syncCreateTrip API
+    // validation error, DB lock, reverse-geocode crash) produces a
+    // finalize_called event with NO matching outcome event, making the bug
+    // invisible. This was the root cause of Norman's Kingston Park and
+    // David Hall's 2026-04-11 silent finalize exits.
+    const errorMessage =
+      err instanceof Error
+        ? `${err.name}: ${err.message}`
+        : String(err);
+    logDetectionEvent("finalize_save_failed", {
+      error: errorMessage.slice(0, 500),
+    }).catch(() => {});
     // Dismiss Live Activity on failure
     endLiveActivity().catch(() => {});
   }
@@ -1136,6 +1168,28 @@ try {
       startingRecording = true;
       try {
         await db.runAsync("DELETE FROM tracking_state WHERE key = 'driving_detection_count'");
+
+        // Prune stale pre-detection coords before the recording officially
+        // begins. Pre-detection buffering writes every incoming location to
+        // the buffer (line ~1059) to capture the departure point. If an
+        // earlier finalize in the same or recent task invocation failed
+        // silently or left residue, those ancient coords will bleed into
+        // this new recording's saved trip with wildly wrong startedAt.
+        // Seen in the wild as Norman's Kingston Park return leg carrying 2
+        // coords from 3 min before the drive, and David Hall's Saturday
+        // trip carrying residue from 5 min before. Keep only the last 60
+        // seconds of pre-detection so the departure point is still visible.
+        const pruneCutoff = new Date(Date.now() - 60_000).toISOString();
+        const pruned = await db.runAsync(
+          "DELETE FROM detection_coordinates WHERE recorded_at < ?",
+          [pruneCutoff],
+        );
+        if (pruned.changes > 0) {
+          logDetectionEvent("pre_detection_pruned", {
+            droppedCoords: pruned.changes,
+            cutoffSecondsAgo: 60,
+          }).catch(() => {});
+        }
 
         // Mark auto-recording as active + update last driving timestamp
         await db.runAsync(
