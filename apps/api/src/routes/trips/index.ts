@@ -17,6 +17,7 @@ import { checkAndAwardAchievements } from "../../services/gamification.js";
 import { sendMilestonePush, sendAchievementPush } from "../../jobs/notifications.js";
 import { logEvent } from "../../services/appEvents.js";
 import { autoClassifyTrip } from "../../services/tripClassification.js";
+import { advanceLastTripAt } from "../../services/userActivity.js";
 
 // Server-side geocoding: resolve an address to coordinates via Postcodes.io or Nominatim
 async function geocodeAddress(addr: string): Promise<{ lat: number; lng: number } | null> {
@@ -253,6 +254,7 @@ export async function tripRoutes(app: FastifyInstance) {
     // Fire-and-forget: update mileage summary + check achievements + push notifications
     const taxYear = getTaxYear(data.startedAt);
     upsertMileageSummary(userId, taxYear).catch(() => {});
+    advanceLastTripAt(userId, data.startedAt).catch(() => {});
     checkAndAwardAchievements(userId)
       .then((newAchievements) => {
         sendAchievementPush(userId, newAchievements).catch(() => {});
@@ -516,9 +518,10 @@ export async function tripRoutes(app: FastifyInstance) {
       });
     });
 
-    // Fire-and-forget: update mileage summary
+    // Fire-and-forget: update mileage summary + lastTripAt
     const taxYear = getTaxYear(first.startedAt);
     upsertMileageSummary(userId, taxYear).catch(() => {});
+    advanceLastTripAt(userId, first.startedAt).catch(() => {});
 
     request.log.info(
       { userId, mergedTripId: mergedTrip.id, originalIds: tripIds, action: "trip.merge" },

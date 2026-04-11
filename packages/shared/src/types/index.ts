@@ -718,6 +718,8 @@ export interface AdminUserSummary {
   isPremium: boolean;
   isAdmin: boolean;
   createdAt: string;
+  lastLoginAt?: string | null;
+  lastTripAt?: string | null;
   _count: { trips: number; vehicles: number; earnings: number };
   diagnosticDump?: {
     verdict: string;
@@ -731,6 +733,7 @@ export interface AdminUserDetail extends AdminUserSummary {
   premiumExpiresAt: string | null;
   appleId: string | null;
   googleId: string | null;
+  notes: string | null;
   trips: Array<{
     id: string;
     distanceMiles: number;
@@ -748,6 +751,8 @@ export interface AdminUserDetail extends AdminUserSummary {
   totalMiles: number;
   totalEarningsPence: number;
 }
+
+export type AdminUserSortBy = "createdAt" | "lastTripAt" | "lastLoginAt";
 
 // Community Intelligence types
 export interface CommunityStats {

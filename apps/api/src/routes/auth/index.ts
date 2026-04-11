@@ -108,6 +108,17 @@ function storeRefreshToken(userId: string, token: string) {
   });
 }
 
+async function stampLastLogin(userId: string): Promise<void> {
+  try {
+    await prisma.user.update({
+      where: { id: userId },
+      data: { lastLoginAt: new Date() },
+    });
+  } catch (err) {
+    console.error("Failed to stamp lastLoginAt:", err);
+  }
+}
+
 // Per-account login lockout: track failed attempts in memory
 const loginAttempts = new Map<string, { count: number; lockedUntil: number }>();
 const MAX_ACCOUNT_ATTEMPTS = 5;
@@ -222,6 +233,7 @@ export async function authRoutes(app: FastifyInstance) {
       // Successful login — clear failed attempts
       clearFailedLogins(email);
       logEvent("user.login", user.id, { method: "email" });
+      await stampLastLogin(user.id);
 
       const accessToken = generateAccessToken(user.id, user.isAdmin);
       const refreshToken = generateRefreshToken(user.id);
@@ -540,6 +552,7 @@ export async function authRoutes(app: FastifyInstance) {
     }
 
     logEvent(isNewUser ? "user.registered" : "user.login", user.id, { method: "apple" });
+    await stampLastLogin(user.id);
 
     const accessToken = generateAccessToken(user.id, user.isAdmin);
     const refreshToken = generateRefreshToken(user.id);
@@ -639,6 +652,7 @@ export async function authRoutes(app: FastifyInstance) {
     }
 
     logEvent(isNewUser ? "user.registered" : "user.login", user.id, { method: "google" });
+    await stampLastLogin(user.id);
 
     const accessToken = generateAccessToken(user.id, user.isAdmin);
     const refreshToken = generateRefreshToken(user.id);
@@ -790,6 +804,7 @@ export async function authRoutes(app: FastifyInstance) {
     }
 
     logEvent(isNewUser ? "user.registered" : "user.login", user.id, { method: "apple_web" });
+    await stampLastLogin(user.id);
 
     const accessToken = generateAccessToken(user.id, user.isAdmin);
     const refreshToken = generateRefreshToken(user.id);

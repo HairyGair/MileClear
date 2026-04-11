@@ -7,10 +7,32 @@ import { stripe } from "../../lib/stripe.js";
 import { sendReEngagementEmail, sendServiceStatusEmail, sendUpdateEmail } from "../../services/email.js";
 import { logEvent } from "../../services/appEvents.js";
 import { sendPushNotifications } from "../../lib/push.js";
-import { PREMIUM_PRICE_MONTHLY_PENCE } from "@mileclear/shared";
+import { PREMIUM_PRICE_MONTHLY_PENCE, getTaxYear, haversineDistance } from "@mileclear/shared";
+import { upsertMileageSummary } from "../../services/mileage.js";
+import { advanceLastTripAt } from "../../services/userActivity.js";
 
 const premiumToggleSchema = z.object({
   isPremium: z.boolean(),
+});
+
+const adminNotesSchema = z.object({
+  notes: z.string().max(10000).nullable(),
+});
+
+const adminCreateTripSchema = z.object({
+  vehicleId: z.string().uuid(),
+  startLat: z.number(),
+  startLng: z.number(),
+  endLat: z.number(),
+  endLng: z.number(),
+  startAddress: z.string().max(500).optional(),
+  endAddress: z.string().max(500).optional(),
+  distanceMiles: z.number().positive().optional(),
+  startedAt: z.string().datetime(),
+  endedAt: z.string().datetime(),
+  classification: z.enum(["business", "personal", "unclassified"]).default("unclassified"),
+  platformTag: z.string().max(50).optional(),
+  notes: z.string().max(1000).optional(),
 });
 
 const pushSchema = z.object({
@@ -72,10 +94,11 @@ export async function adminRoutes(app: FastifyInstance) {
 
   // GET /admin/users
   app.get("/users", async (request, reply) => {
-    const { q, page, pageSize } = request.query as {
+    const { q, page, pageSize, sortBy } = request.query as {
       q?: string;
       page?: string;
       pageSize?: string;
+      sortBy?: string;
     };
 
     const pageNum = Math.max(1, parseInt(page || "1", 10) || 1);
@@ -91,6 +114,18 @@ export async function adminRoutes(app: FastifyInstance) {
         }
       : {};
 
+    let orderBy:
+      | { createdAt: "desc" }
+      | { lastTripAt: { sort: "desc"; nulls: "last" } }
+      | { lastLoginAt: { sort: "desc"; nulls: "last" } };
+    if (sortBy === "lastTripAt") {
+      orderBy = { lastTripAt: { sort: "desc", nulls: "last" } };
+    } else if (sortBy === "lastLoginAt") {
+      orderBy = { lastLoginAt: { sort: "desc", nulls: "last" } };
+    } else {
+      orderBy = { createdAt: "desc" };
+    }
+
     const [users, total] = await Promise.all([
       prisma.user.findMany({
         where,
@@ -102,10 +137,12 @@ export async function adminRoutes(app: FastifyInstance) {
           isPremium: true,
           isAdmin: true,
           createdAt: true,
+          lastLoginAt: true,
+          lastTripAt: true,
           _count: { select: { trips: true, vehicles: true, earnings: true } },
           diagnosticDump: { select: { verdict: true, capturedAt: true } },
         },
-        orderBy: { createdAt: "desc" },
+        orderBy,
         skip,
         take: size,
       }),
@@ -140,6 +177,9 @@ export async function adminRoutes(app: FastifyInstance) {
         premiumExpiresAt: true,
         appleId: true,
         googleId: true,
+        notes: true,
+        lastLoginAt: true,
+        lastTripAt: true,
         _count: { select: { trips: true, vehicles: true, earnings: true } },
         trips: {
           select: {
@@ -229,6 +269,112 @@ export async function adminRoutes(app: FastifyInstance) {
     );
 
     return reply.send({ data: updated });
+  });
+
+  // PATCH /admin/users/:userId/notes
+  app.patch("/users/:userId/notes", async (request, reply) => {
+    const { userId } = request.params as { userId: string };
+    const parsed = adminNotesSchema.safeParse(request.body);
+    if (!parsed.success) {
+      return reply.status(400).send({ error: parsed.error.errors[0].message });
+    }
+
+    const user = await prisma.user.findUnique({ where: { id: userId }, select: { id: true } });
+    if (!user) {
+      return reply.status(404).send({ error: "User not found" });
+    }
+
+    const updated = await prisma.user.update({
+      where: { id: userId },
+      data: { notes: parsed.data.notes },
+      select: { id: true, notes: true },
+    });
+
+    logEvent("admin.notes_updated", request.userId!, { targetUserId: userId });
+
+    return reply.send({ data: updated });
+  });
+
+  // POST /admin/users/:userId/trips
+  // Create a trip on behalf of a user (restore missing trips, fix data loss).
+  app.post("/users/:userId/trips", async (request, reply) => {
+    const { userId } = request.params as { userId: string };
+    const parsed = adminCreateTripSchema.safeParse(request.body);
+    if (!parsed.success) {
+      return reply.status(400).send({ error: parsed.error.errors[0].message });
+    }
+    const data = parsed.data;
+
+    const targetUser = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true },
+    });
+    if (!targetUser) {
+      return reply.status(404).send({ error: "User not found" });
+    }
+
+    // Force vehicle selection from the target user's own vehicles
+    const vehicle = await prisma.vehicle.findFirst({
+      where: { id: data.vehicleId, userId },
+      select: { id: true },
+    });
+    if (!vehicle) {
+      return reply.status(400).send({ error: "Vehicle not found for this user" });
+    }
+
+    const startedAt = new Date(data.startedAt);
+    const endedAt = new Date(data.endedAt);
+    if (endedAt <= startedAt) {
+      return reply.status(400).send({ error: "endedAt must be after startedAt" });
+    }
+
+    const distanceMiles =
+      data.distanceMiles ??
+      haversineDistance(data.startLat, data.startLng, data.endLat, data.endLng);
+
+    const trip = await prisma.trip.create({
+      data: {
+        userId,
+        vehicleId: vehicle.id,
+        startLat: data.startLat,
+        startLng: data.startLng,
+        endLat: data.endLat,
+        endLng: data.endLng,
+        startAddress: data.startAddress ?? null,
+        endAddress: data.endAddress ?? null,
+        distanceMiles,
+        startedAt,
+        endedAt,
+        isManualEntry: true,
+        classification: data.classification,
+        platformTag: data.platformTag ?? null,
+        notes: data.notes ?? null,
+      },
+      include: { vehicle: true },
+    });
+
+    // Fire-and-forget: mileage summary + lastTripAt
+    const taxYear = getTaxYear(startedAt);
+    upsertMileageSummary(userId, taxYear).catch(() => {});
+    advanceLastTripAt(userId, startedAt).catch(() => {});
+
+    logEvent("admin.trip_created", request.userId!, {
+      targetUserId: userId,
+      tripId: trip.id,
+      distanceMiles,
+    });
+
+    request.log.warn(
+      {
+        adminId: request.userId,
+        targetUserId: userId,
+        tripId: trip.id,
+        action: "admin.trip.create",
+      },
+      `Admin created trip ${trip.id} for user ${userId}`,
+    );
+
+    return reply.status(201).send({ data: trip });
   });
 
   // DELETE /admin/users/:userId

@@ -36,6 +36,8 @@ interface AdminUser {
   isPremium: boolean;
   isAdmin: boolean;
   createdAt: string;
+  lastLoginAt?: string | null;
+  lastTripAt?: string | null;
   _count: {
     trips: number;
     vehicles: number;
@@ -55,6 +57,7 @@ interface AdminUserDetail extends AdminUser {
   appleId: string | null;
   googleId: string | null;
   premiumExpiresAt: string | null;
+  notes: string | null;
   vehicles: { id: string; make: string; model: string; fuelType: string; vehicleType: string }[];
   trips: {
     id: string;
@@ -64,6 +67,8 @@ interface AdminUserDetail extends AdminUser {
     platformTag: string | null;
   }[];
 }
+
+type UsersSortBy = "createdAt" | "lastTripAt" | "lastLoginAt";
 
 interface UsersResponse {
   data: AdminUser[];
@@ -381,6 +386,46 @@ function UserDetailModal({
   const [pushSending, setPushSending] = useState(false);
   const [pushResult, setPushResult] = useState<string | null>(null);
 
+  // Notes editor
+  const [notesDraft, setNotesDraft] = useState("");
+  const [notesSaving, setNotesSaving] = useState(false);
+  const [notesMessage, setNotesMessage] = useState<string | null>(null);
+
+  // Add trip form
+  const [tripOpen, setTripOpen] = useState(false);
+  const [tripVehicleId, setTripVehicleId] = useState("");
+  const [tripStartedAt, setTripStartedAt] = useState("");
+  const [tripEndedAt, setTripEndedAt] = useState("");
+  const [tripStartLat, setTripStartLat] = useState("");
+  const [tripStartLng, setTripStartLng] = useState("");
+  const [tripEndLat, setTripEndLat] = useState("");
+  const [tripEndLng, setTripEndLng] = useState("");
+  const [tripStartAddress, setTripStartAddress] = useState("");
+  const [tripEndAddress, setTripEndAddress] = useState("");
+  const [tripDistance, setTripDistance] = useState("");
+  const [tripClassification, setTripClassification] = useState<"business" | "personal" | "unclassified">("unclassified");
+  const [tripPlatform, setTripPlatform] = useState("");
+  const [tripNotes, setTripNotes] = useState("");
+  const [tripSaving, setTripSaving] = useState(false);
+  const [tripResult, setTripResult] = useState<string | null>(null);
+
+  const resetTripForm = useCallback(() => {
+    setTripVehicleId("");
+    setTripStartedAt("");
+    setTripEndedAt("");
+    setTripStartLat("");
+    setTripStartLng("");
+    setTripEndLat("");
+    setTripEndLng("");
+    setTripStartAddress("");
+    setTripEndAddress("");
+    setTripDistance("");
+    setTripClassification("unclassified");
+    setTripPlatform("");
+    setTripNotes("");
+    setTripResult(null);
+  }, []);
+
   useEffect(() => {
     if (!userId || !open) return;
     setLoading(true);
@@ -390,6 +435,10 @@ function UserDetailModal({
     setPushTitle("");
     setPushBody("");
     setPushResult(null);
+    setNotesDraft("");
+    setNotesMessage(null);
+    setTripOpen(false);
+    resetTripForm();
     Promise.all([
       api.get<{ data: AdminUserDetail }>(`/admin/users/${userId}`),
       api.get<{ data: DiagnosticDump | null }>(`/admin/users/${userId}/diagnostics`).catch(() => ({ data: null })),
@@ -397,10 +446,69 @@ function UserDetailModal({
       .then(([userRes, diagRes]) => {
         setUser(userRes.data);
         setDiag(diagRes.data);
+        setNotesDraft(userRes.data.notes ?? "");
       })
       .catch((err: Error) => setError(err.message))
       .finally(() => setLoading(false));
-  }, [userId, open]);
+  }, [userId, open, resetTripForm]);
+
+  const handleSaveNotes = async () => {
+    if (!userId) return;
+    setNotesSaving(true);
+    setNotesMessage(null);
+    try {
+      const res = await api.patch<{ data: { id: string; notes: string | null } }>(
+        `/admin/users/${userId}/notes`,
+        { notes: notesDraft.trim() || null },
+      );
+      if (user) setUser({ ...user, notes: res.data.notes });
+      setNotesMessage("Saved");
+      setTimeout(() => setNotesMessage(null), 2000);
+    } catch (err: any) {
+      setNotesMessage(`Error: ${err.message}`);
+    } finally {
+      setNotesSaving(false);
+    }
+  };
+
+  const handleCreateTrip = async () => {
+    if (!userId) return;
+    if (!tripVehicleId || !tripStartedAt || !tripEndedAt || !tripStartLat || !tripStartLng || !tripEndLat || !tripEndLng) {
+      setTripResult("Error: vehicle, start/end times, and start/end coords are required");
+      return;
+    }
+    setTripSaving(true);
+    setTripResult(null);
+    try {
+      const body: Record<string, unknown> = {
+        vehicleId: tripVehicleId,
+        startLat: Number(tripStartLat),
+        startLng: Number(tripStartLng),
+        endLat: Number(tripEndLat),
+        endLng: Number(tripEndLng),
+        startedAt: new Date(tripStartedAt).toISOString(),
+        endedAt: new Date(tripEndedAt).toISOString(),
+        classification: tripClassification,
+      };
+      if (tripStartAddress.trim()) body.startAddress = tripStartAddress.trim();
+      if (tripEndAddress.trim()) body.endAddress = tripEndAddress.trim();
+      if (tripDistance.trim()) body.distanceMiles = Number(tripDistance);
+      if (tripPlatform.trim()) body.platformTag = tripPlatform.trim();
+      if (tripNotes.trim()) body.notes = tripNotes.trim();
+
+      await api.post<{ data: unknown }>(`/admin/users/${userId}/trips`, body);
+      setTripResult("Trip created");
+      resetTripForm();
+      setTripOpen(false);
+      // Refresh user detail to show the new trip in Recent Trips
+      const refreshed = await api.get<{ data: AdminUserDetail }>(`/admin/users/${userId}`);
+      setUser(refreshed.data);
+    } catch (err: any) {
+      setTripResult(`Error: ${err.message}`);
+    } finally {
+      setTripSaving(false);
+    }
+  };
 
   const handleSendPush = async (dryRun: boolean) => {
     if (!pushTitle.trim() || !pushBody.trim() || !userId) return;
@@ -514,6 +622,32 @@ function UserDetailModal({
             </div>
           )}
 
+          {/* Activity */}
+          <div className="settings-section">
+            <h4 className="settings-section__title">Activity</h4>
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "1fr 1fr",
+                gap: "0.5rem 1.5rem",
+                fontSize: "0.875rem",
+              }}
+            >
+              <div>
+                <span style={{ color: "var(--text-secondary)" }}>Last trip</span>
+                <p style={{ marginTop: 2 }} title={user.lastTripAt ? new Date(user.lastTripAt).toLocaleString() : ""}>
+                  {user.lastTripAt ? `${timeAgo(user.lastTripAt)} (${new Date(user.lastTripAt).toLocaleDateString("en-GB")})` : "—"}
+                </p>
+              </div>
+              <div>
+                <span style={{ color: "var(--text-secondary)" }}>Last login</span>
+                <p style={{ marginTop: 2 }} title={user.lastLoginAt ? new Date(user.lastLoginAt).toLocaleString() : ""}>
+                  {user.lastLoginAt ? `${timeAgo(user.lastLoginAt)} (${new Date(user.lastLoginAt).toLocaleDateString("en-GB")})` : "—"}
+                </p>
+              </div>
+            </div>
+          </div>
+
           {/* Stats */}
           <div className="settings-section">
             <h4 className="settings-section__title">Stats</h4>
@@ -546,6 +680,194 @@ function UserDetailModal({
                 </p>
               </div>
             </div>
+          </div>
+
+          {/* Admin Notes */}
+          <div className="settings-section">
+            <h4 className="settings-section__title">Admin Notes</h4>
+            <textarea
+              value={notesDraft}
+              onChange={(e) => setNotesDraft(e.target.value)}
+              placeholder="Private notes about this user (support history, context, etc.)"
+              rows={4}
+              maxLength={10000}
+              style={{
+                width: "100%",
+                padding: "0.625rem 0.75rem",
+                background: "var(--bg-elevated, rgba(255,255,255,0.03))",
+                border: "1px solid var(--border-subtle, rgba(255,255,255,0.08))",
+                borderRadius: "6px",
+                color: "var(--text-primary, #fff)",
+                fontSize: "0.8125rem",
+                fontFamily: "inherit",
+                resize: "vertical",
+              }}
+            />
+            <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginTop: "0.5rem" }}>
+              <Button
+                variant="primary"
+                size="sm"
+                onClick={handleSaveNotes}
+                disabled={notesSaving || notesDraft === (user.notes ?? "")}
+              >
+                {notesSaving ? "Saving..." : "Save notes"}
+              </Button>
+              {notesMessage && (
+                <span
+                  style={{
+                    fontSize: "0.8125rem",
+                    color: notesMessage.startsWith("Error") ? "var(--dash-red)" : "var(--emerald-400)",
+                  }}
+                >
+                  {notesMessage}
+                </span>
+              )}
+            </div>
+          </div>
+
+          {/* Add Trip (restore missing trip) */}
+          <div className="settings-section">
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.5rem" }}>
+              <h4 className="settings-section__title" style={{ margin: 0 }}>Add Trip</h4>
+              <Button variant="ghost" size="sm" onClick={() => setTripOpen((v) => !v)}>
+                {tripOpen ? "Hide" : "Show form"}
+              </Button>
+            </div>
+            {tripOpen && (
+              <div style={{ display: "flex", flexDirection: "column", gap: "0.625rem" }}>
+                {user.vehicles.length === 0 ? (
+                  <p style={{ fontSize: "0.8125rem", color: "var(--dash-red)", margin: 0 }}>
+                    This user has no vehicles. Cannot create a trip until they add one.
+                  </p>
+                ) : (
+                  <>
+                    <Select
+                      id="trip-vehicle"
+                      value={tripVehicleId}
+                      onChange={(e) => setTripVehicleId(e.target.value)}
+                      aria-label="Vehicle"
+                      placeholder="Select vehicle..."
+                      options={user.vehicles.map((v) => ({
+                        value: v.id,
+                        label: `${v.make} ${v.model} (${v.vehicleType}, ${v.fuelType})`,
+                      }))}
+                    />
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.5rem" }}>
+                      <Input
+                        id="trip-started-at"
+                        type="datetime-local"
+                        value={tripStartedAt}
+                        onChange={(e) => setTripStartedAt(e.target.value)}
+                        placeholder="Started at"
+                      />
+                      <Input
+                        id="trip-ended-at"
+                        type="datetime-local"
+                        value={tripEndedAt}
+                        onChange={(e) => setTripEndedAt(e.target.value)}
+                        placeholder="Ended at"
+                      />
+                    </div>
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.5rem" }}>
+                      <Input
+                        id="trip-start-lat"
+                        type="number"
+                        value={tripStartLat}
+                        onChange={(e) => setTripStartLat(e.target.value)}
+                        placeholder="Start lat"
+                      />
+                      <Input
+                        id="trip-start-lng"
+                        type="number"
+                        value={tripStartLng}
+                        onChange={(e) => setTripStartLng(e.target.value)}
+                        placeholder="Start lng"
+                      />
+                    </div>
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.5rem" }}>
+                      <Input
+                        id="trip-end-lat"
+                        type="number"
+                        value={tripEndLat}
+                        onChange={(e) => setTripEndLat(e.target.value)}
+                        placeholder="End lat"
+                      />
+                      <Input
+                        id="trip-end-lng"
+                        type="number"
+                        value={tripEndLng}
+                        onChange={(e) => setTripEndLng(e.target.value)}
+                        placeholder="End lng"
+                      />
+                    </div>
+                    <Input
+                      id="trip-start-address"
+                      value={tripStartAddress}
+                      onChange={(e) => setTripStartAddress(e.target.value)}
+                      placeholder="Start address (optional)"
+                    />
+                    <Input
+                      id="trip-end-address"
+                      value={tripEndAddress}
+                      onChange={(e) => setTripEndAddress(e.target.value)}
+                      placeholder="End address (optional)"
+                    />
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.5rem" }}>
+                      <Input
+                        id="trip-distance"
+                        type="number"
+                        value={tripDistance}
+                        onChange={(e) => setTripDistance(e.target.value)}
+                        placeholder="Distance (mi, optional)"
+                      />
+                      <Select
+                        id="trip-classification"
+                        value={tripClassification}
+                        onChange={(e) => setTripClassification(e.target.value as "business" | "personal" | "unclassified")}
+                        aria-label="Classification"
+                        options={[
+                          { value: "unclassified", label: "Unclassified" },
+                          { value: "business", label: "Business" },
+                          { value: "personal", label: "Personal" },
+                        ]}
+                      />
+                    </div>
+                    <Input
+                      id="trip-platform"
+                      value={tripPlatform}
+                      onChange={(e) => setTripPlatform(e.target.value)}
+                      placeholder="Platform tag (e.g. uber, deliveroo) - optional"
+                    />
+                    <Input
+                      id="trip-notes"
+                      value={tripNotes}
+                      onChange={(e) => setTripNotes(e.target.value)}
+                      placeholder="Trip notes (optional)"
+                    />
+                    <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                      <Button
+                        variant="primary"
+                        size="sm"
+                        onClick={handleCreateTrip}
+                        disabled={tripSaving}
+                      >
+                        {tripSaving ? "Creating..." : "Create trip"}
+                      </Button>
+                      {tripResult && (
+                        <span
+                          style={{
+                            fontSize: "0.8125rem",
+                            color: tripResult.startsWith("Error") ? "var(--dash-red)" : "var(--emerald-400)",
+                          }}
+                        >
+                          {tripResult}
+                        </span>
+                      )}
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
           </div>
 
           {/* Vehicles */}
@@ -777,6 +1099,9 @@ function UsersTab() {
   const [searchInput, setSearchInput] = useState("");
   const [search, setSearch] = useState("");
 
+  // Sort
+  const [sortBy, setSortBy] = useState<UsersSortBy>("createdAt");
+
   // User detail modal
   const [viewUserId, setViewUserId] = useState<string | null>(null);
   const [showDetail, setShowDetail] = useState(false);
@@ -791,10 +1116,10 @@ function UsersTab() {
     return () => clearTimeout(t);
   }, [searchInput]);
 
-  // Reset to page 1 when search changes
+  // Reset to page 1 when search or sort changes
   useEffect(() => {
     setPage(1);
-  }, [search]);
+  }, [search, sortBy]);
 
   const loadUsers = useCallback(async () => {
     setLoading(true);
@@ -803,6 +1128,7 @@ function UsersTab() {
       const params = new URLSearchParams({
         page: String(page),
         pageSize: "20",
+        sortBy,
       });
       if (search.trim()) {
         params.set("q", search.trim());
@@ -816,7 +1142,7 @@ function UsersTab() {
     } finally {
       setLoading(false);
     }
-  }, [page, search]);
+  }, [page, search, sortBy]);
 
   useEffect(() => {
     loadUsers();
@@ -845,15 +1171,30 @@ function UsersTab() {
 
   return (
     <>
-      {/* Search */}
-      <div style={{ marginBottom: "1rem", maxWidth: 400 }}>
-        <Input
-          id="user-search"
-          placeholder="Search by email or name..."
-          value={searchInput}
-          onChange={(e) => setSearchInput(e.target.value)}
-          aria-label="Search users"
-        />
+      {/* Search + Sort */}
+      <div style={{ display: "flex", gap: "0.75rem", marginBottom: "1rem", flexWrap: "wrap", alignItems: "center" }}>
+        <div style={{ flex: "1 1 260px", maxWidth: 400 }}>
+          <Input
+            id="user-search"
+            placeholder="Search by email or name..."
+            value={searchInput}
+            onChange={(e) => setSearchInput(e.target.value)}
+            aria-label="Search users"
+          />
+        </div>
+        <div style={{ minWidth: 180 }}>
+          <Select
+            id="user-sort"
+            value={sortBy}
+            onChange={(e) => setSortBy(e.target.value as UsersSortBy)}
+            aria-label="Sort users by"
+            options={[
+              { value: "createdAt", label: "Newest signups" },
+              { value: "lastTripAt", label: "Last trip" },
+              { value: "lastLoginAt", label: "Last login" },
+            ]}
+          />
+        </div>
       </div>
 
       {error && (
@@ -897,6 +1238,8 @@ function UsersTab() {
                   <th>Name</th>
                   <th>Status</th>
                   <th>Trips</th>
+                  <th>Last trip</th>
+                  <th>Last login</th>
                   <th>Joined</th>
                   <th></th>
                 </tr>
@@ -937,6 +1280,18 @@ function UsersTab() {
                       </div>
                     </td>
                     <td style={{ fontSize: "0.875rem" }}>{user._count.trips}</td>
+                    <td
+                      style={{ fontSize: "0.8125rem", whiteSpace: "nowrap", color: "var(--text-secondary)" }}
+                      title={user.lastTripAt ? new Date(user.lastTripAt).toLocaleString() : ""}
+                    >
+                      {user.lastTripAt ? timeAgo(user.lastTripAt) : "—"}
+                    </td>
+                    <td
+                      style={{ fontSize: "0.8125rem", whiteSpace: "nowrap", color: "var(--text-secondary)" }}
+                      title={user.lastLoginAt ? new Date(user.lastLoginAt).toLocaleString() : ""}
+                    >
+                      {user.lastLoginAt ? timeAgo(user.lastLoginAt) : "—"}
+                    </td>
                     <td style={{ fontSize: "0.875rem", whiteSpace: "nowrap" }}>
                       {new Date(user.createdAt).toLocaleDateString("en-GB", {
                         day: "numeric",
