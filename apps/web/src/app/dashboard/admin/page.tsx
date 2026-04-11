@@ -138,6 +138,87 @@ function formatNumber(n: number): string {
   return String(n);
 }
 
+function downloadTextFile(filename: string, content: string) {
+  const blob = new Blob([content], { type: "text/plain;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+function buildDiagnosticDumpText(diag: DiagnosticDump, user: AdminUserDetail): string {
+  const lines: string[] = [];
+  const sep = "=".repeat(60);
+  const sub = "-".repeat(60);
+
+  lines.push("MileClear Drive Detection Diagnostic");
+  lines.push(sep);
+  lines.push("");
+  lines.push("User");
+  lines.push(sub);
+  lines.push(`Email:        ${user.email}`);
+  lines.push(`User ID:      ${user.id}`);
+  if (user.displayName) lines.push(`Display name: ${user.displayName}`);
+  lines.push(`Premium:      ${user.isPremium ? "yes" : "no"}`);
+  lines.push(`Admin:        ${user.isAdmin ? "yes" : "no"}`);
+  lines.push(`Joined:       ${new Date(user.createdAt).toISOString()}`);
+  lines.push("");
+
+  lines.push("Capture");
+  lines.push(sub);
+  lines.push(`Diagnostic ID: ${diag.id}`);
+  lines.push(`Captured at:   ${new Date(diag.capturedAt).toISOString()}`);
+  lines.push(`Uploaded at:   ${new Date(diag.createdAt).toISOString()}`);
+  lines.push(`Verdict:       ${diag.verdict}`);
+  lines.push(`Platform:      ${diag.platform} ${diag.osVersion}`);
+  lines.push(`App version:   ${diag.appVersion} (build ${diag.buildNumber})`);
+  lines.push("");
+
+  lines.push(`Status (${Object.keys(diag.statusJson || {}).length} fields)`);
+  lines.push(sub);
+  const status = diag.statusJson || {};
+  const statusKeys = Object.keys(status).sort();
+  for (const key of statusKeys) {
+    const value = status[key];
+    const display =
+      value === null || value === undefined
+        ? "-"
+        : typeof value === "object"
+          ? JSON.stringify(value)
+          : String(value);
+    lines.push(`${key.padEnd(32)} ${display}`);
+  }
+  lines.push("");
+
+  lines.push(`Events (${diag.eventsJson.length})`);
+  lines.push(sub);
+  if (diag.eventsJson.length === 0) {
+    lines.push("(no events recorded)");
+  } else {
+    for (const ev of diag.eventsJson) {
+      const ts = new Date(ev.recorded_at).toISOString();
+      lines.push(`[${ts}] ${ev.event}${ev.data ? ` ${ev.data}` : ""}`);
+    }
+  }
+  lines.push("");
+
+  lines.push("Raw statusJson");
+  lines.push(sub);
+  lines.push(JSON.stringify(diag.statusJson, null, 2));
+  lines.push("");
+
+  lines.push("Raw eventsJson");
+  lines.push(sub);
+  lines.push(JSON.stringify(diag.eventsJson, null, 2));
+  lines.push("");
+
+  return lines.join("\n");
+}
+
 function StatusDot({ status }: { status: string }) {
   const ok = status === "ok";
   return (
@@ -539,7 +620,22 @@ function UserDetailModal({
 
           {/* Drive Detection Diagnostics */}
           <div className="settings-section">
-            <h4 className="settings-section__title">Drive Detection</h4>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "0.5rem", marginBottom: "0.5rem" }}>
+              <h4 className="settings-section__title" style={{ margin: 0 }}>Drive Detection</h4>
+              {diag && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    const safeEmail = user.email.replace(/[^a-z0-9]/gi, "_");
+                    const ts = new Date(diag.capturedAt).toISOString().replace(/[:.]/g, "-").slice(0, 19);
+                    downloadTextFile(`mileclear-diagnostics-${safeEmail}-${ts}.txt`, buildDiagnosticDumpText(diag, user));
+                  }}
+                >
+                  Download .txt
+                </Button>
+              )}
+            </div>
             {diag ? (() => {
               const st = diag.statusJson as Record<string, unknown>;
               const verdictColor = diag.verdict === "healthy" ? "var(--emerald-400)"
