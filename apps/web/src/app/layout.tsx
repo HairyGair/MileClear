@@ -99,7 +99,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" className={`${sora.variable} ${outfit.variable}`}>
+    <html lang="en-GB" className={`${sora.variable} ${outfit.variable}`}>
       <body>{children}</body>
     </html>
   );

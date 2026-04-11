@@ -41,8 +41,24 @@ export async function generateMetadata({
       description: post.excerpt,
       type: "article",
       url: `https://mileclear.com/updates/${post.slug}`,
-      publishedTime: post.date,
+      siteName: "MileClear",
+      locale: "en_GB",
+      publishedTime: parsePostDate(post.date),
       authors: [post.author],
+      images: [
+        {
+          url: "/branding/og-image.png",
+          width: 1200,
+          height: 628,
+          alt: post.title,
+        },
+      ],
+    },
+    twitter: {
+      card: "summary_large_image",
+      title: `${post.title} | MileClear`,
+      description: post.excerpt,
+      images: ["/branding/og-image.png"],
     },
   };
 }
@@ -52,6 +68,42 @@ export async function generateMetadata({
 // ----------------------------------------------------------------
 function categoryClass(category: BlogPost["category"]): string {
   return `post__category post__category--${category}`;
+}
+
+function parsePostDate(date: string): string {
+  const parsed = new Date(date);
+  return isNaN(parsed.getTime()) ? new Date().toISOString() : parsed.toISOString();
+}
+
+function buildBlogPostingJsonLd(post: BlogPost) {
+  const published = parsePostDate(post.date);
+  return {
+    "@context": "https://schema.org",
+    "@type": "BlogPosting",
+    headline: post.title,
+    description: post.excerpt,
+    datePublished: published,
+    dateModified: published,
+    author: {
+      "@type": "Person",
+      name: post.author,
+    },
+    publisher: {
+      "@type": "Organization",
+      name: "MileClear",
+      logo: {
+        "@type": "ImageObject",
+        url: "https://mileclear.com/branding/logo-120x120.png",
+      },
+    },
+    image: "https://mileclear.com/branding/og-image.png",
+    mainEntityOfPage: {
+      "@type": "WebPage",
+      "@id": `https://mileclear.com/updates/${post.slug}`,
+    },
+    articleSection: CATEGORY_LABELS[post.category],
+    inLanguage: "en-GB",
+  };
 }
 
 // ----------------------------------------------------------------
@@ -67,8 +119,14 @@ export default async function BlogPostPage({
 
   if (!post) notFound();
 
+  const jsonLd = buildBlogPostingJsonLd(post);
+
   return (
     <>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+      />
       <Navbar />
 
       <main className="post">
