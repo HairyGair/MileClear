@@ -495,9 +495,107 @@ export async function sendShiftSummaryPush(
  * Called once after the server starts. The initial delay of 60 seconds
  * gives the server time to fully initialise before the first run.
  */
+async function runMorningBriefingJob(): Promise<void> {
+  const now = new Date();
+  // Send between 7-9 UTC (covers 8am BST and 8am GMT)
+  if (now.getUTCHours() < 7 || now.getUTCHours() >= 9) return;
+
+  const todayStart = new Date(now);
+  todayStart.setUTCHours(0, 0, 0, 0);
+
+  const yesterdayStart = new Date(todayStart.getTime() - 24 * 60 * 60 * 1000);
+
+  // ISO week start (Monday)
+  const day = now.getUTCDay();
+  const mondayOffset = day === 0 ? -6 : 1 - day;
+  const weekStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + mondayOffset));
+
+  // Get all users with push tokens
+  const users = await prisma.user.findMany({
+    where: { pushToken: { not: null } },
+    select: {
+      id: true,
+      pushToken: true,
+      dashboardMode: true,
+      weeklyEarningsGoalPence: true,
+    },
+  });
+
+  let sent = 0;
+  for (const user of users) {
+    if (!user.pushToken) continue;
+
+    // Dedup: check if we already sent today
+    if (await wasNotifiedToday(user.id, "notification.morning_briefing")) continue;
+
+    // Yesterday's stats
+    const [yesterdayTrips, yesterdayEarnings, unclassifiedCount, weekEarnings] = await Promise.all([
+      prisma.trip.aggregate({
+        where: { userId: user.id, startedAt: { gte: yesterdayStart, lt: todayStart } },
+        _count: { _all: true },
+        _sum: { distanceMiles: true },
+      }),
+      prisma.earning.aggregate({
+        where: { userId: user.id, periodStart: { gte: yesterdayStart, lt: todayStart } },
+        _sum: { amountPence: true },
+      }),
+      prisma.trip.count({
+        where: { userId: user.id, classification: "unclassified" },
+      }),
+      prisma.earning.aggregate({
+        where: { userId: user.id, periodStart: { gte: weekStart } },
+        _sum: { amountPence: true },
+      }),
+    ]);
+
+    const tripCount = yesterdayTrips._count._all;
+    const miles = Math.round((yesterdayTrips._sum.distanceMiles ?? 0) * 10) / 10;
+    const earningsPence = yesterdayEarnings._sum?.amountPence ?? 0;
+    const weekEarningsPence = weekEarnings._sum?.amountPence ?? 0;
+    const goalPence = user.weeklyEarningsGoalPence;
+
+    // Build notification body based on mode
+    const parts: string[] = [];
+    const isWork = user.dashboardMode === "work" || user.dashboardMode === "both";
+
+    if (tripCount > 0) {
+      parts.push(`Yesterday: ${miles} mi across ${tripCount} trip${tripCount !== 1 ? "s" : ""}`);
+    } else {
+      parts.push("No trips yesterday");
+    }
+
+    if (isWork && earningsPence > 0) {
+      parts.push(`earned ${formatPence(earningsPence)}`);
+    }
+
+    if (isWork && goalPence && goalPence > 0) {
+      const pct = Math.min(100, Math.round((weekEarningsPence / goalPence) * 100));
+      parts.push(`${pct}% to weekly goal`);
+    }
+
+    if (unclassifiedCount > 0) {
+      parts.push(`${unclassifiedCount} to classify`);
+    }
+
+    const title = tripCount > 0 ? "Your daily summary" : "Good morning";
+    const body = parts.join(". ") + ".";
+
+    try {
+      await sendPushToUser(user.id, title, body, { action: "open_dashboard" });
+      logEvent("notification.morning_briefing", user.id);
+      sent++;
+    } catch {}
+  }
+
+  if (sent > 0) {
+    console.log(`[jobs/notifications] Morning briefing sent to ${sent} user(s)`);
+  }
+}
+
 export function startNotificationJobs(): void {
   const INITIAL_DELAY_MS = 60 * 1000;       // 60 seconds
   const INTERVAL_MS = 6 * 60 * 60 * 1000;  // 6 hours
+  const BRIEFING_INTERVAL_MS = 30 * 60 * 1000; // 30 minutes (checks time window internally)
 
   const runAll = () => {
     void runJob("streak_at_risk", runStreakAtRiskJob);
@@ -511,6 +609,9 @@ export function startNotificationJobs(): void {
   setTimeout(() => {
     runAll();
     setInterval(runAll, INTERVAL_MS);
+
+    void runJob("morning_briefing", runMorningBriefingJob);
+    setInterval(() => void runJob("morning_briefing", runMorningBriefingJob), BRIEFING_INTERVAL_MS);
   }, INITIAL_DELAY_MS);
 
   console.log("[jobs/notifications] Scheduled notification jobs started (first run in 60s)");
