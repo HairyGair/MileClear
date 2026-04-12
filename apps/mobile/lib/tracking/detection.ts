@@ -624,6 +624,22 @@ async function _finalizeAutoTripInner(): Promise<void> {
       needsClassification: !wasAutoClassified,
     }).catch(() => {});
 
+    // Fetch today's running totals for the post-drive summary
+    let todayContext = "";
+    try {
+      const todayStart = new Date();
+      todayStart.setHours(0, 0, 0, 0);
+      const todayRow = await db.getFirstAsync<{ cnt: number; miles: number }>(
+        "SELECT COUNT(*) as cnt, COALESCE(SUM(distance_miles), 0) as miles FROM trips WHERE started_at >= ?",
+        [todayStart.toISOString()]
+      );
+      if (todayRow && todayRow.cnt > 0) {
+        const totalMiles = (todayRow.miles + roundedDistance).toFixed(1);
+        const tripNum = todayRow.cnt + 1;
+        todayContext = ` - trip ${tripNum} today, ${totalMiles} mi total`;
+      }
+    } catch {}
+
     // For auto-classified trips, fire the "Trip recorded as X" notification
     // BEFORE the API call - there are no action buttons that need the server
     // tripId, so nothing depends on the sync completing.
@@ -633,7 +649,7 @@ async function _finalizeAutoTripInner(): Promise<void> {
       Notifications.scheduleNotificationAsync({
         content: {
           title: `Trip recorded as ${classification}`,
-          body: `${from} to ${to} (${totalDistance.toFixed(1)} mi)`,
+          body: `${from} to ${to} (${totalDistance.toFixed(1)} mi)${todayContext}`,
           data: { action: "open_trips" },
         },
         trigger: null,
@@ -699,7 +715,7 @@ async function _finalizeAutoTripInner(): Promise<void> {
       Notifications.scheduleNotificationAsync({
         content: {
           title: "Trip recorded - classify it",
-          body: `${from} to ${to} (${totalDistance.toFixed(1)} mi)`,
+          body: `${from} to ${to} (${totalDistance.toFixed(1)} mi)${todayContext}`,
           data: tripId
             ? {
                 action: "classify_trip",

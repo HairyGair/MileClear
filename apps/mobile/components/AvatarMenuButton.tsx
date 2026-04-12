@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo } from "react";
+import { useState, useCallback, useMemo, useEffect } from "react";
 import {
   Pressable,
   Text,
@@ -15,6 +15,7 @@ import { useAuth } from "../lib/auth/context";
 import { useUser } from "../lib/user/context";
 import { UserAvatar } from "./avatars/AvatarRegistry";
 import { useLayoutPrefs } from "../lib/layout/index";
+import { fetchUnclassifiedCount } from "../lib/api/trips";
 
 const AMBER = "#f5a623";
 const TEXT_1 = "#f0f2f5";
@@ -62,6 +63,22 @@ export default function AvatarMenuButton() {
   const insets = useSafeAreaInsets();
   const [menuVisible, setMenuVisible] = useState(false);
   const menuLayout = useLayoutPrefs("avatar_menu");
+  const [unclassifiedCount, setUnclassifiedCount] = useState(0);
+
+  useEffect(() => {
+    fetchUnclassifiedCount()
+      .then((res) => setUnclassifiedCount(res.count ?? 0))
+      .catch(() => {});
+  }, []);
+
+  // Refresh count when menu opens (user may have classified trips)
+  useEffect(() => {
+    if (menuVisible) {
+      fetchUnclassifiedCount()
+        .then((res) => setUnclassifiedCount(res.count ?? 0))
+        .catch(() => {});
+    }
+  }, [menuVisible]);
 
   const currentSegment = (segments as string[])[1] ?? "dashboard";
 
@@ -111,6 +128,13 @@ export default function AvatarMenuButton() {
           email={user?.email}
           size={36}
         />
+        {unclassifiedCount > 0 && (
+          <View style={styles.avatarBadge}>
+            <Text style={styles.avatarBadgeText}>
+              {unclassifiedCount > 9 ? "9+" : String(unclassifiedCount)}
+            </Text>
+          </View>
+        )}
       </Pressable>
 
       {/* ── Bottom Sheet Menu ── */}
@@ -176,7 +200,13 @@ export default function AvatarMenuButton() {
                       const bi = menuLayout.visibleKeys.indexOf(b);
                       return ai - bi;
                     })
-                    .map((k) => MENU_ITEMS[k]);
+                    .map((k) => {
+                      const item = MENU_ITEMS[k];
+                      if (k === "menu_trips" && unclassifiedCount > 0) {
+                        return { ...item, badge: String(unclassifiedCount) };
+                      }
+                      return item;
+                    });
 
                   if (items.length === 0) return null;
 
@@ -215,8 +245,14 @@ export default function AvatarMenuButton() {
                               {item.label}
                             </Text>
                             {item.badge && (
-                              <View style={styles.badge}>
-                                <Text style={styles.badgeText}>{item.badge}</Text>
+                              <View style={[
+                                styles.badge,
+                                /^\d/.test(item.badge) && styles.badgeNumeric,
+                              ]}>
+                                <Text style={[
+                                  styles.badgeText,
+                                  /^\d/.test(item.badge) && styles.badgeTextNumeric,
+                                ]}>{item.badge}</Text>
                               </View>
                             )}
                             {isActive(item.route) && (
@@ -426,6 +462,35 @@ const styles = StyleSheet.create({
     fontFamily: "PlusJakartaSans_700Bold",
     color: "#030712",
     letterSpacing: 0.3,
+  },
+  badgeNumeric: {
+    backgroundColor: "#ef4444",
+    borderRadius: 10,
+    minWidth: 20,
+    alignItems: "center" as const,
+  },
+  badgeTextNumeric: {
+    color: "#fff",
+    fontSize: 10,
+  },
+  avatarBadge: {
+    position: "absolute" as const,
+    top: -3,
+    right: -3,
+    backgroundColor: "#ef4444",
+    borderRadius: 9,
+    minWidth: 18,
+    height: 18,
+    justifyContent: "center" as const,
+    alignItems: "center" as const,
+    paddingHorizontal: 4,
+    borderWidth: 2,
+    borderColor: "#030712",
+  },
+  avatarBadgeText: {
+    fontSize: 10,
+    fontFamily: "PlusJakartaSans_700Bold",
+    color: "#fff",
   },
 
   // Admin
