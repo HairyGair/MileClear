@@ -35,6 +35,44 @@ export interface CalendarDay {
   shiftMinutes: number;
 }
 
+// Expenses
+export interface Expense {
+  id: string;
+  userId: string;
+  vehicleId: string | null;
+  category: string;
+  amountPence: number;
+  date: string;
+  description: string | null;
+  vendor: string | null;
+  notes: string | null;
+  createdAt: string;
+  vehicle?: { id: string; make: string; model: string } | null;
+}
+
+export interface ExpenseSummary {
+  category: string;
+  totalPence: number;
+  count: number;
+  deductibleWithMileage: boolean;
+}
+
+// Tax estimate
+export interface TaxEstimate {
+  taxYear: string;
+  grossEarningsPence: number;
+  mileageDeductionPence: number;
+  allowableExpensesPence: number;
+  vehicleExpensesPence: number;
+  taxableProfitPence: number;
+  incomeTaxPence: number;
+  class2NiPence: number;
+  class4NiPence: number;
+  totalTaxOwedPence: number;
+  effectiveRatePercent: number;
+  expensesByCategory: ExpenseSummary[];
+}
+
 // Vehicle types
 export type FuelType = "petrol" | "diesel" | "electric" | "hybrid";
 export type VehicleType = "car" | "motorbike" | "van";

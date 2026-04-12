@@ -24,6 +24,7 @@ import { savedLocationRoutes } from "./routes/savedLocations/index.js";
 import { businessInsightRoutes } from "./routes/businessInsights/index.js";
 import { communityInsightRoutes } from "./routes/communityInsights/index.js";
 import { analyticsRoutes } from "./routes/analytics/index.js";
+import { expenseRoutes } from "./routes/expenses/index.js";
 import { startNotificationJobs } from "./jobs/notifications.js";
 import { startBriefingJobs } from "./jobs/briefing.js";
 import { logEvent, trackErrorForAlert } from "./services/appEvents.js";
@@ -133,6 +134,7 @@ await app.register(savedLocationRoutes, { prefix: "/saved-locations" });
 await app.register(businessInsightRoutes, { prefix: "/business-insights" });
 await app.register(communityInsightRoutes, { prefix: "/community-insights" });
 await app.register(analyticsRoutes, { prefix: "/analytics" });
+await app.register(expenseRoutes, { prefix: "/expenses" });
 // Health check
 app.get("/health", async () => ({ status: "ok" }));
 

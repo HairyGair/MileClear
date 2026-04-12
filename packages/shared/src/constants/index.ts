@@ -15,6 +15,44 @@ export const HMRC_RATES = {
 
 export const HMRC_THRESHOLD_MILES = 10_000;
 
+// UK income tax + NI bands for self-employed (2025-26 tax year)
+export const UK_TAX_2025_26 = {
+  personalAllowancePence: 1_257_000, // 12,570
+  basicRateThresholdPence: 5_027_000, // 50,270
+  higherRateThresholdPence: 12_514_000, // 125,140
+  basicRate: 0.20,
+  higherRate: 0.40,
+  additionalRate: 0.45,
+  class2NiWeeklyPence: 345, // 3.45/week
+  class2NiThresholdPence: 1_257_000, // same as PA
+  class4NiLowerPence: 1_257_000,
+  class4NiUpperPence: 5_027_000,
+  class4NiLowerRate: 0.06,
+  class4NiUpperRate: 0.02,
+  weeksInYear: 52,
+} as const;
+
+// Business expense categories
+// deductibleWithMileage: can be claimed alongside the HMRC simplified mileage allowance
+// Vehicle costs (fuel, insurance, maintenance) CANNOT be claimed alongside mileage -
+// they're tracked for comparison with the "actual costs" method.
+export const EXPENSE_CATEGORIES = [
+  { value: "parking", label: "Parking", deductibleWithMileage: true },
+  { value: "tolls", label: "Tolls & Bridges", deductibleWithMileage: true },
+  { value: "congestion", label: "Congestion / ULEZ", deductibleWithMileage: true },
+  { value: "phone", label: "Phone (Business %)", deductibleWithMileage: true },
+  { value: "equipment", label: "Equipment", deductibleWithMileage: true },
+  { value: "clothing", label: "Uniform / PPE", deductibleWithMileage: true },
+  { value: "subscription", label: "Subscriptions / Apps", deductibleWithMileage: true },
+  { value: "other", label: "Other Allowable", deductibleWithMileage: true },
+  { value: "maintenance", label: "Maintenance & Repairs", deductibleWithMileage: false },
+  { value: "insurance", label: "Vehicle Insurance", deductibleWithMileage: false },
+  { value: "road_tax", label: "Road Tax (VED)", deductibleWithMileage: false },
+  { value: "mot", label: "MOT", deductibleWithMileage: false },
+] as const;
+
+export type ExpenseCategory = typeof EXPENSE_CATEGORIES[number]["value"];
+
 // Auth
 export const ACCESS_TOKEN_EXPIRY = "15m";
 export const REFRESH_TOKEN_EXPIRY_DAYS = 30;

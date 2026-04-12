@@ -1,4 +1,4 @@
-import { HMRC_RATES, HMRC_THRESHOLD_MILES, MILESTONE_MILES } from "../constants/index.js";
+import { HMRC_RATES, HMRC_THRESHOLD_MILES, MILESTONE_MILES, UK_TAX_2025_26 } from "../constants/index.js";
 
 /**
  * Calculate the Haversine distance between two coordinates in miles.
@@ -698,5 +698,48 @@ export function getMilestoneProgress(
     progress: Math.min(1, Math.max(0, progress)),
     milestoneAfter: after,
     allComplete: false,
+  };
+}
+
+/**
+ * Estimate UK self-employed income tax + NI for a given taxable profit.
+ * Uses 2025-26 tax year bands. All values in pence.
+ */
+export function estimateUkTax(taxableProfitPence: number): {
+  incomeTaxPence: number;
+  class2NiPence: number;
+  class4NiPence: number;
+} {
+  const T = UK_TAX_2025_26;
+  const profit = Math.max(0, taxableProfitPence);
+
+  let incomeTax = 0;
+  if (profit > T.higherRateThresholdPence) {
+    incomeTax += (profit - T.higherRateThresholdPence) * T.additionalRate;
+    incomeTax += (T.higherRateThresholdPence - T.basicRateThresholdPence) * T.higherRate;
+    incomeTax += (T.basicRateThresholdPence - T.personalAllowancePence) * T.basicRate;
+  } else if (profit > T.basicRateThresholdPence) {
+    incomeTax += (profit - T.basicRateThresholdPence) * T.higherRate;
+    incomeTax += (T.basicRateThresholdPence - T.personalAllowancePence) * T.basicRate;
+  } else if (profit > T.personalAllowancePence) {
+    incomeTax += (profit - T.personalAllowancePence) * T.basicRate;
+  }
+
+  const class2Ni = profit > T.class2NiThresholdPence
+    ? T.class2NiWeeklyPence * T.weeksInYear
+    : 0;
+
+  let class4Ni = 0;
+  if (profit > T.class4NiUpperPence) {
+    class4Ni += (profit - T.class4NiUpperPence) * T.class4NiUpperRate;
+    class4Ni += (T.class4NiUpperPence - T.class4NiLowerPence) * T.class4NiLowerRate;
+  } else if (profit > T.class4NiLowerPence) {
+    class4Ni += (profit - T.class4NiLowerPence) * T.class4NiLowerRate;
+  }
+
+  return {
+    incomeTaxPence: Math.round(incomeTax),
+    class2NiPence: Math.round(class2Ni),
+    class4NiPence: Math.round(class4Ni),
   };
 }

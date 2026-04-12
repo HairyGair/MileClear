@@ -55,6 +55,7 @@ model User {
   tripAnomalies       TripAnomaly[]
   appEvents           AppEvent[]
   diagnosticDump      DiagnosticDump?
+  expenses            Expense[]
 
   @@map("users")
 }
@@ -90,6 +91,7 @@ model Vehicle {
   shifts   Shift[]
   trips    Trip[]
   fuelLogs FuelLog[]
+  expenses Expense[]
 
   @@map("vehicles")
 }
@@ -403,6 +405,25 @@ model DiagnosticDump {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("diagnostic_dumps")
+}
+
+model Expense {
+  id          String    @id @default(uuid())
+  userId      String
+  vehicleId   String?
+  category    String    @db.VarChar(50)
+  amountPence Int
+  date        DateTime  @db.Date
+  description String?   @db.VarChar(500)
+  vendor      String?   @db.VarChar(200)
+  notes       String?   @db.Text
+  createdAt   DateTime  @default(now())
+
+  user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  vehicle Vehicle? @relation(fields: [vehicleId], references: [id])
+
+  @@index([userId, date])
+  @@map("expenses")
 }
 
 model AppleIapWebhookLog {

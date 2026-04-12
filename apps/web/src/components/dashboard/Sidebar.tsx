@@ -115,6 +115,7 @@ const BUSINESS_ITEMS: NavItem[] = [
   { href: "/dashboard/business", label: "Business", icon: icons.business },
   { href: "/dashboard/shifts", label: "Shifts", icon: icons.shifts },
   { href: "/dashboard/earnings", label: "Earnings", icon: icons.earnings },
+  { href: "/dashboard/expenses", label: "Expenses", icon: icons.fuel },
   { href: "/dashboard/exports", label: "Exports", icon: icons.exports },
   { href: "/dashboard/tax", label: "Tax Summary", icon: icons.tax },
 ];
