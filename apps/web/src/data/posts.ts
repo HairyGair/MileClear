@@ -28,6 +28,26 @@ export interface BlogPost {
 // ----------------------------------------------------------------
 export const RELEASE_NOTES: ReleaseNote[] = [
   {
+    version: "1.0.8",
+    date: "12 April 2026",
+    label: "In Testing",
+    ctaUrl: "https://testflight.apple.com/join/SGrmnaaH",
+    ctaLabel: "Join the beta on TestFlight",
+    items: [
+      "Weekly earnings goal - set a target and track your progress with a live progress bar on the dashboard. Turns amber as you approach and green when you hit it",
+      "Working calendar - a month-view heatmap showing which days you drove, how much you earned, and how many trips you did. Colour intensity by earnings so your best days stand out at a glance",
+      "Business expenses - log parking, tolls, congestion charges, phone costs, equipment, and other allowable expenses. Vehicle costs (maintenance, insurance, MOT, road tax) are tracked separately because HMRC won't let you claim them alongside the mileage allowance",
+      "Tax estimate - see your estimated income tax and National Insurance based on your earnings minus mileage deduction minus allowable expenses. Full breakdown by tax band, Class 2 NI, and Class 4 NI so you know roughly what to set aside",
+      "Morning briefing - a daily push notification at 8am with yesterday's trips, miles, earnings, weekly goal progress, and how many trips need classifying. Personal mode gets a simpler summary without the earnings",
+      "Fuel price alerts - daily notification with the cheapest fuel near your saved locations. Pulls live data from 8,300+ UK government-mandated station feeds so prices are always current",
+      "Trip notifications now show your daily running total - 'Trip 4 today, 18.7 mi total' - so you can see your day building up in real time",
+      "Unclassified trip badge - a red count appears on your avatar and in the navigation menu when you have trips waiting to be classified. Clears as you work through them",
+      "Fixed a bug where tapping the 'Looks like you're driving' notification could accidentally start a background recording that ran for hours. Tapping now just confirms the trip without changing the tracking mode",
+      "Trips that failed to save now log the exact reason instead of failing silently. If a trip ever goes missing on this build, the diagnostics screen will tell you why",
+      "Fixed stale GPS data from a previous trip bleeding into the next one. Each new recording now starts with a clean buffer so your start address and distance are always from the current drive",
+    ],
+  },
+  {
     version: "1.0.7",
     date: "11 April 2026",
     label: "App Store",
