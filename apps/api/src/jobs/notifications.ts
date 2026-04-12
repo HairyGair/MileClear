@@ -11,6 +11,7 @@ import {
 import { sendCheckinEmail } from "../services/email.js";
 import { logEvent } from "../services/appEvents.js";
 import { runJob } from "../services/jobRun.js";
+import { getNearbyStations } from "../services/fuel.js";
 
 // Persistent dedup via AppEvent table — survives PM2 restarts.
 // Checks if a notification event was already logged for a user today.
@@ -592,6 +593,75 @@ async function runMorningBriefingJob(): Promise<void> {
   }
 }
 
+async function runFuelPriceAlertJob(): Promise<void> {
+  // Get users with push tokens + saved locations
+  const users = await prisma.user.findMany({
+    where: {
+      pushToken: { not: null },
+      savedLocations: { some: {} },
+    },
+    select: {
+      id: true,
+      pushToken: true,
+      savedLocations: {
+        select: { latitude: true, longitude: true, name: true },
+        take: 5,
+      },
+    },
+  });
+
+  let sent = 0;
+  for (const user of users) {
+    if (!user.pushToken) continue;
+    if (await wasNotifiedToday(user.id, "notification.fuel_alert")) continue;
+
+    // Find cheapest station across all saved locations
+    let cheapestStation: { name: string; price: number; fuelType: string; distance: number; nearLocation: string } | null = null;
+
+    for (const loc of user.savedLocations) {
+      try {
+        const { stations } = await getNearbyStations(loc.latitude, loc.longitude, 3);
+        for (const s of stations) {
+          // Check diesel and unleaded
+          for (const [fuelKey, label] of [["B7", "Diesel"], ["E10", "Unleaded"]] as const) {
+            const price = s.prices[fuelKey];
+            if (!price || price <= 0) continue;
+            if (!cheapestStation || price < cheapestStation.price) {
+              cheapestStation = {
+                name: s.stationName,
+                price,
+                fuelType: label,
+                distance: s.distanceMiles,
+                nearLocation: loc.name,
+              };
+            }
+          }
+        }
+      } catch {}
+    }
+
+    if (!cheapestStation) continue;
+
+    const priceStr = (cheapestStation.price / 10).toFixed(1);
+    const title = `Fuel near ${cheapestStation.nearLocation}: ${priceStr}p/L`;
+    const body = `${cheapestStation.fuelType} at ${cheapestStation.name} (${cheapestStation.distance} mi away)`;
+
+    try {
+      await sendPushToUser(user.id, title, body, { action: "open_fuel" });
+      logEvent("notification.fuel_alert", user.id, {
+        station: cheapestStation.name,
+        price: cheapestStation.price,
+        fuelType: cheapestStation.fuelType,
+      });
+      sent++;
+    } catch {}
+  }
+
+  if (sent > 0) {
+    console.log(`[jobs/notifications] Fuel price alerts sent to ${sent} user(s)`);
+  }
+}
+
 export function startNotificationJobs(): void {
   const INITIAL_DELAY_MS = 60 * 1000;       // 60 seconds
   const INTERVAL_MS = 6 * 60 * 60 * 1000;  // 6 hours
@@ -612,6 +682,9 @@ export function startNotificationJobs(): void {
 
     void runJob("morning_briefing", runMorningBriefingJob);
     setInterval(() => void runJob("morning_briefing", runMorningBriefingJob), BRIEFING_INTERVAL_MS);
+
+    void runJob("fuel_price_alert", runFuelPriceAlertJob);
+    setInterval(() => void runJob("fuel_price_alert", runFuelPriceAlertJob), INTERVAL_MS);
   }, INITIAL_DELAY_MS);
 
   console.log("[jobs/notifications] Scheduled notification jobs started (first run in 60s)");
