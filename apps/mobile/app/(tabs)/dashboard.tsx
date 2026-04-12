@@ -49,6 +49,8 @@ import { useMode } from "../../lib/mode/context";
 import { ModeToggle } from "../../components/ModeToggle";
 import { PersonalDashboard } from "../../components/personal/PersonalDashboard";
 import { CommunityInsightsCard } from "../../components/community/CommunityInsightsCard";
+import { WeeklyGoalCard } from "../../components/work/WeeklyGoalCard";
+import { WorkCalendarCard } from "../../components/work/WorkCalendarCard";
 import { MapOverview } from "../../components/personal/MapOverview";
 import { LiveMapTracker, type TripTapInfo } from "../../components/map/LiveMapTracker";
 import { useUser } from "../../lib/user/context";
@@ -1031,6 +1033,10 @@ export default function DashboardScreen() {
                 </PremiumGate>
               </View>
             ) : null;
+          case "weekly_goal":
+            return <WeeklyGoalCard key={key} />;
+          case "work_calendar":
+            return <WorkCalendarCard key={key} />;
           case "community":
             return (
               <View key={key}>

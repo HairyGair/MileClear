@@ -30,9 +30,10 @@ model User {
   workType             String    @default("gig") @db.VarChar(20)
   employerMileageRatePence Int?
   dashboardMode        String    @default("both") @db.VarChar(20)
-  notes                String?   @db.Text
-  lastLoginAt          DateTime?
-  lastTripAt           DateTime?
+  notes                    String?   @db.Text
+  lastLoginAt              DateTime?
+  lastTripAt               DateTime?
+  weeklyEarningsGoalPence  Int?
   createdAt            DateTime  @default(now())
   updatedAt            DateTime  @updatedAt
 

@@ -11,11 +11,28 @@ export interface User {
   workType: WorkType;
   employerMileageRatePence: number | null;
   dashboardMode: "both" | "work" | "personal";
+  weeklyEarningsGoalPence: number | null;
   emailVerified: boolean;
   isPremium: boolean;
   isAdmin: boolean;
   premiumExpiresAt: string | null;
   createdAt: string;
+}
+
+export interface WeeklyProgress {
+  goalPence: number | null;
+  currentWeekEarningsPence: number;
+  progressPercent: number | null;
+  weekStart: string;
+}
+
+export interface CalendarDay {
+  date: string;
+  earningsPence: number;
+  miles: number;
+  businessMiles: number;
+  tripCount: number;
+  shiftMinutes: number;
 }
 
 // Vehicle types

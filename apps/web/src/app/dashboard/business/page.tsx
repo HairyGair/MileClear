@@ -8,6 +8,8 @@ import { PageHeader } from "../../../components/dashboard/PageHeader";
 import { Card } from "../../../components/ui/Card";
 import { Badge } from "../../../components/ui/Badge";
 import { DashboardSkeleton } from "../../../components/ui/LoadingSkeleton";
+import { Input } from "../../../components/ui/Input";
+import { Button } from "../../../components/ui/Button";
 import type {
   GamificationStats,
   PeriodRecap,
@@ -15,6 +17,8 @@ import type {
   PaginatedResponse,
   BusinessInsights,
   WeeklyPnL,
+  WeeklyProgress,
+  CalendarDay,
 } from "@mileclear/shared";
 
 function formatPence(pence: number): string {
@@ -122,6 +126,17 @@ export default function BusinessPage() {
   const [pnlWeek, setPnlWeek] = useState(0);
   const [infoDismissed, setInfoDismissed] = useState(true);
 
+  // Weekly goal
+  const [weeklyProgress, setWeeklyProgress] = useState<WeeklyProgress | null>(null);
+  const [goalInput, setGoalInput] = useState("");
+  const [goalSaving, setGoalSaving] = useState(false);
+  const [goalEditing, setGoalEditing] = useState(false);
+
+  // Calendar
+  const [calDays, setCalDays] = useState<CalendarDay[]>([]);
+  const [calYear, setCalYear] = useState(new Date().getFullYear());
+  const [calMonth, setCalMonth] = useState(new Date().getMonth() + 1);
+
   useEffect(() => {
     setInfoDismissed(localStorage.getItem("mc_work_info_dismissed") === "1");
   }, []);
@@ -138,18 +153,21 @@ export default function BusinessPage() {
     }
     async function load() {
       try {
-        const [statsRes, insightsRes, pnlRes, recapRes, tripsRes] = await Promise.all([
+        const [statsRes, insightsRes, pnlRes, recapRes, tripsRes, wpRes] = await Promise.all([
           api.get<{ data: GamificationStats }>("/gamification/stats"),
           api.get<{ data: BusinessInsights }>("/business-insights"),
           api.get<{ data: WeeklyPnL }>("/business-insights/pnl"),
           api.get<{ data: PeriodRecap }>("/gamification/recap?period=monthly"),
           api.get<PaginatedResponse<Trip>>("/trips/?pageSize=5&classification=business"),
+          api.get<{ data: WeeklyProgress }>("/user/weekly-progress"),
         ]);
         setStats(statsRes.data);
         setInsights(insightsRes.data);
         setPnl(pnlRes.data);
         setMonthlyRecap(recapRes.data);
         setRecentTrips(tripsRes.data);
+        setWeeklyProgress(wpRes.data);
+        if (wpRes.data.goalPence) setGoalInput(String(wpRes.data.goalPence / 100));
       } catch {
         // Handled by empty state
       } finally {
@@ -158,6 +176,28 @@ export default function BusinessPage() {
     }
     load();
   }, [isPremium]);
+
+  // Fetch calendar for selected month
+  useEffect(() => {
+    if (!isPremium) return;
+    api
+      .get<{ data: CalendarDay[] }>(`/user/calendar?year=${calYear}&month=${calMonth}`)
+      .then((res) => setCalDays(res.data))
+      .catch(() => setCalDays([]));
+  }, [isPremium, calYear, calMonth]);
+
+  const saveGoal = async () => {
+    const pence = goalInput.trim() ? Math.round(parseFloat(goalInput) * 100) : null;
+    if (pence !== null && (isNaN(pence) || pence <= 0)) return;
+    setGoalSaving(true);
+    try {
+      await api.patch("/user/profile", { weeklyEarningsGoalPence: pence });
+      const res = await api.get<{ data: WeeklyProgress }>("/user/weekly-progress");
+      setWeeklyProgress(res.data);
+      setGoalEditing(false);
+    } catch {}
+    setGoalSaving(false);
+  };
 
   // Fetch P&L for different weeks
   useEffect(() => {
@@ -213,6 +253,86 @@ export default function BusinessPage() {
             )}
           </div>
         </div>
+      )}
+
+      {/* Weekly Goal */}
+      {weeklyProgress && (
+        <Card style={{ marginBottom: "var(--dash-gap)" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.75rem" }}>
+            <h3 style={{ margin: 0, fontSize: "0.9375rem", fontWeight: 600 }}>
+              Weekly Earnings
+            </h3>
+            <button
+              onClick={() => setGoalEditing((v) => !v)}
+              style={{ background: "none", border: "none", color: "var(--amber-400)", cursor: "pointer", fontSize: "0.8125rem", padding: 0 }}
+            >
+              {weeklyProgress.goalPence ? "Edit goal" : "Set a target"}
+            </button>
+          </div>
+          {goalEditing && (
+            <div style={{ display: "flex", gap: "0.5rem", alignItems: "center", marginBottom: "0.75rem" }}>
+              <div style={{ maxWidth: 160 }}>
+                <Input
+                  id="weekly-goal"
+                  type="number"
+                  placeholder="e.g. 500"
+                  value={goalInput}
+                  onChange={(e) => setGoalInput(e.target.value)}
+                  aria-label="Weekly earnings goal in pounds"
+                />
+              </div>
+              <span style={{ fontSize: "0.8125rem", color: "var(--text-secondary)" }}>/week</span>
+              <Button variant="primary" size="sm" onClick={saveGoal} disabled={goalSaving}>
+                {goalSaving ? "..." : "Save"}
+              </Button>
+              {weeklyProgress.goalPence && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => { setGoalInput(""); saveGoal(); }}
+                >
+                  Clear
+                </Button>
+              )}
+            </div>
+          )}
+          <div style={{ fontSize: "1.5rem", fontWeight: 700 }}>
+            {formatPence(weeklyProgress.currentWeekEarningsPence)}
+            {weeklyProgress.goalPence && (
+              <span style={{ fontSize: "0.875rem", fontWeight: 400, color: "var(--text-secondary)", marginLeft: "0.5rem" }}>
+                / {formatPence(weeklyProgress.goalPence)} target
+              </span>
+            )}
+          </div>
+          {weeklyProgress.goalPence && weeklyProgress.progressPercent !== null && (
+            <div style={{ marginTop: "0.625rem" }}>
+              <div style={{
+                height: 10,
+                borderRadius: 5,
+                background: "rgba(255,255,255,0.06)",
+                overflow: "hidden",
+              }}>
+                <div style={{
+                  height: "100%",
+                  borderRadius: 5,
+                  width: `${Math.min(100, weeklyProgress.progressPercent)}%`,
+                  background: weeklyProgress.progressPercent >= 100
+                    ? "var(--emerald-400)"
+                    : "var(--amber-400)",
+                  transition: "width 0.4s ease",
+                }} />
+              </div>
+              <div style={{ display: "flex", justifyContent: "space-between", marginTop: "0.375rem", fontSize: "0.75rem", color: "var(--text-secondary)" }}>
+                <span>{weeklyProgress.progressPercent}%</span>
+                {weeklyProgress.progressPercent >= 100 ? (
+                  <span style={{ color: "var(--emerald-400)" }}>Goal reached!</span>
+                ) : (
+                  <span>{formatPence(weeklyProgress.goalPence - weeklyProgress.currentWeekEarningsPence)} to go</span>
+                )}
+              </div>
+            </div>
+          )}
+        </Card>
       )}
 
       {/* Efficiency Metrics */}
@@ -573,6 +693,128 @@ export default function BusinessPage() {
           </div>
         </Card>
       )}
+
+      {/* Working Calendar */}
+      <Card style={{ marginTop: "var(--dash-gap)" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem" }}>
+          <h3 style={{ margin: 0, fontSize: "0.9375rem", fontWeight: 600 }}>Working Calendar</h3>
+          <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+            <button
+              onClick={() => {
+                if (calMonth === 1) { setCalMonth(12); setCalYear((y) => y - 1); }
+                else setCalMonth((m) => m - 1);
+              }}
+              style={{ background: "none", border: "none", cursor: "pointer", color: "var(--text-secondary)", fontSize: "1.125rem", padding: "0.25rem 0.5rem" }}
+              aria-label="Previous month"
+            >
+              &lsaquo;
+            </button>
+            <span style={{ fontSize: "0.875rem", fontWeight: 600, minWidth: 120, textAlign: "center" }}>
+              {new Date(calYear, calMonth - 1).toLocaleDateString("en-GB", { month: "long", year: "numeric" })}
+            </span>
+            <button
+              onClick={() => {
+                if (calMonth === 12) { setCalMonth(1); setCalYear((y) => y + 1); }
+                else setCalMonth((m) => m + 1);
+              }}
+              style={{ background: "none", border: "none", cursor: "pointer", color: "var(--text-secondary)", fontSize: "1.125rem", padding: "0.25rem 0.5rem" }}
+              aria-label="Next month"
+            >
+              &rsaquo;
+            </button>
+          </div>
+        </div>
+
+        {(() => {
+          const firstOfMonth = new Date(calYear, calMonth - 1, 1);
+          const daysInMonth = new Date(calYear, calMonth, 0).getDate();
+          const startDow = (firstOfMonth.getDay() + 6) % 7; // 0=Mon
+
+          const dayMap = new Map<string, CalendarDay>();
+          for (const d of calDays) dayMap.set(d.date, d);
+
+          const maxEarnings = calDays.reduce((max, d) => Math.max(max, d.earningsPence), 0);
+
+          const cells: React.JSX.Element[] = [];
+          const weekdays = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+
+          for (const wd of weekdays) {
+            cells.push(
+              <div key={`hdr-${wd}`} style={{ textAlign: "center", fontSize: "0.6875rem", color: "var(--text-muted)", fontWeight: 600, padding: "0.25rem 0" }}>
+                {wd}
+              </div>
+            );
+          }
+
+          for (let i = 0; i < startDow; i++) {
+            cells.push(<div key={`empty-${i}`} />);
+          }
+
+          for (let day = 1; day <= daysInMonth; day++) {
+            const dateStr = `${calYear}-${String(calMonth).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+            const data = dayMap.get(dateStr);
+            const intensity = data && maxEarnings > 0 ? Math.max(0.15, data.earningsPence / maxEarnings) : 0;
+            const hasActivity = data && (data.tripCount > 0 || data.earningsPence > 0);
+            const isToday = dateStr === new Date().toISOString().slice(0, 10);
+
+            cells.push(
+              <div
+                key={dateStr}
+                title={data ? `${formatPence(data.earningsPence)} earned, ${data.tripCount} trips, ${data.miles} mi${data.shiftMinutes > 0 ? `, ${Math.round(data.shiftMinutes / 60)}h worked` : ""}` : "No activity"}
+                style={{
+                  textAlign: "center",
+                  padding: "0.375rem 0.125rem",
+                  borderRadius: 6,
+                  fontSize: "0.75rem",
+                  fontWeight: hasActivity ? 600 : 400,
+                  cursor: "default",
+                  color: hasActivity ? "#fff" : "var(--text-muted)",
+                  background: hasActivity
+                    ? `rgba(245, 166, 35, ${intensity})`
+                    : "transparent",
+                  border: isToday ? "1px solid var(--amber-400)" : "1px solid transparent",
+                  lineHeight: 1.6,
+                }}
+              >
+                {day}
+                {data && data.earningsPence > 0 && (
+                  <div style={{ fontSize: "0.5625rem", color: "rgba(255,255,255,0.7)", marginTop: 1 }}>
+                    {formatPence(data.earningsPence)}
+                  </div>
+                )}
+              </div>
+            );
+          }
+
+          return (
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: "0.25rem" }}>
+              {cells}
+            </div>
+          );
+        })()}
+
+        {calDays.length > 0 && (() => {
+          const totalEarnings = calDays.reduce((s, d) => s + d.earningsPence, 0);
+          const totalTrips = calDays.reduce((s, d) => s + d.tripCount, 0);
+          const activeDays = calDays.filter((d) => d.tripCount > 0 || d.earningsPence > 0).length;
+          const totalShiftHours = Math.round(calDays.reduce((s, d) => s + d.shiftMinutes, 0) / 60);
+          return (
+            <div style={{
+              display: "flex",
+              justifyContent: "center",
+              gap: "1.5rem",
+              marginTop: "0.75rem",
+              fontSize: "0.75rem",
+              color: "var(--text-secondary)",
+            }}>
+              <span>{formatPence(totalEarnings)} earned</span>
+              <span>{activeDays} active days</span>
+              <span>{totalTrips} trips</span>
+              {totalShiftHours > 0 && <span>{totalShiftHours}h worked</span>}
+            </div>
+          );
+        })()}
+      </Card>
     </>
   );
 }

@@ -13,6 +13,7 @@ const updateProfileSchema = z.object({
   workType: z.enum(["gig", "employee", "both"]).optional(),
   employerMileageRatePence: z.number().int().min(0).max(100).nullable().optional(),
   dashboardMode: z.enum(["both", "work", "personal"]).optional(),
+  weeklyEarningsGoalPence: z.number().int().min(0).max(1000000).nullable().optional(),
   email: z.string().email().optional(),
   currentPassword: z.string().optional(),
 });
@@ -31,6 +32,7 @@ const USER_SELECT = {
   workType: true,
   employerMileageRatePence: true,
   dashboardMode: true,
+  weeklyEarningsGoalPence: true,
   emailVerified: true,
   isPremium: true,
   isAdmin: true,
@@ -111,6 +113,11 @@ export async function userRoutes(app: FastifyInstance) {
       updateData.dashboardMode = dashboardMode;
     }
 
+    // Weekly earnings goal
+    if (parsed.data.weeklyEarningsGoalPence !== undefined) {
+      updateData.weeklyEarningsGoalPence = parsed.data.weeklyEarningsGoalPence;
+    }
+
     // Email change requires password verification
     if (email && email !== currentUser.email) {
       if (!currentUser.passwordHash) {
@@ -151,6 +158,122 @@ export async function userRoutes(app: FastifyInstance) {
     });
 
     return reply.send({ data: user });
+  });
+
+  // GET /user/weekly-progress
+  app.get("/weekly-progress", async (request, reply) => {
+    const userId = request.userId!;
+
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { weeklyEarningsGoalPence: true },
+    });
+
+    // ISO week: Monday to Sunday
+    const now = new Date();
+    const day = now.getUTCDay(); // 0=Sun
+    const mondayOffset = day === 0 ? -6 : 1 - day;
+    const weekStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + mondayOffset));
+
+    const earningsAgg = await prisma.earning.aggregate({
+      where: {
+        userId,
+        periodStart: { gte: weekStart },
+      },
+      _sum: { amountPence: true },
+    });
+
+    const currentWeekEarningsPence = earningsAgg._sum?.amountPence ?? 0;
+    const goalPence = user?.weeklyEarningsGoalPence ?? null;
+    const progressPercent = goalPence && goalPence > 0
+      ? Math.min(100, Math.round((currentWeekEarningsPence / goalPence) * 100))
+      : null;
+
+    return reply.send({
+      data: {
+        goalPence,
+        currentWeekEarningsPence,
+        progressPercent,
+        weekStart: weekStart.toISOString(),
+      },
+    });
+  });
+
+  // GET /user/calendar?year=2026&month=4
+  app.get("/calendar", async (request, reply) => {
+    const userId = request.userId!;
+    const { year, month } = request.query as { year?: string; month?: string };
+
+    const y = parseInt(year || String(new Date().getFullYear()), 10);
+    const m = parseInt(month || String(new Date().getMonth() + 1), 10);
+    if (isNaN(y) || isNaN(m) || m < 1 || m > 12) {
+      return reply.status(400).send({ error: "Invalid year or month" });
+    }
+
+    const start = new Date(Date.UTC(y, m - 1, 1));
+    const end = new Date(Date.UTC(y, m, 1));
+
+    const [trips, earnings, shifts] = await Promise.all([
+      prisma.trip.findMany({
+        where: { userId, startedAt: { gte: start, lt: end } },
+        select: { startedAt: true, distanceMiles: true, classification: true },
+      }),
+      prisma.earning.findMany({
+        where: { userId, periodStart: { gte: start, lt: end } },
+        select: { periodStart: true, amountPence: true },
+      }),
+      prisma.shift.findMany({
+        where: { userId, startedAt: { gte: start, lt: end }, status: "completed" },
+        select: { startedAt: true, endedAt: true },
+      }),
+    ]);
+
+    // Aggregate per day
+    const days: Record<string, {
+      earningsPence: number;
+      miles: number;
+      businessMiles: number;
+      tripCount: number;
+      shiftMinutes: number;
+    }> = {};
+
+    const dayKey = (d: Date) => d.toISOString().slice(0, 10);
+    const ensure = (key: string) => {
+      if (!days[key]) {
+        days[key] = { earningsPence: 0, miles: 0, businessMiles: 0, tripCount: 0, shiftMinutes: 0 };
+      }
+      return days[key];
+    };
+
+    for (const t of trips) {
+      const d = ensure(dayKey(t.startedAt));
+      d.tripCount++;
+      d.miles += t.distanceMiles;
+      if (t.classification === "business") d.businessMiles += t.distanceMiles;
+    }
+
+    for (const e of earnings) {
+      const d = ensure(dayKey(e.periodStart));
+      d.earningsPence += e.amountPence;
+    }
+
+    for (const s of shifts) {
+      if (!s.endedAt) continue;
+      const d = ensure(dayKey(s.startedAt));
+      d.shiftMinutes += Math.round((s.endedAt.getTime() - s.startedAt.getTime()) / 60000);
+    }
+
+    // Convert to array sorted by date
+    const result = Object.entries(days)
+      .map(([date, data]) => ({
+        date,
+        ...data,
+        miles: Math.round(data.miles * 10) / 10,
+        businessMiles: Math.round(data.businessMiles * 10) / 10,
+      }))
+      .sort((a, b) => a.date.localeCompare(b.date));
+
+    return reply.send({ data: result });
   });
 
   // GDPR data export

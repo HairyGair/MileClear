@@ -1,5 +1,5 @@
 import { apiRequest } from "./index";
-import type { User } from "@mileclear/shared";
+import type { User, WeeklyProgress, CalendarDay } from "@mileclear/shared";
 
 export interface UpdateProfileData {
   displayName?: string | null;
@@ -11,6 +11,7 @@ export interface UpdateProfileData {
   workType?: "gig" | "employee" | "both";
   employerMileageRatePence?: number | null;
   dashboardMode?: "both" | "work" | "personal";
+  weeklyEarningsGoalPence?: number | null;
 }
 
 export function fetchProfile() {
@@ -33,4 +34,12 @@ export function deleteAccount(password: string) {
     method: "DELETE",
     body: JSON.stringify({ password }),
   });
+}
+
+export function fetchWeeklyProgress() {
+  return apiRequest<{ data: WeeklyProgress }>("/user/weekly-progress");
+}
+
+export function fetchCalendar(year: number, month: number) {
+  return apiRequest<{ data: CalendarDay[] }>(`/user/calendar?year=${year}&month=${month}`);
 }

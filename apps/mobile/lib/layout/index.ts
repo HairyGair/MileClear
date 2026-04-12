@@ -79,6 +79,18 @@ export const SECTION_REGISTRY: Record<ScreenKey, SectionDef[]> = {
       description: "Map of your recent trips",
     },
     {
+      key: "weekly_goal",
+      label: "Weekly Goal",
+      icon: "flag-outline",
+      description: "Progress towards your weekly earnings target",
+    },
+    {
+      key: "work_calendar",
+      label: "Working Calendar",
+      icon: "calendar-outline",
+      description: "Monthly heatmap of your driving activity",
+    },
+    {
       key: "community",
       label: "Community Insights",
       icon: "people-outline",
