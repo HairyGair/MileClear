@@ -3,7 +3,6 @@ import Constants from "expo-constants";
 import { router } from "expo-router";
 import { Linking } from "react-native";
 import { cancelAutoRecording, upgradeDetectionAccuracy } from "../tracking/detection";
-import { promoteDetectionToQuickTrip } from "../tracking/index";
 
 try {
   Notifications.setNotificationHandler({
@@ -200,13 +199,16 @@ export function setupNotificationResponseHandler(): void {
     }
 
     if (action === "start_shift" && actionId === Notifications.DEFAULT_ACTION_IDENTIFIER) {
-      // Notification body tap — promote to interactive trip with live map
+      // Notification body tap — just upgrade GPS accuracy for the active
+      // auto-detection recording (same as the "Driver" button). Don't
+      // promote to Quick Trip: that starts indefinite background tracking
+      // with no auto-timeout, and an accidental tap can produce hours of
+      // garbage data. Auto-detection handles trip finalization on its own.
       try {
-        await promoteDetectionToQuickTrip();
+        await startTripFromDetection();
       } catch (err) {
-        console.error("Promote detection to quick trip failed:", err);
+        console.error("Track trip from notification failed:", err);
       }
-      router.navigate("/trip-form");
       return;
     }
 
