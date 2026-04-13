@@ -93,6 +93,8 @@ export default function EarlyAccess() {
                 src="/branding/app-store-badge.svg"
                 alt="Download on the App Store"
                 className="ea__appstore-badge"
+                width={160}
+                height={53}
               />
             </a>
             <div className="ea__qr">

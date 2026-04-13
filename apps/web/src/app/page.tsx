@@ -9,6 +9,81 @@ import FAQ from "@/components/landing/FAQ";
 import Footer from "@/components/landing/Footer";
 import StructuredData from "@/components/landing/StructuredData";
 
+const APP_STORE_URL = "https://apps.apple.com/app/mileclear/id6742044832";
+
+function SocialProof() {
+  return (
+    <section
+      aria-label="Social proof"
+      style={{
+        maxWidth: "var(--max-w)",
+        margin: "0 auto",
+        padding: "0 var(--px) 2.5rem",
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        gap: "1rem",
+      }}
+    >
+      <p
+        style={{
+          fontFamily: "var(--font-body)",
+          fontSize: "0.8rem",
+          letterSpacing: "0.08em",
+          textTransform: "uppercase",
+          color: "var(--text-muted, var(--text-secondary))",
+          margin: 0,
+        }}
+      >
+        Trusted by drivers across the UK
+      </p>
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: "1.5rem",
+          flexWrap: "wrap",
+          justifyContent: "center",
+        }}
+      >
+        <span
+          style={{
+            fontFamily: "var(--font-body)",
+            fontSize: "0.85rem",
+            color: "var(--text-secondary)",
+          }}
+        >
+          60+ drivers
+        </span>
+        <span style={{ color: "var(--text-secondary)", opacity: 0.4 }}>|</span>
+        <a
+          href={APP_STORE_URL}
+          target="_blank"
+          rel="noopener noreferrer"
+          style={{
+            fontFamily: "var(--font-body)",
+            fontSize: "0.85rem",
+            color: "var(--text-secondary)",
+            textDecoration: "none",
+          }}
+        >
+          Free on the App Store
+        </a>
+        <span style={{ color: "var(--text-secondary)", opacity: 0.4 }}>|</span>
+        <span
+          style={{
+            fontFamily: "var(--font-body)",
+            fontSize: "0.85rem",
+            color: "var(--text-secondary)",
+          }}
+        >
+          4.9 rating
+        </span>
+      </div>
+    </section>
+  );
+}
+
 function AboutSection() {
   return (
     <section
@@ -54,6 +129,7 @@ export default function LandingPage() {
       <main>
         <Hero />
         <AboutSection />
+        <SocialProof />
         <Problem />
         <Features />
         <WhoItsFor />
