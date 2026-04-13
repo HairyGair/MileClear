@@ -198,7 +198,7 @@ export const BLOG_POSTS: BlogPost[] = [
 
 <p>iOS makes this permission deliberately hard to grant. The system asks twice: first "While Using" then later promotes to "Always." Some users never see the second prompt. Others see it and tap "Keep Only While Using" because it sounds safer. A few have their phone set to never allow background location for any app.</p>
 
-<p>The result is that a meaningful number of my 64 users have drive detection that simply does not work, and they do not know why. The <a href="/updates/case-of-the-phantom-trip">diagnostics screen I built in 1.0.7</a> shows the permission state, but users have to know to look at it. For 1.0.8 I need the app to surface this problem proactively instead of silently failing.</p>
+<p>The result is that a meaningful number of users have drive detection that simply does not work, and they do not know why. The <a href="/updates/case-of-the-phantom-trip">diagnostics screen I built in 1.0.7</a> shows the permission state, but users have to know to look at it. For 1.0.8 I need the app to surface this problem proactively instead of silently failing.</p>
 
 <h2>The shift and business side is what matters</h2>
 
@@ -228,9 +228,9 @@ export const BLOG_POSTS: BlogPost[] = [
 
 <h2>Silence is the default</h2>
 
-<p>The biggest surprise of launching is how quiet users are. 64 people have signed up. 32 use the app regularly. Almost none of them have sent feedback, reported a bug, or asked a question. The feedback screen in the app has a handful of entries. The support email gets nothing.</p>
+<p>The biggest surprise of launching is how quiet users are. The vast majority have never sent feedback, reported a bug, or asked a question. The feedback screen in the app has a handful of entries. The support email gets almost nothing.</p>
 
-<p>This is not a complaint. It is a reality of building consumer software. Most people do not report bugs. They just stop using the app. The ones who do report bugs are worth their weight in gold, because for every Norman who sends a diagnostics dump, there are probably five users who had the same issue and silently moved on.</p>
+<p>This is not a complaint. It is a reality of building consumer software. Most people do not report bugs. They just stop using the app. The ones who do report bugs are worth their weight in gold, because for every user who sends a diagnostics dump, there are probably five others who had the same issue and silently moved on.</p>
 
 <p>That is why I built the admin dashboard to track drive detection health across all users. I can see diagnostic verdicts (healthy, warning, error) for every user who has uploaded a dump. I can see who has not driven in weeks. I can see who has background permission issues. I do not have to wait for someone to tell me something is wrong.</p>
 
