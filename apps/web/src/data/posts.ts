@@ -29,7 +29,7 @@ export interface BlogPost {
 export const RELEASE_NOTES: ReleaseNote[] = [
   {
     version: "1.0.8",
-    date: "12 April 2026",
+    date: "13 April 2026",
     label: "In Testing",
     ctaUrl: "https://testflight.apple.com/join/SGrmnaaH",
     ctaLabel: "Join the beta on TestFlight",
@@ -40,11 +40,14 @@ export const RELEASE_NOTES: ReleaseNote[] = [
       "Tax estimate - see your estimated income tax and National Insurance based on your earnings minus mileage deduction minus allowable expenses. Full breakdown by tax band, Class 2 NI, and Class 4 NI so you know roughly what to set aside",
       "Morning briefing - a daily push notification at 8am with yesterday's trips, miles, earnings, weekly goal progress, and how many trips need classifying. Personal mode gets a simpler summary without the earnings",
       "Fuel price alerts - daily notification with the cheapest fuel near your saved locations. Pulls live data from 8,300+ UK government-mandated station feeds so prices are always current",
+      "Proactive tracking alerts - if MileClear detects an issue with your tracking setup (location permission missing, background task stopped, or a stuck recording), it sends you a push notification explaining what to fix. No more silent failures where trips just stop recording without you knowing",
       "Trip notifications now show your daily running total - 'Trip 4 today, 18.7 mi total' - so you can see your day building up in real time",
       "Unclassified trip badge - a red count appears on your avatar and in the navigation menu when you have trips waiting to be classified. Clears as you work through them",
+      "Fixed a rare bug where trips could be lost when iOS blocked secure storage access during a background-to-foreground transition. The app now caches your auth token in memory so background trip saves never depend on the iOS keychain",
       "Fixed a bug where tapping the 'Looks like you're driving' notification could accidentally start a background recording that ran for hours. Tapping now just confirms the trip without changing the tracking mode",
       "Trips that failed to save now log the exact reason instead of failing silently. If a trip ever goes missing on this build, the diagnostics screen will tell you why",
       "Fixed stale GPS data from a previous trip bleeding into the next one. Each new recording now starts with a clean buffer so your start address and distance are always from the current drive",
+      "If a trip can't sync to the server because of a local device error, it now stays saved on your phone and retries later instead of being deleted",
     ],
   },
   {
