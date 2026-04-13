@@ -668,7 +668,13 @@ async function runDiagnosticScanJob(): Promise<void> {
   // because this feature didn't exist yet (or the cooldown expired).
   const ALERT_COOLDOWN_MS = 7 * 24 * 60 * 60 * 1000;
 
+  // Only scan dumps from the last 48 hours. Older dumps are stale -
+  // the user may have fixed the issue since uploading. This prevents
+  // alerting someone who already resolved their own problem.
+  const freshCutoff = new Date(Date.now() - 48 * 60 * 60 * 1000);
+
   const dumps = await prisma.diagnosticDump.findMany({
+    where: { createdAt: { gte: freshCutoff } },
     select: {
       userId: true,
       statusJson: true,
