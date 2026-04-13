@@ -6,6 +6,12 @@ const API_URL = process.env.EXPO_PUBLIC_API_URL || "https://api.mileclear.com";
 const ACCESS_TOKEN_KEY = "mileclear_access_token";
 export const REFRESH_TOKEN_KEY = "mileclear_refresh_token";
 
+// In-memory token cache — SecureStore can throw "User interaction is not
+// allowed" when iOS blocks keychain access during background-to-foreground
+// transitions. The cache means background finalize paths (auto-trip save)
+// never need to hit the keychain at all, preventing trip loss.
+let cachedAccessToken: string | null = null;
+
 // Global session expiry listener — AuthContext subscribes to this
 // so that any 401 from any screen automatically triggers logout
 type SessionExpiredListener = () => void;
@@ -20,18 +26,28 @@ if (!__DEV__ && API_URL.startsWith("http://")) {
 }
 
 async function getAccessToken(): Promise<string | null> {
-  return SecureStore.getItemAsync(ACCESS_TOKEN_KEY);
+  try {
+    const token = await SecureStore.getItemAsync(ACCESS_TOKEN_KEY);
+    if (token) cachedAccessToken = token;
+    return token;
+  } catch {
+    // SecureStore can throw "User interaction is not allowed" in background
+    // contexts on iOS. Fall back to the in-memory cached token.
+    return cachedAccessToken;
+  }
 }
 
 export async function setTokens(
   accessToken: string,
   refreshToken: string
 ): Promise<void> {
+  cachedAccessToken = accessToken;
   await SecureStore.setItemAsync(ACCESS_TOKEN_KEY, accessToken);
   await SecureStore.setItemAsync(REFRESH_TOKEN_KEY, refreshToken);
 }
 
 export async function clearTokens(): Promise<void> {
+  cachedAccessToken = null;
   await SecureStore.deleteItemAsync(ACCESS_TOKEN_KEY);
   await SecureStore.deleteItemAsync(REFRESH_TOKEN_KEY);
 }
@@ -45,7 +61,13 @@ async function refreshAccessToken(): Promise<string | null> {
   if (refreshPromise) return refreshPromise;
 
   refreshPromise = (async () => {
-    const refreshToken = await SecureStore.getItemAsync(REFRESH_TOKEN_KEY);
+    let refreshToken: string | null = null;
+    try {
+      refreshToken = await SecureStore.getItemAsync(REFRESH_TOKEN_KEY);
+    } catch {
+      // SecureStore blocked — can't refresh without the token
+      return null;
+    }
     if (!refreshToken) return null;
 
     try {

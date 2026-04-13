@@ -48,6 +48,22 @@ function isNetworkError(err: unknown): boolean {
   return false;
 }
 
+/** Errors that happened before the API was reached - SecureStore failures,
+ *  token refresh crashes, etc. These should be retried, not treated as
+ *  API validation rejections that warrant deleting the local row. */
+function isLocalSystemError(err: unknown): boolean {
+  if (!(err instanceof Error)) return false;
+  const msg = err.message;
+  return (
+    msg.includes("User interaction is not allowed") ||
+    msg.includes("getValueWithKeyAsync") ||
+    msg.includes("setValueWithKeyAsync") ||
+    msg.includes("SecureStore") ||
+    msg.includes("Session expired") ||
+    msg.includes("REFRESH_NETWORK_ERROR")
+  );
+}
+
 // ─── Trips ───────────────────────────────────────────────────────────────────
 
 export async function syncCreateTrip(data: CreateTripData) {
@@ -119,11 +135,13 @@ export async function syncCreateTrip(data: CreateTripData) {
     }
     return result;
   } catch (err) {
-    if (isNetworkError(err)) {
+    if (isNetworkError(err) || isLocalSystemError(err)) {
+      // Network failure or local system error (e.g. SecureStore blocked by
+      // iOS in background) — keep the local row and queue for retry.
       await enqueueSync("trip", localId, "create", data as unknown as Record<string, unknown>);
       return null;
     }
-    // API validation error — clean up local row and re-throw
+    // API validation error (4xx) — clean up local row and re-throw
     await db.runAsync("DELETE FROM trips WHERE id = ?", [localId]);
     throw err;
   }
@@ -236,7 +254,7 @@ export async function syncCreateEarning(data: CreateEarningData) {
     ]);
     return result;
   } catch (err) {
-    if (isNetworkError(err)) {
+    if (isNetworkError(err) || isLocalSystemError(err)) {
       await enqueueSync("earning", localId, "create", data as unknown as Record<string, unknown>);
       return null;
     }
@@ -332,7 +350,7 @@ export async function syncCreateFuelLog(data: CreateFuelLogData) {
     ]);
     return result;
   } catch (err) {
-    if (isNetworkError(err)) {
+    if (isNetworkError(err) || isLocalSystemError(err)) {
       await enqueueSync("fuel_log", localId, "create", data as unknown as Record<string, unknown>);
       return null;
     }
@@ -441,7 +459,7 @@ export async function syncStartShift(
 
     return result;
   } catch (err) {
-    if (isNetworkError(err)) {
+    if (isNetworkError(err) || isLocalSystemError(err)) {
       await enqueueSync("shift", localId, "create", (data ?? {}) as Record<string, unknown>);
       return { data: localShift };
     }
@@ -470,7 +488,7 @@ export async function syncEndShift(id: string) {
     );
     return result;
   } catch (err) {
-    if (isNetworkError(err)) {
+    if (isNetworkError(err) || isLocalSystemError(err)) {
       // Shift ended locally; scorecard unavailable offline
       return null;
     }
@@ -519,7 +537,7 @@ export async function syncCreateSavedLocation(data: CreateSavedLocationData) {
     ]);
     return result;
   } catch (err) {
-    if (isNetworkError(err)) {
+    if (isNetworkError(err) || isLocalSystemError(err)) {
       await enqueueSync("saved_location", localId, "create", data as unknown as Record<string, unknown>);
       return null;
     }
