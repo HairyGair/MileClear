@@ -172,7 +172,7 @@ export const RELEASE_NOTES: ReleaseNote[] = [
 // ----------------------------------------------------------------
 export const BLOG_POSTS: BlogPost[] = [
   {
-    slug: "what-64-drivers-taught-me",
+    slug: "what-real-drivers-taught-me",
     title: "What Real Drivers Taught Me About Building a Mileage Tracker",
     excerpt:
       "Six weeks after launch, MileClear has a growing user base, thousands of miles tracked, and a long list of lessons I could not have learned any other way. Here is what real drivers showed me about what actually matters.",
