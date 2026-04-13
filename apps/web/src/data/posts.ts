@@ -175,6 +175,92 @@ export const RELEASE_NOTES: ReleaseNote[] = [
 // ----------------------------------------------------------------
 export const BLOG_POSTS: BlogPost[] = [
   {
+    slug: "whats-new-in-version-1-0-8",
+    title: "What's New in Version 1.0.8",
+    excerpt:
+      "Weekly earnings goals, a working calendar, business expenses, tax estimates, smarter notifications, and a deep fix for a rare bug that silently lost trips.",
+    date: "13 April 2026",
+    author: "Gair",
+    category: "announcement",
+    content: `
+<p>Version 1.0.8 is the biggest update since launch. It adds proper financial tools for work-mode drivers, daily notifications that actually tell you something useful, and a tracking reliability fix that came from debugging my own lost trip.</p>
+
+<h2>Weekly earnings goal</h2>
+
+<p>You can now set a weekly earnings target on the dashboard. A progress bar fills up as you log earnings throughout the week - amber as you approach your goal, green when you hit it. It resets every Monday.</p>
+
+<p>This was one of the most requested features from beta testers. If you're driving to hit a number each week, you should be able to see where you stand without doing mental arithmetic.</p>
+
+<h2>Working calendar</h2>
+
+<p>A month-view heatmap showing which days you drove, how many trips you did, and how much you earned. Colour intensity is based on earnings, so your best days stand out at a glance.</p>
+
+<p>Tap any day to see a breakdown. Useful for spotting patterns - maybe Saturdays are consistently your best days, or maybe you're driving six days a week when five would earn nearly as much.</p>
+
+<h2>Business expenses</h2>
+
+<p>You can now log allowable business expenses - parking, tolls, congestion charges, phone costs, equipment, cleaning, professional fees, and more. Each category is flagged as HMRC-allowable or not, so you know what counts.</p>
+
+<p>Vehicle costs (maintenance, insurance, MOT, road tax) are tracked separately with a clear explanation: HMRC won't let you claim them alongside the mileage allowance. You can log them for your own records, but they won't appear in your deduction total.</p>
+
+<h2>Tax estimate</h2>
+
+<p>Based on your earnings, mileage deduction, and allowable expenses, MileClear now estimates your income tax and National Insurance liability. The breakdown shows each tax band, Class 2 NI, and Class 4 NI individually so you can see exactly how the number is calculated.</p>
+
+<p>This is an estimate, not tax advice. But it gives you a rough idea of what to set aside each month so you're not surprised in January.</p>
+
+<h2>Morning briefing</h2>
+
+<p>A daily push notification at 8am summarising yesterday: how many trips, total miles, earnings, weekly goal progress, and how many trips are waiting to be classified. Personal-mode drivers get a simpler version without the earnings.</p>
+
+<p>The idea is that you start each day knowing where you stand. If you have unclassified trips building up, the briefing nudges you. If you hit your weekly goal yesterday, it tells you.</p>
+
+<h2>Fuel price alerts</h2>
+
+<p>If you have saved locations, MileClear checks the cheapest fuel near them every day using the UK government's mandatory fuel pricing data - over 8,300 stations reporting live prices. If a station near your home or depot is significantly cheaper, you get a notification.</p>
+
+<p>This uses the same gov.uk Fuel Finder API that powers the fuel prices screen in the app. The data is mandatory reporting since February 2026, so it covers virtually every station in the UK.</p>
+
+<h2>Proactive tracking alerts</h2>
+
+<p>This is new and important. If MileClear detects a problem with your tracking setup - your location permission was downgraded, the background task stopped running, or a recording got stuck - it now sends you a push notification explaining what happened and how to fix it.</p>
+
+<p>Before this update, if iOS silently revoked your background location permission (which it does occasionally), your trips would just stop recording and you might not notice for days. Now you'll know within hours.</p>
+
+<h2>Smarter trip notifications</h2>
+
+<p>Trip notifications now include your daily running total. Instead of just "Trip recorded - 3.2 mi", you see "Trip 4 today, 18.7 mi total". It's a small thing, but it makes your day feel like it's building towards something.</p>
+
+<p>There's also a red badge on your avatar and in the navigation menu showing how many unclassified trips you have. It clears as you work through them.</p>
+
+<h2>The trip that disappeared</h2>
+
+<p>The most important fix in this build came from a bug I hit myself. I drove somewhere, the app recorded 429 GPS coordinates over a 30-minute drive, and when I opened the app the trip was gone. No error message, no notification, nothing.</p>
+
+<p>The diagnostics screen (which we added in 1.0.7) told me exactly what happened. When the app tried to save the trip, it needed to read the authentication token from iOS secure storage. But iOS blocked the keychain access - a security restriction that can happen when the app transitions from background to foreground. The error wasn't classified as a network failure, so the app treated it as an API rejection and deleted the local copy of the trip. 429 coordinates, gone.</p>
+
+<p>The fix has two parts. First, the authentication token is now cached in memory so background trip saves never need to touch the iOS keychain at all. Second, if a trip can't sync because of a local device error (as opposed to the server rejecting it), the trip stays saved on your phone and retries later instead of being deleted.</p>
+
+<p>This was a rare edge case - most of the time the keychain access works fine. But "rare" means it will eventually happen to someone, and losing a trip with no explanation is exactly the kind of thing that makes people stop trusting the app. It won't happen again.</p>
+
+<h2>Other fixes</h2>
+
+<ul>
+<li>Fixed a bug where tapping the "Looks like you're driving" notification body could accidentally start a background recording that ran for hours. Tapping now confirms the trip without changing the tracking mode.</li>
+<li>Trips that fail to save now log the exact error in the diagnostics screen. If a trip ever goes missing on this build, you'll be able to see why.</li>
+<li>Each new recording starts with a clean GPS buffer, so stale coordinates from a previous trip can't bleed into the next one.</li>
+</ul>
+
+<h2>Try it out</h2>
+
+<p>Version 1.0.8 is available now on <a href="https://testflight.apple.com/join/SGrmnaaH">TestFlight</a>. If you're already in the beta, it should appear as an update. If you're new, the link will get you set up in a couple of minutes.</p>
+
+<p>As always, feedback goes straight to us - use the feedback screen in the app or email <a href="mailto:support@mileclear.com">support@mileclear.com</a>.</p>
+
+<p>- Gair</p>
+    `.trim(),
+  },
+  {
     slug: "what-real-drivers-taught-me",
     title: "What Real Drivers Taught Me About Building a Mileage Tracker",
     excerpt:
