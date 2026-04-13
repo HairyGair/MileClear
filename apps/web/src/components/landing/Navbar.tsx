@@ -23,9 +23,9 @@ export default function Navbar() {
         </a>
 
         <ul className="nav__links">
-          <li><a href="/#features" className="nav__link">Features</a></li>
-          <li><a href="/#pricing" className="nav__link">Pricing</a></li>
-          <li><a href="/#faq" className="nav__link">FAQ</a></li>
+          <li><a href="/features" className="nav__link">Features</a></li>
+          <li><a href="/pricing" className="nav__link">Pricing</a></li>
+          <li><a href="/faq" className="nav__link">FAQ</a></li>
           <li><a href="/updates" className="nav__link">Updates</a></li>
         </ul>
 
@@ -45,9 +45,9 @@ export default function Navbar() {
       </div>
 
       <div className={`nav__mobile${open ? " nav__mobile--open" : ""}`}>
-        <a href="/#features" onClick={close}>Features</a>
-        <a href="/#pricing" onClick={close}>Pricing</a>
-        <a href="/#faq" onClick={close}>FAQ</a>
+        <a href="/features" onClick={close}>Features</a>
+        <a href="/pricing" onClick={close}>Pricing</a>
+        <a href="/faq" onClick={close}>FAQ</a>
         <a href="/updates" onClick={close}>Updates</a>
         <a href="/login" onClick={close}>Sign in</a>
         <a href="/register" className="nav__mobile-cta" onClick={close}>

@@ -1,0 +1,77 @@
+/* ================================================================
+   FAQ PAGE
+   Extends legal.css base styles with FAQ-specific layout.
+   ================================================================ */
+
+.faq__section {
+  border-top: 1px solid var(--border-default);
+  padding-top: 2.5rem;
+}
+
+.faq__section:first-child {
+  border-top: none;
+  padding-top: 0;
+}
+
+.faq__qa {
+  margin-bottom: 2rem;
+}
+
+.faq__qa:last-child {
+  margin-bottom: 0;
+}
+
+.faq__question {
+  font-family: var(--font-display);
+  font-size: 1.0625rem;
+  font-weight: 600;
+  color: var(--text-white);
+  margin-bottom: 0.625rem;
+  line-height: 1.5;
+  letter-spacing: -0.01em;
+}
+
+/* CTA block at the bottom */
+.faq__cta {
+  border-top: 1px solid var(--border-default);
+  padding-top: 2.5rem;
+  margin-top: 1rem;
+  text-align: center;
+}
+
+.faq__cta-links {
+  display: flex;
+  gap: 0.875rem;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+.faq__cta-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.625rem 1.375rem;
+  border-radius: var(--r-full);
+  font-size: 0.9375rem;
+  font-weight: 600;
+  transition: background 0.2s, color 0.2s, border-color 0.2s;
+}
+
+.faq__cta-btn--primary {
+  background: var(--amber-500);
+  color: #030712;
+}
+
+.faq__cta-btn--primary:hover {
+  background: var(--amber-400);
+}
+
+.faq__cta-btn--ghost {
+  border: 1px solid var(--border-strong);
+  color: var(--text-primary);
+}
+
+.faq__cta-btn--ghost:hover {
+  border-color: var(--amber-600);
+  color: var(--amber-400);
+}
