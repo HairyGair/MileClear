@@ -41,8 +41,9 @@ const features = [
       </svg>
     ),
     title: "Earnings and business insights",
-    desc: "Track what you earn across platforms. See your real earnings per mile, per hour, and a weekly profit and loss breakdown.",
+    desc: "Log earnings by platform for free. Upgrade to Pro for earnings per mile, per hour, platform comparison, shift grades, and weekly P&L.",
     alt: true,
+    pro: "Full insights",
   },
   {
     icon: (
@@ -73,8 +74,9 @@ const features = [
         <circle cx="12" cy="10" r="3" />
       </svg>
     ),
-    title: "Saved locations and classification rules",
-    desc: "Save your home, depot, or regular stops. Set rules like 'Mon-Fri 6am-2pm = Business' or 'Trips from Depot = Business' and trips classify themselves.",
+    title: "Saved locations and geofencing",
+    desc: "Save your home, depot, or regular stops with geofencing for auto-classification. 2 locations free, unlimited with Pro.",
+    pro: "Unlimited",
   },
   {
     icon: (
@@ -105,8 +107,20 @@ const features = [
       </svg>
     ),
     title: "HMRC-ready exports",
-    desc: "Download PDF trip reports and Self Assessment summaries with every trip dated, classified, and distance-verified. Ready for your tax return.",
+    desc: "Download PDF trip reports, CSV exports, and Self Assessment summaries with every trip dated, classified, and distance-verified.",
     alt: true,
+    pro: "Pro",
+  },
+  {
+    icon: (
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <line x1="12" y1="1" x2="12" y2="23" />
+        <path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6" />
+      </svg>
+    ),
+    title: "Expense tracking and tax estimate",
+    desc: "Log business expenses like parking, tolls, and congestion charges. See your estimated income tax and National Insurance based on your earnings and deductions.",
+    pro: "Pro",
   },
   {
     icon: (
@@ -115,9 +129,10 @@ const features = [
         <path d="M7 11V7a5 5 0 0110 0v4" />
       </svg>
     ),
-    title: "Your data, your control",
-    desc: "Export everything or delete your account any time. Fully GDPR compliant. We never sell your data.",
+    title: "CSV import and Open Banking",
+    desc: "Bulk import earnings from platform CSVs or sync automatically via Open Banking with Plaid. No more manual data entry.",
     alt: true,
+    pro: "Pro",
   },
   {
     icon: (
@@ -152,7 +167,23 @@ export default function Features() {
                 <div className={`f-card__icon${f.alt ? " f-card__icon--alt" : ""}`}>
                   {f.icon}
                 </div>
-                <h3 className="f-card__title">{f.title}</h3>
+                <h3 className="f-card__title">
+                  {f.title}
+                  {f.pro && (
+                    <span style={{
+                      marginLeft: "0.5rem",
+                      fontSize: "0.6875rem",
+                      fontWeight: 700,
+                      textTransform: "uppercase",
+                      letterSpacing: "0.5px",
+                      padding: "2px 6px",
+                      borderRadius: "4px",
+                      background: "rgba(245,166,35,0.15)",
+                      color: "var(--amber-400)",
+                      verticalAlign: "middle",
+                    }}>{f.pro}</span>
+                  )}
+                </h3>
                 <p className="f-card__desc">{f.desc}</p>
               </div>
             ))}
