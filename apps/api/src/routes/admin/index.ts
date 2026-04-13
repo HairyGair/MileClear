@@ -380,6 +380,27 @@ export async function adminRoutes(app: FastifyInstance) {
     });
   });
 
+  // GET /admin/diagnostic-alerts
+  app.get("/diagnostic-alerts", async (_request, reply) => {
+    const alerts = await prisma.appEvent.findMany({
+      where: {
+        type: { in: ["alert.permission_missing", "alert.task_not_running", "alert.stuck_recording"] },
+      },
+      orderBy: { createdAt: "desc" },
+      take: 100,
+      select: {
+        id: true,
+        type: true,
+        userId: true,
+        metadata: true,
+        createdAt: true,
+        user: { select: { email: true, displayName: true } },
+      },
+    });
+
+    return reply.send({ data: alerts });
+  });
+
   // PATCH /admin/users/:userId/premium
   app.patch("/users/:userId/premium", async (request, reply) => {
     const { userId } = request.params as { userId: string };

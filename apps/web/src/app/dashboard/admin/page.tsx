@@ -3068,7 +3068,104 @@ function OpsTab() {
   );
 }
 
-type Tab = "overview" | "activity" | "users" | "health" | "revenue" | "engagement" | "auto-trips" | "push" | "email" | "feedback" | "ops";
+// ---------------------------------------------------------------------------
+// Alerts Tab - diagnostic alerts sent to users
+// ---------------------------------------------------------------------------
+
+interface AlertEvent {
+  id: string;
+  type: string;
+  userId: string | null;
+  metadata: Record<string, unknown> | null;
+  createdAt: string;
+  user?: { email: string; displayName: string | null } | null;
+}
+
+function AlertsTab() {
+  const [alerts, setAlerts] = useState<AlertEvent[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    api
+      .get<{ data: AlertEvent[] }>("/admin/diagnostic-alerts")
+      .then((res) => setAlerts(res.data))
+      .catch(() => setAlerts([]))
+      .finally(() => setLoading(false));
+  }, []);
+
+  if (loading) return <LoadingSkeleton variant="row" count={6} />;
+
+  const alertLabel = (type: string) => {
+    if (type.includes("permission")) return "Permission Missing";
+    if (type.includes("task_not")) return "Task Stopped";
+    if (type.includes("stuck")) return "Stuck Recording";
+    return type;
+  };
+
+  const alertColor = (type: string) => {
+    if (type.includes("permission")) return "var(--dash-red)";
+    if (type.includes("task_not")) return "var(--dash-red)";
+    if (type.includes("stuck")) return "var(--amber-500)";
+    return "var(--text-secondary)";
+  };
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: "1.25rem" }}>
+      <Card title="Diagnostic Alerts">
+        <p style={{ fontSize: "0.8125rem", color: "var(--text-secondary)", margin: "0 0 1rem" }}>
+          Alerts sent to users when their diagnostics show fixable issues. You receive a copy of each as a push notification.
+        </p>
+        {alerts.length === 0 ? (
+          <p style={{ fontSize: "0.8125rem", color: "var(--text-tertiary)" }}>
+            No alerts sent yet. Alerts fire when users upload diagnostics or when the periodic scan runs (every 6 hours).
+          </p>
+        ) : (
+          <div className="table-wrap">
+            <table className="table">
+              <thead>
+                <tr>
+                  <th>When</th>
+                  <th>User</th>
+                  <th>Alert</th>
+                  <th>Details</th>
+                </tr>
+              </thead>
+              <tbody>
+                {alerts.map((a) => (
+                  <tr key={a.id}>
+                    <td style={{ fontSize: "0.75rem", whiteSpace: "nowrap" }}>
+                      {timeAgo(a.createdAt)}
+                      <div style={{ fontSize: "0.6875rem", color: "var(--text-tertiary)" }}>
+                        {new Date(a.createdAt).toLocaleString()}
+                      </div>
+                    </td>
+                    <td style={{ fontSize: "0.8125rem" }}>
+                      {a.user?.displayName || a.user?.email || a.userId || "-"}
+                    </td>
+                    <td>
+                      <span style={{
+                        color: alertColor(a.type),
+                        fontWeight: 600,
+                        fontSize: "0.8125rem",
+                      }}>
+                        {alertLabel(a.type)}
+                      </span>
+                    </td>
+                    <td style={{ fontSize: "0.75rem", color: "var(--text-tertiary)" }}>
+                      {a.metadata ? JSON.stringify(a.metadata) : "-"}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </Card>
+    </div>
+  );
+}
+
+type Tab = "overview" | "activity" | "users" | "health" | "revenue" | "engagement" | "auto-trips" | "push" | "email" | "feedback" | "ops" | "alerts";
 
 const tabLabels: Record<Tab, string> = {
   overview: "Overview",
@@ -3082,6 +3179,7 @@ const tabLabels: Record<Tab, string> = {
   email: "Email",
   feedback: "Feedback",
   ops: "Ops",
+  alerts: "Alerts",
 };
 
 export default function AdminPage() {
@@ -3154,6 +3252,7 @@ export default function AdminPage() {
       {tab === "feedback" && <FeedbackTab />}
       {tab === "activity" && <ActivityTab />}
       {tab === "ops" && <OpsTab />}
+      {tab === "alerts" && <AlertsTab />}
     </>
   );
 }
