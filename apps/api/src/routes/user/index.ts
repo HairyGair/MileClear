@@ -4,6 +4,8 @@ import { authMiddleware } from "../../middleware/auth.js";
 import { prisma } from "../../lib/prisma.js";
 import { stripe } from "../../lib/stripe.js";
 import { verifyPassword } from "../../services/auth.js";
+import { sendPushToUser } from "../../lib/push.js";
+import { logEvent } from "../../services/appEvents.js";
 
 const updateProfileSchema = z.object({
   displayName: z.string().max(100).nullable().optional(),
@@ -39,6 +41,75 @@ const USER_SELECT = {
   premiumExpiresAt: true,
   createdAt: true,
 } as const;
+
+const ALERT_COOLDOWN_DAYS = 7;
+
+async function wasAlertedRecently(userId: string, alertType: string): Promise<boolean> {
+  const cutoff = new Date(Date.now() - ALERT_COOLDOWN_DAYS * 24 * 60 * 60 * 1000);
+  const existing = await prisma.appEvent.findFirst({
+    where: {
+      userId,
+      type: alertType,
+      createdAt: { gte: cutoff },
+    },
+  });
+  return !!existing;
+}
+
+async function analyzeDiagnosticAndAlert(
+  userId: string,
+  statusJson: Record<string, unknown>,
+): Promise<void> {
+  const bgPermission = statusJson.backgroundPermission as string | undefined;
+  const taskRunning = statusJson.taskRunning as boolean | undefined;
+  const enabled = statusJson.enabled as boolean | undefined;
+  const autoRecording = statusJson.autoRecordingActive as boolean | undefined;
+  const lastDrivingStr = (statusJson.trackingState as Array<{ key: string; value: string }> | undefined)
+    ?.find((s) => s.key === "last_driving_speed_at")?.value;
+
+  // Alert 1: Background permission not granted
+  if (bgPermission && bgPermission !== "granted") {
+    if (!(await wasAlertedRecently(userId, "alert.permission_missing"))) {
+      await sendPushToUser(
+        userId,
+        "Trips aren't recording automatically",
+        "MileClear needs background location to detect your drives. Go to Settings > MileClear > Location > Always.",
+        { action: "open_settings" },
+      );
+      logEvent("alert.permission_missing", userId, { bgPermission });
+    }
+  }
+
+  // Alert 2: Task not running but detection is enabled
+  if (taskRunning === false && enabled === true) {
+    if (!(await wasAlertedRecently(userId, "alert.task_not_running"))) {
+      await sendPushToUser(
+        userId,
+        "Drive detection stopped",
+        "MileClear's background task isn't running. Try closing and reopening the app to restart it.",
+        { action: "open_dashboard" },
+      );
+      logEvent("alert.task_not_running", userId);
+    }
+  }
+
+  // Alert 3: Stuck recording (active but no driving for >30 min)
+  if (autoRecording === true && lastDrivingStr) {
+    const lastDrivingMs = parseInt(lastDrivingStr, 10);
+    const elapsed = Date.now() - lastDrivingMs;
+    if (elapsed > 30 * 60 * 1000) {
+      if (!(await wasAlertedRecently(userId, "alert.stuck_recording"))) {
+        await sendPushToUser(
+          userId,
+          "A trip is waiting to save",
+          "It looks like a recording is still running. Open MileClear to save the trip.",
+          { action: "open_trips" },
+        );
+        logEvent("alert.stuck_recording", userId, { elapsedMs: elapsed });
+      }
+    }
+  }
+}
 
 export async function userRoutes(app: FastifyInstance) {
   app.addHook("preHandler", authMiddleware);
@@ -411,6 +482,10 @@ export async function userRoutes(app: FastifyInstance) {
         eventsJson: d.eventsJson,
       },
     });
+
+    // Analyse diagnostic and send proactive alerts for fixable issues.
+    // Deduped to once per 7 days per issue type via AppEvent table.
+    analyzeDiagnosticAndAlert(userId, d.statusJson).catch(() => {});
 
     return reply.send({ success: true });
   });
