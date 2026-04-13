@@ -172,6 +172,88 @@ export const RELEASE_NOTES: ReleaseNote[] = [
 // ----------------------------------------------------------------
 export const BLOG_POSTS: BlogPost[] = [
   {
+    slug: "what-64-drivers-taught-me",
+    title: "What Real Drivers Taught Me About Building a Mileage Tracker",
+    excerpt:
+      "Six weeks after launch, MileClear has a growing user base, thousands of miles tracked, and a long list of lessons I could not have learned any other way. Here is what real drivers showed me about what actually matters.",
+    date: "13 April 2026",
+    author: "Anthony Gair",
+    category: "announcement",
+    content: `
+<p>MileClear launched on the App Store on 1 March 2026. Six weeks later, the user base is growing day by day and retention is improving week on week. Thousands of miles have been tracked, hundreds of trips recorded, and a growing number of drivers have upgraded to Pro.</p>
+
+<p>But the numbers are not the point of this post. What matters is what real drivers have shown me about what actually works, what breaks, and what I got wrong. Every trip and every bug report has taught me something I could not have learned by testing on my own phone.</p>
+
+<h2>People want their mileage tracked. That is it.</h2>
+
+<p>The single biggest lesson from the first six weeks is that users care about one thing above everything else: did my trip record? If the answer is yes, they are happy. If the answer is no, nothing else matters. Not the achievements, not the fuel prices, not the weekly P&L. The trip has to be there.</p>
+
+<p>I built MileClear with a lot of features. <a href="/features">Twelve feature cards</a> on the homepage. Shift mode, gamification, fuel prices, business insights, platform tagging, classification rules. But the feedback I get is almost entirely about trip accuracy. "My drive to the shops did not show up." "Only half my commute was saved." "It says I drove somewhere I did not go."</p>
+
+<p>That told me something important about priorities. Every hour I spend on a new dashboard widget is an hour I am not spending on making the next trip record correctly. The features can wait. The detection engine cannot.</p>
+
+<h2>Background location permission is harder than I expected</h2>
+
+<p>MileClear needs "Always Allow" location permission to detect when you start driving. Without it, the app can only track trips when it is open on screen, which defeats the purpose of automatic tracking.</p>
+
+<p>iOS makes this permission deliberately hard to grant. The system asks twice: first "While Using" then later promotes to "Always." Some users never see the second prompt. Others see it and tap "Keep Only While Using" because it sounds safer. A few have their phone set to never allow background location for any app.</p>
+
+<p>The result is that a meaningful number of my 64 users have drive detection that simply does not work, and they do not know why. The <a href="/updates/case-of-the-phantom-trip">diagnostics screen I built in 1.0.7</a> shows the permission state, but users have to know to look at it. For 1.0.8 I need the app to surface this problem proactively instead of silently failing.</p>
+
+<h2>The shift and business side is what matters</h2>
+
+<p>I launched MileClear with both a work mode and a personal mode. Work mode is for gig drivers and self-employed people who need to track business miles for <a href="/faq">HMRC tax deductions</a>. Personal mode is for anyone who just wants to see how much they drive.</p>
+
+<p>Most of my current users are using personal mode. But the users who stick around, the ones who open the app every day, are the ones using shifts. They clock on, do their deliveries, clock off, and check their scorecard. That daily loop is what keeps people coming back.</p>
+
+<p>I am happy about this because the shift system is where the real value is. A personal driver might check their mileage once a week. A gig driver checks it every shift. And every shift they run surfaces another edge case I need to fix. The more people who use shifts, the better the app becomes for everyone.</p>
+
+<h2>About 10 trips have been lost</h2>
+
+<p>I want to be honest about this. Across all users and hundreds of tracked trips, roughly 10 trips have been lost due to bugs in the auto-detection engine. Each one is a drive that someone did, that the app detected, that started recording, and that then silently failed to save.</p>
+
+<p>10 is not a lot in absolute terms. But if one of those 10 was your trip to an important meeting, or a delivery run you needed for your tax return, it is 100% of what matters to you. Every lost trip erodes trust. And trust is the only thing a mileage tracker sells.</p>
+
+<p>The causes are documented in the engineering blog. A <a href="/updates/case-of-the-phantom-trip">geofence bug</a> that consumed the departure anchor. A silent exit in the trip-save code path that swallowed errors without logging them. A buffer that bled stale GPS coordinates from one recording into the next. Each one is fixed or being fixed in <a href="/updates">1.0.8</a>.</p>
+
+<h2>Norman's Kingston Park drive</h2>
+
+<p>One user, Norman, sent me a diagnostics dump that changed how I think about debugging. He drove from his home near Newcastle to Kingston Park, stayed for about 45 minutes, then drove home. The outbound trip did not save. The return trip saved but with the wrong start address.</p>
+
+<p>From the outside, that looks like "the app lost my trip." From the inside, it was five separate bugs interacting. A stale finalize that exited silently. Buffer residue from a previous recording bleeding into the new one. A phantom classifier marking a real drive as indoor GPS drift. A stop-detection timer that did not fire. And timestamps stored in UTC that I was comparing against the user's recollection in BST, which cost me 20 minutes of debugging before I noticed the one-hour offset.</p>
+
+<p>Norman did not know any of that. He just knew his trip was missing. But his diagnostics dump, combined with the <a href="/features">detection event log</a> and a database query against the production trips table, let me reconstruct exactly what happened at every millisecond. Without that tooling, I would still be guessing.</p>
+
+<p>Norman's case is why 1.0.7 added the diagnostics screen and why 1.0.8 adds logging at every exit point in the finalize code path. The next time a trip is lost, the diagnostics will say exactly why.</p>
+
+<h2>Silence is the default</h2>
+
+<p>The biggest surprise of launching is how quiet users are. 64 people have signed up. 32 use the app regularly. Almost none of them have sent feedback, reported a bug, or asked a question. The feedback screen in the app has a handful of entries. The support email gets nothing.</p>
+
+<p>This is not a complaint. It is a reality of building consumer software. Most people do not report bugs. They just stop using the app. The ones who do report bugs are worth their weight in gold, because for every Norman who sends a diagnostics dump, there are probably five users who had the same issue and silently moved on.</p>
+
+<p>That is why I built the admin dashboard to track drive detection health across all users. I can see diagnostic verdicts (healthy, warning, error) for every user who has uploaded a dump. I can see who has not driven in weeks. I can see who has background permission issues. I do not have to wait for someone to tell me something is wrong.</p>
+
+<h2>The numbers that matter</h2>
+
+<p>I am not going to share exact user counts. MileClear is early stage and the numbers are still small. What I will say is that the trends are in the right direction. New users are signing up every week without any paid advertising. Retention is improving with each build as detection gets more reliable. And the ratio of active users to total signups is healthy enough to tell me the core product works - people who try it keep using it.</p>
+
+<p>The number I watch most closely is how many users are still tracking trips a month after signing up. That is the real test of whether the app delivers on its promise. If your trips record accurately and your tax deduction ticks up every week, you keep using it. If a trip goes missing, you stop trusting it and you leave. Everything I build is in service of that one metric.</p>
+
+<p>Eight app updates have shipped since launch, from 1.0.0 to 1.0.8. That pace is not slowing down.</p>
+
+<h2>What is next</h2>
+
+<p>The immediate priority for 1.0.8 is trip detection reliability. Every lost trip is a broken promise. The silent finalize bug, the buffer residue bug, the stuck recording bug, and the accidental quick-trip bug are all fixed and shipping in the next build.</p>
+
+<p>After that, the focus shifts to making the app smarter. <a href="/features">Predictive trip classification</a> that learns your schedule and pre-fills the right platform tag. A daily morning briefing notification with your yesterday's stats and weekly goal progress. Fuel price alerts when prices drop near your saved locations. Small things that make the app feel like it knows you.</p>
+
+<p>And eventually, Android. The most common question I get is "is it on Android?" Not yet. But the API, the web dashboard, and the business logic are all platform-independent. The mobile app is the only iOS-specific part. It is on the roadmap.</p>
+
+<p>If you are a driver in the UK and you want a mileage tracker that is built here, priced fairly, and actively improving every week, <a href="https://apps.apple.com/app/mileclear/id6742044832">MileClear is free on the App Store</a>. And if something does not work, tell me. I am listening even when it is quiet.</p>
+`,
+  },
+  {
     slug: "case-of-the-phantom-trip",
     title: "The Case of the Phantom Trip",
     excerpt:
