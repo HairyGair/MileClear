@@ -67,30 +67,62 @@ async function analyzeDiagnosticAndAlert(
   const lastDrivingStr = (statusJson.trackingState as Array<{ key: string; value: string }> | undefined)
     ?.find((s) => s.key === "last_driving_speed_at")?.value;
 
+  // Helper: send alert to user + notify all admins
+  async function sendAlertWithAdminNotify(
+    alertUserId: string,
+    alertType: string,
+    title: string,
+    body: string,
+    data: Record<string, unknown>,
+    metadata?: Record<string, unknown>,
+  ) {
+    if (await wasAlertedRecently(alertUserId, alertType)) return;
+
+    // Alert the user
+    await sendPushToUser(alertUserId, title, body, data);
+    logEvent(alertType, alertUserId, metadata);
+
+    // Notify all admins
+    const user = await prisma.user.findUnique({
+      where: { id: alertUserId },
+      select: { email: true, displayName: true },
+    });
+    const admins = await prisma.user.findMany({
+      where: { isAdmin: true, pushToken: { not: null } },
+      select: { id: true },
+    });
+    const userName = user?.displayName || user?.email || alertUserId;
+    for (const admin of admins) {
+      await sendPushToUser(
+        admin.id,
+        `Diagnostic alert: ${userName}`,
+        `${title} - ${body}`,
+        { action: "open_admin", userId: alertUserId },
+      ).catch(() => {});
+    }
+  }
+
   // Alert 1: Background permission not granted
   if (bgPermission && bgPermission !== "granted") {
-    if (!(await wasAlertedRecently(userId, "alert.permission_missing"))) {
-      await sendPushToUser(
-        userId,
-        "Trips aren't recording automatically",
-        "MileClear needs background location to detect your drives. Go to Settings > MileClear > Location > Always.",
-        { action: "open_settings" },
-      );
-      logEvent("alert.permission_missing", userId, { bgPermission });
-    }
+    await sendAlertWithAdminNotify(
+      userId,
+      "alert.permission_missing",
+      "Trips aren't recording automatically",
+      "MileClear needs background location to detect your drives. Go to Settings > MileClear > Location > Always.",
+      { action: "open_settings" },
+      { bgPermission },
+    );
   }
 
   // Alert 2: Task not running but detection is enabled
   if (taskRunning === false && enabled === true) {
-    if (!(await wasAlertedRecently(userId, "alert.task_not_running"))) {
-      await sendPushToUser(
-        userId,
-        "Drive detection stopped",
-        "MileClear's background task isn't running. Try closing and reopening the app to restart it.",
-        { action: "open_dashboard" },
-      );
-      logEvent("alert.task_not_running", userId);
-    }
+    await sendAlertWithAdminNotify(
+      userId,
+      "alert.task_not_running",
+      "Drive detection stopped",
+      "MileClear's background task isn't running. Try closing and reopening the app to restart it.",
+      { action: "open_dashboard" },
+    );
   }
 
   // Alert 3: Stuck recording (active but no driving for >30 min)
@@ -98,15 +130,14 @@ async function analyzeDiagnosticAndAlert(
     const lastDrivingMs = parseInt(lastDrivingStr, 10);
     const elapsed = Date.now() - lastDrivingMs;
     if (elapsed > 30 * 60 * 1000) {
-      if (!(await wasAlertedRecently(userId, "alert.stuck_recording"))) {
-        await sendPushToUser(
-          userId,
-          "A trip is waiting to save",
-          "It looks like a recording is still running. Open MileClear to save the trip.",
-          { action: "open_trips" },
-        );
-        logEvent("alert.stuck_recording", userId, { elapsedMs: elapsed });
-      }
+      await sendAlertWithAdminNotify(
+        userId,
+        "alert.stuck_recording",
+        "A trip is waiting to save",
+        "It looks like a recording is still running. Open MileClear to save the trip.",
+        { action: "open_trips" },
+        { elapsedMs: elapsed },
+      );
     }
   }
 }

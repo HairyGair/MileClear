@@ -662,6 +662,107 @@ async function runFuelPriceAlertJob(): Promise<void> {
   }
 }
 
+async function runDiagnosticScanJob(): Promise<void> {
+  // Scan all existing diagnostic dumps for fixable issues and alert users.
+  // This catches users who uploaded a dump previously but weren't alerted
+  // because this feature didn't exist yet (or the cooldown expired).
+  const ALERT_COOLDOWN_MS = 7 * 24 * 60 * 60 * 1000;
+
+  const dumps = await prisma.diagnosticDump.findMany({
+    select: {
+      userId: true,
+      statusJson: true,
+      user: { select: { pushToken: true, email: true, displayName: true } },
+    },
+  });
+
+  let sent = 0;
+  for (const dump of dumps) {
+    if (!dump.user.pushToken) continue;
+
+    const status = dump.statusJson as Record<string, unknown>;
+    const bgPerm = status.backgroundPermission as string | undefined;
+    const taskRunning = status.taskRunning as boolean | undefined;
+    const enabled = status.enabled as boolean | undefined;
+    const autoRecording = status.autoRecordingActive as boolean | undefined;
+    const trackingState = status.trackingState as Array<{ key: string; value: string }> | undefined;
+    const lastDrivingStr = trackingState?.find((s) => s.key === "last_driving_speed_at")?.value;
+
+    // Check each alert type with cooldown
+    const checks: Array<{
+      condition: boolean;
+      alertType: string;
+      title: string;
+      body: string;
+      data: Record<string, unknown>;
+    }> = [
+      {
+        condition: !!bgPerm && bgPerm !== "granted",
+        alertType: "alert.permission_missing",
+        title: "Trips aren't recording automatically",
+        body: "MileClear needs background location to detect your drives. Go to Settings > MileClear > Location > Always.",
+        data: { action: "open_settings" },
+      },
+      {
+        condition: taskRunning === false && enabled === true,
+        alertType: "alert.task_not_running",
+        title: "Drive detection stopped",
+        body: "MileClear's background task isn't running. Try closing and reopening the app to restart it.",
+        data: { action: "open_dashboard" },
+      },
+    ];
+
+    // Stuck recording only if last_driving_speed_at is recent-ish (within 24h)
+    // to avoid alerting about very stale dumps
+    if (autoRecording === true && lastDrivingStr) {
+      const elapsed = Date.now() - parseInt(lastDrivingStr, 10);
+      if (elapsed > 30 * 60 * 1000 && elapsed < 24 * 60 * 60 * 1000) {
+        checks.push({
+          condition: true,
+          alertType: "alert.stuck_recording",
+          title: "A trip is waiting to save",
+          body: "It looks like a recording is still running. Open MileClear to save the trip.",
+          data: { action: "open_trips" },
+        });
+      }
+    }
+
+    for (const check of checks) {
+      if (!check.condition) continue;
+      const cutoff = new Date(Date.now() - ALERT_COOLDOWN_MS);
+      const already = await prisma.appEvent.findFirst({
+        where: { userId: dump.userId, type: check.alertType, createdAt: { gte: cutoff } },
+      });
+      if (already) continue;
+
+      try {
+        await sendPushToUser(dump.userId, check.title, check.body, check.data);
+        logEvent(check.alertType, dump.userId);
+
+        // Notify admins
+        const admins = await prisma.user.findMany({
+          where: { isAdmin: true, pushToken: { not: null } },
+          select: { id: true },
+        });
+        const userName = dump.user.displayName || dump.user.email || dump.userId;
+        for (const admin of admins) {
+          await sendPushToUser(
+            admin.id,
+            `Diagnostic alert: ${userName}`,
+            `${check.title} - ${check.body}`,
+            { action: "open_admin", userId: dump.userId },
+          ).catch(() => {});
+        }
+        sent++;
+      } catch {}
+    }
+  }
+
+  if (sent > 0) {
+    console.log(`[jobs/notifications] Diagnostic scan sent ${sent} alert(s)`);
+  }
+}
+
 export function startNotificationJobs(): void {
   const INITIAL_DELAY_MS = 60 * 1000;       // 60 seconds
   const INTERVAL_MS = 6 * 60 * 60 * 1000;  // 6 hours
@@ -685,6 +786,9 @@ export function startNotificationJobs(): void {
 
     void runJob("fuel_price_alert", runFuelPriceAlertJob);
     setInterval(() => void runJob("fuel_price_alert", runFuelPriceAlertJob), INTERVAL_MS);
+
+    void runJob("diagnostic_scan", runDiagnosticScanJob);
+    setInterval(() => void runJob("diagnostic_scan", runDiagnosticScanJob), INTERVAL_MS);
   }, INITIAL_DELAY_MS);
 
   console.log("[jobs/notifications] Scheduled notification jobs started (first run in 60s)");
