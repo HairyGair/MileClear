@@ -158,6 +158,14 @@ export default function Features() {
             ))}
           </div>
         </Reveal>
+
+        <Reveal delay="reveal-d3">
+          <div style={{ textAlign: "center", marginTop: "2rem" }}>
+            <a href="/features" style={{ color: "var(--amber-400)", fontFamily: "var(--font-display)", fontSize: "0.9375rem", textDecoration: "none" }}>
+              See all features in detail &rarr;
+            </a>
+          </div>
+        </Reveal>
       </div>
     </section>
   );

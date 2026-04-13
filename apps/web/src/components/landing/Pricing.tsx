@@ -85,6 +85,11 @@ export default function Pricing() {
           <p className="pricing__footnote">
             Annual plan available at &pound;44.99/year (save 25%). No card needed to start.
           </p>
+          <div style={{ textAlign: "center", marginTop: "1rem" }}>
+            <a href="/pricing" style={{ color: "var(--amber-400)", fontFamily: "var(--font-display)", fontSize: "0.9375rem", textDecoration: "none" }}>
+              View full pricing details and FAQ &rarr;
+            </a>
+          </div>
         </Reveal>
       </div>
     </section>

@@ -1,12 +1,12 @@
 import Reveal from "./Reveal";
 
 const audiences = [
-  { icon: "\uD83D\uDE97", title: "Uber and ride-hail drivers", desc: "Uber, Bolt, FREE NOW, Ola" },
-  { icon: "\uD83D\uDCE6", title: "Delivery drivers", desc: "Deliveroo, Just Eat, Uber Eats, Amazon Flex" },
-  { icon: "\uD83D\uDE9A", title: "Couriers and logistics", desc: "DPD, Evri, Yodel, Stuart, Gophr, Royal Mail" },
-  { icon: "\uD83D\uDCBC", title: "Sales reps and field workers", desc: "Anyone logging client visits or site trips" },
-  { icon: "\uD83D\uDD27", title: "Self-employed drivers", desc: "Tradespeople, estate agents, mobile services" },
-  { icon: "\uD83D\uDE97", title: "Personal drivers", desc: "Track your driving for fun, set goals, and earn achievements" },
+  { icon: "\uD83D\uDE97", title: "Uber and ride-hail drivers", desc: "Uber, Bolt, FREE NOW, Ola", href: "/uber-mileage-tracker" },
+  { icon: "\uD83D\uDCE6", title: "Delivery drivers", desc: "Deliveroo, Just Eat, Uber Eats, Amazon Flex", href: "/deliveroo-mileage-tracker" },
+  { icon: "\uD83D\uDE9A", title: "Couriers and logistics", desc: "DPD, Evri, Yodel, Stuart, Gophr, Royal Mail", href: "/amazon-flex-mileage-tracker" },
+  { icon: "\uD83D\uDCBC", title: "Sales reps and field workers", desc: "Anyone logging client visits or site trips", href: "/features" },
+  { icon: "\uD83D\uDD27", title: "Self-employed drivers", desc: "Tradespeople, estate agents, mobile services", href: "/features" },
+  { icon: "\uD83D\uDE97", title: "Personal drivers", desc: "Track your driving for fun, set goals, and earn achievements", href: "/features" },
 ];
 
 export default function WhoItsFor() {
@@ -21,13 +21,13 @@ export default function WhoItsFor() {
         <Reveal delay="reveal-d1">
           <div className="who__grid">
             {audiences.map((a) => (
-              <div key={a.title} className="who__card">
+              <a key={a.title} href={a.href} className="who__card" style={{ textDecoration: "none", color: "inherit" }}>
                 <span className="who__icon" role="img" aria-hidden="true">{a.icon}</span>
                 <div>
                   <p className="who__card-title">{a.title}</p>
                   <p className="who__card-desc">{a.desc}</p>
                 </div>
-              </div>
+              </a>
             ))}
           </div>
         </Reveal>

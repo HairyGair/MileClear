@@ -10,7 +10,7 @@ const faqs: { q: string; a: React.ReactNode }[] = [
   },
   {
     q: "How is this different from MileIQ?",
-    a: "MileClear is built for UK drivers from the ground up. It uses HMRC rates (not IRS), tracks by gig platform (Uber, Deliveroo, Amazon Flex), groups trips into shifts, and costs half the price. It also works offline, so you never lose a trip when you lose signal.",
+    a: <>MileClear is built for UK drivers from the ground up. It uses HMRC rates (not IRS), tracks by gig platform (Uber, Deliveroo, Amazon Flex), groups trips into shifts, and costs half the price. It also works offline, so you never lose a trip when you lose signal. <a href="/mileclear-vs-mileiq" style={{ color: "var(--amber-400)", textDecoration: "underline" }}>See the full comparison</a>.</>,
   },
   {
     q: "Does it track in the background?",
@@ -70,6 +70,14 @@ export default function FAQ() {
                 </div>
               </div>
             ))}
+          </div>
+        </Reveal>
+
+        <Reveal delay="reveal-d2">
+          <div style={{ textAlign: "center", marginTop: "1.5rem" }}>
+            <a href="/faq" style={{ color: "var(--amber-400)", fontFamily: "var(--font-display)", fontSize: "0.9375rem", textDecoration: "none" }}>
+              View all 21 questions &rarr;
+            </a>
           </div>
         </Reveal>
       </div>

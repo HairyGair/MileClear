@@ -37,7 +37,10 @@ function AboutSection() {
         25p per mile after that, 24p for motorbikes), and provides shift-based
         earnings tracking with platform tagging for Uber, Deliveroo, Amazon
         Flex, and more. Available free on the App Store with a Pro tier at
-        £4.99/month for tax exports and business intelligence.
+        £4.99/month for tax exports and business intelligence.{" "}
+        <a href="/about" style={{ color: "var(--amber-400)", textDecoration: "none" }}>
+          Learn more about MileClear &rarr;
+        </a>
       </p>
     </section>
   );
