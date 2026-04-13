@@ -38,7 +38,7 @@ export default function UpdatesPage() {
         <div className="container">
           <header className="updates__header">
             <span className="label">What&apos;s New</span>
-            <h1 className="updates__heading">Updates</h1>
+            <h1 className="updates__heading">Release Notes &amp; Driver Guides</h1>
             <p className="updates__sub">
               Release notes, engineering write-ups, and guides for UK drivers.
             </p>

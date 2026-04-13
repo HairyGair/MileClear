@@ -6,6 +6,7 @@ import type { NextConfig } from "next";
 config({ path: resolve(__dirname, "../../.env") });
 
 const nextConfig: NextConfig = {
+  poweredByHeader: false,
   transpilePackages: ["@mileclear/shared"],
   async headers() {
     return [

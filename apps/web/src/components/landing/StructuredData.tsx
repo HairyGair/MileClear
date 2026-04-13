@@ -1,10 +1,23 @@
 export default function StructuredData() {
+  const website = {
+    "@context": "https://schema.org",
+    "@type": "WebSite",
+    name: "MileClear",
+    url: "https://mileclear.com",
+  };
+
   const organization = {
     "@context": "https://schema.org",
     "@type": "Organization",
     name: "MileClear",
     url: "https://mileclear.com",
     logo: "https://mileclear.com/branding/logo-120x120.png",
+    foundingDate: "2026-02-21",
+    founder: {
+      "@type": "Person",
+      name: "Anthony Gair",
+    },
+    sameAs: ["https://apps.apple.com/app/mileclear/id6742044832"],
     contactPoint: {
       "@type": "ContactPoint",
       email: "support@mileclear.com",
@@ -19,6 +32,7 @@ export default function StructuredData() {
     name: "MileClear",
     applicationCategory: "BusinessApplication",
     operatingSystem: "iOS",
+    downloadUrl: "https://apps.apple.com/app/mileclear/id6742044832",
     description:
       "The UK mileage tracker built for gig workers, delivery drivers, and anyone who drives for a living. Automatic trip recording, HMRC tax deductions, and real earnings insights.",
     featureList: [
@@ -46,11 +60,16 @@ export default function StructuredData() {
       {
         "@type": "Offer",
         name: "Pro",
-        price: "4.99",
         priceCurrency: "GBP",
-        billingIncrement: "P1M",
         description:
           "PDF and CSV exports, Self Assessment summary, earnings tracking, Open Banking sync, business insights, platform comparison, unlimited saved locations.",
+        priceSpecification: {
+          "@type": "UnitPriceSpecification",
+          price: "4.99",
+          priceCurrency: "GBP",
+          unitCode: "MON",
+          unitText: "month",
+        },
       },
     ],
   };
@@ -126,8 +145,25 @@ export default function StructuredData() {
     ],
   };
 
+  const breadcrumb = {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    itemListElement: [
+      {
+        "@type": "ListItem",
+        position: 1,
+        name: "Home",
+        item: "https://mileclear.com",
+      },
+    ],
+  };
+
   return (
     <>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(website) }}
+      />
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(organization) }}
@@ -141,6 +177,10 @@ export default function StructuredData() {
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(faqPage) }}
+      />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumb) }}
       />
     </>
   );

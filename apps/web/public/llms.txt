@@ -1,0 +1,34 @@
+# MileClear
+> UK mileage tracking app for gig workers, delivery drivers, and self-employed professionals.
+
+MileClear automatically records GPS trips, calculates HMRC mileage deductions (45p/mile for the first 10,000 miles, 25p after), and provides shift-based tracking with platform tagging for Uber, Deliveroo, Amazon Flex, Just Eat, Stuart, Gophr, DPD, Yodel, and Evri.
+
+## Key Facts
+- Platform: iOS (App Store)
+- Price: Free tier with unlimited tracking. Pro at £4.99/month for exports, earnings tracking, and business intelligence.
+- Target audience: UK gig economy workers, delivery drivers, private hire drivers, self-employed drivers, and personal drivers
+- HMRC rates: Cars/vans 45p first 10,000 miles then 25p. Motorbikes 24p flat.
+- UK tax year: 6 April to 5 April
+
+## Features
+- Automatic GPS trip recording with background drive detection
+- Live Activities on iOS lock screen and Dynamic Island
+- Business/personal trip classification with route learning
+- Shift mode with per-platform earnings tracking (Uber, Deliveroo, Amazon Flex, etc.)
+- HMRC tax deduction calculator
+- PDF and CSV exports for Self Assessment
+- Business expenses tracking with tax estimate
+- UK fuel prices from 8,300+ government-mandated stations
+- Saved locations with geofencing for auto-classification
+- Weekly earnings goals and working calendar
+- 43 achievements, streaks, and driving records
+- Open Banking earnings sync via Plaid
+- Offline-first with background sync
+
+## Links
+- Website: https://mileclear.com
+- App Store: https://apps.apple.com/app/mileclear/id6742044832
+- Support: https://mileclear.com/support
+- Privacy: https://mileclear.com/privacy
+- Updates: https://mileclear.com/updates
+- TestFlight: https://testflight.apple.com/join/SGrmnaaH

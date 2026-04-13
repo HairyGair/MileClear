@@ -101,7 +101,7 @@ export default function SupportPage() {
           {/* Header */}
           <div className="support__header">
             <span className="label">Help Centre</span>
-            <h1 className="heading">Support</h1>
+            <h1 className="heading">MileClear Help Centre</h1>
             <p className="subtext">
               Find answers to common questions or get in touch with our team.
             </p>

@@ -24,23 +24,6 @@ export const metadata: Metadata = {
   },
   description:
     "The mileage tracker that actually works. Built for gig drivers, delivery riders, and anyone who drives for a living. Free to use, offline-first, HMRC ready.",
-  keywords: [
-    "mileage tracker",
-    "gig driver",
-    "HMRC mileage",
-    "delivery driver",
-    "tax deduction",
-    "mileage log",
-    "self assessment",
-    "uber driver",
-    "deliveroo driver",
-    "mileage tracker app",
-    "HMRC mileage rates",
-    "mileage tracker UK",
-    "self employed mileage",
-    "business mileage",
-    "45p per mile",
-  ],
   icons: {
     icon: "/branding/logo-120x120.png",
     apple: "/branding/logo-120x120.png",
