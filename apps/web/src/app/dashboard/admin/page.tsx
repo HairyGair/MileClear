@@ -17,6 +17,15 @@ import { LoadingSkeleton } from "../../../components/ui/LoadingSkeleton";
 // Types
 // ---------------------------------------------------------------------------
 
+interface RatingFunnel {
+  promptsShown: number;
+  loveIt: number;
+  couldBeBetter: number;
+  alreadyRated: number;
+  notNow: number;
+  nativeDialogRequested: number;
+}
+
 interface Analytics {
   totalUsers: number;
   activeUsers30d: number;
@@ -26,6 +35,7 @@ interface Analytics {
   totalEarningsPence: number;
   usersThisMonth: number;
   tripsThisMonth: number;
+  ratingFunnel?: RatingFunnel;
 }
 
 interface AdminUser {
@@ -352,6 +362,41 @@ function OverviewTab() {
           <p className="stat-card__value">{formatNumber(analytics.tripsThisMonth)}</p>
         </div>
       </div>
+
+      {/* Rating Funnel */}
+      {analytics.ratingFunnel && analytics.ratingFunnel.promptsShown > 0 && (
+        <div style={{ marginBottom: "1.5rem" }}>
+          <h3 style={{ color: "var(--text-2, #8494a7)", fontSize: "0.85rem", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "0.75rem" }}>
+            App Store Rating Funnel
+          </h3>
+          <div className="stat-grid">
+            <div className="stat-card">
+              <p className="stat-card__label">Prompts Shown</p>
+              <p className="stat-card__value">{formatNumber(analytics.ratingFunnel.promptsShown)}</p>
+            </div>
+            <div className="stat-card">
+              <p className="stat-card__label">Love it!</p>
+              <p className="stat-card__value stat-card__value--emerald">{formatNumber(analytics.ratingFunnel.loveIt)}</p>
+            </div>
+            <div className="stat-card">
+              <p className="stat-card__label">Native Dialog</p>
+              <p className="stat-card__value stat-card__value--emerald">{formatNumber(analytics.ratingFunnel.nativeDialogRequested)}</p>
+            </div>
+            <div className="stat-card">
+              <p className="stat-card__label">Could Be Better</p>
+              <p className="stat-card__value stat-card__value--amber">{formatNumber(analytics.ratingFunnel.couldBeBetter)}</p>
+            </div>
+            <div className="stat-card">
+              <p className="stat-card__label">Already Rated</p>
+              <p className="stat-card__value">{formatNumber(analytics.ratingFunnel.alreadyRated)}</p>
+            </div>
+            <div className="stat-card">
+              <p className="stat-card__label">Not Now</p>
+              <p className="stat-card__value">{formatNumber(analytics.ratingFunnel.notNow)}</p>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Row 3: Feedback */}
       {feedbackStats && (

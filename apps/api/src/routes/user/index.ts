@@ -520,4 +520,19 @@ export async function userRoutes(app: FastifyInstance) {
 
     return reply.send({ success: true });
   });
+
+  // POST /user/event - lightweight client event logging
+  const eventSchema = z.object({
+    type: z.string().min(1).max(100),
+    metadata: z.record(z.unknown()).optional(),
+  });
+
+  app.post("/event", async (request, reply) => {
+    const parsed = eventSchema.safeParse(request.body);
+    if (!parsed.success) {
+      return reply.status(400).send({ error: "Invalid event" });
+    }
+    logEvent(parsed.data.type, request.userId!, parsed.data.metadata);
+    return reply.send({ success: true });
+  });
 }

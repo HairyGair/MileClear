@@ -63,6 +63,12 @@ export async function adminRoutes(app: FastifyInstance) {
       usersThisMonth,
       tripsThisMonth,
       activeUserRows,
+      ratingPromptsShown,
+      ratingLoveIt,
+      ratingCouldBeBetter,
+      ratingAlreadyRated,
+      ratingNotNow,
+      ratingNativeRequested,
     ] = await Promise.all([
       prisma.user.count(),
       prisma.user.count({ where: { isPremium: true } }),
@@ -76,6 +82,12 @@ export async function adminRoutes(app: FastifyInstance) {
         select: { userId: true },
         distinct: ["userId"],
       }),
+      prisma.appEvent.count({ where: { type: "rating.prompt_shown" } }),
+      prisma.appEvent.count({ where: { type: "rating.love_it" } }),
+      prisma.appEvent.count({ where: { type: "rating.could_be_better" } }),
+      prisma.appEvent.count({ where: { type: "rating.already_rated" } }),
+      prisma.appEvent.count({ where: { type: "rating.not_now" } }),
+      prisma.appEvent.count({ where: { type: "rating.native_dialog_requested" } }),
     ]);
 
     return reply.send({
@@ -88,6 +100,14 @@ export async function adminRoutes(app: FastifyInstance) {
         totalEarningsPence: earningAggregates._sum.amountPence ?? 0,
         usersThisMonth,
         tripsThisMonth,
+        ratingFunnel: {
+          promptsShown: ratingPromptsShown,
+          loveIt: ratingLoveIt,
+          couldBeBetter: ratingCouldBeBetter,
+          alreadyRated: ratingAlreadyRated,
+          notNow: ratingNotNow,
+          nativeDialogRequested: ratingNativeRequested,
+        },
       },
     });
   });
