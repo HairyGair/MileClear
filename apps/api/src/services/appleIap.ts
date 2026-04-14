@@ -50,6 +50,9 @@ if (keyId && issuerId && privateKeyBase64) {
         .filter((f) => f.endsWith(".cer") || f.endsWith(".pem"))
         .map((f) => fs.readFileSync(path.join(certsDir, f)));
     }
+    if (rootCerts.length === 0) {
+      console.warn("WARNING: No Apple root certificates found in", certsDir, "- webhook verification will fail");
+    }
 
     signedDataVerifier = new SignedDataVerifier(
       rootCerts,
@@ -58,7 +61,7 @@ if (keyId && issuerId && privateKeyBase64) {
       bundleId
     );
 
-    console.log("Apple IAP configured successfully");
+    console.log(`Apple IAP configured successfully (${rootCerts.length} root cert(s) loaded)`);
   } catch (err) {
     console.error("Failed to initialize Apple IAP client:", err);
     appleClient = null;

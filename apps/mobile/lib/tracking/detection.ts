@@ -321,6 +321,29 @@ let finalizingTrip = false;
 // each reading the same cooldown timestamp before any writes the new one.
 let startingRecording = false;
 
+// Watchdog interval that periodically checks for stuck recordings.
+// The single setTimeout in forceStartRecording fires once at 11 minutes but
+// may find the recording still fresh (last_driving_speed_at recently updated).
+// This interval runs every 3 minutes while recording is active, catching the
+// case where iOS stops delivering location callbacks entirely and the recording
+// sits idle for hours (David Hall's 5hr stuck-recording bug).
+const WATCHDOG_INTERVAL_MS = 3 * 60 * 1000; // 3 minutes
+let watchdogInterval: ReturnType<typeof setInterval> | null = null;
+
+function startWatchdog(): void {
+  stopWatchdog();
+  watchdogInterval = setInterval(() => {
+    checkStaleAutoRecording().catch(() => {});
+  }, WATCHDOG_INTERVAL_MS);
+}
+
+function stopWatchdog(): void {
+  if (watchdogInterval) {
+    clearInterval(watchdogInterval);
+    watchdogInterval = null;
+  }
+}
+
 /**
  * Process buffered detection coordinates into a saved trip.
  * Called when driving stops (no driving-speed location for 3+ min) or on app startup.
@@ -378,6 +401,9 @@ async function _finalizeAutoTripInner(): Promise<void> {
   }
 
   logDetectionEvent("finalize_called", { coordCount: allCoords.length }).catch(() => {});
+
+  // Stop watchdog - recording is ending
+  stopWatchdog();
 
   // Clear state regardless of outcome
   await db.runAsync("DELETE FROM detection_coordinates");
@@ -803,6 +829,7 @@ async function checkStaleAutoRecording(): Promise<void> {
   );
   if (!lastDriving) {
     // Stale flag with no timestamp - clear it
+    stopWatchdog();
     await db.runAsync("DELETE FROM tracking_state WHERE key = 'auto_recording_active'");
     return;
   }
@@ -833,6 +860,7 @@ export async function finalizeStaleAutoRecordings(): Promise<void> {
  *   - false: user started a shift (coords may be transferred)
  */
 export async function cancelAutoRecording(clearCoords = false): Promise<void> {
+  stopWatchdog();
   const db = await getDatabase();
   await db.runAsync(
     "DELETE FROM tracking_state WHERE key IN ('auto_recording_active', 'last_driving_speed_at', 'driving_detection_count', 'finalization_mode', 'stop_anchor')"
@@ -998,6 +1026,8 @@ try {
               await db.runAsync(
                 "INSERT OR REPLACE INTO tracking_state (key, value) VALUES ('auto_recording_active', '1')"
               );
+              // Restart watchdog for the new recording
+              startWatchdog();
               // Start a fresh Live Activity for the new trip
               try {
                 let isBusinessMode = true;
@@ -1215,6 +1245,9 @@ try {
           "INSERT OR REPLACE INTO tracking_state (key, value) VALUES ('last_driving_speed_at', ?)",
           [Date.now().toString()]
         );
+
+        // Start watchdog for stuck-recording detection
+        startWatchdog();
 
         logDetectionEvent("recording_started", {
           speedMs: detectedSpeedMs,
@@ -1452,16 +1485,10 @@ export async function forceStartRecording(reason: string): Promise<void> {
 
   logDetectionEvent("recording_started", { source: "force_start", reason }).catch(() => {});
 
-  // Schedule a fallback finalize check. After the user parks and goes indoors,
-  // iOS often stops delivering location callbacks entirely (the 50m distance
-  // threshold is never met, and finalization mode can't be entered without a
-  // callback). This means the trip sits in the buffer until the user opens the
-  // app. A JS setTimeout is unreliable in suspended background processes, but
-  // if the process IS still alive (common for 1-5 min after backgrounding),
-  // it catches the stop far sooner than waiting for the user to open the app.
-  setTimeout(() => {
-    checkStaleAutoRecording().catch(() => {});
-  }, STOP_TIMEOUT_MS + 60_000); // 11 minutes: 10 min stop timeout + 1 min buffer
+  // Start watchdog that checks every 3 minutes for stuck recordings.
+  // Replaces the single 11-minute setTimeout which could miss the window
+  // if last_driving_speed_at was recently updated when the timeout fired.
+  startWatchdog();
 }
 
 export async function stopDriveDetection(): Promise<void> {

@@ -30,9 +30,7 @@ export const RELEASE_NOTES: ReleaseNote[] = [
   {
     version: "1.0.8",
     date: "13 April 2026",
-    label: "In Testing",
-    ctaUrl: "https://testflight.apple.com/join/SGrmnaaH",
-    ctaLabel: "Join the beta on TestFlight",
+    label: "App Store",
     items: [
       "Weekly earnings goal - set a target and track your progress with a live progress bar on the dashboard. Turns amber as you approach and green when you hit it",
       "Working calendar - a month-view heatmap showing which days you drove, how much you earned, and how many trips you did. Colour intensity by earnings so your best days stand out at a glance",
@@ -251,9 +249,9 @@ export const BLOG_POSTS: BlogPost[] = [
 <li>Each new recording starts with a clean GPS buffer, so stale coordinates from a previous trip can't bleed into the next one.</li>
 </ul>
 
-<h2>Try it out</h2>
+<h2>Get it now</h2>
 
-<p>Version 1.0.8 is available now on <a href="https://testflight.apple.com/join/SGrmnaaH">TestFlight</a>. If you're already in the beta, it should appear as an update. If you're new, the link will get you set up in a couple of minutes.</p>
+<p>Version 1.0.8 is live on the App Store. Open the App Store, search MileClear, and tap Update - or it may have updated automatically if you have auto-updates on.</p>
 
 <p>As always, feedback goes straight to us - use the feedback screen in the app or email <a href="mailto:support@mileclear.com">support@mileclear.com</a>.</p>
 
