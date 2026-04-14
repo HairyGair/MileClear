@@ -192,13 +192,21 @@ export async function getStats(userId: string): Promise<GamificationStats> {
   const todayStart = ukDayStart();
   const todayEnd = ukDayEnd();
 
-  const todayAgg = await prisma.trip.aggregate({
-    where: {
-      userId,
-      startedAt: { gte: todayStart, lte: todayEnd },
-    },
-    _sum: { distanceMiles: true },
-  });
+  const [todayAgg, todayTrips] = await Promise.all([
+    prisma.trip.aggregate({
+      where: {
+        userId,
+        startedAt: { gte: todayStart, lte: todayEnd },
+      },
+      _sum: { distanceMiles: true },
+    }),
+    prisma.trip.count({
+      where: {
+        userId,
+        startedAt: { gte: todayStart, lte: todayEnd },
+      },
+    }),
+  ]);
 
   // This week's miles (Monday-based, UK timezone)
   const ukToday = ukNow();
@@ -311,6 +319,7 @@ export async function getStats(userId: string): Promise<GamificationStats> {
     totalTrips,
     totalShifts,
     todayMiles: todayAgg._sum.distanceMiles ?? 0,
+    todayTrips,
     weekMiles: weekAgg._sum.distanceMiles ?? 0,
     personalRecords,
     region,

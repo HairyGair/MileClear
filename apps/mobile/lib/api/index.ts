@@ -1,6 +1,7 @@
 // API client for communicating with the Fastify backend
 
 import * as SecureStore from "expo-secure-store";
+import { syncTokenToSiri, clearSiriToken } from "../siri/index";
 
 const API_URL = process.env.EXPO_PUBLIC_API_URL || "https://api.mileclear.com";
 const ACCESS_TOKEN_KEY = "mileclear_access_token";
@@ -44,12 +45,16 @@ export async function setTokens(
   cachedAccessToken = accessToken;
   await SecureStore.setItemAsync(ACCESS_TOKEN_KEY, accessToken);
   await SecureStore.setItemAsync(REFRESH_TOKEN_KEY, refreshToken);
+  // Keep App Group UserDefaults in sync so Siri App Intents can authenticate
+  syncTokenToSiri(accessToken).catch(() => {});
 }
 
 export async function clearTokens(): Promise<void> {
   cachedAccessToken = null;
   await SecureStore.deleteItemAsync(ACCESS_TOKEN_KEY);
   await SecureStore.deleteItemAsync(REFRESH_TOKEN_KEY);
+  // Remove the Siri token so intents stop making authenticated API calls
+  clearSiriToken().catch(() => {});
 }
 
 // Deduplicate concurrent refresh attempts — prevents race condition

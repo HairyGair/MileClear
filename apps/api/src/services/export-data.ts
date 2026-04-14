@@ -4,6 +4,7 @@ import {
   HMRC_THRESHOLD_MILES,
   parseTaxYear,
   calculateHmrcDeduction,
+  EXPENSE_CATEGORIES,
 } from "@mileclear/shared";
 import type {
   ExportTripRow,
@@ -293,4 +294,56 @@ export async function fetchExportSummary(
     generatedAt: new Date().toISOString(),
     userName: user?.fullName || user?.displayName || user?.email || "MileClear User",
   };
+}
+
+export async function fetchExpenseSummary(
+  userId: string,
+  taxYear: string
+): Promise<{
+  categories: Array<{
+    category: string;
+    label: string;
+    totalPence: number;
+    deductibleWithMileage: boolean;
+  }>;
+  totalAllowablePence: number;
+  totalNonAllowablePence: number;
+}> {
+  const { start, end } = parseTaxYear(taxYear);
+
+  const rows = await prisma.expense.groupBy({
+    by: ["category"],
+    where: {
+      userId,
+      date: { gte: start, lt: end },
+    },
+    _sum: { amountPence: true },
+  });
+
+  type ExpenseCategoryKey = typeof EXPENSE_CATEGORIES[number]["value"];
+  const categoryMeta = new Map<ExpenseCategoryKey, { label: string; deductibleWithMileage: boolean }>(
+    EXPENSE_CATEGORIES.map((c) => [c.value, { label: c.label, deductibleWithMileage: c.deductibleWithMileage }])
+  );
+
+  let totalAllowablePence = 0;
+  let totalNonAllowablePence = 0;
+
+  const categories = rows.map((row) => {
+    const meta = categoryMeta.get(row.category as ExpenseCategoryKey);
+    const totalPence = row._sum.amountPence ?? 0;
+    const deductibleWithMileage = meta?.deductibleWithMileage ?? false;
+    if (deductibleWithMileage) {
+      totalAllowablePence += totalPence;
+    } else {
+      totalNonAllowablePence += totalPence;
+    }
+    return {
+      category: row.category,
+      label: meta?.label ?? row.category,
+      totalPence,
+      deductibleWithMileage,
+    };
+  });
+
+  return { categories, totalAllowablePence, totalNonAllowablePence };
 }

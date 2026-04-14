@@ -107,6 +107,14 @@ const icons = {
       <path d="M3 15.5c0-2.5 2.5-4.5 6-4.5s6 2 6 4.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
     </svg>
   ),
+  accountant: (
+    <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+      <circle cx="7" cy="5.5" r="2.5" stroke="currentColor" strokeWidth="1.5" />
+      <path d="M2 15c0-2.21 2.239-4 5-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+      <circle cx="13" cy="11.5" r="3" stroke="currentColor" strokeWidth="1.5" />
+      <path d="M13 10v1.5l1 1" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  ),
 };
 
 // ── Nav structure ────────────────────────────────────────────────────
@@ -118,6 +126,8 @@ const BUSINESS_ITEMS: NavItem[] = [
   { href: "/dashboard/expenses", label: "Expenses", icon: icons.fuel },
   { href: "/dashboard/exports", label: "Exports", icon: icons.exports },
   { href: "/dashboard/tax", label: "Tax Summary", icon: icons.tax },
+  { href: "/dashboard/self-assessment", label: "Self Assessment", icon: icons.tax },
+  { href: "/dashboard/accountant", label: "Accountant", icon: icons.accountant },
 ];
 
 const PERSONAL_ITEMS: NavItem[] = [

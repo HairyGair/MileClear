@@ -896,3 +896,79 @@ export async function sendWaitlistConfirmation(
 
   await transporter.sendMail({ from: FROM, to: email, subject, html });
 }
+
+export async function sendAccountantInviteEmail(
+  email: string,
+  inviterName: string,
+  token: string
+): Promise<void> {
+  const safeInviterName = escapeHtml(inviterName);
+  const dashboardUrl = `${process.env.API_BASE_URL || "https://mileclear.com"}/accountant/${token}`;
+  const subject = `${inviterName} shared their MileClear data with you`;
+  const html = `
+    <!DOCTYPE html>
+    <html>
+    <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
+    <body style="margin: 0; padding: 0; background-color: #030712; font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color: #030712;">
+        <tr><td align="center" style="padding: 32px 16px;">
+          <table role="presentation" width="520" cellpadding="0" cellspacing="0" style="max-width: 520px; width: 100%;">
+
+            <!-- Header with logo -->
+            <tr><td align="center" style="padding: 24px 0 32px;">
+              <img src="https://mileclear.com/branding/logo-120x120.png" alt="MileClear" width="56" height="56" style="display: block; border: 0; border-radius: 12px;" />
+            </td></tr>
+
+            <!-- Main card -->
+            <tr><td style="background-color: #0a1120; border-radius: 16px; border: 1px solid rgba(255,255,255,0.06);">
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+
+                <!-- Amber top accent bar -->
+                <tr><td style="height: 3px; background: linear-gradient(90deg, #f5a623, #e8950f); border-radius: 16px 16px 0 0; font-size: 0; line-height: 0;">&nbsp;</td></tr>
+
+                <!-- Content -->
+                <tr><td style="padding: 36px 32px 32px;">
+
+                  <h1 style="margin: 0 0 20px; font-size: 22px; font-weight: 700; color: #f0f2f5;"><span style="color: #f5a623;">${safeInviterName}</span> shared their mileage data with you</h1>
+
+                  <p style="color: #c0c8d4; font-size: 15px; line-height: 1.7; margin: 0 0 20px;">${safeInviterName} has invited you to view their mileage, expenses, and tax data on MileClear. Click below to access their read-only dashboard.</p>
+
+                  <!-- CTA button -->
+                  <table role="presentation" cellpadding="0" cellspacing="0" style="margin: 0 0 28px;">
+                    <tr><td style="border-radius: 8px; background: linear-gradient(135deg, #f5a623, #e8950f);">
+                      <a href="${dashboardUrl}" style="display: inline-block; padding: 14px 28px; font-size: 15px; font-weight: 700; color: #030712; text-decoration: none; border-radius: 8px;">View Dashboard</a>
+                    </td></tr>
+                  </table>
+
+                  <!-- Info callout -->
+                  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin: 0 0 24px;">
+                    <tr><td style="background-color: rgba(245,166,35,0.08); border: 1px solid rgba(245,166,35,0.15); border-radius: 10px; padding: 18px 20px;">
+                      <p style="color: #d4b87a; font-size: 14px; line-height: 1.65; margin: 0;">This is a read-only view. You can see trip summaries, mileage deductions, expenses, and download exports. No account required.</p>
+                    </td></tr>
+                  </table>
+
+                  <p style="color: #6b7280; font-size: 13px; line-height: 1.6; margin: 0;">If you weren't expecting this invitation, you can safely ignore this email. The link will expire in 7 days.</p>
+
+                </td></tr>
+              </table>
+            </td></tr>
+
+            <!-- Footer -->
+            <tr><td align="center" style="padding: 28px 0 8px;">
+              <p style="color: #4a5568; font-size: 12px; line-height: 1.5; margin: 0;">Sent via <a href="https://mileclear.com" style="color: #f5a623; text-decoration: none;">MileClear</a> - mileage tracking for UK drivers.</p>
+            </td></tr>
+
+          </table>
+        </td></tr>
+      </table>
+    </body>
+    </html>
+  `;
+
+  if (!transporter) {
+    console.log(`[EMAIL] Accountant invite for ${email} from ${inviterName} (dev only)`);
+    return;
+  }
+
+  await transporter.sendMail({ from: FROM, to: email, subject, html });
+}

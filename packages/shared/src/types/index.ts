@@ -482,6 +482,7 @@ export interface GamificationStats {
   totalTrips: number;
   totalShifts: number;
   todayMiles: number;
+  todayTrips: number;
   weekMiles: number;
   personalRecords: PersonalRecords;
   region?: string;

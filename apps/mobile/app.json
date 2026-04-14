@@ -105,7 +105,9 @@
       ],
       "@react-native-community/datetimepicker",
       "react-native-iap",
-      "./plugins/with-live-activities"
+      "./plugins/with-live-activities",
+      "./plugins/with-vision-ocr",
+      "./plugins/with-siri-shortcuts"
     ],
     "extra": {
       "router": {},

@@ -9,7 +9,7 @@ import {
   StyleSheet,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { Stack, useFocusEffect } from "expo-router";
+import { Stack, useFocusEffect, router } from "expo-router";
 import * as WebBrowser from "expo-web-browser";
 import { getTaxYear } from "@mileclear/shared";
 import { downloadAndShareExport } from "../lib/api/exports";
@@ -160,6 +160,26 @@ export default function ExportsScreen() {
         >
           <Text style={styles.yearLabel}>Tax Year</Text>
           <Text style={styles.yearValue}>{selectedYear}</Text>
+        </TouchableOpacity>
+
+        {/* Self Assessment Wizard link */}
+        <TouchableOpacity
+          style={styles.saWizardRow}
+          onPress={() => router.push("/self-assessment")}
+          activeOpacity={0.7}
+          accessibilityRole="button"
+          accessibilityLabel="Open Self Assessment Guide"
+        >
+          <View style={styles.saWizardIcon}>
+            <Ionicons name="document-text-outline" size={20} color="#f5a623" />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.saWizardTitle}>Self Assessment Guide</Text>
+            <Text style={styles.saWizardDesc}>
+              Step-by-step SA103 walkthrough with income, mileage, expenses and tax estimate
+            </Text>
+          </View>
+          <Ionicons name="chevron-forward" size={18} color="#6b7280" style={{ marginLeft: 8 }} />
         </TouchableOpacity>
 
         {/* Download rows */}
@@ -423,5 +443,36 @@ const styles = StyleSheet.create({
   paywallSep: {
     fontSize: 11,
     color: "#4b5563",
+  },
+  saWizardRow: {
+    backgroundColor: "#0a1120",
+    borderRadius: 12,
+    padding: 14,
+    marginBottom: 20,
+    flexDirection: "row",
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "rgba(245,166,35,0.2)",
+  },
+  saWizardIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 10,
+    backgroundColor: "rgba(245,166,35,0.08)",
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: 12,
+  },
+  saWizardTitle: {
+    fontSize: 15,
+    fontFamily: "PlusJakartaSans_600SemiBold",
+    color: "#fff",
+    marginBottom: 3,
+  },
+  saWizardDesc: {
+    fontSize: 12,
+    fontFamily: "PlusJakartaSans_400Regular",
+    color: "#6b7280",
+    lineHeight: 17,
   },
 });

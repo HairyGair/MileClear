@@ -23,16 +23,32 @@ import {
 import { GIG_PLATFORMS } from "@mileclear/shared";
 import { DateTimePickerField } from "../components/DateTimePickerField";
 import { Button } from "../components/Button";
+import { isOcrAvailable } from "../lib/ocr";
 
 export default function EarningFormScreen() {
   const router = useRouter();
-  const { id } = useLocalSearchParams<{ id?: string }>();
+  const {
+    id,
+    prefillAmount,
+    prefillDate,
+    prefillVendor,
+  } = useLocalSearchParams<{
+    id?: string;
+    prefillAmount?: string;
+    prefillDate?: string;
+    prefillVendor?: string;
+  }>();
   const isEditing = !!id;
 
   const [platform, setPlatform] = useState<string>("");
-  const [amount, setAmount] = useState("");
-  const [periodStart, setPeriodStart] = useState<Date | null>(new Date());
-  const [periodEnd, setPeriodEnd] = useState<Date | null>(new Date());
+  const [amount, setAmount] = useState(prefillAmount ?? "");
+  const [periodStart, setPeriodStart] = useState<Date | null>(
+    prefillDate ? new Date(prefillDate) : new Date()
+  );
+  const [periodEnd, setPeriodEnd] = useState<Date | null>(
+    prefillDate ? new Date(prefillDate) : new Date()
+  );
+  const [notes, setNotes] = useState(prefillVendor ?? "");
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [loadingExisting, setLoadingExisting] = useState(isEditing);
@@ -50,10 +66,17 @@ export default function EarningFormScreen() {
     };
 
     fetchEarning(id)
-      .then((res) => populateEarning(res.data))
+      .then((res) => {
+        populateEarning(res.data);
+        // Clear any scan pre-fills when loading an existing record
+        setNotes("");
+      })
       .catch(async () => {
         const local = await getLocalEarning(id);
-        if (local) populateEarning(local);
+        if (local) {
+          populateEarning(local);
+          setNotes("");
+        }
       })
       .finally(() => setLoadingExisting(false));
   }, [id]);
@@ -141,6 +164,18 @@ export default function EarningFormScreen() {
         options={{ title: isEditing ? "Edit Earning" : "Add Earning" }}
       />
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+        {/* Scan Receipt — only shown when adding a new earning on a native build */}
+        {!isEditing && isOcrAvailable() && (
+          <TouchableOpacity
+            style={styles.scanButton}
+            onPress={() => router.push("/receipt-scan")}
+            accessibilityRole="button"
+            accessibilityLabel="Scan a receipt to pre-fill this form"
+          >
+            <Text style={styles.scanButtonText}>Scan Receipt</Text>
+          </TouchableOpacity>
+        )}
+
         {/* Platform */}
         <Text style={styles.label}>Platform *</Text>
         <ScrollView
@@ -186,6 +221,21 @@ export default function EarningFormScreen() {
             accessibilityLabel="Amount in pounds"
           />
         </View>
+
+        {/* Notes / Vendor (pre-filled from receipt scan) */}
+        {notes.trim().length > 0 && (
+          <View>
+            <Text style={styles.label}>Notes (from scan)</Text>
+            <TextInput
+              style={styles.input}
+              value={notes}
+              onChangeText={setNotes}
+              placeholder="e.g. Tesco Petrol"
+              placeholderTextColor="#6b7280"
+              accessibilityLabel="Notes or vendor from receipt scan"
+            />
+          </View>
+        )}
 
         {/* Period Start */}
         <DateTimePickerField
@@ -261,6 +311,23 @@ const styles = StyleSheet.create({
     color: "#fff",
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.06)",
+  },
+  // Scan receipt button
+  scanButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(245,166,35,0.1)",
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "#f5a623",
+    paddingVertical: 12,
+    marginBottom: 20,
+  },
+  scanButtonText: {
+    fontSize: 14,
+    fontFamily: "PlusJakartaSans_600SemiBold",
+    color: "#f5a623",
   },
   // Platform chips
   platformRow: {
