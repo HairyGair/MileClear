@@ -301,8 +301,6 @@ export async function processShiftTrips(
 ): Promise<number> {
   const db = await getDatabase();
 
-  // Read coordinates atomically - copy to a processing flag to prevent
-  // the background task from writing more while we process
   const coords = await db.getAllAsync<StoredCoordinate>(
     "SELECT lat, lng, speed, accuracy, recorded_at FROM shift_coordinates WHERE shift_id = ? ORDER BY recorded_at ASC",
     [shiftId]
@@ -313,12 +311,14 @@ export async function processShiftTrips(
     return 0;
   }
 
-  // Delete coordinates immediately after reading to avoid race with background task
-  // (shift tracking should already be stopped before calling this function)
-  await db.runAsync("DELETE FROM shift_coordinates WHERE shift_id = ?", [shiftId]);
+  // DO NOT delete coordinates yet - only delete after trips are successfully
+  // created. Previously coordinates were deleted before trip creation, meaning
+  // any failure (API error, crash, memory pressure on long shifts) permanently
+  // lost all GPS data with no way to recover.
 
   const segments = segmentTrips(coords);
   let created = 0;
+  let allSucceeded = true;
 
   for (const segment of segments) {
     if (segment.length < 2) continue;
@@ -379,7 +379,17 @@ export async function processShiftTrips(
       created++;
     } catch (err) {
       console.error("Failed to create trip from GPS data:", err);
+      allSucceeded = false;
     }
+  }
+
+  // Only delete coordinates after all trips have been processed.
+  // If any trip creation failed, keep the coordinates so they can
+  // be reprocessed on the next shift end or app restart.
+  if (allSucceeded) {
+    await db.runAsync("DELETE FROM shift_coordinates WHERE shift_id = ?", [shiftId]);
+  } else {
+    console.warn(`[processShiftTrips] ${created} trips created but some failed - keeping ${coords.length} coordinates for retry`);
   }
 
   return created;
