@@ -28,6 +28,23 @@ export interface BlogPost {
 // ----------------------------------------------------------------
 export const RELEASE_NOTES: ReleaseNote[] = [
   {
+    version: "1.0.9",
+    date: "15 April 2026",
+    label: "In Testing",
+    ctaUrl: "https://testflight.apple.com/join/SGrmnaaH",
+    ctaLabel: "Join the beta on TestFlight",
+    items: [
+      "Self Assessment wizard - a step-by-step guide that maps your MileClear data to HMRC SA103 form boxes. Shows exactly which numbers go in which boxes, with a full income tax and National Insurance breakdown",
+      "Accountant sharing - invite your accountant by email to a read-only dashboard showing your trips, mileage deductions, expenses, and earnings. They can download CSV and PDF exports without needing a MileClear account",
+      "Receipt scanning - point your camera at a parking ticket, toll receipt, or fuel receipt and it extracts the amount, date, and vendor automatically. Uses on-device processing so your images never leave your phone",
+      "Siri Shortcuts - 'Hey Siri, start my shift', 'How many miles today?', 'Log expense', 'Weekly goal progress'. Works hands-free while driving",
+      "App Store rating tracking - we can now see whether rating prompts are reaching users and how they respond, so we can tune the timing",
+      "Fixed a bug where ending a long shift could lose all trip data. GPS coordinates are now preserved until trips are confirmed saved",
+      "Fixed Apple In-App Purchase webhook verification - subscription activations that were silently failing now process correctly",
+      "Stuck recording watchdog - if iOS stops delivering location updates during a trip, a repeating timer now detects and saves the trip instead of leaving it stuck indefinitely",
+    ],
+  },
+  {
     version: "1.0.8",
     date: "13 April 2026",
     label: "App Store",
@@ -172,6 +189,65 @@ export const RELEASE_NOTES: ReleaseNote[] = [
 // Blog Posts
 // ----------------------------------------------------------------
 export const BLOG_POSTS: BlogPost[] = [
+  {
+    slug: "whats-new-in-version-1-0-9",
+    title: "What's New in Version 1.0.9",
+    excerpt:
+      "Self Assessment wizard, accountant sharing, receipt scanning, Siri Shortcuts, and critical fixes for trip data loss and Apple subscription processing.",
+    date: "15 April 2026",
+    author: "Gair",
+    category: "announcement",
+    content: `
+<p>Version 1.0.9 adds four features that make MileClear genuinely useful beyond just tracking miles, plus fixes for two data loss bugs that affected real users this week.</p>
+
+<h2>Self Assessment wizard</h2>
+
+<p>This is the feature I'm most excited about. Instead of just giving you a PDF at tax time, MileClear now walks you through the actual HMRC Self Assessment form step by step. It maps your earnings, mileage deduction, and allowable expenses to specific SA103 box numbers - Box 9 for your turnover, Box 46 for simplified mileage, Box 27 for other expenses.</p>
+
+<p>Each step shows the real numbers from your MileClear data with a full breakdown. The tax estimate includes income tax by band, Class 2 NI, and Class 4 NI, so you know roughly what to set aside. It is guidance, not tax advice - but it is a lot better than staring at a blank tax return wondering which number goes where.</p>
+
+<h2>Accountant sharing</h2>
+
+<p>You can now invite your accountant to a read-only dashboard by email. They get a private link - no MileClear account needed - showing your trip summaries, mileage deductions, expenses by category, and earnings by platform. They can download CSV and PDF exports directly.</p>
+
+<p>This is a premium feature. The idea is that your accountant sees exactly what you see, formatted for their needs, without you having to export files and email them back and forth.</p>
+
+<h2>Receipt scanning</h2>
+
+<p>Point your camera at a parking ticket, toll receipt, or fuel receipt. MileClear extracts the amount, date, and vendor using Apple's on-device text recognition - your images never leave your phone. The extracted data pre-fills the expense form so you just tap confirm.</p>
+
+<p>It handles most UK receipt formats and recognises common retailers. If the scan gets something wrong, the fields are editable before you save. This requires a development build - it will not work in Expo Go.</p>
+
+<h2>Siri Shortcuts</h2>
+
+<p>Four voice commands, all hands-free:</p>
+
+<ul>
+<li>"Hey Siri, start my shift in MileClear" - opens the app and starts GPS tracking</li>
+<li>"Hey Siri, how many miles today in MileClear" - reads back your day's stats without opening the app</li>
+<li>"Hey Siri, log expense in MileClear" - Siri asks for the amount and logs it</li>
+<li>"Hey Siri, weekly goal in MileClear" - tells you your progress percentage</li>
+</ul>
+
+<p>The intents that just read data work entirely in the background - Siri responds without launching the app. Start Shift opens the app because GPS tracking needs it in the foreground.</p>
+
+<h2>Fixes that matter</h2>
+
+<p>Two bugs this week affected real users and both are fixed.</p>
+
+<p>A driver ended a 10-hour overnight shift covering 260 miles, and the entire shift's trip data vanished. The cause: the app was deleting GPS coordinates from local storage before confirming that trips had been created from them. If anything went wrong during trip creation - an API error, a crash, memory pressure from processing thousands of coordinates - the data was gone with no recovery. Coordinates now stay in local storage until all trips are confirmed saved.</p>
+
+<p>A separate user subscribed to Pro via Apple In-App Purchase and was charged, but the app never activated their premium access. The cause: Apple sends a webhook notification when a purchase completes, and our server verifies it using Apple's root certificates. The certificate directory was missing from the server. Every webhook verification silently failed. The certificates are now in place and future purchases process immediately.</p>
+
+<h2>Get it</h2>
+
+<p>Version 1.0.9 is available on <a href="https://testflight.apple.com/join/SGrmnaaH">TestFlight</a> once the build ships. The Self Assessment wizard and accountant sharing are already live on the <a href="/dashboard/self-assessment">web dashboard</a> if you want to try them now.</p>
+
+<p>As always, feedback goes straight to us - use the feedback screen in the app or email <a href="mailto:support@mileclear.com">support@mileclear.com</a>.</p>
+
+<p>- Gair</p>
+    `.trim(),
+  },
   {
     slug: "whats-new-in-version-1-0-8",
     title: "What's New in Version 1.0.8",
