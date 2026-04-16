@@ -355,6 +355,22 @@ export async function processShiftTrips(
       const tripTime = new Date(first.recorded_at);
       const classification = await getScheduleClassification(tripTime);
 
+      // Downsample coordinates if the segment exceeds the API limit.
+      // API max is 20000; we preserve start + end and evenly sample the rest
+      // so a long trip still has a representative route polyline.
+      const MAX_COORDS = 20000;
+      let tripCoords = segment;
+      if (segment.length > MAX_COORDS) {
+        const step = segment.length / (MAX_COORDS - 2);
+        const sampled = [segment[0]];
+        for (let i = 1; i < MAX_COORDS - 1; i++) {
+          sampled.push(segment[Math.floor(i * step)]);
+        }
+        sampled.push(segment[segment.length - 1]);
+        tripCoords = sampled;
+        console.log(`[processShiftTrips] Downsampled ${segment.length} coords to ${tripCoords.length}`);
+      }
+
       await syncCreateTrip({
         shiftId,
         vehicleId,
@@ -368,7 +384,7 @@ export async function processShiftTrips(
         startedAt: first.recorded_at,
         endedAt: last.recorded_at,
         classification,
-        coordinates: segment.map((c) => ({
+        coordinates: tripCoords.map((c) => ({
           lat: c.lat,
           lng: c.lng,
           speed: c.speed,

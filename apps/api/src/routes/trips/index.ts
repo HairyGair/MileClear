@@ -87,7 +87,7 @@ const createTripSchema = z.object({
   businessPurpose: z.enum(BUSINESS_PURPOSE_VALUES).optional(),
   notes: z.string().max(2000).optional(),
   category: z.enum(TRIP_CATEGORIES).nullable().optional(),
-  coordinates: z.array(coordinateInputSchema).max(5000).optional(),
+  coordinates: z.array(coordinateInputSchema).max(20000).optional(),
 });
 
 const updateTripSchema = z.object({

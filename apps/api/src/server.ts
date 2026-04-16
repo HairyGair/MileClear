@@ -51,7 +51,7 @@ const HOST = process.env.API_HOST || "0.0.0.0";
 
 const app = Fastify({
   trustProxy: true,
-  bodyLimit: 1_048_576, // 1MB
+  bodyLimit: 10_485_760, // 10MB (trips with up to 20k coords can be ~3MB)
   logger: {
     level: process.env.NODE_ENV === "production" ? "info" : "debug",
     redact: ["req.headers.authorization"],
