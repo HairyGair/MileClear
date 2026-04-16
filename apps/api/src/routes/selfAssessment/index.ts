@@ -265,13 +265,14 @@ function buildTaxBandBreakdown(
     )} of profit is tax-free (£${(paUsed / 100).toLocaleString("en-GB")} used)`,
   });
 
+  // ratePct is a decimal (0.20 = 20%). Clients multiply by 100 for display.
   if (profit > T.personalAllowancePence) {
     const basicTaxed =
       Math.min(profit, T.basicRateThresholdPence) - T.personalAllowancePence;
     rows.push({
       band: "Basic Rate",
       type: "income_tax",
-      ratePct: 20,
+      ratePct: T.basicRate,
       amountPence: Math.round(basicTaxed * T.basicRate),
       description: "20% on profit between £12,570 and £50,270",
     });
@@ -283,7 +284,7 @@ function buildTaxBandBreakdown(
     rows.push({
       band: "Higher Rate",
       type: "income_tax",
-      ratePct: 40,
+      ratePct: T.higherRate,
       amountPence: Math.round(higherTaxed * T.higherRate),
       description: "40% on profit between £50,270 and £125,140",
     });
@@ -294,7 +295,7 @@ function buildTaxBandBreakdown(
     rows.push({
       band: "Additional Rate",
       type: "income_tax",
-      ratePct: 45,
+      ratePct: T.additionalRate,
       amountPence: Math.round(additionalTaxed * T.additionalRate),
       description: "45% on profit above £125,140",
     });
@@ -314,7 +315,7 @@ function buildTaxBandBreakdown(
     rows.push({
       band: "Class 4 National Insurance",
       type: "class4_ni",
-      ratePct: 6,
+      ratePct: T.class4NiLowerRate,
       amountPence: taxEstimate.class4NiPence,
       description: "6% on profit between £12,570 and £50,270, 2% above",
     });

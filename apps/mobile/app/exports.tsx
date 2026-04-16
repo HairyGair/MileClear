@@ -120,7 +120,23 @@ export default function ExportsScreen() {
 
   return (
     <View style={styles.container}>
-      <Stack.Screen options={{ title: "Tax Exports" }} />
+      <Stack.Screen
+        options={{
+          headerShown: true,
+          title: "Tax Exports",
+          headerBackVisible: false,
+          headerLeft: () => (
+            <TouchableOpacity
+              onPress={() => router.back()}
+              accessibilityRole="button"
+              accessibilityLabel="Back"
+              hitSlop={{ top: 12, right: 12, bottom: 12, left: 12 }}
+            >
+              <Ionicons name="chevron-back" size={26} color="#f5a623" />
+            </TouchableOpacity>
+          ),
+        }}
+      />
       <ScrollView contentContainerStyle={styles.content}>
         {isPremium === false && (
           <TouchableOpacity

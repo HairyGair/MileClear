@@ -377,6 +377,22 @@ function StepSa103Guide({
 
 // ── Main screen ────────────────────────────────────────────────────────────
 
+const HEADER_OPTIONS = {
+  headerShown: true,
+  title: "Self Assessment",
+  headerBackVisible: false,
+  headerLeft: () => (
+    <TouchableOpacity
+      onPress={() => router.back()}
+      accessibilityRole="button"
+      accessibilityLabel="Back"
+      hitSlop={{ top: 12, right: 12, bottom: 12, left: 12 }}
+    >
+      <Ionicons name="chevron-back" size={26} color="#f5a623" />
+    </TouchableOpacity>
+  ),
+};
+
 export default function SelfAssessmentScreen() {
   const { showPaywall } = usePaywall();
   const taxYears = generateTaxYears(4);
@@ -474,7 +490,7 @@ export default function SelfAssessmentScreen() {
   if (isPremium === null) {
     return (
       <View style={styles.container}>
-        <Stack.Screen options={{ title: "Self Assessment" }} />
+        <Stack.Screen options={HEADER_OPTIONS} />
         <View style={styles.centered}>
           <ActivityIndicator color="#f5a623" />
         </View>
@@ -486,7 +502,7 @@ export default function SelfAssessmentScreen() {
   if (isPremium === false) {
     return (
       <View style={styles.container}>
-        <Stack.Screen options={{ title: "Self Assessment" }} />
+        <Stack.Screen options={HEADER_OPTIONS} />
         <ScrollView contentContainerStyle={styles.content}>
           <TouchableOpacity
             style={styles.paywallBanner}
@@ -520,7 +536,7 @@ export default function SelfAssessmentScreen() {
 
   return (
     <View style={styles.container}>
-      <Stack.Screen options={{ title: "Self Assessment Guide" }} />
+      <Stack.Screen options={HEADER_OPTIONS} />
 
       {/* Step dots */}
       <View style={styles.stepBar}>

@@ -353,6 +353,7 @@ function RootNavigator() {
         <Stack.Screen name="admin-push" options={{ headerShown: true, title: "Push Notifications" }} />
         <Stack.Screen name="admin-email" options={{ headerShown: true, title: "Email Campaigns" }} />
         <Stack.Screen name="customize-layout" options={{ headerShown: false }} />
+        <Stack.Screen name="self-assessment" options={{ headerShown: true, title: "Self Assessment" }} />
       </Stack>
       {/* Loading overlay - covers Stack while auth/onboarding resolves */}
       {showLoading && (
