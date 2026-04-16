@@ -4,6 +4,8 @@ import {
   SignedDataVerifier,
   JWSTransactionDecodedPayload,
   JWSRenewalInfoDecodedPayload,
+  VerificationException,
+  VerificationStatus,
 } from "@apple/app-store-server-library";
 import * as fs from "fs";
 import * as path from "path";
@@ -102,7 +104,9 @@ export async function decodeNotification(signedPayload: string): Promise<{
   transactionInfo: JWSTransactionDecodedPayload | null;
   renewalInfo: JWSRenewalInfoDecodedPayload | null;
 } | null> {
-  if (!signedDataVerifier) return null;
+  if (!signedDataVerifier) {
+    throw new Error("Apple IAP SignedDataVerifier not initialized");
+  }
   try {
     const notification = await signedDataVerifier.verifyAndDecodeNotification(signedPayload);
     const data = notification.data;
@@ -129,8 +133,27 @@ export async function decodeNotification(signedPayload: string): Promise<{
       renewalInfo,
     };
   } catch (err) {
+    // Surface the real VerificationStatus so the Ops panel / webhook log
+    // stores something actionable instead of the generic "returned null".
+    // VerificationException extends Error but super() is called without a
+    // message, so err.message is empty and the status enum is the only clue.
+    if (err instanceof VerificationException) {
+      const statusName =
+        VerificationStatus[err.status] ?? `UNKNOWN(${err.status})`;
+      const causeDetail =
+        err.cause instanceof Error
+          ? `: ${err.cause.name}: ${err.cause.message}`
+          : err.cause
+            ? `: ${String(err.cause)}`
+            : "";
+      const message = `VerificationException ${statusName}${causeDetail}`;
+      console.error("Failed to decode Apple notification:", message, err.cause ?? "");
+      const enriched = new Error(message);
+      enriched.name = "VerificationException";
+      throw enriched;
+    }
     console.error("Failed to decode Apple notification:", err);
-    return null;
+    throw err;
   }
 }
 
