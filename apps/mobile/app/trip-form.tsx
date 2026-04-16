@@ -48,7 +48,7 @@ import {
   type LocationQuestion,
 } from "@mileclear/shared";
 import type { CommunityInsights } from "@mileclear/shared";
-import { startLiveActivity, updateLiveActivity, endLiveActivity, endLiveActivityWithSummary } from "../lib/liveActivity";
+import { startLiveActivity, updateLiveActivity, endLiveActivity, endLiveActivityWithSummary, markLiveActivityClassified } from "../lib/liveActivity";
 import { fetchCommunityInsights } from "../lib/api/communityInsights";
 import * as Notifications from "expo-notifications";
 
@@ -1102,6 +1102,10 @@ export default function TripFormScreen() {
           endLng: endLng ?? null,
           endedAt: endedAt ? endedAt.toISOString() : null,
         });
+        // Clear "Classify Trip" CTA from any running Live Activity
+        if (classification !== "unclassified") {
+          markLiveActivityClassified().catch(() => {});
+        }
       } else {
         // Include breadcrumb trail if we have one (from quick trip driving mode)
         const crumbs = breadcrumbsRef.current;

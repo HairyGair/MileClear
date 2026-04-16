@@ -21,6 +21,7 @@ import { useRouter, useFocusEffect } from "expo-router";
 import { Button } from "../../components/Button";
 import { fetchTrips, fetchUnclassifiedCount, fetchClassificationSuggestion, mergeTrips, TripWithVehicle, ClassificationSuggestion } from "../../lib/api/trips";
 import { syncUpdateTrip, syncDeleteTrip } from "../../lib/sync/actions";
+import { markLiveActivityClassified } from "../../lib/liveActivity";
 import { getLocalTrips, getLocalUnsyncedTrips } from "../../lib/db/queries";
 import { learnFromClassification } from "../../lib/classification";
 import { maybeRequestReview } from "../../lib/rating/index";
@@ -322,6 +323,8 @@ export default function TripsScreen() {
       setClassifyingId(tripId);
       try {
         await syncUpdateTrip(tripId, { classification });
+        // Clear "Classify Trip" CTA from any running Live Activity
+        markLiveActivityClassified().catch(() => {});
         LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
         setTrips((prev) => prev.map((t) =>
           t.id === tripId ? { ...t, classification } : t
@@ -457,6 +460,8 @@ export default function TripsScreen() {
         await Promise.all(
           group.trips.map((t) => syncUpdateTrip(t.id, { classification }))
         );
+        // Clear "Classify Trip" CTA from any running Live Activity
+        markLiveActivityClassified().catch(() => {});
 
         // Learn from the representative trip (first in group that has end coords).
         const representative = group.trips.find((t) => t.endLat != null && t.endLng != null);

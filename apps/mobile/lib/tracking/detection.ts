@@ -594,6 +594,7 @@ async function _finalizeAutoTripInner(): Promise<void> {
         // classification CTA is needed.
         endLiveActivityWithSummary({
           distanceMiles: newDistance,
+          startDateMs: recentTrip.started_at ? new Date(recentTrip.started_at).getTime() : new Date(first.recorded_at).getTime(),
           endDateMs: new Date(last.recorded_at).getTime(),
           needsClassification: false,
         }).catch(() => {});
@@ -646,6 +647,7 @@ async function _finalizeAutoTripInner(): Promise<void> {
     // already up to date by the time the user looks.
     endLiveActivityWithSummary({
       distanceMiles: roundedDistance,
+      startDateMs: new Date(first.recorded_at).getTime(),
       endDateMs: new Date(last.recorded_at).getTime(),
       needsClassification: !wasAutoClassified,
     }).catch(() => {});

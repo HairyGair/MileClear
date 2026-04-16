@@ -141,6 +141,7 @@ export async function endLiveActivity(): Promise<void> {
 export async function endLiveActivityWithSummary(params: {
   distanceMiles: number;
   tripCount?: number;
+  startDateMs?: number;
   endDateMs?: number;
   needsClassification?: boolean;
 }): Promise<void> {
@@ -149,12 +150,23 @@ export async function endLiveActivityWithSummary(params: {
     await LiveActivityModule.endActivityWithSummary({
       distanceMiles: params.distanceMiles,
       tripCount: params.tripCount ?? 0,
-      startDateMs: activityStartDateMs ?? Date.now(),
+      startDateMs: params.startDateMs ?? activityStartDateMs ?? Date.now(),
       endDateMs: params.endDateMs ?? Date.now(),
       needsClassification: params.needsClassification ?? false,
     });
     currentActivityId = null;
     activityStartDateMs = null;
+  } catch {}
+}
+
+/**
+ * Clear the "Classify Trip" CTA from any active or ended Live Activity
+ * once the user has classified the trip in the app.
+ */
+export async function markLiveActivityClassified(): Promise<void> {
+  if (Platform.OS !== "ios" || !LiveActivityModule) return;
+  try {
+    await LiveActivityModule.markClassified();
   } catch {}
 }
 

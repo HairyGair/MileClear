@@ -197,6 +197,39 @@ class LiveActivityModule: NSObject {
         }
     }
 
+    // MARK: - markClassified
+    //
+    // Clear the needsClassification flag on any running Live Activity
+    // (active or ended state) once the user has classified the trip.
+    // Removes the "Classify Trip" CTA from the lock screen summary.
+
+    @objc func markClassified(
+        _ resolve: @escaping RCTPromiseResolveBlock,
+        reject: @escaping RCTPromiseRejectBlock
+    ) {
+        guard #available(iOS 16.2, *) else {
+            resolve(false)
+            return
+        }
+        Task {
+            for activity in Activity<MileClearAttributes>.activities {
+                let currentState = activity.content.state
+                let updatedState = MileClearAttributes.ContentState(
+                    distanceMiles: currentState.distanceMiles,
+                    speedMph: currentState.speedMph,
+                    tripCount: currentState.tripCount,
+                    startDate: currentState.startDate,
+                    phase: currentState.phase,
+                    endDate: currentState.endDate,
+                    needsClassification: false
+                )
+                let content = ActivityContent(state: updatedState, staleDate: nil)
+                await activity.update(content)
+            }
+            resolve(true)
+        }
+    }
+
     // MARK: - getActiveActivityId
 
     @objc func getActiveActivityId(
