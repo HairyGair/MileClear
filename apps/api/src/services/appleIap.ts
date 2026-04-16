@@ -37,21 +37,32 @@ if (keyId && issuerId && privateKeyBase64) {
       iapEnv
     );
 
-    // Load Apple root certificates for JWS verification
-    const certsDir = path.join(
-      path.dirname(new URL(import.meta.url).pathname),
-      "..",
-      "certs"
-    );
+    // Load Apple root certificates for JWS verification.
+    // Try multiple candidate directories so this works in both dev (tsx from
+    // src/) and prod (node from dist/). TypeScript compilation does not copy
+    // .cer files to dist, so the certs only exist in src/certs/ at runtime.
+    const here = path.dirname(new URL(import.meta.url).pathname);
+    const candidateDirs = [
+      path.join(here, "..", "certs"),                   // dist/services/ -> dist/certs/ (if copied)
+      path.join(here, "..", "..", "src", "certs"),      // dist/services/ -> src/certs/ (prod)
+      path.join(here, "..", "..", "..", "src", "certs"), // fallback
+    ];
+    let certsDir: string | null = null;
+    for (const dir of candidateDirs) {
+      if (fs.existsSync(dir)) {
+        certsDir = dir;
+        break;
+      }
+    }
     let rootCerts: Buffer[] = [];
-    if (fs.existsSync(certsDir)) {
+    if (certsDir) {
       rootCerts = fs
         .readdirSync(certsDir)
         .filter((f) => f.endsWith(".cer") || f.endsWith(".pem"))
-        .map((f) => fs.readFileSync(path.join(certsDir, f)));
+        .map((f) => fs.readFileSync(path.join(certsDir!, f)));
     }
     if (rootCerts.length === 0) {
-      console.warn("WARNING: No Apple root certificates found in", certsDir, "- webhook verification will fail");
+      console.warn("WARNING: No Apple root certificates found in any of:", candidateDirs, "- webhook verification will fail");
     }
 
     signedDataVerifier = new SignedDataVerifier(
