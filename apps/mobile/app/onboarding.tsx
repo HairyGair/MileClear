@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   View,
   Text,
@@ -10,7 +10,9 @@ import {
   Platform,
   Alert,
   Animated,
+  AppState,
   Dimensions,
+  Linking,
 } from "react-native";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
@@ -123,6 +125,22 @@ export default function OnboardingScreen() {
       setLocationStatus("denied");
     }
   }, []);
+
+  // Re-check permission when returning from Settings (user may have enabled it there)
+  useEffect(() => {
+    const sub = AppState.addEventListener("change", async (state) => {
+      if (state !== "active" || locationStatus !== "denied") return;
+      try {
+        const fg = await Location.getForegroundPermissionsAsync();
+        if (fg.status === "granted") {
+          setLocationStatus("granted");
+        }
+      } catch {
+        // ignore
+      }
+    });
+    return () => sub.remove();
+  }, [locationStatus]);
 
   // ── Notification permission ────────────────────────────────────────────────
 
@@ -618,16 +636,31 @@ export default function OnboardingScreen() {
             )}
 
             {locationStatus === "denied" && (
-              <View style={s.deniedBanner}>
-                <Ionicons name="warning-outline" size={20} color="#f87171" />
-                <Text style={s.deniedText}>
-                  Location denied — you can enable it later in Settings.
+              <View style={s.deniedCard}>
+                <View style={s.deniedHeader}>
+                  <Ionicons name="warning-outline" size={20} color="#f87171" />
+                  <Text style={s.deniedTitle}>Auto-detection is off</Text>
+                </View>
+                <Text style={s.deniedBody}>
+                  Without "Always" location access, MileClear can't record trips in the background. You'll need to tap Start before every drive, and any forgotten trips mean lost HMRC deductions.
                 </Text>
+                <Text style={s.deniedHelp}>
+                  Tap below to open Settings, then choose Location {"->"} Always.
+                </Text>
+                <TouchableOpacity
+                  style={s.deniedSettingsBtn}
+                  onPress={() => Linking.openSettings()}
+                  accessibilityRole="button"
+                  accessibilityLabel="Open Settings to enable Always location access"
+                >
+                  <Ionicons name="settings-outline" size={16} color="#f87171" />
+                  <Text style={s.deniedSettingsBtnText}>Open Settings</Text>
+                </TouchableOpacity>
               </View>
             )}
 
             <View style={s.buttonStack}>
-              {locationStatus !== "granted" && (
+              {locationStatus !== "granted" && locationStatus !== "denied" && (
                 <Button
                   variant="hero"
                   title={
@@ -639,13 +672,12 @@ export default function OnboardingScreen() {
                   size="lg"
                   onPress={handleRequestLocation}
                   loading={locationStatus === "requesting"}
-                  disabled={locationStatus === "denied"}
                 />
               )}
 
               <Button
                 variant={locationStatus === "granted" ? "hero" : "primary"}
-                title="Continue"
+                title={locationStatus === "denied" ? "Continue without auto-detection" : "Continue"}
                 icon="arrow-forward"
                 size="lg"
                 onPress={goNext}
@@ -1363,6 +1395,55 @@ const s = StyleSheet.create({
     color: "#f87171",
     flex: 1,
     lineHeight: 19,
+  },
+  deniedCard: {
+    backgroundColor: ERROR_BG,
+    borderWidth: 1,
+    borderColor: ERROR_BORDER,
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    marginBottom: 20,
+    gap: 10,
+  },
+  deniedHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  deniedTitle: {
+    fontSize: 15,
+    fontFamily: "PlusJakartaSans_600SemiBold",
+    color: "#f87171",
+  },
+  deniedBody: {
+    fontSize: 13,
+    fontFamily: "PlusJakartaSans_400Regular",
+    color: TEXT_1,
+    lineHeight: 19,
+  },
+  deniedHelp: {
+    fontSize: 12,
+    fontFamily: "PlusJakartaSans_400Regular",
+    color: TEXT_2,
+    lineHeight: 17,
+  },
+  deniedSettingsBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    backgroundColor: "rgba(220, 38, 38, 0.15)",
+    borderWidth: 1,
+    borderColor: "rgba(220, 38, 38, 0.3)",
+    borderRadius: 8,
+    paddingVertical: 10,
+    marginTop: 2,
+  },
+  deniedSettingsBtnText: {
+    fontSize: 13,
+    fontFamily: "PlusJakartaSans_600SemiBold",
+    color: "#f87171",
   },
 
   // Button stack

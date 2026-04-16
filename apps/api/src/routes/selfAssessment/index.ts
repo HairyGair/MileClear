@@ -2,27 +2,31 @@ import { FastifyInstance, FastifyRequest } from "fastify";
 import { z } from "zod";
 import { authMiddleware } from "../../middleware/auth.js";
 import { premiumMiddleware } from "../../middleware/premium.js";
+import { prisma } from "../../lib/prisma.js";
 import {
   fetchExportSummary,
   fetchExpenseSummary,
 } from "../../services/export-data.js";
 import {
   estimateUkTax,
-  SA103_BOXES,
+  calculateHmrcDeduction,
+  parseTaxYear,
+  UK_TAX_2025_26,
+  type VehicleType,
 } from "@mileclear/shared";
 import { logEvent } from "../../services/appEvents.js";
-
-// ---------------------------------------------------------------------------
-// Validation
-// ---------------------------------------------------------------------------
 
 const taxYearSchema = z
   .string()
   .regex(/^\d{4}-\d{2}$/, "taxYear must be in the format YYYY-YY, e.g. 2025-26");
 
-// ---------------------------------------------------------------------------
-// Route module
-// ---------------------------------------------------------------------------
+interface TaxBandRow {
+  band: string;
+  type: string;
+  ratePct: number | null;
+  amountPence: number;
+  description: string;
+}
 
 export async function selfAssessmentRoutes(app: FastifyInstance) {
   app.addHook("preHandler", authMiddleware);
@@ -31,8 +35,14 @@ export async function selfAssessmentRoutes(app: FastifyInstance) {
   /**
    * GET /self-assessment/summary?taxYear=2025-26
    *
-   * Returns a structured object mapping all MileClear financial data for the
-   * requested tax year to HMRC SA103 (Self-employment) form boxes.
+   * Returns the full financial summary needed by the Self Assessment wizard
+   * (mobile + web). Response is wrapped in `{ data: ... }` - both clients
+   * call `api.get<{ data: SelfAssessmentSummary }>(...)`.
+   *
+   * Shape matches the `SelfAssessmentSummary` interface duplicated in:
+   *   - apps/mobile/lib/api/selfAssessment.ts
+   *   - apps/web/src/app/dashboard/self-assessment/page.tsx
+   *
    * Protected: auth + premium.
    */
   app.get(
@@ -43,180 +53,272 @@ export async function selfAssessmentRoutes(app: FastifyInstance) {
     ) => {
       const { taxYear } = request.query;
 
-      // Validate taxYear query param
       const parsed = taxYearSchema.safeParse(taxYear);
       if (!parsed.success) {
         return reply.status(400).send({
           error: "Invalid taxYear",
-          details: parsed.error.issues[0]?.message ?? "taxYear must be in format YYYY-YY, e.g. 2025-26",
+          details:
+            parsed.error.issues[0]?.message ??
+            "taxYear must be in format YYYY-YY, e.g. 2025-26",
         });
       }
 
       const userId = request.userId!;
       const validatedTaxYear = parsed.data;
+      const { start, end } = parseTaxYear(validatedTaxYear);
 
-      // Fetch mileage, trips, earnings and expense data in parallel
-      const [summary, expenseSummary] = await Promise.all([
-        fetchExportSummary(userId, validatedTaxYear),
-        fetchExpenseSummary(userId, validatedTaxYear),
-      ]);
+      const [summary, expenseSummary, trips, earnings, primaryVehicle] =
+        await Promise.all([
+          fetchExportSummary(userId, validatedTaxYear),
+          fetchExpenseSummary(userId, validatedTaxYear),
+          prisma.trip.findMany({
+            where: { userId, startedAt: { gte: start, lte: end } },
+            include: {
+              vehicle: {
+                select: {
+                  id: true,
+                  make: true,
+                  model: true,
+                  vehicleType: true,
+                },
+              },
+            },
+          }),
+          prisma.earning.findMany({
+            where: {
+              userId,
+              periodStart: { gte: start },
+              periodEnd: { lte: end },
+            },
+            select: { platform: true, amountPence: true },
+          }),
+          prisma.vehicle.findFirst({
+            where: { userId },
+            orderBy: [{ isPrimary: "desc" }, { createdAt: "asc" }],
+            select: { id: true, make: true, model: true, vehicleType: true },
+          }),
+        ]);
 
-      // ---------------------------------------------------------------------------
-      // Earnings
-      // ---------------------------------------------------------------------------
-
-      const totalEarningsPence = summary.totalEarningsPence;
-      const earningsByPlatform = summary.earningsByPlatform.map((e) => ({
-        platform: e.platform,
-        totalPence: e.totalPence,
-      }));
-
-      // ---------------------------------------------------------------------------
-      // Mileage
-      // ---------------------------------------------------------------------------
-
-      const totalMiles = summary.totalMiles;
-      const businessMiles = summary.businessMiles;
-      const personalMiles = summary.personalMiles;
-      const mileageDeductionPence = summary.totalDeductionPence;
-
-      const vehicleBreakdown = summary.vehicleBreakdown.map((v) => ({
-        vehicleName: v.vehicleName,
-        vehicleType: v.vehicleType,
-        businessMiles: v.businessMiles,
-        deductionPence: v.deductionPence,
-      }));
-
-      // ---------------------------------------------------------------------------
-      // Expenses
-      // ---------------------------------------------------------------------------
-
-      const allowableExpenses = expenseSummary.categories
-        .filter((c) => c.deductibleWithMileage)
-        .map((c) => ({
-          category: c.category,
-          label: c.label,
-          totalPence: c.totalPence,
-        }));
-
-      const nonAllowableExpenses = expenseSummary.categories
-        .filter((c) => !c.deductibleWithMileage)
-        .map((c) => ({
-          category: c.category,
-          label: c.label,
-          totalPence: c.totalPence,
-        }));
-
-      const totalAllowableExpensesPence = expenseSummary.totalAllowablePence;
-      const totalNonAllowableExpensesPence = expenseSummary.totalNonAllowablePence;
-
-      // ---------------------------------------------------------------------------
-      // Tax calculation
-      //
-      // Using the simplified mileage method (Box 46). Under this method:
-      //   taxable income = earnings - mileage deduction - other allowable expenses
-      //
-      // Non-vehicle allowable expenses (parking, tolls, phone, etc.) are still
-      // deductible alongside simplified mileage.
-      // ---------------------------------------------------------------------------
-
-      const taxableIncomePence = Math.max(
-        0,
-        totalEarningsPence - mileageDeductionPence - totalAllowableExpensesPence
+      // Platform breakdown with per-platform count
+      const platformMap = new Map<
+        string,
+        { platform: string; totalPence: number; count: number }
+      >();
+      for (const e of earnings) {
+        const row = platformMap.get(e.platform);
+        if (row) {
+          row.totalPence += e.amountPence;
+          row.count += 1;
+        } else {
+          platformMap.set(e.platform, {
+            platform: e.platform,
+            totalPence: e.amountPence,
+            count: 1,
+          });
+        }
+      }
+      const platformBreakdown = Array.from(platformMap.values()).sort(
+        (a, b) => b.totalPence - a.totalPence
       );
 
-      const rawTax = estimateUkTax(taxableIncomePence);
+      // Vehicle breakdown - richer than fetchExportSummary's output because
+      // the wizard needs vehicleId/make/model/personalMiles per vehicle.
+      interface VehicleRow {
+        vehicleId: string;
+        make: string;
+        model: string;
+        vehicleType: string;
+        businessMiles: number;
+        personalMiles: number;
+        totalMiles: number;
+        deductionPence: number;
+      }
+
+      const vehicleMap = new Map<string, VehicleRow>();
+      for (const trip of trips) {
+        const vehicle = trip.vehicle ?? primaryVehicle;
+        const vKey = trip.vehicleId || primaryVehicle?.id || "unassigned";
+        let row = vehicleMap.get(vKey);
+        if (!row) {
+          row = {
+            vehicleId: vKey,
+            make: vehicle?.make ?? "Unassigned",
+            model: vehicle?.model ?? "",
+            vehicleType: (vehicle?.vehicleType || "car") as VehicleType,
+            businessMiles: 0,
+            personalMiles: 0,
+            totalMiles: 0,
+            deductionPence: 0,
+          };
+          vehicleMap.set(vKey, row);
+        }
+        row.totalMiles += trip.distanceMiles;
+        if (trip.classification === "business") {
+          row.businessMiles += trip.distanceMiles;
+        } else {
+          row.personalMiles += trip.distanceMiles;
+        }
+      }
+
+      for (const row of vehicleMap.values()) {
+        row.businessMiles = Math.round(row.businessMiles * 100) / 100;
+        row.personalMiles = Math.round(row.personalMiles * 100) / 100;
+        row.totalMiles = Math.round(row.totalMiles * 100) / 100;
+        row.deductionPence = calculateHmrcDeduction(
+          row.vehicleType as VehicleType,
+          row.businessMiles
+        );
+      }
+      const vehicleBreakdown = Array.from(vehicleMap.values()).sort(
+        (a, b) => b.businessMiles - a.businessMiles
+      );
+
+      // Totals + tax estimate
+      const totalEarningsPence = summary.totalEarningsPence;
+      const mileageDeductionPence = summary.totalDeductionPence;
+      const allowableExpensesPence = expenseSummary.totalAllowablePence;
+      const nonMileageExpensesPence = expenseSummary.totalNonAllowablePence;
+      const taxableProfitPence = Math.max(
+        0,
+        totalEarningsPence - mileageDeductionPence - allowableExpensesPence
+      );
+
+      const taxEstimate = estimateUkTax(taxableProfitPence);
       const totalTaxPence =
-        rawTax.incomeTaxPence + rawTax.class2NiPence + rawTax.class4NiPence;
+        taxEstimate.incomeTaxPence +
+        taxEstimate.class2NiPence +
+        taxEstimate.class4NiPence;
+      const effectiveRatePercent =
+        totalEarningsPence > 0
+          ? Math.round((totalTaxPence / totalEarningsPence) * 10000) / 100
+          : 0;
 
-      const taxEstimate = {
-        incomeTaxPence: rawTax.incomeTaxPence,
-        class2NiPence: rawTax.class2NiPence,
-        class4NiPence: rawTax.class4NiPence,
-        totalTaxPence,
-        breakdown: {
-          taxableProfit: taxableIncomePence,
-          mileageDeductionApplied: mileageDeductionPence,
-          allowableExpensesApplied: totalAllowableExpensesPence,
-          grossEarnings: totalEarningsPence,
-        },
-      };
+      const taxBandBreakdown = buildTaxBandBreakdown(
+        taxableProfitPence,
+        taxEstimate
+      );
 
-      // ---------------------------------------------------------------------------
-      // SA103 box mapping
-      //
-      // We use the simplified mileage method (Box 46). The mapping below reflects
-      // HMRC rules for self-employed gig workers using this method:
-      //   - Box 9/10: total turnover (earnings)
-      //   - Box 17/20/29: allowable non-vehicle expenses only (not mileage, since
-      //     simplified mileage is claimed in Box 46 instead)
-      //   - Box 18: net profit (earnings minus allowable non-vehicle expenses)
-      //   - Box 27: other allowable expenses (parking, tolls, phone, etc.)
-      //   - Box 46: simplified flat-rate mileage deduction
-      //   - Box 49/51: taxable profit after all deductions
-      //
-      // Box 25 (actual motor expenses) is intentionally set to zero because the
-      // simplified method is used. Box 10 is set to zero (no secondary income source).
-      // ---------------------------------------------------------------------------
-
+      // SA103 box values - consumed by clients via box.dataKey lookup
       const netProfitBeforeMileage =
-        totalEarningsPence - totalAllowableExpensesPence;
-
-      const boxValues: Record<string, number> = {
+        totalEarningsPence - allowableExpensesPence;
+      const sa103Values: Record<string, number> = {
         totalEarnings: totalEarningsPence,
         otherIncome: 0,
-        totalExpenses: totalAllowableExpensesPence,
+        totalExpenses: allowableExpensesPence,
         netProfit: Math.max(0, netProfitBeforeMileage),
-        allowableExpenses: totalAllowableExpensesPence,
-        motorExpenses: 0, // actual motor costs not used under simplified mileage
-        otherExpenses: totalAllowableExpensesPence,
+        allowableExpenses: allowableExpensesPence,
+        motorExpenses: 0, // actual motor costs unused under simplified mileage
+        otherExpenses: allowableExpensesPence,
         mileageDeduction: mileageDeductionPence,
-        adjustedProfit: taxableIncomePence,
-        taxableProfit: taxableIncomePence,
+        adjustedProfit: taxableProfitPence,
+        taxableProfit: taxableProfitPence,
       };
 
-      const sa103Boxes = SA103_BOXES.map((b) => ({
-        box: b.box,
-        label: b.label,
-        description: b.description,
-        valuePence: boxValues[b.dataKey] ?? 0,
-        section: b.section,
-      }));
-
-      // ---------------------------------------------------------------------------
-      // Response
-      // ---------------------------------------------------------------------------
-
-      logEvent("self_assessment.summary", userId, { taxYear: validatedTaxYear });
+      logEvent("self_assessment.summary", userId, {
+        taxYear: validatedTaxYear,
+      });
 
       return reply.send({
-        taxYear: validatedTaxYear,
-        userName: summary.userName,
-
-        // Income
-        totalEarningsPence,
-        earningsByPlatform,
-
-        // Mileage
-        totalMiles,
-        businessMiles,
-        personalMiles,
-        mileageDeductionPence,
-        vehicleBreakdown,
-
-        // Expenses
-        allowableExpenses,
-        totalAllowableExpensesPence,
-        nonAllowableExpenses,
-        totalNonAllowableExpensesPence,
-
-        // Tax
-        taxableIncomePence,
-        taxEstimate,
-
-        // SA103 form boxes
-        sa103Boxes,
+        data: {
+          taxYear: validatedTaxYear,
+          totalEarningsPence,
+          platformBreakdown,
+          totalMiles: summary.totalMiles,
+          businessMiles: summary.businessMiles,
+          personalMiles: summary.personalMiles,
+          mileageDeductionPence,
+          vehicleBreakdown,
+          expenseBreakdown: expenseSummary.categories,
+          allowableExpensesPence,
+          nonMileageExpensesPence,
+          taxableProfitPence,
+          taxBandBreakdown,
+          totalTaxPence,
+          effectiveRatePercent,
+          sa103Values,
+        },
       });
     }
   );
+}
+
+function buildTaxBandBreakdown(
+  taxableProfitPence: number,
+  taxEstimate: {
+    incomeTaxPence: number;
+    class2NiPence: number;
+    class4NiPence: number;
+  }
+): TaxBandRow[] {
+  const T = UK_TAX_2025_26;
+  const profit = Math.max(0, taxableProfitPence);
+  const rows: TaxBandRow[] = [];
+
+  const paUsed = Math.min(profit, T.personalAllowancePence);
+  rows.push({
+    band: "Personal Allowance",
+    type: "income_tax",
+    ratePct: 0,
+    amountPence: 0,
+    description: `First £${(T.personalAllowancePence / 100).toLocaleString(
+      "en-GB"
+    )} of profit is tax-free (£${(paUsed / 100).toLocaleString("en-GB")} used)`,
+  });
+
+  if (profit > T.personalAllowancePence) {
+    const basicTaxed =
+      Math.min(profit, T.basicRateThresholdPence) - T.personalAllowancePence;
+    rows.push({
+      band: "Basic Rate",
+      type: "income_tax",
+      ratePct: 20,
+      amountPence: Math.round(basicTaxed * T.basicRate),
+      description: "20% on profit between £12,570 and £50,270",
+    });
+  }
+
+  if (profit > T.basicRateThresholdPence) {
+    const higherTaxed =
+      Math.min(profit, T.higherRateThresholdPence) - T.basicRateThresholdPence;
+    rows.push({
+      band: "Higher Rate",
+      type: "income_tax",
+      ratePct: 40,
+      amountPence: Math.round(higherTaxed * T.higherRate),
+      description: "40% on profit between £50,270 and £125,140",
+    });
+  }
+
+  if (profit > T.higherRateThresholdPence) {
+    const additionalTaxed = profit - T.higherRateThresholdPence;
+    rows.push({
+      band: "Additional Rate",
+      type: "income_tax",
+      ratePct: 45,
+      amountPence: Math.round(additionalTaxed * T.additionalRate),
+      description: "45% on profit above £125,140",
+    });
+  }
+
+  if (taxEstimate.class2NiPence > 0) {
+    rows.push({
+      band: "Class 2 National Insurance",
+      type: "class2_ni",
+      ratePct: null,
+      amountPence: taxEstimate.class2NiPence,
+      description: "£3.45/week flat rate for self-employed",
+    });
+  }
+
+  if (taxEstimate.class4NiPence > 0) {
+    rows.push({
+      band: "Class 4 National Insurance",
+      type: "class4_ni",
+      ratePct: 6,
+      amountPence: taxEstimate.class4NiPence,
+      description: "6% on profit between £12,570 and £50,270, 2% above",
+    });
+  }
+
+  return rows;
 }

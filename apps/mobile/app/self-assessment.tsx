@@ -404,6 +404,10 @@ export default function SelfAssessmentScreen() {
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Failed to load";
       if (msg === "Premium subscription required" || msg.includes("403")) {
+        // API is authoritative for premium - if it 403s, reflect locally so
+        // the full-screen paywall gate renders instead of a blank wizard.
+        setIsPremium(false);
+        setStep(0);
         showPaywall("self-assessment");
         return;
       }
@@ -411,7 +415,7 @@ export default function SelfAssessmentScreen() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [showPaywall]);
 
   const handleNext = useCallback(() => {
     if (step === 0) {
