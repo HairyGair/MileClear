@@ -38,6 +38,7 @@ export const RELEASE_NOTES: ReleaseNote[] = [
       "Accountant sharing - invite your accountant by email to a read-only dashboard showing your trips, mileage deductions, expenses, and earnings. They can download CSV and PDF exports without needing a MileClear account",
       "Receipt scanning - point your camera at a parking ticket, toll receipt, or fuel receipt and it extracts the amount, date, and vendor automatically. Uses on-device processing so your images never leave your phone",
       "Siri Shortcuts - 'Hey Siri, start my shift', 'How many miles today?', 'Log expense', 'Weekly goal progress'. Works hands-free while driving",
+      "Clearer location permission flow during onboarding - if you decline 'Always' access, you now see a plain-English card explaining what auto-detection costs (manual Start taps, missed HMRC-deductible miles) with a one-tap Open Settings link that deep-links straight to MileClear's location page. The card flips to green automatically when you return with the permission granted",
       "App Store rating tracking - we can now see whether rating prompts are reaching users and how they respond, so we can tune the timing",
       "Fixed a bug where ending a long shift could lose all trip data. GPS coordinates are now preserved until trips are confirmed saved",
       "Fixed Apple In-App Purchase webhook verification - subscription activations that were silently failing now process correctly",
