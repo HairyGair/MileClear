@@ -8,6 +8,17 @@ config({ path: resolve(__dirname, "../../.env") });
 const nextConfig: NextConfig = {
   poweredByHeader: false,
   transpilePackages: ["@mileclear/shared"],
+  async redirects() {
+    return [
+      // Google crawlers sometimes pick up "£4.99/month" from page copy
+      // and try to fetch /month as a URL. Redirect to pricing instead of
+      // returning a 404 so the link at least sends people somewhere useful.
+      { source: "/month", destination: "/pricing", permanent: true },
+      { source: "/year", destination: "/pricing", permanent: true },
+      { source: "/monthly", destination: "/pricing", permanent: true },
+      { source: "/yearly", destination: "/pricing", permanent: true },
+    ];
+  },
   async headers() {
     return [
       {
