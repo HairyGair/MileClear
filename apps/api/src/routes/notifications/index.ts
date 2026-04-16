@@ -28,6 +28,15 @@ export async function notificationRoutes(app: FastifyInstance) {
       const userId = request.userId!;
       const { pushToken } = parsed.data;
 
+      // Clear this token from any OTHER user accounts first. Prevents
+      // duplicate pushes when a device has been signed into multiple
+      // accounts (each account would otherwise receive its own copy of
+      // every notification).
+      await prisma.user.updateMany({
+        where: { pushToken, id: { not: userId } },
+        data: { pushToken: null },
+      });
+
       await prisma.user.update({
         where: { id: userId },
         data: { pushToken },
