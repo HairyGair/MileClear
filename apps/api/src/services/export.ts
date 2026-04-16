@@ -130,6 +130,13 @@ function drawFooter(
 ) {
   const y = pageHeight - 30;
 
+  // Temporarily disable the page's bottom margin so footer text drawn
+  // below the margin line does not trigger PDFKit's auto-pagination.
+  // Without this, each doc.text() call in the footer adds a new blank
+  // page because the text would otherwise exceed the bottom margin.
+  const origBottom = doc.page.margins.bottom;
+  doc.page.margins.bottom = 0;
+
   // Thin line
   doc
     .moveTo(margin, y)
@@ -139,7 +146,7 @@ function drawFooter(
     .stroke();
 
   doc.font("Helvetica").fontSize(7).fillColor(GREY_400);
-  doc.text(reportRef, margin, y + 6);
+  doc.text(reportRef, margin, y + 6, { lineBreak: false });
 
   const genDate = new Date().toLocaleDateString("en-GB", {
     day: "numeric",
@@ -149,6 +156,7 @@ function drawFooter(
   doc.text(`Generated ${genDate}`, margin, y + 6, {
     width: pageWidth - margin * 2,
     align: "center",
+    lineBreak: false,
   });
 
   const pageText = totalPages
@@ -157,7 +165,10 @@ function drawFooter(
   doc.text(pageText, margin, y + 6, {
     width: pageWidth - margin * 2,
     align: "right",
+    lineBreak: false,
   });
+
+  doc.page.margins.bottom = origBottom;
 }
 
 // ── Summary stat box ──────────────────────────────────────────────
@@ -514,6 +525,9 @@ export async function generateSelfAssessmentPdf(
     "Business Miles",
     `${summary.businessMiles.toFixed(1)} mi`
   );
+  // Only highlight the HMRC Deduction box in amber when there is a
+  // deduction to celebrate - a £0.00 figure in a bright amber block
+  // looks odd and implies a positive result where there is none.
   drawStatBox(
     doc,
     margin + (boxW + boxGap) * 2,
@@ -521,7 +535,7 @@ export async function generateSelfAssessmentPdf(
     boxW,
     "HMRC Deduction",
     formatPence(summary.totalDeductionPence),
-    true
+    summary.totalDeductionPence > 0
   );
 
   doc.y = boxY + 64;
