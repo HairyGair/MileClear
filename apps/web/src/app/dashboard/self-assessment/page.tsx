@@ -175,15 +175,15 @@ function StepMileage({ summary }: Pick<StepProps, "summary">) {
       </div>
       <div className="stats-grid" style={{ marginTop: "1.5rem", marginBottom: "1.5rem" }}>
         <div className="stat-card">
-          <div className="stat-card__value stat-card__value--amber">{formatMiles(summary.businessMiles)} mi</div>
+          <div className="stat-card__value stat-card__value--amber">{formatMiles(summary.businessMiles)}</div>
           <div className="stat-card__label">Business Miles</div>
         </div>
         <div className="stat-card">
-          <div className="stat-card__value">{formatMiles(summary.personalMiles)} mi</div>
+          <div className="stat-card__value">{formatMiles(summary.personalMiles)}</div>
           <div className="stat-card__label">Personal Miles</div>
         </div>
         <div className="stat-card">
-          <div className="stat-card__value">{formatMiles(summary.totalMiles)} mi</div>
+          <div className="stat-card__value">{formatMiles(summary.totalMiles)}</div>
           <div className="stat-card__label">Total Miles</div>
         </div>
       </div>
@@ -202,8 +202,8 @@ function StepMileage({ summary }: Pick<StepProps, "summary">) {
               {summary.vehicleBreakdown.map((v) => (
                 <tr key={v.vehicleId}>
                   <td style={{ fontWeight: 500 }}>{v.make} {v.model}</td>
-                  <td>{formatMiles(v.businessMiles)} mi</td>
-                  <td>{formatMiles(v.personalMiles)} mi</td>
+                  <td>{formatMiles(v.businessMiles)}</td>
+                  <td>{formatMiles(v.personalMiles)}</td>
                   <td style={{ textAlign: "right", fontWeight: 600, color: "var(--amber-400)" }}>
                     {formatPence(v.deductionPence)}
                   </td>

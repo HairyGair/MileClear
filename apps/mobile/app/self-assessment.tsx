@@ -160,10 +160,10 @@ function StepMileage({ summary }: { summary: SelfAssessmentSummary }) {
 
       <SectionCard>
         <Text style={styles.cardTitle}>Miles Breakdown</Text>
-        <DataRow label="Business miles" value={`${formatMiles(summary.businessMiles)} mi`} highlight />
-        <DataRow label="Personal miles" value={`${formatMiles(summary.personalMiles)} mi`} />
+        <DataRow label="Business miles" value={formatMiles(summary.businessMiles)} highlight />
+        <DataRow label="Personal miles" value={formatMiles(summary.personalMiles)} />
         <View style={styles.divider} />
-        <DataRow label="Total miles" value={`${formatMiles(summary.totalMiles)} mi`} />
+        <DataRow label="Total miles" value={formatMiles(summary.totalMiles)} />
       </SectionCard>
 
       {summary.vehicleBreakdown.length > 1 && (
@@ -173,7 +173,7 @@ function StepMileage({ summary }: { summary: SelfAssessmentSummary }) {
             <View key={v.vehicleId} style={styles.vehicleRow}>
               <Text style={styles.vehicleRowName}>{v.make} {v.model}</Text>
               <View style={styles.vehicleRowDetails}>
-                <DataRow label="Business" value={`${formatMiles(v.businessMiles)} mi`} />
+                <DataRow label="Business" value={formatMiles(v.businessMiles)} />
                 <DataRow label="Deduction" value={formatPence(v.deductionPence)} highlight />
               </View>
             </View>
