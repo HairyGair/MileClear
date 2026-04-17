@@ -12,8 +12,7 @@ import { ConfirmModal } from "../../../components/ui/ConfirmModal";
 import { Modal } from "../../../components/ui/Modal";
 import type { BillingStatus, WorkType } from "@mileclear/shared";
 import { Select } from "../../../components/ui/Select";
-
-const AVATAR_COUNT = 30;
+import { AVATARS, resolveAvatarFile } from "../../../lib/avatars";
 
 export default function SettingsPage() {
   const { user, refreshUser } = useAuth();
@@ -21,7 +20,7 @@ export default function SettingsPage() {
 
   // Avatar picker
   const [showAvatarPicker, setShowAvatarPicker] = useState(false);
-  const [avatarId, setAvatarId] = useState<number | null>(null);
+  const [avatarId, setAvatarId] = useState<string | null>(null);
   const [avatarLoading, setAvatarLoading] = useState(false);
 
   // Dashboard mode
@@ -96,8 +95,8 @@ export default function SettingsPage() {
     }
   };
 
-  // Avatar save
-  const handleAvatarSelect = async (id: number) => {
+  // Avatar save - avatarId is a string key (mobile registry), e.g. "sedan-red".
+  const handleAvatarSelect = async (id: string) => {
     setAvatarLoading(true);
     try {
       await api.patch("/user/profile", { avatarId: id });
@@ -241,15 +240,14 @@ export default function SettingsPage() {
             style={{ width: 64, height: 64, fontSize: "1.5rem", cursor: "pointer", flexShrink: 0 }}
             onClick={() => setShowAvatarPicker(true)}
           >
-            {avatarId ? (
-              <img
-                src={`/avatars/avatar-${String(avatarId).padStart(2, "0")}.png`}
-                alt=""
-                className="sidebar__avatar-img"
-              />
-            ) : (
-              user?.displayName?.[0]?.toUpperCase() || user?.email?.[0]?.toUpperCase() || "?"
-            )}
+            {(() => {
+              const file = resolveAvatarFile(avatarId);
+              return file ? (
+                <img src={file} alt="" className="sidebar__avatar-img" />
+              ) : (
+                user?.displayName?.[0]?.toUpperCase() || user?.email?.[0]?.toUpperCase() || "?"
+              );
+            })()}
           </div>
           <Button variant="secondary" size="sm" onClick={() => setShowAvatarPicker(true)}>
             {avatarId ? "Change avatar" : "Pick an avatar"}
@@ -503,16 +501,17 @@ export default function SettingsPage() {
         title="Choose Your Avatar"
       >
         <div className="avatar-picker">
-          {Array.from({ length: AVATAR_COUNT }, (_, i) => i + 1).map((id) => (
+          {AVATARS.map((avatar) => (
             <button
-              key={id}
-              className={`avatar-picker__item${avatarId === id ? " avatar-picker__item--selected" : ""}`}
-              onClick={() => handleAvatarSelect(id)}
+              key={avatar.id}
+              className={`avatar-picker__item${avatarId === avatar.id ? " avatar-picker__item--selected" : ""}`}
+              onClick={() => handleAvatarSelect(avatar.id)}
               disabled={avatarLoading}
+              title={avatar.label}
             >
               <img
-                src={`/avatars/avatar-${String(id).padStart(2, "0")}.png`}
-                alt={`Avatar ${id}`}
+                src={avatar.file}
+                alt={avatar.label}
                 className="avatar-picker__img"
               />
             </button>

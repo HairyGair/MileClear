@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useAuth } from "../../lib/auth-context";
 import { api } from "../../lib/api";
+import { resolveAvatarFile } from "../../lib/avatars";
 import { useState, type ReactNode } from "react";
 
 interface NavItem {
@@ -230,15 +231,14 @@ export function Sidebar({ open, onClose }: SidebarProps) {
         {user && (
           <div className="sidebar__user">
             <div className="sidebar__avatar">
-              {(user as any).avatarId ? (
-                <img
-                  src={`/avatars/avatar-${String((user as any).avatarId).padStart(2, "0")}.png`}
-                  alt=""
-                  className="sidebar__avatar-img"
-                />
-              ) : (
-                initials
-              )}
+              {(() => {
+                const file = resolveAvatarFile((user as any).avatarId);
+                return file ? (
+                  <img src={file} alt="" className="sidebar__avatar-img" />
+                ) : (
+                  initials
+                );
+              })()}
             </div>
             <div className="sidebar__user-info">
               <div className="sidebar__user-name">
