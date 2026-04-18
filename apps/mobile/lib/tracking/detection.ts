@@ -3,7 +3,11 @@ import * as TaskManager from "expo-task-manager";
 import * as Notifications from "expo-notifications";
 import { getDatabase } from "../db/index";
 import { sendDrivingDetectedNotification } from "../notifications/index";
-import { DRIVING_SPEED_THRESHOLD_MPH, bestTripDistance } from "@mileclear/shared";
+import {
+  DRIVING_SPEED_THRESHOLD_MPH,
+  bestTraceDistance,
+  filterTraceOutliers,
+} from "@mileclear/shared";
 import { startLiveActivity, updateLiveActivity, endLiveActivity, endLiveActivityWithSummary, recoverLiveActivity } from "../liveActivity";
 import { markBluetoothStateAtStart, hasBluetoothDisconnected, resetBluetoothState } from "../bluetooth";
 import type { TripClassification, PlatformTag } from "@mileclear/shared";
@@ -497,24 +501,35 @@ async function _finalizeAutoTripInner(): Promise<void> {
     return;
   }
 
-  // Calculate total distance: sum the GPS chord segments, then ask OSRM for
-  // the road distance between start and end. bestTripDistance() takes the max
-  // so we recover the chord-to-arc undercount on winding roads while preserving
-  // any real detour the user took (which the GPS sum captures but OSRM doesn't).
+  // Filter GPS outliers (poor accuracy + speed-jump teleports) before
+  // calculating distance. Always keeps first + last so start/end addresses
+  // stay consistent with what the user saw on the map.
+  const filteredCoords = filterTraceOutliers(coords);
+  if (filteredCoords.length !== coords.length) {
+    logDetectionEvent("finalize_outliers_filtered", {
+      raw: coords.length,
+      kept: filteredCoords.length,
+      dropped: coords.length - filteredCoords.length,
+    }).catch(() => {});
+  }
+
+  // Calculate total distance:
+  //   - haversine sum of the filtered chord segments (catches detours)
+  //   - OSRM map-match on the trace (snaps each point to a road, fixes the
+  //     chord-to-arc undercount on winding routes - 5-10% better than haversine)
+  //   - OSRM start->end fallback when match fails
+  // bestTraceDistance() picks the most plausible value, capping the matched
+  // result at 1.5x haversine to guard against the rare OSRM hallucination.
   let gpsSumDistance = 0;
-  for (let i = 1; i < coords.length; i++) {
+  for (let i = 1; i < filteredCoords.length; i++) {
     gpsSumDistance += haversineMiles(
-      coords[i - 1].lat, coords[i - 1].lng,
-      coords[i].lat, coords[i].lng
+      filteredCoords[i - 1].lat, filteredCoords[i - 1].lng,
+      filteredCoords[i].lat, filteredCoords[i].lng
     );
   }
-  const first = coords[0];
-  const last = coords[coords.length - 1];
-  const totalDistance = await bestTripDistance(
-    gpsSumDistance,
-    first.lat, first.lng,
-    last.lat, last.lng,
-  );
+  const first = filteredCoords[0];
+  const last = filteredCoords[filteredCoords.length - 1];
+  const totalDistance = await bestTraceDistance(filteredCoords, gpsSumDistance);
 
   if (totalDistance < MIN_AUTO_TRIP_DISTANCE_MILES) {
     // Too short to save - dismiss Live Activity immediately
@@ -732,7 +747,7 @@ async function _finalizeAutoTripInner(): Promise<void> {
       classification,
       platformTag: platformTag ?? undefined,
       vehicleId,
-      coordinates: coords.map((c) => ({
+      coordinates: filteredCoords.map((c) => ({
         lat: c.lat,
         lng: c.lng,
         speed: c.speed,

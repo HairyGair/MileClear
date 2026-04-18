@@ -164,6 +164,158 @@ export async function bestTripDistance(
 }
 
 /**
+ * Filter outlier GPS points before distance calculation.
+ *
+ * Two passes:
+ *   1. Drop coords whose `accuracy` is worse than maxAccuracyMeters (default 50m).
+ *      iOS reports accuracy as the radius of 68% confidence; readings worse than
+ *      50m are usually multipath drift in tunnels, urban canyons, or indoors.
+ *   2. Drop segments where the implied speed between consecutive coords exceeds
+ *      maxSpeedMs (default ~120mph). These are GPS teleports - cellular tower
+ *      handoffs, fix restoration after a tunnel, or stale cached fixes.
+ *
+ * Always preserves the first and last coords so trip start/end addresses stay
+ * consistent with what the user actually saw on the map.
+ */
+export function filterTraceOutliers<
+  T extends {
+    lat: number;
+    lng: number;
+    accuracy: number | null;
+    recorded_at?: string;
+  }
+>(
+  coords: T[],
+  opts: { maxAccuracyMeters?: number; maxSpeedMs?: number } = {}
+): T[] {
+  if (coords.length < 2) return coords;
+  const maxAccuracyMeters = opts.maxAccuracyMeters ?? 50;
+  const maxSpeedMs = opts.maxSpeedMs ?? 53.6; // ~120mph
+
+  // Pass 1 - accuracy filter, always keeping first + last
+  const accFiltered: T[] = [];
+  for (let i = 0; i < coords.length; i++) {
+    const isEdge = i === 0 || i === coords.length - 1;
+    const acc = coords[i].accuracy;
+    if (isEdge || acc == null || acc <= maxAccuracyMeters) {
+      accFiltered.push(coords[i]);
+    }
+  }
+  if (accFiltered.length < 3) return accFiltered;
+
+  // Pass 2 - speed-jump filter against the previously-kept coord
+  const out: T[] = [accFiltered[0]];
+  for (let i = 1; i < accFiltered.length; i++) {
+    const curr = accFiltered[i];
+    const prev = out[out.length - 1];
+    const isLast = i === accFiltered.length - 1;
+    if (curr.recorded_at && prev.recorded_at) {
+      const dtSec =
+        (new Date(curr.recorded_at).getTime() -
+          new Date(prev.recorded_at).getTime()) / 1000;
+      if (dtSec > 0) {
+        const distMeters =
+          haversineDistance(prev.lat, prev.lng, curr.lat, curr.lng) * 1609.344;
+        const impliedSpeedMs = distMeters / dtSec;
+        if (impliedSpeedMs > maxSpeedMs && !isLast) {
+          continue; // teleport - skip, but never drop the final coord
+        }
+      }
+    }
+    out.push(curr);
+  }
+  return out;
+}
+
+/**
+ * Map-match a GPS trace to road segments via OSRM. Returns the matched
+ * road distance in miles, or null if matching fails or the trace is too noisy.
+ *
+ * OSRM /match has a coord ceiling on the public demo server (~100 points).
+ * Long traces are uniformly downsampled to MAX_COORDS before matching.
+ *
+ * Strategy: snap each GPS point to the nearest road, then sum the actual
+ * road segments between snapped points. This catches winding routes that a
+ * point-to-point haversine sum systematically undercounts (chord-to-arc gap)
+ * AND legitimate detours that the start->end OSRM call misses.
+ */
+export async function fetchMatchedTraceDistance(
+  coords: { lat: number; lng: number }[],
+  timeoutMs = 10000
+): Promise<number | null> {
+  if (coords.length < 2) return null;
+
+  const MAX_COORDS = 100;
+  let trace = coords;
+  if (coords.length > MAX_COORDS) {
+    const step = (coords.length - 1) / (MAX_COORDS - 1);
+    const sampled: typeof coords = [];
+    for (let i = 0; i < MAX_COORDS; i++) {
+      sampled.push(coords[Math.round(i * step)]);
+    }
+    trace = sampled;
+  }
+
+  try {
+    const path = trace.map((c) => `${c.lng},${c.lat}`).join(";");
+    const url = `https://router.project-osrm.org/match/v1/driving/${path}?overview=false`;
+    const res = await fetch(url, { signal: AbortSignal.timeout(timeoutMs) });
+    if (!res.ok) return null;
+    const data = await res.json();
+    if (data.code !== "Ok" || !Array.isArray(data.matchings) || data.matchings.length === 0) {
+      return null;
+    }
+    let totalMeters = 0;
+    for (const m of data.matchings) {
+      if (typeof m.distance === "number") totalMeters += m.distance;
+    }
+    if (totalMeters <= 0) return null;
+    return totalMeters / 1609.344;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Best-estimate trip distance using the full GPS trace.
+ *
+ * Combines three signals:
+ *   - Haversine sum of consecutive coords (preserves all real movement)
+ *   - OSRM map-match across the trace (snaps to roads, fixes winding undercount,
+ *     captures detours the start->end call would miss)
+ *   - OSRM start->end route (fallback when match fails)
+ *
+ * Map-match is the most accurate signal when it succeeds. It's capped at 1.5x
+ * the haversine sum to guard against OSRM hallucinating a long detour from
+ * noisy points near complex junctions, but never returned as less than the
+ * haversine sum (so legitimate detours are preserved).
+ */
+export async function bestTraceDistance(
+  coords: { lat: number; lng: number; recorded_at?: string }[],
+  haversineSumMiles: number,
+  timeoutMs = 8000
+): Promise<number> {
+  if (coords.length < 2) return haversineSumMiles;
+
+  const first = coords[0];
+  const last = coords[coords.length - 1];
+
+  const [matched, route] = await Promise.all([
+    fetchMatchedTraceDistance(coords, timeoutMs),
+    fetchRouteDistance(first.lat, first.lng, last.lat, last.lng, timeoutMs),
+  ]);
+
+  if (matched != null && matched > 0) {
+    const capped = Math.min(matched, haversineSumMiles * 1.5);
+    return Math.max(haversineSumMiles, capped);
+  }
+  if (route) {
+    return Math.max(haversineSumMiles, route.distanceMiles);
+  }
+  return haversineSumMiles;
+}
+
+/**
  * Compute trip insights from GPS coordinates.
  * Coordinates must be sorted by recordedAt ascending.
  */

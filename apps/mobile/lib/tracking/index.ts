@@ -10,7 +10,7 @@ import { startDriveDetection, stopDriveDetection, cancelAutoRecording } from "./
 import { reverseGeocode } from "../location/geocoding";
 import { getScheduleClassification } from "../schedule/index";
 import { setDepartureAnchor } from "../geofencing/index";
-import { bestTripDistance } from "@mileclear/shared";
+import { bestTraceDistance, filterTraceOutliers } from "@mileclear/shared";
 
 const LOCATION_TASK_NAME = "mileclear-background-location";
 const QUICK_TRIP_SHIFT_ID = "__quick_trip__";
@@ -323,24 +323,27 @@ export async function processShiftTrips(
   for (const segment of segments) {
     if (segment.length < 2) continue;
 
-    // Sum GPS chord segments, then correct for chord-to-arc undercount via OSRM.
-    // bestTripDistance() takes max(haversineSum, osrmRoute) so winding-road undercount
-    // is fixed without overwriting any real detour the GPS sum captured.
+    // Filter GPS outliers (poor accuracy + speed-jump teleports) before summing.
+    // filterTraceOutliers() preserves first + last so the trip start/end stays
+    // at the points the user actually saw on the map.
+    const filteredSegment = filterTraceOutliers(segment);
+
+    // Sum filtered chord segments, then ask bestTraceDistance() to combine the
+    // haversine total with an OSRM map-match across the trace and an OSRM
+    // start->end fallback. Map-matching snaps each point to the nearest road,
+    // fixing chord-to-arc undercount on winding routes (5-10% gain) and
+    // catching detours the start->end call would miss.
     let gpsSumDistance = 0;
-    for (let i = 1; i < segment.length; i++) {
+    for (let i = 1; i < filteredSegment.length; i++) {
       gpsSumDistance += haversine(
-        segment[i - 1].lat, segment[i - 1].lng,
-        segment[i].lat, segment[i].lng
+        filteredSegment[i - 1].lat, filteredSegment[i - 1].lng,
+        filteredSegment[i].lat, filteredSegment[i].lng
       );
     }
 
-    const first = segment[0];
-    const last = segment[segment.length - 1];
-    const totalDistance = await bestTripDistance(
-      gpsSumDistance,
-      first.lat, first.lng,
-      last.lat, last.lng,
-    );
+    const first = filteredSegment[0];
+    const last = filteredSegment[filteredSegment.length - 1];
+    const totalDistance = await bestTraceDistance(filteredSegment, gpsSumDistance);
 
     if (totalDistance < MIN_TRIP_DISTANCE_MILES) continue;
 
@@ -355,20 +358,20 @@ export async function processShiftTrips(
       const tripTime = new Date(first.recorded_at);
       const classification = await getScheduleClassification(tripTime);
 
-      // Downsample coordinates if the segment exceeds the API limit.
+      // Downsample coordinates if the filtered segment exceeds the API limit.
       // API max is 20000; we preserve start + end and evenly sample the rest
       // so a long trip still has a representative route polyline.
       const MAX_COORDS = 20000;
-      let tripCoords = segment;
-      if (segment.length > MAX_COORDS) {
-        const step = segment.length / (MAX_COORDS - 2);
-        const sampled = [segment[0]];
+      let tripCoords = filteredSegment;
+      if (filteredSegment.length > MAX_COORDS) {
+        const step = filteredSegment.length / (MAX_COORDS - 2);
+        const sampled = [filteredSegment[0]];
         for (let i = 1; i < MAX_COORDS - 1; i++) {
-          sampled.push(segment[Math.floor(i * step)]);
+          sampled.push(filteredSegment[Math.floor(i * step)]);
         }
-        sampled.push(segment[segment.length - 1]);
+        sampled.push(filteredSegment[filteredSegment.length - 1]);
         tripCoords = sampled;
-        console.log(`[processShiftTrips] Downsampled ${segment.length} coords to ${tripCoords.length}`);
+        console.log(`[processShiftTrips] Downsampled ${filteredSegment.length} coords to ${tripCoords.length}`);
       }
 
       await syncCreateTrip({
