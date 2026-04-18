@@ -63,6 +63,40 @@ function haversineMiles(lat1: number, lng1: number, lat2: number, lng2: number):
 }
 
 /**
+ * Check whether (lat, lng) is inside any saved location's geofence.
+ *
+ * Used by the drive-detection task to suppress phantom "you appear to be
+ * driving" notifications when the user is clearly at home, work, or any
+ * saved depot. Indoor GPS drift with a phone in a pocket can produce
+ * speed bursts above the driving threshold (15mph) even when the user is
+ * just walking around the kitchen; without this gate those bursts trigger
+ * false notifications.
+ *
+ * The real "leaving a saved location to drive" case is still handled by
+ * the separate departure-anchor geofence exit handler, which fires its
+ * own notification once the user actually breaches the radius.
+ */
+async function isInsideAnySavedLocation(lat: number, lng: number): Promise<boolean> {
+  try {
+    const db = await getDatabase();
+    const locations = await db.getAllAsync<{
+      latitude: number;
+      longitude: number;
+      radius_meters: number;
+    }>("SELECT latitude, longitude, radius_meters FROM saved_locations");
+    for (const loc of locations) {
+      const radius = loc.radius_meters > 0 ? loc.radius_meters : 100;
+      const distM = haversineMeters(lat, lng, loc.latitude, loc.longitude);
+      if (distM <= radius) return true;
+    }
+    return false;
+  } catch {
+    // DB not ready or table missing - fail open so detection still works
+    return false;
+  }
+}
+
+/**
  * Determine if any locations indicate driving speed.
  * Returns the highest detected speed in m/s, or null if no driving-speed reading.
  *
@@ -1181,6 +1215,31 @@ try {
       if (detectedSpeedMs == null) {
         // Reset consecutive driving detection counter - the user isn't driving
         await db.runAsync("DELETE FROM tracking_state WHERE key = 'driving_detection_count'");
+        return;
+      }
+
+      // ── Saved-location gate ──
+      // Indoor GPS drift (phone in pocket, walking around the house) can
+      // fabricate speed bursts above the driving threshold. If the latest
+      // reading is inside any saved location's geofence, treat the burst
+      // as drift and bail out. The departure-anchor exit handler still
+      // catches legitimate "leaving home" drives once the user actually
+      // breaches the radius.
+      const latestLoc = locations[locations.length - 1];
+      if (
+        latestLoc &&
+        (await isInsideAnySavedLocation(
+          latestLoc.coords.latitude,
+          latestLoc.coords.longitude
+        ))
+      ) {
+        await db.runAsync("DELETE FROM tracking_state WHERE key = 'driving_detection_count'");
+        logDetectionEvent("detection_suppressed_at_saved_location", {
+          speedMs: detectedSpeedMs,
+          lat: latestLoc.coords.latitude,
+          lng: latestLoc.coords.longitude,
+          accuracy: latestLoc.coords.accuracy ?? null,
+        }).catch(() => {});
         return;
       }
 
