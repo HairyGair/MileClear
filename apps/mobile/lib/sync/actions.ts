@@ -150,6 +150,34 @@ export async function syncCreateTrip(data: CreateTripData) {
 export async function syncUpdateTrip(id: string, data: UpdateTripData) {
   const db = await getDatabase();
 
+  // Classification feedback: if this PATCH changes the classification AND the
+  // trip was originally auto-classified (has a classification_source set at
+  // creation) AND we haven't sent a feedback flag yet, compute accepted vs
+  // rejected by comparing the user's choice against the current stored
+  // classification. The API guards against overwrite, so it's safe to send
+  // more than once - but we avoid noise by skipping if already reported.
+  let classificationAutoAccepted: boolean | undefined;
+  if (data.classification && data.classification !== "unclassified") {
+    try {
+      const row = await db.getFirstAsync<{
+        classification: string;
+        classification_source: string | null;
+        classification_auto_accepted_sent: number | null;
+      }>(
+        "SELECT classification, classification_source, classification_auto_accepted_sent FROM trips WHERE id = ?",
+        [id]
+      );
+      if (
+        row?.classification_source &&
+        (row.classification_auto_accepted_sent ?? 0) === 0
+      ) {
+        classificationAutoAccepted = data.classification === row.classification;
+      }
+    } catch {
+      // Non-critical - skip the feedback signal if the local read fails.
+    }
+  }
+
   // Write to local SQLite first
   const setClauses: string[] = [];
   const values: SQLiteBindValue[] = [];
@@ -191,14 +219,29 @@ export async function syncUpdateTrip(id: string, data: UpdateTripData) {
     }
   }
 
-  await enqueueSync("trip", id, "update", { id, ...data } as unknown as Record<string, unknown>);
+  // Attach classification feedback to the outgoing PATCH (if computed above).
+  // Kept separate from the SQLite UPDATE logic because it only travels to the
+  // API - local state tracking uses classification_auto_accepted_sent instead.
+  const apiPayload: UpdateTripData = {
+    ...data,
+    ...(classificationAutoAccepted !== undefined && { classificationAutoAccepted }),
+  };
+
+  await enqueueSync("trip", id, "update", { id, ...apiPayload } as unknown as Record<string, unknown>);
 
   try {
-    const result = await apiUpdateTrip(id, data);
+    const result = await apiUpdateTrip(id, apiPayload);
     await db.runAsync(
       "UPDATE sync_queue SET status = 'synced', updated_at = ? WHERE entity_id = ? AND entity_type = 'trip' AND action = 'update' AND status = 'pending'",
       [new Date().toISOString(), id]
     );
+    // Mark feedback as sent so we don't re-submit on subsequent classification changes
+    if (classificationAutoAccepted !== undefined) {
+      await db.runAsync(
+        "UPDATE trips SET classification_auto_accepted_sent = 1 WHERE id = ?",
+        [id]
+      );
+    }
     return result;
   } catch (err) {
     if (isNetworkError(err)) return null;

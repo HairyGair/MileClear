@@ -277,6 +277,60 @@ export async function fetchMatchedTraceDistance(
 }
 
 /**
+ * Per-trip GPS quality summary stored alongside the Trip row (gpsQuality JSON
+ * column on the server). Used by the admin Trip Map and aggregate analytics
+ * to flag trips where the recorded distance may be unreliable.
+ */
+export interface TripQuality {
+  rawCoords: number;
+  keptCoords: number;
+  outliersDropped: number;
+  avgAccuracyM: number | null;
+  pctHighAccuracy: number | null; // 0-100, coords with accuracy <= 50m
+  distanceSource: "match" | "haversine" | "start_end_route";
+  matchSucceeded: boolean;
+}
+
+/**
+ * Compute the GPS quality summary from the raw and filtered coord arrays
+ * plus the final distance decision. Called at finalize time on mobile.
+ */
+export function computeTripQuality(
+  rawCoords: { accuracy: number | null }[],
+  filteredCoords: { accuracy: number | null }[],
+  opts: {
+    distanceSource: TripQuality["distanceSource"];
+    matchSucceeded: boolean;
+  }
+): TripQuality {
+  const withAccuracy = rawCoords.filter((c) => c.accuracy != null) as {
+    accuracy: number;
+  }[];
+  const avgAccuracyM =
+    withAccuracy.length > 0
+      ? Math.round(
+          withAccuracy.reduce((s, c) => s + c.accuracy, 0) /
+            withAccuracy.length
+        )
+      : null;
+  const highCount = withAccuracy.filter((c) => c.accuracy <= 50).length;
+  const pctHighAccuracy =
+    withAccuracy.length > 0
+      ? Math.round((highCount / withAccuracy.length) * 100)
+      : null;
+
+  return {
+    rawCoords: rawCoords.length,
+    keptCoords: filteredCoords.length,
+    outliersDropped: rawCoords.length - filteredCoords.length,
+    avgAccuracyM,
+    pctHighAccuracy,
+    distanceSource: opts.distanceSource,
+    matchSucceeded: opts.matchSucceeded,
+  };
+}
+
+/**
  * Best-estimate trip distance using the full GPS trace.
  *
  * Combines three signals:
@@ -290,12 +344,24 @@ export async function fetchMatchedTraceDistance(
  * noisy points near complex junctions, but never returned as less than the
  * haversine sum (so legitimate detours are preserved).
  */
+export interface TraceDistanceResult {
+  distanceMiles: number;
+  source: "match" | "haversine" | "start_end_route";
+  matchSucceeded: boolean;
+}
+
 export async function bestTraceDistance(
   coords: { lat: number; lng: number; recorded_at?: string }[],
   haversineSumMiles: number,
   timeoutMs = 8000
-): Promise<number> {
-  if (coords.length < 2) return haversineSumMiles;
+): Promise<TraceDistanceResult> {
+  if (coords.length < 2) {
+    return {
+      distanceMiles: haversineSumMiles,
+      source: "haversine",
+      matchSucceeded: false,
+    };
+  }
 
   const first = coords[0];
   const last = coords[coords.length - 1];
@@ -305,14 +371,30 @@ export async function bestTraceDistance(
     fetchRouteDistance(first.lat, first.lng, last.lat, last.lng, timeoutMs),
   ]);
 
-  if (matched != null && matched > 0) {
-    const capped = Math.min(matched, haversineSumMiles * 1.5);
-    return Math.max(haversineSumMiles, capped);
+  const matchSucceeded = matched != null && matched > 0;
+
+  if (matchSucceeded) {
+    const capped = Math.min(matched!, haversineSumMiles * 1.5);
+    const finalDistance = Math.max(haversineSumMiles, capped);
+    return {
+      distanceMiles: finalDistance,
+      source: finalDistance === haversineSumMiles ? "haversine" : "match",
+      matchSucceeded: true,
+    };
   }
   if (route) {
-    return Math.max(haversineSumMiles, route.distanceMiles);
+    const finalDistance = Math.max(haversineSumMiles, route.distanceMiles);
+    return {
+      distanceMiles: finalDistance,
+      source: finalDistance === haversineSumMiles ? "haversine" : "start_end_route",
+      matchSucceeded: false,
+    };
   }
-  return haversineSumMiles;
+  return {
+    distanceMiles: haversineSumMiles,
+    source: "haversine",
+    matchSucceeded: false,
+  };
 }
 
 /**

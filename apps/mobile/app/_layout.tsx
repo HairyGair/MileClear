@@ -167,6 +167,23 @@ function RootNavigator() {
     return () => sub.remove();
   }, [isAuthenticated, isLoading]);
 
+  // Heartbeat telemetry: fires on first authenticated session and on every
+  // foregrounding afterwards. Internally rate-limited to once per 24h so
+  // frequent backgrounding doesn't hammer the API.
+  useEffect(() => {
+    if (!isAuthenticated || isLoading) return;
+    import("../lib/heartbeat").then(({ maybeSendHeartbeat }) => {
+      maybeSendHeartbeat().catch(() => {});
+    });
+    const sub = AppState.addEventListener("change", (state) => {
+      if (state !== "active") return;
+      import("../lib/heartbeat").then(({ maybeSendHeartbeat }) => {
+        maybeSendHeartbeat().catch(() => {});
+      });
+    });
+    return () => sub.remove();
+  }, [isAuthenticated, isLoading]);
+
   // Handle deep links from Live Activity buttons (end-trip, cancel-trip)
   useEffect(() => {
     const handleUrl = async (event: { url: string }) => {

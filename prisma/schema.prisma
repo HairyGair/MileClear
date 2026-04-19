@@ -34,6 +34,18 @@ model User {
   lastLoginAt              DateTime?
   lastTripAt               DateTime?
   weeklyEarningsGoalPence  Int?
+
+  // Heartbeat telemetry: updated once per app launch + every ~24h. Lets us
+  // spot silent failures (e.g. users whose BG location permission was revoked
+  // after onboarding) without needing a diagnostic dump from each one.
+  lastHeartbeatAt       DateTime?
+  bgLocationPermission  String?   @db.VarChar(32)
+  notificationPermission String?  @db.VarChar(32)
+  trackingTaskActive    Boolean?
+  appVersion            String?   @db.VarChar(32)
+  buildNumber           String?   @db.VarChar(32)
+  osVersion             String?   @db.VarChar(32)
+
   createdAt            DateTime  @default(now())
   updatedAt            DateTime  @updatedAt
 
@@ -135,6 +147,18 @@ model Trip {
   category       String?
   notes          String?   @db.Text
   routePolyline  String?   @db.LongText
+
+  // Per-trip GPS quality summary. JSON blob with raw/kept coord counts,
+  // average accuracy metres, outliers filtered, which signal produced the
+  // final distance. Used by the admin Trip Map and aggregate analytics.
+  gpsQuality     Json?
+
+  // Classification feedback loop: true if the user confirmed (or matched)
+  // the auto-assigned classification, false if they changed it, null if the
+  // trip was never auto-classified OR the user hasn't touched it yet.
+  // Written once (API guards against overwrite) on the first user PATCH.
+  classificationAutoAccepted Boolean?
+
   createdAt      DateTime  @default(now())
   syncedAt       DateTime?
 

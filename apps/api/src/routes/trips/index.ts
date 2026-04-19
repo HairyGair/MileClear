@@ -1,5 +1,6 @@
 import { FastifyInstance } from "fastify";
 import { z } from "zod";
+import { Prisma } from "@prisma/client";
 import { authMiddleware } from "../../middleware/auth.js";
 import { prisma } from "../../lib/prisma.js";
 import {
@@ -88,6 +89,9 @@ const createTripSchema = z.object({
   notes: z.string().max(2000).optional(),
   category: z.enum(TRIP_CATEGORIES).nullable().optional(),
   coordinates: z.array(coordinateInputSchema).max(20000).optional(),
+  // Client-computed GPS quality summary. Free-form so we can iterate the
+  // shape without a schema migration; admin queries look for known keys.
+  gpsQuality: z.record(z.unknown()).optional(),
 });
 
 const updateTripSchema = z.object({
@@ -101,6 +105,10 @@ const updateTripSchema = z.object({
   endLng: z.number().min(-180).max(180).nullable().optional(),
   endedAt: z.coerce.date().nullable().optional(),
   distanceMiles: z.number().min(0).optional(),
+  // Classification feedback: mobile sends this on the first user classification
+  // of an auto-classified trip. Server ignores the value if already set, so
+  // later PATCHes never overwrite the original accept/reject signal.
+  classificationAutoAccepted: z.boolean().optional(),
 });
 
 const listTripsQuery = z.object({
@@ -218,6 +226,7 @@ export async function tripRoutes(app: FastifyInstance) {
       businessPurpose: tripData.businessPurpose ?? null,
       category: tripData.category ?? null,
       notes: tripData.notes ?? null,
+      gpsQuality: (tripData.gpsQuality ?? undefined) as Prisma.InputJsonValue | undefined,
     };
 
     let trip;
@@ -609,11 +618,20 @@ export async function tripRoutes(app: FastifyInstance) {
       }
     }
 
+    // classificationAutoAccepted is write-once. Mobile sends it on the first
+    // user classification of an auto-classified trip; we never overwrite the
+    // original accept/reject signal if the user later changes their mind.
+    const { classificationAutoAccepted: incomingAutoAccepted, ...restUpdates } = updates;
+    const shouldWriteAutoAccepted =
+      incomingAutoAccepted !== undefined &&
+      existing.classificationAutoAccepted === null;
+
     const trip = await prisma.trip.update({
       where: { id },
       data: {
-        ...updates,
+        ...restUpdates,
         ...(distanceMiles !== undefined && { distanceMiles }),
+        ...(shouldWriteAutoAccepted && { classificationAutoAccepted: incomingAutoAccepted }),
       },
       include: { vehicle: true, shift: true },
     });

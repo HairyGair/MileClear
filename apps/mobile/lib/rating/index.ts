@@ -4,8 +4,17 @@ import { router } from "expo-router";
 import { getDatabase } from "../db/index";
 import { apiRequest } from "../api/index";
 
-const COOLDOWN_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
+// Cooldown between "Not now" dismissals. Kept short enough that a tester who
+// dismisses once still sees the prompt again within the same week of testing,
+// but long enough that we're not pestering. The permanent "Already rated"
+// flag is the real escape hatch, not this cooldown.
+const COOLDOWN_MS = 3 * 24 * 60 * 60 * 1000; // 3 days
 const MIN_TRIPS = 3;
+
+// Prevents the prompt from stacking multiple times in a single app session -
+// e.g. if the user triggers it from the dashboard focus AND then classifies
+// a trip within a few seconds. Not persisted; resets on app restart.
+let promptShownThisSession = false;
 
 /** Fire-and-forget event log to the API for admin visibility. */
 function trackRatingEvent(type: string, metadata?: Record<string, unknown>): void {
@@ -19,20 +28,32 @@ function trackRatingEvent(type: string, metadata?: Record<string, unknown>): voi
  * Attempt to show a review prompt.
  *
  * Flow:
- * 1. Guards: StoreReview available, 3+ trips, 7-day cooldown, not already reviewed.
- * 2. Shows a custom Alert with "Love it!", "Could be better", "Already rated", "Not now".
- * 3. "Love it!" fires the native SKStoreReviewController dialog.
- * 4. "Could be better" routes to the in-app feedback form.
- * 5. "Already rated" sets a permanent flag - never asks again.
- * 6. "Not now" dismisses - cooldown resets, asks again in 7 days.
+ * 1. Guards: StoreReview available, 3+ trips, 3-day cooldown, not already reviewed,
+ *    no prompt this session.
+ * 2. Every failed guard now logs a rating.skipped_* event so the admin funnel
+ *    can see WHY we're not asking users - previously we'd just bail silently,
+ *    leaving us blind to the real reason the prompt rate was low.
+ * 3. Shows a custom Alert with "Love it!", "Could be better", "Already rated", "Not now".
+ * 4. "Love it!" fires the native SKStoreReviewController dialog.
+ * 5. "Could be better" routes to the in-app feedback form.
+ * 6. "Already rated" sets a permanent flag - never asks again.
+ * 7. "Not now" dismisses - cooldown resets, asks again in 3 days.
  *
  * Every action is logged to the API so the admin can see rating funnel stats.
  * Fire-and-forget - never throws.
  */
 export async function maybeRequestReview(trigger: string): Promise<void> {
   try {
+    if (promptShownThisSession) {
+      trackRatingEvent("rating.skipped_session_dedup", { trigger });
+      return;
+    }
+
     const available = await StoreReview.isAvailableAsync();
-    if (!available) return;
+    if (!available) {
+      trackRatingEvent("rating.skipped_unavailable", { trigger });
+      return;
+    }
 
     const db = await getDatabase();
 
@@ -40,25 +61,40 @@ export async function maybeRequestReview(trigger: string): Promise<void> {
     const reviewedRow = await db.getFirstAsync<{ value: string }>(
       "SELECT value FROM tracking_state WHERE key = 'review_given'"
     );
-    if (reviewedRow?.value === "1") return;
+    if (reviewedRow?.value === "1") {
+      trackRatingEvent("rating.skipped_already_rated", { trigger });
+      return;
+    }
 
     // Check trip count
     const tripRow = await db.getFirstAsync<{ count: number }>(
       "SELECT COUNT(*) as count FROM trips"
     );
-    if (!tripRow || tripRow.count < MIN_TRIPS) return;
+    const tripCount = tripRow?.count ?? 0;
+    if (tripCount < MIN_TRIPS) {
+      trackRatingEvent("rating.skipped_min_trips", { trigger, tripCount });
+      return;
+    }
 
-    // Check cooldown (7 days)
+    // Check cooldown (3 days)
     const lastRow = await db.getFirstAsync<{ value: string }>(
       "SELECT value FROM tracking_state WHERE key = 'last_review_prompt_at'"
     );
     if (lastRow) {
       const lastPrompt = parseInt(lastRow.value, 10);
-      if (Date.now() - lastPrompt < COOLDOWN_MS) return;
+      const elapsedMs = Date.now() - lastPrompt;
+      if (elapsedMs < COOLDOWN_MS) {
+        trackRatingEvent("rating.skipped_cooldown", {
+          trigger,
+          elapsedHours: Math.round(elapsedMs / 3_600_000),
+        });
+        return;
+      }
     }
 
     // All guards passed - log that the prompt is being shown
-    trackRatingEvent("rating.prompt_shown", { trigger });
+    promptShownThisSession = true;
+    trackRatingEvent("rating.prompt_shown", { trigger, tripCount });
 
     // Show custom prompt with sentiment routing.
     // Happy users go to the App Store, everyone else goes to feedback.

@@ -43,3 +43,24 @@ export function fetchWeeklyProgress() {
 export function fetchCalendar(year: number, month: number) {
   return apiRequest<{ data: CalendarDay[] }>(`/user/calendar?year=${year}&month=${month}`);
 }
+
+export interface HeartbeatData {
+  bgLocationPermission?: "granted" | "denied" | "undetermined" | "restricted";
+  notificationPermission?: "granted" | "denied" | "undetermined";
+  trackingTaskActive?: boolean;
+  appVersion?: string;
+  buildNumber?: string;
+  osVersion?: string;
+}
+
+/**
+ * Heartbeat ping - called once per app launch (rate-limited to once per 24h).
+ * Reports current permission state + app/OS version so admin can spot silent
+ * failures without waiting for a user-initiated diagnostic dump.
+ */
+export function sendHeartbeat(data: HeartbeatData) {
+  return apiRequest<{ success: boolean }>("/user/heartbeat", {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+}

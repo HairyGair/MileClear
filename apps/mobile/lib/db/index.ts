@@ -2,7 +2,7 @@
 
 import * as SQLite from "expo-sqlite";
 
-const CURRENT_SCHEMA_VERSION = 9;
+const CURRENT_SCHEMA_VERSION = 10;
 
 let dbPromise: Promise<SQLite.SQLiteDatabase> | null = null;
 
@@ -274,6 +274,22 @@ async function initializeSchema(database: SQLite.SQLiteDatabase): Promise<void> 
     }
     if (!tripCols8.includes("suggested_platform")) {
       await database.execAsync("ALTER TABLE trips ADD COLUMN suggested_platform TEXT;");
+    }
+  }
+
+  if (currentVersion < 10) {
+    // Classification feedback loop: track whether we've already reported the
+    // user's first manual classification of an auto-classified trip. INTEGER
+    // rather than BOOLEAN because SQLite has no native boolean type; treat 1
+    // as "already sent" and 0/null as "not yet".
+    const tripsInfo10 = await database.getAllAsync<{ name: string }>(
+      "PRAGMA table_info(trips)"
+    );
+    const tripCols10 = tripsInfo10.map((c) => c.name);
+    if (!tripCols10.includes("classification_auto_accepted_sent")) {
+      await database.execAsync(
+        "ALTER TABLE trips ADD COLUMN classification_auto_accepted_sent INTEGER;"
+      );
     }
   }
 

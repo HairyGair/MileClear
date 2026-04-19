@@ -6,6 +6,7 @@ import { sendDrivingDetectedNotification } from "../notifications/index";
 import {
   DRIVING_SPEED_THRESHOLD_MPH,
   bestTraceDistance,
+  computeTripQuality,
   filterTraceOutliers,
 } from "@mileclear/shared";
 import { startLiveActivity, updateLiveActivity, endLiveActivity, endLiveActivityWithSummary, recoverLiveActivity } from "../liveActivity";
@@ -529,7 +530,12 @@ async function _finalizeAutoTripInner(): Promise<void> {
   }
   const first = filteredCoords[0];
   const last = filteredCoords[filteredCoords.length - 1];
-  const totalDistance = await bestTraceDistance(filteredCoords, gpsSumDistance);
+  const distanceResult = await bestTraceDistance(filteredCoords, gpsSumDistance);
+  const totalDistance = distanceResult.distanceMiles;
+  const tripQuality = computeTripQuality(allCoords, filteredCoords, {
+    distanceSource: distanceResult.source,
+    matchSucceeded: distanceResult.matchSucceeded,
+  });
 
   if (totalDistance < MIN_AUTO_TRIP_DISTANCE_MILES) {
     // Too short to save - dismiss Live Activity immediately
@@ -754,6 +760,7 @@ async function _finalizeAutoTripInner(): Promise<void> {
         accuracy: c.accuracy,
         recordedAt: c.recorded_at,
       })),
+      gpsQuality: tripQuality,
     });
 
     // Store classification source on the local trip row

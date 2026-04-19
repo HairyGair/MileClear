@@ -49,6 +49,9 @@ export interface CreateTripData {
   category?: TripCategory;
   notes?: string;
   coordinates?: CoordinateInput[];
+  // Per-trip GPS quality summary computed at finalize time. Stored on the
+  // server as a JSON column for admin analysis - see TripQuality in shared.
+  gpsQuality?: import("@mileclear/shared").TripQuality;
 }
 
 export interface UpdateTripData {
@@ -62,6 +65,9 @@ export interface UpdateTripData {
   endLng?: number | null;
   endedAt?: string | null;
   distanceMiles?: number;
+  // Classification feedback: set by syncUpdateTrip on the first user
+  // classification of an auto-classified trip. API write-once-protects it.
+  classificationAutoAccepted?: boolean;
 }
 
 export interface ListTripsParams {

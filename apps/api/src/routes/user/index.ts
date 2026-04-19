@@ -535,4 +535,36 @@ export async function userRoutes(app: FastifyInstance) {
     logEvent(parsed.data.type, request.userId!, parsed.data.metadata);
     return reply.send({ success: true });
   });
+
+  // Heartbeat: called by the mobile app on launch + every ~24h. Lets admin
+  // see silent failures (revoked BG permission, dead tracking task, stale
+  // app versions) without needing a user-initiated diagnostic dump.
+  const heartbeatSchema = z.object({
+    bgLocationPermission: z.enum(["granted", "denied", "undetermined", "restricted"]).optional(),
+    notificationPermission: z.enum(["granted", "denied", "undetermined"]).optional(),
+    trackingTaskActive: z.boolean().optional(),
+    appVersion: z.string().max(32).optional(),
+    buildNumber: z.string().max(32).optional(),
+    osVersion: z.string().max(32).optional(),
+  });
+
+  app.post("/heartbeat", async (request, reply) => {
+    const parsed = heartbeatSchema.safeParse(request.body);
+    if (!parsed.success) {
+      return reply.status(400).send({ error: "Invalid heartbeat" });
+    }
+    await prisma.user.update({
+      where: { id: request.userId! },
+      data: {
+        lastHeartbeatAt: new Date(),
+        bgLocationPermission: parsed.data.bgLocationPermission ?? null,
+        notificationPermission: parsed.data.notificationPermission ?? null,
+        trackingTaskActive: parsed.data.trackingTaskActive ?? null,
+        appVersion: parsed.data.appVersion ?? null,
+        buildNumber: parsed.data.buildNumber ?? null,
+        osVersion: parsed.data.osVersion ?? null,
+      },
+    });
+    return reply.send({ success: true });
+  });
 }

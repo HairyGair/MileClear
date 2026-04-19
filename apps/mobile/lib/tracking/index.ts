@@ -10,7 +10,7 @@ import { startDriveDetection, stopDriveDetection, cancelAutoRecording } from "./
 import { reverseGeocode } from "../location/geocoding";
 import { getScheduleClassification } from "../schedule/index";
 import { setDepartureAnchor } from "../geofencing/index";
-import { bestTraceDistance, filterTraceOutliers } from "@mileclear/shared";
+import { bestTraceDistance, computeTripQuality, filterTraceOutliers } from "@mileclear/shared";
 
 const LOCATION_TASK_NAME = "mileclear-background-location";
 const QUICK_TRIP_SHIFT_ID = "__quick_trip__";
@@ -343,7 +343,12 @@ export async function processShiftTrips(
 
     const first = filteredSegment[0];
     const last = filteredSegment[filteredSegment.length - 1];
-    const totalDistance = await bestTraceDistance(filteredSegment, gpsSumDistance);
+    const distanceResult = await bestTraceDistance(filteredSegment, gpsSumDistance);
+    const totalDistance = distanceResult.distanceMiles;
+    const tripQuality = computeTripQuality(segment, filteredSegment, {
+      distanceSource: distanceResult.source,
+      matchSucceeded: distanceResult.matchSucceeded,
+    });
 
     if (totalDistance < MIN_TRIP_DISTANCE_MILES) continue;
 
@@ -394,6 +399,7 @@ export async function processShiftTrips(
           accuracy: c.accuracy,
           recordedAt: c.recorded_at,
         })),
+        gpsQuality: tripQuality,
       });
       created++;
     } catch (err) {

@@ -345,6 +345,11 @@ export default function DashboardScreen() {
       Location.getBackgroundPermissionsAsync().then((res) => {
         setBgLocationGranted(res.status === Location.PermissionStatus.GRANTED);
       }).catch(() => {});
+      // Passive trigger for users who never hit the classify / achievement /
+      // scorecard paths - gated by all the standard rating guards (3+ trips,
+      // 3-day cooldown, once-per-session). Delayed so it doesn't jump the
+      // moment the dashboard renders.
+      setTimeout(() => maybeRequestReview("dashboard_focus"), 4000);
     }, [loadData])
   );
 
