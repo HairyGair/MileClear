@@ -17,7 +17,14 @@ const VALID_PRODUCT_IDS = [PRODUCT_ID_MONTHLY, PRODUCT_ID_ANNUAL];
 // --- Singleton client (null if not configured, same pattern as lib/stripe.ts) ---
 
 let appleClient: AppStoreServerAPIClient | null = null;
+// Primary verifier matches APPLE_IAP_ENVIRONMENT (used by /validate, which talks to
+// the matching AppStoreServerAPIClient). The per-env verifiers are used by the
+// webhook path, which must accept JWS from either environment because TestFlight
+// testers (Sandbox) and real App Store customers (Production) both hit the same
+// endpoint — otherwise Apple returns INVALID_ENVIRONMENT and the webhook is dropped.
 let signedDataVerifier: SignedDataVerifier | null = null;
+let signedDataVerifierSandbox: SignedDataVerifier | null = null;
+let signedDataVerifierProduction: SignedDataVerifier | null = null;
 
 const keyId = process.env.APPLE_IAP_KEY_ID;
 const issuerId = process.env.APPLE_IAP_ISSUER_ID;
@@ -67,18 +74,30 @@ if (keyId && issuerId && privateKeyBase64) {
       console.warn("WARNING: No Apple root certificates found in any of:", candidateDirs, "- webhook verification will fail");
     }
 
-    signedDataVerifier = new SignedDataVerifier(
+    signedDataVerifierSandbox = new SignedDataVerifier(
       rootCerts,
       true, // enable online checks
-      iapEnv,
+      Environment.SANDBOX,
       bundleId
     );
+    signedDataVerifierProduction = new SignedDataVerifier(
+      rootCerts,
+      true,
+      Environment.PRODUCTION,
+      bundleId
+    );
+    signedDataVerifier =
+      iapEnv === Environment.PRODUCTION
+        ? signedDataVerifierProduction
+        : signedDataVerifierSandbox;
 
     console.log(`Apple IAP configured successfully (${rootCerts.length} root cert(s) loaded)`);
   } catch (err) {
     console.error("Failed to initialize Apple IAP client:", err);
     appleClient = null;
     signedDataVerifier = null;
+    signedDataVerifierSandbox = null;
+    signedDataVerifierProduction = null;
   }
 } else {
   console.warn(
@@ -94,66 +113,97 @@ export function getSignedDataVerifier(): SignedDataVerifier | null {
   return signedDataVerifier;
 }
 
-/**
- * Decode a notification payload from Apple App Store Server Notifications v2.
- * Returns the decoded notification data.
- */
-export async function decodeNotification(signedPayload: string): Promise<{
+type DecodedNotification = {
   notificationType: string;
   subtype?: string;
   transactionInfo: JWSTransactionDecodedPayload | null;
   renewalInfo: JWSRenewalInfoDecodedPayload | null;
-} | null> {
-  if (!signedDataVerifier) {
+};
+
+async function decodeWithVerifier(
+  verifier: SignedDataVerifier,
+  signedPayload: string
+): Promise<DecodedNotification | null> {
+  const notification = await verifier.verifyAndDecodeNotification(signedPayload);
+  const data = notification.data;
+  if (!data) return null;
+
+  let transactionInfo: JWSTransactionDecodedPayload | null = null;
+  let renewalInfo: JWSRenewalInfoDecodedPayload | null = null;
+
+  if (data.signedTransactionInfo) {
+    transactionInfo = await verifier.verifyAndDecodeTransaction(
+      data.signedTransactionInfo
+    );
+  }
+  if (data.signedRenewalInfo) {
+    renewalInfo = await verifier.verifyAndDecodeRenewalInfo(data.signedRenewalInfo);
+  }
+
+  return {
+    notificationType: notification.notificationType ?? "",
+    subtype: notification.subtype ?? undefined,
+    transactionInfo,
+    renewalInfo,
+  };
+}
+
+function enrichVerificationError(err: unknown): Error {
+  // Surface the real VerificationStatus so the Ops panel / webhook log
+  // stores something actionable instead of the generic "returned null".
+  // VerificationException extends Error but super() is called without a
+  // message, so err.message is empty and the status enum is the only clue.
+  if (err instanceof VerificationException) {
+    const statusName =
+      VerificationStatus[err.status] ?? `UNKNOWN(${err.status})`;
+    const causeDetail =
+      err.cause instanceof Error
+        ? `: ${err.cause.name}: ${err.cause.message}`
+        : err.cause
+          ? `: ${String(err.cause)}`
+          : "";
+    const message = `VerificationException ${statusName}${causeDetail}`;
+    console.error("Failed to decode Apple notification:", message, err.cause ?? "");
+    const enriched = new Error(message);
+    enriched.name = "VerificationException";
+    return enriched;
+  }
+  console.error("Failed to decode Apple notification:", err);
+  return err instanceof Error ? err : new Error(String(err));
+}
+
+/**
+ * Decode a notification payload from Apple App Store Server Notifications v2.
+ * Tries the primary-env verifier, then falls back to the other environment
+ * if Apple returns INVALID_ENVIRONMENT — TestFlight (Sandbox) and App Store
+ * (Production) both post to the same webhook URL.
+ */
+export async function decodeNotification(
+  signedPayload: string
+): Promise<DecodedNotification | null> {
+  const primary = signedDataVerifier;
+  if (!primary) {
     throw new Error("Apple IAP SignedDataVerifier not initialized");
   }
+  const fallback =
+    primary === signedDataVerifierProduction
+      ? signedDataVerifierSandbox
+      : signedDataVerifierProduction;
+
   try {
-    const notification = await signedDataVerifier.verifyAndDecodeNotification(signedPayload);
-    const data = notification.data;
-    if (!data) return null;
-
-    let transactionInfo: JWSTransactionDecodedPayload | null = null;
-    let renewalInfo: JWSRenewalInfoDecodedPayload | null = null;
-
-    if (data.signedTransactionInfo) {
-      transactionInfo = await signedDataVerifier.verifyAndDecodeTransaction(
-        data.signedTransactionInfo
-      );
-    }
-    if (data.signedRenewalInfo) {
-      renewalInfo = await signedDataVerifier.verifyAndDecodeRenewalInfo(
-        data.signedRenewalInfo
-      );
-    }
-
-    return {
-      notificationType: notification.notificationType ?? "",
-      subtype: notification.subtype ?? undefined,
-      transactionInfo,
-      renewalInfo,
-    };
+    return await decodeWithVerifier(primary, signedPayload);
   } catch (err) {
-    // Surface the real VerificationStatus so the Ops panel / webhook log
-    // stores something actionable instead of the generic "returned null".
-    // VerificationException extends Error but super() is called without a
-    // message, so err.message is empty and the status enum is the only clue.
-    if (err instanceof VerificationException) {
-      const statusName =
-        VerificationStatus[err.status] ?? `UNKNOWN(${err.status})`;
-      const causeDetail =
-        err.cause instanceof Error
-          ? `: ${err.cause.name}: ${err.cause.message}`
-          : err.cause
-            ? `: ${String(err.cause)}`
-            : "";
-      const message = `VerificationException ${statusName}${causeDetail}`;
-      console.error("Failed to decode Apple notification:", message, err.cause ?? "");
-      const enriched = new Error(message);
-      enriched.name = "VerificationException";
-      throw enriched;
+    const isEnvMismatch =
+      err instanceof VerificationException &&
+      err.status === VerificationStatus.INVALID_ENVIRONMENT;
+    if (isEnvMismatch && fallback) {
+      try {
+        return await decodeWithVerifier(fallback, signedPayload);
+      } catch (fallbackErr) {
+        throw enrichVerificationError(fallbackErr);
+      }
     }
-    console.error("Failed to decode Apple notification:", err);
-    throw err;
+    throw enrichVerificationError(err);
   }
 }
 
