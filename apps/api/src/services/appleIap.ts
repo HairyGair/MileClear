@@ -30,6 +30,10 @@ const keyId = process.env.APPLE_IAP_KEY_ID;
 const issuerId = process.env.APPLE_IAP_ISSUER_ID;
 const privateKeyBase64 = process.env.APPLE_IAP_PRIVATE_KEY;
 const bundleId = process.env.APPLE_IAP_BUNDLE_ID || "com.mileclear.app";
+// Numeric App Apple ID (a.k.a. trackId from itunes.apple.com lookup). Required by
+// the library when building a Production SignedDataVerifier; ignored in Sandbox.
+const appAppleIdRaw = process.env.APPLE_IAP_APP_APPLE_ID || "6759671005";
+const appAppleId = Number.parseInt(appAppleIdRaw, 10);
 const iapEnv = process.env.APPLE_IAP_ENVIRONMENT === "Production"
   ? Environment.PRODUCTION
   : Environment.SANDBOX;
@@ -84,7 +88,8 @@ if (keyId && issuerId && privateKeyBase64) {
       rootCerts,
       true,
       Environment.PRODUCTION,
-      bundleId
+      bundleId,
+      Number.isFinite(appAppleId) ? appAppleId : undefined
     );
     signedDataVerifier =
       iapEnv === Environment.PRODUCTION
