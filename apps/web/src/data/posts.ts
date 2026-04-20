@@ -7,7 +7,7 @@
 export interface ReleaseNote {
   version: string;
   date: string;
-  label?: "Latest" | "Major" | "Pending Review" | "App Store" | "In Testing";
+  label?: "Latest" | "Major" | "Pending Review" | "App Store" | "In Testing" | "In Development";
   items: string[];
   ctaUrl?: string;
   ctaLabel?: string;
@@ -27,6 +27,21 @@ export interface BlogPost {
 // Release Notes
 // ----------------------------------------------------------------
 export const RELEASE_NOTES: ReleaseNote[] = [
+  {
+    version: "1.0.10",
+    date: "20 April 2026",
+    label: "In Development",
+    items: [
+      "Trip distances are noticeably more accurate. We now filter out GPS noise (the random spikes that used to inflate your mileage) and snap your route to actual roads using OpenStreetMap routing. Expect roughly 5-10% better accuracy on winding country lanes, and a clean polyline on the map instead of jagged jumps.",
+      "Auto-detection no longer triggers when you're parked at a saved location. Setting Home, Work, or your depot now blocks the 'You started driving' notification when GPS drift makes your phone briefly look like it's moving at 15mph indoors. The legitimate 'leaving home to drive' case still works via the geofence exit.",
+      "Smarter rating prompts. Cooldown shortened from 7 to 3 days, plus a new dashboard trigger for users who don't classify trips often. Every skipped prompt now records a reason (cooldown, already rated, not enough trips, etc.) so we can fix the gates that were silently swallowing it.",
+      "Per-trip GPS quality scoring. Each trip now records how clean the underlying GPS data was: percentage of high-accuracy fixes, how many outlier points were dropped, and whether the road-match succeeded. Lets us spot suspect trips without having to pull the full coordinate trace.",
+      "Background app heartbeat. Your app pings the server with its tracking permissions and task state on launch and on every foreground (rate-limited to once per 24h). Catches the silent-failure case where iOS revokes background location after onboarding and detection quietly stops.",
+      "Auto-classification accuracy tracking. When you change a trip's classification from the auto-suggested value, that decision is now recorded (the first time only) so we can measure how often our suggestions are correct and tune the rules over time.",
+      "Apple subscription webhooks now accept both Sandbox (TestFlight beta testers) and Production (live App Store customers). Previously the webhook was bound to one environment and silently dropped traffic from the other, so a real activation could go unnoticed.",
+      "Web dashboard: fixed the broken vehicle icon in the sidebar that appeared after switching avatars.",
+    ],
+  },
   {
     version: "1.0.9",
     date: "15 April 2026",
