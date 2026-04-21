@@ -98,15 +98,32 @@ export async function getSubscriptionProducts(): Promise<{
 /**
  * Trigger the StoreKit purchase sheet for a subscription.
  * @param plan - "monthly" or "annual" (defaults to "monthly")
+ * @param userId - the MileClear user id, sent as appAccountToken so the
+ *   server-to-server webhook can be linked back to the account even if
+ *   /billing/apple/validate doesn't complete (e.g. network blip, app crash).
+ *   Must be a UUID - StoreKit rejects non-UUID values. Ignored if omitted.
  */
-export async function purchaseSubscription(plan: "monthly" | "annual" = "monthly"): Promise<void> {
+export async function purchaseSubscription(
+  plan: "monthly" | "annual" = "monthly",
+  userId?: string
+): Promise<void> {
   const iap = loadIapModule();
   if (!iap) throw new Error("IAP not available");
   const sku = plan === "annual" ? PRODUCT_ID_ANNUAL : PRODUCT_ID_MONTHLY;
+  const appleRequest: { sku: string; appAccountToken?: string } = { sku };
+  if (userId && isUuid(userId)) {
+    appleRequest.appAccountToken = userId;
+  }
   await iap.requestPurchase({
     type: "subs",
-    request: { apple: { sku } },
+    request: { apple: appleRequest },
   });
+}
+
+const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+function isUuid(value: string): boolean {
+  return UUID_RE.test(value);
 }
 
 /**

@@ -203,7 +203,7 @@ export default function OpenBankingScreen() {
     try {
       const iap = await isIapAvailable();
       if (iap) {
-        await purchaseSubscription();
+        await purchaseSubscription("monthly", user?.id);
       } else {
         const res = await createCheckoutSession();
         if (res.data?.url) {

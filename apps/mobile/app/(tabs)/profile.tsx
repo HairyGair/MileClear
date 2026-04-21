@@ -79,7 +79,7 @@ function formatDate(dateString: string): string {
 
 export default function ProfileScreen() {
   const { logout } = useAuth();
-  const { refreshUser } = useUser();
+  const { user: authUser, refreshUser } = useUser();
   const { showPaywall } = usePaywall();
   const router = useRouter();
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
@@ -200,7 +200,7 @@ export default function ProfileScreen() {
   const handleUpgrade = useCallback(async () => {
     try {
       if (isIapAvailable()) {
-        await purchaseSubscription();
+        await purchaseSubscription("monthly", authUser?.id);
       } else {
         const res = await createCheckoutSession();
         if (res.data.url) {
@@ -218,7 +218,7 @@ export default function ProfileScreen() {
         err instanceof Error ? err.message : "Could not start checkout"
       );
     }
-  }, [loadData]);
+  }, [loadData, authUser?.id]);
 
   const handleRestorePurchases = useCallback(async () => {
     setRestoring(true);

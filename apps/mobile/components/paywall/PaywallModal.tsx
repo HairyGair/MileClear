@@ -48,7 +48,7 @@ interface PaywallModalProps {
 
 export function PaywallModal({ visible, onClose, source }: PaywallModalProps) {
   const scrollRef = useRef<ScrollView>(null);
-  const { refreshUser } = useUser();
+  const { user, refreshUser } = useUser();
   const [page, setPage] = useState(0);
   const [stats, setStats] = useState<GamificationStats | null>(null);
   const [monthlyPrice, setMonthlyPrice] = useState<string>("£4.99");
@@ -92,7 +92,7 @@ export function PaywallModal({ visible, onClose, source }: PaywallModalProps) {
     setPurchasing(true);
     try {
       if (isIapAvailable()) {
-        await purchaseSubscription(selectedPlan);
+        await purchaseSubscription(selectedPlan, user?.id);
         // Purchase listener in _layout.tsx handles validation + refreshUser
       } else {
         const res = await createCheckoutSession();

@@ -118,16 +118,20 @@ export function getSignedDataVerifier(): SignedDataVerifier | null {
   return signedDataVerifier;
 }
 
+export type AppleIapEnvironment = "sandbox" | "production";
+
 type DecodedNotification = {
   notificationType: string;
   subtype?: string;
   transactionInfo: JWSTransactionDecodedPayload | null;
   renewalInfo: JWSRenewalInfoDecodedPayload | null;
+  environment: AppleIapEnvironment;
 };
 
 async function decodeWithVerifier(
   verifier: SignedDataVerifier,
-  signedPayload: string
+  signedPayload: string,
+  environment: AppleIapEnvironment
 ): Promise<DecodedNotification | null> {
   const notification = await verifier.verifyAndDecodeNotification(signedPayload);
   const data = notification.data;
@@ -150,6 +154,7 @@ async function decodeWithVerifier(
     subtype: notification.subtype ?? undefined,
     transactionInfo,
     renewalInfo,
+    environment,
   };
 }
 
@@ -190,20 +195,24 @@ export async function decodeNotification(
   if (!primary) {
     throw new Error("Apple IAP SignedDataVerifier not initialized");
   }
+  const primaryEnv: AppleIapEnvironment =
+    primary === signedDataVerifierProduction ? "production" : "sandbox";
   const fallback =
     primary === signedDataVerifierProduction
       ? signedDataVerifierSandbox
       : signedDataVerifierProduction;
+  const fallbackEnv: AppleIapEnvironment =
+    primaryEnv === "production" ? "sandbox" : "production";
 
   try {
-    return await decodeWithVerifier(primary, signedPayload);
+    return await decodeWithVerifier(primary, signedPayload, primaryEnv);
   } catch (err) {
     const isEnvMismatch =
       err instanceof VerificationException &&
       err.status === VerificationStatus.INVALID_ENVIRONMENT;
     if (isEnvMismatch && fallback) {
       try {
-        return await decodeWithVerifier(fallback, signedPayload);
+        return await decodeWithVerifier(fallback, signedPayload, fallbackEnv);
       } catch (fallbackErr) {
         throw enrichVerificationError(fallbackErr);
       }

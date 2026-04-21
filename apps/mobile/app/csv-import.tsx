@@ -197,7 +197,7 @@ export default function CsvImportScreen() {
     const handleUpgrade = async () => {
       try {
         if (isIapAvailable()) {
-          await purchaseSubscription();
+          await purchaseSubscription("monthly", user?.id);
         } else {
           const res = await createCheckoutSession();
           if (res.data?.url) await WebBrowser.openBrowserAsync(res.data.url);

@@ -16,6 +16,7 @@ import { downloadAndShareExport } from "../lib/api/exports";
 import { fetchProfile } from "../lib/api/user";
 import { createCheckoutSession } from "../lib/api/billing";
 import { isIapAvailable, purchaseSubscription } from "../lib/iap/index";
+import { useUser } from "../lib/user/context";
 import { usePaywall } from "../components/paywall";
 
 function generateTaxYears(count: number): string[] {
@@ -31,6 +32,7 @@ type LoadingKey = "csv" | "pdf" | "self-assessment" | null;
 
 export default function ExportsScreen() {
   const { showPaywall } = usePaywall();
+  const { user } = useUser();
   const taxYears = generateTaxYears(4);
   const [selectedYear, setSelectedYear] = useState(taxYears[0]);
   const [loadingKey, setLoadingKey] = useState<LoadingKey>(null);
@@ -47,7 +49,7 @@ export default function ExportsScreen() {
   const handleUpgrade = useCallback(async () => {
     try {
       if (isIapAvailable()) {
-        await purchaseSubscription();
+        await purchaseSubscription("monthly", user?.id);
       } else {
         const res = await createCheckoutSession();
         if (res.data.url) {
@@ -67,7 +69,7 @@ export default function ExportsScreen() {
         err instanceof Error ? err.message : "Could not start checkout"
       );
     }
-  }, []);
+  }, [user?.id]);
 
   const pickTaxYear = useCallback(() => {
     Alert.alert(

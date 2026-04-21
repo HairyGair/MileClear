@@ -491,6 +491,7 @@ model AppleIapWebhookLog {
   subtype               String?  @db.VarChar(100)
   originalTransactionId String?  @db.VarChar(255)
   userId                String?
+  environment           String?  @db.VarChar(20)
   status                String   @db.VarChar(30)
   errorMessage          String?  @db.Text
   receivedAt            DateTime @default(now())

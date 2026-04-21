@@ -17,6 +17,7 @@ async function recordAppleWebhook(data: {
   subtype?: string | null;
   originalTransactionId?: string | null;
   userId?: string | null;
+  environment?: string | null;
   status: string;
   errorMessage?: string | null;
 }): Promise<void> {
@@ -27,6 +28,7 @@ async function recordAppleWebhook(data: {
         subtype: data.subtype ?? null,
         originalTransactionId: data.originalTransactionId ?? null,
         userId: data.userId ?? null,
+        environment: data.environment ?? null,
         status: data.status,
         errorMessage: data.errorMessage ?? null,
       },
@@ -183,12 +185,13 @@ export async function appleBillingRoutes(app: FastifyInstance) {
       return reply.status(400).send({ error: "Failed to verify notification" });
     }
 
-    const { notificationType, subtype, transactionInfo } = notification;
+    const { notificationType, subtype, transactionInfo, environment } = notification;
     if (!transactionInfo?.originalTransactionId) {
       app.log.warn("Apple webhook: no originalTransactionId in notification");
       await recordAppleWebhook({
         notificationType,
         subtype,
+        environment,
         status: "no_transaction_id",
         errorMessage: "Notification had no originalTransactionId",
       });
@@ -196,23 +199,57 @@ export async function appleBillingRoutes(app: FastifyInstance) {
     }
 
     const originalTransactionId = transactionInfo.originalTransactionId;
+    const appAccountToken = transactionInfo.appAccountToken ?? null;
 
-    // Look up user by Apple original transaction ID
-    const user = await prisma.user.findUnique({
+    // Look up user by Apple original transaction ID first, then fall back to the
+    // appAccountToken the mobile client set at purchase time (which we seed with
+    // the MileClear userId). The fallback closes the race where Apple's webhook
+    // arrives before /billing/apple/validate has linked the transaction to us.
+    let user = await prisma.user.findUnique({
       where: { appleOriginalTransactionId: originalTransactionId },
       select: { id: true, pushToken: true },
     });
 
+    if (!user && appAccountToken) {
+      const linkedUser = await prisma.user.findUnique({
+        where: { id: appAccountToken },
+        select: { id: true, pushToken: true, appleOriginalTransactionId: true },
+      });
+      if (linkedUser) {
+        // Only persist the link if the user doesn't already have a conflicting
+        // transaction. A conflict would mean two purchases have claimed the
+        // same MileClear account, which /validate also rejects with a 409.
+        if (
+          !linkedUser.appleOriginalTransactionId ||
+          linkedUser.appleOriginalTransactionId === originalTransactionId
+        ) {
+          await prisma.user.update({
+            where: { id: linkedUser.id },
+            data: { appleOriginalTransactionId: originalTransactionId },
+          });
+          user = { id: linkedUser.id, pushToken: linkedUser.pushToken };
+          app.log.info(
+            `Apple webhook: linked transaction ${originalTransactionId} to user ${linkedUser.id} via appAccountToken`
+          );
+        } else {
+          app.log.warn(
+            `Apple webhook: appAccountToken ${appAccountToken} is already linked to a different transaction — not overwriting`
+          );
+        }
+      }
+    }
+
     if (!user) {
       app.log.warn(
-        `Apple webhook: no user found for transaction ${originalTransactionId}`
+        `Apple webhook: no user found for transaction ${originalTransactionId} (env: ${environment})`
       );
       await recordAppleWebhook({
         notificationType,
         subtype,
         originalTransactionId,
+        environment,
         status: "no_user",
-        errorMessage: `No user with appleOriginalTransactionId ${originalTransactionId}`,
+        errorMessage: `No user with appleOriginalTransactionId ${originalTransactionId}${appAccountToken ? ` (appAccountToken ${appAccountToken} also not matched)` : ""}`,
       });
       return reply.send({ received: true });
     }
@@ -313,6 +350,7 @@ export async function appleBillingRoutes(app: FastifyInstance) {
         subtype,
         originalTransactionId,
         userId: user.id,
+        environment,
         status: "handler_error",
         errorMessage: err instanceof Error ? `${err.name}: ${err.message}` : String(err),
       });
@@ -324,6 +362,7 @@ export async function appleBillingRoutes(app: FastifyInstance) {
       subtype,
       originalTransactionId,
       userId: user.id,
+      environment,
       status: handlerStatus,
     });
 
