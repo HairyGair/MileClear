@@ -39,7 +39,7 @@ export const RELEASE_NOTES: ReleaseNote[] = [
       "Per-trip GPS quality scoring. Each trip now records how clean the underlying GPS data was: percentage of high-accuracy fixes, how many outlier points were dropped, and whether the road-match succeeded. Lets us spot suspect trips without having to pull the full coordinate trace.",
       "Background app heartbeat. Your app pings the server with its tracking permissions and task state on launch and on every foreground (rate-limited to once per 24h). Catches the silent-failure case where iOS revokes background location after onboarding and detection quietly stops.",
       "Auto-classification accuracy tracking. When you change a trip's classification from the auto-suggested value, that decision is now recorded (the first time only) so we can measure how often our suggestions are correct and tune the rules over time.",
-      "Apple subscription webhooks now accept both Sandbox (TestFlight beta testers) and Production (live App Store customers). Previously the webhook was bound to one environment and silently dropped traffic from the other, so a real activation could go unnoticed.",
+      "Apple subscription webhooks now accept both Sandbox (TestFlight beta testers) and Production (live App Store customers), stamp which environment each event was verified against on the internal log, and can auto-link a purchase back to your account if the normal validation call hasn't completed yet (network blip, app backgrounded mid-purchase, etc.). Previously a stranded webhook could mean a real activation went unnoticed.",
       "Web dashboard: fixed the broken vehicle icon in the sidebar that appeared after switching avatars.",
     ],
   },
