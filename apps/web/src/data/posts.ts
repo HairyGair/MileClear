@@ -23,6 +23,14 @@ export interface BlogPost {
   content: string; // full HTML string  - trusted, developer-authored
 }
 
+export interface Guide {
+  slug: string; // route under /
+  title: string;
+  excerpt: string;
+  category: "tax" | "tracking" | "rules";
+  readTime: string; // e.g. "5 min read"
+}
+
 // ----------------------------------------------------------------
 // Release Notes
 // ----------------------------------------------------------------
@@ -1063,6 +1071,46 @@ export function getBlogPostBySlug(slug: string): BlogPost | undefined {
 export function getAllReleaseNotes(): ReleaseNote[] {
   return RELEASE_NOTES;
 }
+
+// ----------------------------------------------------------------
+// Guides - evergreen reference pages, separate from time-sensitive Blog
+// ----------------------------------------------------------------
+export const GUIDES: Guide[] = [
+  {
+    slug: "hmrc-mileage-rates",
+    title: "HMRC Mileage Rates for Cars and Vans",
+    excerpt:
+      "The 45p/25p approved rates with a worked example: 18,800 miles a year reaches a £6,700 tax deduction. Covers sole traders, employees, and limited company directors.",
+    category: "tax",
+    readTime: "5 min read",
+  },
+  {
+    slug: "business-mileage-guide",
+    title: "The UK Business Mileage Guide",
+    excerpt:
+      "Everything a UK driver needs to know about tracking business miles for tax. Why the fuel-AND-mileage double claim is the trap most drivers fall into, and how to keep a log HMRC will accept.",
+    category: "tracking",
+    readTime: "8 min read",
+  },
+  {
+    slug: "what-counts-as-business-mileage",
+    title: "What Counts as Business Mileage?",
+    excerpt:
+      "Eight real-world situations with plain answers: home-to-first-job, trips between sites, training, supplier runs, client lunches, charity volunteering, and the school-run detour.",
+    category: "rules",
+    readTime: "6 min read",
+  },
+];
+
+export function getAllGuides(): Guide[] {
+  return GUIDES;
+}
+
+export const GUIDE_CATEGORY_LABELS: Record<Guide["category"], string> = {
+  tax: "Tax",
+  tracking: "Tracking",
+  rules: "Rules",
+};
 
 export const CATEGORY_LABELS: Record<BlogPost["category"], string> = {
   engineering: "Engineering",

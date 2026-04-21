@@ -5,11 +5,13 @@ import Link from "next/link";
 import {
   getAllReleaseNotes,
   getAllBlogPosts,
+  getAllGuides,
   CATEGORY_LABELS,
+  GUIDE_CATEGORY_LABELS,
   type BlogPost,
 } from "@/data/posts";
 
-type Tab = "releases" | "blog";
+type Tab = "releases" | "blog" | "guides";
 
 function categoryClass(category: BlogPost["category"]): string {
   return `blog-card__category blog-card__category--${category}`;
@@ -23,6 +25,7 @@ export default function TabSwitcher({
   const [tab, setTab] = useState<Tab>(defaultTab);
   const releaseNotes = getAllReleaseNotes();
   const blogPosts = getAllBlogPosts();
+  const guides = getAllGuides();
 
   return (
     <>
@@ -46,6 +49,15 @@ export default function TabSwitcher({
             onClick={() => setTab("blog")}
           >
             Blog
+          </button>
+          <button
+            role="tab"
+            aria-selected={tab === "guides"}
+            aria-controls="panel-guides"
+            className={`updates__tab${tab === "guides" ? " updates__tab--active" : ""}`}
+            onClick={() => setTab("guides")}
+          >
+            Guides
           </button>
         </div>
       </div>
@@ -124,6 +136,39 @@ export default function TabSwitcher({
                 <p className="blog-card__excerpt">{post.excerpt}</p>
                 <span className="blog-card__read" aria-hidden="true">
                   Read post{" "}
+                  <span className="blog-card__arrow">&rarr;</span>
+                </span>
+              </Link>
+            </li>
+          ))}
+        </ul>
+      </div>
+
+      {/* Guides panel */}
+      <div
+        id="panel-guides"
+        role="tabpanel"
+        hidden={tab !== "guides"}
+        className="updates__content"
+      >
+        <p className="updates__panel-intro">
+          Evergreen reference pages for UK drivers. Tax rules, how the HMRC
+          rates work, and which trips you can actually claim.
+        </p>
+        <ul className="blog-list" aria-label="Guides">
+          {guides.map((guide) => (
+            <li key={guide.slug}>
+              <Link href={`/${guide.slug}`} className="blog-card">
+                <div className="blog-card__meta">
+                  <span className={`blog-card__category blog-card__category--guide`}>
+                    {GUIDE_CATEGORY_LABELS[guide.category]}
+                  </span>
+                  <span className="blog-card__date">{guide.readTime}</span>
+                </div>
+                <h2 className="blog-card__title">{guide.title}</h2>
+                <p className="blog-card__excerpt">{guide.excerpt}</p>
+                <span className="blog-card__read" aria-hidden="true">
+                  Read guide{" "}
                   <span className="blog-card__arrow">&rarr;</span>
                 </span>
               </Link>

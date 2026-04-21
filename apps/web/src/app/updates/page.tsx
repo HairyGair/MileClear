@@ -3,7 +3,7 @@ import Navbar from "@/components/landing/Navbar";
 import Footer from "@/components/landing/Footer";
 import TabSwitcher from "@/components/updates/TabSwitcher";
 import BreadcrumbsJsonLd from "@/components/seo/BreadcrumbsJsonLd";
-import { RELEASE_NOTES, BLOG_POSTS } from "@/data/posts";
+import { RELEASE_NOTES, BLOG_POSTS, GUIDES } from "@/data/posts";
 import "../updates.css";
 
 export const metadata: Metadata = {
@@ -58,6 +58,19 @@ const releasesItemList = {
   })),
 };
 
+const guidesItemList = {
+  "@context": "https://schema.org",
+  "@type": "ItemList",
+  name: "MileClear Driver Guides",
+  itemListElement: GUIDES.map((g, i) => ({
+    "@type": "ListItem",
+    position: i + 1,
+    name: g.title,
+    description: g.excerpt,
+    url: `https://mileclear.com/${g.slug}`,
+  })),
+};
+
 export default function UpdatesPage() {
   return (
     <>
@@ -69,6 +82,10 @@ export default function UpdatesPage() {
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(releasesItemList) }}
+      />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(guidesItemList) }}
       />
       <Navbar />
 
