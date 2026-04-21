@@ -32,6 +32,7 @@ export const RELEASE_NOTES: ReleaseNote[] = [
     date: "20 April 2026",
     label: "In Development",
     items: [
+      "Change your password from inside the app and on the web dashboard, without needing a reset email. Useful when reset emails get filtered by Outlook, Hotmail, or other strict spam filters. Your other devices are signed out automatically; the device you change it from stays signed in.",
       "Trip distances are noticeably more accurate. We now filter out GPS noise (the random spikes that used to inflate your mileage) and snap your route to actual roads using OpenStreetMap routing. Expect roughly 5-10% better accuracy on winding country lanes, and a clean polyline on the map instead of jagged jumps.",
       "Auto-detection no longer triggers when you're parked at a saved location. Setting Home, Work, or your depot now blocks the 'You started driving' notification when GPS drift makes your phone briefly look like it's moving at 15mph indoors. The legitimate 'leaving home to drive' case still works via the geofence exit.",
       "Smarter rating prompts. Cooldown shortened from 7 to 3 days, plus a new dashboard trigger for users who don't classify trips often. Every skipped prompt now records a reason (cooldown, already rated, not enough trips, etc.) so we can fix the gates that were silently swallowing it.",
