@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import Navbar from "@/components/landing/Navbar";
 import Footer from "@/components/landing/Footer";
 import TabSwitcher from "@/components/updates/TabSwitcher";
+import BreadcrumbsJsonLd from "@/components/seo/BreadcrumbsJsonLd";
+import { RELEASE_NOTES, BLOG_POSTS } from "@/data/posts";
 import "../updates.css";
 
 export const metadata: Metadata = {
@@ -27,9 +29,47 @@ export const metadata: Metadata = {
   },
 };
 
+const updatesBlogSchema = {
+  "@context": "https://schema.org",
+  "@type": "Blog",
+  name: "MileClear Updates",
+  url: "https://mileclear.com/updates",
+  description:
+    "Release notes and the development blog for the MileClear UK mileage tracker.",
+  blogPost: BLOG_POSTS.map((p) => ({
+    "@type": "BlogPosting",
+    headline: p.title,
+    description: p.excerpt,
+    datePublished: p.date,
+    author: { "@type": "Person", name: p.author },
+    url: `https://mileclear.com/updates/${p.slug}`,
+  })),
+};
+
+const releasesItemList = {
+  "@context": "https://schema.org",
+  "@type": "ItemList",
+  name: "MileClear Release Notes",
+  itemListElement: RELEASE_NOTES.map((r, i) => ({
+    "@type": "ListItem",
+    position: i + 1,
+    name: `MileClear v${r.version}`,
+    description: r.items.join(" "),
+  })),
+};
+
 export default function UpdatesPage() {
   return (
     <>
+      <BreadcrumbsJsonLd crumbs={[{ name: "Updates", path: "/updates" }]} />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(updatesBlogSchema) }}
+      />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(releasesItemList) }}
+      />
       <Navbar />
 
       <main className="updates">

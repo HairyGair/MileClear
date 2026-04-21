@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import Navbar from '@/components/landing/Navbar';
 import Footer from '@/components/landing/Footer';
+import BreadcrumbsJsonLd from '@/components/seo/BreadcrumbsJsonLd';
 import '../legal.css';
 import './about.css';
 
@@ -39,6 +40,7 @@ const personSchema = {
 export default function AboutPage() {
   return (
     <>
+      <BreadcrumbsJsonLd crumbs={[{ name: 'About', path: '/about' }]} />
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(personSchema) }}

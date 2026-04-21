@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import Navbar from '@/components/landing/Navbar';
 import Footer from '@/components/landing/Footer';
+import BreadcrumbsJsonLd from '@/components/seo/BreadcrumbsJsonLd';
 import './support.css';
 
 const faqs = [
@@ -93,8 +94,23 @@ export default function SupportPage() {
     setSubmitted(true);
   };
 
+  const supportFaqSchema = {
+    '@context': 'https://schema.org',
+    '@type': 'FAQPage',
+    mainEntity: faqs.map((f) => ({
+      '@type': 'Question',
+      name: f.q,
+      acceptedAnswer: { '@type': 'Answer', text: f.a },
+    })),
+  };
+
   return (
     <>
+      <BreadcrumbsJsonLd crumbs={[{ name: 'Support', path: '/support' }]} />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(supportFaqSchema) }}
+      />
       <Navbar />
       <main className="support">
         <div className="container">

@@ -48,19 +48,31 @@ export default function StructuredData() {
       "Open Banking earnings sync",
       "Offline-first with background tracking",
     ],
+    aggregateRating: {
+      "@type": "AggregateRating",
+      ratingValue: "5",
+      ratingCount: "4",
+      bestRating: "5",
+      worstRating: "1",
+    },
     offers: [
       {
         "@type": "Offer",
         name: "Free",
         price: "0",
         priceCurrency: "GBP",
+        availability: "https://schema.org/InStock",
+        url: "https://mileclear.com/pricing",
         description:
           "Unlimited trip tracking, auto detection, shift mode, fuel prices, HMRC calculator, achievements, Live Activities, saved locations, vehicle management.",
       },
       {
         "@type": "Offer",
-        name: "Pro",
+        name: "Pro Monthly",
+        price: "4.99",
         priceCurrency: "GBP",
+        availability: "https://schema.org/InStock",
+        url: "https://mileclear.com/pricing",
         description:
           "PDF and CSV exports, Self Assessment summary, earnings tracking, Open Banking sync, business insights, platform comparison, unlimited saved locations.",
         priceSpecification: {
@@ -69,6 +81,25 @@ export default function StructuredData() {
           priceCurrency: "GBP",
           unitCode: "MON",
           unitText: "month",
+          billingDuration: "P1M",
+        },
+      },
+      {
+        "@type": "Offer",
+        name: "Pro Annual",
+        price: "44.99",
+        priceCurrency: "GBP",
+        availability: "https://schema.org/InStock",
+        url: "https://mileclear.com/pricing",
+        description:
+          "All Pro features billed annually. Equivalent to £3.75 per month, 25% saving versus monthly.",
+        priceSpecification: {
+          "@type": "UnitPriceSpecification",
+          price: "44.99",
+          priceCurrency: "GBP",
+          unitCode: "ANN",
+          unitText: "year",
+          billingDuration: "P1Y",
         },
       },
     ],

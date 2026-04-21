@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import Navbar from '@/components/landing/Navbar';
 import Footer from '@/components/landing/Footer';
+import BreadcrumbsJsonLd from '@/components/seo/BreadcrumbsJsonLd';
 import '../legal.css';
 
 export const metadata: Metadata = {
@@ -27,6 +28,7 @@ export const metadata: Metadata = {
 export default function PrivacyPolicy() {
   return (
     <>
+      <BreadcrumbsJsonLd crumbs={[{ name: 'Privacy Policy', path: '/privacy' }]} />
       <Navbar />
 
       <main className="legal">

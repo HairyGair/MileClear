@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import Navbar from '@/components/landing/Navbar';
 import Footer from '@/components/landing/Footer';
+import BreadcrumbsJsonLd from '@/components/seo/BreadcrumbsJsonLd';
 
 export const metadata: Metadata = {
   title: 'Pricing',
@@ -98,8 +99,94 @@ const faqs = [
 ];
 
 export default function PricingPage() {
+  const product = {
+    '@context': 'https://schema.org',
+    '@type': 'Product',
+    name: 'MileClear',
+    description:
+      'UK mileage tracker for gig workers, delivery drivers, and self-employed drivers. Free GPS tracking with HMRC tax deduction calculator. Pro tier unlocks tax-ready exports, earnings tracking, and business intelligence.',
+    brand: { '@type': 'Brand', name: 'MileClear' },
+    aggregateRating: {
+      '@type': 'AggregateRating',
+      ratingValue: '5',
+      ratingCount: '4',
+      bestRating: '5',
+      worstRating: '1',
+    },
+    offers: [
+      {
+        '@type': 'Offer',
+        name: 'Free',
+        price: '0',
+        priceCurrency: 'GBP',
+        availability: 'https://schema.org/InStock',
+        url: 'https://mileclear.com/pricing',
+        description:
+          'Unlimited GPS trip tracking, automatic drive detection, HMRC mileage calculator, shift mode, fuel prices, and 43 achievements. Free forever.',
+      },
+      {
+        '@type': 'Offer',
+        name: 'Pro Monthly',
+        price: '4.99',
+        priceCurrency: 'GBP',
+        availability: 'https://schema.org/InStock',
+        url: 'https://mileclear.com/pricing',
+        description:
+          'PDF and CSV exports, Self Assessment summary, business expense tracking, earnings tracking, Open Banking, business insights, unlimited saved locations.',
+        priceSpecification: {
+          '@type': 'UnitPriceSpecification',
+          price: '4.99',
+          priceCurrency: 'GBP',
+          unitCode: 'MON',
+          unitText: 'month',
+          billingDuration: 'P1M',
+        },
+      },
+      {
+        '@type': 'Offer',
+        name: 'Pro Annual',
+        price: '44.99',
+        priceCurrency: 'GBP',
+        availability: 'https://schema.org/InStock',
+        url: 'https://mileclear.com/pricing',
+        description:
+          'All Pro features billed annually at £44.99 per year. Works out at £3.75 per month, a 25% saving versus monthly.',
+        priceSpecification: {
+          '@type': 'UnitPriceSpecification',
+          price: '44.99',
+          priceCurrency: 'GBP',
+          unitCode: 'ANN',
+          unitText: 'year',
+          billingDuration: 'P1Y',
+        },
+      },
+    ],
+  };
+
+  const faqPage = {
+    '@context': 'https://schema.org',
+    '@type': 'FAQPage',
+    mainEntity: faqs.map((f) => ({
+      '@type': 'Question',
+      name: f.q,
+      acceptedAnswer: {
+        '@type': 'Answer',
+        text: f.a,
+      },
+    })),
+  };
+
   return (
     <>
+      <BreadcrumbsJsonLd crumbs={[{ name: 'Pricing', path: '/pricing' }]} />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(product) }}
+      />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(faqPage) }}
+      />
       <Navbar />
 
       <main style={{ paddingTop: '68px' }}>

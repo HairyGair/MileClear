@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import Navbar from "@/components/landing/Navbar";
 import Footer from "@/components/landing/Footer";
+import BreadcrumbsJsonLd from "@/components/seo/BreadcrumbsJsonLd";
 import {
   getAllBlogPosts,
   getBlogPostBySlug,
@@ -123,6 +124,12 @@ export default async function BlogPostPage({
 
   return (
     <>
+      <BreadcrumbsJsonLd
+        crumbs={[
+          { name: "Updates", path: "/updates" },
+          { name: post.title, path: `/updates/${post.slug}` },
+        ]}
+      />
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}

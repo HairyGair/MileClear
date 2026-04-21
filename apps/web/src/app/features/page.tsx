@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Navbar from "@/components/landing/Navbar";
 import Footer from "@/components/landing/Footer";
+import BreadcrumbsJsonLd from "@/components/seo/BreadcrumbsJsonLd";
 
 export const metadata: Metadata = {
   title: "Features",
@@ -60,9 +61,43 @@ const CROSS_ICON = (
   </svg>
 );
 
+const featuresItemList = {
+  "@context": "https://schema.org",
+  "@type": "WebPage",
+  name: "MileClear Features",
+  url: "https://mileclear.com/features",
+  description:
+    "GPS trip tracking, HMRC mileage deductions, shift and earnings tracking, UK fuel prices, business intelligence, and more.",
+  mainEntity: {
+    "@type": "ItemList",
+    name: "MileClear feature list",
+    itemListElement: [
+      "Automatic GPS trip recording with background detection",
+      "HMRC tax deduction calculator (45p/25p car, 24p motorbike)",
+      "Live Activities on lock screen and Dynamic Island",
+      "Shift mode with scorecards and platform tagging",
+      "Business insights with earnings per mile, per hour, weekly P&L",
+      "UK fuel prices from 8,300+ government-mandated stations",
+      "Saved locations with geofencing for auto-classification",
+      "PDF and CSV exports for HMRC Self Assessment",
+      "Open Banking earnings sync via Plaid",
+      "Offline-first with background tracking",
+    ].map((name, i) => ({
+      "@type": "ListItem",
+      position: i + 1,
+      name,
+    })),
+  },
+};
+
 export default function FeaturesPage() {
   return (
     <>
+      <BreadcrumbsJsonLd crumbs={[{ name: "Features", path: "/features" }]} />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(featuresItemList) }}
+      />
       <Navbar />
 
       <main

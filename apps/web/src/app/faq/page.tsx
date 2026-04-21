@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import Navbar from '@/components/landing/Navbar';
 import Footer from '@/components/landing/Footer';
+import BreadcrumbsJsonLd from '@/components/seo/BreadcrumbsJsonLd';
 import '../legal.css';
 import './faq.css';
 
@@ -226,6 +227,7 @@ const faqSchema = {
 export default function FaqPage() {
   return (
     <>
+      <BreadcrumbsJsonLd crumbs={[{ name: 'FAQ', path: '/faq' }]} />
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(faqSchema) }}
