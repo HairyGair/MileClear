@@ -75,6 +75,17 @@ export async function resetPassword(
   });
 }
 
+export async function changePassword(
+  currentPassword: string,
+  newPassword: string
+): Promise<void> {
+  const res = await apiRequest<{ data: AuthTokens }>("/auth/change-password", {
+    method: "POST",
+    body: JSON.stringify({ currentPassword, newPassword }),
+  });
+  await setTokens(res.data.accessToken, res.data.refreshToken);
+}
+
 export async function loginWithApple(agreedToTerms?: boolean): Promise<void> {
   if (Platform.OS !== "ios") {
     throw new Error("Apple Sign-In is only available on iOS");

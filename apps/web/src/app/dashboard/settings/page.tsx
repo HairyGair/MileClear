@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { api } from "../../../lib/api";
+import { api, setTokens } from "../../../lib/api";
 import { useAuth } from "../../../lib/auth-context";
 import { useToast } from "../../../components/ui/Toast";
 import { PageHeader } from "../../../components/dashboard/PageHeader";
@@ -41,6 +41,13 @@ export default function SettingsPage() {
   // Password reset
   const [resetLoading, setResetLoading] = useState(false);
   const [resetSent, setResetSent] = useState(false);
+
+  // Change password (requires current password)
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [changeLoading, setChangeLoading] = useState(false);
+  const [changeError, setChangeError] = useState<string | null>(null);
 
   // Billing
   const [billing, setBilling] = useState<BillingStatus | null>(null);
@@ -156,6 +163,38 @@ export default function SettingsPage() {
       setError(err.message);
     } finally {
       setResetLoading(false);
+    }
+  };
+
+  // Change password (in-app, no email required)
+  const handleChangePassword = async () => {
+    setChangeError(null);
+    if (newPassword.length < 8) {
+      setChangeError("New password must be at least 8 characters");
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      setChangeError("New password and confirmation do not match");
+      return;
+    }
+    setChangeLoading(true);
+    try {
+      const res = await api.post<{ data: { accessToken: string; refreshToken: string } }>(
+        "/auth/change-password",
+        { currentPassword, newPassword }
+      );
+      const data = (res as any).data ?? res;
+      if (data?.accessToken && data?.refreshToken) {
+        setTokens(data.accessToken, data.refreshToken);
+      }
+      setCurrentPassword("");
+      setNewPassword("");
+      setConfirmPassword("");
+      toast("Password changed. Other devices have been signed out.");
+    } catch (err: any) {
+      setChangeError(err.message || "Could not change password");
+    } finally {
+      setChangeLoading(false);
     }
   };
 
@@ -380,22 +419,71 @@ export default function SettingsPage() {
       <div className="settings-section">
         <h2 className="settings-section__title">Password</h2>
         <p className="settings-section__desc">
-          Reset your password via email.
+          Change your password using your current one. Other devices will be signed out.
         </p>
-        {resetSent ? (
-          <div className="alert alert--success">
-            Password reset email sent to {user?.email}. Check your inbox.
+
+        {changeError && (
+          <div className="alert alert--error" style={{ marginBottom: "0.75rem" }}>
+            {changeError}
           </div>
-        ) : (
-          <Button
-            variant="secondary"
-            size="sm"
-            onClick={handlePasswordReset}
-            disabled={resetLoading}
-          >
-            {resetLoading ? "Sending..." : "Send reset email"}
-          </Button>
         )}
+
+        <div style={{ display: "grid", gap: "0.75rem", maxWidth: "420px" }}>
+          <Input
+            type="password"
+            label="Current password"
+            value={currentPassword}
+            onChange={(e) => setCurrentPassword(e.target.value)}
+            autoComplete="current-password"
+            placeholder="Enter your current password"
+          />
+          <Input
+            type="password"
+            label="New password"
+            value={newPassword}
+            onChange={(e) => setNewPassword(e.target.value)}
+            autoComplete="new-password"
+            placeholder="At least 8 characters"
+          />
+          <Input
+            type="password"
+            label="Confirm new password"
+            value={confirmPassword}
+            onChange={(e) => setConfirmPassword(e.target.value)}
+            autoComplete="new-password"
+            placeholder="Re-enter new password"
+          />
+          <div>
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={handleChangePassword}
+              disabled={changeLoading || !currentPassword || !newPassword || !confirmPassword}
+            >
+              {changeLoading ? "Changing..." : "Change password"}
+            </Button>
+          </div>
+        </div>
+
+        <div style={{ marginTop: "1.25rem", paddingTop: "1rem", borderTop: "1px solid var(--border-soft, rgba(255,255,255,0.08))" }}>
+          <p style={{ fontSize: "0.875rem", color: "var(--text-muted)", margin: "0 0 0.5rem" }}>
+            Forgotten your current password? We&apos;ll email you a reset code.
+          </p>
+          {resetSent ? (
+            <div className="alert alert--success">
+              Reset email sent to {user?.email}. If it doesn&apos;t arrive within a few minutes, check your spam folder.
+            </div>
+          ) : (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handlePasswordReset}
+              disabled={resetLoading}
+            >
+              {resetLoading ? "Sending..." : "Send reset email"}
+            </Button>
+          )}
+        </div>
       </div>
 
       {/* Subscription */}

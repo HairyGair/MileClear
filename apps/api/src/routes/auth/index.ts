@@ -52,6 +52,11 @@ const resetPasswordSchema = z.object({
   newPassword: z.string().min(8, "Password must be at least 8 characters").max(128),
 });
 
+const changePasswordSchema = z.object({
+  currentPassword: z.string().min(1, "Current password is required"),
+  newPassword: z.string().min(8, "Password must be at least 8 characters").max(128),
+});
+
 const appleAuthSchema = z.object({
   identityToken: z.string().min(1, "Identity token is required"),
   fullName: z
@@ -463,6 +468,70 @@ export async function authRoutes(app: FastifyInstance) {
 
     return reply.status(200).send({ message: "Password reset successfully" });
   });
+
+  // POST /change-password (authenticated — for users who know their current password)
+  app.post(
+    "/change-password",
+    { preHandler: [authMiddleware], config: { rateLimit: { max: 5, timeWindow: "15 minutes" } } },
+    async (request, reply) => {
+      const parsed = changePasswordSchema.safeParse(request.body);
+      if (!parsed.success) {
+        return reply.status(400).send({ error: parsed.error.errors[0].message });
+      }
+
+      const userId = request.userId!;
+      const { currentPassword, newPassword } = parsed.data;
+
+      const user = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { id: true, passwordHash: true },
+      });
+      if (!user) {
+        return reply.status(404).send({ error: "User not found" });
+      }
+      if (!user.passwordHash) {
+        return reply.status(400).send({
+          error: "This account uses social sign-in. Set a password via Forgot Password first.",
+        });
+      }
+
+      const valid = await verifyPassword(currentPassword, user.passwordHash);
+      if (!valid) {
+        logEvent("auth.change_password_failed", userId, { reason: "wrong_current_password" });
+        return reply.status(401).send({ error: "Current password is incorrect" });
+      }
+
+      const newHash = await hashPassword(newPassword);
+
+      // Issue a fresh refresh token for the calling client BEFORE invalidating
+      // the rest, so we can keep the user signed in here while logging out
+      // every other session.
+      const newRefreshToken = generateRefreshToken(userId);
+
+      await prisma.$transaction([
+        prisma.user.update({
+          where: { id: userId },
+          data: { passwordHash: newHash },
+        }),
+        prisma.refreshToken.deleteMany({ where: { userId } }),
+        prisma.refreshToken.create({
+          data: {
+            userId,
+            token: hashToken(newRefreshToken),
+            expiresAt: new Date(Date.now() + REFRESH_TOKEN_EXPIRY_DAYS * 24 * 60 * 60 * 1000),
+          },
+        }),
+      ]);
+
+      const newAccessToken = generateAccessToken(userId, request.isAdmin ?? false);
+
+      logEvent("auth.change_password", userId);
+
+      return reply.status(200).send({
+        data: { accessToken: newAccessToken, refreshToken: newRefreshToken },
+      });
+    }
+  );
 
   // POST /apple — Apple Sign-In
   app.post("/apple", {

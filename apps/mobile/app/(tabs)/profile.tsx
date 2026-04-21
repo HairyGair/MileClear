@@ -502,6 +502,12 @@ export default function ProfileScreen() {
                 onPress={() => router.push("/profile-edit")}
               />
               <GroupItem
+                icon="key-outline"
+                label="Change Password"
+                onPress={() => router.push("/change-password")}
+                border
+              />
+              <GroupItem
                 icon="location-outline"
                 label="Saved Locations"
                 onPress={() => router.push("/saved-locations")}

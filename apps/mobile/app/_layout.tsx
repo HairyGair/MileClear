@@ -347,6 +347,7 @@ function RootNavigator() {
         <Stack.Screen name="earning-form" options={{ headerShown: true, title: "Add Earning" }} />
         <Stack.Screen name="fuel-form" options={{ headerShown: true, title: "Log Fuel" }} />
         <Stack.Screen name="profile-edit" options={{ headerShown: true, title: "Edit Profile" }} />
+        <Stack.Screen name="change-password" options={{ headerShown: true, title: "Change Password" }} />
         <Stack.Screen name="exports" options={{ headerShown: true, title: "Tax Exports" }} />
         <Stack.Screen name="achievements" options={{ headerShown: true, title: "Achievements" }} />
         <Stack.Screen name="csv-import" options={{ headerShown: true, title: "Import CSV" }} />
