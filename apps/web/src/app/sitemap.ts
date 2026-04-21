@@ -21,6 +21,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
     { url: `${BASE_URL}/amazon-flex-mileage-tracker`, lastModified: new Date("2026-04-13") },
     { url: `${BASE_URL}/updates`, lastModified: new Date("2026-04-12") },
     { url: `${BASE_URL}/support`, lastModified: new Date("2026-03-25") },
+    { url: `${BASE_URL}/design`, lastModified: new Date("2026-04-21") },
     { url: `${BASE_URL}/privacy`, lastModified: new Date("2026-03-13") },
     { url: `${BASE_URL}/terms`, lastModified: new Date("2026-03-13") },
   ];
