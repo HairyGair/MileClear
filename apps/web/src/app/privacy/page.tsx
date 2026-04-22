@@ -37,7 +37,7 @@ export default function PrivacyPolicy() {
           {/* Header */}
           <div className="legal__header">
             <h1 className="heading">Privacy Policy</h1>
-            <p className="legal__date">Last updated: 13 March 2026</p>
+            <p className="legal__date">Last updated: 22 April 2026</p>
           </div>
 
           {/* Table of Contents */}
@@ -67,13 +67,16 @@ export default function PrivacyPolicy() {
             <section id="overview" className="legal__section">
               <h2 className="legal__section-title">1. Overview</h2>
               <p className="legal__text">
-                MileClear (&ldquo;we,&rdquo; &ldquo;us,&rdquo; &ldquo;our,&rdquo; or &ldquo;Company&rdquo;) is committed to protecting your privacy. This Privacy Policy explains how we collect, use, disclose, and safeguard your information when you use our mobile application and website (collectively, the &ldquo;Service&rdquo;).
+                MileClear (&ldquo;we,&rdquo; &ldquo;us,&rdquo; &ldquo;our,&rdquo; or &ldquo;Service&rdquo;) is committed to protecting your privacy. This Privacy Policy explains how we collect, use, disclose, and safeguard your information when you use our mobile application and website (collectively, the &ldquo;Service&rdquo;).
               </p>
               <p className="legal__text">
-                <strong>Service Provider:</strong> MileClear Limited, a UK-registered company
+                <strong>Service Provider:</strong> Anthony Gair, trading as MileClear. Part of SOYOStudios (parent brand).
               </p>
               <p className="legal__text">
-                <strong>Website:</strong> mileclear.com
+                <strong>Location:</strong> UK-based (North East England). All data hosted on UK servers.
+              </p>
+              <p className="legal__text">
+                <strong>Services:</strong> iOS app (App Store, bundle com.mileclear.app), web at mileclear.com, API at api.mileclear.com
               </p>
               <p className="legal__text">
                 This policy applies to all users of MileClear, including gig workers (Uber, Deliveroo, Just Eat, Amazon Flex, Stuart, Gophr, DPD, Yodel, Evri drivers), self-employed drivers, and professionals who use our mileage tracking service. We comply with the UK General Data Protection Regulation (UK GDPR), the Data Protection Act 2018, and other applicable UK privacy laws.
@@ -91,9 +94,10 @@ export default function PrivacyPolicy() {
                   <li className="legal__list-item">Display name (optional)</li>
                   <li className="legal__list-item">Password (hashed with bcryptjs, never stored in plain text)</li>
                   <li className="legal__list-item">Apple ID (if using Apple Sign-In)</li>
-                  <li className="legal__list-item">Google ID (if using Google Sign-In)</li>
+                  <li className="legal__list-item">Google ID (if using Google Sign-In, pending future activation)</li>
                   <li className="legal__list-item">Full name (optional, used on tax documents and PDF exports)</li>
                   <li className="legal__list-item">Account creation date and login history</li>
+                  <li className="legal__list-item">Avatar selection (user-chosen vehicle illustration, never a photo)</li>
                 </ul>
               </div>
 
@@ -104,6 +108,7 @@ export default function PrivacyPolicy() {
                   <li className="legal__list-item">Real-time location during active shifts (with your explicit permission)</li>
                   <li className="legal__list-item">Significant location changes outside shifts for drive detection</li>
                   <li className="legal__list-item">Location history for route replay and trip reconstruction</li>
+                  <li className="legal__list-item">GPS quality metadata (percentage of high-accuracy fixes, outliers dropped, road map-matching success - used internally to improve trip accuracy, not sold or shared)</li>
                 </ul>
                 <p className="legal__card-text legal__text--small" style={{marginTop: '1rem'}}>
                   Location tracking requires you to grant background location permissions on your device. See Section 4 for full details on how we use this data.
@@ -116,7 +121,7 @@ export default function PrivacyPolicy() {
                   <li className="legal__list-item">Make and model</li>
                   <li className="legal__list-item">Year of manufacture</li>
                   <li className="legal__list-item">Fuel type (petrol, diesel, electric, hybrid)</li>
-                  <li className="legal__list-item">Registration plate</li>
+                  <li className="legal__list-item">Registration plate (used for DVLA lookup to confirm vehicle details)</li>
                   <li className="legal__list-item">Miles per gallon (MPG) or efficiency rating</li>
                 </ul>
               </div>
@@ -127,10 +132,11 @@ export default function PrivacyPolicy() {
                   <li className="legal__list-item">Shift start and end times</li>
                   <li className="legal__list-item">Trip start and end coordinates</li>
                   <li className="legal__list-item">Trip addresses and route information</li>
-                  <li className="legal__list-item">Distance travelled in miles</li>
+                  <li className="legal__list-item">Distance travelled in miles (calculated via OSRM road routing and Haversine formula)</li>
                   <li className="legal__list-item">Trip classification (business or personal)</li>
                   <li className="legal__list-item">GPS breadcrumbs and precise location history</li>
                   <li className="legal__list-item">Trip notes and comments you add</li>
+                  <li className="legal__list-item">Platform tags (Uber, Deliveroo, Amazon Flex, etc.)</li>
                 </ul>
               </div>
 
@@ -138,11 +144,11 @@ export default function PrivacyPolicy() {
                 <h3 className="legal__card-title">Earnings and Financial Data</h3>
                 <ul className="legal__list">
                   <li className="legal__list-item">Earnings from gig platforms (manually entered)</li>
-                  <li className="legal__list-item">CSV import of earnings data</li>
-                  <li className="legal__list-item">Open Banking data via TrueLayer (premium users only)</li>
+                  <li className="legal__list-item">CSV import of earnings data with platform auto-detection</li>
+                  <li className="legal__list-item">Open Banking data via Plaid (premium users only) for automatic transaction import</li>
                   <li className="legal__list-item">Payment method information (card details are processed by Stripe or Apple; we never store them)</li>
                   <li className="legal__list-item">Stripe customer ID and subscription ID (web purchases)</li>
-                  <li className="legal__list-item">Apple original transaction ID (iOS In-App Purchases)</li>
+                  <li className="legal__list-item">Apple original transaction ID and appAccountToken (your UUID passed to Apple for linking IAP to your account)</li>
                 </ul>
               </div>
 
@@ -192,8 +198,33 @@ export default function PrivacyPolicy() {
                 <h3 className="legal__card-title">Bluetooth Data</h3>
                 <ul className="legal__list">
                   <li className="legal__list-item">Vehicle Bluetooth device names (user-configured, not scanned)</li>
-                  <li className="legal__list-item">Bluetooth pairing state used solely to confirm trip starts — no audio, contacts, or other Bluetooth data is accessed</li>
+                  <li className="legal__list-item">Bluetooth pairing state used solely to confirm trip starts - no audio, contacts, or other Bluetooth data is accessed</li>
                 </ul>
+              </div>
+
+              <div className="legal__card">
+                <h3 className="legal__card-title">Receipt Data (On-Device OCR)</h3>
+                <ul className="legal__list">
+                  <li className="legal__list-item">Receipt images are processed using Apple Vision framework (on-device only)</li>
+                  <li className="legal__list-item">Receipt images are never sent to our servers or any cloud service</li>
+                  <li className="legal__list-item">Extracted text (merchant name, amount, date) may be stored locally and synced to your account for earnings tracking</li>
+                </ul>
+                <p className="legal__card-text legal__text--small" style={{marginTop: '1rem'}}>
+                  <strong>Privacy note:</strong> Receipt OCR runs entirely on your device. The images themselves never leave your phone.
+                </p>
+              </div>
+
+              <div className="legal__card">
+                <h3 className="legal__card-title">Accountant Portal Data</h3>
+                <ul className="legal__list">
+                  <li className="legal__list-item">If you grant an accountant read-only access, they can view: trips, mileage deductions, HMRC calculations, earnings, and fuel logs</li>
+                  <li className="legal__list-item">Accountants do not need a MileClear account; they access via a token-based API</li>
+                  <li className="legal__list-item">You control access: generate, view, and revoke accountant tokens at any time in Settings</li>
+                  <li className="legal__list-item">Accountants cannot modify, delete, or export your data</li>
+                </ul>
+                <p className="legal__card-text legal__text--small" style={{marginTop: '1rem'}}>
+                  Your accountant is your chosen third party, not a sub-processor of MileClear. You are responsible for their privacy and data handling.
+                </p>
               </div>
 
               <div className="legal__card">
@@ -219,15 +250,17 @@ export default function PrivacyPolicy() {
                   <li className="legal__list-item">Tracking mileage and trips in real-time</li>
                   <li className="legal__list-item">Calculating HMRC-compliant tax deductions (45p/mile for cars up to 10,000 miles, 25p/mile thereafter; 24p/mile for motorbikes)</li>
                   <li className="legal__list-item">Generating export files for tax reporting (PDF, CSV) and accounting software (Xero, FreeAgent, QuickBooks)</li>
+                  <li className="legal__list-item">Sharing trip data with accountants via token-based access if you grant permission</li>
                 </ul>
               </div>
 
               <div className="legal__card">
                 <h3 className="legal__card-title">Premium Features</h3>
                 <ul className="legal__list">
-                  <li className="legal__list-item">Earnings tracking and automatic import via Open Banking (TrueLayer)</li>
+                  <li className="legal__list-item">Earnings tracking and automatic import via Open Banking (Plaid)</li>
                   <li className="legal__list-item">Advanced analytics and performance metrics</li>
                   <li className="legal__list-item">HMRC export functionality</li>
+                  <li className="legal__list-item">Unlimited saved locations (free tier capped at 2)</li>
                 </ul>
               </div>
 
@@ -299,10 +332,11 @@ export default function PrivacyPolicy() {
                   <li className="legal__list-item">Background location tracking during active shifts</li>
                   <li className="legal__list-item">Significant location change detection outside shifts</li>
                   <li className="legal__list-item">Sending marketing communications or newsletters (opt-in)</li>
-                  <li className="legal__list-item">Using Open Banking (TrueLayer) to import earnings data</li>
+                  <li className="legal__list-item">Using Open Banking (Plaid) to import earnings data</li>
+                  <li className="legal__list-item">Granting accountants read-only access to your data via token</li>
                 </ul>
                 <p className="legal__card-text legal__text--small" style={{marginTop: '1rem'}}>
-                  You can withdraw consent at any time by disabling location permissions on your device settings or unsubscribing from communications.
+                  You can withdraw consent at any time by disabling location permissions on your device settings, unsubscribing from communications, or revoking accountant access in Settings.
                 </p>
               </div>
 
@@ -325,6 +359,7 @@ export default function PrivacyPolicy() {
                   <li className="legal__list-item">Fraud detection and abuse prevention</li>
                   <li className="legal__list-item">App stability, debugging and drive detection improvement (error logs, diagnostic telemetry, event logs)</li>
                   <li className="legal__list-item">Security monitoring and protection against unauthorised access</li>
+                  <li className="legal__list-item">Vehicle registration lookup via DVLA API to confirm you own the vehicles you register</li>
                 </ul>
                 <p className="legal__card-text legal__text--small" style={{marginTop: '1rem'}}>
                   We conduct balancing tests to ensure our interests do not override your privacy rights. You have the right to object to this processing.
@@ -334,10 +369,12 @@ export default function PrivacyPolicy() {
               <div className="legal__card">
                 <h3 className="legal__card-title">Diagnostic Telemetry</h3>
                 <p className="legal__card-text">
-                  To improve drive detection and troubleshoot issues, MileClear collects non-sensitive diagnostic data on each app startup:
+                  To improve drive detection and troubleshoot issues, MileClear collects non-sensitive diagnostic data on each app startup and each time the app comes to the foreground (rate-limited to once per 24 hours):
                 </p>
                 <ul className="legal__list">
                   <li className="legal__list-item">Drive detection status and GPS permission states (granted/denied)</li>
+                  <li className="legal__list-item">Notification permission state (granted/denied)</li>
+                  <li className="legal__list-item">Background task status (running/stopped)</li>
                   <li className="legal__list-item">App version, build number, platform, and OS version</li>
                   <li className="legal__list-item">Detection event log (last 50 events with timestamps and types only - no coordinates)</li>
                   <li className="legal__list-item">App configuration settings (speed threshold, quiet hours, auto-recording status)</li>
@@ -374,7 +411,8 @@ export default function PrivacyPolicy() {
                   <li className="legal__list-item"><strong>Drive Detection:</strong> When shifts are inactive, we monitor for significant location changes (speed &gt; 15mph) to detect if you&apos;re driving. GPS readings with poor accuracy (&gt; 50m) are automatically filtered out to prevent false detections from indoor signal drift. Two or more consecutive high-speed readings are required before detection triggers. This uses low-power location services and requires background location permission.</li>
                   <li className="legal__list-item"><strong>Departure Anchor:</strong> A temporary 200-metre geofence is placed around your last known stationary position. When you physically leave this area, drive detection is activated. This geofence operates at the OS level and can detect movement even if the app has been closed.</li>
                   <li className="legal__list-item"><strong>Automatic Trip Recording:</strong> When driving is detected outside an active shift, MileClear may silently record GPS coordinates and automatically save a trip when a stop is detected (5+ minutes idle). These auto-recorded trips are stored as &ldquo;unclassified&rdquo; for your review.</li>
-                  <li className="legal__list-item"><strong>Stop Detection:</strong> We identify stops and trip boundaries by detecting when movement drops below 2.2 mph for more than 5 minutes during automatic recording, or when speed = 0 for more than 2 minutes during active shifts.</li>
+                  <li className="legal__list-item"><strong>Stop Detection:</strong> We identify stops and trip boundaries by detecting when movement drops below 2.2 mph for more than 5 minutes during automatic recording, or when speed equals 0 for more than 2 minutes during active shifts.</li>
+                  <li className="legal__list-item"><strong>Road Routing:</strong> For distance accuracy, we send GPS traces to OSRM (OpenStreetMap Routing Machine), a public open-source service, for map-matching. This improves trip distance accuracy but means location traces pass through OSRM&apos;s servers. OSRM does not store your data long-term.</li>
                 </ul>
               </div>
 
@@ -426,18 +464,30 @@ export default function PrivacyPolicy() {
 
               <div className="legal__card">
                 <h3 className="legal__card-title">Essential Service Providers (Data Processors)</h3>
-                <p className="legal__card-text"><strong>Stripe (Payment Processing — Web)</strong></p>
-                <p className="legal__card-text legal__text--small">PCI DSS Level 1 compliant. We share: Stripe customer ID, subscription status, and transaction records. Card details are entered directly into Stripe&apos;s secure forms — we never see them.</p>
-                <p className="legal__card-text" style={{marginTop: '0.75rem'}}><strong>Apple (In-App Purchase — iOS)</strong></p>
-                <p className="legal__card-text legal__text--small">iOS subscriptions are processed by Apple via the App Store. We share: transaction ID and receipt data for validation with Apple&apos;s App Store Server API. Payment details are managed entirely by Apple — we never see them.</p>
-                <p className="legal__card-text" style={{marginTop: '0.75rem'}}><strong>TrueLayer (Open Banking)</strong></p>
-                <p className="legal__card-text legal__text--small">Premium users only. We share: request to connect your bank account for earnings auto-import. TrueLayer acts as intermediary — they do not store your bank login, only aggregated transaction data. Access tokens are encrypted AES-256-GCM at rest on our servers.</p>
-                <p className="legal__card-text" style={{marginTop: '0.75rem'}}><strong>Apple &amp; Google (Authentication)</strong></p>
-                <p className="legal__card-text legal__text--small">Sign-in only. We share: email address (sometimes) and sign-in request. We verify the token on our servers; Apple/Google do not see your other data.</p>
-                <p className="legal__card-text" style={{marginTop: '0.75rem'}}><strong>Expo / EAS (App Infrastructure)</strong></p>
-                <p className="legal__card-text legal__text--small">App distribution and crash reporting only. No personal data is shared.</p>
-                <p className="legal__card-text" style={{marginTop: '0.75rem'}}><strong>Expo Push Notification Service (Expo/EAS)</strong></p>
+                <p className="legal__card-text"><strong>Stripe (Payment Processing - Web)</strong></p>
+                <p className="legal__card-text legal__text--small">PCI DSS Level 1 compliant. We share: Stripe customer ID, subscription status, and transaction records. Card details are entered directly into Stripe&apos;s secure forms - we never see them.</p>
+                <p className="legal__card-text" style={{marginTop: '0.75rem'}}><strong>Apple (In-App Purchase - iOS)</strong></p>
+                <p className="legal__card-text legal__text--small">iOS subscriptions are processed by Apple via the App Store. We share: transaction ID and receipt data for validation with Apple&apos;s App Store Server API. Payment details are managed entirely by Apple - we never see them. We also pass your MileClear UUID to Apple as the appAccountToken for webhook linking.</p>
+                <p className="legal__card-text" style={{marginTop: '0.75rem'}}><strong>Plaid (Open Banking)</strong></p>
+                <p className="legal__card-text legal__text--small">Premium users only. Plaid Financial Ltd is FCA-authorised to provide Open Banking services in the UK. We share: a request to connect your bank account for earnings auto-import. Plaid acts as the intermediary - they do not store your bank login, only aggregated transaction data. Access tokens are encrypted at rest on our servers.</p>
+                <p className="legal__card-text" style={{marginTop: '0.75rem'}}><strong>DVLA (Vehicle Registration Lookup)</strong></p>
+                <p className="legal__card-text legal__text--small">We share: your vehicle registration plate to confirm make, model, fuel type, and CO2 emissions. Results are cached for 24 hours. DVLA does not store your lookup requests beyond processing.</p>
+                <p className="legal__card-text" style={{marginTop: '0.75rem'}}><strong>OSRM (OpenStreetMap Routing Machine - Road Distance)</strong></p>
+                <p className="legal__card-text legal__text--small">Public open-source routing service. We share: GPS coordinate traces from your trips for map-matching to improve distance accuracy. OSRM is stateless and does not store your traces long-term. No personal data is linked to these traces.</p>
+                <p className="legal__card-text" style={{marginTop: '0.75rem'}}><strong>UK Government Fuel Finder API</strong></p>
+                <p className="legal__card-text legal__text--small">We share: your device&apos;s approximate location (lat/lng) to retrieve nearby fuel station prices. No personally identifiable data is shared. Fuel Finder is the official UK government mandatory fuel price reporting API.</p>
+                <p className="legal__card-text" style={{marginTop: '0.75rem'}}><strong>Brevo (Email SMTP)</strong></p>
+                <p className="legal__card-text legal__text--small">We share: your email address for sending account verification codes, password reset links, welcome emails, and waitlist confirmations. Brevo is a GDPR-compliant email service provider based in France.</p>
+                <p className="legal__card-text" style={{marginTop: '0.75rem'}}><strong>Expo Push Service (Push Notifications)</strong></p>
                 <p className="legal__card-text legal__text--small">Push token and notification content only, used to deliver scheduled notifications (weekly summaries, streak reminders, tax deadline alerts).</p>
+                <p className="legal__card-text" style={{marginTop: '0.75rem'}}><strong>Apple &amp; Google (Authentication)</strong></p>
+                <p className="legal__card-text legal__text--small">Sign-in only. We share: email address (sometimes) and sign-in request. We verify the token on our servers; Apple/Google do not see your other data. (Google Sign-In is currently paused pending future activation.)</p>
+              </div>
+
+              <div className="legal__card">
+                <h3 className="legal__card-title">Your Chosen Third Parties (Not Sub-Processors)</h3>
+                <p className="legal__card-text"><strong>Accountants (Token-Based Read-Only Access)</strong></p>
+                <p className="legal__card-text legal__text--small">If you grant an accountant access via a token in Settings, they can view your trips, mileage deductions, HMRC calculations, earnings, and fuel logs. They cannot modify or export your data. You fully control access: generate, view, and revoke tokens anytime. Your accountant is your chosen representative, not a sub-processor of MileClear. You are responsible for their privacy practices and data handling.</p>
               </div>
 
               <div className="legal__card">
@@ -523,6 +573,13 @@ export default function PrivacyPolicy() {
                   <li className="legal__list-item">Local-only data (work schedule, alert dismissals, layout preferences) is stored on your device and deleted when you uninstall the app</li>
                 </ul>
               </div>
+
+              <div className="legal__card">
+                <h3 className="legal__card-title">Backups</h3>
+                <p className="legal__card-text">
+                  MileClear maintains encrypted backups on UK servers. Upon account deletion, backups are purged within 30 days of deletion request.
+                </p>
+              </div>
             </section>
 
             {/* 8. Your Rights */}
@@ -538,7 +595,7 @@ export default function PrivacyPolicy() {
                   You can request a copy of all your personal data. We provide it in a structured, portable format (JSON export).
                 </p>
                 <p className="legal__card-text legal__text--small">
-                  <strong>How to request:</strong> Use the &ldquo;Download My Data&rdquo; button in Settings within the MileClear app, or email legal@mileclear.com. We respond within 30 days.
+                  <strong>How to request:</strong> Use the &ldquo;Download My Data&rdquo; button in Settings within the MileClear app, or email support@mileclear.com. We respond within 30 days.
                 </p>
               </div>
 
@@ -548,7 +605,7 @@ export default function PrivacyPolicy() {
                   You can correct or update inaccurate data (e.g., vehicle details, display name).
                 </p>
                 <p className="legal__card-text legal__text--small">
-                  <strong>How to request:</strong> Edit your profile directly in the app (Settings &gt; Account Info). For data you cannot edit, email legal@mileclear.com.
+                  <strong>How to request:</strong> Edit your profile directly in the app (Settings &gt; Account Info). For data you cannot edit, email support@mileclear.com.
                 </p>
               </div>
 
@@ -558,7 +615,7 @@ export default function PrivacyPolicy() {
                   You can delete your account and associated data (subject to legal obligations).
                 </p>
                 <p className="legal__card-text legal__text--small">
-                  <strong>How to request:</strong> Click &ldquo;Delete Account&rdquo; in Settings &gt; Account &gt; Danger Zone, or email legal@mileclear.com.
+                  <strong>How to request:</strong> Click &ldquo;Delete Account&rdquo; in Settings &gt; Account &gt; Danger Zone, or email support@mileclear.com.
                 </p>
                 <p className="legal__card-text legal__text--small">
                   <strong>Exceptions:</strong> We may retain anonymised data and records required by tax law (7 years) or court order.
@@ -571,7 +628,7 @@ export default function PrivacyPolicy() {
                   You can ask us to limit how we use your data (e.g., stop analytics but keep account).
                 </p>
                 <p className="legal__card-text legal__text--small">
-                  <strong>How to request:</strong> Email legal@mileclear.com with details of what should be restricted.
+                  <strong>How to request:</strong> Email support@mileclear.com with details of what should be restricted.
                 </p>
               </div>
 
@@ -591,7 +648,7 @@ export default function PrivacyPolicy() {
                   You can object to processing based on legitimate interest (analytics, fraud detection).
                 </p>
                 <p className="legal__card-text legal__text--small">
-                  <strong>How to request:</strong> Email legal@mileclear.com stating which processing you object to.
+                  <strong>How to request:</strong> Email support@mileclear.com stating which processing you object to.
                 </p>
                 <p className="legal__card-text legal__text--small">
                   Note: Objecting to essential processing (trip tracking, billing) may prevent the service from functioning.
@@ -612,7 +669,7 @@ export default function PrivacyPolicy() {
                 <h3 className="legal__card-title">Exercising Your Rights</h3>
                 <p className="legal__card-text">To exercise any right, contact us at:</p>
                 <div className="legal__code">
-                  <p className="legal__code-highlight">legal@mileclear.com</p>
+                  <p className="legal__code-highlight">support@mileclear.com</p>
                   <p className="legal__code-muted">Response time: 30 days (UK GDPR standard)</p>
                 </div>
                 <p className="legal__card-text" style={{marginTop: '1rem'}}>
@@ -631,7 +688,7 @@ export default function PrivacyPolicy() {
               <div className="legal__card">
                 <h3 className="legal__card-title">Authentication Tokens (Essential)</h3>
                 <ul className="legal__list">
-                  <li className="legal__list-item"><strong>Type:</strong> HttpOnly secure cookies (web) and Expo SecureStore (mobile)</li>
+                  <li className="legal__list-item"><strong>Type:</strong> Stored in localStorage on web (mc_access_token, mc_refresh_token) and Expo SecureStore (encrypted keychain) on mobile</li>
                   <li className="legal__list-item"><strong>Purpose:</strong> Keeping you logged in</li>
                   <li className="legal__list-item"><strong>Expiry:</strong> 15 min (access token), 30 days (refresh token)</li>
                   <li className="legal__list-item"><strong>Required:</strong> Yes, for service to function</li>
@@ -642,7 +699,7 @@ export default function PrivacyPolicy() {
               <div className="legal__card">
                 <h3 className="legal__card-title">Local Storage (Web App)</h3>
                 <ul className="legal__list">
-                  <li className="legal__list-item"><strong>What:</strong> Browser localStorage for UI preferences (theme, sidebar state)</li>
+                  <li className="legal__list-item"><strong>What:</strong> Browser localStorage for UI preferences (theme, sidebar state, password storage state)</li>
                   <li className="legal__list-item"><strong>Data stored:</strong> Non-personal (no PII, email, or location)</li>
                   <li className="legal__list-item"><strong>Expires:</strong> Never (user can clear manually)</li>
                 </ul>
@@ -651,10 +708,7 @@ export default function PrivacyPolicy() {
               <div className="legal__card">
                 <h3 className="legal__card-title">Third-Party Analytics</h3>
                 <p className="legal__card-text">
-                  We do not use Google Analytics, Mixpanel, or similar cookie-based tracking on our website.
-                </p>
-                <p className="legal__card-text legal__text--small">
-                  (If this changes in future, we will update this policy and seek consent via cookie banner.)
+                  We do not use Google Analytics, Mixpanel, or similar cookie-based tracking on our website. No analytics cookies present.
                 </p>
               </div>
 
@@ -677,17 +731,17 @@ export default function PrivacyPolicy() {
 
             {/* 10. Children's Privacy */}
             <section id="children" className="legal__section">
-              <h2 className="legal__section-title">10. Children&apos;s Privacy (COPPA)</h2>
+              <h2 className="legal__section-title">10. Children&apos;s Privacy (COPPA &amp; UK GDPR)</h2>
 
               <div className="legal__card">
                 <p className="legal__card-text">
                   MileClear is not intended for users under 16 years old. We do not knowingly collect personal information from children under 16.
                 </p>
                 <p className="legal__card-text">
-                  If you are under 16, please do not use MileClear. Parents/guardians who believe their child has provided information to us should contact legal@mileclear.com immediately.
+                  If you are under 16, please do not use MileClear. Parents/guardians who believe their child has provided information to us should contact support@mileclear.com immediately.
                 </p>
                 <p className="legal__card-text legal__text--small">
-                  <strong>Note:</strong> COPPA (US Children&apos;s Online Privacy Protection Act) does not apply to UK services, but we extend similar protections as best practice. For UK users under 16, consent from a parent/guardian would be required.
+                  <strong>Note:</strong> For UK users between 16 and 18, parental or guardian consent is recommended (though not legally mandatory under UK GDPR). We do not specifically target under-18s. COPPA (US Children&apos;s Online Privacy Protection Act) does not apply to UK services, but we extend similar protections as best practice.
                 </p>
               </div>
             </section>
@@ -707,6 +761,7 @@ export default function PrivacyPolicy() {
                   <li className="legal__list-item"><strong>Password Security:</strong> Bcrypt hashing (12 salt rounds), never plain text</li>
                   <li className="legal__list-item"><strong>Token Security:</strong> JWT with signed secrets, 15-min expiry</li>
                   <li className="legal__list-item"><strong>Mobile Storage:</strong> Expo SecureStore (encrypted keychain) for tokens and sensitive data</li>
+                  <li className="legal__list-item"><strong>Password Change:</strong> You can change your password anytime from Settings without requiring email verification</li>
                 </ul>
               </div>
 
@@ -717,6 +772,7 @@ export default function PrivacyPolicy() {
                   <li className="legal__list-item"><strong>SSL Certificates:</strong> Let&apos;s Encrypt via cPanel AutoSSL</li>
                   <li className="legal__list-item"><strong>Firewall &amp; Access:</strong> cPanel security, restricted shell access, no public SSH</li>
                   <li className="legal__list-item"><strong>Rate Limiting:</strong> 5 login attempts per 15 minutes per IP (brute-force protection)</li>
+                  <li className="legal__list-item"><strong>Security Headers:</strong> Strict CSP, HSTS, and other standard security headers</li>
                 </ul>
               </div>
 
@@ -764,9 +820,10 @@ export default function PrivacyPolicy() {
                 </p>
                 <ul className="legal__list">
                   <li className="legal__list-item"><strong>Stripe (USA):</strong> Subject to Data Processing Agreement and Standard Contractual Clauses (SCCs)</li>
-                  <li className="legal__list-item"><strong>TrueLayer (EU/UK):</strong> FCA regulated, UK-based. Subject to DPA</li>
+                  <li className="legal__list-item"><strong>Plaid (USA):</strong> Registered in EU/UK as Plaid Financial Ltd. Subject to DPA and SCCs</li>
                   <li className="legal__list-item"><strong>Apple (USA):</strong> Authentication verification and In-App Purchase transaction validation. Subject to Apple&apos;s Data Processing Agreement</li>
-                  <li className="legal__list-item"><strong>Google (USA):</strong> Limited data transfer for authentication verification only</li>
+                  <li className="legal__list-item"><strong>Google (USA):</strong> Limited data transfer for authentication verification only (pending future activation)</li>
+                  <li className="legal__list-item"><strong>Brevo (France):</strong> Email service, GDPR-compliant EU processor</li>
                 </ul>
                 <p className="legal__card-text legal__text--small" style={{marginTop: '1rem'}}>
                   All international transfers comply with UK GDPR Article 46 (SCCs) and Data Protection Act 2018 Chapter 5. We have reviewed these services&apos; security certifications and compliance frameworks.
@@ -794,9 +851,9 @@ export default function PrivacyPolicy() {
               </div>
             </section>
 
-            {/* 13. Automated Decision-Making */}
+            {/* 14. Automated Decision-Making */}
             <section id="automated-decisions" className="legal__section">
-              <h2 className="legal__section-title">13. Automated Decision-Making</h2>
+              <h2 className="legal__section-title">14. Automated Decision-Making</h2>
 
               <div className="legal__card">
                 <p className="legal__card-text">
@@ -805,14 +862,15 @@ export default function PrivacyPolicy() {
               </div>
             </section>
 
-            {/* 14. Contact Us */}
+            {/* 15. Contact Us */}
             <section id="contact" className="legal__section">
-              <h2 className="legal__section-title">14. Contact Us &amp; Data Requests</h2>
+              <h2 className="legal__section-title">15. Contact Us &amp; Data Requests</h2>
 
               <div className="legal__card">
                 <h3 className="legal__card-title">For Privacy Inquiries</h3>
                 <div className="legal__code">
-                  <p className="legal__code-highlight">Email: legal@mileclear.com</p>
+                  <p className="legal__code-highlight">Email: support@mileclear.com</p>
+                  <p className="legal__code-highlight">Operator: gair@mileclear.com</p>
                   <p className="legal__code-highlight">Subject: Privacy Request</p>
                 </div>
                 <p className="legal__card-text" style={{marginTop: '1rem'}}>
@@ -856,8 +914,8 @@ export default function PrivacyPolicy() {
 
             {/* Footer */}
             <div className="legal__footer">
-              <p className="legal__footer-text">&copy; 2026 MileClear Limited. All rights reserved.</p>
-              <p className="legal__footer-text">Version 1.1 &mdash; Effective 13 March 2026</p>
+              <p className="legal__footer-text">© 2026 MileClear. All rights reserved.</p>
+              <p className="legal__footer-text">Version 1.2 - Effective 22 April 2026</p>
               <div className="legal__footer-links">
                 <a href="/terms" className="legal__footer-link">Terms of Service</a>
                 <a href="/privacy" className="legal__footer-link">Privacy Policy</a>
