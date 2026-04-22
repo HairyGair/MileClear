@@ -5,7 +5,7 @@ import Footer from "@/components/landing/Footer";
 export const metadata: Metadata = {
   title: "Uber Mileage Tracker UK - Track Every Mile, Claim Your Tax Back",
   description:
-    "The best mileage tracker for UK Uber drivers. Automatic GPS tracking, HMRC 45p/25p rates, platform tagging, and HMRC Self Assessment exports. Free to download.",
+    "Uber only logs your paid trips - we capture every on-shift mile. Automatic GPS, HMRC 45p/25p rates, platform tagging, Self Assessment exports. Free.",
   keywords: [
     "uber driver mileage tracker",
     "uber mileage log uk",
@@ -57,6 +57,14 @@ const faqSchema = {
   "@context": "https://schema.org",
   "@type": "FAQPage",
   mainEntity: [
+    {
+      "@type": "Question",
+      name: "Does Uber track mileage for tax purposes?",
+      acceptedAnswer: {
+        "@type": "Answer",
+        text: "Not in a way that is useful for HMRC. Uber gives you a record of paid trips - the time on a fare and the distance carrying a passenger - but it does not include the unpaid miles you drive between jobs, repositioning to a busier zone, or while waiting for a request. HMRC lets you claim every business mile from shift start to shift end, paid or unpaid, so the Uber summary alone significantly underreports what you can deduct. MileClear tracks the full shift automatically and produces a Self Assessment-ready mileage log.",
+      },
+    },
     {
       "@type": "Question",
       name: "What mileage can Uber drivers claim on HMRC?",
@@ -461,6 +469,10 @@ export default function UberMileageTracker() {
             </h2>
             {[
               {
+                q: "Does Uber track mileage for tax purposes?",
+                a: "Not in a way that is useful for HMRC. Uber gives you a record of paid trips - the time on a fare and the distance carrying a passenger - but it does not include the unpaid miles you drive between jobs, repositioning to a busier zone, or while waiting for a request. HMRC lets you claim every business mile from shift start to shift end, paid or unpaid, so the Uber summary alone significantly underreports what you can deduct. MileClear tracks the full shift automatically.",
+              },
+              {
                 q: "What mileage can Uber drivers claim on HMRC?",
                 a: "UK Uber drivers can claim 45p per mile for the first 10,000 business miles in a tax year, and 25p per mile after that. Business miles include passenger trips, positioning miles, and driving between jobs. The commute from home to your first pickup is generally not claimable.",
               },
@@ -480,11 +492,11 @@ export default function UberMileageTracker() {
                 q: "Can I use MileClear for my Uber accountant?",
                 a: "Yes. The Pro export produces a PDF mileage log with every trip dated, timed, and distance-verified, plus a self-assessment summary with your deduction total. Most accountants accept this format directly.",
               },
-            ].map(({ q, a }, i) => (
+            ].map(({ q, a }, i, arr) => (
               <div
                 key={q}
                 style={{
-                  borderBottom: i < 4 ? "1px solid rgba(255,255,255,0.06)" : undefined,
+                  borderBottom: i < arr.length - 1 ? "1px solid rgba(255,255,255,0.06)" : undefined,
                   paddingBottom: "1.25rem",
                   marginBottom: "1.25rem",
                 }}

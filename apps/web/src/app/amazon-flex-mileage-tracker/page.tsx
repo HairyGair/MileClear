@@ -5,7 +5,7 @@ import Footer from "@/components/landing/Footer";
 export const metadata: Metadata = {
   title: "Amazon Flex Mileage Tracker UK - Claim Every Delivery Mile",
   description:
-    "The best mileage tracker for UK Amazon Flex drivers. Track block-based shifts, route miles, return-to-depot journeys, and export HMRC Self Assessment reports. Free to download.",
+    "Amazon Flex doesn't track your mileage - we do. Automatic block tracking, HMRC 45p/25p rates, depot-to-drop routes, Self Assessment ready. Free.",
   keywords: [
     "amazon flex mileage tracker",
     "amazon flex tax deduction uk",
@@ -57,6 +57,14 @@ const faqSchema = {
   "@context": "https://schema.org",
   "@type": "FAQPage",
   mainEntity: [
+    {
+      "@type": "Question",
+      name: "Does Amazon Flex track mileage automatically?",
+      acceptedAnswer: {
+        "@type": "Answer",
+        text: "No. The Amazon Flex app shows the route to each delivery, your block earnings, and package counts, but it does not record your driving distance for tax purposes. To claim HMRC mileage relief on Self Assessment you need a separate tracker that keeps a contemporaneous log of every block. MileClear records each block automatically using GPS - depot to last drop, plus the return trip - and produces an HMRC-ready mileage log for your tax return.",
+      },
+    },
     {
       "@type": "Question",
       name: "Can Amazon Flex drivers claim mileage on their UK tax return?",
@@ -575,6 +583,10 @@ export default function AmazonFlexMileageTracker() {
             </h2>
             {[
               {
+                q: "Does Amazon Flex track mileage automatically?",
+                a: "No. The Amazon Flex app shows the route to each delivery, your block earnings, and package counts, but it does not record your driving distance for tax purposes. To claim HMRC mileage relief on Self Assessment you need a separate tracker that keeps a contemporaneous log of every block. MileClear records each block automatically using GPS - depot to last drop, plus the return trip - and produces an HMRC-ready mileage log.",
+              },
+              {
                 q: "Can Amazon Flex drivers claim mileage on their UK tax return?",
                 a: "Yes. Amazon Flex drivers are self-employed and can claim 45p per mile for the first 10,000 business miles and 25p per mile after that. Business miles include the full delivery route from depot to each drop, including inter-stop miles and any required return to depot.",
               },
@@ -594,11 +606,11 @@ export default function AmazonFlexMileageTracker() {
                 q: "What format should a mileage log be in for Amazon Flex?",
                 a: "HMRC requires a record of each journey's date, start and end point, purpose, and distance. MileClear's Pro export produces a PDF mileage log in an accepted format, suitable for attaching to your self-assessment return or sharing with an accountant.",
               },
-            ].map(({ q, a }, i) => (
+            ].map(({ q, a }, i, arr) => (
               <div
                 key={q}
                 style={{
-                  borderBottom: i < 4 ? "1px solid rgba(255,255,255,0.06)" : undefined,
+                  borderBottom: i < arr.length - 1 ? "1px solid rgba(255,255,255,0.06)" : undefined,
                   paddingBottom: "1.25rem",
                   marginBottom: "1.25rem",
                 }}

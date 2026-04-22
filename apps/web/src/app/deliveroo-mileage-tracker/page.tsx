@@ -5,7 +5,7 @@ import Footer from "@/components/landing/Footer";
 export const metadata: Metadata = {
   title: "Deliveroo Mileage Tracker UK - Track Your Rides and Claim Tax Back",
   description:
-    "The best mileage tracker for UK Deliveroo drivers and riders. Automatic GPS tracking, HMRC mileage rates, platform tagging, and Self Assessment exports. Free to use.",
+    "Deliveroo doesn't track your mileage - we do. Automatic GPS, HMRC rates by vehicle (car, motorbike, cyclist expenses), Self Assessment exports. Free.",
   keywords: [
     "deliveroo mileage tracker",
     "deliveroo driver tax",
@@ -57,6 +57,14 @@ const faqSchema = {
   "@context": "https://schema.org",
   "@type": "FAQPage",
   mainEntity: [
+    {
+      "@type": "Question",
+      name: "Does Deliveroo track rider mileage?",
+      acceptedAnswer: {
+        "@type": "Answer",
+        text: "No. The Deliveroo Rider app records the orders you complete and your earnings, but it does not log the miles you cover between drops, the loops back to busy zones, or the time waiting for orders. HMRC lets you claim every business mile from the moment you go online to the moment you finish, on-order or repositioning. MileClear records the entire ride session automatically - whatever vehicle you use - and produces a Self Assessment-ready mileage log for your tax return.",
+      },
+    },
     {
       "@type": "Question",
       name: "Can Deliveroo cyclists claim mileage on their tax return?",
@@ -521,6 +529,10 @@ export default function DeliverooMileageTracker() {
             </h2>
             {[
               {
+                q: "Does Deliveroo track rider mileage?",
+                a: "No. The Deliveroo Rider app records the orders you complete and your earnings, but it does not log the miles you cover between drops, the loops back to busy zones, or the time waiting for orders. HMRC lets you claim every business mile from the moment you go online to the moment you finish, on-order or repositioning. MileClear records the entire ride session automatically - whatever vehicle you use - and produces a Self Assessment-ready mileage log.",
+              },
+              {
                 q: "Can Deliveroo cyclists claim mileage on their tax return?",
                 a: "No. HMRC Approved Mileage Allowance Payments only apply to motor vehicles. Cyclists cannot claim per-mile deductions, but they can claim actual costs: bicycle purchase via capital allowances, repairs, safety clothing, and accessories.",
               },
@@ -540,11 +552,11 @@ export default function DeliverooMileageTracker() {
                 q: "What counts as a business mile for Deliveroo?",
                 a: "Restaurant to customer, positioning between restaurant zones, and travel to pickup from your previous drop-off location. The ride from your home to the zone where you start taking orders is generally not claimable - that is ordinary commuting.",
               },
-            ].map(({ q, a }, i) => (
+            ].map(({ q, a }, i, arr) => (
               <div
                 key={q}
                 style={{
-                  borderBottom: i < 4 ? "1px solid rgba(255,255,255,0.06)" : undefined,
+                  borderBottom: i < arr.length - 1 ? "1px solid rgba(255,255,255,0.06)" : undefined,
                   paddingBottom: "1.25rem",
                   marginBottom: "1.25rem",
                 }}
