@@ -666,7 +666,12 @@ async function runDiagnosticScanJob(): Promise<void> {
   // Scan all existing diagnostic dumps for fixable issues and alert users.
   // This catches users who uploaded a dump previously but weren't alerted
   // because this feature didn't exist yet (or the cooldown expired).
-  const ALERT_COOLDOWN_MS = 7 * 24 * 60 * 60 * 1000;
+  //
+  // 24h dedup (was 7d). High-frequency drivers like Anthony hit the same
+  // class of issue multiple times in a week, and going silent for 7 days
+  // made stuck recordings invisible mid-week. 24h lets us re-alert daily
+  // until the user resolves the underlying problem.
+  const ALERT_COOLDOWN_MS = 24 * 60 * 60 * 1000;
 
   // Only scan dumps from the last 48 hours. Older dumps are stale -
   // the user may have fixed the issue since uploading. This prevents
@@ -718,17 +723,19 @@ async function runDiagnosticScanJob(): Promise<void> {
       },
     ];
 
-    // Stuck recording only if last_driving_speed_at is recent-ish (within 24h)
-    // to avoid alerting about very stale dumps
+    // Stuck recording: lower bound dropped from 30 min to 15 min so we catch
+    // the "stopped at destination, recording stuck because background JS is
+    // suspended" case sooner. Upper bound stays 24h to ignore stale dumps
+    // (user may have already resolved by reopening the app).
     if (autoRecording === true && lastDrivingStr) {
       const elapsed = Date.now() - parseInt(lastDrivingStr, 10);
-      if (elapsed > 30 * 60 * 1000 && elapsed < 24 * 60 * 60 * 1000) {
+      if (elapsed > 15 * 60 * 1000 && elapsed < 24 * 60 * 60 * 1000) {
         checks.push({
           condition: true,
           alertType: "alert.stuck_recording",
           title: "A trip is waiting to save",
           body: "It looks like a recording is still running. Open MileClear to save the trip.",
-          data: { action: "open_trips" },
+          data: { action: "open_active_recording" },
         });
       }
     }

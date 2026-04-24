@@ -194,7 +194,7 @@ export async function billingRoutes(app: FastifyInstance) {
                 title: "Payment Failed",
                 body: "Your MileClear Pro payment didn't go through. Update your payment method to keep Pro features.",
                 sound: "default",
-                data: { type: "payment_failed" },
+                data: { type: "payment_failed", action: "open_billing" },
               });
             }
           } catch (err) {

@@ -196,6 +196,12 @@ function RootNavigator() {
         router.navigate("/(tabs)/trips");
         return;
       }
+      if (url === "mileclear://active-recording") {
+        // Live Activity / Dynamic Island tap, persistent notification tap,
+        // or any other surface that signals "show me the trip in progress".
+        router.navigate("/active-recording" as any);
+        return;
+      }
       if (url === "mileclear://classify-trip") {
         // Sent by the "Classify Trip" CTA on the ended-phase Live Activity.
         // Route to the trips inbox so the user can tap Business/Personal.
@@ -348,6 +354,7 @@ function RootNavigator() {
         <Stack.Screen name="fuel-form" options={{ headerShown: true, title: "Log Fuel" }} />
         <Stack.Screen name="profile-edit" options={{ headerShown: true, title: "Edit Profile" }} />
         <Stack.Screen name="change-password" options={{ headerShown: true, title: "Change Password" }} />
+        <Stack.Screen name="active-recording" options={{ headerShown: true, title: "Recording trip" }} />
         <Stack.Screen name="exports" options={{ headerShown: true, title: "Tax Exports" }} />
         <Stack.Screen name="achievements" options={{ headerShown: true, title: "Achievements" }} />
         <Stack.Screen name="csv-import" options={{ headerShown: true, title: "Import CSV" }} />

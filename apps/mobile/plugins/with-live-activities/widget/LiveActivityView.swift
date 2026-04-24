@@ -27,7 +27,13 @@ struct MileClearLiveActivity: Widget {
                 attrs: context.attributes
             )
             .activityBackgroundTint(bgColor)
-            .widgetURL(URL(string: "mileclear://dashboard"))
+            // Tapping the lock-screen Live Activity routes back into the app.
+            // For auto-detected trips ("trip"), open the active-recording
+            // screen with live distance / duration / route + an end button.
+            // For shifts, open the dashboard where the user manages the shift.
+            .widgetURL(URL(string: context.attributes.activityType == "shift"
+                ? "mileclear://dashboard"
+                : "mileclear://active-recording"))
         } dynamicIsland: { context in
             let accent = modeAccent(context.attributes.isBusinessMode)
             let isEnded = context.state.phase == "ended"

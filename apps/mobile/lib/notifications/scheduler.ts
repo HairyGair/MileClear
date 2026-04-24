@@ -102,7 +102,7 @@ export async function scheduleTaxYearDeadlineReminder(): Promise<void> {
     content: {
       title: "Tax year ends 5 April",
       body: "11 days to review your mileage and export your records",
-      data: { action: "open_trips" },
+      data: { action: "open_exports" },
       ...(require("react-native").Platform.OS === "android" && {
         channelId: "reminders",
       }),
@@ -169,7 +169,7 @@ export async function checkUnclassifiedTripsNudge(): Promise<void> {
     content: {
       title: "Trips need reviewing",
       body: `You have ${count} unreviewed ${tripWord} — add a platform or note to keep your records clean`,
-      data: { action: "open_trips" },
+      data: { action: "open_unclassified_trips" },
       ...(require("react-native").Platform.OS === "android" && {
         channelId: "reminders",
       }),

@@ -2,7 +2,11 @@ import * as Location from "expo-location";
 import * as TaskManager from "expo-task-manager";
 import * as Notifications from "expo-notifications";
 import { getDatabase } from "../db/index";
-import { sendDrivingDetectedNotification } from "../notifications/index";
+import {
+  sendDrivingDetectedNotification,
+  showRecordingActiveNotification,
+  dismissRecordingActiveNotification,
+} from "../notifications/index";
 import {
   DRIVING_SPEED_THRESHOLD_MPH,
   bestTraceDistance,
@@ -443,6 +447,11 @@ async function _finalizeAutoTripInner(): Promise<void> {
 
   // Stop watchdog - recording is ending
   stopWatchdog();
+
+  // Dismiss the persistent recording notification - covers every finalize
+  // path (saved, too_short, no_coords, error). LA dismissal is per-path
+  // below; this is the single notification cleanup point.
+  dismissRecordingActiveNotification().catch(() => {});
 
   // Clear state regardless of outcome
   await db.runAsync("DELETE FROM detection_coordinates");
@@ -919,6 +928,7 @@ export async function finalizeStaleAutoRecordings(): Promise<void> {
  */
 export async function cancelAutoRecording(clearCoords = false): Promise<void> {
   stopWatchdog();
+  dismissRecordingActiveNotification().catch(() => {});
   const db = await getDatabase();
   await db.runAsync(
     "DELETE FROM tracking_state WHERE key IN ('auto_recording_active', 'last_driving_speed_at', 'driving_detection_count', 'finalization_mode', 'stop_anchor')"
@@ -1344,6 +1354,11 @@ try {
           await startLiveActivity({ activityType: "trip", isBusinessMode: true });
         } catch {}
 
+        // Persistent passive notification as a safety net for when the Live
+        // Activity silently fails to present (Anthony hit this 2026-04-24:
+        // live_activity_started logged but no LA visible on device).
+        showRecordingActiveNotification().catch(() => {});
+
         // Auto-upgrade to navigation-grade accuracy for better trip recording.
         try {
           await upgradeDetectionAccuracy();
@@ -1474,8 +1489,29 @@ export async function startDriveDetection(): Promise<void> {
  * Safety: if movement turns out to be too short (false positive: walking,
  * GPS bounce), the MIN_AUTO_TRIP_DISTANCE_MILES filter at finalization
  * discards the trip with no user-visible artifact.
+ *
+ * Concurrency: the DB-backed guard on `auto_recording_active` reads then
+ * writes ~1ms later, leaving a window where two concurrent callers (e.g.
+ * two anchor_exit handlers firing in the same tick) both pass the guard
+ * and both proceed to start recording / Live Activity. Anthony hit this
+ * 2026-04-24: two recording_started + two live_activity_started inside
+ * 0.4s. The in-memory promise mutex below collapses concurrent calls
+ * onto the same in-flight body so only one runs.
  */
+let forceStartInFlight: Promise<void> | null = null;
+
 export async function forceStartRecording(reason: string): Promise<void> {
+  if (forceStartInFlight) {
+    logDetectionEvent("force_start_skipped", { reason, cause: "in_flight" }).catch(() => {});
+    return forceStartInFlight;
+  }
+  forceStartInFlight = forceStartRecordingImpl(reason).finally(() => {
+    forceStartInFlight = null;
+  });
+  return forceStartInFlight;
+}
+
+async function forceStartRecordingImpl(reason: string): Promise<void> {
   // Same guards as startDriveDetection - don't override user disable / shift / permissions
   const enabled = await isDriveDetectionEnabled();
   if (!enabled) {
@@ -1537,6 +1573,10 @@ export async function forceStartRecording(reason: string): Promise<void> {
       error: (laErr as Error).message || "unknown",
     }).catch(() => {});
   }
+
+  // Persistent passive notification as a safety net for when the Live Activity
+  // silently fails to present.
+  showRecordingActiveNotification().catch(() => {});
 
   // Send the "Looks like you're driving" notification so the user gets feedback
   // even when force_start fires from a background geofence handler (where the

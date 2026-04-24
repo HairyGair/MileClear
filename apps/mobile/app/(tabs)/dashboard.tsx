@@ -16,6 +16,7 @@ import {
   Linking,
 } from "react-native";
 import { Button } from "../../components/Button";
+import { ActiveRecordingBanner } from "../../components/ActiveRecordingBanner";
 import { useFocusEffect, useRouter } from "expo-router";
 import { fetchVehicles } from "../../lib/api/vehicles";
 import {
@@ -814,6 +815,11 @@ export default function DashboardScreen() {
 
       {/* Mode Toggle */}
       <ModeToggle onInfoPress={() => setShowWorkExplainer(true)} />
+
+      {/* Active recording banner — appears whenever auto-detection has a
+          trip in progress, so the user always knows we're tracking even if
+          the Live Activity silently failed to present. */}
+      <ActiveRecordingBanner />
 
       {/* Background location nudge — auto trip detection requires "Always" */}
       {!bgLocationGranted && !activeShift && (

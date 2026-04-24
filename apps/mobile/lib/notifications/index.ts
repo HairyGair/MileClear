@@ -70,6 +70,50 @@ export async function sendDrivingDetectedNotification(): Promise<void> {
   });
 }
 
+// Stable identifier so we can update / dismiss the in-progress notification
+// when a recording finalises.
+const RECORDING_ACTIVE_NOTIFICATION_ID = "mileclear-recording-active";
+
+/**
+ * Show a passive ongoing notification while an auto-detected trip is being
+ * recorded. This is the safety net for when the Live Activity fails to
+ * present (we've seen this in the wild on iOS 26.5). Stays on the lock
+ * screen and notification centre until the trip finalises.
+ *
+ * Uses interruptionLevel "passive" so it doesn't make sound or vibrate -
+ * just sits there silently, the way Apple Maps and Strava signal an
+ * in-progress activity.
+ *
+ * Tapping the notification routes to /active-recording.
+ */
+export async function showRecordingActiveNotification(): Promise<void> {
+  try {
+    await Notifications.scheduleNotificationAsync({
+      identifier: RECORDING_ACTIVE_NOTIFICATION_ID,
+      content: {
+        title: "Recording trip",
+        body: "MileClear is tracking your journey. Tap to view or end.",
+        data: { action: "open_active_recording" },
+        sound: false,
+        // iOS 15+: passive interruption level - silent, no haptic, but persists
+        // on lock screen until manually dismissed or programmatically cleared.
+        interruptionLevel: "passive",
+      },
+      trigger: null,
+    });
+  } catch (err) {
+    console.warn("showRecordingActiveNotification failed:", err);
+  }
+}
+
+export async function dismissRecordingActiveNotification(): Promise<void> {
+  try {
+    await Notifications.dismissNotificationAsync(RECORDING_ACTIVE_NOTIFICATION_ID);
+  } catch {
+    // Notification may already be dismissed by user or never presented
+  }
+}
+
 /**
  * Schedule daily shift reminder notifications based on work schedule.
  * Cancels existing reminders and reschedules for the next 7 days.
@@ -253,6 +297,28 @@ export function setupNotificationResponseHandler(): void {
         router.navigate("/(tabs)/trips");
         break;
 
+      case "open_unclassified_trips":
+        // Trips list filtered to unclassified - the dashboard nudge
+        // notification when there are trips waiting for review.
+        router.navigate("/(tabs)/trips?filter=unclassified" as any);
+        break;
+
+      case "open_trip": {
+        // Specific trip needing review (e.g. low GPS quality, possible split).
+        const tripId = data?.tripId as string | undefined;
+        if (tripId) {
+          router.navigate(`/trip-form?id=${tripId}` as any);
+        } else {
+          router.navigate("/(tabs)/trips");
+        }
+        break;
+      }
+
+      case "open_active_recording":
+        // Persistent recording notification + diagnostic stuck-recording alert.
+        router.navigate("/active-recording" as any);
+        break;
+
       case "open_insights":
         router.navigate("/insights" as any);
         break;
@@ -261,12 +327,29 @@ export function setupNotificationResponseHandler(): void {
         router.navigate("/achievements" as any);
         break;
 
+      case "open_fuel":
+        router.navigate("/(tabs)/fuel");
+        break;
+
+      case "open_exports":
+        router.navigate("/exports" as any);
+        break;
+
+      case "open_self_assessment":
+        router.navigate("/self-assessment" as any);
+        break;
+
       case "open_settings":
         Linking.openSettings();
         return;
 
+      case "open_billing":
       case "billing":
         router.navigate("/(tabs)/profile");
+        break;
+
+      case "open_admin_health":
+        router.navigate("/admin-health" as any);
         break;
 
       default:
