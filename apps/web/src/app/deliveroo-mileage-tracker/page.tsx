@@ -3,9 +3,9 @@ import Navbar from "@/components/landing/Navbar";
 import Footer from "@/components/landing/Footer";
 
 export const metadata: Metadata = {
-  title: "Deliveroo Mileage Tracker UK - Track Your Rides and Claim Tax Back",
+  title: "Deliveroo Mileage Tracker UK - 24p/Mile Moped, 45p/Mile Car",
   description:
-    "Deliveroo doesn't track your mileage - we do. Automatic GPS, HMRC rates by vehicle (car, motorbike, cyclist expenses), Self Assessment exports. Free.",
+    "Deliveroo logs orders, not the loops between them. MileClear captures every mile from go-online to go-offline, applies the right HMRC rate for your vehicle, and exports a tax-return PDF. See it in action.",
   keywords: [
     "deliveroo mileage tracker",
     "deliveroo driver tax",
@@ -17,17 +17,17 @@ export const metadata: Metadata = {
     canonical: "https://mileclear.com/deliveroo-mileage-tracker",
   },
   openGraph: {
-    title: "Deliveroo Mileage Tracker UK - Track Your Rides and Claim Tax Back",
+    title: "Deliveroo Mileage Tracker UK - 24p/Mile Moped, 45p/Mile Car",
     description:
-      "MileClear tracks every mile you ride for Deliveroo, calculates HMRC deductions by vehicle type, and exports a self-assessment-ready mileage log.",
+      "Track every Deliveroo mile automatically. HMRC rates by vehicle (24p moped, 45p car), full session logging, Self Assessment-ready PDF export. Free download.",
     url: "https://mileclear.com/deliveroo-mileage-tracker",
     images: [{ url: "/branding/og-image.png", width: 1200, height: 628 }],
   },
   twitter: {
     card: "summary_large_image",
-    title: "Deliveroo Mileage Tracker UK - Track Your Rides and Claim Tax Back",
+    title: "Deliveroo Mileage Tracker UK - 24p/Mile Moped, 45p/Mile Car",
     description:
-      "MileClear tracks every mile you ride for Deliveroo, calculates HMRC deductions by vehicle type, and exports a self-assessment-ready mileage log.",
+      "Track every Deliveroo mile automatically. HMRC rates by vehicle (24p moped, 45p car), full session logging, Self Assessment-ready PDF export. Free download.",
     images: ["/branding/og-image.png"],
   },
 };

@@ -3,9 +3,9 @@ import Navbar from "@/components/landing/Navbar";
 import Footer from "@/components/landing/Footer";
 
 export const metadata: Metadata = {
-  title: "Uber Mileage Tracker UK - Track Every Mile, Claim Your Tax Back",
+  title: "Uber Mileage Tracker UK - Reclaim Your Dead Miles in Tax",
   description:
-    "Uber only logs your paid trips - we capture every on-shift mile. Automatic GPS, HMRC 45p/25p rates, platform tagging, Self Assessment exports. Free.",
+    "Uber only logs paid trips. HMRC lets you claim every on-shift mile - between jobs, repositioning, waiting. 20,000 miles/year = £7,250 off tax. MileClear captures the full shift. See how.",
   keywords: [
     "uber driver mileage tracker",
     "uber mileage log uk",
@@ -17,17 +17,17 @@ export const metadata: Metadata = {
     canonical: "https://mileclear.com/uber-mileage-tracker",
   },
   openGraph: {
-    title: "Uber Mileage Tracker UK - Track Every Mile, Claim Your Tax Back",
+    title: "Uber Mileage Tracker UK - Reclaim Your Dead Miles in Tax",
     description:
-      "MileClear tracks every mile you drive for Uber, calculates your HMRC deduction automatically, and exports a Self Assessment-ready report in one tap.",
+      "Uber misses your dead miles - HMRC doesn't have to. MileClear records the full shift via GPS, applies 45p/25p rates, and exports a Self Assessment-ready PDF in one tap.",
     url: "https://mileclear.com/uber-mileage-tracker",
     images: [{ url: "/branding/og-image.png", width: 1200, height: 628 }],
   },
   twitter: {
     card: "summary_large_image",
-    title: "Uber Mileage Tracker UK - Track Every Mile, Claim Your Tax Back",
+    title: "Uber Mileage Tracker UK - Reclaim Your Dead Miles in Tax",
     description:
-      "MileClear tracks every mile you drive for Uber, calculates your HMRC deduction automatically, and exports a Self Assessment-ready report in one tap.",
+      "Uber misses your dead miles - HMRC doesn't have to. MileClear records the full shift via GPS, applies 45p/25p rates, and exports a Self Assessment-ready PDF in one tap.",
     images: ["/branding/og-image.png"],
   },
 };

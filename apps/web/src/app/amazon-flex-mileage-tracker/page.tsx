@@ -3,9 +3,9 @@ import Navbar from "@/components/landing/Navbar";
 import Footer from "@/components/landing/Footer";
 
 export const metadata: Metadata = {
-  title: "Amazon Flex Mileage Tracker UK - Claim Every Delivery Mile",
+  title: "Amazon Flex Mileage Tracker UK - Save Up To £3,300 in Tax",
   description:
-    "Amazon Flex doesn't track your mileage - we do. Automatic block tracking, HMRC 45p/25p rates, depot-to-drop routes, Self Assessment ready. Free.",
+    "25,000 Flex miles/year = £8,250 off your tax bill at HMRC's 45p/25p rates. MileClear records every block automatically and exports a Self Assessment-ready PDF. See the full breakdown.",
   keywords: [
     "amazon flex mileage tracker",
     "amazon flex tax deduction uk",
@@ -17,17 +17,17 @@ export const metadata: Metadata = {
     canonical: "https://mileclear.com/amazon-flex-mileage-tracker",
   },
   openGraph: {
-    title: "Amazon Flex Mileage Tracker UK - Claim Every Delivery Mile",
+    title: "Amazon Flex Mileage Tracker UK - Save Up To £3,300 in Tax",
     description:
-      "MileClear tracks every mile you drive for Amazon Flex - pickup to last drop, plus return miles. Calculates your HMRC deduction automatically.",
+      "Track every Amazon Flex block automatically. HMRC 45p/25p rates built in, return-to-depot miles captured, PDF export to drop straight onto your Self Assessment.",
     url: "https://mileclear.com/amazon-flex-mileage-tracker",
     images: [{ url: "/branding/og-image.png", width: 1200, height: 628 }],
   },
   twitter: {
     card: "summary_large_image",
-    title: "Amazon Flex Mileage Tracker UK - Claim Every Delivery Mile",
+    title: "Amazon Flex Mileage Tracker UK - Save Up To £3,300 in Tax",
     description:
-      "MileClear tracks every mile you drive for Amazon Flex - pickup to last drop, plus return miles. Calculates your HMRC deduction automatically.",
+      "Track every Amazon Flex block automatically. HMRC 45p/25p rates built in, return-to-depot miles captured, PDF export to drop straight onto your Self Assessment.",
     images: ["/branding/og-image.png"],
   },
 };
