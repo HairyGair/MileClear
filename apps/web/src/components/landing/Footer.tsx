@@ -40,6 +40,19 @@ export default function Footer() {
             </div>
 
             <div className="footer__col">
+              <h4 className="footer__col-title">For drivers</h4>
+              <ul className="footer__col-list">
+                <li><a href="/uber-mileage-tracker" className="footer__link">Uber drivers</a></li>
+                <li><a href="/deliveroo-mileage-tracker" className="footer__link">Deliveroo riders</a></li>
+                <li><a href="/just-eat-mileage-tracker" className="footer__link">Just Eat couriers</a></li>
+                <li><a href="/amazon-flex-mileage-tracker" className="footer__link">Amazon Flex drivers</a></li>
+                <li><a href="/dpd-mileage-tracker" className="footer__link">DPD ODFs</a></li>
+                <li><a href="/evri-mileage-tracker" className="footer__link">Evri couriers</a></li>
+                <li><a href="/mileclear-vs-mileiq" className="footer__link">vs MileIQ</a></li>
+              </ul>
+            </div>
+
+            <div className="footer__col">
               <h4 className="footer__col-title">Company</h4>
               <ul className="footer__col-list">
                 <li><a href="/about" className="footer__link">About</a></li>
