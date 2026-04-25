@@ -17,6 +17,11 @@ const nextConfig: NextConfig = {
       { source: "/year", destination: "/pricing", permanent: true },
       { source: "/monthly", destination: "/pricing", permanent: true },
       { source: "/yearly", destination: "/pricing", permanent: true },
+      {
+        source: "/updates/whats-new-in-version-1-0-9",
+        destination: "/updates/whats-new-in-version-1-0-10",
+        permanent: true,
+      },
     ];
   },
   async headers() {

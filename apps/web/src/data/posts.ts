@@ -37,41 +37,32 @@ export interface Guide {
 export const RELEASE_NOTES: ReleaseNote[] = [
   {
     version: "1.0.10",
-    date: "20 April 2026",
-    label: "In Development",
-    items: [
-      "New in build 50: a dedicated Active Recording screen, reachable from the Live Activity, the Dynamic Island, the persistent in-progress notification, or the new amber banner that now appears at the top of the dashboard whenever a trip is being tracked. You always know exactly when MileClear is recording, even if iOS quietly suppresses the Live Activity.",
-      "New in build 50: a passive ongoing notification stays on your lock screen for the duration of every auto-detected trip. Tap it to view live distance and duration, or to end the trip and save it.",
-      "New in build 50: every push notification now opens the screen that the message refers to. Tax-deadline reminders open Exports. Unclassified-trip nudges open the trips list pre-filtered to unclassified. Payment-failed alerts open Settings. Stuck-recording alerts open the new Active Recording screen.",
-      "Race-condition fix: under rare conditions two anchor-exit handlers could fire concurrently and start the same recording twice. A mutex now collapses concurrent starts onto a single recording.",
-      "Diagnostic alerts now retry every 24 hours instead of every 7 days, so high-frequency drivers get repeat reminders if a problem persists. Stuck-recording detection on the server side also kicks in 15 minutes after you stop, instead of waiting 30.",
-      "Change your password from inside the app and on the web dashboard, without needing a reset email. Useful when reset emails get filtered by Outlook, Hotmail, or other strict spam filters. Your other devices are signed out automatically; the device you change it from stays signed in.",
-      "Trip distances are noticeably more accurate. We now filter out GPS noise (the random spikes that used to inflate your mileage) and snap your route to actual roads using OpenStreetMap routing. Expect roughly 5-10% better accuracy on winding country lanes, and a clean polyline on the map instead of jagged jumps.",
-      "Auto-detection no longer triggers when you're parked at a saved location. Setting Home, Work, or your depot now blocks the 'You started driving' notification when GPS drift makes your phone briefly look like it's moving at 15mph indoors. The legitimate 'leaving home to drive' case still works via the geofence exit.",
-      "Smarter rating prompts. Cooldown shortened from 7 to 3 days, plus a new dashboard trigger for users who don't classify trips often. Every skipped prompt now records a reason (cooldown, already rated, not enough trips, etc.) so we can fix the gates that were silently swallowing it.",
-      "Per-trip GPS quality scoring. Each trip now records how clean the underlying GPS data was: percentage of high-accuracy fixes, how many outlier points were dropped, and whether the road-match succeeded. Lets us spot suspect trips without having to pull the full coordinate trace.",
-      "Background app heartbeat. Your app pings the server with its tracking permissions and task state on launch and on every foreground (rate-limited to once per 24h). Catches the silent-failure case where iOS revokes background location after onboarding and detection quietly stops.",
-      "Auto-classification accuracy tracking. When you change a trip's classification from the auto-suggested value, that decision is now recorded (the first time only) so we can measure how often our suggestions are correct and tune the rules over time.",
-      "Apple subscription webhooks now accept both Sandbox (TestFlight beta testers) and Production (live App Store customers), stamp which environment each event was verified against on the internal log, and can auto-link a purchase back to your account if the normal validation call hasn't completed yet (network blip, app backgrounded mid-purchase, etc.). Previously a stranded webhook could mean a real activation went unnoticed.",
-      "Web dashboard: fixed the broken vehicle icon in the sidebar that appeared after switching avatars.",
-    ],
-  },
-  {
-    version: "1.0.9",
-    date: "15 April 2026",
+    date: "25 April 2026",
     label: "In Testing",
     ctaUrl: "https://testflight.apple.com/join/SGrmnaaH",
     ctaLabel: "Join the beta on TestFlight",
     items: [
-      "Self Assessment wizard - a step-by-step guide that maps your MileClear data to HMRC SA103 form boxes. Shows exactly which numbers go in which boxes, with a full income tax and National Insurance breakdown",
-      "Accountant sharing - invite your accountant by email to a read-only dashboard showing your trips, mileage deductions, expenses, and earnings. They can download CSV and PDF exports without needing a MileClear account",
-      "Receipt scanning - point your camera at a parking ticket, toll receipt, or fuel receipt and it extracts the amount, date, and vendor automatically. Uses on-device processing so your images never leave your phone",
-      "Siri Shortcuts - 'Hey Siri, start my shift', 'How many miles today?', 'Log expense', 'Weekly goal progress'. Works hands-free while driving",
-      "Clearer location permission flow during onboarding - if you decline 'Always' access, you now see a plain-English card explaining what auto-detection costs (manual Start taps, missed HMRC-deductible miles) with a one-tap Open Settings link that deep-links straight to MileClear's location page. The card flips to green automatically when you return with the permission granted",
-      "App Store rating tracking - we can now see whether rating prompts are reaching users and how they respond, so we can tune the timing",
-      "Fixed a bug where ending a long shift could lose all trip data. GPS coordinates are now preserved until trips are confirmed saved",
-      "Fixed Apple In-App Purchase webhook verification - subscription activations that were silently failing now process correctly",
-      "Stuck recording watchdog - if iOS stops delivering location updates during a trip, a repeating timer now detects and saves the trip instead of leaving it stuck indefinitely",
+      "Active Recording screen - reachable from the Live Activity, the Dynamic Island, the persistent in-progress notification, or the new amber banner that now appears at the top of the dashboard whenever a trip is being tracked. You always know exactly when MileClear is recording, even if iOS quietly suppresses the Live Activity.",
+      "Passive ongoing notification - stays on your lock screen for the duration of every auto-detected trip. Tap it to view live distance and duration, or to end the trip and save it.",
+      "Every push notification now opens the screen that the message refers to. Tax-deadline reminders open Exports. Unclassified-trip nudges open the trips list pre-filtered to unclassified. Payment-failed alerts open Settings. Stuck-recording alerts open the Active Recording screen.",
+      "Self Assessment wizard - a step-by-step guide that maps your MileClear data to HMRC SA103 form boxes. Shows exactly which numbers go in which boxes, with a full income tax and National Insurance breakdown.",
+      "Accountant sharing - invite your accountant by email to a read-only dashboard showing your trips, mileage deductions, expenses, and earnings. They can download CSV and PDF exports without needing a MileClear account.",
+      "Receipt scanning - point your camera at a parking ticket, toll receipt, or fuel receipt and it extracts the amount, date, and vendor automatically. Uses on-device processing so your images never leave your phone.",
+      "Siri Shortcuts - 'Hey Siri, start my shift', 'How many miles today?', 'Log expense', 'Weekly goal progress'. Works hands-free while driving.",
+      "Clearer location permission flow during onboarding - if you decline 'Always' access, you now see a plain-English card explaining what auto-detection costs (manual Start taps, missed HMRC-deductible miles) with a one-tap Open Settings link that deep-links straight to MileClear's location page. The card flips to green automatically when you return with the permission granted.",
+      "Trip distances are noticeably more accurate. We now filter out GPS noise (the random spikes that used to inflate your mileage) and snap your route to actual roads using OpenStreetMap routing. Expect roughly 5-10% better accuracy on winding country lanes, and a clean polyline on the map instead of jagged jumps.",
+      "Auto-detection no longer triggers when you're parked at a saved location. Setting Home, Work, or your depot now blocks the 'You started driving' notification when GPS drift makes your phone briefly look like it's moving at 15mph indoors. The legitimate 'leaving home to drive' case still works via the geofence exit.",
+      "Change your password from inside the app and on the web dashboard, without needing a reset email. Useful when reset emails get filtered by Outlook, Hotmail, or other strict spam filters. Your other devices are signed out automatically; the device you change it from stays signed in.",
+      "Race-condition fix: under rare conditions two anchor-exit handlers could fire concurrently and start the same recording twice. A mutex now collapses concurrent starts onto a single recording.",
+      "Stuck recording watchdog - if iOS stops delivering location updates during a trip, a repeating timer now detects and saves the trip instead of leaving it stuck indefinitely.",
+      "Fixed a bug where ending a long shift could lose all trip data. GPS coordinates are now preserved until trips are confirmed saved.",
+      "Smarter rating prompts. Cooldown shortened from 7 to 3 days, plus a new dashboard trigger for users who don't classify trips often. Every skipped prompt now records a reason (cooldown, already rated, not enough trips, etc.) so we can fix the gates that were silently swallowing it.",
+      "Diagnostic alerts now retry every 24 hours instead of every 7 days, so high-frequency drivers get repeat reminders if a problem persists. Stuck-recording detection on the server side also kicks in 15 minutes after you stop, instead of waiting 30.",
+      "Per-trip GPS quality scoring. Each trip now records how clean the underlying GPS data was: percentage of high-accuracy fixes, how many outlier points were dropped, and whether the road-match succeeded. Lets us spot suspect trips without having to pull the full coordinate trace.",
+      "Background app heartbeat. Your app pings the server with its tracking permissions and task state on launch and on every foreground (rate-limited to once per 24h). Catches the silent-failure case where iOS revokes background location after onboarding and detection quietly stops.",
+      "Auto-classification accuracy tracking. When you change a trip's classification from the auto-suggested value, that decision is now recorded (the first time only) so we can measure how often our suggestions are correct and tune the rules over time.",
+      "Fixed Apple In-App Purchase webhook verification - subscription activations that were silently failing now process correctly. Webhooks now accept both Sandbox (TestFlight beta testers) and Production (live App Store customers), and can auto-link a purchase back to your account if the normal validation call hasn't completed yet (network blip, app backgrounded mid-purchase, etc.).",
+      "Web dashboard: fixed the broken vehicle icon in the sidebar that appeared after switching avatars.",
     ],
   },
   {
@@ -220,15 +211,15 @@ export const RELEASE_NOTES: ReleaseNote[] = [
 // ----------------------------------------------------------------
 export const BLOG_POSTS: BlogPost[] = [
   {
-    slug: "whats-new-in-version-1-0-9",
-    title: "What's New in Version 1.0.9",
+    slug: "whats-new-in-version-1-0-10",
+    title: "What's New in Version 1.0.10",
     excerpt:
-      "Self Assessment wizard, accountant sharing, receipt scanning, Siri Shortcuts, and critical fixes for trip data loss and Apple subscription processing.",
-    date: "15 April 2026",
+      "Self Assessment wizard, accountant sharing, receipt scanning, Siri Shortcuts, the new Active Recording screen, and critical fixes for trip data loss and Apple subscription processing.",
+    date: "25 April 2026",
     author: "Gair",
     category: "announcement",
     content: `
-<p>Version 1.0.9 adds four features that make MileClear genuinely useful beyond just tracking miles, plus fixes for two data loss bugs that affected real users this week.</p>
+<p>Version 1.0.10 adds four features that make MileClear genuinely useful beyond just tracking miles, a new set of recording surfaces so you always know when GPS is on, plus fixes for two data loss bugs that affected real users.</p>
 
 <h2>Self Assessment wizard</h2>
 
@@ -269,9 +260,19 @@ export const BLOG_POSTS: BlogPost[] = [
 
 <p>A separate user subscribed to Pro via Apple In-App Purchase and was charged, but the app never activated their premium access. The cause: Apple sends a webhook notification when a purchase completes, and our server verifies it using Apple's root certificates. The certificate directory was missing from the server. Every webhook verification silently failed. The certificates are now in place and future purchases process immediately.</p>
 
+<h2>Active Recording surfaces</h2>
+
+<p>One thing kept coming up in feedback: people couldn't tell whether MileClear was actually recording. iOS sometimes silently suppresses Live Activities, and the Dynamic Island isn't enough on its own. Build 50 adds three layered surfaces so the answer is never ambiguous.</p>
+
+<p>A new <strong>Active Recording screen</strong> is reachable from the Live Activity, the Dynamic Island, the persistent in-progress notification, or a new amber banner that appears at the top of the dashboard whenever a trip is being tracked. It shows live distance, duration, and a one-tap End Trip button.</p>
+
+<p>A <strong>passive ongoing notification</strong> stays on your lock screen for the duration of every auto-detected trip. Tap it to view live stats, or to end the trip. It does not vanish if iOS reclaims memory the way Live Activities sometimes do.</p>
+
+<p>And every <strong>push notification now deep-links to the right screen</strong> - tax-deadline reminders open Exports, unclassified-trip nudges open the trips list pre-filtered to unclassified, payment-failed alerts open Settings, stuck-recording alerts open the new Active Recording screen.</p>
+
 <h2>Get it</h2>
 
-<p>Version 1.0.9 is available on <a href="https://testflight.apple.com/join/SGrmnaaH">TestFlight</a> once the build ships. The Self Assessment wizard and accountant sharing are already live on the <a href="/dashboard/self-assessment">web dashboard</a> if you want to try them now.</p>
+<p>Version 1.0.10 (build 50) is live on <a href="https://testflight.apple.com/join/SGrmnaaH">TestFlight</a> today. The Self Assessment wizard and accountant sharing are already live on the <a href="/dashboard/self-assessment">web dashboard</a> if you want to try them now.</p>
 
 <p>As always, feedback goes straight to us - use the feedback screen in the app or email <a href="mailto:support@mileclear.com">support@mileclear.com</a>.</p>
 
