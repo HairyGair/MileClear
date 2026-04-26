@@ -49,6 +49,12 @@ export const SECTION_REGISTRY: Record<ScreenKey, SectionDef[]> = {
       description: "Tax year deduction summary",
     },
     {
+      key: "tax_readiness",
+      label: "Tax Readiness",
+      icon: "shield-checkmark-outline",
+      description: "HMRC estimate, weekly set-aside, filing deadline countdown",
+    },
+    {
       key: "daily_recap",
       label: "Today's Recap",
       icon: "today-outline",

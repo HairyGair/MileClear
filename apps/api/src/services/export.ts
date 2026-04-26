@@ -1,6 +1,11 @@
 import PDFDocument from "pdfkit";
 import crypto from "crypto";
-import { formatPence, HMRC_RATES, HMRC_THRESHOLD_MILES } from "@mileclear/shared";
+import {
+  formatPence,
+  HMRC_RATES,
+  HMRC_THRESHOLD_MILES,
+  parseTaxYear,
+} from "@mileclear/shared";
 import type { ExportTripRow, ExportSummary } from "@mileclear/shared";
 import { fetchExportTrips, fetchExportSummary } from "./export-data.js";
 
@@ -53,6 +58,184 @@ function calcDataCompleteness(trips: ExportTripRow[]): number {
     }
   }
   return Math.round((complete / trips.length) * 100);
+}
+
+// ── HMRC attestation cover page (Self Assessment PDF page 1) ───────
+//
+// Drawn before the analytical content so the user has a single page they
+// can sign and present to HMRC if a return is queried. The phrasing borrows
+// from how Driversnote frames their export - HMRC inspectors recognise the
+// language ("contemporaneous record", "wholly and exclusively"). UTR is
+// left blank because we don't store it; user writes it in by hand before
+// signing or printing.
+function drawAttestationCoverPage(
+  doc: PDFKit.PDFDocument,
+  userName: string,
+  taxYear: string,
+  reportRef: string,
+  pageWidth: number,
+  pageHeight: number,
+  margin: number
+) {
+  const contentWidth = pageWidth - margin * 2;
+  const { start, end } = parseTaxYear(taxYear);
+  const fmtDate = (d: Date) =>
+    d.toLocaleDateString("en-GB", {
+      day: "numeric",
+      month: "long",
+      year: "numeric",
+      timeZone: "UTC",
+    });
+  const periodText = `${fmtDate(start)} to ${fmtDate(end)}`;
+
+  drawHeader(
+    doc,
+    "Mileage Records for Self Assessment",
+    `Tax Year ${taxYear}`,
+    reportRef,
+    pageWidth,
+    margin
+  );
+
+  // Generous vertical breathing room - this page is supposed to feel formal,
+  // not crammed.
+  doc.y = 130;
+
+  // ── "Prepared for" block ──
+  doc
+    .font("Helvetica-Bold")
+    .fontSize(11)
+    .fillColor(GREY_600)
+    .text("PREPARED FOR", margin, doc.y, { characterSpacing: 1 });
+  doc.moveDown(0.4);
+
+  doc
+    .font("Helvetica-Bold")
+    .fontSize(20)
+    .fillColor(NAVY)
+    .text(userName, margin, doc.y);
+  doc.moveDown(0.3);
+
+  doc.font("Helvetica").fontSize(11).fillColor(GREY_600);
+
+  // UTR line - blank for the user to write in by hand.
+  const labelGap = 6;
+  const labelW = 180;
+  let metaY = doc.y;
+  doc.text("Unique Taxpayer Reference (UTR):", margin, metaY, {
+    width: labelW,
+    lineBreak: false,
+  });
+  doc
+    .moveTo(margin + labelW + labelGap, metaY + 11)
+    .lineTo(margin + labelW + labelGap + 200, metaY + 11)
+    .strokeColor(GREY_400)
+    .lineWidth(0.6)
+    .stroke();
+  doc.y = metaY + 22;
+
+  metaY = doc.y;
+  doc.text("Tax Year Period:", margin, metaY, { width: labelW, lineBreak: false });
+  doc
+    .font("Helvetica-Bold")
+    .fillColor(NAVY)
+    .text(periodText, margin + labelW + labelGap, metaY);
+  doc.font("Helvetica").fillColor(GREY_600);
+  doc.moveDown(0.6);
+
+  metaY = doc.y;
+  doc.text("Report Reference:", margin, metaY, { width: labelW, lineBreak: false });
+  doc
+    .font("Helvetica")
+    .fillColor(NAVY)
+    .text(reportRef, margin + labelW + labelGap, metaY);
+  doc.moveDown(2);
+
+  // ── Attestation paragraph ──
+  doc
+    .font("Helvetica-Bold")
+    .fontSize(11)
+    .fillColor(GREY_600)
+    .text("DECLARATION", margin, doc.y, { characterSpacing: 1 });
+  doc.moveDown(0.4);
+
+  // Subtle box around the declaration text to mark it as the formal section.
+  const declTop = doc.y;
+  const declText =
+    "I confirm that the mileage records contained in this report were maintained " +
+    "contemporaneously throughout the tax year shown above. The journeys recorded " +
+    "as business mileage were undertaken wholly and exclusively for the purposes " +
+    "of my self-employed trade. The distances were measured by GPS using the " +
+    "MileClear application and have not been adjusted or estimated retrospectively. " +
+    "I understand that these records form part of my Self Assessment return and that " +
+    "HMRC may request inspection of the underlying journey log on which they are based.";
+
+  doc
+    .font("Helvetica")
+    .fontSize(10.5)
+    .fillColor(NAVY)
+    .text(declText, margin + 14, declTop + 12, {
+      width: contentWidth - 28,
+      lineGap: 3,
+      align: "left",
+    });
+
+  const declBottom = doc.y + 12;
+  doc
+    .roundedRect(margin, declTop, contentWidth, declBottom - declTop, 4)
+    .lineWidth(0.7)
+    .strokeColor(GREY_200)
+    .stroke();
+
+  doc.y = declBottom + 26;
+
+  // ── Signature + Date lines ──
+  const sigY = doc.y;
+  const colW = (contentWidth - 30) / 2;
+  const sigLineY = sigY + 36;
+
+  // Signed
+  doc.font("Helvetica").fontSize(10).fillColor(GREY_600);
+  doc.text("Signed", margin, sigY);
+  doc
+    .moveTo(margin, sigLineY)
+    .lineTo(margin + colW, sigLineY)
+    .strokeColor(GREY_600)
+    .lineWidth(0.8)
+    .stroke();
+  doc
+    .fontSize(8)
+    .fillColor(GREY_400)
+    .text(userName, margin, sigLineY + 4, { width: colW });
+
+  // Date
+  const dateX = margin + colW + 30;
+  doc.fontSize(10).fillColor(GREY_600).text("Date", dateX, sigY);
+  doc
+    .moveTo(dateX, sigLineY)
+    .lineTo(dateX + colW, sigLineY)
+    .strokeColor(GREY_600)
+    .lineWidth(0.8)
+    .stroke();
+  doc
+    .fontSize(8)
+    .fillColor(GREY_400)
+    .text("DD / MM / YYYY", dateX, sigLineY + 4, { width: colW });
+
+  // ── Footer note at bottom of cover page ──
+  const noteY = pageHeight - 90;
+  doc
+    .font("Helvetica-Oblique")
+    .fontSize(9)
+    .fillColor(GREY_600)
+    .text(
+      "MileClear is a digital mileage tracker, not a tax adviser or accountant. " +
+        "This declaration accompanies the trip records on the following pages. " +
+        "Please verify all figures before submitting your Self Assessment.",
+      margin,
+      noteY,
+      { width: contentWidth, align: "center", lineGap: 2 }
+    );
 }
 
 // ── Branded header bar (shared between both PDFs) ─────────────────
@@ -488,7 +671,22 @@ export async function generateSelfAssessmentPdf(
 
   const reportRef = generateReportRef(userId, taxYear);
 
-  // ── Page 1 ──
+  // ── Page 1: HMRC attestation cover sheet ──
+  // A signed declaration page makes the export look like a formal HMRC
+  // submission rather than a generic data export. Accountants notice.
+
+  drawAttestationCoverPage(
+    doc,
+    summary.userName,
+    taxYear,
+    reportRef,
+    pageWidth,
+    pageHeight,
+    margin
+  );
+
+  // ── Page 2: Mileage overview (was page 1) ──
+  doc.addPage();
 
   drawHeader(
     doc,

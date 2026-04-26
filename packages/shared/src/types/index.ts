@@ -73,6 +73,42 @@ export interface TaxEstimate {
   expensesByCategory: ExpenseSummary[];
 }
 
+// Lightweight dashboard snapshot of tax position. Free for all users -
+// purpose-built to be the "this app keeps me out of trouble in January" hook.
+// Distinct from TaxEstimate (premium, full Self Assessment wizard data).
+export interface TaxSnapshot {
+  taxYear: string;                          // e.g. "2025-26"
+  taxYearEndDate: string;                   // ISO date, 5 April
+  filingDeadline: string;                   // ISO date, 31 January after year end
+  daysToFilingDeadline: number;             // negative = overdue
+
+  ytd: {
+    grossEarningsPence: number;
+    mileageDeductionPence: number;
+    taxableProfitPence: number;             // earnings - mileage (no expenses, dashboard-light)
+    estimatedTaxPence: number;              // income tax + Class 2 + Class 4 NI
+    effectiveRatePercent: number;           // estimatedTaxPence / grossEarningsPence × 100
+  };
+
+  setAsideThisWeek: {
+    earningsLast7DaysPence: number;
+    suggestedSetAsidePence: number;
+    rateUsedPercent: number;                // for transparency in the UI
+  };
+
+  readiness: {
+    percentComplete: number;                // 0-100
+    items: ReadinessItem[];
+  };
+}
+
+export interface ReadinessItem {
+  id: string;                               // stable key for UI
+  label: string;
+  done: boolean;
+  hint?: string;                            // shown when not done
+}
+
 // Vehicle types
 export type FuelType = "petrol" | "diesel" | "electric" | "hybrid";
 export type VehicleType = "car" | "motorbike" | "van";
