@@ -285,9 +285,7 @@ export interface ReconciliationSummary {
 }
 
 // Pickup-point wait time. Drivers tap "Wait" when they arrive at a
-// restaurant / depot, then "Picked up" when the order's ready. Used for
-// per-driver tracking now; aggregated across all drivers in a future build
-// to surface "this McDonald's averages 12-min waits" community insights.
+// restaurant / depot, then "Picked up" when the order's ready.
 export interface PickupWait {
   id: string;
   locationName: string | null;
@@ -297,6 +295,28 @@ export interface PickupWait {
   startedAt: string;                       // ISO
   endedAt: string | null;
   durationSeconds: number | null;
+}
+
+// Community-aggregated wait insights at a pickup location. Pro feature.
+// Privacy-floored at 5 contributors. Returned as `available: false` if
+// either the user is not Pro (gated upstream) or the floor isn't met.
+export interface PickupWaitInsight {
+  available: boolean;
+  contributors: number;                    // distinct users contributing
+  sampleCount: number;                     // total waits sampled
+  medianSeconds: number;
+  p25Seconds: number;
+  p75Seconds: number;
+  longestSeconds: number;
+  shortestSeconds: number;
+  // Per-platform breakdowns where each platform has 5+ contributors.
+  platforms: {
+    platform: string;
+    label: string;
+    contributors: number;
+    medianSeconds: number;
+  }[];
+  locationName: string | null;             // most-common name in the cluster
 }
 
 // Shift types
