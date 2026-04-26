@@ -27,6 +27,8 @@ import { analyticsRoutes } from "./routes/analytics/index.js";
 import { expenseRoutes } from "./routes/expenses/index.js";
 import { accountantRoutes } from "./routes/accountant/index.js";
 import { selfAssessmentRoutes } from "./routes/selfAssessment/index.js";
+import { hmrcReconciliationRoutes } from "./routes/hmrcReconciliation/index.js";
+import { pickupWaitRoutes } from "./routes/pickupWaits/index.js";
 import { startNotificationJobs } from "./jobs/notifications.js";
 import { startBriefingJobs } from "./jobs/briefing.js";
 import { logEvent, trackErrorForAlert } from "./services/appEvents.js";
@@ -139,6 +141,8 @@ await app.register(analyticsRoutes, { prefix: "/analytics" });
 await app.register(expenseRoutes, { prefix: "/expenses" });
 await app.register(accountantRoutes, { prefix: "/accountant" });
 await app.register(selfAssessmentRoutes, { prefix: "/self-assessment" });
+await app.register(hmrcReconciliationRoutes, { prefix: "/hmrc-reconciliation" });
+await app.register(pickupWaitRoutes, { prefix: "/pickup-waits" });
 // Health check
 app.get("/health", async () => ({ status: "ok" }));
 

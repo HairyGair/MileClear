@@ -100,6 +100,15 @@ export interface TaxSnapshot {
     percentComplete: number;                // 0-100
     items: ReadinessItem[];
   };
+
+  // Surfacing-friendly flags so the dashboard can decide what to nudge.
+  // Each flag is true only when the corresponding nudge should be shown.
+  nudges: {
+    // User has classified business trips in the last 14 days but logged
+    // zero earnings in the last 30 days. Drives the "log your earnings"
+    // banner in the TaxReadinessCard.
+    earnings: boolean;
+  };
 }
 
 export interface ReadinessItem {
@@ -246,6 +255,48 @@ export interface MotHistoryResult {
   fuelType: string | null;
   primaryColour: string | null;
   motTests: MotTestRecord[];
+}
+
+// HMRC Digital Platform Reporting reconciliation. Each row pairs the user's
+// own tracked earnings on a platform with the figure HMRC will see (the
+// platform reports it under the OECD Model Reporting Rules, mandatory since
+// January 2024). The diff lets drivers spot under- or over-reporting before
+// HMRC does.
+export interface ReconciliationRow {
+  platform: string;                       // platform tag value
+  label: string;                          // human-readable label
+  hmrcReportedPence: number | null;       // null if user hasn't entered yet
+  mileclearTrackedPence: number;          // sum of earnings logged in the year
+  diffPence: number | null;               // hmrc - mileclear (positive = under-reported)
+  notes: string | null;
+  updatedAt: string | null;               // ISO, when user last entered the figure
+}
+
+export interface ReconciliationSummary {
+  taxYear: string;
+  rows: ReconciliationRow[];
+  totals: {
+    hmrcReportedPence: number;            // sum of non-null hmrc figures
+    mileclearTrackedPence: number;        // sum of all tracked
+    diffPence: number;                    // hmrc - mileclear
+    completedPlatforms: number;           // how many user has entered
+    totalPlatforms: number;
+  };
+}
+
+// Pickup-point wait time. Drivers tap "Wait" when they arrive at a
+// restaurant / depot, then "Picked up" when the order's ready. Used for
+// per-driver tracking now; aggregated across all drivers in a future build
+// to surface "this McDonald's averages 12-min waits" community insights.
+export interface PickupWait {
+  id: string;
+  locationName: string | null;
+  locationLat: number | null;
+  locationLng: number | null;
+  platform: string | null;
+  startedAt: string;                       // ISO
+  endedAt: string | null;
+  durationSeconds: number | null;
 }
 
 // Shift types

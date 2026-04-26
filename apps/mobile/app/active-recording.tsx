@@ -27,6 +27,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { getDatabase } from "../lib/db/index";
 import { finalizeAutoTrip } from "../lib/tracking/detection";
 import { Button } from "../components/Button";
+import { WaitTimer } from "../components/business/WaitTimer";
 import { haversineDistance, formatMiles } from "@mileclear/shared";
 
 // ── Lazy native map import (Expo Go safe) ──────────────────────────
@@ -317,6 +318,9 @@ export default function ActiveRecordingScreen() {
             automatically a few minutes after you stop, or you can end it now.
           </Text>
         </View>
+
+        {/* Pickup wait timer - couriers tap when waiting at a restaurant/depot */}
+        <WaitTimer />
 
         {/* Actions */}
         <Button

@@ -34,9 +34,21 @@ export async function buildTaxSnapshot(userId: string): Promise<TaxSnapshot> {
 
   // Last 7 days for set-aside calculation (rolling window, not aligned to week).
   const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+  // Last 14 days = "recent activity" signal for the earnings nudge.
+  const fourteenDaysAgo = new Date(now.getTime() - 14 * 24 * 60 * 60 * 1000);
+  // Last 30 days = "engagement window" for the earnings nudge.
+  const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
 
-  const [user, vehicles, businessTrips, earningsYtd, earningsLast7d, unclassifiedCount] =
-    await Promise.all([
+  const [
+    user,
+    vehicles,
+    businessTrips,
+    earningsYtd,
+    earningsLast7d,
+    unclassifiedCount,
+    recentBusinessTripCount,
+    recentEarningsCount,
+  ] = await Promise.all([
       prisma.user.findUnique({
         where: { id: userId },
         select: { fullName: true },
@@ -85,7 +97,25 @@ export async function buildTaxSnapshot(userId: string): Promise<TaxSnapshot> {
           startedAt: { gte: start, lte: end },
         },
       }),
+      // Nudge inputs: are they recently active on trips?
+      prisma.trip.count({
+        where: {
+          userId,
+          classification: "business",
+          startedAt: { gte: fourteenDaysAgo },
+        },
+      }),
+      // Have they engaged with earnings recently?
+      prisma.earning.count({
+        where: {
+          userId,
+          periodStart: { gte: thirtyDaysAgo },
+        },
+      }),
     ]);
+
+    // Nudge: actively tracking trips but not logging earnings.
+    const earningsNudge = recentBusinessTripCount >= 3 && recentEarningsCount === 0;
 
   // Mileage deduction: group business miles by vehicle type so the right AMAP
   // rate is applied. Trips without a linked vehicle assume car (most common).
@@ -180,6 +210,9 @@ export async function buildTaxSnapshot(userId: string): Promise<TaxSnapshot> {
     readiness: {
       percentComplete,
       items,
+    },
+    nudges: {
+      earnings: earningsNudge,
     },
   };
 }

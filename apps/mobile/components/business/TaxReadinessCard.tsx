@@ -133,6 +133,22 @@ export function TaxReadinessCard() {
           </View>
         )}
 
+      {/* Earnings nudge - drives the largest gap in our active-user data */}
+      {snap.nudges?.earnings && (
+        <TouchableOpacity
+          onPress={() => router.navigate("/earning-form" as never)}
+          style={s.nudgeRow}
+          accessibilityRole="button"
+          accessibilityLabel="Log this week's earnings to see your real tax estimate"
+        >
+          <Ionicons name="cash-outline" size={14} color={AMBER} />
+          <Text style={s.nudgeText}>
+            You&apos;re tracking trips but no earnings yet. Log this week&apos;s earnings to see your real tax estimate.
+          </Text>
+          <Ionicons name="chevron-forward" size={14} color={AMBER} />
+        </TouchableOpacity>
+      )}
+
       {/* Set-aside this week row */}
       {hasSetAside && (
         <View style={s.setAsideRow}>
@@ -207,6 +223,17 @@ export function TaxReadinessCard() {
       >
         <Ionicons name="book-outline" size={13} color={TEXT_3} />
         <Text style={s.guideLinkText}>First Self Assessment? Read the guide</Text>
+        <Ionicons name="chevron-forward" size={13} color={TEXT_3} />
+      </TouchableOpacity>
+
+      <TouchableOpacity
+        onPress={() => router.navigate("/hmrc-reconciliation" as never)}
+        style={s.guideLink}
+        accessibilityRole="button"
+        accessibilityLabel="Reconcile your earnings with what HMRC has reported"
+      >
+        <Ionicons name="git-compare-outline" size={13} color={TEXT_3} />
+        <Text style={s.guideLinkText}>Reconcile vs HMRC&apos;s figures</Text>
         <Ionicons name="chevron-forward" size={13} color={TEXT_3} />
       </TouchableOpacity>
     </View>
@@ -293,6 +320,25 @@ const s = StyleSheet.create({
     fontSize: 12,
     lineHeight: 16,
     flex: 1,
+  },
+  nudgeRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    backgroundColor: AMBER_FAINT,
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 10,
+    marginBottom: 10,
+    borderWidth: 1,
+    borderColor: "rgba(245,166,35,0.18)",
+  },
+  nudgeText: {
+    color: TEXT_1,
+    fontSize: 12.5,
+    lineHeight: 16,
+    flex: 1,
+    fontWeight: "500",
   },
   setAsideRow: {
     flexDirection: "row",

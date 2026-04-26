@@ -70,6 +70,8 @@ model User {
   expenses            Expense[]
   accountantInvites   AccountantInvite[]
   accountantAccess    AccountantAccess[]
+  hmrcReconciliations HmrcReconciliation[]
+  pickupWaits         PickupWait[]
 
   @@map("users")
 }
@@ -84,6 +86,50 @@ model RefreshToken {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("refresh_tokens")
+}
+
+// User's reconciliation data: HMRC's reported earnings (per platform, per
+// tax year, from the Digital Platform Reporting notice they receive)
+// alongside what MileClear tracked. The diff goes on the dashboard so
+// drivers can spot under- or over-reporting before HMRC does.
+model HmrcReconciliation {
+  id                String   @id @default(uuid())
+  userId            String
+  taxYear           String   @db.VarChar(7)  // e.g. "2025-26"
+  platform          String   @db.VarChar(40) // platform tag value
+  hmrcReportedPence Int
+  notes             String?  @db.Text
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, taxYear, platform])
+  @@index([userId, taxYear])
+  @@map("hmrc_reconciliations")
+}
+
+// Pickup-point wait-time tracking. Drivers tap "I'm waiting" when they
+// arrive at a restaurant / depot, then "Picked up" when the order's ready.
+// Aggregated later to surface "this McDonald's averages 12-min waits"
+// across all reporting drivers (privacy floor still applies).
+model PickupWait {
+  id              String    @id @default(uuid())
+  userId          String
+  locationName    String?   @db.VarChar(255) // reverse-geocoded
+  locationLat     Float?
+  locationLng     Float?
+  platform        String?   @db.VarChar(40)
+  startedAt       DateTime
+  endedAt         DateTime?
+  durationSeconds Int?      // populated when endedAt is set
+  createdAt       DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, startedAt])
+  @@index([locationName])
+  @@map("pickup_waits")
 }
 
 model Vehicle {
