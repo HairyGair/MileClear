@@ -36,6 +36,23 @@ export interface Guide {
 // ----------------------------------------------------------------
 export const RELEASE_NOTES: ReleaseNote[] = [
   {
+    version: "1.0.11",
+    date: "26 April 2026",
+    label: "In Testing",
+    ctaUrl: "https://testflight.apple.com/join/SGrmnaaH",
+    ctaLabel: "Join the beta on TestFlight",
+    items: [
+      "Tax Readiness card on the Work dashboard - estimated tax + NI for the year, suggested set-aside this week (calculated from your real numbers, not a guess), and a countdown to the 31 January filing deadline that turns amber at 90 days and red at 30. Free for all users.",
+      "Higher-rate threshold warning - if your projected profit gets within £15,000 of the £50,270 higher-rate band, the dashboard tells you exactly how far away you are and reminds you to claim every business mile. Niche, but for the drivers it fires for it can be a four-figure decision.",
+      "Activity Heatmap - new dashboard card showing when you actually drive and earn most. 7 days × 24 hours, intensity-coloured. Filter by platform (Uber, Deliveroo, Just Eat, etc.) and toggle between trips and earnings. Tap any cell for the breakdown. Built on the last 12 weeks of your own data.",
+      "HMRC attestation cover sheet on the Self Assessment PDF - a one-page signed declaration page sits in front of the existing report, with your name, UTR (blank for you to fill in), tax year period, and the contemporaneous-record attestation language HMRC inspectors recognise. Pro feature.",
+      "Vehicle MOT and tax expiry reminders - MileClear now refreshes your primary vehicle's DVLA data weekly and sends a push notification when MOT or tax expires within 14 days. Tap the notification to jump straight to the vehicle. Stops drivers losing income to a missed renewal.",
+      "First-time Self Assessment guide - a plain-English walkthrough for drivers filing Self Assessment for the first time. Covers UTR registration, the UK tax year, what you actually pay (income tax + Class 4 NI + Class 2 NI), the AMAP mileage deduction, and the 31 January deadline. Reachable from the Tax Readiness card.",
+      "Sparse-GPS-trace fix - solved the bug where iOS could suspend the JS runtime mid-trip and leave recording stuck in low-power detection mode (200m intervals instead of 50m). The recording-mode upgrade now verifies it took effect and retries automatically if iOS suspended us. Affected long, slow-moving trips most.",
+      "Tax-snapshot endpoint - new free API surface for the dashboard widget. Other premium tax tools (Self Assessment wizard, accountant portal) keep working through the existing premium-gated endpoints; the snapshot is purposely lightweight so it can update live for everyone.",
+    ],
+  },
+  {
     version: "1.0.10",
     date: "25 April 2026",
     label: "In Testing",
