@@ -36,20 +36,26 @@ export interface Guide {
 // ----------------------------------------------------------------
 export const RELEASE_NOTES: ReleaseNote[] = [
   {
-    version: "1.0.11",
+    version: "1.1.0",
     date: "26 April 2026",
     label: "In Testing",
     ctaUrl: "https://testflight.apple.com/join/SGrmnaaH",
     ctaLabel: "Join the beta on TestFlight",
     items: [
-      "Tax Readiness card on the Work dashboard - estimated tax + NI for the year, suggested set-aside this week (calculated from your real numbers, not a guess), and a countdown to the 31 January filing deadline that turns amber at 90 days and red at 30. Free for all users.",
-      "Higher-rate threshold warning - if your projected profit gets within £15,000 of the £50,270 higher-rate band, the dashboard tells you exactly how far away you are and reminds you to claim every business mile. Niche, but for the drivers it fires for it can be a four-figure decision.",
-      "Activity Heatmap - new dashboard card showing when you actually drive and earn most. 7 days × 24 hours, intensity-coloured. Filter by platform (Uber, Deliveroo, Just Eat, etc.) and toggle between trips and earnings. Tap any cell for the breakdown. Built on the last 12 weeks of your own data.",
-      "HMRC attestation cover sheet on the Self Assessment PDF - a one-page signed declaration page sits in front of the existing report, with your name, UTR (blank for you to fill in), tax year period, and the contemporaneous-record attestation language HMRC inspectors recognise. Pro feature.",
-      "Vehicle MOT and tax expiry reminders - MileClear now refreshes your primary vehicle's DVLA data weekly and sends a push notification when MOT or tax expires within 14 days. Tap the notification to jump straight to the vehicle. Stops drivers losing income to a missed renewal.",
-      "First-time Self Assessment guide - a plain-English walkthrough for drivers filing Self Assessment for the first time. Covers UTR registration, the UK tax year, what you actually pay (income tax + Class 4 NI + Class 2 NI), the AMAP mileage deduction, and the 31 January deadline. Reachable from the Tax Readiness card.",
-      "Sparse-GPS-trace fix - solved the bug where iOS could suspend the JS runtime mid-trip and leave recording stuck in low-power detection mode (200m intervals instead of 50m). The recording-mode upgrade now verifies it took effect and retries automatically if iOS suspended us. Affected long, slow-moving trips most.",
-      "Tax-snapshot endpoint - new free API surface for the dashboard widget. Other premium tax tools (Self Assessment wizard, accountant portal) keep working through the existing premium-gated endpoints; the snapshot is purposely lightweight so it can update live for everyone.",
+      "Tax Readiness card - new dashboard widget for Work mode showing estimated tax + NI for the year, suggested set-aside this week from your real numbers, and a countdown to the 31 January filing deadline that turns amber at 90 days and red at 30. Free for all users.",
+      "Higher-rate threshold warning - if your projected profit gets within £15,000 of the £50,270 higher-rate band, the dashboard tells you exactly how far away you are and reminds you to claim every business mile.",
+      "Activity Heatmap - dashboard card showing when you actually drive and earn most across the last 12 weeks. 7 days × 24 hours, intensity-coloured. Filter by platform (Uber, Deliveroo, Just Eat, Amazon Flex, DPD, Evri, Stuart) and toggle between trips and earnings. Tap any cell for the breakdown.",
+      "Anonymous Benchmarking - new 'How You Compare' card showing your weekly miles and trips against the median, p25 and p75 of all UK MileClear drivers. Per-platform breakdowns light up when each platform crosses 5 active contributors. Privacy floor of 5 contributors per cell, never exposes individual data.",
+      "HMRC Reconciliation - new screen letting you enter the earnings figure HMRC has on file for each platform (from your Personal Tax Account notice) and see the gap against MileClear's tracked figure. Helps drivers spot under- or over-reporting before HMRC does. Free for all users.",
+      "First-time Self Assessment guide - plain-English walkthrough for drivers filing Self Assessment for the first time. Covers UTR registration, the UK tax year, what you actually pay (income tax + Class 4 NI + Class 2 NI), the AMAP mileage deduction, and the 31 January deadline.",
+      "HMRC attestation cover sheet on the Self Assessment PDF - one-page signed declaration page sits in front of the existing report, with your name, UTR (blank for you to fill in), tax year period, and the contemporaneous-record attestation language HMRC inspectors recognise. Pro feature.",
+      "Vehicle MOT and tax expiry reminders - MileClear now refreshes your primary vehicle's DVLA data weekly and sends a push notification when MOT or tax expires within 14 days. Tap the notification to jump straight to the vehicle.",
+      "MOT History - tap 'View MOT History' on any vehicle with a registration plate to see the full DVSA record. Test results, expiry dates, advisories, defects with severity tags, and odometer growth between tests. Pulled live from the DVSA MOT History API.",
+      "Pickup wait timer - tap 'Wait at pickup' on the Active Recording screen when you arrive at a restaurant or depot. The stopwatch runs while you wait; tap 'Picked up' when the order's ready. Survives app suspension. Foundation for community-aggregated 'this McDonald's averages 12-min waits' insights coming in 1.2.",
+      "Earnings adoption nudge - if you're tracking trips but haven't logged earnings, the Tax Readiness card shows a one-tap shortcut to the earnings form. Drivers who don't log earnings can't see their real tax estimate.",
+      "Sparse-GPS-trace fix - solved the bug where iOS could suspend the JS runtime mid-trip and leave recording stuck in low-power detection mode (200m intervals instead of 50m). The recording-mode upgrade now verifies it took effect and retries automatically.",
+      "Web dashboard: Footer 'For drivers' column linking all 6 niche guides (Uber, Deliveroo, Just Eat, Amazon Flex, DPD, Evri) plus the MileIQ comparison.",
+      "API: new /business-insights/tax-snapshot, /business-insights/heatmap, /business-insights/benchmarks, /hmrc-reconciliation, /pickup-waits, /vehicles/:id/mot-history endpoints powering the dashboard cards. All free-tier; premium-gated APIs remain unchanged.",
     ],
   },
   {
@@ -227,6 +233,177 @@ export const RELEASE_NOTES: ReleaseNote[] = [
 // Blog Posts
 // ----------------------------------------------------------------
 export const BLOG_POSTS: BlogPost[] = [
+  {
+    slug: "whats-new-in-version-1-1-0",
+    title: "What's New in Version 1.1.0",
+    excerpt:
+      "Tax Readiness card, Activity Heatmap, Anonymous Benchmarking, HMRC Reconciliation, MOT History, pickup wait timer. The biggest single update we've shipped, and the reason we're moving from 1.0.x to 1.1.0.",
+    date: "26 April 2026",
+    author: "Gair",
+    category: "announcement",
+    content: `
+<p>Version 1.1.0 is a step change. Thirteen new features, two new database tables, six new API endpoints, and a fundamental shift in what the dashboard does. We are moving from 1.0.x to 1.1.0 because the tools added here change MileClear from a mileage tracker into something that actively helps drivers run a self-employed business.</p>
+
+<h2>The Tax Readiness card</h2>
+
+<p>This is the card I am most excited about, and it is the headline of 1.1.0. On the Work mode dashboard, you now see, live, every time you open the app:</p>
+
+<ul>
+<li>Your estimated tax + NI for the current tax year, calculated from your real earnings minus your real mileage deduction</li>
+<li>How much to set aside this week for HMRC, calculated from your last 7 days of earnings at your effective rate</li>
+<li>A countdown to the 31 January filing deadline, which turns amber at 90 days and red at 30</li>
+<li>A 3-item readiness check (full name set, primary vehicle with MPG, all trips classified) showing where you stand</li>
+<li>A higher-rate-threshold warning if your projected profit is approaching £50,270 - drivers who cross this line lose 20p in the pound to additional tax, and tracking every business mile keeps them below it for longer</li>
+</ul>
+
+<p>This is the kind of feature drivers have been telling me they wanted: not "what is my mileage" but "am I going to be OK in January". The card answers that, in real numbers, every time you open the app.</p>
+
+<h2>Activity Heatmap and Anonymous Benchmarking</h2>
+
+<p>Two new dashboard cards built on the data MileClear already collects:</p>
+
+<p><strong>Activity Heatmap</strong> shows when you actually drive and earn most. Seven days × twenty-four hours, intensity-coloured. Filter by platform - Uber, Deliveroo, Just Eat, Amazon Flex, DPD, Evri, Stuart - and toggle between trips and earnings. Tap any cell for the breakdown. Built on the last 12 weeks of your own data, so it adapts to how your week actually looks.</p>
+
+<p><strong>Anonymous Benchmarking</strong> compares your weekly miles and trips to all UK MileClear drivers. Median, p25, p75, your position on the distribution, "top X%" framing. Per-platform breakdowns appear when each platform has 5+ active contributors. There is a hard privacy floor of 5 contributors per cell - we never show buckets thinner than that, and we never expose individual data. As more drivers join, more buckets light up automatically.</p>
+
+<p>Anonymous Benchmarking is, I think, the feature most likely to change how drivers think about MileClear. It turns "your data" into "your data plus industry context". Knowing whether you're earning the same as everyone else in your area is genuinely powerful information that gig drivers have basically never had.</p>
+
+<h2>HMRC Reconciliation</h2>
+
+<p>Since 1 January 2024, every UK gig platform has been reporting your earnings directly to HMRC under the OECD Digital Platform Reporting rules. The first batch of reports landed at HMRC by 31 January 2026. That means HMRC now has a per-platform record of what each driver earned, and they can compare it against what was declared on Self Assessment.</p>
+
+<p>The new HMRC Reconciliation screen lets you enter the figures HMRC has reported for each platform (from the notice in your Personal Tax Account) and see the gap against MileClear's tracked earnings. Within £20 either way is fine. A bigger gap is something to investigate before HMRC does.</p>
+
+<p>This is "fighting your corner" software in the most literal sense.</p>
+
+<h2>MOT History and vehicle reminders</h2>
+
+<p>Two pieces of vehicle compliance work, powered by direct integrations with DVLA and DVSA:</p>
+
+<p><strong>Vehicle MOT and tax expiry reminders.</strong> MileClear now refreshes your primary vehicle's DVLA data weekly and pushes a notification when MOT or tax expires within 14 days. Tap the notification to jump straight to the vehicle. A self-employed driver losing income to a missed MOT is a real, expensive problem - this stops it.</p>
+
+<p><strong>MOT History.</strong> Tap "View MOT History" on any vehicle with a registration plate to see the full DVSA record. Test results, expiry dates, advisories, defects with severity tags ("dangerous", "major", "advisory"), and odometer growth between tests. Direct from the DVSA MOT History API. Useful for spotting things flagged at the last test that might fail next time.</p>
+
+<h2>Pickup wait timer</h2>
+
+<p>On the Active Recording screen there is a new "Wait at pickup" tappable card. Tap it when you arrive at a restaurant or depot, and a stopwatch runs. Tap "Picked up" when the order is ready, and the wait is saved with location and platform.</p>
+
+<p>For now, this is just personal data collection - your own waits. The next version will use the aggregated data to surface community insights: "this McDonald's averages 12-minute waits", "Uber pickups in this zone average 4 minutes". You will be able to avoid the slow ones. The infrastructure is in 1.1.0; the community surface comes in 1.2.</p>
+
+<h2>First-time Self Assessment guide</h2>
+
+<p>Plain-English walkthrough for drivers filing Self Assessment for the first time. Covers UTR registration, the UK tax year (6 April to 5 April), what you actually pay (income tax + Class 4 NI + Class 2 NI), the AMAP mileage deduction at 45p/25p (or 24p flat for mopeds), and the 31 January deadline.</p>
+
+<p>It is reachable from the Tax Readiness card, and exists to make sure new self-employed drivers do not miss the basics in their first year. UTR registration alone takes 10 working days - drivers who leave it until October regret it.</p>
+
+<h2>Plus</h2>
+
+<ul>
+<li><strong>HMRC attestation cover sheet on the Self Assessment PDF</strong> - one-page signed declaration page with your name, UTR, tax year period, and the contemporaneous-record attestation language HMRC inspectors recognise. Pro feature. Accountants will share it.</li>
+<li><strong>Earnings adoption nudge</strong> - if you are tracking trips but have not logged earnings recently, the Tax Readiness card shows a one-tap shortcut to the earnings form. Without earnings, the tax estimate cannot work.</li>
+<li><strong>Sparse-GPS-trace reliability fix</strong> - solved the bug where iOS could suspend the JS runtime mid-trip and leave recording stuck in low-power detection mode. The recording-mode upgrade now verifies it took effect and retries automatically.</li>
+</ul>
+
+<h2>Why 1.1.0 and not 1.0.11</h2>
+
+<p>Version numbers are arbitrary, but they signal something. 1.0.x said "we are still figuring out what this app is". 1.1.0 says "we know what this app is now: it is the tool that helps UK gig drivers stay in control of their tax, their vehicle, and their pricing".</p>
+
+<p>The features in 1.1.0 are not just refinements. The Tax Readiness card is a genuinely new pillar of the product. Anonymous Benchmarking is a new pillar. HMRC Reconciliation is a new pillar. Vehicle compliance is a new pillar. That is four new pillars in one release, on top of the existing tracking and exports. It is the right time for the version line to move.</p>
+
+<h2>Get it</h2>
+
+<p>Version 1.1.0 (build 52) goes to <a href="https://testflight.apple.com/join/SGrmnaaH">TestFlight</a> as soon as the EAS build finishes. Public App Store launch follows once we have a week of TestFlight data confirming nothing rough crept in.</p>
+
+<p>If you have been following along through the 1.0.x cycle, thank you for sticking with it. The diagnostic dumps, the bug reports, the "this would be useful" notes - they all shaped this release.</p>
+
+<p>- Gair</p>
+    `.trim(),
+  },
+  {
+    slug: "whats-coming-next",
+    title: "What's Coming Next",
+    excerpt:
+      "After 1.1.0: HMRC quarterly submission, community wait-time insights, deeper Anonymous Benchmarking, and the strategic moves that take MileClear from a tax tracker to a complete gig-driver toolkit.",
+    date: "26 April 2026",
+    author: "Gair",
+    category: "announcement",
+    content: `
+<p>Version 1.1.0 is a substantial step. The natural question is: what comes next? Here is the rough shape of where MileClear is heading, organised by when each piece is realistic.</p>
+
+<p>None of this is a hard commitment. Solo development moves with the data, and the data sometimes says "do this thing instead". But the direction is set.</p>
+
+<h2>Coming in 1.2 (next few weeks)</h2>
+
+<h3>Community pickup-wait insights</h3>
+
+<p>The pickup wait timer in 1.1.0 collects per-driver data. The aggregation surface is what makes that data valuable: "this McDonald's averages 12-minute waits across 8 drivers", "Friday evenings here are 18 minutes". Once enough drivers are using the timer, the average wait at every pickup point becomes a useful piece of intelligence. Couriers will be able to avoid the consistently slow ones.</p>
+
+<p>Privacy floor is the same as Anonymous Benchmarking - never show a bucket with fewer than 5 contributors.</p>
+
+<h3>Deeper Anonymous Benchmarking</h3>
+
+<p>1.1.0 ships national-level benchmarks. As the user base grows, regional breakdowns become statistically meaningful: "drivers in your postcode area average X miles per week". The infrastructure is ready; the data needs to catch up. Expect regional benchmarks to appear automatically for Greater London, Greater Manchester, Birmingham, Glasgow, and Edinburgh first, then expand outward as density increases.</p>
+
+<h3>Onboarding revamp</h3>
+
+<p>The biggest gap in MileClear's funnel today is users who classify trips but never log earnings. Without earnings, the tax estimate cannot work, and the user gets less than half the value of the app. The 1.1.0 earnings nudge addresses this for active users; the next step is rebuilding the first-launch experience so new users understand from day one why earnings logging matters.</p>
+
+<h3>HMRC reconciliation auto-fill</h3>
+
+<p>Right now you type in HMRC's reported figure manually. There is a Self Assessment Accounts API that, with the user's consent, would let MileClear fetch this directly. That requires HMRC production accreditation (multi-week process), so it is not 1.2 work but it is on the path.</p>
+
+<h2>Coming in 1.3 - 1.4 (next few months)</h2>
+
+<h3>MTD ITSA quarterly submission</h3>
+
+<p>From April 2027, every self-employed person earning over £30,000 a year will be required to submit quarterly digital updates to HMRC. The threshold for April 2026 is £50,000, and a large slice of full-time gig drivers will be caught by April 2027.</p>
+
+<p>The MileClear sandbox application is already registered with HMRC's Developer Hub, with all 9 relevant Self Assessment APIs subscribed. The work to come is the OAuth flow, the submission mechanics, the fraud-prevention headers HMRC requires on every call, and the production accreditation process. This is a multi-week project but it is the most strategically important feature for self-employed drivers approaching the MTD deadline.</p>
+
+<p>The pitch is simple: drivers will need software that submits their quarterly figures to HMRC. If MileClear is the bridge, that is a defensive moat - competitors have to build the same thing or lose users.</p>
+
+<h3>Vehicle maintenance log</h3>
+
+<p>Service intervals, oil changes, tyres, brakes. Push reminders ahead of due dates. For owner-driver-franchisees running £30,000 Sprinters, missing a service is real money. Builds on the existing DVLA + DVSA integrations.</p>
+
+<h3>Insurance broker partnership</h3>
+
+<p>Most UK gig drivers are either underinsured or paying too much for the wrong policy class. A "Find Insurance" screen would let drivers compare quotes from regulated UK gig-insurance brokers (Zego, Inshur, etc.) with one tap. The compliance work is non-trivial - FCA rules about advice vs introduction matter here - but the value to drivers is clear.</p>
+
+<h2>Strategic plays (long-term)</h2>
+
+<h3>Verified mileage handoff to insurers</h3>
+
+<p>None of the gig-economy insurers have built a verified-mileage product, even though pay-per-mile insurance literally needs that data. If MileClear becomes the trusted source-of-truth for "miles driven for work" that insurers consume via API, that is a B2B moat plus a co-marketing channel.</p>
+
+<h3>Native tracking module</h3>
+
+<p>The current tracking layer runs in JavaScript via Expo. iOS can suspend the JS runtime mid-trip, which is the root cause of several reliability bugs we have layered fixes against. The proper long-term solution is a Swift native module that runs outside the JS runtime. This is a serious investment - 4-8 weeks of focused work - and only justified once the user base is big enough that reliability variance becomes a churn problem. Not yet, but on the radar.</p>
+
+<h3>Android</h3>
+
+<p>iOS-only is fine for now: 80% of the gig-driver target audience uses iPhone. But Android coverage is the natural next platform once the iOS app is genuinely stable. Android is a deferred 1.x or 2.0 release.</p>
+
+<h2>Things that are not on the roadmap</h2>
+
+<p>Worth being explicit about a few things MileClear is not going to do, because being focused matters more than being feature-complete.</p>
+
+<ul>
+<li><strong>Generic budgeting / savings goals.</strong> Banking apps do this better. MileClear is for drivers, not the general public.</li>
+<li><strong>Multi-currency / international.</strong> UK-only. The whole product is built around HMRC, AMAP rates, and UK gig platforms. Going international would require redoing every assumption.</li>
+<li><strong>Stocks, crypto, investments.</strong> Out of scope. MileClear is about earning more from driving, not about what to do with the savings.</li>
+<li><strong>An Android-style fully customisable dashboard.</strong> The layout-customisation that already exists in 1.0.x is the limit. More flexibility just adds complexity without changing user outcomes.</li>
+</ul>
+
+<h2>How to influence what's next</h2>
+
+<p>The roadmap moves with the data. If you are using the app and something feels missing, tell me - either through the in-app feedback screen, the MileClear Facebook group, or directly to gair@mileclear.com.</p>
+
+<p>I read every message. Several of the features in 1.1.0 came directly from things drivers said they wanted: vehicle reminders ("I missed an MOT and lost three days of earnings"), benchmarking ("am I making the same as everyone else?"), HMRC reconciliation ("I do not even know what HMRC has on file for me"). If you have a "this would be useful" thought, it has a real chance of becoming a feature.</p>
+
+<p>- Gair</p>
+    `.trim(),
+  },
   {
     slug: "whats-new-in-version-1-0-10",
     title: "What's New in Version 1.0.10",
