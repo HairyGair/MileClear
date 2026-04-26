@@ -55,6 +55,12 @@ export const SECTION_REGISTRY: Record<ScreenKey, SectionDef[]> = {
       description: "HMRC estimate, weekly set-aside, filing deadline countdown",
     },
     {
+      key: "activity_heatmap",
+      label: "Activity Heatmap",
+      icon: "grid-outline",
+      description: "When you drive and earn most, by hour and platform",
+    },
+    {
       key: "daily_recap",
       label: "Today's Recap",
       icon: "today-outline",

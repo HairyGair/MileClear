@@ -4,6 +4,7 @@ import { authMiddleware } from "../../middleware/auth.js";
 import { premiumMiddleware } from "../../middleware/premium.js";
 import { getBusinessInsights, getWeeklyPnL } from "../../services/businessInsights.js";
 import { buildTaxSnapshot } from "../../services/taxSnapshot.js";
+import { buildActivityHeatmap } from "../../services/activityHeatmap.js";
 
 export async function businessInsightRoutes(app: FastifyInstance) {
   // Auth required for all routes; premium gate applied per-route below so
@@ -31,5 +32,22 @@ export async function businessInsightRoutes(app: FastifyInstance) {
   app.get("/tax-snapshot", async (request, reply) => {
     const snapshot = await buildTaxSnapshot(request.userId!);
     return reply.send({ data: snapshot });
+  });
+
+  // GET /business-insights/heatmap?weeksBack=12&platform=uber — activity
+  // heatmap of trips + earnings by day-of-week × hour-of-day (free).
+  app.get("/heatmap", async (request, reply) => {
+    const { weeksBack, platform } = z
+      .object({
+        weeksBack: z.coerce.number().int().min(1).max(52).default(12),
+        platform: z.string().min(1).max(40).optional(),
+      })
+      .parse(request.query);
+
+    const heatmap = await buildActivityHeatmap(request.userId!, {
+      weeksBack,
+      platform: platform ?? null,
+    });
+    return reply.send({ data: heatmap });
   });
 }

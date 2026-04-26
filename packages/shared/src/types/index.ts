@@ -109,6 +109,33 @@ export interface ReadinessItem {
   hint?: string;                            // shown when not done
 }
 
+// Activity heatmap: 7 day-of-week × 24 hour-of-day cells. Powers the
+// "best time to drive" dashboard view. Earnings figures are bucketed by
+// the earning record's periodStart - accurate for users who log earnings
+// per shift, less accurate for users who log monthly totals.
+export interface HeatmapCell {
+  dayOfWeek: number;                        // 0 = Sunday, 6 = Saturday
+  hour: number;                             // 0-23
+  tripCount: number;
+  totalMiles: number;
+  totalEarningsPence: number;
+}
+
+export interface HeatmapPlatformOption {
+  platform: string;                         // PlatformTag value
+  label: string;                            // e.g. "Uber / Uber Eats"
+  tripCount: number;                        // trips for this platform in window
+}
+
+export interface ActivityHeatmap {
+  weeksAnalyzed: number;
+  filteredPlatform: string | null;          // platform filter applied, null = all
+  availablePlatforms: HeatmapPlatformOption[];
+  totalTrips: number;
+  totalEarningsPence: number;
+  cells: HeatmapCell[];                     // sparse - only non-zero cells
+}
+
 // Vehicle types
 export type FuelType = "petrol" | "diesel" | "electric" | "hybrid";
 export type VehicleType = "car" | "motorbike" | "van";
