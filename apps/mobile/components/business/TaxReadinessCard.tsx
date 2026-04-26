@@ -8,6 +8,7 @@ import {
   LayoutAnimation,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { useRouter } from "expo-router";
 import { fetchTaxSnapshot } from "../../lib/api/businessInsights";
 import { formatPence, UK_TAX_2025_26 } from "@mileclear/shared";
 import type { TaxSnapshot } from "@mileclear/shared";
@@ -46,6 +47,7 @@ function deadlineTone(days: number): {
 }
 
 export function TaxReadinessCard() {
+  const router = useRouter();
   const [snap, setSnap] = useState<TaxSnapshot | null>(null);
   const [loading, setLoading] = useState(true);
   const [expanded, setExpanded] = useState(false);
@@ -195,6 +197,18 @@ export function TaxReadinessCard() {
           ))}
         </View>
       )}
+
+      {/* First-time guide link - subtle, low-priority entry point */}
+      <TouchableOpacity
+        onPress={() => router.navigate("/first-tax-return" as never)}
+        style={s.guideLink}
+        accessibilityRole="button"
+        accessibilityLabel="Open first-time Self Assessment guide"
+      >
+        <Ionicons name="book-outline" size={13} color={TEXT_3} />
+        <Text style={s.guideLinkText}>First Self Assessment? Read the guide</Text>
+        <Ionicons name="chevron-forward" size={13} color={TEXT_3} />
+      </TouchableOpacity>
     </View>
   );
 }
@@ -348,5 +362,20 @@ const s = StyleSheet.create({
     fontSize: 12,
     lineHeight: 16,
     marginTop: 2,
+  },
+  guideLink: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginTop: 10,
+    paddingTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: CARD_BORDER,
+  },
+  guideLinkText: {
+    color: TEXT_2,
+    fontSize: 12,
+    fontWeight: "500",
+    flex: 1,
   },
 });
