@@ -1646,26 +1646,75 @@ export async function setDriveDetectionEnabled(enabled: boolean): Promise<void> 
 /**
  * Upgrade detection to higher accuracy with visible background indicator.
  * Called automatically when auto-recording starts, or when user taps "Track Trip".
- * Switches from 100m/15s (detection) to 50m/10s (recording) for denser GPS.
+ * Switches from 200m/15s (detection) to 50m/10s (recording) for denser GPS.
+ *
+ * Verifies the upgrade took effect with a post-call hasStartedLocationUpdatesAsync
+ * check, and retries once on failure. Anthony hit the failure mode 2026-04-26:
+ * an active recording trip showed only 16 GPS points across 1h1m / 1.4mi
+ * (~140m between points = 200m detection mode, not 50m recording mode).
+ * iOS appears to have suspended the JS runtime during the stop->start sequence,
+ * leaving the task either stopped or stuck in detection mode.
+ *
+ * Never throws. Failures are logged via recording_upgrade_failed diagnostic
+ * events for admin review.
  */
 export async function upgradeDetectionAccuracy(): Promise<void> {
-  const isRunning = await TaskManager.isTaskRegisteredAsync(DETECTION_TASK_NAME);
-  if (isRunning) {
-    await Location.stopLocationUpdatesAsync(DETECTION_TASK_NAME);
+  const firstAttempt = await tryUpgrade();
+  if (firstAttempt.ok) return;
+
+  logDetectionEvent("recording_upgrade_failed", {
+    attempt: 1,
+    error: firstAttempt.error,
+  }).catch(() => {});
+
+  // iOS may have briefly suspended JS during stopLocationUpdatesAsync ->
+  // startLocationUpdatesAsync. Wait then retry once.
+  await new Promise<void>((resolve) => setTimeout(resolve, 500));
+
+  const secondAttempt = await tryUpgrade();
+  if (secondAttempt.ok) {
+    logDetectionEvent("recording_upgrade_recovered", { attempt: 2 }).catch(() => {});
+    return;
   }
 
-  await Location.startLocationUpdatesAsync(DETECTION_TASK_NAME, {
-    accuracy: Location.Accuracy.BestForNavigation,
-    distanceInterval: 50,
-    deferredUpdatesInterval: 10000,
-    activityType: Location.ActivityType.AutomotiveNavigation,
-    pausesUpdatesAutomatically: false,
-    showsBackgroundLocationIndicator: false,
-    foregroundService: {
-      notificationTitle: "MileClear is recording your trip",
-      notificationBody: "Tap to open the app",
-    },
-  });
+  logDetectionEvent("recording_upgrade_failed", {
+    attempt: 2,
+    error: secondAttempt.error,
+  }).catch(() => {});
+  // Detection-mode is still running, which is better than crashing the
+  // recording start. The diagnostic alert system surfaces these events.
+}
+
+type UpgradeResult = { ok: true } | { ok: false; error: string };
+
+async function tryUpgrade(): Promise<UpgradeResult> {
+  try {
+    const isRunning = await TaskManager.isTaskRegisteredAsync(DETECTION_TASK_NAME);
+    if (isRunning) {
+      await Location.stopLocationUpdatesAsync(DETECTION_TASK_NAME);
+    }
+
+    await Location.startLocationUpdatesAsync(DETECTION_TASK_NAME, {
+      accuracy: Location.Accuracy.BestForNavigation,
+      distanceInterval: 50,
+      deferredUpdatesInterval: 10000,
+      activityType: Location.ActivityType.AutomotiveNavigation,
+      pausesUpdatesAutomatically: false,
+      showsBackgroundLocationIndicator: false,
+      foregroundService: {
+        notificationTitle: "MileClear is recording your trip",
+        notificationBody: "Tap to open the app",
+      },
+    });
+
+    const verified = await Location.hasStartedLocationUpdatesAsync(DETECTION_TASK_NAME);
+    if (!verified) {
+      return { ok: false, error: "task did not start after upgrade" };
+    }
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : String(err) };
+  }
 }
 
 /**
