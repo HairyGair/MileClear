@@ -61,6 +61,12 @@ export const SECTION_REGISTRY: Record<ScreenKey, SectionDef[]> = {
       description: "When you drive and earn most, by hour and platform",
     },
     {
+      key: "benchmark",
+      label: "How You Compare",
+      icon: "people-outline",
+      description: "Anonymous benchmarks vs other UK drivers",
+    },
+    {
       key: "daily_recap",
       label: "Today's Recap",
       icon: "today-outline",

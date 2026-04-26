@@ -5,6 +5,7 @@ import { premiumMiddleware } from "../../middleware/premium.js";
 import { getBusinessInsights, getWeeklyPnL } from "../../services/businessInsights.js";
 import { buildTaxSnapshot } from "../../services/taxSnapshot.js";
 import { buildActivityHeatmap } from "../../services/activityHeatmap.js";
+import { buildBenchmarkSnapshot } from "../../services/benchmarks.js";
 
 export async function businessInsightRoutes(app: FastifyInstance) {
   // Auth required for all routes; premium gate applied per-route below so
@@ -49,5 +50,13 @@ export async function businessInsightRoutes(app: FastifyInstance) {
       platform: platform ?? null,
     });
     return reply.send({ data: heatmap });
+  });
+
+  // GET /business-insights/benchmarks — anonymous comparison vs other UK
+  // drivers (free). Privacy floor of 5 contributors per cell. Buckets light
+  // up automatically as the user base grows.
+  app.get("/benchmarks", async (request, reply) => {
+    const snapshot = await buildBenchmarkSnapshot(request.userId!);
+    return reply.send({ data: snapshot });
   });
 }

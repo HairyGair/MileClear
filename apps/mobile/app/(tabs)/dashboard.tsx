@@ -53,6 +53,7 @@ import { CommunityInsightsCard } from "../../components/community/CommunityInsig
 import { WeeklyGoalCard } from "../../components/work/WeeklyGoalCard";
 import { TaxReadinessCard } from "../../components/business/TaxReadinessCard";
 import { ActivityHeatmapCard } from "../../components/business/ActivityHeatmapCard";
+import { BenchmarkCard } from "../../components/business/BenchmarkCard";
 import { WorkCalendarCard } from "../../components/work/WorkCalendarCard";
 import { MapOverview } from "../../components/personal/MapOverview";
 import { LiveMapTracker, type TripTapInfo } from "../../components/map/LiveMapTracker";
@@ -928,6 +929,8 @@ export default function DashboardScreen() {
             return <TaxReadinessCard key={key} />;
           case "activity_heatmap":
             return <ActivityHeatmapCard key={key} />;
+          case "benchmark":
+            return <BenchmarkCard key={key} />;
           case "daily_recap":
             return dailyRecap && dailyRecap.totalTrips > 0 ? (
               <TouchableOpacity

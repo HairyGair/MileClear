@@ -4,6 +4,7 @@ import type {
   WeeklyPnL,
   TaxSnapshot,
   ActivityHeatmap,
+  BenchmarkSnapshot,
 } from "@mileclear/shared";
 
 export function fetchBusinessInsights() {
@@ -34,4 +35,9 @@ export function fetchActivityHeatmap(opts?: {
   return apiRequest<{ data: ActivityHeatmap }>(
     `/business-insights/heatmap${qs ? `?${qs}` : ""}`
   );
+}
+
+// Free for all users - anonymous benchmarking vs other UK drivers.
+export function fetchBenchmarks() {
+  return apiRequest<{ data: BenchmarkSnapshot }>("/business-insights/benchmarks");
 }

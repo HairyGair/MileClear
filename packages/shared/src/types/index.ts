@@ -136,6 +136,46 @@ export interface ActivityHeatmap {
   cells: HeatmapCell[];                     // sparse - only non-zero cells
 }
 
+// Anonymous benchmarking. Aggregated across all UK active drivers in the
+// last 30 days. Privacy floor: any bucket with fewer than MIN_CONTRIBUTORS
+// drivers is suppressed (marked as `available: false`) - never exposed.
+//
+// Designed to scale gracefully: as the user base grows, more buckets light
+// up automatically without any code changes. National-level always works
+// once we have 5+ active drivers; per-platform lights up as each platform
+// crosses 5+ contributors; regional buckets are deferred until 200+ active.
+export interface BenchmarkComparison {
+  available: boolean;                       // false when N<5 contributors
+  contributors: number;                     // drivers in this bucket
+  yourValue: number | null;                 // null if you have no data here
+  median: number;
+  p25: number;
+  p75: number;
+  yourPercentile: number | null;            // 0-100, null if no data
+  unit: "miles" | "trips" | "pence";
+}
+
+export interface PlatformBenchmark {
+  platform: string;
+  label: string;
+  trips: BenchmarkComparison;
+  miles: BenchmarkComparison;
+}
+
+export interface BenchmarkSnapshot {
+  windowDays: number;                       // 30 by default
+  totalActiveDrivers: number;               // overall context
+  // National-level activity benchmarks across all platforms.
+  national: {
+    weeklyMiles: BenchmarkComparison;
+    weeklyTrips: BenchmarkComparison;
+  };
+  // Per-platform breakdowns - only platforms with >=5 contributors are emitted.
+  platforms: PlatformBenchmark[];
+  // Friendly explanation if some buckets are limited.
+  limitedDataNote: string | null;
+}
+
 // Vehicle types
 export type FuelType = "petrol" | "diesel" | "electric" | "hybrid";
 export type VehicleType = "car" | "motorbike" | "van";
