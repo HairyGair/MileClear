@@ -101,6 +101,15 @@ model Vehicle {
   isPrimary         Boolean  @default(true)
   createdAt         DateTime @default(now())
 
+  // DVLA-sourced expiry data + reminder bookkeeping. Refreshed weekly by
+  // the vehicle-reminders cron. Nullable for vehicles added before this
+  // feature shipped or for vehicles without a registration plate.
+  motExpiryDate     DateTime?
+  taxDueDate        DateTime?
+  lastDvlaCheckAt   DateTime?
+  motReminderSentAt DateTime?
+  taxReminderSentAt DateTime?
+
   user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   shifts   Shift[]
   trips    Trip[]

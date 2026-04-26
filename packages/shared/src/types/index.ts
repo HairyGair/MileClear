@@ -165,6 +165,10 @@ export interface VehicleLookupResult {
   co2Emissions: number | null;
   taxStatus: string | null;
   motStatus: string | null;
+  // ISO date strings from DVLA. Used by the vehicle-reminders cron to push
+  // expiry warnings 14 days before MOT or tax runs out.
+  motExpiryDate: string | null;
+  taxDueDate: string | null;
 }
 
 // Shift types

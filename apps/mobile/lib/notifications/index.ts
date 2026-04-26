@@ -352,6 +352,18 @@ export function setupNotificationResponseHandler(): void {
         router.navigate("/admin-health" as any);
         break;
 
+      case "open_vehicle": {
+        // Vehicle expiry reminder (MOT / tax). Opens the vehicle edit form
+        // so the driver can mark renewal complete or jump to gov.uk.
+        const vehicleId = data?.vehicleId as string | undefined;
+        if (vehicleId) {
+          router.navigate(`/vehicle-form?id=${vehicleId}` as any);
+        } else {
+          router.navigate("/(tabs)/profile");
+        }
+        break;
+      }
+
       default:
         router.navigate("/(tabs)/dashboard");
         break;

@@ -9,8 +9,13 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { fetchTaxSnapshot } from "../../lib/api/businessInsights";
-import { formatPence } from "@mileclear/shared";
+import { formatPence, UK_TAX_2025_26 } from "@mileclear/shared";
 import type { TaxSnapshot } from "@mileclear/shared";
+
+// Show the higher-rate warning when YTD taxable profit is between £35k and
+// the higher-rate threshold (£50,270). The £35k floor avoids spamming most
+// users who will never cross over.
+const HIGHER_RATE_WARNING_FLOOR_PENCE = 3_500_000;
 
 const CARD_BG = "#0a1120";
 const CARD_BORDER = "rgba(255,255,255,0.05)";
@@ -110,6 +115,21 @@ export function TaxReadinessCard() {
           </Text>
         </>
       )}
+
+      {/* Higher-rate threshold warning (only fires for users approaching £50,270) */}
+      {hasYtdEarnings &&
+        snap.ytd.taxableProfitPence >= HIGHER_RATE_WARNING_FLOOR_PENCE &&
+        snap.ytd.taxableProfitPence < UK_TAX_2025_26.basicRateThresholdPence && (
+          <View style={s.higherRateRow}>
+            <Ionicons name="trending-up-outline" size={14} color={AMBER} />
+            <Text style={s.higherRateText}>
+              {formatPence(
+                UK_TAX_2025_26.basicRateThresholdPence - snap.ytd.taxableProfitPence
+              )}{" "}
+              from higher rate (40%) - claim every business mile to stay in basic rate.
+            </Text>
+          </View>
+        )}
 
       {/* Set-aside this week row */}
       {hasSetAside && (
@@ -243,6 +263,22 @@ const s = StyleSheet.create({
     fontSize: 12,
     lineHeight: 17,
     marginBottom: 12,
+  },
+  higherRateRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 6,
+    backgroundColor: AMBER_FAINT,
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    marginBottom: 10,
+  },
+  higherRateText: {
+    color: TEXT_1,
+    fontSize: 12,
+    lineHeight: 16,
+    flex: 1,
   },
   setAsideRow: {
     flexDirection: "row",

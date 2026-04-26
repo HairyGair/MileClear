@@ -12,6 +12,7 @@ import { sendCheckinEmail } from "../services/email.js";
 import { logEvent } from "../services/appEvents.js";
 import { runJob } from "../services/jobRun.js";
 import { getNearbyStations } from "../services/fuel.js";
+import { runVehicleRemindersJob } from "./vehicleReminders.js";
 
 // Persistent dedup via AppEvent table — survives PM2 restarts.
 // Checks if a notification event was already logged for a user today.
@@ -788,6 +789,7 @@ export function startNotificationJobs(): void {
     void runJob("monthly_recap", runMonthlyRecapJob);
     void runJob("welcome_nudge", runWelcomeNudgeJob);
     void runJob("checkin_email", runCheckinEmailJob);
+    void runJob("vehicle_reminders", runVehicleRemindersJob);
   };
 
   setTimeout(() => {

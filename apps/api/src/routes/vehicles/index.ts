@@ -154,6 +154,8 @@ export async function vehicleRoutes(app: FastifyInstance) {
           typeof dvla.co2Emissions === "number" ? dvla.co2Emissions : null,
         taxStatus: dvla.taxStatus ? String(dvla.taxStatus) : null,
         motStatus: dvla.motStatus ? String(dvla.motStatus) : null,
+        motExpiryDate: dvla.motExpiryDate ? String(dvla.motExpiryDate) : null,
+        taxDueDate: dvla.taxDueDate ? String(dvla.taxDueDate) : null,
       };
 
       // Cache for 24h
