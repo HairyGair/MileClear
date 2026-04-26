@@ -428,7 +428,7 @@ export default function DesignSystemPage() {
                 anti-patterns list, and where every token lives - are in{" "}
                 <a
                   className="ds-link"
-                  href="https://github.com/HairyGair/MileClear/blob/main/DESIGN_SYSTEM.md"
+                  href="https://github.com/HairyGair/MileClear/blob/main/docs/DESIGN_SYSTEM.md"
                   target="_blank"
                   rel="noopener noreferrer"
                 >
