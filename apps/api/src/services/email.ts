@@ -128,7 +128,37 @@ export async function sendWelcomeEmail(
                     <tr><td style="padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.04);">
                       <table role="presentation" cellpadding="0" cellspacing="0"><tr>
                         <td style="width: 28px; vertical-align: top; padding-top: 1px; color: #f5a623; font-size: 14px;">&#9672;</td>
-                        <td style="color: #c0c8d4; font-size: 14px; line-height: 1.6;"><strong style="color: #f0f2f5;">HMRC tax deductions</strong> - 45p/mile calculated automatically, with your running total on the dashboard.</td>
+                        <td style="color: #c0c8d4; font-size: 14px; line-height: 1.6;"><strong style="color: #f0f2f5;">Tax Readiness card</strong> - live tax + NI estimate, weekly set-aside calculated from your real numbers, and a countdown to the 31 January deadline.</td>
+                      </tr></table>
+                    </td></tr>
+                    <tr><td style="padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.04);">
+                      <table role="presentation" cellpadding="0" cellspacing="0"><tr>
+                        <td style="width: 28px; vertical-align: top; padding-top: 1px; color: #f5a623; font-size: 14px;">&#9672;</td>
+                        <td style="color: #c0c8d4; font-size: 14px; line-height: 1.6;"><strong style="color: #f0f2f5;">HMRC tax deductions</strong> - 45p/mile (or 24p for mopeds) calculated automatically per vehicle, with your running total on the dashboard.</td>
+                      </tr></table>
+                    </td></tr>
+                    <tr><td style="padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.04);">
+                      <table role="presentation" cellpadding="0" cellspacing="0"><tr>
+                        <td style="width: 28px; vertical-align: top; padding-top: 1px; color: #f5a623; font-size: 14px;">&#9672;</td>
+                        <td style="color: #c0c8d4; font-size: 14px; line-height: 1.6;"><strong style="color: #f0f2f5;">Anonymous Benchmarking</strong> - see how your weekly miles, trips, and platform mix compare to other UK MileClear drivers. Privacy-floored at 5 contributors per cell.</td>
+                      </tr></table>
+                    </td></tr>
+                    <tr><td style="padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.04);">
+                      <table role="presentation" cellpadding="0" cellspacing="0"><tr>
+                        <td style="width: 28px; vertical-align: top; padding-top: 1px; color: #f5a623; font-size: 14px;">&#9672;</td>
+                        <td style="color: #c0c8d4; font-size: 14px; line-height: 1.6;"><strong style="color: #f0f2f5;">HMRC Reconciliation</strong> - see what HMRC has on file for each platform versus what MileClear tracked, fix gaps before they become a problem.</td>
+                      </tr></table>
+                    </td></tr>
+                    <tr><td style="padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.04);">
+                      <table role="presentation" cellpadding="0" cellspacing="0"><tr>
+                        <td style="width: 28px; vertical-align: top; padding-top: 1px; color: #f5a623; font-size: 14px;">&#9672;</td>
+                        <td style="color: #c0c8d4; font-size: 14px; line-height: 1.6;"><strong style="color: #f0f2f5;">Activity Heatmap</strong> - 7 days &times; 24 hours of when you drive and earn most, filtered by platform.</td>
+                      </tr></table>
+                    </td></tr>
+                    <tr><td style="padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.04);">
+                      <table role="presentation" cellpadding="0" cellspacing="0"><tr>
+                        <td style="width: 28px; vertical-align: top; padding-top: 1px; color: #f5a623; font-size: 14px;">&#9672;</td>
+                        <td style="color: #c0c8d4; font-size: 14px; line-height: 1.6;"><strong style="color: #f0f2f5;">MOT &amp; tax expiry reminders</strong> - your vehicle's DVLA data refreshes weekly. Push notification 14 days before expiry. Plus the full DVSA MOT history including advisories on every test.</td>
                       </tr></table>
                     </td></tr>
                     <tr><td style="padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.04);">
@@ -146,54 +176,66 @@ export async function sendWelcomeEmail(
                     <tr><td style="padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.04);">
                       <table role="presentation" cellpadding="0" cellspacing="0"><tr>
                         <td style="width: 28px; vertical-align: top; padding-top: 1px; color: #f5a623; font-size: 14px;">&#9672;</td>
-                        <td style="color: #c0c8d4; font-size: 14px; line-height: 1.6;"><strong style="color: #f0f2f5;">Earnings tracking</strong> - log what you earn per platform. See which apps pay best per mile.</td>
+                        <td style="color: #c0c8d4; font-size: 14px; line-height: 1.6;"><strong style="color: #f0f2f5;">Earnings &amp; pickup-wait tracking</strong> - log per-platform earnings and tap-to-time waits at restaurants and depots.</td>
                       </tr></table>
                     </td></tr>
                     <tr><td style="padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.04);">
                       <table role="presentation" cellpadding="0" cellspacing="0"><tr>
                         <td style="width: 28px; vertical-align: top; padding-top: 1px; color: #f5a623; font-size: 14px;">&#9672;</td>
-                        <td style="color: #c0c8d4; font-size: 14px; line-height: 1.6;"><strong style="color: #f0f2f5;">Fuel prices</strong> - find the cheapest fuel near you from 8,300+ UK stations, and log your fill-ups.</td>
-                      </tr></table>
-                    </td></tr>
-                    <tr><td style="padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.04);">
-                      <table role="presentation" cellpadding="0" cellspacing="0"><tr>
-                        <td style="width: 28px; vertical-align: top; padding-top: 1px; color: #f5a623; font-size: 14px;">&#9672;</td>
-                        <td style="color: #c0c8d4; font-size: 14px; line-height: 1.6;"><strong style="color: #f0f2f5;">Achievements &amp; streaks</strong> - 43 badges, personal records, weekly and monthly recaps you can share.</td>
+                        <td style="color: #c0c8d4; font-size: 14px; line-height: 1.6;"><strong style="color: #f0f2f5;">Fuel prices</strong> - cheapest fuel near you from 8,300+ UK stations, with full fuel-log support.</td>
                       </tr></table>
                     </td></tr>
                     <tr><td style="padding: 8px 0;">
                       <table role="presentation" cellpadding="0" cellspacing="0"><tr>
                         <td style="width: 28px; vertical-align: top; padding-top: 1px; color: #f5a623; font-size: 14px;">&#9672;</td>
-                        <td style="color: #c0c8d4; font-size: 14px; line-height: 1.6;"><strong style="color: #f0f2f5;">Trip insights</strong> - top speed, average speed, stopped time, route efficiency, and fun facts for every tracked trip.</td>
+                        <td style="color: #c0c8d4; font-size: 14px; line-height: 1.6;"><strong style="color: #f0f2f5;">Achievements &amp; recaps</strong> - badges, personal records, weekly and monthly summaries you can share.</td>
                       </tr></table>
                     </td></tr>
                   </table>
 
                   <!-- Pro features -->
-                  <p style="color: #10b981; font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; margin: 0 0 8px;">Pro features</p>
+                  <p style="color: #10b981; font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; margin: 0 0 8px;">Pro features &middot; &pound;4.99/mo</p>
                   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin: 0 0 20px;">
                     <tr><td style="padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.04);">
                       <table role="presentation" cellpadding="0" cellspacing="0"><tr>
                         <td style="width: 28px; vertical-align: top; padding-top: 1px; color: #10b981; font-size: 14px;">&#9672;</td>
-                        <td style="color: #c0c8d4; font-size: 14px; line-height: 1.6;"><strong style="color: #f0f2f5;">HMRC exports</strong> - CSV, PDF trip report, and Self Assessment PDF ready for your tax return.</td>
+                        <td style="color: #c0c8d4; font-size: 14px; line-height: 1.6;"><strong style="color: #f0f2f5;">Self Assessment wizard</strong> - step-by-step mapping of your numbers to actual HMRC SA103 form boxes, with full income tax + NI breakdown.</td>
                       </tr></table>
                     </td></tr>
                     <tr><td style="padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.04);">
                       <table role="presentation" cellpadding="0" cellspacing="0"><tr>
                         <td style="width: 28px; vertical-align: top; padding-top: 1px; color: #10b981; font-size: 14px;">&#9672;</td>
-                        <td style="color: #c0c8d4; font-size: 14px; line-height: 1.6;"><strong style="color: #f0f2f5;">CSV earnings import</strong> - bulk import from Uber, Deliveroo, Just Eat, Amazon Flex, and Stuart.</td>
+                        <td style="color: #c0c8d4; font-size: 14px; line-height: 1.6;"><strong style="color: #f0f2f5;">HMRC-ready exports</strong> - CSV, PDF mileage log, and Self Assessment PDF with a signed attestation cover sheet HMRC inspectors recognise.</td>
                       </tr></table>
                     </td></tr>
                     <tr><td style="padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.04);">
                       <table role="presentation" cellpadding="0" cellspacing="0"><tr>
                         <td style="width: 28px; vertical-align: top; padding-top: 1px; color: #10b981; font-size: 14px;">&#9672;</td>
-                        <td style="color: #c0c8d4; font-size: 14px; line-height: 1.6;"><strong style="color: #f0f2f5;">Business analytics</strong> - earnings per mile, golden hours, platform comparison, weekly P&amp;L.</td>
+                        <td style="color: #c0c8d4; font-size: 14px; line-height: 1.6;"><strong style="color: #f0f2f5;">Accountant Portal</strong> - invite your accountant by email to a read-only dashboard with your trips, expenses, and earnings.</td>
+                      </tr></table>
+                    </td></tr>
+                    <tr><td style="padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.04);">
+                      <table role="presentation" cellpadding="0" cellspacing="0"><tr>
+                        <td style="width: 28px; vertical-align: top; padding-top: 1px; color: #10b981; font-size: 14px;">&#9672;</td>
+                        <td style="color: #c0c8d4; font-size: 14px; line-height: 1.6;"><strong style="color: #f0f2f5;">Receipt scanning</strong> - point your camera at a parking ticket, fuel receipt, or toll. On-device OCR, your images never leave your phone.</td>
+                      </tr></table>
+                    </td></tr>
+                    <tr><td style="padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.04);">
+                      <table role="presentation" cellpadding="0" cellspacing="0"><tr>
+                        <td style="width: 28px; vertical-align: top; padding-top: 1px; color: #10b981; font-size: 14px;">&#9672;</td>
+                        <td style="color: #c0c8d4; font-size: 14px; line-height: 1.6;"><strong style="color: #f0f2f5;">CSV earnings import</strong> - bulk import from Uber, Deliveroo, Just Eat, Amazon Flex, Stuart.</td>
+                      </tr></table>
+                    </td></tr>
+                    <tr><td style="padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.04);">
+                      <table role="presentation" cellpadding="0" cellspacing="0"><tr>
+                        <td style="width: 28px; vertical-align: top; padding-top: 1px; color: #10b981; font-size: 14px;">&#9672;</td>
+                        <td style="color: #c0c8d4; font-size: 14px; line-height: 1.6;"><strong style="color: #f0f2f5;">Business analytics</strong> - earnings per mile, golden hours, platform comparison, weekly P&amp;L, shift grading.</td>
                       </tr></table>
                     </td></tr>
                     <tr><td style="padding: 8px 0;">
                       <table role="presentation" cellpadding="0" cellspacing="0"><tr>
                         <td style="width: 28px; vertical-align: top; padding-top: 1px; color: #10b981; font-size: 14px;">&#9672;</td>
-                        <td style="color: #c0c8d4; font-size: 14px; line-height: 1.6;"><strong style="color: #f0f2f5;">Unlimited saved locations</strong> - save your depots, regular stops, and work zones for auto-classification.</td>
+                        <td style="color: #c0c8d4; font-size: 14px; line-height: 1.6;"><strong style="color: #f0f2f5;">Unlimited saved locations</strong> - save every depot, regular stop, and zone. Free tier capped at 2.</td>
                       </tr></table>
                     </td></tr>
                   </table>
@@ -281,36 +323,36 @@ export async function sendReEngagementEmail(
 
                   <p style="color: #c0c8d4; font-size: 15px; line-height: 1.7; margin: 0 0 20px;">${heroLine}</p>
 
-                  <!-- Feature reminders -->
+                  <!-- Feature reminders (refreshed for 1.1.0) -->
                   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin: 0 0 24px;">
                     <tr><td style="padding: 10px 0; border-bottom: 1px solid rgba(255,255,255,0.04);">
                       <table role="presentation" cellpadding="0" cellspacing="0"><tr>
                         <td style="width: 32px; vertical-align: top; padding-top: 1px; color: #f5a623; font-size: 16px;">&#9672;</td>
-                        <td style="color: #c0c8d4; font-size: 14px; line-height: 1.6;"><strong style="color: #f0f2f5;">Automatic trip recording</strong>  - just drive and MileClear detects your trips in the background. No buttons to press</td>
+                        <td style="color: #c0c8d4; font-size: 14px; line-height: 1.6;"><strong style="color: #f0f2f5;">Tax Readiness card</strong>  - new live tax + NI estimate on the dashboard, with weekly set-aside and a 31 January countdown. Free for everyone.</td>
                       </tr></table>
                     </td></tr>
                     <tr><td style="padding: 10px 0; border-bottom: 1px solid rgba(255,255,255,0.04);">
                       <table role="presentation" cellpadding="0" cellspacing="0"><tr>
                         <td style="width: 32px; vertical-align: top; padding-top: 1px; color: #f5a623; font-size: 16px;">&#9672;</td>
-                        <td style="color: #c0c8d4; font-size: 14px; line-height: 1.6;"><strong style="color: #f0f2f5;">HMRC tax deductions</strong>  - 45p/mile calculated automatically, ready for your self-assessment</td>
+                        <td style="color: #c0c8d4; font-size: 14px; line-height: 1.6;"><strong style="color: #f0f2f5;">Anonymous Benchmarking</strong>  - new card showing how your weekly miles and trips compare to other UK MileClear drivers, with privacy-floored aggregation.</td>
                       </tr></table>
                     </td></tr>
                     <tr><td style="padding: 10px 0; border-bottom: 1px solid rgba(255,255,255,0.04);">
                       <table role="presentation" cellpadding="0" cellspacing="0"><tr>
                         <td style="width: 32px; vertical-align: top; padding-top: 1px; color: #f5a623; font-size: 16px;">&#9672;</td>
-                        <td style="color: #c0c8d4; font-size: 14px; line-height: 1.6;"><strong style="color: #f0f2f5;">Fuel costs &amp; nearby prices</strong>  - log fill-ups and find the cheapest fuel near you from 8,300+ UK stations</td>
+                        <td style="color: #c0c8d4; font-size: 14px; line-height: 1.6;"><strong style="color: #f0f2f5;">MOT &amp; tax expiry reminders</strong>  - push notification 14 days before your vehicle's MOT or tax expires. No more surprise off-road days.</td>
                       </tr></table>
                     </td></tr>
                     <tr><td style="padding: 10px 0; border-bottom: 1px solid rgba(255,255,255,0.04);">
                       <table role="presentation" cellpadding="0" cellspacing="0"><tr>
                         <td style="width: 32px; vertical-align: top; padding-top: 1px; color: #f5a623; font-size: 16px;">&#9672;</td>
-                        <td style="color: #c0c8d4; font-size: 14px; line-height: 1.6;"><strong style="color: #f0f2f5;">Achievements &amp; streaks</strong>  - earn badges, hit milestones, and track your driving consistency</td>
+                        <td style="color: #c0c8d4; font-size: 14px; line-height: 1.6;"><strong style="color: #f0f2f5;">HMRC Reconciliation</strong>  - HMRC has been receiving your platform earnings since January 2024. Compare what they have to what you tracked.</td>
                       </tr></table>
                     </td></tr>
                     <tr><td style="padding: 10px 0;">
                       <table role="presentation" cellpadding="0" cellspacing="0"><tr>
                         <td style="width: 32px; vertical-align: top; padding-top: 1px; color: #f5a623; font-size: 16px;">&#9672;</td>
-                        <td style="color: #c0c8d4; font-size: 14px; line-height: 1.6;"><strong style="color: #f0f2f5;">Works for everyone</strong>  - whether you're a gig driver claiming tax or just want to track personal driving and costs</td>
+                        <td style="color: #c0c8d4; font-size: 14px; line-height: 1.6;"><strong style="color: #f0f2f5;">Plus everything else</strong>  - automatic GPS tracking, 45p/mile HMRC deductions, fuel-price comparison across 8,300+ UK stations, achievements, weekly recaps. All still free.</td>
                       </tr></table>
                     </td></tr>
                   </table>
@@ -325,7 +367,7 @@ export async function sendReEngagementEmail(
                   <!-- CTA for active users -->
                   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin: 0 0 24px;">
                     <tr><td style="background-color: rgba(245,166,35,0.08); border: 1px solid rgba(245,166,35,0.15); border-radius: 10px; padding: 18px 20px;">
-                      <p style="color: #d4b87a; font-size: 14px; line-height: 1.65; margin: 0;"><strong style="color: #f5a623;">What's new:</strong> Trips near your saved work locations are now auto-classified as business. Shift grades reflect real profit after fuel and wear costs. And if something goes wrong, there's a Contact Support button right in the error message.</p>
+                      <p style="color: #d4b87a; font-size: 14px; line-height: 1.65; margin: 0;"><strong style="color: #f5a623;">Version 1.1.0 just shipped:</strong> the Tax Readiness card, Anonymous Benchmarking, HMRC Reconciliation, MOT history, and a pickup wait timer all landed today. Open the app to see them on the Work dashboard. Full notes at <a href="https://mileclear.com/updates/whats-new-in-version-1-1-0" style="color: #f5a623; text-decoration: none;">mileclear.com/updates</a>.</p>
                     </td></tr>
                   </table>`}
 
@@ -363,7 +405,7 @@ export async function sendUpdateEmail(
   displayName?: string | null
 ): Promise<void> {
   const greeting = displayName ? `Hi ${escapeHtml(displayName)},` : "Hi there,";
-  const subject = "What's new in MileClear";
+  const subject = "MileClear 1.1.0 - your tax-time co-pilot just got real";
   const html = `<!DOCTYPE html>
 <html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
 <body style="margin: 0; padding: 0; background-color: #030712; font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
@@ -377,48 +419,63 @@ export async function sendUpdateEmail(
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
       <tr><td style="height: 3px; background: linear-gradient(90deg, #f5a623, #e8950f); border-radius: 16px 16px 0 0; font-size: 0; line-height: 0;">&nbsp;</td></tr>
       <tr><td style="padding: 36px 32px 32px;">
-        <h1 style="margin: 0 0 24px; font-size: 22px; font-weight: 700; color: #f0f2f5;">What's new in <span style="color: #f5a623;">MileClear</span></h1>
+        <p style="color: #f5a623; font-size: 12px; font-weight: 700; letter-spacing: 0.6px; text-transform: uppercase; margin: 0 0 8px;">Version 1.1.0</p>
+        <h1 style="margin: 0 0 24px; font-size: 24px; font-weight: 700; color: #f0f2f5; letter-spacing: -0.4px;">A step change for <span style="color: #f5a623;">MileClear</span></h1>
         <p style="color: #c0c8d4; font-size: 15px; line-height: 1.7; margin: 0 0 16px;">${greeting}</p>
-        <p style="color: #c0c8d4; font-size: 15px; line-height: 1.7; margin: 0 0 20px;">Big update this week. MileClear now classifies your trips automatically so you don't have to.</p>
+        <p style="color: #c0c8d4; font-size: 15px; line-height: 1.7; margin: 0 0 24px;">1.1.0 is the biggest release we've shipped. MileClear is no longer just a mileage tracker - it now actively helps you stay on top of tax, vehicle compliance, and how you compare to other UK gig drivers.</p>
 
-        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin: 0 0 20px;">
-          <tr><td style="padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.04);">
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin: 0 0 24px;">
+          <tr><td style="padding: 10px 0; border-bottom: 1px solid rgba(255,255,255,0.04);">
             <table role="presentation" cellpadding="0" cellspacing="0"><tr>
               <td style="width: 28px; vertical-align: top; padding-top: 1px; color: #f5a623; font-size: 14px;">&#9672;</td>
-              <td style="color: #c0c8d4; font-size: 14px; line-height: 1.6;"><strong style="color: #f0f2f5;">Smart auto-classification</strong> - trips are now classified using your saved locations, work schedule, and driving patterns. Classify a route 3 times and MileClear learns it permanently.</td>
+              <td style="color: #c0c8d4; font-size: 14px; line-height: 1.6;"><strong style="color: #f0f2f5;">Tax Readiness card</strong> - on the Work dashboard. Live estimated tax + NI for the year, weekly set-aside calculated from your real numbers, and a countdown to 31 January.</td>
             </tr></table>
           </td></tr>
-          <tr><td style="padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.04);">
+          <tr><td style="padding: 10px 0; border-bottom: 1px solid rgba(255,255,255,0.04);">
             <table role="presentation" cellpadding="0" cellspacing="0"><tr>
               <td style="width: 28px; vertical-align: top; padding-top: 1px; color: #f5a623; font-size: 14px;">&#9672;</td>
-              <td style="color: #c0c8d4; font-size: 14px; line-height: 1.6;"><strong style="color: #f0f2f5;">Classify from your lock screen</strong> - Business and Personal buttons now appear right on the trip notification. No need to open the app.</td>
+              <td style="color: #c0c8d4; font-size: 14px; line-height: 1.6;"><strong style="color: #f0f2f5;">Anonymous Benchmarking</strong> - see how your weekly miles, trips, and platform mix compare to other UK MileClear drivers. Privacy floor of 5 contributors per cell. Your numbers, real industry context.</td>
             </tr></table>
           </td></tr>
-          <tr><td style="padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.04);">
+          <tr><td style="padding: 10px 0; border-bottom: 1px solid rgba(255,255,255,0.04);">
             <table role="presentation" cellpadding="0" cellspacing="0"><tr>
               <td style="width: 28px; vertical-align: top; padding-top: 1px; color: #f5a623; font-size: 14px;">&#9672;</td>
-              <td style="color: #c0c8d4; font-size: 14px; line-height: 1.6;"><strong style="color: #f0f2f5;">Batch classify</strong> - unclassified trips on the same route are grouped together. Tap once to classify them all.</td>
+              <td style="color: #c0c8d4; font-size: 14px; line-height: 1.6;"><strong style="color: #f0f2f5;">HMRC Reconciliation</strong> - HMRC has been receiving your earnings from every gig platform since January 2024. Enter what they have on file, see the gap against MileClear's tracked figure, fix it before they ask.</td>
             </tr></table>
           </td></tr>
-          <tr><td style="padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.04);">
+          <tr><td style="padding: 10px 0; border-bottom: 1px solid rgba(255,255,255,0.04);">
             <table role="presentation" cellpadding="0" cellspacing="0"><tr>
               <td style="width: 28px; vertical-align: top; padding-top: 1px; color: #f5a623; font-size: 14px;">&#9672;</td>
-              <td style="color: #c0c8d4; font-size: 14px; line-height: 1.6;"><strong style="color: #f0f2f5;">Faster trip recording</strong> - auto-detected trips now appear within minutes of parking, not 30+. If your car has Bluetooth, it's even faster.</td>
+              <td style="color: #c0c8d4; font-size: 14px; line-height: 1.6;"><strong style="color: #f0f2f5;">MOT &amp; tax expiry reminders</strong> - we now refresh your vehicle's DVLA data weekly and push you 14 days before MOT or tax runs out. Stops the missed-MOT income hit dead.</td>
             </tr></table>
           </td></tr>
-          <tr><td style="padding: 8px 0;">
+          <tr><td style="padding: 10px 0; border-bottom: 1px solid rgba(255,255,255,0.04);">
             <table role="presentation" cellpadding="0" cellspacing="0"><tr>
               <td style="width: 28px; vertical-align: top; padding-top: 1px; color: #f5a623; font-size: 14px;">&#9672;</td>
-              <td style="color: #c0c8d4; font-size: 14px; line-height: 1.6;"><strong style="color: #f0f2f5;">Live Activity redesign</strong> - bolder numbers, branded look, and more reliable on auto-detected trips.</td>
+              <td style="color: #c0c8d4; font-size: 14px; line-height: 1.6;"><strong style="color: #f0f2f5;">MOT History</strong> - the full DVSA record for any vehicle with a registration plate. Test results, advisories, defects, odometer growth between tests.</td>
+            </tr></table>
+          </td></tr>
+          <tr><td style="padding: 10px 0; border-bottom: 1px solid rgba(255,255,255,0.04);">
+            <table role="presentation" cellpadding="0" cellspacing="0"><tr>
+              <td style="width: 28px; vertical-align: top; padding-top: 1px; color: #f5a623; font-size: 14px;">&#9672;</td>
+              <td style="color: #c0c8d4; font-size: 14px; line-height: 1.6;"><strong style="color: #f0f2f5;">Activity Heatmap</strong> - 7 days &times; 24 hours of when you actually drive and earn most, filtered by platform.</td>
+            </tr></table>
+          </td></tr>
+          <tr><td style="padding: 10px 0;">
+            <table role="presentation" cellpadding="0" cellspacing="0"><tr>
+              <td style="width: 28px; vertical-align: top; padding-top: 1px; color: #f5a623; font-size: 14px;">&#9672;</td>
+              <td style="color: #c0c8d4; font-size: 14px; line-height: 1.6;"><strong style="color: #f0f2f5;">Pickup wait timer</strong> - on the Active Recording screen. Tap when you arrive at a restaurant, tap when picked up. Foundation for community wait-time insights coming in 1.2.</td>
             </tr></table>
           </td></tr>
         </table>
 
-        <p style="color: #c0c8d4; font-size: 15px; line-height: 1.7; margin: 0 0 20px;">More on the way. Check out our <a href="https://mileclear.com/updates" style="color: #f5a623; text-decoration: none;">Updates &amp; Blog</a> for the full story.</p>
+        <p style="color: #c0c8d4; font-size: 15px; line-height: 1.7; margin: 0 0 8px;"><strong style="color: #f0f2f5;">Plus:</strong> first-time Self Assessment guide for new self-employed drivers, HMRC attestation cover sheet on the Self Assessment PDF (Pro), an earnings adoption nudge for the data-tracker-but-not-earnings-logger crowd, a higher-rate threshold warning for £40k+ profit drivers, and a sparse-GPS-trace fix for trips that previously rendered as straight lines.</p>
+
+        <p style="color: #c0c8d4; font-size: 15px; line-height: 1.7; margin: 16px 0 24px;">Full release notes: <a href="https://mileclear.com/updates/whats-new-in-version-1-1-0" style="color: #f5a623; text-decoration: none;">What's New in 1.1.0</a>. And what's coming next: <a href="https://mileclear.com/updates/whats-coming-next" style="color: #f5a623; text-decoration: none;">our roadmap</a>.</p>
 
         <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin: 0 0 28px;">
           <tr><td style="background-color: rgba(245,166,35,0.08); border: 1px solid rgba(245,166,35,0.15); border-radius: 10px; padding: 18px 20px;">
-            <p style="color: #d4b87a; font-size: 14px; line-height: 1.65; margin: 0;">Something not working? Got ideas? Just reply to this email. I read every message and I'll get back to you personally.</p>
+            <p style="color: #d4b87a; font-size: 14px; line-height: 1.65; margin: 0;">Something not working? Got ideas? Reply to this email - I read every message and I'll get back to you personally. Several of the features above came directly from messages like that.</p>
           </td></tr>
         </table>
 
