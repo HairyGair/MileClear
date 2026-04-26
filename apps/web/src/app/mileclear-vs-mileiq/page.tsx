@@ -75,7 +75,7 @@ const productSchema = {
       name: "Pro",
       price: "4.99",
       priceCurrency: "GBP",
-      description: "PDF and CSV exports, Self Assessment summary, Open Banking, unlimited saved locations.",
+      description: "Self Assessment wizard, HMRC-ready PDF exports with attestation cover sheet, Accountant Portal, receipt OCR, business insights, pickup-wait community insights, unlimited saved locations.",
     },
   ],
 };
@@ -214,10 +214,58 @@ export default function MileClearVsMileIQ() {
                       highlight: true,
                     },
                     {
+                      feature: "Tax Readiness Card",
+                      mileclear: "Live tax + NI estimate, weekly set-aside, deadline countdown (free)",
+                      mileiq: "Not available",
+                      highlight: true,
+                    },
+                    {
+                      feature: "Anonymous Benchmarking",
+                      mileclear: "Your weekly miles and trips vs other UK drivers, with privacy-floored aggregation (free)",
+                      mileiq: "Not available",
+                      highlight: true,
+                    },
+                    {
+                      feature: "HMRC Reconciliation",
+                      mileclear: "Compare what HMRC sees against what you tracked, per platform (free)",
+                      mileiq: "Not available",
+                      highlight: true,
+                    },
+                    {
+                      feature: "MOT & Tax Reminders",
+                      mileclear: "DVLA-driven push 14 days before expiry + full DVSA MOT history with advisories (free)",
+                      mileiq: "Not available",
+                      highlight: true,
+                    },
+                    {
                       feature: "Gig Platform Tagging",
-                      mileclear: "Uber, Deliveroo, Amazon Flex, Just Eat, and 6 more",
+                      mileclear: "Uber, Deliveroo, Amazon Flex, Just Eat, DPD, Evri, Stuart, plus 3 more",
                       mileiq: "Generic business/personal only",
                       highlight: true,
+                    },
+                    {
+                      feature: "Pickup Wait Tracking",
+                      mileclear: "Personal timer free; community insights (\"this McDonald's averages 12-min waits\") on Pro",
+                      mileiq: "Not available",
+                      highlight: true,
+                    },
+                    {
+                      feature: "Self Assessment Wizard",
+                      mileclear: "Step-by-step mapping to HMRC SA103 form boxes (Pro)",
+                      mileiq: "Not available - exports only",
+                      highlight: false,
+                    },
+                    {
+                      feature: "Accountant Portal",
+                      mileclear: "Invite by email to a read-only dashboard (Pro)",
+                      mileiq: "Not available",
+                      highlight: false,
+                    },
+                    {
+                      feature: "Receipt Scanning",
+                      mileclear: "On-device OCR for parking, fuel, tolls (Pro)",
+                      mileiq: "Not available",
+                      highlight: false,
                     },
                     {
                       feature: "Offline Mode",
@@ -227,32 +275,38 @@ export default function MileClearVsMileIQ() {
                     },
                     {
                       feature: "Tax Export",
-                      mileclear: "PDF trip report + HMRC Self Assessment PDF (Pro)",
+                      mileclear: "PDF mileage log with signed HMRC attestation cover sheet (Pro)",
                       mileiq: "PDF and Excel reports available",
                       highlight: false,
                     },
                     {
                       feature: "Fuel Prices",
-                      mileclear: "8,300+ UK stations via government-mandated feeds",
+                      mileclear: "8,300+ UK stations via government-mandated feeds (free)",
                       mileiq: "Not included",
                       highlight: true,
                     },
                     {
-                      feature: "Gamification",
-                      mileclear: "43 achievements, streaks, personal records, shift scorecards",
-                      mileiq: "Not included",
+                      feature: "Activity Heatmap",
+                      mileclear: "When you drive and earn most, by hour and platform (free)",
+                      mileiq: "Not available",
                       highlight: false,
                     },
                     {
                       feature: "Shift Mode",
-                      mileclear: "Full shift tracking with scorecard, platform P&L, golden hours",
+                      mileclear: "Full shift tracking with scorecard, platform P&L, golden hours (free, Pro for advanced)",
                       mileiq: "Not included",
                       highlight: false,
                     },
                     {
                       feature: "Earnings Tracking",
-                      mileclear: "Manual, CSV import, and Open Banking sync (Pro)",
+                      mileclear: "Manual logging free; CSV import from gig platforms (Pro)",
                       mileiq: "Basic income tracking",
+                      highlight: false,
+                    },
+                    {
+                      feature: "Gamification",
+                      mileclear: "Achievements, streaks, personal records, shift scorecards",
+                      mileiq: "Not included",
                       highlight: false,
                     },
                     {
@@ -260,12 +314,6 @@ export default function MileClearVsMileIQ() {
                       mileclear: "iOS now, Android on roadmap",
                       mileiq: "iOS and Android",
                       highlight: false,
-                    },
-                    {
-                      feature: "Free Tier",
-                      mileclear: "Unlimited trip tracking, HMRC calculator, all achievements",
-                      mileiq: "Very limited free tier",
-                      highlight: true,
                     },
                   ].map(({ feature, mileclear, mileiq, highlight }, i) => (
                     <tr
@@ -384,16 +432,18 @@ export default function MileClearVsMileIQ() {
                 Half the Price with a Full Free Tier
               </h2>
               <p style={{ color: "#94a3b8", fontSize: "0.9375rem", lineHeight: 1.7, marginBottom: "1rem" }}>
-                MileIQ&apos;s pricing removes most useful features behind a paywall with limited free
-                functionality. MileClear gives you unlimited trip tracking, the HMRC deduction calculator,
-                all 43 achievements, shift mode, automatic drive detection, and real-time fuel prices for
-                free - with no cap on the number of trips.
+                MileIQ&apos;s pricing puts most useful features behind a paywall with a very limited free
+                tier. MileClear gives you unlimited trip tracking, the live Tax Readiness card, Anonymous
+                Benchmarking, HMRC Reconciliation, MOT and tax expiry reminders, the Activity Heatmap,
+                shift mode, automatic drive detection, achievements, and real-time fuel prices for free -
+                with no cap on the number of trips.
               </p>
               <p style={{ color: "#94a3b8", fontSize: "0.9375rem", lineHeight: 1.7 }}>
-                Pro is £4.99 per month - roughly 60% of what MileIQ charges - and adds HMRC-ready PDF
-                and CSV exports, a self-assessment summary, earnings imports via CSV or Open Banking,
-                and unlimited saved locations. If you only need trip tracking and your deduction total,
-                MileClear is free forever.
+                Pro is £4.99 per month - roughly 60% of what MileIQ charges - and adds the Self Assessment
+                wizard, HMRC-ready PDF and CSV exports with a signed attestation cover sheet, the Accountant
+                Portal, on-device receipt scanning, CSV earnings import from gig platforms, business insights,
+                and unlimited saved locations. If you only need the Tax Readiness card, Anonymous Benchmarking,
+                MOT reminders, and trip tracking, MileClear is free forever.
               </p>
             </section>
 
@@ -599,7 +649,7 @@ export default function MileClearVsMileIQ() {
               },
               {
                 q: "Is there a free trial for MileClear Pro?",
-                a: "MileClear's free tier is genuinely unlimited for trip tracking - there is no trial period, it is just free. Pro features like PDF exports and Open Banking can be unlocked at any time for £4.99 per month.",
+                a: "MileClear's free tier is genuinely unlimited for trip tracking - there is no trial period, it is just free. The Tax Readiness card, Anonymous Benchmarking, HMRC Reconciliation, and MOT reminders are all on the free tier. Pro features like the Self Assessment wizard, PDF exports, and the Accountant Portal can be unlocked at any time for £4.99 per month.",
               },
               {
                 q: "Does MileClear work without internet?",

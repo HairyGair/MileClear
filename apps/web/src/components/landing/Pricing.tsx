@@ -7,29 +7,30 @@ const Tick = () => (
 );
 
 const free = [
-  "Unlimited trip tracking (GPS and manual)",
-  "Auto trip detection and recording",
-  "Shift mode with scorecards",
-  "HMRC tax deduction calculator",
+  "Unlimited GPS trip tracking with auto-detection",
+  "Tax Readiness card (live tax estimate, weekly set-aside, deadline countdown)",
+  "Anonymous Benchmarking vs other UK drivers",
+  "HMRC Reconciliation - compare what HMRC sees to what you tracked",
+  "MOT and tax expiry reminders + full DVSA MOT history",
+  "Activity Heatmap (when you drive and earn most)",
+  "Shift mode with platform tagging",
   "Fuel prices from 8,300+ UK stations",
-  "43 achievements, streaks, and recaps",
-  "Live Activities on lock screen",
+  "Pickup wait timer (community insights are Pro)",
+  "Achievements, streaks, weekly and monthly recaps",
   "2 saved locations with geofencing",
-  "Vehicle management with DVLA lookup",
-  "Apple Sign-In and email auth",
 ];
 
 const pro = [
   "Everything in Free, plus:",
-  "PDF trip reports and Self Assessment exports",
-  "CSV exports for accountants",
-  "Earnings tracking across platforms",
-  "CSV earnings import (bulk)",
-  "Open Banking earnings sync",
-  "Business insights and weekly P&L",
-  "Platform comparison and golden hours",
+  "Self Assessment wizard - mapped to HMRC SA103 form boxes",
+  "PDF mileage log with signed HMRC attestation cover sheet",
+  "CSV and accounting-software exports",
+  "Accountant Portal (read-only dashboard you can invite by email)",
+  "Receipt scanning - on-device OCR, your images stay on your phone",
+  "CSV earnings import from Uber, Deliveroo, Just Eat, Amazon Flex, Stuart",
+  "Business insights - earnings/mile, golden hours, weekly P&L, shift grades",
+  "Pickup-wait community insights (where averages 12-min waits)",
   "Unlimited saved locations",
-  "Priority support",
 ];
 
 export default function Pricing() {
@@ -83,7 +84,7 @@ export default function Pricing() {
 
         <Reveal delay="reveal-d2">
           <p className="pricing__footnote">
-            Annual plan available at &pound;44.99/year (save 25%). No card needed to start.
+            Cancel anytime from inside the app. No card needed to start the free tier.
           </p>
           <div style={{ textAlign: "center", marginTop: "1rem" }}>
             <a href="/pricing" style={{ color: "var(--amber-400)", fontFamily: "var(--font-display)", fontSize: "0.9375rem", textDecoration: "none" }}>

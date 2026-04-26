@@ -47,38 +47,48 @@ const Tick = ({ pro }: { pro?: boolean }) => (
 );
 
 const freeFeatures = [
-  'Unlimited GPS trip tracking',
-  'Automatic drive detection',
+  'Unlimited GPS trip tracking with auto-detection',
+  'Tax Readiness card - live HMRC tax + NI estimate, weekly set-aside, 31 January countdown',
+  'Anonymous Benchmarking - your weekly miles and trips vs other UK drivers',
+  'HMRC Reconciliation - compare what HMRC sees to what you tracked',
+  'MOT and tax expiry reminders (push 14 days before)',
+  'Full DVSA MOT history with advisories and odometer growth',
+  'Activity Heatmap - when you drive and earn most, by hour and platform',
+  'Pickup wait timer for restaurants and depots',
+  'Shift mode with platform tagging and live earnings',
+  'UK fuel prices from 8,300+ stations',
   'Live Activities on the lock screen',
   'Business and personal trip classification',
-  'HMRC mileage deduction calculator',
-  'Shift mode with platform tagging',
-  'UK fuel prices from 8,300+ stations',
-  '43 achievements and streaks',
+  'HMRC mileage deduction calculator (45p/25p car, 24p moped)',
+  'Higher-rate threshold warning when approaching £50,270',
+  'First-time Self Assessment guide',
+  'Achievements, streaks, weekly and monthly recaps',
   '2 saved locations with geofencing',
   'Push notifications and weekly summaries',
 ];
 
 const proFeatures = [
   'Everything in Free, plus:',
-  'PDF and CSV trip exports',
-  'Self Assessment summary (HMRC-ready)',
-  'Business expense tracking with tax estimate',
-  'Earnings tracking - manual and CSV import',
-  'Open Banking sync via Plaid',
-  'Weekly P&L and business intelligence',
-  'Platform comparison and shift grades',
+  'Self Assessment wizard - step-by-step mapping to HMRC SA103 form boxes',
+  'PDF mileage log with signed HMRC attestation cover sheet',
+  'CSV and accounting-software exports',
+  'Accountant Portal - read-only dashboard you can invite your accountant to',
+  'Receipt scanning - on-device OCR for parking tickets, fuel, tolls',
+  'CSV earnings import from Uber, Deliveroo, Just Eat, Amazon Flex, Stuart',
+  'Business insights - earnings per mile, golden hours, weekly P&L, shift grades',
+  'Pickup-wait community insights - "drivers here average 12-min waits"',
+  'Anonymous Benchmarking platform breakdowns and regional cuts',
   'Unlimited saved locations',
 ];
 
 const faqs = [
   {
     q: 'Is MileClear really free?',
-    a: 'Yes, genuinely. The free plan has no trip limits, no time limits, and no surprise paywalls on core features. You can track unlimited GPS journeys, classify trips as business or personal, use the HMRC calculator, and earn all 43 achievements without spending a penny. The free plan is not a trial - it stays free for as long as you use it.',
+    a: 'Yes, genuinely. The free plan has no trip limits, no time limits, and no surprise paywalls on core features. The Tax Readiness card, Anonymous Benchmarking, MOT reminders, HMRC Reconciliation - all free for everyone. The free plan is not a trial - it stays free for as long as you use it.',
   },
   {
     q: 'What happens when I upgrade to Pro?',
-    a: 'You unlock tax-ready exports immediately - PDF trip reports, CSV files for your accountant, and a Self Assessment mileage summary. You also get earnings tracking with CSV import, Open Banking sync, business intelligence reports, and unlimited saved locations. Everything switches on the moment your payment goes through, with no setup needed.',
+    a: 'You unlock the Self Assessment wizard, PDF and CSV exports, the Accountant Portal, receipt scanning, CSV earnings import, business insights (golden hours, P&L, shift grades), pickup-wait community insights, and unlimited saved locations. Everything switches on the moment your payment goes through.',
   },
   {
     q: 'Can I cancel anytime?',
@@ -86,15 +96,19 @@ const faqs = [
   },
   {
     q: 'Is there a free trial?',
-    a: 'There is no time-limited trial, but the free plan is comprehensive enough to get a clear sense of how the app works before upgrading. You can track trips, see your HMRC deduction build up, and use the dashboard fully before deciding if exports are worth it for you.',
+    a: 'There is no time-limited trial, but the free plan is genuinely comprehensive. You can use the Tax Readiness card, Anonymous Benchmarking, HMRC Reconciliation, MOT history, and the dashboard fully before deciding if the Pro tools (Self Assessment wizard, exports, Accountant Portal, receipt OCR) are worth it for you.',
   },
   {
-    q: 'How does the annual plan work?',
-    a: 'The annual plan costs £44.99 per year, which works out at £3.75 per month - a saving of 25% compared to paying monthly. You are billed once per year. On iOS the annual plan is available as an in-app purchase via Apple. The annual plan is otherwise identical to the monthly Pro plan, with the same features and the same ability to cancel.',
+    q: 'Do I need Pro to file my Self Assessment?',
+    a: 'You do not need Pro to track your mileage or to see your HMRC deduction build up - that is all on the free plan. Pro is for the export workflow: a PDF mileage log with a signed cover sheet that HMRC inspectors recognise, the Self Assessment wizard that maps your numbers to specific SA103 form boxes, and the Accountant Portal that lets you share read-only access by email. If you do your own return manually using just the numbers, free is enough.',
   },
   {
-    q: 'Do I need Pro for HMRC compliance?',
-    a: 'You do not need Pro to track your mileage or to calculate your HMRC deduction - that all happens on the free plan. You only need Pro if you want to export your mileage log as a PDF or CSV for your self-assessment tax return or to share with an accountant. If you keep records manually or just need the numbers, free is enough.',
+    q: 'How does payment work?',
+    a: 'On iOS, Pro is sold via Apple In-App Purchase - your card details stay with Apple. You manage and cancel from your phone Settings under your Apple ID, or from MileClear Profile. Web sign-ups go via Stripe; same cancel-anytime guarantees apply.',
+  },
+  {
+    q: 'Do you offer an annual plan?',
+    a: 'Not yet. Pro is currently monthly only at £4.99/month. An annual plan is on the roadmap and will land before public App Store launch.',
   },
 ];
 
@@ -122,7 +136,7 @@ export default function PricingPage() {
         availability: 'https://schema.org/InStock',
         url: 'https://mileclear.com/pricing',
         description:
-          'Unlimited GPS trip tracking, automatic drive detection, HMRC mileage calculator, shift mode, fuel prices, and 43 achievements. Free forever.',
+          'Unlimited GPS trip tracking, Tax Readiness card, Anonymous Benchmarking, HMRC Reconciliation, MOT and tax expiry reminders, MOT history, Activity Heatmap, fuel prices, achievements, and weekly recaps. Free forever.',
       },
       {
         '@type': 'Offer',
@@ -132,7 +146,7 @@ export default function PricingPage() {
         availability: 'https://schema.org/InStock',
         url: 'https://mileclear.com/pricing',
         description:
-          'PDF and CSV exports, Self Assessment summary, business expense tracking, earnings tracking, Open Banking, business insights, unlimited saved locations.',
+          'Self Assessment wizard, PDF and CSV exports with HMRC attestation cover sheet, Accountant Portal, receipt scanning, CSV earnings import, business insights, pickup-wait community insights, unlimited saved locations.',
         priceSpecification: {
           '@type': 'UnitPriceSpecification',
           price: '4.99',
@@ -140,24 +154,6 @@ export default function PricingPage() {
           unitCode: 'MON',
           unitText: 'month',
           billingDuration: 'P1M',
-        },
-      },
-      {
-        '@type': 'Offer',
-        name: 'Pro Annual',
-        price: '44.99',
-        priceCurrency: 'GBP',
-        availability: 'https://schema.org/InStock',
-        url: 'https://mileclear.com/pricing',
-        description:
-          'All Pro features billed annually at £44.99 per year. Works out at £3.75 per month, a 25% saving versus monthly.',
-        priceSpecification: {
-          '@type': 'UnitPriceSpecification',
-          price: '44.99',
-          priceCurrency: 'GBP',
-          unitCode: 'ANN',
-          unitText: 'year',
-          billingDuration: 'P1Y',
         },
       },
     ],
@@ -238,7 +234,7 @@ export default function PricingPage() {
                   &pound;4.99<span className="p-card__period"> /month</span>
                 </p>
                 <p className="p-card__desc">
-                  Tax-ready exports, earnings insights, and the full toolkit for self-employed drivers. Also available at &pound;44.99/year - save 25%.
+                  Self Assessment wizard, HMRC-ready exports, Accountant Portal, receipt scanning, and the full business-insights toolkit for self-employed drivers.
                 </p>
                 <ul className="p-card__list">
                   {proFeatures.map((feature) => (
@@ -253,7 +249,7 @@ export default function PricingPage() {
             </div>
 
             <p className="pricing__footnote">
-              Annual plan available at &pound;44.99/year (save 25%). No card needed to start on the free plan.
+              Cancel anytime from inside the app. No card needed to start on the free plan.
             </p>
           </div>
         </section>

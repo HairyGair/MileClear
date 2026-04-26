@@ -6,7 +6,7 @@ import Reveal from "./Reveal";
 const faqs: { q: string; a: React.ReactNode }[] = [
   {
     q: "Is MileClear really free?",
-    a: "Yes. Trip tracking, shift mode, auto detection, fuel prices, achievements, and your HMRC deduction total are all completely free with no limits. Pro features like PDF exports, earnings tracking, and Open Banking are \u00A34.99/month or \u00A344.99/year.",
+    a: "Yes. Trip tracking, shift mode, auto detection, fuel prices, achievements, and your HMRC deduction total are all completely free with no limits. Pro features like the Self Assessment wizard, PDF exports, the Accountant Portal, and receipt scanning are \u00A34.99/month.",
   },
   {
     q: "How is this different from MileIQ?",
@@ -22,7 +22,7 @@ const faqs: { q: string; a: React.ReactNode }[] = [
   },
   {
     q: "Can I use it for HMRC Self Assessment?",
-    a: "Yes. Pro users can download PDF trip reports and a Self Assessment summary with every trip dated, timed, classified by business or personal, and distance-verified. Your accountant will thank you.",
+    a: "Yes. The Tax Readiness card on the free tier shows your live HMRC tax + NI estimate every time you open the app. Pro adds a step-by-step Self Assessment wizard that maps your numbers to specific HMRC SA103 form boxes, plus a PDF mileage log with a signed attestation cover sheet that HMRC inspectors recognise. You can also invite your accountant to a read-only Accountant Portal.",
   },
   {
     q: "What vehicles are supported?",

@@ -73,14 +73,21 @@ const featuresItemList = {
     name: "MileClear feature list",
     itemListElement: [
       "Automatic GPS trip recording with background detection",
-      "HMRC tax deduction calculator (45p/25p car, 24p motorbike)",
-      "Live Activities on lock screen and Dynamic Island",
+      "Tax Readiness card with live HMRC tax estimate and weekly set-aside",
+      "Anonymous Benchmarking against other UK drivers",
+      "HMRC Reconciliation against Digital Platform Reporting figures",
+      "MOT and tax expiry reminders + full DVSA MOT history",
+      "Activity Heatmap of when you drive and earn most",
       "Shift mode with scorecards and platform tagging",
-      "Business insights with earnings per mile, per hour, weekly P&L",
+      "Business insights with earnings per mile, per hour, weekly P&L (Pro)",
       "UK fuel prices from 8,300+ government-mandated stations",
       "Saved locations with geofencing for auto-classification",
-      "PDF and CSV exports for HMRC Self Assessment",
-      "Open Banking earnings sync via Plaid",
+      "Self Assessment wizard with HMRC SA103 box mapping (Pro)",
+      "PDF mileage log with signed HMRC attestation cover sheet (Pro)",
+      "Accountant Portal - read-only dashboard sharing (Pro)",
+      "On-device receipt OCR (Pro)",
+      "Pickup wait timer with community insights (Pro)",
+      "Live Activities on lock screen and Dynamic Island",
       "Offline-first with background tracking",
     ].map((name, i) => ({
       "@type": "ListItem",
@@ -542,7 +549,7 @@ export default function FeaturesPage() {
                     "Platform tagging (10 platforms)",
                     "Manual earnings entry",
                     "CSV earnings import (Pro)",
-                    "Open Banking sync (Pro)",
+                    "Pickup wait timer",
                     "Earnings per mile calculation",
                   ].map((item) => (
                     <div
@@ -1154,8 +1161,8 @@ export default function FeaturesPage() {
                   margin: "0 auto",
                 }}
               >
-                Most features are free. Pro adds tax exports, bulk earnings
-                import, and Open Banking for{" "}
+                Most features are free. Pro adds the Self Assessment wizard,
+                tax exports, the Accountant Portal, and receipt OCR for{" "}
                 <a
                   href="/pricing"
                   style={{ color: "var(--amber-400)", textDecoration: "underline" }}
@@ -1229,22 +1236,31 @@ export default function FeaturesPage() {
               {[
                 { feature: "GPS trip recording", free: true, pro: true },
                 { feature: "Manual trip entry", free: true, pro: true },
-                { feature: "Shift mode (clock on/off)", free: true, pro: true },
+                { feature: "Tax Readiness card (live HMRC estimate)", free: true, pro: true },
+                { feature: "Anonymous Benchmarking vs other UK drivers", free: true, pro: true },
+                { feature: "HMRC Reconciliation (Digital Platform Reporting)", free: true, pro: true },
+                { feature: "MOT and tax expiry reminders + DVSA history", free: true, pro: true },
+                { feature: "Activity Heatmap (when you drive most)", free: true, pro: true },
+                { feature: "Shift mode with scorecards", free: true, pro: true },
                 { feature: "HMRC mileage deduction tracking", free: true, pro: true },
                 { feature: "Platform tagging (Uber, Deliveroo etc)", free: true, pro: true },
                 { feature: "Earnings entry (manual)", free: true, pro: true },
-                { feature: "Business intelligence dashboard", free: true, pro: true },
                 { feature: "UK fuel prices (8,300+ stations)", free: true, pro: true },
                 { feature: "Fuel fill-up logging", free: true, pro: true },
-                { feature: "Gamification (43 achievements, streaks)", free: true, pro: true },
-                { feature: "Saved locations (home, work, depot)", free: "2 max", pro: "Unlimited" },
+                { feature: "Pickup wait timer (personal)", free: true, pro: true },
+                { feature: "Achievements, streaks, recaps", free: true, pro: true },
                 { feature: "Vehicle CRUD with DVLA lookup", free: true, pro: true },
+                { feature: "First-time Self Assessment guide", free: true, pro: true },
                 { feature: "Web dashboard", free: true, pro: true },
+                { feature: "Saved locations (home, work, depot)", free: "2 max", pro: "Unlimited" },
+                { feature: "Self Assessment wizard (SA103 mapping)", free: false, pro: true },
+                { feature: "PDF mileage log with HMRC attestation", free: false, pro: true },
                 { feature: "CSV trip export", free: false, pro: true },
-                { feature: "PDF trip report", free: false, pro: true },
-                { feature: "HMRC Self Assessment PDF", free: false, pro: true },
-                { feature: "CSV earnings import", free: false, pro: true },
-                { feature: "Open Banking (Plaid)", free: false, pro: true },
+                { feature: "Accountant Portal (read-only sharing)", free: false, pro: true },
+                { feature: "Receipt scanning (on-device OCR)", free: false, pro: true },
+                { feature: "CSV earnings import (gig platforms)", free: false, pro: true },
+                { feature: "Business insights (golden hours, P&L)", free: false, pro: true },
+                { feature: "Pickup wait community insights", free: false, pro: true },
               ].map((row, i) => (
                 <div
                   key={row.feature}

@@ -161,7 +161,7 @@ const faqSchema = {
       name: 'What is included in the free plan?',
       acceptedAnswer: {
         '@type': 'Answer',
-        text: 'The free plan includes unlimited GPS trip tracking, shift management, drive detection, business and personal trip classification, platform tags, vehicle management with DVLA lookup, fuel logs and nearby fuel prices from 8,300 stations across the UK, manual earnings tracking, all 43 achievements and gamification features, up to 2 saved locations with geofencing, and push notifications.',
+        text: 'The free plan includes unlimited GPS trip tracking, the Tax Readiness card with live HMRC tax estimate and weekly set-aside, Anonymous Benchmarking against other UK drivers, HMRC Reconciliation against your platforms\' Digital Platform Reporting figures, MOT and tax expiry reminders, full DVSA MOT history with advisories, the Activity Heatmap showing when you drive and earn most, shift management with platform tagging, vehicle management with DVLA lookup, fuel logs and nearby fuel prices from 8,300+ UK stations, manual earnings tracking, the pickup wait timer, achievements and gamification, up to 2 saved locations with geofencing, push notifications, and a first-time Self Assessment guide.',
       },
     },
     {
@@ -169,7 +169,7 @@ const faqSchema = {
       name: 'What does MileClear Pro include?',
       acceptedAnswer: {
         '@type': 'Answer',
-        text: 'MileClear Pro (£4.99 per month or £44.99 per year) adds: HMRC-ready PDF and CSV trip exports, Self Assessment PDF, bulk CSV earnings import, Open Banking via Plaid for automatic earnings sync, unlimited saved locations with geofencing, and accounting software previews for Xero, FreeAgent, and QuickBooks.',
+        text: 'MileClear Pro (£4.99 per month) adds: the Self Assessment wizard with step-by-step HMRC SA103 box mapping, PDF mileage log with a signed HMRC attestation cover sheet, CSV trip exports, the Accountant Portal (read-only dashboard you can invite your accountant to by email), on-device receipt scanning for parking, fuel and toll receipts, CSV earnings import from Uber, Deliveroo, Just Eat, Amazon Flex and Stuart, business insights including earnings per mile, golden hours and weekly P&L, pickup-wait community insights, and unlimited saved locations.',
       },
     },
     {
@@ -185,7 +185,7 @@ const faqSchema = {
       name: 'Is there an annual plan?',
       acceptedAnswer: {
         '@type': 'Answer',
-        text: 'Yes. MileClear Pro is available for £44.99 per year, which works out at around £3.75 per month - saving you over 25% compared to the monthly plan. The annual plan is available on the web dashboard.',
+        text: 'Not yet. Pro is currently monthly only at £4.99/month. An annual plan is on the roadmap and will land before public App Store launch.',
       },
     },
     // Data & Privacy
@@ -429,22 +429,29 @@ export default function FaqPage() {
               <div className="faq__qa">
                 <h3 className="faq__question">What is included in the free plan?</h3>
                 <p className="legal__text">
-                  The free plan includes unlimited GPS trip tracking, shift management, drive
-                  detection, business and personal trip classification, platform tags, vehicle
-                  management with DVLA lookup, fuel logs and nearby fuel prices from over 8,300
-                  stations across the UK, manual earnings tracking, all 43 achievements and
-                  gamification features, up to 2 saved locations with geofencing, and push
-                  notifications.
+                  The free plan includes unlimited GPS trip tracking, the Tax Readiness card with
+                  live HMRC tax estimate and weekly set-aside, Anonymous Benchmarking against other
+                  UK drivers, HMRC Reconciliation against your Digital Platform Reporting figures,
+                  MOT and tax expiry reminders, full DVSA MOT history with advisories, the Activity
+                  Heatmap, shift management with platform tagging, vehicle management with DVLA
+                  lookup, fuel logs and nearby fuel prices from over 8,300 stations across the UK,
+                  manual earnings tracking, the pickup wait timer, achievements and gamification, up
+                  to 2 saved locations with geofencing, push notifications, and a first-time Self
+                  Assessment guide.
                 </p>
               </div>
 
               <div className="faq__qa">
                 <h3 className="faq__question">What does MileClear Pro include?</h3>
                 <p className="legal__text">
-                  MileClear Pro adds HMRC-ready PDF and CSV trip exports, Self Assessment PDF, bulk
-                  CSV earnings import, Open Banking via Plaid for automatic earnings sync, unlimited
-                  saved locations with geofencing, and accounting software previews for Xero,
-                  FreeAgent, and QuickBooks. See{' '}
+                  MileClear Pro adds the Self Assessment wizard with step-by-step HMRC SA103 box
+                  mapping, PDF mileage log with a signed HMRC attestation cover sheet, CSV trip
+                  exports, the Accountant Portal (read-only dashboard you can invite your accountant
+                  to by email), on-device receipt scanning for parking, fuel and toll receipts, CSV
+                  earnings import from Uber, Deliveroo, Just Eat, Amazon Flex and Stuart, business
+                  insights including earnings per mile, golden hours and weekly P&amp;L, pickup-wait
+                  community insights (&quot;drivers here average 12-min waits&quot;), and unlimited
+                  saved locations. See{' '}
                   <a href="/pricing" style={{ color: 'var(--amber-400)' }}>our pricing page</a>{' '}
                   for plan details.
                 </p>
@@ -453,9 +460,8 @@ export default function FaqPage() {
               <div className="faq__qa">
                 <h3 className="faq__question">Is there an annual plan?</h3>
                 <p className="legal__text">
-                  Yes. MileClear Pro is available for <strong>£44.99 per year</strong>, which works
-                  out at around £3.75 per month - saving you over 25% compared to the monthly plan at
-                  £4.99. The annual plan is available on the web dashboard.
+                  Not yet. Pro is currently monthly only at £4.99/month. An annual plan is on the
+                  roadmap and will land before public App Store launch.
                 </p>
               </div>
 
