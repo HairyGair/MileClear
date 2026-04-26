@@ -1,5 +1,11 @@
 import { apiRequest } from "./index";
-import type { Vehicle, FuelType, VehicleType, VehicleLookupResult } from "@mileclear/shared";
+import type {
+  Vehicle,
+  FuelType,
+  VehicleType,
+  VehicleLookupResult,
+  MotHistoryResult,
+} from "@mileclear/shared";
 
 export interface CreateVehicleData {
   make: string;
@@ -54,4 +60,12 @@ export function lookupVehicle(registrationNumber: string) {
     method: "POST",
     body: JSON.stringify({ registrationNumber }),
   });
+}
+
+// MOT history from DVSA. Returns null if the vehicle has no MOT records yet
+// (brand new car). Cached server-side for 24h per registration plate.
+export function fetchMotHistory(vehicleId: string) {
+  return apiRequest<{ data: MotHistoryResult | null }>(
+    `/vehicles/${vehicleId}/mot-history`
+  );
 }

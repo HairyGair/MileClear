@@ -5,6 +5,7 @@ import { prisma } from "../../lib/prisma.js";
 import { cacheGet, cacheSet } from "../../lib/redis.js";
 import { FUEL_TYPES, VEHICLE_TYPES } from "@mileclear/shared";
 import type { FuelType, VehicleLookupResult } from "@mileclear/shared";
+import { fetchMotHistory, DvsaMotError } from "../../services/dvsaMot.js";
 
 const regPlateField = z
   .string()
@@ -274,4 +275,53 @@ export async function vehicleRoutes(app: FastifyInstance) {
 
     return reply.send({ message: "Vehicle deleted" });
   });
+
+  // MOT history from DVSA. Cached for 24h per registration plate via the
+  // in-memory redis-equivalent cache - test history rarely changes.
+  app.get(
+    "/:id/mot-history",
+    {
+      config: { rateLimit: { max: 20, timeWindow: "1 minute" } },
+    },
+    async (request, reply) => {
+      const { id } = z.object({ id: z.string().uuid() }).parse(request.params);
+      const userId = request.userId!;
+
+      const vehicle = await prisma.vehicle.findFirst({
+        where: { id, userId },
+        select: { registrationPlate: true },
+      });
+      if (!vehicle) {
+        return reply.status(404).send({ error: "Vehicle not found" });
+      }
+      if (!vehicle.registrationPlate) {
+        return reply
+          .status(400)
+          .send({ error: "Add a registration plate to fetch MOT history" });
+      }
+
+      const cacheKey = `mot:history:${vehicle.registrationPlate}`;
+      const cached = await cacheGet(cacheKey);
+      if (cached) {
+        return reply.send({ data: JSON.parse(cached) });
+      }
+
+      try {
+        const history = await fetchMotHistory(vehicle.registrationPlate);
+        if (!history) {
+          return reply.send({ data: null }); // brand new car / no test record
+        }
+        await cacheSet(cacheKey, JSON.stringify(history), 24 * 60 * 60);
+        return reply.send({ data: history });
+      } catch (err) {
+        if (err instanceof DvsaMotError && err.status === 503) {
+          return reply.status(503).send({ error: "MOT history is not configured" });
+        }
+        app.log.error({ err }, "MOT history fetch failed");
+        return reply
+          .status(502)
+          .send({ error: "Could not fetch MOT history right now. Please try again." });
+      }
+    }
+  );
 }

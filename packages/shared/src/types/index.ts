@@ -211,6 +211,43 @@ export interface VehicleLookupResult {
   taxDueDate: string | null;
 }
 
+// MOT history from the DVSA MOT History API. Each test includes advisories
+// and defects so drivers can see what was flagged at last inspection.
+export type MotDefectType =
+  | "ADVISORY"
+  | "FAIL"
+  | "MAJOR"
+  | "MINOR"
+  | "DANGEROUS"
+  | "PRS"
+  | "USER ENTERED";
+
+export interface MotDefect {
+  text: string;
+  type: MotDefectType;
+  dangerous: boolean;
+}
+
+export interface MotTestRecord {
+  completedDate: string;        // ISO datetime
+  testResult: string;           // PASSED / FAILED / etc
+  expiryDate: string | null;    // ISO date - present on PASSED tests only
+  odometerValue: number | null;
+  odometerUnit: string | null;  // "mi" or "km"
+  motTestNumber: string;
+  defects: MotDefect[];
+}
+
+export interface MotHistoryResult {
+  registrationNumber: string;
+  make: string | null;
+  model: string | null;
+  firstUsedDate: string | null;
+  fuelType: string | null;
+  primaryColour: string | null;
+  motTests: MotTestRecord[];
+}
+
 // Shift types
 export type ShiftStatus = "active" | "completed";
 

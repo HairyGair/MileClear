@@ -393,6 +393,20 @@ export default function VehicleFormScreen() {
           </View>
         </TouchableOpacity>
 
+        {/* MOT History — edit mode + has plate */}
+        {isEditing && registrationPlate.trim() && (
+          <Button
+            variant="secondary"
+            icon="document-text-outline"
+            title="View MOT History"
+            onPress={() =>
+              router.navigate(`/vehicle-mot-history?id=${id}` as never)
+            }
+            disabled={saving || deleting}
+            style={{ marginTop: 16 }}
+          />
+        )}
+
         {/* Save */}
         <Button
           title={isEditing ? "Save Changes" : "Add Vehicle"}
