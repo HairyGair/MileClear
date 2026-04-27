@@ -51,7 +51,7 @@ export const RELEASE_NOTES: ReleaseNote[] = [
       "HMRC attestation cover sheet on the Self Assessment PDF - one-page signed declaration page sits in front of the existing report, with your name, UTR (blank for you to fill in), tax year period, and the contemporaneous-record attestation language HMRC inspectors recognise. Pro feature.",
       "Vehicle MOT and tax expiry reminders - MileClear now refreshes your primary vehicle's DVLA data weekly and sends a push notification when MOT or tax expires within 14 days. Tap the notification to jump straight to the vehicle.",
       "MOT History - tap 'View MOT History' on any vehicle with a registration plate to see the full DVSA record. Test results, expiry dates, advisories, defects with severity tags, and odometer growth between tests. Pulled live from the DVSA MOT History API.",
-      "Pickup wait timer - tap 'Wait at pickup' on the Active Recording screen when you arrive at a restaurant or depot. The stopwatch runs while you wait; tap 'Picked up' when the order's ready. Survives app suspension. Foundation for community-aggregated 'this McDonald's averages 12-min waits' insights coming in 1.2.",
+      "Pickup wait timer - tap 'Wait at pickup' on the Active Recording screen when you arrive at a restaurant or depot. The stopwatch runs while you wait; tap 'Picked up' when the order's ready. Survives app suspension. Foundation for community-aggregated 'this McDonald's averages 12-min waits' insights landing once enough drivers contribute.",
       "Earnings adoption nudge - if you're tracking trips but haven't logged earnings, the Tax Readiness card shows a one-tap shortcut to the earnings form. Drivers who don't log earnings can't see their real tax estimate.",
       "Sparse-GPS-trace fix - solved the bug where iOS could suspend the JS runtime mid-trip and leave recording stuck in low-power detection mode (200m intervals instead of 50m). The recording-mode upgrade now verifies it took effect and retries automatically.",
       "Web dashboard: Footer 'For drivers' column linking all 6 niche guides (Uber, Deliveroo, Just Eat, Amazon Flex, DPD, Evri) plus the MileIQ comparison.",
@@ -288,7 +288,7 @@ export const BLOG_POSTS: BlogPost[] = [
 
 <p>On the Active Recording screen there is a new "Wait at pickup" tappable card. Tap it when you arrive at a restaurant or depot, and a stopwatch runs. Tap "Picked up" when the order is ready, and the wait is saved with location and platform.</p>
 
-<p>For now, this is just personal data collection - your own waits. The next version will use the aggregated data to surface community insights: "this McDonald's averages 12-minute waits", "Uber pickups in this zone average 4 minutes". You will be able to avoid the slow ones. The infrastructure is in 1.1.0; the community surface comes in 1.2.</p>
+<p>For now, this is just personal data collection - your own waits. A future version will use the aggregated data to surface community insights: "this McDonald's averages 12-minute waits", "Uber pickups in this zone average 4 minutes". You will be able to avoid the slow ones. The infrastructure is in 1.1.0; the community surface comes once enough drivers are contributing.</p>
 
 <h2>First-time Self Assessment guide</h2>
 
@@ -323,7 +323,7 @@ export const BLOG_POSTS: BlogPost[] = [
     slug: "whats-coming-next",
     title: "What's Coming Next",
     excerpt:
-      "After 1.1.0: HMRC quarterly submission, community wait-time insights, deeper Anonymous Benchmarking, and the strategic moves that take MileClear from a tax tracker to a complete gig-driver toolkit.",
+      "1.2.0 is MTD ITSA: HMRC quarterly submissions in time for the first practical deadline of 7 August 2026. Plus community wait-time insights, deeper Anonymous Benchmarking, and longer-term strategic plays.",
     date: "26 April 2026",
     author: "Gair",
     category: "announcement",
@@ -332,35 +332,47 @@ export const BLOG_POSTS: BlogPost[] = [
 
 <p>None of this is a hard commitment. Solo development moves with the data, and the data sometimes says "do this thing instead". But the direction is set.</p>
 
-<h2>Coming in 1.2 (next few weeks)</h2>
+<h2>1.2.0: MTD ITSA quarterly submissions (target: 7 August 2026)</h2>
+
+<p>This is the big one, and it is happening sooner than originally planned. Build starts the week of 5 May 2026.</p>
+
+<p>The April 2026 MTD ITSA threshold of £50,000 is already in effect. The first practical deadline that matters is <strong>7 August 2026</strong> - the close of the Q1 2026-27 quarterly submission window for self-employed drivers crossing that threshold. That is full-time DPD ODFs, full-time Amazon Flex drivers, full-time Uber drivers, and any multi-app driver running 60+ hour weeks. They need MTD-compliant software now, and whichever app they pick first becomes their default.</p>
+
+<p>So MileClear is shipping it as 1.2.0, on a tight ~12-week timeline:</p>
+
+<ul>
+<li><strong>Phase 1 (week of 5 May):</strong> OAuth flow against HMRC sandbox + the 9-15 mandatory fraud-prevention headers HMRC requires on every call.</li>
+<li><strong>Phase 2 (10 May - 14 June):</strong> Submission flow against the Self Employment Business API. Mapping MileClear earnings, mileage, and expenses to HMRC's schema; wiring the Obligations and Individual Calculations APIs so drivers see their period status and tax estimate directly.</li>
+<li><strong>Phase 3 (parallel):</strong> Mobile UI - connect HMRC, see your obligations, preview the figures, submit, confirm. Pro feature.</li>
+<li><strong>Phase 4 (parallel, weeks of 19 May - 21 June):</strong> HMRC production accreditation - 3-4 weeks of HMRC review, submitted early so it runs alongside development.</li>
+<li><strong>Phase 5 (21 June - 5 July):</strong> Closed beta with high-earner drivers running real submissions against production HMRC.</li>
+<li><strong>By 19 July:</strong> Public TestFlight or App Store availability for &gt;£50k drivers.</li>
+<li><strong>7 August 2026:</strong> First real Q1 quarterly submissions land at HMRC via MileClear.</li>
+</ul>
+
+<p>The MileClear sandbox application is already registered with HMRC's Developer Hub, with all 9 relevant Self Assessment APIs subscribed. The pre-positioning is done; the build is what is ahead.</p>
+
+<p>The strategic case is simple. Every month MileClear delays MTD ITSA is a month it cedes the highest-value customer segment to QuickBooks, Xero, or TripCatcher. Once a driver has wired their financial life into a tax tool, switching is hard. Better to be the tool they pick first.</p>
+
+<h2>1.3+ (following months)</h2>
 
 <h3>Community pickup-wait insights</h3>
 
-<p>The pickup wait timer in 1.1.0 collects per-driver data. The aggregation surface is what makes that data valuable: "this McDonald's averages 12-minute waits across 8 drivers", "Friday evenings here are 18 minutes". Once enough drivers are using the timer, the average wait at every pickup point becomes a useful piece of intelligence. Couriers will be able to avoid the consistently slow ones.</p>
-
-<p>Privacy floor is the same as Anonymous Benchmarking - never show a bucket with fewer than 5 contributors.</p>
+<p>The pickup wait timer in 1.1.0 collects per-driver data. The aggregation surface is what makes that data valuable: "this McDonald's averages 12-minute waits across 8 drivers", "Friday evenings here are 18 minutes". Once enough drivers are using the timer, the average wait at every pickup point becomes a useful piece of intelligence. Privacy floor is the same as Anonymous Benchmarking - never show a bucket with fewer than 5 contributors.</p>
 
 <h3>Deeper Anonymous Benchmarking</h3>
 
-<p>1.1.0 ships national-level benchmarks. As the user base grows, regional breakdowns become statistically meaningful: "drivers in your postcode area average X miles per week". The infrastructure is ready; the data needs to catch up. Expect regional benchmarks to appear automatically for Greater London, Greater Manchester, Birmingham, Glasgow, and Edinburgh first, then expand outward as density increases.</p>
+<p>1.1.0 ships national-level benchmarks. As the user base grows, regional breakdowns become statistically meaningful: "drivers in your postcode area average X miles per week". The infrastructure is ready; the data needs to catch up. Greater London, Greater Manchester, Birmingham, Glasgow, and Edinburgh first, then expand outward as density increases.</p>
 
 <h3>Onboarding revamp</h3>
 
-<p>The biggest gap in MileClear's funnel today is users who classify trips but never log earnings. Without earnings, the tax estimate cannot work, and the user gets less than half the value of the app. The 1.1.0 earnings nudge addresses this for active users; the next step is rebuilding the first-launch experience so new users understand from day one why earnings logging matters.</p>
+<p>The biggest gap in MileClear's funnel today is users who classify trips but never log earnings. Without earnings, the tax estimate cannot work. The 1.1.0 earnings nudge addresses this for active users; the next step is rebuilding the first-launch experience so new users understand from day one why earnings logging matters.</p>
 
 <h3>HMRC reconciliation auto-fill</h3>
 
-<p>Right now you type in HMRC's reported figure manually. There is a Self Assessment Accounts API that, with the user's consent, would let MileClear fetch this directly. That requires HMRC production accreditation (multi-week process), so it is not 1.2 work but it is on the path.</p>
+<p>Right now you type in HMRC's reported figure manually. The Self Assessment Accounts API would let MileClear fetch this directly with consent - which becomes natural once the OAuth and accreditation work for MTD ITSA is in place.</p>
 
-<h2>Coming in 1.3 - 1.4 (next few months)</h2>
-
-<h3>MTD ITSA quarterly submission</h3>
-
-<p>From April 2027, every self-employed person earning over £30,000 a year will be required to submit quarterly digital updates to HMRC. The threshold for April 2026 is £50,000, and a large slice of full-time gig drivers will be caught by April 2027.</p>
-
-<p>The MileClear sandbox application is already registered with HMRC's Developer Hub, with all 9 relevant Self Assessment APIs subscribed. The work to come is the OAuth flow, the submission mechanics, the fraud-prevention headers HMRC requires on every call, and the production accreditation process. This is a multi-week project but it is the most strategically important feature for self-employed drivers approaching the MTD deadline.</p>
-
-<p>The pitch is simple: drivers will need software that submits their quarterly figures to HMRC. If MileClear is the bridge, that is a defensive moat - competitors have to build the same thing or lose users.</p>
+<h2>1.4+ (later in 2026)</h2>
 
 <h3>Vehicle maintenance log</h3>
 
