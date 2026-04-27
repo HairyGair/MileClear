@@ -394,6 +394,16 @@ export default function TripFormScreen() {
   const runningDistanceRef = useRef(0);
   const breadcrumbCountRef = useRef(0);
   const lastGeoTimestampRef = useRef(0);
+  // Tracks the coordinates loaded from a saved trip so the OSRM auto-calc
+  // useEffect can skip recalculating distance until the user actively changes
+  // a location. Without this, opening a saved trip overwrites the real
+  // breadcrumb-summed distance with a shorter point-to-point road route.
+  const loadedCoordsRef = useRef<{
+    startLat: number | null;
+    startLng: number | null;
+    endLat: number | null;
+    endLng: number | null;
+  } | null>(null);
   const [earningsPerMilePence, setEarningsPerMilePence] = useState<number | null>(null);
 
   // Speed-coloured driving trail segments
@@ -565,6 +575,12 @@ export default function TripFormScreen() {
       setStartLng(t.startLng);
       setEndLat(t.endLat ?? null);
       setEndLng(t.endLng ?? null);
+      loadedCoordsRef.current = {
+        startLat: t.startLat,
+        startLng: t.startLng,
+        endLat: t.endLat ?? null,
+        endLng: t.endLng ?? null,
+      };
       setDistanceMiles(t.distanceMiles);
       setStartedAt(new Date(t.startedAt));
       setEndedAt(t.endedAt ? new Date(t.endedAt) : null);
@@ -666,6 +682,19 @@ export default function TripFormScreen() {
     if (startLat == null || startLng == null || endLat == null || endLng == null) return;
     // In driving/arrived modes, distance is tracked via GPS breadcrumbs
     if (mode === "driving" || mode === "arrived") return;
+    // When opening a saved trip, the loaded distance came from the original
+    // GPS breadcrumb trail and is more accurate than a point-to-point road
+    // route. Only recalc if the user has actually changed start or end coords.
+    const loaded = loadedCoordsRef.current;
+    if (
+      loaded &&
+      loaded.startLat === startLat &&
+      loaded.startLng === startLng &&
+      loaded.endLat === endLat &&
+      loaded.endLng === endLng
+    ) {
+      return;
+    }
     let cancelled = false;
     setCalculatingRoute(true);
     fetchRouteDistance(startLat, startLng, endLat, endLng)

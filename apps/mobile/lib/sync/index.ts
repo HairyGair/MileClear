@@ -4,11 +4,15 @@
 import { getDatabase } from "../db/index";
 import { apiRequest } from "../api/index";
 import { isOnline, onConnectivityChange } from "../network";
-import { getPendingCount } from "./queue";
+import { getPendingCount, MAX_RETRIES } from "./queue";
 
 export type SyncState = "idle" | "syncing" | "error";
 
-const MAX_RETRIES = 5;
+export interface SyncProgress {
+  current: number;
+  total: number;
+}
+
 const BATCH_SIZE = 20;
 
 interface QueueItem {
@@ -22,9 +26,14 @@ interface QueueItem {
   created_at: string;
 }
 
-type SyncStateListener = (state: SyncState, pendingCount: number) => void;
+type SyncStateListener = (
+  state: SyncState,
+  pendingCount: number,
+  progress: SyncProgress | null
+) => void;
 
 let currentState: SyncState = "idle";
+let currentProgress: SyncProgress | null = null;
 let processing = false;
 const stateListeners: Set<SyncStateListener> = new Set();
 let connectivityUnsub: (() => void) | null = null;
@@ -57,11 +66,16 @@ function getBackoffMs(retryCount: number): number {
   return Math.min(2000 * Math.pow(2, retryCount), 32000);
 }
 
-function setState(state: SyncState, pendingCount: number) {
+function setState(
+  state: SyncState,
+  pendingCount: number,
+  progress: SyncProgress | null = null
+) {
   currentState = state;
+  currentProgress = progress;
   for (const listener of stateListeners) {
     try {
-      listener(state, pendingCount);
+      listener(state, pendingCount, progress);
     } catch {
       // Don't let listener errors break sync
     }
@@ -93,7 +107,11 @@ export async function processSyncQueue(): Promise<void> {
       return;
     }
 
-    for (const item of items) {
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i];
+      // Emit per-item progress so the UI can show "Syncing 3 of 12..."
+      // instead of an opaque spinner that looks frozen on long batches.
+      setState("syncing", pending, { current: i + 1, total: items.length });
       try {
         const { method, path } = getEndpoint(item.entity_type, item.action, item.entity_id);
 
@@ -182,11 +200,15 @@ export async function processSyncQueue(): Promise<void> {
             [err instanceof Error ? err.message : "Unknown error", new Date().toISOString(), item.id]
           );
         } else {
-          // Transient failure — increment retry count
+          // Transient failure — increment retry count. When we hit the
+          // retry ceiling, transition to permanently_failed so the row is
+          // properly accounted for instead of lingering as a 'failed' row
+          // that the engine silently filters out.
           const newRetry = item.retry_count + 1;
+          const newStatus = newRetry >= MAX_RETRIES ? "permanently_failed" : "failed";
           await db.runAsync(
-            "UPDATE sync_queue SET status = 'failed', retry_count = ?, last_error = ?, updated_at = ? WHERE id = ?",
-            [newRetry, err instanceof Error ? err.message : "Unknown error", new Date().toISOString(), item.id]
+            "UPDATE sync_queue SET status = ?, retry_count = ?, last_error = ?, updated_at = ? WHERE id = ?",
+            [newStatus, newRetry, err instanceof Error ? err.message : "Unknown error", new Date().toISOString(), item.id]
           );
         }
       }

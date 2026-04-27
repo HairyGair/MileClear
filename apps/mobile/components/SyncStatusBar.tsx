@@ -4,12 +4,14 @@ import { Ionicons } from "@expo/vector-icons";
 import { useSync } from "../lib/sync/context";
 
 export function SyncStatusBar() {
-  const { syncState, pendingCount, triggerSync } = useSync();
+  const { syncState, pendingCount, progress, triggerSync } = useSync();
 
   if (pendingCount === 0) return null;
 
   const statusText = syncState === "syncing"
-    ? "Syncing..."
+    ? progress
+      ? `Syncing ${progress.current} of ${progress.total}...`
+      : "Syncing..."
     : `${pendingCount} ${pendingCount === 1 ? "item" : "items"} pending sync`;
 
   return (

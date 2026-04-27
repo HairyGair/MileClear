@@ -2,24 +2,27 @@
 
 import React, { createContext, useContext, useEffect, useState, useCallback } from "react";
 import { startAutoSync, getSyncStatus, onSyncStateChange, processSyncQueue } from "./index";
-import type { SyncState } from "./index";
+import type { SyncState, SyncProgress } from "./index";
 import { startNetworkMonitoring } from "../network";
 
 interface SyncContextValue {
   syncState: SyncState;
   pendingCount: number;
+  progress: SyncProgress | null;
   triggerSync: () => void;
 }
 
 const SyncContext = createContext<SyncContextValue>({
   syncState: "idle",
   pendingCount: 0,
+  progress: null,
   triggerSync: () => {},
 });
 
 export function SyncProvider({ children }: { children: React.ReactNode }) {
   const [syncState, setSyncState] = useState<SyncState>("idle");
   const [pendingCount, setPendingCount] = useState(0);
+  const [progress, setProgress] = useState<SyncProgress | null>(null);
 
   useEffect(() => {
     // Start network monitoring
@@ -29,9 +32,10 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
     const stopAutoSync = startAutoSync();
 
     // Listen for state changes from the sync engine
-    const unsubState = onSyncStateChange((state, count) => {
+    const unsubState = onSyncStateChange((state, count, prog) => {
       setSyncState(state);
       setPendingCount(count);
+      setProgress(prog);
     });
 
     // Get initial status
@@ -51,7 +55,7 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   return (
-    <SyncContext.Provider value={{ syncState, pendingCount, triggerSync }}>
+    <SyncContext.Provider value={{ syncState, pendingCount, progress, triggerSync }}>
       {children}
     </SyncContext.Provider>
   );

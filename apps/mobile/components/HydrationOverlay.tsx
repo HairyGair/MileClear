@@ -10,7 +10,7 @@
 //     total={5}
 //   />
 
-import React from "react";
+import React, { useEffect, useState } from "react";
 import {
   Modal,
   View,
@@ -27,12 +27,25 @@ interface HydrationOverlayProps {
   total: number;
 }
 
+const SLOW_THRESHOLD_SECS = 8;
+
 export function HydrationOverlay({
   visible,
   step,
   done,
   total,
 }: HydrationOverlayProps) {
+  const [isSlow, setIsSlow] = useState(false);
+
+  useEffect(() => {
+    if (!visible) {
+      setIsSlow(false);
+      return;
+    }
+    const timer = setTimeout(() => setIsSlow(true), SLOW_THRESHOLD_SECS * 1000);
+    return () => clearTimeout(timer);
+  }, [visible]);
+
   return (
     <Modal
       visible={visible}
@@ -47,7 +60,7 @@ export function HydrationOverlay({
         accessibilityViewIsModal
         accessibilityLiveRegion="polite"
         accessible
-        accessibilityLabel={`Setting up offline access. ${step} ${done} of ${total} complete`}
+        accessibilityLabel={`Setting up offline access. ${step} ${done} of ${total} complete${isSlow ? ". Taking longer than usual." : ""}`}
       >
         <View style={styles.card}>
           <Text style={styles.title}>Setting up offline access...</Text>
@@ -64,6 +77,12 @@ export function HydrationOverlay({
           <Text style={styles.counter}>
             {done}/{total}
           </Text>
+
+          {isSlow && (
+            <Text style={styles.slowNote}>
+              Taking longer than usual - still working...
+            </Text>
+          )}
         </View>
       </View>
     </Modal>
@@ -112,5 +131,13 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: "rgba(132, 148, 167, 0.5)",
     textAlign: "center",
+  },
+  slowNote: {
+    fontFamily: "PlusJakartaSans_400Regular",
+    fontSize: 12,
+    color: "#f5a623",
+    textAlign: "center",
+    marginTop: 16,
+    paddingHorizontal: 8,
   },
 });
