@@ -540,23 +540,38 @@ export default function TripsScreen() {
             </View>
           )}
           <Text style={[styles.tripDate, mergeMode && { flex: 1 }]}>{formatDate(item.startedAt)}</Text>
-          {isUnclassified ? (
-            <View style={styles.unclassifiedBadge}>
-              <Ionicons name="help-circle" size={12} color="#f5a623" accessible={false} />
-              <Text style={styles.unclassifiedBadgeText}>Needs classifying</Text>
-            </View>
-          ) : (
-            <Text
-              style={[
-                styles.classificationBadge,
-                item.classification === "business"
-                  ? styles.businessBadge
-                  : styles.personalBadge,
-              ]}
-            >
-              {item.classification === "business" ? "Business" : "Personal"}
-            </Text>
-          )}
+          <View style={styles.tripHeaderRight}>
+            {isUnclassified ? (
+              <View style={styles.unclassifiedBadge}>
+                <Ionicons name="help-circle" size={12} color="#f5a623" accessible={false} />
+                <Text style={styles.unclassifiedBadgeText}>Needs classifying</Text>
+              </View>
+            ) : (
+              <Text
+                style={[
+                  styles.classificationBadge,
+                  item.classification === "business"
+                    ? styles.businessBadge
+                    : styles.personalBadge,
+                ]}
+              >
+                {item.classification === "business" ? "Business" : "Personal"}
+              </Text>
+            )}
+            {!mergeMode && !item._isLocal && (
+              <TouchableOpacity
+                onPress={(e) => {
+                  e.stopPropagation?.();
+                  handleDeleteTrip(item.id);
+                }}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                accessibilityRole="button"
+                accessibilityLabel="Delete trip"
+              >
+                <Ionicons name="trash-outline" size={16} color="#64748b" accessible={false} />
+              </TouchableOpacity>
+            )}
+          </View>
         </View>
 
         <View style={styles.tripDetails}>
@@ -1240,6 +1255,11 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     alignItems: "center",
     marginBottom: 8,
+  },
+  tripHeaderRight: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
   },
   tripDate: {
     fontSize: 15,

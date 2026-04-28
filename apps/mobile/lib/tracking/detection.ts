@@ -94,7 +94,10 @@ async function isInsideAnySavedLocation(lat: number, lng: number): Promise<boole
       radius_meters: number;
     }>("SELECT latitude, longitude, radius_meters FROM saved_locations");
     for (const loc of locations) {
-      const radius = loc.radius_meters > 0 ? loc.radius_meters : 100;
+      // Fallback to schema default (150m) when radius_meters is missing.
+      // Indoor GPS drift with phone in pocket can exceed 100m, so a tighter
+      // fallback misses real "user is at home" cases.
+      const radius = loc.radius_meters > 0 ? loc.radius_meters : 150;
       const distM = haversineMeters(lat, lng, loc.latitude, loc.longitude);
       if (distM <= radius) return true;
     }
@@ -107,16 +110,27 @@ async function isInsideAnySavedLocation(lat: number, lng: number): Promise<boole
 
 /**
  * Determine if any locations indicate driving speed.
- * Returns the highest detected speed in m/s, or null if no driving-speed reading.
+ *
+ * Returns the highest detected speed in m/s with its source, or null if no
+ * driving-speed reading. Source distinguishes iOS-reported (Kalman-filtered,
+ * high confidence) from calculated (distance/time, susceptible to GPS noise).
  *
  * Filters out locations with poor GPS accuracy to prevent indoor GPS drift
  * (common when stationary indoors) from triggering false driving detections.
  *
- * Returning the speed (instead of a bool) lets the caller apply a fast-gate:
- * a single very-high-speed reading is unambiguous and can skip the consecutive
- * detection gate that otherwise costs ~400m of driving before recording starts.
+ * The source field lets the caller apply a fast-gate ONLY when we trust the
+ * reading. A single calc-speed value at highway speed is almost always GPS
+ * jitter; a single reported-speed value at the same level is real driving.
  */
-function detectDrivingSpeed(locations: Location.LocationObject[]): number | null {
+const CALC_SPEED_MIN_DT_SEC = 3; // require at least 3s sample period for calc speed
+const CALC_SPEED_MIN_DIST_M = 30; // require at least 30m displacement for calc speed
+
+interface DetectionResult {
+  speedMs: number;
+  source: "reported" | "calculated";
+}
+
+function detectDrivingSpeed(locations: Location.LocationObject[]): DetectionResult | null {
   // Only consider locations with reasonable GPS accuracy.
   // Indoor GPS can drift 50-200m with accuracy values of 50-150+.
   const reliable = locations.filter(
@@ -131,10 +145,15 @@ function detectDrivingSpeed(locations: Location.LocationObject[]): number | null
       maxReportedSpeed = loc.coords.speed;
     }
   }
-  if (maxReportedSpeed >= SPEED_THRESHOLD_MS) return maxReportedSpeed;
+  if (maxReportedSpeed >= SPEED_THRESHOLD_MS) {
+    return { speedMs: maxReportedSpeed, source: "reported" };
+  }
 
   // Fall back to calculated speed - require stricter accuracy since distance/time
   // is much more susceptible to GPS drift than iOS's native speed estimation.
+  // Two 30m-accurate fixes can legitimately differ by 60m even when the user
+  // is stationary, so we additionally require a meaningful sample period AND
+  // displacement before trusting calc speed - this kills sub-second jitter.
   const accurate = reliable.filter(
     (loc) => loc.coords.accuracy != null && loc.coords.accuracy <= GPS_ACCURACY_STRICT
   );
@@ -144,17 +163,19 @@ function detectDrivingSpeed(locations: Location.LocationObject[]): number | null
       const prev = accurate[i - 1];
       const curr = accurate[i];
       const dtSec = (curr.timestamp - prev.timestamp) / 1000;
-      if (dtSec > 0) {
-        const distM = haversineMeters(
-          prev.coords.latitude, prev.coords.longitude,
-          curr.coords.latitude, curr.coords.longitude
-        );
+      const distM = haversineMeters(
+        prev.coords.latitude, prev.coords.longitude,
+        curr.coords.latitude, curr.coords.longitude
+      );
+      if (dtSec >= CALC_SPEED_MIN_DT_SEC && distM >= CALC_SPEED_MIN_DIST_M) {
         const calcSpeed = distM / dtSec;
         if (calcSpeed > maxCalcSpeed) maxCalcSpeed = calcSpeed;
       }
     }
   }
-  if (maxCalcSpeed >= SPEED_THRESHOLD_MS) return maxCalcSpeed;
+  if (maxCalcSpeed >= SPEED_THRESHOLD_MS) {
+    return { speedMs: maxCalcSpeed, source: "calculated" };
+  }
 
   return null;
 }
@@ -1217,13 +1238,14 @@ try {
       }
 
       // Check if locations indicate driving speed (>15mph to start recording).
-      // Returns the highest detected speed in m/s, or null if no driving reading.
-      let detectedSpeedMs = detectDrivingSpeed(locations);
+      // Returns the highest detected speed with source ("reported" = trusted iOS
+      // Kalman, "calculated" = distance/time + susceptible to GPS noise), or null.
+      let detection = detectDrivingSpeed(locations);
 
       // Single-location batch: compare against the previous buffered coordinate.
-      // Only trust this if the current location has good GPS accuracy -
-      // indoor drift with poor accuracy is the main source of false positives.
-      if (detectedSpeedMs == null && locations.length === 1) {
+      // Only trust this if both fixes have strict GPS accuracy AND the sample
+      // period + displacement are large enough that GPS noise can't fake speed.
+      if (detection == null && locations.length === 1) {
         const loc = locations[0];
         const locAccuracy = loc.coords.accuracy ?? 999;
         if (locAccuracy <= GPS_ACCURACY_STRICT) {
@@ -1232,23 +1254,30 @@ try {
           );
           if (lastCoord && (lastCoord.accuracy == null || lastCoord.accuracy <= GPS_ACCURACY_STRICT)) {
             const dtSec = (loc.timestamp - new Date(lastCoord.recorded_at).getTime()) / 1000;
-            if (dtSec > 0 && dtSec < 120) {
+            if (dtSec >= CALC_SPEED_MIN_DT_SEC && dtSec < 120) {
               const distM = haversineMeters(
                 lastCoord.lat, lastCoord.lng,
                 loc.coords.latitude, loc.coords.longitude
               );
-              const calcSpeed = distM / dtSec;
-              if (calcSpeed >= SPEED_THRESHOLD_MS) detectedSpeedMs = calcSpeed;
+              if (distM >= CALC_SPEED_MIN_DIST_M) {
+                const calcSpeed = distM / dtSec;
+                if (calcSpeed >= SPEED_THRESHOLD_MS) {
+                  detection = { speedMs: calcSpeed, source: "calculated" };
+                }
+              }
             }
           }
         }
       }
 
-      if (detectedSpeedMs == null) {
+      if (detection == null) {
         // Reset consecutive driving detection counter - the user isn't driving
         await db.runAsync("DELETE FROM tracking_state WHERE key = 'driving_detection_count'");
         return;
       }
+
+      const detectedSpeedMs = detection.speedMs;
+      const speedSource = detection.source;
 
       // ── Saved-location gate ──
       // Indoor GPS drift (phone in pocket, walking around the house) can
@@ -1268,6 +1297,7 @@ try {
         await db.runAsync("DELETE FROM tracking_state WHERE key = 'driving_detection_count'");
         logDetectionEvent("detection_suppressed_at_saved_location", {
           speedMs: detectedSpeedMs,
+          source: speedSource,
           lat: latestLoc.coords.latitude,
           lng: latestLoc.coords.longitude,
           accuracy: latestLoc.coords.accuracy ?? null,
@@ -1280,11 +1310,12 @@ try {
       // starting a recording. A single GPS outlier (drift, bounce, stale cache)
       // can't trigger a false "Looks like you're driving" notification.
       //
-      // Fast-gate exception: a single very-high-speed reading (>=25 mph) is
-      // unambiguous - GPS drift doesn't fake highway speeds. Skip the gate
-      // so the trip starts immediately instead of waiting another ~400m of
-      // driving for the second confirmation callback.
-      const fastGate = detectedSpeedMs >= FAST_GATE_SPEED_MS;
+      // Fast-gate exception: a single very-high-speed iOS-reported reading is
+      // unambiguous - CoreLocation's Kalman filter doesn't fake highway speeds.
+      // Calculated speed is NOT fast-gated: a single GPS bounce can produce
+      // 100+mph in calc, so we always require the consecutive-detection
+      // confirmation when calc is the source.
+      const fastGate = detectedSpeedMs >= FAST_GATE_SPEED_MS && speedSource === "reported";
       if (!fastGate) {
         const countRow = await db.getFirstAsync<{ value: string }>(
           "SELECT value FROM tracking_state WHERE key = 'driving_detection_count'"
@@ -1295,7 +1326,7 @@ try {
             "INSERT OR REPLACE INTO tracking_state (key, value) VALUES ('driving_detection_count', ?)",
             [count.toString()]
           );
-          logDetectionEvent("driving_detected", { speedMs: detectedSpeedMs, count, gateRequired: CONSECUTIVE_DETECTIONS_REQUIRED }).catch(() => {});
+          logDetectionEvent("driving_detected", { speedMs: detectedSpeedMs, source: speedSource, count, gateRequired: CONSECUTIVE_DETECTIONS_REQUIRED }).catch(() => {});
           return; // Wait for more confirmation
         }
       }
@@ -1344,6 +1375,7 @@ try {
 
         logDetectionEvent("recording_started", {
           speedMs: detectedSpeedMs,
+          speedSource,
           fastGate,
           source: "detection_task",
         }).catch(() => {});

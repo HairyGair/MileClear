@@ -44,6 +44,11 @@ export async function registerNotificationCategories(): Promise<void> {
         buttonTitle: "Personal",
         options: { opensAppToForeground: false },
       },
+      {
+        identifier: "delete_trip",
+        buttonTitle: "Delete",
+        options: { isDestructive: true, opensAppToForeground: false },
+      },
     ]);
   } catch (err) {
     console.warn("Failed to register notification categories:", err);
@@ -279,6 +284,15 @@ export function setupNotificationResponseHandler(): void {
           }
         } catch (err) {
           console.error("Lock screen classification failed:", err);
+        }
+        return;
+      }
+      if (tripId && actionId === "delete_trip") {
+        try {
+          const { syncDeleteTrip } = await import("../sync/actions");
+          await syncDeleteTrip(tripId);
+        } catch (err) {
+          console.error("Lock screen trip delete failed:", err);
         }
         return;
       }
