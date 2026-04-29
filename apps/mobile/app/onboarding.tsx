@@ -20,9 +20,10 @@ import * as Location from "expo-location";
 import * as Notifications from "expo-notifications";
 import { Button } from "../components/Button";
 import { updateProfile } from "../lib/api/user";
+import { createVehicle } from "../lib/api/vehicles";
 import { getDatabase } from "../lib/db/index";
 import { useMode } from "../lib/mode/context";
-import type { WorkType } from "@mileclear/shared";
+import type { WorkType, VehicleType } from "@mileclear/shared";
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
@@ -52,6 +53,12 @@ export default function OnboardingScreen() {
   // User intent
   const [userIntent, setUserIntent] = useState<"work" | "personal" | "both" | null>(null);
   const [workType, setWorkType] = useState<WorkType>("gig");
+  // Vehicle type captured during onboarding so HMRC rate calc works on day one.
+  // A placeholder vehicle is auto-created on finish; user can edit make/model later.
+  const [vehicleType, setVehicleType] = useState<VehicleType>("car");
+  // Employer per-mile rate in pence. Only relevant for employee/both work types.
+  // Saved to user profile so the Business Mileage card calculates "owed by employer".
+  const [employerRate, setEmployerRate] = useState<number | null>(null);
   const { setMode: setAppMode } = useMode();
 
   // Location state
@@ -193,13 +200,32 @@ export default function OnboardingScreen() {
           setAppMode("work");
         }
 
-        // Save intent to server (fire-and-forget)
+        // Save intent + employer rate to server (fire-and-forget). Employer
+        // rate is only meaningful for employee/both work types - the new
+        // Business Mileage card uses it to calculate "owed by employer".
         if (userIntent) {
+          const isEmployee =
+            userIntent !== "personal" &&
+            (workType === "employee" || workType === "both");
           updateProfile({
             userIntent,
             ...(userIntent !== "personal" && { workType }),
+            ...(isEmployee && employerRate != null && { employerMileageRatePence: employerRate }),
           }).catch(() => {});
         }
+
+        // Auto-create a placeholder vehicle so HMRC rate calculations work
+        // immediately. User can edit make/model/MPG via Profile > Vehicles.
+        // Fire-and-forget; failure is non-fatal.
+        const placeholderMake =
+          vehicleType === "motorbike" ? "My Motorbike" : vehicleType === "van" ? "My Van" : "My Car";
+        createVehicle({
+          make: placeholderMake,
+          model: "(edit details)",
+          vehicleType,
+          fuelType: "petrol",
+          isPrimary: true,
+        }).catch(() => {});
 
         if (destination === "trip") {
           router.replace("/trip-form" as any);
@@ -221,7 +247,7 @@ export default function OnboardingScreen() {
         setFinishingSetup(false);
       }
     },
-    [router, userIntent, workType, setAppMode, reminderTime, weeklyGoal]
+    [router, userIntent, workType, vehicleType, employerRate, setAppMode, reminderTime, weeklyGoal]
   );
 
   // ── Render ─────────────────────────────────────────────────────────────────
@@ -273,19 +299,19 @@ export default function OnboardingScreen() {
               <View style={s.painBullet}>
                 <View style={s.painBulletDot} />
                 <Text style={s.painBulletText}>
-                  No records means no tax deduction at year-end
+                  No records means no claim - to HMRC or to your employer
                 </Text>
               </View>
               <View style={s.painBullet}>
                 <View style={s.painBulletDot} />
                 <Text style={s.painBulletText}>
-                  Scrambling through receipts and bank statements every April
+                  Scrambling through bank statements at tax time, or end of every payroll period
                 </Text>
               </View>
               <View style={s.painBullet}>
                 <View style={s.painBulletDot} />
                 <Text style={s.painBulletText}>
-                  Every forgotten mile is 45p lost in HMRC deductions
+                  Every forgotten mile is money lost - 45p/mile from HMRC, or whatever your employer pays
                 </Text>
               </View>
             </View>
@@ -369,7 +395,7 @@ export default function OnboardingScreen() {
             <View style={s.socialProofBadge}>
               <Ionicons name="people" size={16} color={TEXT_3} />
               <Text style={s.socialProofText}>
-                Trusted by gig workers across the UK
+                Tracking thousands of miles every month for UK drivers
               </Text>
             </View>
 
@@ -570,6 +596,89 @@ export default function OnboardingScreen() {
               </View>
             )}
 
+            {/* Employer per-mile rate (employee or both) */}
+            {(userIntent === "work" || userIntent === "both") &&
+              (workType === "employee" || workType === "both") && (
+                <View style={s.workTypeSection}>
+                  <Text style={s.sectionLabel}>What does your employer pay per mile?</Text>
+                  <View style={s.workTypeRow}>
+                    {([25, 30, 40, 45]).map((p) => (
+                      <TouchableOpacity
+                        key={p}
+                        style={[
+                          s.workTypeChip,
+                          employerRate === p && s.workTypeChipActive,
+                        ]}
+                        onPress={() => setEmployerRate(employerRate === p ? null : p)}
+                        activeOpacity={0.75}
+                        accessibilityRole="button"
+                        accessibilityLabel={`Employer rate: ${p} pence per mile`}
+                        accessibilityState={{ selected: employerRate === p }}
+                      >
+                        <Ionicons
+                          name="cash-outline"
+                          size={14}
+                          color={employerRate === p ? AMBER : TEXT_3}
+                        />
+                        <Text
+                          style={[
+                            s.workTypeChipText,
+                            employerRate === p && s.workTypeChipTextActive,
+                          ]}
+                        >
+                          {p}p
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                  <Text style={s.helperText}>
+                    Your employer&apos;s reimbursement rate (skip if you&apos;re not sure - you can set it later in Profile). If they pay below 45p you can claim the gap from HMRC as Mileage Allowance Relief.
+                  </Text>
+                </View>
+              )}
+
+            {/* Vehicle type capture - affects HMRC rate (45p/25p car/van vs 24p motorbike) */}
+            <View style={s.workTypeSection}>
+              <Text style={s.sectionLabel}>What do you drive?</Text>
+              <View style={s.workTypeRow}>
+                {([
+                  { key: "car" as VehicleType, label: "Car", icon: "car-outline" as const },
+                  { key: "van" as VehicleType, label: "Van", icon: "bus-outline" as const },
+                  { key: "motorbike" as VehicleType, label: "Motorbike", icon: "bicycle-outline" as const },
+                ]).map((opt) => (
+                  <TouchableOpacity
+                    key={opt.key}
+                    style={[
+                      s.workTypeChip,
+                      vehicleType === opt.key && s.workTypeChipActive,
+                    ]}
+                    onPress={() => setVehicleType(opt.key)}
+                    activeOpacity={0.75}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Vehicle: ${opt.label}`}
+                    accessibilityState={{ selected: vehicleType === opt.key }}
+                  >
+                    <Ionicons
+                      name={opt.icon}
+                      size={16}
+                      color={vehicleType === opt.key ? AMBER : TEXT_3}
+                    />
+                    <Text
+                      style={[
+                        s.workTypeChipText,
+                        vehicleType === opt.key && s.workTypeChipTextActive,
+                      ]}
+                    >
+                      {opt.label}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+              <Text style={s.helperText}>
+                Sets your default HMRC mileage rate. You can add full vehicle details (make, model, MPG) anytime from Profile.
+              </Text>
+            </View>
+
             <Button
               variant="hero"
               title="Continue"
@@ -722,9 +831,9 @@ export default function OnboardingScreen() {
               <View style={s.permCard}>
                 <Ionicons name="car-outline" size={20} color={AMBER} style={s.permCardIcon} />
                 <View style={s.permCardBody}>
-                  <Text style={s.permCardTitle}>Trip detection</Text>
+                  <Text style={s.permCardTitle}>Classify-trip prompts</Text>
                   <Text style={s.permCardText}>
-                    Get notified when we detect you're driving so you can start recording.
+                    Quick lock-screen tap to mark each recorded trip as Business or Personal. Auto-tracking still works without these.
                   </Text>
                 </View>
               </View>
@@ -906,20 +1015,97 @@ export default function OnboardingScreen() {
               MileClear is ready to track your first trip. You can add your vehicle and tweak settings from the dashboard anytime.
             </Text>
 
-            {/* Quick setup hints */}
+            {/* Setup status - dynamic checklist of what's actually configured */}
             <View style={s.setupHints}>
-              <View style={s.setupHint}>
-                <Ionicons name="car-outline" size={18} color={TEXT_2} />
-                <Text style={s.setupHintText}>
-                  Add your vehicle for accurate HMRC rates
+              <Text style={s.sectionLabel}>Setup status</Text>
+
+              {/* Location */}
+              <View style={s.setupCheckRow}>
+                <Ionicons
+                  name={locationStatus === "granted" ? "checkmark-circle" : "alert-circle-outline"}
+                  size={18}
+                  color={locationStatus === "granted" ? SUCCESS : "#f59e0b"}
+                />
+                <Text style={s.setupCheckLabel}>
+                  Location:{" "}
+                  <Text style={s.setupCheckValue}>
+                    {locationStatus === "granted"
+                      ? "Granted"
+                      : locationStatus === "denied"
+                        ? "Denied - auto-detection off"
+                        : "Skipped - auto-detection off"}
+                  </Text>
                 </Text>
               </View>
-              <View style={s.setupHint}>
-                <Ionicons name="bluetooth" size={18} color={TEXT_2} />
-                <Text style={s.setupHintText}>
-                  Connect car Bluetooth for auto-trip detection
+
+              {/* Notifications */}
+              <View style={s.setupCheckRow}>
+                <Ionicons
+                  name={
+                    notifStatus === "granted" || reminderTime === "none"
+                      ? "checkmark-circle"
+                      : "alert-circle-outline"
+                  }
+                  size={18}
+                  color={
+                    notifStatus === "granted" || reminderTime === "none" ? SUCCESS : "#f59e0b"
+                  }
+                />
+                <Text style={s.setupCheckLabel}>
+                  Notifications:{" "}
+                  <Text style={s.setupCheckValue}>
+                    {notifStatus === "granted"
+                      ? "Enabled"
+                      : reminderTime === "none"
+                        ? "Off (by choice)"
+                        : "Skipped"}
+                  </Text>
                 </Text>
               </View>
+
+              {/* Vehicle */}
+              <View style={s.setupCheckRow}>
+                <Ionicons name="checkmark-circle" size={18} color={SUCCESS} />
+                <Text style={s.setupCheckLabel}>
+                  Vehicle:{" "}
+                  <Text style={s.setupCheckValue}>
+                    {vehicleType === "car"
+                      ? "Car (45p / 25p HMRC rate)"
+                      : vehicleType === "van"
+                        ? "Van (45p / 25p HMRC rate)"
+                        : "Motorbike (24p HMRC rate)"}
+                  </Text>
+                </Text>
+              </View>
+
+              {/* Employer rate (only for employee / both) */}
+              {(userIntent === "work" || userIntent === "both") &&
+                (workType === "employee" || workType === "both") && (
+                  <View style={s.setupCheckRow}>
+                    <Ionicons
+                      name={employerRate ? "checkmark-circle" : "alert-circle-outline"}
+                      size={18}
+                      color={employerRate ? SUCCESS : "#f59e0b"}
+                    />
+                    <Text style={s.setupCheckLabel}>
+                      Employer rate:{" "}
+                      <Text style={s.setupCheckValue}>
+                        {employerRate ? `${employerRate}p/mile` : "Not set - update later in Profile"}
+                      </Text>
+                    </Text>
+                  </View>
+                )}
+
+              {/* Goal (only if set) */}
+              {weeklyGoal && (
+                <View style={s.setupCheckRow}>
+                  <Ionicons name="checkmark-circle" size={18} color={SUCCESS} />
+                  <Text style={s.setupCheckLabel}>
+                    Weekly goal:{" "}
+                    <Text style={s.setupCheckValue}>{weeklyGoal} miles</Text>
+                  </Text>
+                </View>
+              )}
             </View>
 
             {/* Support message */}
@@ -1213,6 +1399,13 @@ const s = StyleSheet.create({
     letterSpacing: 0.5,
     marginBottom: 12,
   },
+  helperText: {
+    fontSize: 12,
+    fontFamily: "PlusJakartaSans_400Regular",
+    color: TEXT_3,
+    lineHeight: 17,
+    marginTop: 8,
+  },
 
   // ── Intent cards ───────────────────────────────────────────────
   intentCards: {
@@ -1497,6 +1690,22 @@ const s = StyleSheet.create({
     fontFamily: "PlusJakartaSans_400Regular",
     color: TEXT_2,
     flex: 1,
+  },
+  setupCheckRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    paddingVertical: 6,
+  },
+  setupCheckLabel: {
+    flex: 1,
+    fontSize: 13,
+    fontFamily: "PlusJakartaSans_500Medium",
+    color: TEXT_2,
+  },
+  setupCheckValue: {
+    fontFamily: "PlusJakartaSans_400Regular",
+    color: TEXT_3,
   },
   supportCard: {
     flexDirection: "row",
