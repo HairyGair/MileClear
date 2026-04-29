@@ -66,6 +66,7 @@ import { PremiumGate, PremiumTeaser, useIsPremium } from "../../components/Premi
 import { SmartInsightCard } from "../../components/SmartInsightCard";
 import { usePaywall } from "../../components/paywall";
 import * as Location from "expo-location";
+import { requestOrFixBackgroundLocation } from "../../lib/permissions/location";
 
 function formatElapsed(seconds: number): string {
   const h = Math.floor(seconds / 3600);
@@ -824,23 +825,31 @@ export default function DashboardScreen() {
           the Live Activity silently failed to present. */}
       <ActiveRecordingBanner />
 
-      {/* Background location nudge — auto trip detection requires "Always" */}
+      {/* Background location nudge - auto trip detection requires "Always".
+          Uses the smart escalation helper so the right thing happens whether
+          the user has never granted, granted only foreground, or denied
+          outright. Linking.openSettings() alone is wrong for fresh installs:
+          iOS doesn't show a Location row in Settings until the app has
+          actually asked for permission once. */}
       {!bgLocationGranted && !activeShift && (
         <TouchableOpacity
           style={s.bgLocNudge}
-          onPress={() => Linking.openSettings()}
+          onPress={async () => {
+            const final = await requestOrFixBackgroundLocation();
+            setBgLocationGranted(final.tier === "always");
+          }}
           activeOpacity={0.7}
           accessibilityRole="button"
-          accessibilityLabel="Background location not enabled. Tap to open Settings and enable Always location access for automatic trip detection."
+          accessibilityLabel="Auto-detection is off. Tap to enable location access. iOS asks in two steps; we'll guide you through both."
         >
           <View style={s.bgLocNudgeRow}>
             <View style={s.bgLocNudgeIcon}>
               <Ionicons name="location-outline" size={20} color="#f59e0b" accessible={false} />
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={s.bgLocNudgeTitle}>Enable background location</Text>
+              <Text style={s.bgLocNudgeTitle}>Auto-detection is off</Text>
               <Text style={s.bgLocNudgeBody}>
-                Automatic trip detection needs "Always" location access. Tap to open Settings.
+                Tap to turn it on. iOS asks for location access in two steps - we'll guide you through both.
               </Text>
             </View>
             <Ionicons name="chevron-forward" size={16} color="#64748b" accessible={false} />
