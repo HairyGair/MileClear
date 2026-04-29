@@ -1,5 +1,7 @@
+import "react-native-gesture-handler";
 import React, { useEffect, useRef, useState } from "react";
 import { View, Text, ActivityIndicator, LogBox, ScrollView, StyleSheet, Alert, AppState, Linking } from "react-native";
+import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { Stack, useRouter } from "expo-router";
 import * as Font from "expo-font";
 import {
@@ -413,19 +415,21 @@ export default function RootLayout() {
   }, []);
 
   return (
-    <ErrorBoundary>
-      <AuthProvider>
-        <UserProvider>
-          <PaywallProvider>
-            <ModeProvider>
-              <SyncProvider>
-                <RootNavigator />
-              </SyncProvider>
-            </ModeProvider>
-          </PaywallProvider>
-        </UserProvider>
-      </AuthProvider>
-    </ErrorBoundary>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <ErrorBoundary>
+        <AuthProvider>
+          <UserProvider>
+            <PaywallProvider>
+              <ModeProvider>
+                <SyncProvider>
+                  <RootNavigator />
+                </SyncProvider>
+              </ModeProvider>
+            </PaywallProvider>
+          </UserProvider>
+        </AuthProvider>
+      </ErrorBoundary>
+    </GestureHandlerRootView>
   );
 }
 

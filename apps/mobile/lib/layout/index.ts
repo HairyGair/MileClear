@@ -42,6 +42,7 @@ export const SCREEN_LABELS: Record<ScreenKey, string> = {
 
 export const SECTION_REGISTRY: Record<ScreenKey, SectionDef[]> = {
   dashboard_work: [
+    // Top: emotional summary + primary action
     {
       key: "work_hero",
       label: "Tax Deduction",
@@ -49,10 +50,49 @@ export const SECTION_REGISTRY: Record<ScreenKey, SectionDef[]> = {
       description: "Tax year deduction summary",
     },
     {
+      key: "work_cta",
+      label: "Start Trip",
+      icon: "navigate",
+      locked: true,
+    },
+    // Summary cards (today / year / week)
+    {
+      key: "daily_recap",
+      label: "Today's Recap",
+      icon: "today-outline",
+      description: "Daily driving summary card",
+    },
+    {
       key: "tax_readiness",
       label: "Tax Readiness",
       icon: "shield-checkmark-outline",
       description: "HMRC estimate, weekly set-aside, filing deadline countdown",
+    },
+    {
+      key: "weekly_goal",
+      label: "Weekly Goal",
+      icon: "flag-outline",
+      description: "Progress towards your weekly earnings target",
+    },
+    // Utility nav
+    {
+      key: "work_quicknav",
+      label: "Quick Actions",
+      icon: "grid-outline",
+      description: "Insights, Trips, Exports, Badges",
+    },
+    {
+      key: "work_shift",
+      label: "Start Shift",
+      icon: "play",
+      locked: true,
+    },
+    // Detail / exploration
+    {
+      key: "journey_map",
+      label: "Recent Journeys",
+      icon: "map-outline",
+      description: "Map of your recent trips",
     },
     {
       key: "activity_heatmap",
@@ -65,42 +105,6 @@ export const SECTION_REGISTRY: Record<ScreenKey, SectionDef[]> = {
       label: "How You Compare",
       icon: "people-outline",
       description: "Anonymous benchmarks vs other UK drivers",
-    },
-    {
-      key: "daily_recap",
-      label: "Today's Recap",
-      icon: "today-outline",
-      description: "Daily driving summary card",
-    },
-    {
-      key: "work_cta",
-      label: "Start Trip",
-      icon: "navigate",
-      locked: true,
-    },
-    {
-      key: "work_shift",
-      label: "Start Shift",
-      icon: "play",
-      locked: true,
-    },
-    {
-      key: "work_quicknav",
-      label: "Quick Actions",
-      icon: "grid-outline",
-      description: "Insights, Trips, Exports, Badges",
-    },
-    {
-      key: "journey_map",
-      label: "Recent Journeys",
-      icon: "map-outline",
-      description: "Map of your recent trips",
-    },
-    {
-      key: "weekly_goal",
-      label: "Weekly Goal",
-      icon: "flag-outline",
-      description: "Progress towards your weekly earnings target",
     },
     {
       key: "work_calendar",
@@ -405,6 +409,34 @@ export function useLayoutPrefs(screen: ScreenKey) {
     [prefs, screen]
   );
 
+  /**
+   * Replace the entire ordering with a new key sequence (used by drag-and-drop).
+   * Any keys missing from `newOrder` keep their visibility/position state but
+   * are appended at the end (defensive against partial reorder calls).
+   */
+  const reorder = useCallback(
+    async (newOrder: string[]) => {
+      const byKey = new Map(prefs.map((p) => [p.key, p]));
+      const seen = new Set<string>();
+      const reordered: LayoutPref[] = [];
+      for (const k of newOrder) {
+        const pref = byKey.get(k);
+        if (pref && !seen.has(k)) {
+          reordered.push(pref);
+          seen.add(k);
+        }
+      }
+      // Append any prefs the caller forgot, preserving original order
+      for (const pref of prefs) {
+        if (!seen.has(pref.key)) reordered.push(pref);
+      }
+      const reindexed = reordered.map((p, i) => ({ ...p, position: i }));
+      setPrefs(reindexed);
+      await savePrefs(screen, reindexed);
+    },
+    [prefs, screen]
+  );
+
   const reset = useCallback(async () => {
     const db = await getDatabase();
     await db.runAsync("DELETE FROM layout_prefs WHERE screen = ?", [screen]);
@@ -420,6 +452,7 @@ export function useLayoutPrefs(screen: ScreenKey) {
     toggleVisibility,
     moveUp,
     moveDown,
+    reorder,
     reset,
   };
 }

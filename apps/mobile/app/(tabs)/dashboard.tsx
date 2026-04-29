@@ -1202,6 +1202,18 @@ export default function DashboardScreen() {
         </TouchableOpacity>
       )}
 
+      {/* Customize layout — discoverable footer link, low visual weight */}
+      <TouchableOpacity
+        style={s.customizeFooter}
+        onPress={() => router.push("/customize-layout" as any)}
+        activeOpacity={0.7}
+        accessibilityRole="button"
+        accessibilityLabel="Customize this dashboard. Reorder cards, hide ones you don't want."
+      >
+        <Ionicons name="options-outline" size={14} color="#64748b" accessible={false} />
+        <Text style={s.customizeFooterText}>Customize this dashboard</Text>
+      </TouchableOpacity>
+
       <View style={{ height: 24 }} />
 
       {/* Trip segment bottom sheet */}
@@ -2056,5 +2068,18 @@ const s = StyleSheet.create({
     fontFamily: "PlusJakartaSans_600SemiBold",
     color: TEXT_1,
     marginBottom: 8,
+  },
+  customizeFooter: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    paddingVertical: 14,
+    marginTop: 8,
+  },
+  customizeFooterText: {
+    fontSize: 13,
+    fontFamily: "PlusJakartaSans_500Medium",
+    color: "#64748b",
   },
 });
