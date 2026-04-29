@@ -22,6 +22,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
     { url: `${BASE_URL}/just-eat-mileage-tracker`, lastModified: new Date("2026-04-25") },
     { url: `${BASE_URL}/dpd-mileage-tracker`, lastModified: new Date("2026-04-25") },
     { url: `${BASE_URL}/evri-mileage-tracker`, lastModified: new Date("2026-04-25") },
+    { url: `${BASE_URL}/delivery-driver-mileage-tracker`, lastModified: new Date("2026-04-29") },
     { url: `${BASE_URL}/hmrc-mileage-rates`, lastModified: new Date("2026-04-21") },
     { url: `${BASE_URL}/business-mileage-guide`, lastModified: new Date("2026-04-21") },
     { url: `${BASE_URL}/what-counts-as-business-mileage`, lastModified: new Date("2026-04-21") },

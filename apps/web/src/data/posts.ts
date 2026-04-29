@@ -234,6 +234,75 @@ export const RELEASE_NOTES: ReleaseNote[] = [
 // ----------------------------------------------------------------
 export const BLOG_POSTS: BlogPost[] = [
   {
+    slug: "does-amazon-flex-track-mileage",
+    title: "Does Amazon Flex Track Mileage? (UK Tax Guide)",
+    excerpt:
+      "Short answer: no, Amazon Flex does not track your mileage in any way HMRC accepts. Here is why that matters for your tax bill, what the app does and does not record, and what UK Flex drivers should do instead.",
+    date: "29 April 2026",
+    author: "Gair",
+    category: "guide",
+    content: `
+<p><strong>Short answer: no. Amazon Flex does not track your mileage in any way that satisfies HMRC.</strong></p>
+
+<p>The app records the blocks you accept, the parcels you deliver, and what you got paid. It does not log the miles you drove, it does not export them in a tax-friendly format, and it does not produce anything HMRC would accept as a contemporaneous record. Amazon pays you per block - not per mile - so they have no business reason to track that data.</p>
+
+<p>Long answer: this is the most-asked tax question among UK Amazon Flex drivers, and getting it wrong costs you hundreds or thousands of pounds at Self Assessment. Here is what the gap looks like and what to do about it.</p>
+
+<h2>What Amazon Flex actually records</h2>
+
+<ul>
+<li>The block you accepted (start time, end time, station, expected pay).</li>
+<li>The route Amazon assigned to that block.</li>
+<li>Each parcel scan and delivery confirmation.</li>
+<li>Your total earnings for the block.</li>
+</ul>
+
+<p>What it does not record:</p>
+
+<ul>
+<li>The miles from your home to the depot at the start of a block.</li>
+<li>The miles from your last drop back home.</li>
+<li>Any deviation from Amazon's route - traffic detours, missing house numbers, extra return drops.</li>
+<li>An odometer or GPS log you can export.</li>
+<li>Anything in HMRC-acceptable format.</li>
+</ul>
+
+<h2>What HMRC actually requires</h2>
+
+<p>If you are claiming the Approved Mileage Allowance Payment (AMAP) deduction on your Self Assessment - and as a self-employed Flex driver you almost certainly should be - HMRC needs a contemporaneous record of every business journey. That means: the date, the start and end location, the reason for the trip, and the distance driven. Logged at the time, not reconstructed in January from memory.</p>
+
+<p>The current AMAP rates (2025/26 and 2026/27):</p>
+<ul>
+<li><strong>45p per mile</strong> for the first 10,000 business miles in cars and vans.</li>
+<li><strong>25p per mile</strong> for every business mile after that.</li>
+<li><strong>24p per mile</strong> for motorcycles.</li>
+<li><strong>20p per mile</strong> for bicycles.</li>
+</ul>
+
+<p>For a typical Flex driver covering 200 business miles a week, that is around £4,500 a year in deductions. If your records do not exist - or do not pass HMRC's "contemporaneous" test - you cannot claim a penny of it.</p>
+
+<h2>"I'll just use Google Maps Timeline" - why that does not work</h2>
+
+<p>Google Maps Timeline and Apple Maps history do record where you went. But neither distinguishes business from personal miles, neither timestamps in a tax-acceptable format, and neither exports in any way you can hand to HMRC. Your trip to Tesco at 2pm and your Amazon Flex block at 4pm both look the same in Maps Timeline - just dots on a route. Reconstructing a tax year from raw timeline data in January is a slow, error-prone afternoon you do not need.</p>
+
+<h2>What to do instead</h2>
+
+<p>Use a purpose-built UK mileage tracker - one that records every block automatically, tags trips by platform, applies the HMRC rate, and exports a Self Assessment-ready PDF when you need it.</p>
+
+<p><a href="/amazon-flex-mileage-tracker">MileClear's full Amazon Flex guide</a> covers the specifics - block-based shifts, the home-to-depot commute rule, return-to-depot miles, multi-platform tagging if you also drive for Uber or Deliveroo. The setup takes about 5 minutes the first time you accept a Flex block. After that, every mile is captured without you doing anything.</p>
+
+<p><strong>Free tier:</strong> automatic GPS tracking, manual classification, HMRC rate calculation, fuel-price lookup, all your historical trips. The tracking is what you actually need, and it is permanent and free.</p>
+
+<p><strong>Pro at £4.99/month:</strong> CSV and PDF Self Assessment exports, the HMRC attestation cover sheet, CSV import from Amazon Flex earnings statements, the Self Assessment wizard that walks you through which numbers go in which boxes on your SA103. You only need Pro at tax time - daily tracking stays free year-round.</p>
+
+<h2>Bottom line</h2>
+
+<p>Amazon Flex does not track mileage. If you are claiming AMAP on Self Assessment, that gap is yours to fill. Track every mile contemporaneously with a tool built for HMRC compliance, or accept that you will under-claim by hundreds or thousands of pounds a year.</p>
+
+<p><a href="https://apps.apple.com/app/mileclear/id6742044832">Install MileClear free on the App Store</a>.</p>
+`,
+  },
+  {
     slug: "inactive-on-gophr",
     title: "Inactive on Gophr: What It Means and What to Do Next",
     excerpt:
