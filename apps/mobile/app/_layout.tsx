@@ -55,7 +55,7 @@ import {
 } from "../lib/notifications/index";
 import { setupNotificationChannels, scheduleWeeklyMileageSummary, scheduleTaxYearDeadlineReminder, checkUnclassifiedTripsNudge, checkStreakAtRisk, checkLongRunningShift } from "../lib/notifications/scheduler";
 import { registerPushToken } from "../lib/api/notifications";
-import { startDriveDetection, finalizeStaleAutoRecordings } from "../lib/tracking/detection";
+import { startDriveDetection, finalizeStaleAutoRecordings, registerBackgroundFinalize } from "../lib/tracking/detection";
 import { registerGeofences, shadeExpiredUnconfirmedTrips, setDepartureAnchor } from "../lib/geofencing/index";
 import { getDatabase } from "../lib/db/index";
 import { hydrateLocalData, isHydrationComplete } from "../lib/sync/hydrate";
@@ -138,6 +138,7 @@ function RootNavigator() {
       finalizeStaleAutoRecordings()
         .catch(() => {})
         .finally(() => startDriveDetection());
+      registerBackgroundFinalize().catch(() => {});
       registerGeofences().catch(() => {});
       setDepartureAnchor().catch(() => {});
       shadeExpiredUnconfirmedTrips().catch(() => {});

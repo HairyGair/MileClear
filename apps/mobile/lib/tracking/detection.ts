@@ -1,5 +1,6 @@
 import * as Location from "expo-location";
 import * as TaskManager from "expo-task-manager";
+import * as BackgroundFetch from "expo-background-fetch";
 import * as Notifications from "expo-notifications";
 import { getDatabase } from "../db/index";
 import {
@@ -18,6 +19,8 @@ import { markBluetoothStateAtStart, hasBluetoothDisconnected, resetBluetoothStat
 import type { TripClassification, PlatformTag } from "@mileclear/shared";
 
 const DETECTION_TASK_NAME = "mileclear-drive-detection";
+const BACKGROUND_FINALIZE_TASK = "mileclear-background-finalize";
+const BACKGROUND_FETCH_INTERVAL_S = 15 * 60; // 15 minutes - iOS treats as a hint, actual cadence varies
 const COOLDOWN_MS = 20 * 60 * 1000; // 20 minutes
 const BUFFER_MAX_AGE_MS = 30 * 60 * 1000; // 30 minutes
 const SPEED_THRESHOLD_MS = DRIVING_SPEED_THRESHOLD_MPH * 0.44704; // mph to m/s
@@ -1428,6 +1431,82 @@ try {
   });
 } catch (err) {
   console.warn("TaskManager.defineTask failed - drive detection disabled:", err);
+}
+
+// ── Background fetch task: periodic stale-trip finalize ────────────────────
+// iOS suspends the JS runtime when backgrounded, so an auto-trip that ends
+// while the user is parked may sit unfinalised for hours - the user only
+// sees the trip when they reopen the app and finalizeStaleAutoRecordings()
+// runs on AppState change.
+//
+// BackgroundFetch lets iOS wake the app every ~15-60 min (cadence is at
+// iOS's discretion based on user behaviour). When fired, we finalize any
+// stale recording, which fires the standard "Trip recorded - classify it"
+// notification - the user gets pinged even if they never opened the app.
+
+try {
+  TaskManager.defineTask(BACKGROUND_FINALIZE_TASK, async () => {
+    try {
+      const db = await getDatabase();
+      const recording = await db.getFirstAsync<{ value: string }>(
+        "SELECT value FROM tracking_state WHERE key = 'auto_recording_active'"
+      );
+      if (recording?.value !== "1") {
+        return BackgroundFetch.BackgroundFetchResult.NoData;
+      }
+
+      const lastDriving = await db.getFirstAsync<{ value: string }>(
+        "SELECT value FROM tracking_state WHERE key = 'last_driving_speed_at'"
+      );
+      if (!lastDriving) {
+        // Recording active but no last-driving timestamp — stale state, clean it.
+        await db.runAsync("DELETE FROM tracking_state WHERE key = 'auto_recording_active'");
+        return BackgroundFetch.BackgroundFetchResult.NewData;
+      }
+
+      const elapsed = Date.now() - parseInt(lastDriving.value, 10);
+      if (elapsed > STOP_TIMEOUT_MS) {
+        logDetectionEvent("background_fetch_finalize", { elapsedMs: elapsed }).catch(() => {});
+        await finalizeAutoTrip();
+        return BackgroundFetch.BackgroundFetchResult.NewData;
+      }
+      return BackgroundFetch.BackgroundFetchResult.NoData;
+    } catch (err) {
+      console.warn("Background finalize task error:", err);
+      return BackgroundFetch.BackgroundFetchResult.Failed;
+    }
+  });
+} catch (err) {
+  console.warn("Background finalize task define failed:", err);
+}
+
+/**
+ * Register the background-fetch task with iOS. Best-effort - never throws.
+ * Should be called once per app start. Re-registering is idempotent.
+ */
+export async function registerBackgroundFinalize(): Promise<void> {
+  try {
+    const status = await BackgroundFetch.getStatusAsync();
+    if (
+      status === BackgroundFetch.BackgroundFetchStatus.Restricted ||
+      status === BackgroundFetch.BackgroundFetchStatus.Denied
+    ) {
+      logDetectionEvent("background_fetch_unavailable", { status }).catch(() => {});
+      return;
+    }
+    const isRegistered = await TaskManager.isTaskRegisteredAsync(BACKGROUND_FINALIZE_TASK);
+    if (isRegistered) return;
+    await BackgroundFetch.registerTaskAsync(BACKGROUND_FINALIZE_TASK, {
+      minimumInterval: BACKGROUND_FETCH_INTERVAL_S,
+      stopOnTerminate: false,
+      startOnBoot: true,
+    });
+    logDetectionEvent("background_fetch_registered", {
+      minimumIntervalSec: BACKGROUND_FETCH_INTERVAL_S,
+    }).catch(() => {});
+  } catch (err) {
+    console.warn("registerBackgroundFinalize failed:", err);
+  }
 }
 
 // ── Public API ───────────────────────────────────────────────────────────

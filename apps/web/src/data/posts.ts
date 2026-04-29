@@ -37,7 +37,7 @@ export interface Guide {
 export const RELEASE_NOTES: ReleaseNote[] = [
   {
     version: "1.1.0",
-    date: "26 April 2026",
+    date: "29 April 2026",
     label: "In Testing",
     ctaUrl: "https://testflight.apple.com/join/SGrmnaaH",
     ctaLabel: "Join the beta on TestFlight",
@@ -53,6 +53,14 @@ export const RELEASE_NOTES: ReleaseNote[] = [
       "MOT History - tap 'View MOT History' on any vehicle with a registration plate to see the full DVSA record. Test results, expiry dates, advisories, defects with severity tags, and odometer growth between tests. Pulled live from the DVSA MOT History API.",
       "Pickup wait timer - tap 'Wait at pickup' on the Active Recording screen when you arrive at a restaurant or depot. The stopwatch runs while you wait; tap 'Picked up' when the order's ready. Survives app suspension. Foundation for community-aggregated 'this McDonald's averages 12-min waits' insights landing once enough drivers contribute.",
       "Earnings adoption nudge - if you're tracking trips but haven't logged earnings, the Tax Readiness card shows a one-tap shortcut to the earnings form. Drivers who don't log earnings can't see their real tax estimate.",
+      "Drag-and-drop dashboard customization - long-press any card in Profile > Customize Layout (or tap the new 'Customize this dashboard' link at the bottom of the dashboard) and drag to reorder. Toggle visibility per card. Reset per-screen or all at once. Locked cards (hero, Start Trip CTA, account actions) stay put.",
+      "Work dashboard reordered to summary-up, detail-down - hero, Start Trip, today's recap, tax readiness and weekly goal at the top; activity heatmap, benchmark, calendar and community insights toward the bottom. Existing layouts are preserved - only fresh installs and the Reset action see the new default.",
+      "Trip distance preserved when reopening a saved trip - the OSRM road-route auto-calc no longer silently overwrites the original GPS-breadcrumb-summed distance. Multi-stop trips, Deliveroo loops, anything with a detour now shows the same distance on the trips list and inside the trip itself.",
+      "Lock-screen Delete on the 'Trip recorded' notification - alongside the existing Business and Personal classification buttons, you can now Delete a trip directly from the lock screen. No need to open the app to bin one you did not want recorded.",
+      "Visible trash icon on every trip in the list - replaces the long-press-only delete that most users never tried. Long-press still works as a fallback.",
+      "Auto-trip false-positive hardening for stationary drift - the detection engine now distinguishes iOS-reported speed (Kalman-filtered, trustworthy) from calculated speed (susceptible to GPS noise). Calculated speed always needs the consecutive-detection confirmation, won't fast-track at 25mph, and requires at least 3-second sample periods and 30m of real movement before counting. Saved-location fallback radius bumped to 150m. Phone-in-pocket indoor drift can no longer fake a highway-speed reading.",
+      "Background-fetch trip recovery - if iOS suspends the JS runtime mid-park and your auto-trip never gets a chance to finalise, the app now wakes itself periodically (every ~15 min, iOS schedules) to finalise stale recordings and fire the 'Trip recorded - classify it' notification. You no longer need to open MileClear before your trip is recognised.",
+      "Sync queue accuracy fixes - the 'X items pending sync' badge now only counts what the engine will actually attempt, so retry-exhausted rows can no longer pile up forever. Transient failures now transition to a terminal 'permanently_failed' state at the retry ceiling. Long sync batches surface 'Syncing 3 of 12...' progress text instead of an opaque spinner. First-launch hydration shows a 'Taking longer than usual' note after 8s on slow connections.",
       "Sparse-GPS-trace fix - solved the bug where iOS could suspend the JS runtime mid-trip and leave recording stuck in low-power detection mode (200m intervals instead of 50m). The recording-mode upgrade now verifies it took effect and retries automatically.",
       "Web dashboard: Footer 'For drivers' column linking all 6 niche guides (Uber, Deliveroo, Just Eat, Amazon Flex, DPD, Evri) plus the MileIQ comparison.",
       "API: new /business-insights/tax-snapshot, /business-insights/heatmap, /business-insights/benchmarks, /hmrc-reconciliation, /pickup-waits, /vehicles/:id/mot-history endpoints powering the dashboard cards. All free-tier; premium-gated APIs remain unchanged.",
