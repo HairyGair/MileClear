@@ -880,8 +880,33 @@ export default function DashboardScreen() {
 
       {/* ── Work Mode (layout-aware) ── */}
       {isWork && workLayout.visibleKeys.map((key) => {
+        // Trip-count gates: cards that only make sense once a few trips are
+        // logged are hidden in the empty / early state. The 5-trip threshold
+        // matches the Benchmark card's privacy floor and stops the dashboard
+        // looking like a sea of zeros for first-time users.
+        const totalTrips = stats?.totalTrips ?? 0;
+        const hasMinTrips = totalTrips >= 5;
+
         switch (key) {
           case "work_hero":
+            if (!stats) return null;
+            // Empty-state hero: replaces "£0.00 saved" with a Day 1 welcome
+            // when the user has never logged a trip. The Start Trip CTA card
+            // immediately below the hero is the next-action prompt.
+            if (totalTrips === 0) {
+              return (
+                <View key={key} style={s.heroCard}>
+                  <View style={s.heroTopRow}>
+                    <Text style={s.heroLabel}>Welcome {"·"} Day 1</Text>
+                  </View>
+                  <Text style={s.heroValue}>{"£"}0.00</Text>
+                  <Text style={s.heroSavedLabel}>tax saved so far</Text>
+                  <Text style={s.heroEmptyBody}>
+                    Tap Start Trip the next time you drive. Your HMRC deduction starts adding up from your first business mile.
+                  </Text>
+                </View>
+              );
+            }
             return stats ? (
               <View key={key} style={s.heroCard}>
                 <View style={s.heroTopRow}>
@@ -917,12 +942,25 @@ export default function DashboardScreen() {
               </View>
             ) : null;
           case "tax_readiness":
+            // Hide until there's at least one trip - "£0 estimated tax"
+            // adds nothing for a brand-new user.
+            if (totalTrips === 0) return null;
             return <TaxReadinessCard key={key} />;
           case "business_mileage":
+            // Always render - drivers explicitly asked for business mileage
+            // visibility, and "0 miles this month" is intuitive (it just
+            // means they haven't driven yet).
             return <MileageMonthCard key={key} classification="business" />;
           case "activity_heatmap":
+            // 7x24 grid needs aggregate data across hours and days to be
+            // meaningful. Hide until 5+ trips so the empty grid doesn't
+            // signal "broken".
+            if (!hasMinTrips) return null;
             return <ActivityHeatmapCard key={key} />;
           case "benchmark":
+            // The card has its own 5-contributor privacy floor; showing
+            // "Need more data" to a 0-trip user is just noise.
+            if (!hasMinTrips) return null;
             return <BenchmarkCard key={key} />;
           case "daily_recap":
             return dailyRecap && dailyRecap.totalTrips > 0 ? (
@@ -1047,8 +1085,13 @@ export default function DashboardScreen() {
               </View>
             ) : null;
           case "weekly_goal":
+            // Hide until at least one trip - "0 / X miles" with an empty
+            // bar tells a brand-new user nothing useful.
+            if (totalTrips === 0) return null;
             return <WeeklyGoalCard key={key} />;
           case "work_calendar":
+            // Monthly heatmap is meaningless without trip data filling cells.
+            if (!hasMinTrips) return null;
             return <WorkCalendarCard key={key} />;
           case "community":
             return (
@@ -1272,6 +1315,13 @@ const s = StyleSheet.create({
     color: "#10b981",
     marginBottom: 6,
     marginTop: -6,
+  },
+  heroEmptyBody: {
+    fontSize: 13,
+    fontFamily: "PlusJakartaSans_400Regular",
+    color: "#94a3b8",
+    lineHeight: 19,
+    marginTop: 10,
   },
   heroLockedHint: {
     fontSize: 12,
