@@ -19,6 +19,7 @@ import {
 } from "react-native";
 import { useRouter, useFocusEffect } from "expo-router";
 import { Button } from "../../components/Button";
+import { DateTimePickerField } from "../../components/DateTimePickerField";
 import { fetchTrips, fetchUnclassifiedCount, fetchClassificationSuggestion, mergeTrips, TripWithVehicle, ClassificationSuggestion } from "../../lib/api/trips";
 import { syncUpdateTrip, syncDeleteTrip } from "../../lib/sync/actions";
 import { markLiveActivityClassified } from "../../lib/liveActivity";
@@ -147,6 +148,110 @@ const FILTERS: { label: string; value: TripClassification | "all" }[] = [
   { label: "Personal", value: "personal" },
 ];
 
+type DateRange = "all" | "week" | "month" | "lastMonth" | "custom";
+
+const DATE_RANGES: { label: string; value: DateRange }[] = [
+  { label: "All time", value: "all" },
+  { label: "This week", value: "week" },
+  { label: "This month", value: "month" },
+  { label: "Last month", value: "lastMonth" },
+  { label: "Custom…", value: "custom" },
+];
+
+/**
+ * Convert a DateRange + optional custom bounds into the from/to ISO strings
+ * the trips API expects. Returns {} for "all time" so the API does not filter.
+ */
+function rangeBounds(
+  r: DateRange,
+  customFrom?: Date | null,
+  customTo?: Date | null
+): { from?: string; to?: string } {
+  const now = new Date();
+  switch (r) {
+    case "all":
+      return {};
+    case "week": {
+      // Monday at 00:00 of the current week
+      const d = new Date(now);
+      const dow = d.getDay();
+      const offset = dow === 0 ? 6 : dow - 1;
+      d.setDate(d.getDate() - offset);
+      d.setHours(0, 0, 0, 0);
+      return { from: d.toISOString(), to: now.toISOString() };
+    }
+    case "month": {
+      const start = new Date(now.getFullYear(), now.getMonth(), 1);
+      return { from: start.toISOString(), to: now.toISOString() };
+    }
+    case "lastMonth": {
+      const start = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+      const end = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59);
+      return { from: start.toISOString(), to: end.toISOString() };
+    }
+    case "custom":
+      if (customFrom && customTo) {
+        // End of day on the "to" date so trips at 23:59 are included.
+        const end = new Date(customTo);
+        end.setHours(23, 59, 59, 999);
+        const start = new Date(customFrom);
+        start.setHours(0, 0, 0, 0);
+        return { from: start.toISOString(), to: end.toISOString() };
+      }
+      return {};
+  }
+}
+
+function rangeLabel(
+  r: DateRange,
+  customFrom?: Date | null,
+  customTo?: Date | null
+): string {
+  switch (r) {
+    case "all":
+      return "All time";
+    case "week":
+      return "This week";
+    case "month":
+      return "This month";
+    case "lastMonth":
+      return "Last month";
+    case "custom":
+      if (customFrom && customTo) {
+        const fmt = (d: Date) =>
+          d.toLocaleDateString("en-GB", { day: "numeric", month: "short" });
+        return `${fmt(customFrom)} – ${fmt(customTo)}`;
+      }
+      return "Custom";
+  }
+}
+
+function computeRangeStats(trips: TripWithVehicle[]) {
+  let totalMiles = 0;
+  let businessMiles = 0;
+  let personalMiles = 0;
+  let businessTrips = 0;
+  let personalTrips = 0;
+  for (const t of trips) {
+    totalMiles += t.distanceMiles;
+    if (t.classification === "business") {
+      businessMiles += t.distanceMiles;
+      businessTrips++;
+    } else if (t.classification === "personal") {
+      personalMiles += t.distanceMiles;
+      personalTrips++;
+    }
+  }
+  return {
+    totalMiles,
+    businessMiles,
+    personalMiles,
+    businessTrips,
+    personalTrips,
+    totalTrips: trips.length,
+  };
+}
+
 const PLATFORM_LABELS: Record<string, string> = Object.fromEntries(
   GIG_PLATFORMS.map((p) => [p.value, p.label])
 );
@@ -171,6 +276,12 @@ export default function TripsScreen() {
   const [filter, setFilter] = useState<TripClassification | "all">("all");
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
+  // Date range state. When dateRange !== "all" the trips list is constrained
+  // to that period AND a stats summary card appears at the top of the list.
+  const [dateRange, setDateRange] = useState<DateRange>("all");
+  const [customFrom, setCustomFrom] = useState<Date | null>(null);
+  const [customTo, setCustomTo] = useState<Date | null>(null);
+  const [showCustomPicker, setShowCustomPicker] = useState(false);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -233,15 +344,33 @@ export default function TripsScreen() {
   // value without needing filter as a dependency (which causes effect churn).
   const filterRef = useRef(filter);
   filterRef.current = filter;
+  const dateRangeRef = useRef(dateRange);
+  dateRangeRef.current = dateRange;
+  const customFromRef = useRef(customFrom);
+  customFromRef.current = customFrom;
+  const customToRef = useRef(customTo);
+  customToRef.current = customTo;
 
   const loadTrips = useCallback(
     async (pageNum: number, append = false) => {
       try {
         const classification = filterRef.current === "all" ? undefined : filterRef.current;
+        const bounds = rangeBounds(
+          dateRangeRef.current,
+          customFromRef.current,
+          customToRef.current
+        );
+        // When a date range is active, fetch a larger page (one shot) so the
+        // stats card and the full list are both populated without paginating.
+        // For ranges up to ~90 days this keeps things simple. For "all time"
+        // we keep the existing 20-per-page pagination.
+        const isFiltered = dateRangeRef.current !== "all";
+        const pageSize = isFiltered ? 500 : 20;
         const res = await fetchTrips({
           classification,
+          ...bounds,
           page: pageNum,
-          pageSize: 20,
+          pageSize,
         });
         setIsOffline(false);
 
@@ -259,7 +388,9 @@ export default function TripsScreen() {
           loadSuggestions(allTrips).catch(() => {});
         }
         setPage(res.page);
-        setTotalPages(res.totalPages);
+        // When filtered, force a single-page UI by pretending there are no
+        // more pages - load-more is disabled.
+        setTotalPages(isFiltered ? 1 : res.totalPages);
       } catch {
         // Offline fallback — show all local data
         if (!append) {
@@ -911,6 +1042,105 @@ export default function TripsScreen() {
               ))}
             </View>
 
+            {/* Date range chips - orthogonal to classification filter so they
+                compose. Custom opens a from/to date picker modal. */}
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.dateRangeRow}
+            >
+              {DATE_RANGES.map((r) => {
+                const active = dateRange === r.value;
+                const label =
+                  r.value === "custom"
+                    ? rangeLabel(r.value, customFrom, customTo)
+                    : r.label;
+                return (
+                  <TouchableOpacity
+                    key={r.value}
+                    style={[styles.dateRangeChip, active && styles.dateRangeChipActive]}
+                    onPress={() => {
+                      if (r.value === "custom") {
+                        setShowCustomPicker(true);
+                        return;
+                      }
+                      setDateRange(r.value);
+                      setCustomFrom(null);
+                      setCustomTo(null);
+                      // Schedule reload after state has actually flushed.
+                      dateRangeRef.current = r.value;
+                      customFromRef.current = null;
+                      customToRef.current = null;
+                      loadTrips(1);
+                    }}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Date range: ${label}`}
+                    accessibilityState={{ selected: active }}
+                  >
+                    <Text
+                      style={[
+                        styles.dateRangeChipText,
+                        active && styles.dateRangeChipTextActive,
+                      ]}
+                    >
+                      {label}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+
+            {/* Stats summary - only when a range is active. Computes from
+                the loaded trips client-side; the larger pageSize=500 fetch
+                in loadTrips ensures this captures the whole range. */}
+            {dateRange !== "all" && trips.length > 0 && (() => {
+              const stats = computeRangeStats(trips);
+              return (
+                <View style={styles.rangeStatsCard}>
+                  <Text style={styles.rangeStatsLabel}>
+                    {rangeLabel(dateRange, customFrom, customTo).toUpperCase()}
+                  </Text>
+                  <View style={styles.rangeStatsRow}>
+                    <View style={styles.rangeStatItem}>
+                      <Text style={styles.rangeStatValue}>
+                        {stats.totalMiles.toFixed(1)}
+                      </Text>
+                      <Text style={styles.rangeStatUnit}>miles</Text>
+                    </View>
+                    <View style={styles.rangeStatDivider} />
+                    <View style={styles.rangeStatItem}>
+                      <Text style={styles.rangeStatValue}>{stats.totalTrips}</Text>
+                      <Text style={styles.rangeStatUnit}>
+                        {stats.totalTrips === 1 ? "trip" : "trips"}
+                      </Text>
+                    </View>
+                    {stats.businessMiles > 0 && (
+                      <>
+                        <View style={styles.rangeStatDivider} />
+                        <View style={styles.rangeStatItem}>
+                          <Text style={[styles.rangeStatValue, styles.rangeStatBusiness]}>
+                            {stats.businessMiles.toFixed(1)}
+                          </Text>
+                          <Text style={styles.rangeStatUnit}>business mi</Text>
+                        </View>
+                      </>
+                    )}
+                    {stats.personalMiles > 0 && (
+                      <>
+                        <View style={styles.rangeStatDivider} />
+                        <View style={styles.rangeStatItem}>
+                          <Text style={styles.rangeStatValue}>
+                            {stats.personalMiles.toFixed(1)}
+                          </Text>
+                          <Text style={styles.rangeStatUnit}>personal mi</Text>
+                        </View>
+                      </>
+                    )}
+                  </View>
+                </View>
+              );
+            })()}
+
             {/* Merge mode banner */}
             {mergeMode && (
               <View style={styles.mergeBanner}>
@@ -1145,6 +1375,68 @@ export default function TripsScreen() {
           </Pressable>
         </Modal>
       )}
+
+      {/* Custom date-range picker modal */}
+      <Modal
+        visible={showCustomPicker}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowCustomPicker(false)}
+      >
+        <Pressable
+          style={styles.mergeBackdrop}
+          onPress={() => setShowCustomPicker(false)}
+        >
+          <Pressable
+            style={styles.mergeSheet}
+            onPress={(e) => e.stopPropagation()}
+          >
+            <View style={styles.mergeHandle} />
+            <Text style={styles.mergeTitle}>Custom date range</Text>
+            <Text style={styles.customRangeHint}>
+              Pick a start and end date. The trip list and stats update to that range.
+            </Text>
+            <DateTimePickerField
+              label="From"
+              value={customFrom}
+              onChange={setCustomFrom}
+              maximumDate={customTo ?? new Date()}
+            />
+            <DateTimePickerField
+              label="To"
+              value={customTo}
+              onChange={setCustomTo}
+              maximumDate={new Date()}
+            />
+            <View style={{ flexDirection: "row", gap: 10, marginTop: 16 }}>
+              <Button
+                title="Cancel"
+                variant="ghost"
+                onPress={() => setShowCustomPicker(false)}
+                style={{ flex: 1 }}
+              />
+              <Button
+                title="Apply"
+                variant="primary"
+                onPress={() => {
+                  if (!customFrom || !customTo) {
+                    setShowCustomPicker(false);
+                    return;
+                  }
+                  setDateRange("custom");
+                  dateRangeRef.current = "custom";
+                  customFromRef.current = customFrom;
+                  customToRef.current = customTo;
+                  setShowCustomPicker(false);
+                  loadTrips(1);
+                }}
+                disabled={!customFrom || !customTo}
+                style={{ flex: 1 }}
+              />
+            </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
     </View>
   );
 }
@@ -1223,6 +1515,87 @@ const styles = StyleSheet.create({
   filterChipTextActive: {
     fontFamily: "PlusJakartaSans_600SemiBold",
     color: "#030712",
+  },
+  // Date-range chip row (smaller / more secondary than classification pills)
+  dateRangeRow: {
+    flexDirection: "row",
+    gap: 8,
+    paddingHorizontal: 0,
+    marginBottom: 16,
+  },
+  dateRangeChip: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+    backgroundColor: "#0a1120",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.06)",
+  },
+  dateRangeChipActive: {
+    backgroundColor: "rgba(245, 166, 35, 0.15)",
+    borderColor: "rgba(245, 166, 35, 0.4)",
+  },
+  dateRangeChipText: {
+    fontSize: 12,
+    fontFamily: "PlusJakartaSans_500Medium",
+    color: "#9ca3af",
+  },
+  dateRangeChipTextActive: {
+    color: "#f5a623",
+    fontFamily: "PlusJakartaSans_600SemiBold",
+  },
+  // Stats summary card shown above the trip list when a date range is active
+  rangeStatsCard: {
+    backgroundColor: "#0a1120",
+    borderRadius: 12,
+    padding: 14,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: "rgba(245, 166, 35, 0.12)",
+  },
+  rangeStatsLabel: {
+    fontSize: 11,
+    fontFamily: "PlusJakartaSans_700Bold",
+    color: "#f5a623",
+    letterSpacing: 1,
+    marginBottom: 10,
+  },
+  rangeStatsRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+  },
+  rangeStatItem: {
+    flex: 1,
+    alignItems: "center",
+    gap: 2,
+  },
+  rangeStatValue: {
+    fontSize: 18,
+    fontFamily: "PlusJakartaSans_700Bold",
+    color: "#f0f2f5",
+    letterSpacing: -0.4,
+  },
+  rangeStatBusiness: {
+    color: "#10b981",
+  },
+  rangeStatUnit: {
+    fontSize: 10,
+    fontFamily: "PlusJakartaSans_400Regular",
+    color: "#64748b",
+    letterSpacing: 0.2,
+  },
+  rangeStatDivider: {
+    width: 1,
+    height: 28,
+    backgroundColor: "rgba(255,255,255,0.06)",
+  },
+  customRangeHint: {
+    fontSize: 12,
+    fontFamily: "PlusJakartaSans_400Regular",
+    color: "#94a3b8",
+    lineHeight: 17,
+    marginBottom: 16,
   },
   filterBadge: {
     backgroundColor: "#f5a623",
