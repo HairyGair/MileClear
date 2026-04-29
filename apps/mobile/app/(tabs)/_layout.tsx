@@ -34,8 +34,16 @@ const headerStyles = StyleSheet.create({
 });
 
 function BrandHeader() {
+  const router = useRouter();
   return (
-    <View style={brandStyles.row}>
+    <TouchableOpacity
+      onPress={() => router.replace("/(tabs)/dashboard" as any)}
+      activeOpacity={0.7}
+      style={brandStyles.row}
+      accessibilityRole="button"
+      accessibilityLabel="Go to dashboard"
+      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+    >
       <Image
         source={require("../../assets/branding/logo-original.png")}
         style={brandStyles.icon}
@@ -43,7 +51,7 @@ function BrandHeader() {
       />
       <Text style={brandStyles.nameWhite}>Mile</Text>
       <Text style={brandStyles.nameAmber}>Clear</Text>
-    </View>
+    </TouchableOpacity>
   );
 }
 
