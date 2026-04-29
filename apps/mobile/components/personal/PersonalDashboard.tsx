@@ -5,6 +5,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { usePersonalStats } from "../../hooks/usePersonalStats";
 import { consumeLastSavedTrip, type LastSavedTrip } from "../../lib/events/lastTrip";
 import { DrivingSummaryCard } from "./DrivingSummaryCard";
+import { MileageMonthCard } from "../business/MileageMonthCard";
 import { PostTripCard } from "./PostTripCard";
 import { PersonalRecapCard } from "./PersonalRecapCard";
 import { MapOverview } from "./MapOverview";
@@ -175,6 +176,12 @@ export function PersonalDashboard({ avatarId, stats, visibleKeys, recentTrips, d
             weekMiles={weekMiles}
           />
         );
+      case "monthly_history":
+        // Reuses the work-side MileageMonthCard with no classification
+        // filter, so personal-mode users get an "all driving by month"
+        // navigator with prev/next chevrons. Title falls back to
+        // "MILEAGE" since classification is undefined.
+        return <MileageMonthCard key={key} title="MONTHLY MILEAGE" />;
       case "daily_recap": {
         const todayStr = new Date().toDateString();
         const todayTripsArr = weekTrips.filter((t) => new Date(t.startedAt).toDateString() === todayStr);

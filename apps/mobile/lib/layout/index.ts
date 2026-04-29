@@ -136,7 +136,13 @@ export const SECTION_REGISTRY: Record<ScreenKey, SectionDef[]> = {
       key: "personal_summary",
       label: "Driving Summary",
       icon: "speedometer-outline",
-      description: "Monthly miles, trips, fuel cost",
+      description: "Current month miles, trips, fuel cost (today / this week stats)",
+    },
+    {
+      key: "monthly_history",
+      label: "Monthly History",
+      icon: "calendar-outline",
+      description: "Mileage by month with prev/next chevrons - navigate back to past months",
     },
     {
       key: "daily_recap",

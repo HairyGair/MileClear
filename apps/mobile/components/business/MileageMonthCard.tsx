@@ -13,9 +13,10 @@ import type { TripClassification } from "@mileclear/shared";
 
 interface MileageMonthCardProps {
   /**
-   * Classification to filter on. Defaults to "business" so this card lives
-   * happily on the work dashboard. Pass "personal" or omit (undefined) for
-   * other surfaces.
+   * Classification to filter on. Pass "business" (work dashboard) or
+   * "personal" to filter, or omit entirely to show ALL trips (personal
+   * dashboard usage). The default is "no filter" rather than "business"
+   * so the card works on either surface without behaving unexpectedly.
    */
   classification?: TripClassification;
   /** Optional override for the card title. Default derives from classification. */
@@ -37,7 +38,7 @@ function formatMilesHero(miles: number): string {
 }
 
 export function MileageMonthCard({
-  classification = "business",
+  classification,
   title,
 }: MileageMonthCardProps) {
   // 0 = current month, -1 = last month, etc.
