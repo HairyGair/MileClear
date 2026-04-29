@@ -30,14 +30,23 @@ export function DrivingPatternsCard({ patterns }: Props) {
       </View>
 
       {/* Day of week */}
-      <Text style={s.sectionTitle}>Busiest Days</Text>
+      <Text style={s.sectionTitle}>Busiest Days {"·"} trips</Text>
       <View style={s.daysRow}>
         {DAY_LABELS.map((day, i) => {
-          const pct = maxDay > 0 ? (patterns.dayOfWeek[i] / maxDay) * 100 : 0;
+          const count = patterns.dayOfWeek[i];
+          const pct = maxDay > 0 ? (count / maxDay) * 100 : 0;
+          const isPeak = count === maxDay && maxDay > 0;
           return (
             <View key={day} style={s.dayCol}>
+              <Text style={[s.dayCount, isPeak && s.dayCountPeak]}>{count}</Text>
               <View style={s.dayBarWrap}>
-                <View style={[s.dayBar, { height: `${Math.max(4, pct)}%` }]} />
+                <View
+                  style={[
+                    s.dayBar,
+                    { height: `${Math.max(4, pct)}%` },
+                    isPeak && s.dayBarPeak,
+                  ]}
+                />
               </View>
               <Text style={s.dayLabel}>{day}</Text>
             </View>
@@ -46,7 +55,7 @@ export function DrivingPatternsCard({ patterns }: Props) {
       </View>
 
       {/* Time of day */}
-      <Text style={s.sectionTitle}>Peak Hours</Text>
+      <Text style={s.sectionTitle}>Peak Hours {"·"} trips</Text>
       <View style={s.timesCol}>
         {TIME_SLOTS.map((slot, i) => {
           const pct = maxTime > 0 ? (patterns.timeOfDay[i] / maxTime) * 100 : 0;
@@ -57,8 +66,14 @@ export function DrivingPatternsCard({ patterns }: Props) {
                 name={slot.icon}
                 size={14}
                 color={isPeak ? "#f5a623" : "#64748b"}
-                style={{ width: 20 }}
+                style={{ width: 18 }}
               />
+              <View style={s.timeLabelWrap}>
+                <Text style={[s.timeLabel, isPeak && s.timeLabelPeak]}>
+                  {slot.label}
+                </Text>
+                <Text style={s.timeRange}>{slot.range}</Text>
+              </View>
               <View style={s.timeBarWrap}>
                 <View
                   style={[
@@ -75,6 +90,23 @@ export function DrivingPatternsCard({ patterns }: Props) {
           );
         })}
       </View>
+
+      {/* Insight callout */}
+      {maxDay > 0 && maxTime > 0 && (() => {
+        const peakDayIdx = patterns.dayOfWeek.findIndex((c) => c === maxDay);
+        const peakTimeIdx = patterns.timeOfDay.findIndex((c) => c === maxTime);
+        if (peakDayIdx < 0 || peakTimeIdx < 0) return null;
+        const peakDay = ["Mondays", "Tuesdays", "Wednesdays", "Thursdays", "Fridays", "Saturdays", "Sundays"][peakDayIdx];
+        const peakSlot = TIME_SLOTS[peakTimeIdx];
+        return (
+          <View style={s.insight}>
+            <Ionicons name="bulb-outline" size={13} color="#f5a623" />
+            <Text style={s.insightText}>
+              You drive most on {peakDay} during the {peakSlot.label.toLowerCase()} ({peakSlot.range}).
+            </Text>
+          </View>
+        );
+      })()}
 
       {/* Average */}
       <View style={s.avgRow}>
@@ -142,7 +174,7 @@ const s = StyleSheet.create({
   daysRow: {
     flexDirection: "row",
     alignItems: "flex-end",
-    height: 60,
+    height: 90,
     gap: 4,
     marginBottom: 16,
   },
@@ -151,6 +183,16 @@ const s = StyleSheet.create({
     alignItems: "center",
     height: "100%",
   },
+  dayCount: {
+    fontSize: 11,
+    fontFamily: "PlusJakartaSans_600SemiBold",
+    color: "#94a3b8",
+    marginBottom: 2,
+  },
+  dayCountPeak: {
+    color: "#f5a623",
+    fontFamily: "PlusJakartaSans_700Bold",
+  },
   dayBarWrap: {
     flex: 1,
     width: "100%",
@@ -158,10 +200,13 @@ const s = StyleSheet.create({
   },
   dayBar: {
     width: "100%",
-    backgroundColor: "rgba(245, 166, 35, 0.6)",
+    backgroundColor: "rgba(245, 166, 35, 0.45)",
     borderTopLeftRadius: 3,
     borderTopRightRadius: 3,
     minHeight: 2,
+  },
+  dayBarPeak: {
+    backgroundColor: "#f5a623",
   },
   dayLabel: {
     fontSize: 11,
@@ -178,6 +223,26 @@ const s = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
+  },
+  timeLabelWrap: {
+    width: 92,
+    flexDirection: "row",
+    alignItems: "baseline",
+    gap: 6,
+  },
+  timeLabel: {
+    fontSize: 12,
+    fontFamily: "PlusJakartaSans_500Medium",
+    color: "#94a3b8",
+  },
+  timeLabelPeak: {
+    color: "#f5a623",
+    fontFamily: "PlusJakartaSans_700Bold",
+  },
+  timeRange: {
+    fontSize: 10,
+    fontFamily: "PlusJakartaSans_400Regular",
+    color: "#64748b",
   },
   timeBarWrap: {
     flex: 1,
@@ -204,6 +269,26 @@ const s = StyleSheet.create({
   timeCountPeak: {
     color: "#f5a623",
     fontFamily: "PlusJakartaSans_700Bold",
+  },
+  insight: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: "rgba(245, 166, 35, 0.08)",
+    borderRadius: 8,
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    marginTop: 4,
+    marginBottom: 4,
+    borderWidth: 1,
+    borderColor: "rgba(245, 166, 35, 0.15)",
+  },
+  insightText: {
+    flex: 1,
+    fontSize: 12,
+    fontFamily: "PlusJakartaSans_500Medium",
+    color: "#e2e8f0",
+    lineHeight: 16,
   },
   // Average
   avgRow: {
