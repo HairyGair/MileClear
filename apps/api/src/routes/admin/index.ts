@@ -1242,4 +1242,495 @@ export async function adminRoutes(app: FastifyInstance) {
       },
     });
   });
+
+  // ==========================================================================
+  // INSIGHTS PANELS - one block of 10 admin views added 29 April 2026.
+  // Mounted on a new /dashboard/admin/insights page in the web admin.
+  // All read-only except comp-premium (which writes an AppEvent audit row).
+  // ==========================================================================
+
+  // GET /admin/funnel
+  // Signup -> first trip -> 5+ trips -> earnings logged -> Pro upgrade
+  app.get("/funnel", async (_request, reply) => {
+    const [
+      totalUsers,
+      usersWithTrip,
+      usersWith5Trips,
+      usersWithEarnings,
+      premiumUsers,
+    ] = await Promise.all([
+      prisma.user.count(),
+      prisma.$queryRaw<Array<{ c: bigint }>>`
+        SELECT COUNT(DISTINCT userId) AS c FROM trips
+      `.then((r) => Number(r[0]?.c ?? 0)),
+      prisma.$queryRaw<Array<{ c: bigint }>>`
+        SELECT COUNT(*) AS c FROM (
+          SELECT userId FROM trips GROUP BY userId HAVING COUNT(*) >= 5
+        ) t
+      `.then((r) => Number(r[0]?.c ?? 0)),
+      prisma.$queryRaw<Array<{ c: bigint }>>`
+        SELECT COUNT(DISTINCT userId) AS c FROM earnings
+      `.then((r) => Number(r[0]?.c ?? 0)),
+      prisma.user.count({ where: { isPremium: true } }),
+    ]);
+
+    const pct = (n: number, denom: number) =>
+      denom > 0 ? Math.round((n / denom) * 1000) / 10 : 0;
+
+    return reply.send({
+      data: {
+        steps: [
+          { key: "signup", label: "Signed up", count: totalUsers, pctOfPrev: 100, pctOfTotal: 100 },
+          { key: "first_trip", label: "Logged first trip", count: usersWithTrip, pctOfPrev: pct(usersWithTrip, totalUsers), pctOfTotal: pct(usersWithTrip, totalUsers) },
+          { key: "five_trips", label: "5+ trips (active)", count: usersWith5Trips, pctOfPrev: pct(usersWith5Trips, usersWithTrip), pctOfTotal: pct(usersWith5Trips, totalUsers) },
+          { key: "earnings", label: "Logged earnings", count: usersWithEarnings, pctOfPrev: pct(usersWithEarnings, usersWith5Trips), pctOfTotal: pct(usersWithEarnings, totalUsers) },
+          { key: "premium", label: "Upgraded to Pro", count: premiumUsers, pctOfPrev: pct(premiumUsers, usersWith5Trips), pctOfTotal: pct(premiumUsers, totalUsers) },
+        ],
+      },
+    });
+  });
+
+  // GET /admin/retention
+  // D1/D7/D30 retention - of users who signed up in the last 90 days, what
+  // fraction logged a trip on or after day 1/7/30 from their signup date.
+  app.get("/retention", async (_request, reply) => {
+    const now = new Date();
+    const ninetyDaysAgo = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
+
+    const rows = await prisma.$queryRaw<
+      Array<{
+        cohort: bigint;
+        d1: bigint;
+        d7: bigint;
+        d30: bigint;
+      }>
+    >`
+      SELECT
+        COUNT(DISTINCT u.id) AS cohort,
+        SUM(CASE WHEN EXISTS (
+          SELECT 1 FROM trips t
+          WHERE t.userId = u.id AND t.startedAt >= DATE_ADD(u.createdAt, INTERVAL 1 DAY)
+        ) THEN 1 ELSE 0 END) AS d1,
+        SUM(CASE WHEN EXISTS (
+          SELECT 1 FROM trips t
+          WHERE t.userId = u.id AND t.startedAt >= DATE_ADD(u.createdAt, INTERVAL 7 DAY)
+        ) THEN 1 ELSE 0 END) AS d7,
+        SUM(CASE WHEN EXISTS (
+          SELECT 1 FROM trips t
+          WHERE t.userId = u.id AND t.startedAt >= DATE_ADD(u.createdAt, INTERVAL 30 DAY)
+        ) THEN 1 ELSE 0 END) AS d30
+      FROM users u
+      WHERE u.createdAt >= ${ninetyDaysAgo}
+    `;
+
+    const r = rows[0];
+    const cohort = Number(r?.cohort ?? 0);
+    const d1 = Number(r?.d1 ?? 0);
+    const d7 = Number(r?.d7 ?? 0);
+    const d30 = Number(r?.d30 ?? 0);
+    const pct = (n: number) =>
+      cohort > 0 ? Math.round((n / cohort) * 1000) / 10 : 0;
+
+    return reply.send({
+      data: {
+        cohortSize: cohort,
+        cohortWindow: "Signups in last 90 days",
+        d1: { count: d1, pct: pct(d1) },
+        d7: { count: d7, pct: pct(d7) },
+        d30: { count: d30, pct: pct(d30) },
+      },
+    });
+  });
+
+  // GET /admin/active-recordings
+  // Trips currently in progress (endedAt IS NULL) and shifts with status="active".
+  // Useful for catching stuck recordings in real time.
+  app.get("/active-recordings", async (_request, reply) => {
+    const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+
+    const [activeTrips, activeShifts] = await Promise.all([
+      prisma.trip.findMany({
+        where: { endedAt: null, startedAt: { gte: oneDayAgo } },
+        select: {
+          id: true,
+          userId: true,
+          startedAt: true,
+          startAddress: true,
+          distanceMiles: true,
+          classification: true,
+          platformTag: true,
+          user: { select: { displayName: true, email: true } },
+        },
+        orderBy: { startedAt: "desc" },
+        take: 50,
+      }),
+      prisma.shift.findMany({
+        where: { status: "active", startedAt: { gte: oneDayAgo } },
+        select: {
+          id: true,
+          userId: true,
+          startedAt: true,
+          user: { select: { displayName: true, email: true } },
+        },
+        orderBy: { startedAt: "desc" },
+        take: 50,
+      }),
+    ]);
+
+    return reply.send({
+      data: {
+        activeTrips: activeTrips.map((t) => ({
+          id: t.id,
+          userId: t.userId,
+          userLabel: t.user?.displayName || t.user?.email || "(unknown)",
+          startedAt: t.startedAt,
+          minutesElapsed: Math.round((Date.now() - t.startedAt.getTime()) / 60000),
+          startAddress: t.startAddress,
+          distanceMiles: t.distanceMiles,
+          classification: t.classification,
+          platformTag: t.platformTag,
+        })),
+        activeShifts: activeShifts.map((s) => ({
+          id: s.id,
+          userId: s.userId,
+          userLabel: s.user?.displayName || s.user?.email || "(unknown)",
+          startedAt: s.startedAt,
+          minutesElapsed: Math.round((Date.now() - s.startedAt.getTime()) / 60000),
+        })),
+      },
+    });
+  });
+
+  // GET /admin/diagnostic-panels
+  // Heartbeat-aggregate health, rating-funnel skip reasons, classification
+  // accuracy, low-quality trips. Computed in one round-trip.
+  app.get("/diagnostic-panels", async (_request, reply) => {
+    const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+
+    const [ratingEvents, classificationFeedback, lowQualityTrips] = await Promise.all([
+      // Rating funnel: count rating.* events in the last 7 days
+      prisma.$queryRaw<Array<{ type: string; c: bigint }>>`
+        SELECT type, COUNT(*) AS c FROM app_events
+        WHERE type LIKE 'rating.%'
+          AND createdAt >= ${sevenDaysAgo}
+        GROUP BY type
+        ORDER BY c DESC
+      `,
+      // Classification accuracy: classification_auto_accepted_sent flag
+      prisma.$queryRaw<Array<{ accepted: bigint; rejected: bigint }>>`
+        SELECT
+          SUM(CASE WHEN type = 'classification.auto_accepted' THEN 1 ELSE 0 END) AS accepted,
+          SUM(CASE WHEN type = 'classification.auto_rejected' THEN 1 ELSE 0 END) AS rejected
+        FROM app_events
+        WHERE type LIKE 'classification.%'
+          AND createdAt >= ${sevenDaysAgo}
+      `,
+      // Low-quality trips: <0.3mi business trips that survived the auto-trip
+      // filter, plus trips with low GPS quality scores if available.
+      prisma.trip.count({
+        where: {
+          startedAt: { gte: sevenDaysAgo },
+          distanceMiles: { lt: 0.3 },
+          isManualEntry: false,
+        },
+      }),
+    ]);
+
+    // Heartbeat aggregate is harder without a dedicated heartbeat table; we
+    // derive it from app_events with type "heartbeat.*" if any exist, else
+    // we report unknown. For now, approximate from "diagnostic_alert.*" types.
+    const heartbeatRows = await prisma.$queryRaw<
+      Array<{ type: string; c: bigint }>
+    >`
+      SELECT type, COUNT(*) AS c FROM app_events
+      WHERE type LIKE 'diagnostic_alert.%'
+        AND createdAt >= ${sevenDaysAgo}
+      GROUP BY type
+    `;
+
+    const cf = classificationFeedback[0] ?? { accepted: 0n, rejected: 0n };
+    const accepted = Number(cf.accepted ?? 0);
+    const rejected = Number(cf.rejected ?? 0);
+    const total = accepted + rejected;
+
+    return reply.send({
+      data: {
+        windowDays: 7,
+        ratingFunnel: ratingEvents.map((r) => ({
+          type: r.type,
+          count: Number(r.c),
+        })),
+        classificationAccuracy: {
+          accepted,
+          rejected,
+          accuracyPercent: total > 0 ? Math.round((accepted / total) * 1000) / 10 : null,
+        },
+        lowQualityTripCount: lowQualityTrips,
+        heartbeatAlerts: heartbeatRows.map((r) => ({
+          type: r.type,
+          count: Number(r.c),
+        })),
+      },
+    });
+  });
+
+  // GET /admin/onboarding-derived
+  // Derived from observable user state since we don't emit per-step events.
+  // Each step is a state we can read directly from the DB.
+  app.get("/onboarding-derived", async (_request, reply) => {
+    const [
+      total,
+      withIntent,
+      withVehicle,
+      withEmployerRate,
+      withFirstTrip,
+      withClassifiedTrip,
+      withEarning,
+      premium,
+    ] = await Promise.all([
+      prisma.user.count(),
+      prisma.user.count({ where: { userIntent: { not: null } } }),
+      prisma.$queryRaw<Array<{ c: bigint }>>`
+        SELECT COUNT(DISTINCT userId) AS c FROM vehicles
+      `.then((r) => Number(r[0]?.c ?? 0)),
+      prisma.user.count({ where: { employerMileageRatePence: { not: null } } }),
+      prisma.$queryRaw<Array<{ c: bigint }>>`
+        SELECT COUNT(DISTINCT userId) AS c FROM trips
+      `.then((r) => Number(r[0]?.c ?? 0)),
+      prisma.$queryRaw<Array<{ c: bigint }>>`
+        SELECT COUNT(DISTINCT userId) AS c FROM trips
+        WHERE classification IN ('business', 'personal')
+      `.then((r) => Number(r[0]?.c ?? 0)),
+      prisma.$queryRaw<Array<{ c: bigint }>>`
+        SELECT COUNT(DISTINCT userId) AS c FROM earnings
+      `.then((r) => Number(r[0]?.c ?? 0)),
+      prisma.user.count({ where: { isPremium: true } }),
+    ]);
+
+    const pct = (n: number) =>
+      total > 0 ? Math.round((n / total) * 1000) / 10 : 0;
+
+    return reply.send({
+      data: {
+        total,
+        steps: [
+          { label: "Signed up", count: total, pct: 100 },
+          { label: "Set work intent", count: withIntent, pct: pct(withIntent) },
+          { label: "Added a vehicle", count: withVehicle, pct: pct(withVehicle) },
+          { label: "Set employer rate", count: withEmployerRate, pct: pct(withEmployerRate) },
+          { label: "Logged first trip", count: withFirstTrip, pct: pct(withFirstTrip) },
+          { label: "Classified at least one trip", count: withClassifiedTrip, pct: pct(withClassifiedTrip) },
+          { label: "Logged earnings", count: withEarning, pct: pct(withEarning) },
+          { label: "Upgraded to Pro", count: premium, pct: pct(premium) },
+        ],
+      },
+    });
+  });
+
+  // POST /admin/users/:userId/comp-premium
+  // Comp a Pro account with a stated reason. Logs to AppEvent for audit.
+  app.post<{ Params: { userId: string }; Body: { reason: string; months: number } }>(
+    "/users/:userId/comp-premium",
+    async (request, reply) => {
+      const { userId } = request.params;
+      const schema = z.object({
+        reason: z.string().min(3).max(500),
+        months: z.number().int().min(1).max(120),
+      });
+      const parsed = schema.safeParse(request.body);
+      if (!parsed.success) {
+        return reply.code(400).send({ error: "Invalid input", details: parsed.error.format() });
+      }
+      const { reason, months } = parsed.data;
+
+      const user = await prisma.user.findUnique({ where: { id: userId } });
+      if (!user) return reply.code(404).send({ error: "User not found" });
+
+      const expiresAt = new Date(Date.now() + months * 30 * 24 * 60 * 60 * 1000);
+      await prisma.user.update({
+        where: { id: userId },
+        data: { isPremium: true, premiumExpiresAt: expiresAt },
+      });
+
+      // Audit log via app_events
+      await prisma.appEvent.create({
+        data: {
+          type: "admin.comp_premium",
+          userId,
+          metadata: {
+            adminUserId: request.userId,
+            reason,
+            months,
+            expiresAt: expiresAt.toISOString(),
+          },
+        },
+      });
+
+      return reply.send({
+        data: {
+          ok: true,
+          premiumExpiresAt: expiresAt.toISOString(),
+        },
+      });
+    }
+  );
+
+  // GET /admin/audit-log
+  // Recent admin actions logged via app_events.
+  app.get("/audit-log", async (_request, reply) => {
+    const events = await prisma.appEvent.findMany({
+      where: { type: { startsWith: "admin." } },
+      orderBy: { createdAt: "desc" },
+      take: 100,
+      include: { user: { select: { displayName: true, email: true } } },
+    });
+
+    return reply.send({
+      data: events.map((e) => ({
+        id: e.id,
+        type: e.type,
+        action: e.type.replace("admin.", ""),
+        userId: e.userId,
+        userLabel: e.user?.displayName || e.user?.email || null,
+        metadata: e.metadata,
+        createdAt: e.createdAt,
+      })),
+    });
+  });
+
+  // GET /admin/email-events
+  // Recent email-related app events. The transactional email service emits
+  // events with type starting "email." when wired up; for now this returns
+  // whatever email-typed events have accumulated.
+  app.get("/email-events", async (_request, reply) => {
+    const events = await prisma.appEvent.findMany({
+      where: { type: { startsWith: "email." } },
+      orderBy: { createdAt: "desc" },
+      take: 100,
+      include: { user: { select: { displayName: true, email: true } } },
+    });
+
+    return reply.send({
+      data: events.map((e) => ({
+        id: e.id,
+        type: e.type,
+        userId: e.userId,
+        userLabel: e.user?.displayName || e.user?.email || null,
+        metadata: e.metadata,
+        createdAt: e.createdAt,
+      })),
+    });
+  });
+
+  // GET /admin/top-users
+  // Three sorted lists: by total miles, by Pro tenure, by recent engagement.
+  app.get("/top-users", async (_request, reply) => {
+    const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+
+    const [byMiles, byPro, byEngagement] = await Promise.all([
+      prisma.$queryRaw<
+        Array<{ id: string; displayName: string | null; email: string; totalMiles: number; tripCount: bigint }>
+      >`
+        SELECT u.id, u.displayName, u.email,
+          COALESCE(SUM(t.distanceMiles), 0) AS totalMiles,
+          COUNT(t.id) AS tripCount
+        FROM users u
+        LEFT JOIN trips t ON t.userId = u.id
+        GROUP BY u.id
+        HAVING totalMiles > 0
+        ORDER BY totalMiles DESC
+        LIMIT 20
+      `,
+      prisma.user.findMany({
+        where: { isPremium: true },
+        select: { id: true, displayName: true, email: true, createdAt: true, premiumExpiresAt: true },
+        orderBy: { createdAt: "asc" },
+        take: 20,
+      }),
+      prisma.$queryRaw<
+        Array<{ id: string; displayName: string | null; email: string; recentTrips: bigint }>
+      >`
+        SELECT u.id, u.displayName, u.email,
+          COUNT(t.id) AS recentTrips
+        FROM users u
+        INNER JOIN trips t ON t.userId = u.id
+        WHERE t.startedAt >= ${thirtyDaysAgo}
+        GROUP BY u.id
+        ORDER BY recentTrips DESC
+        LIMIT 20
+      `,
+    ]);
+
+    return reply.send({
+      data: {
+        byMiles: byMiles.map((u) => ({
+          id: u.id,
+          label: u.displayName || u.email,
+          totalMiles: Number(u.totalMiles ?? 0),
+          tripCount: Number(u.tripCount ?? 0),
+        })),
+        byProTenure: byPro.map((u) => ({
+          id: u.id,
+          label: u.displayName || u.email,
+          // Approximate Pro tenure by user account age (no premiumStartedAt
+          // field on the schema yet - early Pro users tend to be early
+          // accounts, so this is a reasonable proxy).
+          accountAgeDays: Math.floor((Date.now() - u.createdAt.getTime()) / (24 * 60 * 60 * 1000)),
+          premiumExpiresAt: u.premiumExpiresAt,
+        })),
+        byEngagement: byEngagement.map((u) => ({
+          id: u.id,
+          label: u.displayName || u.email,
+          tripsLast30d: Number(u.recentTrips ?? 0),
+        })),
+      },
+    });
+  });
+
+  // GET /admin/benchmark-observer
+  // Raw bucket data for the Anonymous Benchmarking calculations. Lets us
+  // sanity-check the percentiles and watch contributor counts evolve.
+  app.get("/benchmark-observer", async (_request, reply) => {
+    const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+
+    // Per-user weekly miles for the last 30d, then compute median / p25 / p75
+    const userWeeklyMiles = await prisma.$queryRaw<
+      Array<{ userId: string; totalMiles: number }>
+    >`
+      SELECT userId, SUM(distanceMiles) AS totalMiles
+      FROM trips
+      WHERE startedAt >= ${thirtyDaysAgo}
+        AND classification = 'business'
+      GROUP BY userId
+      HAVING totalMiles > 0
+    `;
+
+    const miles = userWeeklyMiles
+      .map((r) => Number(r.totalMiles))
+      .sort((a, b) => a - b);
+    const contributors = miles.length;
+
+    function quantile(arr: number[], q: number): number | null {
+      if (arr.length === 0) return null;
+      const idx = (arr.length - 1) * q;
+      const lo = Math.floor(idx);
+      const hi = Math.ceil(idx);
+      if (lo === hi) return Math.round(arr[lo] * 10) / 10;
+      return Math.round((arr[lo] + (arr[hi] - arr[lo]) * (idx - lo)) * 10) / 10;
+    }
+
+    return reply.send({
+      data: {
+        category: "monthly_business_miles_per_user",
+        windowDays: 30,
+        contributors,
+        privacyFloorMet: contributors >= 5,
+        p25: quantile(miles, 0.25),
+        median: quantile(miles, 0.5),
+        p75: quantile(miles, 0.75),
+        min: miles[0] ?? null,
+        max: miles[miles.length - 1] ?? null,
+      },
+    });
+  });
 }

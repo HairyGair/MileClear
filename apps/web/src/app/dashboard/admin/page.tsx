@@ -3266,10 +3266,29 @@ export default function AdminPage() {
 
   return (
     <>
-      <PageHeader
-        title="Admin"
-        subtitle="Platform management and analytics"
-      />
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 12 }}>
+        <PageHeader
+          title="Admin"
+          subtitle="Platform management and analytics"
+        />
+        <a
+          href="/dashboard/admin/insights"
+          style={{
+            background: "rgba(251, 191, 36, 0.12)",
+            border: "1px solid rgba(251, 191, 36, 0.3)",
+            color: "#fbbf24",
+            padding: "8px 14px",
+            borderRadius: 8,
+            fontSize: "0.875rem",
+            fontWeight: 600,
+            textDecoration: "none",
+            whiteSpace: "nowrap",
+            alignSelf: "center",
+          }}
+        >
+          Insights →
+        </a>
+      </div>
 
       {/* Tab navigation */}
       <div className="filter-chips" style={{ marginBottom: "1.25rem", overflowX: "auto" }}>
