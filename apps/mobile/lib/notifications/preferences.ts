@@ -9,6 +9,12 @@ export interface NotificationPreferences {
   milestoneAlerts: boolean;
   shiftSummary: boolean;
   monthlyRecap: boolean;
+  /**
+   * When false, the Live Activity / Dynamic Island indicator is suppressed
+   * for auto-detected trips - it only appears when the user explicitly taps
+   * Start Trip or Start Shift. Manual-start LA always shows regardless.
+   */
+  autoTripLiveActivity: boolean;
 }
 
 const PREFS_KEY = "notification_prefs";
@@ -22,6 +28,7 @@ const DEFAULT_PREFERENCES: NotificationPreferences = {
   milestoneAlerts: true,
   shiftSummary: true,
   monthlyRecap: true,
+  autoTripLiveActivity: true,
 };
 
 export async function getNotificationPreferences(): Promise<NotificationPreferences> {

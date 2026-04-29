@@ -15,6 +15,25 @@ import {
   filterTraceOutliers,
 } from "@mileclear/shared";
 import { startLiveActivity, updateLiveActivity, endLiveActivity, endLiveActivityWithSummary, recoverLiveActivity } from "../liveActivity";
+import { getNotificationPreferences } from "../notifications/preferences";
+
+/**
+ * Wrapper around startLiveActivity for auto-detected trips. Honors the user
+ * preference `autoTripLiveActivity`: when false, suppresses the LA so it
+ * only appears for manually-started trips/shifts. Defaults to true so
+ * existing behavior is unchanged for users who haven't opted out.
+ */
+async function maybeStartAutoTripLiveActivity(
+  opts: Parameters<typeof startLiveActivity>[0]
+): Promise<void> {
+  try {
+    const prefs = await getNotificationPreferences();
+    if (!prefs.autoTripLiveActivity) return;
+  } catch {
+    // Pref read failure is non-fatal; default to showing LA.
+  }
+  await startLiveActivity(opts);
+}
 import { markBluetoothStateAtStart, hasBluetoothDisconnected, resetBluetoothState } from "../bluetooth";
 import type { TripClassification, PlatformTag } from "@mileclear/shared";
 
@@ -1035,7 +1054,7 @@ try {
         const recovered = await recoverLiveActivity(tripStartMs);
         if (!recovered) {
           try {
-            await startLiveActivity({ activityType: "trip", isBusinessMode: true });
+            await maybeStartAutoTripLiveActivity({ activityType: "trip", isBusinessMode: true });
           } catch {}
         }
 
@@ -1127,7 +1146,7 @@ try {
                   "SELECT value FROM tracking_state WHERE key = 'app_mode'"
                 );
                 if (modeRow?.value === "personal") isBusinessMode = false;
-                await startLiveActivity({ activityType: "trip", isBusinessMode });
+                await maybeStartAutoTripLiveActivity({ activityType: "trip", isBusinessMode });
               } catch {}
             }
           }
@@ -1386,7 +1405,7 @@ try {
         // Start Live Activity - must be awaited so the native Activity.request()
         // completes before iOS suspends the background task.
         try {
-          await startLiveActivity({ activityType: "trip", isBusinessMode: true });
+          await maybeStartAutoTripLiveActivity({ activityType: "trip", isBusinessMode: true });
         } catch {}
 
         // Persistent passive notification as a safety net for when the Live
@@ -1676,7 +1695,7 @@ async function forceStartRecordingImpl(reason: string): Promise<void> {
   // Start Live Activity so the user sees a trip in progress on the lock screen
   // and Dynamic Island. Log the result so diagnostics can show whether it worked.
   try {
-    await startLiveActivity({ activityType: "trip", isBusinessMode });
+    await maybeStartAutoTripLiveActivity({ activityType: "trip", isBusinessMode });
     logDetectionEvent("live_activity_started", { source: "force_start" }).catch(() => {});
   } catch (laErr) {
     logDetectionEvent("live_activity_failed", {

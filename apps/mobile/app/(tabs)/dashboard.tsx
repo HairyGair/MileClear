@@ -52,6 +52,7 @@ import { PersonalDashboard } from "../../components/personal/PersonalDashboard";
 import { CommunityInsightsCard } from "../../components/community/CommunityInsightsCard";
 import { WeeklyGoalCard } from "../../components/work/WeeklyGoalCard";
 import { TaxReadinessCard } from "../../components/business/TaxReadinessCard";
+import { MileageMonthCard } from "../../components/business/MileageMonthCard";
 import { ActivityHeatmapCard } from "../../components/business/ActivityHeatmapCard";
 import { BenchmarkCard } from "../../components/business/BenchmarkCard";
 import { WorkCalendarCard } from "../../components/work/WorkCalendarCard";
@@ -936,6 +937,8 @@ export default function DashboardScreen() {
             ) : null;
           case "tax_readiness":
             return <TaxReadinessCard key={key} />;
+          case "business_mileage":
+            return <MileageMonthCard key={key} classification="business" />;
           case "activity_heatmap":
             return <ActivityHeatmapCard key={key} />;
           case "benchmark":

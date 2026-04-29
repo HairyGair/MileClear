@@ -63,6 +63,12 @@ export const SECTION_REGISTRY: Record<ScreenKey, SectionDef[]> = {
       description: "Daily driving summary card",
     },
     {
+      key: "business_mileage",
+      label: "Business Mileage",
+      icon: "speedometer-outline",
+      description: "Business miles by month, with prev/next navigation to past months",
+    },
+    {
       key: "tax_readiness",
       label: "Tax Readiness",
       icon: "shield-checkmark-outline",

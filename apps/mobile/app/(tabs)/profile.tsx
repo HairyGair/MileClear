@@ -103,6 +103,7 @@ export default function ProfileScreen() {
     milestoneAlerts: true,
     shiftSummary: true,
     monthlyRecap: true,
+    autoTripLiveActivity: true,
   });
   const [weeklyGoal, setWeeklyGoal] = useState<number | null>(null);
   const [workType, setWorkType] = useState<WorkType>("gig");
@@ -941,6 +942,14 @@ export default function ProfileScreen() {
                 hint="Remind you to keep your streak going"
                 value={notifPrefs.streakReminder}
                 onToggle={(v) => toggleNotif("streakReminder", v)}
+                border
+              />
+              <NotifToggle
+                icon="radio-button-on-outline"
+                label="Auto-trip Live Activity"
+                hint="Show the lock-screen indicator for auto-detected trips. Off means it only appears when you tap Start."
+                value={notifPrefs.autoTripLiveActivity}
+                onToggle={(v) => toggleNotif("autoTripLiveActivity", v)}
               />
             </View>
 
