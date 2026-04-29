@@ -234,6 +234,74 @@ export const RELEASE_NOTES: ReleaseNote[] = [
 // ----------------------------------------------------------------
 export const BLOG_POSTS: BlogPost[] = [
   {
+    slug: "inactive-on-gophr",
+    title: "Inactive on Gophr: What It Means and What to Do Next",
+    excerpt:
+      "Gophr couriers searching 'inactivity on gophr' usually have one fear: have I lost my account? Here's what an inactivity notice actually means, what to do this week, and how to make sure the work you've already done is still yours - records, miles, and tax claim included.",
+    date: "29 April 2026",
+    author: "Gair",
+    category: "guide",
+    content: `
+<p>If you are searching "inactivity on gophr", you probably opened the app and saw something you did not want to see. Maybe a banner. Maybe a missing job queue. Maybe nothing at all - the worst kind of warning. Gophr couriers in the UK ping me about this more often than couriers on any other platform, and the picture is the same most times.</p>
+
+<p>This guide is the practical version of "what now". It will not promise you the exact policy Gophr applies to your account today - those policies move, and only Gophr support can tell you the specifics for your particular case. What it will do is explain how courier-platform inactivity generally works, what to do this week, and why - whatever happens with your account - the miles you have already driven still belong to you.</p>
+
+<h2>What inactivity actually means on a courier platform</h2>
+
+<p>Courier platforms like Gophr, Stuart, and Just Eat manage finite pools of active riders. When a courier stops accepting jobs for an extended period, the platform marks them as inactive. The exact window varies - some platforms use 30 days, some 60, some longer, and most do not publish an exact figure because it changes by region and demand.</p>
+
+<p>What "inactive" then means depends on the platform. Common forms:</p>
+
+<ul>
+<li><strong>Soft inactivity:</strong> you stop seeing jobs but the account is otherwise fine. Sign in, complete a job, you are back.</li>
+<li><strong>Documents required:</strong> the platform asks you to re-upload your insurance, hire-and-reward cover, vehicle docs, or right-to-work proof before you can take jobs again.</li>
+<li><strong>Hard deactivation:</strong> the account is closed and you have to re-apply. Rarer for genuine inactivity, more common when there is a separate compliance issue the inactivity flag is hiding.</li>
+</ul>
+
+<p>If you have just received an inactivity message, the odds are you are in the first or second category. Most couriers I speak to get reactivated by Gophr support within a few days of asking, especially if their docs are still in date.</p>
+
+<h2>What to do this week</h2>
+
+<ol>
+<li><strong>Open the Gophr app and screenshot anything you see.</strong> Banner, message, status. The exact wording matters when you contact support.</li>
+<li><strong>Check your documents.</strong> Insurance (hire-and-reward cover specifically, not standard SD&P), vehicle docs, and any background-check expiry. If any are out of date, that is the most likely root cause.</li>
+<li><strong>Email Gophr support directly.</strong> Calmly explain that your account has been marked inactive, that you want to reactivate, and that you are willing to re-submit anything they need. Polite and specific gets a faster reply than angry and vague.</li>
+<li><strong>Sign in and try a job if the queue is open.</strong> Sometimes "inactivity" lifts the moment you take and complete a job. Worth trying before you escalate.</li>
+<li><strong>Plan for the week.</strong> If reactivation will take a few days, line up other platforms (Uber Eats, Deliveroo, Just Eat, Stuart, Amazon Flex) so your earnings do not go to zero.</li>
+</ol>
+
+<h2>The harder lesson: your records do not belong to the platform</h2>
+
+<p>The reason "inactivity on gophr" makes couriers nervous is not just the lost income. It is the realisation that the platform holds the records of every job you have done. If they decide to deactivate you tomorrow, that history might become harder to access. Gophr is not unique here - every gig platform works this way.</p>
+
+<p>And here is the part most couriers do not realise until they need it: <strong>your mileage tax claim does not run on the platform's data. It runs on yours.</strong> HMRC requires a "contemporaneous record" - a log kept at the time the journey happened - of every business mile you drive. You can claim 45p per mile for the first 10,000 business miles in a tax year and 25p per mile after that, on top of whatever you took home from the platform. For a courier doing 200 miles a week, that is around £4,500 a year you can deduct from your taxable profit, regardless of what Gophr's app shows.</p>
+
+<p>If your records sit only in Gophr's app and Gophr deactivates you, you have a problem. Not catastrophic - HMRC accepts other forms of evidence - but harder than it needs to be.</p>
+
+<h2>This is exactly why I built MileClear</h2>
+
+<p>I built <a href="/">MileClear</a> because I watched too many UK couriers - on Gophr, on Deliveroo, on Just Eat, on Uber Eats - lose money at tax time because their records lived in someone else's app. MileClear tracks every business mile automatically, applies the <a href="/hmrc-mileage-rates">HMRC AMAP rate</a> (45p / 25p / 24p depending on vehicle), and keeps the record on your phone, in your name, exportable to a Self Assessment-ready PDF whenever you want it.</p>
+
+<p>It does not depend on Gophr being active, on Deliveroo accepting your application, or on Just Eat keeping your account alive. The tracker runs in the background, attaches the right platform tag to each trip (Gophr, Stuart, Uber, Deliveroo, Just Eat, Amazon Flex, DPD, Evri), and gives you a complete audit trail in case HMRC ever ask. If a platform deactivates you tomorrow, every mile you drove for them up to that point is still yours.</p>
+
+<p><strong>What you get on the free tier:</strong> automatic GPS trip tracking, manual classification, HMRC rate calculation, fuel-price lookup, two saved locations (home and depot, typically), all your historical trips. Tracking is the part you actually need - and it is permanent and free.</p>
+
+<p><strong>What Pro adds for £4.99/month:</strong> the export side. CSV and PDF Self Assessment downloads, the HMRC-formatted attestation cover sheet, CSV import from platform earnings statements, unlimited saved locations, and the Self Assessment wizard that walks you through which numbers go in which boxes on your SA103 form. You only need Pro at tax time - so if you are a daily driver, you can run free for 11 months and upgrade in late January.</p>
+
+<h2>Quick checklist if you are dealing with Gophr inactivity right now</h2>
+
+<ul>
+<li>Screenshot the Gophr message and contact their support, calmly and specifically.</li>
+<li>Check your insurance and document expiry - this is usually the real cause.</li>
+<li>Sign on and try a job if the queue is live.</li>
+<li>Line up another platform for the week so your income does not stop.</li>
+<li><a href="https://apps.apple.com/app/mileclear/id6742044832">Install MileClear free</a> so the next time a platform throws a curveball, your records are yours.</li>
+</ul>
+
+<p>Inactivity on Gophr is almost always reversible. Lost mileage records are not. Sort the first; then make sure the second can never happen to you again.</p>
+`,
+  },
+  {
     slug: "whats-new-in-version-1-1-0",
     title: "What's New in Version 1.1.0",
     excerpt:
