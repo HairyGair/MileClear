@@ -226,7 +226,7 @@ const faqSchema = {
       name: 'What diagnostic data does MileClear collect?',
       acceptedAnswer: {
         '@type': 'Answer',
-        text: 'MileClear sends diagnostic telemetry on startup to help us improve drive detection reliability. This includes your app version, GPS permission status, detection event logs (timestamps and event types only), and configuration settings. We do not send GPS coordinates, Bluetooth device names, or any personal location information. The data is tied to your account for debugging purposes only.',
+        text: 'MileClear sends diagnostic telemetry on startup to help us improve drive detection reliability. This includes your app version, GPS permission status, detection event logs (timestamps and event types only), and configuration settings. We do not send GPS coordinates or any personal location information. The data is tied to your account for debugging purposes only.',
       },
     },
     {
@@ -556,8 +556,8 @@ export default function FaqPage() {
                   MileClear sends diagnostic telemetry on startup to help us improve drive detection
                   reliability. This includes your app version, GPS permission status, detection event
                   logs (timestamps and event types only), and configuration settings. We do not send
-                  GPS coordinates, Bluetooth device names, or any personal location information. The
-                  data is tied to your account for debugging purposes only.
+                  GPS coordinates or any personal location information. The data is tied to your
+                  account for debugging purposes only.
                 </p>
               </div>
 

@@ -56,10 +56,6 @@ const faqs = [
     a: 'You can save locations like Home, Work, or Depot with a custom geofence radius. When you enter or leave a geofenced area, MileClear can automatically suggest starting or ending a trip. Free users get 2 saved locations; Pro users get unlimited.',
   },
   {
-    q: 'How does Bluetooth auto-trip detection work?',
-    a: 'If you add your car\'s Bluetooth name in vehicle settings, MileClear can detect when you connect to your car and prompt you to start tracking. It only checks for the specific device name you configured — it doesn\'t scan for or connect to other Bluetooth devices.',
-  },
-  {
     q: 'What notifications does MileClear send?',
     a: 'MileClear can send weekly driving summaries, streak reminders (if your tracking streak is at risk), subscription expiry alerts, and tax deadline reminders. You can control which notifications you receive in the app\'s notification settings under Profile.',
   },
@@ -73,7 +69,7 @@ const faqs = [
   },
   {
     q: 'What diagnostic data does MileClear collect?',
-    a: 'MileClear sends diagnostic telemetry on startup to help us fix drive detection issues. This includes app version, GPS permission status, detection event logs (timestamps and event types only), and configuration settings. We do not send GPS coordinates, Bluetooth device names, or any personal location information. The data is tied to your account for debugging only.',
+    a: 'MileClear sends diagnostic telemetry on startup to help us fix drive detection issues. This includes app version, GPS permission status, detection event logs (timestamps and event types only), and configuration settings. We do not send GPS coordinates or any personal location information. The data is tied to your account for debugging only.',
   },
   {
     q: 'How do I delete my account?',

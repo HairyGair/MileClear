@@ -457,7 +457,6 @@ export default function TermsOfService() {
                   <li className="legal__list-item"><strong>Drive detection:</strong> Low-power monitoring of significant location changes to detect when you start driving (speed &gt; 15mph). GPS readings with poor accuracy (&gt; 50m) are filtered out to prevent false detections</li>
                   <li className="legal__list-item"><strong>Departure anchor geofencing:</strong> A temporary 200-metre geofence is registered around your last stationary position. When you leave this area, drive detection activates. This runs as an OS-level event and does not require the app to be open</li>
                   <li className="legal__list-item"><strong>Saved location geofences:</strong> Monitoring of saved locations (home, work, depot) for automatic trip detection on entry/exit</li>
-                  <li className="legal__list-item"><strong>Bluetooth trip confirmation:</strong> Checking for previously configured vehicle names to auto-confirm trip start</li>
                   <li className="legal__list-item"><strong>Push notifications:</strong> Delivery of streak reminders, subscription alerts, and weekly summaries</li>
                 </ul>
               </div>
@@ -466,7 +465,7 @@ export default function TermsOfService() {
                 <h3 className="legal__card-title">Controlling Background Services</h3>
                 <p className="legal__card-text">You can disable any background service at any time:</p>
                 <ul className="legal__list">
-                  <li className="legal__list-item">Through your device settings (iOS/Android location, Bluetooth, notification permissions)</li>
+                  <li className="legal__list-item">Through your device settings (iOS/Android location and notification permissions)</li>
                   <li className="legal__list-item">Within the MileClear app (Settings &gt; Permissions &gt; toggle services off)</li>
                 </ul>
                 <p className="legal__card-text legal__text--small" style={{ marginTop: '1rem' }}>
@@ -474,17 +473,6 @@ export default function TermsOfService() {
                 </p>
               </div>
 
-              <div className="legal__card">
-                <h3 className="legal__card-title">Bluetooth Monitoring</h3>
-                <p className="legal__card-text">
-                  Bluetooth monitoring checks only for previously configured vehicle names (names you have explicitly added to MileClear). It does not:
-                </p>
-                <ul className="legal__list">
-                  <li className="legal__list-item">Scan for or connect to other devices</li>
-                  <li className="legal__list-item">Share Bluetooth data with third parties</li>
-                  <li className="legal__list-item">Monitor other Bluetooth activity on your device</li>
-                </ul>
-              </div>
             </section>
 
             {/* 10. Scheduled Notifications */}

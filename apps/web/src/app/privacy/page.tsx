@@ -195,14 +195,6 @@ export default function PrivacyPolicy() {
               </div>
 
               <div className="legal__card">
-                <h3 className="legal__card-title">Bluetooth Data</h3>
-                <ul className="legal__list">
-                  <li className="legal__list-item">Vehicle Bluetooth device names (user-configured, not scanned)</li>
-                  <li className="legal__list-item">Bluetooth pairing state used solely to confirm trip starts - no audio, contacts, or other Bluetooth data is accessed</li>
-                </ul>
-              </div>
-
-              <div className="legal__card">
                 <h3 className="legal__card-title">Receipt Data (On-Device OCR)</h3>
                 <ul className="legal__list">
                   <li className="legal__list-item">Receipt images are processed using Apple Vision framework (on-device only)</li>
@@ -304,7 +296,7 @@ export default function PrivacyPolicy() {
                   <li className="legal__list-item">Generating driving analytics (route patterns, shift efficiency, fuel cost breakdowns)</li>
                   <li className="legal__list-item">Providing smart dashboard alerts based on your driving patterns</li>
                   <li className="legal__list-item">Sending scheduled push notifications (weekly summaries, streak reminders, tax deadline alerts)</li>
-                  <li className="legal__list-item">Detecting trip starts via Bluetooth vehicle pairing and geofence triggers</li>
+                  <li className="legal__list-item">Detecting trip starts via geofence triggers and saved-location boundaries</li>
                 </ul>
               </div>
 
@@ -380,7 +372,7 @@ export default function PrivacyPolicy() {
                   <li className="legal__list-item">App configuration settings (speed threshold, quiet hours, auto-recording status)</li>
                 </ul>
                 <p className="legal__card-text legal__text--small" style={{marginTop: '1rem'}}>
-                  We do <strong>not</strong> collect GPS coordinates, location names, Bluetooth device names, or any personally identifying location data in diagnostics. This data is tied to your account for debugging purposes only.
+                  We do <strong>not</strong> collect GPS coordinates, location names, or any personally identifying location data in diagnostics. This data is tied to your account for debugging purposes only.
                 </p>
               </div>
 
