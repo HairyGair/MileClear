@@ -62,7 +62,7 @@ const faqSchema = {
       name: 'What are Work mode and Personal mode?',
       acceptedAnswer: {
         '@type': 'Answer',
-        text: 'Work mode is designed for gig workers and self-employed drivers who need to track business mileage for HMRC. It shows your tax deduction, earnings by platform, and business efficiency metrics. Personal mode is for everyday drivers who want to monitor fuel costs, driving goals, and personal milestones. You can switch between modes at any time from the dashboard.',
+        text: 'Work mode is designed for anyone tracking business mileage - gig workers, self-employed drivers, and UK employees who use their personal car for work (site-to-site, client visits, healthcare home visits). It shows your business mileage by month, tax deduction, earnings by platform (gig drivers), and what your employer owes if you have set an employer rate. Personal mode is for everyday drivers who want to monitor fuel costs, driving goals, and personal milestones. You can switch between modes at any time from the dashboard.',
       },
     },
     // Trip Tracking
@@ -128,7 +128,23 @@ const faqSchema = {
       name: 'What counts as a business mile?',
       acceptedAnswer: {
         '@type': 'Answer',
-        text: 'A business mile is any journey made wholly and exclusively for work purposes. This includes travelling to a customer, picking up a delivery order, driving between depots, or visiting a client. Normal commuting to a fixed place of work does not count. If you work for gig platforms like Uber or Deliveroo, all miles driven during active jobs qualify. MileClear lets you classify each trip so only business miles count toward your deduction.',
+        text: 'A business mile is any journey made wholly and exclusively for work purposes. This includes travelling to a customer, picking up a delivery order, driving between depots, or visiting a client. Normal commuting to a fixed place of work does not count. If you work for gig platforms like Uber or Deliveroo, all miles driven during active jobs qualify. If you are an employee using your personal car for work (site-to-site, client visits, healthcare home visits), those miles also qualify. MileClear lets you classify each trip so only business miles count toward your deduction.',
+      },
+    },
+    {
+      '@type': 'Question',
+      name: 'I am an employee with a work car - can MileClear help me claim mileage from my employer?',
+      acceptedAnswer: {
+        '@type': 'Answer',
+        text: 'Yes. MileClear is built for both gig workers and UK employees who drive their personal car for work. Set your employer\'s per-mile rate in Profile > Work Settings (e.g. 30p/mi) and the app shows you "owed by employer" alongside your mileage figures. The Pro export produces a payroll-ready CSV/PDF claim per period. If your employer pays below HMRC\'s 45p rate, MileClear also calculates the gap you can recover from HMRC as Mileage Allowance Relief. See our employee mileage guide at mileclear.com/employee-mileage-tracker.',
+      },
+    },
+    {
+      '@type': 'Question',
+      name: 'What is Mileage Allowance Relief (MAR)?',
+      acceptedAnswer: {
+        '@type': 'Answer',
+        text: 'Mileage Allowance Relief is the HMRC tax relief that lets UK employees recover the gap between what their employer pays per business mile and the official AMAP rate of 45p (for the first 10,000 business miles in a tax year, 25p above that). For example, if your employer pays 30p per mile and you drive 10,000 business miles, your employer pays £3,000 - the AMAP rate would be £4,500. The £1,500 gap is what MAR lets you reclaim. At basic-rate tax (20%) that returns £300 to you; at higher rate (40%), £600. You claim it via Self Assessment or by writing to HMRC.',
       },
     },
     {
@@ -285,10 +301,12 @@ export default function FaqPage() {
               <div className="faq__qa">
                 <h3 className="faq__question">What are Work mode and Personal mode?</h3>
                 <p className="legal__text">
-                  <strong>Work mode</strong> is designed for gig workers and self-employed drivers who
-                  need to track business mileage for HMRC. It shows your tax deduction, earnings by
-                  platform, and business efficiency metrics. <strong>Personal mode</strong> is for
-                  everyday drivers who want to monitor fuel costs, driving goals, and personal
+                  <strong>Work mode</strong> is designed for anyone tracking business mileage -{" "}
+                  gig workers, self-employed drivers, and UK employees who use their personal car for
+                  work (site-to-site, client visits, healthcare home visits). It shows your business
+                  mileage by month, tax deduction, earnings by platform (gig drivers), and what your
+                  employer owes if you have set an employer rate. <strong>Personal mode</strong> is
+                  for everyday drivers who want to monitor fuel costs, driving goals, and personal
                   milestones. You can switch between modes at any time from the dashboard.
                 </p>
               </div>
@@ -384,8 +402,38 @@ export default function FaqPage() {
                   includes travelling to a customer, picking up a delivery order, driving between
                   depots, or visiting a client. Normal commuting to a fixed place of work does not
                   count. If you work for gig platforms like Uber or Deliveroo, all miles driven during
-                  active jobs qualify. MileClear lets you classify each trip so only business miles
-                  count toward your deduction.
+                  active jobs qualify. If you are an employee using your personal car for work
+                  (site-to-site, client visits, healthcare home visits), those miles also qualify.
+                  MileClear lets you classify each trip so only business miles count toward your
+                  deduction.
+                </p>
+              </div>
+
+              <div className="faq__qa">
+                <h3 className="faq__question">
+                  I am an employee with a work car - can MileClear help me claim mileage from my employer?
+                </h3>
+                <p className="legal__text">
+                  Yes. MileClear is built for both gig workers and UK employees who drive their personal
+                  car for work. Set your employer&apos;s per-mile rate in <strong>Profile &gt; Work
+                  Settings</strong> (e.g. 30p/mi) and the app shows you &ldquo;owed by employer&rdquo;
+                  alongside your mileage figures. The Pro export produces a payroll-ready CSV/PDF claim
+                  per period. If your employer pays below HMRC&apos;s 45p rate, MileClear also calculates
+                  the gap you can recover from HMRC as Mileage Allowance Relief. See our{" "}
+                  <a href="/employee-mileage-tracker">employee mileage guide</a> for the full breakdown.
+                </p>
+              </div>
+
+              <div className="faq__qa">
+                <h3 className="faq__question">What is Mileage Allowance Relief (MAR)?</h3>
+                <p className="legal__text">
+                  Mileage Allowance Relief is the HMRC tax relief that lets UK employees recover the
+                  gap between what their employer pays per business mile and the official AMAP rate
+                  (45p for the first 10,000 business miles in a tax year, 25p above that). For example,
+                  if your employer pays 30p/mile and you drive 10,000 business miles, your employer
+                  pays £3,000 - the AMAP rate would be £4,500. The £1,500 gap is what MAR lets you
+                  reclaim. At basic-rate tax (20%) that returns £300 to you; at higher rate (40%), £600.
+                  You claim it via Self Assessment or by writing to HMRC.
                 </p>
               </div>
 

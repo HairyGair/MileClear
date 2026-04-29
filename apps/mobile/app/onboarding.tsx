@@ -447,7 +447,7 @@ export default function OnboardingScreen() {
                     Work
                   </Text>
                   <Text style={s.intentDesc}>
-                    For self-employed and gig workers. Track business miles, log platform earnings, and calculate your HMRC tax deduction.
+                    For gig workers, self-employed drivers, and employees who use their own car for work. Track business miles, calculate HMRC deductions, and prepare claims for your employer.
                   </Text>
                 </View>
               </TouchableOpacity>
