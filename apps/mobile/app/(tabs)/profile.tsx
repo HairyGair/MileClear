@@ -46,7 +46,6 @@ import {
   setNotificationPreferences,
   type NotificationPreferences,
 } from "../../lib/notifications/preferences";
-import { cacheVehicleBluetoothNames } from "../../lib/bluetooth/index";
 import { AvatarPicker } from "../../components/avatars/AvatarPicker";
 import { useLayoutPrefs, resetAllLayouts } from "../../lib/layout/index";
 import { PremiumTeaser } from "../../components/PremiumGate";
@@ -136,7 +135,6 @@ export default function ProfileScreen() {
       if (profileRes.data.workType) setWorkType(profileRes.data.workType as WorkType);
       setEmployerRate(profileRes.data.employerMileageRatePence ?? null);
       setVehicles(vehiclesRes.data);
-      cacheVehicleBluetoothNames(vehiclesRes.data).catch(() => {});
       if (billingRes) setBilling(billingRes.data);
       setDriveDetection(detectionEnabled);
       setNotifPrefs(notifPrefsLoaded);

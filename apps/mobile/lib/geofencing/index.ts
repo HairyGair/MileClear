@@ -10,7 +10,6 @@ import { randomUUID } from "expo-crypto";
 import { getDatabase } from "../db/index";
 import { reverseGeocode } from "../location/geocoding";
 import { DRIVING_SPEED_THRESHOLD_MPH, bestTripDistance } from "@mileclear/shared";
-import { checkBluetoothVehicleConnected } from "../bluetooth/index";
 import { stopDriveDetection, startDriveDetection, cancelAutoRecording, forceStartRecording } from "../tracking/detection";
 
 const GEOFENCE_TASK_NAME = "mileclear-geofence-monitor";
@@ -403,15 +402,9 @@ async function processGeofenceTrip(
     classification = "personal";
   }
 
-  // Check Bluetooth — if a vehicle's BT device is connected, auto-confirm the trip
-  const btMatch = await checkBluetoothVehicleConnected();
-  const isAutoConfirmed = btMatch != null;
-
   const tripId = randomUUID();
   const now = new Date().toISOString();
-  const notes = isAutoConfirmed
-    ? null
-    : `__unconfirmed__|${departedLocationId}|${arrivedLocationId}`;
+  const notes = `__unconfirmed__|${departedLocationId}|${arrivedLocationId}`;
 
   // Store trip locally
   await db.runAsync(
@@ -443,13 +436,7 @@ async function processGeofenceTrip(
     );
   }
 
-  if (isAutoConfirmed) {
-    // Bluetooth confirmed — no notification needed, trip is fully saved
-    await setDepartureAnchor(last.lat, last.lng).catch(() => {});
-    return;
-  }
-
-  // No Bluetooth match — send confirmation notification (skip during quiet hours)
+  // Send confirmation notification (skip during quiet hours).
   if (!isQuietHours()) {
     await sendTripConfirmationNotification(tripId, startAddress, endAddress, totalDistance);
     await scheduleConfirmationReminder(tripId, startAddress, endAddress, totalDistance);

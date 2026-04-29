@@ -34,7 +34,6 @@ async function maybeStartAutoTripLiveActivity(
   }
   await startLiveActivity(opts);
 }
-import { markBluetoothStateAtStart, hasBluetoothDisconnected, resetBluetoothState } from "../bluetooth";
 import type { TripClassification, PlatformTag } from "@mileclear/shared";
 
 const DETECTION_TASK_NAME = "mileclear-drive-detection";
@@ -446,7 +445,6 @@ export async function finalizeAutoTrip(): Promise<void> {
 
 async function _finalizeAutoTripInner(): Promise<void> {
   const db = await getDatabase();
-  resetBluetoothState();
 
   // Calculate final distance for the Live Activity summary before clearing coords
   const finalStats = await getAutoTripRunningDistance();
@@ -976,7 +974,6 @@ export async function cancelAutoRecording(clearCoords = false): Promise<void> {
   await db.runAsync(
     "DELETE FROM tracking_state WHERE key IN ('auto_recording_active', 'last_driving_speed_at', 'driving_detection_count', 'finalization_mode', 'stop_anchor')"
   );
-  resetBluetoothState();
   if (clearCoords) {
     await db.runAsync("DELETE FROM detection_coordinates");
     // Dismiss Live Activity when user taps "Not Driving"
@@ -1174,24 +1171,8 @@ try {
           if (lastDriving) {
             const elapsed = Date.now() - parseInt(lastDriving.value, 10);
 
-            // Bluetooth disconnection = fast trip end. If the user was connected
-            // to their car's Bluetooth when recording started and now they're not,
-            // that means the engine is off / they've left the car. Finalize after
-            // a shorter grace period (90s) to avoid false positives from brief
-            // BT dropouts.
-            const BT_DISCONNECT_GRACE_MS = 90 * 1000;
-            let btDisconnected = false;
-            if (elapsed > BT_DISCONNECT_GRACE_MS) {
-              try {
-                btDisconnected = await hasBluetoothDisconnected();
-              } catch {
-                // BT check is best-effort
-              }
-            }
-
-            if (elapsed > STOP_TIMEOUT_MS || btDisconnected) {
+            if (elapsed > STOP_TIMEOUT_MS) {
               await finalizeAutoTrip();
-              resetBluetoothState();
               // Downgrade back to low-power detection mode
               downgradeToDetectionMode().catch(() => {});
             } else {
@@ -1416,11 +1397,6 @@ try {
         // Auto-upgrade to navigation-grade accuracy for better trip recording.
         try {
           await upgradeDetectionAccuracy();
-        } catch {}
-
-        // Snapshot Bluetooth connection state for trip-end detection.
-        try {
-          await markBluetoothStateAtStart();
         } catch {}
 
         // Quiet hours: still record the trip, just don't buzz the user at 3am
@@ -1677,9 +1653,6 @@ async function forceStartRecordingImpl(reason: string): Promise<void> {
     "INSERT OR REPLACE INTO tracking_state (key, value) VALUES ('last_driving_speed_at', ?)",
     [Date.now().toString()]
   );
-
-  // Snapshot Bluetooth state for trip-end detection (best-effort)
-  try { await markBluetoothStateAtStart(); } catch {}
 
   // Read the user's actual dashboard mode for Live Activity accent colour.
   // Previously hardcoded to isBusinessMode: true which showed amber even

@@ -152,11 +152,6 @@ export default function DashboardScreen() {
   // Vehicle nudge — show when user has no vehicles at all
   const showVehicleNudge = !loading && vehicles.length === 0;
 
-  // Bluetooth promo card — show when vehicles exist but none have BT configured
-  const [btPromoDismissed, setBtPromoDismissed] = useState(true); // default hidden until loaded
-  const hasVehiclesNoBt = vehicles.length > 0 && !vehicles.some((v) => v.bluetoothName);
-  const showBtPromo = hasVehiclesNoBt && !btPromoDismissed;
-
   // Pro nudge card — dismissible, for free users with 5+ trips
   const { showPaywall } = usePaywall();
   const [proNudgeDismissedUntil, setProNudgeDismissedUntil] = useState<number>(Date.now() + 999999999);
@@ -172,15 +167,9 @@ export default function DashboardScreen() {
   useEffect(() => {
     (async () => {
       const db = await getDatabase();
-      const [btRow, nudgeRow] = await Promise.all([
-        db.getFirstAsync<{ value: string }>(
-          "SELECT value FROM tracking_state WHERE key = 'bt_promo_dismissed'"
-        ),
-        db.getFirstAsync<{ value: string }>(
-          "SELECT value FROM tracking_state WHERE key = 'pro_nudge_dismissed_at'"
-        ),
-      ]);
-      setBtPromoDismissed(btRow?.value === "1");
+      const nudgeRow = await db.getFirstAsync<{ value: string }>(
+        "SELECT value FROM tracking_state WHERE key = 'pro_nudge_dismissed_at'"
+      );
       if (nudgeRow) {
         const dismissedAt = parseInt(nudgeRow.value, 10);
         setProNudgeDismissedUntil(dismissedAt + 3 * 24 * 60 * 60 * 1000);
@@ -188,14 +177,6 @@ export default function DashboardScreen() {
         setProNudgeDismissedUntil(0);
       }
     })();
-  }, []);
-
-  const dismissBtPromo = useCallback(async () => {
-    setBtPromoDismissed(true);
-    const db = await getDatabase();
-    await db.runAsync(
-      "INSERT OR REPLACE INTO tracking_state (key, value) VALUES ('bt_promo_dismissed', '1')"
-    );
   }, []);
 
   const dismissProNudge = useCallback(async () => {
@@ -1105,43 +1086,6 @@ export default function DashboardScreen() {
         </TouchableOpacity>
       )}
 
-      {/* Bluetooth Auto-Trip Promo */}
-      {isWork && showBtPromo && (
-        <TouchableOpacity
-          style={s.btPromoCard}
-          onPress={() => {
-            const firstVehicle = vehicles[0];
-            if (firstVehicle) {
-              router.push(`/vehicle-form?id=${firstVehicle.id}` as any);
-            }
-          }}
-          activeOpacity={0.7}
-          accessibilityRole="button"
-          accessibilityLabel="Set up Bluetooth auto-detect for automatic trip tracking"
-        >
-          <TouchableOpacity
-            style={s.btPromoDismiss}
-            onPress={dismissBtPromo}
-            hitSlop={{ top: 12, right: 12, bottom: 12, left: 12 }}
-            accessibilityRole="button"
-            accessibilityLabel="Dismiss Bluetooth tip"
-          >
-            <Ionicons name="close" size={16} color="#6b7280" accessible={false} />
-          </TouchableOpacity>
-          <View style={s.btPromoIcon}>
-            <Ionicons name="bluetooth" size={24} color="#3b82f6" accessible={false} />
-          </View>
-          <Text style={s.btPromoTitle}>Auto-detect your trips</Text>
-          <Text style={s.btPromoBody}>
-            Connect your car's Bluetooth and MileClear will know when you're driving — trips start automatically.
-          </Text>
-          <View style={s.btPromoCta}>
-            <Text style={s.btPromoCtaText}>Set up now</Text>
-            <Ionicons name="chevron-forward" size={14} color="#3b82f6" accessible={false} />
-          </View>
-        </TouchableOpacity>
-      )}
-
       {/* ── Personal Dashboard (layout-aware) ── */}
       {isPersonal && (
         <PersonalDashboard
@@ -1173,43 +1117,6 @@ export default function DashboardScreen() {
           <View style={s.btPromoCta}>
             <Text style={s.vehicleNudgeCtaText}>Add vehicle</Text>
             <Ionicons name="chevron-forward" size={14} color={AMBER} accessible={false} />
-          </View>
-        </TouchableOpacity>
-      )}
-
-      {/* Bluetooth Auto-Trip Promo (personal mode) */}
-      {isPersonal && showBtPromo && (
-        <TouchableOpacity
-          style={s.btPromoCard}
-          onPress={() => {
-            const firstVehicle = vehicles[0];
-            if (firstVehicle) {
-              router.push(`/vehicle-form?id=${firstVehicle.id}` as any);
-            }
-          }}
-          activeOpacity={0.7}
-          accessibilityRole="button"
-          accessibilityLabel="Set up Bluetooth auto-detect for automatic trip tracking"
-        >
-          <TouchableOpacity
-            style={s.btPromoDismiss}
-            onPress={dismissBtPromo}
-            hitSlop={{ top: 12, right: 12, bottom: 12, left: 12 }}
-            accessibilityRole="button"
-            accessibilityLabel="Dismiss Bluetooth tip"
-          >
-            <Ionicons name="close" size={16} color="#6b7280" accessible={false} />
-          </TouchableOpacity>
-          <View style={s.btPromoIcon}>
-            <Ionicons name="bluetooth" size={24} color="#3b82f6" accessible={false} />
-          </View>
-          <Text style={s.btPromoTitle}>Auto-detect your trips</Text>
-          <Text style={s.btPromoBody}>
-            Connect your car's Bluetooth and MileClear will know when you're driving — trips start automatically.
-          </Text>
-          <View style={s.btPromoCta}>
-            <Text style={s.btPromoCtaText}>Set up now</Text>
-            <Ionicons name="chevron-forward" size={14} color="#3b82f6" accessible={false} />
           </View>
         </TouchableOpacity>
       )}

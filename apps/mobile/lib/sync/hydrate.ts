@@ -8,7 +8,6 @@ import { fetchTrips } from "../api/trips";
 import { fetchEarnings } from "../api/earnings";
 import { fetchFuelLogs } from "../api/fuel";
 import { fetchSavedLocations } from "../api/savedLocations";
-import { cacheVehicleBluetoothNames } from "../bluetooth/index";
 import { registerGeofences } from "../geofencing/index";
 import type { Vehicle, Shift, Earning, FuelLogWithVehicle, PaginatedResponse, SavedLocation } from "@mileclear/shared";
 import type { TripWithVehicle } from "../api/trips";
@@ -271,7 +270,6 @@ export async function hydrateLocalData(
   try {
     if (vehiclesResult.ok) {
       await hydrateVehicles(vehiclesResult.data.data);
-      await cacheVehicleBluetoothNames(vehiclesResult.data.data);
     }
   } catch (err) {
     console.warn("[hydrate] vehicle insert failed:", err);
