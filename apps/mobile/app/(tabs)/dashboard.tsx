@@ -881,11 +881,16 @@ export default function DashboardScreen() {
       {/* ── Work Mode (layout-aware) ── */}
       {isWork && workLayout.visibleKeys.map((key) => {
         // Trip-count gates: cards that only make sense once a few trips are
-        // logged are hidden in the empty / early state. The 5-trip threshold
-        // matches the Benchmark card's privacy floor and stops the dashboard
-        // looking like a sea of zeros for first-time users.
+        // logged are hidden in the empty / early state.
+        //
+        // We use TWO signals because they catch different empty cases:
+        //   - totalTrips: have they driven anything at all? (Day 1 user)
+        //   - hasBusinessDeduction: do any of their trips count as business?
+        //     (a user with 100 trips all marked Personal still has £0
+        //     business deduction and would get empty heatmap / benchmark
+        //     / calendar cards if we only gated on totalTrips)
         const totalTrips = stats?.totalTrips ?? 0;
-        const hasMinTrips = totalTrips >= 5;
+        const hasBusinessDeduction = (stats?.deductionPence ?? 0) > 0;
 
         switch (key) {
           case "work_hero":
@@ -905,6 +910,30 @@ export default function DashboardScreen() {
                     Tap Start Trip the next time you drive. Your HMRC deduction starts adding up from your first business mile.
                   </Text>
                 </View>
+              );
+            }
+            // Trips exist but none are business-classified - the user is
+            // tracking but not yet claiming. Replace the confusing "£0 next
+            // to 123 trips" display with an actionable nudge.
+            if (!hasBusinessDeduction) {
+              return (
+                <TouchableOpacity
+                  key={key}
+                  style={s.heroCard}
+                  onPress={() => router.push("/(tabs)/trips" as any)}
+                  activeOpacity={0.7}
+                  accessibilityRole="button"
+                  accessibilityLabel="No business miles tracked yet. Tap to open the Trips tab and reclassify any work-related trips as Business."
+                >
+                  <View style={s.heroTopRow}>
+                    <Text style={s.heroLabel}>Tax Deduction {"·"} {stats.taxYear}</Text>
+                  </View>
+                  <Text style={s.heroValue}>{"£"}0.00</Text>
+                  <Text style={s.heroSavedLabel}>no business trips yet</Text>
+                  <Text style={s.heroEmptyBody}>
+                    You have {stats.totalTrips} trip{stats.totalTrips === 1 ? "" : "s"} tracked but none are marked Business. Tap any work-related trip in the Trips tab and switch its classification to start your HMRC deduction.
+                  </Text>
+                </TouchableOpacity>
               );
             }
             return stats ? (
@@ -952,15 +981,15 @@ export default function DashboardScreen() {
             // means they haven't driven yet).
             return <MileageMonthCard key={key} classification="business" />;
           case "activity_heatmap":
-            // 7x24 grid needs aggregate data across hours and days to be
-            // meaningful. Hide until 5+ trips so the empty grid doesn't
-            // signal "broken".
-            if (!hasMinTrips) return null;
+            // 7x24 grid filters for business trips. Hide until the user
+            // actually has business activity so we don't show an empty
+            // grid to someone with 100 personal trips.
+            if (!hasBusinessDeduction) return null;
             return <ActivityHeatmapCard key={key} />;
           case "benchmark":
-            // The card has its own 5-contributor privacy floor; showing
-            // "Need more data" to a 0-trip user is just noise.
-            if (!hasMinTrips) return null;
+            // Filters for business activity; otherwise just shows
+            // "Need more data" which is noise for a personal-only user.
+            if (!hasBusinessDeduction) return null;
             return <BenchmarkCard key={key} />;
           case "daily_recap":
             return dailyRecap && dailyRecap.totalTrips > 0 ? (
@@ -1090,8 +1119,8 @@ export default function DashboardScreen() {
             if (totalTrips === 0) return null;
             return <WeeklyGoalCard key={key} />;
           case "work_calendar":
-            // Monthly heatmap is meaningless without trip data filling cells.
-            if (!hasMinTrips) return null;
+            // Filters for business trips; empty calendar without them.
+            if (!hasBusinessDeduction) return null;
             return <WorkCalendarCard key={key} />;
           case "community":
             return (

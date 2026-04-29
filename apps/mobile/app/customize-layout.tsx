@@ -2,6 +2,7 @@ import { useState, useCallback } from "react";
 import {
   View,
   Text,
+  ScrollView,
   TouchableOpacity,
   Switch,
   StyleSheet,
@@ -10,17 +11,12 @@ import {
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import DraggableFlatList, {
-  ScaleDecorator,
-  type RenderItemParams,
-} from "react-native-draggable-flatlist";
 import {
   useLayoutPrefs,
   SECTION_REGISTRY,
   SCREEN_LABELS,
   resetAllLayouts,
   type ScreenKey,
-  type LayoutPref,
 } from "../lib/layout/index";
 
 const SCREENS: ScreenKey[] = [
@@ -125,71 +121,75 @@ export default function CustomizeLayoutScreen() {
 }
 
 function SectionList({ screen }: { screen: ScreenKey }) {
-  const { prefs, toggleVisibility, moveUp, moveDown, reorder, reset } =
+  const { prefs, toggleVisibility, moveUp, moveDown, reset } =
     useLayoutPrefs(screen);
   const registry = SECTION_REGISTRY[screen];
 
-  const handleDragEnd = useCallback(
-    ({ data }: { data: LayoutPref[] }) => {
-      reorder(data.map((p) => p.key));
-    },
-    [reorder]
-  );
+  return (
+    <ScrollView
+      style={styles.list}
+      contentContainerStyle={styles.listContent}
+      showsVerticalScrollIndicator={false}
+    >
+      <Text style={styles.screenLabel}>{SCREEN_LABELS[screen]}</Text>
+      <Text style={styles.screenHint}>
+        Toggle sections on or off. Use arrows to reorder.
+      </Text>
 
-  const renderItem = useCallback(
-    ({ item, drag, isActive }: RenderItemParams<LayoutPref>) => {
-      const section = registry.find((s) => s.key === item.key);
-      if (!section) return null;
+      {prefs.map((pref, idx) => {
+        const section = registry.find((s) => s.key === pref.key);
+        if (!section) return null;
 
-      const isLocked = section.locked === true;
-      const idx = prefs.findIndex((p) => p.key === item.key);
-      const isFirst = idx === 0;
-      const isLast = idx === prefs.length - 1;
+        const isFirst = idx === 0;
+        const isLast = idx === prefs.length - 1;
+        const isLocked = section.locked === true;
 
-      return (
-        <ScaleDecorator activeScale={1.04}>
-          <TouchableOpacity
-            onLongPress={isLocked ? undefined : drag}
-            disabled={isActive}
-            activeOpacity={0.85}
-            delayLongPress={150}
+        return (
+          <View
+            key={pref.key}
             style={[
               styles.item,
-              !item.visible && !isLocked && styles.itemHidden,
-              isActive && styles.itemDragging,
+              !pref.visible && !isLocked && styles.itemHidden,
             ]}
-            accessibilityRole="button"
-            accessibilityLabel={`${section.label}. ${
-              isLocked
-                ? "Always visible, position locked."
-                : `${item.visible ? "Visible" : "Hidden"}. Long press to drag, or use accessibility actions to move.`
-            }`}
-            accessibilityActions={
-              isLocked
-                ? undefined
-                : [
-                    { name: "moveup" as any, label: "Move up" },
-                    { name: "movedown" as any, label: "Move down" },
-                  ]
-            }
-            onAccessibilityAction={(e) => {
-              if (e.nativeEvent.actionName === "moveup" && !isFirst) moveUp(item.key);
-              else if (e.nativeEvent.actionName === "movedown" && !isLast) moveDown(item.key);
-            }}
           >
-            {/* Drag handle (or lock icon for locked rows) */}
-            <View style={styles.handleWrap}>
-              <Ionicons
-                name={isLocked ? "lock-closed" : "reorder-three-outline"}
-                size={20}
-                color={isLocked ? "#6b7280" : "#8494a7"}
-              />
+            {/* Move arrows */}
+            <View style={styles.arrows}>
+              <TouchableOpacity
+                onPress={() => moveUp(pref.key)}
+                disabled={isFirst || isLocked}
+                hitSlop={{ top: 4, bottom: 4, left: 8, right: 8 }}
+                activeOpacity={0.5}
+                accessibilityRole="button"
+                accessibilityLabel={`Move ${section.label} up`}
+                accessibilityState={{ disabled: isFirst || isLocked }}
+              >
+                <Ionicons
+                  name="chevron-up"
+                  size={18}
+                  color={isFirst || isLocked ? "rgba(255,255,255,0.08)" : "#8494a7"}
+                />
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={() => moveDown(pref.key)}
+                disabled={isLast || isLocked}
+                hitSlop={{ top: 4, bottom: 4, left: 8, right: 8 }}
+                activeOpacity={0.5}
+                accessibilityRole="button"
+                accessibilityLabel={`Move ${section.label} down`}
+                accessibilityState={{ disabled: isLast || isLocked }}
+              >
+                <Ionicons
+                  name="chevron-down"
+                  size={18}
+                  color={isLast || isLocked ? "rgba(255,255,255,0.08)" : "#8494a7"}
+                />
+              </TouchableOpacity>
             </View>
 
-            {/* Section icon */}
+            {/* Icon */}
             <View style={styles.iconWrap}>
               <Ionicons
-                name={section.icon as any}
+                name={isLocked ? "lock-closed" : (section.icon as any)}
                 size={18}
                 color={isLocked ? "#6b7280" : "#f5a623"}
               />
@@ -200,7 +200,7 @@ function SectionList({ screen }: { screen: ScreenKey }) {
               <Text
                 style={[
                   styles.label,
-                  !item.visible && !isLocked && styles.labelHidden,
+                  !pref.visible && !isLocked && styles.labelHidden,
                 ]}
               >
                 {section.label}
@@ -217,70 +217,44 @@ function SectionList({ screen }: { screen: ScreenKey }) {
               </View>
             ) : (
               <Switch
-                value={item.visible}
-                onValueChange={() => toggleVisibility(item.key)}
+                value={pref.visible}
+                onValueChange={() => toggleVisibility(pref.key)}
                 trackColor={{ false: "#374151", true: "#f5a623" }}
                 thumbColor="#fff"
                 style={styles.toggle}
-                accessibilityLabel={`${section.label}: ${item.visible ? "visible" : "hidden"}. Toggle visibility`}
+                accessibilityLabel={`${section.label}: ${pref.visible ? "visible" : "hidden"}. Toggle visibility`}
               />
             )}
-          </TouchableOpacity>
-        </ScaleDecorator>
-      );
-    },
-    [prefs, registry, moveUp, moveDown, toggleVisibility]
-  );
-
-  const Header = (
-    <View style={styles.headerSection}>
-      <Text style={styles.screenLabel}>{SCREEN_LABELS[screen]}</Text>
-      <Text style={styles.screenHint}>
-        Toggle sections on or off. Long-press and drag to reorder.
-      </Text>
-    </View>
-  );
-
-  const Footer = (
-    <TouchableOpacity
-      style={styles.resetScreenBtn}
-      accessibilityRole="button"
-      accessibilityLabel={`Reset ${SCREEN_LABELS[screen]} layout to default`}
-      onPress={() => {
-        Alert.alert(
-          `Reset ${SCREEN_LABELS[screen]}`,
-          "Restore default layout for this screen?",
-          [
-            { text: "Cancel", style: "cancel" },
-            {
-              text: "Reset",
-              style: "destructive",
-              onPress: () => reset(),
-            },
-          ]
+          </View>
         );
-      }}
-      activeOpacity={0.7}
-    >
-      <Ionicons name="refresh-outline" size={14} color="#8494a7" />
-      <Text style={styles.resetScreenText}>
-        Reset {TAB_LABELS[screen]} layout
-      </Text>
-    </TouchableOpacity>
-  );
+      })}
 
-  return (
-    <DraggableFlatList
-      data={prefs}
-      keyExtractor={(item) => item.key}
-      renderItem={renderItem}
-      onDragEnd={handleDragEnd}
-      style={styles.list}
-      contentContainerStyle={styles.listContent}
-      ListHeaderComponent={Header}
-      ListFooterComponent={Footer}
-      activationDistance={8}
-    />
+      <TouchableOpacity
+        style={styles.resetScreenBtn}
+        accessibilityRole="button"
+        accessibilityLabel={`Reset ${SCREEN_LABELS[screen]} layout to default`}
+        onPress={() => {
+          Alert.alert(
+            `Reset ${SCREEN_LABELS[screen]}`,
+            "Restore default layout for this screen?",
+            [
+              { text: "Cancel", style: "cancel" },
+              {
+                text: "Reset",
+                style: "destructive",
+                onPress: () => reset(),
+              },
+            ]
+          );
+        }}
+        activeOpacity={0.7}
+      >
+        <Ionicons name="refresh-outline" size={14} color="#8494a7" />
+        <Text style={styles.resetScreenText}>
+          Reset {TAB_LABELS[screen]} layout
+        </Text>
+      </TouchableOpacity>
+    </ScrollView>
   );
 }
 
@@ -347,9 +321,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingBottom: 20,
   },
-  headerSection: {
-    marginBottom: 12,
-  },
   screenLabel: {
     fontSize: 20,
     fontFamily: "PlusJakartaSans_700Bold",
@@ -360,7 +331,7 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontFamily: "PlusJakartaSans_400Regular",
     color: TEXT_2,
-    marginBottom: 4,
+    marginBottom: 16,
   },
   item: {
     flexDirection: "row",
@@ -375,19 +346,10 @@ const styles = StyleSheet.create({
   itemHidden: {
     opacity: 0.5,
   },
-  itemDragging: {
-    backgroundColor: "rgba(245, 166, 35, 0.1)",
-    borderColor: "rgba(245, 166, 35, 0.35)",
-    shadowColor: "#000",
-    shadowOpacity: 0.4,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 6,
-  },
-  handleWrap: {
-    width: 28,
+  arrows: {
     alignItems: "center",
-    marginRight: 6,
+    marginRight: 8,
+    gap: 2,
   },
   iconWrap: {
     width: 32,
