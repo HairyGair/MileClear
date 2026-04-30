@@ -560,6 +560,7 @@ export async function userRoutes(app: FastifyInstance) {
     appVersion: z.string().max(32).optional(),
     buildNumber: z.string().max(32).optional(),
     osVersion: z.string().max(32).optional(),
+    pendingSyncCount: z.number().int().min(0).max(100000).optional(),
   });
 
   app.post("/heartbeat", async (request, reply) => {
@@ -577,6 +578,7 @@ export async function userRoutes(app: FastifyInstance) {
         appVersion: parsed.data.appVersion ?? null,
         buildNumber: parsed.data.buildNumber ?? null,
         osVersion: parsed.data.osVersion ?? null,
+        lastPendingSyncCount: parsed.data.pendingSyncCount ?? null,
       },
     });
     return reply.send({ success: true });

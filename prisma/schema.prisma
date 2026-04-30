@@ -54,6 +54,10 @@ model User {
   appVersion            String?   @db.VarChar(32)
   buildNumber           String?   @db.VarChar(32)
   osVersion             String?   @db.VarChar(32)
+  // Sync-queue depth at time of last heartbeat. Lets admin detect stuck
+  // queues per-user without waiting for a diagnostic dump. > 0 sustained
+  // across heartbeats indicates the sync engine isn't draining.
+  lastPendingSyncCount  Int?
 
   createdAt            DateTime  @default(now())
   updatedAt            DateTime  @updatedAt

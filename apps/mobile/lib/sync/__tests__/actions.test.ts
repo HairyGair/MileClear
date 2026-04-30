@@ -152,15 +152,15 @@ describe("syncDeleteTrip on un-synced trip", () => {
     expect(mocks.apiDeleteTrip).not.toHaveBeenCalled();
 
     const localDeleteCall = mocks.db.runAsync.mock.calls.find(
-      ([sql]: [string]) => /DELETE FROM trips WHERE id = \?/.test(sql)
+      (call: unknown[]) => /DELETE FROM trips WHERE id = \?/.test(String(call[0]))
     );
     expect(localDeleteCall).toBeDefined();
     expect(localDeleteCall![1]).toEqual(["local-uuid-456"]);
 
-    const queueCleanupCall = mocks.db.runAsync.mock.calls.find(
-      ([sql]: [string]) =>
-        /DELETE FROM sync_queue/.test(sql) && /entity_type = 'trip'/.test(sql)
-    );
+    const queueCleanupCall = mocks.db.runAsync.mock.calls.find((call: unknown[]) => {
+      const sql = String(call[0]);
+      return /DELETE FROM sync_queue/.test(sql) && /entity_type = 'trip'/.test(sql);
+    });
     expect(queueCleanupCall).toBeDefined();
     expect(queueCleanupCall![1]).toEqual(["local-uuid-456"]);
 
@@ -192,7 +192,7 @@ describe("syncDeleteTrip on synced trip", () => {
 
     expect(result).toBeNull();
     const markSyncedCall = mocks.db.runAsync.mock.calls.find(
-      ([sql]: [string]) => /UPDATE sync_queue SET status = 'synced'/.test(sql)
+      (call: unknown[]) => /UPDATE sync_queue SET status = 'synced'/.test(String(call[0]))
     );
     expect(markSyncedCall).toBeDefined();
   });

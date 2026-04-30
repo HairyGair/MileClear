@@ -51,6 +51,7 @@ export interface HeartbeatData {
   appVersion?: string;
   buildNumber?: string;
   osVersion?: string;
+  pendingSyncCount?: number;
 }
 
 /**

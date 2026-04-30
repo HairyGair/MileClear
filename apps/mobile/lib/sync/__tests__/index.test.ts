@@ -96,27 +96,29 @@ describe("processSyncQueue cascade after a create syncs", () => {
     await processSyncQueue();
 
     // ── Assertion 1: cascade UPDATE rewrote entity_id on the OTHER row.
-    const cascadeCall = mocks.db.runAsync.mock.calls.find(
-      ([sql]: [string]) =>
+    const cascadeCall = mocks.db.runAsync.mock.calls.find((call: unknown[]) => {
+      const sql = String(call[0]);
+      return (
         /UPDATE sync_queue SET entity_id = \?/.test(sql) &&
         /entity_id = \? AND entity_type = \? AND id != \?/.test(sql)
-    );
+      );
+    });
     expect(cascadeCall).toBeDefined();
     expect(cascadeCall![1]).toEqual([serverId, localId, "trip", "queue-row-1"]);
 
     // ── Assertion 2: payload.id rewritten on the queued update so the PATCH
     //    body carries the server id, not the dead local UUID.
-    const payloadRewriteCall = mocks.db.runAsync.mock.calls.find(
-      ([sql, args]: [string, unknown[]]) => {
-        if (!/UPDATE sync_queue SET payload = \?/.test(sql)) return false;
-        try {
-          const newPayload = JSON.parse(args[0] as string);
-          return newPayload?.id === serverId;
-        } catch {
-          return false;
-        }
+    const payloadRewriteCall = mocks.db.runAsync.mock.calls.find((call: unknown[]) => {
+      const sql = String(call[0]);
+      const args = call[1] as unknown[];
+      if (!/UPDATE sync_queue SET payload = \?/.test(sql)) return false;
+      try {
+        const newPayload = JSON.parse(args[0] as string);
+        return newPayload?.id === serverId;
+      } catch {
+        return false;
       }
-    );
+    });
     expect(payloadRewriteCall).toBeDefined();
   });
 });

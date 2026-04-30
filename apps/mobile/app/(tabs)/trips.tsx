@@ -22,6 +22,7 @@ import { Button } from "../../components/Button";
 import { DateTimePickerField } from "../../components/DateTimePickerField";
 import { fetchTrips, fetchUnclassifiedCount, fetchClassificationSuggestion, mergeTrips, TripWithVehicle, ClassificationSuggestion } from "../../lib/api/trips";
 import { syncUpdateTrip, syncDeleteTrip } from "../../lib/sync/actions";
+import { processSyncQueue } from "../../lib/sync";
 import { markLiveActivityClassified } from "../../lib/liveActivity";
 import { getLocalTrips, getLocalUnsyncedTrips } from "../../lib/db/queries";
 import { learnFromClassification } from "../../lib/classification";
@@ -419,6 +420,11 @@ export default function TripsScreen() {
 
   const onRefresh = useCallback(() => {
     setRefreshing(true);
+    // Pull-to-refresh is the discoverable "fix it" gesture - flush any
+    // stuck items in the sync queue first, then reload from the API. If a
+    // user's trips look wrong / stuck-pending, this single gesture
+    // recovers them without needing a force-quit.
+    processSyncQueue().catch(() => {});
     loadTrips(1);
     loadUnclassifiedCount();
   }, [loadTrips, loadUnclassifiedCount]);

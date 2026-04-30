@@ -5,6 +5,7 @@ import Constants from "expo-constants";
 import { Platform } from "react-native";
 import { getDatabase } from "../db/index";
 import { sendHeartbeat, type HeartbeatData } from "../api/user";
+import { getPendingCount } from "../sync/queue";
 
 const DETECTION_TASK_NAME = "drive-detection";
 const HEARTBEAT_INTERVAL_MS = 24 * 60 * 60 * 1000; // 24 hours
@@ -31,11 +32,12 @@ export async function maybeSendHeartbeat(): Promise<void> {
       }
     }
 
-    const [fg, bg, notif, taskActive] = await Promise.all([
+    const [fg, bg, notif, taskActive, pendingSyncCount] = await Promise.all([
       Location.getForegroundPermissionsAsync().catch(() => null),
       Location.getBackgroundPermissionsAsync().catch(() => null),
       Notifications.getPermissionsAsync().catch(() => null),
       TaskManager.isTaskRegisteredAsync(DETECTION_TASK_NAME).catch(() => false),
+      getPendingCount().catch(() => 0),
     ]);
 
     // Unused foreground permission kept in scope to avoid dead-code warnings
@@ -52,6 +54,7 @@ export async function maybeSendHeartbeat(): Promise<void> {
           ? (Constants.expoConfig?.ios?.buildNumber ?? undefined)
           : String(Constants.expoConfig?.android?.versionCode ?? ""),
       osVersion: `${Platform.OS} ${Platform.Version}`,
+      pendingSyncCount,
     };
 
     await sendHeartbeat(data);

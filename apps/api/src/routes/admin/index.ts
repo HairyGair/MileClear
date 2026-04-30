@@ -200,6 +200,14 @@ export async function adminRoutes(app: FastifyInstance) {
         notes: true,
         lastLoginAt: true,
         lastTripAt: true,
+        lastHeartbeatAt: true,
+        bgLocationPermission: true,
+        notificationPermission: true,
+        trackingTaskActive: true,
+        appVersion: true,
+        buildNumber: true,
+        osVersion: true,
+        lastPendingSyncCount: true,
         _count: { select: { trips: true, vehicles: true, earnings: true } },
         trips: {
           select: {
@@ -1472,6 +1480,33 @@ export async function adminRoutes(app: FastifyInstance) {
         })),
       },
     });
+  });
+
+  // GET /admin/stuck-queues
+  // Lists active users (heartbeat in last 7d) with the largest sync-queue
+  // depth at last heartbeat. Sustained pendingSyncCount > 0 across heartbeats
+  // means the sync engine isn't draining for that user - investigate.
+  app.get("/stuck-queues", async (_request, reply) => {
+    const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+    const users = await prisma.user.findMany({
+      where: {
+        lastHeartbeatAt: { gte: sevenDaysAgo },
+        lastPendingSyncCount: { gt: 0 },
+      },
+      orderBy: { lastPendingSyncCount: "desc" },
+      take: 50,
+      select: {
+        id: true,
+        email: true,
+        displayName: true,
+        appVersion: true,
+        buildNumber: true,
+        lastHeartbeatAt: true,
+        lastPendingSyncCount: true,
+        trackingTaskActive: true,
+      },
+    });
+    return reply.send({ data: users });
   });
 
   // GET /admin/onboarding-derived
