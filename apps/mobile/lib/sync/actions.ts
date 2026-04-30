@@ -229,6 +229,18 @@ export async function syncUpdateTrip(id: string, data: UpdateTripData) {
 
   await enqueueSync("trip", id, "update", { id, ...apiPayload } as unknown as Record<string, unknown>);
 
+  // If the trip has not synced to the server yet (its create is still in the
+  // queue), don't attempt the PATCH now - the local UUID would 404 on the
+  // server. The queue cascade in processSyncQueue rewrites this update's
+  // entity_id once the create completes, then it runs cleanly.
+  const tripSyncRow = await db.getFirstAsync<{ synced_at: string | null }>(
+    "SELECT synced_at FROM trips WHERE id = ?",
+    [id]
+  );
+  if (!tripSyncRow?.synced_at) {
+    return null;
+  }
+
   try {
     const result = await apiUpdateTrip(id, apiPayload);
     await db.runAsync(
@@ -245,16 +257,37 @@ export async function syncUpdateTrip(id: string, data: UpdateTripData) {
     return result;
   } catch (err) {
     if (isNetworkError(err)) return null;
-    await db.runAsync(
-      "DELETE FROM sync_queue WHERE entity_id = ? AND entity_type = 'trip' AND action = 'update' AND status = 'pending'",
-      [id]
-    );
+    // Don't drop the queued update on 4xx - the server may not yet have the
+    // create (race), or the classification feedback flag may have
+    // legitimately failed validation. Either way, leave the row queued so
+    // processSyncQueue can retry / cascade as appropriate.
     throw err;
   }
 }
 
 export async function syncDeleteTrip(id: string) {
   const db = await getDatabase();
+
+  // If the trip never synced to the server (its create is still pending in
+  // the queue), the right thing to do is cancel the queued create and drop
+  // the local row. Sending a DELETE for a UUID the server has never seen
+  // would 404 and confuse the user. This also catches the rapid-succession
+  // case where the user finalizes a trip then immediately taps Delete.
+  const tripSyncRow = await db.getFirstAsync<{ synced_at: string | null }>(
+    "SELECT synced_at FROM trips WHERE id = ?",
+    [id]
+  );
+
+  if (!tripSyncRow?.synced_at) {
+    // Drop the local row + cancel any pending operations for this trip.
+    await db.runAsync("DELETE FROM trips WHERE id = ?", [id]);
+    await db.runAsync(
+      "DELETE FROM sync_queue WHERE entity_id = ? AND entity_type = 'trip' AND status IN ('pending', 'failed')",
+      [id]
+    );
+    return null;
+  }
+
   await db.runAsync("DELETE FROM trips WHERE id = ?", [id]);
   await enqueueSync("trip", id, "delete");
 
@@ -267,12 +300,14 @@ export async function syncDeleteTrip(id: string) {
     return result;
   } catch (err) {
     if (isNetworkError(err)) return null;
-    // API validation error — remove from queue (local row already gone, which is fine)
+    // 4xx likely means the server has already lost the trip (race with
+    // another delete, or a hydration cleanup). Local is already deleted,
+    // so converge by treating the queued delete as completed.
     await db.runAsync(
-      "DELETE FROM sync_queue WHERE entity_id = ? AND entity_type = 'trip' AND action = 'delete' AND status = 'pending'",
-      [id]
+      "UPDATE sync_queue SET status = 'synced', updated_at = ? WHERE entity_id = ? AND entity_type = 'trip' AND action = 'delete'",
+      [new Date().toISOString(), id]
     );
-    throw err;
+    return null;
   }
 }
 

@@ -138,25 +138,61 @@ export async function processSyncQueue(): Promise<void> {
           // Check if server ID already exists locally (e.g. from hydration race) —
           // if so, delete the local duplicate instead of updating.
           const serverId = response.data.id;
+          const localId = item.entity_id;
           const existingServer = await db.getFirstAsync<{ id: string }>(
             `SELECT id FROM ${table} WHERE id = ?`, [serverId]
           );
           if (existingServer) {
             await db.execAsync(`
-              DELETE FROM ${table} WHERE id = '${item.entity_id}';
+              DELETE FROM ${table} WHERE id = '${localId}';
               UPDATE sync_queue SET entity_id = '${serverId}', status = 'synced', updated_at = '${now}' WHERE id = '${item.id}';
             `);
           } else {
             await db.execAsync(`
-              UPDATE ${table} SET id = '${serverId}', synced_at = '${now}' WHERE id = '${item.entity_id}';
+              UPDATE ${table} SET id = '${serverId}', synced_at = '${now}' WHERE id = '${localId}';
               UPDATE sync_queue SET entity_id = '${serverId}', status = 'synced', updated_at = '${now}' WHERE id = '${item.id}';
             `);
+          }
+          // Cascade the new server ID to OTHER pending queue rows for the
+          // same entity. Without this, an update or delete enqueued before
+          // the create finished still references the dead local UUID and
+          // 404s against the server. (For shifts this also covers the
+          // case where shift_coordinates and trips reference the old ID.)
+          await db.runAsync(
+            `UPDATE sync_queue SET entity_id = ?
+             WHERE entity_id = ? AND entity_type = ? AND id != ?
+             AND status IN ('pending', 'failed')`,
+            [serverId, localId, item.entity_type, item.id]
+          );
+          // Also rewrite payload entity references for queued updates so
+          // the body of the PATCH carries the new server id.
+          const queuedUpdates = await db.getAllAsync<{ id: string; payload: string | null }>(
+            `SELECT id, payload FROM sync_queue
+             WHERE entity_id = ? AND entity_type = ? AND action = 'update'
+             AND status IN ('pending', 'failed')`,
+            [serverId, item.entity_type]
+          );
+          for (const upd of queuedUpdates) {
+            if (!upd.payload) continue;
+            try {
+              const parsed = JSON.parse(upd.payload);
+              if (parsed && typeof parsed === "object" && parsed.id === localId) {
+                parsed.id = serverId;
+                await db.runAsync(
+                  "UPDATE sync_queue SET payload = ? WHERE id = ?",
+                  [JSON.stringify(parsed), upd.id]
+                );
+              }
+            } catch {
+              // Bad JSON in queue row, skip - the cascade above is the
+              // load-bearing change; this body rewrite is defensive.
+            }
           }
           // Cascade shift ID changes to related tables
           if (item.entity_type === "shift") {
             await db.execAsync(`
-              UPDATE shift_coordinates SET shift_id = '${serverId}' WHERE shift_id = '${item.entity_id}';
-              UPDATE trips SET shift_id = '${serverId}' WHERE shift_id = '${item.entity_id}';
+              UPDATE shift_coordinates SET shift_id = '${serverId}' WHERE shift_id = '${localId}';
+              UPDATE trips SET shift_id = '${serverId}' WHERE shift_id = '${localId}';
             `);
           }
         } else if (item.action === "delete") {
