@@ -1,6 +1,7 @@
 // Offline sync engine
 // Processes the sync queue and pushes pending data to the API one-by-one
 
+import { AppState, type AppStateStatus } from "react-native";
 import { getDatabase } from "../db/index";
 import { apiRequest } from "../api/index";
 import { isOnline, onConnectivityChange } from "../network";
@@ -255,6 +256,24 @@ export function onSyncStateChange(listener: SyncStateListener): () => void {
   };
 }
 
+// Periodic retry while items are pending. iOS / network blips that don't
+// trigger a clean offline -> online transition (e.g. a brief 5G drop while
+// the device still reports "connected") used to leave the queue stranded
+// until app restart. This timer drains it within a minute regardless.
+const PERIODIC_RETRY_MS = 60_000;
+let retryTimer: ReturnType<typeof setInterval> | null = null;
+
+async function periodicTick() {
+  try {
+    const pending = await getPendingCount();
+    if (pending > 0) {
+      processSyncQueue();
+    }
+  } catch {
+    // Pending count read failed - swallow, next tick will try again.
+  }
+}
+
 export function startAutoSync(): () => void {
   // Process immediately on startup
   processSyncQueue();
@@ -266,10 +285,32 @@ export function startAutoSync(): () => void {
     }
   });
 
+  // Process when the app returns to foreground. Covers the case where the
+  // user backgrounds the app mid-drive, comes back, and stuck items need
+  // to flush without waiting for a network flip or restart.
+  const appStateSub = AppState.addEventListener(
+    "change",
+    (state: AppStateStatus) => {
+      if (state === "active") {
+        processSyncQueue();
+      }
+    }
+  );
+
+  // Periodic retry every 60s. Cheap - only POSTs when there's something
+  // pending - but ensures stuck queues drain even without an AppState or
+  // network event. Fixes the silent-stuck-trips class of bug.
+  retryTimer = setInterval(periodicTick, PERIODIC_RETRY_MS);
+
   return () => {
     if (connectivityUnsub) {
       connectivityUnsub();
       connectivityUnsub = null;
+    }
+    appStateSub.remove();
+    if (retryTimer) {
+      clearInterval(retryTimer);
+      retryTimer = null;
     }
   };
 }
