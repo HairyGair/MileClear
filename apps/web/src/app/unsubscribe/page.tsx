@@ -11,13 +11,14 @@ export const metadata: Metadata = {
   alternates: { canonical: "https://mileclear.com/unsubscribe" },
 };
 
-export default function UnsubscribePage({
+export default async function UnsubscribePage({
   searchParams,
 }: {
-  searchParams: { status?: string; token?: string };
+  searchParams: Promise<{ status?: string; token?: string }>;
 }) {
-  const status = (searchParams.status as "ok" | "invalid" | "error" | undefined) ?? null;
-  const token = searchParams.token ?? null;
+  const params = await searchParams;
+  const status = (params.status as "ok" | "invalid" | "error" | undefined) ?? null;
+  const token = params.token ?? null;
 
   return (
     <>
