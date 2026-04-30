@@ -38,9 +38,9 @@ export const RELEASE_NOTES: ReleaseNote[] = [
   {
     version: "1.1.0",
     date: "29 April 2026",
-    label: "In Testing",
-    ctaUrl: "https://testflight.apple.com/join/SGrmnaaH",
-    ctaLabel: "Join the beta on TestFlight",
+    label: "Latest",
+    ctaUrl: "https://apps.apple.com/app/mileclear/id6742044832",
+    ctaLabel: "Install on the App Store",
     items: [
       "Tax Readiness card - new dashboard widget for Work mode showing estimated tax + NI for the year, suggested set-aside this week from your real numbers, and a countdown to the 31 January filing deadline that turns amber at 90 days and red at 30. Free for all users.",
       "Higher-rate threshold warning - if your projected profit gets within £15,000 of the £50,270 higher-rate band, the dashboard tells you exactly how far away you are and reminds you to claim every business mile.",
@@ -465,7 +465,7 @@ export const BLOG_POSTS: BlogPost[] = [
 
 <h2>Get it</h2>
 
-<p>Version 1.1.0 (build 52) goes to <a href="https://testflight.apple.com/join/SGrmnaaH">TestFlight</a> as soon as the EAS build finishes. Public App Store launch follows once we have a week of TestFlight data confirming nothing rough crept in.</p>
+<p>Version 1.1.0 is now live on the <a href="https://apps.apple.com/app/mileclear/id6742044832">App Store</a>. Install MileClear or update your existing install to get all of this.</p>
 
 <p>If you have been following along through the 1.0.x cycle, thank you for sticking with it. The diagnostic dumps, the bug reports, the "this would be useful" notes - they all shaped this release.</p>
 

@@ -175,12 +175,12 @@ export default async function BlogPostPage({
                 &larr; Back to updates
               </Link>
               <a
-                href="https://testflight.apple.com/join/SGrmnaaH"
+                href="https://apps.apple.com/app/mileclear/id6742044832"
                 className="post__cta"
                 target="_blank"
                 rel="noopener noreferrer"
               >
-                Try MileClear free &rarr;
+                Install MileClear free &rarr;
               </a>
             </footer>
           </article>
