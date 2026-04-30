@@ -35,6 +35,15 @@ model User {
   lastTripAt               DateTime?
   weeklyEarningsGoalPence  Int?
 
+  // Marketing email opt-out. Defaults true (opt-out, not opt-in) - PECR allows
+  // marketing to existing customers without explicit opt-in as long as they
+  // have a clear, free way to opt out on every send (List-Unsubscribe header
+  // + footer link). Transactional emails (verification, password reset,
+  // billing, account deletion) ignore this flag.
+  marketingEmailsEnabled Boolean @default(true)
+  marketingEmailsDisabledAt DateTime?
+  marketingEmailsDisabledSource String? @db.VarChar(32)
+
   // Heartbeat telemetry: updated once per app launch + every ~24h. Lets us
   // spot silent failures (e.g. users whose BG location permission was revoked
   // after onboarding) without needing a diagnostic dump from each one.

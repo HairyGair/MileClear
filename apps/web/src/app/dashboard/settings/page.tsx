@@ -27,6 +27,10 @@ export default function SettingsPage() {
   const [dashboardMode, setDashboardMode] = useState<"both" | "work" | "personal">("both");
   const [modeLoading, setModeLoading] = useState(false);
 
+  // Email preferences
+  const [marketingEmailsEnabled, setMarketingEmailsEnabled] = useState(true);
+  const [marketingLoading, setMarketingLoading] = useState(false);
+
   // Work settings
   const [workType, setWorkType] = useState<WorkType>("gig");
   const [employerRate, setEmployerRate] = useState("");
@@ -72,6 +76,7 @@ export default function SettingsPage() {
       setWorkType((user as any).workType ?? "gig");
       setEmployerRate((user as any).employerMileageRatePence != null ? String((user as any).employerMileageRatePence) : "");
       setAvatarId((user as any).avatarId ?? null);
+      setMarketingEmailsEnabled((user as any).marketingEmailsEnabled !== false);
     }
   }, [user]);
 
@@ -115,6 +120,23 @@ export default function SettingsPage() {
       toast(err.message, "error");
     } finally {
       setAvatarLoading(false);
+    }
+  };
+
+  // Marketing email toggle
+  const handleMarketingToggle = async (next: boolean) => {
+    setMarketingEmailsEnabled(next);
+    setMarketingLoading(true);
+    try {
+      await api.patch("/user/profile", { marketingEmailsEnabled: next });
+      await refreshUser();
+      toast(next ? "Marketing emails on" : "Unsubscribed from marketing emails");
+    } catch (err: any) {
+      // Revert on failure
+      setMarketingEmailsEnabled(!next);
+      toast(err.message, "error");
+    } finally {
+      setMarketingLoading(false);
     }
   };
 
@@ -332,6 +354,75 @@ export default function SettingsPage() {
               {profileLoading ? "Saving..." : "Save changes"}
             </Button>
           </div>
+        </div>
+      </div>
+
+      {/* Email Preferences */}
+      <div className="settings-section">
+        <h2 className="settings-section__title">Email preferences</h2>
+        <p className="settings-section__desc">
+          Choose what you hear from us. Verification, password reset, and billing emails are
+          required for your account and aren&apos;t affected by this setting.
+        </p>
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: "1rem",
+            padding: "0.85rem 0",
+            borderTop: "1px solid var(--border-soft, rgba(255,255,255,0.06))",
+          }}
+        >
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <p style={{ margin: 0, fontWeight: 600, color: "var(--text-strong, #f0f2f5)" }}>
+              Product updates &amp; tips
+            </p>
+            <p style={{ margin: "0.2rem 0 0", fontSize: "0.85rem", color: "var(--text-muted, #94a3b8)" }}>
+              Release notes, occasional check-ins, tax-deadline reminders, status updates.
+            </p>
+          </div>
+          <label
+            style={{
+              position: "relative",
+              display: "inline-block",
+              width: "44px",
+              height: "24px",
+              flexShrink: 0,
+              cursor: marketingLoading ? "wait" : "pointer",
+              opacity: marketingLoading ? 0.6 : 1,
+            }}
+          >
+            <input
+              type="checkbox"
+              checked={marketingEmailsEnabled}
+              onChange={(e) => handleMarketingToggle(e.target.checked)}
+              disabled={marketingLoading}
+              style={{ opacity: 0, width: 0, height: 0 }}
+            />
+            <span
+              style={{
+                position: "absolute",
+                inset: 0,
+                background: marketingEmailsEnabled ? "#f5a623" : "rgba(148,163,184,0.3)",
+                borderRadius: "24px",
+                transition: "background 150ms",
+              }}
+            />
+            <span
+              style={{
+                position: "absolute",
+                top: "2px",
+                left: marketingEmailsEnabled ? "22px" : "2px",
+                width: "20px",
+                height: "20px",
+                background: "#fff",
+                borderRadius: "50%",
+                transition: "left 150ms",
+                boxShadow: "0 1px 3px rgba(0,0,0,0.3)",
+              }}
+            />
+          </label>
         </div>
       </div>
 

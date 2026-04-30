@@ -16,6 +16,7 @@ const updateProfileSchema = z.object({
   employerMileageRatePence: z.number().int().min(0).max(100).nullable().optional(),
   dashboardMode: z.enum(["both", "work", "personal"]).optional(),
   weeklyEarningsGoalPence: z.number().int().min(0).max(1000000).nullable().optional(),
+  marketingEmailsEnabled: z.boolean().optional(),
   email: z.string().email().optional(),
   currentPassword: z.string().optional(),
 });
@@ -35,6 +36,7 @@ const USER_SELECT = {
   employerMileageRatePence: true,
   dashboardMode: true,
   weeklyEarningsGoalPence: true,
+  marketingEmailsEnabled: true,
   emailVerified: true,
   isPremium: true,
   isAdmin: true,
@@ -218,6 +220,18 @@ export async function userRoutes(app: FastifyInstance) {
     // Weekly earnings goal
     if (parsed.data.weeklyEarningsGoalPence !== undefined) {
       updateData.weeklyEarningsGoalPence = parsed.data.weeklyEarningsGoalPence;
+    }
+
+    // Marketing email preference
+    if (parsed.data.marketingEmailsEnabled !== undefined) {
+      updateData.marketingEmailsEnabled = parsed.data.marketingEmailsEnabled;
+      if (!parsed.data.marketingEmailsEnabled) {
+        updateData.marketingEmailsDisabledAt = new Date();
+        updateData.marketingEmailsDisabledSource = "settings";
+      } else {
+        updateData.marketingEmailsDisabledAt = null;
+        updateData.marketingEmailsDisabledSource = null;
+      }
     }
 
     // Email change requires password verification

@@ -373,7 +373,7 @@ async function runCheckinEmailJob(): Promise<void> {
       };
 
       try {
-        await sendCheckinEmail(user.email, user.displayName, stats);
+        await sendCheckinEmail(user.email, user.displayName, stats, user.id);
         logEvent("email.checkin_sent", user.id);
         sent++;
         // Small delay between emails

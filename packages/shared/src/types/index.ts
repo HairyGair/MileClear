@@ -12,6 +12,7 @@ export interface User {
   employerMileageRatePence: number | null;
   dashboardMode: "both" | "work" | "personal";
   weeklyEarningsGoalPence: number | null;
+  marketingEmailsEnabled: boolean;
   emailVerified: boolean;
   isPremium: boolean;
   isAdmin: boolean;

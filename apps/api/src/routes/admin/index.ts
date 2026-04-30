@@ -656,7 +656,7 @@ export async function adminRoutes(app: FastifyInstance) {
       }
 
       try {
-        await sendReEngagementEmail(user.email, user.displayName, stats);
+        await sendReEngagementEmail(user.email, user.displayName, stats, user.id);
         sent++;
         // Small delay to avoid hitting Brevo rate limits (300/day free tier)
         await new Promise((r) => setTimeout(r, 200));
@@ -703,7 +703,7 @@ export async function adminRoutes(app: FastifyInstance) {
       }
 
       try {
-        await sendUpdateEmail(user.email, user.displayName);
+        await sendUpdateEmail(user.email, user.displayName, user.id);
         sent++;
         await new Promise((r) => setTimeout(r, 200));
       } catch (err: any) {
@@ -748,7 +748,7 @@ export async function adminRoutes(app: FastifyInstance) {
       }
 
       try {
-        await sendServiceStatusEmail(user.email, user.displayName);
+        await sendServiceStatusEmail(user.email, user.displayName, user.id);
         sent++;
         // Small delay to avoid hitting Brevo rate limits
         await new Promise((r) => setTimeout(r, 200));

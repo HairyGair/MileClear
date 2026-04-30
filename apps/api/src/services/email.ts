@@ -2,6 +2,8 @@
 // Falls back to console logging when SMTP creds are not set
 
 import nodemailer from "nodemailer";
+import { prisma } from "../lib/prisma.js";
+import { signUnsubscribeToken } from "../lib/unsubscribeToken.js";
 
 const transporter =
   process.env.BREVO_SMTP_USER && process.env.BREVO_SMTP_KEY
@@ -17,6 +19,9 @@ const transporter =
 
 const FROM = process.env.EMAIL_FROM || "MileClear <noreply@mileclear.com>";
 const FROM_PERSONAL = "Gair - MileClear <gair@mileclear.com>";
+const API_BASE_URL = process.env.API_BASE_URL || "https://api.mileclear.com";
+const WEB_BASE_URL = process.env.WEB_BASE_URL || "https://mileclear.com";
+const UNSUBSCRIBE_MAILTO = "gair@mileclear.com";
 
 function escapeHtml(str: string): string {
   return str
@@ -24,6 +29,45 @@ function escapeHtml(str: string): string {
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;");
+}
+
+// ── Marketing email gating + unsubscribe helpers ────────────────────────
+
+// Check the user's opt-out flag before any marketing send. Returns true if we
+// should proceed. Fails open (true) if the lookup throws, so a transient DB
+// blip never silently drops a send queue.
+async function isMarketingAllowed(userId: string): Promise<boolean> {
+  try {
+    const u = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { marketingEmailsEnabled: true },
+    });
+    return u?.marketingEmailsEnabled !== false;
+  } catch {
+    return true;
+  }
+}
+
+// Build the headers the mail clients use to render a native "Unsubscribe"
+// button (Gmail, iOS Mail, Apple Mail, Outlook). RFC 8058 One-Click + RFC 2369
+// mailto fallback. Returns a plain object for nodemailer's `headers` option.
+function unsubscribeHeaders(userId: string): Record<string, string> {
+  const token = signUnsubscribeToken(userId);
+  return {
+    "List-Unsubscribe": `<${API_BASE_URL}/unsubscribe?token=${token}>, <mailto:${UNSUBSCRIBE_MAILTO}?subject=unsubscribe>`,
+    "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
+    "Precedence": "bulk",
+    "X-Auto-Response-Suppress": "All",
+  };
+}
+
+// Replace the old "reply with unsubscribe" footer line. Brand-styled, dark,
+// keeps the same visual weight as the previous text but the link is clickable
+// and routes through the public web confirmation page.
+function unsubscribeFooterHtml(userId: string): string {
+  const token = signUnsubscribeToken(userId);
+  const url = `${WEB_BASE_URL}/unsubscribe?token=${token}`;
+  return `You're receiving this because you have a MileClear account.<br/><a href="${url}" style="color: #6b7280; text-decoration: underline;">Unsubscribe</a> &nbsp;&middot;&nbsp; <a href="${WEB_BASE_URL}/dashboard/settings" style="color: #6b7280; text-decoration: underline;">Email preferences</a>`;
 }
 
 export async function sendVerificationEmail(
@@ -278,9 +322,11 @@ export async function sendWelcomeEmail(
 
 export async function sendReEngagementEmail(
   email: string,
-  displayName?: string | null,
-  stats?: { totalTrips: number; totalMiles: number } | null
+  displayName: string | null | undefined,
+  stats: { totalTrips: number; totalMiles: number } | null | undefined,
+  userId: string
 ): Promise<void> {
+  if (!(await isMarketingAllowed(userId))) return;
   const greeting = displayName ? `Hi ${escapeHtml(displayName)},` : "Hi there,";
 
   // Personalise based on whether they've used the app
@@ -382,7 +428,7 @@ export async function sendReEngagementEmail(
 
             <!-- Footer -->
             <tr><td align="center" style="padding: 28px 0 8px;">
-              <p style="color: #4a5568; font-size: 12px; line-height: 1.5; margin: 0;">You're receiving this because you have a MileClear account.<br/>If you'd rather not receive these emails, reply with "unsubscribe" and we'll remove you.</p>
+              <p style="color: #4a5568; font-size: 12px; line-height: 1.5; margin: 0;">${unsubscribeFooterHtml(userId)}</p>
             </td></tr>
 
           </table>
@@ -397,13 +443,22 @@ export async function sendReEngagementEmail(
     return;
   }
 
-  await transporter.sendMail({ from: FROM_PERSONAL, to: email, replyTo: "gair@mileclear.com", subject, html });
+  await transporter.sendMail({
+    from: FROM_PERSONAL,
+    to: email,
+    replyTo: "gair@mileclear.com",
+    subject,
+    html,
+    headers: unsubscribeHeaders(userId),
+  });
 }
 
 export async function sendUpdateEmail(
   email: string,
-  displayName?: string | null
+  displayName: string | null | undefined,
+  userId: string
 ): Promise<void> {
+  if (!(await isMarketingAllowed(userId))) return;
   const greeting = displayName ? `Hi ${escapeHtml(displayName)},` : "Hi there,";
   const subject = "MileClear 1.1.0 - your tax-time co-pilot just got real";
   const html = `<!DOCTYPE html>
@@ -485,7 +540,7 @@ export async function sendUpdateEmail(
     </table>
   </td></tr>
   <tr><td align="center" style="padding: 28px 0 8px;">
-    <p style="color: #4a5568; font-size: 12px; line-height: 1.5; margin: 0;">You're receiving this because you have a MileClear account.<br/>Reply with "unsubscribe" to opt out of update emails.</p>
+    <p style="color: #4a5568; font-size: 12px; line-height: 1.5; margin: 0;">${unsubscribeFooterHtml(userId)}</p>
   </td></tr>
 </table>
 </td></tr>
@@ -497,13 +552,22 @@ export async function sendUpdateEmail(
     return;
   }
 
-  await transporter.sendMail({ from: FROM_PERSONAL, to: email, replyTo: "gair@mileclear.com", subject, html });
+  await transporter.sendMail({
+    from: FROM_PERSONAL,
+    to: email,
+    replyTo: "gair@mileclear.com",
+    subject,
+    html,
+    headers: unsubscribeHeaders(userId),
+  });
 }
 
 export async function sendServiceStatusEmail(
   email: string,
-  displayName?: string | null
+  displayName: string | null | undefined,
+  userId: string
 ): Promise<void> {
+  if (!(await isMarketingAllowed(userId))) return;
   const greeting = displayName ? `Hi ${escapeHtml(displayName)},` : "Hi there,";
   const subject = "MileClear is back up and running";
   const html = `
@@ -551,7 +615,7 @@ export async function sendServiceStatusEmail(
 
             <!-- Footer -->
             <tr><td align="center" style="padding: 28px 0 8px;">
-              <p style="color: #4a5568; font-size: 12px; line-height: 1.5; margin: 0;">You're receiving this because you have a MileClear account.<br/>If you'd rather not receive these emails, reply with "unsubscribe" and we'll remove you.</p>
+              <p style="color: #4a5568; font-size: 12px; line-height: 1.5; margin: 0;">${unsubscribeFooterHtml(userId)}</p>
             </td></tr>
 
           </table>
@@ -566,7 +630,14 @@ export async function sendServiceStatusEmail(
     return;
   }
 
-  await transporter.sendMail({ from: FROM_PERSONAL, to: email, replyTo: "gair@mileclear.com", subject, html });
+  await transporter.sendMail({
+    from: FROM_PERSONAL,
+    to: email,
+    replyTo: "gair@mileclear.com",
+    subject,
+    html,
+    headers: unsubscribeHeaders(userId),
+  });
 }
 
 // ── Admin Briefing & Alert Emails ─────────────────────────────────────
@@ -775,9 +846,11 @@ export async function sendErrorAlertEmail(
 
 export async function sendCheckinEmail(
   email: string,
-  displayName?: string | null,
-  stats?: { totalTrips: number; totalMiles: number } | null
+  displayName: string | null | undefined,
+  stats: { totalTrips: number; totalMiles: number } | null | undefined,
+  userId: string
 ): Promise<void> {
+  if (!(await isMarketingAllowed(userId))) return;
   const greeting = displayName ? `Hi ${escapeHtml(displayName)},` : "Hi there,";
 
   const hasTrips = stats && stats.totalTrips > 0;
@@ -821,7 +894,7 @@ export async function sendCheckinEmail(
     </table>
   </td></tr>
   <tr><td align="center" style="padding: 28px 0 8px;">
-    <p style="color: #4a5568; font-size: 12px; line-height: 1.5; margin: 0;">You're receiving this because you have a MileClear account.<br/>Reply with "unsubscribe" to opt out of check-in emails.</p>
+    <p style="color: #4a5568; font-size: 12px; line-height: 1.5; margin: 0;">${unsubscribeFooterHtml(userId)}</p>
   </td></tr>
 </table>
 </td></tr>
@@ -833,7 +906,14 @@ export async function sendCheckinEmail(
     return;
   }
 
-  await transporter.sendMail({ from: FROM_PERSONAL, to: email, replyTo: "gair@mileclear.com", subject, html });
+  await transporter.sendMail({
+    from: FROM_PERSONAL,
+    to: email,
+    replyTo: "gair@mileclear.com",
+    subject,
+    html,
+    headers: unsubscribeHeaders(userId),
+  });
 }
 
 export async function sendFeedbackAcknowledgement(
