@@ -36,9 +36,24 @@ export interface Guide {
 // ----------------------------------------------------------------
 export const RELEASE_NOTES: ReleaseNote[] = [
   {
+    version: "1.1.1",
+    date: "30 April 2026",
+    label: "Pending Review",
+    ctaUrl: "https://apps.apple.com/app/mileclear/id6742044832",
+    ctaLabel: "Install on the App Store",
+    items: [
+      "Business Mileage card was stuck showing 0 miles for everyone, regardless of how many business trips you'd actually classified. The card was hitting an internal page-size limit that silently rejected the request and rendered 0 instead of an error. Fixed - the card now uses a dedicated stats endpoint and shows a clear 'couldn't load' message if anything goes wrong, instead of failing silently.",
+      "Trip recording reliability: phantom 0.1-mile trips appearing while you were actively driving. iOS occasionally suspends background processing during long drives, and the recording watchdog was treating that suspension as 'you stopped driving' and saving a tiny zero-duration trip from your starting point - while the Live Activity / Dynamic Island correctly continued tracking your real journey on the side. Fixed - the watchdog now actively verifies you've stopped before finalizing a trip, and any tiny zero-duration trip that somehow gets through is dropped automatically rather than saved.",
+      "'Trip not found' error when classifying trips that hadn't finished syncing yet. If a trip's initial save to the server was still queued (network blip, app backgrounded mid-save), tapping Business or Personal would 404 against the server. Fixed - the app now waits for a trip to reach the server before sending classification updates, and the underlying sync queue rewires itself so your classifications always apply once the create completes. No more silently lost classifications.",
+      "Sync queue could get stuck. A failed save would only retry on app restart or network toggle - if you stayed online and the app stayed open, queued items could sit there indefinitely. Fixed - the sync engine now retries every 60 seconds and on every app foreground, so stuck items drain automatically within a minute of conditions clearing.",
+      "Pull down on the trips list to flush any stuck items and reload. A discoverable single-gesture recovery if anything ever looks wrong with your trip count.",
+      "Marketing email unsubscribe link in every update / check-in / re-engagement email footer. Replaces the previous 'reply with unsubscribe' instruction with a real one-click link, plus an Email preferences toggle on the web dashboard. The mail clients that support it (Gmail, Apple Mail, Outlook) now also show a native Unsubscribe button next to the sender.",
+    ],
+  },
+  {
     version: "1.1.0",
     date: "29 April 2026",
-    label: "Latest",
+    label: "App Store",
     ctaUrl: "https://apps.apple.com/app/mileclear/id6742044832",
     ctaLabel: "Install on the App Store",
     items: [
