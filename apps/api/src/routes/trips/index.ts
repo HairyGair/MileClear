@@ -331,6 +331,45 @@ export async function tripRoutes(app: FastifyInstance) {
     return reply.send({ count });
   });
 
+  // Aggregate trip stats over a date range. Lets the dashboard cards
+  // get totalTrips + totalMiles in one round trip without paginating
+  // through the full trip list. Same filters as GET /trips, just an
+  // aggregate.
+  const summaryQuery = z.object({
+    classification: z.enum(TRIP_CLASSIFICATIONS).optional(),
+    from: z.coerce.date().optional(),
+    to: z.coerce.date().optional(),
+  });
+
+  app.get("/summary", async (request, reply) => {
+    const parsed = summaryQuery.safeParse(request.query);
+    if (!parsed.success) {
+      return reply.status(400).send({ error: parsed.error.issues[0].message });
+    }
+    const { classification, from, to } = parsed.data;
+    const where: Record<string, unknown> = { userId: request.userId! };
+    if (classification) where.classification = classification;
+    if (from || to) {
+      where.startedAt = {
+        ...(from && { gte: from }),
+        ...(to && { lte: to }),
+      };
+    }
+
+    const agg = await prisma.trip.aggregate({
+      where,
+      _count: { id: true },
+      _sum: { distanceMiles: true },
+    });
+
+    return reply.send({
+      data: {
+        totalTrips: agg._count.id,
+        totalMiles: agg._sum.distanceMiles ?? 0,
+      },
+    });
+  });
+
   // Suggest classification based on past trips near a location
   const suggestQuery = z.object({
     lat: z.coerce.number().min(-90).max(90),

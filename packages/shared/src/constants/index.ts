@@ -81,7 +81,11 @@ export const LOCATION_TYPES = [
 
 // Pagination
 export const DEFAULT_PAGE_SIZE = 20;
-export const MAX_PAGE_SIZE = 100;
+// Cap is 1000 (was 100). Monthly-aggregate cards (MileageMonthCard asks for
+// 200) and the offline-sync hydrator (asks for 200) were getting silently
+// 400'd by Zod and rendering 0/empty. Queries are user-scoped and indexed
+// so the higher ceiling is fine.
+export const MAX_PAGE_SIZE = 1000;
 
 // Subscription
 export const PREMIUM_PRICE_MONTHLY_PENCE = 499;

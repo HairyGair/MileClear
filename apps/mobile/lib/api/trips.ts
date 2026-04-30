@@ -90,6 +90,28 @@ export function fetchTrips(params?: ListTripsParams) {
   return apiRequest<PaginatedResponse<TripWithVehicle>>(`/trips${qs ? `?${qs}` : ""}`);
 }
 
+export interface TripSummaryParams {
+  classification?: TripClassification;
+  from?: string;
+  to?: string;
+}
+
+export interface TripSummary {
+  totalTrips: number;
+  totalMiles: number;
+}
+
+export function fetchTripSummary(params?: TripSummaryParams) {
+  const query = new URLSearchParams();
+  if (params) {
+    Object.entries(params).forEach(([key, value]) => {
+      if (value !== undefined) query.set(key, String(value));
+    });
+  }
+  const qs = query.toString();
+  return apiRequest<{ data: TripSummary }>(`/trips/summary${qs ? `?${qs}` : ""}`);
+}
+
 export function fetchTrip(id: string) {
   return apiRequest<{ data: TripDetail }>(`/trips/${id}`);
 }

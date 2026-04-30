@@ -8,7 +8,7 @@ import {
   Platform,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { fetchTrips } from "../../lib/api/trips";
+import { fetchTripSummary } from "../../lib/api/trips";
 import type { TripClassification } from "@mileclear/shared";
 
 interface MileageMonthCardProps {
@@ -46,6 +46,7 @@ export function MileageMonthCard({
   const [miles, setMiles] = useState(0);
   const [trips, setTrips] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [errored, setErrored] = useState(false);
 
   const now = new Date();
   const monthStart = new Date(now.getFullYear(), now.getMonth() + offset, 1);
@@ -64,23 +65,23 @@ export function MileageMonthCard({
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
-    fetchTrips({
+    setErrored(false);
+    // Server-side aggregate. One round trip, no pagination, no risk of
+    // hitting MAX_PAGE_SIZE silently (which is what was rendering 0
+    // for everyone before build 56).
+    fetchTripSummary({
       classification,
       from: monthStart.toISOString(),
       to: monthEnd.toISOString(),
-      pageSize: 200,
     })
       .then((res) => {
         if (cancelled) return;
-        const totalMiles = res.data.reduce(
-          (sum, t) => sum + t.distanceMiles,
-          0
-        );
-        setMiles(totalMiles);
-        setTrips(res.total);
+        setMiles(res.data.totalMiles);
+        setTrips(res.data.totalTrips);
       })
       .catch(() => {
         if (!cancelled) {
+          setErrored(true);
           setMiles(0);
           setTrips(0);
         }
@@ -148,6 +149,8 @@ export function MileageMonthCard({
           <View style={styles.heroLoading}>
             <ActivityIndicator color={AMBER} size="small" />
           </View>
+        ) : errored ? (
+          <Text style={styles.errorText}>Couldn&apos;t load this month</Text>
         ) : (
           <>
             <Text style={styles.heroValue}>{formatMilesHero(miles)}</Text>
@@ -249,6 +252,12 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontFamily: "PlusJakartaSans_400Regular",
     color: TEXT_2,
+  },
+  errorText: {
+    fontSize: 14,
+    fontFamily: "PlusJakartaSans_500Medium",
+    color: "#ef4444",
+    textAlign: "center",
   },
   statsRow: {
     flexDirection: "row",
