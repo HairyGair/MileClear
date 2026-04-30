@@ -430,6 +430,82 @@ function stopWatchdog(): void {
 }
 
 /**
+ * Aliveness check used before any "stale finalize" path that fires while
+ * the user might still be driving with iOS having suspended the JS runtime.
+ *
+ * iOS sometimes suspends the JS task while keeping native location
+ * collection alive (the Live Activity continues to update). In that state
+ * `last_driving_speed_at` goes stale even though the user is mid-drive.
+ * Without verification, the next BackgroundFetch / startup check would
+ * finalize the recording as a 0.1 mi phantom trip with start = end
+ * timestamp.
+ *
+ * This helper asks iOS for the most recent location and returns true if
+ * the device is moving at driving speed within the last few minutes. On
+ * "still alive", it also refreshes last_driving_speed_at and buffers the
+ * fetched coord so the recording continues without a gap.
+ *
+ * Returns false if location is unavailable or the device is genuinely
+ * stationary - caller should proceed with the original finalize.
+ */
+async function isStillDrivingViaLocation(source: string): Promise<boolean> {
+  try {
+    const current = await Location.getLastKnownPositionAsync({
+      maxAge: 5 * 60 * 1000,
+      requiredAccuracy: 200,
+    });
+    if (!current) return false;
+
+    const fixAgeMs = Date.now() - current.timestamp;
+    const speed = current.coords.speed ?? 0;
+
+    // Be conservative: require BOTH a recent fix AND driving-speed.
+    // If iOS hands back an old cached fix, we'd rather finalize early than
+    // skip a real stop.
+    if (fixAgeMs > 3 * 60 * 1000 || speed < SPEED_THRESHOLD_MS) {
+      return false;
+    }
+
+    const db = await getDatabase();
+    const now = Date.now();
+
+    // Refresh state so the next stale check has accurate data.
+    await db.runAsync(
+      "INSERT OR REPLACE INTO tracking_state (key, value) VALUES ('last_driving_speed_at', ?)",
+      [String(now)]
+    );
+
+    // Buffer the fetched coord so the recorded distance keeps growing
+    // through the suspended-JS gap. Without this, finalize when it
+    // eventually does fire would only have the original buffer.
+    await db.runAsync(
+      `INSERT INTO detection_coordinates (lat, lng, speed, accuracy, recorded_at)
+       VALUES (?, ?, ?, ?, ?)`,
+      [
+        current.coords.latitude,
+        current.coords.longitude,
+        speed,
+        current.coords.accuracy ?? null,
+        new Date(current.timestamp).toISOString(),
+      ]
+    );
+
+    logDetectionEvent("stale_finalize_skipped_alive", {
+      source,
+      fixAgeMs,
+      speed,
+    }).catch(() => {});
+
+    return true;
+  } catch {
+    // Location request failed - we can't tell. Fall through to the
+    // original finalize path; a rare too-early end is a smaller bug
+    // than a stuck recording that never finalizes.
+    return false;
+  }
+}
+
+/**
  * Process buffered detection coordinates into a saved trip.
  * Called when driving stops (no driving-speed location for 3+ min) or on app startup.
  */
@@ -515,6 +591,40 @@ async function _finalizeAutoTripInner(): Promise<void> {
       const { setDepartureAnchor } = await import("../geofencing/index");
       await setDepartureAnchor();
       logDetectionEvent("anchor_rearmed_after_phantom", { reason: "no_coords" }).catch(() => {});
+    } catch {}
+    return;
+  }
+
+  // Defensive sanity check: degenerate buffer with zero/near-zero time
+  // span and tiny distance is a phantom finalize - usually triggered
+  // by the watchdog firing while the user was about to start a real
+  // trip but had only the very first coords in the buffer. Saving these
+  // creates the "0.1 mi 17:34 -> 17:34" rows users see in their inbox.
+  // Drop them silently here; the user will get a real trip when the
+  // next departure fires properly.
+  const firstTs = new Date(allCoords[0].recorded_at).getTime();
+  const lastTs = new Date(allCoords[allCoords.length - 1].recorded_at).getTime();
+  const spanMs = lastTs - firstTs;
+  let quickDistMeters = 0;
+  for (let i = 1; i < allCoords.length; i++) {
+    quickDistMeters += haversineMeters(
+      allCoords[i - 1].lat,
+      allCoords[i - 1].lng,
+      allCoords[i].lat,
+      allCoords[i].lng
+    );
+  }
+  const earlyDistMiles = quickDistMeters / 1609.344;
+  if (spanMs < 30_000 && earlyDistMiles < 0.3) {
+    logDetectionEvent("finalize_dropped_phantom", {
+      coordCount: allCoords.length,
+      spanMs,
+      distanceMiles: earlyDistMiles,
+    }).catch(() => {});
+    endLiveActivity().catch(() => {});
+    try {
+      const { setDepartureAnchor } = await import("../geofencing/index");
+      await setDepartureAnchor();
     } catch {}
     return;
   }
@@ -944,6 +1054,12 @@ async function checkStaleAutoRecording(): Promise<void> {
 
   const elapsed = Date.now() - parseInt(lastDriving.value, 10);
   if (elapsed > STOP_TIMEOUT_MS) {
+    // Verify the device isn't actively driving before finalizing - covers
+    // the case where this fires from app-startup or watchdog after iOS
+    // suspended the JS task during a real drive.
+    if (await isStillDrivingViaLocation("stale_check")) {
+      return;
+    }
     logDetectionEvent("stale_finalize_triggered", { elapsedMs: elapsed }).catch(() => {});
     await finalizeAutoTrip();
   }
@@ -1059,16 +1175,42 @@ try {
         // reopened). If the last driving activity was long ago, finalize
         // immediately WITHOUT buffering these new coords - they'd set the trip
         // end time to "now" instead of when driving actually stopped.
+        //
+        // Important: the locations array iOS just delivered tells us whether
+        // the device is genuinely parked or whether the JS runtime was simply
+        // suspended during a real drive. If the newest delivered location is
+        // recent AND shows driving speed, the recording is alive - skip the
+        // stale-finalize and let the buffering loop below run normally.
         const lastDrivingCheck = await db.getFirstAsync<{ value: string }>(
           "SELECT value FROM tracking_state WHERE key = 'last_driving_speed_at'"
         );
         if (lastDrivingCheck) {
           const staleElapsed = Date.now() - parseInt(lastDrivingCheck.value, 10);
           if (staleElapsed > STOP_TIMEOUT_MS * 2) {
-            // Recording is very stale - finalize with existing coords only
-            await finalizeAutoTrip();
-            downgradeToDetectionMode().catch(() => {});
-            return;
+            const newest = locations[locations.length - 1];
+            const newestAgeMs = Date.now() - newest.timestamp;
+            const newestSpeed = newest.coords.speed ?? 0;
+            const stillDriving =
+              newestAgeMs < 3 * 60 * 1000 && newestSpeed > SPEED_THRESHOLD_MS;
+            if (stillDriving) {
+              logDetectionEvent("stale_finalize_skipped_alive", {
+                source: "location_task_resume",
+                staleElapsedMs: staleElapsed,
+                newestLocAgeMs: newestAgeMs,
+                newestLocSpeed: newestSpeed,
+              }).catch(() => {});
+              // Refresh state so the next gate sees fresh data, then fall
+              // through to the normal buffering path.
+              await db.runAsync(
+                "INSERT OR REPLACE INTO tracking_state (key, value) VALUES ('last_driving_speed_at', ?)",
+                [String(Date.now())]
+              );
+            } else {
+              // Recording is genuinely stale - finalize with existing coords only
+              await finalizeAutoTrip();
+              downgradeToDetectionMode().catch(() => {});
+              return;
+            }
           }
         }
 
@@ -1461,6 +1603,15 @@ try {
 
       const elapsed = Date.now() - parseInt(lastDriving.value, 10);
       if (elapsed > STOP_TIMEOUT_MS) {
+        // CRITICAL: verify the device isn't still actively driving before
+        // finalizing. iOS may have suspended the JS task, so
+        // last_driving_speed_at is stale even though the user is mid-drive
+        // (Live Activity on the native side continues to update). Without
+        // this check, the user gets phantom 0.1 mi trips with start = end
+        // timestamps while their real journey continues unrecorded.
+        if (await isStillDrivingViaLocation("background_fetch")) {
+          return BackgroundFetch.BackgroundFetchResult.NewData;
+        }
         logDetectionEvent("background_fetch_finalize", { elapsedMs: elapsed }).catch(() => {});
         await finalizeAutoTrip();
         return BackgroundFetch.BackgroundFetchResult.NewData;
