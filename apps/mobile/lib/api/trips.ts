@@ -72,6 +72,7 @@ export interface UpdateTripData {
 
 export interface ListTripsParams {
   classification?: TripClassification;
+  platformTag?: PlatformTag;
   shiftId?: string;
   from?: string;
   to?: string;
@@ -92,6 +93,7 @@ export function fetchTrips(params?: ListTripsParams) {
 
 export interface TripSummaryParams {
   classification?: TripClassification;
+  platformTag?: PlatformTag;
   from?: string;
   to?: string;
 }

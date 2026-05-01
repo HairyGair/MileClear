@@ -113,6 +113,7 @@ const updateTripSchema = z.object({
 
 const listTripsQuery = z.object({
   classification: z.enum(TRIP_CLASSIFICATIONS).optional(),
+  platformTag: z.enum(PLATFORM_TAGS).optional(),
   shiftId: z.string().uuid().optional(),
   from: z.coerce.date().optional(),
   to: z.coerce.date().optional(),
@@ -289,11 +290,12 @@ export async function tripRoutes(app: FastifyInstance) {
       return reply.status(400).send({ error: parsed.error.issues[0].message });
     }
 
-    const { classification, shiftId, from, to, page, pageSize } = parsed.data;
+    const { classification, platformTag, shiftId, from, to, page, pageSize } = parsed.data;
     const userId = request.userId!;
 
     const where: Record<string, unknown> = { userId };
     if (classification) where.classification = classification;
+    if (platformTag) where.platformTag = platformTag;
     if (shiftId) where.shiftId = shiftId;
     if (from || to) {
       where.startedAt = {
@@ -337,6 +339,7 @@ export async function tripRoutes(app: FastifyInstance) {
   // aggregate.
   const summaryQuery = z.object({
     classification: z.enum(TRIP_CLASSIFICATIONS).optional(),
+    platformTag: z.enum(PLATFORM_TAGS).optional(),
     from: z.coerce.date().optional(),
     to: z.coerce.date().optional(),
   });
@@ -346,9 +349,10 @@ export async function tripRoutes(app: FastifyInstance) {
     if (!parsed.success) {
       return reply.status(400).send({ error: parsed.error.issues[0].message });
     }
-    const { classification, from, to } = parsed.data;
+    const { classification, platformTag, from, to } = parsed.data;
     const where: Record<string, unknown> = { userId: request.userId! };
     if (classification) where.classification = classification;
+    if (platformTag) where.platformTag = platformTag;
     if (from || to) {
       where.startedAt = {
         ...(from && { gte: from }),

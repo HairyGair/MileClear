@@ -48,26 +48,36 @@ function mapTripRow(row: LocalTripRow, isLocal: boolean) {
   };
 }
 
-export async function getLocalTrips(opts?: { classification?: string }) {
+export async function getLocalTrips(opts?: { classification?: string; platformTag?: string }) {
   const db = await getDatabase();
   let sql = "SELECT * FROM trips";
+  const where: string[] = [];
   const params: string[] = [];
   if (opts?.classification) {
-    sql += " WHERE classification = ?";
+    where.push("classification = ?");
     params.push(opts.classification);
   }
+  if (opts?.platformTag) {
+    where.push("platform_tag = ?");
+    params.push(opts.platformTag);
+  }
+  if (where.length) sql += " WHERE " + where.join(" AND ");
   sql += " ORDER BY started_at DESC";
   const rows = await db.getAllAsync<LocalTripRow>(sql, params);
   return rows.map((r) => mapTripRow(r, r.synced_at == null));
 }
 
-export async function getLocalUnsyncedTrips(opts?: { classification?: string }) {
+export async function getLocalUnsyncedTrips(opts?: { classification?: string; platformTag?: string }) {
   const db = await getDatabase();
   let sql = "SELECT * FROM trips WHERE synced_at IS NULL";
   const params: string[] = [];
   if (opts?.classification) {
     sql += " AND classification = ?";
     params.push(opts.classification);
+  }
+  if (opts?.platformTag) {
+    sql += " AND platform_tag = ?";
+    params.push(opts.platformTag);
   }
   sql += " ORDER BY started_at DESC";
   const rows = await db.getAllAsync<LocalTripRow>(sql, params);

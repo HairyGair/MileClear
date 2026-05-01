@@ -13,8 +13,8 @@ import { ConfirmModal } from "../../../components/ui/ConfirmModal";
 import { Pagination } from "../../../components/ui/Pagination";
 import { EmptyState } from "../../../components/ui/EmptyState";
 import { LoadingSkeleton } from "../../../components/ui/LoadingSkeleton";
-import type { Trip, TripInsights, TripCoordinate, PaginatedResponse } from "@mileclear/shared";
-import { GIG_PLATFORMS, BUSINESS_PURPOSES, fetchRouteDistance } from "@mileclear/shared";
+import type { Trip, TripInsights, TripCoordinate, PaginatedResponse, PlatformTag } from "@mileclear/shared";
+import { GIG_PLATFORMS, BUSINESS_PURPOSES, fetchRouteDistance, getTaxYear, parseTaxYear } from "@mileclear/shared";
 import { useAuth } from "../../../lib/auth-context";
 import { useToast } from "../../../components/ui/Toast";
 
@@ -24,6 +24,9 @@ interface DetailTrip extends Trip {
 }
 
 const PAGE_SIZE = 20;
+// When any non-default filter is active we fetch in one shot so the stats
+// summary card and the list both populate without paginating.
+const FILTERED_PAGE_SIZE = 500;
 
 const PLATFORM_OPTIONS = GIG_PLATFORMS.map((p) => ({
   value: p.value,
@@ -34,6 +37,120 @@ const PURPOSE_OPTIONS = BUSINESS_PURPOSES.map((bp) => ({
   value: bp.value,
   label: bp.label,
 }));
+
+const PLATFORM_LABEL_MAP: Record<string, string> = Object.fromEntries(
+  GIG_PLATFORMS.map((p) => [p.value, p.label])
+);
+
+type DateRange = "all" | "week" | "month" | "lastMonth" | "taxYear" | "lastTaxYear" | "custom";
+
+const DATE_RANGES: { value: DateRange; label: string }[] = [
+  { value: "all", label: "All time" },
+  { value: "week", label: "This week" },
+  { value: "month", label: "This month" },
+  { value: "lastMonth", label: "Last month" },
+  { value: "taxYear", label: "This tax year" },
+  { value: "lastTaxYear", label: "Last tax year" },
+  { value: "custom", label: "Custom" },
+];
+
+function previousTaxYear(taxYear: string): string {
+  const [start] = taxYear.split("-").map((s) => parseInt(s, 10));
+  const prevStart = start - 1;
+  return `${prevStart}-${String(prevStart + 1).slice(2)}`;
+}
+
+function rangeBounds(
+  r: DateRange,
+  customFrom: string,
+  customTo: string,
+): { from?: string; to?: string } {
+  const now = new Date();
+  switch (r) {
+    case "all":
+      return {};
+    case "week": {
+      const d = new Date(now);
+      const dow = d.getDay();
+      const offset = dow === 0 ? 6 : dow - 1;
+      d.setDate(d.getDate() - offset);
+      d.setHours(0, 0, 0, 0);
+      return { from: d.toISOString(), to: now.toISOString() };
+    }
+    case "month": {
+      const start = new Date(now.getFullYear(), now.getMonth(), 1);
+      return { from: start.toISOString(), to: now.toISOString() };
+    }
+    case "lastMonth": {
+      const start = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+      const end = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59);
+      return { from: start.toISOString(), to: end.toISOString() };
+    }
+    case "taxYear": {
+      const { start, end } = parseTaxYear(getTaxYear(now));
+      return { from: start.toISOString(), to: end.toISOString() };
+    }
+    case "lastTaxYear": {
+      const { start, end } = parseTaxYear(previousTaxYear(getTaxYear(now)));
+      return { from: start.toISOString(), to: end.toISOString() };
+    }
+    case "custom": {
+      if (!customFrom && !customTo) return {};
+      const out: { from?: string; to?: string } = {};
+      if (customFrom) out.from = new Date(customFrom).toISOString();
+      if (customTo) {
+        const end = new Date(customTo);
+        end.setHours(23, 59, 59, 999);
+        out.to = end.toISOString();
+      }
+      return out;
+    }
+  }
+}
+
+function rangeLabel(r: DateRange, customFrom: string, customTo: string): string {
+  switch (r) {
+    case "all":
+      return "All time";
+    case "week":
+      return "This week";
+    case "month":
+      return "This month";
+    case "lastMonth":
+      return "Last month";
+    case "taxYear":
+      return `Tax year ${getTaxYear(new Date())}`;
+    case "lastTaxYear":
+      return `Tax year ${previousTaxYear(getTaxYear(new Date()))}`;
+    case "custom": {
+      if (customFrom && customTo) {
+        const fmt = (s: string) =>
+          new Date(s).toLocaleDateString("en-GB", { day: "numeric", month: "short" });
+        return `${fmt(customFrom)} – ${fmt(customTo)}`;
+      }
+      return "Custom";
+    }
+  }
+}
+
+function computeRangeStats(trips: Trip[]) {
+  let totalMiles = 0;
+  let businessMiles = 0;
+  let personalMiles = 0;
+  let businessTrips = 0;
+  let personalTrips = 0;
+  for (const t of trips) {
+    totalMiles += t.distanceMiles;
+    if (t.classification === "business") {
+      businessMiles += t.distanceMiles;
+      businessTrips++;
+    } else if (t.classification === "personal") {
+      personalMiles += t.distanceMiles;
+      personalTrips++;
+    }
+  }
+  return { totalMiles, businessMiles, personalMiles, businessTrips, personalTrips, totalTrips: trips.length };
+}
 
 export default function TripsPage() {
   const { user } = useAuth();
@@ -50,8 +167,11 @@ export default function TripsPage() {
   const [totalPages, setTotalPages] = useState(0);
   const [page, setPage] = useState(1);
   const [filter, setFilter] = useState<"all" | "business" | "personal" | "unclassified">(initialFilter);
-  const [dateFrom, setDateFrom] = useState("");
-  const [dateTo, setDateTo] = useState("");
+  const [platformFilter, setPlatformFilter] = useState<PlatformTag | "all">("all");
+  const [dateRange, setDateRange] = useState<DateRange>("all");
+  // Custom-range pickers - only consulted when dateRange === "custom".
+  const [customFrom, setCustomFrom] = useState("");
+  const [customTo, setCustomTo] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -219,29 +339,30 @@ export default function TripsPage() {
     setLoading(true);
     setError(null);
     try {
+      const isFiltered =
+        dateRange !== "all" || platformFilter !== "all" || filter !== "all";
+      const effectivePageSize = isFiltered ? FILTERED_PAGE_SIZE : PAGE_SIZE;
       const params = new URLSearchParams({
         page: String(page),
-        pageSize: String(PAGE_SIZE),
+        pageSize: String(effectivePageSize),
       });
-      if (filter !== "all") {
-        params.set("classification", filter);
-      }
-      if (dateFrom) params.set("from", new Date(dateFrom).toISOString());
-      if (dateTo) {
-        const end = new Date(dateTo);
-        end.setHours(23, 59, 59, 999);
-        params.set("to", end.toISOString());
-      }
+      if (filter !== "all") params.set("classification", filter);
+      if (platformFilter !== "all") params.set("platformTag", platformFilter);
+      const bounds = rangeBounds(dateRange, customFrom, customTo);
+      if (bounds.from) params.set("from", bounds.from);
+      if (bounds.to) params.set("to", bounds.to);
       const res = await api.get<PaginatedResponse<Trip>>(`/trips/?${params}`);
       setTrips(res.data);
       setTotal(res.total);
-      setTotalPages(res.totalPages);
+      // When filtered we collapse to a single page so the stats card
+      // covers the full set the user just asked for.
+      setTotalPages(isFiltered ? 1 : res.totalPages);
     } catch (err: any) {
       setError(err.message);
     } finally {
       setLoading(false);
     }
-  }, [page, filter, dateFrom, dateTo]);
+  }, [page, filter, platformFilter, dateRange, customFrom, customTo]);
 
   useEffect(() => {
     loadTrips();
@@ -487,8 +608,8 @@ export default function TripsPage() {
         }
       />
 
-      {/* Filters */}
-      <div className="filter-chips" style={{ marginBottom: "1.25rem" }}>
+      {/* Classification filters */}
+      <div className="filter-chips" style={{ marginBottom: "0.75rem" }}>
         {(["all", "unclassified", "business", "personal"] as const).map((f) => (
           <button
             key={f}
@@ -500,34 +621,140 @@ export default function TripsPage() {
         ))}
       </div>
 
-      {/* Date range filter */}
-      <div style={{ display: "flex", gap: "0.75rem", marginBottom: "1.25rem", alignItems: "flex-end" }}>
-        <Input
-          id="dateFrom"
-          label="From"
-          type="date"
-          value={dateFrom}
-          onChange={(e) => { setDateFrom(e.target.value); setPage(1); }}
-          style={{ maxWidth: 180 }}
-        />
-        <Input
-          id="dateTo"
-          label="To"
-          type="date"
-          value={dateTo}
-          onChange={(e) => { setDateTo(e.target.value); setPage(1); }}
-          style={{ maxWidth: 180 }}
-        />
-        {(dateFrom || dateTo) && (
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => { setDateFrom(""); setDateTo(""); setPage(1); }}
+      {/* Platform filter - orthogonal to classification + date filters. */}
+      <div className="filter-chips" style={{ marginBottom: "0.75rem" }}>
+        <button
+          className={`filter-chip ${platformFilter === "all" ? "filter-chip--active" : ""}`}
+          onClick={() => { setPlatformFilter("all"); setPage(1); }}
+        >
+          Any platform
+        </button>
+        {GIG_PLATFORMS.map((p) => (
+          <button
+            key={p.value}
+            className={`filter-chip ${platformFilter === p.value ? "filter-chip--active" : ""}`}
+            onClick={() => { setPlatformFilter(p.value as PlatformTag); setPage(1); }}
           >
-            Clear
-          </Button>
-        )}
+            {p.label}
+          </button>
+        ))}
       </div>
+
+      {/* Date range presets - matches mobile. Custom reveals From/To inputs. */}
+      <div className="filter-chips" style={{ marginBottom: dateRange === "custom" ? "0.75rem" : "1.25rem" }}>
+        {DATE_RANGES.map((r) => (
+          <button
+            key={r.value}
+            className={`filter-chip ${dateRange === r.value ? "filter-chip--active" : ""}`}
+            onClick={() => { setDateRange(r.value); setPage(1); }}
+          >
+            {r.value === "taxYear"
+              ? `Tax year ${getTaxYear(new Date())}`
+              : r.value === "lastTaxYear"
+                ? `Tax year ${previousTaxYear(getTaxYear(new Date()))}`
+                : r.label}
+          </button>
+        ))}
+      </div>
+
+      {dateRange === "custom" && (
+        <div style={{ display: "flex", gap: "0.75rem", marginBottom: "1.25rem", alignItems: "flex-end" }}>
+          <Input
+            id="dateFrom"
+            label="From"
+            type="date"
+            value={customFrom}
+            onChange={(e) => { setCustomFrom(e.target.value); setPage(1); }}
+            style={{ maxWidth: 180 }}
+          />
+          <Input
+            id="dateTo"
+            label="To"
+            type="date"
+            value={customTo}
+            onChange={(e) => { setCustomTo(e.target.value); setPage(1); }}
+            style={{ maxWidth: 180 }}
+          />
+          {(customFrom || customTo) && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => { setCustomFrom(""); setCustomTo(""); setPage(1); }}
+            >
+              Clear
+            </Button>
+          )}
+        </div>
+      )}
+
+      {/* Stats summary - shown whenever the user has narrowed the list. */}
+      {(dateRange !== "all" || platformFilter !== "all" || filter !== "all") && trips.length > 0 && (() => {
+        const stats = computeRangeStats(trips);
+        const platformLabel = platformFilter === "all" ? null : (PLATFORM_LABEL_MAP[platformFilter] ?? platformFilter);
+        const classLabel =
+          filter === "all" ? null : filter.charAt(0).toUpperCase() + filter.slice(1);
+        const headerLabel = [
+          dateRange !== "all" ? rangeLabel(dateRange, customFrom, customTo) : null,
+          platformLabel,
+          classLabel,
+        ]
+          .filter(Boolean)
+          .join(" · ")
+          .toUpperCase();
+        return (
+          <div
+            style={{
+              background: "var(--surface-1, #0a1120)",
+              border: "1px solid var(--border-default, rgba(255,255,255,0.06))",
+              borderRadius: "12px",
+              padding: "1rem 1.25rem",
+              marginBottom: "1.25rem",
+              display: "flex",
+              flexDirection: "column",
+              gap: "0.5rem",
+            }}
+          >
+            <div
+              style={{
+                fontSize: "0.6875rem",
+                fontWeight: 600,
+                letterSpacing: "0.08em",
+                color: "var(--text-muted, #9ca3af)",
+              }}
+            >
+              {headerLabel}
+            </div>
+            <div style={{ display: "flex", gap: "1.5rem", flexWrap: "wrap", alignItems: "baseline" }}>
+              <div>
+                <div style={{ fontSize: "1.375rem", fontWeight: 700 }}>{stats.totalMiles.toFixed(1)}</div>
+                <div style={{ fontSize: "0.75rem", color: "var(--text-muted, #9ca3af)" }}>miles</div>
+              </div>
+              <div>
+                <div style={{ fontSize: "1.375rem", fontWeight: 700 }}>{stats.totalTrips}</div>
+                <div style={{ fontSize: "0.75rem", color: "var(--text-muted, #9ca3af)" }}>
+                  {stats.totalTrips === 1 ? "trip" : "trips"}
+                </div>
+              </div>
+              {stats.businessMiles > 0 && (
+                <div>
+                  <div style={{ fontSize: "1.125rem", fontWeight: 600, color: "var(--amber-400, #fbbf24)" }}>
+                    {stats.businessMiles.toFixed(1)}
+                  </div>
+                  <div style={{ fontSize: "0.75rem", color: "var(--text-muted, #9ca3af)" }}>business mi</div>
+                </div>
+              )}
+              {stats.personalMiles > 0 && (
+                <div>
+                  <div style={{ fontSize: "1.125rem", fontWeight: 600, color: "var(--text-secondary, #cbd5e1)" }}>
+                    {stats.personalMiles.toFixed(1)}
+                  </div>
+                  <div style={{ fontSize: "0.75rem", color: "var(--text-muted, #9ca3af)" }}>personal mi</div>
+                </div>
+              )}
+            </div>
+          </div>
+        );
+      })()}
 
       {error && (
         <div className="alert alert--error" style={{ marginBottom: "1rem" }}>

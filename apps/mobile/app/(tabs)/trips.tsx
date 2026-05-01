@@ -27,7 +27,7 @@ import { markLiveActivityClassified } from "../../lib/liveActivity";
 import { getLocalTrips, getLocalUnsyncedTrips } from "../../lib/db/queries";
 import { learnFromClassification } from "../../lib/classification";
 import { maybeRequestReview } from "../../lib/rating/index";
-import { GIG_PLATFORMS } from "@mileclear/shared";
+import { GIG_PLATFORMS, getTaxYear, parseTaxYear } from "@mileclear/shared";
 import type { TripClassification, PlatformTag, BusinessPurpose } from "@mileclear/shared";
 
 if (Platform.OS === "android" && UIManager.setLayoutAnimationEnabledExperimental) {
@@ -149,15 +149,24 @@ const FILTERS: { label: string; value: TripClassification | "all" }[] = [
   { label: "Personal", value: "personal" },
 ];
 
-type DateRange = "all" | "week" | "month" | "lastMonth" | "custom";
+type DateRange = "all" | "week" | "month" | "lastMonth" | "taxYear" | "lastTaxYear" | "custom";
 
 const DATE_RANGES: { label: string; value: DateRange }[] = [
   { label: "All time", value: "all" },
   { label: "This week", value: "week" },
   { label: "This month", value: "month" },
   { label: "Last month", value: "lastMonth" },
+  { label: "This tax year", value: "taxYear" },
+  { label: "Last tax year", value: "lastTaxYear" },
   { label: "Custom…", value: "custom" },
 ];
+
+// Decrement a "YYYY-YY" tax-year string by one year (e.g. "2026-27" -> "2025-26").
+function previousTaxYear(taxYear: string): string {
+  const [start] = taxYear.split("-").map((s) => parseInt(s, 10));
+  const prevStart = start - 1;
+  return `${prevStart}-${String(prevStart + 1).slice(2)}`;
+}
 
 /**
  * Convert a DateRange + optional custom bounds into the from/to ISO strings
@@ -190,6 +199,14 @@ function rangeBounds(
       const end = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59);
       return { from: start.toISOString(), to: end.toISOString() };
     }
+    case "taxYear": {
+      const { start, end } = parseTaxYear(getTaxYear(now));
+      return { from: start.toISOString(), to: end.toISOString() };
+    }
+    case "lastTaxYear": {
+      const { start, end } = parseTaxYear(previousTaxYear(getTaxYear(now)));
+      return { from: start.toISOString(), to: end.toISOString() };
+    }
     case "custom":
       if (customFrom && customTo) {
         // End of day on the "to" date so trips at 23:59 are included.
@@ -217,6 +234,10 @@ function rangeLabel(
       return "This month";
     case "lastMonth":
       return "Last month";
+    case "taxYear":
+      return `Tax year ${getTaxYear(new Date())}`;
+    case "lastTaxYear":
+      return `Tax year ${previousTaxYear(getTaxYear(new Date()))}`;
     case "custom":
       if (customFrom && customTo) {
         const fmt = (d: Date) =>
@@ -275,10 +296,13 @@ export default function TripsScreen() {
   const router = useRouter();
   const [trips, setTrips] = useState<TripItem[]>([]);
   const [filter, setFilter] = useState<TripClassification | "all">("all");
+  // Platform filter is orthogonal to classification — both can be active at
+  // once. Stored as PlatformTag value or "all" sentinel.
+  const [platformFilter, setPlatformFilter] = useState<PlatformTag | "all">("all");
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
-  // Date range state. When dateRange !== "all" the trips list is constrained
-  // to that period AND a stats summary card appears at the top of the list.
+  // Date range state. When dateRange !== "all" (or any other filter is active)
+  // a stats summary card appears at the top of the list.
   const [dateRange, setDateRange] = useState<DateRange>("all");
   const [customFrom, setCustomFrom] = useState<Date | null>(null);
   const [customTo, setCustomTo] = useState<Date | null>(null);
@@ -345,6 +369,8 @@ export default function TripsScreen() {
   // value without needing filter as a dependency (which causes effect churn).
   const filterRef = useRef(filter);
   filterRef.current = filter;
+  const platformFilterRef = useRef(platformFilter);
+  platformFilterRef.current = platformFilter;
   const dateRangeRef = useRef(dateRange);
   dateRangeRef.current = dateRange;
   const customFromRef = useRef(customFrom);
@@ -356,19 +382,23 @@ export default function TripsScreen() {
     async (pageNum: number, append = false) => {
       try {
         const classification = filterRef.current === "all" ? undefined : filterRef.current;
+        const platformTag =
+          platformFilterRef.current === "all" ? undefined : platformFilterRef.current;
         const bounds = rangeBounds(
           dateRangeRef.current,
           customFromRef.current,
           customToRef.current
         );
-        // When a date range is active, fetch a larger page (one shot) so the
-        // stats card and the full list are both populated without paginating.
-        // For ranges up to ~90 days this keeps things simple. For "all time"
-        // we keep the existing 20-per-page pagination.
-        const isFiltered = dateRangeRef.current !== "all";
+        // When any filter beyond "all" is active, fetch a larger page (one
+        // shot) so the stats card and the full list are both populated
+        // without paginating. Otherwise keep the existing 20-per-page
+        // pagination.
+        const isFiltered =
+          dateRangeRef.current !== "all" || platformFilterRef.current !== "all";
         const pageSize = isFiltered ? 500 : 20;
         const res = await fetchTrips({
           classification,
+          platformTag,
           ...bounds,
           page: pageNum,
           pageSize,
@@ -379,7 +409,7 @@ export default function TripsScreen() {
           setTrips((prev) => [...prev, ...res.data]);
         } else {
           // Merge unsynced local items on first page
-          const unsynced = await getLocalUnsyncedTrips({ classification });
+          const unsynced = await getLocalUnsyncedTrips({ classification, platformTag });
           const apiIds = new Set(res.data.map((t) => t.id));
           const uniqueLocal = unsynced.filter((t) => !apiIds.has(t.id)) as TripItem[];
           const allTrips = [...uniqueLocal, ...res.data];
@@ -396,7 +426,9 @@ export default function TripsScreen() {
         // Offline fallback — show all local data
         if (!append) {
           const classification = filterRef.current === "all" ? undefined : filterRef.current;
-          const local = await getLocalTrips({ classification });
+          const platformTag =
+            platformFilterRef.current === "all" ? undefined : platformFilterRef.current;
+          const local = await getLocalTrips({ classification, platformTag });
           setTrips(local as TripItem[]);
           setIsOffline(true);
           setTotalPages(1);
@@ -447,6 +479,17 @@ export default function TripsScreen() {
       loadUnclassifiedCount();
     },
     [loadTrips, loadUnclassifiedCount]
+  );
+
+  const handlePlatformChange = useCallback(
+    (value: PlatformTag | "all") => {
+      setPlatformFilter(value);
+      platformFilterRef.current = value;
+      setTrips([]);
+      setLoading(true);
+      loadTrips(1);
+    },
+    [loadTrips]
   );
 
   const onEndReachedSafe = useCallback(() => {
@@ -1048,8 +1091,41 @@ export default function TripsScreen() {
               ))}
             </View>
 
-            {/* Date range chips - orthogonal to classification filter so they
-                compose. Custom opens a from/to date picker modal. */}
+            {/* Platform chips - orthogonal to classification + date filters.
+                Lets a driver narrow to a specific app (Uber, Deliveroo, etc).
+                Horizontal scroll because there are 10 platforms + Any. */}
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.dateRangeRow}
+              accessibilityLabel="Platform filter"
+            >
+              {([{ value: "all" as const, label: "Any platform" }, ...GIG_PLATFORMS]).map((p) => {
+                const active = platformFilter === p.value;
+                return (
+                  <TouchableOpacity
+                    key={p.value}
+                    style={[styles.dateRangeChip, active && styles.dateRangeChipActive]}
+                    onPress={() => handlePlatformChange(p.value as PlatformTag | "all")}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Platform: ${p.label}`}
+                    accessibilityState={{ selected: active }}
+                  >
+                    <Text
+                      style={[
+                        styles.dateRangeChipText,
+                        active && styles.dateRangeChipTextActive,
+                      ]}
+                    >
+                      {p.label}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+
+            {/* Date range chips - orthogonal to classification + platform
+                filters so they compose. Custom opens a from/to date picker. */}
             <ScrollView
               horizontal
               showsHorizontalScrollIndicator={false}
@@ -1096,16 +1172,26 @@ export default function TripsScreen() {
               })}
             </ScrollView>
 
-            {/* Stats summary - only when a range is active. Computes from
-                the loaded trips client-side; the larger pageSize=500 fetch
-                in loadTrips ensures this captures the whole range. */}
-            {dateRange !== "all" && trips.length > 0 && (() => {
+            {/* Stats summary - shown when any filter (date range OR platform)
+                is active. Computes from the loaded trips client-side; the
+                larger pageSize=500 fetch in loadTrips ensures this captures
+                the whole filtered set. */}
+            {(dateRange !== "all" || platformFilter !== "all") && trips.length > 0 && (() => {
               const stats = computeRangeStats(trips);
+              const platformLabel =
+                platformFilter === "all"
+                  ? null
+                  : (PLATFORM_LABELS[platformFilter] ?? platformFilter);
+              const headerLabel = [
+                dateRange !== "all" ? rangeLabel(dateRange, customFrom, customTo) : null,
+                platformLabel,
+              ]
+                .filter(Boolean)
+                .join(" · ")
+                .toUpperCase();
               return (
                 <View style={styles.rangeStatsCard}>
-                  <Text style={styles.rangeStatsLabel}>
-                    {rangeLabel(dateRange, customFrom, customTo).toUpperCase()}
-                  </Text>
+                  <Text style={styles.rangeStatsLabel}>{headerLabel}</Text>
                   <View style={styles.rangeStatsRow}>
                     <View style={styles.rangeStatItem}>
                       <Text style={styles.rangeStatValue}>
