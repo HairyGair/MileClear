@@ -36,9 +36,22 @@ export interface Guide {
 // ----------------------------------------------------------------
 export const RELEASE_NOTES: ReleaseNote[] = [
   {
+    version: "1.1.2",
+    date: "1 May 2026",
+    label: "Pending Review",
+    ctaUrl: "https://apps.apple.com/app/mileclear/id6742044832",
+    ctaLabel: "Install on the App Store",
+    items: [
+      "Saved-location trips were not reaching the cloud. Trips that MileClear auto-detected when you arrived at a saved location (Home to Work, depot to home, and any other saved-location pair) were being saved on your phone but not actually reaching the server. They showed as 'Pending sync' in the trips list and any classification you tapped on them silently failed with a 'Trip not found' error in the sync queue, because the server had no record of the trip to update. Fixed - saved-location trips now go through the same sync path as every other auto-detected trip. On first launch of this update a one-shot backfill walks any 'ghost trips' already on your device and pushes them up, so stuck trips drain automatically within a minute of opening the app. Any classifications you'd applied to them while they were stuck are revived and replayed once the underlying trip lands on the server.",
+      "Platform filter on the Trips screen. New chip row beneath the All / Inbox / Business / Personal filters lets you tap any of Uber, Deliveroo, Just Eat, Amazon Flex, DPD, Evri, Stuart, Gophr or Yodel and the list narrows to just that work, with the stats summary card at the top totalling for that platform alone. Composes with the existing classification + date filters, so 'Business' + 'Uber' + 'Last tax year' is one set of taps.",
+      "'This tax year' and 'Last tax year' added to the date-range filter on the Trips screen. The UK tax year runs 6 April to 5 April, so before this you had to use a custom date range to pull up your full HMRC year. One tap now does it. Pairs naturally with HMRC Reconciliation and the Self Assessment wizard.",
+      "Web dashboard's Trips page caught up to mobile. Same chip-based date presets (the From / To inputs still appear when you pick Custom), the same platform filter, and the same stats summary card showing miles, trip count, and the business / personal split for the filtered period. Whether you classify on your phone or on the desktop, the experience is the same now.",
+    ],
+  },
+  {
     version: "1.1.1",
     date: "30 April 2026",
-    label: "Pending Review",
+    label: "App Store",
     ctaUrl: "https://apps.apple.com/app/mileclear/id6742044832",
     ctaLabel: "Install on the App Store",
     items: [
