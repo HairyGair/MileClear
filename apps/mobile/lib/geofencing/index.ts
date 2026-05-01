@@ -406,7 +406,11 @@ async function processGeofenceTrip(
   const now = new Date().toISOString();
   const notes = `__unconfirmed__|${departedLocationId}|${arrivedLocationId}`;
 
-  // Store trip locally
+  const roundedDistance = Math.round(totalDistance * 100) / 100;
+
+  // Store trip locally. Notes carries the local-only `__unconfirmed__` marker
+  // until the user confirms; the server payload below sends notes=null since
+  // the marker is a UI affordance, not data the server cares about.
   await db.runAsync(
     `INSERT INTO trips (id, start_lat, start_lng, end_lat, end_lng, start_address, end_address,
       distance_miles, started_at, ended_at, is_manual_entry, classification, notes)
@@ -419,7 +423,7 @@ async function processGeofenceTrip(
       last.lng,
       startAddress,
       endAddress,
-      Math.round(totalDistance * 100) / 100,
+      roundedDistance,
       departedAt,
       now,
       classification,
@@ -435,6 +439,30 @@ async function processGeofenceTrip(
       [randomUUID(), tripId, c.lat, c.lng, c.speed, c.accuracy, c.recorded_at]
     );
   }
+
+  // Enqueue a server CREATE so this trip drains through processSyncQueue like
+  // detection-finalised trips do. Without this the row sits with synced_at NULL
+  // forever and any user-driven update (classify, edit) 404s on the server.
+  const { enqueueSync } = await import("../sync/queue");
+  await enqueueSync("trip", tripId, "create", {
+    startLat: first.lat,
+    startLng: first.lng,
+    endLat: last.lat,
+    endLng: last.lng,
+    startAddress: startAddress ?? undefined,
+    endAddress: endAddress ?? undefined,
+    distanceMiles: roundedDistance,
+    startedAt: departedAt,
+    endedAt: now,
+    classification,
+    coordinates: coords.map((c) => ({
+      lat: c.lat,
+      lng: c.lng,
+      speed: c.speed,
+      accuracy: c.accuracy,
+      recordedAt: c.recorded_at,
+    })),
+  });
 
   // Send confirmation notification (skip during quiet hours).
   if (!isQuietHours()) {

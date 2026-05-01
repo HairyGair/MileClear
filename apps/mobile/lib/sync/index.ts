@@ -6,6 +6,7 @@ import { getDatabase } from "../db/index";
 import { apiRequest } from "../api/index";
 import { isOnline, onConnectivityChange } from "../network";
 import { getPendingCount, MAX_RETRIES } from "./queue";
+import { backfillGhostTrips } from "./backfill";
 
 export type SyncState = "idle" | "syncing" | "error";
 
@@ -311,8 +312,18 @@ async function periodicTick() {
 }
 
 export function startAutoSync(): () => void {
-  // Process immediately on startup
-  processSyncQueue();
+  // Sweep ghost trips (local-only rows with no queued CREATE) into the queue
+  // before the first sync pass, then kick off processing. Idempotent - safe
+  // to run on every cold start because it skips trips that already have a
+  // CREATE row in flight.
+  backfillGhostTrips()
+    .catch(() => {
+      // Backfill failures shouldn't block sync. If it errored, the next
+      // cold start tries again.
+    })
+    .finally(() => {
+      processSyncQueue();
+    });
 
   // Process when connectivity changes to online
   connectivityUnsub = onConnectivityChange((online) => {
