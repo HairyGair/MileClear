@@ -45,7 +45,6 @@ import { AuthProvider, useAuth } from "../lib/auth/context";
 import { UserProvider, useUser } from "../lib/user/context";
 import { ModeProvider } from "../lib/mode/context";
 import { SyncProvider } from "../lib/sync/context";
-import { SyncStatusBar } from "../components/SyncStatusBar";
 import { HydrationOverlay } from "../components/HydrationOverlay";
 import "../lib/tracking/detection";
 import {
@@ -336,7 +335,6 @@ function RootNavigator() {
 
   return (
     <>
-      {isAuthenticated && !showLoading && <SyncStatusBar />}
       <Stack
         screenOptions={{
           headerShown: false,
