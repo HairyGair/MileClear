@@ -28,6 +28,7 @@ import { finalizeAutoTrip } from "../lib/tracking/detection";
 import { Button } from "../components/Button";
 import { Skeleton } from "../components/Skeleton";
 import { Card } from "../components/Card";
+import { HoldToConfirm } from "../components/HoldToConfirm";
 import { WaitTimer } from "../components/business/WaitTimer";
 import { colors, fonts, radii, spacing } from "../lib/theme";
 import { haptic } from "../lib/haptics";
@@ -91,6 +92,10 @@ export default function ActiveRecordingScreen() {
   const [endingTrip, setEndingTrip] = useState(false);
   const [now, setNow] = useState(Date.now());
   const navigatedAwayRef = useRef(false);
+  // Track the last whole-mile boundary we've haptic'd for. Fires a light
+  // tick every time the live distance crosses an integer mile — gives the
+  // driver a sense of progress without needing to look at the screen.
+  const lastMilestoneRef = useRef(0);
 
   const refresh = useCallback(async () => {
     try {
@@ -122,6 +127,14 @@ export default function ActiveRecordingScreen() {
 
       const startedAt =
         coords.length > 0 ? new Date(coords[0].recorded_at).getTime() : null;
+
+      // Fire a light haptic when crossing each whole-mile boundary. The
+      // driver feels a subtle tick at every mile without having to look.
+      const wholeMilestone = Math.floor(distance);
+      if (wholeMilestone > lastMilestoneRef.current && wholeMilestone >= 1) {
+        haptic("light");
+        lastMilestoneRef.current = wholeMilestone;
+      }
 
       setSnapshot({ active: true, startedAt, coords, distanceMiles: distance });
       setLoading(false);
@@ -162,37 +175,26 @@ export default function ActiveRecordingScreen() {
     }
   }, [loading, snapshot.active, endingTrip, router]);
 
-  const handleEndTrip = useCallback(() => {
-    haptic("warning");
-    Alert.alert(
-      "End trip?",
-      "Save what's been recorded so far. You can classify it as business or personal afterwards.",
-      [
-        { text: "Keep recording", style: "cancel" },
-        {
-          text: "End trip",
-          style: "default",
-          onPress: async () => {
-            setEndingTrip(true);
-            try {
-              await finalizeAutoTrip();
-              haptic("success");
-              navigatedAwayRef.current = true;
-              router.replace("/(tabs)/trips");
-            } catch (err) {
-              setEndingTrip(false);
-              haptic("error");
-              Alert.alert(
-                "Couldn't end trip",
-                err instanceof Error
-                  ? err.message
-                  : "Something went wrong. Try again."
-              );
-            }
-          },
-        },
-      ]
-    );
+  // The HoldToConfirm primitive handles the press-and-hold gesture +
+  // its own warning/success haptics. This callback runs ONLY when the
+  // user has held long enough to commit, so we go straight into
+  // finalize without an Alert.alert confirmation gate.
+  const handleEndTripConfirmed = useCallback(async () => {
+    setEndingTrip(true);
+    try {
+      await finalizeAutoTrip();
+      navigatedAwayRef.current = true;
+      router.replace("/(tabs)/trips");
+    } catch (err) {
+      setEndingTrip(false);
+      haptic("error");
+      Alert.alert(
+        "Couldn't end trip",
+        err instanceof Error
+          ? err.message
+          : "Something went wrong. Try again."
+      );
+    }
   }, [router]);
 
   if (loading) {
@@ -337,12 +339,17 @@ export default function ActiveRecordingScreen() {
         {/* Pickup wait timer - couriers tap when waiting at a restaurant/depot */}
         <WaitTimer />
 
-        {/* Actions */}
-        <Button
-          title="End trip and save"
+        {/* Actions
+            End trip uses press-and-hold confirmation rather than a single
+            tap + Alert.alert dialog. Drivers' phones sit in car cradles and
+            an accidental tap from road vibration could fire End trip in a
+            heartbeat — holding the button for 1.5s while a fill ring
+            advances is much harder to do by mistake. */}
+        <HoldToConfirm
+          label="Hold to end trip"
+          holdingLabel="Keep holding…"
           icon="stop-circle"
-          variant="primary"
-          onPress={handleEndTrip}
+          onConfirm={handleEndTripConfirmed}
           loading={endingTrip}
           style={{ marginTop: 12 }}
         />

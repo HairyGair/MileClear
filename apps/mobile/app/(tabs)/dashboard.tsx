@@ -17,6 +17,7 @@ import {
 } from "react-native";
 import { Button } from "../../components/Button";
 import { Skeleton } from "../../components/Skeleton";
+import { FadeInStagger } from "../../components/FadeInStagger";
 import { colors, fonts, radii, spacing } from "../../lib/theme";
 import { ActiveRecordingBanner } from "../../components/ActiveRecordingBanner";
 import { useFocusEffect, useRouter } from "expo-router";
@@ -895,7 +896,11 @@ export default function DashboardScreen() {
       )}
 
       {/* ── Work Mode (layout-aware) ── */}
-      {isWork && workLayout.visibleKeys.map((key) => {
+      {/* Each card fades-in-from-below with a small stagger via
+          FadeInStagger. The IIFE around the switch captures the rendered
+          card so we can wrap it in the animation; the original returns
+          are preserved verbatim, only the outer wrapper changed. */}
+      {isWork && workLayout.visibleKeys.map((key, index) => {
         // Trip-count gates: cards that only make sense once a few trips are
         // logged are hidden in the empty / early state.
         //
@@ -908,6 +913,7 @@ export default function DashboardScreen() {
         const totalTrips = stats?.totalTrips ?? 0;
         const hasBusinessDeduction = (stats?.deductionPence ?? 0) > 0;
 
+        const card = (() => {
         switch (key) {
           case "work_hero":
             if (!stats) return null;
@@ -1149,6 +1155,12 @@ export default function DashboardScreen() {
           default:
             return null;
         }
+        })();
+        return card ? (
+          <FadeInStagger key={key} index={index}>
+            {card}
+          </FadeInStagger>
+        ) : null;
       })}
 
       {/* Vehicle Nudge — no vehicles yet */}
