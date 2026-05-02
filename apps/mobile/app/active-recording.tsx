@@ -19,7 +19,6 @@ import {
   Alert,
   Platform,
   UIManager,
-  ActivityIndicator,
   ScrollView,
 } from "react-native";
 import { Stack, useRouter, useFocusEffect } from "expo-router";
@@ -27,7 +26,11 @@ import { Ionicons } from "@expo/vector-icons";
 import { getDatabase } from "../lib/db/index";
 import { finalizeAutoTrip } from "../lib/tracking/detection";
 import { Button } from "../components/Button";
+import { Skeleton } from "../components/Skeleton";
+import { Card } from "../components/Card";
 import { WaitTimer } from "../components/business/WaitTimer";
+import { colors, fonts, radii, spacing } from "../lib/theme";
+import { haptic } from "../lib/haptics";
 import { haversineDistance, formatMiles } from "@mileclear/shared";
 
 // ── Lazy native map import (Expo Go safe) ──────────────────────────
@@ -160,6 +163,7 @@ export default function ActiveRecordingScreen() {
   }, [loading, snapshot.active, endingTrip, router]);
 
   const handleEndTrip = useCallback(() => {
+    haptic("warning");
     Alert.alert(
       "End trip?",
       "Save what's been recorded so far. You can classify it as business or personal afterwards.",
@@ -172,10 +176,12 @@ export default function ActiveRecordingScreen() {
             setEndingTrip(true);
             try {
               await finalizeAutoTrip();
+              haptic("success");
               navigatedAwayRef.current = true;
               router.replace("/(tabs)/trips");
             } catch (err) {
               setEndingTrip(false);
+              haptic("error");
               Alert.alert(
                 "Couldn't end trip",
                 err instanceof Error
@@ -190,10 +196,19 @@ export default function ActiveRecordingScreen() {
   }, [router]);
 
   if (loading) {
+    // Skeleton-first loading: show the approximate shape of the hero card +
+    // map area while we read the local recording state. Cheaper feeling than
+    // a centred spinner.
     return (
-      <View style={styles.loadingContainer}>
+      <View style={styles.container}>
         <Stack.Screen options={{ title: "Recording trip" }} />
-        <ActivityIndicator size="large" color="#f5a623" />
+        <ScrollView contentContainerStyle={styles.scrollContent}>
+          <Skeleton.Group>
+            <Skeleton height={140} radius={radii.lg} />
+            <Skeleton height={280} radius={radii.lg} style={{ marginTop: spacing.lg }} />
+            <Skeleton height={56} radius={radii.md} style={{ marginTop: spacing.lg }} />
+          </Skeleton.Group>
+        </ScrollView>
       </View>
     );
   }
@@ -201,9 +216,9 @@ export default function ActiveRecordingScreen() {
   if (!snapshot.active) {
     // Brief flash before the auto-redirect effect kicks in
     return (
-      <View style={styles.loadingContainer}>
+      <View style={[styles.container, styles.centered]}>
         <Stack.Screen options={{ title: "Recording trip" }} />
-        <Text style={styles.placeholderText}>No active recording.</Text>
+        <Text style={styles.idleText}>No active recording.</Text>
       </View>
     );
   }
@@ -228,8 +243,8 @@ export default function ActiveRecordingScreen() {
       <Stack.Screen
         options={{
           title: "Recording trip",
-          headerStyle: { backgroundColor: "#030712" },
-          headerTintColor: "#f9fafb",
+          headerStyle: { backgroundColor: colors.bg },
+          headerTintColor: colors.text1,
         }}
       />
 
@@ -273,7 +288,7 @@ export default function ActiveRecordingScreen() {
               {polylineCoords.length >= 2 && PolylineComponent && (
                 <PolylineComponent
                   coordinates={polylineCoords}
-                  strokeColor="#f5a623"
+                  strokeColor={colors.amber}
                   strokeWidth={4}
                   lineCap="round"
                   lineJoin="round"
@@ -282,14 +297,14 @@ export default function ActiveRecordingScreen() {
               {startCoord && MarkerComponent && (
                 <MarkerComponent
                   coordinate={startCoord}
-                  pinColor="#10b981"
+                  pinColor={colors.green}
                   title="Start"
                 />
               )}
               {currentCoord && MarkerComponent && polylineCoords.length > 1 && (
                 <MarkerComponent
                   coordinate={currentCoord}
-                  pinColor="#f5a623"
+                  pinColor={colors.amber}
                   title="Now"
                 />
               )}
@@ -297,7 +312,7 @@ export default function ActiveRecordingScreen() {
           </View>
         ) : (
           <View style={styles.mapPlaceholder}>
-            <Ionicons name="navigate" size={28} color="#94a3b8" />
+            <Ionicons name="navigate" size={28} color={colors.text2} />
             <Text style={styles.mapPlaceholderText}>
               Map preview is unavailable in this build. The trip is still
               being recorded.
@@ -306,18 +321,18 @@ export default function ActiveRecordingScreen() {
         )}
 
         {/* Info row */}
-        <View style={styles.infoCard}>
+        <Card style={styles.infoCard}>
           <Ionicons
             name="information-circle-outline"
             size={20}
-            color="#94a3b8"
-            style={{ marginRight: 8, marginTop: 2 }}
+            color={colors.text2}
+            style={{ marginRight: spacing.sm, marginTop: 2 }}
           />
           <Text style={styles.infoText}>
-            MileClear is tracking this trip in the background. It will save
-            automatically a few minutes after you stop, or you can end it now.
+            Recording in the background. Your trip saves automatically a few
+            minutes after you stop, or you can end it now.
           </Text>
-        </View>
+        </Card>
 
         {/* Pickup wait timer - couriers tap when waiting at a restaurant/depot */}
         <WaitTimer />
@@ -375,45 +390,43 @@ function computeRegion(coords: CoordRow[]) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#030712",
+    backgroundColor: colors.bg,
   },
   scrollContent: {
-    padding: 16,
-    paddingBottom: 40,
+    padding: spacing.lg,
+    paddingBottom: spacing.xxxl + spacing.sm,
   },
-  loadingContainer: {
-    flex: 1,
-    backgroundColor: "#030712",
+  centered: {
     justifyContent: "center",
     alignItems: "center",
   },
-  placeholderText: {
-    color: "#94a3b8",
-    fontFamily: "PlusJakartaSans_500Medium",
+  idleText: {
+    color: colors.text2,
+    fontFamily: fonts.medium,
     fontSize: 15,
-    marginTop: 12,
+    marginTop: spacing.md,
   },
   heroCard: {
-    backgroundColor: "rgba(245,166,35,0.08)",
-    borderColor: "rgba(245,166,35,0.3)",
+    backgroundColor: colors.amberDim,
+    borderColor: colors.amberGlow,
     borderWidth: 1,
-    borderRadius: 16,
-    padding: 20,
+    borderRadius: radii.lg,
+    padding: spacing.xl,
     alignItems: "center",
   },
   recordingDot: {
     width: 10,
     height: 10,
     borderRadius: 5,
-    backgroundColor: "#f5a623",
+    backgroundColor: colors.amber,
     marginBottom: 6,
   },
   heroLabel: {
     fontSize: 11,
-    fontFamily: "PlusJakartaSans_700Bold",
-    color: "#f5a623",
+    fontFamily: fonts.bold,
+    color: colors.amber,
     letterSpacing: 1.6,
-    marginBottom: 14,
+    marginBottom: spacing.md + 2,
   },
   statsRow: {
     flexDirection: "row",
@@ -425,70 +438,66 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   statValue: {
-    fontFamily: "PlusJakartaSans_700Bold",
-    color: "#f9fafb",
+    fontFamily: fonts.bold,
+    color: colors.text1,
     fontSize: 32,
     lineHeight: 36,
   },
   statLabel: {
-    fontFamily: "PlusJakartaSans_500Medium",
-    color: "#8494a7",
+    fontFamily: fonts.medium,
+    color: colors.text2,
     fontSize: 12,
     marginTop: 4,
     textTransform: "uppercase",
     letterSpacing: 0.8,
   },
   heroHint: {
-    fontFamily: "PlusJakartaSans_400Regular",
-    color: "#64748b",
+    fontFamily: fonts.regular,
+    color: colors.text3,
     fontSize: 12,
-    marginTop: 14,
+    marginTop: spacing.md + 2,
   },
   mapWrap: {
-    marginTop: 16,
+    marginTop: spacing.lg,
     height: 280,
-    borderRadius: 14,
+    borderRadius: radii.lg,
     overflow: "hidden",
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.06)",
-    backgroundColor: "#0a1120",
+    borderColor: colors.surfaceBorder,
+    backgroundColor: colors.surface,
   },
   map: {
     flex: 1,
   },
   mapPlaceholder: {
-    marginTop: 16,
+    marginTop: spacing.lg,
     minHeight: 120,
-    borderRadius: 14,
-    backgroundColor: "#0a1120",
+    borderRadius: radii.lg,
+    backgroundColor: colors.surface,
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.06)",
-    padding: 20,
+    borderColor: colors.surfaceBorder,
+    padding: spacing.xl,
     alignItems: "center",
     justifyContent: "center",
   },
   mapPlaceholderText: {
-    color: "#94a3b8",
-    fontFamily: "PlusJakartaSans_400Regular",
+    color: colors.text2,
+    fontFamily: fonts.regular,
     fontSize: 13,
     lineHeight: 18,
-    marginTop: 8,
+    marginTop: spacing.sm,
     textAlign: "center",
   },
   infoCard: {
-    marginTop: 16,
+    marginTop: spacing.lg,
     flexDirection: "row",
-    backgroundColor: "#0a1120",
-    borderColor: "rgba(255,255,255,0.06)",
-    borderWidth: 1,
-    borderRadius: 12,
-    padding: 14,
+    padding: spacing.md + 2,
   },
   infoText: {
     flex: 1,
-    color: "#94a3b8",
+    color: colors.text2,
     fontSize: 13,
-    fontFamily: "PlusJakartaSans_400Regular",
+    fontFamily: fonts.regular,
     lineHeight: 18,
   },
 });
