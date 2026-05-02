@@ -70,6 +70,17 @@ export interface HeartbeatData {
   /** iOS BackgroundFetch.BackgroundFetchStatus. If "denied" or "restricted",
    *  the user has Background App Refresh disabled and tracking is unreliable. */
   backgroundFetchStatus?: "available" | "denied" | "restricted";
+  // Watchdog state. These let the server-side recording-watchdog cron spot
+  // stuck recordings even when the device's setInterval watchdog is
+  // suspended by iOS. The cron sends a silent push to wake the JS runtime
+  // and finalise the stuck recording.
+  /** True when the device currently has an active auto-recording. */
+  autoRecordingActive?: boolean;
+  /** ISO timestamp when the current recording started (null otherwise). */
+  recordingStartedAt?: string;
+  /** ISO timestamp of the most recent driving-speed observation. Stale
+   *  value (>30 min) on the server means the recording is probably stuck. */
+  lastDrivingSpeedAt?: string;
 }
 
 /**

@@ -68,6 +68,25 @@ interface AdminUserDetail extends AdminUser {
   googleId: string | null;
   premiumExpiresAt: string | null;
   notes: string | null;
+  // Heartbeat telemetry (1.0.10+ basic + 1.1.3+ extended)
+  lastHeartbeatAt?: string | null;
+  bgLocationPermission?: string | null;
+  notificationPermission?: string | null;
+  trackingTaskActive?: boolean | null;
+  appVersion?: string | null;
+  buildNumber?: string | null;
+  osVersion?: string | null;
+  lastPendingSyncCount?: number | null;
+  // 1.1.3+ telemetry
+  lastSyncQueueFailed?: number | null;
+  lastSyncQueuePermFailed?: number | null;
+  secondsSinceLastTripPost?: number | null;
+  daysSinceLastTrip?: number | null;
+  freeDiskBytes?: string | null; // BigInt serialised as string by JSON
+  backgroundFetchStatus?: string | null;
+  autoRecordingActive?: boolean | null;
+  recordingStartedAt?: string | null;
+  lastDrivingSpeedAt?: string | null;
   vehicles: { id: string; make: string; model: string; fuelType: string; vehicleType: string }[];
   trips: {
     id: string;

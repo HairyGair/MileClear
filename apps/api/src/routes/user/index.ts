@@ -561,6 +561,21 @@ export async function userRoutes(app: FastifyInstance) {
     buildNumber: z.string().max(32).optional(),
     osVersion: z.string().max(32).optional(),
     pendingSyncCount: z.number().int().min(0).max(100000).optional(),
+    // 1.1.3+ telemetry — see User model in prisma/schema.prisma for what
+    // each field surfaces. All optional; older builds simply send fewer
+    // fields and the corresponding columns stay null.
+    syncQueueFailed: z.number().int().min(0).max(100000).optional(),
+    syncQueuePermFailed: z.number().int().min(0).max(100000).optional(),
+    secondsSinceLastTripPost: z.number().int().min(0).optional(),
+    daysSinceLastTrip: z.number().int().min(0).max(10000).optional(),
+    freeDiskBytes: z.number().int().min(0).optional(),
+    backgroundFetchStatus: z.enum(["available", "denied", "restricted"]).optional(),
+    // Watchdog state - lets the server-side recording-watchdog cron spot
+    // stuck recordings even when the device's own setInterval watchdog is
+    // suspended by iOS. ISO timestamps from the mobile.
+    autoRecordingActive: z.boolean().optional(),
+    recordingStartedAt: z.string().datetime().optional(),
+    lastDrivingSpeedAt: z.string().datetime().optional(),
   });
 
   app.post("/heartbeat", async (request, reply) => {
@@ -568,17 +583,27 @@ export async function userRoutes(app: FastifyInstance) {
     if (!parsed.success) {
       return reply.status(400).send({ error: "Invalid heartbeat" });
     }
+    const d = parsed.data;
     await prisma.user.update({
       where: { id: request.userId! },
       data: {
         lastHeartbeatAt: new Date(),
-        bgLocationPermission: parsed.data.bgLocationPermission ?? null,
-        notificationPermission: parsed.data.notificationPermission ?? null,
-        trackingTaskActive: parsed.data.trackingTaskActive ?? null,
-        appVersion: parsed.data.appVersion ?? null,
-        buildNumber: parsed.data.buildNumber ?? null,
-        osVersion: parsed.data.osVersion ?? null,
-        lastPendingSyncCount: parsed.data.pendingSyncCount ?? null,
+        bgLocationPermission: d.bgLocationPermission ?? null,
+        notificationPermission: d.notificationPermission ?? null,
+        trackingTaskActive: d.trackingTaskActive ?? null,
+        appVersion: d.appVersion ?? null,
+        buildNumber: d.buildNumber ?? null,
+        osVersion: d.osVersion ?? null,
+        lastPendingSyncCount: d.pendingSyncCount ?? null,
+        lastSyncQueueFailed: d.syncQueueFailed ?? null,
+        lastSyncQueuePermFailed: d.syncQueuePermFailed ?? null,
+        secondsSinceLastTripPost: d.secondsSinceLastTripPost ?? null,
+        daysSinceLastTrip: d.daysSinceLastTrip ?? null,
+        freeDiskBytes: d.freeDiskBytes != null ? BigInt(d.freeDiskBytes) : null,
+        backgroundFetchStatus: d.backgroundFetchStatus ?? null,
+        autoRecordingActive: d.autoRecordingActive ?? null,
+        recordingStartedAt: d.recordingStartedAt ? new Date(d.recordingStartedAt) : null,
+        lastDrivingSpeedAt: d.lastDrivingSpeedAt ? new Date(d.lastDrivingSpeedAt) : null,
       },
     });
     return reply.send({ success: true });

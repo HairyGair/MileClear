@@ -51,6 +51,7 @@ export async function maybeSendHeartbeat(): Promise<void> {
       tripFreshness,
       freeDiskBytes,
       backgroundFetchStatus,
+      recordingState,
     ] = await Promise.all([
       Location.getForegroundPermissionsAsync().catch(() => null),
       Location.getBackgroundPermissionsAsync().catch(() => null),
@@ -61,6 +62,7 @@ export async function maybeSendHeartbeat(): Promise<void> {
       collectTripFreshness(db).catch(() => ({ secondsSinceLastTripPost: undefined, daysSinceLastTrip: undefined })),
       collectFreeDiskBytes().catch(() => undefined),
       collectBackgroundFetchStatus().catch(() => undefined),
+      collectRecordingState(db).catch(() => ({ autoRecordingActive: false, recordingStartedAt: undefined, lastDrivingSpeedAt: undefined })),
     ]);
 
     // Unused foreground permission kept in scope to avoid dead-code warnings
@@ -84,6 +86,9 @@ export async function maybeSendHeartbeat(): Promise<void> {
       daysSinceLastTrip: tripFreshness.daysSinceLastTrip,
       freeDiskBytes,
       backgroundFetchStatus,
+      autoRecordingActive: recordingState.autoRecordingActive,
+      recordingStartedAt: recordingState.recordingStartedAt,
+      lastDrivingSpeedAt: recordingState.lastDrivingSpeedAt,
     };
 
     await sendHeartbeat(data);
@@ -163,6 +168,54 @@ async function collectFreeDiskBytes(): Promise<number | undefined> {
     // FileSystem can throw on iOS Simulator and some Android variants.
   }
   return undefined;
+}
+
+/**
+ * Read the current auto-recording state from tracking_state. Used by the
+ * server-side watchdog to detect stuck recordings: if autoRecordingActive
+ * is true AND lastDrivingSpeedAt is more than ~30 min ago in the heartbeat,
+ * the recording is probably stuck and the server fires a silent push to
+ * wake the JS runtime and finalize.
+ */
+async function collectRecordingState(
+  db: Awaited<ReturnType<typeof getDatabase>>
+): Promise<{
+  autoRecordingActive: boolean;
+  recordingStartedAt?: string;
+  lastDrivingSpeedAt?: string;
+}> {
+  const active = await db.getFirstAsync<{ value: string }>(
+    "SELECT value FROM tracking_state WHERE key = 'auto_recording_active'"
+  );
+  const isActive = active?.value === "1";
+  if (!isActive) {
+    return { autoRecordingActive: false };
+  }
+
+  // last_driving_speed_at is stored as a millisecond epoch
+  const lastDriving = await db.getFirstAsync<{ value: string }>(
+    "SELECT value FROM tracking_state WHERE key = 'last_driving_speed_at'"
+  );
+  let lastDrivingSpeedAt: string | undefined;
+  if (lastDriving?.value) {
+    const ms = parseInt(lastDriving.value, 10);
+    if (Number.isFinite(ms)) {
+      lastDrivingSpeedAt = new Date(ms).toISOString();
+    }
+  }
+
+  // Recording start time is the recorded_at of the earliest buffered coord
+  // (same heuristic used elsewhere for the elapsed-time display).
+  const firstCoord = await db.getFirstAsync<{ recorded_at: string }>(
+    "SELECT recorded_at FROM detection_coordinates ORDER BY recorded_at ASC LIMIT 1"
+  );
+  const recordingStartedAt = firstCoord?.recorded_at;
+
+  return {
+    autoRecordingActive: true,
+    recordingStartedAt,
+    lastDrivingSpeedAt,
+  };
 }
 
 /**

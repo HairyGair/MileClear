@@ -208,6 +208,16 @@ export async function adminRoutes(app: FastifyInstance) {
         buildNumber: true,
         osVersion: true,
         lastPendingSyncCount: true,
+        // 1.1.3+ heartbeat telemetry
+        lastSyncQueueFailed: true,
+        lastSyncQueuePermFailed: true,
+        secondsSinceLastTripPost: true,
+        daysSinceLastTrip: true,
+        freeDiskBytes: true,
+        backgroundFetchStatus: true,
+        autoRecordingActive: true,
+        recordingStartedAt: true,
+        lastDrivingSpeedAt: true,
         _count: { select: { trips: true, vehicles: true, earnings: true } },
         trips: {
           select: {

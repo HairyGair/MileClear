@@ -59,6 +59,35 @@ model User {
   // across heartbeats indicates the sync engine isn't draining.
   lastPendingSyncCount  Int?
 
+  // 1.1.3+ heartbeat telemetry. Mobile started reporting these in build 58.
+  // Each surfaces a different silent-failure mode that wasn't visible before:
+  //
+  //  - lastSyncQueueFailed/PermFailed: sync_queue rows in non-pending states.
+  //    permanently_failed > 0 means trips that the sync engine has given up
+  //    on - user's data won't reach the cloud without manual intervention.
+  //  - secondsSinceLastTripPost: how long since their last trip reached the
+  //    server. Identifies users where sync is silently broken even when
+  //    queue counts look healthy.
+  //  - daysSinceLastTrip: distinguishes active drivers from passive installs.
+  //  - freeDiskBytes: low-disk users start losing SQLite writes silently.
+  //  - backgroundFetchStatus: iOS Background App Refresh state. "denied" or
+  //    "restricted" means the BACKGROUND_FINALIZE_TASK won't fire and
+  //    tracking reliability tanks.
+  lastSyncQueueFailed    Int?
+  lastSyncQueuePermFailed Int?
+  secondsSinceLastTripPost Int?
+  daysSinceLastTrip       Int?
+  freeDiskBytes           BigInt?
+  backgroundFetchStatus   String?   @db.VarChar(16)
+
+  // Watchdog state. Mobile reports recording state in heartbeat so the
+  // server-side watchdog cron can spot stuck recordings even when the
+  // device's own setInterval watchdog is suspended by iOS. Stale value
+  // here triggers a silent push to wake the JS runtime and finalize.
+  autoRecordingActive   Boolean?
+  recordingStartedAt    DateTime?
+  lastDrivingSpeedAt    DateTime?
+
   createdAt            DateTime  @default(now())
   updatedAt            DateTime  @updatedAt
 
