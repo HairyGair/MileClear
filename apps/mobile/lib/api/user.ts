@@ -52,6 +52,24 @@ export interface HeartbeatData {
   buildNumber?: string;
   osVersion?: string;
   pendingSyncCount?: number;
+  // 1.1.3+ telemetry. Server schema will accept these on next deploy; for
+  // now they're silently stripped, which is harmless.
+  /** Sync queue breakdown by status. */
+  syncQueueFailed?: number;
+  syncQueuePermFailed?: number;
+  /** Seconds since the most recent trip was successfully synced to server.
+   *  Identifies users where sync is silently broken even if the queue counts
+   *  look healthy. */
+  secondsSinceLastTripPost?: number;
+  /** Whole days since the most recent trip was recorded. Distinguishes
+   *  active drivers from passive installs. */
+  daysSinceLastTrip?: number;
+  /** Free disk bytes (best-effort). When low, SQLite writes start failing
+   *  silently — surface this so we can warn the user before they lose data. */
+  freeDiskBytes?: number;
+  /** iOS BackgroundFetch.BackgroundFetchStatus. If "denied" or "restricted",
+   *  the user has Background App Refresh disabled and tracking is unreliable. */
+  backgroundFetchStatus?: "available" | "denied" | "restricted";
 }
 
 /**
