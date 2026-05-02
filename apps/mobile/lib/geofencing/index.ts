@@ -10,7 +10,7 @@ import { randomUUID } from "expo-crypto";
 import { getDatabase } from "../db/index";
 import { reverseGeocode } from "../location/geocoding";
 import { DRIVING_SPEED_THRESHOLD_MPH, bestTripDistance } from "@mileclear/shared";
-import { stopDriveDetection, startDriveDetection, cancelAutoRecording, forceStartRecording } from "../tracking/detection";
+import { stopDriveDetection, startDriveDetection, cancelAutoRecording, enterWatchMode } from "../tracking/detection";
 
 const GEOFENCE_TASK_NAME = "mileclear-geofence-monitor";
 const GEOFENCE_TRACKING_TASK_NAME = "mileclear-geofence-tracking";
@@ -61,25 +61,24 @@ try {
       if (activeShift) return;
 
       if (eventType === Location.GeofencingEventType.Exit && region.identifier === "__departure_anchor__") {
-        // User left their last stationary position - high-confidence trip start.
-        // Geofences are OS-level and survive app termination, so this is the
-        // most reliable signal that the user is starting to drive.
+        // User left their last stationary position. This is a strong SUSPICION
+        // that a drive is starting — but iOS geofences fire spuriously from
+        // indoor GPS drift, walks to the bin, carparks with bad signal, and
+        // a host of other non-driving causes. We used to treat this signal as
+        // a CONFIRMED drive (forceStartRecording → Live Activity → 0 mi
+        // phantom recordings sat in the Dynamic Island for hours).
         //
-        // forceStartRecording() marks recording active immediately and switches
-        // straight to high-accuracy GPS, so the first GPS update is treated as
-        // the start of a trip (no waiting for the consecutive detection gate).
-        // If the movement turns out to be too short (walking, false positive),
-        // the MIN_AUTO_TRIP_DISTANCE_MILES filter at finalization discards it.
+        // Now we enter "watch mode" instead: silently buffer GPS readings,
+        // upgrade to high-accuracy mode, and let the existing detection-task
+        // driving check (consecutive samples > 15mph or single fast-gate
+        // > 25mph) decide when to promote watch → recording. If real driving
+        // never happens within WATCH_MODE_MAX_AGE_MS (20 min), watch mode
+        // exits silently — no Live Activity ever appears, no notification
+        // was sent, and the user wasn't bothered.
         //
-        // Keep the departure_anchor_* keys intact so subsequent
-        // registerGeofences() calls still know about the anchor. The previous
-        // implementation deleted them on exit, which broke re-registration
-        // after phantom exits: indoor GPS drift fires a false exit, the
-        // phantom recording bails via finalize_no_coords without re-arming,
-        // and iOS has no region left to fire on the real departure. Leaving
-        // the keys means the finalize path can re-arm the anchor at the
-        // current position whether or not a trip actually got saved.
-        await forceStartRecording("anchor_exit");
+        // Departure anchor keys stay intact so registerGeofences() can still
+        // re-arm the anchor cleanly.
+        await enterWatchMode("anchor_exit");
         return;
       }
 

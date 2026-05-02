@@ -44,6 +44,7 @@ const BUFFER_MAX_AGE_MS = 30 * 60 * 1000; // 30 minutes
 const SPEED_THRESHOLD_MS = DRIVING_SPEED_THRESHOLD_MPH * 0.44704; // mph to m/s
 const FAST_GATE_SPEED_MS = 25 * 0.44704; // 25 mph - bypass consecutive detection gate
 const STOP_TIMEOUT_MS = 10 * 60 * 1000; // 10 minutes - trip ends after this idle period (covers fuel stops, drive-throughs)
+const WATCH_MODE_MAX_AGE_MS = 20 * 60 * 1000; // 20 minutes - silently clean up watch mode if no driving is observed in this window
 const CONTINUE_SPEED_MS = 1.0; // ~2.2 mph - any movement keeps an active recording alive
 const RESUME_DISPLACEMENT_M = 80; // metres - must move this far from stop anchor to resume trip (GPS drift stays within ~30m)
 const MIN_AUTO_TRIP_DISTANCE_MILES = 0.3; // Filter noise / parking lot shuffles / GPS drift mini-trips
@@ -1067,10 +1068,31 @@ async function checkStaleAutoRecording(): Promise<void> {
 
 /**
  * Public: finalize stale auto-recordings on app startup.
- * Handles the case where the app was killed during an active recording.
+ * Handles the case where the app was killed during an active recording, AND
+ * the case where watch mode was entered but never promoted (no real driving
+ * was observed before the user closed the app). Both clean up silently.
  */
 export async function finalizeStaleAutoRecordings(): Promise<void> {
   try {
+    // Stale watch-mode cleanup: if watch mode was active when the app got
+    // killed, and the timeout has now elapsed, exit silently — the geofence
+    // exit was a phantom (carpark, walk to bin, indoor drift, etc).
+    const db = await getDatabase();
+    const watchActive = await db.getFirstAsync<{ value: string }>(
+      "SELECT value FROM tracking_state WHERE key = 'watch_mode_active'"
+    );
+    if (watchActive?.value === "1") {
+      const watchStartedAt = await db.getFirstAsync<{ value: string }>(
+        "SELECT value FROM tracking_state WHERE key = 'watch_mode_started_at'"
+      );
+      if (watchStartedAt) {
+        const watchAge = Date.now() - parseInt(watchStartedAt.value, 10);
+        if (watchAge > WATCH_MODE_MAX_AGE_MS) {
+          logDetectionEvent("foreground_watch_timeout", { ageMs: watchAge }).catch(() => {});
+          await exitWatchModeSilently("foreground_timeout");
+        }
+      }
+    }
     await checkStaleAutoRecording();
   } catch (err) {
     console.error("Stale auto-recording finalization failed:", err);
@@ -1348,6 +1370,36 @@ try {
       // Clean up any orphaned recording state (e.g., app was killed mid-recording)
       await checkStaleAutoRecording();
 
+      // Clean up stale watch mode. Watch mode is entered on geofence anchor
+      // exit and waits for real driving to be observed. If the timeout
+      // elapses without driving (carpark with bad signal, walked to bin and
+      // back, indoor GPS drift), exit silently — no LA was ever shown so the
+      // user never knew anything was happening.
+      const watchActive = await db.getFirstAsync<{ value: string }>(
+        "SELECT value FROM tracking_state WHERE key = 'watch_mode_active'"
+      );
+      if (watchActive?.value === "1") {
+        const watchStartedAt = await db.getFirstAsync<{ value: string }>(
+          "SELECT value FROM tracking_state WHERE key = 'watch_mode_started_at'"
+        );
+        if (watchStartedAt) {
+          const watchAge = Date.now() - parseInt(watchStartedAt.value, 10);
+          if (watchAge > WATCH_MODE_MAX_AGE_MS) {
+            const watchReason = await db.getFirstAsync<{ value: string }>(
+              "SELECT value FROM tracking_state WHERE key = 'watch_mode_reason'"
+            );
+            logDetectionEvent("watch_mode_timeout", {
+              ageMs: watchAge,
+              originalReason: watchReason?.value ?? "unknown",
+            }).catch(() => {});
+            await exitWatchModeSilently("timeout");
+            // Continue running the rest of detection — the user might be
+            // starting to drive RIGHT NOW (which is why iOS is calling us),
+            // and the existing fast-gate will catch it on this same call.
+          }
+        }
+      }
+
       // Purge stale detection coordinates (>30 min old), but only pre-detection
       // buffering points. If there are many coordinates (a real trip was recorded
       // but finalization was missed), attempt finalization first.
@@ -1514,6 +1566,9 @@ try {
           "INSERT OR REPLACE INTO tracking_state (key, value) VALUES ('last_driving_speed_at', ?)",
           [Date.now().toString()]
         );
+        // If watch mode was active, this is the watch→recording promotion.
+        // Clear watch flags so the timeout cleanup doesn't try to undo us.
+        await clearWatchModeFlags();
 
         // Start watchdog for stuck-recording detection
         startWatchdog();
@@ -1585,6 +1640,27 @@ try {
   TaskManager.defineTask(BACKGROUND_FINALIZE_TASK, async () => {
     try {
       const db = await getDatabase();
+
+      // First: clean up stale watch mode if the user never actually drove.
+      // Background fetch is the safety net for when iOS killed the JS runtime
+      // mid-watch and the in-task timeout cleanup couldn't fire.
+      const watchActive = await db.getFirstAsync<{ value: string }>(
+        "SELECT value FROM tracking_state WHERE key = 'watch_mode_active'"
+      );
+      if (watchActive?.value === "1") {
+        const watchStartedAt = await db.getFirstAsync<{ value: string }>(
+          "SELECT value FROM tracking_state WHERE key = 'watch_mode_started_at'"
+        );
+        if (watchStartedAt) {
+          const watchAge = Date.now() - parseInt(watchStartedAt.value, 10);
+          if (watchAge > WATCH_MODE_MAX_AGE_MS) {
+            logDetectionEvent("background_fetch_watch_timeout", { ageMs: watchAge }).catch(() => {});
+            await exitWatchModeSilently("background_fetch_timeout");
+            return BackgroundFetch.BackgroundFetchResult.NewData;
+          }
+        }
+      }
+
       const recording = await db.getFirstAsync<{ value: string }>(
         "SELECT value FROM tracking_state WHERE key = 'auto_recording_active'"
       );
@@ -1755,6 +1831,108 @@ export async function startDriveDetection(): Promise<void> {
  * 0.4s. The in-memory promise mutex below collapses concurrent calls
  * onto the same in-flight body so only one runs.
  */
+/**
+ * Enter "watch mode" — quietly buffer GPS readings without committing to a
+ * recording. This is what iOS geofence anchor-exit handlers should call now
+ * (instead of the old `forceStartRecording`). The detection task's existing
+ * driving-confirmation logic will promote watch → recording when sustained
+ * driving is observed. If no driving is observed within
+ * WATCH_MODE_MAX_AGE_MS, watch mode silently exits via stale cleanup —
+ * no Live Activity ever appears, no notification was ever sent.
+ *
+ * Replaces the previous behaviour where anchor_exit immediately started a
+ * recording and Live Activity, producing "0 mi · 35m" phantoms whenever
+ * indoor GPS drift fired a false geofence exit.
+ */
+export async function enterWatchMode(reason: string): Promise<void> {
+  // Same guards as forceStartRecording — don't override user disable, no
+  // permission, or active shift.
+  const enabled = await isDriveDetectionEnabled();
+  if (!enabled) {
+    logDetectionEvent("watch_mode_skipped", { reason, cause: "disabled" }).catch(() => {});
+    return;
+  }
+  const { status } = await Location.getBackgroundPermissionsAsync();
+  if (status !== "granted") {
+    logDetectionEvent("watch_mode_skipped", { reason, cause: "permission" }).catch(() => {});
+    return;
+  }
+
+  const db = await getDatabase();
+  const activeShift = await db.getFirstAsync<{ value: string }>(
+    "SELECT value FROM tracking_state WHERE key = 'active_shift_id'"
+  );
+  if (activeShift) {
+    logDetectionEvent("watch_mode_skipped", { reason, cause: "active_shift" }).catch(() => {});
+    return;
+  }
+
+  // If a recording is already active, nothing to do — watch mode is meaningless
+  // because we're already past the "is this real driving?" stage.
+  const recording = await db.getFirstAsync<{ value: string }>(
+    "SELECT value FROM tracking_state WHERE key = 'auto_recording_active'"
+  );
+  if (recording?.value === "1") {
+    logDetectionEvent("watch_mode_skipped", { reason, cause: "already_recording" }).catch(() => {});
+    return;
+  }
+
+  // Set watch flags. Any in-flight watch mode gets its timer reset, which is
+  // what we want — a re-entered watch (e.g. another geofence exit ping) means
+  // the user is doing something, so the timeout extends.
+  await db.runAsync(
+    "INSERT OR REPLACE INTO tracking_state (key, value) VALUES ('watch_mode_active', '1')"
+  );
+  await db.runAsync(
+    "INSERT OR REPLACE INTO tracking_state (key, value) VALUES ('watch_mode_started_at', ?)",
+    [Date.now().toString()]
+  );
+  await db.runAsync(
+    "INSERT OR REPLACE INTO tracking_state (key, value) VALUES ('watch_mode_reason', ?)",
+    [reason]
+  );
+
+  // Upgrade GPS so we get coords promptly. Crucially we do NOT set
+  // auto_recording_active here — that's the bit that triggers the LA, the
+  // notification, and all the user-visible signals. Watch mode is silent.
+  try {
+    await upgradeDetectionAccuracy();
+  } catch {}
+
+  logDetectionEvent("watch_mode_entered", { reason }).catch(() => {});
+}
+
+/**
+ * Cleanly exit watch mode without finalizing a trip. Called when the watch
+ * timer expires without observing real driving (carpark with bad signal,
+ * user walked to the bin and back, indoor GPS drift, etc). Clears the
+ * buffered detection_coordinates so the next watch/recording cycle doesn't
+ * inherit stale data, and downgrades GPS accuracy back to the lower-power
+ * detection mode.
+ */
+async function exitWatchModeSilently(reason: string): Promise<void> {
+  const db = await getDatabase();
+
+  await db.runAsync("DELETE FROM detection_coordinates");
+  await db.runAsync(
+    "DELETE FROM tracking_state WHERE key IN ('watch_mode_active', 'watch_mode_started_at', 'watch_mode_reason', 'driving_detection_count')"
+  );
+
+  try {
+    await downgradeToDetectionMode();
+  } catch {}
+
+  logDetectionEvent("watch_mode_exited", { reason }).catch(() => {});
+}
+
+/** Clear watch mode flags when transitioning to a real recording. Idempotent. */
+async function clearWatchModeFlags(): Promise<void> {
+  const db = await getDatabase();
+  await db.runAsync(
+    "DELETE FROM tracking_state WHERE key IN ('watch_mode_active', 'watch_mode_started_at', 'watch_mode_reason')"
+  );
+}
+
 let forceStartInFlight: Promise<void> | null = null;
 
 export async function forceStartRecording(reason: string): Promise<void> {
@@ -1804,6 +1982,10 @@ async function forceStartRecordingImpl(reason: string): Promise<void> {
     "INSERT OR REPLACE INTO tracking_state (key, value) VALUES ('last_driving_speed_at', ?)",
     [Date.now().toString()]
   );
+  // If watch mode was active, the recording-start is the watch→recording
+  // promotion. Clear watch flags so the timeout cleanup doesn't try to undo
+  // what we just set up.
+  await clearWatchModeFlags();
 
   // Read the user's actual dashboard mode for Live Activity accent colour.
   // Previously hardcoded to isBusinessMode: true which showed amber even
