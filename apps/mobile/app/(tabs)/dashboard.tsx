@@ -16,6 +16,8 @@ import {
   Linking,
 } from "react-native";
 import { Button } from "../../components/Button";
+import { Skeleton } from "../../components/Skeleton";
+import { colors, fonts, radii, spacing } from "../../lib/theme";
 import { ActiveRecordingBanner } from "../../components/ActiveRecordingBanner";
 import { useFocusEffect, useRouter } from "expo-router";
 import { fetchVehicles } from "../../lib/api/vehicles";
@@ -102,7 +104,7 @@ function ExplainerItem({ icon, text }: { icon: keyof typeof Ionicons.glyphMap; t
   return (
     <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 10, marginBottom: 10 }}>
       <Ionicons name={icon} size={18} color="#f5a623" style={{ marginTop: 1 }} />
-      <Text style={{ color: "#c9d1db", fontSize: 14, fontFamily: "PlusJakartaSans_400Regular", flex: 1, lineHeight: 20 }}>
+      <Text style={{ color: colors.text2, fontSize: 14, fontFamily: fonts.regular, flex: 1, lineHeight: 20 }}>
         {text}
       </Text>
     </View>
@@ -511,9 +513,23 @@ export default function DashboardScreen() {
   }, [loadData]);
 
   if (loading) {
+    // Skeleton-first: show approximate shape of hero, mode toggle, and the
+    // CTA buttons while we fetch user / vehicle / shift state. Replaces the
+    // centred amber spinner that used to make load feel longer than it is.
     return (
-      <View style={[s.container, s.centered]}>
-        <ActivityIndicator size="large" color="#f5a623" accessibilityLabel="Loading dashboard" />
+      <View style={s.container}>
+        <ScrollView contentContainerStyle={s.content}>
+          <Skeleton.Group gap={spacing.md}>
+            <Skeleton height={32} width={180} radius={radii.pill} />
+            <Skeleton height={140} radius={radii.lg} style={{ marginTop: spacing.md }} />
+            <View style={{ flexDirection: "row", gap: spacing.md, marginTop: spacing.md }}>
+              <Skeleton height={56} width="48%" radius={radii.md} />
+              <Skeleton height={56} width="48%" radius={radii.md} />
+            </View>
+            <Skeleton height={120} radius={radii.lg} style={{ marginTop: spacing.lg }} />
+            <Skeleton height={120} radius={radii.lg} style={{ marginTop: spacing.md }} />
+          </Skeleton.Group>
+        </ScrollView>
       </View>
     );
   }
@@ -1265,13 +1281,19 @@ export default function DashboardScreen() {
 }
 
 // ── Styles ────────────────────────────────────────────────────────
+//
+// Local aliases pointing at the design tokens in lib/theme.ts. Until 2 May
+// 2026 these were standalone hex values defined inline; pointing them at
+// the theme means any palette adjustment cascades through the entire
+// 800-line styles block without touching every callsite. Same names are
+// kept for diff-friendliness.
 
-const CARD_BG = "#0a1120";
-const CARD_BORDER = "rgba(255,255,255,0.05)";
-const AMBER = "#f5a623";
-const TEXT_1 = "#f0f2f5";
-const TEXT_2 = "#8494a7";
-const TEXT_3 = "#64748b";
+const CARD_BG = colors.surface;
+const CARD_BORDER = colors.surfaceBorder;
+const AMBER = colors.amber;
+const TEXT_1 = colors.text1;
+const TEXT_2 = colors.text2;
+const TEXT_3 = colors.text3;
 
 const s = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#030712" },
@@ -1287,7 +1309,7 @@ const s = StyleSheet.create({
   },
   greeting: {
     fontSize: 14,
-    fontFamily: "PlusJakartaSans_400Regular",
+    fontFamily: fonts.regular,
     color: TEXT_2,
   },
   streakBadge: {
@@ -1302,7 +1324,7 @@ const s = StyleSheet.create({
   },
   streakNum: {
     fontSize: 15,
-    fontFamily: "PlusJakartaSans_700Bold",
+    fontFamily: fonts.bold,
     color: AMBER,
   },
 
@@ -1325,7 +1347,7 @@ const s = StyleSheet.create({
   },
   heroLabel: {
     fontSize: 11,
-    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontFamily: fonts.semibold,
     color: TEXT_2,
     letterSpacing: 0.8,
     textTransform: "uppercase",
@@ -1333,28 +1355,28 @@ const s = StyleSheet.create({
   },
   heroValue: {
     fontSize: 38,
-    fontFamily: "PlusJakartaSans_300Light",
+    fontFamily: fonts.light,
     color: AMBER,
     letterSpacing: -1,
     marginBottom: 10,
   },
   heroSavedLabel: {
     fontSize: 13,
-    fontFamily: "PlusJakartaSans_500Medium",
-    color: "#10b981",
+    fontFamily: fonts.medium,
+    color: colors.green,
     marginBottom: 6,
     marginTop: -6,
   },
   heroEmptyBody: {
     fontSize: 13,
-    fontFamily: "PlusJakartaSans_400Regular",
+    fontFamily: fonts.regular,
     color: "#94a3b8",
     lineHeight: 19,
     marginTop: 10,
   },
   heroLockedHint: {
     fontSize: 12,
-    fontFamily: "PlusJakartaSans_500Medium",
+    fontFamily: fonts.medium,
     color: "rgba(245, 166, 35, 0.5)",
     marginBottom: 6,
     marginTop: -4,
@@ -1365,7 +1387,7 @@ const s = StyleSheet.create({
   },
   heroMetaText: {
     fontSize: 13,
-    fontFamily: "PlusJakartaSans_400Regular",
+    fontFamily: fonts.regular,
     color: TEXT_2,
   },
   heroDivider: {
@@ -1390,7 +1412,7 @@ const s = StyleSheet.create({
   },
   streakNumInline: {
     fontSize: 12,
-    fontFamily: "PlusJakartaSans_700Bold",
+    fontFamily: fonts.bold,
     color: AMBER,
   },
 
@@ -1412,7 +1434,7 @@ const s = StyleSheet.create({
   },
   ctaPrimaryText: {
     fontSize: 15,
-    fontFamily: "PlusJakartaSans_700Bold",
+    fontFamily: fonts.bold,
     color: "#030712",
   },
   ctaShift: {
@@ -1429,7 +1451,7 @@ const s = StyleSheet.create({
   },
   ctaShiftText: {
     fontSize: 15,
-    fontFamily: "PlusJakartaSans_700Bold",
+    fontFamily: fonts.bold,
     color: AMBER,
   },
 
@@ -1450,7 +1472,7 @@ const s = StyleSheet.create({
   },
   quickActionLabel: {
     fontSize: 11,
-    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontFamily: fonts.semibold,
     color: TEXT_2,
     letterSpacing: 0.2,
   },
@@ -1476,19 +1498,19 @@ const s = StyleSheet.create({
   },
   statNum: {
     fontSize: 22,
-    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontFamily: fonts.semibold,
     color: TEXT_1,
     letterSpacing: -0.5,
   },
   statNumLive: {
     fontSize: 24,
-    fontFamily: "PlusJakartaSans_700Bold",
+    fontFamily: fonts.bold,
     color: "#f5a623",
     letterSpacing: -0.5,
   },
   statUnit: {
     fontSize: 11,
-    fontFamily: "PlusJakartaSans_400Regular",
+    fontFamily: fonts.regular,
     color: TEXT_2,
     marginTop: 2,
     letterSpacing: 0.2,
@@ -1504,13 +1526,13 @@ const s = StyleSheet.create({
   },
   sectionTitle: {
     fontSize: 15,
-    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontFamily: fonts.semibold,
     color: TEXT_1,
     letterSpacing: -0.2,
   },
   seeAll: {
     fontSize: 13,
-    fontFamily: "PlusJakartaSans_500Medium",
+    fontFamily: fonts.medium,
     color: AMBER,
   },
 
@@ -1529,7 +1551,7 @@ const s = StyleSheet.create({
   badgeEmoji: { fontSize: 26, marginBottom: 4 },
   badgeLabel: {
     fontSize: 11,
-    fontFamily: "PlusJakartaSans_500Medium",
+    fontFamily: fonts.medium,
     color: TEXT_2,
     textAlign: "center",
   },
@@ -1547,7 +1569,7 @@ const s = StyleSheet.create({
   },
   recapBtnLabel: {
     fontSize: 14,
-    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontFamily: fonts.semibold,
     color: AMBER,
     letterSpacing: -0.2,
   },
@@ -1570,13 +1592,13 @@ const s = StyleSheet.create({
   },
   recordValue: {
     fontSize: 18,
-    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontFamily: fonts.semibold,
     color: TEXT_1,
     marginBottom: 2,
   },
   recordLabel: {
     fontSize: 11,
-    fontFamily: "PlusJakartaSans_400Regular",
+    fontFamily: fonts.regular,
     color: TEXT_3,
     letterSpacing: 0.2,
   },
@@ -1595,7 +1617,7 @@ const s = StyleSheet.create({
   },
   vehiclePickerLabel: {
     fontSize: 11,
-    fontFamily: "PlusJakartaSans_400Regular",
+    fontFamily: fonts.regular,
     color: TEXT_3,
     textTransform: "uppercase",
     letterSpacing: 0.5,
@@ -1603,7 +1625,7 @@ const s = StyleSheet.create({
   },
   vehiclePickerVal: {
     fontSize: 16,
-    fontFamily: "PlusJakartaSans_500Medium",
+    fontFamily: fonts.medium,
     color: TEXT_1,
   },
 
@@ -1627,20 +1649,20 @@ const s = StyleSheet.create({
   },
   liveText: {
     fontSize: 11,
-    fontFamily: "PlusJakartaSans_700Bold",
+    fontFamily: fonts.bold,
     color: "#34c759",
     letterSpacing: 1.5,
   },
   timer: {
     fontSize: 60,
-    fontFamily: "PlusJakartaSans_300Light",
+    fontFamily: fonts.light,
     color: TEXT_1,
     fontVariant: ["tabular-nums"],
     letterSpacing: 4,
   },
   timerSub: {
     fontSize: 14,
-    fontFamily: "PlusJakartaSans_400Regular",
+    fontFamily: fonts.regular,
     color: TEXT_2,
     marginTop: 8,
   },
@@ -1672,7 +1694,7 @@ const s = StyleSheet.create({
   },
   modalTitle: {
     fontSize: 22,
-    fontFamily: "PlusJakartaSans_300Light",
+    fontFamily: fonts.light,
     color: TEXT_1,
     textAlign: "center",
     marginBottom: 20,
@@ -1689,24 +1711,24 @@ const s = StyleSheet.create({
   scorecardCellCenter: {},
   scorecardNum: {
     fontSize: 20,
-    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontFamily: fonts.semibold,
     color: TEXT_1,
   },
   scorecardNumLarge: {
     fontSize: 28,
-    fontFamily: "PlusJakartaSans_300Light",
+    fontFamily: fonts.light,
     color: AMBER,
   },
   scorecardUnit: {
     fontSize: 11,
-    fontFamily: "PlusJakartaSans_400Regular",
+    fontFamily: fonts.regular,
     color: TEXT_2,
     marginTop: 2,
     letterSpacing: 0.3,
   },
   scorecardDuration: {
     fontSize: 14,
-    fontFamily: "PlusJakartaSans_400Regular",
+    fontFamily: fonts.regular,
     color: TEXT_3,
     textAlign: "center",
     marginBottom: 14,
@@ -1721,11 +1743,11 @@ const s = StyleSheet.create({
     borderWidth: 1,
     borderColor: "rgba(245, 166, 35, 0.2)",
   },
-  pbText: { fontSize: 13, fontFamily: "PlusJakartaSans_600SemiBold", color: AMBER },
+  pbText: { fontSize: 13, fontFamily: fonts.semibold, color: AMBER },
   unlockSection: { marginTop: 8, marginBottom: 16 },
   unlockTitle: {
     fontSize: 13,
-    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontFamily: fonts.semibold,
     color: TEXT_2,
     textTransform: "uppercase",
     letterSpacing: 0.5,
@@ -1738,8 +1760,8 @@ const s = StyleSheet.create({
     marginBottom: 8,
   },
   unlockEmoji: { fontSize: 24 },
-  unlockLabel: { fontSize: 14, fontFamily: "PlusJakartaSans_600SemiBold", color: TEXT_1 },
-  unlockDesc: { fontSize: 12, fontFamily: "PlusJakartaSans_400Regular", color: TEXT_2 },
+  unlockLabel: { fontSize: 14, fontFamily: fonts.semibold, color: TEXT_1 },
+  unlockDesc: { fontSize: 12, fontFamily: fonts.regular, color: TEXT_2 },
 
   // Daily recap card (work mode)
   dailyRecapCard: {
@@ -1758,7 +1780,7 @@ const s = StyleSheet.create({
   },
   dailyRecapTitle: {
     fontSize: 14,
-    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontFamily: fonts.semibold,
     color: TEXT_1,
   },
   dailyRecapStats: {
@@ -1772,12 +1794,12 @@ const s = StyleSheet.create({
   },
   dailyRecapValue: {
     fontSize: 20,
-    fontFamily: "PlusJakartaSans_700Bold",
+    fontFamily: fonts.bold,
     color: AMBER,
   },
   dailyRecapUnit: {
     fontSize: 10,
-    fontFamily: "PlusJakartaSans_500Medium",
+    fontFamily: fonts.medium,
     color: TEXT_3,
     textTransform: "uppercase",
     letterSpacing: 0.3,
@@ -1792,14 +1814,14 @@ const s = StyleSheet.create({
   // Recap modal
   recapSubtitle: {
     fontSize: 13,
-    fontFamily: "PlusJakartaSans_400Regular",
+    fontFamily: fonts.regular,
     color: TEXT_2,
     textAlign: "center",
     marginBottom: 20,
   },
   recapDetail: {
     fontSize: 13,
-    fontFamily: "PlusJakartaSans_400Regular",
+    fontFamily: fonts.regular,
     color: TEXT_2,
     textAlign: "center",
     marginBottom: 6,
@@ -1843,7 +1865,7 @@ const s = StyleSheet.create({
   },
   tripSheetTitle: {
     fontSize: 16,
-    fontFamily: "PlusJakartaSans_700Bold",
+    fontFamily: fonts.bold,
     color: TEXT_1,
   },
   tripSheetStats: {
@@ -1860,12 +1882,12 @@ const s = StyleSheet.create({
   },
   tripSheetStatValue: {
     fontSize: 18,
-    fontFamily: "PlusJakartaSans_700Bold",
+    fontFamily: fonts.bold,
     color: TEXT_1,
   },
   tripSheetStatLabel: {
     fontSize: 10,
-    fontFamily: "PlusJakartaSans_400Regular",
+    fontFamily: fonts.regular,
     color: TEXT_2,
     marginTop: 2,
     textTransform: "uppercase",
@@ -1875,7 +1897,7 @@ const s = StyleSheet.create({
   },
   tripSheetAddress: {
     fontSize: 12,
-    fontFamily: "PlusJakartaSans_400Regular",
+    fontFamily: fonts.regular,
     color: TEXT_2,
   },
 
@@ -1906,13 +1928,13 @@ const s = StyleSheet.create({
   },
   btPromoTitle: {
     fontSize: 16,
-    fontFamily: "PlusJakartaSans_700Bold",
+    fontFamily: fonts.bold,
     color: TEXT_1,
     marginBottom: 6,
   },
   btPromoBody: {
     fontSize: 13,
-    fontFamily: "PlusJakartaSans_400Regular",
+    fontFamily: fonts.regular,
     color: TEXT_2,
     lineHeight: 19,
     marginBottom: 14,
@@ -1924,7 +1946,7 @@ const s = StyleSheet.create({
   },
   btPromoCtaText: {
     fontSize: 14,
-    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontFamily: fonts.semibold,
     color: "#3b82f6",
   },
 
@@ -1948,7 +1970,7 @@ const s = StyleSheet.create({
   },
   vehicleNudgeCtaText: {
     fontSize: 14,
-    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontFamily: fonts.semibold,
     color: AMBER,
   },
 
@@ -1996,13 +2018,13 @@ const s = StyleSheet.create({
   },
   bgLocNudgeTitle: {
     fontSize: 14,
-    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontFamily: fonts.semibold,
     color: "#f59e0b",
     marginBottom: 2,
   },
   bgLocNudgeBody: {
     fontSize: 12,
-    fontFamily: "PlusJakartaSans_400Regular",
+    fontFamily: fonts.regular,
     color: TEXT_2,
     lineHeight: 17,
   },
@@ -2036,20 +2058,20 @@ const s = StyleSheet.create({
   },
   explainerTitle: {
     fontSize: 20,
-    fontFamily: "PlusJakartaSans_700Bold",
+    fontFamily: fonts.bold,
     color: TEXT_1,
     textAlign: "center",
     marginBottom: 16,
   },
   explainerBody: {
     fontSize: 14,
-    fontFamily: "PlusJakartaSans_400Regular",
+    fontFamily: fonts.regular,
     color: TEXT_2,
     lineHeight: 21,
     marginBottom: 12,
   },
   explainerBold: {
-    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontFamily: fonts.semibold,
     color: TEXT_1,
   },
   explainerList: {
@@ -2063,7 +2085,7 @@ const s = StyleSheet.create({
   },
   explainerSubhead: {
     fontSize: 15,
-    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontFamily: fonts.semibold,
     color: TEXT_1,
     marginBottom: 8,
   },
@@ -2077,7 +2099,7 @@ const s = StyleSheet.create({
   },
   customizeFooterText: {
     fontSize: 13,
-    fontFamily: "PlusJakartaSans_500Medium",
+    fontFamily: fonts.medium,
     color: "#64748b",
   },
 });
