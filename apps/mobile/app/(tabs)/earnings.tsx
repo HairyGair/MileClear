@@ -248,7 +248,7 @@ export default function EarningsScreen() {
               </View>
               <Text style={styles.emptyTitle}>No earnings recorded yet</Text>
               <Text style={styles.emptyText}>
-                Tap the button below to add your first earning
+                Tap + at the top right to add your first earning.
               </Text>
             </View>
           ) : null

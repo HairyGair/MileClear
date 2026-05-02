@@ -24,12 +24,12 @@ export async function registerNotificationCategories(): Promise<void> {
     await Notifications.setNotificationCategoryAsync("driving_detected", [
       {
         identifier: "driver",
-        buttonTitle: "Driver",
+        buttonTitle: "Yes, track it",
         options: { opensAppToForeground: false },
       },
       {
         identifier: "passenger",
-        buttonTitle: "Passenger",
+        buttonTitle: "No, I'm a passenger",
         options: { isDestructive: true, opensAppToForeground: false },
       },
     ]);
@@ -66,8 +66,8 @@ export async function requestNotificationPermissions(): Promise<boolean> {
 export async function sendDrivingDetectedNotification(): Promise<void> {
   await Notifications.scheduleNotificationAsync({
     content: {
-      title: "Are you driving?",
-      body: "We detected a journey. Tap Driver to record your mileage, or Passenger to ignore.",
+      title: "Looks like you're driving",
+      body: "Tap Yes to track this trip, or No if you're a passenger.",
       data: { action: "start_shift" },
       categoryIdentifier: "driving_detected",
     },
@@ -96,8 +96,8 @@ export async function showRecordingActiveNotification(): Promise<void> {
     await Notifications.scheduleNotificationAsync({
       identifier: RECORDING_ACTIVE_NOTIFICATION_ID,
       content: {
-        title: "Recording trip",
-        body: "MileClear is tracking your journey. Tap to view or end.",
+        title: "Trip in progress",
+        body: "Tap to view distance, time, and end the trip.",
         data: { action: "open_active_recording" },
         sound: false,
         // iOS 15+: passive interruption level - silent, no haptic, but persists

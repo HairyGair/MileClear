@@ -293,7 +293,7 @@ export default function FuelScreen() {
               </View>
               <Text style={styles.emptyTitle}>No fuel logs yet</Text>
               <Text style={styles.emptyText}>
-                Tap the button below to log your first fill-up
+                Tap + at the top right to log your first fill-up.
               </Text>
             </View>
           ) : null

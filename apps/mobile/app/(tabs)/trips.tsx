@@ -1301,7 +1301,7 @@ export default function TripsScreen() {
               <Text style={styles.emptyText}>
                 {filter === "unclassified"
                   ? "All your trips have been classified"
-                  : "Tap the button below to add your first trip"}
+                  : "Tap + at the top right to add a trip manually."}
               </Text>
             </View>
           ) : null
