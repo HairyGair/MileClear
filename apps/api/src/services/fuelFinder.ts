@@ -12,13 +12,21 @@ const FUEL_FINDER_TOKEN_BASE = "https://www.fuel-finder.service.gov.uk/api";
 const FUEL_FINDER_DATA_BASE = "https://www.developer.fuel-finder.service.gov.uk/api";
 
 const TOKEN_REFRESH_BUFFER_MS = 5 * 60 * 1000; // Refresh 5 min before expiry
-const REQUEST_TIMEOUT_MS = 15_000;
+// Per-batch fetch timeout. Bumped from 15s to 30s after observing legitimate
+// slow responses from the gov.uk endpoint trip the abort signal under load
+// (8,300+ stations across many batches). 15s was too aggressive and was
+// counting timeouts as cooldown-worthy failures.
+const REQUEST_TIMEOUT_MS = 30_000;
 const MAX_BATCHES = 200; // Safety limit to prevent infinite loops
 
-// Cooldown: after consecutive failures, stop hitting the API for a while to
-// avoid triggering the API's 429 "Too many failed attempts" rate limiter.
-const FAILURE_COOLDOWN_MS = 20 * 60 * 1000; // 20 min after repeated failures
-const MAX_CONSECUTIVE_FAILURES = 3;
+// Cooldown: after consecutive AUTH failures, stop hitting the API for a while
+// to avoid triggering the API's 429 "Too many failed attempts" rate limiter.
+// Network/timeout errors do NOT count toward this cooldown — they retry
+// independently of the auth-failure cycle. Without that distinction a
+// transient gov.uk slow response was indistinguishable from a real auth
+// problem and we'd lock ourselves out for 20 min unnecessarily.
+const FAILURE_COOLDOWN_MS = 20 * 60 * 1000; // 20 min after repeated AUTH failures
+const MAX_CONSECUTIVE_AUTH_FAILURES = 3;
 
 // --- Token management ---
 
@@ -29,7 +37,7 @@ interface TokenData {
 }
 
 let cachedToken: TokenData | null = null;
-let consecutiveFailures = 0;
+let consecutiveAuthFailures = 0;
 let cooldownUntil = 0;
 
 export function isFuelFinderConfigured(): boolean {
@@ -243,11 +251,12 @@ export async function fetchFuelFinderStations(): Promise<{
   stations: InternalStation[];
   lastUpdated: string;
 }> {
-  // Cooldown: if we recently failed multiple times, skip entirely so
-  // the fallback (retailer feeds) handles requests without us hammering
-  // the Fuel Finder API into a 429 rate-limit cycle.
+  // Cooldown: if we recently had repeated AUTH failures, skip entirely so the
+  // retailer-feed fallback handles requests without us hammering the gov.uk
+  // API into a 429 rate-limit cycle. Network/timeout errors don't enter this
+  // gate — they retry independently.
   if (Date.now() < cooldownUntil) {
-    throw new Error(`Fuel Finder API in cooldown until ${new Date(cooldownUntil).toISOString()} after ${consecutiveFailures} consecutive failures`);
+    throw new Error(`Fuel Finder API in auth-failure cooldown until ${new Date(cooldownUntil).toISOString()} after ${consecutiveAuthFailures} consecutive auth failures`);
   }
 
   async function attemptFetch(): Promise<{ pfsStations: FuelFinderPfsStation[]; pfsStationPrices: FuelFinderPriceStation[] }> {
@@ -276,26 +285,35 @@ export async function fetchFuelFinderStations(): Promise<{
         pfsStations = result.pfsStations;
         pfsStationPrices = result.pfsStationPrices;
       } catch (retryErr) {
-        // Second attempt also failed - enter cooldown
-        consecutiveFailures++;
-        if (consecutiveFailures >= MAX_CONSECUTIVE_FAILURES) {
-          cooldownUntil = Date.now() + FAILURE_COOLDOWN_MS;
-          console.error(`[fuel-finder] ${consecutiveFailures} consecutive failures, entering ${FAILURE_COOLDOWN_MS / 60000}min cooldown`);
+        // Second attempt also failed. If retry was ALSO an auth failure,
+        // count it toward the cooldown — credentials are likely revoked or
+        // gov.uk is having a real auth-side issue. If retry was a timeout
+        // or network error, the original auth failure was probably one-off
+        // (already cleared by the cache flush above) and we don't penalise.
+        if (retryErr instanceof TokenRevokedError) {
+          consecutiveAuthFailures++;
+          if (consecutiveAuthFailures >= MAX_CONSECUTIVE_AUTH_FAILURES) {
+            cooldownUntil = Date.now() + FAILURE_COOLDOWN_MS;
+            console.error(`[fuel-finder] ${consecutiveAuthFailures} consecutive AUTH failures, entering ${FAILURE_COOLDOWN_MS / 60000}min cooldown`);
+          }
+        } else {
+          // First attempt was auth, retry was network/timeout — log but
+          // don't increment the auth-cooldown counter.
+          console.warn(`[fuel-finder] Auth retry failed with non-auth error: ${(retryErr as Error).message}`);
         }
         throw retryErr;
       }
     } else {
-      consecutiveFailures++;
-      if (consecutiveFailures >= MAX_CONSECUTIVE_FAILURES) {
-        cooldownUntil = Date.now() + FAILURE_COOLDOWN_MS;
-        console.error(`[fuel-finder] ${consecutiveFailures} consecutive failures, entering ${FAILURE_COOLDOWN_MS / 60000}min cooldown`);
-      }
+      // First attempt was a non-auth error (most commonly an AbortError /
+      // timeout). DON'T count it toward the auth-cooldown. Just throw — the
+      // caller will fall back to retailer feeds for THIS request, and the
+      // next request will get a fresh attempt against the API.
       throw err;
     }
   }
 
-  // Success - reset failure tracking
-  consecutiveFailures = 0;
+  // Success - reset auth-failure tracking
+  consecutiveAuthFailures = 0;
   cooldownUntil = 0;
 
   console.log(`[fuel-finder] Raw data: ${pfsStations.length} stations, ${pfsStationPrices.length} price entries`);
