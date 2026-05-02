@@ -1,5 +1,6 @@
 import { prisma } from "../lib/prisma.js";
 import { sendPushNotifications, sendPushToUser, ExpoPushMessage } from "../lib/push.js";
+import { runRecordingWatchdogJob } from "./recordingWatchdog.js";
 import { getPeriodRecap } from "../services/gamification.js";
 import {
   formatMiles,
@@ -804,6 +805,13 @@ export function startNotificationJobs(): void {
 
     void runJob("diagnostic_scan", runDiagnosticScanJob);
     setInterval(() => void runJob("diagnostic_scan", runDiagnosticScanJob), INTERVAL_MS);
+
+    // Recording watchdog runs every 5 min — much higher frequency than other
+    // jobs because stuck-recording detection is time-sensitive (we want the
+    // user's phantom recording drained before they'd notice in the UI).
+    const WATCHDOG_INTERVAL_MS = 5 * 60 * 1000;
+    void runJob("recording_watchdog", runRecordingWatchdogJob);
+    setInterval(() => void runJob("recording_watchdog", runRecordingWatchdogJob), WATCHDOG_INTERVAL_MS);
   }, INITIAL_DELAY_MS);
 
   console.log("[jobs/notifications] Scheduled notification jobs started (first run in 60s)");

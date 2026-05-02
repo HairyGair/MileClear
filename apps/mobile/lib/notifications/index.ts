@@ -224,7 +224,40 @@ async function startTripFromDetection(): Promise<void> {
   }
 }
 
+/**
+ * Silent push handler. Fires when iOS wakes us via a content-available APNS
+ * payload — no user interaction. Used by the server-side recording watchdog
+ * (apps/api/src/jobs/recordingWatchdog.ts) to drain stuck recordings even
+ * when the device's own setInterval watchdog has been suspended by iOS.
+ *
+ * Silent push delivery is best-effort (~80% reliable in deep iOS suspension)
+ * and iOS limits to ~3/hour per app. The watchdog cron handles the rate
+ * limiting and dedup; this handler just routes the data.action to the right
+ * cleanup function and returns quickly.
+ */
+function setupSilentPushHandler(): void {
+  Notifications.addNotificationReceivedListener(async (notification) => {
+    const data = notification.request.content.data as { action?: string } | null;
+    const action = data?.action;
+    if (action !== "finalize_check") return;
+
+    // Server told us a recording looks stuck on the device. Run the same
+    // cleanup the foreground handler runs on app open. If the recording is
+    // genuinely stale, finalizeStaleAutoRecordings finalises it; if it's
+    // healthy (e.g. the user IS still driving), the function no-ops.
+    try {
+      const { finalizeStaleAutoRecordings } = await import("../tracking/detection");
+      await finalizeStaleAutoRecordings();
+    } catch (err) {
+      console.warn("[notifications] silent finalize_check failed:", err);
+    }
+  });
+}
+
 export function setupNotificationResponseHandler(): void {
+  // Silent push handler runs alongside the user-tap handler.
+  setupSilentPushHandler();
+
   Notifications.addNotificationResponseReceivedListener(async (response) => {
     const data = response.notification.request.content.data;
     const action = data?.action as string | undefined;

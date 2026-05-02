@@ -11,6 +11,12 @@ export interface ExpoPushMessage {
   badge?: number;
   channelId?: string;
   priority?: "default" | "normal" | "high";
+  /** iOS silent push. Triggers content-available=1 in APNS, which wakes the
+   *  JS runtime briefly even when the app is fully suspended. Used by the
+   *  recording-watchdog to drain stuck recordings without showing the user
+   *  a notification. Pair with no title/body/sound. iOS limits to ~3/hour
+   *  per app. */
+  _contentAvailable?: boolean;
 }
 
 export interface ExpoPushTicket {
