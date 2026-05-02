@@ -29,6 +29,8 @@ import { learnFromClassification } from "../../lib/classification";
 import { maybeRequestReview } from "../../lib/rating/index";
 import { GIG_PLATFORMS, getTaxYear, parseTaxYear } from "@mileclear/shared";
 import type { TripClassification, PlatformTag, BusinessPurpose } from "@mileclear/shared";
+import { Skeleton } from "../../components/Skeleton";
+import { colors, fonts, radii, spacing } from "../../lib/theme";
 
 if (Platform.OS === "android" && UIManager.setLayoutAnimationEnabledExperimental) {
   UIManager.setLayoutAnimationEnabledExperimental(true);
@@ -716,14 +718,14 @@ export default function TripsScreen() {
               style={[styles.selectCircle, isSelected && styles.selectCircleActive]}
               accessible={false}
             >
-              {isSelected && <Ionicons name="checkmark" size={14} color="#030712" accessible={false} />}
+              {isSelected && <Ionicons name="checkmark" size={14} color={BG} accessible={false} />}
             </View>
           )}
           <Text style={[styles.tripDate, mergeMode && { flex: 1 }]}>{formatDate(item.startedAt)}</Text>
           <View style={styles.tripHeaderRight}>
             {isUnclassified ? (
               <View style={styles.unclassifiedBadge}>
-                <Ionicons name="help-circle" size={12} color="#f5a623" accessible={false} />
+                <Ionicons name="help-circle" size={12} color={AMBER} accessible={false} />
                 <Text style={styles.unclassifiedBadgeText}>Needs classifying</Text>
               </View>
             ) : (
@@ -748,7 +750,7 @@ export default function TripsScreen() {
                 accessibilityRole="button"
                 accessibilityLabel="Delete trip"
               >
-                <Ionicons name="trash-outline" size={16} color="#64748b" accessible={false} />
+                <Ionicons name="trash-outline" size={16} color={TEXT_3} accessible={false} />
               </TouchableOpacity>
             )}
           </View>
@@ -806,7 +808,7 @@ export default function TripsScreen() {
           <View style={styles.quickClassifyWrap}>
             {tripSuggestion && (
               <View style={styles.inlineSuggestion}>
-                <Ionicons name="sparkles" size={12} color="#f5a623" />
+                <Ionicons name="sparkles" size={12} color={AMBER} />
                 <Text style={styles.inlineSuggestionText}>
                   Looks like {tripSuggestion.classification} ({tripSuggestion.matchCount} previous trip{tripSuggestion.matchCount !== 1 ? "s" : ""} here)
                 </Text>
@@ -830,13 +832,13 @@ export default function TripsScreen() {
                 accessibilityState={{ disabled: isClassifying }}
               >
                 {isClassifying ? (
-                  <ActivityIndicator size="small" color="#030712" accessibilityLabel="Classifying" />
+                  <ActivityIndicator size="small" color={BG} accessibilityLabel="Classifying" />
                 ) : (
                   <>
                     {tripSuggestion?.classification === "business" && (
-                      <Ionicons name="sparkles" size={12} color="#030712" accessible={false} />
+                      <Ionicons name="sparkles" size={12} color={BG} accessible={false} />
                     )}
-                    <Ionicons name="briefcase" size={14} color="#030712" accessible={false} />
+                    <Ionicons name="briefcase" size={14} color={BG} accessible={false} />
                     <Text style={styles.quickClassifyBtnTextDark}>Business</Text>
                   </>
                 )}
@@ -859,13 +861,13 @@ export default function TripsScreen() {
                 accessibilityState={{ disabled: isClassifying }}
               >
                 {isClassifying ? (
-                  <ActivityIndicator size="small" color="#d1d5db" accessibilityLabel="Classifying" />
+                  <ActivityIndicator size="small" color={TEXT_2} accessibilityLabel="Classifying" />
                 ) : (
                   <>
                     {tripSuggestion?.classification === "personal" && (
-                      <Ionicons name="sparkles" size={12} color="#030712" accessible={false} />
+                      <Ionicons name="sparkles" size={12} color={BG} accessible={false} />
                     )}
-                    <Ionicons name="car" size={14} color={tripSuggestion?.classification === "personal" ? "#030712" : "#d1d5db"} accessible={false} />
+                    <Ionicons name="car" size={14} color={tripSuggestion?.classification === "personal" ? BG : TEXT_2} accessible={false} />
                     <Text style={tripSuggestion?.classification === "personal" ? styles.quickClassifyBtnTextDark : styles.quickClassifyBtnTextLight}>Personal</Text>
                   </>
                 )}
@@ -907,7 +909,7 @@ export default function TripsScreen() {
         >
           <View style={styles.routeGroupHeaderTop}>
             <View style={styles.routeGroupInfo}>
-              <Ionicons name="git-branch-outline" size={14} color="#f5a623" accessible={false} />
+              <Ionicons name="git-branch-outline" size={14} color={AMBER} accessible={false} />
               <Text style={styles.routeGroupLabel} numberOfLines={1}>
                 {group.routeLabel}
               </Text>
@@ -915,7 +917,7 @@ export default function TripsScreen() {
             <Ionicons
               name={isExpanded ? "chevron-up" : "chevron-down"}
               size={16}
-              color="#6b7280"
+              color={TEXT_3}
               accessible={false}
             />
           </View>
@@ -955,10 +957,10 @@ export default function TripsScreen() {
               accessibilityState={{ disabled: isBatchClassifying, busy: isBatchClassifying }}
             >
               {isBatchClassifying ? (
-                <ActivityIndicator size="small" color="#030712" accessibilityLabel="Classifying" />
+                <ActivityIndicator size="small" color={BG} accessibilityLabel="Classifying" />
               ) : (
                 <>
-                  <Ionicons name="briefcase" size={14} color="#030712" accessible={false} />
+                  <Ionicons name="briefcase" size={14} color={BG} accessible={false} />
                   <Text style={styles.routeGroupBtnTextDark}>
                     {isSingleton ? "Business" : `Business (${group.trips.length})`}
                   </Text>
@@ -979,10 +981,10 @@ export default function TripsScreen() {
               accessibilityState={{ disabled: isBatchClassifying, busy: isBatchClassifying }}
             >
               {isBatchClassifying ? (
-                <ActivityIndicator size="small" color="#d1d5db" accessibilityLabel="Classifying" />
+                <ActivityIndicator size="small" color={TEXT_2} accessibilityLabel="Classifying" />
               ) : (
                 <>
-                  <Ionicons name="car" size={14} color="#d1d5db" accessible={false} />
+                  <Ionicons name="car" size={14} color={TEXT_2} accessible={false} />
                   <Text style={styles.routeGroupBtnTextLight}>
                     {isSingleton ? "Personal" : `Personal (${group.trips.length})`}
                   </Text>
@@ -1019,7 +1021,7 @@ export default function TripsScreen() {
           <RefreshControl
             refreshing={refreshing}
             onRefresh={onRefresh}
-            tintColor="#f5a623"
+            tintColor={AMBER}
           />
         }
         contentContainerStyle={styles.listContent}
@@ -1044,7 +1046,7 @@ export default function TripsScreen() {
               >
                 <View style={styles.inboxBannerLeft}>
                   <View style={styles.inboxBannerIcon}>
-                    <Ionicons name="file-tray" size={18} color="#f5a623" accessible={false} />
+                    <Ionicons name="file-tray" size={18} color={AMBER} accessible={false} />
                   </View>
                   <View>
                     <Text style={styles.inboxBannerTitle}>
@@ -1055,7 +1057,7 @@ export default function TripsScreen() {
                     </Text>
                   </View>
                 </View>
-                <Ionicons name="chevron-forward" size={18} color="#6b7280" accessible={false} />
+                <Ionicons name="chevron-forward" size={18} color={TEXT_3} accessible={false} />
               </TouchableOpacity>
             )}
 
@@ -1265,7 +1267,7 @@ export default function TripsScreen() {
                     accessibilityState={{ disabled: selectedIds.size < 2 }}
                     accessibilityHint={selectedIds.size < 2 ? "Select at least 2 trips to merge" : undefined}
                   >
-                    <Ionicons name="git-merge-outline" size={14} color={selectedIds.size >= 2 ? "#030712" : "#6b7280"} />
+                    <Ionicons name="git-merge-outline" size={14} color={selectedIds.size >= 2 ? BG : TEXT_3} />
                     <Text style={[
                       styles.mergeBannerBtnText,
                       selectedIds.size < 2 && styles.mergeBannerBtnTextDisabled,
@@ -1289,7 +1291,7 @@ export default function TripsScreen() {
                 <Ionicons
                   name={filter === "unclassified" ? "checkmark-circle-outline" : "car-outline"}
                   size={40}
-                  color="#64748b"
+                  color={TEXT_3}
                   accessible={false}
                 />
               </View>
@@ -1310,7 +1312,7 @@ export default function TripsScreen() {
           <View style={styles.footer}>
             {loadingMore && (
               <ActivityIndicator
-                color="#f5a623"
+                color={AMBER}
                 style={{ marginBottom: 12 }}
               />
             )}
@@ -1323,8 +1325,16 @@ export default function TripsScreen() {
         }
       />
       {loading && !refreshing && (
-        <View style={styles.loadingOverlay}>
-          <ActivityIndicator size="large" color="#f5a623" accessibilityLabel="Loading trips" />
+        // Skeleton-first loading overlay: instead of a centred amber spinner,
+        // show ghost trip rows that mimic the actual list shape. Reduces the
+        // perceived wait on cold opens — the user sees layout immediately
+        // and waits less time staring at a blank screen.
+        <View style={styles.loadingOverlay} pointerEvents="none">
+          <View style={styles.loadingSkeletonStack}>
+            {[0, 1, 2, 3].map((i) => (
+              <Skeleton key={i} height={84} radius={radii.md} />
+            ))}
+          </View>
         </View>
       )}
 
@@ -1354,7 +1364,7 @@ export default function TripsScreen() {
                 return (
                   <View style={styles.mergePreview}>
                     <View style={styles.mergePreviewRow}>
-                      <Ionicons name="location" size={14} color="#10b981" />
+                      <Ionicons name="location" size={14} color={GREEN} />
                       <Text style={styles.mergePreviewText} numberOfLines={1}>
                         {first.startAddress || `${first.startLat.toFixed(4)}, ${first.startLng.toFixed(4)}`}
                       </Text>
@@ -1365,7 +1375,7 @@ export default function TripsScreen() {
                       <View style={styles.mergePreviewDot} />
                     </View>
                     <View style={styles.mergePreviewRow}>
-                      <Ionicons name="flag" size={14} color="#ef4444" />
+                      <Ionicons name="flag" size={14} color={RED} />
                       <Text style={styles.mergePreviewText} numberOfLines={1}>
                         {last.endAddress || last.startAddress || "End point"}
                       </Text>
@@ -1398,7 +1408,7 @@ export default function TripsScreen() {
                     <Ionicons
                       name={cls === "business" ? "briefcase" : "car"}
                       size={16}
-                      color={mergeClassification === cls ? "#030712" : "#9ca3af"}
+                      color={mergeClassification === cls ? BG : TEXT_2}
                     />
                     <Text style={[
                       styles.mergeClassBtnText,
@@ -1453,10 +1463,10 @@ export default function TripsScreen() {
                 accessibilityState={{ disabled: mergeLoading, busy: mergeLoading }}
               >
                 {mergeLoading ? (
-                  <ActivityIndicator size="small" color="#030712" accessibilityLabel="Merging trips" />
+                  <ActivityIndicator size="small" color={BG} accessibilityLabel="Merging trips" />
                 ) : (
                   <>
-                    <Ionicons name="git-merge-outline" size={18} color="#030712" />
+                    <Ionicons name="git-merge-outline" size={18} color={BG} />
                     <Text style={styles.mergeConfirmText}>
                       Merge into 1 Trip
                     </Text>
@@ -1533,10 +1543,26 @@ export default function TripsScreen() {
   );
 }
 
+// ── Style constants ────────────────────────────────────────────────
+//
+// Local aliases for theme tokens. Defined here so the find/replace pass
+// across the styles block is one-line per replacement instead of touching
+// hundreds of style declarations. Same naming pattern dashboard.tsx uses.
+
+const BG = colors.bg;
+const CARD_BG = colors.surface;
+const CARD_BORDER = colors.surfaceBorder;
+const AMBER = colors.amber;
+const TEXT_1 = colors.text1;
+const TEXT_2 = colors.text2;
+const TEXT_3 = colors.text3;
+const GREEN = colors.green;
+const RED = colors.red;
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#030712",
+    backgroundColor: BG,
   },
   listContent: {
     padding: 16,
@@ -1569,13 +1595,13 @@ const styles = StyleSheet.create({
   },
   inboxBannerTitle: {
     fontSize: 15,
-    fontFamily: "PlusJakartaSans_600SemiBold",
-    color: "#f5a623",
+    fontFamily: fonts.semibold,
+    color: AMBER,
   },
   inboxBannerSubtitle: {
     fontSize: 12,
-    fontFamily: "PlusJakartaSans_400Regular",
-    color: "#8494a7",
+    fontFamily: fonts.regular,
+    color: TEXT_2,
     marginTop: 1,
   },
   // Filter chips
@@ -1588,7 +1614,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 20,
-    backgroundColor: "#0a1120",
+    backgroundColor: CARD_BG,
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.06)",
     flexDirection: "row",
@@ -1596,17 +1622,17 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   filterChipActive: {
-    backgroundColor: "#f5a623",
-    borderColor: "#f5a623",
+    backgroundColor: AMBER,
+    borderColor: AMBER,
   },
   filterChipText: {
     fontSize: 13,
-    fontFamily: "PlusJakartaSans_600SemiBold",
-    color: "#9ca3af",
+    fontFamily: fonts.semibold,
+    color: TEXT_2,
   },
   filterChipTextActive: {
-    fontFamily: "PlusJakartaSans_600SemiBold",
-    color: "#030712",
+    fontFamily: fonts.semibold,
+    color: BG,
   },
   // Date-range chip row (smaller / more secondary than classification pills)
   dateRangeRow: {
@@ -1619,7 +1645,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 16,
-    backgroundColor: "#0a1120",
+    backgroundColor: CARD_BG,
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.06)",
   },
@@ -1629,16 +1655,16 @@ const styles = StyleSheet.create({
   },
   dateRangeChipText: {
     fontSize: 12,
-    fontFamily: "PlusJakartaSans_500Medium",
-    color: "#9ca3af",
+    fontFamily: fonts.medium,
+    color: TEXT_2,
   },
   dateRangeChipTextActive: {
-    color: "#f5a623",
-    fontFamily: "PlusJakartaSans_600SemiBold",
+    color: AMBER,
+    fontFamily: fonts.semibold,
   },
   // Stats summary card shown above the trip list when a date range is active
   rangeStatsCard: {
-    backgroundColor: "#0a1120",
+    backgroundColor: CARD_BG,
     borderRadius: 12,
     padding: 14,
     marginBottom: 12,
@@ -1647,8 +1673,8 @@ const styles = StyleSheet.create({
   },
   rangeStatsLabel: {
     fontSize: 11,
-    fontFamily: "PlusJakartaSans_700Bold",
-    color: "#f5a623",
+    fontFamily: fonts.bold,
+    color: AMBER,
     letterSpacing: 1,
     marginBottom: 10,
   },
@@ -1664,17 +1690,17 @@ const styles = StyleSheet.create({
   },
   rangeStatValue: {
     fontSize: 18,
-    fontFamily: "PlusJakartaSans_700Bold",
-    color: "#f0f2f5",
+    fontFamily: fonts.bold,
+    color: TEXT_1,
     letterSpacing: -0.4,
   },
   rangeStatBusiness: {
-    color: "#10b981",
+    color: GREEN,
   },
   rangeStatUnit: {
     fontSize: 10,
-    fontFamily: "PlusJakartaSans_400Regular",
-    color: "#64748b",
+    fontFamily: fonts.regular,
+    color: TEXT_3,
     letterSpacing: 0.2,
   },
   rangeStatDivider: {
@@ -1684,13 +1710,13 @@ const styles = StyleSheet.create({
   },
   customRangeHint: {
     fontSize: 12,
-    fontFamily: "PlusJakartaSans_400Regular",
-    color: "#94a3b8",
+    fontFamily: fonts.regular,
+    color: TEXT_2,
     lineHeight: 17,
     marginBottom: 16,
   },
   filterBadge: {
-    backgroundColor: "#f5a623",
+    backgroundColor: AMBER,
     borderRadius: 10,
     minWidth: 20,
     height: 20,
@@ -1700,12 +1726,12 @@ const styles = StyleSheet.create({
   },
   filterBadgeText: {
     fontSize: 11,
-    fontFamily: "PlusJakartaSans_700Bold",
-    color: "#030712",
+    fontFamily: fonts.bold,
+    color: BG,
   },
   // Trip cards
   tripCard: {
-    backgroundColor: "#0a1120",
+    backgroundColor: CARD_BG,
     borderRadius: 12,
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.06)",
@@ -1728,23 +1754,23 @@ const styles = StyleSheet.create({
   },
   tripDate: {
     fontSize: 15,
-    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontFamily: fonts.semibold,
     color: "#fff",
   },
   classificationBadge: {
     fontSize: 11,
-    fontFamily: "PlusJakartaSans_700Bold",
+    fontFamily: fonts.bold,
     paddingHorizontal: 8,
     paddingVertical: 2,
     borderRadius: 4,
     overflow: "hidden",
   },
   businessBadge: {
-    color: "#030712",
-    backgroundColor: "#f5a623",
+    color: BG,
+    backgroundColor: AMBER,
   },
   personalBadge: {
-    color: "#d1d5db",
+    color: TEXT_2,
     backgroundColor: "#374151",
   },
   unclassifiedBadge: {
@@ -1758,8 +1784,8 @@ const styles = StyleSheet.create({
   },
   unclassifiedBadgeText: {
     fontSize: 11,
-    fontFamily: "PlusJakartaSans_600SemiBold",
-    color: "#f5a623",
+    fontFamily: fonts.semibold,
+    color: AMBER,
   },
   tripDetails: {
     flexDirection: "row",
@@ -1769,13 +1795,13 @@ const styles = StyleSheet.create({
   },
   distanceText: {
     fontSize: 20,
-    fontFamily: "PlusJakartaSans_700Bold",
+    fontFamily: fonts.bold,
     color: "#fff",
   },
   timeText: {
     fontSize: 13,
-    fontFamily: "PlusJakartaSans_400Regular",
-    color: "#9ca3af",
+    fontFamily: fonts.regular,
+    color: TEXT_2,
   },
   addressRow: {
     flexDirection: "row",
@@ -1784,14 +1810,14 @@ const styles = StyleSheet.create({
   },
   addressText: {
     fontSize: 13,
-    fontFamily: "PlusJakartaSans_400Regular",
-    color: "#9ca3af",
+    fontFamily: fonts.regular,
+    color: TEXT_2,
     flexShrink: 1,
   },
   arrowText: {
     fontSize: 13,
-    fontFamily: "PlusJakartaSans_400Regular",
-    color: "#6b7280",
+    fontFamily: fonts.regular,
+    color: TEXT_3,
   },
   tripMeta: {
     flexDirection: "row",
@@ -1800,8 +1826,8 @@ const styles = StyleSheet.create({
   },
   platformBadge: {
     fontSize: 11,
-    fontFamily: "PlusJakartaSans_400Regular",
-    color: "#d1d5db",
+    fontFamily: fonts.regular,
+    color: TEXT_2,
     backgroundColor: "rgba(255,255,255,0.08)",
     paddingHorizontal: 8,
     paddingVertical: 2,
@@ -1810,13 +1836,13 @@ const styles = StyleSheet.create({
   },
   metaText: {
     fontSize: 12,
-    fontFamily: "PlusJakartaSans_400Regular",
-    color: "#6b7280",
+    fontFamily: fonts.regular,
+    color: TEXT_3,
   },
   manualBadge: {
     fontSize: 11,
-    fontFamily: "PlusJakartaSans_400Regular",
-    color: "#9ca3af",
+    fontFamily: fonts.regular,
+    color: TEXT_2,
     backgroundColor: "rgba(255,255,255,0.08)",
     paddingHorizontal: 6,
     paddingVertical: 2,
@@ -1825,9 +1851,9 @@ const styles = StyleSheet.create({
   },
   syncBadge: {
     fontSize: 11,
-    fontFamily: "PlusJakartaSans_600SemiBold",
-    color: "#030712",
-    backgroundColor: "#f5a623",
+    fontFamily: fonts.semibold,
+    color: BG,
+    backgroundColor: AMBER,
     paddingHorizontal: 8,
     paddingVertical: 2,
     borderRadius: 4,
@@ -1854,7 +1880,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
   },
   quickClassifyBusiness: {
-    backgroundColor: "#f5a623",
+    backgroundColor: AMBER,
   },
   quickClassifyPersonal: {
     backgroundColor: "#374151",
@@ -1864,7 +1890,7 @@ const styles = StyleSheet.create({
     borderColor: "#ca8a04",
   },
   quickClassifyPersonalSuggested: {
-    backgroundColor: "#f5a623",
+    backgroundColor: AMBER,
   },
   inlineSuggestion: {
     flexDirection: "row",
@@ -1874,18 +1900,18 @@ const styles = StyleSheet.create({
   },
   inlineSuggestionText: {
     fontSize: 12,
-    fontFamily: "PlusJakartaSans_500Medium",
+    fontFamily: fonts.medium,
     color: "#d4a053",
   },
   quickClassifyBtnTextDark: {
     fontSize: 14,
-    fontFamily: "PlusJakartaSans_600SemiBold",
-    color: "#030712",
+    fontFamily: fonts.semibold,
+    color: BG,
   },
   quickClassifyBtnTextLight: {
     fontSize: 14,
-    fontFamily: "PlusJakartaSans_600SemiBold",
-    color: "#d1d5db",
+    fontFamily: fonts.semibold,
+    color: TEXT_2,
   },
   offlineBanner: {
     backgroundColor: "#92400e",
@@ -1896,7 +1922,7 @@ const styles = StyleSheet.create({
   },
   offlineBannerText: {
     fontSize: 13,
-    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontFamily: fonts.semibold,
     color: "#fef3c7",
   },
   // Empty state
@@ -1908,7 +1934,7 @@ const styles = StyleSheet.create({
     width: 72,
     height: 72,
     borderRadius: 36,
-    backgroundColor: "#0a1120",
+    backgroundColor: CARD_BG,
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.06)",
     justifyContent: "center",
@@ -1917,14 +1943,14 @@ const styles = StyleSheet.create({
   },
   emptyTitle: {
     fontSize: 17,
-    fontFamily: "PlusJakartaSans_600SemiBold",
-    color: "#9ca3af",
+    fontFamily: fonts.semibold,
+    color: TEXT_2,
     marginBottom: 4,
   },
   emptyText: {
     fontSize: 14,
-    fontFamily: "PlusJakartaSans_400Regular",
-    color: "#6b7280",
+    fontFamily: fonts.regular,
+    color: TEXT_3,
     textAlign: "center",
   },
   // Footer
@@ -1935,9 +1961,12 @@ const styles = StyleSheet.create({
   // Loading overlay
   loadingOverlay: {
     ...StyleSheet.absoluteFillObject,
-    justifyContent: "center",
-    alignItems: "center",
-    backgroundColor: "rgba(3, 7, 18, 0.7)",
+    backgroundColor: BG,
+    paddingTop: 200,
+    paddingHorizontal: spacing.lg,
+  },
+  loadingSkeletonStack: {
+    gap: spacing.md,
   },
   // Select mode
   tripCardSelected: {
@@ -1977,7 +2006,7 @@ const styles = StyleSheet.create({
   },
   mergeBannerText: {
     fontSize: 14,
-    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontFamily: fonts.semibold,
     color: "#93c5fd",
   },
   mergeBannerActions: {
@@ -1991,8 +2020,8 @@ const styles = StyleSheet.create({
   },
   mergeBannerCancelText: {
     fontSize: 13,
-    fontFamily: "PlusJakartaSans_500Medium",
-    color: "#9ca3af",
+    fontFamily: fonts.medium,
+    color: TEXT_2,
   },
   mergeBannerBtn: {
     flexDirection: "row",
@@ -2008,11 +2037,11 @@ const styles = StyleSheet.create({
   },
   mergeBannerBtnText: {
     fontSize: 13,
-    fontFamily: "PlusJakartaSans_700Bold",
-    color: "#030712",
+    fontFamily: fonts.bold,
+    color: BG,
   },
   mergeBannerBtnTextDisabled: {
-    color: "#6b7280",
+    color: TEXT_3,
   },
   // Merge modal
   mergeBackdrop: {
@@ -2021,7 +2050,7 @@ const styles = StyleSheet.create({
     justifyContent: "flex-end",
   },
   mergeSheet: {
-    backgroundColor: "#0a1120",
+    backgroundColor: CARD_BG,
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     paddingTop: 8,
@@ -2041,8 +2070,8 @@ const styles = StyleSheet.create({
   },
   mergeTitle: {
     fontSize: 20,
-    fontFamily: "PlusJakartaSans_700Bold",
-    color: "#f0f2f5",
+    fontFamily: fonts.bold,
+    color: TEXT_1,
     marginBottom: 16,
   },
   mergePreview: {
@@ -2060,8 +2089,8 @@ const styles = StyleSheet.create({
   },
   mergePreviewText: {
     fontSize: 14,
-    fontFamily: "PlusJakartaSans_500Medium",
-    color: "#d1d5db",
+    fontFamily: fonts.medium,
+    color: TEXT_2,
     flex: 1,
   },
   mergePreviewDots: {
@@ -2075,7 +2104,7 @@ const styles = StyleSheet.create({
     width: 3,
     height: 3,
     borderRadius: 1.5,
-    backgroundColor: "#4b5563",
+    backgroundColor: TEXT_3,
   },
   mergePreviewStats: {
     flexDirection: "row",
@@ -2087,13 +2116,13 @@ const styles = StyleSheet.create({
   },
   mergePreviewStat: {
     fontSize: 13,
-    fontFamily: "PlusJakartaSans_600SemiBold",
-    color: "#8494a7",
+    fontFamily: fonts.semibold,
+    color: TEXT_2,
   },
   mergeLabel: {
     fontSize: 13,
-    fontFamily: "PlusJakartaSans_600SemiBold",
-    color: "#8494a7",
+    fontFamily: fonts.semibold,
+    color: TEXT_2,
     marginBottom: 8,
     textTransform: "uppercase",
     letterSpacing: 0.5,
@@ -2111,13 +2140,13 @@ const styles = StyleSheet.create({
     gap: 8,
     paddingVertical: 12,
     borderRadius: 10,
-    backgroundColor: "#0a1120",
+    backgroundColor: CARD_BG,
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.06)",
   },
   mergeClassBtnBusiness: {
-    backgroundColor: "#f5a623",
-    borderColor: "#f5a623",
+    backgroundColor: AMBER,
+    borderColor: AMBER,
   },
   mergeClassBtnPersonal: {
     backgroundColor: "#60a5fa",
@@ -2125,11 +2154,11 @@ const styles = StyleSheet.create({
   },
   mergeClassBtnText: {
     fontSize: 15,
-    fontFamily: "PlusJakartaSans_600SemiBold",
-    color: "#9ca3af",
+    fontFamily: fonts.semibold,
+    color: TEXT_2,
   },
   mergeClassBtnTextActive: {
-    color: "#030712",
+    color: BG,
   },
   mergePlatformScroll: {
     marginBottom: 20,
@@ -2138,7 +2167,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 7,
     borderRadius: 20,
-    backgroundColor: "#0a1120",
+    backgroundColor: CARD_BG,
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.06)",
     marginRight: 8,
@@ -2149,12 +2178,12 @@ const styles = StyleSheet.create({
   },
   mergePlatformText: {
     fontSize: 13,
-    fontFamily: "PlusJakartaSans_500Medium",
-    color: "#9ca3af",
+    fontFamily: fonts.medium,
+    color: TEXT_2,
   },
   mergePlatformTextActive: {
-    color: "#f5a623",
-    fontFamily: "PlusJakartaSans_600SemiBold",
+    color: AMBER,
+    fontFamily: fonts.semibold,
   },
   mergeConfirmBtn: {
     flexDirection: "row",
@@ -2167,8 +2196,8 @@ const styles = StyleSheet.create({
   },
   mergeConfirmText: {
     fontSize: 16,
-    fontFamily: "PlusJakartaSans_700Bold",
-    color: "#030712",
+    fontFamily: fonts.bold,
+    color: BG,
   },
   // Route group (inbox grouped view)
   routeGroup: {
@@ -2196,14 +2225,14 @@ const styles = StyleSheet.create({
   },
   routeGroupLabel: {
     fontSize: 14,
-    fontFamily: "PlusJakartaSans_600SemiBold",
-    color: "#f0f2f5",
+    fontFamily: fonts.semibold,
+    color: TEXT_1,
     flex: 1,
   },
   routeGroupDate: {
     fontSize: 12,
-    fontFamily: "PlusJakartaSans_400Regular",
-    color: "#8494a7",
+    fontFamily: fonts.regular,
+    color: TEXT_2,
     marginTop: 4,
     marginLeft: 22,
   },
@@ -2220,8 +2249,8 @@ const styles = StyleSheet.create({
   },
   routeGroupMetaText: {
     fontSize: 12,
-    fontFamily: "PlusJakartaSans_500Medium",
-    color: "#8494a7",
+    fontFamily: fonts.medium,
+    color: TEXT_2,
   },
   routeGroupActions: {
     flexDirection: "row",
@@ -2237,20 +2266,20 @@ const styles = StyleSheet.create({
     borderRadius: 8,
   },
   routeGroupBtnBusiness: {
-    backgroundColor: "#f5a623",
+    backgroundColor: AMBER,
   },
   routeGroupBtnPersonal: {
     backgroundColor: "#374151",
   },
   routeGroupBtnTextDark: {
     fontSize: 13,
-    fontFamily: "PlusJakartaSans_600SemiBold",
-    color: "#030712",
+    fontFamily: fonts.semibold,
+    color: BG,
   },
   routeGroupBtnTextLight: {
     fontSize: 13,
-    fontFamily: "PlusJakartaSans_600SemiBold",
-    color: "#d1d5db",
+    fontFamily: fonts.semibold,
+    color: TEXT_2,
   },
   routeGroupTrips: {
     marginTop: 4,
