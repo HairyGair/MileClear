@@ -57,16 +57,6 @@ function RadiusSlider({
 }) {
   const percent = (value - MIN_RADIUS) / (MAX_RADIUS - MIN_RADIUS);
 
-  const handlePress = useCallback(
-    (e: { nativeEvent: { locationX: number } }, width: number) => {
-      const x = Math.max(0, Math.min(e.nativeEvent.locationX, width));
-      const ratio = x / width;
-      const snapped = Math.round((MIN_RADIUS + ratio * (MAX_RADIUS - MIN_RADIUS)) / 50) * 50;
-      onChange(Math.max(MIN_RADIUS, Math.min(MAX_RADIUS, snapped)));
-    },
-    [onChange]
-  );
-
   const steps = [50, 100, 150, 200, 250, 300, 350, 400, 450, 500];
 
   return (

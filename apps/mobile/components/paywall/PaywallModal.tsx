@@ -21,7 +21,6 @@ import {
   purchaseSubscription,
   getSubscriptionProducts,
   restorePurchases,
-  type SubscriptionProduct,
 } from "../../lib/iap/index";
 import { validateApplePurchase } from "../../lib/api/billing";
 import { useUser } from "../../lib/user/context";
@@ -46,7 +45,7 @@ interface PaywallModalProps {
   source?: string;
 }
 
-export function PaywallModal({ visible, onClose, source }: PaywallModalProps) {
+export function PaywallModal({ visible, onClose, source: _source }: PaywallModalProps) {
   const scrollRef = useRef<ScrollView>(null);
   const { user, refreshUser } = useUser();
   const [page, setPage] = useState(0);

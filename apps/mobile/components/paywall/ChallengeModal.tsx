@@ -10,7 +10,6 @@ import { Ionicons } from "@expo/vector-icons";
 import { getDatabase } from "../../lib/db/index";
 import { Button } from "../Button";
 
-const BG = "#030712";
 const CARD_BG = "#0a1120";
 const AMBER = "#f5a623";
 const TEXT_1 = "#f0f2f5";

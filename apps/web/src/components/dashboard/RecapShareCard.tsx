@@ -23,19 +23,6 @@ function formatMilesReadable(miles: number): string {
   return Math.round(miles).toLocaleString("en-GB");
 }
 
-const MONTH_NAMES = [
-  "January", "February", "March", "April", "May", "June",
-  "July", "August", "September", "October", "November", "December",
-];
-
-function prevMonthName(current: string): string {
-  const idx = MONTH_NAMES.findIndex(
-    (m) => m.toLowerCase() === current.toLowerCase(),
-  );
-  if (idx === -1) return "last month";
-  return MONTH_NAMES[(idx + 11) % 12];
-}
-
 export function RecapShareModal({
   open,
   onClose,

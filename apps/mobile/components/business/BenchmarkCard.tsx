@@ -18,7 +18,6 @@ import type {
 const CARD_BG = "#0a1120";
 const CARD_BORDER = "rgba(255,255,255,0.05)";
 const AMBER = "#f5a623";
-const AMBER_FAINT = "rgba(245,166,35,0.10)";
 const GREEN = "#10b981";
 const TEXT_1 = "#f0f2f5";
 const TEXT_2 = "#8494a7";

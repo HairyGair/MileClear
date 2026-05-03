@@ -57,10 +57,6 @@ vi.mock("../../services/email.js", () => ({
 import { authRoutes } from "../../routes/auth/index.js";
 import { prisma } from "../../lib/prisma.js";
 
-// Typed mock helpers
-const mockUser = prisma.user as ReturnType<typeof vi.fn> & typeof prisma.user;
-const mockRefreshToken = prisma.refreshToken as ReturnType<typeof vi.fn> & typeof prisma.refreshToken;
-
 // ---------------------------------------------------------------------------
 // Shared test data
 // ---------------------------------------------------------------------------

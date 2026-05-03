@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { View, Text, StyleSheet, Platform, Pressable, ActivityIndicator } from "react-native";
+import { View, Text, StyleSheet, Platform, Pressable } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { fetchBusinessInsights, fetchWeeklyPnL } from "../../lib/api/businessInsights";
 import { formatPence } from "@mileclear/shared";

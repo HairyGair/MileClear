@@ -14,9 +14,6 @@ import * as WebBrowser from "expo-web-browser";
 import { getTaxYear } from "@mileclear/shared";
 import { downloadAndShareExport } from "../lib/api/exports";
 import { fetchProfile } from "../lib/api/user";
-import { createCheckoutSession } from "../lib/api/billing";
-import { isIapAvailable, purchaseSubscription } from "../lib/iap/index";
-import { useUser } from "../lib/user/context";
 import { usePaywall } from "../components/paywall";
 
 function generateTaxYears(count: number): string[] {
@@ -32,7 +29,6 @@ type LoadingKey = "csv" | "pdf" | "self-assessment" | null;
 
 export default function ExportsScreen() {
   const { showPaywall } = usePaywall();
-  const { user } = useUser();
   const taxYears = generateTaxYears(4);
   const [selectedYear, setSelectedYear] = useState(taxYears[0]);
   const [loadingKey, setLoadingKey] = useState<LoadingKey>(null);
@@ -45,31 +41,6 @@ export default function ExportsScreen() {
         .catch(() => setIsPremium(false));
     }, [])
   );
-
-  const handleUpgrade = useCallback(async () => {
-    try {
-      if (isIapAvailable()) {
-        await purchaseSubscription("monthly", user?.id);
-      } else {
-        const res = await createCheckoutSession();
-        if (res.data.url) {
-          const url = new URL(res.data.url);
-          if (!url.hostname.endsWith("stripe.com")) {
-            throw new Error("Invalid checkout URL");
-          }
-          await WebBrowser.openBrowserAsync(res.data.url);
-          fetchProfile()
-            .then((r) => setIsPremium(r.data.isPremium))
-            .catch(() => {});
-        }
-      }
-    } catch (err: unknown) {
-      Alert.alert(
-        "Upgrade failed",
-        err instanceof Error ? err.message : "Could not start checkout"
-      );
-    }
-  }, [user?.id]);
 
   const pickTaxYear = useCallback(() => {
     Alert.alert(

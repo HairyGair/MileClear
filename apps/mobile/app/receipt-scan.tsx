@@ -9,7 +9,6 @@ import {
   ActivityIndicator,
   StyleSheet,
   Alert,
-  Platform,
 } from "react-native";
 import { useRouter, Stack } from "expo-router";
 import * as ImagePicker from "expo-image-picker";

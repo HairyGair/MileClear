@@ -37,7 +37,6 @@ const AMBER = "#f5a623";
 const TEXT_1 = "#f0f2f5";
 const TEXT_2 = "#8494a7";
 const TEXT_3 = "#64748b";
-const GREEN = "#10b981";
 
 // Days ordered Mon–Sun for UK users
 const DAY_ORDER = [1, 2, 3, 4, 5, 6, 0];

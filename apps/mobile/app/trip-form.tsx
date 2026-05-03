@@ -47,8 +47,7 @@ import {
   type TripAnomalyDef,
   type LocationQuestion,
 } from "@mileclear/shared";
-import type { CommunityInsights } from "@mileclear/shared";
-import { startLiveActivity, updateLiveActivity, endLiveActivity, endLiveActivityWithSummary, markLiveActivityClassified } from "../lib/liveActivity";
+import { startLiveActivity, updateLiveActivity, endLiveActivityWithSummary, markLiveActivityClassified } from "../lib/liveActivity";
 import { fetchCommunityInsights } from "../lib/api/communityInsights";
 import * as Notifications from "expo-notifications";
 

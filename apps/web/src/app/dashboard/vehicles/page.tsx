@@ -4,7 +4,6 @@ import { useEffect, useState, useCallback } from "react";
 import { api } from "../../../lib/api";
 import { PageHeader } from "../../../components/dashboard/PageHeader";
 import { Button } from "../../../components/ui/Button";
-import { Badge } from "../../../components/ui/Badge";
 import { Input } from "../../../components/ui/Input";
 import { Select } from "../../../components/ui/Select";
 import { Modal } from "../../../components/ui/Modal";

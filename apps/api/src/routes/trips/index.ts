@@ -17,7 +17,6 @@ import { upsertMileageSummary } from "../../services/mileage.js";
 import { checkAndAwardAchievements } from "../../services/gamification.js";
 import { sendMilestonePush, sendAchievementPush } from "../../jobs/notifications.js";
 import { logEvent } from "../../services/appEvents.js";
-import { autoClassifyTrip } from "../../services/tripClassification.js";
 import { advanceLastTripAt } from "../../services/userActivity.js";
 
 // Server-side geocoding: resolve an address to coordinates via Postcodes.io or Nominatim

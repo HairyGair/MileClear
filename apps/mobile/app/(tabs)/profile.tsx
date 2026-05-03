@@ -23,16 +23,14 @@ import { fetchVehicles } from "../../lib/api/vehicles";
 import { fetchProfile, updateProfile, exportUserData, deleteAccount } from "../../lib/api/user";
 import {
   fetchBillingStatus,
-  createCheckoutSession,
   cancelSubscription,
   validateApplePurchase,
 } from "../../lib/api/billing";
 import type { Vehicle, User, BillingStatus, WorkType } from "@mileclear/shared";
-import { WORK_TYPES, formatPence, calculateHmrcDeduction } from "@mileclear/shared";
+import { formatPence, calculateHmrcDeduction } from "@mileclear/shared";
 import { fetchGamificationStats } from "../../lib/api/gamification";
 import {
   isIapAvailable,
-  purchaseSubscription,
   getSubscriptionProduct,
   restorePurchases,
 } from "../../lib/iap/index";
@@ -81,7 +79,7 @@ function formatDate(dateString: string): string {
 
 export default function ProfileScreen() {
   const { logout } = useAuth();
-  const { user: authUser, refreshUser } = useUser();
+  const { refreshUser } = useUser();
   const { showPaywall } = usePaywall();
   const router = useRouter();
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
@@ -198,29 +196,6 @@ export default function ProfileScreen() {
       setExporting(false);
     }
   }, []);
-
-  const handleUpgrade = useCallback(async () => {
-    try {
-      if (isIapAvailable()) {
-        await purchaseSubscription("monthly", authUser?.id);
-      } else {
-        const res = await createCheckoutSession();
-        if (res.data.url) {
-          const url = new URL(res.data.url);
-          if (!url.hostname.endsWith("stripe.com")) {
-            throw new Error("Invalid checkout URL");
-          }
-          await WebBrowser.openBrowserAsync(res.data.url);
-          loadData();
-        }
-      }
-    } catch (err: unknown) {
-      Alert.alert(
-        "Upgrade failed",
-        err instanceof Error ? err.message : "Could not start checkout"
-      );
-    }
-  }, [loadData, authUser?.id]);
 
   const handleRestorePurchases = useCallback(async () => {
     setRestoring(true);

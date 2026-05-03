@@ -10,7 +10,6 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import {
   getCurrentLocation,
-  reverseGeocode,
   forwardGeocodeMultiple,
   type GeocodeSuggestion,
 } from "../lib/location/geocoding";

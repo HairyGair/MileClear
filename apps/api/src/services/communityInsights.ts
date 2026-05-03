@@ -28,7 +28,6 @@ const DATA_LOOKBACK_DAYS = 90;
 const DAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
 function formatHourLabel(dayOfWeek: string, hour: number): string {
-  const period = hour >= 12 ? "PM" : "AM";
   const h12 = hour === 0 ? 12 : hour > 12 ? hour - 12 : hour;
   const nextH = (hour + 1) % 24;
   const nextPeriod = nextH >= 12 ? "PM" : "AM";

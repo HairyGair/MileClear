@@ -13,8 +13,6 @@ import {
   disconnectConnection,
 } from "../../services/openBanking.js";
 import {
-  PLATFORM_TAGS,
-  EARNING_SOURCES,
   DEFAULT_PAGE_SIZE,
   MAX_PAGE_SIZE,
 } from "@mileclear/shared";

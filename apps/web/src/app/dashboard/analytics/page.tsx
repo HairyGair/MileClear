@@ -52,13 +52,6 @@ function platformLabel(tag: string): string {
   return map[tag] ?? tag;
 }
 
-function trendLabel(delta: number | null, label: string): string | null {
-  if (delta === null) return null;
-  if (delta > 0) return `\u2191 ${delta.toFixed(0)}% ${label}`;
-  if (delta < 0) return `\u2193 ${Math.abs(delta).toFixed(0)}% ${label}`;
-  return `\u2014 ${label}`;
-}
-
 const DAY_LABELS_SHORT = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 const DAY_LABELS_LONG = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
 
@@ -1146,7 +1139,6 @@ function EarningsByDaySection({ patterns }: { patterns: EarningsDayPattern[] }) 
     );
   }
 
-  const maxEarn = Math.max(...patterns.map((p) => p.avgEarningsPence), 1);
   const bestDay = patterns.reduce(
     (best, p) => (p.avgEarningsPence > best.avgEarningsPence ? p : best),
     patterns[0]

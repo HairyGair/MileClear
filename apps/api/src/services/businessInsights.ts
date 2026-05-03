@@ -194,7 +194,6 @@ export async function getBusinessInsights(userId: string): Promise<BusinessInsig
     if (data.totalPence === 0) continue;
     const [dayOfWeek, hourStr] = key.split("_");
     const hour = parseInt(hourStr, 10);
-    const period = hour >= 12 ? "PM" : "AM";
     const displayHour = hour === 0 ? 12 : hour > 12 ? hour - 12 : hour;
     const nextHour = (hour + 1) % 24;
     const nextPeriod = nextHour >= 12 ? "PM" : "AM";

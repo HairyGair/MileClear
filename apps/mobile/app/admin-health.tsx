@@ -8,7 +8,6 @@ import {
   StyleSheet,
 } from "react-native";
 import { useFocusEffect } from "expo-router";
-import { Ionicons } from "@expo/vector-icons";
 import { fetchAdminHealth } from "../lib/api/admin";
 import type { AdminHealthStatus } from "@mileclear/shared";
 

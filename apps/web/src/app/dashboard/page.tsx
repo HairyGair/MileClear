@@ -180,8 +180,8 @@ export default function DashboardPage() {
   const [weeklyRecap, setWeeklyRecap] = useState<PeriodRecap | null>(null);
   const [monthlyRecap, setMonthlyRecap] = useState<PeriodRecap | null>(null);
   const [recentTrips, setRecentTrips] = useState<Trip[]>([]);
-  const [vehicles, setVehicles] = useState<Vehicle[]>([]);
-  const [unclassifiedCount, setUnclassifiedCount] = useState(0);
+  const [, setVehicles] = useState<Vehicle[]>([]);
+  const [, setUnclassifiedCount] = useState(0);
   const [insights, setInsights] = useState<WebInsight[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);

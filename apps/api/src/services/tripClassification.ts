@@ -70,7 +70,6 @@ export async function autoClassifyTrip(
   let endMatch: MatchedLocation | null = null;
 
   for (const loc of savedLocations) {
-    const radiusMiles = loc.radiusMeters * METERS_TO_MILES;
     // Add a small buffer (50m) for GPS drift
     const effectiveRadius = (loc.radiusMeters + 50) * METERS_TO_MILES;
 

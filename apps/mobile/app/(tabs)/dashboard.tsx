@@ -12,7 +12,6 @@ import {
   Share,
   Platform,
   Animated,
-  Dimensions,
   Linking,
 } from "react-native";
 import { Button } from "../../components/Button";
@@ -64,9 +63,9 @@ import { LiveMapTracker, type TripTapInfo } from "../../components/map/LiveMapTr
 import { useUser } from "../../lib/user/context";
 import { useRecentTripsWithCoords } from "../../hooks/useRecentTripsWithCoords";
 import { Ionicons } from "@expo/vector-icons";
-import { startLiveActivity, updateLiveActivity, endLiveActivity, endLiveActivityWithSummary, recoverLiveActivity } from "../../lib/liveActivity";
+import { startLiveActivity, updateLiveActivity, endLiveActivityWithSummary, recoverLiveActivity } from "../../lib/liveActivity";
 import { useLayoutPrefs } from "../../lib/layout/index";
-import { PremiumGate, PremiumTeaser, useIsPremium } from "../../components/PremiumGate";
+import { PremiumGate, useIsPremium } from "../../components/PremiumGate";
 import { SmartInsightCard } from "../../components/SmartInsightCard";
 import { usePaywall } from "../../components/paywall";
 import * as Location from "expo-location";
@@ -471,35 +470,6 @@ export default function DashboardScreen() {
       },
     ]);
   }, [activeShift, loadData]);
-
-  const handleSelectVehicle = useCallback(() => {
-    if (vehicles.length === 0) {
-      Alert.alert("No Vehicles", "Add a vehicle in your profile first.");
-      return;
-    }
-    const options = vehicles.map((v) => ({
-      text: `${v.make} ${v.model}${v.isPrimary ? " (Primary)" : ""}`,
-      onPress: () => setSelectedVehicleId(v.id),
-    }));
-    options.push({ text: "No Vehicle", onPress: () => setSelectedVehicleId(undefined) });
-    Alert.alert("Select Vehicle", "Choose a vehicle for this shift", [
-      ...options,
-      { text: "Cancel", onPress: () => {} },
-    ]);
-  }, [vehicles]);
-
-  const handleRecap = useCallback(async (period: "daily" | "weekly" | "monthly") => {
-    try {
-      const res = await fetchRecap(period);
-      setRecapData(res.data);
-      setShowRecap(true);
-      if (period === "weekly" || period === "monthly") {
-        setTimeout(() => maybeRequestReview("recap_shown"), 3000);
-      }
-    } catch {
-      Alert.alert("Error", "Failed to load recap");
-    }
-  }, []);
 
   const handleShareRecap = useCallback(async () => {
     if (!recapData) return;

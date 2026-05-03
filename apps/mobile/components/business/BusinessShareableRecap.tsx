@@ -24,7 +24,6 @@ function formatMilesReadable(miles: number): string {
 }
 
 export function BusinessRecapShareCard(data: BusinessRecapShareData) {
-  const year = new Date().getFullYear();
   const tripWord = data.totalTrips === 1 ? "trip" : "trips";
   const hours = Math.round(data.totalShiftHours);
   const hasProfit = data.netProfitPence !== 0;

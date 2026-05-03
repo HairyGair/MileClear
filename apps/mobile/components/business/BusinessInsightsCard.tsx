@@ -5,7 +5,6 @@ import {
   StyleSheet,
   TouchableOpacity,
   ActivityIndicator,
-  Platform,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { fetchBusinessInsights, fetchWeeklyPnL } from "../../lib/api/businessInsights";

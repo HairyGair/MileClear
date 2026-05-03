@@ -30,7 +30,7 @@ export default function LoginScreen() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
-  const [socialLoading, setSocialLoading] = useState<string | null>(null);
+  const [, setSocialLoading] = useState<string | null>(null);
   const [focusedField, setFocusedField] = useState<string | null>(null);
 
   const handleSocialLogin = async (provider: "apple" | "google") => {

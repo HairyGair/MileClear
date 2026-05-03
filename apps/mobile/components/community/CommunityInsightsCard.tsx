@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   View,
   Text,
@@ -9,7 +9,7 @@ import {
 import * as Location from "expo-location";
 import { Ionicons } from "@expo/vector-icons";
 import { formatPence } from "@mileclear/shared";
-import type { CommunityInsights, AreaEarnings, NearbyAnomaly, AreaPeakHour } from "@mileclear/shared";
+import type { CommunityInsights } from "@mileclear/shared";
 import { fetchCommunityInsights } from "../../lib/api/communityInsights";
 
 const GIG_LABELS: Record<string, string> = {

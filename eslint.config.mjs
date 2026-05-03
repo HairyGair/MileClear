@@ -8,6 +8,7 @@ import tseslint from "typescript-eslint";
 import reactPlugin from "eslint-plugin-react";
 import reactHooks from "eslint-plugin-react-hooks";
 import nextPlugin from "@next/eslint-plugin-next";
+import unusedImports from "eslint-plugin-unused-imports";
 import globals from "globals";
 
 export default [
@@ -39,6 +40,9 @@ export default [
   // Repo-wide TypeScript rules + globals
   {
     files: ["**/*.{ts,tsx}"],
+    plugins: {
+      "unused-imports": unusedImports,
+    },
     languageOptions: {
       globals: {
         ...globals.node,
@@ -49,12 +53,17 @@ export default [
       // Codebase uses `any` deliberately in API boundaries + dynamic JSON
       "@typescript-eslint/no-explicit-any": "off",
 
-      // Allow leading-underscore unused (intentional discard convention)
-      "@typescript-eslint/no-unused-vars": [
+      // unused-imports plugin handles unused imports with auto-fix; the
+      // base ts-eslint rule covers the rest (variables, args, caught errors).
+      "@typescript-eslint/no-unused-vars": "off",
+      "unused-imports/no-unused-imports": "warn",
+      "unused-imports/no-unused-vars": [
         "warn",
         {
-          argsIgnorePattern: "^_",
+          vars: "all",
           varsIgnorePattern: "^_",
+          args: "after-used",
+          argsIgnorePattern: "^_",
           caughtErrorsIgnorePattern: "^_",
         },
       ],

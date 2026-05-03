@@ -8,7 +8,6 @@ import {
   RefreshControl,
   ActivityIndicator,
   StyleSheet,
-  Animated,
   LayoutAnimation,
   Platform,
   UIManager,
@@ -28,7 +27,7 @@ import { getLocalTrips, getLocalUnsyncedTrips } from "../../lib/db/queries";
 import { learnFromClassification } from "../../lib/classification";
 import { maybeRequestReview } from "../../lib/rating/index";
 import { GIG_PLATFORMS, getTaxYear, parseTaxYear } from "@mileclear/shared";
-import type { TripClassification, PlatformTag, BusinessPurpose } from "@mileclear/shared";
+import type { TripClassification, PlatformTag } from "@mileclear/shared";
 import { Skeleton } from "../../components/Skeleton";
 import { colors, fonts, radii, spacing } from "../../lib/theme";
 
@@ -1551,7 +1550,6 @@ export default function TripsScreen() {
 
 const BG = colors.bg;
 const CARD_BG = colors.surface;
-const CARD_BORDER = colors.surfaceBorder;
 const AMBER = colors.amber;
 const TEXT_1 = colors.text1;
 const TEXT_2 = colors.text2;

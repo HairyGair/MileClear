@@ -35,7 +35,6 @@ type SyncStateListener = (
 ) => void;
 
 let currentState: SyncState = "idle";
-let currentProgress: SyncProgress | null = null;
 let processing = false;
 const stateListeners: Set<SyncStateListener> = new Set();
 let connectivityUnsub: (() => void) | null = null;
@@ -64,17 +63,12 @@ function getEndpoint(entityType: string, action: string, entityId: string): { me
   }
 }
 
-function getBackoffMs(retryCount: number): number {
-  return Math.min(2000 * Math.pow(2, retryCount), 32000);
-}
-
 function setState(
   state: SyncState,
   pendingCount: number,
   progress: SyncProgress | null = null
 ) {
   currentState = state;
-  currentProgress = progress;
   for (const listener of stateListeners) {
     try {
       listener(state, pendingCount, progress);

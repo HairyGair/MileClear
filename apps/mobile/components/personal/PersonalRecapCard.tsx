@@ -95,7 +95,7 @@ export function PersonalRecapCard({
   prevMonthMiles,
   prevMonthTrips,
   busiestDay,
-  avgTripMiles,
+  avgTripMiles: _avgTripMiles,
   monthLabel,
   totalMiles,
   deductionPence,

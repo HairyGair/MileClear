@@ -87,7 +87,7 @@ interface MonthData {
 
 export default function TaxPage() {
   const { user } = useAuth();
-  const [stats, setStats] = useState<GamificationStats | null>(null);
+  const [, setStats] = useState<GamificationStats | null>(null);
   const [trips, setTrips] = useState<Trip[]>([]);
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [loading, setLoading] = useState(true);

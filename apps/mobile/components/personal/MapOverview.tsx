@@ -12,7 +12,6 @@ import {
   ScrollView,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { haversineDistance, formatMiles } from "@mileclear/shared";
 import type { TripDetail } from "../../lib/api/trips";
 
 // Lazy import for Expo Go compatibility — check native module exists before requiring

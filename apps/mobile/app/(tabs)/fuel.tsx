@@ -18,7 +18,7 @@ import NearbyPrices from "../../components/fuel/NearbyPrices";
 import { FUEL_BRANDS, formatPence } from "@mileclear/shared";
 import type { FuelLogWithVehicle } from "@mileclear/shared";
 import { Skeleton } from "../../components/Skeleton";
-import { colors, fonts, radii, spacing } from "../../lib/theme";
+import { colors, fonts, radii } from "../../lib/theme";
 
 type FuelLogItem = FuelLogWithVehicle & { _isLocal?: boolean };
 
@@ -335,7 +335,6 @@ export default function FuelScreen() {
 // Local aliases for theme tokens (same pattern as dashboard / trips).
 const BG = colors.bg;
 const CARD_BG = colors.surface;
-const CARD_BORDER = colors.surfaceBorder;
 const AMBER = colors.amber;
 const TEXT_1 = colors.text1;
 const TEXT_2 = colors.text2;

@@ -6,8 +6,6 @@ import {
   formatMiles,
   formatPence,
   MILESTONE_MILES,
-  ACHIEVEMENT_META,
-  type AchievementType,
 } from "@mileclear/shared";
 import { sendCheckinEmail } from "../services/email.js";
 import { logEvent } from "../services/appEvents.js";

@@ -7,8 +7,6 @@ import {
   getTaxYear,
   parseTaxYear,
   estimateUkTax,
-  calculateHmrcDeduction,
-  formatPence,
 } from "@mileclear/shared";
 
 const expenseCategoryValues = EXPENSE_CATEGORIES.map((c) => c.value) as [string, ...string[]];

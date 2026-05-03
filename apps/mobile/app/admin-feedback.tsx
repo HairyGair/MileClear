@@ -8,8 +8,6 @@ import {
   ActivityIndicator,
   Alert,
   TextInput,
-  KeyboardAvoidingView,
-  Platform,
   StyleSheet,
 } from "react-native";
 import { useFocusEffect } from "expo-router";

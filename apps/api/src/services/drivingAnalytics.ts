@@ -452,7 +452,6 @@ export async function getFuelCostBreakdown(userId: string): Promise<FuelCostBrea
   }
 
   // Per-vehicle breakdown
-  const vehicleMap = new Map(vehicles.map((v) => [v.id, v]));
   const perVehicle: FuelCostBreakdown["perVehicle"] = [];
 
   for (const v of vehicles) {
@@ -550,9 +549,6 @@ export async function getEarningsByDay(userId: string): Promise<EarningsDayPatte
     const jsDay = new Date(t.startedAt).getDay();
     tripCounts[jsDay === 0 ? 6 : jsDay - 1]++;
   }
-
-  // Number of weeks each day has appeared (for averaging)
-  const weeksInPeriod = Math.max(1, Math.ceil((end.getTime() - start.getTime()) / (7 * 86400000)));
 
   return buckets.map((b, i) => ({
     day: b.day,

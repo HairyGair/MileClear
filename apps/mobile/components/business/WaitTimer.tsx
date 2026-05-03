@@ -11,7 +11,6 @@ import type { PickupWait } from "@mileclear/shared";
 
 const AMBER = "#f5a623";
 const AMBER_FAINT = "rgba(245,166,35,0.10)";
-const GREEN = "#10b981";
 const TEXT_1 = "#f0f2f5";
 const TEXT_2 = "#8494a7";
 const TEXT_3 = "#64748b";

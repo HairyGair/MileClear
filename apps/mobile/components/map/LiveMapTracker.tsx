@@ -10,7 +10,6 @@ import {
   TouchableOpacity,
   UIManager,
   Platform,
-  Animated,
 } from "react-native";
 import * as Location from "expo-location";
 import { Ionicons } from "@expo/vector-icons";

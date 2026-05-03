@@ -542,7 +542,7 @@ export async function authRoutes(app: FastifyInstance) {
       return reply.status(400).send({ error: parsed.error.errors[0].message });
     }
 
-    const { identityToken, fullName, agreedToTerms } = parsed.data;
+    const { identityToken, fullName, agreedToTerms: _agreedToTerms } = parsed.data;
 
     // Verify Apple identity token against Apple's JWKS
     // Accept both iOS app bundle ID and web Services ID as valid audiences
@@ -639,7 +639,7 @@ export async function authRoutes(app: FastifyInstance) {
       return reply.status(400).send({ error: parsed.error.errors[0].message });
     }
 
-    const { idToken, agreedToTerms } = parsed.data;
+    const { idToken, agreedToTerms: _agreedToTerms } = parsed.data;
     const googleClientId = process.env.GOOGLE_CLIENT_ID;
     const googleIosClientId = process.env.GOOGLE_IOS_CLIENT_ID;
 

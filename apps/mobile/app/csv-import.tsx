@@ -4,7 +4,6 @@ import {
   Text,
   TouchableOpacity,
   FlatList,
-  ActivityIndicator,
   Alert,
   StyleSheet,
 } from "react-native";
@@ -107,7 +106,7 @@ export default function CsvImportScreen() {
     }
   };
 
-  const renderRow = ({ item, index }: { item: CsvEarningRow; index: number }) => (
+  const renderRow = ({ item, index: _index }: { item: CsvEarningRow; index: number }) => (
     <View style={[styles.rowCard, item.isDuplicate && styles.rowDuplicate]}>
       <View style={styles.rowHeader}>
         <Text style={styles.rowPlatform}>

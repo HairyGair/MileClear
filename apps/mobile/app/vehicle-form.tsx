@@ -21,7 +21,6 @@ import {
   lookupVehicle,
 } from "../lib/api/vehicles";
 import type { FuelType, VehicleType } from "@mileclear/shared";
-import { Ionicons } from "@expo/vector-icons";
 import { Button } from "../components/Button";
 import { useUser } from "../lib/user/context";
 

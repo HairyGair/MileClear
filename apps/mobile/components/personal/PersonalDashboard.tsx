@@ -34,8 +34,7 @@ function ordinal(n: number): string {
   return n + (s[(v - 20) % 10] || s[v] || s[0]);
 }
 
-export function PersonalDashboard({ avatarId, stats, visibleKeys, recentTrips, dailyRecap, onShowRecap }: PersonalDashboardProps) {
-  const isVisible = (key: string) => !visibleKeys || visibleKeys.includes(key);
+export function PersonalDashboard({ avatarId: _avatarId, stats, visibleKeys, recentTrips, dailyRecap, onShowRecap: _onShowRecap }: PersonalDashboardProps) {
   const router = useRouter();
   const {
     monthMiles,

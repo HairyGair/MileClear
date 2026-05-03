@@ -1,4 +1,4 @@
-import { View, Text, StyleSheet, UIManager, Platform } from "react-native";
+import { View, StyleSheet, UIManager, Platform } from "react-native";
 import { useMemo } from "react";
 
 // Lazy import for Expo Go compatibility

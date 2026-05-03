@@ -6,7 +6,7 @@ import {
   HMRC_THRESHOLD_MILES,
   parseTaxYear,
 } from "@mileclear/shared";
-import type { ExportTripRow, ExportSummary } from "@mileclear/shared";
+import type { ExportTripRow } from "@mileclear/shared";
 import { fetchExportTrips, fetchExportSummary } from "./export-data.js";
 
 interface ExportOpts {
@@ -247,7 +247,7 @@ function drawHeader(
   reportRef: string,
   pageWidth: number,
   margin: number,
-  isLandscape = false
+  _isLandscape = false
 ) {
   const headerHeight = 60;
   const contentWidth = pageWidth - margin * 2;
@@ -257,7 +257,6 @@ function drawHeader(
 
   // "Mile" in white + "Clear" in amber
   doc.font("Helvetica-Bold").fontSize(18);
-  const mileWidth = doc.widthOfString("Mile");
   doc.fillColor(WHITE).text("Mile", margin, 14, { continued: true });
   doc.fillColor(AMBER).text("Clear", { continued: false });
 

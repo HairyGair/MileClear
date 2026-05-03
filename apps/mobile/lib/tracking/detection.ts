@@ -569,9 +569,6 @@ export async function finalizeAutoTrip(): Promise<void> {
 async function _finalizeAutoTripInner(): Promise<void> {
   const db = await getDatabase();
 
-  // Calculate final distance for the Live Activity summary before clearing coords
-  const finalStats = await getAutoTripRunningDistance();
-
   // Read all buffered coordinates
   const rawCoords = await db.getAllAsync<BufferedCoordinate>(
     "SELECT lat, lng, speed, accuracy, recorded_at FROM detection_coordinates ORDER BY recorded_at ASC"
