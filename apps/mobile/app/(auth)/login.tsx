@@ -13,16 +13,18 @@ import {
 } from "react-native";
 import { Link } from "expo-router";
 import { useAuth } from "../../lib/auth/context";
+import { colors, fonts } from "../../lib/theme";
 
 let AppleAuthentication: typeof import("expo-apple-authentication") | null = null;
 try { AppleAuthentication = require("expo-apple-authentication"); } catch {}
 
-const AMBER = "#f5a623";
-const CARD_BG = "#0a1120";
-const BORDER = "rgba(255,255,255,0.06)";
-const TEXT_1 = "#f0f2f5";
-const TEXT_2 = "#8494a7";
-const TEXT_3 = "#64748b";
+const AMBER = colors.amber;
+const CARD_BG = colors.surface;
+const BORDER = colors.surfaceBorder;
+const TEXT_1 = colors.text1;
+const TEXT_2 = colors.text2;
+const TEXT_3 = colors.text3;
+const BG = colors.bg;
 
 export default function LoginScreen() {
   const { login, loginWithApple, loginWithGoogle } = useAuth();
@@ -186,7 +188,7 @@ export default function LoginScreen() {
             accessibilityState={{ disabled: loading }}
           >
             {loading ? (
-              <ActivityIndicator color="#030712" accessibilityLabel="Loading" />
+              <ActivityIndicator color={BG} accessibilityLabel="Loading" />
             ) : (
               <Text style={s.buttonText}>Sign in</Text>
             )}
@@ -212,7 +214,7 @@ export default function LoginScreen() {
 const s = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#030712",
+    backgroundColor: BG,
   },
   scrollContent: {
     flexGrow: 1,
@@ -236,12 +238,12 @@ const s = StyleSheet.create({
   },
   brandName: {
     fontSize: 26,
-    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontFamily: fonts.semibold,
     color: TEXT_1,
   },
   brandNameAccent: {
     fontSize: 26,
-    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontFamily: fonts.semibold,
     color: AMBER,
   },
   // Card
@@ -254,7 +256,7 @@ const s = StyleSheet.create({
   },
   title: {
     fontSize: 20,
-    fontFamily: "PlusJakartaSans_300Light",
+    fontFamily: fonts.light,
     color: TEXT_1,
     marginBottom: 24,
     letterSpacing: -0.3,
@@ -265,7 +267,7 @@ const s = StyleSheet.create({
     marginBottom: 6,
     letterSpacing: 0.3,
     textTransform: "uppercase",
-    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontFamily: fonts.semibold,
   },
   input: {
     backgroundColor: "rgba(255,255,255,0.03)",
@@ -277,7 +279,7 @@ const s = StyleSheet.create({
     fontSize: 16,
     color: TEXT_1,
     marginBottom: 18,
-    fontFamily: "PlusJakartaSans_400Regular",
+    fontFamily: fonts.regular,
   },
   inputFocused: {
     borderColor: "rgba(245, 166, 35, 0.35)",
@@ -302,9 +304,9 @@ const s = StyleSheet.create({
     opacity: 0.6,
   },
   buttonText: {
-    color: "#030712",
+    color: BG,
     fontSize: 16,
-    fontFamily: "PlusJakartaSans_700Bold",
+    fontFamily: fonts.bold,
     letterSpacing: 0.3,
   },
   errorWrap: {
@@ -319,7 +321,7 @@ const s = StyleSheet.create({
     color: "#f87171",
     fontSize: 13,
     textAlign: "center",
-    fontFamily: "PlusJakartaSans_400Regular",
+    fontFamily: fonts.regular,
   },
   footer: {
     flexDirection: "row",
@@ -329,12 +331,12 @@ const s = StyleSheet.create({
   footerText: {
     color: TEXT_2,
     fontSize: 14,
-    fontFamily: "PlusJakartaSans_400Regular",
+    fontFamily: fonts.regular,
   },
   link: {
     color: AMBER,
     fontSize: 14,
-    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontFamily: fonts.semibold,
   },
   forgotWrap: {
     alignSelf: "flex-end",
@@ -344,7 +346,7 @@ const s = StyleSheet.create({
   forgotText: {
     color: TEXT_2,
     fontSize: 13,
-    fontFamily: "PlusJakartaSans_400Regular",
+    fontFamily: fonts.regular,
   },
   // Social buttons
   appleButton: {
@@ -364,7 +366,7 @@ const s = StyleSheet.create({
   googleButtonText: {
     color: TEXT_1,
     fontSize: 16,
-    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontFamily: fonts.semibold,
   },
   divider: {
     flexDirection: "row",
@@ -381,6 +383,6 @@ const s = StyleSheet.create({
     fontSize: 13,
     marginHorizontal: 16,
     textTransform: "lowercase",
-    fontFamily: "PlusJakartaSans_400Regular",
+    fontFamily: fonts.regular,
   },
 });

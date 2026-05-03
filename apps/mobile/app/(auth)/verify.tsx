@@ -12,13 +12,15 @@ import {
   Image,
 } from "react-native";
 import { useAuth } from "../../lib/auth/context";
+import { colors, fonts } from "../../lib/theme";
 
-const AMBER = "#f5a623";
-const CARD_BG = "#0a1120";
-const BORDER = "rgba(255,255,255,0.06)";
-const TEXT_1 = "#f0f2f5";
-const TEXT_2 = "#8494a7";
-const TEXT_3 = "#64748b";
+const AMBER = colors.amber;
+const CARD_BG = colors.surface;
+const BORDER = colors.surfaceBorder;
+const TEXT_1 = colors.text1;
+const TEXT_2 = colors.text2;
+const TEXT_3 = colors.text3;
+const BG = colors.bg;
 
 export default function VerifyScreen() {
   const { completeAuth, sendVerificationCode, verifyEmail } = useAuth();
@@ -149,7 +151,7 @@ export default function VerifyScreen() {
             accessibilityState={{ disabled: loading }}
           >
             {loading ? (
-              <ActivityIndicator color="#030712" accessibilityLabel="Loading" />
+              <ActivityIndicator color={BG} accessibilityLabel="Loading" />
             ) : (
               <Text style={s.buttonText}>Verify</Text>
             )}
@@ -202,7 +204,7 @@ export default function VerifyScreen() {
 const s = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#030712",
+    backgroundColor: BG,
   },
   scrollContent: {
     flexGrow: 1,
@@ -225,12 +227,12 @@ const s = StyleSheet.create({
   },
   brandName: {
     fontSize: 26,
-    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontFamily: fonts.semibold,
     color: TEXT_1,
   },
   brandNameAccent: {
     fontSize: 26,
-    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontFamily: fonts.semibold,
     color: AMBER,
   },
   card: {
@@ -242,7 +244,7 @@ const s = StyleSheet.create({
   },
   title: {
     fontSize: 20,
-    fontFamily: "PlusJakartaSans_300Light",
+    fontFamily: fonts.light,
     color: TEXT_1,
     marginBottom: 8,
     letterSpacing: -0.3,
@@ -252,7 +254,7 @@ const s = StyleSheet.create({
     color: TEXT_2,
     marginBottom: 24,
     lineHeight: 20,
-    fontFamily: "PlusJakartaSans_400Regular",
+    fontFamily: fonts.regular,
   },
   label: {
     fontSize: 12,
@@ -260,7 +262,7 @@ const s = StyleSheet.create({
     marginBottom: 6,
     letterSpacing: 0.3,
     textTransform: "uppercase",
-    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontFamily: fonts.semibold,
   },
   input: {
     backgroundColor: "rgba(255,255,255,0.03)",
@@ -274,7 +276,7 @@ const s = StyleSheet.create({
     marginBottom: 18,
     letterSpacing: 8,
     textAlign: "center",
-    fontFamily: "PlusJakartaSans_400Regular",
+    fontFamily: fonts.regular,
   },
   button: {
     backgroundColor: AMBER,
@@ -296,9 +298,9 @@ const s = StyleSheet.create({
     opacity: 0.6,
   },
   buttonText: {
-    color: "#030712",
+    color: BG,
     fontSize: 16,
-    fontFamily: "PlusJakartaSans_700Bold",
+    fontFamily: fonts.bold,
     letterSpacing: 0.3,
   },
   errorWrap: {
@@ -313,7 +315,7 @@ const s = StyleSheet.create({
     color: "#f87171",
     fontSize: 13,
     textAlign: "center",
-    fontFamily: "PlusJakartaSans_400Regular",
+    fontFamily: fonts.regular,
   },
   resendWrap: {
     alignItems: "center",
@@ -322,11 +324,11 @@ const s = StyleSheet.create({
   resendText: {
     color: AMBER,
     fontSize: 14,
-    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontFamily: fonts.semibold,
   },
   resendDisabled: {
     color: TEXT_3,
-    fontFamily: "PlusJakartaSans_400Regular",
+    fontFamily: fonts.regular,
   },
   skipWrap: {
     alignItems: "center",
@@ -335,6 +337,6 @@ const s = StyleSheet.create({
   skipText: {
     color: TEXT_2,
     fontSize: 14,
-    fontFamily: "PlusJakartaSans_400Regular",
+    fontFamily: fonts.regular,
   },
 });
