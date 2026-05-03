@@ -34,6 +34,52 @@ async function maybeStartAutoTripLiveActivity(
   }
   await startLiveActivity(opts);
 }
+
+/**
+ * Start the auto-trip LA AND immediately sync it to the buffered recording
+ * state. Used at watch-and-wait promotion: by the time the inline-recording
+ * path fires, detection_coordinates may already hold several minutes of
+ * buffered coords from watch mode. Without this sync the LA would start
+ * fresh at 0 mi / 0 mph with start-time = Date.now(), and the user would
+ * see the LA show "1:28 / 0.0 mi" while the in-app screen shows
+ * "10:30 / 0.6 mi". We seed the LA with the actual buffered state instead.
+ */
+async function startAutoTripLiveActivityFromBufferedState(
+  opts: { activityType: "trip"; isBusinessMode: boolean }
+): Promise<void> {
+  try {
+    const prefs = await getNotificationPreferences();
+    if (!prefs.autoTripLiveActivity) return;
+  } catch {
+    // Pref read failure non-fatal; default to showing LA.
+  }
+  try {
+    const db = await getDatabase();
+    const earliest = await db.getFirstAsync<{ recorded_at: string }>(
+      "SELECT recorded_at FROM detection_coordinates ORDER BY recorded_at ASC LIMIT 1"
+    );
+    const startDateMs = earliest
+      ? new Date(earliest.recorded_at).getTime()
+      : Date.now();
+
+    await startLiveActivity({ ...opts, startDateMs });
+
+    // Immediately push the buffered distance + current speed so the LA
+    // doesn't show "0.0 mi" while waiting for the next location callback
+    // to arrive.
+    const { miles, speedMph } = await getAutoTripRunningDistance();
+    if (miles > 0 || speedMph > 0) {
+      await updateLiveActivity({ distanceMiles: miles, speedMph });
+    }
+  } catch (err) {
+    // Last-ditch fallback: still try to show an LA, even if we couldn't
+    // read the buffered state. Better an LA with zeros than no LA.
+    try {
+      await startLiveActivity(opts);
+    } catch {}
+    console.warn("startAutoTripLiveActivityFromBufferedState failed:", err);
+  }
+}
 import type { TripClassification, PlatformTag } from "@mileclear/shared";
 
 const DETECTION_TASK_NAME = "mileclear-drive-detection";
@@ -1581,9 +1627,15 @@ try {
         }).catch(() => {});
 
         // Start Live Activity - must be awaited so the native Activity.request()
-        // completes before iOS suspends the background task.
+        // completes before iOS suspends the background task. Uses the
+        // buffered-state seed so the LA's distance + start time reflect the
+        // ACTUAL trip from when watch-mode began buffering, not just the
+        // moment of promotion. Without this the LA shows "0.0 mi" with a
+        // stopwatch starting at zero, while the in-app screen shows the
+        // real running totals (Anthony saw this on 3 May TestFlight: LA
+        // said 1:28 / 0.0 mi while in-app showed 10:30 / 0.6 mi).
         try {
-          await maybeStartAutoTripLiveActivity({ activityType: "trip", isBusinessMode: true });
+          await startAutoTripLiveActivityFromBufferedState({ activityType: "trip", isBusinessMode: true });
         } catch {}
 
         // Persistent passive notification as a safety net for when the Live
@@ -2000,8 +2052,10 @@ async function forceStartRecordingImpl(reason: string): Promise<void> {
 
   // Start Live Activity so the user sees a trip in progress on the lock screen
   // and Dynamic Island. Log the result so diagnostics can show whether it worked.
+  // Uses the buffered-state seed (same reasoning as the inline recording-start
+  // path) so the LA reflects the actual trip duration + distance.
   try {
-    await maybeStartAutoTripLiveActivity({ activityType: "trip", isBusinessMode });
+    await startAutoTripLiveActivityFromBufferedState({ activityType: "trip", isBusinessMode });
     logDetectionEvent("live_activity_started", { source: "force_start" }).catch(() => {});
   } catch (laErr) {
     logDetectionEvent("live_activity_failed", {

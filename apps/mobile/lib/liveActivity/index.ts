@@ -32,6 +32,13 @@ export async function startLiveActivity(params: {
   activityType: "trip" | "shift";
   vehicleName?: string;
   isBusinessMode: boolean;
+  /**
+   * Override the LA's start time. Defaults to Date.now() (the moment startLiveActivity
+   * was called). Used by watch-and-wait promotion: the trip's actual GPS coords have
+   * been buffering since BEFORE the LA was started, so the LA's clock should reflect
+   * the earliest buffered coord time, not the moment of promotion.
+   */
+  startDateMs?: number;
 }): Promise<string | null> {
   if (Platform.OS !== "ios" || !LiveActivityModule) return null;
   try {
@@ -41,7 +48,7 @@ export async function startLiveActivity(params: {
       isBusinessMode: params.isBusinessMode,
     });
     currentActivityId = id;
-    activityStartDateMs = Date.now();
+    activityStartDateMs = params.startDateMs ?? Date.now();
     return id;
   } catch {
     return null;
