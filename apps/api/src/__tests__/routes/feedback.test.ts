@@ -29,6 +29,9 @@ vi.mock("../../lib/prisma.js", () => ({
       delete: vi.fn(),
       groupBy: vi.fn(),
     },
+    appEvent: {
+      create: vi.fn().mockResolvedValue({}),
+    },
     $transaction: vi.fn(),
   },
 }));
@@ -51,7 +54,10 @@ const FEEDBACK_ITEM = {
   category: "improvement",
   status: "new",
   upvoteCount: 5,
+  isKnownIssue: false,
+  knownIssueStatus: null,
   createdAt: new Date("2025-01-15T10:00:00Z"),
+  replies: [],
 };
 
 // ---------------------------------------------------------------------------

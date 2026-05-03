@@ -14,7 +14,7 @@ import cookie from "@fastify/cookie";
 
 export async function buildApp(): Promise<FastifyInstance> {
   const app = Fastify({
-    logger: false, // keep test output clean
+    logger: { level: process.env.TEST_LOG === "1" ? "error" : "silent" },
   });
 
   await app.register(cors, { origin: true, credentials: true });

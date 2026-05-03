@@ -205,8 +205,8 @@ export async function tripRoutes(app: FastifyInstance) {
     // Classification is now handled by the mobile classification engine
     // (lib/classification/). The API respects whatever the client sends.
     // The /trips/suggest endpoint is still available for UI suggestions.
-    let finalClassification = tripData.classification;
-    let finalPlatformTag: string | null = tripData.platformTag ?? null;
+    const finalClassification = tripData.classification;
+    const finalPlatformTag: string | null = tripData.platformTag ?? null;
 
     const tripPayload = {
       userId,

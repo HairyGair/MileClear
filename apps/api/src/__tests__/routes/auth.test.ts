@@ -34,6 +34,9 @@ vi.mock("../../lib/prisma.js", () => ({
       findFirst: vi.fn(),
       update: vi.fn(),
     },
+    appEvent: {
+      create: vi.fn().mockResolvedValue({}),
+    },
     $transaction: vi.fn(),
   },
 }));

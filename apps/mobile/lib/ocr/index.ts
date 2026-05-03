@@ -113,7 +113,7 @@ function extractAmountFromLine(text: string): number | null {
  */
 function parseDateString(text: string): string | null {
   // DD/MM/YYYY or DD-MM-YYYY
-  const slashMatch = text.match(/\b(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})\b/);
+  const slashMatch = text.match(/\b(\d{1,2})[/-](\d{1,2})[/-](\d{2,4})\b/);
   if (slashMatch) {
     const d = parseInt(slashMatch[1], 10);
     const m = parseInt(slashMatch[2], 10);

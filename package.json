@@ -24,7 +24,14 @@
     "pnpm": ">=9.0.0"
   },
   "devDependencies": {
-    "prisma": "^6.19.2"
+    "@eslint/js": "^9.39.4",
+    "@next/eslint-plugin-next": "^15.5.15",
+    "eslint": "^9.39.4",
+    "eslint-plugin-react": "^7.37.5",
+    "eslint-plugin-react-hooks": "^5.2.0",
+    "globals": "^15.15.0",
+    "prisma": "^6.19.2",
+    "typescript-eslint": "^8.59.1"
   },
   "dependencies": {
     "@prisma/client": "^6.19.2"

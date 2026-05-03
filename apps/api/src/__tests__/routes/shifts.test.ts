@@ -27,6 +27,7 @@ vi.mock("../../lib/prisma.js", () => ({
       count: vi.fn(),
       aggregate: vi.fn(),
       findMany: vi.fn(),
+      groupBy: vi.fn().mockResolvedValue([]),
     },
     mileageSummary: {
       findUnique: vi.fn(),
@@ -35,6 +36,9 @@ vi.mock("../../lib/prisma.js", () => ({
     achievement: {
       findMany: vi.fn(),
       createMany: vi.fn(),
+    },
+    appEvent: {
+      create: vi.fn().mockResolvedValue({}),
     },
     $queryRaw: vi.fn(),
   },
@@ -70,6 +74,7 @@ const ACTIVE_SHIFT = {
   createdAt: new Date(),
   updatedAt: new Date(),
   vehicle: null,
+  _count: { trips: 0 },
 };
 
 const COMPLETED_SHIFT = {
@@ -241,8 +246,8 @@ describe("GET /shifts", () => {
 
   it("200 — returns list of user's shifts", async () => {
     vi.mocked(prisma.shift.findMany).mockResolvedValue([
-      ACTIVE_SHIFT,
-      COMPLETED_SHIFT,
+      { ...ACTIVE_SHIFT, _count: { trips: 0 } },
+      { ...COMPLETED_SHIFT, _count: { trips: 3 } },
     ] as any);
 
     const res = await app.inject({
@@ -274,17 +279,15 @@ describe("GET /shifts", () => {
     );
   });
 
-  it("ignores unknown status values (does not add to where clause)", async () => {
-    vi.mocked(prisma.shift.findMany).mockResolvedValue([]);
-
-    await app.inject({
+  it("400 — rejects unknown status values via Zod enum validation", async () => {
+    const res = await app.inject({
       method: "GET",
       url: "/shifts?status=unknown_value",
       headers: validAuthHeader(),
     });
 
-    const callArg = vi.mocked(prisma.shift.findMany).mock.calls[0][0] as any;
-    expect(callArg.where.status).toBeUndefined();
+    expect(res.statusCode).toBe(400);
+    expect(vi.mocked(prisma.shift.findMany)).not.toHaveBeenCalled();
   });
 
   it("only returns shifts belonging to the authenticated user", async () => {

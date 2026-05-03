@@ -165,7 +165,6 @@ export default async function BlogPostPage({
             {/* Body — content is trusted, developer-authored HTML */}
             <div
               className="post__body"
-              // eslint-disable-next-line react/no-danger
               dangerouslySetInnerHTML={{ __html: post.content }}
             />
 

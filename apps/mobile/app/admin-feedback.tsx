@@ -62,16 +62,6 @@ export default function AdminFeedbackScreen() {
   const [replyText, setReplyText] = useState("");
   const [sendingReply, setSendingReply] = useState(false);
 
-  // Client-side admin guard
-  if (!user?.isAdmin) {
-    return (
-      <View style={[s.container, s.centered]}>
-        <Ionicons name="shield-outline" size={48} color={TEXT_3} />
-        <Text style={s.emptyText}>Admin access required</Text>
-      </View>
-    );
-  }
-
   const loadData = useCallback(async (p = 1, append = false) => {
     try {
       setError(false);
@@ -496,6 +486,17 @@ export default function AdminFeedbackScreen() {
     count: stats[st.value] || 0,
     color: st.color,
   }));
+
+  // Client-side admin guard. Kept after all hook declarations so hook
+  // count stays stable across renders (rules-of-hooks).
+  if (!user?.isAdmin) {
+    return (
+      <View style={[s.container, s.centered]}>
+        <Ionicons name="shield-outline" size={48} color={TEXT_3} />
+        <Text style={s.emptyText}>Admin access required</Text>
+      </View>
+    );
+  }
 
   return (
     <View style={s.container}>

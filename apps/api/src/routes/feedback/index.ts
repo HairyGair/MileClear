@@ -9,6 +9,7 @@ import { logEvent } from "../../services/appEvents.js";
 function sanitizeText(input: string): string {
   return input
     .replace(/<[^>]*>/g, "")
+    // eslint-disable-next-line no-control-regex -- intentional control-char strip
     .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, "")
     .trim();
 }

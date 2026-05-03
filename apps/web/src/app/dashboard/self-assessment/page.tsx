@@ -482,23 +482,6 @@ export default function SelfAssessmentPage() {
   const [error, setError] = useState<string | null>(null);
   const [downloading, setDownloading] = useState(false);
 
-  // Premium gate
-  if (!user?.isPremium) {
-    return (
-      <>
-        <PageHeader title="Self Assessment Guide" subtitle="Step-by-step HMRC SA103 walkthrough" />
-        <div className="premium-gate">
-          <div className="premium-gate__icon">&#128203;</div>
-          <h2 className="premium-gate__title">Upgrade to Pro</h2>
-          <p className="premium-gate__text">
-            The Self Assessment Wizard - with income breakdowns, mileage deductions, expense mapping and SA103 box values - is available with a MileClear Pro subscription.
-          </p>
-          <a href="/dashboard/settings" className="btn btn--primary">Manage Subscription</a>
-        </div>
-      </>
-    );
-  }
-
   const fetchSummary = useCallback(async (year: string) => {
     setLoading(true);
     setError(null);
@@ -562,6 +545,23 @@ export default function SelfAssessmentPage() {
   const canGoBack = step > 0;
 
   const progressPct = step === 0 ? 0 : ((step) / (totalSteps - 1)) * 100;
+
+  // Premium gate. Kept after all hook declarations so hook count is stable.
+  if (!user?.isPremium) {
+    return (
+      <>
+        <PageHeader title="Self Assessment Guide" subtitle="Step-by-step HMRC SA103 walkthrough" />
+        <div className="premium-gate">
+          <div className="premium-gate__icon">&#128203;</div>
+          <h2 className="premium-gate__title">Upgrade to Pro</h2>
+          <p className="premium-gate__text">
+            The Self Assessment Wizard - with income breakdowns, mileage deductions, expense mapping and SA103 box values - is available with a MileClear Pro subscription.
+          </p>
+          <a href="/dashboard/settings" className="btn btn--primary">Manage Subscription</a>
+        </div>
+      </>
+    );
+  }
 
   return (
     <>

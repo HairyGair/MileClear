@@ -28,6 +28,8 @@ export function CostEstimate({
   fuelPricePerLitre,
   fuelType,
 }: CostEstimateProps) {
+  const router = useRouter();
+
   if (monthMiles < 1) return null;
   if (fuelType === "electric") return null;
 
@@ -39,8 +41,6 @@ export function CostEstimate({
   const gallons = monthMiles / mpg;
   const litres = gallons * LITRES_PER_GALLON;
   const costPence = litres * ppl;
-
-  const router = useRouter();
 
   return (
     <View style={styles.card}>
