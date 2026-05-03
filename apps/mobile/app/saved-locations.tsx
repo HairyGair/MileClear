@@ -18,6 +18,16 @@ import { registerGeofences } from "../lib/geofencing/index";
 import { Button } from "../components/Button";
 import type { SavedLocation, LocationType } from "@mileclear/shared";
 import { MAX_FREE_SAVED_LOCATIONS } from "@mileclear/shared";
+import { colors, fonts } from "../lib/theme";
+
+// Local theme aliases — same pattern as the (tabs) screens.
+const AMBER = colors.amber;
+const CARD_BG = colors.surface;
+const TEXT_1 = colors.text1;
+const TEXT_2 = colors.text2;
+const TEXT_3 = colors.text3;
+const BG = colors.bg;
+const GREEN = colors.green;
 
 const LOCATION_TYPE_ICONS: Record<LocationType, keyof typeof Ionicons.glyphMap> = {
   home: "home-outline",
@@ -35,8 +45,8 @@ const LOCATION_TYPE_LABELS: Record<LocationType, string> = {
 
 const LOCATION_TYPE_COLORS: Record<LocationType, string> = {
   home: "#3b82f6",
-  work: "#f5a623",
-  depot: "#10b981",
+  work: AMBER,
+  depot: GREEN,
   custom: "#8b5cf6",
 };
 
@@ -81,7 +91,7 @@ function LocationCard({
         <View
           style={[
             styles.geofenceDot,
-            { backgroundColor: item.geofenceEnabled ? "#10b981" : "#374151" },
+            { backgroundColor: item.geofenceEnabled ? GREEN : "#374151" },
           ]}
         />
         <TouchableOpacity
@@ -91,9 +101,9 @@ function LocationCard({
           accessibilityRole="button"
           accessibilityLabel={`Delete ${item.name}`}
         >
-          <Ionicons name="trash-outline" size={18} color="#6b7280" />
+          <Ionicons name="trash-outline" size={18} color={TEXT_3} />
         </TouchableOpacity>
-        <Ionicons name="chevron-forward" size={16} color="#4b5563" />
+        <Ionicons name="chevron-forward" size={16} color={TEXT_3} />
       </View>
     </TouchableOpacity>
   );
@@ -233,14 +243,14 @@ export default function SavedLocationsScreen() {
           <RefreshControl
             refreshing={refreshing}
             onRefresh={onRefresh}
-            tintColor="#f5a623"
+            tintColor={AMBER}
           />
         }
         ListEmptyComponent={
           !loading ? (
             <View style={styles.emptyState}>
               <View style={styles.emptyIcon}>
-                <Ionicons name="location-outline" size={40} color="#64748b" />
+                <Ionicons name="location-outline" size={40} color={TEXT_3} />
               </View>
               <Text style={styles.emptyTitle}>No saved locations</Text>
               <Text style={styles.emptyText}>
@@ -260,7 +270,7 @@ export default function SavedLocationsScreen() {
                 accessibilityLabel="Add location — upgrade to Pro for unlimited saved locations"
               >
                 <View style={styles.lockedAddBtnRow}>
-                  <Ionicons name="lock-closed" size={18} color="#9ca3af" />
+                  <Ionicons name="lock-closed" size={18} color={TEXT_2} />
                   <Text style={styles.lockedAddBtnText}>Add Location</Text>
                 </View>
                 <Text style={styles.lockedAddBtnSubtitle}>
@@ -280,7 +290,7 @@ export default function SavedLocationsScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#030712",
+    backgroundColor: BG,
   },
   listContent: {
     padding: 16,
@@ -288,7 +298,7 @@ const styles = StyleSheet.create({
   },
   // Card
   card: {
-    backgroundColor: "#0a1120",
+    backgroundColor: CARD_BG,
     borderRadius: 12,
     padding: 14,
     marginBottom: 10,
@@ -311,7 +321,7 @@ const styles = StyleSheet.create({
   },
   cardName: {
     fontSize: 15,
-    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontFamily: fonts.semibold,
     color: "#fff",
   },
   cardMeta: {
@@ -326,12 +336,12 @@ const styles = StyleSheet.create({
   },
   typeBadgeText: {
     fontSize: 11,
-    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontFamily: fonts.semibold,
   },
   radiusText: {
     fontSize: 12,
-    fontFamily: "PlusJakartaSans_400Regular",
-    color: "#6b7280",
+    fontFamily: fonts.regular,
+    color: TEXT_3,
   },
   cardRight: {
     flexDirection: "row",
@@ -357,7 +367,7 @@ const styles = StyleSheet.create({
     width: 72,
     height: 72,
     borderRadius: 36,
-    backgroundColor: "#0a1120",
+    backgroundColor: CARD_BG,
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.06)",
     justifyContent: "center",
@@ -366,14 +376,14 @@ const styles = StyleSheet.create({
   },
   emptyTitle: {
     fontSize: 17,
-    fontFamily: "PlusJakartaSans_600SemiBold",
-    color: "#9ca3af",
+    fontFamily: fonts.semibold,
+    color: TEXT_2,
     marginBottom: 8,
   },
   emptyText: {
     fontSize: 14,
-    fontFamily: "PlusJakartaSans_400Regular",
-    color: "#6b7280",
+    fontFamily: fonts.regular,
+    color: TEXT_3,
     textAlign: "center",
     lineHeight: 20,
   },
@@ -384,7 +394,7 @@ const styles = StyleSheet.create({
   },
   // Locked add button
   lockedAddBtn: {
-    backgroundColor: "#0a1120",
+    backgroundColor: CARD_BG,
     borderRadius: 12,
     padding: 16,
     alignItems: "center",
@@ -399,13 +409,13 @@ const styles = StyleSheet.create({
   },
   lockedAddBtnText: {
     fontSize: 15,
-    fontFamily: "PlusJakartaSans_600SemiBold",
-    color: "#9ca3af",
+    fontFamily: fonts.semibold,
+    color: TEXT_2,
   },
   lockedAddBtnSubtitle: {
     fontSize: 12,
-    fontFamily: "PlusJakartaSans_400Regular",
-    color: "#6b7280",
+    fontFamily: fonts.regular,
+    color: TEXT_3,
     textAlign: "center",
   },
 });

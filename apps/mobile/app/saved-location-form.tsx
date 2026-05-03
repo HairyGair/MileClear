@@ -27,6 +27,16 @@ import { registerGeofences } from "../lib/geofencing/index";
 import { Button } from "../components/Button";
 import type { LocationType } from "@mileclear/shared";
 import { MAX_FREE_SAVED_LOCATIONS, LOCATION_TYPES } from "@mileclear/shared";
+import { colors, fonts } from "../lib/theme";
+
+// Local theme aliases — same pattern as the (tabs) screens.
+const AMBER = colors.amber;
+const CARD_BG = colors.surface;
+const TEXT_1 = colors.text1;
+const TEXT_2 = colors.text2;
+const TEXT_3 = colors.text3;
+const BG = colors.bg;
+const GREEN = colors.green;
 
 const MIN_RADIUS = 50;
 const MAX_RADIUS = 500;
@@ -41,8 +51,8 @@ const LOCATION_TYPE_ICONS: Record<LocationType, keyof typeof Ionicons.glyphMap> 
 
 const LOCATION_TYPE_COLORS: Record<LocationType, string> = {
   home: "#3b82f6",
-  work: "#f5a623",
-  depot: "#10b981",
+  work: AMBER,
+  depot: GREEN,
   custom: "#8b5cf6",
 };
 
@@ -117,16 +127,16 @@ const sliderStyles = StyleSheet.create({
     borderColor: "rgba(255,255,255,0.06)",
   },
   stepBtnActive: {
-    backgroundColor: "#f5a623",
-    borderColor: "#f5a623",
+    backgroundColor: AMBER,
+    borderColor: AMBER,
   },
   stepLabel: {
     fontSize: 11,
-    fontFamily: "PlusJakartaSans_600SemiBold",
-    color: "#6b7280",
+    fontFamily: fonts.semibold,
+    color: TEXT_3,
   },
   stepLabelActive: {
-    color: "#030712",
+    color: BG,
   },
   track: {
     height: 4,
@@ -140,7 +150,7 @@ const sliderStyles = StyleSheet.create({
     left: 0,
     top: 0,
     height: 4,
-    backgroundColor: "#f5a623",
+    backgroundColor: AMBER,
     borderRadius: 2,
   },
   thumb: {
@@ -148,11 +158,11 @@ const sliderStyles = StyleSheet.create({
     width: 18,
     height: 18,
     borderRadius: 9,
-    backgroundColor: "#f5a623",
+    backgroundColor: AMBER,
     top: -7,
     marginLeft: -9,
     borderWidth: 2,
-    borderColor: "#030712",
+    borderColor: BG,
   },
   labelRow: {
     flexDirection: "row",
@@ -161,13 +171,13 @@ const sliderStyles = StyleSheet.create({
   },
   boundLabel: {
     fontSize: 11,
-    fontFamily: "PlusJakartaSans_400Regular",
-    color: "#4b5563",
+    fontFamily: fonts.regular,
+    color: TEXT_3,
   },
   currentLabel: {
     fontSize: 13,
-    fontFamily: "PlusJakartaSans_600SemiBold",
-    color: "#f5a623",
+    fontFamily: fonts.semibold,
+    color: AMBER,
   },
 });
 
@@ -329,7 +339,7 @@ export default function SavedLocationFormScreen() {
     return (
       <View style={styles.loadingContainer}>
         <Stack.Screen options={{ title: isEditing ? "Edit Location" : "Add Location" }} />
-        <ActivityIndicator size="large" color="#f5a623" accessibilityLabel="Loading" />
+        <ActivityIndicator size="large" color={AMBER} accessibilityLabel="Loading" />
       </View>
     );
   }
@@ -351,7 +361,7 @@ export default function SavedLocationFormScreen() {
           value={name}
           onChangeText={setName}
           placeholder="e.g. Home, Warehouse, Office"
-          placeholderTextColor="#6b7280"
+          placeholderTextColor={TEXT_3}
           autoCapitalize="words"
           autoCorrect={false}
           maxLength={60}
@@ -381,7 +391,7 @@ export default function SavedLocationFormScreen() {
                 <Ionicons
                   name={iconName}
                   size={18}
-                  color={isActive ? "#030712" : "#6b7280"}
+                  color={isActive ? BG : TEXT_3}
                   accessible={false}
                 />
                 <Text
@@ -403,7 +413,7 @@ export default function SavedLocationFormScreen() {
         {/* Address preview */}
         {hasCoords ? (
           <View style={styles.addressCard}>
-            <Ionicons name="location" size={16} color="#f5a623" accessible={false} />
+            <Ionicons name="location" size={16} color={AMBER} accessible={false} />
             <View style={{ flex: 1 }}>
               <Text style={styles.addressText} numberOfLines={2}>
                 {address ?? `${latitude!.toFixed(5)}, ${longitude!.toFixed(5)}`}
@@ -415,7 +425,7 @@ export default function SavedLocationFormScreen() {
           </View>
         ) : (
           <View style={styles.noLocationCard}>
-            <Ionicons name="location-outline" size={20} color="#4b5563" accessible={false} />
+            <Ionicons name="location-outline" size={20} color={TEXT_3} accessible={false} />
             <Text style={styles.noLocationText}>No location selected</Text>
           </View>
         )}
@@ -429,7 +439,7 @@ export default function SavedLocationFormScreen() {
             accessibilityRole="button"
             accessibilityLabel="Pick location on map"
           >
-            <Ionicons name="map-outline" size={16} color="#f5a623" accessible={false} />
+            <Ionicons name="map-outline" size={16} color={AMBER} accessible={false} />
             <Text style={styles.locationBtnText}>Pick on Map</Text>
           </TouchableOpacity>
 
@@ -443,9 +453,9 @@ export default function SavedLocationFormScreen() {
             accessibilityState={{ disabled: loadingLocation }}
           >
             {loadingLocation ? (
-              <ActivityIndicator size="small" color="#f5a623" accessibilityLabel="Getting location" />
+              <ActivityIndicator size="small" color={AMBER} accessibilityLabel="Getting location" />
             ) : (
-              <Ionicons name="navigate-outline" size={16} color="#f5a623" accessible={false} />
+              <Ionicons name="navigate-outline" size={16} color={AMBER} accessible={false} />
             )}
             <Text style={styles.locationBtnText}>
               {loadingLocation ? "Locating..." : "Use Current Location"}
@@ -473,7 +483,7 @@ export default function SavedLocationFormScreen() {
           <Switch
             value={geofenceEnabled}
             onValueChange={setGeofenceEnabled}
-            trackColor={{ false: "#374151", true: "#f5a623" }}
+            trackColor={{ false: "#374151", true: AMBER }}
             thumbColor="#fff"
             accessibilityLabel="Geofence active"
             accessibilityHint="Auto-detect trips near this location"
@@ -519,11 +529,11 @@ export default function SavedLocationFormScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#030712",
+    backgroundColor: BG,
   },
   loadingContainer: {
     flex: 1,
-    backgroundColor: "#030712",
+    backgroundColor: BG,
     justifyContent: "center",
     alignItems: "center",
   },
@@ -533,24 +543,24 @@ const styles = StyleSheet.create({
   },
   label: {
     fontSize: 14,
-    fontFamily: "PlusJakartaSans_600SemiBold",
-    color: "#d1d5db",
+    fontFamily: fonts.semibold,
+    color: TEXT_2,
     marginBottom: 6,
     marginTop: 16,
   },
   hintText: {
     fontSize: 12,
-    fontFamily: "PlusJakartaSans_400Regular",
-    color: "#6b7280",
+    fontFamily: fonts.regular,
+    color: TEXT_3,
     marginTop: 2,
     lineHeight: 17,
   },
   input: {
-    backgroundColor: "#0a1120",
+    backgroundColor: CARD_BG,
     borderRadius: 10,
     padding: 14,
     fontSize: 16,
-    fontFamily: "PlusJakartaSans_400Regular",
+    fontFamily: fonts.regular,
     color: "#fff",
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.06)",
@@ -572,15 +582,15 @@ const styles = StyleSheet.create({
   },
   typeBtnText: {
     fontSize: 11,
-    fontFamily: "PlusJakartaSans_600SemiBold",
-    color: "#6b7280",
+    fontFamily: fonts.semibold,
+    color: TEXT_3,
   },
   typeBtnTextActive: {
-    color: "#030712",
+    color: BG,
   },
   // Address display
   addressCard: {
-    backgroundColor: "#0a1120",
+    backgroundColor: CARD_BG,
     borderRadius: 10,
     padding: 12,
     flexDirection: "row",
@@ -591,17 +601,17 @@ const styles = StyleSheet.create({
   },
   addressText: {
     fontSize: 14,
-    fontFamily: "PlusJakartaSans_500Medium",
-    color: "#f0f2f5",
+    fontFamily: fonts.medium,
+    color: TEXT_1,
     marginBottom: 2,
   },
   coordText: {
     fontSize: 11,
-    fontFamily: "PlusJakartaSans_400Regular",
-    color: "#6b7280",
+    fontFamily: fonts.regular,
+    color: TEXT_3,
   },
   noLocationCard: {
-    backgroundColor: "#0a1120",
+    backgroundColor: CARD_BG,
     borderRadius: 10,
     padding: 14,
     flexDirection: "row",
@@ -613,8 +623,8 @@ const styles = StyleSheet.create({
   },
   noLocationText: {
     fontSize: 14,
-    fontFamily: "PlusJakartaSans_400Regular",
-    color: "#4b5563",
+    fontFamily: fonts.regular,
+    color: TEXT_3,
   },
   // Location picker buttons
   locationBtns: {
@@ -628,7 +638,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     gap: 6,
-    backgroundColor: "#0a1120",
+    backgroundColor: CARD_BG,
     borderRadius: 10,
     paddingVertical: 11,
     paddingHorizontal: 12,
@@ -637,15 +647,15 @@ const styles = StyleSheet.create({
   },
   locationBtnText: {
     fontSize: 13,
-    fontFamily: "PlusJakartaSans_600SemiBold",
-    color: "#f5a623",
+    fontFamily: fonts.semibold,
+    color: AMBER,
   },
   // Toggle row
   toggleRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    backgroundColor: "#0a1120",
+    backgroundColor: CARD_BG,
     borderRadius: 12,
     padding: 16,
     marginTop: 20,
@@ -654,13 +664,13 @@ const styles = StyleSheet.create({
   },
   toggleLabel: {
     fontSize: 15,
-    fontFamily: "PlusJakartaSans_500Medium",
+    fontFamily: fonts.medium,
     color: "#fff",
   },
   toggleHint: {
     fontSize: 12,
-    fontFamily: "PlusJakartaSans_400Regular",
-    color: "#6b7280",
+    fontFamily: fonts.regular,
+    color: TEXT_3,
     marginTop: 3,
   },
 });
