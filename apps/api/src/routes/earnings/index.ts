@@ -239,11 +239,6 @@ export async function earningRoutes(app: FastifyInstance) {
     }
   });
 
-  // OCR stub
-  app.post("/ocr", async (request, reply) => {
-    return reply.status(501).send({ error: "Not implemented" });
-  });
-
   // ── Open Banking (TrueLayer) ──────────────────────────────────────
 
   // Generate auth link (premium only)

@@ -379,10 +379,10 @@ Fuel
 Earnings
   POST   /earnings               # Manual entry
   POST   /earnings/csv           # CSV upload + parse
-  POST   /earnings/ocr           # Screenshot upload + OCR
   GET    /earnings               # Earnings history
   POST   /earnings/open-banking  # Connect TrueLayer
   GET    /earnings/open-banking  # Fetch latest transactions
+  # Note: Receipt OCR runs entirely on-device via Apple Vision (lib/ocr/).
 
 Gamification
   GET    /gamification/stats     # Current streaks, milestones, totals
