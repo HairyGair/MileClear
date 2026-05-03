@@ -1,6 +1,6 @@
 import "react-native-gesture-handler";
 import React, { useEffect, useRef, useState } from "react";
-import { View, Text, ActivityIndicator, LogBox, ScrollView, StyleSheet, Alert, AppState, Linking } from "react-native";
+import { View, Text, LogBox, ScrollView, StyleSheet, Alert, AppState, Linking } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { Stack, useRouter } from "expo-router";
 import * as Font from "expo-font";
@@ -46,6 +46,8 @@ import { UserProvider, useUser } from "../lib/user/context";
 import { ModeProvider } from "../lib/mode/context";
 import { SyncProvider } from "../lib/sync/context";
 import { HydrationOverlay } from "../components/HydrationOverlay";
+import { Skeleton } from "../components/Skeleton";
+import { colors, radii, spacing } from "../lib/theme";
 import "../lib/tracking/detection";
 import {
   setupNotificationResponseHandler,
@@ -384,10 +386,28 @@ function RootNavigator() {
         <Stack.Screen name="vehicle-mot-history" options={{ headerShown: true, title: "MOT History" }} />
         <Stack.Screen name="hmrc-reconciliation" options={{ headerShown: true, title: "HMRC Reconciliation" }} />
       </Stack>
-      {/* Loading overlay - covers Stack while auth/onboarding resolves */}
+      {/* Loading overlay - covers Stack while auth/onboarding resolves.
+          Mirrors the dashboard's own skeleton layout so the transition from
+          auth-loading -> dashboard-loading -> dashboard is visually
+          seamless. Replaces the centred amber spinner that was upstaging
+          the dashboard's cascade animation: by the time auth resolved,
+          dashboard data was already cached and the cascade fired
+          invisibly. With matching skeletons here the cascade lands as
+          actual visible polish. */}
       {showLoading && (
         <View style={styles.loadingOverlay}>
-          <ActivityIndicator size="large" color="#f5a623" />
+          <ScrollView contentContainerStyle={styles.loadingContent}>
+            <Skeleton.Group gap={spacing.md}>
+              <Skeleton height={32} width={180} radius={radii.pill} />
+              <Skeleton height={140} radius={radii.lg} style={{ marginTop: spacing.md }} />
+              <View style={{ flexDirection: "row", gap: spacing.md, marginTop: spacing.md }}>
+                <Skeleton height={56} width="48%" radius={radii.md} />
+                <Skeleton height={56} width="48%" radius={radii.md} />
+              </View>
+              <Skeleton height={120} radius={radii.lg} style={{ marginTop: spacing.lg }} />
+              <Skeleton height={120} radius={radii.lg} style={{ marginTop: spacing.md }} />
+            </Skeleton.Group>
+          </ScrollView>
         </View>
       )}
       <HydrationOverlay visible={hydrating} step={hydrateStep} done={hydrateDone} total={6} />
@@ -435,9 +455,16 @@ export default function RootLayout() {
 const styles = StyleSheet.create({
   loadingOverlay: {
     ...StyleSheet.absoluteFillObject,
-    justifyContent: "center",
-    alignItems: "center",
-    backgroundColor: "#030712",
+    backgroundColor: colors.bg,
     zIndex: 999,
+  },
+  loadingContent: {
+    // Mirrors the dashboard's content padding so skeletons line up with
+    // where the real cards will land once auth resolves.
+    padding: spacing.xl,
+    // Top inset to clear the status bar area approximately. The skeleton
+    // is intentionally a few px shy of perfect status-bar alignment to
+    // avoid Dynamic Island clipping on iPhone 14 Pro+.
+    paddingTop: 60,
   },
 });
