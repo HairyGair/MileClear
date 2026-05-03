@@ -252,7 +252,7 @@ function RootNavigator() {
       if (url) handleUrl({ url });
     });
     return () => sub.remove();
-  }, []);
+  }, [router]);
 
   // Process pending finalization when the app opens or returns to foreground.
   //

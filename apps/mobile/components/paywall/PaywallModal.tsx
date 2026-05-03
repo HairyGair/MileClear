@@ -114,7 +114,7 @@ export function PaywallModal({ visible, onClose, source: _source }: PaywallModal
     } finally {
       setPurchasing(false);
     }
-  }, [onClose, refreshUser]);
+  }, [onClose, refreshUser, selectedPlan, user?.id]);
 
   const handleRestore = useCallback(async () => {
     setRestoring(true);

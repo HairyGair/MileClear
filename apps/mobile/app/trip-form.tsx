@@ -940,7 +940,7 @@ export default function TripFormScreen() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [isWork]);
 
   const handleArrived = useCallback(async () => {
     setLoading(true);
@@ -1299,6 +1299,8 @@ export default function TripFormScreen() {
     isEditing, id, classification, platformTag, businessPurpose, category, vehicleId,
     startAddress, endAddress, startLat, startLng, endLat, endLng,
     distanceMiles, startedAt, endedAt, notes, router, showPaywall,
+    anomalyDef, anomalyResponse, anomalyCustomNote,
+    locationQuestions, locationResponses, locationCustomNotes,
   ]);
 
   const handleCancel = useCallback(() => {

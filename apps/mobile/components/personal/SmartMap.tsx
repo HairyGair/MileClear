@@ -117,7 +117,7 @@ export function SmartMap({ avatarId, lastTrip, height = 240 }: SmartMapProps) {
         animated: true,
       });
     }, 300);
-  }, [hasRoute, lastTrip?.id]);
+  }, [hasRoute, lastTrip, userLocation]);
 
   const handleRecenter = useCallback(() => {
     setFollowUser(true);

@@ -152,6 +152,44 @@ function computeRangeStats(trips: Trip[]) {
   return { totalMiles, businessMiles, personalMiles, businessTrips, personalTrips, totalTrips: trips.length };
 }
 
+// Extract UK postcode (full or partial outcode) from a free-text address.
+function extractPostcode(addr: string): { code: string; partial: boolean } | null {
+  const full = addr.match(/\b([A-Z]{1,2}\d[A-Z\d]?\s*\d[A-Z]{2})\b/i);
+  if (full) return { code: full[1].replace(/\s+/g, ""), partial: false };
+  const partial = addr.match(/\b([A-Z]{1,2}\d[A-Z\d]?)\b/i);
+  if (partial) return { code: partial[1], partial: true };
+  return null;
+}
+
+// UK-first geocoder: try postcodes.io for partial/full postcodes, fall
+// back to Nominatim with countrycodes=gb. Stable function — no closure.
+async function geocodeAddress(addr: string): Promise<{ lat: number; lng: number } | null> {
+  const pc = extractPostcode(addr);
+  if (pc) {
+    try {
+      const endpoint = pc.partial
+        ? `https://api.postcodes.io/outcodes/${pc.code}`
+        : `https://api.postcodes.io/postcodes/${pc.code}`;
+      const res = await fetch(endpoint);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.status === 200 && data.result) {
+          return { lat: data.result.latitude, lng: data.result.longitude };
+        }
+      }
+    } catch { /* fall through to Nominatim */ }
+  }
+  try {
+    const res = await fetch(
+      `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(addr)}&format=json&limit=1&countrycodes=gb`,
+      { headers: { "User-Agent": "MileClear/1.0" } }
+    );
+    const data = await res.json();
+    if (data?.[0]) return { lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon) };
+  } catch { /* give up */ }
+  return null;
+}
+
 export default function TripsPage() {
   const { user } = useAuth();
   const { toast } = useToast();
@@ -243,45 +281,7 @@ export default function TripsPage() {
   const [routeCalcStatus, setRouteCalcStatus] = useState<"idle" | "calculating" | "done" | "error">("idle");
   const geocodeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Extract UK postcode (full or partial outcode) from an address string
-  const extractPostcode = (addr: string): { code: string; partial: boolean } | null => {
-    const full = addr.match(/\b([A-Z]{1,2}\d[A-Z\d]?\s*\d[A-Z]{2})\b/i);
-    if (full) return { code: full[1].replace(/\s+/g, ""), partial: false };
-    const partial = addr.match(/\b([A-Z]{1,2}\d[A-Z\d]?)\b/i);
-    if (partial) return { code: partial[1], partial: true };
-    return null;
-  };
-
   // Geocode via Postcodes.io (UK postcode/outcode) or Nominatim (fallback)
-  const geocodeAddress = async (addr: string): Promise<{ lat: number; lng: number } | null> => {
-    // Try postcode first — most accurate for UK
-    const pc = extractPostcode(addr);
-    if (pc) {
-      try {
-        const endpoint = pc.partial
-          ? `https://api.postcodes.io/outcodes/${pc.code}`
-          : `https://api.postcodes.io/postcodes/${pc.code}`;
-        const res = await fetch(endpoint);
-        if (res.ok) {
-          const data = await res.json();
-          if (data.status === 200 && data.result) {
-            return { lat: data.result.latitude, lng: data.result.longitude };
-          }
-        }
-      } catch { /* fall through to Nominatim */ }
-    }
-    // Fallback: Nominatim with countrycodes=gb
-    try {
-      const res = await fetch(
-        `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(addr)}&format=json&limit=1&countrycodes=gb`,
-        { headers: { "User-Agent": "MileClear/1.0" } }
-      );
-      const data = await res.json();
-      if (data?.[0]) return { lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon) };
-    } catch { /* give up */ }
-    return null;
-  };
-
   // Geocode addresses and calculate route distance (debounced)
   useEffect(() => {
     if (geocodeTimerRef.current) clearTimeout(geocodeTimerRef.current);

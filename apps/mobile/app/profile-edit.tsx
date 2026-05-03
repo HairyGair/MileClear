@@ -72,7 +72,7 @@ export default function ProfileEditScreen() {
     } finally {
       setSaving(false);
     }
-  }, [displayName, fullName, email, originalEmail, currentPassword, emailChanged, router]);
+  }, [displayName, fullName, email, currentPassword, emailChanged, router]);
 
   if (loadingProfile) {
     return (

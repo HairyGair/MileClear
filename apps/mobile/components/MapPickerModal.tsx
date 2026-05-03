@@ -33,6 +33,11 @@ interface MapPickerModalProps {
   onCancel: () => void;
 }
 
+// London. Used as fallback when no initial coords are provided and the
+// device location lookup also fails.
+const DEFAULT_LAT = 51.5074;
+const DEFAULT_LNG = -0.1278;
+
 export function MapPickerModal({
   visible,
   initialLat,
@@ -40,9 +45,6 @@ export function MapPickerModal({
   onConfirm,
   onCancel,
 }: MapPickerModalProps) {
-  const DEFAULT_LAT = 51.5074;
-  const DEFAULT_LNG = -0.1278;
-
   const [region, setRegion] = useState({
     latitude: initialLat ?? DEFAULT_LAT,
     longitude: initialLng ?? DEFAULT_LNG,

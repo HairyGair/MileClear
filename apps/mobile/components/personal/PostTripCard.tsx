@@ -43,7 +43,7 @@ export function PostTripCard({ trip, insight, onDismiss }: PostTripCardProps) {
     }, 15000);
 
     return () => clearTimeout(timer);
-  }, []);
+  }, [opacity, translateY, onDismiss]);
 
   const milesStr =
     trip.distanceMiles < 10

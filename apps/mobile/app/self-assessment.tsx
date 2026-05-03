@@ -484,7 +484,7 @@ export default function SelfAssessmentScreen() {
     } finally {
       setDownloading(false);
     }
-  }, [selectedYear]);
+  }, [selectedYear, showPaywall]);
 
   // Loading premium status
   if (isPremium === null) {

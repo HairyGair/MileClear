@@ -160,7 +160,7 @@ export default function VehicleFormScreen() {
     } finally {
       setSaving(false);
     }
-  }, [make, model, year, vehicleType, fuelType, estimatedMpg, isPrimary, registrationPlate, isEditing, id, router]);
+  }, [make, model, year, vehicleType, fuelType, estimatedMpg, isPrimary, registrationPlate, isEditing, id, router, user?.isPremium]);
 
   const handleDelete = useCallback(() => {
     Alert.alert(

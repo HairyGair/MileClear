@@ -111,7 +111,7 @@ export default function PersonalPage() {
       }
     }
     load();
-  }, []);
+  }, [user?.isPremium]);
 
   if (loading) return <DashboardSkeleton />;
 

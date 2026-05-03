@@ -50,19 +50,24 @@ export function MileageMonthCard({
 
   const now = new Date();
   const monthStart = new Date(now.getFullYear(), now.getMonth() + offset, 1);
-  const monthEnd = new Date(
-    now.getFullYear(),
-    now.getMonth() + offset + 1,
-    0,
-    23,
-    59,
-    59
-  );
   const monthLabel = formatMonthLabel(monthStart);
   const isCurrent = offset === 0;
   const canGoForward = offset < 0;
 
   useEffect(() => {
+    // Recompute the bounds inside the effect so they don't have to be
+    // in the deps array (the values only depend on `offset`, but the
+    // Date objects are fresh references each render).
+    const baseDate = new Date();
+    const fromDate = new Date(baseDate.getFullYear(), baseDate.getMonth() + offset, 1);
+    const toDate = new Date(
+      baseDate.getFullYear(),
+      baseDate.getMonth() + offset + 1,
+      0,
+      23,
+      59,
+      59
+    );
     let cancelled = false;
     setLoading(true);
     setErrored(false);
@@ -71,8 +76,8 @@ export function MileageMonthCard({
     // for everyone before build 56).
     fetchTripSummary({
       classification,
-      from: monthStart.toISOString(),
-      to: monthEnd.toISOString(),
+      from: fromDate.toISOString(),
+      to: toDate.toISOString(),
     })
       .then((res) => {
         if (cancelled) return;

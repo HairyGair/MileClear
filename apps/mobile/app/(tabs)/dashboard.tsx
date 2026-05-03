@@ -325,7 +325,7 @@ export default function DashboardScreen() {
       setLoading(false);
       setRefreshing(false);
     }
-  }, []);
+  }, [isWork]);
 
   useFocusEffect(
     useCallback(() => {
@@ -368,8 +368,9 @@ export default function DashboardScreen() {
 
   // ── Live distance polling — reads shift_coordinates from SQLite ────────
   const liveDistRef = useRef(0);
+  const activeShiftId = activeShift?.id;
   useEffect(() => {
-    if (!activeShift) {
+    if (!activeShiftId) {
       setLiveDistance(0);
       liveDistRef.current = 0;
       return;
@@ -378,7 +379,7 @@ export default function DashboardScreen() {
     let mounted = true;
     const poll = async () => {
       try {
-        const coords = await peekBackgroundCoordinates(activeShift.id);
+        const coords = await peekBackgroundCoordinates(activeShiftId);
         if (!mounted) return;
         const dist = coords.length >= 2 ? calcDistance(coords) : 0;
         setLiveDistance(dist);
@@ -394,7 +395,9 @@ export default function DashboardScreen() {
       mounted = false;
       clearInterval(interval);
     };
-  }, [activeShift?.id]);
+  }, [activeShiftId]);
+
+  const selectedVehicle = vehicles.find((v) => v.id === selectedVehicleId);
 
   const handleStartShift = useCallback(async () => {
     setStarting(true);
@@ -427,7 +430,7 @@ export default function DashboardScreen() {
     } finally {
       setStarting(false);
     }
-  }, [selectedVehicleId]);
+  }, [selectedVehicleId, isWork, selectedVehicle]);
 
   const handleEndShift = useCallback(() => {
     if (!activeShift) return;
@@ -504,8 +507,6 @@ export default function DashboardScreen() {
       </View>
     );
   }
-
-  const selectedVehicle = vehicles.find((v) => v.id === selectedVehicleId);
 
   // ── Scorecard Modal ───────────────────────────────────────────
   const scorecardModal = (

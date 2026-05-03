@@ -88,7 +88,7 @@ export default function ExportsScreen() {
         setLoadingKey(null);
       }
     },
-    [selectedYear]
+    [selectedYear, showPaywall]
   );
 
   return (
