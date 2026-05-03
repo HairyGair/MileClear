@@ -50,6 +50,7 @@ import {
 import { startLiveActivity, updateLiveActivity, endLiveActivityWithSummary, markLiveActivityClassified } from "../lib/liveActivity";
 import { fetchCommunityInsights } from "../lib/api/communityInsights";
 import * as Notifications from "expo-notifications";
+import { colors, fonts } from "../lib/theme";
 
 /**
  * One-time contextual notification permission ask for users who skipped onboarding.
@@ -277,10 +278,10 @@ function computeInsights(crumbs: Breadcrumb[], distMiles: number, durationSecs: 
 
 // Speed colour thresholds for trail segments
 function getSpeedColor(mph: number): string {
-  if (mph < 3) return "#ef4444";      // stopped - red
+  if (mph < 3) return RED;      // stopped - red
   if (mph < 15) return "#f59e0b";     // slow - amber
-  if (mph < 50) return "#f5a623";     // cruising - brand amber
-  return "#10b981";                    // fast - green
+  if (mph < 50) return AMBER;     // cruising - brand amber
+  return GREEN;                    // fast - green
 }
 
 // Build speed-coloured polyline segments from trail points
@@ -611,7 +612,7 @@ export default function TripFormScreen() {
           const reason = a.topReasons?.[0] ?? a.response;
           const location = a.placeName ?? `${a.distanceMiles} mi away`;
           const count = a.reportCount > 1 ? `${a.reportCount} drivers reported ` : "";
-          const severityColors: Record<string, string> = { high: "#ef4444", medium: "#f59e0b" };
+          const severityColors: Record<string, string> = { high: RED, medium: "#f59e0b" };
           const icons: Record<string, string> = {
             "Heavy traffic": "car-outline",
             "Traffic jam": "car-outline",
@@ -624,7 +625,7 @@ export default function TripFormScreen() {
           alerts.push({
             message: `${count}${reason.toLowerCase()} near ${location}`,
             icon: icons[reason] ?? "alert-circle-outline",
-            color: severityColors[a.severity ?? "low"] ?? "#f5a623",
+            color: severityColors[a.severity ?? "low"] ?? AMBER,
             severity: a.severity ?? "low",
           });
         }
@@ -1382,7 +1383,7 @@ export default function TripFormScreen() {
     return (
       <View style={[styles.container, styles.centered]}>
         <Stack.Screen options={{ title: screenTitle }} />
-        <ActivityIndicator size="large" color="#f5a623" />
+        <ActivityIndicator size="large" color={AMBER} />
         <Text style={styles.loadingText}>
           {isEditing ? "Loading trip..." : "Getting your location..."}
         </Text>
@@ -1451,7 +1452,7 @@ export default function TripFormScreen() {
             </MapView>
           ) : (
             <View style={[StyleSheet.absoluteFillObject, styles.mapFallback]}>
-              <Ionicons name="map-outline" size={32} color="#4b5563" />
+              <Ionicons name="map-outline" size={32} color={TEXT_3} />
               <Text style={styles.mapFallbackText}>
                 {startAddress ?? "Locating..."}
               </Text>
@@ -1468,8 +1469,8 @@ export default function TripFormScreen() {
                   { transform: [{ scale: pulseAnim }] },
                 ]}
               />
-              <View style={[styles.drivingPulseCore, isPersonal && { backgroundColor: "#10b981" }]} />
-              <Text style={[styles.drivingLiveText, isPersonal && { color: "#10b981" }]}>
+              <View style={[styles.drivingPulseCore, isPersonal && { backgroundColor: GREEN }]} />
+              <Text style={[styles.drivingLiveText, isPersonal && { color: GREEN }]}>
                 {isPersonal ? "JOURNEY" : "TRACKING"}
               </Text>
             </View>
@@ -1479,7 +1480,7 @@ export default function TripFormScreen() {
           {/* Recenter button */}
           {!followUser && (
             <TouchableOpacity style={styles.drivingRecenterBtn} onPress={handleRecenter} activeOpacity={0.7} accessibilityRole="button" accessibilityLabel="Re-centre map on current location">
-              <Ionicons name="locate-outline" size={20} color="#f0f2f5" />
+              <Ionicons name="locate-outline" size={20} color={TEXT_1} />
             </TouchableOpacity>
           )}
 
@@ -1487,7 +1488,7 @@ export default function TripFormScreen() {
           <View style={styles.drivingDash}>
             {/* Speed hero */}
             <View style={styles.speedHero}>
-              <Text style={[styles.speedValue, isPersonal && { color: "#10b981" }]}>
+              <Text style={[styles.speedValue, isPersonal && { color: GREEN }]}>
                 {liveSpeed}
               </Text>
               <Text style={styles.speedUnit}>mph</Text>
@@ -1496,7 +1497,7 @@ export default function TripFormScreen() {
             {/* Stats strip */}
             <View style={styles.dashStatsRow}>
               <View style={styles.dashStat}>
-                <Text style={[styles.dashStatValue, isPersonal && { color: "#10b981" }]}>
+                <Text style={[styles.dashStatValue, isPersonal && { color: GREEN }]}>
                   {liveDistance.toFixed(1)}
                 </Text>
                 <Text style={styles.dashStatLabel}>MILES</Text>
@@ -1532,7 +1533,7 @@ export default function TripFormScreen() {
                 <>
                   <View style={styles.dashDivider} />
                   <View style={[styles.dashStat, { flex: 1.5 }]}>
-                    <Text style={[styles.dashStatValue, { color: "#10b981", fontSize: 14 }]} numberOfLines={1}>
+                    <Text style={[styles.dashStatValue, { color: GREEN, fontSize: 14 }]} numberOfLines={1}>
                       {currentArea}
                     </Text>
                     <Text style={styles.dashStatLabel}>AREA</Text>
@@ -1617,7 +1618,7 @@ export default function TripFormScreen() {
                 <>
                   <Marker
                     coordinate={{ latitude: endLat, longitude: endLng }}
-                    pinColor="#ef4444"
+                    pinColor={RED}
                   />
                   <Polyline
                     coordinates={
@@ -1628,7 +1629,7 @@ export default function TripFormScreen() {
                             { latitude: endLat, longitude: endLng },
                           ]
                     }
-                    strokeColor={isPersonal ? "#10b981" : "#f5a623"}
+                    strokeColor={isPersonal ? GREEN : AMBER}
                     strokeWidth={3}
                   />
                 </>
@@ -1636,7 +1637,7 @@ export default function TripFormScreen() {
             </MapView>
           ) : (
             <View style={[styles.map, styles.mapFallback]}>
-              <Ionicons name="map-outline" size={32} color="#4b5563" />
+              <Ionicons name="map-outline" size={32} color={TEXT_3} />
               <Text style={styles.mapFallbackText}>
                 {startAddress ?? "Locating..."}
               </Text>
@@ -1657,7 +1658,7 @@ export default function TripFormScreen() {
           <>
             {startAddress && (
               <View style={styles.currentLocationRow}>
-                <Ionicons name="location" size={14} color="#f5a623" />
+                <Ionicons name="location" size={14} color={AMBER} />
                 <Text style={styles.currentLocationText} numberOfLines={1}>
                   {startAddress}
                 </Text>
@@ -1668,7 +1669,7 @@ export default function TripFormScreen() {
             {communityAlerts.length > 0 && (
               <View style={styles.alertCard}>
                 <View style={styles.alertHeader}>
-                  <Ionicons name="warning-outline" size={13} color="#ef4444" />
+                  <Ionicons name="warning-outline" size={13} color={RED} />
                   <Text style={styles.alertHeaderText}>Heads up</Text>
                 </View>
                 {communityAlerts.map((alert, i) => (
@@ -1684,12 +1685,12 @@ export default function TripFormScreen() {
             {communityNudges.length > 0 && (
               <View style={styles.nudgeCard}>
                 <View style={styles.nudgeHeader}>
-                  <Ionicons name="people-outline" size={13} color="#f5a623" />
+                  <Ionicons name="people-outline" size={13} color={AMBER} />
                   <Text style={styles.nudgeTitle}>From MileClear drivers</Text>
                 </View>
                 {communityNudges.map((nudge, i) => (
                   <View key={i} style={styles.nudgeRow}>
-                    <Ionicons name="information-circle-outline" size={13} color="#8494a7" />
+                    <Ionicons name="information-circle-outline" size={13} color={TEXT_2} />
                     <Text style={styles.nudgeText}>{nudge}</Text>
                   </View>
                 ))}
@@ -1712,7 +1713,7 @@ export default function TripFormScreen() {
               accessibilityRole="button"
               accessibilityLabel="Log a past trip manually instead"
             >
-              <Ionicons name="create-outline" size={16} color="#8494a7" />
+              <Ionicons name="create-outline" size={16} color={TEXT_2} />
               <Text style={styles.manualLinkText}>Log a past trip instead</Text>
             </TouchableOpacity>
           </>
@@ -1727,7 +1728,7 @@ export default function TripFormScreen() {
                 <Ionicons name="checkmark" size={28} color="#fff" />
               </View>
               <Text style={styles.celebTitle}>Trip complete!</Text>
-              <Text style={[styles.celebDistance, isPersonal && { color: "#10b981" }]}>
+              <Text style={[styles.celebDistance, isPersonal && { color: GREEN }]}>
                 {distance != null ? `${distance} mi` : "--"}
               </Text>
               <Text style={styles.celebDuration}>
@@ -1748,7 +1749,7 @@ export default function TripFormScreen() {
               </View>
               <View style={styles.routeLine} />
               <View style={styles.routeRow}>
-                <View style={[styles.routeDot, { backgroundColor: "#ef4444" }]} />
+                <View style={[styles.routeDot, { backgroundColor: RED }]} />
                 <Text style={styles.routeText} numberOfLines={1}>
                   {endAddress ?? (endLat != null ? `${endLat.toFixed(4)}, ${endLng!.toFixed(4)}` : "End")}
                 </Text>
@@ -1797,25 +1798,25 @@ export default function TripFormScreen() {
                 <View style={styles.insightNotes}>
                   {getTimeOfDayNote(startedAt.toISOString()) && (
                     <View style={styles.insightNoteRow}>
-                      <Ionicons name="time-outline" size={13} color="#8494a7" />
+                      <Ionicons name="time-outline" size={13} color={TEXT_2} />
                       <Text style={styles.insightNote}>{getTimeOfDayNote(startedAt.toISOString())}</Text>
                     </View>
                   )}
                   {getRouteDirectnessNote(insights.routeEfficiency) && (
                     <View style={styles.insightNoteRow}>
-                      <Ionicons name="compass-outline" size={13} color="#8494a7" />
+                      <Ionicons name="compass-outline" size={13} color={TEXT_2} />
                       <Text style={styles.insightNote}>{getRouteDirectnessNote(insights.routeEfficiency)}</Text>
                     </View>
                   )}
                   {insights.longestNonStopMiles > 0.1 && (
                     <View style={styles.insightNoteRow}>
-                      <Ionicons name="trending-up-outline" size={13} color="#8494a7" />
+                      <Ionicons name="trending-up-outline" size={13} color={TEXT_2} />
                       <Text style={styles.insightNote}>Longest non-stop: {insights.longestNonStopMiles} mi</Text>
                     </View>
                   )}
                   {insights.timeStoppedSecs > 60 && (
                     <View style={styles.insightNoteRow}>
-                      <Ionicons name="pie-chart-outline" size={13} color="#8494a7" />
+                      <Ionicons name="pie-chart-outline" size={13} color={TEXT_2} />
                       <Text style={styles.insightNote}>
                         {Math.round((insights.timeMovingSecs / (insights.timeMovingSecs + insights.timeStoppedSecs)) * 100)}% of your trip was moving
                       </Text>
@@ -1862,7 +1863,7 @@ export default function TripFormScreen() {
                     value={anomalyCustomNote}
                     onChangeText={setAnomalyCustomNote}
                     placeholder="Tell us more..."
-                    placeholderTextColor="#6b7280"
+                    placeholderTextColor={TEXT_3}
                     accessibilityLabel="Custom explanation for anomaly"
                   />
                 )}
@@ -1873,7 +1874,7 @@ export default function TripFormScreen() {
             {locationQuestions.length > 0 && (
               <View style={styles.locationQuestionsSection}>
                 <View style={styles.locationQuestionsHeader}>
-                  <Ionicons name="people-outline" size={14} color="#f5a623" />
+                  <Ionicons name="people-outline" size={14} color={AMBER} />
                   <Text style={styles.locationQuestionsTitle}>Help other drivers</Text>
                 </View>
                 {locationQuestions.map((q, qIdx) => {
@@ -1884,7 +1885,7 @@ export default function TripFormScreen() {
                         <Ionicons
                           name={q.type === "long_stop" ? "location" : "speedometer-outline"}
                           size={15}
-                          color={q.type === "long_stop" ? "#ef4444" : "#f59e0b"}
+                          color={q.type === "long_stop" ? RED : "#f59e0b"}
                         />
                         <Text style={styles.locationQuestionText}>{q.question}</Text>
                       </View>
@@ -1923,7 +1924,7 @@ export default function TripFormScreen() {
                             setLocationCustomNotes((prev) => ({ ...prev, [qIdx]: text }))
                           }
                           placeholder="Tell us more..."
-                          placeholderTextColor="#6b7280"
+                          placeholderTextColor={TEXT_3}
                           accessibilityLabel="Custom explanation for location question"
                         />
                       )}
@@ -1936,7 +1937,7 @@ export default function TripFormScreen() {
             {/* Smart suggestion banner */}
             {suggestionApplied && suggestion && (
               <View style={styles.suggestionBanner}>
-                <Ionicons name="sparkles" size={14} color="#f5a623" />
+                <Ionicons name="sparkles" size={14} color={AMBER} />
                 <Text style={styles.suggestionText}>
                   Suggested from {suggestion.matchCount} previous trip{suggestion.matchCount !== 1 ? "s" : ""} here
                 </Text>
@@ -2043,7 +2044,7 @@ export default function TripFormScreen() {
                         <Ionicons
                           name={bp.icon as any}
                           size={14}
-                          color={businessPurpose === bp.value ? "#030712" : "#8494a7"}
+                          color={businessPurpose === bp.value ? BG : TEXT_2}
                         />
                         <Text
                           style={[styles.platformChipText, businessPurpose === bp.value && styles.platformChipTextActive]}
@@ -2089,7 +2090,7 @@ export default function TripFormScreen() {
                       <Ionicons
                         name={c.icon as any}
                         size={14}
-                        color={category === c.value ? "#030712" : "#8494a7"}
+                        color={category === c.value ? BG : TEXT_2}
                         accessible={false}
                       />
                       <Text
@@ -2111,7 +2112,7 @@ export default function TripFormScreen() {
                   value={notes}
                   onChangeText={setNotes}
                   placeholder="Add a note about this journey..."
-                  placeholderTextColor="#64748b"
+                  placeholderTextColor={TEXT_3}
                   multiline
                   numberOfLines={3}
                   textAlignVertical="top"
@@ -2128,7 +2129,7 @@ export default function TripFormScreen() {
         {/* ── Saving State ── */}
         {mode === "saving" && (
           <View style={styles.centered}>
-            <ActivityIndicator size="large" color="#f5a623" accessibilityLabel="Saving trip" />
+            <ActivityIndicator size="large" color={AMBER} accessibilityLabel="Saving trip" />
             <Text style={styles.loadingText}>Saving trip...</Text>
           </View>
         )}
@@ -2144,7 +2145,7 @@ export default function TripFormScreen() {
                 accessibilityRole="button"
                 accessibilityLabel="Track a trip live instead"
               >
-                <Ionicons name="navigate-outline" size={16} color="#f5a623" accessible={false} />
+                <Ionicons name="navigate-outline" size={16} color={AMBER} accessible={false} />
                 <Text style={styles.backToQuickText}>Track a trip live instead</Text>
               </TouchableOpacity>
             )}
@@ -2212,25 +2213,25 @@ export default function TripFormScreen() {
                 <View style={styles.insightNotes}>
                   {getTimeOfDayNote(startedAt.toISOString()) && (
                     <View style={styles.insightNoteRow}>
-                      <Ionicons name="time-outline" size={13} color="#8494a7" />
+                      <Ionicons name="time-outline" size={13} color={TEXT_2} />
                       <Text style={styles.insightNote}>{getTimeOfDayNote(startedAt.toISOString())}</Text>
                     </View>
                   )}
                   {getRouteDirectnessNote(insights.routeEfficiency) && (
                     <View style={styles.insightNoteRow}>
-                      <Ionicons name="compass-outline" size={13} color="#8494a7" />
+                      <Ionicons name="compass-outline" size={13} color={TEXT_2} />
                       <Text style={styles.insightNote}>{getRouteDirectnessNote(insights.routeEfficiency)}</Text>
                     </View>
                   )}
                   {insights.longestNonStopMiles > 0.1 && (
                     <View style={styles.insightNoteRow}>
-                      <Ionicons name="trending-up-outline" size={13} color="#8494a7" />
+                      <Ionicons name="trending-up-outline" size={13} color={TEXT_2} />
                       <Text style={styles.insightNote}>Longest non-stop: {insights.longestNonStopMiles} mi</Text>
                     </View>
                   )}
                   {insights.timeStoppedSecs > 60 && (
                     <View style={styles.insightNoteRow}>
-                      <Ionicons name="pie-chart-outline" size={13} color="#8494a7" />
+                      <Ionicons name="pie-chart-outline" size={13} color={TEXT_2} />
                       <Text style={styles.insightNote}>
                         {Math.round((insights.timeMovingSecs / (insights.timeMovingSecs + insights.timeStoppedSecs)) * 100)}% of your trip was moving
                       </Text>
@@ -2342,7 +2343,7 @@ export default function TripFormScreen() {
                         <Ionicons
                           name={c.icon as any}
                           size={14}
-                          color={category === c.value ? "#030712" : "#8494a7"}
+                          color={category === c.value ? BG : TEXT_2}
                         />
                         <Text
                           style={[styles.platformChipText, category === c.value && styles.platformChipTextActive]}
@@ -2372,7 +2373,7 @@ export default function TripFormScreen() {
               <Ionicons
                 name={showDetails ? "chevron-up" : "chevron-down"}
                 size={18}
-                color="#6b7280"
+                color={TEXT_3}
                 accessible={false}
               />
             </TouchableOpacity>
@@ -2452,7 +2453,7 @@ export default function TripFormScreen() {
                             <Ionicons
                               name={bp.icon as any}
                               size={14}
-                              color={businessPurpose === bp.value ? "#030712" : "#8494a7"}
+                              color={businessPurpose === bp.value ? BG : TEXT_2}
                               accessible={false}
                             />
                             <Text
@@ -2485,7 +2486,7 @@ export default function TripFormScreen() {
                       ? `${selectedVehicle.make} ${selectedVehicle.model}`
                       : "None selected"}
                   </Text>
-                  <Ionicons name="chevron-forward" size={18} color="#6b7280" accessible={false} />
+                  <Ionicons name="chevron-forward" size={18} color={TEXT_3} accessible={false} />
                 </TouchableOpacity>
 
                 {/* Notes */}
@@ -2495,7 +2496,7 @@ export default function TripFormScreen() {
                   value={notes}
                   onChangeText={setNotes}
                   placeholder="Optional notes about this trip"
-                  placeholderTextColor="#6b7280"
+                  placeholderTextColor={TEXT_3}
                   multiline
                   numberOfLines={3}
                   textAlignVertical="top"
@@ -2533,15 +2534,19 @@ export default function TripFormScreen() {
   );
 }
 
-const AMBER = "#f5a623";
-const TEXT_1 = "#f0f2f5";
-const TEXT_2 = "#8494a7";
-const CARD_BG = "#0a1120";
+const AMBER = colors.amber;
+const TEXT_1 = colors.text1;
+const TEXT_2 = colors.text2;
+const TEXT_3 = colors.text3;
+const CARD_BG = colors.surface;
+const BG = colors.bg;
+const GREEN = colors.green;
+const RED = colors.red;
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#030712",
+    backgroundColor: BG,
   },
   centered: {
     justifyContent: "center",
@@ -2550,7 +2555,7 @@ const styles = StyleSheet.create({
   },
   loadingText: {
     fontSize: 14,
-    fontFamily: "PlusJakartaSans_400Regular",
+    fontFamily: fonts.regular,
     color: TEXT_2,
     marginTop: 12,
   },
@@ -2562,14 +2567,14 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   mapFallback: {
-    backgroundColor: "#0a1120",
+    backgroundColor: CARD_BG,
     justifyContent: "center",
     alignItems: "center",
     gap: 8,
   },
   mapFallbackText: {
     fontSize: 14,
-    fontFamily: "PlusJakartaSans_500Medium",
+    fontFamily: fonts.medium,
     color: TEXT_2,
     textAlign: "center",
     paddingHorizontal: 20,
@@ -2599,8 +2604,8 @@ const styles = StyleSheet.create({
   },
   alertHeaderText: {
     fontSize: 11,
-    fontFamily: "PlusJakartaSans_700Bold",
-    color: "#ef4444",
+    fontFamily: fonts.bold,
+    color: RED,
     textTransform: "uppercase",
     letterSpacing: 0.5,
   },
@@ -2612,7 +2617,7 @@ const styles = StyleSheet.create({
   },
   alertText: {
     fontSize: 13,
-    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontFamily: fonts.semibold,
     flex: 1,
   },
   nudgeCard: {
@@ -2631,8 +2636,8 @@ const styles = StyleSheet.create({
   },
   nudgeTitle: {
     fontSize: 11,
-    fontFamily: "PlusJakartaSans_600SemiBold",
-    color: "#f5a623",
+    fontFamily: fonts.semibold,
+    color: AMBER,
     textTransform: "uppercase",
     letterSpacing: 0.3,
   },
@@ -2644,7 +2649,7 @@ const styles = StyleSheet.create({
   },
   nudgeText: {
     fontSize: 13,
-    fontFamily: "PlusJakartaSans_500Medium",
+    fontFamily: fonts.medium,
     color: "#c9d1d9",
     flex: 1,
   },
@@ -2662,7 +2667,7 @@ const styles = StyleSheet.create({
   },
   currentLocationText: {
     fontSize: 14,
-    fontFamily: "PlusJakartaSans_500Medium",
+    fontFamily: fonts.medium,
     color: TEXT_1,
     flex: 1,
   },
@@ -2676,8 +2681,8 @@ const styles = StyleSheet.create({
   },
   manualLinkText: {
     fontSize: 14,
-    fontFamily: "PlusJakartaSans_500Medium",
-    color: "#8494a7",
+    fontFamily: fonts.medium,
+    color: TEXT_2,
   },
   backToQuickLink: {
     flexDirection: "row",
@@ -2693,7 +2698,7 @@ const styles = StyleSheet.create({
   },
   backToQuickText: {
     fontSize: 14,
-    fontFamily: "PlusJakartaSans_500Medium",
+    fontFamily: fonts.medium,
     color: AMBER,
   },
   // ── Full-screen driving mode ─────────────────────────
@@ -2735,14 +2740,14 @@ const styles = StyleSheet.create({
   },
   drivingLiveText: {
     fontSize: 11,
-    fontFamily: "PlusJakartaSans_700Bold",
+    fontFamily: fonts.bold,
     color: "#34c759",
     letterSpacing: 1.2,
     marginLeft: 14,
   },
   drivingTopTimer: {
     fontSize: 15,
-    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontFamily: fonts.semibold,
     color: TEXT_2,
     fontVariant: ["tabular-nums"],
     letterSpacing: 1,
@@ -2783,13 +2788,13 @@ const styles = StyleSheet.create({
   },
   speedValue: {
     fontSize: 56,
-    fontFamily: "PlusJakartaSans_300Light",
+    fontFamily: fonts.light,
     color: AMBER,
     fontVariant: ["tabular-nums"],
   },
   speedUnit: {
     fontSize: 18,
-    fontFamily: "PlusJakartaSans_500Medium",
+    fontFamily: fonts.medium,
     color: TEXT_2,
   },
   dashStatsRow: {
@@ -2808,12 +2813,12 @@ const styles = StyleSheet.create({
   },
   dashStatValue: {
     fontSize: 16,
-    fontFamily: "PlusJakartaSans_700Bold",
+    fontFamily: fonts.bold,
     color: AMBER,
   },
   dashStatLabel: {
     fontSize: 11,
-    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontFamily: fonts.semibold,
     color: TEXT_2,
     marginTop: 2,
     textTransform: "uppercase",
@@ -2826,7 +2831,7 @@ const styles = StyleSheet.create({
   },
   dashAddress: {
     fontSize: 13,
-    fontFamily: "PlusJakartaSans_400Regular",
+    fontFamily: fonts.regular,
     color: TEXT_2,
     marginBottom: 14,
     textAlign: "center",
@@ -2838,8 +2843,8 @@ const styles = StyleSheet.create({
   },
   dashCancelText: {
     fontSize: 14,
-    fontFamily: "PlusJakartaSans_500Medium",
-    color: "#6b7280",
+    fontFamily: fonts.medium,
+    color: TEXT_3,
   },
   // ── Arrived / route summary ──────────────────────────
   routeCard: {
@@ -2862,7 +2867,7 @@ const styles = StyleSheet.create({
   },
   routeText: {
     fontSize: 14,
-    fontFamily: "PlusJakartaSans_500Medium",
+    fontFamily: fonts.medium,
     color: TEXT_1,
     flex: 1,
   },
@@ -2889,12 +2894,12 @@ const styles = StyleSheet.create({
   },
   statValue: {
     fontSize: 22,
-    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontFamily: fonts.semibold,
     color: TEXT_1,
   },
   statUnit: {
     fontSize: 11,
-    fontFamily: "PlusJakartaSans_400Regular",
+    fontFamily: fonts.regular,
     color: TEXT_2,
     marginTop: 2,
   },
@@ -2909,7 +2914,7 @@ const styles = StyleSheet.create({
   },
   insightsTitle: {
     fontSize: 13,
-    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontFamily: fonts.semibold,
     color: AMBER,
     marginBottom: 10,
     letterSpacing: 0.3,
@@ -2924,12 +2929,12 @@ const styles = StyleSheet.create({
   },
   insightValue: {
     fontSize: 22,
-    fontFamily: "PlusJakartaSans_700Bold",
+    fontFamily: fonts.bold,
     color: TEXT_1,
   },
   insightLabel: {
     fontSize: 10,
-    fontFamily: "PlusJakartaSans_400Regular",
+    fontFamily: fonts.regular,
     color: TEXT_2,
     marginTop: 2,
     textTransform: "uppercase",
@@ -2949,7 +2954,7 @@ const styles = StyleSheet.create({
   },
   insightNote: {
     fontSize: 12,
-    fontFamily: "PlusJakartaSans_400Regular",
+    fontFamily: fonts.regular,
     color: TEXT_2,
     flex: 1,
   },
@@ -2962,7 +2967,7 @@ const styles = StyleSheet.create({
   },
   insightFunFact: {
     fontSize: 13,
-    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontFamily: fonts.semibold,
     color: AMBER,
   },
   // ── Smart suggestion ──────────────────────────────────
@@ -2980,7 +2985,7 @@ const styles = StyleSheet.create({
   },
   suggestionText: {
     fontSize: 12,
-    fontFamily: "PlusJakartaSans_500Medium",
+    fontFamily: fonts.medium,
     color: "#d4a053",
     flex: 1,
   },
@@ -3005,11 +3010,11 @@ const styles = StyleSheet.create({
   },
   classChipText: {
     fontSize: 13,
-    fontFamily: "PlusJakartaSans_600SemiBold",
-    color: "#9ca3af",
+    fontFamily: fonts.semibold,
+    color: TEXT_2,
   },
   classChipTextActive: {
-    color: "#030712",
+    color: BG,
   },
   platformRow: {
     gap: 8,
@@ -3029,34 +3034,34 @@ const styles = StyleSheet.create({
   },
   chipSectionLabel: {
     fontSize: 11,
-    fontFamily: "PlusJakartaSans_600SemiBold",
-    color: "#6b7280",
+    fontFamily: fonts.semibold,
+    color: TEXT_3,
     textTransform: "uppercase" as const,
     letterSpacing: 0.5,
     marginBottom: 6,
   },
   platformChipText: {
     fontSize: 12,
-    fontFamily: "PlusJakartaSans_600SemiBold",
-    color: "#9ca3af",
+    fontFamily: fonts.semibold,
+    color: TEXT_2,
   },
   platformChipTextActive: {
-    color: "#030712",
+    color: BG,
   },
   // ── Manual form fields ───────────────────────────────
   label: {
     fontSize: 14,
-    fontFamily: "PlusJakartaSans_600SemiBold",
-    color: "#d1d5db",
+    fontFamily: fonts.semibold,
+    color: TEXT_2,
     marginBottom: 6,
     marginTop: 16,
   },
   input: {
-    backgroundColor: "#0a1120",
+    backgroundColor: CARD_BG,
     borderRadius: 10,
     padding: 14,
     fontSize: 16,
-    fontFamily: "PlusJakartaSans_400Regular",
+    fontFamily: fonts.regular,
     color: "#fff",
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.06)",
@@ -3082,7 +3087,7 @@ const styles = StyleSheet.create({
   },
   distanceLabel: {
     fontSize: 11,
-    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontFamily: fonts.semibold,
     color: TEXT_2,
     textTransform: "uppercase",
     letterSpacing: 0.5,
@@ -3090,14 +3095,14 @@ const styles = StyleSheet.create({
   },
   distanceValue: {
     fontSize: 28,
-    fontFamily: "PlusJakartaSans_300Light",
+    fontFamily: fonts.light,
     color: AMBER,
     letterSpacing: -0.5,
   },
   distanceHint: {
     fontSize: 11,
-    fontFamily: "PlusJakartaSans_400Regular",
-    color: "#64748b",
+    fontFamily: fonts.regular,
+    color: TEXT_3,
     marginTop: 4,
   },
   detailsToggle: {
@@ -3111,14 +3116,14 @@ const styles = StyleSheet.create({
   },
   detailsToggleText: {
     fontSize: 15,
-    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontFamily: fonts.semibold,
     color: TEXT_1,
   },
   vehiclePicker: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    backgroundColor: "#0a1120",
+    backgroundColor: CARD_BG,
     borderRadius: 10,
     padding: 14,
     borderWidth: 1,
@@ -3126,7 +3131,7 @@ const styles = StyleSheet.create({
   },
   vehiclePickerText: {
     fontSize: 16,
-    fontFamily: "PlusJakartaSans_400Regular",
+    fontFamily: fonts.regular,
     color: "#fff",
   },
   // ── User location dot (driving mode) ──────────────────
@@ -3155,33 +3160,33 @@ const styles = StyleSheet.create({
     width: 56,
     height: 56,
     borderRadius: 28,
-    backgroundColor: "#10b981",
+    backgroundColor: GREEN,
     justifyContent: "center",
     alignItems: "center",
     marginBottom: 12,
   },
   celebTitle: {
     fontSize: 20,
-    fontFamily: "PlusJakartaSans_700Bold",
+    fontFamily: fonts.bold,
     color: TEXT_1,
     marginBottom: 4,
   },
   celebDistance: {
     fontSize: 32,
-    fontFamily: "PlusJakartaSans_700Bold",
+    fontFamily: fonts.bold,
     color: AMBER,
     marginBottom: 2,
   },
   celebDuration: {
     fontSize: 14,
-    fontFamily: "PlusJakartaSans_400Regular",
+    fontFamily: fonts.regular,
     color: TEXT_2,
     marginBottom: 8,
   },
   celebMessage: {
     fontSize: 14,
-    fontFamily: "PlusJakartaSans_500Medium",
-    color: "#10b981",
+    fontFamily: fonts.medium,
+    color: GREEN,
   },
   // ── Anomaly card ──────────────────────────────────────
   anomalyCard: {
@@ -3194,7 +3199,7 @@ const styles = StyleSheet.create({
   },
   anomalyQuestion: {
     fontSize: 14,
-    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontFamily: fonts.semibold,
     color: TEXT_1,
     marginBottom: 10,
   },
@@ -3217,11 +3222,11 @@ const styles = StyleSheet.create({
   },
   anomalyChipText: {
     fontSize: 12,
-    fontFamily: "PlusJakartaSans_500Medium",
-    color: "#9ca3af",
+    fontFamily: fonts.medium,
+    color: TEXT_2,
   },
   anomalyChipTextActive: {
-    color: "#030712",
+    color: BG,
   },
   // Location-based community questions
   locationQuestionsSection: {
@@ -3235,8 +3240,8 @@ const styles = StyleSheet.create({
   },
   locationQuestionsTitle: {
     fontSize: 12,
-    fontFamily: "PlusJakartaSans_600SemiBold",
-    color: "#f5a623",
+    fontFamily: fonts.semibold,
+    color: AMBER,
     textTransform: "uppercase",
     letterSpacing: 0.5,
   },
@@ -3256,7 +3261,7 @@ const styles = StyleSheet.create({
   },
   locationQuestionText: {
     fontSize: 14,
-    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontFamily: fonts.semibold,
     color: TEXT_1,
     flex: 1,
   },
