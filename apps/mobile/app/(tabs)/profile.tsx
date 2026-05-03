@@ -50,13 +50,16 @@ import { AvatarPicker } from "../../components/avatars/AvatarPicker";
 import { useLayoutPrefs, resetAllLayouts } from "../../lib/layout/index";
 import { PremiumTeaser } from "../../components/PremiumGate";
 import { usePaywall } from "../../components/paywall";
+import { colors, fonts } from "../../lib/theme";
 
-const AMBER = "#f5a623";
-const TEXT_1 = "#f0f2f5";
-const TEXT_2 = "#8494a7";
-const TEXT_3 = "#64748b";
-const CARD_BG = "#0a1120";
-const BG = "#030712";
+const AMBER = colors.amber;
+const TEXT_1 = colors.text1;
+const TEXT_2 = colors.text2;
+const TEXT_3 = colors.text3;
+const CARD_BG = colors.surface;
+const BG = colors.bg;
+const RED = colors.red;
+const GREEN = colors.green;
 
 const VEHICLE_TYPE_LABELS: Record<string, string> = {
   car: "Car",
@@ -597,9 +600,9 @@ export default function ProfileScreen() {
                 accessibilityLabel="Add vehicle"
               >
                 <View style={[styles.iconCircle, { backgroundColor: "rgba(16, 185, 129, 0.1)" }]}>
-                  <Ionicons name="add" size={18} color="#10b981" />
+                  <Ionicons name="add" size={18} color={GREEN} />
                 </View>
-                <Text style={[styles.itemLabel, { color: "#10b981" }]}>Add Vehicle</Text>
+                <Text style={[styles.itemLabel, { color: GREEN }]}>Add Vehicle</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -626,15 +629,15 @@ export default function ProfileScreen() {
                   <Text style={styles.upgradePrice}>{iapPrice ? `${iapPrice}/mo` : "Pro"}</Text>
                   <View style={styles.featureList}>
                     <View style={styles.featureRow}>
-                      <Ionicons name="checkmark-circle" size={18} color="#10b981" />
+                      <Ionicons name="checkmark-circle" size={18} color={GREEN} />
                       <Text style={styles.featureText}>HMRC tax exports (PDF, CSV, Xero)</Text>
                     </View>
                     <View style={styles.featureRow}>
-                      <Ionicons name="checkmark-circle" size={18} color="#10b981" />
+                      <Ionicons name="checkmark-circle" size={18} color={GREEN} />
                       <Text style={styles.featureText}>Open Banking auto-import</Text>
                     </View>
                     <View style={styles.featureRow}>
-                      <Ionicons name="checkmark-circle" size={18} color="#10b981" />
+                      <Ionicons name="checkmark-circle" size={18} color={GREEN} />
                       <Text style={styles.featureText}>Advanced analytics & insights</Text>
                     </View>
                   </View>
@@ -785,7 +788,7 @@ export default function ProfileScreen() {
                     Troubleshoot drive detection
                   </Text>
                 </View>
-                <Ionicons name="chevron-forward" size={16} color="#64748b" />
+                <Ionicons name="chevron-forward" size={16} color={TEXT_3} />
               </TouchableOpacity>
 
               {/* Work Schedule */}
@@ -807,9 +810,9 @@ export default function ProfileScreen() {
                   </Text>
                 </View>
                 <View style={{ backgroundColor: AMBER, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4, marginRight: 8 }}>
-                  <Text style={{ fontSize: 11, fontFamily: "PlusJakartaSans_700Bold", color: "#030712" }}>PRO</Text>
+                  <Text style={{ fontSize: 11, fontFamily: fonts.bold, color: BG }}>PRO</Text>
                 </View>
-                <Ionicons name="chevron-forward" size={16} color="#64748b" />
+                <Ionicons name="chevron-forward" size={16} color={TEXT_3} />
               </TouchableOpacity>
 
               {/* Weekly Goal */}
@@ -1134,9 +1137,9 @@ export default function ProfileScreen() {
               accessibilityLabel="Log out"
             >
               <View style={[styles.iconCircle, { backgroundColor: "rgba(239, 68, 68, 0.1)" }]}>
-                <Ionicons name="log-out-outline" size={18} color="#ef4444" accessible={false} />
+                <Ionicons name="log-out-outline" size={18} color={RED} accessible={false} />
               </View>
-              <Text style={[styles.itemLabel, { color: "#ef4444" }]}>Log out</Text>
+              <Text style={[styles.itemLabel, { color: RED }]}>Log out</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={styles.accountItem}
@@ -1149,9 +1152,9 @@ export default function ProfileScreen() {
               accessibilityState={{ disabled: deletingAccount, busy: deletingAccount }}
             >
               <View style={[styles.iconCircle, { backgroundColor: "rgba(239, 68, 68, 0.1)" }]}>
-                <Ionicons name="trash-outline" size={18} color="#ef4444" />
+                <Ionicons name="trash-outline" size={18} color={RED} />
               </View>
-              <Text style={[styles.itemLabel, { color: "#ef4444" }]}>
+              <Text style={[styles.itemLabel, { color: RED }]}>
                 {deletingAccount ? "Deleting..." : "Delete Account"}
               </Text>
             </TouchableOpacity>
@@ -1180,7 +1183,7 @@ export default function ProfileScreen() {
               accessibilityLabel="Password"
               onChangeText={setDeletePassword}
               placeholder="Password"
-              placeholderTextColor="#6b7280"
+              placeholderTextColor={TEXT_3}
               secureTextEntry
               autoFocus
             />
@@ -1319,14 +1322,14 @@ const styles = StyleSheet.create({
   },
   displayName: {
     fontSize: 18,
-    fontFamily: "PlusJakartaSans_700Bold",
+    fontFamily: fonts.bold,
     color: TEXT_1,
     flexShrink: 1,
   },
   proBadge: {
     fontSize: 11,
-    fontFamily: "PlusJakartaSans_700Bold",
-    color: "#030712",
+    fontFamily: fonts.bold,
+    color: BG,
     backgroundColor: AMBER,
     paddingHorizontal: 6,
     paddingVertical: 2,
@@ -1335,13 +1338,13 @@ const styles = StyleSheet.create({
   },
   email: {
     fontSize: 14,
-    fontFamily: "PlusJakartaSans_400Regular",
+    fontFamily: fonts.regular,
     color: TEXT_2,
     marginTop: 2,
   },
   memberSince: {
     fontSize: 12,
-    fontFamily: "PlusJakartaSans_400Regular",
+    fontFamily: fonts.regular,
     color: TEXT_3,
     marginTop: 2,
   },
@@ -1352,7 +1355,7 @@ const styles = StyleSheet.create({
   },
   groupLabel: {
     fontSize: 11,
-    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontFamily: fonts.semibold,
     color: TEXT_3,
     letterSpacing: 1,
     marginBottom: 6,
@@ -1384,12 +1387,12 @@ const styles = StyleSheet.create({
   },
   itemLabel: {
     fontSize: 15,
-    fontFamily: "PlusJakartaSans_500Medium",
+    fontFamily: fonts.medium,
     color: TEXT_1,
   },
   itemHint: {
     fontSize: 11,
-    fontFamily: "PlusJakartaSans_400Regular",
+    fontFamily: fonts.regular,
     color: TEXT_3,
     marginTop: 2,
   },
@@ -1407,8 +1410,8 @@ const styles = StyleSheet.create({
   },
   badgeChipText: {
     fontSize: 11,
-    fontFamily: "PlusJakartaSans_700Bold",
-    color: "#030712",
+    fontFamily: fonts.bold,
+    color: BG,
     letterSpacing: 0.3,
   },
 
@@ -1433,8 +1436,8 @@ const styles = StyleSheet.create({
   },
   primaryBadgeText: {
     fontSize: 11,
-    fontFamily: "PlusJakartaSans_700Bold",
-    color: "#030712",
+    fontFamily: fonts.bold,
+    color: BG,
   },
   vehicleMeta: {
     flexDirection: "row",
@@ -1444,8 +1447,8 @@ const styles = StyleSheet.create({
   },
   metaChip: {
     fontSize: 11,
-    fontFamily: "PlusJakartaSans_400Regular",
-    color: "#d1d5db",
+    fontFamily: fonts.regular,
+    color: TEXT_2,
     backgroundColor: "rgba(255,255,255,0.06)",
     paddingHorizontal: 6,
     paddingVertical: 1,
@@ -1454,7 +1457,7 @@ const styles = StyleSheet.create({
   },
   metaText: {
     fontSize: 12,
-    fontFamily: "PlusJakartaSans_400Regular",
+    fontFamily: fonts.regular,
     color: TEXT_2,
   },
   emptyVehicles: {
@@ -1464,7 +1467,7 @@ const styles = StyleSheet.create({
   },
   emptyText: {
     fontSize: 13,
-    fontFamily: "PlusJakartaSans_400Regular",
+    fontFamily: fonts.regular,
     color: TEXT_3,
   },
   addVehicleRow: {
@@ -1485,7 +1488,7 @@ const styles = StyleSheet.create({
   },
   editLink: {
     fontSize: 14,
-    fontFamily: "PlusJakartaSans_500Medium",
+    fontFamily: fonts.medium,
     color: AMBER,
   },
   toggle: {
@@ -1514,11 +1517,11 @@ const styles = StyleSheet.create({
   },
   pillText: {
     fontSize: 13,
-    fontFamily: "PlusJakartaSans_400Regular",
+    fontFamily: fonts.regular,
     color: TEXT_2,
   },
   pillTextActive: {
-    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontFamily: fonts.semibold,
     color: AMBER,
   },
 
@@ -1547,12 +1550,12 @@ const styles = StyleSheet.create({
   },
   upgradeTitle: {
     fontSize: 18,
-    fontFamily: "PlusJakartaSans_700Bold",
+    fontFamily: fonts.bold,
     color: TEXT_1,
   },
   upgradePrice: {
     fontSize: 15,
-    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontFamily: fonts.semibold,
     color: AMBER,
     marginBottom: 14,
   },
@@ -1567,8 +1570,8 @@ const styles = StyleSheet.create({
   },
   featureText: {
     fontSize: 14,
-    fontFamily: "PlusJakartaSans_400Regular",
-    color: "#d1d5db",
+    fontFamily: fonts.regular,
+    color: TEXT_2,
   },
   upgradeButton: {
     backgroundColor: AMBER,
@@ -1578,8 +1581,8 @@ const styles = StyleSheet.create({
   },
   upgradeButtonText: {
     fontSize: 15,
-    fontFamily: "PlusJakartaSans_700Bold",
-    color: "#030712",
+    fontFamily: fonts.bold,
+    color: BG,
   },
   restoreButton: {
     alignItems: "center",
@@ -1588,13 +1591,13 @@ const styles = StyleSheet.create({
   },
   restoreButtonText: {
     fontSize: 14,
-    fontFamily: "PlusJakartaSans_500Medium",
+    fontFamily: fonts.medium,
     color: "#3b82f6",
   },
   subLegalText: {
     fontSize: 11,
-    fontFamily: "PlusJakartaSans_400Regular",
-    color: "#6b7280",
+    fontFamily: fonts.regular,
+    color: TEXT_3,
     textAlign: "center",
     marginTop: 10,
   },
@@ -1608,12 +1611,12 @@ const styles = StyleSheet.create({
   },
   subLegalLink: {
     fontSize: 11,
-    fontFamily: "PlusJakartaSans_500Medium",
+    fontFamily: fonts.medium,
     color: "#3b82f6",
   },
   subLegalSep: {
     fontSize: 11,
-    color: "#4b5563",
+    color: TEXT_3,
   },
   subCard: {
     padding: 14,
@@ -1626,7 +1629,7 @@ const styles = StyleSheet.create({
   },
   subTitle: {
     fontSize: 16,
-    fontFamily: "PlusJakartaSans_700Bold",
+    fontFamily: fonts.bold,
     color: TEXT_1,
   },
   activeBadge: {
@@ -1639,20 +1642,20 @@ const styles = StyleSheet.create({
   },
   activeBadgeText: {
     fontSize: 11,
-    fontFamily: "PlusJakartaSans_700Bold",
-    color: "#10b981",
+    fontFamily: fonts.bold,
+    color: GREEN,
     letterSpacing: 0.3,
   },
   subDetail: {
     fontSize: 13,
-    fontFamily: "PlusJakartaSans_400Regular",
+    fontFamily: fonts.regular,
     color: TEXT_2,
     marginBottom: 4,
   },
   subLink: {
     fontSize: 13,
-    fontFamily: "PlusJakartaSans_400Regular",
-    color: "#ef4444",
+    fontFamily: fonts.regular,
+    color: RED,
     marginTop: 8,
   },
 
@@ -1682,13 +1685,13 @@ const styles = StyleSheet.create({
   },
   modalTitle: {
     fontSize: 18,
-    fontFamily: "PlusJakartaSans_700Bold",
+    fontFamily: fonts.bold,
     color: TEXT_1,
     marginBottom: 8,
   },
   modalMessage: {
     fontSize: 14,
-    fontFamily: "PlusJakartaSans_400Regular",
+    fontFamily: fonts.regular,
     color: TEXT_2,
     marginBottom: 16,
     lineHeight: 20,
@@ -1698,7 +1701,7 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     padding: 14,
     fontSize: 16,
-    fontFamily: "PlusJakartaSans_400Regular",
+    fontFamily: fonts.regular,
     color: TEXT_1,
     borderWidth: 1,
     borderColor: "#374151",
@@ -1717,19 +1720,19 @@ const styles = StyleSheet.create({
   },
   modalCancelText: {
     fontSize: 15,
-    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontFamily: fonts.semibold,
     color: TEXT_1,
   },
   modalDelete: {
     flex: 1,
     paddingVertical: 12,
     borderRadius: 8,
-    backgroundColor: "#ef4444",
+    backgroundColor: RED,
     alignItems: "center",
   },
   modalDeleteText: {
     fontSize: 15,
-    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontFamily: fonts.semibold,
     color: TEXT_1,
   },
 
@@ -1755,13 +1758,13 @@ const styles = StyleSheet.create({
   },
   webCardTitle: {
     fontSize: 15,
-    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontFamily: fonts.semibold,
     color: TEXT_1,
     marginBottom: 3,
   },
   webCardDesc: {
     fontSize: 13,
-    fontFamily: "PlusJakartaSans_400Regular",
+    fontFamily: fonts.regular,
     color: TEXT_2,
     lineHeight: 18,
   },

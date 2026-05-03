@@ -17,6 +17,8 @@ import { getLocalFuelLogs, getLocalUnsyncedFuelLogs } from "../../lib/db/queries
 import NearbyPrices from "../../components/fuel/NearbyPrices";
 import { FUEL_BRANDS, formatPence } from "@mileclear/shared";
 import type { FuelLogWithVehicle } from "@mileclear/shared";
+import { Skeleton } from "../../components/Skeleton";
+import { colors, fonts, radii, spacing } from "../../lib/theme";
 
 type FuelLogItem = FuelLogWithVehicle & { _isLocal?: boolean };
 
@@ -197,7 +199,7 @@ export default function FuelScreen() {
           <RefreshControl
             refreshing={refreshing}
             onRefresh={onRefresh}
-            tintColor="#f5a623"
+            tintColor={AMBER}
           />
         }
         contentContainerStyle={styles.listContent}
@@ -289,7 +291,7 @@ export default function FuelScreen() {
               accessibilityLiveRegion="polite"
             >
               <View style={styles.emptyIcon}>
-                <Ionicons name="water-outline" size={40} color="#64748b" accessible={false} />
+                <Ionicons name="water-outline" size={40} color={TEXT_3} accessible={false} />
               </View>
               <Text style={styles.emptyTitle}>No fuel logs yet</Text>
               <Text style={styles.emptyText}>
@@ -302,7 +304,7 @@ export default function FuelScreen() {
           <View style={styles.footer}>
             {loadingMore && (
               <ActivityIndicator
-                color="#f5a623"
+                color={AMBER}
                 style={{ marginBottom: 12 }}
               />
             )}
@@ -315,25 +317,42 @@ export default function FuelScreen() {
         }
       />
       {loading && !refreshing && (
-        <View style={styles.loadingOverlay}>
-          <ActivityIndicator size="large" color="#f5a623" accessibilityLabel="Loading fuel logs" />
+        // Skeleton ghost-rows mirroring the fuel-log row shape. Same pattern
+        // as the trips screen.
+        <View style={styles.loadingOverlay} pointerEvents="none">
+          <View style={styles.loadingSkeletonStack}>
+            {[0, 1, 2, 3].map((i) => (
+              <Skeleton key={i} height={84} radius={radii.md} />
+            ))}
+          </View>
         </View>
       )}
     </View>
   );
 }
 
+// ── Style constants ────────────────────────────────────────────────
+// Local aliases for theme tokens (same pattern as dashboard / trips).
+const BG = colors.bg;
+const CARD_BG = colors.surface;
+const CARD_BORDER = colors.surfaceBorder;
+const AMBER = colors.amber;
+const TEXT_1 = colors.text1;
+const TEXT_2 = colors.text2;
+const TEXT_3 = colors.text3;
+const GREEN = colors.green;
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#030712",
+    backgroundColor: BG,
   },
   listContent: {
     padding: 16,
   },
   // Summary card
   summaryCard: {
-    backgroundColor: "#0a1120",
+    backgroundColor: CARD_BG,
     borderRadius: 12,
     padding: 16,
     marginBottom: 16,
@@ -347,19 +366,19 @@ const styles = StyleSheet.create({
   },
   summaryLabel: {
     fontSize: 13,
-    fontFamily: "PlusJakartaSans_400Regular",
-    color: "#9ca3af",
+    fontFamily: fonts.regular,
+    color: TEXT_2,
     marginBottom: 4,
   },
   summaryAmount: {
     fontSize: 28,
-    fontFamily: "PlusJakartaSans_700Bold",
-    color: "#10b981",
+    fontFamily: fonts.bold,
+    color: GREEN,
   },
   summaryAvg: {
     fontSize: 28,
-    fontFamily: "PlusJakartaSans_700Bold",
-    color: "#f5a623",
+    fontFamily: fonts.bold,
+    color: AMBER,
   },
   // Filter chips
   filterRow: {
@@ -371,26 +390,26 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 20,
-    backgroundColor: "#0a1120",
+    backgroundColor: CARD_BG,
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.06)",
   },
   filterChipActive: {
-    backgroundColor: "#f5a623",
-    borderColor: "#f5a623",
+    backgroundColor: AMBER,
+    borderColor: AMBER,
   },
   filterChipText: {
     fontSize: 13,
-    fontFamily: "PlusJakartaSans_600SemiBold",
-    color: "#9ca3af",
+    fontFamily: fonts.semibold,
+    color: TEXT_2,
   },
   filterChipTextActive: {
-    fontFamily: "PlusJakartaSans_600SemiBold",
-    color: "#030712",
+    fontFamily: fonts.semibold,
+    color: BG,
   },
   // Log cards
   card: {
-    backgroundColor: "#0a1120",
+    backgroundColor: CARD_BG,
     borderRadius: 12,
     padding: 16,
     marginBottom: 10,
@@ -405,13 +424,13 @@ const styles = StyleSheet.create({
   },
   stationText: {
     fontSize: 15,
-    fontFamily: "PlusJakartaSans_600SemiBold",
-    color: "#fff",
+    fontFamily: fonts.semibold,
+    color: TEXT_1,
   },
   vehicleBadge: {
     fontSize: 11,
-    fontFamily: "PlusJakartaSans_700Bold",
-    color: "#d1d5db",
+    fontFamily: fonts.bold,
+    color: TEXT_2,
     backgroundColor: "rgba(255,255,255,0.08)",
     paddingHorizontal: 8,
     paddingVertical: 2,
@@ -420,8 +439,8 @@ const styles = StyleSheet.create({
   },
   costText: {
     fontSize: 22,
-    fontFamily: "PlusJakartaSans_700Bold",
-    color: "#10b981",
+    fontFamily: fonts.bold,
+    color: GREEN,
     marginBottom: 6,
   },
   cardFooter: {
@@ -431,13 +450,13 @@ const styles = StyleSheet.create({
   },
   detailText: {
     fontSize: 13,
-    fontFamily: "PlusJakartaSans_400Regular",
-    color: "#9ca3af",
+    fontFamily: fonts.regular,
+    color: TEXT_2,
   },
   dateText: {
     fontSize: 13,
-    fontFamily: "PlusJakartaSans_400Regular",
-    color: "#6b7280",
+    fontFamily: fonts.regular,
+    color: TEXT_3,
   },
   footerRight: {
     flexDirection: "row",
@@ -446,9 +465,9 @@ const styles = StyleSheet.create({
   },
   syncBadge: {
     fontSize: 11,
-    fontFamily: "PlusJakartaSans_600SemiBold",
-    color: "#030712",
-    backgroundColor: "#f5a623",
+    fontFamily: fonts.semibold,
+    color: BG,
+    backgroundColor: AMBER,
     paddingHorizontal: 8,
     paddingVertical: 2,
     borderRadius: 4,
@@ -463,7 +482,7 @@ const styles = StyleSheet.create({
   },
   offlineBannerText: {
     fontSize: 13,
-    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontFamily: fonts.semibold,
     color: "#fef3c7",
   },
   // Empty state
@@ -475,7 +494,7 @@ const styles = StyleSheet.create({
     width: 72,
     height: 72,
     borderRadius: 36,
-    backgroundColor: "#0a1120",
+    backgroundColor: CARD_BG,
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.06)",
     justifyContent: "center",
@@ -484,14 +503,14 @@ const styles = StyleSheet.create({
   },
   emptyTitle: {
     fontSize: 17,
-    fontFamily: "PlusJakartaSans_600SemiBold",
-    color: "#9ca3af",
+    fontFamily: fonts.semibold,
+    color: TEXT_2,
     marginBottom: 4,
   },
   emptyText: {
     fontSize: 14,
-    fontFamily: "PlusJakartaSans_400Regular",
-    color: "#6b7280",
+    fontFamily: fonts.regular,
+    color: TEXT_3,
     textAlign: "center",
   },
   // Footer
@@ -502,8 +521,11 @@ const styles = StyleSheet.create({
   // Loading overlay
   loadingOverlay: {
     ...StyleSheet.absoluteFillObject,
-    justifyContent: "center",
-    alignItems: "center",
-    backgroundColor: "rgba(3, 7, 18, 0.7)",
+    backgroundColor: BG,
+    paddingHorizontal: 16,
+    paddingTop: 16,
+  },
+  loadingSkeletonStack: {
+    gap: 10,
   },
 });

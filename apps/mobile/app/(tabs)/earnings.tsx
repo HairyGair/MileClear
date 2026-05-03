@@ -16,6 +16,8 @@ import { fetchEarnings } from "../../lib/api/earnings";
 import { getLocalEarnings, getLocalUnsyncedEarnings } from "../../lib/db/queries";
 import { GIG_PLATFORMS, formatPence } from "@mileclear/shared";
 import type { Earning } from "@mileclear/shared";
+import { Skeleton } from "../../components/Skeleton";
+import { colors, fonts } from "../../lib/theme";
 
 type EarningItem = Earning & { _isLocal?: boolean };
 
@@ -167,7 +169,7 @@ export default function EarningsScreen() {
           <RefreshControl
             refreshing={refreshing}
             onRefresh={onRefresh}
-            tintColor="#f5a623"
+            tintColor={AMBER}
           />
         }
         contentContainerStyle={styles.listContent}
@@ -244,7 +246,7 @@ export default function EarningsScreen() {
               accessibilityLiveRegion="polite"
             >
               <View style={styles.emptyIcon}>
-                <Ionicons name="cash-outline" size={40} color="#64748b" accessible={false} />
+                <Ionicons name="cash-outline" size={40} color={TEXT_3} accessible={false} />
               </View>
               <Text style={styles.emptyTitle}>No earnings recorded yet</Text>
               <Text style={styles.emptyText}>
@@ -257,7 +259,7 @@ export default function EarningsScreen() {
           <View style={styles.footer}>
             {loadingMore && (
               <ActivityIndicator
-                color="#f5a623"
+                color={AMBER}
                 style={{ marginBottom: 12 }}
               />
             )}
@@ -284,25 +286,47 @@ export default function EarningsScreen() {
         }
       />
       {loading && !refreshing && (
-        <View style={styles.loadingOverlay}>
-          <ActivityIndicator size="large" color="#f5a623" accessibilityLabel="Loading earnings" />
+        // Skeleton ghost-rows mirroring the earning-card row shape. Same
+        // pattern as the trips/fuel screens.
+        <View style={styles.loadingOverlay} pointerEvents="none">
+          <View style={styles.loadingSkeletonStack}>
+            {[0, 1, 2, 3].map((i) => (
+              <View key={i} style={styles.skeletonCard}>
+                <View style={styles.skeletonHeaderRow}>
+                  <Skeleton width={120} height={14} radius={6} />
+                  <Skeleton width={50} height={12} radius={6} />
+                </View>
+                <Skeleton width={140} height={22} radius={6} style={{ marginTop: 8 }} />
+                <Skeleton width={180} height={12} radius={6} style={{ marginTop: 10 }} />
+              </View>
+            ))}
+          </View>
         </View>
       )}
     </View>
   );
 }
 
+const BG = colors.bg;
+const CARD_BG = colors.surface;
+const CARD_BORDER = colors.surfaceBorder;
+const AMBER = colors.amber;
+const TEXT_1 = colors.text1;
+const TEXT_2 = colors.text2;
+const TEXT_3 = colors.text3;
+const GREEN = colors.green;
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#030712",
+    backgroundColor: BG,
   },
   listContent: {
     padding: 16,
   },
   // Summary card
   summaryCard: {
-    backgroundColor: "#0a1120",
+    backgroundColor: CARD_BG,
     borderRadius: 12,
     padding: 16,
     marginBottom: 16,
@@ -310,14 +334,14 @@ const styles = StyleSheet.create({
   },
   summaryLabel: {
     fontSize: 13,
-    fontFamily: "PlusJakartaSans_400Regular",
-    color: "#9ca3af",
+    fontFamily: fonts.regular,
+    color: TEXT_2,
     marginBottom: 4,
   },
   summaryAmount: {
     fontSize: 28,
-    fontFamily: "PlusJakartaSans_700Bold",
-    color: "#10b981",
+    fontFamily: fonts.bold,
+    color: GREEN,
   },
   // Filter chips
   filterRow: {
@@ -329,31 +353,31 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 20,
-    backgroundColor: "#0a1120",
+    backgroundColor: CARD_BG,
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.06)",
+    borderColor: CARD_BORDER,
   },
   filterChipActive: {
-    backgroundColor: "#f5a623",
-    borderColor: "#f5a623",
+    backgroundColor: AMBER,
+    borderColor: AMBER,
   },
   filterChipText: {
     fontSize: 13,
-    fontFamily: "PlusJakartaSans_600SemiBold",
-    color: "#9ca3af",
+    fontFamily: fonts.semibold,
+    color: TEXT_2,
   },
   filterChipTextActive: {
-    fontFamily: "PlusJakartaSans_600SemiBold",
-    color: "#030712",
+    fontFamily: fonts.semibold,
+    color: BG,
   },
   // Earning cards
   card: {
-    backgroundColor: "#0a1120",
+    backgroundColor: CARD_BG,
     borderRadius: 12,
     padding: 16,
     marginBottom: 10,
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.06)",
+    borderColor: CARD_BORDER,
   },
   cardHeader: {
     flexDirection: "row",
@@ -363,13 +387,13 @@ const styles = StyleSheet.create({
   },
   platformText: {
     fontSize: 15,
-    fontFamily: "PlusJakartaSans_600SemiBold",
-    color: "#fff",
+    fontFamily: fonts.semibold,
+    color: TEXT_1,
   },
   sourceBadge: {
     fontSize: 11,
-    fontFamily: "PlusJakartaSans_700Bold",
-    color: "#d1d5db",
+    fontFamily: fonts.bold,
+    color: TEXT_2,
     backgroundColor: "rgba(255,255,255,0.08)",
     paddingHorizontal: 8,
     paddingVertical: 2,
@@ -378,14 +402,14 @@ const styles = StyleSheet.create({
   },
   amountText: {
     fontSize: 22,
-    fontFamily: "PlusJakartaSans_700Bold",
-    color: "#10b981",
+    fontFamily: fonts.bold,
+    color: GREEN,
     marginBottom: 6,
   },
   periodText: {
     fontSize: 13,
-    fontFamily: "PlusJakartaSans_400Regular",
-    color: "#9ca3af",
+    fontFamily: fonts.regular,
+    color: TEXT_2,
   },
   cardFooterRow: {
     flexDirection: "row",
@@ -394,9 +418,9 @@ const styles = StyleSheet.create({
   },
   syncBadge: {
     fontSize: 11,
-    fontFamily: "PlusJakartaSans_600SemiBold",
-    color: "#030712",
-    backgroundColor: "#f5a623",
+    fontFamily: fonts.semibold,
+    color: BG,
+    backgroundColor: AMBER,
     paddingHorizontal: 8,
     paddingVertical: 2,
     borderRadius: 4,
@@ -411,7 +435,7 @@ const styles = StyleSheet.create({
   },
   offlineBannerText: {
     fontSize: 13,
-    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontFamily: fonts.semibold,
     color: "#fef3c7",
   },
   // Empty state
@@ -423,23 +447,23 @@ const styles = StyleSheet.create({
     width: 72,
     height: 72,
     borderRadius: 36,
-    backgroundColor: "#0a1120",
+    backgroundColor: CARD_BG,
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.06)",
+    borderColor: CARD_BORDER,
     justifyContent: "center",
     alignItems: "center",
     marginBottom: 16,
   },
   emptyTitle: {
     fontSize: 17,
-    fontFamily: "PlusJakartaSans_600SemiBold",
-    color: "#9ca3af",
+    fontFamily: fonts.semibold,
+    color: TEXT_2,
     marginBottom: 4,
   },
   emptyText: {
     fontSize: 14,
-    fontFamily: "PlusJakartaSans_400Regular",
-    color: "#6b7280",
+    fontFamily: fonts.regular,
+    color: TEXT_3,
     textAlign: "center",
   },
   // Footer
@@ -450,8 +474,23 @@ const styles = StyleSheet.create({
   // Loading overlay
   loadingOverlay: {
     ...StyleSheet.absoluteFillObject,
-    justifyContent: "center",
+    backgroundColor: BG,
+    paddingHorizontal: 16,
+    paddingTop: 16,
+  },
+  loadingSkeletonStack: {
+    gap: 10,
+  },
+  skeletonCard: {
+    backgroundColor: CARD_BG,
+    borderRadius: 12,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: CARD_BORDER,
+  },
+  skeletonHeaderRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
     alignItems: "center",
-    backgroundColor: "rgba(3, 7, 18, 0.7)",
   },
 });
