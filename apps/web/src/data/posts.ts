@@ -36,6 +36,37 @@ export interface Guide {
 // ----------------------------------------------------------------
 export const RELEASE_NOTES: ReleaseNote[] = [
   {
+    version: "1.1.4",
+    date: "4 May 2026",
+    label: "In Development",
+    items: [
+      "Rating prompt redesigned to be far less interruptive. The dashboard-focus trigger that fired every time you switched to the home tab is gone; the prompt now only appears after positive moments (achievement earned, streak milestone, trip saved or classified, end-of-shift scorecard). Dismissing once gives you 14 days of peace, twice gives you 30, and after a third dismissal we stop asking entirely.",
+      "New 'Rate MileClear' link in Profile → Help & Support. Opens the App Store rating screen directly, so you can leave a review on your own terms without waiting for the in-app prompt to surface.",
+      "Tap the tax-deduction figure on the Tax Readiness card to see exactly how it was calculated. The new 'why this number?' panel shows the AMAP rate breakdown, the trip count and date range used, and links to the relevant HMRC pages. First number with this treatment; more to follow.",
+      "Stale-state bugs in the Pro upgrade flow and the trip-save flow: under specific timing it was possible for outdated values to be persisted (wrong plan selection, missing anomaly answers). Both flows now correctly capture the latest state at the moment you tap.",
+      "Live Activity now seeds with the correct buffered totals when watch-and-wait detection promotes a real trip. Previously the Live Activity could show 0.0 mi / 0:00 while the in-app screen showed the right numbers.",
+      "Auth screen no longer flashes a loading spinner in front of the dashboard during sign-in. Replaced with a skeleton placeholder so the dashboard cascade reveal stays as the focal moment.",
+      "Quieter background error handling. The fuel-price fallback (when the gov.uk Fuel Finder API is having a bad day) used to log every fall-through; now it logs once on transition. DVLA lookups for any registration that returns a 4xx error stop retrying for a week, so a single bad plate doesn't generate noise on every cron run.",
+      "Polish across screen layouts: the 'items pending sync' top banner is fully retired, and the second wave of mobile screens is now on the unified design tokens (loading skeletons, button styles, spacing) for a consistent look between Dashboard, Trips, Active recording, and the rest of the app.",
+    ],
+  },
+  {
+    version: "1.1.3",
+    date: "3 May 2026",
+    label: "In Testing",
+    items: [
+      "Auto-trip detection now waits until you're actually driving before showing the Live Activity. No more '0 mi' alerts firing while you're parked in a carpark or walking past your car. The app stays quiet, watches the GPS, and only commits to a recording once it sees real driving speed.",
+      "Saved-location trips (Home to Work, depot to home, anything between two of your saved places) now sync to the cloud properly. A handful of users had local-only 'Pending sync' trips that never reached the server; this update auto-recovers them on first launch.",
+      "New server-side watchdog notices if any trip ever gets stuck recording and finalises it for you. You no longer need to open the app to 'wake up' a recording that iOS suspended in the background.",
+      "Three of the most-used screens (Dashboard, Trips, Active recording) now load with skeleton placeholders instead of a generic spinner. The shape of the screen appears instantly while data fills in, and dashboard cards animate in one after another rather than all-at-once.",
+      "The 'End trip' button on the active-recording screen now requires a press-and-hold instead of a single tap, so an accidental bounce of your phone in the car cradle can't end a trip by mistake.",
+      "Subtle haptic tick at every whole-mile mark while recording, so you feel progress without needing to look.",
+      "Tighter copy across notifications and empty states. The app reads more like a human wrote it.",
+      "The 'items pending sync' banner across the top of every screen has gone. The same information lives more usefully inside the trips list.",
+      "Faster nearby community insights: queries that used to take 15+ seconds now respond instantly for most users.",
+    ],
+  },
+  {
     version: "1.1.2",
     date: "1 May 2026",
     label: "Pending Review",
