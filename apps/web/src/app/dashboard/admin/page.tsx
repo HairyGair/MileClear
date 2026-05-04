@@ -3142,6 +3142,11 @@ function OpsTab() {
   // null = idle, "all" = bulk reprocess in flight, "<txnId>" = single in flight
   const [reprocessing, setReprocessing] = useState<string | null>(null);
   const [reprocessNotice, setReprocessNotice] = useState<{ kind: "ok" | "warn" | "err"; text: string } | null>(null);
+  // Manual-link modal: holds the txn id we're linking, the email input, and submission state
+  const [linkModalTxn, setLinkModalTxn] = useState<string | null>(null);
+  const [linkEmail, setLinkEmail] = useState("");
+  const [linkSubmitting, setLinkSubmitting] = useState(false);
+  const [linkError, setLinkError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -3185,6 +3190,30 @@ function OpsTab() {
       setReprocessing(null);
     }
   }, [load]);
+
+  const submitManualLink = useCallback(async () => {
+    if (!linkModalTxn || !linkEmail) return;
+    setLinkSubmitting(true);
+    setLinkError(null);
+    try {
+      const res = await api.post<{ data: { userId: string; userEmail: string; displayName: string | null; originalTransactionId: string } }>(
+        "/admin/apple/link-orphan",
+        { originalTransactionId: linkModalTxn, email: linkEmail.trim() }
+      );
+      const r = res.data;
+      setReprocessNotice({
+        kind: "ok",
+        text: `${linkModalTxn.slice(0, 12)}…  Linked → ${r.displayName ?? r.userEmail}`,
+      });
+      setLinkModalTxn(null);
+      setLinkEmail("");
+      await load();
+    } catch (err: any) {
+      setLinkError(err?.message ?? "Link failed");
+    } finally {
+      setLinkSubmitting(false);
+    }
+  }, [linkModalTxn, linkEmail, load]);
 
   const reprocessOne = useCallback(async (txnId: string) => {
     setReprocessing(txnId);
@@ -3367,14 +3396,28 @@ function OpsTab() {
                         </td>
                         <td style={{ fontSize: "0.75rem" }}>
                           {w.status === "no_user" && w.originalTransactionId ? (
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => reprocessOne(w.originalTransactionId!)}
-                              disabled={reprocessing !== null}
-                            >
-                              {reprocessing === w.originalTransactionId ? "…" : "Reprocess"}
-                            </Button>
+                            <div style={{ display: "flex", gap: "0.25rem" }}>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => reprocessOne(w.originalTransactionId!)}
+                                disabled={reprocessing !== null}
+                              >
+                                {reprocessing === w.originalTransactionId ? "…" : "Reprocess"}
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => {
+                                  setLinkModalTxn(w.originalTransactionId);
+                                  setLinkEmail("");
+                                  setLinkError(null);
+                                }}
+                                disabled={reprocessing !== null}
+                              >
+                                Link…
+                              </Button>
+                            </div>
                           ) : (
                             "-"
                           )}
@@ -3493,6 +3536,57 @@ function OpsTab() {
           </>
         )}
       </Card>
+
+      {/* Manual-link modal — used when an Apple IAP orphan has no
+          appAccountToken on the canonical transaction (pre-1.1.0
+          purchase) and a user has reached out to support to claim it. */}
+      <Modal
+        open={linkModalTxn !== null}
+        onClose={() => {
+          if (!linkSubmitting) setLinkModalTxn(null);
+        }}
+        title="Link Apple IAP transaction to a user"
+      >
+        <div style={{ display: "flex", flexDirection: "column", gap: "0.875rem" }}>
+          <p style={{ fontSize: "0.875rem", color: "var(--text-secondary)", margin: 0 }}>
+            Use this when a user has confirmed they paid for Pro but the app shows them as Free
+            (typically a pre-1.1.0 purchase whose <code>appAccountToken</code> was never recorded).
+          </p>
+          <div style={{ fontSize: "0.75rem", color: "var(--text-tertiary)", fontFamily: "monospace" }}>
+            Transaction: {linkModalTxn ?? ""}
+          </div>
+          <Input
+            id="link-orphan-email"
+            label="MileClear account email"
+            type="email"
+            value={linkEmail}
+            onChange={(e) => setLinkEmail(e.target.value)}
+            placeholder="user@example.com"
+            autoFocus
+          />
+          {linkError && (
+            <div className="alert alert--error" role="alert">{linkError}</div>
+          )}
+          <div style={{ display: "flex", gap: "0.5rem", justifyContent: "flex-end" }}>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setLinkModalTxn(null)}
+              disabled={linkSubmitting}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={submitManualLink}
+              disabled={linkSubmitting || !linkEmail.trim()}
+            >
+              {linkSubmitting ? "Linking…" : "Link & grant Pro"}
+            </Button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }

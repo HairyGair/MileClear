@@ -2191,6 +2191,82 @@ export async function adminRoutes(app: FastifyInstance) {
     }
   );
 
+  // Manually link an orphan Apple IAP transaction to a user by email.
+  // Used when the canonical transaction has no appAccountToken (pre-1.1.0
+  // build) and the user has reached out via support to confirm they paid
+  // but never got Pro. Matches the user by email (case-insensitive),
+  // refuses to clobber an existing linked transaction.
+  const linkOrphanSchema = z.object({
+    originalTransactionId: z.string().min(1),
+    email: z.string().email(),
+  });
+  app.post("/apple/link-orphan", async (request, reply) => {
+    const parsed = linkOrphanSchema.safeParse(request.body);
+    if (!parsed.success) {
+      return reply.status(400).send({ error: parsed.error.errors[0].message });
+    }
+    const { originalTransactionId, email } = parsed.data;
+
+    // Confirm there's a webhook log we're recovering from
+    const log = await prisma.appleIapWebhookLog.findFirst({
+      where: { originalTransactionId, status: "no_user" },
+      orderBy: { receivedAt: "desc" },
+    });
+    if (!log) {
+      return reply.status(404).send({ error: "No no_user webhook found for that transaction" });
+    }
+
+    // Resolve user by email (case-insensitive)
+    const user = await prisma.user.findFirst({
+      where: { email: { equals: email.toLowerCase() } },
+      select: { id: true, email: true, displayName: true, appleOriginalTransactionId: true, isPremium: true },
+    });
+    if (!user) {
+      return reply.status(404).send({ error: `No MileClear user with email ${email}` });
+    }
+
+    // Refuse to clobber an existing different transaction
+    if (user.appleOriginalTransactionId && user.appleOriginalTransactionId !== originalTransactionId) {
+      return reply.status(409).send({
+        error: `User already linked to a different transaction (${user.appleOriginalTransactionId})`,
+      });
+    }
+
+    // Refuse if a different user is already linked to this transaction
+    const txnAlreadyLinked = await prisma.user.findUnique({
+      where: { appleOriginalTransactionId: originalTransactionId },
+      select: { id: true, email: true },
+    });
+    if (txnAlreadyLinked && txnAlreadyLinked.id !== user.id) {
+      return reply.status(409).send({
+        error: `Transaction is already linked to another user (${txnAlreadyLinked.email})`,
+      });
+    }
+
+    await prisma.user.update({
+      where: { id: user.id },
+      data: {
+        appleOriginalTransactionId: originalTransactionId,
+        isPremium: true,
+      },
+    });
+
+    logEvent("billing.apple_iap_manually_linked", user.id, {
+      originalTransactionId,
+      adminUserId: request.userId ?? null,
+      webhookReceivedAt: log.receivedAt.toISOString(),
+    });
+
+    return reply.send({
+      data: {
+        userId: user.id,
+        userEmail: user.email,
+        displayName: user.displayName,
+        originalTransactionId,
+      },
+    });
+  });
+
   // ── Funnel cohorts (audit follow-up #3 of 5) ──────────────────────
   //
   // Per-month cohort funnel covering the user's first 30-ish days from
