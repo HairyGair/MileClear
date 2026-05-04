@@ -588,33 +588,50 @@ async function runMorningBriefingJob(): Promise<void> {
 
     if (tripCount > 0) {
       parts.push(`Yesterday: ${miles} mi across ${tripCount} trip${tripCount !== 1 ? "s" : ""}`);
+
+      if (isWork && earningsPence > 0) {
+        parts.push(`earned ${formatPence(earningsPence)}`);
+      }
+      if (isWork && goalPence && goalPence > 0) {
+        const pct = Math.min(100, Math.round((weekEarningsPence / goalPence) * 100));
+        parts.push(`${pct}% to weekly goal`);
+      }
+      if (unclassifiedCount > 0) {
+        parts.push(`${unclassifiedCount} in your inbox to classify`);
+      }
     } else if (probablyHasUnsyncedTrips) {
-      // Don't claim "no trips" — we have evidence the user drove. Tell
-      // them to open the app so the sync queue drains and the inbox
-      // populates with anything still waiting locally.
-      parts.push("Yesterday's trips haven't synced. Open MileClear so they can upload");
+      // We have heartbeat-v2 evidence the user drove. Tell them to open
+      // the app so the sync queue drains and yesterday's trips reach
+      // the server.
+      parts.push("Yesterday's trips haven't reached us yet. Open MileClear so they can upload");
+      if (unclassifiedCount > 0) {
+        parts.push(`${unclassifiedCount} already in your inbox to classify`);
+      }
+    } else if (unclassifiedCount > 0) {
+      // No yesterday trips on the server, but inbox has stuff. Surface
+      // that as the headline — much more useful than a passive-aggressive
+      // "no trips yesterday" reminder.
+      parts.push(
+        `${unclassifiedCount} ${unclassifiedCount === 1 ? "trip is" : "trips are"} waiting in your inbox to classify`
+      );
+      if (isWork && goalPence && goalPence > 0) {
+        const pct = Math.min(100, Math.round((weekEarningsPence / goalPence) * 100));
+        parts.push(`${pct}% to weekly goal`);
+      }
     } else {
-      parts.push("No trips yesterday");
-    }
-
-    if (isWork && earningsPence > 0) {
-      parts.push(`earned ${formatPence(earningsPence)}`);
-    }
-
-    if (isWork && goalPence && goalPence > 0) {
-      const pct = Math.min(100, Math.round((weekEarningsPence / goalPence) * 100));
-      parts.push(`${pct}% to weekly goal`);
-    }
-
-    if (unclassifiedCount > 0) {
-      parts.push(`${unclassifiedCount} in your inbox to classify`);
+      // Nothing to say. Skip the briefing — better to be silent than to
+      // claim "you didn't drive yesterday" when we genuinely don't know
+      // (older builds without heartbeat-v2 telemetry can't prove it
+      // either way). 4 May 2026: complaint from a build-55 user who
+      // had 2 trips locally that hadn't synced.
+      continue;
     }
 
     const title = tripCount > 0
       ? "Your daily summary"
       : probablyHasUnsyncedTrips
         ? "Trips waiting to sync"
-        : "Good morning";
+        : "Trips to classify";
     const body = parts.join(". ") + ".";
 
     try {
