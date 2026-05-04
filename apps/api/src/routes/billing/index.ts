@@ -6,6 +6,7 @@ import { stripe } from "../../lib/stripe.js";
 import { sendPushNotification } from "../../lib/push.js";
 import { appleBillingRoutes } from "./apple.js";
 import { logEvent } from "../../services/appEvents.js";
+import { notifyBillingEvent } from "../../services/billingAlerts.js";
 
 function getPeriodEnd(sub: Stripe.Subscription): number {
   return sub.items.data[0]?.current_period_end ?? 0;
@@ -115,6 +116,21 @@ export async function billingRoutes(app: FastifyInstance) {
 
         logEvent("billing.subscription_activated", userId, { platform: "stripe", subscriptionId });
         app.log.info(`User ${userId} upgraded to premium`);
+        {
+          const fullUser = await prisma.user.findUnique({
+            where: { id: userId },
+            select: { email: true, displayName: true },
+          });
+          notifyBillingEvent({
+            kind: "subscription.new",
+            tier: "celebrate",
+            title: `New Pro subscriber via web 🎉`,
+            body: `${fullUser?.displayName || fullUser?.email || userId} just subscribed via Stripe Checkout.`,
+            userId,
+            userEmail: fullUser?.email ?? null,
+            details: { platform: "stripe", subscriptionId },
+          });
+        }
         break;
       }
 
@@ -169,6 +185,21 @@ export async function billingRoutes(app: FastifyInstance) {
 
         logEvent("billing.subscription_cancelled", null, { platform: "stripe", customerId });
         app.log.info(`Premium cancelled for customer ${customerId}`);
+        {
+          const fullUser = await prisma.user.findFirst({
+            where: { stripeCustomerId: customerId },
+            select: { id: true, email: true, displayName: true },
+          });
+          notifyBillingEvent({
+            kind: "subscription.revoked",
+            tier: "aware",
+            title: "Stripe subscription cancelled",
+            body: `${fullUser?.displayName || fullUser?.email || customerId} cancelled their Stripe subscription. Pro access removed.`,
+            userId: fullUser?.id ?? null,
+            userEmail: fullUser?.email ?? null,
+            details: { platform: "stripe", customerId },
+          });
+        }
         break;
       }
 
@@ -186,7 +217,7 @@ export async function billingRoutes(app: FastifyInstance) {
           try {
             const user = await prisma.user.findFirst({
               where: { stripeCustomerId: customerId },
-              select: { pushToken: true },
+              select: { id: true, email: true, displayName: true, pushToken: true },
             });
             if (user?.pushToken) {
               await sendPushNotification({
@@ -197,6 +228,15 @@ export async function billingRoutes(app: FastifyInstance) {
                 data: { type: "payment_failed", action: "open_billing" },
               });
             }
+            notifyBillingEvent({
+              kind: "subscription.payment_failed",
+              tier: "act_now",
+              title: "Stripe payment failed on renewal",
+              body: `${user?.displayName || user?.email || customerId}'s renewal payment failed. They've been pushed to update payment; consider following up.`,
+              userId: user?.id ?? null,
+              userEmail: user?.email ?? null,
+              details: { platform: "stripe", customerId },
+            });
           } catch (err) {
             app.log.error({ err }, "Failed to send payment_failed push notification");
           }

@@ -14,6 +14,7 @@ import {
 } from "../../services/appleIap.js";
 import { logEvent } from "../../services/appEvents.js";
 import { respondToConsumptionRequest } from "../../services/appleConsumption.js";
+import { notifyBillingEvent } from "../../services/billingAlerts.js";
 
 // Notification types that imply an active payment relationship. When
 // any of these arrive without a matching user, we surface a real-time
@@ -130,6 +131,27 @@ export async function appleBillingRoutes(app: FastifyInstance) {
           `User ${request.userId} validated Apple purchase ${originalTransactionId}`
         );
 
+        // Celebrate: a real Pro user just landed (or restored). Only
+        // alert when the link was new — re-validating an already-linked
+        // sub doesn't need a new ping.
+        const wasNewLink = !existingUser;
+        if (wasNewLink) {
+          const fullUser = await prisma.user.findUnique({
+            where: { id: request.userId! },
+            select: { email: true, displayName: true },
+          });
+          notifyBillingEvent({
+            kind: "subscription.new",
+            tier: "celebrate",
+            title: `Pro subscription validated 🎉`,
+            body: `${fullUser?.displayName || fullUser?.email || request.userId}'s Apple IAP just bound to their MileClear account.`,
+            userId: request.userId!,
+            userEmail: fullUser?.email ?? null,
+            originalTransactionId,
+            details: { premiumExpiresAt: premiumExpiresAt?.toISOString() ?? null },
+          });
+        }
+
         return reply.send({
           data: {
             isPremium: true,
@@ -138,6 +160,17 @@ export async function appleBillingRoutes(app: FastifyInstance) {
         });
       } catch (err) {
         app.log.error({ err }, "Apple purchase validation failed");
+        notifyBillingEvent({
+          kind: "subscription.validate_failed",
+          tier: "act_now",
+          title: "Apple IAP validate failed",
+          body: `User ${request.userId ?? "(unknown)"} attempted to validate an Apple purchase but the server rejected it. They paid; we didn't bind. Investigate immediately.`,
+          userId: request.userId ?? null,
+          details: {
+            error: err instanceof Error ? `${err.name}: ${err.message}` : String(err),
+            transactionId: (request.body as { transactionId?: string })?.transactionId ?? null,
+          },
+        });
         return reply.status(400).send({ error: "Failed to validate purchase" });
       }
     }
@@ -309,6 +342,19 @@ export async function appleBillingRoutes(app: FastifyInstance) {
           environment: environment ?? null,
           appAccountToken,
         });
+        notifyBillingEvent({
+          kind: "subscription.orphan",
+          tier: "act_now",
+          title: "Orphan subscription — money in, no user linked",
+          body: `Apple sent ${notificationType}${subtype ? ` (${subtype})` : ""} for txn ${originalTransactionId.slice(0, 12)}… but it can't be linked to a MileClear account. Open the Ops tab and use Reprocess or Link.`,
+          originalTransactionId,
+          details: {
+            notificationType,
+            subtype: subtype ?? null,
+            environment: environment ?? null,
+            appAccountTokenPresent: Boolean(appAccountToken),
+          },
+        });
       }
 
       // CONSUMPTION_REQUEST orphans still need a response — Apple's
@@ -355,6 +401,25 @@ export async function appleBillingRoutes(app: FastifyInstance) {
           app.log.info(
             `Apple ${notificationType}: user ${user.id} premium renewed until ${premiumExpiresAt?.toISOString()}`
           );
+          // Only celebrate the actual new sub, not every renewal — renewals
+          // happen monthly and would spam the alert channel. Subtype
+          // INITIAL_BUY = first-time subscribe.
+          if (notificationType === "SUBSCRIBED" && subtype === "INITIAL_BUY") {
+            const fullUser = await prisma.user.findUnique({
+              where: { id: user.id },
+              select: { email: true, displayName: true },
+            });
+            notifyBillingEvent({
+              kind: "subscription.new",
+              tier: "celebrate",
+              title: `New Pro subscriber 🎉`,
+              body: `${fullUser?.displayName || fullUser?.email || user.id} just subscribed to MileClear Pro on iOS.`,
+              userId: user.id,
+              userEmail: fullUser?.email ?? null,
+              originalTransactionId,
+              details: { premiumExpiresAt: premiumExpiresAt?.toISOString() ?? null },
+            });
+          }
           break;
         }
 
@@ -382,6 +447,21 @@ export async function appleBillingRoutes(app: FastifyInstance) {
           app.log.info(
             `Apple ${notificationType}: user ${user.id} subscription revoked/refunded`
           );
+          {
+            const fullUser = await prisma.user.findUnique({
+              where: { id: user.id },
+              select: { email: true, displayName: true },
+            });
+            notifyBillingEvent({
+              kind: notificationType === "REFUND" ? "subscription.refund_granted" : "subscription.revoked",
+              tier: "aware",
+              title: notificationType === "REFUND" ? "Refund granted by Apple" : "Subscription revoked",
+              body: `${fullUser?.displayName || fullUser?.email || user.id}'s subscription has been ${notificationType === "REFUND" ? "refunded" : "revoked"}. Pro access removed.`,
+              userId: user.id,
+              userEmail: fullUser?.email ?? null,
+              originalTransactionId,
+            });
+          }
           break;
         }
 
@@ -406,6 +486,22 @@ export async function appleBillingRoutes(app: FastifyInstance) {
           app.log.warn(
             `Apple DID_FAIL_TO_RENEW: user ${user.id}`
           );
+          {
+            const fullUser = await prisma.user.findUnique({
+              where: { id: user.id },
+              select: { email: true, displayName: true },
+            });
+            notifyBillingEvent({
+              kind: "subscription.payment_failed",
+              tier: "act_now",
+              title: "Payment failed on renewal",
+              body: `${fullUser?.displayName || fullUser?.email || user.id}'s renewal payment failed. They'll get a system push to update their payment method; consider following up.`,
+              userId: user.id,
+              userEmail: fullUser?.email ?? null,
+              originalTransactionId,
+              details: { subtype: subtype ?? null },
+            });
+          }
           break;
         }
 
@@ -441,6 +537,27 @@ export async function appleBillingRoutes(app: FastifyInstance) {
             { ok: r.ok, reason: r.reason, status: r.status, preference: r.preference, userId: user.id },
             `Apple CONSUMPTION_REQUEST: response submitted`
           );
+          {
+            const fullUser = await prisma.user.findUnique({
+              where: { id: user.id },
+              select: { email: true, displayName: true },
+            });
+            notifyBillingEvent({
+              kind: "subscription.refund_requested",
+              tier: "aware",
+              title: "Refund request filed with Apple",
+              body: `${fullUser?.displayName || fullUser?.email || user.id} filed a refund request. ${r.ok ? "Auto-response sent to Apple with consumption data." : "Auto-response FAILED — check the Ops tab."} Apple typically decides within 24-48h.`,
+              userId: user.id,
+              userEmail: fullUser?.email ?? null,
+              originalTransactionId,
+              details: {
+                consumptionResponseOk: r.ok,
+                refundPreference: r.preference ?? null,
+                consumptionStatus: r.status ?? null,
+                error: r.reason ?? null,
+              },
+            });
+          }
           break;
         }
 
