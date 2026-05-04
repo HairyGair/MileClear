@@ -10,6 +10,7 @@
 //                    expiry (auth-required).
 
 import type { FastifyInstance } from "fastify";
+import { z } from "zod";
 import { authMiddleware } from "../../middleware/auth.js";
 import { prisma } from "../../lib/prisma.js";
 import {
@@ -19,8 +20,22 @@ import {
   exchangeCodeForTokens,
   expiryFromExpiresIn,
   HMRC_SCOPES,
+  fetchObligations,
+  buildClientContext,
+  buildServerContext,
+  HmrcNotConnectedError,
+  HmrcReauthRequiredError,
+  HmrcError,
 } from "../../services/hmrc/index.js";
 import { logEvent } from "../../services/appEvents.js";
+
+// UK NINO regex. AA prefixes excluded (BG, GB, KN, NK, NT, TN, ZZ are also
+// reserved/invalid but the standard regex catches the common errors).
+const NINO_REGEX = /^[A-CEGHJ-PR-TW-Z]{1}[A-CEGHJ-NPR-TW-Z]{1}\d{6}[A-D ]?$/i;
+
+function normaliseNino(raw: string): string {
+  return raw.replace(/\s+/g, "").toUpperCase();
+}
 
 export async function hmrcRoutes(app: FastifyInstance) {
   // GET /hmrc/status — connection state for the current user
@@ -189,5 +204,94 @@ export async function hmrcRoutes(app: FastifyInstance) {
   // GET /hmrc/scopes — debugging / introspection: full set we ask for
   app.get("/scopes", async (_request, reply) => {
     return reply.send({ data: { scopes: HMRC_SCOPES } });
+  });
+
+  // POST /hmrc/nino — set the user's NINO. Required before any MTD API
+  // call that needs it as a path parameter (most of them).
+  const ninoSchema = z.object({ nino: z.string().min(8).max(13) });
+  app.post("/nino", { preHandler: authMiddleware }, async (request, reply) => {
+    const parsed = ninoSchema.safeParse(request.body);
+    if (!parsed.success) {
+      return reply.status(400).send({ error: parsed.error.issues[0].message });
+    }
+    const nino = normaliseNino(parsed.data.nino);
+    if (!NINO_REGEX.test(nino)) {
+      return reply.status(400).send({ error: "That doesn't look like a valid NINO." });
+    }
+
+    const conn = await prisma.hmrcConnection.findUnique({
+      where: { userId: request.userId! },
+    });
+    if (!conn || conn.disconnectedAt) {
+      return reply.status(400).send({ error: "Connect to HMRC before setting your NINO." });
+    }
+
+    await prisma.hmrcConnection.update({
+      where: { id: conn.id },
+      data: { nino },
+    });
+
+    logEvent("hmrc.nino_set", request.userId!);
+    return reply.send({ data: { nino } });
+  });
+
+  // GET /hmrc/obligations — list this user's quarterly obligations.
+  // Drives the "Q3 due in 14 days" countdown on the dashboard once the
+  // mobile UI lands in Phase 3.
+  const obligationsQuery = z.object({
+    from: z.string().optional(),
+    to: z.string().optional(),
+    status: z.enum(["Open", "Fulfilled"]).optional(),
+  });
+  app.get("/obligations", { preHandler: authMiddleware }, async (request, reply) => {
+    const parsed = obligationsQuery.safeParse(request.query);
+    if (!parsed.success) {
+      return reply.status(400).send({ error: parsed.error.issues[0].message });
+    }
+
+    const conn = await prisma.hmrcConnection.findUnique({
+      where: { userId: request.userId! },
+      select: { nino: true, businessId: true, disconnectedAt: true },
+    });
+    if (!conn || conn.disconnectedAt) {
+      return reply.status(400).send({ error: "Connect to HMRC first." });
+    }
+    if (!conn.nino) {
+      return reply.status(400).send({
+        error: "Set your NINO via POST /hmrc/nino before fetching obligations.",
+      });
+    }
+
+    try {
+      const obligations = await fetchObligations({
+        userId: request.userId!,
+        nino: conn.nino,
+        businessId: conn.businessId ?? undefined,
+        from: parsed.data.from,
+        to: parsed.data.to,
+        status: parsed.data.status,
+        client: buildClientContext(request),
+        server: await buildServerContext(),
+      });
+
+      return reply.send({ data: { obligations } });
+    } catch (err) {
+      if (err instanceof HmrcNotConnectedError) {
+        return reply.status(400).send({ error: "Connect to HMRC first." });
+      }
+      if (err instanceof HmrcReauthRequiredError) {
+        return reply.status(401).send({
+          error: "HMRC connection expired. Please reconnect.",
+          code: "HMRC_REAUTH_REQUIRED",
+        });
+      }
+      if (err instanceof HmrcError) {
+        return reply.status(err.httpStatus >= 500 ? 502 : err.httpStatus).send({
+          error: err.message,
+          hmrcCode: err.hmrcCode,
+        });
+      }
+      throw err;
+    }
   });
 }

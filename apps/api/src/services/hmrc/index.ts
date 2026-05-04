@@ -26,3 +26,24 @@ export {
   type ServerContext,
   type ConnectionMethod,
 } from "./fraudPreventionHeaders.js";
+
+export {
+  hmrcCall,
+  HmrcError,
+  HmrcNotConnectedError,
+  HmrcReauthRequiredError,
+  type HmrcCallOptions,
+} from "./client.js";
+
+export {
+  buildClientContext,
+  buildServerContext,
+} from "./requestContext.js";
+
+export {
+  fetchObligations,
+  normaliseObligation,
+  type HmrcObligation,
+  type NormalisedObligation,
+  type HmrcObligationsResponse,
+} from "./obligations.js";

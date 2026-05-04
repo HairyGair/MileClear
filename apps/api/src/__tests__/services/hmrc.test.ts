@@ -5,6 +5,7 @@ import {
   buildFraudPreventionHeaders,
   getHmrcConfig,
   resetHmrcConfig,
+  normaliseObligation,
   HMRC_SCOPES,
 } from "../../services/hmrc/index.js";
 
@@ -207,5 +208,74 @@ describe("buildFraudPreventionHeaders", () => {
         },
       })
     ).toThrow(/Gov-Client-Device-ID.*empty/i);
+  });
+});
+
+describe("normaliseObligation", () => {
+  const FIXED_NOW = new Date("2026-08-01T12:00:00.000Z");
+
+  it("flags an Open obligation 6 days out as due soon", () => {
+    const result = normaliseObligation(
+      {
+        start: "2026-04-06",
+        end: "2026-07-05",
+        due: "2026-08-07",
+        periodKey: "Q1",
+        status: "Open",
+      },
+      FIXED_NOW
+    );
+    expect(result.daysUntilDue).toBe(6);
+    expect(result.isDueSoon).toBe(true);
+    expect(result.isOverdue).toBe(false);
+    expect(result.isFulfilled).toBe(false);
+  });
+
+  it("flags an Open obligation 30 days out as not due soon", () => {
+    const result = normaliseObligation(
+      {
+        start: "2026-07-06",
+        end: "2026-10-05",
+        due: "2026-08-31",
+        periodKey: "Q2",
+        status: "Open",
+      },
+      FIXED_NOW
+    );
+    expect(result.isDueSoon).toBe(false);
+    expect(result.isOverdue).toBe(false);
+  });
+
+  it("flags an Open obligation past its due date as overdue", () => {
+    const result = normaliseObligation(
+      {
+        start: "2026-01-06",
+        end: "2026-04-05",
+        due: "2026-05-07",
+        periodKey: "Q4-prior",
+        status: "Open",
+      },
+      FIXED_NOW
+    );
+    expect(result.daysUntilDue).toBeLessThan(0);
+    expect(result.isOverdue).toBe(true);
+    expect(result.isDueSoon).toBe(false);
+  });
+
+  it("never flags a Fulfilled obligation as overdue or due-soon", () => {
+    const result = normaliseObligation(
+      {
+        start: "2026-01-06",
+        end: "2026-04-05",
+        due: "2026-05-07",
+        periodKey: "Q4-prior",
+        status: "Fulfilled",
+        received: "2026-04-30",
+      },
+      FIXED_NOW
+    );
+    expect(result.isFulfilled).toBe(true);
+    expect(result.isOverdue).toBe(false);
+    expect(result.isDueSoon).toBe(false);
   });
 });

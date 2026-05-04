@@ -141,6 +141,15 @@ model HmrcConnection {
   // The state token we generated for the OAuth handshake. Verified on
   // callback to prevent CSRF.
   lastStateToken String?  @db.VarChar(64)
+  // National Insurance Number — required as a path parameter on most MTD
+  // endpoints. We collect it post-OAuth via /hmrc/nino. Format validated
+  // against the UK NINO regex (^[A-CEGHJ-PR-TW-Z]{2}\d{6}[A-D ]?$).
+  nino           String?  @db.VarChar(13)
+  // HMRC business ID for the user's self-employment trade. Returned by the
+  // Self Employment Business API once the trade is registered with HMRC.
+  // Single-business assumption for MileClear (one self-employment trade
+  // per user) — we'll revisit if a user has multiple businesses.
+  businessId     String?  @db.VarChar(40)
   connectedAt    DateTime @default(now())
   updatedAt      DateTime @updatedAt
   // Set when the user disconnects, OR when HMRC returns invalid_grant on
