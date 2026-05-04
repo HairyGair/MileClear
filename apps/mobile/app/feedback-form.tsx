@@ -17,21 +17,23 @@ import { submitFeedback } from "../lib/api/feedback";
 import { showSupportAlert } from "../lib/support";
 import { FEEDBACK_CATEGORIES } from "@mileclear/shared";
 import type { FeedbackCategory } from "@mileclear/shared";
+import { colors, fonts } from "../lib/theme";
 
-const AMBER = "#f5a623";
-const BG = "#030712";
-const CARD_BG = "#0a1120";
-const TEXT_1 = "#f0f2f5";
-const TEXT_2 = "#8494a7";
-const TEXT_3 = "#64748b";
-const INPUT_BG = "#0a1120";
+const AMBER = colors.amber;
+const BG = colors.bg;
+const CARD_BG = colors.surface;
+const TEXT_1 = colors.text1;
+const TEXT_2 = colors.text2;
+const TEXT_3 = colors.text3;
+const RED = colors.red;
+const INPUT_BG = CARD_BG;
 const CARD_BORDER = "rgba(255,255,255,0.08)";
 
 const CATEGORY_COLORS: Record<string, string> = {
   feature_request: "#3b82f6",
-  bug_report: "#ef4444",
+  bug_report: RED,
   improvement: "#a855f7",
-  other: "#8494a7",
+  other: TEXT_2,
 };
 
 export default function FeedbackFormScreen() {
@@ -208,7 +210,7 @@ export default function FeedbackFormScreen() {
           accessibilityState={{ disabled: !canSubmit }}
         >
           {submitting ? (
-            <ActivityIndicator color="#030712" accessibilityLabel="Loading" />
+            <ActivityIndicator color={BG} accessibilityLabel="Loading" />
           ) : (
             <Text style={s.submitButtonText}>Submit Suggestion</Text>
           )}
@@ -235,20 +237,20 @@ const s = StyleSheet.create({
   },
   introText: {
     fontSize: 13,
-    fontFamily: "PlusJakartaSans_400Regular",
+    fontFamily: fonts.regular,
     color: TEXT_2,
     lineHeight: 19,
   },
   field: { marginBottom: 20 },
   label: {
     fontSize: 13,
-    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontFamily: fonts.semibold,
     color: TEXT_1,
     marginBottom: 2,
   },
   labelHint: {
     fontSize: 11,
-    fontFamily: "PlusJakartaSans_400Regular",
+    fontFamily: fonts.regular,
     color: TEXT_3,
     marginBottom: 8,
   },
@@ -260,18 +262,18 @@ const s = StyleSheet.create({
   },
   charCount: {
     fontSize: 11,
-    fontFamily: "PlusJakartaSans_400Regular",
+    fontFamily: fonts.regular,
     color: TEXT_3,
   },
   charCountOk: { color: "#34c759" },
-  charCountBad: { color: "#ef4444" },
+  charCountBad: { color: RED },
   input: {
     backgroundColor: INPUT_BG,
     borderRadius: 10,
     paddingHorizontal: 14,
     paddingVertical: 12,
     fontSize: 14,
-    fontFamily: "PlusJakartaSans_400Regular",
+    fontFamily: fonts.regular,
     color: TEXT_1,
     borderWidth: 1,
     borderColor: CARD_BORDER,
@@ -282,8 +284,8 @@ const s = StyleSheet.create({
   },
   validationText: {
     fontSize: 11,
-    fontFamily: "PlusJakartaSans_400Regular",
-    color: "#ef4444",
+    fontFamily: fonts.regular,
+    color: RED,
     marginTop: 4,
     marginLeft: 2,
   },
@@ -301,7 +303,7 @@ const s = StyleSheet.create({
   },
   categoryPillText: {
     fontSize: 13,
-    fontFamily: "PlusJakartaSans_500Medium",
+    fontFamily: fonts.medium,
   },
   submitButton: {
     backgroundColor: AMBER,
@@ -316,7 +318,7 @@ const s = StyleSheet.create({
   },
   submitButtonText: {
     fontSize: 15,
-    fontFamily: "PlusJakartaSans_700Bold",
-    color: "#030712",
+    fontFamily: fonts.bold,
+    color: BG,
   },
 });

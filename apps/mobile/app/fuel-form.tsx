@@ -26,6 +26,16 @@ import { FUEL_BRANDS } from "@mileclear/shared";
 import type { Vehicle, FuelStation } from "@mileclear/shared";
 import { DateTimePickerField } from "../components/DateTimePickerField";
 import { Button } from "../components/Button";
+import { colors, fonts } from "../lib/theme";
+
+// Local theme aliases — same pattern as the (tabs) screens.
+const AMBER = colors.amber;
+const CARD_BG = colors.surface;
+const TEXT_2 = colors.text2;
+const TEXT_3 = colors.text3;
+const BG = colors.bg;
+const GREEN = colors.green;
+const RED = colors.red;
 
 export default function FuelFormScreen() {
   const router = useRouter();
@@ -276,15 +286,15 @@ export default function FuelFormScreen() {
 
   // Price colour: green if cheap, amber if mid, red if expensive
   const priceColour = (pence: number): string => {
-    if (pence < 130) return "#10b981";
-    if (pence < 145) return "#f5a623";
-    return "#ef4444";
+    if (pence < 130) return GREEN;
+    if (pence < 145) return AMBER;
+    return RED;
   };
 
   if (loadingExisting) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#f5a623" accessibilityLabel="Loading" />
+        <ActivityIndicator size="large" color={AMBER} accessibilityLabel="Loading" />
       </View>
     );
   }
@@ -305,14 +315,14 @@ export default function FuelFormScreen() {
           value={stationName}
           onChangeText={handleStationNameChange}
           placeholder="Station name (optional)"
-          placeholderTextColor="#6b7280"
+          placeholderTextColor={TEXT_3}
           accessibilityLabel="Station name"
         />
 
         {/* Nearby station picker */}
         {loadingStations && (
           <View style={styles.stationsLoading}>
-            <ActivityIndicator size="small" color="#f5a623" accessibilityLabel="Finding nearby stations" />
+            <ActivityIndicator size="small" color={AMBER} accessibilityLabel="Finding nearby stations" />
             <Text style={styles.stationsLoadingText}>Finding nearby stations...</Text>
           </View>
         )}
@@ -422,7 +432,7 @@ export default function FuelFormScreen() {
             lastEditedRef.current = "litres";
           }}
           placeholder="0.0"
-          placeholderTextColor="#6b7280"
+          placeholderTextColor={TEXT_3}
           keyboardType="decimal-pad"
           accessibilityLabel="Litres of fuel"
         />
@@ -438,7 +448,7 @@ export default function FuelFormScreen() {
             value={cost}
             onChangeText={handleCostChange}
             placeholder="0.00"
-            placeholderTextColor="#6b7280"
+            placeholderTextColor={TEXT_3}
             keyboardType="decimal-pad"
             accessibilityLabel="Total cost in pounds"
           />
@@ -451,7 +461,7 @@ export default function FuelFormScreen() {
           value={odometer}
           onChangeText={setOdometer}
           placeholder="Miles (optional)"
-          placeholderTextColor="#6b7280"
+          placeholderTextColor={TEXT_3}
           keyboardType="decimal-pad"
           accessibilityLabel="Odometer reading in miles, optional"
         />
@@ -494,11 +504,11 @@ export default function FuelFormScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#030712",
+    backgroundColor: BG,
   },
   loadingContainer: {
     flex: 1,
-    backgroundColor: "#030712",
+    backgroundColor: BG,
     justifyContent: "center",
     alignItems: "center",
   },
@@ -508,30 +518,30 @@ const styles = StyleSheet.create({
   },
   label: {
     fontSize: 14,
-    fontFamily: "PlusJakartaSans_600SemiBold",
-    color: "#d1d5db",
+    fontFamily: fonts.semibold,
+    color: TEXT_2,
     marginBottom: 6,
     marginTop: 16,
   },
   input: {
-    backgroundColor: "#0a1120",
+    backgroundColor: CARD_BG,
     borderRadius: 10,
     padding: 14,
     fontSize: 16,
-    fontFamily: "PlusJakartaSans_400Regular",
+    fontFamily: fonts.regular,
     color: "#fff",
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.06)",
   },
   inputValue: {
     fontSize: 16,
-    fontFamily: "PlusJakartaSans_400Regular",
+    fontFamily: fonts.regular,
     color: "#fff",
   },
   inputPlaceholder: {
     fontSize: 16,
-    fontFamily: "PlusJakartaSans_400Regular",
-    color: "#6b7280",
+    fontFamily: fonts.regular,
+    color: TEXT_3,
   },
   // Brand chips (fallback)
   chipRow: {
@@ -547,17 +557,17 @@ const styles = StyleSheet.create({
     borderColor: "rgba(255,255,255,0.06)",
   },
   chipActive: {
-    backgroundColor: "#f5a623",
-    borderColor: "#f5a623",
+    backgroundColor: AMBER,
+    borderColor: AMBER,
   },
   chipText: {
     fontSize: 12,
-    fontFamily: "PlusJakartaSans_600SemiBold",
-    color: "#9ca3af",
+    fontFamily: fonts.semibold,
+    color: TEXT_2,
   },
   chipTextActive: {
-    fontFamily: "PlusJakartaSans_600SemiBold",
-    color: "#030712",
+    fontFamily: fonts.semibold,
+    color: BG,
   },
   // Nearby stations
   stationsLoading: {
@@ -568,8 +578,8 @@ const styles = StyleSheet.create({
   },
   stationsLoadingText: {
     fontSize: 13,
-    fontFamily: "PlusJakartaSans_400Regular",
-    color: "#6b7280",
+    fontFamily: fonts.regular,
+    color: TEXT_3,
   },
   stationRow: {
     gap: 10,
@@ -577,26 +587,26 @@ const styles = StyleSheet.create({
   },
   stationCard: {
     width: 160,
-    backgroundColor: "#0a1120",
+    backgroundColor: CARD_BG,
     borderRadius: 12,
     padding: 12,
     borderWidth: 1.5,
     borderColor: "rgba(255,255,255,0.06)",
   },
   stationCardSelected: {
-    borderColor: "#f5a623",
+    borderColor: AMBER,
     backgroundColor: "#1a1708",
   },
   stationBrand: {
     fontSize: 14,
-    fontFamily: "PlusJakartaSans_700Bold",
+    fontFamily: fonts.bold,
     color: "#fff",
     marginBottom: 3,
   },
   stationAddress: {
     fontSize: 11,
-    fontFamily: "PlusJakartaSans_400Regular",
-    color: "#9ca3af",
+    fontFamily: fonts.regular,
+    color: TEXT_2,
     marginBottom: 8,
   },
   stationMeta: {
@@ -606,12 +616,12 @@ const styles = StyleSheet.create({
   },
   stationPrice: {
     fontSize: 14,
-    fontFamily: "PlusJakartaSans_700Bold",
+    fontFamily: fonts.bold,
   },
   stationDistance: {
     fontSize: 11,
-    fontFamily: "PlusJakartaSans_500Medium",
-    color: "#6b7280",
+    fontFamily: fonts.medium,
+    color: TEXT_3,
   },
   // Amount row
   amountRow: {
@@ -620,7 +630,7 @@ const styles = StyleSheet.create({
   },
   currencyPrefix: {
     fontSize: 18,
-    fontFamily: "PlusJakartaSans_700Bold",
+    fontFamily: fonts.bold,
     color: "#fff",
     marginRight: 8,
   },

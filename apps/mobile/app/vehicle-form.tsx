@@ -23,6 +23,15 @@ import {
 import type { FuelType, VehicleType } from "@mileclear/shared";
 import { Button } from "../components/Button";
 import { useUser } from "../lib/user/context";
+import { colors, fonts } from "../lib/theme";
+
+// Local theme aliases — same pattern as the (tabs) screens.
+const AMBER = colors.amber;
+const CARD_BG = colors.surface;
+const TEXT_2 = colors.text2;
+const TEXT_3 = colors.text3;
+const BG = colors.bg;
+const GREEN = colors.green;
 
 const VEHICLE_TYPES: { value: VehicleType; label: string }[] = [
   { value: "car", label: "Car" },
@@ -189,7 +198,7 @@ export default function VehicleFormScreen() {
   if (loadingExisting) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#f5a623" accessibilityLabel="Loading" />
+        <ActivityIndicator size="large" color={AMBER} accessibilityLabel="Loading" />
       </View>
     );
   }
@@ -214,7 +223,7 @@ export default function VehicleFormScreen() {
               setLookupDone(false);
             }}
             placeholder="e.g. BD63 OJT"
-            placeholderTextColor="#6b7280"
+            placeholderTextColor={TEXT_3}
             autoCapitalize="characters"
             autoCorrect={false}
             maxLength={10}
@@ -244,7 +253,7 @@ export default function VehicleFormScreen() {
           value={make}
           onChangeText={setMake}
           placeholder="e.g. Toyota"
-          placeholderTextColor="#6b7280"
+          placeholderTextColor={TEXT_3}
           autoCapitalize="words"
           accessibilityLabel="Vehicle make"
         />
@@ -256,7 +265,7 @@ export default function VehicleFormScreen() {
           value={model}
           onChangeText={setModel}
           placeholder="e.g. Prius"
-          placeholderTextColor="#6b7280"
+          placeholderTextColor={TEXT_3}
           autoCapitalize="words"
           accessibilityLabel="Vehicle model"
         />
@@ -268,7 +277,7 @@ export default function VehicleFormScreen() {
           value={year}
           onChangeText={setYear}
           placeholder="e.g. 2020"
-          placeholderTextColor="#6b7280"
+          placeholderTextColor={TEXT_3}
           keyboardType="number-pad"
           maxLength={4}
           accessibilityLabel="Year of manufacture"
@@ -337,7 +346,7 @@ export default function VehicleFormScreen() {
               value={estimatedMpg}
               onChangeText={setEstimatedMpg}
               placeholder="e.g. 45"
-              placeholderTextColor="#6b7280"
+              placeholderTextColor={TEXT_3}
               keyboardType="decimal-pad"
               accessibilityLabel="Estimated miles per gallon"
             />
@@ -405,11 +414,11 @@ export default function VehicleFormScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#030712",
+    backgroundColor: BG,
   },
   loadingContainer: {
     flex: 1,
-    backgroundColor: "#030712",
+    backgroundColor: BG,
     justifyContent: "center",
     alignItems: "center",
   },
@@ -419,17 +428,17 @@ const styles = StyleSheet.create({
   },
   label: {
     fontSize: 14,
-    fontFamily: "PlusJakartaSans_600SemiBold",
-    color: "#d1d5db",
+    fontFamily: fonts.semibold,
+    color: TEXT_2,
     marginBottom: 6,
     marginTop: 16,
   },
   input: {
-    backgroundColor: "#0a1120",
+    backgroundColor: CARD_BG,
     borderRadius: 10,
     padding: 14,
     fontSize: 16,
-    fontFamily: "PlusJakartaSans_400Regular",
+    fontFamily: fonts.regular,
     color: "#fff",
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.06)",
@@ -440,11 +449,11 @@ const styles = StyleSheet.create({
   },
   plateInput: {
     flex: 1,
-    backgroundColor: "#0a1120",
+    backgroundColor: CARD_BG,
     borderRadius: 10,
     padding: 14,
     fontSize: 18,
-    fontFamily: "PlusJakartaSans_700Bold",
+    fontFamily: fonts.bold,
     color: "#fff",
     letterSpacing: 2,
     borderWidth: 1,
@@ -453,8 +462,8 @@ const styles = StyleSheet.create({
   },
   lookupHint: {
     fontSize: 13,
-    fontFamily: "PlusJakartaSans_400Regular",
-    color: "#10b981",
+    fontFamily: fonts.regular,
+    color: GREEN,
     marginTop: 6,
   },
   segmentRow: {
@@ -471,17 +480,17 @@ const styles = StyleSheet.create({
     borderColor: "rgba(255,255,255,0.06)",
   },
   segmentActive: {
-    backgroundColor: "#f5a623",
-    borderColor: "#f5a623",
+    backgroundColor: AMBER,
+    borderColor: AMBER,
   },
   segmentText: {
     fontSize: 13,
-    fontFamily: "PlusJakartaSans_600SemiBold",
-    color: "#9ca3af",
+    fontFamily: fonts.semibold,
+    color: TEXT_2,
   },
   segmentTextActive: {
-    fontFamily: "PlusJakartaSans_600SemiBold",
-    color: "#030712",
+    fontFamily: fonts.semibold,
+    color: BG,
   },
   toggleRow: {
     flexDirection: "row",
@@ -492,8 +501,8 @@ const styles = StyleSheet.create({
   },
   toggleLabel: {
     fontSize: 15,
-    color: "#d1d5db",
-    fontFamily: "PlusJakartaSans_500Medium",
+    color: TEXT_2,
+    fontFamily: fonts.medium,
   },
   toggle: {
     width: 48,
@@ -504,7 +513,7 @@ const styles = StyleSheet.create({
     padding: 2,
   },
   toggleActive: {
-    backgroundColor: "#f5a623",
+    backgroundColor: AMBER,
   },
   toggleThumb: {
     width: 24,

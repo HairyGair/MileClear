@@ -13,6 +13,14 @@ import {
 import { useRouter, Stack } from "expo-router";
 import { fetchProfile, updateProfile } from "../lib/api/user";
 import { Button } from "../components/Button";
+import { colors, fonts } from "../lib/theme";
+
+// Local theme aliases — same pattern as the (tabs) screens.
+const AMBER = colors.amber;
+const CARD_BG = colors.surface;
+const TEXT_2 = colors.text2;
+const TEXT_3 = colors.text3;
+const BG = colors.bg;
 
 export default function ProfileEditScreen() {
   const router = useRouter();
@@ -77,7 +85,7 @@ export default function ProfileEditScreen() {
   if (loadingProfile) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#f5a623" accessibilityLabel="Loading" />
+        <ActivityIndicator size="large" color={AMBER} accessibilityLabel="Loading" />
       </View>
     );
   }
@@ -98,7 +106,7 @@ export default function ProfileEditScreen() {
           value={fullName}
           onChangeText={setFullName}
           placeholder="Your legal name"
-          placeholderTextColor="#6b7280"
+          placeholderTextColor={TEXT_3}
           autoCapitalize="words"
           maxLength={200}
           accessibilityLabel="Full name, used on PDF exports and tax documents"
@@ -111,7 +119,7 @@ export default function ProfileEditScreen() {
           value={displayName}
           onChangeText={setDisplayName}
           placeholder="Nickname"
-          placeholderTextColor="#6b7280"
+          placeholderTextColor={TEXT_3}
           autoCapitalize="words"
           maxLength={100}
           accessibilityLabel="Display name, public nickname, optional"
@@ -123,7 +131,7 @@ export default function ProfileEditScreen() {
           value={email}
           onChangeText={setEmail}
           placeholder="your@email.com"
-          placeholderTextColor="#6b7280"
+          placeholderTextColor={TEXT_3}
           keyboardType="email-address"
           autoCapitalize="none"
           autoCorrect={false}
@@ -141,7 +149,7 @@ export default function ProfileEditScreen() {
               value={currentPassword}
               onChangeText={setCurrentPassword}
               placeholder="Enter current password"
-              placeholderTextColor="#6b7280"
+              placeholderTextColor={TEXT_3}
               secureTextEntry
               accessibilityLabel="Current password, required to change email"
             />
@@ -163,11 +171,11 @@ export default function ProfileEditScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#030712",
+    backgroundColor: BG,
   },
   loadingContainer: {
     flex: 1,
-    backgroundColor: "#030712",
+    backgroundColor: BG,
     justifyContent: "center",
     alignItems: "center",
   },
@@ -177,31 +185,31 @@ const styles = StyleSheet.create({
   },
   label: {
     fontSize: 14,
-    fontFamily: "PlusJakartaSans_600SemiBold",
-    color: "#d1d5db",
+    fontFamily: fonts.semibold,
+    color: TEXT_2,
     marginBottom: 6,
     marginTop: 16,
   },
   input: {
-    backgroundColor: "#0a1120",
+    backgroundColor: CARD_BG,
     borderRadius: 10,
     padding: 14,
     fontSize: 16,
-    fontFamily: "PlusJakartaSans_400Regular",
+    fontFamily: fonts.regular,
     color: "#fff",
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.06)",
   },
   fieldHint: {
     fontSize: 12,
-    fontFamily: "PlusJakartaSans_400Regular",
-    color: "#6b7280",
+    fontFamily: fonts.regular,
+    color: TEXT_3,
     marginBottom: 6,
   },
   hint: {
     fontSize: 13,
-    fontFamily: "PlusJakartaSans_400Regular",
-    color: "#f5a623",
+    fontFamily: fonts.regular,
+    color: AMBER,
     marginTop: 10,
     lineHeight: 18,
   },

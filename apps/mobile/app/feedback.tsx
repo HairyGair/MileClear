@@ -16,20 +16,22 @@ import { fetchFeedbackList, fetchKnownIssues, toggleFeedbackVote } from "../lib/
 import type { FeedbackListParams } from "../lib/api/feedback";
 import { FEEDBACK_CATEGORIES, FEEDBACK_STATUSES, KNOWN_ISSUE_STATUSES } from "@mileclear/shared";
 import type { FeedbackWithVoted, FeedbackCategory } from "@mileclear/shared";
+import { colors, fonts } from "../lib/theme";
 
-const AMBER = "#f5a623";
-const BG = "#030712";
-const CARD_BG = "#0a1120";
-const TEXT_1 = "#f0f2f5";
-const TEXT_2 = "#8494a7";
-const TEXT_3 = "#64748b";
+const AMBER = colors.amber;
+const BG = colors.bg;
+const CARD_BG = colors.surface;
+const TEXT_1 = colors.text1;
+const TEXT_2 = colors.text2;
+const TEXT_3 = colors.text3;
+const RED = colors.red;
 const CARD_BORDER = "rgba(255,255,255,0.05)";
 
 const CATEGORY_COLORS: Record<string, string> = {
   feature_request: "#3b82f6",
-  bug_report: "#ef4444",
+  bug_report: RED,
   improvement: "#a855f7",
-  other: "#8494a7",
+  other: TEXT_2,
 };
 
 type SortOption = "most_voted" | "newest";
@@ -229,7 +231,7 @@ export default function FeedbackScreen() {
             <Ionicons
               name={item.hasVoted ? "arrow-up" : "arrow-up-outline"}
               size={16}
-              color={item.hasVoted ? "#030712" : TEXT_2}
+              color={item.hasVoted ? BG : TEXT_2}
             />
             <Text style={[s.voteCount, item.hasVoted && s.voteCountActive]}>
               {item.upvoteCount}
@@ -255,7 +257,7 @@ export default function FeedbackScreen() {
           accessibilityRole="button"
           accessibilityLabel="Share your idea"
         >
-          <Ionicons name="chatbubble-ellipses-outline" size={16} color="#030712" />
+          <Ionicons name="chatbubble-ellipses-outline" size={16} color={BG} />
           <Text style={s.submitButtonText}>Share Your Idea</Text>
         </TouchableOpacity>
       </View>
@@ -329,7 +331,7 @@ export default function FeedbackScreen() {
             knownIssues.length > 0 ? (
               <View style={s.knownIssuesSection}>
                 <View style={s.knownIssuesHeader}>
-                  <Ionicons name="bug-outline" size={16} color="#ef4444" />
+                  <Ionicons name="bug-outline" size={16} color={RED} />
                   <Text style={s.knownIssuesTitle}>Known Issues</Text>
                 </View>
                 {knownIssues.map((ki) => {
@@ -362,7 +364,7 @@ export default function FeedbackScreen() {
                         <Ionicons
                           name={ki.hasVoted ? "hand-left" : "hand-left-outline"}
                           size={14}
-                          color={ki.hasVoted ? "#030712" : TEXT_2}
+                          color={ki.hasVoted ? BG : TEXT_2}
                         />
                         <Text style={[s.kiMeTooText, ki.hasVoted && s.kiMeTooTextActive]}>
                           {ki.hasVoted ? "Affected" : "Me too"} ({ki.upvoteCount})
@@ -402,13 +404,13 @@ const s = StyleSheet.create({
   },
   bannerHeading: {
     fontSize: 15,
-    fontFamily: "PlusJakartaSans_700Bold",
+    fontFamily: fonts.bold,
     color: AMBER,
     marginBottom: 4,
   },
   bannerText: {
     fontSize: 13,
-    fontFamily: "PlusJakartaSans_400Regular",
+    fontFamily: fonts.regular,
     color: TEXT_2,
     lineHeight: 19,
     marginBottom: 12,
@@ -425,8 +427,8 @@ const s = StyleSheet.create({
   },
   submitButtonText: {
     fontSize: 14,
-    fontFamily: "PlusJakartaSans_700Bold",
-    color: "#030712",
+    fontFamily: fonts.bold,
+    color: BG,
   },
   filterRow: {
     flexDirection: "row",
@@ -452,12 +454,12 @@ const s = StyleSheet.create({
   },
   filterChipText: {
     fontSize: 12,
-    fontFamily: "PlusJakartaSans_500Medium",
+    fontFamily: fonts.medium,
     color: TEXT_2,
   },
   filterChipTextActive: {
     color: AMBER,
-    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontFamily: fonts.semibold,
   },
   sortToggle: {
     padding: 12,
@@ -485,7 +487,7 @@ const s = StyleSheet.create({
   },
   categoryPillText: {
     fontSize: 10,
-    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontFamily: fonts.semibold,
     letterSpacing: 0.3,
     textTransform: "uppercase",
   },
@@ -496,20 +498,20 @@ const s = StyleSheet.create({
   },
   statusPillText: {
     fontSize: 10,
-    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontFamily: fonts.semibold,
     letterSpacing: 0.3,
     textTransform: "uppercase",
   },
   cardTitle: {
     fontSize: 15,
-    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontFamily: fonts.semibold,
     color: TEXT_1,
     marginBottom: 4,
     lineHeight: 20,
   },
   cardBody: {
     fontSize: 13,
-    fontFamily: "PlusJakartaSans_400Regular",
+    fontFamily: fonts.regular,
     color: TEXT_2,
     lineHeight: 18,
     marginBottom: 12,
@@ -527,7 +529,7 @@ const s = StyleSheet.create({
   },
   cardAuthor: {
     fontSize: 11,
-    fontFamily: "PlusJakartaSans_500Medium",
+    fontFamily: fonts.medium,
     color: TEXT_3,
   },
   dot: {
@@ -538,7 +540,7 @@ const s = StyleSheet.create({
   },
   cardDate: {
     fontSize: 11,
-    fontFamily: "PlusJakartaSans_400Regular",
+    fontFamily: fonts.regular,
     color: TEXT_3,
   },
   voteButton: {
@@ -558,11 +560,11 @@ const s = StyleSheet.create({
   },
   voteCount: {
     fontSize: 13,
-    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontFamily: fonts.semibold,
     color: TEXT_2,
   },
   voteCountActive: {
-    color: "#030712",
+    color: BG,
   },
   knownIssuesSection: {
     marginBottom: 16,
@@ -578,8 +580,8 @@ const s = StyleSheet.create({
   },
   knownIssuesTitle: {
     fontSize: 14,
-    fontFamily: "PlusJakartaSans_700Bold",
-    color: "#ef4444",
+    fontFamily: fonts.bold,
+    color: RED,
     textTransform: "uppercase",
     letterSpacing: 0.5,
   },
@@ -605,19 +607,19 @@ const s = StyleSheet.create({
   },
   kiStatusText: {
     fontSize: 10,
-    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontFamily: fonts.semibold,
     textTransform: "uppercase",
     letterSpacing: 0.3,
   },
   kiTitle: {
     fontSize: 14,
-    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontFamily: fonts.semibold,
     color: TEXT_1,
     marginBottom: 4,
   },
   kiBody: {
     fontSize: 12,
-    fontFamily: "PlusJakartaSans_400Regular",
+    fontFamily: fonts.regular,
     color: TEXT_2,
     lineHeight: 17,
     marginBottom: 8,
@@ -638,7 +640,7 @@ const s = StyleSheet.create({
   kiReplyText: {
     flex: 1,
     fontSize: 12,
-    fontFamily: "PlusJakartaSans_400Regular",
+    fontFamily: fonts.regular,
     color: TEXT_2,
     lineHeight: 17,
   },
@@ -655,16 +657,16 @@ const s = StyleSheet.create({
     borderColor: "rgba(255,255,255,0.08)",
   },
   kiMeTooActive: {
-    backgroundColor: "#ef4444",
-    borderColor: "#ef4444",
+    backgroundColor: RED,
+    borderColor: RED,
   },
   kiMeTooText: {
     fontSize: 12,
-    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontFamily: fonts.semibold,
     color: TEXT_2,
   },
   kiMeTooTextActive: {
-    color: "#030712",
+    color: BG,
   },
   repliesSection: {
     marginBottom: 10,
@@ -692,29 +694,29 @@ const s = StyleSheet.create({
   },
   replyAdminName: {
     fontSize: 11,
-    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontFamily: fonts.semibold,
     color: AMBER,
   },
   replyDate: {
     fontSize: 10,
-    fontFamily: "PlusJakartaSans_400Regular",
+    fontFamily: fonts.regular,
     color: TEXT_3,
   },
   replyBody: {
     fontSize: 13,
-    fontFamily: "PlusJakartaSans_400Regular",
+    fontFamily: fonts.regular,
     color: TEXT_2,
     lineHeight: 18,
   },
   emptyTitle: {
     fontSize: 17,
-    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontFamily: fonts.semibold,
     color: TEXT_1,
     marginTop: 8,
   },
   emptySubtitle: {
     fontSize: 13,
-    fontFamily: "PlusJakartaSans_400Regular",
+    fontFamily: fonts.regular,
     color: TEXT_2,
     textAlign: "center",
     lineHeight: 19,

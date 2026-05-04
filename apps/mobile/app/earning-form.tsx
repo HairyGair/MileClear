@@ -24,6 +24,14 @@ import { GIG_PLATFORMS } from "@mileclear/shared";
 import { DateTimePickerField } from "../components/DateTimePickerField";
 import { Button } from "../components/Button";
 import { isOcrAvailable } from "../lib/ocr";
+import { colors, fonts } from "../lib/theme";
+
+// Local theme aliases — same pattern as the (tabs) screens.
+const AMBER = colors.amber;
+const CARD_BG = colors.surface;
+const TEXT_2 = colors.text2;
+const TEXT_3 = colors.text3;
+const BG = colors.bg;
 
 export default function EarningFormScreen() {
   const router = useRouter();
@@ -150,7 +158,7 @@ export default function EarningFormScreen() {
   if (loadingExisting) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#f5a623" accessibilityLabel="Loading" />
+        <ActivityIndicator size="large" color={AMBER} accessibilityLabel="Loading" />
       </View>
     );
   }
@@ -216,7 +224,7 @@ export default function EarningFormScreen() {
             value={amount}
             onChangeText={setAmount}
             placeholder="0.00"
-            placeholderTextColor="#6b7280"
+            placeholderTextColor={TEXT_3}
             keyboardType="decimal-pad"
             accessibilityLabel="Amount in pounds"
           />
@@ -231,7 +239,7 @@ export default function EarningFormScreen() {
               value={notes}
               onChangeText={setNotes}
               placeholder="e.g. Tesco Petrol"
-              placeholderTextColor="#6b7280"
+              placeholderTextColor={TEXT_3}
               accessibilityLabel="Notes or vendor from receipt scan"
             />
           </View>
@@ -283,11 +291,11 @@ export default function EarningFormScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#030712",
+    backgroundColor: BG,
   },
   loadingContainer: {
     flex: 1,
-    backgroundColor: "#030712",
+    backgroundColor: BG,
     justifyContent: "center",
     alignItems: "center",
   },
@@ -297,17 +305,17 @@ const styles = StyleSheet.create({
   },
   label: {
     fontSize: 14,
-    fontFamily: "PlusJakartaSans_600SemiBold",
-    color: "#d1d5db",
+    fontFamily: fonts.semibold,
+    color: TEXT_2,
     marginBottom: 6,
     marginTop: 16,
   },
   input: {
-    backgroundColor: "#0a1120",
+    backgroundColor: CARD_BG,
     borderRadius: 10,
     padding: 14,
     fontSize: 16,
-    fontFamily: "PlusJakartaSans_400Regular",
+    fontFamily: fonts.regular,
     color: "#fff",
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.06)",
@@ -320,14 +328,14 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(245,166,35,0.1)",
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: "#f5a623",
+    borderColor: AMBER,
     paddingVertical: 12,
     marginBottom: 20,
   },
   scanButtonText: {
     fontSize: 14,
-    fontFamily: "PlusJakartaSans_600SemiBold",
-    color: "#f5a623",
+    fontFamily: fonts.semibold,
+    color: AMBER,
   },
   // Platform chips
   platformRow: {
@@ -343,17 +351,17 @@ const styles = StyleSheet.create({
     borderColor: "rgba(255,255,255,0.06)",
   },
   platformChipActive: {
-    backgroundColor: "#f5a623",
-    borderColor: "#f5a623",
+    backgroundColor: AMBER,
+    borderColor: AMBER,
   },
   platformChipText: {
     fontSize: 12,
-    fontFamily: "PlusJakartaSans_600SemiBold",
-    color: "#9ca3af",
+    fontFamily: fonts.semibold,
+    color: TEXT_2,
   },
   platformChipTextActive: {
-    fontFamily: "PlusJakartaSans_600SemiBold",
-    color: "#030712",
+    fontFamily: fonts.semibold,
+    color: BG,
   },
   // Amount row
   amountRow: {
@@ -362,7 +370,7 @@ const styles = StyleSheet.create({
   },
   currencyPrefix: {
     fontSize: 18,
-    fontFamily: "PlusJakartaSans_700Bold",
+    fontFamily: fonts.bold,
     color: "#fff",
     marginRight: 8,
   },
