@@ -513,7 +513,10 @@ async function runMorningBriefingJob(): Promise<void> {
   const mondayOffset = day === 0 ? -6 : 1 - day;
   const weekStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + mondayOffset));
 
-  // Get all users with push tokens
+  // Get all users with push tokens. We also pull heartbeat fields so the
+  // briefing can detect "user clearly drove yesterday but no trips reached
+  // the server" — that's a sync failure, not a quiet day, and the message
+  // should reflect that.
   const users = await prisma.user.findMany({
     where: { pushToken: { not: null } },
     select: {
@@ -521,6 +524,10 @@ async function runMorningBriefingJob(): Promise<void> {
       pushToken: true,
       dashboardMode: true,
       weeklyEarningsGoalPence: true,
+      lastDrivingSpeedAt: true,
+      lastPendingSyncCount: true,
+      lastSyncQueuePermFailed: true,
+      autoRecordingActive: true,
     },
   });
 
@@ -557,12 +564,35 @@ async function runMorningBriefingJob(): Promise<void> {
     const weekEarningsPence = weekEarnings._sum?.amountPence ?? 0;
     const goalPence = user.weeklyEarningsGoalPence;
 
+    // Detect "trips probably exist but haven't synced". Three signals:
+    //   1. lastDrivingSpeedAt was during yesterday's window (device saw
+    //      driving speed but no trip rows reached the server)
+    //   2. lastPendingSyncCount > 0 (sync queue had work outstanding at
+    //      last heartbeat)
+    //   3. lastSyncQueuePermFailed > 0 (sync gave up on something —
+    //      almost certainly trips)
+    // Any one of these means "don't claim 'no trips yesterday' confidently"
+    // — that lie is what triggered support contact 4 May 2026.
+    const droveYesterday =
+      user.lastDrivingSpeedAt !== null &&
+      user.lastDrivingSpeedAt >= yesterdayStart &&
+      user.lastDrivingSpeedAt < todayStart;
+    const hasPendingSync = (user.lastPendingSyncCount ?? 0) > 0;
+    const hasFailedSync = (user.lastSyncQueuePermFailed ?? 0) > 0;
+    const probablyHasUnsyncedTrips =
+      tripCount === 0 && (droveYesterday || hasPendingSync || hasFailedSync);
+
     // Build notification body based on mode
     const parts: string[] = [];
     const isWork = user.dashboardMode === "work" || user.dashboardMode === "both";
 
     if (tripCount > 0) {
       parts.push(`Yesterday: ${miles} mi across ${tripCount} trip${tripCount !== 1 ? "s" : ""}`);
+    } else if (probablyHasUnsyncedTrips) {
+      // Don't claim "no trips" — we have evidence the user drove. Tell
+      // them to open the app so the sync queue drains and the inbox
+      // populates with anything still waiting locally.
+      parts.push("Yesterday's trips haven't synced. Open MileClear so they can upload");
     } else {
       parts.push("No trips yesterday");
     }
@@ -577,10 +607,14 @@ async function runMorningBriefingJob(): Promise<void> {
     }
 
     if (unclassifiedCount > 0) {
-      parts.push(`${unclassifiedCount} to classify`);
+      parts.push(`${unclassifiedCount} in your inbox to classify`);
     }
 
-    const title = tripCount > 0 ? "Your daily summary" : "Good morning";
+    const title = tripCount > 0
+      ? "Your daily summary"
+      : probablyHasUnsyncedTrips
+        ? "Trips waiting to sync"
+        : "Good morning";
     const body = parts.join(". ") + ".";
 
     try {
