@@ -30,6 +30,7 @@ import { selfAssessmentRoutes } from "./routes/selfAssessment/index.js";
 import { hmrcReconciliationRoutes } from "./routes/hmrcReconciliation/index.js";
 import { pickupWaitRoutes } from "./routes/pickupWaits/index.js";
 import { unsubscribeRoutes } from "./routes/unsubscribe/index.js";
+import { hmrcRoutes } from "./routes/hmrc/index.js";
 import { startNotificationJobs } from "./jobs/notifications.js";
 import { startBriefingJobs } from "./jobs/briefing.js";
 import { logEvent, trackErrorForAlert } from "./services/appEvents.js";
@@ -155,6 +156,7 @@ await app.register(selfAssessmentRoutes, { prefix: "/self-assessment" });
 await app.register(hmrcReconciliationRoutes, { prefix: "/hmrc-reconciliation" });
 await app.register(pickupWaitRoutes, { prefix: "/pickup-waits" });
 await app.register(unsubscribeRoutes, { prefix: "/unsubscribe" });
+await app.register(hmrcRoutes, { prefix: "/hmrc" });
 // Health check
 app.get("/health", async () => ({ status: "ok" }));
 

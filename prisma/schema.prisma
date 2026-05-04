@@ -114,8 +114,42 @@ model User {
   accountantAccess    AccountantAccess[]
   hmrcReconciliations HmrcReconciliation[]
   pickupWaits         PickupWait[]
+  hmrcConnection      HmrcConnection?
 
   @@map("users")
+}
+
+// MTD ITSA OAuth connection. One per user - they grant MileClear permission
+// to read + write their HMRC tax account via the Self Employment Business
+// API. Tokens stored server-side; mobile asks the API "am I connected?" and
+// kicks off the OAuth flow when not. Phase 1 of the MTD ITSA build (week of
+// 5 May 2026), see [mtd_itsa_plan.md].
+model HmrcConnection {
+  id             String   @id @default(uuid())
+  userId         String   @unique
+  // Encrypted at rest (TODO once Phase 4 accreditation lands; sandbox-only
+  // for now so plaintext is acceptable for the next 4-6 weeks).
+  accessToken    String   @db.Text
+  refreshToken   String   @db.Text
+  // Space-separated OAuth scope string returned by HMRC.
+  scope          String   @db.Text
+  // Sandbox or Production. Once production accreditation lands a single
+  // user might still be on sandbox during testing — recorded per-row so
+  // the right base URL is used on every API call.
+  environment    String   @db.VarChar(16)
+  expiresAt      DateTime
+  // The state token we generated for the OAuth handshake. Verified on
+  // callback to prevent CSRF.
+  lastStateToken String?  @db.VarChar(64)
+  connectedAt    DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  // Set when the user disconnects, OR when HMRC returns invalid_grant on
+  // refresh (token revoked at HMRC's end). Null = currently active.
+  disconnectedAt DateTime?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("hmrc_connections")
 }
 
 model RefreshToken {

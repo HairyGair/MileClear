@@ -1,0 +1,211 @@
+import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import {
+  generateStateToken,
+  buildAuthorizationUrl,
+  buildFraudPreventionHeaders,
+  getHmrcConfig,
+  resetHmrcConfig,
+  HMRC_SCOPES,
+} from "../../services/hmrc/index.js";
+
+const originalEnv = { ...process.env };
+
+function setHmrcEnv(overrides: Record<string, string | undefined> = {}): void {
+  process.env.HMRC_CLIENT_ID = "test-client-id";
+  process.env.HMRC_CLIENT_SECRET = "test-client-secret";
+  process.env.HMRC_ENVIRONMENT = "sandbox";
+  process.env.HMRC_REDIRECT_URI = "https://api.mileclear.com/hmrc/callback";
+  process.env.HMRC_VENDOR_PRODUCT_NAME = "MileClear";
+  process.env.HMRC_VENDOR_VERSION = "1.2.0";
+  process.env.HMRC_VENDOR_LICENSE_IDS = "";
+  for (const [k, v] of Object.entries(overrides)) {
+    if (v === undefined) delete process.env[k];
+    else process.env[k] = v;
+  }
+  resetHmrcConfig();
+}
+
+beforeEach(() => {
+  setHmrcEnv();
+});
+
+afterEach(() => {
+  process.env = { ...originalEnv };
+  resetHmrcConfig();
+});
+
+describe("getHmrcConfig", () => {
+  it("returns null when HMRC_CLIENT_ID is missing", () => {
+    setHmrcEnv({ HMRC_CLIENT_ID: undefined });
+    expect(getHmrcConfig()).toBeNull();
+  });
+
+  it("returns null when HMRC_CLIENT_SECRET is missing", () => {
+    setHmrcEnv({ HMRC_CLIENT_SECRET: undefined });
+    expect(getHmrcConfig()).toBeNull();
+  });
+
+  it("uses sandbox base URL when env=sandbox", () => {
+    const config = getHmrcConfig();
+    expect(config?.apiBaseUrl).toBe("https://test-api.service.hmrc.uk");
+    expect(config?.environment).toBe("sandbox");
+  });
+
+  it("uses production base URL when env=production", () => {
+    setHmrcEnv({ HMRC_ENVIRONMENT: "production" });
+    const config = getHmrcConfig();
+    expect(config?.apiBaseUrl).toBe("https://api.service.hmrc.uk");
+    expect(config?.environment).toBe("production");
+  });
+
+  it("throws on invalid environment", () => {
+    setHmrcEnv({ HMRC_ENVIRONMENT: "staging" });
+    expect(() => getHmrcConfig()).toThrow(/HMRC_ENVIRONMENT/);
+  });
+
+  it("computes the correct authorize and token URLs", () => {
+    const config = getHmrcConfig();
+    expect(config?.authorizeUrl).toBe("https://test-api.service.hmrc.uk/oauth/authorize");
+    expect(config?.tokenUrl).toBe("https://test-api.service.hmrc.uk/oauth/token");
+  });
+});
+
+describe("generateStateToken", () => {
+  it("returns a non-empty base64url string", () => {
+    const token = generateStateToken();
+    expect(token).toMatch(/^[A-Za-z0-9_-]+$/);
+    expect(token.length).toBeGreaterThan(20);
+  });
+
+  it("returns different tokens on each call", () => {
+    const a = generateStateToken();
+    const b = generateStateToken();
+    expect(a).not.toBe(b);
+  });
+});
+
+describe("buildAuthorizationUrl", () => {
+  it("includes the full set of scopes by default", () => {
+    const config = getHmrcConfig()!;
+    const url = buildAuthorizationUrl({ config, state: "abc" });
+    const parsed = new URL(url);
+    const scope = parsed.searchParams.get("scope") ?? "";
+    for (const s of HMRC_SCOPES) expect(scope).toContain(s);
+  });
+
+  it("includes client_id, redirect_uri, state, response_type", () => {
+    const config = getHmrcConfig()!;
+    const url = buildAuthorizationUrl({ config, state: "the-state" });
+    const parsed = new URL(url);
+    expect(parsed.searchParams.get("client_id")).toBe("test-client-id");
+    expect(parsed.searchParams.get("redirect_uri")).toBe("https://api.mileclear.com/hmrc/callback");
+    expect(parsed.searchParams.get("state")).toBe("the-state");
+    expect(parsed.searchParams.get("response_type")).toBe("code");
+  });
+});
+
+describe("buildFraudPreventionHeaders", () => {
+  const config = (() => {
+    setHmrcEnv();
+    return getHmrcConfig()!;
+  })();
+
+  const server = {
+    serverPublicIp: "1.2.3.4",
+    serverLocalIp: "10.0.0.1",
+    receivedAt: "2026-05-04T19:30:00.000Z",
+  };
+
+  it("emits the mandatory vendor headers", () => {
+    const headers = buildFraudPreventionHeaders({
+      config,
+      server,
+      client: {
+        connectionMethod: "MOBILE_APP_VIA_SERVER",
+        deviceId: "device-uuid-1",
+        publicIp: "5.6.7.8",
+        userAgent: "MileClear/1.2.0 (iPhone15,2; iOS 17.4.1)",
+        osFamily: "iOS",
+        screenWidth: 1170,
+        screenHeight: 2532,
+        language: "en-GB",
+        deviceTimezone: "Europe/London",
+        timezoneOffset: "+0100",
+      },
+    });
+
+    expect(headers["Gov-Vendor-Product-Name"]).toBe("MileClear");
+    expect(headers["Gov-Vendor-Version"]).toBe("1.2.0");
+    expect(headers["Gov-Vendor-Public-IP"]).toBe("1.2.3.4");
+    expect(headers["Gov-Vendor-Local-IP"]).toBe("10.0.0.1");
+    expect(headers["Gov-Client-Connection-Method"]).toBe("MOBILE_APP_VIA_SERVER");
+    expect(headers["Gov-Client-Device-ID"]).toBe("device-uuid-1");
+    expect(headers["Gov-Client-Public-IP"]).toBe("5.6.7.8");
+    expect(headers["Gov-Client-Screens"]).toBe(
+      "width=1170&height=2532&scaling-factor=1&colour-depth=24"
+    );
+    expect(headers["Gov-Client-Window-Size"]).toBe("width=1170&height=2532");
+    expect(headers["Gov-Client-Timezone"]).toBe("+0100");
+  });
+
+  it("URL-encodes the user agent", () => {
+    const headers = buildFraudPreventionHeaders({
+      config,
+      server,
+      client: {
+        connectionMethod: "MOBILE_APP_VIA_SERVER",
+        deviceId: "d1",
+        publicIp: "5.6.7.8",
+        userAgent: "MileClear/1.2.0 (iPhone15,2)",
+        osFamily: "iOS",
+        screenWidth: 100,
+        screenHeight: 200,
+        language: "en-GB",
+        deviceTimezone: "Europe/London",
+        timezoneOffset: "+0100",
+      },
+    });
+    expect(headers["Gov-Client-User-Agent"]).toContain("%20");
+  });
+
+  it("emits web-shaped headers when connection method is web", () => {
+    const headers = buildFraudPreventionHeaders({
+      config,
+      server,
+      client: {
+        connectionMethod: "WEB_APP_VIA_SERVER",
+        publicIp: "5.6.7.8",
+        userAgent: "Mozilla/5.0",
+        windowWidth: 1440,
+        windowHeight: 900,
+        language: "en-GB",
+        timezone: "Europe/London",
+      },
+    });
+    expect(headers["Gov-Client-Connection-Method"]).toBe("WEB_APP_VIA_SERVER");
+    expect(headers["Gov-Client-Window-Size"]).toBe("width=1440&height=900");
+    expect(headers["Gov-Client-Timezone"]).toBe("Europe/London");
+    expect(headers["Gov-Client-Device-ID"]).toBeUndefined();
+  });
+
+  it("throws when a required header would be empty", () => {
+    expect(() =>
+      buildFraudPreventionHeaders({
+        config,
+        server,
+        client: {
+          connectionMethod: "MOBILE_APP_VIA_SERVER",
+          deviceId: "",
+          publicIp: "5.6.7.8",
+          userAgent: "ua",
+          osFamily: "iOS",
+          screenWidth: 100,
+          screenHeight: 200,
+          language: "en-GB",
+          deviceTimezone: "Europe/London",
+          timezoneOffset: "+0100",
+        },
+      })
+    ).toThrow(/Gov-Client-Device-ID.*empty/i);
+  });
+});
