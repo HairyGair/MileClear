@@ -57,6 +57,9 @@ interface AdminUser {
     verdict: string;
     capturedAt: string;
   } | null;
+  // Per-user health score (audit follow-up #2). 0-100 + coarse band.
+  healthScore?: number;
+  healthBand?: "good" | "warning" | "critical" | "unknown";
 }
 
 interface AdminUserDetail extends AdminUser {
@@ -1470,6 +1473,7 @@ function UsersTab() {
                   <th>Email</th>
                   <th>Name</th>
                   <th>Status</th>
+                  <th title="Per-user health score (0-100). Composed from heartbeat fields: bg-location, tracking task, sync queue, recent driving signal.">Health</th>
                   <th>Trips</th>
                   <th>Last trip</th>
                   <th>Last login</th>
@@ -1511,6 +1515,28 @@ function UsersTab() {
                           <Badge variant="source">Free</Badge>
                         )}
                       </div>
+                    </td>
+                    <td style={{ fontSize: "0.875rem", whiteSpace: "nowrap" }}>
+                      {user.healthScore !== undefined && user.healthBand ? (
+                        <span
+                          style={{
+                            color:
+                              user.healthBand === "good"
+                                ? "#10b981"
+                                : user.healthBand === "warning"
+                                  ? "#f59e0b"
+                                  : user.healthBand === "critical"
+                                    ? "#ef4444"
+                                    : "var(--text-secondary)",
+                            fontWeight: 600,
+                          }}
+                          title={`${user.healthBand} (${user.healthScore}/100)`}
+                        >
+                          {user.healthBand === "unknown" ? "—" : user.healthScore}
+                        </span>
+                      ) : (
+                        "—"
+                      )}
                     </td>
                     <td style={{ fontSize: "0.875rem" }}>{user._count.trips}</td>
                     <td

@@ -11,6 +11,7 @@ import { PREMIUM_PRICE_MONTHLY_PENCE, getTaxYear, haversineDistance } from "@mil
 import { upsertMileageSummary } from "../../services/mileage.js";
 import { advanceLastTripAt } from "../../services/userActivity.js";
 import { getAppleClient, getSignedDataVerifier, fetchTransactionWithEnvFallback, type AppleIapEnvironment } from "../../services/appleIap.js";
+import { calculateUserHealthScore } from "../../services/userHealthScore.js";
 
 const premiumToggleSchema = z.object({
   isPremium: z.boolean(),
@@ -160,6 +161,16 @@ export async function adminRoutes(app: FastifyInstance) {
           createdAt: true,
           lastLoginAt: true,
           lastTripAt: true,
+          // Heartbeat fields used to compute the per-user health score.
+          // Audit follow-up #2 (4 May 2026).
+          bgLocationPermission: true,
+          trackingTaskActive: true,
+          backgroundFetchStatus: true,
+          lastHeartbeatAt: true,
+          lastPendingSyncCount: true,
+          lastSyncQueuePermFailed: true,
+          lastDrivingSpeedAt: true,
+          secondsSinceLastTripPost: true,
           _count: { select: { trips: true, vehicles: true, earnings: true } },
           diagnosticDump: { select: { verdict: true, capturedAt: true } },
         },
@@ -170,8 +181,26 @@ export async function adminRoutes(app: FastifyInstance) {
       prisma.user.count({ where }),
     ]);
 
+    // Decorate with the health-score band on the way out. The full
+    // factor breakdown is included on the user-detail endpoint, not here
+    // (keep the list response light). Score + band is enough for the
+    // sortable/filterable list column.
+    const decorated = users.map((u) => {
+      const { score, band } = calculateUserHealthScore({
+        bgLocationPermission: u.bgLocationPermission,
+        trackingTaskActive: u.trackingTaskActive,
+        backgroundFetchStatus: u.backgroundFetchStatus,
+        lastHeartbeatAt: u.lastHeartbeatAt,
+        lastPendingSyncCount: u.lastPendingSyncCount,
+        lastSyncQueuePermFailed: u.lastSyncQueuePermFailed,
+        lastDrivingSpeedAt: u.lastDrivingSpeedAt,
+        secondsSinceLastTripPost: u.secondsSinceLastTripPost,
+      });
+      return { ...u, healthScore: score, healthBand: band };
+    });
+
     return reply.send({
-      data: users,
+      data: decorated,
       total,
       page: pageNum,
       pageSize: size,
@@ -258,11 +287,26 @@ export async function adminRoutes(app: FastifyInstance) {
       }),
     ]);
 
+    // Per-user health score (audit follow-up #2). The detail view gets
+    // the full factor breakdown so admin can see WHY a user scored low,
+    // not just the band.
+    const health = calculateUserHealthScore({
+      bgLocationPermission: user.bgLocationPermission,
+      trackingTaskActive: user.trackingTaskActive,
+      backgroundFetchStatus: user.backgroundFetchStatus,
+      lastHeartbeatAt: user.lastHeartbeatAt,
+      lastPendingSyncCount: user.lastPendingSyncCount,
+      lastSyncQueuePermFailed: user.lastSyncQueuePermFailed,
+      lastDrivingSpeedAt: user.lastDrivingSpeedAt,
+      secondsSinceLastTripPost: user.secondsSinceLastTripPost,
+    });
+
     return reply.send({
       data: {
         ...user,
         totalMiles: Math.round((mileageAgg._sum.distanceMiles ?? 0) * 10) / 10,
         totalEarningsPence: earningsAgg._sum.amountPence ?? 0,
+        health,
       },
     });
   });
