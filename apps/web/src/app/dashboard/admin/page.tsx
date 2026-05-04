@@ -2166,16 +2166,31 @@ function AutoTripsTab() {
 // Push Notifications Tab
 // ---------------------------------------------------------------------------
 
+type PushAudience = "all" | "premium" | "free" | "inactive" | "specific" | "selected";
+type PushHealthBand = "" | "good" | "warning" | "critical" | "unknown";
+type PushMode = "" | "work" | "personal" | "both";
+
 function PushTab() {
-  const [audience, setAudience] = useState<"all" | "premium" | "inactive" | "specific">("all");
+  const [audience, setAudience] = useState<PushAudience>("all");
   const [userId, setUserId] = useState("");
+  const [userIdsRaw, setUserIdsRaw] = useState("");
   const [inactiveDays, setInactiveDays] = useState("14");
+  const [buildNumber, setBuildNumber] = useState("");
+  const [appVersion, setAppVersion] = useState("");
+  const [healthBand, setHealthBand] = useState<PushHealthBand>("");
+  const [dashboardMode, setDashboardMode] = useState<PushMode>("");
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
   const [sending, setSending] = useState(false);
   const [result, setResult] = useState<{ sent: number; failed: number; totalTargeted: number; dryRun: boolean } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [showConfirm, setShowConfirm] = useState(false);
+
+  // Parse the textarea: split on commas/whitespace/newlines, strip empties.
+  const userIds = userIdsRaw
+    .split(/[\s,]+/)
+    .map((s) => s.trim())
+    .filter(Boolean);
 
   const send = async (dryRun: boolean) => {
     setSending(true);
@@ -2185,7 +2200,12 @@ function PushTab() {
       const res = await api.post<{ data: typeof result }>("/admin/send-push", {
         audience,
         userId: audience === "specific" ? userId : undefined,
+        userIds: audience === "selected" ? userIds : undefined,
         inactiveDays: audience === "inactive" ? parseInt(inactiveDays) || 14 : undefined,
+        buildNumber: buildNumber.trim() || undefined,
+        appVersion: appVersion.trim() || undefined,
+        healthBand: healthBand || undefined,
+        dashboardMode: dashboardMode || undefined,
         title,
         body,
         dryRun,
@@ -2199,6 +2219,19 @@ function PushTab() {
     }
   };
 
+  const audienceLabel = (a: PushAudience) => {
+    switch (a) {
+      case "all": return "All Users";
+      case "premium": return "Pro Only";
+      case "free": return "Free Only";
+      case "inactive": return "Inactive";
+      case "specific": return "Single User";
+      case "selected": return "Multi-Select";
+    }
+  };
+
+  const activeFilterCount = [buildNumber.trim(), appVersion.trim(), healthBand, dashboardMode].filter(Boolean).length;
+
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "1.25rem", maxWidth: 600 }}>
       <Card title="Send Push Notification">
@@ -2209,13 +2242,13 @@ function PushTab() {
               Audience
             </label>
             <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
-              {(["all", "premium", "inactive", "specific"] as const).map((a) => (
+              {(["all", "premium", "free", "inactive", "specific", "selected"] as const).map((a) => (
                 <button
                   key={a}
                   className={`filter-chip ${audience === a ? "filter-chip--active" : ""}`}
                   onClick={() => setAudience(a)}
                 >
-                  {a === "all" ? "All Users" : a === "premium" ? "Premium Only" : a === "inactive" ? "Inactive" : "Specific User"}
+                  {audienceLabel(a)}
                 </button>
               ))}
             </div>
@@ -2224,9 +2257,122 @@ function PushTab() {
           {audience === "specific" && (
             <Input id="push-user-id" label="User ID" value={userId} onChange={(e) => setUserId(e.target.value)} placeholder="Enter user ID..." />
           )}
+          {audience === "selected" && (
+            <div>
+              <label htmlFor="push-user-ids" style={{ display: "block", fontSize: "0.8125rem", color: "var(--text-secondary)", marginBottom: 6 }}>
+                User IDs ({userIds.length} selected)
+              </label>
+              <textarea
+                id="push-user-ids"
+                value={userIdsRaw}
+                onChange={(e) => setUserIdsRaw(e.target.value)}
+                placeholder="Paste user IDs separated by commas, spaces, or newlines..."
+                rows={4}
+                style={{
+                  width: "100%",
+                  padding: "0.625rem 0.75rem",
+                  background: "var(--bg-secondary)",
+                  border: "1px solid var(--border-default)",
+                  borderRadius: 8,
+                  color: "var(--text-primary)",
+                  fontSize: "0.8125rem",
+                  fontFamily: "monospace",
+                  resize: "vertical",
+                }}
+              />
+              <p style={{ fontSize: "0.75rem", color: "var(--text-tertiary, #64748b)", marginTop: 4 }}>
+                Tip: open the Users tab in another window, copy IDs from the User Detail page.
+              </p>
+            </div>
+          )}
           {audience === "inactive" && (
             <Input id="push-inactive-days" label="Inactive for (days)" value={inactiveDays} onChange={(e) => setInactiveDays(e.target.value)} type="number" />
           )}
+
+          {/* Optional filters — compose with the audience cut */}
+          <div
+            style={{
+              padding: "0.75rem 0.875rem",
+              background: "rgba(15,23,42,0.5)",
+              border: "1px solid rgba(255,255,255,0.06)",
+              borderRadius: 10,
+            }}
+          >
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: "0.625rem" }}>
+              <span style={{ fontSize: "0.8125rem", fontWeight: 600, color: "var(--text-primary)" }}>
+                Filters
+              </span>
+              <span style={{ fontSize: "0.7rem", color: "var(--text-tertiary, #64748b)" }}>
+                {activeFilterCount === 0 ? "none — applies to whole audience" : `${activeFilterCount} active — AND'd with audience`}
+              </span>
+            </div>
+
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: "0.625rem" }}>
+              <Input
+                id="push-build"
+                label="Build number"
+                value={buildNumber}
+                onChange={(e) => setBuildNumber(e.target.value)}
+                placeholder="e.g. 55"
+              />
+              <Input
+                id="push-app-version"
+                label="App version"
+                value={appVersion}
+                onChange={(e) => setAppVersion(e.target.value)}
+                placeholder="e.g. 1.1.3"
+              />
+              <div>
+                <label htmlFor="push-health-band" style={{ display: "block", fontSize: "0.8125rem", color: "var(--text-secondary)", marginBottom: 6 }}>
+                  Health band
+                </label>
+                <select
+                  id="push-health-band"
+                  value={healthBand}
+                  onChange={(e) => setHealthBand(e.target.value as PushHealthBand)}
+                  style={{
+                    width: "100%",
+                    padding: "0.625rem 0.75rem",
+                    background: "var(--bg-secondary)",
+                    border: "1px solid var(--border-default)",
+                    borderRadius: 8,
+                    color: "var(--text-primary)",
+                    fontSize: "0.9375rem",
+                  }}
+                >
+                  <option value="">Any</option>
+                  <option value="good">Good (≥75)</option>
+                  <option value="warning">Warning (50-74)</option>
+                  <option value="critical">Critical (&lt;50)</option>
+                  <option value="unknown">Unknown (no heartbeat)</option>
+                </select>
+              </div>
+              <div>
+                <label htmlFor="push-mode" style={{ display: "block", fontSize: "0.8125rem", color: "var(--text-secondary)", marginBottom: 6 }}>
+                  Dashboard mode
+                </label>
+                <select
+                  id="push-mode"
+                  value={dashboardMode}
+                  onChange={(e) => setDashboardMode(e.target.value as PushMode)}
+                  style={{
+                    width: "100%",
+                    padding: "0.625rem 0.75rem",
+                    background: "var(--bg-secondary)",
+                    border: "1px solid var(--border-default)",
+                    borderRadius: 8,
+                    color: "var(--text-primary)",
+                    fontSize: "0.9375rem",
+                  }}
+                >
+                  <option value="">Any</option>
+                  <option value="work">Work</option>
+                  <option value="personal">Personal</option>
+                  <option value="both">Both</option>
+                </select>
+              </div>
+            </div>
+          </div>
 
           <Input id="push-title" label="Title" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Notification title..." />
           <div>
@@ -2282,7 +2428,11 @@ function PushTab() {
         onClose={() => setShowConfirm(false)}
         onConfirm={() => send(false)}
         title="Send Push Notification"
-        message={`This will send a push notification to ${audience === "specific" ? "1 user" : audience === "all" ? "ALL users" : `${audience} users`}. Are you sure?`}
+        message={
+          result?.dryRun
+            ? `This will send a push to ${result.totalTargeted} user${result.totalTargeted !== 1 ? "s" : ""}. Are you sure?`
+            : `Audience: ${audienceLabel(audience)}${activeFilterCount > 0 ? ` + ${activeFilterCount} filter${activeFilterCount !== 1 ? "s" : ""}` : ""}. Tip: run a Dry Run first to see the exact count.`
+        }
         confirmLabel="Send Now"
         loading={sending}
       />

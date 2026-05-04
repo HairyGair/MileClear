@@ -39,9 +39,16 @@ const adminCreateTripSchema = z.object({
 });
 
 const pushSchema = z.object({
-  audience: z.enum(["all", "premium", "inactive", "specific"]),
+  audience: z.enum(["all", "premium", "free", "inactive", "specific", "selected"]),
   userId: z.string().optional(),
+  userIds: z.array(z.string()).max(500).optional(),
   inactiveDays: z.number().int().min(1).max(365).optional(),
+  // Optional filters that compose with the audience cut. All must
+  // match (AND). Empty = no filter on that dimension.
+  buildNumber: z.string().max(32).optional(),
+  appVersion: z.string().max(32).optional(),
+  healthBand: z.enum(["good", "warning", "critical", "unknown"]).optional(),
+  dashboardMode: z.enum(["work", "personal", "both"]).optional(),
   title: z.string().min(1).max(200),
   body: z.string().min(1).max(500),
   dryRun: z.boolean().optional().default(true),
@@ -1122,44 +1129,93 @@ export async function adminRoutes(app: FastifyInstance) {
       return reply.status(400).send({ error: parsed.error.errors[0].message });
     }
 
-    const { audience, userId, inactiveDays, title, body, dryRun } = parsed.data;
+    const {
+      audience,
+      userId,
+      userIds,
+      inactiveDays,
+      buildNumber,
+      appVersion,
+      healthBand,
+      dashboardMode,
+      title,
+      body,
+      dryRun,
+    } = parsed.data;
 
     if (audience === "specific" && !userId) {
       return reply.status(400).send({ error: "userId required for specific audience" });
     }
+    if (audience === "selected" && (!userIds || userIds.length === 0)) {
+      return reply.status(400).send({ error: "userIds required for selected audience" });
+    }
 
-    // Build user query based on audience
-    let users: Array<{ id: string; pushToken: string | null }>;
+    // Compose the where clause: audience first, then optional filters
+    // are AND'd on top. A few filters (inactive, healthBand) can't be
+    // expressed in SQL cleanly so they run post-load.
+    const where: Prisma.UserWhereInput = { pushToken: { not: null } };
 
     if (audience === "specific") {
-      users = await prisma.user.findMany({
-        where: { id: userId, pushToken: { not: null } },
-        select: { id: true, pushToken: true },
-      });
+      where.id = userId;
+    } else if (audience === "selected") {
+      where.id = { in: userIds };
     } else if (audience === "premium") {
-      users = await prisma.user.findMany({
-        where: { isPremium: true, pushToken: { not: null } },
-        select: { id: true, pushToken: true },
-      });
-    } else if (audience === "inactive") {
+      where.isPremium = true;
+    } else if (audience === "free") {
+      where.isPremium = false;
+    }
+    // "inactive" + "all" don't add an audience-level filter; inactive
+    // filters post-load by trip recency.
+
+    if (buildNumber) where.buildNumber = buildNumber;
+    if (appVersion) where.appVersion = appVersion;
+    if (dashboardMode) where.dashboardMode = dashboardMode;
+
+    // Need health fields to compute the band post-load. Always
+    // included; tiny per-row cost on a list this size.
+    let users = await prisma.user.findMany({
+      where,
+      select: {
+        id: true,
+        pushToken: true,
+        bgLocationPermission: true,
+        trackingTaskActive: true,
+        backgroundFetchStatus: true,
+        lastHeartbeatAt: true,
+        lastPendingSyncCount: true,
+        lastSyncQueuePermFailed: true,
+        lastDrivingSpeedAt: true,
+        secondsSinceLastTripPost: true,
+      },
+    });
+
+    // Inactive filter: post-load to keep the SQL simple
+    if (audience === "inactive") {
       const cutoff = new Date(Date.now() - (inactiveDays ?? 14) * 24 * 60 * 60 * 1000);
-      // Users with push token who have no trips since the cutoff
       const activeUserIds = await prisma.trip.findMany({
         where: { startedAt: { gte: cutoff } },
         select: { userId: true },
         distinct: ["userId"],
       });
       const activeSet = new Set(activeUserIds.map((r) => r.userId));
-      const allWithToken = await prisma.user.findMany({
-        where: { pushToken: { not: null } },
-        select: { id: true, pushToken: true },
-      });
-      users = allWithToken.filter((u) => !activeSet.has(u.id));
-    } else {
-      // all
-      users = await prisma.user.findMany({
-        where: { pushToken: { not: null } },
-        select: { id: true, pushToken: true },
+      users = users.filter((u) => !activeSet.has(u.id));
+    }
+
+    // Health-band filter: post-load via the same calculator the user
+    // list uses, so the chosen band matches what's shown in the table.
+    if (healthBand) {
+      users = users.filter((u) => {
+        const { band } = calculateUserHealthScore({
+          bgLocationPermission: u.bgLocationPermission,
+          trackingTaskActive: u.trackingTaskActive,
+          backgroundFetchStatus: u.backgroundFetchStatus,
+          lastHeartbeatAt: u.lastHeartbeatAt,
+          lastPendingSyncCount: u.lastPendingSyncCount,
+          lastSyncQueuePermFailed: u.lastSyncQueuePermFailed,
+          lastDrivingSpeedAt: u.lastDrivingSpeedAt,
+          secondsSinceLastTripPost: u.secondsSinceLastTripPost,
+        });
+        return band === healthBand;
       });
     }
 
@@ -1190,6 +1246,11 @@ export async function adminRoutes(app: FastifyInstance) {
       sent,
       failed,
       title,
+      buildNumber: buildNumber ?? null,
+      appVersion: appVersion ?? null,
+      healthBand: healthBand ?? null,
+      dashboardMode: dashboardMode ?? null,
+      selectedCount: userIds?.length ?? null,
     });
 
     return reply.send({
