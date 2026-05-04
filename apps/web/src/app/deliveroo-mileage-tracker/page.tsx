@@ -416,6 +416,16 @@ export default function DeliverooMileageTracker() {
                   body:
                     "Since January 2024, Deliveroo reports your annual earnings to HMRC under the Digital Platform Reporting rules. The Reconciliation tool shows HMRC's figure alongside what MileClear tracked, so any discrepancy is visible to you before it is to them.",
                 },
+                {
+                  title: "Tax Readiness Card",
+                  body:
+                    "Estimated tax + NI for the year, suggested set-aside this week from your actual takings, countdown to the 31 January deadline. Sole-trader riders are bad at putting money aside; this card makes it visible every time you open the app.",
+                },
+                {
+                  title: "Pickup Wait Timer",
+                  body:
+                    "Tap when you arrive at a restaurant; tap again when the order's in your bag. The stopwatch survives backgrounding so you can keep doing other things. Helps you spot which restaurants consistently waste your time.",
+                },
               ].map(({ title, body }) => (
                 <div
                   key={title}

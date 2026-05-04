@@ -209,6 +209,15 @@ export default function JustEatMileageTracker() {
               numbers against other UK Just Eat couriers - so you know whether your zone, your
               vehicle, or your shift hours are working for you.
             </p>
+            <p style={{ color: "#cbd5e1", fontSize: "0.9375rem", lineHeight: 1.7, marginTop: "1rem" }}>
+              The dashboard's Tax Readiness card adds a live set-aside figure. Estimated tax
+              and NI for the year, suggested set-aside this week from your real numbers, and
+              a countdown to the 31 January deadline. Couriers who don't routinely save for
+              tax are the ones HMRC rules cut hardest - this card is designed to fix that
+              before January catches you out. There's also a Pickup Wait Timer for the
+              minutes you spend standing in restaurants: tap when you arrive, tap again when
+              the food's in your bag. The stopwatch survives backgrounding.
+            </p>
           </section>
 
           {/* Vehicle rate split */}

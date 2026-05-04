@@ -543,6 +543,18 @@ export default function DpdMileageTracker() {
                     "See how your DPD per-stop earnings, per-mile earnings and weekly mileage compare anonymously to other UK couriers. The dashboard shows your percentile alongside the median and 75th, so you know whether your route density is in line with peers.",
                   what: "what mileclear adds",
                 },
+                {
+                  title: "Tax Readiness Card",
+                  body:
+                    "Live on the dashboard: estimated tax + NI for the year, suggested set-aside this week from your real franchise income, and a 31 January countdown. Owner-drivers running on tight monthly margins are exactly the cohort HMRC penalty interest hits hardest - this card is designed to stop the January surprise.",
+                  what: "what mileclear adds",
+                },
+                {
+                  title: "Activity Heatmap",
+                  body:
+                    "12 weeks of your routes plotted across a 7-day x 24-hour grid. See whether peak-Friday volume actually pays per-mile better than weekday mid-day, and decide whether the longer hours during peak season are worth the wear-and-tear once you factor mileage in.",
+                  what: "what mileclear adds",
+                },
               ].map(({ title, body, what }) => (
                 <div
                   key={title}

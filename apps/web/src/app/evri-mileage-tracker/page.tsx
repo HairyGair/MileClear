@@ -514,6 +514,16 @@ export default function EvriMileageTracker() {
               and weekly mileage against other UK Evri couriers without identifying you to
               anyone.
             </p>
+            <p style={{ color: "#cbd5e1", fontSize: "0.9375rem", lineHeight: 1.7, marginTop: "1rem" }}>
+              For the vehicle that does the round: add your registration plate and MileClear
+              pulls the DVSA MOT history and warns you 30 days before the next test. For a
+              self-employed courier, missing the MOT means losing the round - the reminder
+              costs nothing and saves the panic. The dashboard's Tax Readiness card adds the
+              other half of the picture: estimated tax and NI for the year, suggested
+              set-aside this week from your real Evri pay, countdown to 31 January. SE+ pay
+              that drops into the bank account weekly is exactly the kind that quietly
+              evaporates before the tax bill arrives.
+            </p>
           </section>
 
           {/* Driver pain points / fuel reality */}

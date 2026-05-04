@@ -385,6 +385,16 @@ export default function AmazonFlexMileageTracker() {
                   body:
                     "Amazon Flex reports your annual earnings to HMRC under the Digital Platform Reporting rules. The Reconciliation tool shows HMRC's figure alongside what MileClear tracked, so any mismatch is visible to you before HMRC raises it.",
                 },
+                {
+                  title: "Tax Readiness Card",
+                  body:
+                    "Live on the dashboard: estimated tax + NI for the year, suggested set-aside from your block earnings this week, and a 31 January countdown. Flex pay arrives in £100-£200 chunks; this card stops them quietly disappearing into your everyday spending.",
+                },
+                {
+                  title: "Activity Heatmap",
+                  body:
+                    "12 weeks of your blocks plotted across a 7-day x 24-hour grid, intensity-coloured by trips or earnings. Spot which depots, which days, and which time slots reliably pay best - and which ones look productive but actually aren't, once you account for the drive home.",
+                },
               ].map(({ title, body }) => (
                 <div
                   key={title}

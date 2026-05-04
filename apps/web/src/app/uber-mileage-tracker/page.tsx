@@ -239,6 +239,16 @@ export default function UberMileageTracker() {
                   body:
                     "Since January 2024, Uber reports your annual earnings to HMRC under the Digital Platform Reporting rules. The Reconciliation tool shows HMRC's figure alongside what MileClear tracked, so you spot any mismatch before they raise it.",
                 },
+                {
+                  title: "Tax Readiness Card",
+                  body:
+                    "Live on the dashboard: estimated tax + NI for the year, suggested set-aside this week from your real numbers, and a countdown to the 31 January Self Assessment deadline. No more underestimating what you owe in January.",
+                },
+                {
+                  title: "Activity Heatmap",
+                  body:
+                    "12 weeks of your driving plotted across a 7-day x 24-hour grid, intensity-coloured by trips or earnings. See which mornings, evenings, and zones consistently pay best. Filter by platform if you split between Uber, Bolt, and the rest.",
+                },
               ].map(({ title, body }) => (
                 <div
                   key={title}
