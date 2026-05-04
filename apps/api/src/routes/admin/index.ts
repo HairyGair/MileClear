@@ -10,6 +10,7 @@ import { sendPushNotifications } from "../../lib/push.js";
 import { PREMIUM_PRICE_MONTHLY_PENCE, getTaxYear, haversineDistance } from "@mileclear/shared";
 import { upsertMileageSummary } from "../../services/mileage.js";
 import { advanceLastTripAt } from "../../services/userActivity.js";
+import { getAppleClient, getSignedDataVerifier } from "../../services/appleIap.js";
 
 const premiumToggleSchema = z.object({
   isPremium: z.boolean(),
@@ -1902,5 +1903,160 @@ export async function adminRoutes(app: FastifyInstance) {
         generatedAt: new Date().toISOString(),
       },
     });
+  });
+
+  // ── Apple IAP: reprocess no_user webhook orphans ──────────────────
+  //
+  // Loops every apple_iap_webhook_logs row with status='no_user', re-fetches
+  // the canonical transaction from Apple's App Store Server API, and tries
+  // to link to a MileClear user via the appAccountToken on that canonical
+  // record (which is sometimes missing from the inbound webhook JWS).
+  //
+  // Discovered 4 May 2026: 4 production users had subscribed without ever
+  // being linked because their inbound webhooks had null appAccountToken
+  // and the mobile validate call also never reached us. This endpoint is
+  // the catch-up for those orphans; the webhook handler now does the same
+  // re-fetch automatically going forward.
+  app.post("/apple/reprocess-orphans", async (_request, reply) => {
+    const apiClient = getAppleClient();
+    const verifier = getSignedDataVerifier();
+    if (!apiClient || !verifier) {
+      return reply.status(503).send({ error: "Apple IAP not configured" });
+    }
+
+    const orphans = await prisma.appleIapWebhookLog.findMany({
+      where: { status: "no_user" },
+      orderBy: { receivedAt: "desc" },
+    });
+
+    const results: Array<{
+      txn: string;
+      receivedAt: string;
+      outcome: "linked" | "still_no_user" | "no_appAccountToken" | "fetch_failed" | "conflict" | "no_txn_id";
+      userId?: string;
+      userEmail?: string;
+      detail?: string;
+    }> = [];
+
+    for (const log of orphans) {
+      const txn = log.originalTransactionId;
+      if (!txn) {
+        results.push({
+          txn: "(null)",
+          receivedAt: log.receivedAt.toISOString(),
+          outcome: "no_txn_id",
+        });
+        continue;
+      }
+
+      // Maybe a previous reprocess already linked this. Skip if so.
+      const alreadyLinked = await prisma.user.findUnique({
+        where: { appleOriginalTransactionId: txn },
+        select: { id: true, email: true },
+      });
+      if (alreadyLinked) {
+        results.push({
+          txn,
+          receivedAt: log.receivedAt.toISOString(),
+          outcome: "linked",
+          userId: alreadyLinked.id,
+          userEmail: alreadyLinked.email,
+          detail: "Already linked (presumably by a later webhook or admin action)",
+        });
+        continue;
+      }
+
+      let appAccountToken: string | null = null;
+      try {
+        const txnResponse = await apiClient.getTransactionInfo(txn);
+        if (!txnResponse.signedTransactionInfo) {
+          results.push({
+            txn,
+            receivedAt: log.receivedAt.toISOString(),
+            outcome: "fetch_failed",
+            detail: "App Store API returned no signedTransactionInfo",
+          });
+          continue;
+        }
+        const canonicalTxn = await verifier.verifyAndDecodeTransaction(
+          txnResponse.signedTransactionInfo
+        );
+        appAccountToken = canonicalTxn.appAccountToken ?? null;
+      } catch (err) {
+        results.push({
+          txn,
+          receivedAt: log.receivedAt.toISOString(),
+          outcome: "fetch_failed",
+          detail: err instanceof Error ? err.message : String(err),
+        });
+        continue;
+      }
+
+      if (!appAccountToken) {
+        results.push({
+          txn,
+          receivedAt: log.receivedAt.toISOString(),
+          outcome: "no_appAccountToken",
+          detail: "Apple did not include appAccountToken on the canonical transaction either",
+        });
+        continue;
+      }
+
+      const userToLink = await prisma.user.findUnique({
+        where: { id: appAccountToken },
+        select: { id: true, email: true, appleOriginalTransactionId: true },
+      });
+      if (!userToLink) {
+        results.push({
+          txn,
+          receivedAt: log.receivedAt.toISOString(),
+          outcome: "still_no_user",
+          detail: `appAccountToken ${appAccountToken} matched no user`,
+        });
+        continue;
+      }
+      if (
+        userToLink.appleOriginalTransactionId &&
+        userToLink.appleOriginalTransactionId !== txn
+      ) {
+        results.push({
+          txn,
+          receivedAt: log.receivedAt.toISOString(),
+          outcome: "conflict",
+          userId: userToLink.id,
+          userEmail: userToLink.email,
+          detail: `User already linked to a different txn (${userToLink.appleOriginalTransactionId})`,
+        });
+        continue;
+      }
+
+      await prisma.user.update({
+        where: { id: userToLink.id },
+        data: {
+          appleOriginalTransactionId: txn,
+          isPremium: true,
+          // Premium expiry will be set/refreshed by the next webhook hit on
+          // this transaction (renewal, billing change, etc). Not setting
+          // here because we don't have the expiresDate from the JWS without
+          // re-decoding — happy to set if needed via a second fetch.
+        },
+      });
+
+      logEvent("billing.apple_iap_reprocessed", userToLink.id, {
+        originalTransactionId: txn,
+        webhookReceivedAt: log.receivedAt.toISOString(),
+      });
+
+      results.push({
+        txn,
+        receivedAt: log.receivedAt.toISOString(),
+        outcome: "linked",
+        userId: userToLink.id,
+        userEmail: userToLink.email,
+        detail: "Linked via canonical-transaction appAccountToken re-fetch",
+      });
+    }
+
+    return reply.send({ data: { processed: results.length, results } });
   });
 }

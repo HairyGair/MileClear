@@ -199,7 +199,7 @@ export async function appleBillingRoutes(app: FastifyInstance) {
     }
 
     const originalTransactionId = transactionInfo.originalTransactionId;
-    const appAccountToken = transactionInfo.appAccountToken ?? null;
+    let appAccountToken = transactionInfo.appAccountToken ?? null;
 
     // Look up user by Apple original transaction ID first, then fall back to the
     // appAccountToken the mobile client set at purchase time (which we seed with
@@ -209,6 +209,41 @@ export async function appleBillingRoutes(app: FastifyInstance) {
       where: { appleOriginalTransactionId: originalTransactionId },
       select: { id: true, pushToken: true },
     });
+
+    // Third fallback: Apple sometimes omits appAccountToken from the inbound
+    // webhook JWS even when the mobile client set it at purchase time. Re-
+    // fetch the canonical transaction from the App Store Server API and try
+    // the appAccountToken from there. Documented: 4 May 2026 — discovered
+    // 4 production users had subscribed without ever being linked because
+    // the webhook arrived without appAccountToken AND validate never ran
+    // (likely the StoreKit success listener didn't fire on their device).
+    if (!user && !appAccountToken) {
+      const apiClient = getAppleClient();
+      if (apiClient) {
+        try {
+          const txnResponse = await apiClient.getTransactionInfo(originalTransactionId);
+          if (txnResponse.signedTransactionInfo) {
+            const verifierForRefetch = getSignedDataVerifier();
+            if (verifierForRefetch) {
+              const canonicalTxn = await verifierForRefetch.verifyAndDecodeTransaction(
+                txnResponse.signedTransactionInfo
+              );
+              if (canonicalTxn.appAccountToken) {
+                appAccountToken = canonicalTxn.appAccountToken;
+                app.log.info(
+                  `Apple webhook: re-fetched appAccountToken ${appAccountToken} for transaction ${originalTransactionId} (was null in inbound payload)`
+                );
+              }
+            }
+          }
+        } catch (err) {
+          app.log.warn(
+            { err: err instanceof Error ? err.message : String(err), originalTransactionId },
+            "Apple webhook: re-fetch from App Store Server API failed"
+          );
+        }
+      }
+    }
 
     if (!user && appAccountToken) {
       const linkedUser = await prisma.user.findUnique({
