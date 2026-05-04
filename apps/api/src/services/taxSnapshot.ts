@@ -4,9 +4,14 @@ import {
   calculateHmrcDeduction,
   getTaxYear,
   parseTaxYear,
+  formatPence,
+  formatMiles,
+  HMRC_RATES,
+  HMRC_THRESHOLD_MILES,
   type TaxSnapshot,
   type ReadinessItem,
   type VehicleType,
+  type NumberDerivation,
 } from "@mileclear/shared";
 
 /**
@@ -190,6 +195,18 @@ export async function buildTaxSnapshot(userId: string): Promise<TaxSnapshot> {
   const doneCount = items.filter((i) => i.done).length;
   const percentComplete = Math.round((doneCount / items.length) * 100);
 
+  // Provenance for the mileage-deduction figure. Shows the user the exact
+  // derivation: "we found N business trips totalling X miles, applied the
+  // HMRC AMAP rate, here's the total". Audit item #5.
+  const mileageDeductionDerivation = buildMileageDeductionDerivation({
+    taxYear,
+    start,
+    end,
+    milesByType,
+    businessTripCount: businessTrips.length,
+    totalDeductionPence: mileageDeductionPence,
+  });
+
   return {
     taxYear,
     taxYearEndDate: end.toISOString(),
@@ -201,6 +218,7 @@ export async function buildTaxSnapshot(userId: string): Promise<TaxSnapshot> {
       taxableProfitPence,
       estimatedTaxPence,
       effectiveRatePercent,
+      mileageDeductionDerivation,
     },
     setAsideThisWeek: {
       earningsLast7DaysPence,
@@ -214,5 +232,130 @@ export async function buildTaxSnapshot(userId: string): Promise<TaxSnapshot> {
     nudges: {
       earnings: earningsNudge,
     },
+  };
+}
+
+// ── Provenance helpers ──────────────────────────────────────────────
+
+interface DerivationInput {
+  taxYear: string;
+  start: Date;
+  end: Date;
+  milesByType: Map<VehicleType, number>;
+  businessTripCount: number;
+  totalDeductionPence: number;
+}
+
+/**
+ * Build the human-readable derivation panel for the YTD mileage deduction.
+ * Audit item #5: the "why this number?" pattern.
+ *
+ * The derivation shows:
+ *   - which trips fed into the calculation (date range, count)
+ *   - the per-vehicle-type breakdown (car/van vs motorbike use different rates)
+ *   - the AMAP threshold split (45p first 10k, 25p after) for car/van
+ *   - the final formula and total
+ *
+ * Empty (no business miles) returns a derivation that still explains
+ * what the figure WOULD be — that's more useful than nothing.
+ */
+function buildMileageDeductionDerivation(input: DerivationInput): NumberDerivation {
+  const { taxYear, start, end, milesByType, businessTripCount, totalDeductionPence } = input;
+
+  const components: NumberDerivation["components"] = [];
+
+  // Total business miles row first — anchors the rest.
+  let totalMiles = 0;
+  for (const miles of milesByType.values()) totalMiles += miles;
+  components.push({
+    label: "Business miles in tax year",
+    value: formatMiles(totalMiles),
+  });
+
+  // Per-vehicle-type breakdown. Most users only have one type (car) but
+  // motorbikes use a different rate so the breakdown is necessary.
+  for (const [type, miles] of milesByType) {
+    if (miles <= 0) continue;
+    if (type === "motorbike") {
+      const rate = HMRC_RATES.motorbike.flat;
+      const subtotal = Math.round(miles * rate);
+      components.push({
+        label: `Motorbike: ${formatMiles(miles)} × ${rate}p`,
+        value: formatPence(subtotal),
+      });
+    } else {
+      // car / van — AMAP threshold split
+      const firstTier = Math.min(miles, HMRC_THRESHOLD_MILES);
+      const overflow = Math.max(0, miles - HMRC_THRESHOLD_MILES);
+      const tier1Pence = Math.round(firstTier * HMRC_RATES.car.first10000);
+      const tier2Pence = Math.round(overflow * HMRC_RATES.car.after10000);
+      const typeLabel = type === "van" ? "Van" : "Car";
+
+      if (overflow > 0) {
+        components.push({
+          label: `${typeLabel}: first ${formatMiles(firstTier)} × ${HMRC_RATES.car.first10000}p`,
+          value: formatPence(tier1Pence),
+        });
+        components.push({
+          label: `${typeLabel}: remaining ${formatMiles(overflow)} × ${HMRC_RATES.car.after10000}p`,
+          value: formatPence(tier2Pence),
+        });
+      } else {
+        components.push({
+          label: `${typeLabel}: ${formatMiles(miles)} × ${HMRC_RATES.car.first10000}p`,
+          value: formatPence(tier1Pence),
+        });
+      }
+    }
+  }
+
+  components.push({
+    label: "Total mileage deduction",
+    value: formatPence(totalDeductionPence),
+    highlight: true,
+  });
+
+  // Build the formula string for the header.
+  let formula: string | undefined;
+  if (totalMiles > 0) {
+    const parts: string[] = [];
+    for (const [type, miles] of milesByType) {
+      if (miles <= 0) continue;
+      if (type === "motorbike") {
+        parts.push(`(${formatMiles(miles)} × ${HMRC_RATES.motorbike.flat}p)`);
+      } else {
+        const firstTier = Math.min(miles, HMRC_THRESHOLD_MILES);
+        const overflow = Math.max(0, miles - HMRC_THRESHOLD_MILES);
+        if (overflow > 0) {
+          parts.push(
+            `(${formatMiles(firstTier)} × ${HMRC_RATES.car.first10000}p) + (${formatMiles(overflow)} × ${HMRC_RATES.car.after10000}p)`
+          );
+        } else {
+          parts.push(`(${formatMiles(miles)} × ${HMRC_RATES.car.first10000}p)`);
+        }
+      }
+    }
+    formula = `${parts.join(" + ")} = ${formatPence(totalDeductionPence)}`;
+  }
+
+  return {
+    summary: totalMiles > 0
+      ? `Your tax-deductible mileage at HMRC's Approved Mileage Allowance Payment (AMAP) rate, derived from ${businessTripCount} business ${businessTripCount === 1 ? "trip" : "trips"} in tax year ${taxYear}.`
+      : `No business trips classified in tax year ${taxYear} yet. Once you classify trips as business, your AMAP deduction will appear here.`,
+    formula,
+    components,
+    sources: businessTripCount > 0 ? [{
+      kind: "trips",
+      count: businessTripCount,
+      description: `Business trips in tax year ${taxYear}`,
+      dateRange: {
+        from: start.toISOString(),
+        to: end.toISOString(),
+      },
+    }] : undefined,
+    notes: [
+      "AMAP rates: 45p per mile for the first 10,000 business miles, 25p per mile thereafter (cars and vans). Motorbikes are 24p flat.",
+      "Trips without a linked vehicle assume car rates. Add or assign a vehicle on the Trip detail screen if a trip used a different vehicle type.",
+    ],
   };
 }

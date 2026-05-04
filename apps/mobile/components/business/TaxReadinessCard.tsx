@@ -12,6 +12,7 @@ import { useRouter } from "expo-router";
 import { fetchTaxSnapshot } from "../../lib/api/businessInsights";
 import { formatPence, UK_TAX_2025_26 } from "@mileclear/shared";
 import type { TaxSnapshot } from "@mileclear/shared";
+import { DerivationPanel } from "../DerivationPanel";
 
 // Show the higher-rate warning when YTD taxable profit is between £35k and
 // the higher-rate threshold (£50,270). The £35k floor avoids spamming most
@@ -51,6 +52,7 @@ export function TaxReadinessCard() {
   const [snap, setSnap] = useState<TaxSnapshot | null>(null);
   const [loading, setLoading] = useState(true);
   const [expanded, setExpanded] = useState(false);
+  const [showDeductionDerivation, setShowDeductionDerivation] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -105,7 +107,15 @@ export function TaxReadinessCard() {
           <Text style={s.heroValue}>{formatPence(snap.ytd.estimatedTaxPence)}</Text>
           <Text style={s.heroMeta}>
             On {formatPence(snap.ytd.grossEarningsPence)} earnings, after{" "}
-            {formatPence(snap.ytd.mileageDeductionPence)} mileage deduction
+            <Text
+              style={s.heroMetaLink}
+              onPress={() => setShowDeductionDerivation(true)}
+              accessibilityRole="button"
+              accessibilityLabel={`${formatPence(snap.ytd.mileageDeductionPence)} mileage deduction. Tap to see how this was calculated.`}
+            >
+              {formatPence(snap.ytd.mileageDeductionPence)} mileage deduction
+              <Text style={s.heroMetaLinkIcon}>{" ⓘ"}</Text>
+            </Text>
           </Text>
         </>
       ) : (
@@ -236,6 +246,14 @@ export function TaxReadinessCard() {
         <Text style={s.guideLinkText}>Reconcile vs HMRC&apos;s figures</Text>
         <Ionicons name="chevron-forward" size={13} color={TEXT_3} />
       </TouchableOpacity>
+
+      <DerivationPanel
+        visible={showDeductionDerivation}
+        title={`Mileage deduction · ${snap.taxYear}`}
+        formattedValue={formatPence(snap.ytd.mileageDeductionPence)}
+        derivation={snap.ytd.mileageDeductionDerivation}
+        onClose={() => setShowDeductionDerivation(false)}
+      />
     </View>
   );
 }
@@ -304,6 +322,16 @@ const s = StyleSheet.create({
     fontSize: 12,
     lineHeight: 17,
     marginBottom: 12,
+  },
+  heroMetaLink: {
+    color: AMBER,
+    textDecorationLine: "underline",
+    textDecorationColor: "rgba(245,166,35,0.4)",
+  },
+  heroMetaLinkIcon: {
+    color: AMBER,
+    textDecorationLine: "none",
+    fontSize: 11,
   },
   higherRateRow: {
     flexDirection: "row",

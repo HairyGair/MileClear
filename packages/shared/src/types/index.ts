@@ -89,6 +89,11 @@ export interface TaxSnapshot {
     taxableProfitPence: number;             // earnings - mileage (no expenses, dashboard-light)
     estimatedTaxPence: number;              // income tax + Class 2 + Class 4 NI
     effectiveRatePercent: number;           // estimatedTaxPence / grossEarningsPence × 100
+
+    // Provenance for the mileage deduction figure. Powers the "why this
+    // number?" panel — tap the deduction on the dashboard to see how it
+    // was derived. Audit item #5 (external_audit_may_2.md).
+    mileageDeductionDerivation: NumberDerivation;
   };
 
   setAsideThisWeek: {
@@ -117,6 +122,44 @@ export interface ReadinessItem {
   label: string;
   done: boolean;
   hint?: string;                            // shown when not done
+}
+
+// Provenance / "why this number?" — the canonical shape for explaining
+// any computed figure shown to the user. Powers the tap-to-see-derivation
+// pattern. Used first on the YTD mileage-deduction figure; the same shape
+// scales to any other computed value (gross earnings, tax estimate, etc.).
+//
+// Audit item #5 (external_audit_may_2.md). The audit's standout idea —
+// massive trust differentiator vs MileIQ.
+export interface NumberDerivation {
+  // One-line plain-English description of what this figure represents
+  // and where it came from. Shown at the top of the panel.
+  summary: string;
+
+  // The formula in human-readable form, e.g.
+  // "(10,000 mi × 45p) + (2,438 mi × 25p) = £4,500.00 + £609.50 = £5,109.50"
+  formula?: string;
+
+  // Numeric components that build up to the figure. Each row renders as
+  // "label: value" in the panel; rows marked highlight render bolder.
+  components: Array<{
+    label: string;
+    value: string;                          // pre-formatted (£, mi, %)
+    highlight?: boolean;                    // emphasise key totals
+  }>;
+
+  // Source rollups — "we used N trips between X and Y". Helps the user
+  // verify the derivation against their own records.
+  sources?: Array<{
+    kind: string;                           // e.g. "trips", "earnings"
+    count: number;
+    description: string;                    // e.g. "Business trips in tax year 2025-26"
+    dateRange?: { from: string; to: string };
+  }>;
+
+  // Free-text caveat shown beneath the components. Use for HMRC-rate
+  // citations, "excludes XYZ", "applies to UK gig drivers only", etc.
+  notes?: string[];
 }
 
 // Activity heatmap: 7 day-of-week × 24 hour-of-day cells. Powers the
