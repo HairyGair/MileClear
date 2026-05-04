@@ -406,6 +406,16 @@ export default function DeliverooMileageTracker() {
                   body:
                     "Pro users can download a PDF mileage log and HMRC self-assessment summary. Every journey is dated, timestamped, and distance-verified. Send it directly to your accountant or attach it to your tax return.",
                 },
+                {
+                  title: "Rider Community Benchmarks",
+                  body:
+                    "See how your Deliveroo earnings per mile and per hour compare anonymously to other UK riders and drivers. The dashboard shows your percentile alongside the median and 75th, so you know whether your zone, your hours, or your bike-vs-car choice is working for you.",
+                },
+                {
+                  title: "HMRC Reconciliation",
+                  body:
+                    "Since January 2024, Deliveroo reports your annual earnings to HMRC under the Digital Platform Reporting rules. The Reconciliation tool shows HMRC's figure alongside what MileClear tracked, so any discrepancy is visible to you before it is to them.",
+                },
               ].map(({ title, body }) => (
                 <div
                   key={title}

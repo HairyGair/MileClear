@@ -531,6 +531,18 @@ export default function DpdMileageTracker() {
                     "Tag personal trips so your business-use percentage is accurate. Critical for Actual Costs claims and for any van also used outside DPD work.",
                   what: "what mileclear adds",
                 },
+                {
+                  title: "MOT Reminder & DVSA History",
+                  body:
+                    "Add your van's registration and MileClear pulls the DVSA MOT history and warns you 30 days before the next test. For owner-drivers, missing an MOT means losing the route - the reminder costs nothing and saves the panic.",
+                  what: "what mileclear adds",
+                },
+                {
+                  title: "Driver Community Benchmarks",
+                  body:
+                    "See how your DPD per-stop earnings, per-mile earnings and weekly mileage compare anonymously to other UK couriers. The dashboard shows your percentile alongside the median and 75th, so you know whether your route density is in line with peers.",
+                  what: "what mileclear adds",
+                },
               ].map(({ title, body, what }) => (
                 <div
                   key={title}

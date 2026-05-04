@@ -501,10 +501,18 @@ export default function EvriMileageTracker() {
               will not satisfy the rules. A spreadsheet without the right software bridge will
               not either.
             </p>
-            <p style={{ color: "#cbd5e1", fontSize: "0.9375rem", lineHeight: 1.7 }}>
+            <p style={{ color: "#cbd5e1", fontSize: "0.9375rem", lineHeight: 1.7, marginBottom: "1rem" }}>
               MileClear&apos;s data is already in the right shape - dated, GPS-verified, with
               vehicle and platform tags, exportable to CSV and PDF. When MTD lands, your
               mileage records do not need to change. Everything else might, but not that.
+            </p>
+            <p style={{ color: "#cbd5e1", fontSize: "0.9375rem", lineHeight: 1.7 }}>
+              MileClear also includes an HMRC Reconciliation tool: enter what HMRC says
+              Evri reported under the Digital Platform Reporting rules, and the app shows
+              the gap against your tracked earnings. Spot the mismatch before HMRC raises
+              it. Anonymous community benchmarks let you compare your per-round earnings
+              and weekly mileage against other UK Evri couriers without identifying you to
+              anyone.
             </p>
           </section>
 

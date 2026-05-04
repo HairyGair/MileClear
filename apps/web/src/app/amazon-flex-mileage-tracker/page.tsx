@@ -375,6 +375,16 @@ export default function AmazonFlexMileageTracker() {
                   body:
                     "Pro users get a PDF mileage log and self-assessment summary. Every trip is dated, timestamped, and distance-verified. Share it with your accountant or attach it directly to your HMRC online return.",
                 },
+                {
+                  title: "Block Earnings Benchmarks",
+                  body:
+                    "See how your Amazon Flex earnings per mile and per hour compare anonymously to other UK Flex drivers. The dashboard shows your percentile alongside the median and 75th, so you can tell whether the £18 logistics blocks you keep grabbing are actually paying as well as Same Day or Prime Now.",
+                },
+                {
+                  title: "HMRC Reconciliation",
+                  body:
+                    "Amazon Flex reports your annual earnings to HMRC under the Digital Platform Reporting rules. The Reconciliation tool shows HMRC's figure alongside what MileClear tracked, so any mismatch is visible to you before HMRC raises it.",
+                },
               ].map(({ title, body }) => (
                 <div
                   key={title}

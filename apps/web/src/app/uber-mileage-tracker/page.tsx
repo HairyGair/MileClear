@@ -229,6 +229,16 @@ export default function UberMileageTracker() {
                   body:
                     "With Pro, export a PDF mileage log and HMRC self-assessment summary - every trip dated, timestamped, classified, and with the deduction calculated. Ready to attach to your tax return or share with your accountant.",
                 },
+                {
+                  title: "Driver Community Benchmarks",
+                  body:
+                    "See how your earnings per mile and per hour compare anonymously to other UK Uber drivers. The dashboard shows your percentile alongside the median and 75th, so you know whether your numbers are competitive or it is time to switch zones.",
+                },
+                {
+                  title: "HMRC Reconciliation",
+                  body:
+                    "Since January 2024, Uber reports your annual earnings to HMRC under the Digital Platform Reporting rules. The Reconciliation tool shows HMRC's figure alongside what MileClear tracked, so you spot any mismatch before they raise it.",
+                },
               ].map(({ title, body }) => (
                 <div
                   key={title}

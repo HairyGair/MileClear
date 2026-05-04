@@ -197,10 +197,17 @@ export default function JustEatMileageTracker() {
               Self Assessment, or filing but understating, HMRC already has the data they need
               to flag a discrepancy. The compliance window for catching up is closing fast.
             </p>
-            <p style={{ color: "#cbd5e1", fontSize: "0.9375rem", lineHeight: 1.7 }}>
+            <p style={{ color: "#cbd5e1", fontSize: "0.9375rem", lineHeight: 1.7, marginBottom: "1rem" }}>
               The good news for couriers who do file: every business mile you can prove is a
               deduction the platform did not subtract. Mileage is the largest single allowable
               expense for most couriers, and the only one Just Eat does not record for you.
+            </p>
+            <p style={{ color: "#cbd5e1", fontSize: "0.9375rem", lineHeight: 1.7 }}>
+              MileClear includes an HMRC Reconciliation tool built for exactly this scenario:
+              enter what HMRC says Just Eat reported, and the app shows the gap against your
+              tracked earnings. Anonymous community benchmarks compare your per-mile and per-hour
+              numbers against other UK Just Eat couriers - so you know whether your zone, your
+              vehicle, or your shift hours are working for you.
             </p>
           </section>
 
