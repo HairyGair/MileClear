@@ -42,7 +42,7 @@ export default function ProfileEditScreen() {
         setOriginalEmail(res.data.email);
       })
       .catch((err: unknown) => {
-        Alert.alert("Error", err instanceof Error ? err.message : "Failed to load profile");
+        Alert.alert("Couldn't load your profile", err instanceof Error ? err.message : "Try again in a moment.");
         router.back();
       })
       .finally(() => setLoadingProfile(false));
@@ -76,7 +76,7 @@ export default function ProfileEditScreen() {
 
       router.back();
     } catch (err: unknown) {
-      Alert.alert("Error", err instanceof Error ? err.message : "Failed to update profile");
+      Alert.alert("Couldn't update your profile", err instanceof Error ? err.message : "Try again in a moment.");
     } finally {
       setSaving(false);
     }

@@ -61,7 +61,7 @@ export default function ReceiptScanScreen() {
       setOcrConfidence(parsed.confidence);
       setScanState("review");
     } catch {
-      Alert.alert("Scan failed", "Could not read the image. Please try again.");
+      Alert.alert("Scan didn't work", "Couldn't read the image. Try again with better lighting.");
       setScanState("idle");
     }
   }, []);

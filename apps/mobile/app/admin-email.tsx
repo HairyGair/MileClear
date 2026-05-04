@@ -88,7 +88,7 @@ export default function AdminEmailScreen() {
         const res = await sendAdminEmail(type, opts);
         setResult(type, res.data);
       } catch (err: any) {
-        Alert.alert("Error", err?.message ?? "Failed to send email campaign.");
+        Alert.alert("Campaign didn't send", err?.message ?? "Try again in a moment.");
       } finally {
         setSending(type, false);
       }

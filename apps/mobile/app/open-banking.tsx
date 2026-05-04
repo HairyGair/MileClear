@@ -110,7 +110,7 @@ export default function OpenBankingScreen() {
           "Upgrade to MileClear Pro to connect your bank account."
         );
       } else {
-        Alert.alert("Error", err.message || "Failed to start bank connection");
+        Alert.alert("Couldn't connect to your bank", err.message || "Try again in a moment.");
       }
     } finally {
       setConnecting(false);
@@ -131,7 +131,7 @@ export default function OpenBankingScreen() {
       Alert.alert("Sync Complete", message);
       await loadConnections();
     } catch (err: any) {
-      Alert.alert("Sync Failed", err.message || "Failed to sync transactions");
+      Alert.alert("Sync didn't go through", err.message || "Try again in a moment.");
     } finally {
       setSyncingId(null);
     }
@@ -151,7 +151,7 @@ export default function OpenBankingScreen() {
               await disconnectBankConnection(connection.id);
               await loadConnections();
             } catch (err: any) {
-              Alert.alert("Error", err.message || "Failed to disconnect");
+              Alert.alert("Couldn't disconnect", err.message || "Try again in a moment.");
             }
           },
         },
@@ -221,7 +221,7 @@ export default function OpenBankingScreen() {
       }
     } catch (err: any) {
       if (!err.message?.includes("cancel")) {
-        Alert.alert("Error", err.message || "Failed to start upgrade");
+        Alert.alert("Couldn't start the upgrade", err.message || "Try again in a moment.");
       }
     } finally {
       setUpgrading(false);

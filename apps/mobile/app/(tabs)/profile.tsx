@@ -116,7 +116,7 @@ export default function ProfileScreen() {
       setUser(res.data);
       refreshUser();
     } catch {
-      Alert.alert("Error", "Failed to update avatar");
+      Alert.alert("Couldn't update your avatar", "Try again in a moment.");
     }
   }, [refreshUser]);
 
@@ -191,7 +191,7 @@ export default function ProfileScreen() {
         title: "MileClear Data Export",
       });
     } catch (err: unknown) {
-      Alert.alert("Export failed", err instanceof Error ? err.message : "Could not export data");
+      Alert.alert("Export didn't go through", err instanceof Error ? err.message : "Try again in a moment.");
     } finally {
       setExporting(false);
     }
@@ -211,7 +211,7 @@ export default function ProfileScreen() {
       loadData();
       Alert.alert("Restored", "Your subscription has been restored successfully.");
     } catch (err: unknown) {
-      Alert.alert("Restore Failed", err instanceof Error ? err.message : "Could not restore purchases");
+      Alert.alert("Couldn't restore purchases", err instanceof Error ? err.message : "Try again in a moment.");
     } finally {
       setRestoring(false);
     }
@@ -276,7 +276,7 @@ export default function ProfileScreen() {
                 await deleteAccount(password);
                 await logout();
               } catch (err: unknown) {
-                Alert.alert("Error", err instanceof Error ? err.message : "Failed to delete account");
+                Alert.alert("Couldn't delete your account", err instanceof Error ? err.message : "Try again in a moment.");
                 setDeletingAccount(false);
               }
             },
@@ -298,7 +298,7 @@ export default function ProfileScreen() {
       setShowDeleteModal(false);
       await logout();
     } catch (err: unknown) {
-      Alert.alert("Error", err instanceof Error ? err.message : "Failed to delete account");
+      Alert.alert("Couldn't delete your account", err instanceof Error ? err.message : "Try again in a moment.");
       setDeletingAccount(false);
     }
   }, [deletePassword, logout]);
@@ -309,7 +309,7 @@ export default function ProfileScreen() {
       await updateProfile({ workType: wt });
       refreshUser();
     } catch {
-      Alert.alert("Error", "Failed to update work type");
+      Alert.alert("Couldn't update work type", "Try again in a moment.");
     }
   }, [refreshUser]);
 
@@ -334,7 +334,7 @@ export default function ProfileScreen() {
                 await updateProfile({ employerMileageRatePence: parsed || null });
                 refreshUser();
               } catch {
-                Alert.alert("Error", "Failed to save rate");
+                Alert.alert("Couldn't save the rate", "Try again in a moment.");
               }
             },
           },

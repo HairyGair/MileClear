@@ -558,7 +558,7 @@ export default function DriveDetectionDiagnosticsScreen() {
       await load();
       Alert.alert("Restarted", "Drive detection task restarted.");
     } catch (err) {
-      Alert.alert("Error", (err as Error).message ?? "Failed to restart");
+      Alert.alert("Couldn't restart detection", (err as Error).message ?? "Try again in a moment.");
     } finally {
       setBusy(false);
     }

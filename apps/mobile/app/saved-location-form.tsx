@@ -219,7 +219,7 @@ export default function SavedLocationFormScreen() {
         });
       })
       .catch(() => {
-        Alert.alert("Error", "Could not load location details.");
+        Alert.alert("Couldn't load the location", "Try again in a moment.");
         router.back();
       })
       .finally(() => setLoadingExisting(false));
@@ -232,7 +232,7 @@ export default function SavedLocationFormScreen() {
       if (!result) {
         Alert.alert(
           "Location unavailable",
-          "Could not get your current location. Check location permissions in Settings."
+          "Couldn't read your current location. Check location permissions in Settings."
         );
         return;
       }
@@ -240,7 +240,7 @@ export default function SavedLocationFormScreen() {
       setLongitude(result.lng);
       setAddress(result.address);
     } catch {
-      Alert.alert("Error", "Failed to get current location.");
+      Alert.alert("Couldn't get your location", "Check that location is enabled and try again.");
     } finally {
       setLoadingLocation(false);
     }
@@ -292,7 +292,7 @@ export default function SavedLocationFormScreen() {
       registerGeofences().catch(() => {});
       router.back();
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : "Failed to save location";
+      const message = err instanceof Error ? err.message : "Try again in a moment.";
       // Surface upgrade prompt if free limit hit
       if (message.toLowerCase().includes("limit") || message.toLowerCase().includes("premium")) {
         Alert.alert(
@@ -304,7 +304,7 @@ export default function SavedLocationFormScreen() {
           ]
         );
       } else {
-        Alert.alert("Error", message);
+        Alert.alert("Couldn't save the location", message);
       }
     } finally {
       setSaving(false);
@@ -326,7 +326,7 @@ export default function SavedLocationFormScreen() {
               await syncDeleteSavedLocation(id!);
               router.back();
             } catch (err: unknown) {
-              Alert.alert("Error", err instanceof Error ? err.message : "Failed to delete");
+              Alert.alert("Couldn't delete the location", err instanceof Error ? err.message : "Try again in a moment.");
               setDeleting(false);
             }
           },

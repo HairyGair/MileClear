@@ -276,7 +276,7 @@ export default function FuelFormScreen() {
             await syncDeleteFuelLog(id!);
             router.back();
           } catch (err: unknown) {
-            Alert.alert("Error", err instanceof Error ? err.message : "Failed to delete");
+            Alert.alert("Couldn't delete the fuel log", err instanceof Error ? err.message : "Try again in a moment.");
             setDeleting(false);
           }
         },

@@ -151,7 +151,7 @@ export function DrivingGoals({ weekMiles }: DrivingGoalsProps) {
       );
       setTarget(miles);
     } catch {
-      Alert.alert("Error", "Could not save your goal. Please try again.");
+      Alert.alert("Couldn't save your goal", "Try again in a moment.");
     }
   }
 
@@ -162,7 +162,7 @@ export function DrivingGoals({ weekMiles }: DrivingGoalsProps) {
       setTarget(null);
       progressAnim.setValue(0);
     } catch {
-      Alert.alert("Error", "Could not clear your goal. Please try again.");
+      Alert.alert("Couldn't clear your goal", "Try again in a moment.");
     }
   }
 

@@ -133,7 +133,7 @@ export default function AdminFeedbackScreen() {
         return updated;
       });
     } catch (e: any) {
-      Alert.alert("Error", e.message || "Failed to update status");
+      Alert.alert("Couldn't update the status", e.message || "Try again in a moment.");
     } finally {
       setUpdatingId(null);
     }
@@ -155,7 +155,7 @@ export default function AdminFeedbackScreen() {
               setTotal((t) => t - 1);
               if (expandedId === id) setExpandedId(null);
             } catch (e: any) {
-              Alert.alert("Error", e.message || "Failed to delete");
+              Alert.alert("Couldn't delete the feedback", e.message || "Try again in a moment.");
             }
           },
         },
@@ -182,7 +182,7 @@ export default function AdminFeedbackScreen() {
       );
       setReplyText("");
     } catch (e: any) {
-      Alert.alert("Error", e.message || "Failed to send reply");
+      Alert.alert("Reply didn't send", e.message || "Try again in a moment.");
     } finally {
       setSendingReply(false);
     }
@@ -209,7 +209,7 @@ export default function AdminFeedbackScreen() {
               )
             );
           } catch (e: any) {
-            Alert.alert("Error", e.message || "Failed to delete reply");
+            Alert.alert("Couldn't delete the reply", e.message || "Try again in a moment.");
           }
         },
       },
@@ -240,7 +240,7 @@ export default function AdminFeedbackScreen() {
         )
       );
     } catch (e: any) {
-      Alert.alert("Error", e.message || "Failed to update");
+      Alert.alert("Couldn't update the known issue", e.message || "Try again in a moment.");
     }
   };
 
@@ -255,7 +255,7 @@ export default function AdminFeedbackScreen() {
         )
       );
     } catch (e: any) {
-      Alert.alert("Error", e.message || "Failed to update");
+      Alert.alert("Couldn't update the known issue", e.message || "Try again in a moment.");
     }
   };
 

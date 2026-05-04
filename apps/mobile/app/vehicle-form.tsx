@@ -186,7 +186,7 @@ export default function VehicleFormScreen() {
               await deleteVehicle(id!);
               router.back();
             } catch (err: unknown) {
-              Alert.alert("Error", err instanceof Error ? err.message : "Failed to delete");
+              Alert.alert("Couldn't delete the vehicle", err instanceof Error ? err.message : "Try again in a moment.");
               setDeleting(false);
             }
           },

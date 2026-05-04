@@ -69,7 +69,7 @@ export default function AdminPushScreen() {
         const res = await sendAdminPush(payload);
         setResult(res.data);
       } catch (err: any) {
-        Alert.alert("Error", err?.message ?? "Failed to send push notification.");
+        Alert.alert("Push didn't send", err?.message ?? "Try again in a moment.");
       } finally {
         setSending(false);
       }

@@ -544,7 +544,7 @@ export default function TripsScreen() {
                 setUnclassifiedCount((prev) => Math.max(0, prev - 1));
               }
             } catch {
-              Alert.alert("Error", "Failed to delete trip. Please try again.");
+              Alert.alert("Couldn't delete the trip", "Try again in a moment.");
             }
           },
         },
@@ -672,7 +672,7 @@ export default function TripsScreen() {
         // Batch classifying a whole route group is a power-user moment
         setTimeout(() => maybeRequestReview("batch_classified"), 2000);
       } catch {
-        Alert.alert("Error", "Failed to classify trips. Please try again.");
+        Alert.alert("Couldn't classify the trips", "Try again in a moment.");
       } finally {
         setBatchClassifyingKey(null);
       }

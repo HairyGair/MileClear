@@ -363,7 +363,7 @@ export default function SyncStatusScreen() {
         // Fire a sync attempt immediately
         processSyncQueue().catch(() => {});
       } catch {
-        Alert.alert("Error", "Could not reset this item.");
+        Alert.alert("Couldn't reset", "Try again in a moment.");
       }
     },
     [loadAll]
@@ -388,7 +388,7 @@ export default function SyncStatusScreen() {
                 );
                 await loadAll();
               } catch {
-                Alert.alert("Error", "Could not remove this item.");
+                Alert.alert("Couldn't remove the item", "Try again in a moment.");
               }
             },
           },

@@ -101,7 +101,7 @@ export default function AdminUserDetailScreen() {
       await toggleUserPremium(user.id, !user.isPremium);
       await loadData();
     } catch (err: any) {
-      Alert.alert("Error", err.message || "Failed to update premium status");
+      Alert.alert("Couldn't update premium status", err.message || "Try again in a moment.");
     } finally {
       setToggling(false);
     }
@@ -122,7 +122,7 @@ export default function AdminUserDetailScreen() {
               await deleteAdminUser(user.id);
               router.back();
             } catch (err: any) {
-              Alert.alert("Error", err.message || "Failed to delete user");
+              Alert.alert("Couldn't delete the user", err.message || "Try again in a moment.");
             }
           },
         },

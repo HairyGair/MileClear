@@ -135,7 +135,7 @@ export function PaywallModal({ visible, onClose, source: _source }: PaywallModal
       Alert.alert("Restored", "Your subscription has been restored.");
       onClose();
     } catch (err: unknown) {
-      Alert.alert("Restore Failed", err instanceof Error ? err.message : "Could not restore.");
+      Alert.alert("Couldn't restore purchases", err instanceof Error ? err.message : "Try again in a moment.");
     } finally {
       setRestoring(false);
     }

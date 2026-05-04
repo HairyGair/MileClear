@@ -720,7 +720,7 @@ export default function ClassificationRulesScreen() {
         prev.map((r) => (r.id === rule.id ? { ...r, enabled: next } : r))
       );
     } catch {
-      Alert.alert("Error", "Failed to update rule. Please try again.");
+      Alert.alert("Couldn't update the rule", "Try again in a moment.");
     }
   }, []);
 
@@ -739,7 +739,7 @@ export default function ClassificationRulesScreen() {
               await db.runAsync("DELETE FROM classification_rules WHERE id = ?", [rule.id]);
               setRules((prev) => prev.filter((r) => r.id !== rule.id));
             } catch {
-              Alert.alert("Error", "Failed to delete rule. Please try again.");
+              Alert.alert("Couldn't delete the rule", "Try again in a moment.");
             }
           },
         },
@@ -797,7 +797,7 @@ export default function ClassificationRulesScreen() {
       setRules((prev) => [newRule, ...prev]);
       setShowModal(false);
     } catch {
-      Alert.alert("Error", "Failed to save rule. Please try again.");
+      Alert.alert("Couldn't save the rule", "Try again in a moment.");
       throw new Error("Save failed");
     }
   }, [rules.length]);

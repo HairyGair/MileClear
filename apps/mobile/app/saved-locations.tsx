@@ -205,7 +205,7 @@ export default function SavedLocationsScreen() {
                 setLocations((prev) => prev.filter((l) => l.id !== item.id));
                 registerGeofences().catch(() => {});
               } catch {
-                Alert.alert("Error", "Failed to delete location. Please try again.");
+                Alert.alert("Couldn't delete the location", "Try again in a moment.");
               }
             },
           },

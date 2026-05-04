@@ -85,7 +85,7 @@ export default function CsvImportScreen() {
       );
       setPreview(response.data);
     } catch (err: any) {
-      Alert.alert("Error", err.message || "Failed to parse CSV");
+      Alert.alert("Couldn't read the CSV", err.message || "Check the file and try again.");
     } finally {
       setLoading(false);
     }
@@ -109,7 +109,7 @@ export default function CsvImportScreen() {
       setResult(response.data);
       setPreview(null);
     } catch (err: any) {
-      Alert.alert("Import failed", err.message || "Failed to import earnings");
+      Alert.alert("Import didn't go through", err.message || "Try again in a moment.");
     } finally {
       setImporting(false);
     }
@@ -212,7 +212,7 @@ export default function CsvImportScreen() {
         }
       } catch (err: any) {
         if (!err.message?.includes("cancel")) {
-          Alert.alert("Error", err.message || "Something went wrong");
+          Alert.alert("Upgrade didn't go through", err.message || "Try again in a moment.");
         }
       }
     };

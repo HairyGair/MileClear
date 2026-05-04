@@ -893,7 +893,7 @@ export default function TripFormScreen() {
     try {
       const loc = await getCurrentLocation();
       if (!loc) {
-        Alert.alert("Location unavailable", "Could not get your current location. Check GPS permissions.");
+        Alert.alert("Location unavailable", "Couldn't read your current location. Check GPS permissions.");
         setLoading(false);
         return;
       }
@@ -937,7 +937,7 @@ export default function TripFormScreen() {
       // Start Dynamic Island live activity
       startLiveActivity({ activityType: "trip", isBusinessMode: isWork });
     } catch {
-      Alert.alert("Error", "Failed to get location.");
+      Alert.alert("Couldn't get your location", "Check that location is enabled and try again.");
     } finally {
       setLoading(false);
     }
@@ -948,7 +948,7 @@ export default function TripFormScreen() {
     try {
       const loc = await getCurrentLocation();
       if (!loc) {
-        Alert.alert("Location unavailable", "Could not get your current location.");
+        Alert.alert("Location unavailable", "Couldn't read your current location. Check GPS and try again.");
         setLoading(false);
         return;
       }
@@ -1083,7 +1083,7 @@ export default function TripFormScreen() {
         Animated.timing(celebInsightsAnim, { toValue: 1, duration: 300, useNativeDriver: true }),
       ]).start();
     } catch {
-      Alert.alert("Error", "Failed to get location.");
+      Alert.alert("Couldn't get your location", "Check that location is enabled and try again.");
     } finally {
       setLoading(false);
     }
@@ -1292,7 +1292,7 @@ export default function TripFormScreen() {
 
       router.back();
     } catch (err: unknown) {
-      Alert.alert("Error", err instanceof Error ? err.message : "Failed to save trip");
+      Alert.alert("Couldn't save the trip", err instanceof Error ? err.message : "Try again in a moment.");
     } finally {
       setSaving(false);
     }
@@ -1333,7 +1333,7 @@ export default function TripFormScreen() {
             await syncDeleteTrip(id!);
             router.back();
           } catch (err: unknown) {
-            Alert.alert("Error", err instanceof Error ? err.message : "Failed to delete");
+            Alert.alert("Couldn't delete the trip", err instanceof Error ? err.message : "Try again in a moment.");
             setDeleting(false);
           }
         },

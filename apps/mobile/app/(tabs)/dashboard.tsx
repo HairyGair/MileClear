@@ -426,7 +426,7 @@ export default function DashboardScreen() {
         );
       }
     } catch (err: any) {
-      Alert.alert("Error", err.message || "Failed to start shift");
+      Alert.alert("Couldn't start the shift", err.message || "Try again in a moment.");
     } finally {
       setStarting(false);
     }
@@ -465,7 +465,7 @@ export default function DashboardScreen() {
             }
             loadData();
           } catch (err: any) {
-            Alert.alert("Error", err.message || "Failed to end shift");
+            Alert.alert("Couldn't end the shift", err.message || "Try again in a moment.");
           } finally {
             setEnding(false);
           }
