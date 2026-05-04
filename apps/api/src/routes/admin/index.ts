@@ -2287,4 +2287,60 @@ export async function adminRoutes(app: FastifyInstance) {
       },
     });
   });
+
+  // ── Geographic density (audit follow-up #4 of 5) ──────────────────
+  //
+  // Bucket trip starts onto a 0.1° lat/lng grid (~11km cells in the
+  // UK) and return per-cell counts. We apply a privacy floor so a
+  // cell is only emitted when at least N distinct users have started
+  // a trip there — keeps individuals from being identifiable by their
+  // home / work corner of the map.
+  app.get("/geographic-density", async (_request, reply) => {
+    const WINDOW_DAYS = 30;
+    const MIN_USERS_PER_CELL = 5;
+    const GRID_SIZE = 0.1;
+    const since = new Date(Date.now() - WINDOW_DAYS * 24 * 60 * 60 * 1000);
+
+    const rows = await prisma.$queryRaw<
+      Array<{ lat: number; lng: number; tripCount: bigint; userCount: bigint }>
+    >(Prisma.sql`
+      SELECT
+        ROUND(startLat / ${GRID_SIZE}) * ${GRID_SIZE} AS lat,
+        ROUND(startLng / ${GRID_SIZE}) * ${GRID_SIZE} AS lng,
+        COUNT(*) AS tripCount,
+        COUNT(DISTINCT userId) AS userCount
+      FROM trips
+      WHERE startedAt >= ${since}
+        AND startLat IS NOT NULL
+        AND startLng IS NOT NULL
+      GROUP BY ROUND(startLat / ${GRID_SIZE}), ROUND(startLng / ${GRID_SIZE})
+      HAVING COUNT(DISTINCT userId) >= ${MIN_USERS_PER_CELL}
+      ORDER BY tripCount DESC
+    `);
+
+    const cells = rows.map((r) => ({
+      lat: Math.round(r.lat * 100) / 100,
+      lng: Math.round(r.lng * 100) / 100,
+      tripCount: Number(r.tripCount),
+      userCount: Number(r.userCount),
+    }));
+
+    const totalTrips = cells.reduce((acc, c) => acc + c.tripCount, 0);
+    const maxTripsInCell = cells.reduce(
+      (acc, c) => (c.tripCount > acc ? c.tripCount : acc),
+      0
+    );
+
+    return reply.send({
+      data: {
+        windowDays: WINDOW_DAYS,
+        gridSizeDegrees: GRID_SIZE,
+        minUsersPerCell: MIN_USERS_PER_CELL,
+        cells,
+        totalTrips,
+        maxTripsInCell,
+        generatedAt: new Date().toISOString(),
+      },
+    });
+  });
 }

@@ -3366,6 +3366,22 @@ export default function AdminPage() {
             Issues/Hour →
           </a>
           <a
+            href="/dashboard/admin/geographic-density"
+            style={{
+              background: "rgba(251, 191, 36, 0.12)",
+              border: "1px solid rgba(251, 191, 36, 0.3)",
+              color: "#fbbf24",
+              padding: "8px 14px",
+              borderRadius: 8,
+              fontSize: "0.875rem",
+              fontWeight: 600,
+              textDecoration: "none",
+              whiteSpace: "nowrap",
+            }}
+          >
+            Density →
+          </a>
+          <a
             href="/dashboard/admin/insights"
             style={{
               background: "rgba(251, 191, 36, 0.12)",
