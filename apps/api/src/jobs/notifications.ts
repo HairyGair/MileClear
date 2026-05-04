@@ -805,21 +805,9 @@ async function runDiagnosticScanJob(): Promise<void> {
       try {
         await sendPushToUser(dump.userId, check.title, check.body, check.data);
         logEvent(check.alertType, dump.userId);
-
-        // Notify admins
-        const admins = await prisma.user.findMany({
-          where: { isAdmin: true, pushToken: { not: null } },
-          select: { id: true },
-        });
-        const userName = dump.user.displayName || dump.user.email || dump.userId;
-        for (const admin of admins) {
-          await sendPushToUser(
-            admin.id,
-            `Diagnostic alert: ${userName}`,
-            `${check.title} - ${check.body}`,
-            { action: "open_admin", userId: dump.userId },
-          ).catch(() => {});
-        }
+        // Admin push fanout removed 4 May 2026: alerts are visible in
+        // the admin Alerts tab (/dashboard/admin → Alerts) via the
+        // /admin/diagnostic-alerts feed. No need to spam admin phones.
         sent++;
       } catch {}
     }

@@ -78,6 +78,19 @@ async function getToken(forceRefresh = false): Promise<string> {
 
     if (!res.ok) {
       const text = await res.text().catch(() => "");
+      // 429 from the token endpoint = "Too many failed attempts. Try
+      // again in N minutes." gov.uk is telling us to back off. Park
+      // ourselves in cooldown immediately so the retailer-feed fallback
+      // takes over without us logging on every cache miss.
+      if (res.status === 429) {
+        const minutesMatch = text.match(/(\d+)\s*minute/i);
+        const cooldownMs = (minutesMatch ? parseInt(minutesMatch[1], 10) : 10) * 60 * 1000;
+        const wasCold = Date.now() < cooldownUntil;
+        cooldownUntil = Date.now() + cooldownMs;
+        if (!wasCold) {
+          console.warn(`[fuel-finder] Token endpoint 429, cooling down for ${Math.round(cooldownMs / 60000)}min`);
+        }
+      }
       throw new Error(`Token request failed: HTTP ${res.status} — ${text}`);
     }
 
@@ -251,12 +264,15 @@ export async function fetchFuelFinderStations(): Promise<{
   stations: InternalStation[];
   lastUpdated: string;
 }> {
-  // Cooldown: if we recently had repeated AUTH failures, skip entirely so the
-  // retailer-feed fallback handles requests without us hammering the gov.uk
-  // API into a 429 rate-limit cycle. Network/timeout errors don't enter this
-  // gate — they retry independently.
+  // Cooldown: if we recently had repeated AUTH failures or a 429 from
+  // the token endpoint, skip entirely so the retailer-feed fallback
+  // handles requests without us hammering the gov.uk API. Throws a
+  // distinguishable "in cooldown" error that the caller treats as
+  // already-handled (no extra log spam during the cooldown window).
   if (Date.now() < cooldownUntil) {
-    throw new Error(`Fuel Finder API in auth-failure cooldown until ${new Date(cooldownUntil).toISOString()} after ${consecutiveAuthFailures} consecutive auth failures`);
+    const err = new Error(`Fuel Finder API in cooldown until ${new Date(cooldownUntil).toISOString()}`);
+    (err as Error & { cooldown?: boolean }).cooldown = true;
+    throw err;
   }
 
   async function attemptFetch(): Promise<{ pfsStations: FuelFinderPfsStation[]; pfsStationPrices: FuelFinderPriceStation[] }> {

@@ -154,19 +154,36 @@ async function fetchFromRetailerFeeds(): Promise<StationCacheEntry> {
   };
 }
 
+// Tracks whether we're currently in degraded mode (Fuel Finder failing,
+// retailer feeds serving). Used to log only on state transitions, not on
+// every request — otherwise the API error log fills up with the same
+// "Fuel Finder API failed" line every cache miss.
+let fuelFinderDegraded = false;
+
 async function fetchAllStations(): Promise<StationCacheEntry> {
   // Try Fuel Finder API first (8,300+ stations) if configured
   if (isFuelFinderConfigured()) {
     try {
       const result = await fetchFuelFinderStations();
-      console.log(`[fuel] Fetched ${result.stations.length} stations from Fuel Finder API`);
+      if (fuelFinderDegraded) {
+        console.log(`[fuel] Fuel Finder API recovered, serving ${result.stations.length} stations`);
+        fuelFinderDegraded = false;
+      } else {
+        console.log(`[fuel] Fetched ${result.stations.length} stations from Fuel Finder API`);
+      }
       return {
         stations: result.stations,
         lastUpdated: result.lastUpdated,
         fetchedAt: Date.now(),
       };
     } catch (err) {
-      console.warn("[fuel] Fuel Finder API failed, falling back to retailer feeds:", (err as Error).message);
+      // Log on transition only. Repeated failures during the degraded
+      // window are silent — falling back to retailer feeds is the
+      // designed behaviour.
+      if (!fuelFinderDegraded) {
+        console.warn("[fuel] Fuel Finder API degraded, falling back to retailer feeds:", (err as Error).message);
+        fuelFinderDegraded = true;
+      }
     }
   }
 

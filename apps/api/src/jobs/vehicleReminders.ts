@@ -89,15 +89,23 @@ export async function runVehicleRemindersJob(): Promise<void> {
         });
         refreshed += 1;
       } catch (err) {
-        // 404 (not found at DVLA) or auth issues - log and move on. Don't
-        // bubble up; one bad plate shouldn't kill the whole job.
+        // Log + back off. We update lastDvlaCheckAt = now even on
+        // failure so the same bad registration doesn't get retried
+        // every 6h cron run. If the failure is permanent (4xx) the row
+        // simply won't refresh until the user edits the plate. If
+        // transient (5xx) we wait the standard refresh window before
+        // trying again — acceptable trade-off for log hygiene.
         if (err instanceof DvlaError) {
           console.warn(
-            `[vehicle-reminders] DVLA fetch failed for ${v.registrationPlate}: ${err.message} (${err.status})`
+            `[vehicle-reminders] DVLA fetch failed for ${v.registrationPlate}: ${err.message} (${err.status}) — backing off for ${DVLA_REFRESH_DAYS}d`
           );
         } else {
           console.warn(`[vehicle-reminders] Unexpected error for ${v.registrationPlate}:`, err);
         }
+        await prisma.vehicle.update({
+          where: { id: v.id },
+          data: { lastDvlaCheckAt: new Date() },
+        });
         continue;
       }
     }

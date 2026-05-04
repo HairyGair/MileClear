@@ -83,25 +83,9 @@ async function analyzeDiagnosticAndAlert(
     // Alert the user
     await sendPushToUser(alertUserId, title, body, data);
     logEvent(alertType, alertUserId, metadata);
-
-    // Notify all admins
-    const user = await prisma.user.findUnique({
-      where: { id: alertUserId },
-      select: { email: true, displayName: true },
-    });
-    const admins = await prisma.user.findMany({
-      where: { isAdmin: true, pushToken: { not: null } },
-      select: { id: true },
-    });
-    const userName = user?.displayName || user?.email || alertUserId;
-    for (const admin of admins) {
-      await sendPushToUser(
-        admin.id,
-        `Diagnostic alert: ${userName}`,
-        `${title} - ${body}`,
-        { action: "open_admin", userId: alertUserId },
-      ).catch(() => {});
-    }
+    // Admin push fanout removed 4 May 2026: alerts are visible in the
+    // admin Alerts tab (/dashboard/admin → Alerts) via the
+    // /admin/diagnostic-alerts feed. No need to spam admin phones.
   }
 
   // Alert 1: Background permission not granted
