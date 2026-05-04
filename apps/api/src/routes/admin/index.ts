@@ -2023,6 +2023,128 @@ export async function adminRoutes(app: FastifyInstance) {
   // and the mobile validate call also never reached us. This endpoint is
   // the catch-up for those orphans; the webhook handler now does the same
   // re-fetch automatically going forward.
+  type OrphanOutcome = "linked" | "still_no_user" | "no_appAccountToken" | "fetch_failed" | "conflict" | "no_txn_id";
+  interface OrphanResult {
+    txn: string;
+    receivedAt: string;
+    outcome: OrphanOutcome;
+    userId?: string;
+    userEmail?: string;
+    detail?: string;
+  }
+
+  async function reprocessSingleOrphan(log: {
+    originalTransactionId: string | null;
+    receivedAt: Date;
+    environment: string | null;
+  }): Promise<OrphanResult> {
+    const txn = log.originalTransactionId;
+    if (!txn) {
+      return {
+        txn: "(null)",
+        receivedAt: log.receivedAt.toISOString(),
+        outcome: "no_txn_id",
+      };
+    }
+
+    const alreadyLinked = await prisma.user.findUnique({
+      where: { appleOriginalTransactionId: txn },
+      select: { id: true, email: true },
+    });
+    if (alreadyLinked) {
+      return {
+        txn,
+        receivedAt: log.receivedAt.toISOString(),
+        outcome: "linked",
+        userId: alreadyLinked.id,
+        userEmail: alreadyLinked.email,
+        detail: "Already linked (presumably by a later webhook or admin action)",
+      };
+    }
+
+    let appAccountToken: string | null = null;
+    try {
+      const preferredEnv: AppleIapEnvironment | undefined =
+        log.environment === "production" || log.environment === "sandbox"
+          ? log.environment
+          : undefined;
+      const fetched = await fetchTransactionWithEnvFallback(txn, preferredEnv);
+      if (!fetched) {
+        return {
+          txn,
+          receivedAt: log.receivedAt.toISOString(),
+          outcome: "fetch_failed",
+          detail: "Transaction not found in either Sandbox or Production",
+        };
+      }
+      appAccountToken = fetched.transaction.appAccountToken ?? null;
+    } catch (err) {
+      return {
+        txn,
+        receivedAt: log.receivedAt.toISOString(),
+        outcome: "fetch_failed",
+        detail: err instanceof Error ? err.message : String(err),
+      };
+    }
+
+    if (!appAccountToken) {
+      return {
+        txn,
+        receivedAt: log.receivedAt.toISOString(),
+        outcome: "no_appAccountToken",
+        detail: "Apple did not include appAccountToken on the canonical transaction either",
+      };
+    }
+
+    const userToLink = await prisma.user.findUnique({
+      where: { id: appAccountToken },
+      select: { id: true, email: true, appleOriginalTransactionId: true },
+    });
+    if (!userToLink) {
+      return {
+        txn,
+        receivedAt: log.receivedAt.toISOString(),
+        outcome: "still_no_user",
+        detail: `appAccountToken ${appAccountToken} matched no user`,
+      };
+    }
+    if (
+      userToLink.appleOriginalTransactionId &&
+      userToLink.appleOriginalTransactionId !== txn
+    ) {
+      return {
+        txn,
+        receivedAt: log.receivedAt.toISOString(),
+        outcome: "conflict",
+        userId: userToLink.id,
+        userEmail: userToLink.email,
+        detail: `User already linked to a different txn (${userToLink.appleOriginalTransactionId})`,
+      };
+    }
+
+    await prisma.user.update({
+      where: { id: userToLink.id },
+      data: {
+        appleOriginalTransactionId: txn,
+        isPremium: true,
+      },
+    });
+
+    logEvent("billing.apple_iap_reprocessed", userToLink.id, {
+      originalTransactionId: txn,
+      webhookReceivedAt: log.receivedAt.toISOString(),
+    });
+
+    return {
+      txn,
+      receivedAt: log.receivedAt.toISOString(),
+      outcome: "linked",
+      userId: userToLink.id,
+      userEmail: userToLink.email,
+      detail: "Linked via canonical-transaction appAccountToken re-fetch",
+    };
+  }
+
   app.post("/apple/reprocess-orphans", async (_request, reply) => {
     const apiClient = getAppleClient();
     const verifier = getSignedDataVerifier();
@@ -2035,140 +2157,39 @@ export async function adminRoutes(app: FastifyInstance) {
       orderBy: { receivedAt: "desc" },
     });
 
-    const results: Array<{
-      txn: string;
-      receivedAt: string;
-      outcome: "linked" | "still_no_user" | "no_appAccountToken" | "fetch_failed" | "conflict" | "no_txn_id";
-      userId?: string;
-      userEmail?: string;
-      detail?: string;
-    }> = [];
-
+    const results: OrphanResult[] = [];
     for (const log of orphans) {
-      const txn = log.originalTransactionId;
-      if (!txn) {
-        results.push({
-          txn: "(null)",
-          receivedAt: log.receivedAt.toISOString(),
-          outcome: "no_txn_id",
-        });
-        continue;
-      }
-
-      // Maybe a previous reprocess already linked this. Skip if so.
-      const alreadyLinked = await prisma.user.findUnique({
-        where: { appleOriginalTransactionId: txn },
-        select: { id: true, email: true },
-      });
-      if (alreadyLinked) {
-        results.push({
-          txn,
-          receivedAt: log.receivedAt.toISOString(),
-          outcome: "linked",
-          userId: alreadyLinked.id,
-          userEmail: alreadyLinked.email,
-          detail: "Already linked (presumably by a later webhook or admin action)",
-        });
-        continue;
-      }
-
-      let appAccountToken: string | null = null;
-      try {
-        // Use the env-fallback helper: try the env recorded on the webhook
-        // log first, then the other one. The env-mismatch 404 is what was
-        // breaking production validate before this fix.
-        const preferredEnv: AppleIapEnvironment | undefined =
-          log.environment === "production" || log.environment === "sandbox"
-            ? log.environment
-            : undefined;
-        const fetched = await fetchTransactionWithEnvFallback(txn, preferredEnv);
-        if (!fetched) {
-          results.push({
-            txn,
-            receivedAt: log.receivedAt.toISOString(),
-            outcome: "fetch_failed",
-            detail: "Transaction not found in either Sandbox or Production",
-          });
-          continue;
-        }
-        appAccountToken = fetched.transaction.appAccountToken ?? null;
-      } catch (err) {
-        results.push({
-          txn,
-          receivedAt: log.receivedAt.toISOString(),
-          outcome: "fetch_failed",
-          detail: err instanceof Error ? err.message : String(err),
-        });
-        continue;
-      }
-
-      if (!appAccountToken) {
-        results.push({
-          txn,
-          receivedAt: log.receivedAt.toISOString(),
-          outcome: "no_appAccountToken",
-          detail: "Apple did not include appAccountToken on the canonical transaction either",
-        });
-        continue;
-      }
-
-      const userToLink = await prisma.user.findUnique({
-        where: { id: appAccountToken },
-        select: { id: true, email: true, appleOriginalTransactionId: true },
-      });
-      if (!userToLink) {
-        results.push({
-          txn,
-          receivedAt: log.receivedAt.toISOString(),
-          outcome: "still_no_user",
-          detail: `appAccountToken ${appAccountToken} matched no user`,
-        });
-        continue;
-      }
-      if (
-        userToLink.appleOriginalTransactionId &&
-        userToLink.appleOriginalTransactionId !== txn
-      ) {
-        results.push({
-          txn,
-          receivedAt: log.receivedAt.toISOString(),
-          outcome: "conflict",
-          userId: userToLink.id,
-          userEmail: userToLink.email,
-          detail: `User already linked to a different txn (${userToLink.appleOriginalTransactionId})`,
-        });
-        continue;
-      }
-
-      await prisma.user.update({
-        where: { id: userToLink.id },
-        data: {
-          appleOriginalTransactionId: txn,
-          isPremium: true,
-          // Premium expiry will be set/refreshed by the next webhook hit on
-          // this transaction (renewal, billing change, etc). Not setting
-          // here because we don't have the expiresDate from the JWS without
-          // re-decoding — happy to set if needed via a second fetch.
-        },
-      });
-
-      logEvent("billing.apple_iap_reprocessed", userToLink.id, {
-        originalTransactionId: txn,
-        webhookReceivedAt: log.receivedAt.toISOString(),
-      });
-
-      results.push({
-        txn,
-        receivedAt: log.receivedAt.toISOString(),
-        outcome: "linked",
-        userId: userToLink.id,
-        userEmail: userToLink.email,
-        detail: "Linked via canonical-transaction appAccountToken re-fetch",
-      });
+      results.push(await reprocessSingleOrphan(log));
     }
 
     return reply.send({ data: { processed: results.length, results } });
   });
+
+  // Reprocess a single orphan transaction. Used by the per-row "Reprocess"
+  // action on the Apple IAP webhook log table. Picks the most recent log
+  // entry for that transaction so the env hint is fresh.
+  app.post<{ Params: { txnId: string } }>(
+    "/apple/reprocess-orphan/:txnId",
+    async (request, reply) => {
+      const apiClient = getAppleClient();
+      const verifier = getSignedDataVerifier();
+      if (!apiClient || !verifier) {
+        return reply.status(503).send({ error: "Apple IAP not configured" });
+      }
+
+      const { txnId } = request.params;
+      const log = await prisma.appleIapWebhookLog.findFirst({
+        where: { originalTransactionId: txnId, status: "no_user" },
+        orderBy: { receivedAt: "desc" },
+      });
+      if (!log) {
+        return reply.status(404).send({ error: "No no_user webhook found for that transaction" });
+      }
+
+      const result = await reprocessSingleOrphan(log);
+      return reply.send({ data: result });
+    }
+  );
 
   // ── Funnel cohorts (audit follow-up #3 of 5) ──────────────────────
   //

@@ -3122,6 +3122,15 @@ interface JobRunResponse {
   }>;
 }
 
+interface OrphanReprocessResult {
+  txn: string;
+  receivedAt: string;
+  outcome: "linked" | "still_no_user" | "no_appAccountToken" | "fetch_failed" | "conflict" | "no_txn_id";
+  userId?: string;
+  userEmail?: string;
+  detail?: string;
+}
+
 function OpsTab() {
   const [webhooks, setWebhooks] = useState<AppleWebhookResponse | null>(null);
   const [webhookStatus, setWebhookStatus] = useState("");
@@ -3130,6 +3139,9 @@ function OpsTab() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [expandedError, setExpandedError] = useState<string | null>(null);
+  // null = idle, "all" = bulk reprocess in flight, "<txnId>" = single in flight
+  const [reprocessing, setReprocessing] = useState<string | null>(null);
+  const [reprocessNotice, setReprocessNotice] = useState<{ kind: "ok" | "warn" | "err"; text: string } | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -3151,6 +3163,54 @@ function OpsTab() {
       setLoading(false);
     }
   }, [webhookStatus, jobFilter]);
+
+  const reprocessAll = useCallback(async () => {
+    setReprocessing("all");
+    setReprocessNotice(null);
+    try {
+      const res = await api.post<{ data: { processed: number; results: OrphanReprocessResult[] } }>(
+        "/admin/apple/reprocess-orphans",
+        {}
+      );
+      const linked = res.data.results.filter((r) => r.outcome === "linked").length;
+      const stillUnlinked = res.data.results.length - linked;
+      setReprocessNotice({
+        kind: linked > 0 ? "ok" : "warn",
+        text: `Processed ${res.data.processed}: ${linked} linked, ${stillUnlinked} still unlinked.`,
+      });
+      await load();
+    } catch (err: any) {
+      setReprocessNotice({ kind: "err", text: err?.message ?? "Reprocess failed" });
+    } finally {
+      setReprocessing(null);
+    }
+  }, [load]);
+
+  const reprocessOne = useCallback(async (txnId: string) => {
+    setReprocessing(txnId);
+    setReprocessNotice(null);
+    try {
+      const res = await api.post<{ data: OrphanReprocessResult }>(
+        `/admin/apple/reprocess-orphan/${encodeURIComponent(txnId)}`,
+        {}
+      );
+      const r = res.data;
+      const kind: "ok" | "warn" = r.outcome === "linked" ? "ok" : "warn";
+      const friendly =
+        r.outcome === "linked" ? `Linked → ${r.userEmail ?? r.userId ?? "user"}`
+        : r.outcome === "no_appAccountToken" ? "No appAccountToken on canonical transaction"
+        : r.outcome === "still_no_user" ? "Apple's appAccountToken matched no user"
+        : r.outcome === "conflict" ? "User already linked to a different transaction"
+        : r.outcome === "fetch_failed" ? "Apple API fetch failed"
+        : r.outcome;
+      setReprocessNotice({ kind, text: `${txnId.slice(0, 12)}…  ${friendly}` });
+      await load();
+    } catch (err: any) {
+      setReprocessNotice({ kind: "err", text: err?.message ?? "Reprocess failed" });
+    } finally {
+      setReprocessing(null);
+    }
+  }, [load]);
 
   useEffect(() => {
     load();
@@ -3220,7 +3280,42 @@ function OpsTab() {
                 />
               </div>
               <Button variant="ghost" size="sm" onClick={load}>Refresh</Button>
+              {((webhooks.last24h["no_user"] ?? 0) > 0 || webhookStatus === "no_user") && (
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={reprocessAll}
+                  disabled={reprocessing !== null}
+                >
+                  {reprocessing === "all" ? "Reprocessing…" : "Reprocess all orphans"}
+                </Button>
+              )}
             </div>
+            {reprocessNotice && (
+              <div
+                role="status"
+                style={{
+                  padding: "0.5rem 0.75rem",
+                  borderRadius: 6,
+                  marginBottom: "0.75rem",
+                  fontSize: "0.8125rem",
+                  background:
+                    reprocessNotice.kind === "ok"
+                      ? "color-mix(in srgb, var(--emerald-400) 14%, transparent)"
+                      : reprocessNotice.kind === "warn"
+                      ? "color-mix(in srgb, var(--amber-500) 14%, transparent)"
+                      : "color-mix(in srgb, var(--dash-red) 14%, transparent)",
+                  color:
+                    reprocessNotice.kind === "ok"
+                      ? "var(--emerald-400)"
+                      : reprocessNotice.kind === "warn"
+                      ? "var(--amber-500)"
+                      : "var(--dash-red)",
+                }}
+              >
+                {reprocessNotice.text}
+              </div>
+            )}
             {webhooks.data.length === 0 ? (
               <p style={{ fontSize: "0.8125rem", color: "var(--text-tertiary)", margin: 0 }}>
                 No webhook entries yet.
@@ -3237,6 +3332,7 @@ function OpsTab() {
                       <th>Txn ID</th>
                       <th>User</th>
                       <th>Error</th>
+                      <th>Action</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -3265,6 +3361,20 @@ function OpsTab() {
                             >
                               {w.errorMessage}
                             </button>
+                          ) : (
+                            "-"
+                          )}
+                        </td>
+                        <td style={{ fontSize: "0.75rem" }}>
+                          {w.status === "no_user" && w.originalTransactionId ? (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => reprocessOne(w.originalTransactionId!)}
+                              disabled={reprocessing !== null}
+                            >
+                              {reprocessing === w.originalTransactionId ? "…" : "Reprocess"}
+                            </Button>
                           ) : (
                             "-"
                           )}
