@@ -3,6 +3,16 @@ import { View, Text, StyleSheet, Share as RNShare } from "react-native";
 import { captureRef } from "react-native-view-shot";
 import * as Sharing from "expo-sharing";
 import { formatPence } from "@mileclear/shared";
+import { colors, fonts } from "../../lib/theme";
+
+// Local theme aliases — same pattern as the (tabs) screens.
+const AMBER = colors.amber;
+const TEXT_1 = colors.text1;
+const TEXT_2 = colors.text2;
+const TEXT_3 = colors.text3;
+const BG = colors.bg;
+const GREEN = colors.green;
+const RED = colors.red;
 
 export interface BusinessRecapShareData {
   periodLabel: string;
@@ -94,7 +104,7 @@ export function BusinessRecapShareCard(data: BusinessRecapShareData) {
           <>
             <View style={s.effDot} />
             <View style={s.effItem}>
-              <Text style={[s.effValue, { color: "#10b981" }]}>{data.avgShiftGrade}</Text>
+              <Text style={[s.effValue, { color: GREEN }]}>{data.avgShiftGrade}</Text>
               <Text style={s.effLabel}>avg grade</Text>
             </View>
           </>
@@ -115,7 +125,7 @@ export function BusinessRecapShareCard(data: BusinessRecapShareData) {
           <View style={s.insightRow}>
             <View style={[s.insightDot, { backgroundColor: "rgba(16, 185, 129, 0.5)" }]} />
             <Text style={s.insightText}>
-              <Text style={{ color: "#10b981" }}>{formatPence(data.hmrcDeductionPence)}</Text> HMRC tax deduction
+              <Text style={{ color: GREEN }}>{formatPence(data.hmrcDeductionPence)}</Text> HMRC tax deduction
             </Text>
           </View>
         )}
@@ -123,7 +133,7 @@ export function BusinessRecapShareCard(data: BusinessRecapShareData) {
           <View style={s.insightRow}>
             <View style={[s.insightDot, { backgroundColor: data.netProfitPence >= 0 ? "rgba(16, 185, 129, 0.5)" : "rgba(239, 68, 68, 0.5)" }]} />
             <Text style={s.insightText}>
-              Net profit: <Text style={{ color: data.netProfitPence >= 0 ? "#10b981" : "#ef4444" }}>{formatPence(data.netProfitPence)}</Text>
+              Net profit: <Text style={{ color: data.netProfitPence >= 0 ? GREEN : RED }}>{formatPence(data.netProfitPence)}</Text>
             </Text>
           </View>
         )}
@@ -209,7 +219,7 @@ const CARD_WIDTH = 360;
 const s = StyleSheet.create({
   card: {
     width: CARD_WIDTH,
-    backgroundColor: "#030712",
+    backgroundColor: BG,
     borderWidth: 1,
     borderColor: "rgba(245, 166, 35, 0.2)",
     borderRadius: 20,
@@ -234,7 +244,7 @@ const s = StyleSheet.create({
   },
   accentLine: {
     height: 1.5,
-    backgroundColor: "#f5a623",
+    backgroundColor: AMBER,
     opacity: 0.5,
     marginHorizontal: 8,
   },
@@ -247,14 +257,14 @@ const s = StyleSheet.create({
   },
   wordMile: {
     fontSize: 20,
-    fontFamily: "PlusJakartaSans_700Bold",
-    color: "#f0f2f5",
+    fontFamily: fonts.bold,
+    color: TEXT_1,
     letterSpacing: -0.5,
   },
   wordClear: {
     fontSize: 20,
-    fontFamily: "PlusJakartaSans_700Bold",
-    color: "#f5a623",
+    fontFamily: fonts.bold,
+    color: AMBER,
     letterSpacing: -0.5,
   },
   labelRow: {
@@ -271,31 +281,31 @@ const s = StyleSheet.create({
   },
   labelText: {
     fontSize: 10,
-    fontFamily: "PlusJakartaSans_600SemiBold",
-    color: "#8494a7",
+    fontFamily: fonts.semibold,
+    color: TEXT_2,
     letterSpacing: 3,
   },
   period: {
     textAlign: "center",
     fontSize: 16,
-    fontFamily: "PlusJakartaSans_700Bold",
-    color: "#f0f2f5",
+    fontFamily: fonts.bold,
+    color: TEXT_1,
     letterSpacing: 1.5,
     marginBottom: 20,
   },
   heroValue: {
     textAlign: "center",
     fontSize: 48,
-    fontFamily: "PlusJakartaSans_300Light",
-    color: "#10b981",
+    fontFamily: fonts.light,
+    color: GREEN,
     letterSpacing: -2,
     lineHeight: 54,
   },
   heroUnit: {
     textAlign: "center",
     fontSize: 14,
-    fontFamily: "PlusJakartaSans_500Medium",
-    color: "#8494a7",
+    fontFamily: fonts.medium,
+    color: TEXT_2,
     letterSpacing: 0.5,
     marginBottom: 22,
   },
@@ -314,14 +324,14 @@ const s = StyleSheet.create({
   },
   statValue: {
     fontSize: 22,
-    fontFamily: "PlusJakartaSans_700Bold",
-    color: "#f0f2f5",
+    fontFamily: fonts.bold,
+    color: TEXT_1,
     letterSpacing: -0.5,
   },
   statLabel: {
     fontSize: 10,
-    fontFamily: "PlusJakartaSans_500Medium",
-    color: "#8494a7",
+    fontFamily: fonts.medium,
+    color: TEXT_2,
     letterSpacing: 0.3,
   },
   statDivider: {
@@ -339,13 +349,13 @@ const s = StyleSheet.create({
   effItem: { alignItems: "center" },
   effValue: {
     fontSize: 16,
-    fontFamily: "PlusJakartaSans_600SemiBold",
-    color: "#f5a623",
+    fontFamily: fonts.semibold,
+    color: AMBER,
   },
   effLabel: {
     fontSize: 10,
-    fontFamily: "PlusJakartaSans_400Regular",
-    color: "#64748b",
+    fontFamily: fonts.regular,
+    color: TEXT_3,
     marginTop: 1,
   },
   effDot: {
@@ -372,12 +382,12 @@ const s = StyleSheet.create({
   },
   insightText: {
     fontSize: 12,
-    fontFamily: "PlusJakartaSans_400Regular",
-    color: "#8494a7",
+    fontFamily: fonts.regular,
+    color: TEXT_2,
   },
   insightHighlight: {
-    fontFamily: "PlusJakartaSans_600SemiBold",
-    color: "#f0f2f5",
+    fontFamily: fonts.semibold,
+    color: TEXT_1,
   },
   divider: {
     height: 1,
@@ -394,8 +404,8 @@ const s = StyleSheet.create({
   },
   footerTagline: {
     fontSize: 10,
-    fontFamily: "PlusJakartaSans_400Regular",
-    color: "#64748b",
+    fontFamily: fonts.regular,
+    color: TEXT_3,
     letterSpacing: 0.5,
   },
 });

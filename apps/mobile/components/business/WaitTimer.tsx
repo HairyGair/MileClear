@@ -8,12 +8,13 @@ import {
   fetchActivePickupWait,
 } from "../../lib/api/pickupWaits";
 import type { PickupWait } from "@mileclear/shared";
+import { colors } from "../../lib/theme";
 
-const AMBER = "#f5a623";
+const AMBER = colors.amber;
 const AMBER_FAINT = "rgba(245,166,35,0.10)";
-const TEXT_1 = "#f0f2f5";
-const TEXT_2 = "#8494a7";
-const TEXT_3 = "#64748b";
+const TEXT_1 = colors.text1;
+const TEXT_2 = colors.text2;
+const TEXT_3 = colors.text3;
 
 function formatElapsed(seconds: number): string {
   const m = Math.floor(seconds / 60);

@@ -1,6 +1,13 @@
 import { View, Text, StyleSheet, TouchableOpacity } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
+import { colors, fonts } from "../../lib/theme";
+
+// Local theme aliases — same pattern as the (tabs) screens.
+const AMBER = colors.amber;
+const CARD_BG = colors.surface;
+const TEXT_1 = colors.text1;
+const TEXT_3 = colors.text3;
 
 interface CostEstimateProps {
   monthMiles: number;
@@ -46,7 +53,7 @@ export function CostEstimate({
     <View style={styles.card}>
       <View style={styles.row}>
         <View style={styles.iconWrap}>
-          <Ionicons name="speedometer" size={16} color="#f5a623" />
+          <Ionicons name="speedometer" size={16} color={AMBER} />
         </View>
         <View style={{ flex: 1 }}>
           <Text style={styles.title}>Estimated Fuel Cost</Text>
@@ -87,7 +94,7 @@ export function CostEstimate({
           <Text style={styles.hintText}>
             Add your vehicle's MPG for accurate costs
           </Text>
-          <Ionicons name="chevron-forward" size={14} color="#f5a623" />
+          <Ionicons name="chevron-forward" size={14} color={AMBER} />
         </TouchableOpacity>
       )}
     </View>
@@ -96,7 +103,7 @@ export function CostEstimate({
 
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: "#0a1120",
+    backgroundColor: CARD_BG,
     borderRadius: 16,
     padding: 16,
     marginBottom: 16,
@@ -119,19 +126,19 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: 14,
-    fontFamily: "PlusJakartaSans_600SemiBold",
-    color: "#f0f2f5",
+    fontFamily: fonts.semibold,
+    color: TEXT_1,
   },
   subtitle: {
     fontSize: 12,
-    fontFamily: "PlusJakartaSans_400Regular",
-    color: "#64748b",
+    fontFamily: fonts.regular,
+    color: TEXT_3,
     marginTop: 1,
   },
   cost: {
     fontSize: 18,
-    fontFamily: "PlusJakartaSans_600SemiBold",
-    color: "#f0f2f5",
+    fontFamily: fonts.semibold,
+    color: TEXT_1,
   },
   breakdownRow: {
     flexDirection: "row",
@@ -147,13 +154,13 @@ const styles = StyleSheet.create({
   },
   breakdownValue: {
     fontSize: 15,
-    fontFamily: "PlusJakartaSans_600SemiBold",
-    color: "#f0f2f5",
+    fontFamily: fonts.semibold,
+    color: TEXT_1,
   },
   breakdownLabel: {
     fontSize: 10,
-    fontFamily: "PlusJakartaSans_400Regular",
-    color: "#64748b",
+    fontFamily: fonts.regular,
+    color: TEXT_3,
     marginTop: 2,
   },
   breakdownDot: {
@@ -174,7 +181,7 @@ const styles = StyleSheet.create({
   },
   hintText: {
     fontSize: 12,
-    fontFamily: "PlusJakartaSans_500Medium",
-    color: "#f5a623",
+    fontFamily: fonts.medium,
+    color: AMBER,
   },
 });

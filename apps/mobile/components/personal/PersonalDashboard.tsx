@@ -14,9 +14,15 @@ import { PremiumGate } from "../PremiumGate";
 import { MilestoneTracker } from "./MilestoneTracker";
 import { DrivingPatternsCard } from "./DrivingPatternsCard";
 import type { GamificationStats, PeriodRecap } from "@mileclear/shared";
+import { colors, fonts } from "../../lib/theme";
 
-const EMERALD = "#10b981";
-const CARD_BG = "#0a1120";
+// Local theme aliases — same pattern as the (tabs) screens.
+const TEXT_2 = colors.text2;
+const BG = colors.bg;
+const GREEN = colors.green;
+
+const EMERALD = GREEN;
+const CARD_BG = colors.surface;
 const CARD_BORDER = "rgba(255,255,255,0.05)";
 
 interface PersonalDashboardProps {
@@ -113,7 +119,7 @@ export function PersonalDashboard({ avatarId: _avatarId, stats, visibleKeys, rec
               accessibilityRole="button"
               accessibilityLabel="Start a new trip"
             >
-              <Ionicons name="navigate" size={20} color="#030712" />
+              <Ionicons name="navigate" size={20} color={BG} />
               <Text style={styles.startTripBtnText}>Start Trip</Text>
             </TouchableOpacity>
 
@@ -275,8 +281,8 @@ const styles = StyleSheet.create({
   },
   startTripBtnText: {
     fontSize: 17,
-    fontFamily: "PlusJakartaSans_700Bold",
-    color: "#030712",
+    fontFamily: fonts.bold,
+    color: BG,
   },
   quickActions: {
     flexDirection: "row",
@@ -295,8 +301,8 @@ const styles = StyleSheet.create({
   },
   quickActionLabel: {
     fontSize: 10,
-    fontFamily: "PlusJakartaSans_600SemiBold",
-    color: "#8494a7",
+    fontFamily: fonts.semibold,
+    color: TEXT_2,
     letterSpacing: 0.2,
   },
   loading: {

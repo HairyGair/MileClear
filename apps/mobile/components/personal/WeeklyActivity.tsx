@@ -1,4 +1,12 @@
 import { View, Text, StyleSheet } from "react-native";
+import { colors, fonts } from "../../lib/theme";
+
+// Local theme aliases — same pattern as the (tabs) screens.
+const AMBER = colors.amber;
+const CARD_BG = colors.surface;
+const TEXT_1 = colors.text1;
+const TEXT_2 = colors.text2;
+const TEXT_3 = colors.text3;
 
 interface DayData {
   label: string;
@@ -50,7 +58,7 @@ export function WeeklyActivity({ days }: WeeklyActivityProps) {
                       backgroundColor: isEmpty
                         ? "rgba(255,255,255,0.04)"
                         : day.isToday
-                          ? "#f5a623"
+                          ? AMBER
                           : "rgba(245, 166, 35, 0.4)",
                     },
                   ]}
@@ -106,7 +114,7 @@ export function buildWeekDays(trips: Array<{ startedAt: string; distanceMiles: n
 
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: "#0a1120",
+    backgroundColor: CARD_BG,
     borderRadius: 16,
     padding: 16,
     marginBottom: 16,
@@ -121,14 +129,14 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: 15,
-    fontFamily: "PlusJakartaSans_600SemiBold",
-    color: "#f0f2f5",
+    fontFamily: fonts.semibold,
+    color: TEXT_1,
     letterSpacing: -0.2,
   },
   subtitle: {
     fontSize: 12,
-    fontFamily: "PlusJakartaSans_400Regular",
-    color: "#64748b",
+    fontFamily: fonts.regular,
+    color: TEXT_3,
   },
   barRow: {
     flexDirection: "row",
@@ -152,18 +160,18 @@ const styles = StyleSheet.create({
   },
   barValue: {
     fontSize: 11,
-    fontFamily: "PlusJakartaSans_600SemiBold",
-    color: "#8494a7",
+    fontFamily: fonts.semibold,
+    color: TEXT_2,
     marginBottom: 3,
   },
   dayLabel: {
     fontSize: 11,
-    fontFamily: "PlusJakartaSans_500Medium",
-    color: "#64748b",
+    fontFamily: fonts.medium,
+    color: TEXT_3,
     marginTop: 6,
   },
   dayLabelToday: {
-    color: "#f5a623",
-    fontFamily: "PlusJakartaSans_700Bold",
+    color: AMBER,
+    fontFamily: fonts.bold,
   },
 });

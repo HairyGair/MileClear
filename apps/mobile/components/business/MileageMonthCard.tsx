@@ -10,6 +10,12 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import { fetchTripSummary } from "../../lib/api/trips";
 import type { TripClassification } from "@mileclear/shared";
+import { colors, fonts } from "../../lib/theme";
+
+// Local theme aliases — same pattern as the (tabs) screens.
+const CARD_BG = colors.surface;
+const GREEN = colors.green;
+const RED = colors.red;
 
 interface MileageMonthCardProps {
   /**
@@ -23,10 +29,10 @@ interface MileageMonthCardProps {
   title?: string;
 }
 
-const AMBER = "#f5a623";
-const TEXT_1 = "#f0f2f5";
-const TEXT_2 = "#8494a7";
-const TEXT_3 = "#64748b";
+const AMBER = colors.amber;
+const TEXT_1 = colors.text1;
+const TEXT_2 = colors.text2;
+const TEXT_3 = colors.text3;
 
 function formatMonthLabel(d: Date): string {
   return d.toLocaleDateString("en-GB", { month: "long", year: "numeric" });
@@ -191,7 +197,7 @@ export function MileageMonthCard({
 
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: "#0a1120",
+    backgroundColor: CARD_BG,
     borderRadius: 16,
     padding: 20,
     marginBottom: 16,
@@ -199,7 +205,7 @@ const styles = StyleSheet.create({
     borderColor: "rgba(245, 166, 35, 0.12)",
     ...Platform.select({
       ios: {
-        shadowColor: "#f5a623",
+        shadowColor: AMBER,
         shadowOffset: { width: 0, height: 2 },
         shadowOpacity: 0.06,
         shadowRadius: 12,
@@ -224,13 +230,13 @@ const styles = StyleSheet.create({
   },
   label: {
     fontSize: 11,
-    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontFamily: fonts.semibold,
     color: TEXT_2,
     letterSpacing: 0.8,
   },
   monthLabel: {
     fontSize: 11,
-    fontFamily: "PlusJakartaSans_700Bold",
+    fontFamily: fonts.bold,
     color: AMBER,
     letterSpacing: 1.2,
     marginTop: 2,
@@ -249,19 +255,19 @@ const styles = StyleSheet.create({
   },
   heroValue: {
     fontSize: 38,
-    fontFamily: "PlusJakartaSans_300Light",
+    fontFamily: fonts.light,
     color: AMBER,
     letterSpacing: -1,
   },
   heroUnit: {
     fontSize: 16,
-    fontFamily: "PlusJakartaSans_400Regular",
+    fontFamily: fonts.regular,
     color: TEXT_2,
   },
   errorText: {
     fontSize: 14,
-    fontFamily: "PlusJakartaSans_500Medium",
-    color: "#ef4444",
+    fontFamily: fonts.medium,
+    color: RED,
     textAlign: "center",
   },
   statsRow: {
@@ -279,17 +285,17 @@ const styles = StyleSheet.create({
   },
   statValue: {
     fontSize: 14,
-    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontFamily: fonts.semibold,
     color: TEXT_1,
     letterSpacing: -0.3,
   },
   completeText: {
-    color: "#10b981",
+    color: GREEN,
     fontSize: 12,
   },
   statLabel: {
     fontSize: 10,
-    fontFamily: "PlusJakartaSans_400Regular",
+    fontFamily: fonts.regular,
     color: TEXT_3,
     letterSpacing: 0.2,
   },

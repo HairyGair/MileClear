@@ -11,15 +11,19 @@ import { fetchBusinessInsights, fetchWeeklyPnL } from "../../lib/api/businessIns
 import { formatPence, BUSINESS_PURPOSES } from "@mileclear/shared";
 import type { BusinessInsights, WeeklyPnL } from "@mileclear/shared";
 import { useUser } from "../../lib/user/context";
+import { colors, fonts } from "../../lib/theme";
 
-const CARD_BG = "#0a1120";
+// Local theme aliases — same pattern as the (tabs) screens.
+const BG = colors.bg;
+
+const CARD_BG = colors.surface;
 const CARD_BORDER = "rgba(255,255,255,0.05)";
-const AMBER = "#f5a623";
-const GREEN = "#10b981";
-const RED = "#ef4444";
-const TEXT_1 = "#f0f2f5";
-const TEXT_2 = "#8494a7";
-const TEXT_3 = "#64748b";
+const AMBER = colors.amber;
+const GREEN = colors.green;
+const RED = colors.red;
+const TEXT_1 = colors.text1;
+const TEXT_2 = colors.text2;
+const TEXT_3 = colors.text3;
 
 function platformLabel(tag: string): string {
   const map: Record<string, string> = {
@@ -380,7 +384,7 @@ const s = StyleSheet.create({
   },
   cardTitle: {
     fontSize: 11,
-    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontFamily: fonts.semibold,
     color: TEXT_2,
     letterSpacing: 0.8,
     textTransform: "uppercase",
@@ -388,18 +392,18 @@ const s = StyleSheet.create({
   },
   sectionLabel: {
     fontSize: 14,
-    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontFamily: fonts.semibold,
     color: TEXT_1,
     letterSpacing: -0.2,
   },
   label: {
     fontSize: 12,
-    fontFamily: "PlusJakartaSans_400Regular",
+    fontFamily: fonts.regular,
     color: TEXT_3,
   },
   bestLabel: {
     fontSize: 12,
-    fontFamily: "PlusJakartaSans_400Regular",
+    fontFamily: fonts.regular,
     color: TEXT_2,
     marginTop: 2,
   },
@@ -413,13 +417,13 @@ const s = StyleSheet.create({
   metric: { alignItems: "center" },
   metricValue: {
     fontSize: 20,
-    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontFamily: fonts.semibold,
     color: AMBER,
     letterSpacing: -0.5,
   },
   metricLabel: {
     fontSize: 11,
-    fontFamily: "PlusJakartaSans_400Regular",
+    fontFamily: fonts.regular,
     color: TEXT_2,
     marginTop: 2,
   },
@@ -449,11 +453,11 @@ const s = StyleSheet.create({
   },
   trendText: {
     fontSize: 11,
-    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontFamily: fonts.semibold,
   },
   trendLabel: {
     fontSize: 10,
-    fontFamily: "PlusJakartaSans_400Regular",
+    fontFamily: fonts.regular,
     color: TEXT_3,
   },
 
@@ -473,23 +477,23 @@ const s = StyleSheet.create({
   },
   platformName: {
     fontSize: 14,
-    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontFamily: fonts.semibold,
     color: TEXT_1,
   },
   platformMeta: {
     fontSize: 11,
-    fontFamily: "PlusJakartaSans_400Regular",
+    fontFamily: fonts.regular,
     color: TEXT_3,
     marginTop: 1,
   },
   platformEarnings: {
     fontSize: 14,
-    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontFamily: fonts.semibold,
     color: TEXT_1,
   },
   platformRate: {
     fontSize: 11,
-    fontFamily: "PlusJakartaSans_500Medium",
+    fontFamily: fonts.medium,
     color: GREEN,
     marginTop: 1,
   },
@@ -511,27 +515,27 @@ const s = StyleSheet.create({
   gradeText: {
     fontSize: 14,
     fontFamily: "PlusJakartaSans_800ExtraBold",
-    color: "#030712",
+    color: BG,
   },
   shiftDate: {
     fontSize: 13,
-    fontFamily: "PlusJakartaSans_500Medium",
+    fontFamily: fonts.medium,
     color: TEXT_1,
   },
   shiftMeta: {
     fontSize: 11,
-    fontFamily: "PlusJakartaSans_400Regular",
+    fontFamily: fonts.regular,
     color: TEXT_3,
     marginTop: 1,
   },
   shiftEarnings: {
     fontSize: 13,
-    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontFamily: fonts.semibold,
     color: AMBER,
   },
   shiftRate: {
     fontSize: 11,
-    fontFamily: "PlusJakartaSans_400Regular",
+    fontFamily: fonts.regular,
     color: TEXT_3,
     marginTop: 1,
   },
@@ -554,16 +558,16 @@ const s = StyleSheet.create({
   goldenRankText: {
     fontSize: 11,
     fontFamily: "PlusJakartaSans_800ExtraBold",
-    color: "#030712",
+    color: BG,
   },
   goldenLabel: {
     fontSize: 13,
-    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontFamily: fonts.semibold,
     color: TEXT_1,
   },
   goldenMeta: {
     fontSize: 11,
-    fontFamily: "PlusJakartaSans_400Regular",
+    fontFamily: fonts.regular,
     color: TEXT_3,
     marginTop: 1,
   },
@@ -576,7 +580,7 @@ const s = StyleSheet.create({
   },
   pnlPeriod: {
     fontSize: 12,
-    fontFamily: "PlusJakartaSans_500Medium",
+    fontFamily: fonts.medium,
     color: TEXT_2,
     minWidth: 100,
     textAlign: "center",
@@ -590,12 +594,12 @@ const s = StyleSheet.create({
   },
   pnlLabel: {
     fontSize: 13,
-    fontFamily: "PlusJakartaSans_400Regular",
+    fontFamily: fonts.regular,
     color: TEXT_2,
   },
   pnlValue: {
     fontSize: 14,
-    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontFamily: fonts.semibold,
   },
   pnlDivider: {
     borderTopWidth: 1,
@@ -604,7 +608,7 @@ const s = StyleSheet.create({
   },
   pnlMeta: {
     fontSize: 11,
-    fontFamily: "PlusJakartaSans_400Regular",
+    fontFamily: fonts.regular,
     color: TEXT_3,
     textAlign: "right",
     marginTop: 6,
@@ -619,12 +623,12 @@ const s = StyleSheet.create({
   fuelStat: { alignItems: "center" },
   fuelValue: {
     fontSize: 20,
-    fontFamily: "PlusJakartaSans_700Bold",
+    fontFamily: fonts.bold,
     color: AMBER,
   },
   fuelLabel: {
     fontSize: 11,
-    fontFamily: "PlusJakartaSans_400Regular",
+    fontFamily: fonts.regular,
     color: TEXT_2,
     marginTop: 2,
   },

@@ -1,5 +1,9 @@
 import { View, Text, StyleSheet, Platform } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { colors, fonts } from "../../lib/theme";
+
+// Local theme aliases — same pattern as the (tabs) screens.
+const CARD_BG = colors.surface;
 
 interface DrivingSummaryCardProps {
   monthMiles: number;
@@ -11,10 +15,10 @@ interface DrivingSummaryCardProps {
   weekMiles?: number;
 }
 
-const AMBER = "#f5a623";
-const TEXT_1 = "#f0f2f5";
-const TEXT_2 = "#8494a7";
-const TEXT_3 = "#64748b";
+const AMBER = colors.amber;
+const TEXT_1 = colors.text1;
+const TEXT_2 = colors.text2;
+const TEXT_3 = colors.text3;
 
 function formatMilesHero(miles: number): string {
   if (miles < 100) return miles.toFixed(1);
@@ -90,7 +94,7 @@ export function DrivingSummaryCard({
 
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: "#0a1120",
+    backgroundColor: CARD_BG,
     borderRadius: 16,
     padding: 20,
     marginBottom: 16,
@@ -98,7 +102,7 @@ const styles = StyleSheet.create({
     borderColor: "rgba(245, 166, 35, 0.12)",
     ...Platform.select({
       ios: {
-        shadowColor: "#f5a623",
+        shadowColor: AMBER,
         shadowOffset: { width: 0, height: 2 },
         shadowOpacity: 0.06,
         shadowRadius: 12,
@@ -113,7 +117,7 @@ const styles = StyleSheet.create({
   },
   label: {
     fontSize: 11,
-    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontFamily: fonts.semibold,
     color: TEXT_2,
     letterSpacing: 0.8,
   },
@@ -130,7 +134,7 @@ const styles = StyleSheet.create({
   },
   streakText: {
     fontSize: 12,
-    fontFamily: "PlusJakartaSans_700Bold",
+    fontFamily: fonts.bold,
     color: AMBER,
   },
   heroRow: {
@@ -141,13 +145,13 @@ const styles = StyleSheet.create({
   },
   heroValue: {
     fontSize: 38,
-    fontFamily: "PlusJakartaSans_300Light",
+    fontFamily: fonts.light,
     color: AMBER,
     letterSpacing: -1,
   },
   heroUnit: {
     fontSize: 16,
-    fontFamily: "PlusJakartaSans_400Regular",
+    fontFamily: fonts.regular,
     color: TEXT_2,
   },
   statsRow: {
@@ -165,13 +169,13 @@ const styles = StyleSheet.create({
   },
   statValue: {
     fontSize: 16,
-    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontFamily: fonts.semibold,
     color: TEXT_1,
     letterSpacing: -0.3,
   },
   statLabel: {
     fontSize: 10,
-    fontFamily: "PlusJakartaSans_400Regular",
+    fontFamily: fonts.regular,
     color: TEXT_3,
     letterSpacing: 0.2,
   },

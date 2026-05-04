@@ -2,6 +2,10 @@ import { useEffect, useRef } from "react";
 import { View, Text, StyleSheet, Animated, Platform } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import type { LastSavedTrip } from "../../lib/events/lastTrip";
+import { colors, fonts } from "../../lib/theme";
+
+// Local theme aliases — same pattern as the (tabs) screens.
+const CARD_BG = colors.surface;
 
 interface PostTripCardProps {
   trip: LastSavedTrip;
@@ -10,9 +14,9 @@ interface PostTripCardProps {
   onDismiss: () => void;
 }
 
-const AMBER = "#f5a623";
-const TEXT_1 = "#f0f2f5";
-const TEXT_2 = "#8494a7";
+const AMBER = colors.amber;
+const TEXT_1 = colors.text1;
+const TEXT_2 = colors.text2;
 
 export function PostTripCard({ trip, insight, onDismiss }: PostTripCardProps) {
   const opacity = useRef(new Animated.Value(0)).current;
@@ -81,7 +85,7 @@ export function PostTripCard({ trip, insight, onDismiss }: PostTripCardProps) {
 
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: "#0a1120",
+    backgroundColor: CARD_BG,
     borderRadius: 14,
     padding: 16,
     marginBottom: 16,
@@ -119,23 +123,23 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: 15,
-    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontFamily: fonts.semibold,
     color: TEXT_1,
   },
   distance: {
     fontSize: 15,
-    fontFamily: "PlusJakartaSans_700Bold",
+    fontFamily: fonts.bold,
     color: AMBER,
   },
   route: {
     fontSize: 13,
-    fontFamily: "PlusJakartaSans_400Regular",
+    fontFamily: fonts.regular,
     color: TEXT_2,
     marginBottom: 2,
   },
   insight: {
     fontSize: 12,
-    fontFamily: "PlusJakartaSans_500Medium",
+    fontFamily: fonts.medium,
     color: AMBER,
     marginTop: 4,
   },

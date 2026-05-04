@@ -1,6 +1,13 @@
 import { View, Text, StyleSheet } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import type { DrivingPatterns } from "@mileclear/shared";
+import { colors, fonts } from "../../lib/theme";
+
+// Local theme aliases — same pattern as the (tabs) screens.
+const AMBER = colors.amber;
+const CARD_BG = colors.surface;
+const TEXT_1 = colors.text1;
+const TEXT_3 = colors.text3;
 
 const DAY_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 const TIME_SLOTS = [
@@ -24,7 +31,7 @@ export function DrivingPatternsCard({ patterns }: Props) {
     <View style={s.card}>
       <View style={s.header}>
         <View style={s.iconWrap}>
-          <Ionicons name="bar-chart" size={16} color="#f5a623" />
+          <Ionicons name="bar-chart" size={16} color={AMBER} />
         </View>
         <Text style={s.heading}>Driving Patterns</Text>
       </View>
@@ -65,7 +72,7 @@ export function DrivingPatternsCard({ patterns }: Props) {
               <Ionicons
                 name={slot.icon}
                 size={14}
-                color={isPeak ? "#f5a623" : "#64748b"}
+                color={isPeak ? AMBER : TEXT_3}
                 style={{ width: 18 }}
               />
               <View style={s.timeLabelWrap}>
@@ -100,7 +107,7 @@ export function DrivingPatternsCard({ patterns }: Props) {
         const peakSlot = TIME_SLOTS[peakTimeIdx];
         return (
           <View style={s.insight}>
-            <Ionicons name="bulb-outline" size={13} color="#f5a623" />
+            <Ionicons name="bulb-outline" size={13} color={AMBER} />
             <Text style={s.insightText}>
               You drive most on {peakDay} during the {peakSlot.label.toLowerCase()} ({peakSlot.range}).
             </Text>
@@ -135,7 +142,7 @@ export function DrivingPatternsCard({ patterns }: Props) {
 
 const s = StyleSheet.create({
   card: {
-    backgroundColor: "#0a1120",
+    backgroundColor: CARD_BG,
     borderRadius: 16,
     padding: 16,
     marginBottom: 16,
@@ -158,14 +165,14 @@ const s = StyleSheet.create({
   },
   heading: {
     fontSize: 15,
-    fontFamily: "PlusJakartaSans_700Bold",
-    color: "#f0f2f5",
+    fontFamily: fonts.bold,
+    color: TEXT_1,
     letterSpacing: -0.3,
   },
   sectionTitle: {
     fontSize: 10,
-    fontFamily: "PlusJakartaSans_600SemiBold",
-    color: "#64748b",
+    fontFamily: fonts.semibold,
+    color: TEXT_3,
     textTransform: "uppercase",
     letterSpacing: 0.5,
     marginBottom: 8,
@@ -185,13 +192,13 @@ const s = StyleSheet.create({
   },
   dayCount: {
     fontSize: 11,
-    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontFamily: fonts.semibold,
     color: "#94a3b8",
     marginBottom: 2,
   },
   dayCountPeak: {
-    color: "#f5a623",
-    fontFamily: "PlusJakartaSans_700Bold",
+    color: AMBER,
+    fontFamily: fonts.bold,
   },
   dayBarWrap: {
     flex: 1,
@@ -206,12 +213,12 @@ const s = StyleSheet.create({
     minHeight: 2,
   },
   dayBarPeak: {
-    backgroundColor: "#f5a623",
+    backgroundColor: AMBER,
   },
   dayLabel: {
     fontSize: 11,
-    fontFamily: "PlusJakartaSans_500Medium",
-    color: "#64748b",
+    fontFamily: fonts.medium,
+    color: TEXT_3,
     marginTop: 4,
   },
   // Times
@@ -232,17 +239,17 @@ const s = StyleSheet.create({
   },
   timeLabel: {
     fontSize: 12,
-    fontFamily: "PlusJakartaSans_500Medium",
+    fontFamily: fonts.medium,
     color: "#94a3b8",
   },
   timeLabelPeak: {
-    color: "#f5a623",
-    fontFamily: "PlusJakartaSans_700Bold",
+    color: AMBER,
+    fontFamily: fonts.bold,
   },
   timeRange: {
     fontSize: 10,
-    fontFamily: "PlusJakartaSans_400Regular",
-    color: "#64748b",
+    fontFamily: fonts.regular,
+    color: TEXT_3,
   },
   timeBarWrap: {
     flex: 1,
@@ -257,18 +264,18 @@ const s = StyleSheet.create({
     borderRadius: 4,
   },
   timeBarPeak: {
-    backgroundColor: "#f5a623",
+    backgroundColor: AMBER,
   },
   timeCount: {
     fontSize: 10,
-    fontFamily: "PlusJakartaSans_500Medium",
-    color: "#64748b",
+    fontFamily: fonts.medium,
+    color: TEXT_3,
     width: 22,
     textAlign: "right",
   },
   timeCountPeak: {
-    color: "#f5a623",
-    fontFamily: "PlusJakartaSans_700Bold",
+    color: AMBER,
+    fontFamily: fonts.bold,
   },
   insight: {
     flexDirection: "row",
@@ -286,7 +293,7 @@ const s = StyleSheet.create({
   insightText: {
     flex: 1,
     fontSize: 12,
-    fontFamily: "PlusJakartaSans_500Medium",
+    fontFamily: fonts.medium,
     color: "#e2e8f0",
     lineHeight: 16,
   },
@@ -302,13 +309,13 @@ const s = StyleSheet.create({
   },
   avgValue: {
     fontSize: 18,
-    fontFamily: "PlusJakartaSans_700Bold",
-    color: "#f0f2f5",
+    fontFamily: fonts.bold,
+    color: TEXT_1,
   },
   avgLabel: {
     fontSize: 12,
-    fontFamily: "PlusJakartaSans_400Regular",
-    color: "#64748b",
+    fontFamily: fonts.regular,
+    color: TEXT_3,
   },
   // Places
   places: {
@@ -332,18 +339,18 @@ const s = StyleSheet.create({
   },
   placeRankText: {
     fontSize: 10,
-    fontFamily: "PlusJakartaSans_700Bold",
-    color: "#f5a623",
+    fontFamily: fonts.bold,
+    color: AMBER,
   },
   placeName: {
     flex: 1,
     fontSize: 13,
-    fontFamily: "PlusJakartaSans_400Regular",
-    color: "#f0f2f5",
+    fontFamily: fonts.regular,
+    color: TEXT_1,
   },
   placeCount: {
     fontSize: 11,
-    fontFamily: "PlusJakartaSans_500Medium",
-    color: "#64748b",
+    fontFamily: fonts.medium,
+    color: TEXT_3,
   },
 });

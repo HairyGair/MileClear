@@ -3,12 +3,13 @@ import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { fetchCalendar } from "../../lib/api/user";
 import type { CalendarDay } from "@mileclear/shared";
+import { colors, fonts } from "../../lib/theme";
 
-const AMBER = "#f5a623";
-const TEXT_1 = "#f0f2f5";
-const TEXT_2 = "#8494a7";
-const TEXT_3 = "#64748b";
-const CARD_BG = "#0a1120";
+const AMBER = colors.amber;
+const TEXT_1 = colors.text1;
+const TEXT_2 = colors.text2;
+const TEXT_3 = colors.text3;
+const CARD_BG = colors.surface;
 const CARD_BORDER = "rgba(255,255,255,0.05)";
 
 function formatPence(pence: number): string {
@@ -143,18 +144,18 @@ const s = StyleSheet.create({
   },
   header: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 12 },
   headerLeft: { flexDirection: "row", alignItems: "center", gap: 6 },
-  title: { fontSize: 14, fontFamily: "PlusJakartaSans_600SemiBold", color: TEXT_1 },
+  title: { fontSize: 14, fontFamily: fonts.semibold, color: TEXT_1 },
   navRow: { flexDirection: "row", alignItems: "center", gap: 8 },
-  monthLabel: { fontSize: 13, fontFamily: "PlusJakartaSans_500Medium", color: TEXT_1, minWidth: 110, textAlign: "center" },
+  monthLabel: { fontSize: 13, fontFamily: fonts.medium, color: TEXT_1, minWidth: 110, textAlign: "center" },
   grid: { flexDirection: "row", flexWrap: "wrap" },
   cell: { width: `${100 / 7}%`, alignItems: "center", paddingVertical: 3 },
-  weekdayLabel: { fontSize: 10, fontFamily: "PlusJakartaSans_600SemiBold", color: TEXT_3 },
+  weekdayLabel: { fontSize: 10, fontFamily: fonts.semibold, color: TEXT_3 },
   dayCell: { borderRadius: 6, paddingVertical: 4, marginVertical: 1 },
   today: { borderWidth: 1, borderColor: AMBER },
-  dayNum: { fontSize: 12, fontFamily: "PlusJakartaSans_400Regular", color: TEXT_3 },
-  dayNumActive: { color: TEXT_1, fontFamily: "PlusJakartaSans_600SemiBold" },
-  dayEarnings: { fontSize: 8, fontFamily: "PlusJakartaSans_500Medium", color: "rgba(255,255,255,0.6)", marginTop: 1 },
+  dayNum: { fontSize: 12, fontFamily: fonts.regular, color: TEXT_3 },
+  dayNumActive: { color: TEXT_1, fontFamily: fonts.semibold },
+  dayEarnings: { fontSize: 8, fontFamily: fonts.medium, color: "rgba(255,255,255,0.6)", marginTop: 1 },
   summary: { flexDirection: "row", justifyContent: "center", alignItems: "center", marginTop: 10, gap: 6 },
-  summaryItem: { fontSize: 11, fontFamily: "PlusJakartaSans_500Medium", color: TEXT_2 },
+  summaryItem: { fontSize: 11, fontFamily: fonts.medium, color: TEXT_2 },
   summaryDot: { fontSize: 11, color: TEXT_3 },
 });

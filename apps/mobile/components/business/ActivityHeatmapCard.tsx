@@ -12,13 +12,14 @@ import { Ionicons } from "@expo/vector-icons";
 import { fetchActivityHeatmap } from "../../lib/api/businessInsights";
 import { formatPence } from "@mileclear/shared";
 import type { ActivityHeatmap, HeatmapCell } from "@mileclear/shared";
+import { colors } from "../../lib/theme";
 
-const CARD_BG = "#0a1120";
+const CARD_BG = colors.surface;
 const CARD_BORDER = "rgba(255,255,255,0.05)";
-const AMBER = "#f5a623";
-const TEXT_1 = "#f0f2f5";
-const TEXT_2 = "#8494a7";
-const TEXT_3 = "#64748b";
+const AMBER = colors.amber;
+const TEXT_1 = colors.text1;
+const TEXT_2 = colors.text2;
+const TEXT_3 = colors.text3;
 
 // Compact 3-letter day labels, Monday-first to match UK convention
 // (Date.getDay() returns Sunday=0, so we map manually).

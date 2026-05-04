@@ -13,22 +13,23 @@ import { fetchTaxSnapshot } from "../../lib/api/businessInsights";
 import { formatPence, UK_TAX_2025_26 } from "@mileclear/shared";
 import type { TaxSnapshot } from "@mileclear/shared";
 import { DerivationPanel } from "../DerivationPanel";
+import { colors } from "../../lib/theme";
 
 // Show the higher-rate warning when YTD taxable profit is between £35k and
 // the higher-rate threshold (£50,270). The £35k floor avoids spamming most
 // users who will never cross over.
 const HIGHER_RATE_WARNING_FLOOR_PENCE = 3_500_000;
 
-const CARD_BG = "#0a1120";
+const CARD_BG = colors.surface;
 const CARD_BORDER = "rgba(255,255,255,0.05)";
-const AMBER = "#f5a623";
-const GREEN = "#10b981";
-const RED = "#ef4444";
+const AMBER = colors.amber;
+const GREEN = colors.green;
+const RED = colors.red;
 const AMBER_FAINT = "rgba(245,166,35,0.08)";
 const RED_FAINT = "rgba(239,68,68,0.10)";
-const TEXT_1 = "#f0f2f5";
-const TEXT_2 = "#8494a7";
-const TEXT_3 = "#64748b";
+const TEXT_1 = colors.text1;
+const TEXT_2 = colors.text2;
+const TEXT_3 = colors.text3;
 
 function deadlineTone(days: number): {
   color: string;

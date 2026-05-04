@@ -5,6 +5,15 @@ import { useRouter, useFocusEffect } from "expo-router";
 import { fetchFuelLogs } from "../../lib/api/fuel";
 import { formatPence } from "@mileclear/shared";
 import type { FuelLogWithVehicle } from "@mileclear/shared";
+import { colors, fonts } from "../../lib/theme";
+
+// Local theme aliases — same pattern as the (tabs) screens.
+const AMBER = colors.amber;
+const CARD_BG = colors.surface;
+const TEXT_1 = colors.text1;
+const TEXT_2 = colors.text2;
+const TEXT_3 = colors.text3;
+const GREEN = colors.green;
 
 interface FuelSummaryCardProps {
   monthMiles: number;
@@ -89,7 +98,7 @@ export function FuelSummaryCard({ monthMiles, estimatedMpg, fuelType }: FuelSumm
       {/* Header */}
       <View style={styles.header}>
         <View style={styles.iconWrap}>
-          <Ionicons name="water" size={16} color="#f5a623" />
+          <Ionicons name="water" size={16} color={AMBER} />
         </View>
         <View style={{ flex: 1 }}>
           <Text style={styles.title}>Fuel & Running Costs</Text>
@@ -97,7 +106,7 @@ export function FuelSummaryCard({ monthMiles, estimatedMpg, fuelType }: FuelSumm
             {isEstimate ? "Estimated this month" : `${fillUpCount} fill-up${fillUpCount !== 1 ? "s" : ""} this month`}
           </Text>
         </View>
-        <Ionicons name="chevron-forward" size={16} color="#64748b" />
+        <Ionicons name="chevron-forward" size={16} color={TEXT_3} />
       </View>
 
       {/* Stats row */}
@@ -167,7 +176,7 @@ export function FuelSummaryCard({ monthMiles, estimatedMpg, fuelType }: FuelSumm
           <Text style={styles.hintText}>
             Log a fill-up for accurate fuel costs
           </Text>
-          <Ionicons name="add-circle-outline" size={14} color="#f5a623" />
+          <Ionicons name="add-circle-outline" size={14} color={AMBER} />
         </View>
       )}
     </TouchableOpacity>
@@ -176,7 +185,7 @@ export function FuelSummaryCard({ monthMiles, estimatedMpg, fuelType }: FuelSumm
 
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: "#0a1120",
+    backgroundColor: CARD_BG,
     borderRadius: 16,
     padding: 16,
     marginBottom: 16,
@@ -199,13 +208,13 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: 14,
-    fontFamily: "PlusJakartaSans_600SemiBold",
-    color: "#f0f2f5",
+    fontFamily: fonts.semibold,
+    color: TEXT_1,
   },
   subtitle: {
     fontSize: 12,
-    fontFamily: "PlusJakartaSans_400Regular",
-    color: "#64748b",
+    fontFamily: fonts.regular,
+    color: TEXT_3,
     marginTop: 1,
   },
   statsRow: {
@@ -222,13 +231,13 @@ const styles = StyleSheet.create({
   },
   statValue: {
     fontSize: 15,
-    fontFamily: "PlusJakartaSans_600SemiBold",
-    color: "#f0f2f5",
+    fontFamily: fonts.semibold,
+    color: TEXT_1,
   },
   statLabel: {
     fontSize: 10,
-    fontFamily: "PlusJakartaSans_400Regular",
-    color: "#64748b",
+    fontFamily: fonts.regular,
+    color: TEXT_3,
     marginTop: 2,
   },
   statDot: {
@@ -245,8 +254,8 @@ const styles = StyleSheet.create({
   },
   recentTitle: {
     fontSize: 11,
-    fontFamily: "PlusJakartaSans_600SemiBold",
-    color: "#8494a7",
+    fontFamily: fonts.semibold,
+    color: TEXT_2,
     textTransform: "uppercase",
     letterSpacing: 0.5,
     marginBottom: 10,
@@ -262,24 +271,24 @@ const styles = StyleSheet.create({
   },
   logStation: {
     fontSize: 13,
-    fontFamily: "PlusJakartaSans_600SemiBold",
-    color: "#f0f2f5",
+    fontFamily: fonts.semibold,
+    color: TEXT_1,
   },
   logDetail: {
     fontSize: 11,
-    fontFamily: "PlusJakartaSans_400Regular",
-    color: "#64748b",
+    fontFamily: fonts.regular,
+    color: TEXT_3,
     marginTop: 2,
   },
   logCost: {
     fontSize: 14,
-    fontFamily: "PlusJakartaSans_600SemiBold",
-    color: "#10b981",
+    fontFamily: fonts.semibold,
+    color: GREEN,
   },
   logDate: {
     fontSize: 11,
-    fontFamily: "PlusJakartaSans_400Regular",
-    color: "#64748b",
+    fontFamily: fonts.regular,
+    color: TEXT_3,
     marginTop: 2,
   },
   hint: {
@@ -294,7 +303,7 @@ const styles = StyleSheet.create({
   },
   hintText: {
     fontSize: 12,
-    fontFamily: "PlusJakartaSans_500Medium",
-    color: "#f5a623",
+    fontFamily: fonts.medium,
+    color: AMBER,
   },
 });

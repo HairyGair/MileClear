@@ -13,6 +13,17 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import type { TripDetail } from "../../lib/api/trips";
+import { colors, fonts } from "../../lib/theme";
+
+// Local theme aliases — same pattern as the (tabs) screens.
+const AMBER = colors.amber;
+const CARD_BG = colors.surface;
+const TEXT_1 = colors.text1;
+const TEXT_2 = colors.text2;
+const TEXT_3 = colors.text3;
+const BG = colors.bg;
+const GREEN = colors.green;
+const RED = colors.red;
 
 // Lazy import for Expo Go compatibility — check native module exists before requiring
 let MapViewComponent: any = null;
@@ -33,13 +44,13 @@ if (hasNativeMap) {
 }
 
 const TRIP_COLOURS = [
-  "#f5a623", // amber
-  "#10b981", // emerald
+  AMBER, // amber
+  GREEN, // emerald
   "#3b82f6", // blue
   "#8b5cf6", // purple
   "#ec4899", // pink
   "#06b6d4", // cyan
-  "#ef4444", // red
+  RED, // red
   "#eab308", // yellow
 ];
 
@@ -192,7 +203,7 @@ export function MapOverview({ trips, title }: MapOverviewProps) {
   }
 
   const selectedInfo = selectedTrip != null ? filteredTrips[selectedTrip] : null;
-  const selectedColor = selectedTrip != null ? TRIP_COLOURS[selectedTrip % TRIP_COLOURS.length] : "#f5a623";
+  const selectedColor = selectedTrip != null ? TRIP_COLOURS[selectedTrip % TRIP_COLOURS.length] : AMBER;
 
   const renderMapContent = (tripsToShow: TripDetail[], interactive: boolean, height: number | "full", region: any) => (
     <MapViewComponent
@@ -287,7 +298,7 @@ export function MapOverview({ trips, title }: MapOverviewProps) {
         <View style={styles.mapContainer}>
           {renderMapContent(allTripsWithCoords, false, 240, inlineRegion)}
           <View style={styles.tapHint}>
-            <Ionicons name="expand-outline" size={12} color="#8494a7" />
+            <Ionicons name="expand-outline" size={12} color={TEXT_2} />
             <Text style={styles.tapHintText}>Tap to expand</Text>
           </View>
           <View style={styles.tripCountBadge}>
@@ -456,7 +467,7 @@ export function MapOverview({ trips, title }: MapOverviewProps) {
                         {trip.startAddress ?? "Unknown"}
                       </Text>
                       <View style={styles.tripListArrow}>
-                        <Ionicons name="arrow-forward" size={10} color="#64748b" />
+                        <Ionicons name="arrow-forward" size={10} color={TEXT_3} />
                       </View>
                       <Text style={styles.tripListAddress} numberOfLines={1}>
                         {trip.endAddress ?? "Unknown"}
@@ -485,7 +496,7 @@ export function MapOverview({ trips, title }: MapOverviewProps) {
               accessibilityRole="button"
               accessibilityLabel="Close journey map"
             >
-              <Ionicons name="close" size={18} color="#f0f2f5" />
+              <Ionicons name="close" size={18} color={TEXT_1} />
             </TouchableOpacity>
           </SafeAreaView>
         </View>
@@ -501,12 +512,12 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.05)",
-    backgroundColor: "#0a1120",
+    backgroundColor: CARD_BG,
   },
   cardTitle: {
     fontSize: 14,
-    fontFamily: "PlusJakartaSans_600SemiBold",
-    color: "#8494a7",
+    fontFamily: fonts.semibold,
+    color: TEXT_2,
     paddingHorizontal: 14,
     paddingTop: 12,
     paddingBottom: 4,
@@ -531,8 +542,8 @@ const styles = StyleSheet.create({
   },
   tapHintText: {
     fontSize: 11,
-    fontFamily: "PlusJakartaSans_500Medium",
-    color: "#8494a7",
+    fontFamily: fonts.medium,
+    color: TEXT_2,
   },
   tripCountBadge: {
     position: "absolute",
@@ -547,8 +558,8 @@ const styles = StyleSheet.create({
   },
   tripCountText: {
     fontSize: 11,
-    fontFamily: "PlusJakartaSans_600SemiBold",
-    color: "#f5a623",
+    fontFamily: fonts.semibold,
+    color: AMBER,
   },
   legendRow: {
     flexDirection: "row",
@@ -569,11 +580,11 @@ const styles = StyleSheet.create({
   },
   legendText: {
     fontSize: 12,
-    fontFamily: "PlusJakartaSans_500Medium",
+    fontFamily: fonts.medium,
     color: "#c9d1d9",
   },
   emptyCard: {
-    backgroundColor: "#0a1120",
+    backgroundColor: CARD_BG,
     borderRadius: 16,
     padding: 32,
     marginBottom: 16,
@@ -584,19 +595,19 @@ const styles = StyleSheet.create({
   },
   emptyTitle: {
     fontSize: 16,
-    fontFamily: "PlusJakartaSans_600SemiBold",
-    color: "#8494a7",
+    fontFamily: fonts.semibold,
+    color: TEXT_2,
   },
   emptyText: {
     fontSize: 13,
-    fontFamily: "PlusJakartaSans_400Regular",
-    color: "#64748b",
+    fontFamily: fonts.regular,
+    color: TEXT_3,
     textAlign: "center",
     lineHeight: 18,
   },
   fullscreenContainer: {
     flex: 1,
-    backgroundColor: "#030712",
+    backgroundColor: BG,
   },
   // Close button
   closeBtnSafe: {
@@ -645,20 +656,20 @@ const styles = StyleSheet.create({
   },
   filterPillText: {
     fontSize: 12,
-    fontFamily: "PlusJakartaSans_500Medium",
-    color: "#8494a7",
+    fontFamily: fonts.medium,
+    color: TEXT_2,
   },
   filterPillTextActive: {
-    color: "#f5a623",
-    fontFamily: "PlusJakartaSans_600SemiBold",
+    color: AMBER,
+    fontFamily: fonts.semibold,
   },
   filterPillCount: {
     fontSize: 11,
-    fontFamily: "PlusJakartaSans_700Bold",
-    color: "#64748b",
+    fontFamily: fonts.bold,
+    color: TEXT_3,
   },
   filterPillCountActive: {
-    color: "#f5a623",
+    color: AMBER,
   },
   // Trip dot markers
   tripDot: {
@@ -680,7 +691,7 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     right: 0,
-    backgroundColor: "#0a1120",
+    backgroundColor: CARD_BG,
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     paddingHorizontal: 20,
@@ -711,13 +722,13 @@ const styles = StyleSheet.create({
   },
   tripSheetTitle: {
     fontSize: 17,
-    fontFamily: "PlusJakartaSans_700Bold",
-    color: "#f0f2f5",
+    fontFamily: fonts.bold,
+    color: TEXT_1,
   },
   tripSheetTime: {
     fontSize: 13,
-    fontFamily: "PlusJakartaSans_400Regular",
-    color: "#8494a7",
+    fontFamily: fonts.regular,
+    color: TEXT_2,
     marginLeft: "auto",
   },
   tripSheetStats: {
@@ -730,12 +741,12 @@ const styles = StyleSheet.create({
   },
   tripSheetStatValue: {
     fontSize: 22,
-    fontFamily: "PlusJakartaSans_700Bold",
+    fontFamily: fonts.bold,
   },
   tripSheetStatLabel: {
     fontSize: 11,
-    fontFamily: "PlusJakartaSans_500Medium",
-    color: "#6b7280",
+    fontFamily: fonts.medium,
+    color: TEXT_3,
     textTransform: "uppercase",
     letterSpacing: 0.3,
   },
@@ -754,7 +765,7 @@ const styles = StyleSheet.create({
   },
   tripSheetRouteText: {
     fontSize: 13,
-    fontFamily: "PlusJakartaSans_400Regular",
+    fontFamily: fonts.regular,
     color: "#c9d1d9",
     flex: 1,
   },
@@ -782,7 +793,7 @@ const styles = StyleSheet.create({
   },
   classificationText: {
     fontSize: 12,
-    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontFamily: fonts.semibold,
     color: "#c9d1d9",
   },
   platformBadge: {
@@ -793,7 +804,7 @@ const styles = StyleSheet.create({
   },
   platformBadgeText: {
     fontSize: 12,
-    fontFamily: "PlusJakartaSans_500Medium",
+    fontFamily: fonts.medium,
     color: "#93c5fd",
   },
   // Trip list (horizontal scroll at bottom of fullscreen)
@@ -826,17 +837,17 @@ const styles = StyleSheet.create({
   },
   tripListDate: {
     fontSize: 11,
-    fontFamily: "PlusJakartaSans_500Medium",
-    color: "#8494a7",
+    fontFamily: fonts.medium,
+    color: TEXT_2,
     flex: 1,
   },
   tripListDistance: {
     fontSize: 13,
-    fontFamily: "PlusJakartaSans_700Bold",
+    fontFamily: fonts.bold,
   },
   tripListAddress: {
     fontSize: 12,
-    fontFamily: "PlusJakartaSans_400Regular",
+    fontFamily: fonts.regular,
     color: "#c9d1d9",
   },
   tripListArrow: {
@@ -853,7 +864,7 @@ const styles = StyleSheet.create({
   },
   tripListEmptyText: {
     fontSize: 13,
-    fontFamily: "PlusJakartaSans_500Medium",
-    color: "#6b7280",
+    fontFamily: fonts.medium,
+    color: TEXT_3,
   },
 });

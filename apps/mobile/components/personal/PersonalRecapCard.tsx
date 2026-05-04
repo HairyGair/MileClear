@@ -5,6 +5,15 @@ import { getDistanceEquivalent } from "@mileclear/shared";
 import { RecapShareCard, captureAndShareRecap } from "./ShareableRecap";
 import type { RecapShareCardProps } from "./ShareableRecap";
 import { useIsPremium } from "../PremiumGate";
+import { colors, fonts } from "../../lib/theme";
+
+// Local theme aliases — same pattern as the (tabs) screens.
+const AMBER = colors.amber;
+const CARD_BG = colors.surface;
+const TEXT_1 = colors.text1;
+const TEXT_2 = colors.text2;
+const TEXT_3 = colors.text3;
+const GREEN = colors.green;
 
 interface PersonalRecapCardProps {
   monthMiles: number;
@@ -174,7 +183,7 @@ export function PersonalRecapCard({
         <View style={styles.header}>
           <View style={styles.headerLeft}>
             <View style={styles.iconWrap}>
-              <Ionicons name="calendar" size={16} color="#f5a623" />
+              <Ionicons name="calendar" size={16} color={AMBER} />
             </View>
             <Text style={styles.heading}>{displayLabel}</Text>
           </View>
@@ -195,7 +204,7 @@ export function PersonalRecapCard({
               accessibilityLabel={isPremium ? "This month" : "This month, Pro feature"}
               accessibilityState={{ selected: view === "month" }}
             >
-              {!isPremium && <Ionicons name="lock-closed" size={10} color="#64748b" />}
+              {!isPremium && <Ionicons name="lock-closed" size={10} color={TEXT_3} />}
               <Text style={[styles.toggleText, view === "month" && styles.toggleTextActive]}>Month</Text>
             </Pressable>
             <Pressable
@@ -205,7 +214,7 @@ export function PersonalRecapCard({
               accessibilityLabel={isPremium ? "This year" : "This year, Pro feature"}
               accessibilityState={{ selected: isYear }}
             >
-              {!isPremium && <Ionicons name="lock-closed" size={10} color="#64748b" />}
+              {!isPremium && <Ionicons name="lock-closed" size={10} color={TEXT_3} />}
               <Text style={[styles.toggleText, isYear && styles.toggleTextActive]}>Year</Text>
             </Pressable>
           </View>
@@ -241,8 +250,8 @@ export function PersonalRecapCard({
         {isGatedView ? (
           <View style={styles.insightList}>
             <View style={{ alignItems: "center", paddingVertical: 8 }}>
-              <Ionicons name="lock-closed" size={18} color="#64748b" />
-              <Text style={{ color: "#64748b", fontSize: 12, fontFamily: "PlusJakartaSans_500Medium", marginTop: 6, textAlign: "center" }}>
+              <Ionicons name="lock-closed" size={18} color={TEXT_3} />
+              <Text style={{ color: TEXT_3, fontSize: 12, fontFamily: fonts.medium, marginTop: 6, textAlign: "center" }}>
                 Upgrade to Pro for monthly & yearly insights
               </Text>
             </View>
@@ -270,10 +279,10 @@ export function PersonalRecapCard({
                   size={12}
                   color={
                     milesChange.direction === "down"
-                      ? "#10b981"
+                      ? GREEN
                       : milesChange.direction === "up"
-                        ? "#f5a623"
-                        : "#8494a7"
+                        ? AMBER
+                        : TEXT_2
                   }
                 />
               </View>
@@ -284,7 +293,7 @@ export function PersonalRecapCard({
           {!isToday && !isYear && tripsChange && (
             <View style={styles.insightRow}>
               <View style={[styles.insightIcon, styles.insightIconNeutral]}>
-                <Ionicons name="navigate" size={12} color="#8494a7" />
+                <Ionicons name="navigate" size={12} color={TEXT_2} />
               </View>
               <Text style={styles.insightText}>{tripsChange}</Text>
             </View>
@@ -293,7 +302,7 @@ export function PersonalRecapCard({
           {!isToday && !isYear && busiestDay && (
             <View style={styles.insightRow}>
               <View style={[styles.insightIcon, styles.insightIconAmber]}>
-                <Ionicons name="star" size={12} color="#f5a623" />
+                <Ionicons name="star" size={12} color={AMBER} />
               </View>
               <Text style={styles.insightText}>
                 Your busiest day was{" "}
@@ -306,7 +315,7 @@ export function PersonalRecapCard({
           {isYear && yearBusinessMiles > 0 && (
             <View style={styles.insightRow}>
               <View style={[styles.insightIcon, styles.insightIconGreen]}>
-                <Ionicons name="briefcase" size={12} color="#10b981" />
+                <Ionicons name="briefcase" size={12} color={GREEN} />
               </View>
               <Text style={styles.insightText}>
                 {formatMilesCompact(yearBusinessMiles)} business miles claimed
@@ -317,7 +326,7 @@ export function PersonalRecapCard({
           {isYear && yearDeductionPence > 0 && (
             <View style={styles.insightRow}>
               <View style={[styles.insightIcon, styles.insightIconGreen]}>
-                <Ionicons name="cash" size={12} color="#10b981" />
+                <Ionicons name="cash" size={12} color={GREEN} />
               </View>
               <Text style={styles.insightText}>
                 £{(yearDeductionPence / 100).toFixed(2)} HMRC deduction so far
@@ -328,7 +337,7 @@ export function PersonalRecapCard({
           {isYear && yearBusiestMonth && (
             <View style={styles.insightRow}>
               <View style={[styles.insightIcon, styles.insightIconAmber]}>
-                <Ionicons name="star" size={12} color="#f5a623" />
+                <Ionicons name="star" size={12} color={AMBER} />
               </View>
               <Text style={styles.insightText}>
                 Your busiest month was{" "}
@@ -344,7 +353,7 @@ export function PersonalRecapCard({
             return (
               <View style={styles.insightRow}>
                 <View style={[styles.insightIcon, styles.insightIconAmber]}>
-                  <Ionicons name={getDistanceIcon(displayMiles) as any} size={12} color="#f5a623" />
+                  <Ionicons name={getDistanceIcon(displayMiles) as any} size={12} color={AMBER} />
                 </View>
                 <Text style={styles.insightText}>{equiv}</Text>
               </View>
@@ -366,7 +375,7 @@ export function PersonalRecapCard({
           accessibilityRole="button"
           accessibilityLabel={`Share ${displayLabel} driving recap`}
         >
-          <Ionicons name="share-outline" size={16} color="#f5a623" />
+          <Ionicons name="share-outline" size={16} color={AMBER} />
           <Text style={styles.shareText}>Share Recap</Text>
         </Pressable>
         )}
@@ -382,7 +391,7 @@ const styles = StyleSheet.create({
     top: 0,
   },
   card: {
-    backgroundColor: "#0a1120",
+    backgroundColor: CARD_BG,
     borderRadius: 16,
     marginBottom: 16,
     borderWidth: 1,
@@ -390,7 +399,7 @@ const styles = StyleSheet.create({
     overflow: "hidden",
     ...Platform.select({
       ios: {
-        shadowColor: "#f5a623",
+        shadowColor: AMBER,
         shadowOffset: { width: 0, height: 4 },
         shadowOpacity: 0.08,
         shadowRadius: 16,
@@ -402,7 +411,7 @@ const styles = StyleSheet.create({
   },
   topBorder: {
     height: 2,
-    backgroundColor: "#f5a623",
+    backgroundColor: AMBER,
     opacity: 0.7,
   },
   header: {
@@ -435,11 +444,11 @@ const styles = StyleSheet.create({
   },
   toggleText: {
     fontSize: 11,
-    fontFamily: "PlusJakartaSans_500Medium",
-    color: "#64748b",
+    fontFamily: fonts.medium,
+    color: TEXT_3,
   },
   toggleTextActive: {
-    color: "#f5a623",
+    color: AMBER,
   },
   iconWrap: {
     width: 30,
@@ -451,8 +460,8 @@ const styles = StyleSheet.create({
   },
   heading: {
     fontSize: 16,
-    fontFamily: "PlusJakartaSans_700Bold",
-    color: "#f0f2f5",
+    fontFamily: fonts.bold,
+    color: TEXT_1,
     letterSpacing: -0.3,
   },
   heroRow: {
@@ -471,14 +480,14 @@ const styles = StyleSheet.create({
   },
   heroValue: {
     fontSize: 26,
-    fontFamily: "PlusJakartaSans_300Light",
-    color: "#f5a623",
+    fontFamily: fonts.light,
+    color: AMBER,
     letterSpacing: -0.8,
   },
   heroUnit: {
     fontSize: 11,
-    fontFamily: "PlusJakartaSans_500Medium",
-    color: "#8494a7",
+    fontFamily: fonts.medium,
+    color: TEXT_2,
     letterSpacing: 0.2,
   },
   heroDivider: {
@@ -514,13 +523,13 @@ const styles = StyleSheet.create({
   },
   insightText: {
     fontSize: 13,
-    fontFamily: "PlusJakartaSans_400Regular",
-    color: "#8494a7",
+    fontFamily: fonts.regular,
+    color: TEXT_2,
     flex: 1,
   },
   insightHighlight: {
-    fontFamily: "PlusJakartaSans_600SemiBold",
-    color: "#f0f2f5",
+    fontFamily: fonts.semibold,
+    color: TEXT_1,
   },
   separator: {
     height: 1,
@@ -539,8 +548,8 @@ const styles = StyleSheet.create({
   },
   shareText: {
     fontSize: 14,
-    fontFamily: "PlusJakartaSans_600SemiBold",
-    color: "#f5a623",
+    fontFamily: fonts.semibold,
+    color: AMBER,
     letterSpacing: 0.1,
   },
 });

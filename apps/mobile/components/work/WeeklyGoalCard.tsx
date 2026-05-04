@@ -9,12 +9,17 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import { fetchWeeklyProgress, updateProfile } from "../../lib/api/user";
 import type { WeeklyProgress } from "@mileclear/shared";
+import { colors, fonts } from "../../lib/theme";
 
-const AMBER = "#f5a623";
-const TEXT_1 = "#f0f2f5";
-const TEXT_2 = "#8494a7";
-const TEXT_3 = "#64748b";
-const CARD_BG = "#0a1120";
+// Local theme aliases — same pattern as the (tabs) screens.
+const BG = colors.bg;
+const GREEN = colors.green;
+
+const AMBER = colors.amber;
+const TEXT_1 = colors.text1;
+const TEXT_2 = colors.text2;
+const TEXT_3 = colors.text3;
+const CARD_BG = colors.surface;
 const CARD_BORDER = "rgba(255,255,255,0.05)";
 
 function formatPence(pence: number): string {
@@ -96,13 +101,13 @@ export function WeeklyGoalCard() {
           <View style={s.barBg}>
             <View style={[s.barFill, {
               width: `${Math.min(100, pct)}%`,
-              backgroundColor: pct >= 100 ? "#10b981" : AMBER,
+              backgroundColor: pct >= 100 ? GREEN : AMBER,
             }]} />
           </View>
           <View style={s.barMeta}>
             <Text style={s.barPct}>{pct}%</Text>
             {pct >= 100 ? (
-              <Text style={[s.barPct, { color: "#10b981" }]}>Goal reached!</Text>
+              <Text style={[s.barPct, { color: GREEN }]}>Goal reached!</Text>
             ) : (
               <Text style={s.barPct}>{formatPence(progress.goalPence! - progress.currentWeekEarningsPence)} to go</Text>
             )}
@@ -124,8 +129,8 @@ const s = StyleSheet.create({
   },
   header: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 10 },
   headerLeft: { flexDirection: "row", alignItems: "center", gap: 6 },
-  title: { fontSize: 14, fontFamily: "PlusJakartaSans_600SemiBold", color: TEXT_1 },
-  editBtn: { fontSize: 13, fontFamily: "PlusJakartaSans_500Medium", color: AMBER },
+  title: { fontSize: 14, fontFamily: fonts.semibold, color: TEXT_1 },
+  editBtn: { fontSize: 13, fontFamily: fonts.medium, color: AMBER },
   editRow: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 12 },
   input: {
     width: 90,
@@ -135,18 +140,18 @@ const s = StyleSheet.create({
     borderColor: CARD_BORDER,
     paddingHorizontal: 10,
     fontSize: 14,
-    fontFamily: "PlusJakartaSans_400Regular",
+    fontFamily: fonts.regular,
     color: TEXT_1,
-    backgroundColor: "#030712",
+    backgroundColor: BG,
   },
-  perWeek: { fontSize: 13, fontFamily: "PlusJakartaSans_400Regular", color: TEXT_2 },
+  perWeek: { fontSize: 13, fontFamily: fonts.regular, color: TEXT_2 },
   saveBtn: { backgroundColor: AMBER, paddingHorizontal: 12, paddingVertical: 7, borderRadius: 8 },
-  saveBtnText: { fontSize: 13, fontFamily: "PlusJakartaSans_700Bold", color: "#030712" },
-  amount: { fontSize: 22, fontFamily: "PlusJakartaSans_700Bold", color: TEXT_1 },
-  target: { fontSize: 13, fontFamily: "PlusJakartaSans_400Regular", color: TEXT_2 },
+  saveBtnText: { fontSize: 13, fontFamily: fonts.bold, color: BG },
+  amount: { fontSize: 22, fontFamily: fonts.bold, color: TEXT_1 },
+  target: { fontSize: 13, fontFamily: fonts.regular, color: TEXT_2 },
   barWrap: { marginTop: 10 },
   barBg: { height: 8, borderRadius: 4, backgroundColor: "rgba(255,255,255,0.06)", overflow: "hidden" },
   barFill: { height: "100%", borderRadius: 4 },
   barMeta: { flexDirection: "row", justifyContent: "space-between", marginTop: 4 },
-  barPct: { fontSize: 11, fontFamily: "PlusJakartaSans_500Medium", color: TEXT_3 },
+  barPct: { fontSize: 11, fontFamily: fonts.medium, color: TEXT_3 },
 });

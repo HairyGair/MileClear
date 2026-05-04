@@ -3,6 +3,15 @@ import { View, Text, StyleSheet, Share as RNShare } from "react-native";
 import { captureRef } from "react-native-view-shot";
 import * as Sharing from "expo-sharing";
 import { getDistanceEquivalent } from "@mileclear/shared";
+import { colors, fonts } from "../../lib/theme";
+
+// Local theme aliases — same pattern as the (tabs) screens.
+const AMBER = colors.amber;
+const TEXT_1 = colors.text1;
+const TEXT_2 = colors.text2;
+const TEXT_3 = colors.text3;
+const BG = colors.bg;
+const GREEN = colors.green;
 
 // ─── Data types ─────────────────────────────────────────────
 
@@ -131,7 +140,7 @@ export function RecapShareCard({
           <>
             <View style={s.statDivider} />
             <View style={s.statBox}>
-              <Text style={[s.statValue, { color: "#10b981" }]}>{deductionStr}</Text>
+              <Text style={[s.statValue, { color: GREEN }]}>{deductionStr}</Text>
               <Text style={s.statLabel}>HMRC deduction</Text>
             </View>
           </>
@@ -253,7 +262,7 @@ const CARD_WIDTH = 360;
 const s = StyleSheet.create({
   card: {
     width: CARD_WIDTH,
-    backgroundColor: "#030712",
+    backgroundColor: BG,
     borderWidth: 1,
     borderColor: "rgba(245, 166, 35, 0.2)",
     borderRadius: 20,
@@ -278,7 +287,7 @@ const s = StyleSheet.create({
   },
   accentLine: {
     height: 1.5,
-    backgroundColor: "#f5a623",
+    backgroundColor: AMBER,
     opacity: 0.5,
     marginHorizontal: 8,
   },
@@ -291,14 +300,14 @@ const s = StyleSheet.create({
   },
   wordMile: {
     fontSize: 20,
-    fontFamily: "PlusJakartaSans_700Bold",
-    color: "#f0f2f5",
+    fontFamily: fonts.bold,
+    color: TEXT_1,
     letterSpacing: -0.5,
   },
   wordClear: {
     fontSize: 20,
-    fontFamily: "PlusJakartaSans_700Bold",
-    color: "#f5a623",
+    fontFamily: fonts.bold,
+    color: AMBER,
     letterSpacing: -0.5,
   },
   labelRow: {
@@ -315,31 +324,31 @@ const s = StyleSheet.create({
   },
   labelText: {
     fontSize: 10,
-    fontFamily: "PlusJakartaSans_600SemiBold",
-    color: "#8494a7",
+    fontFamily: fonts.semibold,
+    color: TEXT_2,
     letterSpacing: 3,
   },
   monthYear: {
     textAlign: "center",
     fontSize: 18,
-    fontFamily: "PlusJakartaSans_700Bold",
-    color: "#f0f2f5",
+    fontFamily: fonts.bold,
+    color: TEXT_1,
     letterSpacing: 1.5,
     marginBottom: 20,
   },
   heroMiles: {
     textAlign: "center",
     fontSize: 56,
-    fontFamily: "PlusJakartaSans_300Light",
-    color: "#f5a623",
+    fontFamily: fonts.light,
+    color: AMBER,
     letterSpacing: -2,
     lineHeight: 62,
   },
   heroUnit: {
     textAlign: "center",
     fontSize: 14,
-    fontFamily: "PlusJakartaSans_500Medium",
-    color: "#8494a7",
+    fontFamily: fonts.medium,
+    color: TEXT_2,
     letterSpacing: 0.5,
     marginBottom: 24,
   },
@@ -358,14 +367,14 @@ const s = StyleSheet.create({
   },
   statValue: {
     fontSize: 24,
-    fontFamily: "PlusJakartaSans_700Bold",
-    color: "#f0f2f5",
+    fontFamily: fonts.bold,
+    color: TEXT_1,
     letterSpacing: -0.5,
   },
   statLabel: {
     fontSize: 11,
-    fontFamily: "PlusJakartaSans_500Medium",
-    color: "#8494a7",
+    fontFamily: fonts.medium,
+    color: TEXT_2,
     letterSpacing: 0.3,
   },
   statDivider: {
@@ -391,12 +400,12 @@ const s = StyleSheet.create({
   },
   insightText: {
     fontSize: 12,
-    fontFamily: "PlusJakartaSans_400Regular",
-    color: "#8494a7",
+    fontFamily: fonts.regular,
+    color: TEXT_2,
   },
   insightHighlight: {
-    fontFamily: "PlusJakartaSans_600SemiBold",
-    color: "#f0f2f5",
+    fontFamily: fonts.semibold,
+    color: TEXT_1,
   },
   divider: {
     height: 1,
@@ -406,8 +415,8 @@ const s = StyleSheet.create({
   lifetimeText: {
     textAlign: "center",
     fontSize: 13,
-    fontFamily: "PlusJakartaSans_500Medium",
-    color: "#64748b",
+    fontFamily: fonts.medium,
+    color: TEXT_3,
     letterSpacing: 0.2,
   },
   footer: {
@@ -421,8 +430,8 @@ const s = StyleSheet.create({
   },
   footerTagline: {
     fontSize: 10,
-    fontFamily: "PlusJakartaSans_400Regular",
-    color: "#64748b",
+    fontFamily: fonts.regular,
+    color: TEXT_3,
     letterSpacing: 0.5,
   },
 });

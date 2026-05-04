@@ -4,6 +4,14 @@ import { Ionicons } from "@expo/vector-icons";
 import { TripMapWidget } from "../map/TripMapWidget";
 import { TRIP_CATEGORY_META } from "@mileclear/shared";
 import type { TripDetail } from "../../lib/api/trips";
+import { colors, fonts } from "../../lib/theme";
+
+// Local theme aliases — same pattern as the (tabs) screens.
+const AMBER = colors.amber;
+const CARD_BG = colors.surface;
+const TEXT_1 = colors.text1;
+const TEXT_2 = colors.text2;
+const TEXT_3 = colors.text3;
 
 interface JourneyTimelineProps {
   trips: TripDetail[];
@@ -59,7 +67,7 @@ export function JourneyTimeline({ trips }: JourneyTimelineProps) {
                 const meta = TRIP_CATEGORY_META.find((c) => c.value === (trip as any).category);
                 return meta ? (
                   <View style={styles.categoryBadge}>
-                    <Ionicons name={meta.icon as any} size={10} color="#f5a623" />
+                    <Ionicons name={meta.icon as any} size={10} color={AMBER} />
                     <Text style={styles.categoryText}>{meta.label}</Text>
                   </View>
                 ) : null;
@@ -121,17 +129,17 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: 15,
-    fontFamily: "PlusJakartaSans_600SemiBold",
-    color: "#f0f2f5",
+    fontFamily: fonts.semibold,
+    color: TEXT_1,
     letterSpacing: -0.2,
   },
   seeAll: {
     fontSize: 13,
-    fontFamily: "PlusJakartaSans_500Medium",
-    color: "#f5a623",
+    fontFamily: fonts.medium,
+    color: AMBER,
   },
   card: {
-    backgroundColor: "#0a1120",
+    backgroundColor: CARD_BG,
     borderRadius: 12,
     padding: 14,
     marginBottom: 10,
@@ -160,26 +168,26 @@ const styles = StyleSheet.create({
   },
   categoryText: {
     fontSize: 10,
-    fontFamily: "PlusJakartaSans_600SemiBold",
-    color: "#f5a623",
+    fontFamily: fonts.semibold,
+    color: AMBER,
   },
   noteText: {
     fontSize: 12,
-    fontFamily: "PlusJakartaSans_400Regular",
-    color: "#6b7280",
+    fontFamily: fonts.regular,
+    color: TEXT_3,
     fontStyle: "italic",
     lineHeight: 17,
     marginBottom: 6,
   },
   date: {
     fontSize: 13,
-    fontFamily: "PlusJakartaSans_500Medium",
-    color: "#8494a7",
+    fontFamily: fonts.medium,
+    color: TEXT_2,
   },
   distance: {
     fontSize: 16,
-    fontFamily: "PlusJakartaSans_700Bold",
-    color: "#f0f2f5",
+    fontFamily: fonts.bold,
+    color: TEXT_1,
   },
   addressRow: {
     flexDirection: "row",
@@ -188,14 +196,14 @@ const styles = StyleSheet.create({
   },
   address: {
     fontSize: 12,
-    fontFamily: "PlusJakartaSans_400Regular",
-    color: "#64748b",
+    fontFamily: fonts.regular,
+    color: TEXT_3,
     flexShrink: 1,
   },
   arrow: {
     fontSize: 12,
-    fontFamily: "PlusJakartaSans_400Regular",
-    color: "#64748b",
+    fontFamily: fonts.regular,
+    color: TEXT_3,
   },
   mapWrap: {
     borderRadius: 10,

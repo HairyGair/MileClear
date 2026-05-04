@@ -15,6 +15,11 @@ import * as Location from "expo-location";
 import { Ionicons } from "@expo/vector-icons";
 import { AvatarIcon } from "../avatars/AvatarRegistry";
 import type { TripDetail } from "../../lib/api/trips";
+import { colors, fonts } from "../../lib/theme";
+
+// Local theme aliases — same pattern as the (tabs) screens.
+const TEXT_1 = colors.text1;
+const RED = colors.red;
 
 // Lazy native map import (Expo Go safe)
 let MapViewComponent: any = null;
@@ -48,10 +53,10 @@ interface SmartMapProps {
   height?: number;
 }
 
-const AMBER = "#f5a623";
-const BG = "#0a1120";
+const AMBER = colors.amber;
+const BG = colors.bg;
 const CARD_BORDER = "rgba(255,255,255,0.05)";
-const TEXT_2 = "#8494a7";
+const TEXT_2 = colors.text2;
 
 export function SmartMap({ avatarId, lastTrip, height = 240 }: SmartMapProps) {
   const mapRef = useRef<any>(null);
@@ -334,7 +339,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   fallbackText: {
-    fontFamily: "PlusJakartaSans_400Regular",
+    fontFamily: fonts.regular,
     fontSize: 13,
     color: TEXT_2,
     textAlign: "center",
@@ -370,12 +375,12 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   routeBadgeText: {
-    fontFamily: "PlusJakartaSans_400Regular",
+    fontFamily: fonts.regular,
     fontSize: 11,
     color: TEXT_2,
   },
   routeBadgeDistance: {
-    fontFamily: "PlusJakartaSans_700Bold",
+    fontFamily: fonts.bold,
     fontSize: 13,
     color: AMBER,
   },
@@ -420,13 +425,13 @@ const styles = StyleSheet.create({
     width: 10,
     height: 10,
     borderRadius: 5,
-    backgroundColor: "#ef4444",
+    backgroundColor: RED,
     borderWidth: 2,
     borderColor: "#fff",
   },
   fullscreenContainer: {
     flex: 1,
-    backgroundColor: "#030712",
+    backgroundColor: BG,
   },
   closeBtn: {
     position: "absolute",
@@ -441,7 +446,7 @@ const styles = StyleSheet.create({
   },
   closeBtnText: {
     fontSize: 15,
-    fontFamily: "PlusJakartaSans_600SemiBold",
-    color: "#f0f2f5",
+    fontFamily: fonts.semibold,
+    color: TEXT_1,
   },
 });

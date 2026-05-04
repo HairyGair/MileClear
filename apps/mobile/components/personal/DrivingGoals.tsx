@@ -21,6 +21,17 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { getDatabase } from "../../lib/db/index";
+import { colors, fonts } from "../../lib/theme";
+
+// Local theme aliases — same pattern as the (tabs) screens.
+const AMBER = colors.amber;
+const CARD_BG = colors.surface;
+const TEXT_1 = colors.text1;
+const TEXT_2 = colors.text2;
+const TEXT_3 = colors.text3;
+const BG = colors.bg;
+const GREEN = colors.green;
+const RED = colors.red;
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
@@ -48,7 +59,7 @@ function getStatusMessage(
   const pct = Math.round((weekMiles / target) * 100);
 
   if (weekMiles === 0) {
-    return { text: "No miles recorded yet this week", color: "#64748b" };
+    return { text: "No miles recorded yet this week", color: TEXT_3 };
   }
   if (remaining <= 0) {
     const over = Math.abs(remaining);
@@ -57,24 +68,24 @@ function getStatusMessage(
         over < 0.1
           ? "You hit your target exactly!"
           : `${formatMiles(over)} miles over target`,
-      color: "#ef4444",
+      color: RED,
     };
   }
   if (pct >= 80) {
     return {
       text: `Almost there — ${formatMiles(remaining)} miles to go`,
-      color: "#10b981",
+      color: GREEN,
     };
   }
   if (pct >= 50) {
     return {
       text: `On track — ${formatMiles(remaining)} miles to go`,
-      color: "#10b981",
+      color: GREEN,
     };
   }
   return {
     text: `${formatMiles(remaining)} miles left this week`,
-    color: "#8494a7",
+    color: TEXT_2,
   };
 }
 
@@ -247,10 +258,10 @@ export function DrivingGoals({ weekMiles }: DrivingGoalsProps) {
   const status = getStatusMessage(weekMiles, target);
 
   const progressColor = isOver
-    ? "#ef4444"
+    ? RED
     : progressPct >= 0.8
-    ? "#10b981"
-    : "#f5a623";
+    ? GREEN
+    : AMBER;
 
   // Animated bar width as a percentage string
   const animatedWidth = progressAnim.interpolate({
@@ -266,7 +277,7 @@ export function DrivingGoals({ weekMiles }: DrivingGoalsProps) {
           <Ionicons
             name={isComplete ? "checkmark-circle" : "flag"}
             size={16}
-            color={isComplete ? "#10b981" : "#f5a623"}
+            color={isComplete ? GREEN : AMBER}
           />
         </View>
 
@@ -284,14 +295,14 @@ export function DrivingGoals({ weekMiles }: DrivingGoalsProps) {
             onPress={() => promptSetGoal(String(target))}
             hitSlop={{ top: 8, bottom: 8, left: 8, right: 4 }}
           >
-            <Ionicons name="pencil" size={14} color="#8494a7" />
+            <Ionicons name="pencil" size={14} color={TEXT_2} />
           </TouchableOpacity>
           <TouchableOpacity
             style={styles.actionBtn}
             onPress={confirmClearGoal}
             hitSlop={{ top: 8, bottom: 8, left: 4, right: 8 }}
           >
-            <Ionicons name="close" size={15} color="#64748b" />
+            <Ionicons name="close" size={15} color={TEXT_3} />
           </TouchableOpacity>
         </View>
       </View>
@@ -323,10 +334,10 @@ export function DrivingGoals({ weekMiles }: DrivingGoalsProps) {
               styles.pctText,
               {
                 color: isOver
-                  ? "#ef4444"
+                  ? RED
                   : isComplete
-                  ? "#10b981"
-                  : "#f5a623",
+                  ? GREEN
+                  : AMBER,
               },
             ]}
           >
@@ -373,7 +384,7 @@ export function DrivingGoals({ weekMiles }: DrivingGoalsProps) {
       {/* Success banner */}
       {isComplete && !isOver && (
         <View style={styles.successBanner}>
-          <Ionicons name="trophy" size={13} color="#10b981" />
+          <Ionicons name="trophy" size={13} color={GREEN} />
           <Text style={styles.successText}>
             Goal achieved this week — well done!
           </Text>
@@ -387,7 +398,7 @@ export function DrivingGoals({ weekMiles }: DrivingGoalsProps) {
 
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: "#0a1120",
+    backgroundColor: CARD_BG,
     borderRadius: 16,
     padding: 16,
     marginBottom: 16,
@@ -404,13 +415,13 @@ const styles = StyleSheet.create({
   },
   emptyTitle: {
     fontSize: 14,
-    fontFamily: "PlusJakartaSans_600SemiBold",
-    color: "#f0f2f5",
+    fontFamily: fonts.semibold,
+    color: TEXT_1,
   },
   emptySubtitle: {
     fontSize: 12,
-    fontFamily: "PlusJakartaSans_400Regular",
-    color: "#64748b",
+    fontFamily: fonts.regular,
+    color: TEXT_3,
     marginTop: 2,
   },
   setGoalBtn: {
@@ -418,14 +429,14 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     gap: 6,
-    backgroundColor: "#f5a623",
+    backgroundColor: AMBER,
     borderRadius: 10,
     paddingVertical: 11,
   },
   setGoalBtnText: {
     fontSize: 14,
-    fontFamily: "PlusJakartaSans_700Bold",
-    color: "#030712",
+    fontFamily: fonts.bold,
+    color: BG,
     letterSpacing: 0.1,
   },
 
@@ -446,13 +457,13 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: 14,
-    fontFamily: "PlusJakartaSans_600SemiBold",
-    color: "#f0f2f5",
+    fontFamily: fonts.semibold,
+    color: TEXT_1,
   },
   subtitle: {
     fontSize: 12,
-    fontFamily: "PlusJakartaSans_400Regular",
-    color: "#64748b",
+    fontFamily: fonts.regular,
+    color: TEXT_3,
     marginTop: 1,
   },
   actions: {
@@ -478,27 +489,27 @@ const styles = StyleSheet.create({
   },
   milesValue: {
     fontSize: 28,
-    fontFamily: "PlusJakartaSans_300Light",
-    color: "#f5a623",
+    fontFamily: fonts.light,
+    color: AMBER,
     letterSpacing: -0.8,
   },
   milesValueOver: {
-    color: "#ef4444",
+    color: RED,
   },
   milesSlash: {
     fontSize: 18,
-    fontFamily: "PlusJakartaSans_300Light",
-    color: "#64748b",
+    fontFamily: fonts.light,
+    color: TEXT_3,
   },
   milesTarget: {
     fontSize: 18,
-    fontFamily: "PlusJakartaSans_400Regular",
-    color: "#8494a7",
+    fontFamily: fonts.regular,
+    color: TEXT_2,
   },
   milesUnit: {
     fontSize: 14,
-    fontFamily: "PlusJakartaSans_400Regular",
-    color: "#64748b",
+    fontFamily: fonts.regular,
+    color: TEXT_3,
     marginLeft: 2,
   },
   pctBadge: {
@@ -510,7 +521,7 @@ const styles = StyleSheet.create({
   },
   pctText: {
     fontSize: 12,
-    fontFamily: "PlusJakartaSans_700Bold",
+    fontFamily: fonts.bold,
     letterSpacing: 0.2,
   },
 
@@ -543,7 +554,7 @@ const styles = StyleSheet.create({
   },
   statusText: {
     fontSize: 12,
-    fontFamily: "PlusJakartaSans_500Medium",
+    fontFamily: fonts.medium,
     flexShrink: 1,
   },
 
@@ -559,7 +570,7 @@ const styles = StyleSheet.create({
   },
   successText: {
     fontSize: 12,
-    fontFamily: "PlusJakartaSans_600SemiBold",
-    color: "#10b981",
+    fontFamily: fonts.semibold,
+    color: GREEN,
   },
 });

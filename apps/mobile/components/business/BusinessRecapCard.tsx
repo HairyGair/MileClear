@@ -9,12 +9,17 @@ import {
   captureAndShareBusinessRecap,
   type BusinessRecapShareData,
 } from "./BusinessShareableRecap";
+import { colors, fonts } from "../../lib/theme";
 
-const AMBER = "#f5a623";
-const GREEN = "#10b981";
-const TEXT_1 = "#f0f2f5";
-const TEXT_2 = "#8494a7";
-const TEXT_3 = "#64748b";
+// Local theme aliases — same pattern as the (tabs) screens.
+const CARD_BG = colors.surface;
+const RED = colors.red;
+
+const AMBER = colors.amber;
+const GREEN = colors.green;
+const TEXT_1 = colors.text1;
+const TEXT_2 = colors.text2;
+const TEXT_3 = colors.text3;
 
 function platformLabel(tag: string): string {
   const map: Record<string, string> = {
@@ -201,11 +206,11 @@ export function BusinessRecapCard() {
                 <Ionicons
                   name={pnl.netProfitPence >= 0 ? "trending-up" : "trending-down"}
                   size={12}
-                  color={pnl.netProfitPence >= 0 ? GREEN : "#ef4444"}
+                  color={pnl.netProfitPence >= 0 ? GREEN : RED}
                 />
               </View>
               <Text style={styles.insightText}>
-                Net profit: <Text style={{ color: pnl.netProfitPence >= 0 ? GREEN : "#ef4444" }}>{formatPence(pnl.netProfitPence)}</Text>
+                Net profit: <Text style={{ color: pnl.netProfitPence >= 0 ? GREEN : RED }}>{formatPence(pnl.netProfitPence)}</Text>
               </Text>
             </View>
           )}
@@ -249,7 +254,7 @@ const styles = StyleSheet.create({
     top: 0,
   },
   card: {
-    backgroundColor: "#0a1120",
+    backgroundColor: CARD_BG,
     borderRadius: 16,
     marginBottom: 16,
     borderWidth: 1,
@@ -257,7 +262,7 @@ const styles = StyleSheet.create({
     overflow: "hidden",
     ...Platform.select({
       ios: {
-        shadowColor: "#f5a623",
+        shadowColor: AMBER,
         shadowOffset: { width: 0, height: 4 },
         shadowOpacity: 0.08,
         shadowRadius: 16,
@@ -294,7 +299,7 @@ const styles = StyleSheet.create({
   },
   heading: {
     fontSize: 15,
-    fontFamily: "PlusJakartaSans_700Bold",
+    fontFamily: fonts.bold,
     color: TEXT_1,
     letterSpacing: -0.3,
     flex: 1,
@@ -315,7 +320,7 @@ const styles = StyleSheet.create({
   },
   toggleText: {
     fontSize: 11,
-    fontFamily: "PlusJakartaSans_500Medium",
+    fontFamily: fonts.medium,
     color: TEXT_3,
   },
   toggleTextActive: {
@@ -337,13 +342,13 @@ const styles = StyleSheet.create({
   },
   heroValue: {
     fontSize: 24,
-    fontFamily: "PlusJakartaSans_300Light",
+    fontFamily: fonts.light,
     color: AMBER,
     letterSpacing: -0.8,
   },
   heroUnit: {
     fontSize: 11,
-    fontFamily: "PlusJakartaSans_500Medium",
+    fontFamily: fonts.medium,
     color: TEXT_2,
     letterSpacing: 0.2,
   },
@@ -380,12 +385,12 @@ const styles = StyleSheet.create({
   },
   insightText: {
     fontSize: 13,
-    fontFamily: "PlusJakartaSans_400Regular",
+    fontFamily: fonts.regular,
     color: TEXT_2,
     flex: 1,
   },
   insightHighlight: {
-    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontFamily: fonts.semibold,
     color: TEXT_1,
   },
   separator: {
@@ -405,7 +410,7 @@ const styles = StyleSheet.create({
   },
   shareText: {
     fontSize: 14,
-    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontFamily: fonts.semibold,
     color: AMBER,
     letterSpacing: 0.1,
   },

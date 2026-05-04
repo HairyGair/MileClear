@@ -1,5 +1,13 @@
 import { View, Text, StyleSheet } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { colors, fonts } from "../../lib/theme";
+
+// Local theme aliases — same pattern as the (tabs) screens.
+const AMBER = colors.amber;
+const CARD_BG = colors.surface;
+const TEXT_1 = colors.text1;
+const TEXT_2 = colors.text2;
+const TEXT_3 = colors.text3;
 
 interface MilestoneTrackerProps {
   totalMiles: number;
@@ -54,7 +62,7 @@ export function MilestoneTracker({ totalMiles }: MilestoneTrackerProps) {
     <View style={styles.card}>
       <View style={styles.header}>
         <View style={styles.iconWrap}>
-          <Ionicons name="flag" size={16} color="#f5a623" />
+          <Ionicons name="flag" size={16} color={AMBER} />
         </View>
         <View style={{ flex: 1 }}>
           <Text style={styles.title}>Next: {nextMilestone.label}</Text>
@@ -89,7 +97,7 @@ export function MilestoneTracker({ totalMiles }: MilestoneTrackerProps) {
 
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: "#0a1120",
+    backgroundColor: CARD_BG,
     borderRadius: 16,
     padding: 16,
     marginBottom: 16,
@@ -112,19 +120,19 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: 14,
-    fontFamily: "PlusJakartaSans_600SemiBold",
-    color: "#f0f2f5",
+    fontFamily: fonts.semibold,
+    color: TEXT_1,
   },
   subtitle: {
     fontSize: 12,
-    fontFamily: "PlusJakartaSans_400Regular",
-    color: "#64748b",
+    fontFamily: fonts.regular,
+    color: TEXT_3,
     marginTop: 1,
   },
   target: {
     fontSize: 13,
-    fontFamily: "PlusJakartaSans_600SemiBold",
-    color: "#8494a7",
+    fontFamily: fonts.semibold,
+    color: TEXT_2,
   },
   progressBg: {
     height: 6,
@@ -136,12 +144,12 @@ const styles = StyleSheet.create({
   progressFill: {
     height: "100%",
     borderRadius: 3,
-    backgroundColor: "#f5a623",
+    backgroundColor: AMBER,
   },
   remaining: {
     fontSize: 12,
-    fontFamily: "PlusJakartaSans_500Medium",
-    color: "#8494a7",
+    fontFamily: fonts.medium,
+    color: TEXT_2,
     marginBottom: 4,
   },
   achievedRow: {
@@ -155,7 +163,7 @@ const styles = StyleSheet.create({
   },
   achievedText: {
     fontSize: 12,
-    fontFamily: "PlusJakartaSans_400Regular",
-    color: "#64748b",
+    fontFamily: fonts.regular,
+    color: TEXT_3,
   },
 });

@@ -14,14 +14,15 @@ import type {
   BenchmarkComparison,
   PlatformBenchmark,
 } from "@mileclear/shared";
+import { colors } from "../../lib/theme";
 
-const CARD_BG = "#0a1120";
+const CARD_BG = colors.surface;
 const CARD_BORDER = "rgba(255,255,255,0.05)";
-const AMBER = "#f5a623";
-const GREEN = "#10b981";
-const TEXT_1 = "#f0f2f5";
-const TEXT_2 = "#8494a7";
-const TEXT_3 = "#64748b";
+const AMBER = colors.amber;
+const GREEN = colors.green;
+const TEXT_1 = colors.text1;
+const TEXT_2 = colors.text2;
+const TEXT_3 = colors.text3;
 
 function formatValue(v: number, unit: BenchmarkComparison["unit"]): string {
   if (unit === "miles") return `${v.toFixed(1)} mi`;
