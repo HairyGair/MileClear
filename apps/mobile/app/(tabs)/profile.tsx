@@ -1036,7 +1036,7 @@ export default function ProfileScreen() {
             <GroupItem
               icon="star-outline"
               label="Rate MileClear"
-              onPress={() => {
+              onPress={async () => {
                 // Direct App Store deep link. Bypasses
                 // SKStoreReviewController's silent per-user-per-year
                 // 3-prompt ceiling — heavy testers hit that wall and
@@ -1045,6 +1045,15 @@ export default function ProfileScreen() {
                   method: "POST",
                   body: JSON.stringify({ type: "rating.manual_open", metadata: { source: "profile" } }),
                 }).catch(() => {});
+                // User has explicitly chosen to rate. Stop the in-app
+                // prompt from asking again either way — they've made
+                // their decision, no need to pester after this.
+                try {
+                  const d = await getDatabase();
+                  await d.runAsync(
+                    "INSERT OR REPLACE INTO tracking_state (key, value) VALUES ('review_given', '1')"
+                  );
+                } catch {}
                 Linking.openURL(
                   "itms-apps://itunes.apple.com/app/id6759671005?action=write-review"
                 ).catch(() =>

@@ -334,11 +334,11 @@ export default function DashboardScreen() {
       Location.getBackgroundPermissionsAsync().then((res) => {
         setBgLocationGranted(res.status === Location.PermissionStatus.GRANTED);
       }).catch(() => {});
-      // Passive trigger for users who never hit the classify / achievement /
-      // scorecard paths - gated by all the standard rating guards (3+ trips,
-      // 3-day cooldown, once-per-session). Delayed so it doesn't jump the
-      // moment the dashboard renders.
-      setTimeout(() => maybeRequestReview("dashboard_focus"), 4000);
+      // dashboard_focus rating trigger removed 4 May 2026 — was the
+      // dominant source of "Not now" dismissals. Rating prompts now
+      // only fire after positive moments (achievement, streak, trip
+      // saved/classified, scorecard). Manual fallback lives at
+      // Profile → Rate MileClear for users who want to volunteer one.
     }, [loadData])
   );
 

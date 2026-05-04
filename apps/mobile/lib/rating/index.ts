@@ -4,12 +4,14 @@ import { router } from "expo-router";
 import { getDatabase } from "../db/index";
 import { apiRequest } from "../api/index";
 
-// Cooldown between "Not now" dismissals. Kept short enough that a tester who
-// dismisses once still sees the prompt again within the same week of testing,
-// but long enough that we're not pestering. The permanent "Already rated"
-// flag is the real escape hatch, not this cooldown.
-const COOLDOWN_MS = 3 * 24 * 60 * 60 * 1000; // 3 days
-const MIN_TRIPS = 3;
+// Cooldown progression after "Not now" dismissals. Escalates so a
+// dismisser isn't pestered, and after MAX_NOT_NOW_DISMISSALS we stop
+// asking entirely (we've now had three goes — back off and let the
+// manual Profile → Rate MileClear button be the path).
+const COOLDOWN_MS_DAY = 24 * 60 * 60 * 1000;
+const COOLDOWN_PROGRESSION_DAYS = [14, 30]; // 1st Not Now: 14d. 2nd: 30d. 3rd: permanent stop.
+const MAX_NOT_NOW_DISMISSALS = 3;
+const MIN_TRIPS = 5;
 
 // Prevents the prompt from stacking multiple times in a single app session -
 // e.g. if the user triggers it from the dashboard focus AND then classifies
@@ -76,17 +78,46 @@ export async function maybeRequestReview(trigger: string): Promise<void> {
       return;
     }
 
-    // Check cooldown (3 days)
+    // Don't interrupt an active trip-recording session. The prompt
+    // would feel like a notification getting in the way, not a polite
+    // ask. We can't know from JS whether the user is mid-drive, but
+    // we can check whether a recording is active.
+    const recordingRow = await db.getFirstAsync<{ value: string }>(
+      "SELECT value FROM tracking_state WHERE key = 'auto_recording_active'"
+    );
+    if (recordingRow?.value === "1") {
+      trackRatingEvent("rating.skipped_recording_active", { trigger });
+      return;
+    }
+
+    // Per-user "Not now" budget. After MAX_NOT_NOW_DISMISSALS the
+    // prompt stops asking forever. The Profile → Rate MileClear path
+    // remains as a manual escape hatch.
+    const notNowRow = await db.getFirstAsync<{ value: string }>(
+      "SELECT value FROM tracking_state WHERE key = 'rating_not_now_count'"
+    );
+    const notNowCount = notNowRow ? parseInt(notNowRow.value, 10) : 0;
+    if (notNowCount >= MAX_NOT_NOW_DISMISSALS) {
+      trackRatingEvent("rating.skipped_max_dismissals", { trigger, notNowCount });
+      return;
+    }
+
+    // Escalating cooldown after each "Not now". Prevents asking again
+    // within the cooldown window for the user's current dismissal tier.
     const lastRow = await db.getFirstAsync<{ value: string }>(
       "SELECT value FROM tracking_state WHERE key = 'last_review_prompt_at'"
     );
     if (lastRow) {
       const lastPrompt = parseInt(lastRow.value, 10);
       const elapsedMs = Date.now() - lastPrompt;
-      if (elapsedMs < COOLDOWN_MS) {
+      const cooldownDays = COOLDOWN_PROGRESSION_DAYS[Math.min(notNowCount, COOLDOWN_PROGRESSION_DAYS.length - 1)] ?? 30;
+      const cooldownMs = cooldownDays * COOLDOWN_MS_DAY;
+      if (elapsedMs < cooldownMs) {
         trackRatingEvent("rating.skipped_cooldown", {
           trigger,
           elapsedHours: Math.round(elapsedMs / 3_600_000),
+          cooldownDays,
+          notNowCount,
         });
         return;
       }
@@ -136,8 +167,19 @@ export async function maybeRequestReview(trigger: string): Promise<void> {
         {
           text: "Not now",
           style: "cancel",
-          onPress: () => {
+          onPress: async () => {
             trackRatingEvent("rating.not_now", { trigger });
+            try {
+              const d = await getDatabase();
+              const row = await d.getFirstAsync<{ value: string }>(
+                "SELECT value FROM tracking_state WHERE key = 'rating_not_now_count'"
+              );
+              const next = (row ? parseInt(row.value, 10) : 0) + 1;
+              await d.runAsync(
+                "INSERT OR REPLACE INTO tracking_state (key, value) VALUES ('rating_not_now_count', ?)",
+                [String(next)]
+              );
+            } catch {}
           },
         },
       ]
