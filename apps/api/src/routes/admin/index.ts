@@ -2343,4 +2343,146 @@ export async function adminRoutes(app: FastifyInstance) {
       },
     });
   });
+
+  // ── Slow requests, broken down by endpoint ────────────────────────
+  //
+  // perf.slow_request dominates the issues-by-hour chart; this is the
+  // drill. Pulls every slow_request event in the 14-day window and
+  // groups by a normalised path (UUIDs and numeric IDs collapsed to
+  // ":id", query strings stripped). Reports count, avg duration, p95.
+  app.get("/slow-requests-by-endpoint", async (_request, reply) => {
+    const WINDOW_DAYS = 14;
+    const since = new Date(Date.now() - WINDOW_DAYS * 24 * 60 * 60 * 1000);
+
+    const events = await prisma.appEvent.findMany({
+      where: {
+        type: "perf.slow_request",
+        createdAt: { gte: since },
+      },
+      select: { metadata: true },
+    });
+
+    const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    const NUMERIC_RE = /^\d+$/;
+
+    function normalisePath(raw: string): string {
+      const noQuery = raw.split("?")[0];
+      return noQuery
+        .split("/")
+        .map((seg) => {
+          if (!seg) return seg;
+          if (UUID_RE.test(seg)) return ":id";
+          if (NUMERIC_RE.test(seg)) return ":id";
+          return seg;
+        })
+        .join("/");
+    }
+
+    const groups = new Map<
+      string,
+      { method: string; path: string; durations: number[]; statusCounts: Map<number, number> }
+    >();
+
+    for (const e of events) {
+      const md = e.metadata as { path?: unknown; method?: unknown; durationMs?: unknown; statusCode?: unknown } | null;
+      if (!md || typeof md.path !== "string" || typeof md.durationMs !== "number") continue;
+      const method = typeof md.method === "string" ? md.method : "?";
+      const path = normalisePath(md.path);
+      const status = typeof md.statusCode === "number" ? md.statusCode : 0;
+      const key = `${method} ${path}`;
+      let g = groups.get(key);
+      if (!g) {
+        g = { method, path, durations: [], statusCounts: new Map() };
+        groups.set(key, g);
+      }
+      g.durations.push(md.durationMs);
+      g.statusCounts.set(status, (g.statusCounts.get(status) ?? 0) + 1);
+    }
+
+    const rows = Array.from(groups.entries()).map(([key, g]) => {
+      const sorted = [...g.durations].sort((a, b) => a - b);
+      const avg = sorted.reduce((acc, n) => acc + n, 0) / sorted.length;
+      const p95Idx = Math.min(sorted.length - 1, Math.floor(sorted.length * 0.95));
+      const p95 = sorted[p95Idx];
+      const max = sorted[sorted.length - 1];
+      const topStatus = Array.from(g.statusCounts.entries()).sort(
+        (a, b) => b[1] - a[1]
+      )[0]?.[0] ?? 0;
+      return {
+        key,
+        method: g.method,
+        path: g.path,
+        count: g.durations.length,
+        avgDurationMs: Math.round(avg),
+        p95DurationMs: Math.round(p95),
+        maxDurationMs: Math.round(max),
+        topStatus,
+      };
+    });
+
+    rows.sort((a, b) => b.count - a.count);
+
+    return reply.send({
+      data: {
+        windowDays: WINDOW_DAYS,
+        thresholdMs: 2000,
+        totalEvents: events.length,
+        rows: rows.slice(0, 25),
+        distinctEndpoints: rows.length,
+        generatedAt: new Date().toISOString(),
+      },
+    });
+  });
+
+  // ── Background fetch status snapshot ──────────────────────────────
+  //
+  // Counts users by their last-reported iOS Background App Refresh
+  // state. "denied" / "restricted" mean iOS won't run our background
+  // tasks at all — a quiet killer for trip-recording reliability.
+  // Snapshot only (no historical trend); tracks current population.
+  app.get("/background-fetch-status", async (_request, reply) => {
+    const rows = await prisma.user.groupBy({
+      by: ["backgroundFetchStatus"],
+      _count: { id: true },
+    });
+
+    // Only count users active enough to matter — bg-fetch denial only
+    // hurts users who actually use the app.
+    const ACTIVE_DAYS = 30;
+    const activeSince = new Date(Date.now() - ACTIVE_DAYS * 24 * 60 * 60 * 1000);
+    const activeRows = await prisma.user.groupBy({
+      by: ["backgroundFetchStatus"],
+      where: {
+        OR: [
+          { lastHeartbeatAt: { gte: activeSince } },
+          { lastDrivingSpeedAt: { gte: activeSince } },
+        ],
+      },
+      _count: { id: true },
+    });
+
+    function shape(rs: Array<{ backgroundFetchStatus: string | null; _count: { id: number } }>) {
+      const counts: Record<string, number> = {
+        available: 0,
+        denied: 0,
+        restricted: 0,
+        unknown: 0,
+        not_reported: 0,
+      };
+      for (const r of rs) {
+        const key = r.backgroundFetchStatus ?? "not_reported";
+        counts[key] = (counts[key] ?? 0) + r._count.id;
+      }
+      return counts;
+    }
+
+    return reply.send({
+      data: {
+        activeWindowDays: ACTIVE_DAYS,
+        all: shape(rows),
+        active: shape(activeRows),
+        generatedAt: new Date().toISOString(),
+      },
+    });
+  });
 }
