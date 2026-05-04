@@ -196,6 +196,7 @@ export async function getStats(userId: string): Promise<GamificationStats> {
     prisma.trip.aggregate({
       where: {
         userId,
+        isPhantomTrip: false,
         startedAt: { gte: todayStart, lte: todayEnd },
       },
       _sum: { distanceMiles: true },
@@ -203,6 +204,7 @@ export async function getStats(userId: string): Promise<GamificationStats> {
     prisma.trip.count({
       where: {
         userId,
+        isPhantomTrip: false,
         startedAt: { gte: todayStart, lte: todayEnd },
       },
     }),
@@ -219,6 +221,7 @@ export async function getStats(userId: string): Promise<GamificationStats> {
   const weekAgg = await prisma.trip.aggregate({
     where: {
       userId,
+      isPhantomTrip: false,
       startedAt: { gte: weekStart, lte: todayEnd },
     },
     _sum: { distanceMiles: true },
@@ -226,15 +229,16 @@ export async function getStats(userId: string): Promise<GamificationStats> {
 
   // Counts
   const [totalTrips, totalShifts] = await Promise.all([
-    prisma.trip.count({ where: { userId } }),
+    prisma.trip.count({ where: { userId, isPhantomTrip: false } }),
     prisma.shift.count({ where: { userId, status: "completed" } }),
   ]);
 
-  // Streak from distinct trip dates
+  // Streak from distinct trip dates (excluding phantoms — a walking
+  // misfire shouldn't extend a driving streak).
   const tripDates = await prisma.$queryRaw<{ tripDate: string }[]>`
     SELECT DISTINCT DATE(startedAt) as tripDate
     FROM trips
-    WHERE userId = ${userId}
+    WHERE userId = ${userId} AND isPhantomTrip = false
     ORDER BY tripDate DESC
   `;
 
@@ -249,7 +253,7 @@ export async function getStats(userId: string): Promise<GamificationStats> {
 
   // Detect user's home region from most recent trips
   const recentTrips = await prisma.trip.findMany({
-    where: { userId, startLat: { not: 0 } },
+    where: { userId, isPhantomTrip: false, startLat: { not: 0 } },
     select: { startLat: true, startLng: true },
     orderBy: { startedAt: "desc" },
     take: 20,
@@ -264,7 +268,7 @@ export async function getStats(userId: string): Promise<GamificationStats> {
 
   // Driving patterns — day of week, time of day, top places
   const patternTrips = await prisma.trip.findMany({
-    where: { userId },
+    where: { userId, isPhantomTrip: false },
     select: { startedAt: true, endAddress: true },
     orderBy: { startedAt: "desc" },
     take: 500,
@@ -339,10 +343,10 @@ export async function checkAndAwardAchievements(
         where: { userId },
         select: { type: true },
       }),
-      prisma.trip.count({ where: { userId } }),
+      prisma.trip.count({ where: { userId, isPhantomTrip: false } }),
       prisma.shift.count({ where: { userId, status: "completed" } }),
       prisma.trip.aggregate({
-        where: { userId },
+        where: { userId, isPhantomTrip: false },
         _sum: { distanceMiles: true },
       }),
       prisma.earning.aggregate({
@@ -352,7 +356,7 @@ export async function checkAndAwardAchievements(
       prisma.$queryRaw<{ tripDate: string }[]>`
         SELECT DISTINCT DATE(startedAt) as tripDate
         FROM trips
-        WHERE userId = ${userId}
+        WHERE userId = ${userId} AND isPhantomTrip = false
         ORDER BY tripDate DESC
       `,
     ]);
@@ -483,7 +487,7 @@ export async function getShiftScorecard(
 
   // Get trips in this shift
   const trips = await prisma.trip.findMany({
-    where: { shiftId: shift.id, userId },
+    where: { shiftId: shift.id, userId, isPhantomTrip: false },
     include: { vehicle: true },
   });
 
@@ -605,6 +609,7 @@ export async function getPeriodRecap(
   const trips = await prisma.trip.findMany({
     where: {
       userId,
+      isPhantomTrip: false,
       startedAt: { gte: start, lte: end },
     },
     include: { vehicle: true },

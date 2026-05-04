@@ -44,6 +44,7 @@ export async function fetchExportTrips(
     prisma.trip.findMany({
       where: {
         userId: opts.userId,
+        isPhantomTrip: false,
         startedAt: { gte: start, lte: end },
         ...(opts.classification ? { classification: opts.classification } : {}),
       },
@@ -142,7 +143,7 @@ export async function fetchExportSummary(
 
   const [trips, earnings, user, primaryVehicle] = await Promise.all([
     prisma.trip.findMany({
-      where: { userId, startedAt: { gte: start, lte: end } },
+      where: { userId, isPhantomTrip: false, startedAt: { gte: start, lte: end } },
       include: {
         vehicle: {
           select: { make: true, model: true, vehicleType: true },

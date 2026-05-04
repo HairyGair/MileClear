@@ -19,6 +19,7 @@ import { checkAndAwardAchievements } from "../../services/gamification.js";
 import { sendMilestonePush, sendAchievementPush } from "../../jobs/notifications.js";
 import { logEvent } from "../../services/appEvents.js";
 import { advanceLastTripAt } from "../../services/userActivity.js";
+import { looksLikePhantomTrip } from "../../lib/phantomTrip.js";
 
 // Server-side geocoding: resolve an address to coordinates via Postcodes.io or Nominatim
 async function geocodeAddress(addr: string): Promise<{ lat: number; lng: number } | null> {
@@ -209,6 +210,14 @@ export async function tripRoutes(app: FastifyInstance) {
     const finalClassification = tripData.classification;
     const finalPlatformTag: string | null = tripData.platformTag ?? null;
 
+    const isManualEntry = !hasCoordinates;
+    const isPhantomTrip = looksLikePhantomTrip({
+      distanceMiles,
+      startedAt: tripData.startedAt,
+      endedAt: tripData.endedAt,
+      isManualEntry,
+    });
+
     const tripPayload = {
       userId,
       shiftId: tripData.shiftId ?? null,
@@ -222,7 +231,8 @@ export async function tripRoutes(app: FastifyInstance) {
       distanceMiles,
       startedAt: tripData.startedAt,
       endedAt: tripData.endedAt ?? null,
-      isManualEntry: !hasCoordinates,
+      isManualEntry,
+      isPhantomTrip,
       classification: finalClassification,
       platformTag: finalPlatformTag,
       businessPurpose: tripData.businessPurpose ?? null,
@@ -262,24 +272,42 @@ export async function tripRoutes(app: FastifyInstance) {
       });
     }
 
-    // Fire-and-forget: update mileage summary + check achievements + push notifications
-    const taxYear = getTaxYear(data.startedAt);
-    upsertMileageSummary(userId, taxYear).catch(() => {});
-    advanceLastTripAt(userId, data.startedAt).catch(() => {});
-    checkAndAwardAchievements(userId)
-      .then((newAchievements) => {
-        sendAchievementPush(userId, newAchievements).catch(() => {});
-        sendMilestonePush(userId).catch(() => {});
-      })
-      .catch(() => {});
+    if (isPhantomTrip) {
+      // Skip mileage / achievements / push side-effects — the trip is
+      // a misfire and shouldn't count toward streaks, HMRC totals, or
+      // milestones. Telemetry only.
+      const startMs = new Date(data.startedAt).getTime();
+      const endMs = data.endedAt ? new Date(data.endedAt).getTime() : startMs;
+      const durationSec = (endMs - startMs) / 1000;
+      const avgMph = durationSec > 0 ? distanceMiles / (durationSec / 3600) : 0;
+      logEvent("trip.phantom_dropped", userId, {
+        tripId: trip.id,
+        distanceMiles,
+        durationSec,
+        avgMph: Math.round(avgMph * 10) / 10,
+        startAddress: tripData.startAddress ?? null,
+        endAddress: tripData.endAddress ?? null,
+      });
+    } else {
+      // Fire-and-forget: update mileage summary + check achievements + push notifications
+      const taxYear = getTaxYear(data.startedAt);
+      upsertMileageSummary(userId, taxYear).catch(() => {});
+      advanceLastTripAt(userId, data.startedAt).catch(() => {});
+      checkAndAwardAchievements(userId)
+        .then((newAchievements) => {
+          sendAchievementPush(userId, newAchievements).catch(() => {});
+          sendMilestonePush(userId).catch(() => {});
+        })
+        .catch(() => {});
 
-    logEvent("trip.created", userId, {
-      distanceMiles,
-      classification: finalClassification,
-      isManualEntry: !hasCoordinates,
-      platformTag: finalPlatformTag,
-      autoClassified: finalClassification !== data.classification,
-    });
+      logEvent("trip.created", userId, {
+        distanceMiles,
+        classification: finalClassification,
+        isManualEntry: !hasCoordinates,
+        platformTag: finalPlatformTag,
+        autoClassified: finalClassification !== data.classification,
+      });
+    }
 
     return reply.status(201).send({ data: trip });
   });
@@ -294,7 +322,7 @@ export async function tripRoutes(app: FastifyInstance) {
     const { classification, platformTag, shiftId, from, to, page, pageSize } = parsed.data;
     const userId = request.userId!;
 
-    const where: Record<string, unknown> = { userId };
+    const where: Record<string, unknown> = { userId, isPhantomTrip: false };
     if (classification) where.classification = classification;
     if (platformTag) where.platformTag = platformTag;
     if (shiftId) where.shiftId = shiftId;
@@ -329,7 +357,7 @@ export async function tripRoutes(app: FastifyInstance) {
   // Must be registered before /:id to avoid route conflict
   app.get("/unclassified/count", async (request, reply) => {
     const count = await prisma.trip.count({
-      where: { userId: request.userId!, classification: "unclassified" },
+      where: { userId: request.userId!, classification: "unclassified", isPhantomTrip: false },
     });
     return reply.send({ count });
   });
@@ -351,7 +379,7 @@ export async function tripRoutes(app: FastifyInstance) {
       return reply.status(400).send({ error: parsed.error.issues[0].message });
     }
     const { classification, platformTag, from, to } = parsed.data;
-    const where: Record<string, unknown> = { userId: request.userId! };
+    const where: Record<string, unknown> = { userId: request.userId!, isPhantomTrip: false };
     if (classification) where.classification = classification;
     if (platformTag) where.platformTag = platformTag;
     if (from || to) {
@@ -402,6 +430,7 @@ export async function tripRoutes(app: FastifyInstance) {
     const nearby = await prisma.trip.findMany({
       where: {
         userId,
+        isPhantomTrip: false,
         classification: { not: "unclassified" },
         [latField]: { gte: lat - latDelta, lte: lat + latDelta },
         [lngField]: { gte: lng - lngDelta, lte: lng + lngDelta },
@@ -589,7 +618,7 @@ export async function tripRoutes(app: FastifyInstance) {
     const { id } = z.object({ id: z.string().uuid() }).parse(request.params);
 
     const trip = await prisma.trip.findFirst({
-      where: { id, userId: request.userId! },
+      where: { id, userId: request.userId!, isPhantomTrip: false },
       include: {
         vehicle: true,
         shift: true,

@@ -55,7 +55,7 @@ async function runStreakAtRiskJob(): Promise<void> {
 
     // Users with trips in the last 5 days
     const activeUserIds = await prisma.trip.findMany({
-      where: { startedAt: { gte: fiveDaysAgo } },
+      where: { isPhantomTrip: false, startedAt: { gte: fiveDaysAgo } },
       select: { userId: true },
       distinct: ["userId"],
     });
@@ -66,6 +66,7 @@ async function runStreakAtRiskJob(): Promise<void> {
     const recentUserIds = await prisma.trip.findMany({
       where: {
         userId: { in: activeUserIds.map((r) => r.userId) },
+        isPhantomTrip: false,
         startedAt: { gte: oneDayAgo },
       },
       select: { userId: true },
@@ -309,7 +310,7 @@ async function runWelcomeNudgeJob(): Promise<void> {
       if (await wasEverNotified(user.id, "notification.welcome_nudge")) continue;
 
       const tripCount = await prisma.trip.count({
-        where: { userId: user.id },
+        where: { userId: user.id, isPhantomTrip: false },
       });
       if (tripCount > 0) continue;
 
@@ -364,7 +365,7 @@ async function runCheckinEmailJob(): Promise<void> {
 
       // Get their trip stats
       const tripStats = await prisma.trip.aggregate({
-        where: { userId: user.id },
+        where: { userId: user.id, isPhantomTrip: false },
         _count: { id: true },
         _sum: { distanceMiles: true },
       });
@@ -402,7 +403,7 @@ async function runCheckinEmailJob(): Promise<void> {
 export async function sendMilestonePush(userId: string): Promise<void> {
   try {
     const totalAgg = await prisma.trip.aggregate({
-      where: { userId },
+      where: { userId, isPhantomTrip: false },
       _sum: { distanceMiles: true },
     });
     const totalMiles = totalAgg._sum.distanceMiles ?? 0;
@@ -542,7 +543,7 @@ async function runMorningBriefingJob(): Promise<void> {
     // Yesterday's stats
     const [yesterdayTrips, yesterdayEarnings, unclassifiedCount, weekEarnings] = await Promise.all([
       prisma.trip.aggregate({
-        where: { userId: user.id, startedAt: { gte: yesterdayStart, lt: todayStart } },
+        where: { userId: user.id, isPhantomTrip: false, startedAt: { gte: yesterdayStart, lt: todayStart } },
         _count: { _all: true },
         _sum: { distanceMiles: true },
       }),
@@ -551,7 +552,7 @@ async function runMorningBriefingJob(): Promise<void> {
         _sum: { amountPence: true },
       }),
       prisma.trip.count({
-        where: { userId: user.id, classification: "unclassified" },
+        where: { userId: user.id, classification: "unclassified", isPhantomTrip: false },
       }),
       prisma.earning.aggregate({
         where: { userId: user.id, periodStart: { gte: weekStart } },

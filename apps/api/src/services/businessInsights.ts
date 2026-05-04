@@ -68,6 +68,7 @@ export async function getBusinessInsights(userId: string): Promise<BusinessInsig
     prisma.trip.findMany({
       where: {
         userId,
+        isPhantomTrip: false,
         classification: "business",
         startedAt: { gte: taxStart, lte: taxEnd },
       },
@@ -437,6 +438,7 @@ export async function getWeeklyPnL(
     prisma.trip.findMany({
       where: {
         userId,
+        isPhantomTrip: false,
         classification: "business",
         startedAt: { gte: start, lte: end },
       },

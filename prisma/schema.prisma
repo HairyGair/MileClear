@@ -256,6 +256,13 @@ model Trip {
   // Written once (API guards against overwrite) on the first user PATCH.
   classificationAutoAccepted Boolean?
 
+  // Phantom-trip flag (4 May 2026). Set when an auto-detected trip
+  // matches the walking-speed signature (distance < 1mi, duration > 5min,
+  // avg speed < 5mph). Filtered out of all user-facing queries +
+  // analytics aggregates so users never see them, but preserved in the
+  // DB for diagnostic review.
+  isPhantomTrip  Boolean   @default(false)
+
   createdAt      DateTime  @default(now())
   syncedAt       DateTime?
 

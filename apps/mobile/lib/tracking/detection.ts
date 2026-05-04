@@ -191,7 +191,13 @@ async function isInsideAnySavedLocation(lat: number, lng: number): Promise<boole
  * jitter; a single reported-speed value at the same level is real driving.
  */
 const CALC_SPEED_MIN_DT_SEC = 3; // require at least 3s sample period for calc speed
-const CALC_SPEED_MIN_DIST_M = 30; // require at least 30m displacement for calc speed
+// Calc-speed displacement floor. Bumped from 30m to 100m on 4 May 2026
+// after Anthony observed phantom 0.5mi trips while walking through a
+// park: GPS reacquisition jumps under tree cover produce 30-50m
+// displacements over 3-5s that calculate as 22mph (driving) even
+// though the user was at walking pace. Real driving easily clears
+// 100m in 3s; GPS drift rarely does.
+const CALC_SPEED_MIN_DIST_M = 100;
 
 interface DetectionResult {
   speedMs: number;
@@ -753,6 +759,31 @@ async function _finalizeAutoTripInner(): Promise<void> {
       const { setDepartureAnchor } = await import("../geofencing/index");
       await setDepartureAnchor(last.lat, last.lng);
       logDetectionEvent("anchor_rearmed_after_phantom", { reason: "too_short" }).catch(() => {});
+    } catch {}
+    return;
+  }
+
+  // Phantom-shape guard (4 May 2026). Any auto-detected trip with a
+  // walking-speed signature (distance < 1mi, duration > 5min, avg
+  // speed < 5mph) is almost certainly a GPS-drift misfire - the
+  // user walked through a park / under tree cover, the GPS jumped
+  // 30-100m on signal reacquisition, and our calc-speed gate fired.
+  // Drop locally so the trip never reaches the server, mirroring the
+  // server-side guard that catches anything we let through.
+  const durationMs = new Date(last.recorded_at).getTime() - new Date(first.recorded_at).getTime();
+  const durationSec = durationMs / 1000;
+  const avgMph = durationSec > 0 ? totalDistance / (durationSec / 3600) : 0;
+  if (totalDistance < 1.0 && durationSec > 5 * 60 && avgMph < 5) {
+    logDetectionEvent("finalize_dropped_phantom", {
+      distance: totalDistance,
+      durationSec: Math.round(durationSec),
+      avgMph: Math.round(avgMph * 10) / 10,
+    }).catch(() => {});
+    endLiveActivity().catch(() => {});
+    try {
+      const { setDepartureAnchor } = await import("../geofencing/index");
+      await setDepartureAnchor(last.lat, last.lng);
+      logDetectionEvent("anchor_rearmed_after_phantom", { reason: "walking_shape" }).catch(() => {});
     } catch {}
     return;
   }

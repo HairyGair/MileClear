@@ -13,10 +13,13 @@ export async function upsertMileageSummary(
 ): Promise<void> {
   const { start, end } = parseTaxYear(taxYear);
 
-  // Aggregate total and business miles, grouped by vehicle type
+  // Aggregate total and business miles, grouped by vehicle type.
+  // Phantom trips (auto-detected walking-speed misfires) are excluded
+  // so HMRC totals never include rubbish.
   const trips = await prisma.trip.findMany({
     where: {
       userId,
+      isPhantomTrip: false,
       startedAt: { gte: start, lte: end },
     },
     select: {

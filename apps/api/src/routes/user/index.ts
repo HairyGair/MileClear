@@ -315,7 +315,7 @@ export async function userRoutes(app: FastifyInstance) {
 
     const [trips, earnings, shifts] = await Promise.all([
       prisma.trip.findMany({
-        where: { userId, startedAt: { gte: start, lt: end } },
+        where: { userId, isPhantomTrip: false, startedAt: { gte: start, lt: end } },
         select: { startedAt: true, distanceMiles: true, classification: true },
       }),
       prisma.earning.findMany({

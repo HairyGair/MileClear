@@ -92,6 +92,7 @@ export async function runReconciliationJob(): Promise<void> {
     const trips = await prisma.trip.findMany({
       where: {
         userId: summary.userId,
+        isPhantomTrip: false,
         classification: "business",
         startedAt: { gte: start, lte: end },
       },
