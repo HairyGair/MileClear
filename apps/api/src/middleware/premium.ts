@@ -1,12 +1,14 @@
 import { FastifyRequest, FastifyReply } from "fastify";
 import { prisma } from "../lib/prisma.js";
+import { unauthorized, premiumRequired } from "../lib/apiError.js";
 
 export async function premiumMiddleware(
   request: FastifyRequest,
   reply: FastifyReply
 ) {
   if (!request.userId) {
-    return reply.status(401).send({ error: "Not authenticated" });
+    const err = unauthorized("Not authenticated.");
+    return reply.status(err.statusCode).send(err.toBody(request.id));
   }
 
   const user = await prisma.user.findUnique({
@@ -15,10 +17,15 @@ export async function premiumMiddleware(
   });
 
   if (!user?.isPremium) {
-    return reply.status(403).send({ error: "Premium subscription required" });
+    const err = premiumRequired();
+    return reply.status(err.statusCode).send(err.toBody(request.id));
   }
 
   if (user.premiumExpiresAt && user.premiumExpiresAt < new Date()) {
-    return reply.status(403).send({ error: "Premium subscription expired" });
+    const err = premiumRequired(
+      "Your MileClear Pro subscription has expired.",
+      "Renew in Settings to restore tax exports, CSV import, and unlimited saved locations."
+    );
+    return reply.status(err.statusCode).send(err.toBody(request.id));
   }
 }

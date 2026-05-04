@@ -1,6 +1,7 @@
 import "dotenv/config";
 import Fastify from "fastify";
 import { ZodError } from "zod";
+import { ApiError } from "./lib/apiError.js";
 import cors from "@fastify/cors";
 import cookie from "@fastify/cookie";
 import helmet from "@fastify/helmet";
@@ -76,8 +77,19 @@ await app.register(cookie);
 
 await app.register(rateLimit, { max: 100, timeWindow: "1 minute" });
 
-// Global error handler — prevent stack trace / schema leakage
+// Global error handler. Two response shapes are emitted:
+//
+//   1. Modern (audit item #4): when the handler throws an ApiError, the
+//      response body is { error: { code, message, retryable, hint? },
+//      requestId } — see lib/apiError.ts.
+//   2. Legacy (still in use across the API): { error: "<message>" }.
+//      Routes that haven't migrated yet keep working unchanged. The
+//      ApiError shape is opt-in per route.
 app.setErrorHandler((error: Error & { statusCode?: number; validation?: unknown }, request, reply) => {
+  // Modern: explicit ApiError
+  if (error instanceof ApiError) {
+    return reply.status(error.statusCode).send(error.toBody(request.id));
+  }
   if (error instanceof ZodError) {
     return reply.status(400).send({ error: error.issues[0]?.message ?? "Validation error" });
   }

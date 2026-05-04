@@ -2,6 +2,9 @@
 
 import * as SecureStore from "expo-secure-store";
 import { syncTokenToSiri, clearSiriToken } from "../siri/index";
+import { parseApiError } from "./apiError";
+
+export { ApiError, isApiError } from "./apiError";
 
 const API_URL = process.env.EXPO_PUBLIC_API_URL || "https://api.mileclear.com";
 const ACCESS_TOKEN_KEY = "mileclear_access_token";
@@ -153,8 +156,8 @@ export async function apiRequest<T>(
   }
 
   if (!res.ok) {
-    const error = await res.json().catch(() => ({ error: "Request failed" }));
-    throw new Error(error.error || `HTTP ${res.status}`);
+    const body = await res.json().catch(() => ({ error: "Request failed" }));
+    throw parseApiError(body, res.status);
   }
 
   return res.json();

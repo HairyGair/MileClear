@@ -1,3 +1,7 @@
+import { parseApiError } from "./apiError";
+
+export { ApiError, isApiError } from "./apiError";
+
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3002";
 
 const TOKEN_KEY = "mc_access_token";
@@ -95,8 +99,8 @@ async function request<T>(
   }
 
   if (!res.ok) {
-    const error = await res.json().catch(() => ({ error: "Request failed" }));
-    throw new Error(error.error || `HTTP ${res.status}`);
+    const body = await res.json().catch(() => ({ error: "Request failed" }));
+    throw parseApiError(body, res.status);
   }
 
   return res.json();
