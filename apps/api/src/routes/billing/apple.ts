@@ -10,8 +10,20 @@ import {
   fetchTransactionWithEnvFallback,
   VALID_PRODUCT_IDS,
   bundleId,
+  type AppleIapEnvironment,
 } from "../../services/appleIap.js";
 import { logEvent } from "../../services/appEvents.js";
+import { respondToConsumptionRequest } from "../../services/appleConsumption.js";
+
+// Notification types that imply an active payment relationship. When
+// any of these arrive without a matching user, we surface a real-time
+// alert so the orphan can be recovered before the user churns.
+const ACTIVE_PAYMENT_NOTIFICATIONS = new Set([
+  "SUBSCRIBED",
+  "DID_RENEW",
+  "DID_CHANGE_RENEWAL_STATUS",
+  "OFFER_REDEEMED",
+]);
 
 async function recordAppleWebhook(data: {
   notificationType?: string | null;
@@ -284,6 +296,42 @@ export async function appleBillingRoutes(app: FastifyInstance) {
         status: "no_user",
         errorMessage: `No user with appleOriginalTransactionId ${originalTransactionId}${appAccountToken ? ` (appAccountToken ${appAccountToken} also not matched)` : ""}`,
       });
+
+      // Real-time alert when an active-payment notification lands
+      // without a user link. This surfaces in the admin Alerts feed
+      // immediately so the orphan can be recovered before the user
+      // gives up and churns silently.
+      if (notificationType && ACTIVE_PAYMENT_NOTIFICATIONS.has(notificationType)) {
+        logEvent("alert.subscription_orphan", null, {
+          originalTransactionId,
+          notificationType,
+          subtype: subtype ?? null,
+          environment: environment ?? null,
+          appAccountToken,
+        });
+      }
+
+      // CONSUMPTION_REQUEST orphans still need a response — Apple's
+      // 12-hour window doesn't care that we couldn't find the user.
+      // Submit minimal UNDECLARED data so we don't get the worst-case
+      // default refund decision.
+      if (notificationType === "CONSUMPTION_REQUEST") {
+        const env: AppleIapEnvironment | null =
+          environment === "production" || environment === "sandbox"
+            ? environment
+            : null;
+        const r = await respondToConsumptionRequest({
+          originalTransactionId,
+          userId: null,
+          environment: env,
+          appAccountToken,
+        });
+        app.log.info(
+          { ok: r.ok, reason: r.reason, originalTransactionId },
+          "Apple CONSUMPTION_REQUEST (orphan) consumption response"
+        );
+      }
+
       return reply.send({ received: true });
     }
 
@@ -365,6 +413,33 @@ export async function appleBillingRoutes(app: FastifyInstance) {
           // auto_renew_disabled — log only, keep access until expiry
           app.log.info(
             `Apple DID_CHANGE_RENEWAL_STATUS (subtype: ${subtype}): user ${user.id}`
+          );
+          break;
+        }
+
+        case "CONSUMPTION_REQUEST": {
+          // The user has filed a refund request with Apple. We have 12
+          // hours to respond with consumption data. Silent non-response
+          // = Apple defaults to worst-case (approves refund). Build a
+          // payload from real usage so engaged users' refund attempts
+          // get pushed back on; lightly-used or unused subs get
+          // NO_PREFERENCE.
+          const env: AppleIapEnvironment | null =
+            environment === "production" || environment === "sandbox"
+              ? environment
+              : null;
+          const r = await respondToConsumptionRequest({
+            originalTransactionId,
+            userId: user.id,
+            environment: env,
+            appAccountToken,
+          });
+          if (!r.ok) {
+            handlerStatus = "consumption_failed";
+          }
+          app.log.info(
+            { ok: r.ok, reason: r.reason, status: r.status, preference: r.preference, userId: user.id },
+            `Apple CONSUMPTION_REQUEST: response submitted`
           );
           break;
         }

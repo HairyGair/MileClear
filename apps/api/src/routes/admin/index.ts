@@ -475,7 +475,17 @@ export async function adminRoutes(app: FastifyInstance) {
   app.get("/diagnostic-alerts", async (_request, reply) => {
     const alerts = await prisma.appEvent.findMany({
       where: {
-        type: { in: ["alert.permission_missing", "alert.task_not_running", "alert.stuck_recording"] },
+        type: {
+          in: [
+            "alert.permission_missing",
+            "alert.task_not_running",
+            "alert.stuck_recording",
+            // 4 May 2026: revenue-impact alerts surface in the same
+            // feed so subscription orphans get the same urgency as
+            // tracking failures.
+            "alert.subscription_orphan",
+          ],
+        },
       },
       orderBy: { createdAt: "desc" },
       take: 100,
@@ -2190,6 +2200,82 @@ export async function adminRoutes(app: FastifyInstance) {
       return reply.send({ data: result });
     }
   );
+
+  // Backfill consumption-request responses. Apple's CONSUMPTION_REQUEST
+  // webhooks give us 12 hours to respond, but anything sitting in the
+  // queue prior to the live handler shipping needs catching up. This
+  // endpoint scans for recent CONSUMPTION_REQUEST log entries and
+  // submits a consumption-data response for each one we haven't already
+  // handled. Idempotent — re-running just re-submits the same payload.
+  app.post("/apple/respond-consumption-pending", async (_request, reply) => {
+    const apiClient = getAppleClient();
+    if (!apiClient) {
+      return reply.status(503).send({ error: "Apple IAP not configured" });
+    }
+
+    // Look back 14 days. Apple's window is 12h but a late response is
+    // still better than no response on appeal / next-cycle scoring.
+    const since = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000);
+    const pending = await prisma.appleIapWebhookLog.findMany({
+      where: {
+        notificationType: "CONSUMPTION_REQUEST",
+        receivedAt: { gte: since },
+      },
+      orderBy: { receivedAt: "desc" },
+    });
+
+    const { respondToConsumptionRequest } = await import(
+      "../../services/appleConsumption.js"
+    );
+
+    const results: Array<{
+      txn: string;
+      receivedAt: string;
+      ok: boolean;
+      reason?: string;
+      orphan: boolean;
+    }> = [];
+
+    for (const log of pending) {
+      if (!log.originalTransactionId) {
+        results.push({
+          txn: "(null)",
+          receivedAt: log.receivedAt.toISOString(),
+          ok: false,
+          reason: "No transaction id on log",
+          orphan: true,
+        });
+        continue;
+      }
+
+      const linkedUser = await prisma.user.findUnique({
+        where: { appleOriginalTransactionId: log.originalTransactionId },
+        select: { id: true },
+      });
+
+      const env: AppleIapEnvironment | null =
+        log.environment === "production" || log.environment === "sandbox"
+          ? log.environment
+          : null;
+
+      const r = await respondToConsumptionRequest({
+        originalTransactionId: log.originalTransactionId,
+        userId: linkedUser?.id ?? null,
+        environment: env,
+        appAccountToken: null,
+      });
+
+      results.push({
+        txn: log.originalTransactionId,
+        receivedAt: log.receivedAt.toISOString(),
+        ok: r.ok,
+        reason: r.reason,
+        orphan: !linkedUser,
+      });
+    }
+
+    return reply.send({ data: { processed: results.length, results } });
+  });
 
   // Manually link an orphan Apple IAP transaction to a user by email.
   // Used when the canonical transaction has no appAccountToken (pre-1.1.0
