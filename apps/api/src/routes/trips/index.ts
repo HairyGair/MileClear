@@ -2,6 +2,7 @@ import { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { Prisma } from "@prisma/client";
 import { authMiddleware } from "../../middleware/auth.js";
+import { attachIdempotency } from "../../middleware/idempotency.js";
 import { prisma } from "../../lib/prisma.js";
 import {
   TRIP_CLASSIFICATIONS,
@@ -122,6 +123,7 @@ const listTripsQuery = z.object({
 
 export async function tripRoutes(app: FastifyInstance) {
   app.addHook("preHandler", authMiddleware);
+  attachIdempotency(app);
 
   // Create trip (manual entry)
   app.post("/", async (request, reply) => {

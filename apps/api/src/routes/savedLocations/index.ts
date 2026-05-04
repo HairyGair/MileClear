@@ -1,6 +1,7 @@
 import { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { authMiddleware } from "../../middleware/auth.js";
+import { attachIdempotency } from "../../middleware/idempotency.js";
 import { prisma } from "../../lib/prisma.js";
 
 const LOCATION_TYPES = ["home", "work", "depot", "custom"] as const;
@@ -27,6 +28,7 @@ const updateSavedLocationSchema = z.object({
 
 export async function savedLocationRoutes(app: FastifyInstance) {
   app.addHook("preHandler", authMiddleware);
+  attachIdempotency(app);
 
   // List saved locations
   app.get("/", async (request, reply) => {

@@ -1,6 +1,7 @@
 import { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { authMiddleware } from "../../middleware/auth.js";
+import { attachIdempotency } from "../../middleware/idempotency.js";
 import { premiumMiddleware } from "../../middleware/premium.js";
 import { prisma } from "../../lib/prisma.js";
 import { truelayerEnabled } from "../../lib/truelayer.js";
@@ -42,6 +43,7 @@ const listEarningsQuery = z.object({
 
 export async function earningRoutes(app: FastifyInstance) {
   app.addHook("preHandler", authMiddleware);
+  attachIdempotency(app);
 
   // Create earning (manual entry)
   app.post("/", async (request, reply) => {

@@ -1,6 +1,7 @@
 import { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { authMiddleware } from "../../middleware/auth.js";
+import { attachIdempotency } from "../../middleware/idempotency.js";
 import { prisma } from "../../lib/prisma.js";
 import { DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE, FUEL_PRICE_DEFAULT_RADIUS_MILES } from "@mileclear/shared";
 import { getNearbyStations, getNationalAverages } from "../../services/fuel.js";
@@ -65,6 +66,7 @@ export async function fuelRoutes(app: FastifyInstance) {
   // Auth-protected fuel log routes
   app.register(async (authApp) => {
     authApp.addHook("preHandler", authMiddleware);
+    attachIdempotency(authApp);
 
   // Create fuel log
   authApp.post("/logs", async (request, reply) => {

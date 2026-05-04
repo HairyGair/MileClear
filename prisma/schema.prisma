@@ -611,3 +611,26 @@ model JobRun {
   @@index([startedAt])
   @@map("job_runs")
 }
+
+// Idempotency keys for safe retry of mutation requests. When a client
+// sends an `Idempotency-Key` header, the server caches the response
+// for the TTL window. Subsequent requests with the same key return the
+// cached response without re-executing the handler.
+//
+// Audit item #3 (external_audit_may_2.md). 24-hour TTL; expired rows
+// purged hourly by a cron job.
+model IdempotencyKey {
+  id           String   @id @default(uuid())
+  userId       String
+  key          String   @db.VarChar(128)
+  method       String   @db.VarChar(10)
+  path         String   @db.VarChar(255)
+  statusCode   Int
+  responseBody String   @db.LongText
+  createdAt    DateTime @default(now())
+  expiresAt    DateTime
+
+  @@unique([userId, key])
+  @@index([expiresAt])
+  @@map("idempotency_keys")
+}

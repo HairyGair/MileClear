@@ -1,6 +1,7 @@
 import { prisma } from "../lib/prisma.js";
 import { sendPushNotifications, sendPushToUser, ExpoPushMessage } from "../lib/push.js";
 import { runRecordingWatchdogJob } from "./recordingWatchdog.js";
+import { runIdempotencyPurgeJob } from "./idempotencyPurge.js";
 import { getPeriodRecap } from "../services/gamification.js";
 import {
   formatMiles,
@@ -810,6 +811,11 @@ export function startNotificationJobs(): void {
     const WATCHDOG_INTERVAL_MS = 5 * 60 * 1000;
     void runJob("recording_watchdog", runRecordingWatchdogJob);
     setInterval(() => void runJob("recording_watchdog", runRecordingWatchdogJob), WATCHDOG_INTERVAL_MS);
+
+    // Idempotency-key purge: hourly. Just deletes expired rows — cheap.
+    const PURGE_INTERVAL_MS = 60 * 60 * 1000;
+    void runJob("idempotency_purge", runIdempotencyPurgeJob);
+    setInterval(() => void runJob("idempotency_purge", runIdempotencyPurgeJob), PURGE_INTERVAL_MS);
   }, INITIAL_DELAY_MS);
 
   console.log("[jobs/notifications] Scheduled notification jobs started (first run in 60s)");

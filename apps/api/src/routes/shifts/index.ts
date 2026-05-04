@@ -1,6 +1,7 @@
 import { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { authMiddleware } from "../../middleware/auth.js";
+import { attachIdempotency } from "../../middleware/idempotency.js";
 import { prisma } from "../../lib/prisma.js";
 import { SHIFT_STATUSES, getTaxYear, DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE } from "@mileclear/shared";
 import { upsertMileageSummary } from "../../services/mileage.js";
@@ -18,6 +19,7 @@ const endShiftSchema = z.object({
 
 export async function shiftRoutes(app: FastifyInstance) {
   app.addHook("preHandler", authMiddleware);
+  attachIdempotency(app);
 
   // Start a new shift
   app.post("/", async (request, reply) => {
