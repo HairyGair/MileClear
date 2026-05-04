@@ -27,16 +27,17 @@ import {
 } from "../lib/schedule/index";
 import { scheduleShiftReminders } from "../lib/notifications/index";
 import { PremiumGate } from "../components/PremiumGate";
+import { colors, fonts } from "../lib/theme";
 
 // ── Constants ──────────────────────────────────────────────────────
 
-const BG = "#030712";
-const CARD_BG = "#0a1120";
+const BG = colors.bg;
+const CARD_BG = colors.surface;
 const CARD_BORDER = "rgba(255,255,255,0.05)";
-const AMBER = "#f5a623";
-const TEXT_1 = "#f0f2f5";
-const TEXT_2 = "#8494a7";
-const TEXT_3 = "#64748b";
+const AMBER = colors.amber;
+const TEXT_1 = colors.text1;
+const TEXT_2 = colors.text2;
+const TEXT_3 = colors.text3;
 
 // Days ordered Mon–Sun for UK users
 const DAY_ORDER = [1, 2, 3, 4, 5, 6, 0];
@@ -269,7 +270,7 @@ export default function WorkScheduleScreen() {
                       value={slot.enabled}
                       onValueChange={() => toggleSlotEnabled(day)}
                       trackColor={{ false: "#374151", true: "rgba(245, 166, 35, 0.4)" }}
-                      thumbColor={slot.enabled ? AMBER : "#9ca3af"}
+                      thumbColor={slot.enabled ? AMBER : TEXT_2}
                       accessibilityLabel={`${dayName(day)} schedule ${slot.enabled ? "enabled" : "disabled"}`}
                     />
                   </View>
@@ -374,7 +375,7 @@ export default function WorkScheduleScreen() {
                   value={autoClassify}
                   onValueChange={(v) => handleSettingToggle("schedule_auto_classify", v)}
                   trackColor={{ false: "#374151", true: "rgba(245, 166, 35, 0.4)" }}
-                  thumbColor={autoClassify ? AMBER : "#9ca3af"}
+                  thumbColor={autoClassify ? AMBER : TEXT_2}
                   accessibilityLabel="Auto-classify trips during work hours as business"
                 />
               </View>
@@ -392,7 +393,7 @@ export default function WorkScheduleScreen() {
                   value={autoMode}
                   onValueChange={(v) => handleSettingToggle("schedule_auto_mode", v)}
                   trackColor={{ false: "#374151", true: "rgba(245, 166, 35, 0.4)" }}
-                  thumbColor={autoMode ? AMBER : "#9ca3af"}
+                  thumbColor={autoMode ? AMBER : TEXT_2}
                   accessibilityLabel="Auto-switch dashboard to Work mode during scheduled hours"
                 />
               </View>
@@ -410,7 +411,7 @@ export default function WorkScheduleScreen() {
                   value={reminder}
                   onValueChange={(v) => handleSettingToggle("schedule_reminder", v)}
                   trackColor={{ false: "#374151", true: "rgba(245, 166, 35, 0.4)" }}
-                  thumbColor={reminder ? AMBER : "#9ca3af"}
+                  thumbColor={reminder ? AMBER : TEXT_2}
                   accessibilityLabel="Shift reminder notification 10 minutes before scheduled start"
                 />
               </View>
@@ -436,7 +437,7 @@ const s = StyleSheet.create({
   },
   subtitle: {
     fontSize: 14,
-    fontFamily: "PlusJakartaSans_400Regular",
+    fontFamily: fonts.regular,
     color: TEXT_2,
     lineHeight: 21,
     marginBottom: 24,
@@ -463,7 +464,7 @@ const s = StyleSheet.create({
   },
   dayChipText: {
     fontSize: 12,
-    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontFamily: fonts.semibold,
     color: TEXT_3,
   },
   dayChipTextActive: {
@@ -493,7 +494,7 @@ const s = StyleSheet.create({
   },
   slotDay: {
     fontSize: 15,
-    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontFamily: fonts.semibold,
     color: TEXT_1,
   },
   slotDayDisabled: {
@@ -520,7 +521,7 @@ const s = StyleSheet.create({
   },
   timeText: {
     fontSize: 15,
-    fontFamily: "PlusJakartaSans_500Medium",
+    fontFamily: fonts.medium,
     color: TEXT_1,
   },
   timeTextDisabled: {
@@ -528,7 +529,7 @@ const s = StyleSheet.create({
   },
   timeSep: {
     fontSize: 13,
-    fontFamily: "PlusJakartaSans_400Regular",
+    fontFamily: fonts.regular,
     color: TEXT_3,
   },
 
@@ -540,7 +541,7 @@ const s = StyleSheet.create({
   },
   emptyText: {
     fontSize: 14,
-    fontFamily: "PlusJakartaSans_400Regular",
+    fontFamily: fonts.regular,
     color: TEXT_3,
     textAlign: "center",
   },
@@ -564,19 +565,19 @@ const s = StyleSheet.create({
   },
   pickerLabel: {
     fontSize: 14,
-    fontFamily: "PlusJakartaSans_500Medium",
+    fontFamily: fonts.medium,
     color: TEXT_2,
   },
   pickerDone: {
     fontSize: 15,
-    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontFamily: fonts.semibold,
     color: AMBER,
   },
 
   // Settings
   settingsTitle: {
     fontSize: 13,
-    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontFamily: fonts.semibold,
     color: TEXT_2,
     textTransform: "uppercase",
     letterSpacing: 0.5,
@@ -599,13 +600,13 @@ const s = StyleSheet.create({
   },
   settingLabel: {
     fontSize: 15,
-    fontFamily: "PlusJakartaSans_500Medium",
+    fontFamily: fonts.medium,
     color: TEXT_1,
     marginBottom: 2,
   },
   settingHint: {
     fontSize: 12,
-    fontFamily: "PlusJakartaSans_400Regular",
+    fontFamily: fonts.regular,
     color: TEXT_3,
     lineHeight: 17,
   },

@@ -18,6 +18,12 @@ import {
   resetAllLayouts,
   type ScreenKey,
 } from "../lib/layout/index";
+import { colors, fonts } from "../lib/theme";
+
+// Local theme aliases — same pattern as the (tabs) screens.
+const TEXT_3 = colors.text3;
+const BG = colors.bg;
+const RED = colors.red;
 
 const SCREENS: ScreenKey[] = [
   "dashboard_work",
@@ -70,7 +76,7 @@ export default function CustomizeLayoutScreen() {
           accessibilityRole="button"
           accessibilityLabel="Go back"
         >
-          <Ionicons name="chevron-back" size={24} color="#f0f2f5" />
+          <Ionicons name="chevron-back" size={24} color={TEXT_1} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Customize Layout</Text>
         <View style={{ width: 32 }} />
@@ -112,7 +118,7 @@ export default function CustomizeLayoutScreen() {
           accessibilityRole="button"
           accessibilityLabel="Reset all layouts to default"
         >
-          <Ionicons name="refresh-outline" size={16} color="#ef4444" />
+          <Ionicons name="refresh-outline" size={16} color={RED} />
           <Text style={styles.resetText}>Reset All to Default</Text>
         </TouchableOpacity>
       </View>
@@ -166,7 +172,7 @@ function SectionList({ screen }: { screen: ScreenKey }) {
                 <Ionicons
                   name="chevron-up"
                   size={18}
-                  color={isFirst || isLocked ? "rgba(255,255,255,0.08)" : "#8494a7"}
+                  color={isFirst || isLocked ? "rgba(255,255,255,0.08)" : TEXT_2}
                 />
               </TouchableOpacity>
               <TouchableOpacity
@@ -181,7 +187,7 @@ function SectionList({ screen }: { screen: ScreenKey }) {
                 <Ionicons
                   name="chevron-down"
                   size={18}
-                  color={isLast || isLocked ? "rgba(255,255,255,0.08)" : "#8494a7"}
+                  color={isLast || isLocked ? "rgba(255,255,255,0.08)" : TEXT_2}
                 />
               </TouchableOpacity>
             </View>
@@ -191,7 +197,7 @@ function SectionList({ screen }: { screen: ScreenKey }) {
               <Ionicons
                 name={isLocked ? "lock-closed" : (section.icon as any)}
                 size={18}
-                color={isLocked ? "#6b7280" : "#f5a623"}
+                color={isLocked ? TEXT_3 : AMBER}
               />
             </View>
 
@@ -219,7 +225,7 @@ function SectionList({ screen }: { screen: ScreenKey }) {
               <Switch
                 value={pref.visible}
                 onValueChange={() => toggleVisibility(pref.key)}
-                trackColor={{ false: "#374151", true: "#f5a623" }}
+                trackColor={{ false: "#374151", true: AMBER }}
                 thumbColor="#fff"
                 style={styles.toggle}
                 accessibilityLabel={`${section.label}: ${pref.visible ? "visible" : "hidden"}. Toggle visibility`}
@@ -249,7 +255,7 @@ function SectionList({ screen }: { screen: ScreenKey }) {
         }}
         activeOpacity={0.7}
       >
-        <Ionicons name="refresh-outline" size={14} color="#8494a7" />
+        <Ionicons name="refresh-outline" size={14} color={TEXT_2} />
         <Text style={styles.resetScreenText}>
           Reset {TAB_LABELS[screen]} layout
         </Text>
@@ -258,15 +264,15 @@ function SectionList({ screen }: { screen: ScreenKey }) {
   );
 }
 
-const AMBER = "#f5a623";
-const CARD_BG = "#0a1120";
-const TEXT_1 = "#f0f2f5";
-const TEXT_2 = "#8494a7";
+const AMBER = colors.amber;
+const CARD_BG = colors.surface;
+const TEXT_1 = colors.text1;
+const TEXT_2 = colors.text2;
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#030712",
+    backgroundColor: BG,
   },
   header: {
     flexDirection: "row",
@@ -283,7 +289,7 @@ const styles = StyleSheet.create({
   },
   headerTitle: {
     fontSize: 17,
-    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontFamily: fonts.semibold,
     color: TEXT_1,
   },
   tabBar: {
@@ -307,12 +313,12 @@ const styles = StyleSheet.create({
   },
   tabText: {
     fontSize: 13,
-    fontFamily: "PlusJakartaSans_500Medium",
+    fontFamily: fonts.medium,
     color: TEXT_2,
   },
   tabTextActive: {
     color: AMBER,
-    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontFamily: fonts.semibold,
   },
   list: {
     flex: 1,
@@ -323,13 +329,13 @@ const styles = StyleSheet.create({
   },
   screenLabel: {
     fontSize: 20,
-    fontFamily: "PlusJakartaSans_700Bold",
+    fontFamily: fonts.bold,
     color: TEXT_1,
     marginBottom: 4,
   },
   screenHint: {
     fontSize: 13,
-    fontFamily: "PlusJakartaSans_400Regular",
+    fontFamily: fonts.regular,
     color: TEXT_2,
     marginBottom: 16,
   },
@@ -365,7 +371,7 @@ const styles = StyleSheet.create({
   },
   label: {
     fontSize: 14,
-    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontFamily: fonts.semibold,
     color: TEXT_1,
   },
   labelHidden: {
@@ -373,8 +379,8 @@ const styles = StyleSheet.create({
   },
   description: {
     fontSize: 11,
-    fontFamily: "PlusJakartaSans_400Regular",
-    color: "#64748b",
+    fontFamily: fonts.regular,
+    color: TEXT_3,
     marginTop: 2,
   },
   lockedBadge: {
@@ -385,8 +391,8 @@ const styles = StyleSheet.create({
   },
   lockedText: {
     fontSize: 11,
-    fontFamily: "PlusJakartaSans_700Bold",
-    color: "#6b7280",
+    fontFamily: fonts.bold,
+    color: TEXT_3,
     letterSpacing: 0.5,
   },
   toggle: {
@@ -402,7 +408,7 @@ const styles = StyleSheet.create({
   },
   resetScreenText: {
     fontSize: 13,
-    fontFamily: "PlusJakartaSans_500Medium",
+    fontFamily: fonts.medium,
     color: TEXT_2,
   },
   footer: {
@@ -424,7 +430,7 @@ const styles = StyleSheet.create({
   },
   resetText: {
     fontSize: 14,
-    fontFamily: "PlusJakartaSans_600SemiBold",
-    color: "#ef4444",
+    fontFamily: fonts.semibold,
+    color: RED,
   },
 });

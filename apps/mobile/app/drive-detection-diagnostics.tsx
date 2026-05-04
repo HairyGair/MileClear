@@ -27,18 +27,19 @@ import {
   type DriveDetectionDiagnostics,
 } from "../lib/tracking/detection";
 import { useUser } from "../lib/user/context";
+import { colors, fonts } from "../lib/theme";
 
 // ── Constants ──────────────────────────────────────────────────────────────
 
-const BG = "#030712";
-const CARD_BG = "#0a1120";
+const BG = colors.bg;
+const CARD_BG = colors.surface;
 const CARD_BORDER = "rgba(255,255,255,0.05)";
-const AMBER = "#f5a623";
-const TEXT_1 = "#f0f2f5";
-const TEXT_2 = "#8494a7";
-const TEXT_3 = "#64748b";
-const GREEN = "#34c759";
-const RED = "#ef4444";
+const AMBER = colors.amber;
+const TEXT_1 = colors.text1;
+const TEXT_2 = colors.text2;
+const TEXT_3 = colors.text3;
+const GREEN = colors.green;
+const RED = colors.red;
 const ORANGE = "#f97316";
 
 const EVENT_COLORS: Record<string, string> = {
@@ -854,7 +855,7 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   headerLabel: {
-    fontFamily: "PlusJakartaSans_500Medium",
+    fontFamily: fonts.medium,
     fontSize: 11,
     color: TEXT_3,
     width: 64,
@@ -863,7 +864,7 @@ const styles = StyleSheet.create({
   },
   headerValue: {
     flex: 1,
-    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontFamily: fonts.semibold,
     fontSize: 12,
     color: TEXT_1,
   },
@@ -877,13 +878,13 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   verdictLabel: {
-    fontFamily: "PlusJakartaSans_700Bold",
+    fontFamily: fonts.bold,
     fontSize: 10,
     letterSpacing: 1,
     marginBottom: 2,
   },
   verdictHeadline: {
-    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontFamily: fonts.semibold,
     fontSize: 15,
     color: TEXT_1,
     lineHeight: 19,
@@ -903,18 +904,18 @@ const styles = StyleSheet.create({
   },
   problemTitle: {
     flex: 1,
-    fontFamily: "PlusJakartaSans_700Bold",
+    fontFamily: fonts.bold,
     fontSize: 13,
   },
   problemCause: {
-    fontFamily: "PlusJakartaSans_400Regular",
+    fontFamily: fonts.regular,
     fontSize: 12,
     color: TEXT_2,
     lineHeight: 17,
     marginLeft: 26,
   },
   problemAction: {
-    fontFamily: "PlusJakartaSans_500Medium",
+    fontFamily: fonts.medium,
     fontSize: 12,
     color: TEXT_1,
     lineHeight: 17,
@@ -930,7 +931,7 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
   },
   problemActionText: {
-    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontFamily: fonts.semibold,
     fontSize: 12,
     color: AMBER,
   },
@@ -943,7 +944,7 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   cardTitle: {
-    fontFamily: "PlusJakartaSans_700Bold",
+    fontFamily: fonts.bold,
     fontSize: 13,
     color: AMBER,
     textTransform: "uppercase",
@@ -957,18 +958,18 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   statusLabel: {
-    fontFamily: "PlusJakartaSans_400Regular",
+    fontFamily: fonts.regular,
     fontSize: 13,
     color: TEXT_2,
     width: 130,
   },
   statusValue: {
-    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontFamily: fonts.semibold,
     fontSize: 13,
     textAlign: "right",
   },
   statusHint: {
-    fontFamily: "PlusJakartaSans_400Regular",
+    fontFamily: fonts.regular,
     fontSize: 11,
     color: TEXT_3,
     textAlign: "right",
@@ -983,14 +984,14 @@ const styles = StyleSheet.create({
     borderBottomColor: CARD_BORDER,
   },
   kvKey: {
-    fontFamily: "PlusJakartaSans_500Medium",
+    fontFamily: fonts.medium,
     fontSize: 12,
     color: TEXT_1,
     width: 140,
   },
   kvValue: {
     flex: 1,
-    fontFamily: "PlusJakartaSans_400Regular",
+    fontFamily: fonts.regular,
     fontSize: 12,
     color: TEXT_2,
     textAlign: "right",
@@ -1010,31 +1011,31 @@ const styles = StyleSheet.create({
     marginTop: 6,
   },
   eventName: {
-    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontFamily: fonts.semibold,
     fontSize: 13,
     color: TEXT_1,
   },
   eventTime: {
-    fontFamily: "PlusJakartaSans_400Regular",
+    fontFamily: fonts.regular,
     fontSize: 11,
     color: TEXT_3,
     marginTop: 1,
   },
   eventData: {
-    fontFamily: "PlusJakartaSans_400Regular",
+    fontFamily: fonts.regular,
     fontSize: 11,
     color: TEXT_2,
     marginTop: 3,
   },
   emptyText: {
-    fontFamily: "PlusJakartaSans_400Regular",
+    fontFamily: fonts.regular,
     fontSize: 13,
     color: TEXT_3,
     textAlign: "center",
     paddingVertical: 12,
   },
   errorText: {
-    fontFamily: "PlusJakartaSans_500Medium",
+    fontFamily: fonts.medium,
     fontSize: 14,
     color: RED,
     marginBottom: 16,
@@ -1055,7 +1056,7 @@ const styles = StyleSheet.create({
     borderRadius: 10,
   },
   buttonText: {
-    fontFamily: "PlusJakartaSans_700Bold",
+    fontFamily: fonts.bold,
     fontSize: 13,
     color: BG,
   },
@@ -1072,7 +1073,7 @@ const styles = StyleSheet.create({
     borderRadius: 10,
   },
   buttonSecondaryText: {
-    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontFamily: fonts.semibold,
     fontSize: 13,
     color: TEXT_1,
   },
@@ -1089,7 +1090,7 @@ const styles = StyleSheet.create({
     borderRadius: 10,
   },
   buttonDangerText: {
-    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontFamily: fonts.semibold,
     fontSize: 13,
     color: RED,
   },

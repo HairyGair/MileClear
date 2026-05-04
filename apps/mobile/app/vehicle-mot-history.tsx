@@ -10,16 +10,17 @@ import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams } from "expo-router";
 import { fetchMotHistory } from "../lib/api/vehicles";
 import type { MotHistoryResult, MotTestRecord } from "@mileclear/shared";
+import { colors } from "../lib/theme";
 
-const BG = "#030712";
-const CARD_BG = "#0a1120";
+const BG = colors.bg;
+const CARD_BG = colors.surface;
 const CARD_BORDER = "rgba(255,255,255,0.05)";
-const AMBER = "#f5a623";
-const GREEN = "#10b981";
-const RED = "#ef4444";
-const TEXT_1 = "#f0f2f5";
-const TEXT_2 = "#8494a7";
-const TEXT_3 = "#64748b";
+const AMBER = colors.amber;
+const GREEN = colors.green;
+const RED = colors.red;
+const TEXT_1 = colors.text1;
+const TEXT_2 = colors.text2;
+const TEXT_3 = colors.text3;
 
 function formatDate(iso: string): string {
   if (!iso) return "";

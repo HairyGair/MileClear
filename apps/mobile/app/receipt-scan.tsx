@@ -13,12 +13,16 @@ import {
 import { useRouter, Stack } from "expo-router";
 import * as ImagePicker from "expo-image-picker";
 import { recognizeText, parseReceiptText, isOcrAvailable } from "../lib/ocr";
+import { colors, fonts } from "../lib/theme";
 
-const BG = "#030712";
-const AMBER = "#f5a623";
-const TEXT_1 = "#f0f2f5";
-const TEXT_2 = "#9ca3af";
-const SURFACE = "#0a1120";
+// Local theme aliases — same pattern as the (tabs) screens.
+const CARD_BG = colors.surface;
+
+const BG = colors.bg;
+const AMBER = colors.amber;
+const TEXT_1 = colors.text1;
+const TEXT_2 = colors.text2;
+const SURFACE = CARD_BG;
 const BORDER = "rgba(255,255,255,0.06)";
 
 type ScanState = "idle" | "scanning" | "review";
@@ -303,14 +307,14 @@ const styles = StyleSheet.create({
   },
   unavailableTitle: {
     fontSize: 18,
-    fontFamily: "PlusJakartaSans_700Bold",
+    fontFamily: fonts.bold,
     color: TEXT_1,
     textAlign: "center",
     marginBottom: 12,
   },
   unavailableBody: {
     fontSize: 14,
-    fontFamily: "PlusJakartaSans_400Regular",
+    fontFamily: fonts.regular,
     color: TEXT_2,
     textAlign: "center",
     lineHeight: 22,
@@ -324,13 +328,13 @@ const styles = StyleSheet.create({
   },
   idleHeading: {
     fontSize: 24,
-    fontFamily: "PlusJakartaSans_700Bold",
+    fontFamily: fonts.bold,
     color: TEXT_1,
     marginBottom: 8,
   },
   idleSubheading: {
     fontSize: 14,
-    fontFamily: "PlusJakartaSans_400Regular",
+    fontFamily: fonts.regular,
     color: TEXT_2,
     lineHeight: 22,
     marginBottom: 40,
@@ -360,7 +364,7 @@ const styles = StyleSheet.create({
   },
   scanningLabel: {
     fontSize: 16,
-    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontFamily: fonts.semibold,
     color: TEXT_1,
   },
 
@@ -373,7 +377,7 @@ const styles = StyleSheet.create({
   },
   confidenceLabel: {
     fontSize: 12,
-    fontFamily: "PlusJakartaSans_400Regular",
+    fontFamily: fonts.regular,
     color: TEXT_2,
     marginBottom: 20,
   },
@@ -381,8 +385,8 @@ const styles = StyleSheet.create({
   // Form fields
   fieldLabel: {
     fontSize: 14,
-    fontFamily: "PlusJakartaSans_600SemiBold",
-    color: "#d1d5db",
+    fontFamily: fonts.semibold,
+    color: TEXT_2,
     marginBottom: 6,
     marginTop: 16,
   },
@@ -391,7 +395,7 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     padding: 14,
     fontSize: 16,
-    fontFamily: "PlusJakartaSans_400Regular",
+    fontFamily: fonts.regular,
     color: TEXT_1,
     borderWidth: 1,
     borderColor: BORDER,
@@ -402,7 +406,7 @@ const styles = StyleSheet.create({
   },
   currencyPrefix: {
     fontSize: 18,
-    fontFamily: "PlusJakartaSans_700Bold",
+    fontFamily: fonts.bold,
     color: TEXT_1,
     marginRight: 8,
   },
@@ -419,8 +423,8 @@ const styles = StyleSheet.create({
   },
   primaryButtonText: {
     fontSize: 16,
-    fontFamily: "PlusJakartaSans_700Bold",
-    color: "#030712",
+    fontFamily: fonts.bold,
+    color: BG,
   },
   secondaryButton: {
     backgroundColor: "rgba(255,255,255,0.06)",
@@ -432,7 +436,7 @@ const styles = StyleSheet.create({
   },
   secondaryButtonText: {
     fontSize: 15,
-    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontFamily: fonts.semibold,
     color: TEXT_2,
   },
 });

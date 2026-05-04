@@ -25,6 +25,15 @@ try {
 import { Button } from "../components/Button";
 import { GIG_PLATFORMS, formatPence } from "@mileclear/shared";
 import type { CsvEarningRow, CsvParsePreview } from "@mileclear/shared";
+import { colors, fonts } from "../lib/theme";
+
+// Local theme aliases — same pattern as the (tabs) screens.
+const AMBER = colors.amber;
+const CARD_BG = colors.surface;
+const TEXT_2 = colors.text2;
+const TEXT_3 = colors.text3;
+const BG = colors.bg;
+const GREEN = colors.green;
 
 const PLATFORM_OPTIONS = [
   { value: "", label: "Auto-detect" },
@@ -216,13 +225,13 @@ export default function CsvImportScreen() {
             CSV import is a Pro feature. Upgrade to bulk-import earnings from Uber, Deliveroo, Amazon Flex, and more.
           </Text>
           <Button title="Upgrade to Pro" onPress={handleUpgrade} />
-          <Text style={{ fontSize: 11, fontFamily: "PlusJakartaSans_400Regular", color: "#6b7280", textAlign: "center", marginTop: 10 }}>
+          <Text style={{ fontSize: 11, fontFamily: fonts.regular, color: TEXT_3, textAlign: "center", marginTop: 10 }}>
             Auto-renews monthly. Cancel anytime.
           </Text>
           <View style={{ flexDirection: "row", justifyContent: "center", alignItems: "center", gap: 8, marginTop: 4 }}>
-            <Text style={{ fontSize: 11, fontFamily: "PlusJakartaSans_500Medium", color: "#3b82f6" }} onPress={() => WebBrowser.openBrowserAsync("https://mileclear.com/terms")}>Terms of Use</Text>
-            <Text style={{ fontSize: 11, color: "#4b5563" }}>|</Text>
-            <Text style={{ fontSize: 11, fontFamily: "PlusJakartaSans_500Medium", color: "#3b82f6" }} onPress={() => WebBrowser.openBrowserAsync("https://mileclear.com/privacy")}>Privacy Policy</Text>
+            <Text style={{ fontSize: 11, fontFamily: fonts.medium, color: "#3b82f6" }} onPress={() => WebBrowser.openBrowserAsync("https://mileclear.com/terms")}>Terms of Use</Text>
+            <Text style={{ fontSize: 11, color: TEXT_3 }}>|</Text>
+            <Text style={{ fontSize: 11, fontFamily: fonts.medium, color: "#3b82f6" }} onPress={() => WebBrowser.openBrowserAsync("https://mileclear.com/privacy")}>Privacy Policy</Text>
           </View>
           <Button
             variant="ghost"
@@ -289,7 +298,7 @@ export default function CsvImportScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#030712",
+    backgroundColor: BG,
   },
   content: {
     padding: 20,
@@ -297,21 +306,21 @@ const styles = StyleSheet.create({
   },
   heading: {
     fontSize: 24,
-    fontFamily: "PlusJakartaSans_700Bold",
+    fontFamily: fonts.bold,
     color: "#fff",
     marginBottom: 8,
   },
   description: {
     fontSize: 14,
-    fontFamily: "PlusJakartaSans_400Regular",
-    color: "#9ca3af",
+    fontFamily: fonts.regular,
+    color: TEXT_2,
     marginBottom: 24,
     lineHeight: 20,
   },
   label: {
     fontSize: 13,
-    fontFamily: "PlusJakartaSans_600SemiBold",
-    color: "#d1d5db",
+    fontFamily: fonts.semibold,
+    color: TEXT_2,
     marginBottom: 8,
   },
   chipRow: {
@@ -329,21 +338,21 @@ const styles = StyleSheet.create({
     borderColor: "rgba(255,255,255,0.06)",
   },
   chipActive: {
-    backgroundColor: "#f5a623",
-    borderColor: "#f5a623",
+    backgroundColor: AMBER,
+    borderColor: AMBER,
   },
   chipText: {
     fontSize: 13,
-    fontFamily: "PlusJakartaSans_600SemiBold",
-    color: "#9ca3af",
+    fontFamily: fonts.semibold,
+    color: TEXT_2,
   },
   chipTextActive: {
-    color: "#030712",
+    color: BG,
   },
   fileLabel: {
     fontSize: 13,
-    fontFamily: "PlusJakartaSans_400Regular",
-    color: "#d1d5db",
+    fontFamily: fonts.regular,
+    color: TEXT_2,
     marginBottom: 16,
   },
   // Preview
@@ -354,26 +363,26 @@ const styles = StyleSheet.create({
   },
   previewTitle: {
     fontSize: 18,
-    fontFamily: "PlusJakartaSans_700Bold",
+    fontFamily: fonts.bold,
     color: "#fff",
     marginBottom: 4,
   },
   previewSubtitle: {
     fontSize: 13,
-    fontFamily: "PlusJakartaSans_400Regular",
-    color: "#9ca3af",
+    fontFamily: fonts.regular,
+    color: TEXT_2,
     marginBottom: 4,
   },
   previewTotal: {
     fontSize: 15,
-    fontFamily: "PlusJakartaSans_600SemiBold",
-    color: "#10b981",
+    fontFamily: fonts.semibold,
+    color: GREEN,
   },
   listContent: {
     padding: 16,
   },
   rowCard: {
-    backgroundColor: "#0a1120",
+    backgroundColor: CARD_BG,
     borderRadius: 10,
     padding: 12,
     marginBottom: 8,
@@ -391,13 +400,13 @@ const styles = StyleSheet.create({
   },
   rowPlatform: {
     fontSize: 14,
-    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontFamily: fonts.semibold,
     color: "#fff",
   },
   dupBadge: {
     fontSize: 11,
-    fontFamily: "PlusJakartaSans_700Bold",
-    color: "#9ca3af",
+    fontFamily: fonts.bold,
+    color: TEXT_2,
     backgroundColor: "#374151",
     paddingHorizontal: 8,
     paddingVertical: 2,
@@ -406,17 +415,17 @@ const styles = StyleSheet.create({
   },
   rowAmount: {
     fontSize: 18,
-    fontFamily: "PlusJakartaSans_700Bold",
-    color: "#10b981",
+    fontFamily: fonts.bold,
+    color: GREEN,
     marginBottom: 2,
   },
   rowAmountDup: {
-    color: "#6b7280",
+    color: TEXT_3,
   },
   rowDate: {
     fontSize: 12,
-    fontFamily: "PlusJakartaSans_400Regular",
-    color: "#9ca3af",
+    fontFamily: fonts.regular,
+    color: TEXT_2,
   },
   footerButtons: {
     flexDirection: "row",
@@ -434,20 +443,20 @@ const styles = StyleSheet.create({
   },
   resultTitle: {
     fontSize: 24,
-    fontFamily: "PlusJakartaSans_700Bold",
-    color: "#10b981",
+    fontFamily: fonts.bold,
+    color: GREEN,
     marginBottom: 16,
   },
   resultStat: {
     fontSize: 18,
-    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontFamily: fonts.semibold,
     color: "#fff",
     marginBottom: 8,
   },
   resultSkipped: {
     fontSize: 14,
-    fontFamily: "PlusJakartaSans_400Regular",
-    color: "#9ca3af",
+    fontFamily: fonts.regular,
+    color: TEXT_2,
     marginBottom: 24,
   },
 });

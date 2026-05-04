@@ -15,19 +15,20 @@ import {
   fetchHmrcReconciliation,
   saveHmrcReconciliation,
 } from "../lib/api/hmrcReconciliation";
+import { colors } from "../lib/theme";
 
-const BG = "#030712";
-const CARD_BG = "#0a1120";
+const BG = colors.bg;
+const CARD_BG = colors.surface;
 const CARD_BORDER = "rgba(255,255,255,0.05)";
-const AMBER = "#f5a623";
+const AMBER = colors.amber;
 const AMBER_FAINT = "rgba(245,166,35,0.08)";
-const GREEN = "#10b981";
+const GREEN = colors.green;
 const GREEN_FAINT = "rgba(16,185,129,0.08)";
-const RED = "#ef4444";
+const RED = colors.red;
 const RED_FAINT = "rgba(239,68,68,0.10)";
-const TEXT_1 = "#f0f2f5";
-const TEXT_2 = "#8494a7";
-const TEXT_3 = "#64748b";
+const TEXT_1 = colors.text1;
+const TEXT_2 = colors.text2;
+const TEXT_3 = colors.text3;
 
 function diffTone(diffPence: number): { color: string; bg: string } {
   // Within £20 = neutral. Over-reported (HMRC > MileClear) = red. Under

@@ -24,6 +24,7 @@ import {
   type SyncState,
 } from "../lib/sync/index";
 import { Button } from "../components/Button";
+import { colors, fonts } from "../lib/theme";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -42,15 +43,15 @@ interface QueueItem {
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
-const BG = "#030712";
-const CARD_BG = "#0a1120";
+const BG = colors.bg;
+const CARD_BG = colors.surface;
 const CARD_BORDER = "rgba(255,255,255,0.05)";
-const AMBER = "#f5a623";
-const TEXT_1 = "#f0f2f5";
-const TEXT_2 = "#8494a7";
-const TEXT_3 = "#64748b";
-const GREEN = "#34c759";
-const RED = "#ef4444";
+const AMBER = colors.amber;
+const TEXT_1 = colors.text1;
+const TEXT_2 = colors.text2;
+const TEXT_3 = colors.text3;
+const GREEN = colors.green;
+const RED = colors.red;
 const ORANGE = "#f97316";
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -124,7 +125,7 @@ function StatusHeader({
 }: StatusHeaderProps) {
   const isSyncing = syncState === "syncing";
 
-  let dotColor = GREEN;
+  let dotColor: string = GREEN;
   let label = "All synced";
 
   if (isSyncing) {
@@ -508,12 +509,12 @@ const styles = StyleSheet.create({
   },
   headerStatus: {
     fontSize: 17,
-    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontFamily: fonts.semibold,
     color: TEXT_1,
   },
   headerMeta: {
     fontSize: 13,
-    fontFamily: "PlusJakartaSans_400Regular",
+    fontFamily: fonts.regular,
     color: TEXT_2,
     marginLeft: 20,
   },
@@ -526,7 +527,7 @@ const styles = StyleSheet.create({
   // Queue section title
   sectionTitle: {
     fontSize: 13,
-    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontFamily: fonts.semibold,
     color: TEXT_3,
     textTransform: "uppercase",
     letterSpacing: 0.8,
@@ -567,11 +568,11 @@ const styles = StyleSheet.create({
   },
   entityBadgeText: {
     fontSize: 12,
-    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontFamily: fonts.semibold,
   },
   actionText: {
     fontSize: 13,
-    fontFamily: "PlusJakartaSans_400Regular",
+    fontFamily: fonts.regular,
     color: TEXT_2,
   },
   statusPill: {
@@ -582,7 +583,7 @@ const styles = StyleSheet.create({
   },
   statusPillText: {
     fontSize: 11,
-    fontFamily: "PlusJakartaSans_700Bold",
+    fontFamily: fonts.bold,
   },
 
   // Meta row
@@ -594,12 +595,12 @@ const styles = StyleSheet.create({
   },
   retryCount: {
     fontSize: 12,
-    fontFamily: "PlusJakartaSans_400Regular",
+    fontFamily: fonts.regular,
     color: ORANGE,
   },
   createdAt: {
     fontSize: 12,
-    fontFamily: "PlusJakartaSans_400Regular",
+    fontFamily: fonts.regular,
     color: TEXT_3,
   },
 
@@ -614,13 +615,13 @@ const styles = StyleSheet.create({
   },
   errorText: {
     fontSize: 12,
-    fontFamily: "PlusJakartaSans_400Regular",
+    fontFamily: fonts.regular,
     color: "#fca5a5",
     lineHeight: 18,
   },
   showMore: {
     fontSize: 11,
-    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontFamily: fonts.semibold,
     color: TEXT_2,
     marginTop: 4,
   },
@@ -644,7 +645,7 @@ const styles = StyleSheet.create({
   },
   retryBtnText: {
     fontSize: 13,
-    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontFamily: fonts.semibold,
     color: AMBER,
   },
   deleteBtn: {
@@ -660,7 +661,7 @@ const styles = StyleSheet.create({
   },
   deleteBtnText: {
     fontSize: 13,
-    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontFamily: fonts.semibold,
     color: RED,
   },
 
@@ -682,13 +683,13 @@ const styles = StyleSheet.create({
   },
   emptyTitle: {
     fontSize: 17,
-    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontFamily: fonts.semibold,
     color: TEXT_1,
     marginBottom: 4,
   },
   emptyText: {
     fontSize: 14,
-    fontFamily: "PlusJakartaSans_400Regular",
+    fontFamily: fonts.regular,
     color: TEXT_2,
   },
 });

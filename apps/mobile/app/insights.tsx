@@ -32,6 +32,15 @@ import { FuelSummaryCard } from "../components/personal/FuelSummaryCard";
 import { PersonalRecapCard } from "../components/personal/PersonalRecapCard";
 import { JourneyTimeline } from "../components/personal/JourneyTimeline";
 import { Button } from "../components/Button";
+import { colors, fonts } from "../lib/theme";
+
+// Local theme aliases — same pattern as the (tabs) screens.
+const AMBER = colors.amber;
+const CARD_BG = colors.surface;
+const TEXT_1 = colors.text1;
+const TEXT_2 = colors.text2;
+const TEXT_3 = colors.text3;
+const BG = colors.bg;
 
 export default function InsightsScreen() {
   const router = useRouter();
@@ -160,12 +169,12 @@ export default function InsightsScreen() {
 
       <ScrollView
         contentContainerStyle={styles.content}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); loadData(); }} tintColor="#f5a623" />}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); loadData(); }} tintColor={AMBER} />}
       >
         {/* Recaps */}
         <View style={styles.recapRow}>
           <TouchableOpacity style={styles.recapBtn} onPress={() => handleRecap("daily")} activeOpacity={0.7} accessibilityRole="button" accessibilityLabel="View today's recap">
-            <Ionicons name="today-outline" size={16} color="#f5a623" />
+            <Ionicons name="today-outline" size={16} color={AMBER} />
             <Text style={styles.recapBtnLabel}>Today</Text>
           </TouchableOpacity>
           <TouchableOpacity
@@ -175,7 +184,7 @@ export default function InsightsScreen() {
             accessibilityRole="button"
             accessibilityLabel={isPremium ? "View this week's recap" : "Weekly recap, Pro feature. Tap to upgrade"}
           >
-            <Ionicons name={isPremium ? "calendar-outline" : "lock-closed"} size={16} color={isPremium ? "#f5a623" : "#64748b"} />
+            <Ionicons name={isPremium ? "calendar-outline" : "lock-closed"} size={16} color={isPremium ? AMBER : TEXT_3} />
             <Text style={[styles.recapBtnLabel, !isPremium && styles.recapBtnLabelLocked]}>Week</Text>
           </TouchableOpacity>
           <TouchableOpacity
@@ -185,7 +194,7 @@ export default function InsightsScreen() {
             accessibilityRole="button"
             accessibilityLabel={isPremium ? "View this month's recap" : "Monthly recap, Pro feature. Tap to upgrade"}
           >
-            <Ionicons name={isPremium ? "calendar-outline" : "lock-closed"} size={16} color={isPremium ? "#f5a623" : "#64748b"} />
+            <Ionicons name={isPremium ? "calendar-outline" : "lock-closed"} size={16} color={isPremium ? AMBER : TEXT_3} />
             <Text style={[styles.recapBtnLabel, !isPremium && styles.recapBtnLabelLocked]}>Month</Text>
           </TouchableOpacity>
         </View>
@@ -240,7 +249,7 @@ export default function InsightsScreen() {
         {/* Driving Analytics link */}
         <TouchableOpacity
           style={{
-            backgroundColor: "#0a1120",
+            backgroundColor: CARD_BG,
             borderRadius: 14,
             borderWidth: 1,
             borderColor: "rgba(255,255,255,0.05)",
@@ -260,21 +269,21 @@ export default function InsightsScreen() {
             backgroundColor: isPremium ? "rgba(245,166,35,0.12)" : "rgba(255,255,255,0.04)",
             justifyContent: "center", alignItems: "center",
           }}>
-            <Ionicons name={isPremium ? "bar-chart-outline" : "lock-closed"} size={20} color={isPremium ? "#f5a623" : "#64748b"} />
+            <Ionicons name={isPremium ? "bar-chart-outline" : "lock-closed"} size={20} color={isPremium ? AMBER : TEXT_3} />
           </View>
           <View style={{ flex: 1 }}>
-            <Text style={{ color: isPremium ? "#f0f2f5" : "#8494a7", fontSize: 15, fontFamily: "PlusJakartaSans_600SemiBold" }}>
+            <Text style={{ color: isPremium ? TEXT_1 : TEXT_2, fontSize: 15, fontFamily: fonts.semibold }}>
               Driving Analytics
             </Text>
-            <Text style={{ color: "#8494a7", fontSize: 12.5, fontFamily: "PlusJakartaSans_400Regular" }}>
+            <Text style={{ color: TEXT_2, fontSize: 12.5, fontFamily: fonts.regular }}>
               Routes, costs, earnings patterns, commute timing
             </Text>
           </View>
           {isPremium ? (
-            <Ionicons name="chevron-forward" size={18} color="#64748b" />
+            <Ionicons name="chevron-forward" size={18} color={TEXT_3} />
           ) : (
-            <View style={{ backgroundColor: "#f5a623", paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 }}>
-              <Text style={{ fontSize: 11, fontFamily: "PlusJakartaSans_700Bold", color: "#030712" }}>PRO</Text>
+            <View style={{ backgroundColor: AMBER, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 }}>
+              <Text style={{ fontSize: 11, fontFamily: fonts.bold, color: BG }}>PRO</Text>
             </View>
           )}
         </TouchableOpacity>
@@ -329,7 +338,7 @@ export default function InsightsScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#030712" },
+  container: { flex: 1, backgroundColor: BG },
   content: { padding: 16 },
   // Recap row
   recapRow: { flexDirection: "row", gap: 10, marginBottom: 16 },
@@ -339,7 +348,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     gap: 6,
-    backgroundColor: "#0a1120",
+    backgroundColor: CARD_BG,
     borderRadius: 12,
     paddingVertical: 14,
     borderWidth: 1,
@@ -347,7 +356,7 @@ const styles = StyleSheet.create({
   },
   recapBtnLabel: {
     fontSize: 14,
-    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontFamily: fonts.semibold,
     color: "#c9d1d9",
   },
   recapBtnLocked: {
@@ -355,17 +364,17 @@ const styles = StyleSheet.create({
     borderColor: "rgba(255,255,255,0.03)",
   },
   recapBtnLabelLocked: {
-    color: "#64748b",
+    color: TEXT_3,
   },
   // Sections
   section: { marginBottom: 16 },
   sectionHead: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 10 },
-  sectionTitle: { fontSize: 16, fontFamily: "PlusJakartaSans_700Bold", color: "#f0f2f5" },
-  seeAll: { fontSize: 13, fontFamily: "PlusJakartaSans_600SemiBold", color: "#f5a623" },
+  sectionTitle: { fontSize: 16, fontFamily: fonts.bold, color: TEXT_1 },
+  seeAll: { fontSize: 13, fontFamily: fonts.semibold, color: AMBER },
   // Badges
   badgeScroll: { gap: 10 },
   badge: {
-    backgroundColor: "#0a1120",
+    backgroundColor: CARD_BG,
     borderRadius: 12,
     paddingHorizontal: 14,
     paddingVertical: 10,
@@ -375,30 +384,30 @@ const styles = StyleSheet.create({
     borderColor: "rgba(255,255,255,0.05)",
   },
   badgeEmoji: { fontSize: 22, marginBottom: 4 },
-  badgeLabel: { fontSize: 11, fontFamily: "PlusJakartaSans_500Medium", color: "#8494a7", textAlign: "center" },
+  badgeLabel: { fontSize: 11, fontFamily: fonts.medium, color: TEXT_2, textAlign: "center" },
   // Records
   recordGrid: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
   recordCell: {
     flex: 1,
     minWidth: "45%",
-    backgroundColor: "#0a1120",
+    backgroundColor: CARD_BG,
     borderRadius: 12,
     padding: 14,
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.05)",
   },
-  recordValue: { fontSize: 18, fontFamily: "PlusJakartaSans_700Bold", color: "#f5a623", marginBottom: 2 },
-  recordLabel: { fontSize: 11, fontFamily: "PlusJakartaSans_500Medium", color: "#6b7280" },
+  recordValue: { fontSize: 18, fontFamily: fonts.bold, color: AMBER, marginBottom: 2 },
+  recordLabel: { fontSize: 11, fontFamily: fonts.medium, color: TEXT_3 },
   // Modal
   modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "flex-end" },
-  modalSheet: { backgroundColor: "#0a1120", borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 24, paddingBottom: 40 },
+  modalSheet: { backgroundColor: CARD_BG, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 24, paddingBottom: 40 },
   modalHandle: { width: 36, height: 4, backgroundColor: "rgba(255,255,255,0.15)", borderRadius: 2, alignSelf: "center", marginBottom: 16 },
-  modalTitle: { fontSize: 20, fontFamily: "PlusJakartaSans_700Bold", color: "#f0f2f5", textAlign: "center", marginBottom: 8 },
-  recapSubtitle: { fontSize: 14, fontFamily: "PlusJakartaSans_500Medium", color: "#8494a7", textAlign: "center", marginBottom: 16 },
+  modalTitle: { fontSize: 20, fontFamily: fonts.bold, color: TEXT_1, textAlign: "center", marginBottom: 8 },
+  recapSubtitle: { fontSize: 14, fontFamily: fonts.medium, color: TEXT_2, textAlign: "center", marginBottom: 16 },
   recapGrid: { flexDirection: "row", justifyContent: "space-around", marginBottom: 16 },
   recapCell: { alignItems: "center" },
-  recapNum: { fontSize: 22, fontFamily: "PlusJakartaSans_700Bold", color: "#f5a623" },
-  recapUnit: { fontSize: 11, fontFamily: "PlusJakartaSans_500Medium", color: "#6b7280", textTransform: "uppercase", letterSpacing: 0.3, marginTop: 2 },
-  recapDetail: { fontSize: 13, fontFamily: "PlusJakartaSans_500Medium", color: "#8494a7", textAlign: "center", marginBottom: 16 },
+  recapNum: { fontSize: 22, fontFamily: fonts.bold, color: AMBER },
+  recapUnit: { fontSize: 11, fontFamily: fonts.medium, color: TEXT_3, textTransform: "uppercase", letterSpacing: 0.3, marginTop: 2 },
+  recapDetail: { fontSize: 13, fontFamily: fonts.medium, color: TEXT_2, textAlign: "center", marginBottom: 16 },
   recapBtnRow: { flexDirection: "row", gap: 10 },
 });

@@ -27,17 +27,18 @@ import {
 } from "../lib/api/analytics";
 import { useMode } from "../lib/mode/context";
 import { PremiumGate } from "../components/PremiumGate";
+import { colors, fonts } from "../lib/theme";
 
 // ─── Constants ───────────────────────────────────────────────────────────────
-const AMBER = "#f5a623";
-const GREEN = "#10b981";
-const RED = "#ef4444";
-const CARD_BG = "#0a1120";
+const AMBER = colors.amber;
+const GREEN = colors.green;
+const RED = colors.red;
+const CARD_BG = colors.surface;
 const BORDER = "rgba(255,255,255,0.05)";
-const TEXT_1 = "#f0f2f5";
-const TEXT_2 = "#8494a7";
-const TEXT_3 = "#64748b";
-const BG = "#030712";
+const TEXT_1 = colors.text1;
+const TEXT_2 = colors.text2;
+const TEXT_3 = colors.text3;
+const BG = colors.bg;
 
 const DAY_ABBREVS = ["M", "T", "W", "T", "F", "S", "S"];
 const DAY_FULL = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
@@ -810,7 +811,7 @@ export default function AnalyticsScreen() {
             headerStyle: { backgroundColor: BG },
             headerTintColor: TEXT_1,
             headerTitleStyle: {
-              fontFamily: "PlusJakartaSans_600SemiBold",
+              fontFamily: fonts.semibold,
               color: TEXT_1,
             },
           }}
@@ -829,7 +830,7 @@ export default function AnalyticsScreen() {
           headerStyle: { backgroundColor: BG },
           headerTintColor: TEXT_1,
           headerTitleStyle: {
-            fontFamily: "PlusJakartaSans_600SemiBold",
+            fontFamily: fonts.semibold,
             color: TEXT_1,
           },
         }}
@@ -923,7 +924,7 @@ const s = StyleSheet.create({
   },
   loadingText: {
     fontSize: 14,
-    fontFamily: "PlusJakartaSans_500Medium",
+    fontFamily: fonts.medium,
     color: TEXT_2,
   },
 
@@ -955,7 +956,7 @@ const s = StyleSheet.create({
   },
   cardTitle: {
     fontSize: 15,
-    fontFamily: "PlusJakartaSans_700Bold",
+    fontFamily: fonts.bold,
     color: TEXT_1,
   },
 
@@ -989,7 +990,7 @@ const s = StyleSheet.create({
   },
   weekLabelText: {
     fontSize: 10,
-    fontFamily: "PlusJakartaSans_500Medium",
+    fontFamily: fonts.medium,
     color: AMBER,
   },
 
@@ -1002,7 +1003,7 @@ const s = StyleSheet.create({
   },
   countChipText: {
     fontSize: 11,
-    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontFamily: fonts.semibold,
     color: TEXT_2,
   },
 
@@ -1027,7 +1028,7 @@ const s = StyleSheet.create({
   },
   weekColTitle: {
     fontSize: 11,
-    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontFamily: fonts.semibold,
     color: AMBER,
     textTransform: "uppercase",
     letterSpacing: 0.5,
@@ -1040,12 +1041,12 @@ const s = StyleSheet.create({
   },
   weekStatLabel: {
     fontSize: 12,
-    fontFamily: "PlusJakartaSans_400Regular",
+    fontFamily: fonts.regular,
     color: TEXT_2,
   },
   weekStatValue: {
     fontSize: 12,
-    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontFamily: fonts.semibold,
     color: TEXT_1,
   },
 
@@ -1073,12 +1074,12 @@ const s = StyleSheet.create({
   },
   weekTotalValue: {
     fontSize: 18,
-    fontFamily: "PlusJakartaSans_700Bold",
+    fontFamily: fonts.bold,
     color: TEXT_1,
   },
   weekTotalLabel: {
     fontSize: 10,
-    fontFamily: "PlusJakartaSans_500Medium",
+    fontFamily: fonts.medium,
     color: TEXT_2,
     marginTop: 2,
     textTransform: "uppercase",
@@ -1086,7 +1087,7 @@ const s = StyleSheet.create({
   },
   streakValue: {
     fontSize: 18,
-    fontFamily: "PlusJakartaSans_700Bold",
+    fontFamily: fonts.bold,
     color: AMBER,
   },
 
@@ -1100,13 +1101,13 @@ const s = StyleSheet.create({
   },
   deltaRowLabel: {
     fontSize: 11,
-    fontFamily: "PlusJakartaSans_500Medium",
+    fontFamily: fonts.medium,
     color: TEXT_2,
     marginRight: 2,
   },
   deltaRowSep: {
     fontSize: 10,
-    fontFamily: "PlusJakartaSans_400Regular",
+    fontFamily: fonts.regular,
     color: TEXT_3,
   },
   deltaBadge: {
@@ -1125,7 +1126,7 @@ const s = StyleSheet.create({
   },
   deltaBadgeText: {
     fontSize: 11,
-    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontFamily: fonts.semibold,
   },
 
   // Achievements row
@@ -1143,7 +1144,7 @@ const s = StyleSheet.create({
   },
   achievementRowLabel: {
     fontSize: 12,
-    fontFamily: "PlusJakartaSans_500Medium",
+    fontFamily: fonts.medium,
     color: AMBER,
   },
   achievementChip: {
@@ -1154,7 +1155,7 @@ const s = StyleSheet.create({
   },
   achievementChipText: {
     fontSize: 11,
-    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontFamily: fonts.semibold,
     color: AMBER,
   },
 
@@ -1194,7 +1195,7 @@ const s = StyleSheet.create({
   },
   routeAddress: {
     fontSize: 13,
-    fontFamily: "PlusJakartaSans_500Medium",
+    fontFamily: fonts.medium,
     color: TEXT_1,
     flex: 1,
   },
@@ -1215,7 +1216,7 @@ const s = StyleSheet.create({
   },
   routeStatText: {
     fontSize: 11,
-    fontFamily: "PlusJakartaSans_500Medium",
+    fontFamily: fonts.medium,
     color: TEXT_2,
   },
 
@@ -1236,7 +1237,7 @@ const s = StyleSheet.create({
   },
   dayDotLabel: {
     fontSize: 11,
-    fontFamily: "PlusJakartaSans_500Medium",
+    fontFamily: fonts.medium,
     color: TEXT_3,
   },
 
@@ -1253,7 +1254,7 @@ const s = StyleSheet.create({
   },
   seeAllText: {
     fontSize: 13,
-    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontFamily: fonts.semibold,
     color: AMBER,
   },
 
@@ -1266,13 +1267,13 @@ const s = StyleSheet.create({
   },
   sweetSpotLabel: {
     fontSize: 12,
-    fontFamily: "PlusJakartaSans_500Medium",
+    fontFamily: fonts.medium,
     color: TEXT_2,
     width: 60,
   },
   sweetSpotLabelBest: {
     color: AMBER,
-    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontFamily: fonts.semibold,
   },
   sweetSpotBarWrap: {
     flex: 1,
@@ -1291,7 +1292,7 @@ const s = StyleSheet.create({
   },
   sweetSpotRate: {
     fontSize: 12,
-    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontFamily: fonts.semibold,
     color: TEXT_2,
     width: 56,
     textAlign: "right",
@@ -1312,7 +1313,7 @@ const s = StyleSheet.create({
   },
   sweetSpotCalloutText: {
     fontSize: 12,
-    fontFamily: "PlusJakartaSans_500Medium",
+    fontFamily: fonts.medium,
     color: TEXT_2,
     flex: 1,
   },
@@ -1327,12 +1328,12 @@ const s = StyleSheet.create({
   },
   fuelHeroValue: {
     fontSize: 36,
-    fontFamily: "PlusJakartaSans_700Bold",
+    fontFamily: fonts.bold,
     color: AMBER,
   },
   fuelHeroLabel: {
     fontSize: 12,
-    fontFamily: "PlusJakartaSans_500Medium",
+    fontFamily: fonts.medium,
     color: TEXT_2,
     marginTop: 2,
   },
@@ -1357,17 +1358,17 @@ const s = StyleSheet.create({
   },
   fuelMpgText: {
     fontSize: 12,
-    fontFamily: "PlusJakartaSans_500Medium",
+    fontFamily: fonts.medium,
     color: TEXT_2,
   },
   fuelTotalMi: {
     fontSize: 12,
-    fontFamily: "PlusJakartaSans_400Regular",
+    fontFamily: fonts.regular,
     color: TEXT_3,
   },
   fuelSectionLabel: {
     fontSize: 11,
-    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontFamily: fonts.semibold,
     color: TEXT_2,
     textTransform: "uppercase",
     letterSpacing: 0.4,
@@ -1394,7 +1395,7 @@ const s = StyleSheet.create({
   },
   fuelVehicleName: {
     fontSize: 13,
-    fontFamily: "PlusJakartaSans_500Medium",
+    fontFamily: fonts.medium,
     color: TEXT_1,
     flex: 1,
   },
@@ -1404,7 +1405,7 @@ const s = StyleSheet.create({
   },
   fuelVehicleStat: {
     fontSize: 12,
-    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontFamily: fonts.semibold,
     color: TEXT_2,
   },
   fillUpList: {
@@ -1428,12 +1429,12 @@ const s = StyleSheet.create({
   },
   fillUpDate: {
     fontSize: 13,
-    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontFamily: fonts.semibold,
     color: TEXT_1,
   },
   fillUpStation: {
     fontSize: 11,
-    fontFamily: "PlusJakartaSans_400Regular",
+    fontFamily: fonts.regular,
     color: TEXT_2,
   },
   fillUpRight: {
@@ -1442,12 +1443,12 @@ const s = StyleSheet.create({
   },
   fillUpCost: {
     fontSize: 14,
-    fontFamily: "PlusJakartaSans_700Bold",
+    fontFamily: fonts.bold,
     color: TEXT_1,
   },
   fillUpLitres: {
     fontSize: 11,
-    fontFamily: "PlusJakartaSans_400Regular",
+    fontFamily: fonts.regular,
     color: TEXT_2,
   },
 
@@ -1485,12 +1486,12 @@ const s = StyleSheet.create({
   },
   earningsDayLabel: {
     fontSize: 11,
-    fontFamily: "PlusJakartaSans_500Medium",
+    fontFamily: fonts.medium,
     color: TEXT_2,
   },
   earningsDayLabelBest: {
     color: AMBER,
-    fontFamily: "PlusJakartaSans_700Bold",
+    fontFamily: fonts.bold,
   },
   earningsCallout: {
     flexDirection: "row",
@@ -1505,7 +1506,7 @@ const s = StyleSheet.create({
   },
   earningsCalloutText: {
     fontSize: 12,
-    fontFamily: "PlusJakartaSans_500Medium",
+    fontFamily: fonts.medium,
     color: TEXT_2,
     flex: 1,
   },
@@ -1521,7 +1522,7 @@ const s = StyleSheet.create({
   },
   commuteRoute: {
     fontSize: 14,
-    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontFamily: fonts.semibold,
     color: TEXT_1,
     marginBottom: 10,
   },
@@ -1541,12 +1542,12 @@ const s = StyleSheet.create({
   },
   commuteDurationValue: {
     fontSize: 14,
-    fontFamily: "PlusJakartaSans_700Bold",
+    fontFamily: fonts.bold,
     color: TEXT_1,
   },
   commuteDurationLabel: {
     fontSize: 10,
-    fontFamily: "PlusJakartaSans_500Medium",
+    fontFamily: fonts.medium,
     color: TEXT_2,
     textTransform: "uppercase",
     letterSpacing: 0.3,
@@ -1565,7 +1566,7 @@ const s = StyleSheet.create({
   },
   commuteBestDepartText: {
     fontSize: 12,
-    fontFamily: "PlusJakartaSans_500Medium",
+    fontFamily: fonts.medium,
     color: AMBER,
     flex: 1,
   },
@@ -1601,12 +1602,12 @@ const s = StyleSheet.create({
   },
   commuteHourLabel: {
     fontSize: 11,
-    fontFamily: "PlusJakartaSans_400Regular",
+    fontFamily: fonts.regular,
     color: TEXT_3,
   },
   commuteHourLabelBest: {
     color: AMBER,
-    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontFamily: fonts.semibold,
   },
 
   // Empty state
@@ -1617,12 +1618,12 @@ const s = StyleSheet.create({
   },
   emptyTitle: {
     fontSize: 18,
-    fontFamily: "PlusJakartaSans_700Bold",
+    fontFamily: fonts.bold,
     color: TEXT_1,
   },
   emptySubtitle: {
     fontSize: 14,
-    fontFamily: "PlusJakartaSans_400Regular",
+    fontFamily: fonts.regular,
     color: TEXT_2,
     textAlign: "center",
     maxWidth: SCREEN_W * 0.7,

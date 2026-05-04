@@ -18,16 +18,20 @@ import { Stack, useFocusEffect } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { getDatabase } from "../lib/db/index";
 import { GIG_PLATFORMS } from "@mileclear/shared";
+import { colors, fonts } from "../lib/theme";
+
+// Local theme aliases — same pattern as the (tabs) screens.
+const GREEN = colors.green;
 
 // ── Constants ────────────────────────────────────────────────────────
 
-const BG = "#030712";
-const AMBER = "#f5a623";
-const EMERALD = "#10b981";
-const TEXT_1 = "#f0f2f5";
-const TEXT_2 = "#8494a7";
-const TEXT_3 = "#64748b";
-const CARD_BG = "#0a1120";
+const BG = colors.bg;
+const AMBER = colors.amber;
+const EMERALD = GREEN;
+const TEXT_1 = colors.text1;
+const TEXT_2 = colors.text2;
+const TEXT_3 = colors.text3;
+const CARD_BG = colors.surface;
 const CARD_BORDER = "rgba(255,255,255,0.05)";
 const INPUT_BG = "#111827";
 
@@ -175,7 +179,7 @@ function RuleCard({
           value={isEnabled}
           onValueChange={onToggle}
           trackColor={{ false: "#374151", true: "rgba(245, 166, 35, 0.4)" }}
-          thumbColor={isEnabled ? AMBER : "#9ca3af"}
+          thumbColor={isEnabled ? AMBER : TEXT_2}
           accessibilityLabel={`${rule.name} ${isEnabled ? "enabled" : "disabled"}, tap to toggle`}
         />
         <TouchableOpacity
@@ -468,7 +472,7 @@ function AddRuleModal({
                   <Text
                     style={[
                       s.chipText,
-                      isActive && { color: activeColor, fontFamily: "PlusJakartaSans_600SemiBold" },
+                      isActive && { color: activeColor, fontFamily: fonts.semibold },
                     ]}
                   >
                     {label}
@@ -882,7 +886,7 @@ const s = StyleSheet.create({
   },
   subtitle: {
     fontSize: 14,
-    fontFamily: "PlusJakartaSans_400Regular",
+    fontFamily: fonts.regular,
     color: TEXT_2,
     lineHeight: 21,
     marginBottom: 20,
@@ -916,7 +920,7 @@ const s = StyleSheet.create({
   },
   cardName: {
     fontSize: 15,
-    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontFamily: fonts.semibold,
     color: TEXT_1,
   },
   cardNameDisabled: {
@@ -924,7 +928,7 @@ const s = StyleSheet.create({
   },
   cardDesc: {
     fontSize: 12,
-    fontFamily: "PlusJakartaSans_400Regular",
+    fontFamily: fonts.regular,
     color: TEXT_2,
     lineHeight: 17,
   },
@@ -938,7 +942,7 @@ const s = StyleSheet.create({
   },
   platformTagText: {
     fontSize: 11,
-    fontFamily: "PlusJakartaSans_500Medium",
+    fontFamily: fonts.medium,
     color: AMBER,
   },
   cardRight: {
@@ -953,7 +957,7 @@ const s = StyleSheet.create({
   },
   classBadgeText: {
     fontSize: 11,
-    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontFamily: fonts.semibold,
   },
   deleteBtn: {
     padding: 4,
@@ -978,13 +982,13 @@ const s = StyleSheet.create({
   },
   emptyTitle: {
     fontSize: 17,
-    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontFamily: fonts.semibold,
     color: TEXT_2,
     marginBottom: 8,
   },
   emptyText: {
     fontSize: 14,
-    fontFamily: "PlusJakartaSans_400Regular",
+    fontFamily: fonts.regular,
     color: TEXT_3,
     textAlign: "center",
     lineHeight: 20,
@@ -993,7 +997,7 @@ const s = StyleSheet.create({
   // Rule count hint
   ruleCountHint: {
     fontSize: 12,
-    fontFamily: "PlusJakartaSans_400Regular",
+    fontFamily: fonts.regular,
     color: TEXT_3,
     textAlign: "center",
     marginTop: 4,
@@ -1014,7 +1018,7 @@ const s = StyleSheet.create({
   },
   addBtnText: {
     fontSize: 15,
-    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontFamily: fonts.semibold,
     color: AMBER,
   },
 
@@ -1035,17 +1039,17 @@ const s = StyleSheet.create({
   },
   modalTitle: {
     fontSize: 17,
-    fontFamily: "PlusJakartaSans_700Bold",
+    fontFamily: fonts.bold,
     color: TEXT_1,
   },
   modalCancel: {
     fontSize: 16,
-    fontFamily: "PlusJakartaSans_400Regular",
+    fontFamily: fonts.regular,
     color: TEXT_2,
   },
   modalSave: {
     fontSize: 16,
-    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontFamily: fonts.semibold,
     color: AMBER,
   },
   modalContent: {
@@ -1056,7 +1060,7 @@ const s = StyleSheet.create({
   // Form fields
   fieldLabel: {
     fontSize: 12,
-    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontFamily: fonts.semibold,
     color: TEXT_2,
     textTransform: "uppercase",
     letterSpacing: 0.5,
@@ -1071,7 +1075,7 @@ const s = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 13,
     fontSize: 15,
-    fontFamily: "PlusJakartaSans_400Regular",
+    fontFamily: fonts.regular,
     color: TEXT_1,
   },
 
@@ -1098,12 +1102,12 @@ const s = StyleSheet.create({
   },
   chipText: {
     fontSize: 14,
-    fontFamily: "PlusJakartaSans_500Medium",
+    fontFamily: fonts.medium,
     color: TEXT_3,
   },
   chipTextActive: {
     color: AMBER,
-    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontFamily: fonts.semibold,
   },
 
   // Platform chip row (horizontal scroll)
@@ -1135,7 +1139,7 @@ const s = StyleSheet.create({
   },
   dayChipText: {
     fontSize: 13,
-    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontFamily: fonts.semibold,
     color: TEXT_3,
   },
   dayChipTextActive: {
@@ -1152,7 +1156,7 @@ const s = StyleSheet.create({
   },
   hourHint: {
     fontSize: 11,
-    fontFamily: "PlusJakartaSans_400Regular",
+    fontFamily: fonts.regular,
     color: TEXT_3,
     marginTop: 5,
     paddingLeft: 2,
@@ -1173,7 +1177,7 @@ const s = StyleSheet.create({
   locationSelectorText: {
     flex: 1,
     fontSize: 15,
-    fontFamily: "PlusJakartaSans_400Regular",
+    fontFamily: fonts.regular,
     color: TEXT_3,
   },
   locationSelectorTextSelected: {
@@ -1199,7 +1203,7 @@ const s = StyleSheet.create({
   },
   locationPickerText: {
     fontSize: 15,
-    fontFamily: "PlusJakartaSans_500Medium",
+    fontFamily: fonts.medium,
     color: TEXT_2,
   },
   locationPickerTextSelected: {

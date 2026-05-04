@@ -22,6 +22,16 @@ import { useUser } from "../lib/user/context";
 import { isIapAvailable, purchaseSubscription } from "../lib/iap/index";
 import { createCheckoutSession } from "../lib/api/billing";
 import * as SecureStore from "expo-secure-store";
+import { colors, fonts } from "../lib/theme";
+
+// Local theme aliases — same pattern as the (tabs) screens.
+const AMBER = colors.amber;
+const CARD_BG = colors.surface;
+const TEXT_2 = colors.text2;
+const TEXT_3 = colors.text3;
+const BG = colors.bg;
+const GREEN = colors.green;
+const RED = colors.red;
 
 const API_URL = process.env.EXPO_PUBLIC_API_URL || "https://api.mileclear.com";
 
@@ -36,9 +46,9 @@ function formatDate(iso: string): string {
 }
 
 const STATUS_COLORS: Record<string, string> = {
-  active: "#10b981",
-  disconnected: "#6b7280",
-  error: "#ef4444",
+  active: GREEN,
+  disconnected: TEXT_3,
+  error: RED,
 };
 
 export default function OpenBankingScreen() {
@@ -160,7 +170,7 @@ export default function OpenBankingScreen() {
             <View
               style={[
                 styles.statusDot,
-                { backgroundColor: STATUS_COLORS[item.status] || "#6b7280" },
+                { backgroundColor: STATUS_COLORS[item.status] || TEXT_3 },
               ]}
             />
             <Text style={styles.statusText}>
@@ -223,7 +233,7 @@ export default function OpenBankingScreen() {
       <View style={styles.container}>
         <View style={styles.gateContainer}>
           <View style={styles.gateIcon}>
-            <Ionicons name="business-outline" size={44} color="#f5a623" />
+            <Ionicons name="business-outline" size={44} color={AMBER} />
           </View>
           <Text style={styles.gateTitle}>Open Banking</Text>
           <View style={styles.proBadge}>
@@ -252,7 +262,7 @@ export default function OpenBankingScreen() {
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#f5a623" accessibilityLabel="Loading" />
+        <ActivityIndicator size="large" color={AMBER} accessibilityLabel="Loading" />
       </View>
     );
   }
@@ -281,7 +291,7 @@ export default function OpenBankingScreen() {
         ListEmptyComponent={
           <View style={styles.emptyState}>
             <View style={styles.emptyIcon}>
-              <Ionicons name="business-outline" size={40} color="#64748b" />
+              <Ionicons name="business-outline" size={40} color={TEXT_3} />
             </View>
             <Text style={styles.emptyTitle}>No banks connected</Text>
             <Text style={styles.emptyText}>
@@ -307,11 +317,11 @@ export default function OpenBankingScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#030712",
+    backgroundColor: BG,
   },
   loadingContainer: {
     flex: 1,
-    backgroundColor: "#030712",
+    backgroundColor: BG,
     justifyContent: "center",
     alignItems: "center",
   },
@@ -329,29 +339,29 @@ const styles = StyleSheet.create({
   },
   heading: {
     fontSize: 24,
-    fontFamily: "PlusJakartaSans_700Bold",
+    fontFamily: fonts.bold,
     color: "#fff",
   },
   proBadge: {
-    backgroundColor: "#f5a623",
+    backgroundColor: AMBER,
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: 6,
   },
   proBadgeText: {
     fontSize: 11,
-    fontFamily: "PlusJakartaSans_700Bold",
-    color: "#030712",
+    fontFamily: fonts.bold,
+    color: BG,
   },
   description: {
     fontSize: 14,
-    fontFamily: "PlusJakartaSans_400Regular",
-    color: "#9ca3af",
+    fontFamily: fonts.regular,
+    color: TEXT_2,
     lineHeight: 20,
   },
   // Bank cards
   card: {
-    backgroundColor: "#0a1120",
+    backgroundColor: CARD_BG,
     borderRadius: 12,
     padding: 16,
     marginBottom: 12,
@@ -366,7 +376,7 @@ const styles = StyleSheet.create({
   },
   bankName: {
     fontSize: 16,
-    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontFamily: fonts.semibold,
     color: "#fff",
     marginBottom: 4,
   },
@@ -382,13 +392,13 @@ const styles = StyleSheet.create({
   },
   statusText: {
     fontSize: 12,
-    fontFamily: "PlusJakartaSans_400Regular",
-    color: "#9ca3af",
+    fontFamily: fonts.regular,
+    color: TEXT_2,
   },
   lastSynced: {
     fontSize: 12,
-    fontFamily: "PlusJakartaSans_400Regular",
-    color: "#6b7280",
+    fontFamily: fonts.regular,
+    color: TEXT_3,
     marginBottom: 12,
   },
   cardActions: {
@@ -404,7 +414,7 @@ const styles = StyleSheet.create({
     width: 72,
     height: 72,
     borderRadius: 36,
-    backgroundColor: "#0a1120",
+    backgroundColor: CARD_BG,
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.06)",
     justifyContent: "center",
@@ -413,14 +423,14 @@ const styles = StyleSheet.create({
   },
   emptyTitle: {
     fontSize: 17,
-    fontFamily: "PlusJakartaSans_600SemiBold",
-    color: "#9ca3af",
+    fontFamily: fonts.semibold,
+    color: TEXT_2,
     marginBottom: 4,
   },
   emptyText: {
     fontSize: 14,
-    fontFamily: "PlusJakartaSans_400Regular",
-    color: "#6b7280",
+    fontFamily: fonts.regular,
+    color: TEXT_3,
     textAlign: "center",
   },
   // Footer
@@ -446,22 +456,22 @@ const styles = StyleSheet.create({
   },
   gateTitle: {
     fontSize: 22,
-    fontFamily: "PlusJakartaSans_700Bold",
+    fontFamily: fonts.bold,
     color: "#fff",
     marginBottom: 8,
   },
   gateDesc: {
     fontSize: 14,
-    fontFamily: "PlusJakartaSans_400Regular",
-    color: "#9ca3af",
+    fontFamily: fonts.regular,
+    color: TEXT_2,
     textAlign: "center",
     lineHeight: 20,
     marginTop: 12,
   },
   gatePrice: {
     fontSize: 13,
-    fontFamily: "PlusJakartaSans_400Regular",
-    color: "#6b7280",
+    fontFamily: fonts.regular,
+    color: TEXT_3,
     marginTop: 10,
   },
   gateLegalLinks: {
@@ -472,11 +482,11 @@ const styles = StyleSheet.create({
   },
   gateLegalLink: {
     fontSize: 11,
-    fontFamily: "PlusJakartaSans_500Medium",
+    fontFamily: fonts.medium,
     color: "#3b82f6",
   },
   gateLegalSep: {
     fontSize: 11,
-    color: "#4b5563",
+    color: TEXT_3,
   },
 });

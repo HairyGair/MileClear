@@ -16,13 +16,17 @@ import type { AchievementWithMeta, GamificationStats } from "@mileclear/shared";
 import { useIsPremium } from "../components/PremiumGate";
 import { PremiumTeaser } from "../components/PremiumGate";
 import { maybeRequestReview } from "../lib/rating/index";
+import { colors, fonts } from "../lib/theme";
 
-const AMBER = "#f5a623";
-const CARD_BG = "#0a1120";
+// Local theme aliases — same pattern as the (tabs) screens.
+const BG = colors.bg;
+
+const AMBER = colors.amber;
+const CARD_BG = colors.surface;
 const BORDER = "rgba(255,255,255,0.05)";
-const TEXT_1 = "#f0f2f5";
-const TEXT_2 = "#8494a7";
-const TEXT_3 = "#64748b";
+const TEXT_1 = colors.text1;
+const TEXT_2 = colors.text2;
+const TEXT_3 = colors.text3;
 
 const freeSet = new Set<string>(FREE_ACHIEVEMENT_TYPES);
 
@@ -174,7 +178,7 @@ export default function AchievementsScreen() {
 const s = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#030712",
+    backgroundColor: BG,
   },
   centered: {
     justifyContent: "center",
@@ -202,7 +206,7 @@ const s = StyleSheet.create({
   },
   progressText: {
     fontSize: 12,
-    fontFamily: "PlusJakartaSans_400Regular",
+    fontFamily: fonts.regular,
     color: TEXT_2,
     letterSpacing: 0.3,
   },
@@ -240,7 +244,7 @@ const s = StyleSheet.create({
   },
   badgeLabel: {
     fontSize: 11,
-    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontFamily: fonts.semibold,
     color: TEXT_1,
     textAlign: "center",
     marginBottom: 2,
@@ -251,7 +255,7 @@ const s = StyleSheet.create({
   },
   badgeDesc: {
     fontSize: 11,
-    fontFamily: "PlusJakartaSans_400Regular",
+    fontFamily: fonts.regular,
     color: TEXT_2,
     textAlign: "center",
     lineHeight: 12,
@@ -261,7 +265,7 @@ const s = StyleSheet.create({
   },
   badgeDate: {
     fontSize: 11,
-    fontFamily: "PlusJakartaSans_500Medium",
+    fontFamily: fonts.medium,
     color: AMBER,
     marginTop: 4,
   },
@@ -272,7 +276,7 @@ const s = StyleSheet.create({
   },
   sectionTitle: {
     fontSize: 15,
-    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontFamily: fonts.semibold,
     color: TEXT_1,
     marginBottom: 12,
     letterSpacing: -0.2,
@@ -294,13 +298,13 @@ const s = StyleSheet.create({
   },
   recordValue: {
     fontSize: 20,
-    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontFamily: fonts.semibold,
     color: TEXT_1,
     marginBottom: 2,
   },
   recordLabel: {
     fontSize: 11,
-    fontFamily: "PlusJakartaSans_400Regular",
+    fontFamily: fonts.regular,
     color: TEXT_3,
     letterSpacing: 0.2,
   },
