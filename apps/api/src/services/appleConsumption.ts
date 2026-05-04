@@ -273,13 +273,16 @@ export async function respondToConsumptionRequest(args: {
 }
 
 function orphanPayload(appAccountToken: string | null): ConsumptionRequest {
+  // Apple validates appAccountToken as 'a valid UUID or an empty string'.
+  // undefined / null both fail validation with apiError 4000033, so we
+  // pass empty string when we don't have one.
   return {
     customerConsented: false,
     consumptionStatus: ConsumptionStatus.UNDECLARED,
     platform: Platform.APPLE,
     sampleContentProvided: false,
     deliveryStatus: DeliveryStatus.DELIVERED_AND_WORKING_PROPERLY,
-    appAccountToken: appAccountToken ?? undefined,
+    appAccountToken: appAccountToken ?? "",
     accountTenure: AccountTenure.UNDECLARED,
     playTime: PlayTime.UNDECLARED,
     lifetimeDollarsRefunded: LifetimeDollarsRefunded.UNDECLARED,
