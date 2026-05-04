@@ -1,5 +1,6 @@
 import { FastifyInstance } from "fastify";
 import { z } from "zod";
+import { Prisma } from "@prisma/client";
 import { prisma } from "../../lib/prisma.js";
 import { authMiddleware } from "../../middleware/auth.js";
 import { adminMiddleware } from "../../middleware/admin.js";
@@ -2204,6 +2205,84 @@ export async function adminRoutes(app: FastifyInstance) {
       data: {
         activationWindowDays: ACTIVATION_WINDOW_DAYS,
         cohorts,
+        generatedAt: new Date().toISOString(),
+      },
+    });
+  });
+
+  // ── Time-of-day issue patterns (audit follow-up #5 of 5) ──────────
+  //
+  // Hourly histogram (UTC, 0-23) of the diagnostic-event types we
+  // care about. Surfaces patterns like "watchdog pings spike at 8am
+  // every day" (commute / rush hour reliability) or "logins fail at
+  // 2am UTC consistently" (timezone bug). 14-day window.
+  //
+  // Uses Prisma.sql for the IN clause — the previous attempt with
+  // template-string interpolation breaks the parameterised binding.
+  app.get("/issues-by-hour", async (_request, reply) => {
+    const WINDOW_DAYS = 14;
+    const since = new Date(Date.now() - WINDOW_DAYS * 24 * 60 * 60 * 1000);
+
+    // Watch a curated set, not every event. Informational events like
+    // trip.created don't belong here.
+    const TRACKED_TYPES = [
+      "watchdog.silent_push_sent",
+      "watchdog.drain_sync_push_sent",
+      "alert.stuck_recording",
+      "alert.permission_missing",
+      "alert.task_not_running",
+      "perf.slow_request",
+      "auth.login_failed",
+      "reconciliation.drift",
+    ];
+
+    const rows = await prisma.appEvent.groupBy({
+      by: ["type"],
+      where: {
+        type: { in: TRACKED_TYPES },
+        createdAt: { gte: since },
+      },
+      _count: { id: true },
+    });
+
+    // We need hour-of-day grouping which Prisma's groupBy can't do
+    // natively. Drop to a parameterised raw query.
+    const hourly = await prisma.$queryRaw<
+      Array<{ type: string; hour: number; count: bigint }>
+    >(
+      Prisma.sql`
+        SELECT type, HOUR(createdAt) AS hour, COUNT(*) AS count
+        FROM app_events
+        WHERE type IN (${Prisma.join(TRACKED_TYPES)})
+          AND createdAt >= ${since}
+        GROUP BY type, HOUR(createdAt)
+        ORDER BY type, hour
+      `
+    );
+
+    const series: Record<string, number[]> = {};
+    for (const t of TRACKED_TYPES) series[t] = new Array(24).fill(0);
+    for (const row of hourly) {
+      if (series[row.type]) {
+        series[row.type][Number(row.hour)] = Number(row.count);
+      }
+    }
+
+    const totalsByHour: number[] = new Array(24).fill(0);
+    for (const arr of Object.values(series)) {
+      for (let h = 0; h < 24; h++) totalsByHour[h] += arr[h];
+    }
+    const totalsByType: Record<string, number> = {};
+    for (const r of rows) {
+      totalsByType[r.type] = r._count.id;
+    }
+
+    return reply.send({
+      data: {
+        windowDays: WINDOW_DAYS,
+        series,
+        totalsByHour,
+        totalsByType,
         generatedAt: new Date().toISOString(),
       },
     });
