@@ -13,6 +13,7 @@ import { fetchTaxSnapshot } from "../../lib/api/businessInsights";
 import { formatPence, UK_TAX_2025_26 } from "@mileclear/shared";
 import type { TaxSnapshot } from "@mileclear/shared";
 import { DerivationPanel } from "../DerivationPanel";
+import { AcrossWindowsPanel } from "../AcrossWindowsPanel";
 import { colors } from "../../lib/theme";
 
 // Show the higher-rate warning when YTD taxable profit is between £35k and
@@ -54,6 +55,7 @@ export function TaxReadinessCard() {
   const [loading, setLoading] = useState(true);
   const [expanded, setExpanded] = useState(false);
   const [showDeductionDerivation, setShowDeductionDerivation] = useState(false);
+  const [showDeductionWindows, setShowDeductionWindows] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -111,8 +113,9 @@ export function TaxReadinessCard() {
             <Text
               style={s.heroMetaLink}
               onPress={() => setShowDeductionDerivation(true)}
+              onLongPress={() => setShowDeductionWindows(true)}
               accessibilityRole="button"
-              accessibilityLabel={`${formatPence(snap.ytd.mileageDeductionPence)} mileage deduction. Tap to see how this was calculated.`}
+              accessibilityLabel={`${formatPence(snap.ytd.mileageDeductionPence)} mileage deduction. Tap to see how this was calculated. Long-press to see how it compares across time windows.`}
             >
               {formatPence(snap.ytd.mileageDeductionPence)} mileage deduction
               <Text style={s.heroMetaLinkIcon}>{" ⓘ"}</Text>
@@ -254,6 +257,13 @@ export function TaxReadinessCard() {
         formattedValue={formatPence(snap.ytd.mileageDeductionPence)}
         derivation={snap.ytd.mileageDeductionDerivation}
         onClose={() => setShowDeductionDerivation(false)}
+      />
+
+      <AcrossWindowsPanel
+        visible={showDeductionWindows}
+        title="Mileage deduction"
+        data={snap.ytd.mileageDeductionAcrossWindows}
+        onClose={() => setShowDeductionWindows(false)}
       />
     </View>
   );

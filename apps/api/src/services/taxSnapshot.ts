@@ -12,6 +12,7 @@ import {
   type ReadinessItem,
   type VehicleType,
   type NumberDerivation,
+  type NumberAcrossWindows,
 } from "@mileclear/shared";
 
 /**
@@ -207,6 +208,16 @@ export async function buildTaxSnapshot(userId: string): Promise<TaxSnapshot> {
     totalDeductionPence: mileageDeductionPence,
   });
 
+  // Cross-window comparison for the deduction. Long-press the figure to
+  // see how this tax year compares to last 7 days, this month, and last
+  // tax year. Layer 3 polish (premium_app_feel.md).
+  const mileageDeductionAcrossWindows = await buildMileageDeductionAcrossWindows({
+    userId,
+    now,
+    taxYear,
+    thisYearTotalPence: mileageDeductionPence,
+  });
+
   return {
     taxYear,
     taxYearEndDate: end.toISOString(),
@@ -219,6 +230,7 @@ export async function buildTaxSnapshot(userId: string): Promise<TaxSnapshot> {
       estimatedTaxPence,
       effectiveRatePercent,
       mileageDeductionDerivation,
+      mileageDeductionAcrossWindows,
     },
     setAsideThisWeek: {
       earningsLast7DaysPence,
@@ -358,4 +370,138 @@ function buildMileageDeductionDerivation(input: DerivationInput): NumberDerivati
       "Trips without a linked vehicle assume car rates. Add or assign a vehicle on the Trip detail screen if a trip used a different vehicle type.",
     ],
   };
+}
+
+// ── Cross-window comparison helper ──────────────────────────────────
+
+interface AcrossWindowsInput {
+  userId: string;
+  now: Date;
+  taxYear: string;
+  /** Already-computed deduction for the current tax year, reused so we
+   *  don't redo the full aggregation. */
+  thisYearTotalPence: number;
+}
+
+/**
+ * Build the cross-window comparison for the YTD mileage deduction.
+ * Long-press → 4 windows: last 7 days, this month, this tax year, last
+ * tax year. Each window queries business trips in its date range and
+ * applies AMAP rates the same way as the main snapshot.
+ *
+ * Layer 3 polish (premium_app_feel.md).
+ */
+async function buildMileageDeductionAcrossWindows(
+  input: AcrossWindowsInput
+): Promise<NumberAcrossWindows> {
+  const { userId, now, taxYear, thisYearTotalPence } = input;
+
+  // Window bounds.
+  const last7DaysStart = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+  const thisMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+
+  // Last tax year — derive from current taxYear string e.g. "2025-26" → "2024-25".
+  const [currentStartStr] = taxYear.split("-");
+  const lastTaxYearStartYear = parseInt(currentStartStr, 10) - 1;
+  const lastTaxYear = `${lastTaxYearStartYear}-${String(lastTaxYearStartYear + 1).slice(2)}`;
+  const { start: lastTyStart, end: lastTyEnd } = parseTaxYear(lastTaxYear);
+
+  // Query trips for the 3 windows we don't already have aggregated.
+  // (This-tax-year is reused from the snapshot's pre-computed total.)
+  const [last7DaysTrips, thisMonthTrips, lastTaxYearTrips] = await Promise.all([
+    prisma.trip.findMany({
+      where: {
+        userId,
+        classification: "business",
+        startedAt: { gte: last7DaysStart, lte: now },
+      },
+      select: {
+        distanceMiles: true,
+        vehicle: { select: { vehicleType: true } },
+      },
+    }),
+    prisma.trip.findMany({
+      where: {
+        userId,
+        classification: "business",
+        startedAt: { gte: thisMonthStart, lte: now },
+      },
+      select: {
+        distanceMiles: true,
+        vehicle: { select: { vehicleType: true } },
+      },
+    }),
+    prisma.trip.findMany({
+      where: {
+        userId,
+        classification: "business",
+        startedAt: { gte: lastTyStart, lte: lastTyEnd },
+      },
+      select: {
+        distanceMiles: true,
+        vehicle: { select: { vehicleType: true } },
+      },
+    }),
+  ]);
+
+  const deductionFor = (trips: { distanceMiles: number; vehicle: { vehicleType: string } | null }[]) => {
+    const milesByTypeLocal = new Map<VehicleType, number>();
+    for (const t of trips) {
+      const type = (t.vehicle?.vehicleType ?? "car") as VehicleType;
+      milesByTypeLocal.set(type, (milesByTypeLocal.get(type) ?? 0) + t.distanceMiles);
+    }
+    let pence = 0;
+    for (const [type, miles] of milesByTypeLocal) {
+      pence += calculateHmrcDeduction(type, miles);
+    }
+    return pence;
+  };
+
+  const last7DaysPence = deductionFor(last7DaysTrips);
+  const thisMonthPence = deductionFor(thisMonthTrips);
+  const lastTaxYearPence = deductionFor(lastTaxYearTrips);
+
+  return {
+    label: "HMRC mileage deduction across windows",
+    windows: [
+      {
+        key: "last7d",
+        label: "Last 7 days",
+        value: formatPence(last7DaysPence),
+        raw: last7DaysPence,
+        range: `${shortDate(last7DaysStart)} – today`,
+      },
+      {
+        key: "thisMonth",
+        label: monthLabel(now),
+        value: formatPence(thisMonthPence),
+        raw: thisMonthPence,
+        range: `${shortDate(thisMonthStart)} – today`,
+      },
+      {
+        key: "thisTaxYear",
+        label: `Tax year ${taxYear}`,
+        value: formatPence(thisYearTotalPence),
+        raw: thisYearTotalPence,
+        highlight: true,
+      },
+      {
+        key: "lastTaxYear",
+        label: `Tax year ${lastTaxYear}`,
+        value: formatPence(lastTaxYearPence),
+        raw: lastTaxYearPence,
+      },
+    ],
+    notes: [
+      "Each window applies AMAP rates fresh — the 10k threshold resets per tax year, not per window.",
+    ],
+  };
+}
+
+function monthLabel(date: Date): string {
+  return date.toLocaleDateString("en-GB", { month: "long" });
+}
+
+function shortDate(date: Date): string {
+  return date.toLocaleDateString("en-GB", { day: "numeric", month: "short" });
 }

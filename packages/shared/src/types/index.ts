@@ -94,6 +94,11 @@ export interface TaxSnapshot {
     // number?" panel — tap the deduction on the dashboard to see how it
     // was derived. Audit item #5 (external_audit_may_2.md).
     mileageDeductionDerivation: NumberDerivation;
+
+    // Cross-window comparison for the mileage deduction. Long-press the
+    // figure to see the same metric in last 7 days / this month / this
+    // tax year / last tax year. Layer 3 polish (premium_app_feel.md).
+    mileageDeductionAcrossWindows: NumberAcrossWindows;
   };
 
   setAsideThisWeek: {
@@ -122,6 +127,38 @@ export interface ReadinessItem {
   label: string;
   done: boolean;
   hint?: string;                            // shown when not done
+}
+
+// Cross-window comparison for a computed figure. Powers the "long-press a
+// number to see how it compares across time windows" pattern. Different
+// shape from NumberDerivation: derivation is "how was this calculated",
+// this is "how does this compare to the same metric in other windows".
+//
+// Layer 3 polish (premium_app_feel.md). Pilot on the YTD mileage
+// deduction; same shape extends to gross earnings, estimated tax, etc.
+export interface NumberAcrossWindows {
+  // What the figure represents — appears at top of the panel.
+  label: string;
+
+  // Each row is a different window of the same metric. Rendered in the
+  // order the server sends them (most recent / smallest scope first).
+  windows: Array<{
+    /** Stable key for UI: "last7d", "thisMonth", "thisTaxYear", "lastTaxYear". */
+    key: string;
+    /** Display label, e.g. "Last 7 days" or "This tax year". */
+    label: string;
+    /** Pre-formatted value with units (£, mi, %). */
+    value: string;
+    /** Raw numeric in pence/miles for sorting/comparison. Undefined for empty windows. */
+    raw?: number;
+    /** Optional sub-label, e.g. the date range backing this window. */
+    range?: string;
+    /** Mark a row as the "current" or anchor figure. UI emphasises it. */
+    highlight?: boolean;
+  }>;
+
+  // Optional caveat — "excludes pending trips", etc.
+  notes?: string[];
 }
 
 // Provenance / "why this number?" — the canonical shape for explaining

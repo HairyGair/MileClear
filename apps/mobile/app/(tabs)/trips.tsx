@@ -414,6 +414,10 @@ export default function TripsScreen() {
           const apiIds = new Set(res.data.map((t) => t.id));
           const uniqueLocal = unsynced.filter((t) => !apiIds.has(t.id)) as TripItem[];
           const allTrips = [...uniqueLocal, ...res.data];
+          // Animate the data swap-in. Pairs with the configureNext call in
+          // handleFilterChange / handlePlatformChange so the chip → list
+          // transition flows as one motion instead of two snaps.
+          LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
           setTrips(allTrips);
 
           // Fetch smart suggestions for unclassified trips (non-blocking)
@@ -470,6 +474,9 @@ export default function TripsScreen() {
 
   const handleFilterChange = useCallback(
     (value: TripClassification | "all") => {
+      // Animate the chip-row + list transition. easeInEaseOut over the
+      // default 200ms feels like a real filter, not a snap-cut.
+      LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
       setFilter(value);
       filterRef.current = value; // Sync ref immediately so loadTrips reads the new value
       setTrips([]); // Clear stale data immediately
@@ -484,6 +491,7 @@ export default function TripsScreen() {
 
   const handlePlatformChange = useCallback(
     (value: PlatformTag | "all") => {
+      LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
       setPlatformFilter(value);
       platformFilterRef.current = value;
       setTrips([]);
