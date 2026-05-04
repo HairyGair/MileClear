@@ -16,6 +16,17 @@ import { fetchSelfAssessmentSummary, type SelfAssessmentSummary } from "../lib/a
 import { downloadAndShareExport } from "../lib/api/exports";
 import { fetchProfile } from "../lib/api/user";
 import { usePaywall } from "../components/paywall";
+import { colors, fonts } from "../lib/theme";
+
+// Local theme aliases — same pattern as the (tabs) screens.
+const AMBER = colors.amber;
+const CARD_BG = colors.surface;
+const TEXT_1 = colors.text1;
+const TEXT_2 = colors.text2;
+const TEXT_3 = colors.text3;
+const BG = colors.bg;
+const GREEN = colors.green;
+const RED = colors.red;
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
@@ -363,10 +374,10 @@ function StepSa103Guide({
         accessibilityLabel="Download Self-Assessment PDF"
       >
         {downloading ? (
-          <ActivityIndicator color="#030712" size="small" />
+          <ActivityIndicator color={BG} size="small" />
         ) : (
           <>
-            <Ionicons name="download-outline" size={18} color="#030712" style={{ marginRight: 6 }} />
+            <Ionicons name="download-outline" size={18} color={BG} style={{ marginRight: 6 }} />
             <Text style={styles.downloadBtnText}>Download PDF Summary</Text>
           </>
         )}
@@ -388,7 +399,7 @@ const HEADER_OPTIONS = {
       accessibilityLabel="Back"
       hitSlop={{ top: 12, right: 12, bottom: 12, left: 12 }}
     >
-      <Ionicons name="chevron-back" size={26} color="#f5a623" />
+      <Ionicons name="chevron-back" size={26} color={AMBER} />
     </TouchableOpacity>
   ),
 };
@@ -492,7 +503,7 @@ export default function SelfAssessmentScreen() {
       <View style={styles.container}>
         <Stack.Screen options={HEADER_OPTIONS} />
         <View style={styles.centered}>
-          <ActivityIndicator color="#f5a623" />
+          <ActivityIndicator color={AMBER} />
         </View>
       </View>
     );
@@ -555,7 +566,7 @@ export default function SelfAssessmentScreen() {
               accessibilityLabel={`Step ${i + 1}: ${label}${i === step ? " (current)" : ""}`}
             >
               {i < step ? (
-                <Ionicons name="checkmark" size={10} color="#10b981" />
+                <Ionicons name="checkmark" size={10} color={GREEN} />
               ) : (
                 <Text
                   style={[
@@ -596,7 +607,7 @@ export default function SelfAssessmentScreen() {
               <Text style={styles.yearPickerLabel}>Selected tax year</Text>
               <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
                 <Text style={styles.yearPickerValue}>{selectedYear}</Text>
-                <Ionicons name="chevron-down" size={16} color="#f5a623" />
+                <Ionicons name="chevron-down" size={16} color={AMBER} />
               </View>
             </TouchableOpacity>
             <Text style={styles.yearSubtext}>
@@ -608,7 +619,7 @@ export default function SelfAssessmentScreen() {
         {/* Loading */}
         {step > 0 && loading && (
           <View style={styles.centered}>
-            <ActivityIndicator color="#f5a623" size="large" />
+            <ActivityIndicator color={AMBER} size="large" />
             <Text style={styles.loadingText}>Loading {selectedYear} data...</Text>
           </View>
         )}
@@ -659,7 +670,7 @@ export default function SelfAssessmentScreen() {
             accessibilityRole="button"
             accessibilityLabel="Previous step"
           >
-            <Ionicons name="chevron-back" size={18} color="#f0f2f5" />
+            <Ionicons name="chevron-back" size={18} color={TEXT_1} />
             <Text style={styles.navBtnText}>Back</Text>
           </TouchableOpacity>
         ) : (
@@ -678,7 +689,7 @@ export default function SelfAssessmentScreen() {
             <Text style={styles.navBtnPrimaryText}>
               {step === 0 ? "Start" : loading ? "Loading..." : "Next"}
             </Text>
-            <Ionicons name="chevron-forward" size={18} color="#030712" />
+            <Ionicons name="chevron-forward" size={18} color={BG} />
           </TouchableOpacity>
         ) : (
           <TouchableOpacity
@@ -701,7 +712,7 @@ export default function SelfAssessmentScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#030712",
+    backgroundColor: BG,
   },
   centered: {
     flex: 1,
@@ -721,7 +732,7 @@ const styles = StyleSheet.create({
     paddingBottom: 8,
     borderBottomWidth: 1,
     borderBottomColor: "rgba(255,255,255,0.06)",
-    backgroundColor: "#030712",
+    backgroundColor: BG,
   },
   stepProgressTrack: {
     height: 3,
@@ -732,7 +743,7 @@ const styles = StyleSheet.create({
   },
   stepProgressFill: {
     height: "100%",
-    backgroundColor: "#f5a623",
+    backgroundColor: AMBER,
     borderRadius: 2,
   },
   stepDots: {
@@ -747,12 +758,12 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     borderWidth: 1.5,
     borderColor: "rgba(255,255,255,0.15)",
-    backgroundColor: "#0a1120",
+    backgroundColor: CARD_BG,
     justifyContent: "center",
     alignItems: "center",
   },
   stepDotActive: {
-    borderColor: "#f5a623",
+    borderColor: AMBER,
     backgroundColor: "rgba(245,166,35,0.12)",
   },
   stepDotDone: {
@@ -761,24 +772,24 @@ const styles = StyleSheet.create({
   },
   stepDotText: {
     fontSize: 10,
-    fontFamily: "PlusJakartaSans_700Bold",
-    color: "#6b7280",
+    fontFamily: fonts.bold,
+    color: TEXT_3,
   },
   stepDotTextActive: {
-    color: "#f5a623",
+    color: AMBER,
   },
   stepDotTextDone: {
-    color: "#10b981",
+    color: GREEN,
   },
   stepLabel: {
     fontSize: 12,
-    fontFamily: "PlusJakartaSans_400Regular",
-    color: "#6b7280",
+    fontFamily: fonts.regular,
+    color: TEXT_3,
   },
 
   // Section cards
   sectionCard: {
-    backgroundColor: "#0a1120",
+    backgroundColor: CARD_BG,
     borderRadius: 12,
     padding: 16,
     marginBottom: 12,
@@ -787,27 +798,27 @@ const styles = StyleSheet.create({
   },
   stepTitle: {
     fontSize: 17,
-    fontFamily: "PlusJakartaSans_700Bold",
-    color: "#f0f2f5",
+    fontFamily: fonts.bold,
+    color: TEXT_1,
     marginBottom: 6,
   },
   stepDesc: {
     fontSize: 13,
-    fontFamily: "PlusJakartaSans_400Regular",
-    color: "#9ca3af",
+    fontFamily: fonts.regular,
+    color: TEXT_2,
     lineHeight: 20,
     marginBottom: 14,
   },
   cardTitle: {
     fontSize: 14,
-    fontFamily: "PlusJakartaSans_700Bold",
-    color: "#f0f2f5",
+    fontFamily: fonts.bold,
+    color: TEXT_1,
     marginBottom: 10,
   },
   cardSubDesc: {
     fontSize: 12,
-    fontFamily: "PlusJakartaSans_400Regular",
-    color: "#6b7280",
+    fontFamily: fonts.regular,
+    color: TEXT_3,
     marginBottom: 10,
     lineHeight: 18,
   },
@@ -823,16 +834,16 @@ const styles = StyleSheet.create({
   },
   heroValueLabel: {
     fontSize: 11,
-    fontFamily: "PlusJakartaSans_700Bold",
-    color: "#9ca3af",
+    fontFamily: fonts.bold,
+    color: TEXT_2,
     textTransform: "uppercase",
     letterSpacing: 0.6,
     marginBottom: 4,
   },
   heroValueAmount: {
     fontSize: 28,
-    fontFamily: "PlusJakartaSans_700Bold",
-    color: "#f5a623",
+    fontFamily: fonts.bold,
+    color: AMBER,
   },
 
   // Data rows
@@ -846,17 +857,17 @@ const styles = StyleSheet.create({
   },
   dataRowLabel: {
     fontSize: 14,
-    fontFamily: "PlusJakartaSans_400Regular",
-    color: "#9ca3af",
+    fontFamily: fonts.regular,
+    color: TEXT_2,
     flex: 1,
   },
   dataRowValue: {
     fontSize: 14,
-    fontFamily: "PlusJakartaSans_600SemiBold",
-    color: "#f0f2f5",
+    fontFamily: fonts.semibold,
+    color: TEXT_1,
   },
   dataRowValueHighlight: {
-    color: "#f5a623",
+    color: AMBER,
   },
   divider: {
     borderTopWidth: 1,
@@ -873,8 +884,8 @@ const styles = StyleSheet.create({
   },
   vehicleRowName: {
     fontSize: 14,
-    fontFamily: "PlusJakartaSans_600SemiBold",
-    color: "#f0f2f5",
+    fontFamily: fonts.semibold,
+    color: TEXT_1,
     marginBottom: 4,
   },
   vehicleRowDetails: {
@@ -883,7 +894,7 @@ const styles = StyleSheet.create({
 
   // Year picker
   yearPicker: {
-    backgroundColor: "#0a1120",
+    backgroundColor: CARD_BG,
     borderRadius: 12,
     padding: 16,
     flexDirection: "row",
@@ -895,18 +906,18 @@ const styles = StyleSheet.create({
   },
   yearPickerLabel: {
     fontSize: 13,
-    fontFamily: "PlusJakartaSans_400Regular",
-    color: "#9ca3af",
+    fontFamily: fonts.regular,
+    color: TEXT_2,
   },
   yearPickerValue: {
     fontSize: 16,
-    fontFamily: "PlusJakartaSans_700Bold",
-    color: "#f5a623",
+    fontFamily: fonts.bold,
+    color: AMBER,
   },
   yearSubtext: {
     fontSize: 12,
-    fontFamily: "PlusJakartaSans_400Regular",
-    color: "#6b7280",
+    fontFamily: fonts.regular,
+    color: TEXT_3,
     marginBottom: 12,
   },
 
@@ -924,16 +935,16 @@ const styles = StyleSheet.create({
   noteText: {
     flex: 1,
     fontSize: 12,
-    fontFamily: "PlusJakartaSans_400Regular",
-    color: "#9ca3af",
+    fontFamily: fonts.regular,
+    color: TEXT_2,
     lineHeight: 18,
   },
 
   // Effective rate
   effectiveRate: {
     fontSize: 12,
-    fontFamily: "PlusJakartaSans_400Regular",
-    color: "#6b7280",
+    fontFamily: fonts.regular,
+    color: TEXT_3,
     textAlign: "center",
     marginTop: 8,
     marginBottom: 12,
@@ -952,14 +963,14 @@ const styles = StyleSheet.create({
   },
   disclaimerText: {
     fontSize: 12,
-    fontFamily: "PlusJakartaSans_400Regular",
-    color: "#6b7280",
+    fontFamily: fonts.regular,
+    color: TEXT_3,
     lineHeight: 18,
   },
 
   // SA103 boxes
   sa103Box: {
-    backgroundColor: "#0a1120",
+    backgroundColor: CARD_BG,
     borderRadius: 12,
     padding: 14,
     marginBottom: 10,
@@ -986,39 +997,39 @@ const styles = StyleSheet.create({
   },
   sa103BoxNum: {
     fontSize: 12,
-    fontFamily: "PlusJakartaSans_700Bold",
-    color: "#f5a623",
+    fontFamily: fonts.bold,
+    color: AMBER,
   },
   sa103KeyBadge: {
     fontSize: 10,
-    fontFamily: "PlusJakartaSans_700Bold",
-    color: "#f5a623",
+    fontFamily: fonts.bold,
+    color: AMBER,
     letterSpacing: 0.5,
     opacity: 0.8,
   },
   sa103BoxLabel: {
     fontSize: 13,
-    fontFamily: "PlusJakartaSans_600SemiBold",
-    color: "#f0f2f5",
+    fontFamily: fonts.semibold,
+    color: TEXT_1,
     marginBottom: 4,
     lineHeight: 18,
   },
   sa103BoxDesc: {
     fontSize: 12,
-    fontFamily: "PlusJakartaSans_400Regular",
-    color: "#6b7280",
+    fontFamily: fonts.regular,
+    color: TEXT_3,
     lineHeight: 18,
     marginBottom: 10,
   },
   sa103BoxValue: {
     fontSize: 20,
-    fontFamily: "PlusJakartaSans_700Bold",
-    color: "#f5a623",
+    fontFamily: fonts.bold,
+    color: AMBER,
   },
 
   // Download button
   downloadBtn: {
-    backgroundColor: "#f5a623",
+    backgroundColor: AMBER,
     borderRadius: 12,
     padding: 14,
     flexDirection: "row",
@@ -1029,8 +1040,8 @@ const styles = StyleSheet.create({
   },
   downloadBtnText: {
     fontSize: 15,
-    fontFamily: "PlusJakartaSans_700Bold",
-    color: "#030712",
+    fontFamily: fonts.bold,
+    color: BG,
   },
 
   // Error
@@ -1044,8 +1055,8 @@ const styles = StyleSheet.create({
   },
   errorText: {
     fontSize: 13,
-    fontFamily: "PlusJakartaSans_400Regular",
-    color: "#ef4444",
+    fontFamily: fonts.regular,
+    color: RED,
     marginBottom: 10,
   },
   retryBtn: {
@@ -1053,15 +1064,15 @@ const styles = StyleSheet.create({
   },
   retryBtnText: {
     fontSize: 13,
-    fontFamily: "PlusJakartaSans_600SemiBold",
-    color: "#f5a623",
+    fontFamily: fonts.semibold,
+    color: AMBER,
   },
 
   // Loading
   loadingText: {
     fontSize: 14,
-    fontFamily: "PlusJakartaSans_400Regular",
-    color: "#6b7280",
+    fontFamily: fonts.regular,
+    color: TEXT_3,
     marginTop: 12,
   },
 
@@ -1074,7 +1085,7 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     borderTopWidth: 1,
     borderTopColor: "rgba(255,255,255,0.06)",
-    backgroundColor: "#030712",
+    backgroundColor: BG,
   },
   navBtn: {
     flexDirection: "row",
@@ -1088,8 +1099,8 @@ const styles = StyleSheet.create({
   },
   navBtnText: {
     fontSize: 14,
-    fontFamily: "PlusJakartaSans_600SemiBold",
-    color: "#f0f2f5",
+    fontFamily: fonts.semibold,
+    color: TEXT_1,
   },
   navBtnPrimary: {
     flexDirection: "row",
@@ -1098,46 +1109,46 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     paddingHorizontal: 18,
     borderRadius: 10,
-    backgroundColor: "#f5a623",
+    backgroundColor: AMBER,
   },
   navBtnPrimaryText: {
     fontSize: 14,
-    fontFamily: "PlusJakartaSans_700Bold",
-    color: "#030712",
+    fontFamily: fonts.bold,
+    color: BG,
   },
 
   // Paywall
   paywallBanner: {
-    backgroundColor: "#0a1120",
+    backgroundColor: CARD_BG,
     borderRadius: 12,
     padding: 20,
     marginBottom: 16,
     borderWidth: 1,
-    borderColor: "#f5a623",
+    borderColor: AMBER,
   },
   paywallTitle: {
     fontSize: 18,
-    fontFamily: "PlusJakartaSans_700Bold",
-    color: "#f5a623",
+    fontFamily: fonts.bold,
+    color: AMBER,
     marginBottom: 8,
   },
   paywallText: {
     fontSize: 14,
-    fontFamily: "PlusJakartaSans_400Regular",
-    color: "#9ca3af",
+    fontFamily: fonts.regular,
+    color: TEXT_2,
     lineHeight: 22,
     marginBottom: 14,
   },
   paywallCta: {
     fontSize: 15,
-    fontFamily: "PlusJakartaSans_700Bold",
-    color: "#f5a623",
+    fontFamily: fonts.bold,
+    color: AMBER,
     marginBottom: 8,
   },
   paywallLegal: {
     fontSize: 11,
-    fontFamily: "PlusJakartaSans_400Regular",
-    color: "#6b7280",
+    fontFamily: fonts.regular,
+    color: TEXT_3,
     marginTop: 6,
   },
   paywallLinks: {
@@ -1148,19 +1159,19 @@ const styles = StyleSheet.create({
   },
   paywallLink: {
     fontSize: 11,
-    fontFamily: "PlusJakartaSans_500Medium",
+    fontFamily: fonts.medium,
     color: "#3b82f6",
   },
   paywallSep: {
     fontSize: 11,
-    color: "#4b5563",
+    color: TEXT_3,
   },
 
   // Empty
   emptyText: {
     fontSize: 13,
-    fontFamily: "PlusJakartaSans_400Regular",
-    color: "#6b7280",
+    fontFamily: fonts.regular,
+    color: TEXT_3,
     textAlign: "center",
     paddingVertical: 12,
     lineHeight: 20,
