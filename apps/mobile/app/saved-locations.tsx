@@ -23,7 +23,6 @@ import { colors, fonts } from "../lib/theme";
 // Local theme aliases — same pattern as the (tabs) screens.
 const AMBER = colors.amber;
 const CARD_BG = colors.surface;
-const TEXT_1 = colors.text1;
 const TEXT_2 = colors.text2;
 const TEXT_3 = colors.text3;
 const BG = colors.bg;

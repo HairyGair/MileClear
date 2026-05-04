@@ -15,6 +15,15 @@ import { getTaxYear } from "@mileclear/shared";
 import { downloadAndShareExport } from "../lib/api/exports";
 import { fetchProfile } from "../lib/api/user";
 import { usePaywall } from "../components/paywall";
+import { colors, fonts } from "../lib/theme";
+
+// Local theme aliases — same pattern as the (tabs) screens.
+const AMBER = colors.amber;
+const CARD_BG = colors.surface;
+const TEXT_2 = colors.text2;
+const TEXT_3 = colors.text3;
+const BG = colors.bg;
+const GREEN = colors.green;
 
 function generateTaxYears(count: number): string[] {
   const current = getTaxYear(new Date());
@@ -105,7 +114,7 @@ export default function ExportsScreen() {
               accessibilityLabel="Back"
               hitSlop={{ top: 12, right: 12, bottom: 12, left: 12 }}
             >
-              <Ionicons name="chevron-back" size={26} color="#f5a623" />
+              <Ionicons name="chevron-back" size={26} color={AMBER} />
             </TouchableOpacity>
           ),
         }}
@@ -160,7 +169,7 @@ export default function ExportsScreen() {
           accessibilityLabel="Open Self Assessment Guide"
         >
           <View style={styles.saWizardIcon}>
-            <Ionicons name="document-text-outline" size={20} color="#f5a623" />
+            <Ionicons name="document-text-outline" size={20} color={AMBER} />
           </View>
           <View style={{ flex: 1 }}>
             <Text style={styles.saWizardTitle}>Self Assessment Guide</Text>
@@ -168,7 +177,7 @@ export default function ExportsScreen() {
               Step-by-step SA103 walkthrough with income, mileage, expenses and tax estimate
             </Text>
           </View>
-          <Ionicons name="chevron-forward" size={18} color="#6b7280" style={{ marginLeft: 8 }} />
+          <Ionicons name="chevron-forward" size={18} color={TEXT_3} style={{ marginLeft: 8 }} />
         </TouchableOpacity>
 
         {/* Download rows */}
@@ -184,7 +193,7 @@ export default function ExportsScreen() {
           accessibilityState={{ disabled: loadingKey !== null }}
         >
           <View style={styles.rowIconWrap}>
-            <Ionicons name="shield-checkmark" size={20} color="#10b981" />
+            <Ionicons name="shield-checkmark" size={20} color={GREEN} />
           </View>
           <View style={{ flex: 1 }}>
             <View style={styles.rowTitleRow}>
@@ -198,9 +207,9 @@ export default function ExportsScreen() {
             </Text>
           </View>
           {loadingKey === "self-assessment" ? (
-            <ActivityIndicator color="#f5a623" accessibilityLabel="Loading" />
+            <ActivityIndicator color={AMBER} accessibilityLabel="Loading" />
           ) : (
-            <Ionicons name="chevron-forward" size={18} color="#6b7280" style={{ marginLeft: 8 }} accessible={false} />
+            <Ionicons name="chevron-forward" size={18} color={TEXT_3} style={{ marginLeft: 8 }} accessible={false} />
           )}
         </TouchableOpacity>
 
@@ -214,7 +223,7 @@ export default function ExportsScreen() {
           accessibilityState={{ disabled: loadingKey !== null }}
         >
           <View style={styles.rowIconWrap}>
-            <Ionicons name="document-text" size={20} color="#f5a623" />
+            <Ionicons name="document-text" size={20} color={AMBER} />
           </View>
           <View style={{ flex: 1 }}>
             <Text style={styles.rowTitle}>Trip Report (PDF)</Text>
@@ -223,9 +232,9 @@ export default function ExportsScreen() {
             </Text>
           </View>
           {loadingKey === "pdf" ? (
-            <ActivityIndicator color="#f5a623" accessibilityLabel="Loading" />
+            <ActivityIndicator color={AMBER} accessibilityLabel="Loading" />
           ) : (
-            <Ionicons name="chevron-forward" size={18} color="#6b7280" style={{ marginLeft: 8 }} accessible={false} />
+            <Ionicons name="chevron-forward" size={18} color={TEXT_3} style={{ marginLeft: 8 }} accessible={false} />
           )}
         </TouchableOpacity>
 
@@ -239,7 +248,7 @@ export default function ExportsScreen() {
           accessibilityState={{ disabled: loadingKey !== null }}
         >
           <View style={styles.rowIconWrap}>
-            <Ionicons name="grid" size={20} color="#6b7280" />
+            <Ionicons name="grid" size={20} color={TEXT_3} />
           </View>
           <View style={{ flex: 1 }}>
             <Text style={styles.rowTitle}>Trip Data (CSV)</Text>
@@ -248,9 +257,9 @@ export default function ExportsScreen() {
             </Text>
           </View>
           {loadingKey === "csv" ? (
-            <ActivityIndicator color="#f5a623" accessibilityLabel="Loading" />
+            <ActivityIndicator color={AMBER} accessibilityLabel="Loading" />
           ) : (
-            <Ionicons name="chevron-forward" size={18} color="#6b7280" style={{ marginLeft: 8 }} accessible={false} />
+            <Ionicons name="chevron-forward" size={18} color={TEXT_3} style={{ marginLeft: 8 }} accessible={false} />
           )}
         </TouchableOpacity>
 
@@ -280,7 +289,7 @@ export default function ExportsScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#030712",
+    backgroundColor: BG,
   },
   content: {
     padding: 16,
@@ -288,12 +297,12 @@ const styles = StyleSheet.create({
   },
   subtitle: {
     fontSize: 14,
-    fontFamily: "PlusJakartaSans_400Regular",
-    color: "#9ca3af",
+    fontFamily: fonts.regular,
+    color: TEXT_2,
     marginBottom: 24,
   },
   yearPicker: {
-    backgroundColor: "#0a1120",
+    backgroundColor: CARD_BG,
     borderRadius: 12,
     padding: 16,
     flexDirection: "row",
@@ -305,22 +314,22 @@ const styles = StyleSheet.create({
   },
   yearLabel: {
     fontSize: 15,
-    fontFamily: "PlusJakartaSans_400Regular",
-    color: "#9ca3af",
+    fontFamily: fonts.regular,
+    color: TEXT_2,
   },
   yearValue: {
     fontSize: 16,
-    fontFamily: "PlusJakartaSans_700Bold",
-    color: "#f5a623",
+    fontFamily: fonts.bold,
+    color: AMBER,
   },
   sectionTitle: {
     fontSize: 18,
-    fontFamily: "PlusJakartaSans_700Bold",
+    fontFamily: fonts.bold,
     color: "#fff",
     marginBottom: 12,
   },
   row: {
-    backgroundColor: "#0a1120",
+    backgroundColor: CARD_BG,
     borderRadius: 12,
     padding: 16,
     marginBottom: 10,
@@ -346,14 +355,14 @@ const styles = StyleSheet.create({
   },
   rowTitle: {
     fontSize: 15,
-    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontFamily: fonts.semibold,
     color: "#fff",
     marginBottom: 4,
   },
   rowDesc: {
     fontSize: 13,
-    fontFamily: "PlusJakartaSans_400Regular",
-    color: "#6b7280",
+    fontFamily: fonts.regular,
+    color: TEXT_3,
     lineHeight: 18,
   },
   hmrcBadge: {
@@ -366,8 +375,8 @@ const styles = StyleSheet.create({
   },
   hmrcBadgeText: {
     fontSize: 11,
-    fontFamily: "PlusJakartaSans_700Bold",
-    color: "#10b981",
+    fontFamily: fonts.bold,
+    color: GREEN,
     letterSpacing: 0.5,
   },
   comingSoonRow: {
@@ -378,8 +387,8 @@ const styles = StyleSheet.create({
   },
   comingSoonBadge: {
     fontSize: 10,
-    fontFamily: "PlusJakartaSans_700Bold",
-    color: "#9ca3af",
+    fontFamily: fonts.bold,
+    color: TEXT_2,
     backgroundColor: "#374151",
     paddingHorizontal: 6,
     paddingVertical: 2,
@@ -387,35 +396,35 @@ const styles = StyleSheet.create({
     overflow: "hidden",
   },
   paywallBanner: {
-    backgroundColor: "#0a1120",
+    backgroundColor: CARD_BG,
     borderRadius: 12,
     padding: 16,
     marginBottom: 16,
     borderWidth: 1,
-    borderColor: "#f5a623",
+    borderColor: AMBER,
   },
   paywallTitle: {
     fontSize: 16,
-    fontFamily: "PlusJakartaSans_700Bold",
-    color: "#f5a623",
+    fontFamily: fonts.bold,
+    color: AMBER,
     marginBottom: 4,
   },
   paywallText: {
     fontSize: 13,
-    fontFamily: "PlusJakartaSans_400Regular",
-    color: "#9ca3af",
+    fontFamily: fonts.regular,
+    color: TEXT_2,
     lineHeight: 20,
     marginBottom: 10,
   },
   paywallCta: {
     fontSize: 14,
-    fontFamily: "PlusJakartaSans_700Bold",
-    color: "#f5a623",
+    fontFamily: fonts.bold,
+    color: AMBER,
   },
   paywallLegal: {
     fontSize: 11,
-    fontFamily: "PlusJakartaSans_400Regular",
-    color: "#6b7280",
+    fontFamily: fonts.regular,
+    color: TEXT_3,
     marginTop: 8,
   },
   paywallLinks: {
@@ -426,15 +435,15 @@ const styles = StyleSheet.create({
   },
   paywallLink: {
     fontSize: 11,
-    fontFamily: "PlusJakartaSans_500Medium",
+    fontFamily: fonts.medium,
     color: "#3b82f6",
   },
   paywallSep: {
     fontSize: 11,
-    color: "#4b5563",
+    color: TEXT_3,
   },
   saWizardRow: {
-    backgroundColor: "#0a1120",
+    backgroundColor: CARD_BG,
     borderRadius: 12,
     padding: 14,
     marginBottom: 20,
@@ -454,14 +463,14 @@ const styles = StyleSheet.create({
   },
   saWizardTitle: {
     fontSize: 15,
-    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontFamily: fonts.semibold,
     color: "#fff",
     marginBottom: 3,
   },
   saWizardDesc: {
     fontSize: 12,
-    fontFamily: "PlusJakartaSans_400Regular",
-    color: "#6b7280",
+    fontFamily: fonts.regular,
+    color: TEXT_3,
     lineHeight: 17,
   },
 });
