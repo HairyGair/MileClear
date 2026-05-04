@@ -7,6 +7,7 @@ import {
   getSignedDataVerifier,
   decodeNotification,
   isTransactionActive,
+  fetchTransactionWithEnvFallback,
   VALID_PRODUCT_IDS,
   bundleId,
 } from "../../services/appleIap.js";
@@ -212,36 +213,33 @@ export async function appleBillingRoutes(app: FastifyInstance) {
 
     // Third fallback: Apple sometimes omits appAccountToken from the inbound
     // webhook JWS even when the mobile client set it at purchase time. Re-
-    // fetch the canonical transaction from the App Store Server API and try
-    // the appAccountToken from there. Documented: 4 May 2026 — discovered
-    // 4 production users had subscribed without ever being linked because
-    // the webhook arrived without appAccountToken AND validate never ran
-    // (likely the StoreKit success listener didn't fire on their device).
+    // fetch the canonical transaction from the App Store Server API.
+    //
+    // Use the env-fallback helper so this works whether the transaction
+    // came from sandbox (TestFlight) or production (App Store) — we try
+    // the webhook's stated environment first, then the other one.
+    //
+    // Documented: 4 May 2026 — discovered 4 production users had subscribed
+    // without ever being linked because (a) the inbound webhook had no
+    // appAccountToken, AND (b) the production app store API client wasn't
+    // configured to fetch their canonical transactions either.
     if (!user && !appAccountToken) {
-      const apiClient = getAppleClient();
-      if (apiClient) {
-        try {
-          const txnResponse = await apiClient.getTransactionInfo(originalTransactionId);
-          if (txnResponse.signedTransactionInfo) {
-            const verifierForRefetch = getSignedDataVerifier();
-            if (verifierForRefetch) {
-              const canonicalTxn = await verifierForRefetch.verifyAndDecodeTransaction(
-                txnResponse.signedTransactionInfo
-              );
-              if (canonicalTxn.appAccountToken) {
-                appAccountToken = canonicalTxn.appAccountToken;
-                app.log.info(
-                  `Apple webhook: re-fetched appAccountToken ${appAccountToken} for transaction ${originalTransactionId} (was null in inbound payload)`
-                );
-              }
-            }
-          }
-        } catch (err) {
-          app.log.warn(
-            { err: err instanceof Error ? err.message : String(err), originalTransactionId },
-            "Apple webhook: re-fetch from App Store Server API failed"
+      try {
+        const fetched = await fetchTransactionWithEnvFallback(
+          originalTransactionId,
+          environment
+        );
+        if (fetched && fetched.transaction.appAccountToken) {
+          appAccountToken = fetched.transaction.appAccountToken;
+          app.log.info(
+            `Apple webhook: re-fetched appAccountToken ${appAccountToken} for transaction ${originalTransactionId} from ${fetched.environment} env`
           );
         }
+      } catch (err) {
+        app.log.warn(
+          { err: err instanceof Error ? err.message : String(err), originalTransactionId },
+          "Apple webhook: re-fetch from App Store Server API failed"
+        );
       }
     }
 

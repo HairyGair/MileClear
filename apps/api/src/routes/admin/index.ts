@@ -10,7 +10,7 @@ import { sendPushNotifications } from "../../lib/push.js";
 import { PREMIUM_PRICE_MONTHLY_PENCE, getTaxYear, haversineDistance } from "@mileclear/shared";
 import { upsertMileageSummary } from "../../services/mileage.js";
 import { advanceLastTripAt } from "../../services/userActivity.js";
-import { getAppleClient, getSignedDataVerifier } from "../../services/appleIap.js";
+import { getAppleClient, getSignedDataVerifier, fetchTransactionWithEnvFallback, type AppleIapEnvironment } from "../../services/appleIap.js";
 
 const premiumToggleSchema = z.object({
   isPremium: z.boolean(),
@@ -1968,20 +1968,24 @@ export async function adminRoutes(app: FastifyInstance) {
 
       let appAccountToken: string | null = null;
       try {
-        const txnResponse = await apiClient.getTransactionInfo(txn);
-        if (!txnResponse.signedTransactionInfo) {
+        // Use the env-fallback helper: try the env recorded on the webhook
+        // log first, then the other one. The env-mismatch 404 is what was
+        // breaking production validate before this fix.
+        const preferredEnv: AppleIapEnvironment | undefined =
+          log.environment === "production" || log.environment === "sandbox"
+            ? log.environment
+            : undefined;
+        const fetched = await fetchTransactionWithEnvFallback(txn, preferredEnv);
+        if (!fetched) {
           results.push({
             txn,
             receivedAt: log.receivedAt.toISOString(),
             outcome: "fetch_failed",
-            detail: "App Store API returned no signedTransactionInfo",
+            detail: "Transaction not found in either Sandbox or Production",
           });
           continue;
         }
-        const canonicalTxn = await verifier.verifyAndDecodeTransaction(
-          txnResponse.signedTransactionInfo
-        );
-        appAccountToken = canonicalTxn.appAccountToken ?? null;
+        appAccountToken = fetched.transaction.appAccountToken ?? null;
       } catch (err) {
         results.push({
           txn,

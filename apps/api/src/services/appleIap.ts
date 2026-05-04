@@ -14,14 +14,17 @@ const PRODUCT_ID_MONTHLY = "com.mileclear.premium.monthly";
 const PRODUCT_ID_ANNUAL = "com.mileclear.premium.annual";
 const VALID_PRODUCT_IDS = [PRODUCT_ID_MONTHLY, PRODUCT_ID_ANNUAL];
 
-// --- Singleton client (null if not configured, same pattern as lib/stripe.ts) ---
-
+// --- Singleton clients (null if not configured, same pattern as lib/stripe.ts) ---
+//
+// Both clients exist in parallel. The "primary" one (matching APPLE_IAP_ENVIRONMENT)
+// is what /validate uses for new purchases coming from the configured environment.
+// But the webhook path may receive transactions from EITHER environment (TestFlight
+// testers + production App Store customers hit the same webhook endpoint), and
+// /admin/apple/reprocess-orphans needs to query whichever environment the original
+// transaction lived in. Hence dual clients.
 let appleClient: AppStoreServerAPIClient | null = null;
-// Primary verifier matches APPLE_IAP_ENVIRONMENT (used by /validate, which talks to
-// the matching AppStoreServerAPIClient). The per-env verifiers are used by the
-// webhook path, which must accept JWS from either environment because TestFlight
-// testers (Sandbox) and real App Store customers (Production) both hit the same
-// endpoint — otherwise Apple returns INVALID_ENVIRONMENT and the webhook is dropped.
+let appleClientSandbox: AppStoreServerAPIClient | null = null;
+let appleClientProduction: AppStoreServerAPIClient | null = null;
 let signedDataVerifier: SignedDataVerifier | null = null;
 let signedDataVerifierSandbox: SignedDataVerifier | null = null;
 let signedDataVerifierProduction: SignedDataVerifier | null = null;
@@ -42,13 +45,22 @@ if (keyId && issuerId && privateKeyBase64) {
   try {
     const privateKey = Buffer.from(privateKeyBase64, "base64").toString("utf8");
 
-    appleClient = new AppStoreServerAPIClient(
+    appleClientSandbox = new AppStoreServerAPIClient(
       privateKey,
       keyId,
       issuerId,
       bundleId,
-      iapEnv
+      Environment.SANDBOX
     );
+    appleClientProduction = new AppStoreServerAPIClient(
+      privateKey,
+      keyId,
+      issuerId,
+      bundleId,
+      Environment.PRODUCTION
+    );
+    appleClient =
+      iapEnv === Environment.PRODUCTION ? appleClientProduction : appleClientSandbox;
 
     // Load Apple root certificates for JWS verification.
     // Try multiple candidate directories so this works in both dev (tsx from
@@ -100,6 +112,8 @@ if (keyId && issuerId && privateKeyBase64) {
   } catch (err) {
     console.error("Failed to initialize Apple IAP client:", err);
     appleClient = null;
+    appleClientSandbox = null;
+    appleClientProduction = null;
     signedDataVerifier = null;
     signedDataVerifierSandbox = null;
     signedDataVerifierProduction = null;
@@ -114,8 +128,64 @@ export function getAppleClient(): AppStoreServerAPIClient | null {
   return appleClient;
 }
 
+export function getAppleClientForEnv(
+  env: AppleIapEnvironment
+): AppStoreServerAPIClient | null {
+  return env === "production" ? appleClientProduction : appleClientSandbox;
+}
+
 export function getSignedDataVerifier(): SignedDataVerifier | null {
   return signedDataVerifier;
+}
+
+export function getSignedDataVerifierForEnv(
+  env: AppleIapEnvironment
+): SignedDataVerifier | null {
+  return env === "production" ? signedDataVerifierProduction : signedDataVerifierSandbox;
+}
+
+/**
+ * Fetch + decode a transaction by id, trying both environments. Returns
+ * the decoded transaction on first match, null if neither env has it.
+ *
+ * The webhook handler stores the environment alongside each transaction,
+ * but the /validate endpoint and the admin reprocess flow may not know
+ * upfront. Trying both is cheap (two REST calls in the worst case) and
+ * removes the "wrong environment" 404 that broke production validation.
+ */
+export async function fetchTransactionWithEnvFallback(
+  originalTransactionId: string,
+  preferredEnv?: AppleIapEnvironment
+): Promise<{
+  transaction: JWSTransactionDecodedPayload;
+  environment: AppleIapEnvironment;
+} | null> {
+  const order: AppleIapEnvironment[] =
+    preferredEnv === "sandbox"
+      ? ["sandbox", "production"]
+      : ["production", "sandbox"];
+
+  for (const env of order) {
+    const client = getAppleClientForEnv(env);
+    const verifier = getSignedDataVerifierForEnv(env);
+    if (!client || !verifier) continue;
+    try {
+      const r = await client.getTransactionInfo(originalTransactionId);
+      if (!r.signedTransactionInfo) continue;
+      const decoded = await verifier.verifyAndDecodeTransaction(
+        r.signedTransactionInfo
+      );
+      return { transaction: decoded, environment: env };
+    } catch (err: unknown) {
+      // 4040010 = "Transaction id not found" in this environment — try the
+      // other one. Other errors are real failures; surface and stop.
+      const apiError = (err as { apiError?: number }).apiError;
+      const httpStatus = (err as { httpStatusCode?: number }).httpStatusCode;
+      if (apiError === 4040010 || httpStatus === 404) continue;
+      throw err;
+    }
+  }
+  return null;
 }
 
 export type AppleIapEnvironment = "sandbox" | "production";
