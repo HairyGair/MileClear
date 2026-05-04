@@ -2349,6 +2349,77 @@ export async function adminRoutes(app: FastifyInstance) {
     });
   });
 
+  // ── Rating funnel diagnostics ─────────────────────────────────────
+  //
+  // Two sub-views to investigate the gap between admin "Love it!"
+  // counts and ratings actually appearing in App Store Connect:
+  //
+  // 1. By build — confirms whether love_it events came from public
+  //    App Store builds (would land in App Store Connect) or
+  //    TestFlight builds (silently dropped by Apple).
+  //
+  // 2. By user — counts distinct users who fired love_it events plus
+  //    repeats. Apple silently no-ops requestReview() once a user
+  //    has hit 3 prompts in 365 days, so users with 2+ love_it events
+  //    are candidates for the silent ceiling.
+  app.get("/rating/diagnostics", async (_request, reply) => {
+    const events = await prisma.appEvent.findMany({
+      where: { type: "rating.love_it" },
+      select: {
+        userId: true,
+        appVersion: true,
+        buildNumber: true,
+        createdAt: true,
+      },
+      orderBy: { createdAt: "desc" },
+    });
+
+    // By build
+    const byBuildMap = new Map<string, { count: number; appVersion: string | null }>();
+    for (const e of events) {
+      const key = e.buildNumber ?? "unknown";
+      const existing = byBuildMap.get(key);
+      if (existing) {
+        existing.count += 1;
+      } else {
+        byBuildMap.set(key, { count: 1, appVersion: e.appVersion ?? null });
+      }
+    }
+    const byBuild = Array.from(byBuildMap.entries())
+      .map(([buildNumber, v]) => ({
+        buildNumber,
+        appVersion: v.appVersion,
+        count: v.count,
+      }))
+      .sort((a, b) => b.count - a.count);
+
+    // By user — distinct user count + repeat tally. Repeats indicate
+    // the per-user-per-year ceiling is biting.
+    const byUserMap = new Map<string, number>();
+    for (const e of events) {
+      if (!e.userId) continue;
+      byUserMap.set(e.userId, (byUserMap.get(e.userId) ?? 0) + 1);
+    }
+    const userCounts = Array.from(byUserMap.values());
+    const distinctUsers = userCounts.length;
+    const usersWithSinglePrompt = userCounts.filter((n) => n === 1).length;
+    const usersWithRepeat = userCounts.filter((n) => n >= 2).length;
+    const usersAt3Plus = userCounts.filter((n) => n >= 3).length;
+    const totalLoveItEvents = events.length;
+
+    return reply.send({
+      data: {
+        totalLoveItEvents,
+        distinctUsers,
+        usersWithSinglePrompt,
+        usersWithRepeat,
+        usersAt3Plus,
+        byBuild,
+        generatedAt: new Date().toISOString(),
+      },
+    });
+  });
+
   // ── Geographic density (audit follow-up #4 of 5) ──────────────────
   //
   // Bucket trip starts onto a 0.1° lat/lng grid (~11km cells in the

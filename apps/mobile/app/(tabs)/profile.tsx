@@ -21,6 +21,7 @@ import { useAuth } from "../../lib/auth/context";
 import { useUser } from "../../lib/user/context";
 import { fetchVehicles } from "../../lib/api/vehicles";
 import { fetchProfile, updateProfile, exportUserData, deleteAccount } from "../../lib/api/user";
+import { apiRequest } from "../../lib/api/index";
 import {
   fetchBillingStatus,
   cancelSubscription,
@@ -1032,6 +1033,26 @@ export default function ProfileScreen() {
         <View style={styles.group}>
           <Text style={styles.groupLabel} accessibilityRole="header">HELP & SUPPORT</Text>
           <View style={styles.groupCard}>
+            <GroupItem
+              icon="star-outline"
+              label="Rate MileClear"
+              onPress={() => {
+                // Direct App Store deep link. Bypasses
+                // SKStoreReviewController's silent per-user-per-year
+                // 3-prompt ceiling — heavy testers hit that wall and
+                // this is their fallback.
+                apiRequest("/user/event", {
+                  method: "POST",
+                  body: JSON.stringify({ type: "rating.manual_open", metadata: { source: "profile" } }),
+                }).catch(() => {});
+                Linking.openURL(
+                  "itms-apps://itunes.apple.com/app/id6759671005?action=write-review"
+                ).catch(() =>
+                  Linking.openURL("https://apps.apple.com/app/id6759671005?action=write-review")
+                );
+              }}
+              border
+            />
             <GroupItem
               icon="chatbubble-ellipses-outline"
               label="Suggestions & Feedback"

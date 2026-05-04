@@ -295,9 +295,20 @@ function StatusDot({ status }: { status: string }) {
 // Overview Tab
 // ---------------------------------------------------------------------------
 
+interface RatingDiagnostics {
+  totalLoveItEvents: number;
+  distinctUsers: number;
+  usersWithSinglePrompt: number;
+  usersWithRepeat: number;
+  usersAt3Plus: number;
+  byBuild: Array<{ buildNumber: string; appVersion: string | null; count: number }>;
+  generatedAt: string;
+}
+
 function OverviewTab() {
   const [analytics, setAnalytics] = useState<Analytics | null>(null);
   const [feedbackStats, setFeedbackStats] = useState<{ total: number; byStatus: Record<string, number> } | null>(null);
+  const [ratingDiag, setRatingDiag] = useState<RatingDiagnostics | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -305,10 +316,12 @@ function OverviewTab() {
     Promise.all([
       api.get<{ data: Analytics }>("/admin/analytics"),
       api.get<{ data: { total: number; byStatus: Record<string, number> } }>("/feedback/stats"),
+      api.get<{ data: RatingDiagnostics }>("/admin/rating/diagnostics"),
     ])
-      .then(([analyticsRes, fbRes]) => {
+      .then(([analyticsRes, fbRes, diagRes]) => {
         setAnalytics(analyticsRes.data);
         setFeedbackStats(fbRes.data);
+        setRatingDiag(diagRes.data);
       })
       .catch((err: Error) => setError(err.message))
       .finally(() => setLoading(false));
@@ -417,6 +430,72 @@ function OverviewTab() {
               <p className="stat-card__value">{formatNumber(analytics.ratingFunnel.notNow)}</p>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Rating diagnostics — by build + per-user repeat tally. Helps
+          explain the gap between "Love it!" intent and ratings actually
+          showing up in App Store Connect. */}
+      {ratingDiag && ratingDiag.totalLoveItEvents > 0 && (
+        <div style={{ marginBottom: "1.5rem" }}>
+          <h3 style={{ color: "var(--text-2, #8494a7)", fontSize: "0.85rem", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "0.75rem" }}>
+            Rating Diagnostics
+          </h3>
+
+          <div className="stat-grid" style={{ marginBottom: "0.75rem" }}>
+            <div className="stat-card">
+              <p className="stat-card__label">Distinct users</p>
+              <p className="stat-card__value">{formatNumber(ratingDiag.distinctUsers)}</p>
+              <p style={{ fontSize: "0.7rem", color: "#64748b", marginTop: 2 }}>fired Love it! at least once</p>
+            </div>
+            <div className="stat-card">
+              <p className="stat-card__label">Single prompt</p>
+              <p className="stat-card__value">{formatNumber(ratingDiag.usersWithSinglePrompt)}</p>
+              <p style={{ fontSize: "0.7rem", color: "#64748b", marginTop: 2 }}>1 Love it! event</p>
+            </div>
+            <div className="stat-card">
+              <p className="stat-card__label">Repeats (≥2)</p>
+              <p className="stat-card__value" style={{ color: ratingDiag.usersWithRepeat > 0 ? "#f59e0b" : undefined }}>
+                {formatNumber(ratingDiag.usersWithRepeat)}
+              </p>
+              <p style={{ fontSize: "0.7rem", color: "#64748b", marginTop: 2 }}>likely hitting Apple&apos;s 3/yr ceiling</p>
+            </div>
+            <div className="stat-card">
+              <p className="stat-card__label">Heavy (≥3)</p>
+              <p className="stat-card__value" style={{ color: ratingDiag.usersAt3Plus > 0 ? "#ef4444" : undefined }}>
+                {formatNumber(ratingDiag.usersAt3Plus)}
+              </p>
+              <p style={{ fontSize: "0.7rem", color: "#64748b", marginTop: 2 }}>almost certainly silent-no-op&apos;d</p>
+            </div>
+          </div>
+
+          {ratingDiag.byBuild.length > 0 && (
+            <div
+              style={{
+                background: "rgba(15,23,42,0.6)",
+                border: "1px solid rgba(255,255,255,0.06)",
+                borderRadius: 10,
+                padding: "0.75rem 0.875rem",
+              }}
+            >
+              <div style={{ fontSize: "0.8125rem", fontWeight: 600, color: "var(--text-primary, #f9fafb)", marginBottom: "0.5rem" }}>
+                Love it! events by build at event time
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: "0.4rem 1rem", fontSize: "0.8125rem" }}>
+                {ratingDiag.byBuild.map((b) => (
+                  <div key={b.buildNumber} style={{ display: "contents" }}>
+                    <span style={{ color: "#cbd5e1", fontFamily: "monospace" }}>
+                      {b.appVersion ? `${b.appVersion} (` : ""}build {b.buildNumber}{b.appVersion ? ")" : ""}
+                    </span>
+                    <span style={{ color: "#fcd34d", fontWeight: 600, fontFamily: "monospace" }}>{b.count}</span>
+                  </div>
+                ))}
+              </div>
+              <p style={{ fontSize: "0.7rem", color: "#64748b", marginTop: "0.5rem" }}>
+                Public App Store builds carry through to App Store Connect; TestFlight builds are silently dropped by Apple.
+              </p>
+            </div>
+          )}
         </div>
       )}
 
