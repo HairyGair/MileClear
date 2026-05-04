@@ -2107,4 +2107,105 @@ export async function adminRoutes(app: FastifyInstance) {
 
     return reply.send({ data: { processed: results.length, results } });
   });
+
+  // ── Funnel cohorts (audit follow-up #3 of 5) ──────────────────────
+  //
+  // Per-month cohort funnel covering the user's first 30-ish days from
+  // registration. Surfaces WHICH month started underperforming, not
+  // just whether the global funnel is healthy.
+  //
+  // Steps: registered → first trip → first classification → first export
+  //   → upgraded to Pro. The Pro step is global (any time) since
+  //   conversion can take months; the others are within 30 days of
+  //   registration so the rates are comparable across cohorts.
+  app.get("/funnel/cohorts", async (_request, reply) => {
+    const COHORT_MONTHS = 6;
+    const ACTIVATION_WINDOW_DAYS = 30;
+
+    // Last N month boundaries, oldest first.
+    const now = new Date();
+    const months: { key: string; start: Date; end: Date }[] = [];
+    for (let i = COHORT_MONTHS - 1; i >= 0; i--) {
+      const start = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - i, 1));
+      const end = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - i + 1, 1));
+      const key = `${start.getUTCFullYear()}-${String(start.getUTCMonth() + 1).padStart(2, "0")}`;
+      months.push({ key, start, end });
+    }
+
+    // Single SQL query computing every step per cohort. EXISTS subqueries
+    // beat per-cohort serial round trips by a wide margin (we'd otherwise
+    // run 6 cohorts × 4 step queries = 24 queries; here we run 1).
+    const rows = await prisma.$queryRaw<
+      Array<{
+        cohort: string;
+        registered: bigint;
+        firstTrip: bigint;
+        firstClassification: bigint;
+        firstExport: bigint;
+        upgradedToPro: bigint;
+      }>
+    >`
+      SELECT
+        DATE_FORMAT(u.createdAt, '%Y-%m') AS cohort,
+        COUNT(*) AS registered,
+        SUM(CASE WHEN EXISTS (
+          SELECT 1 FROM trips t
+          WHERE t.userId = u.id
+            AND t.createdAt < DATE_ADD(u.createdAt, INTERVAL ${ACTIVATION_WINDOW_DAYS} DAY)
+        ) THEN 1 ELSE 0 END) AS firstTrip,
+        SUM(CASE WHEN EXISTS (
+          SELECT 1 FROM trips t
+          WHERE t.userId = u.id
+            AND t.classification IN ('business', 'personal')
+            AND t.createdAt < DATE_ADD(u.createdAt, INTERVAL ${ACTIVATION_WINDOW_DAYS} DAY)
+        ) THEN 1 ELSE 0 END) AS firstClassification,
+        SUM(CASE WHEN EXISTS (
+          SELECT 1 FROM app_events e
+          WHERE e.userId = u.id
+            AND e.type IN ('export.csv', 'export.pdf', 'export.self_assessment')
+            AND e.createdAt < DATE_ADD(u.createdAt, INTERVAL ${ACTIVATION_WINDOW_DAYS} DAY)
+        ) THEN 1 ELSE 0 END) AS firstExport,
+        SUM(CASE WHEN u.isPremium = 1 THEN 1 ELSE 0 END) AS upgradedToPro
+      FROM users u
+      WHERE u.createdAt >= ${months[0].start}
+        AND u.createdAt < ${months[months.length - 1].end}
+      GROUP BY DATE_FORMAT(u.createdAt, '%Y-%m')
+      ORDER BY cohort ASC
+    `;
+
+    const byKey = new Map(rows.map((r) => [r.cohort, r]));
+
+    const pct = (n: number, denom: number) =>
+      denom > 0 ? Math.round((n / denom) * 1000) / 10 : 0;
+
+    const cohorts = months.map(({ key }) => {
+      const row = byKey.get(key);
+      const registered = Number(row?.registered ?? 0);
+      const firstTrip = Number(row?.firstTrip ?? 0);
+      const firstClassification = Number(row?.firstClassification ?? 0);
+      const firstExport = Number(row?.firstExport ?? 0);
+      const upgradedToPro = Number(row?.upgradedToPro ?? 0);
+
+      return {
+        cohort: key,
+        registered,
+        firstTrip,
+        firstClassification,
+        firstExport,
+        upgradedToPro,
+        rateFirstTrip: pct(firstTrip, registered),
+        rateClassification: pct(firstClassification, firstTrip),
+        rateExport: pct(firstExport, firstClassification),
+        rateProConversion: pct(upgradedToPro, registered),
+      };
+    });
+
+    return reply.send({
+      data: {
+        activationWindowDays: ACTIVATION_WINDOW_DAYS,
+        cohorts,
+        generatedAt: new Date().toISOString(),
+      },
+    });
+  });
 }
