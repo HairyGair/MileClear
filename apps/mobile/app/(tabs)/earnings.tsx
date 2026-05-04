@@ -248,9 +248,9 @@ export default function EarningsScreen() {
               <View style={styles.emptyIcon}>
                 <Ionicons name="cash-outline" size={40} color={TEXT_3} accessible={false} />
               </View>
-              <Text style={styles.emptyTitle}>No earnings recorded yet</Text>
+              <Text style={styles.emptyTitle}>Log your first payout</Text>
               <Text style={styles.emptyText}>
-                Tap + at the top right to add your first earning.
+                Once your earnings are in here, MileClear can show your real take-home per mile and per hour.
               </Text>
             </View>
           ) : null

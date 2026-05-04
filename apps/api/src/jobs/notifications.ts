@@ -96,8 +96,8 @@ async function runStreakAtRiskJob(): Promise<void> {
       logEvent("notification.streak_at_risk", user.id);
       messages.push({
         to: user.pushToken!,
-        title: "Keep your streak going!",
-        body: "Heading out today? We'll track your miles automatically. Just drive and we'll handle the rest.",
+        title: "Driving today?",
+        body: "Tap to keep your tracking streak going. MileClear records automatically once you start.",
         sound: "default",
         data: { type: "streak_at_risk", action: "open_dashboard" },
       });
@@ -145,8 +145,8 @@ async function runSubExpiringJob(): Promise<void> {
 
       messages.push({
         to: user.pushToken!,
-        title: "Subscription Expiring Soon",
-        body: `Your MileClear Pro subscription expires ${dayWord}. Renew to keep HMRC exports and analytics.`,
+        title: `Pro expires ${dayWord}`,
+        body: "Renew to keep HMRC exports, the Self Assessment wizard, and unlimited saved locations.",
         sound: "default",
         data: { type: "subscription_expiring", action: "billing", daysLeft },
       });
@@ -196,7 +196,7 @@ async function runWeeklyRecapJob(): Promise<void> {
         logEvent("notification.weekly_recap", user.id);
         messages.push({
           to: user.pushToken!,
-          title: "Your Weekly Recap",
+          title: "Last week, in numbers",
           body,
           sound: "default",
           data: {
@@ -314,11 +314,11 @@ async function runWelcomeNudgeJob(): Promise<void> {
 
       logEvent("notification.welcome_nudge", user.id);
 
-      const name = user.displayName ? `, ${user.displayName}` : "";
+      const name = user.displayName ? ` ${user.displayName}` : "";
       messages.push({
         to: user.pushToken!,
-        title: "Ready to track your first trip?",
-        body: `Hey${name}! Tap Start Trip or just drive — MileClear will record your miles automatically.`,
+        title: "Your first trip is the hardest",
+        body: `Welcome${name}. Tap Start Trip, or just drive: MileClear records automatically once you're moving.`,
         sound: "default",
         data: { type: "welcome_nudge", action: "open_dashboard" },
       });
@@ -427,8 +427,8 @@ export async function sendMilestonePush(userId: string): Promise<void> {
 
     await sendPushToUser(
       userId,
-      `${formatted} Miles!`,
-      `You've driven ${formatMiles(totalMiles)} total. Keep going!`,
+      `${formatted} miles tracked`,
+      `Total distance: ${formatMiles(totalMiles)}. Tap to see what it's worth at HMRC rates.`,
       { type: "milestone", action: "open_achievements", milestone }
     );
   } catch (err) {
@@ -452,8 +452,8 @@ export async function sendAchievementPush(
 
     await sendPushToUser(
       userId,
-      `${achievement.emoji} Achievement Unlocked!`,
-      `${achievement.label} — tap to see your badges`,
+      `${achievement.emoji} ${achievement.label}`,
+      "New badge earned. Tap to see all your achievements.",
       { type: "achievement", action: "open_achievements", achievementType: achievement.type }
     );
   } catch (err) {
@@ -479,12 +479,12 @@ export async function sendShiftSummaryPush(
     const tripWord = stats.tripsCompleted === 1 ? "trip" : "trips";
     let body = `${stats.tripsCompleted} ${tripWord}, ${formatMiles(stats.totalMiles)} in ${duration}`;
     if (stats.deductionPence > 0) {
-      body += ` — ${formatPence(stats.deductionPence)} tax deduction`;
+      body += `. ${formatPence(stats.deductionPence)} added to this year's deduction.`;
     }
 
     await sendPushToUser(
       userId,
-      "Shift Complete",
+      "Shift wrapped",
       body,
       { type: "shift_summary", action: "open_dashboard" }
     );
@@ -712,15 +712,15 @@ async function runDiagnosticScanJob(): Promise<void> {
       {
         condition: !!bgPerm && bgPerm !== "granted",
         alertType: "alert.permission_missing",
-        title: "Trips aren't recording automatically",
-        body: "MileClear needs background location to detect your drives. Go to Settings > MileClear > Location > Always.",
+        title: "Auto-tracking is off",
+        body: "Set Location to 'Always' in Settings > MileClear so trips record while the app is in the background.",
         data: { action: "open_settings" },
       },
       {
         condition: taskRunning === false && enabled === true,
         alertType: "alert.task_not_running",
-        title: "Drive detection stopped",
-        body: "MileClear's background task isn't running. Try closing and reopening the app to restart it.",
+        title: "Drive detection paused",
+        body: "Open MileClear once to restart background tracking. iOS occasionally suspends it after long idle periods.",
         data: { action: "open_dashboard" },
       },
     ];
@@ -735,8 +735,8 @@ async function runDiagnosticScanJob(): Promise<void> {
         checks.push({
           condition: true,
           alertType: "alert.stuck_recording",
-          title: "A trip is waiting to save",
-          body: "It looks like a recording is still running. Open MileClear to save the trip.",
+          title: "Trip still recording",
+          body: "Looks like you've stopped driving. Open MileClear to save the trip.",
           data: { action: "open_active_recording" },
         });
       }

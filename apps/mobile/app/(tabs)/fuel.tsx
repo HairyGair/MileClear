@@ -293,9 +293,9 @@ export default function FuelScreen() {
               <View style={styles.emptyIcon}>
                 <Ionicons name="water-outline" size={40} color={TEXT_3} accessible={false} />
               </View>
-              <Text style={styles.emptyTitle}>No fuel logs yet</Text>
+              <Text style={styles.emptyTitle}>Log your first fill-up</Text>
               <Text style={styles.emptyText}>
-                Tap + at the top right to log your first fill-up.
+                A few entries unlocks running cost-per-mile, MPG tracking, and which station saves you the most.
               </Text>
             </View>
           ) : null

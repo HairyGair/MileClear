@@ -251,9 +251,9 @@ export default function SavedLocationsScreen() {
               <View style={styles.emptyIcon}>
                 <Ionicons name="location-outline" size={40} color={TEXT_3} />
               </View>
-              <Text style={styles.emptyTitle}>No saved locations</Text>
+              <Text style={styles.emptyTitle}>Save the places you drive from</Text>
               <Text style={styles.emptyText}>
-                Save your home, work, or depot to auto-classify trips with geofencing
+                Pin home, work, or your depot. Trips between saved locations auto-classify, and the geofence triggers your live recording for free.
               </Text>
             </View>
           ) : null
