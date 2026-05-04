@@ -273,11 +273,17 @@ export async function respondToConsumptionRequest(args: {
 }
 
 function orphanPayload(appAccountToken: string | null): ConsumptionRequest {
-  // Apple validates appAccountToken as 'a valid UUID or an empty string'.
-  // undefined / null both fail validation with apiError 4000033, so we
-  // pass empty string when we don't have one.
+  // Apple's consumption API requires customerConsented = true even when
+  // every other field is UNDECLARED (apiError 4000035 if false). This
+  // is a gate, not a data-sharing decision — UNDECLARED across the
+  // board means we're sharing nothing useful anyway, just satisfying
+  // the validator so Apple can score the refund.
+  //
+  // appAccountToken validates as 'a valid UUID or an empty string'.
+  // undefined / null both fail with apiError 4000033, so empty string
+  // when we don't have one.
   return {
-    customerConsented: false,
+    customerConsented: true,
     consumptionStatus: ConsumptionStatus.UNDECLARED,
     platform: Platform.APPLE,
     sampleContentProvided: false,
