@@ -1778,4 +1778,129 @@ export async function adminRoutes(app: FastifyInstance) {
       },
     });
   });
+
+  // ── Build health (per-build regression detection) ────────────────────
+  //
+  // Returns the most-recent N builds with active-user counts and
+  // per-event-type incident rates over a configurable window. Catches
+  // "shipped a bug" within hours of release: stuck-recording rate jumps,
+  // watchdog pings spike, sync failures climb. The previous build's
+  // metrics are the comparison baseline.
+  //
+  // Audit follow-up #1 from the aggregate health dashboard upgrades.
+  app.get("/build-health", async (_request, reply) => {
+    const WINDOW_DAYS = 7;
+    const MAX_BUILDS = 8;
+    const since = new Date(Date.now() - WINDOW_DAYS * 24 * 60 * 60 * 1000);
+
+    // Step 1: which builds are active right now (have heartbeats in window)?
+    // Group by buildNumber on the User row — that's the user's CURRENT build.
+    const activeUsersPerBuild = await prisma.user.groupBy({
+      by: ["appVersion", "buildNumber"],
+      where: {
+        lastHeartbeatAt: { gte: since },
+        buildNumber: { not: null },
+      },
+      _count: { id: true },
+    });
+
+    if (activeUsersPerBuild.length === 0) {
+      return reply.send({
+        data: {
+          windowDays: WINDOW_DAYS,
+          builds: [],
+          generatedAt: new Date().toISOString(),
+        },
+      });
+    }
+
+    // Step 2: order builds by buildNumber descending, take the most recent
+    // MAX_BUILDS. buildNumber is a string but compares correctly as numeric
+    // for now — Anthony's monotonic-incrementing convention keeps it sortable.
+    const sortedBuilds = activeUsersPerBuild
+      .filter((b) => b.buildNumber !== null)
+      .sort((a, b) => {
+        const an = parseInt(a.buildNumber!, 10);
+        const bn = parseInt(b.buildNumber!, 10);
+        if (Number.isNaN(an) && Number.isNaN(bn)) return 0;
+        if (Number.isNaN(an)) return 1;
+        if (Number.isNaN(bn)) return -1;
+        return bn - an;
+      })
+      .slice(0, MAX_BUILDS);
+
+    // Step 3: for each build, count events by type within the window.
+    // Filter on app_events.buildNumber (the snapshot taken at event time)
+    // not user.buildNumber (their current build) so the metrics are
+    // accurate even as users upgrade.
+    const buildNumbers = sortedBuilds.map((b) => b.buildNumber!);
+    const eventCounts = await prisma.appEvent.groupBy({
+      by: ["buildNumber", "type"],
+      where: {
+        buildNumber: { in: buildNumbers },
+        createdAt: { gte: since },
+      },
+      _count: { id: true },
+    });
+
+    // Step 4: Pivot — for each build, build a { eventType: count } map.
+    const eventsByBuild = new Map<string, Record<string, number>>();
+    for (const row of eventCounts) {
+      if (!row.buildNumber) continue;
+      const map = eventsByBuild.get(row.buildNumber) ?? {};
+      map[row.type] = row._count.id;
+      eventsByBuild.set(row.buildNumber, map);
+    }
+
+    // Step 5: Build the per-build summary objects.
+    const builds = sortedBuilds.map((b) => {
+      const events = eventsByBuild.get(b.buildNumber!) ?? {};
+      const activeUsers = b._count.id;
+
+      const watchdogPings = events["watchdog.silent_push_sent"] ?? 0;
+      const reconciliationDrift = events["reconciliation.drift"] ?? 0;
+      const slowRequests = events["perf.slow_request"] ?? 0;
+      const loginFailures = events["auth.login_failed"] ?? 0;
+      const passwordChangeFailures = events["auth.change_password_failed"] ?? 0;
+      const tripCreated = events["trip.created"] ?? 0;
+      const tripDeleted = events["trip.deleted"] ?? 0;
+      const idempotencyReplays = events["idempotency.replay"] ?? 0;
+
+      const tripDeletionRatePct =
+        tripCreated > 0 ? Math.round((tripDeleted / tripCreated) * 1000) / 10 : 0;
+
+      return {
+        appVersion: b.appVersion ?? "unknown",
+        buildNumber: b.buildNumber!,
+        activeUsers,
+        // Per-user rates — comparable across builds with different audience sizes.
+        watchdogPingsPerUser:
+          activeUsers > 0 ? Math.round((watchdogPings / activeUsers) * 100) / 100 : 0,
+        reconciliationDriftPerUser:
+          activeUsers > 0 ? Math.round((reconciliationDrift / activeUsers) * 100) / 100 : 0,
+        slowRequestsPerUser:
+          activeUsers > 0 ? Math.round((slowRequests / activeUsers) * 100) / 100 : 0,
+        loginFailuresPerUser:
+          activeUsers > 0 ? Math.round((loginFailures / activeUsers) * 100) / 100 : 0,
+        // Absolute counts kept for raw inspection.
+        watchdogPings,
+        reconciliationDrift,
+        slowRequests,
+        loginFailures,
+        passwordChangeFailures,
+        tripCreated,
+        tripDeleted,
+        tripDeletionRatePct,
+        idempotencyReplays,
+      };
+    });
+
+    return reply.send({
+      data: {
+        windowDays: WINDOW_DAYS,
+        builds,
+        generatedAt: new Date().toISOString(),
+      },
+    });
+  });
 }

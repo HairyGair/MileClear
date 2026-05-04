@@ -18,6 +18,13 @@ vi.mock("../../lib/prisma.js", () => ({
     appEvent: {
       create: vi.fn().mockResolvedValue({}),
     },
+    // logEvent now enriches events with the user's heartbeat appVersion +
+    // buildNumber for per-build regression detection. It calls user.findUnique
+    // before creating the event, so the user mock has to be present even
+    // when the test doesn't care about per-event data.
+    user: {
+      findUnique: vi.fn().mockResolvedValue({ appVersion: null, buildNumber: null }),
+    },
   },
 }));
 
@@ -28,9 +35,22 @@ const USER_A = "user-a";
 const USER_B = "user-b";
 const TAX_YEAR = "2025-26";
 
+// logEvent now uses an async user.findUnique lookup before writing to
+// appEvent. That lookup completes off the call stack, so tests must flush
+// microtasks twice (one for the lookup promise, one for the appEvent.create
+// chain) before asserting on the spy.
+async function flushLogEvents(): Promise<void> {
+  await new Promise((r) => setImmediate(r));
+  await new Promise((r) => setImmediate(r));
+}
+
 describe("runReconciliationJob", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.mocked(prisma.user.findUnique).mockResolvedValue({
+      appVersion: null,
+      buildNumber: null,
+    } as any);
   });
 
   it("logs no drift when cached summary matches trip totals exactly", async () => {
@@ -49,6 +69,7 @@ describe("runReconciliationJob", () => {
     ] as any);
 
     await runReconciliationJob();
+    await flushLogEvents();
 
     const driftEvents = vi
       .mocked(prisma.appEvent.create)
@@ -81,6 +102,7 @@ describe("runReconciliationJob", () => {
     ] as any);
 
     await runReconciliationJob();
+    await flushLogEvents();
 
     const driftEvents = vi
       .mocked(prisma.appEvent.create)
@@ -109,6 +131,7 @@ describe("runReconciliationJob", () => {
     ] as any);
 
     await runReconciliationJob();
+    await flushLogEvents();
 
     const driftEvents = vi
       .mocked(prisma.appEvent.create)
@@ -145,6 +168,7 @@ describe("runReconciliationJob", () => {
       ] as any);
 
     await runReconciliationJob();
+    await flushLogEvents();
 
     const driftEvents = vi
       .mocked(prisma.appEvent.create)
@@ -159,6 +183,7 @@ describe("runReconciliationJob", () => {
     vi.mocked(prisma.mileageSummary.findMany).mockResolvedValue([]);
 
     await runReconciliationJob();
+    await flushLogEvents();
 
     expect(prisma.trip.findMany).not.toHaveBeenCalled();
     expect(prisma.appEvent.create).not.toHaveBeenCalled();
