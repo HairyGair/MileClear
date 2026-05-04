@@ -620,6 +620,54 @@ model JobRun {
   @@map("job_runs")
 }
 
+// Crowd-sourced geofence radius observations. Each finalised geofence-
+// triggered trip reports the distance from the saved-location pin to
+// the first driving-speed GPS coord. A weekly cron rolls these up into
+// per-location-type percentiles, which the mobile app reads back as
+// "recommended radius" when the user creates a new saved location.
+//
+// Why: the static 200m default is wrong for cul-de-sacs (too tight) and
+// busy roads (too loose). The aggregate of "where does driving actually
+// start from this kind of location?" gives a better default per type.
+//
+// Privacy: only the location_type + distance is rolled up. The userId
+// is kept for dedup but never returned in the recommended-radius API.
+// 4 May 2026 — server foundation; mobile reporting + reads pair with a
+// deliberate mobile-side change.
+model GeofenceRadiusObservation {
+  id                String   @id @default(uuid())
+  userId            String
+  /** Saved-location type at observation time: home / work / depot / custom. */
+  locationType      String   @db.VarChar(16)
+  /** Distance in metres from the saved-location pin to the first driving-
+   *  speed coord on the trip that exited that geofence. */
+  distanceMeters    Float
+  recordedAt        DateTime @default(now())
+
+  @@index([locationType, recordedAt])
+  @@index([userId, recordedAt])
+  @@map("geofence_radius_observations")
+}
+
+// Rolled-up recommendation per location_type. Refreshed by a weekly
+// cron from the observations table. Mobile reads these on saved-
+// location load.
+model GeofenceRadiusRecommendation {
+  /** Use locationType as the primary key. Avoids MySQL's "two NULL
+   *  countryCodes are distinct" quirk if we'd added country dimension.
+   *  Per-region partitioning can land later via a separate table. */
+  locationType    String   @id @db.VarChar(16)
+  /** 75th percentile distance in metres — the radius the mobile should
+   *  default to so 75% of geofence-triggered trips fall inside it. */
+  p75Meters       Float
+  /** Sample size that fed in. Below ~50 we don't trust the percentile
+   *  and the mobile falls back to the static 200m default. */
+  sampleSize      Int
+  computedAt      DateTime @default(now())
+
+  @@map("geofence_radius_recommendations")
+}
+
 // Idempotency keys for safe retry of mutation requests. When a client
 // sends an `Idempotency-Key` header, the server caches the response
 // for the TTL window. Subsequent requests with the same key return the

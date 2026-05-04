@@ -3,6 +3,7 @@ import { sendPushNotifications, sendPushToUser, ExpoPushMessage } from "../lib/p
 import { runRecordingWatchdogJob } from "./recordingWatchdog.js";
 import { runIdempotencyPurgeJob } from "./idempotencyPurge.js";
 import { runReconciliationJob } from "./reconciliation.js";
+import { runGeofenceRadiusRecommendJob } from "./geofenceRadiusRecommend.js";
 import { getPeriodRecap } from "../services/gamification.js";
 import {
   formatMiles,
@@ -875,6 +876,16 @@ export function startNotificationJobs(): void {
     const RECONCILIATION_INTERVAL_MS = 24 * 60 * 60 * 1000;
     void runJob("reconciliation", runReconciliationJob);
     setInterval(() => void runJob("reconciliation", runReconciliationJob), RECONCILIATION_INTERVAL_MS);
+
+    // Geofence-radius recommendation: weekly. Rolls up observations into
+    // per-location-type p75 distance recommendations. Mobile reads the
+    // result on saved-location creation/edit to default-radius adapt.
+    const GEOFENCE_RECOMMEND_INTERVAL_MS = 7 * 24 * 60 * 60 * 1000;
+    void runJob("geofence_radius_recommend", runGeofenceRadiusRecommendJob);
+    setInterval(
+      () => void runJob("geofence_radius_recommend", runGeofenceRadiusRecommendJob),
+      GEOFENCE_RECOMMEND_INTERVAL_MS
+    );
   }, INITIAL_DELAY_MS);
 
   console.log("[jobs/notifications] Scheduled notification jobs started (first run in 60s)");
