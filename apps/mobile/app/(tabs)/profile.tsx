@@ -203,14 +203,14 @@ export default function ProfileScreen() {
     try {
       const transactionIds = await restorePurchases();
       if (transactionIds.length === 0) {
-        Alert.alert("No Purchases Found", "No previous subscriptions were found for this Apple ID.");
+        Alert.alert("Nothing to restore", "No previous subscription was found for this Apple ID.");
         return;
       }
       for (const txId of transactionIds) {
         await validateApplePurchase(txId);
       }
       loadData();
-      Alert.alert("Restored", "Your subscription has been restored successfully.");
+      Alert.alert("Subscription restored", "Pro is back on this device.");
     } catch (err: unknown) {
       Alert.alert("Couldn't restore purchases", err instanceof Error ? err.message : "Try again in a moment.");
     } finally {
@@ -327,7 +327,7 @@ export default function ProfileScreen() {
               if (!value?.trim()) return;
               const parsed = parseInt(value.trim(), 10);
               if (isNaN(parsed) || parsed < 0 || parsed > 100) {
-                Alert.alert("Invalid", "Enter a value between 0 and 100.");
+                Alert.alert("Out of range", "Enter a value between 0 and 100.");
                 return;
               }
               setEmployerRate(parsed);

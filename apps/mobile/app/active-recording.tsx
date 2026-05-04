@@ -20,6 +20,7 @@ import {
   Platform,
   UIManager,
   ScrollView,
+  Animated,
 } from "react-native";
 import { Stack, useRouter, useFocusEffect } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
@@ -96,6 +97,10 @@ export default function ActiveRecordingScreen() {
   // tick every time the live distance crosses an integer mile — gives the
   // driver a sense of progress without needing to look at the screen.
   const lastMilestoneRef = useRef(0);
+  // Pulse animation on the distance number when it crosses a whole mile,
+  // paired with the haptic. Subtle scale + opacity bump for ~280ms gives
+  // the moment a visual companion without distracting the driver.
+  const distancePulse = useRef(new Animated.Value(1)).current;
 
   const refresh = useCallback(async () => {
     try {
@@ -130,10 +135,23 @@ export default function ActiveRecordingScreen() {
 
       // Fire a light haptic when crossing each whole-mile boundary. The
       // driver feels a subtle tick at every mile without having to look.
+      // Paired visual: a 280ms pulse on the distance number.
       const wholeMilestone = Math.floor(distance);
       if (wholeMilestone > lastMilestoneRef.current && wholeMilestone >= 1) {
         haptic("light");
         lastMilestoneRef.current = wholeMilestone;
+        Animated.sequence([
+          Animated.timing(distancePulse, {
+            toValue: 1.08,
+            duration: 140,
+            useNativeDriver: true,
+          }),
+          Animated.timing(distancePulse, {
+            toValue: 1,
+            duration: 140,
+            useNativeDriver: true,
+          }),
+        ]).start();
       }
 
       setSnapshot({ active: true, startedAt, coords, distanceMiles: distance });
@@ -142,7 +160,7 @@ export default function ActiveRecordingScreen() {
       console.warn("Refresh active recording failed:", err);
       setLoading(false);
     }
-  }, []);
+  }, [distancePulse]);
 
   // Poll the local DB every 2s while screen is focused. Not a perf concern -
   // detection_coordinates is tiny and indexed.
@@ -258,9 +276,11 @@ export default function ActiveRecordingScreen() {
 
           <View style={styles.statsRow}>
             <View style={styles.statBlock}>
-              <Text style={styles.statValue}>
+              <Animated.Text
+                style={[styles.statValue, { transform: [{ scale: distancePulse }] }]}
+              >
                 {formatMiles(snapshot.distanceMiles)}
-              </Text>
+              </Animated.Text>
               <Text style={styles.statLabel}>distance</Text>
             </View>
             <View style={styles.statBlock}>

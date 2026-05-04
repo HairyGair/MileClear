@@ -773,7 +773,7 @@ async function runDiagnosticScanJob(): Promise<void> {
         condition: taskRunning === false && enabled === true,
         alertType: "alert.task_not_running",
         title: "Drive detection paused",
-        body: "Open MileClear once to restart background tracking. iOS occasionally suspends it after long idle periods.",
+        body: "Open MileClear once to restart background tracking.",
         data: { action: "open_dashboard" },
       },
     ];

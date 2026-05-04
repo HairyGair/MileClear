@@ -168,7 +168,7 @@ export async function checkUnclassifiedTripsNudge(): Promise<void> {
   await Notifications.scheduleNotificationAsync({
     content: {
       title: "Trips need reviewing",
-      body: `You have ${count} unreviewed ${tripWord} — add a platform or note to keep your records clean`,
+      body: `${count} unreviewed ${tripWord}. Add a platform or note to keep your records clean.`,
       data: { action: "open_unclassified_trips" },
       ...(require("react-native").Platform.OS === "android" && {
         channelId: "reminders",
@@ -231,7 +231,7 @@ export async function checkLongRunningShift(): Promise<void> {
   await Notifications.scheduleNotificationAsync({
     content: {
       title: "Shift still running",
-      body: `Your shift has been active for ${hoursRunning} hours — did you forget to end it?`,
+      body: `Your shift has been active for ${hoursRunning} hours. Did you forget to end it?`,
       data: { action: "open_dashboard" },
       ...(require("react-native").Platform.OS === "android" && {
         channelId: "reminders",

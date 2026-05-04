@@ -110,7 +110,7 @@ function generateInsights(input: InsightInput): Insight[] {
       icon: "checkmark-circle-outline",
       iconColor: "#10b981",
       title: "You've passed 10,000 business miles",
-      body: "The HMRC rate is now 25p per mile. Well done — your deduction keeps growing.",
+      body: "The HMRC rate is now 25p per mile. Well done. Your deduction keeps growing.",
       priority: "positive",
     });
   }
@@ -154,7 +154,7 @@ function generateInsights(input: InsightInput): Insight[] {
         icon: "trending-up-outline",
         iconColor: "#10b981",
         title: "Great week so far",
-        body: `You've driven ${stats.weekMiles.toFixed(1)} miles this week — that's above your usual pace.`,
+        body: `You've driven ${stats.weekMiles.toFixed(1)} miles this week. Above your usual pace.`,
         priority: "positive",
       });
     }

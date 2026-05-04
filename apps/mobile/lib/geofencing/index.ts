@@ -488,7 +488,7 @@ async function sendTripConfirmationNotification(
   await Notifications.scheduleNotificationAsync({
     content: {
       title: "Trip detected",
-      body: `${from} → ${to} (${distance} mi) — Were you driving?`,
+      body: `${from} → ${to} (${distance} mi). Were you driving?`,
       data: { type: "trip_confirmation", tripId },
       categoryIdentifier: "trip_confirm",
     },

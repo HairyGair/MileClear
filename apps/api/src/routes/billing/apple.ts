@@ -345,7 +345,7 @@ export async function appleBillingRoutes(app: FastifyInstance) {
         notifyBillingEvent({
           kind: "subscription.orphan",
           tier: "act_now",
-          title: "Orphan subscription — money in, no user linked",
+          title: "Orphan subscription. Money in, no user linked",
           body: `Apple sent ${notificationType}${subtype ? ` (${subtype})` : ""} for txn ${originalTransactionId.slice(0, 12)}… but it can't be linked to a MileClear account. Open the Ops tab and use Reprocess or Link.`,
           originalTransactionId,
           details: {
@@ -546,7 +546,7 @@ export async function appleBillingRoutes(app: FastifyInstance) {
               kind: "subscription.refund_requested",
               tier: "aware",
               title: "Refund request filed with Apple",
-              body: `${fullUser?.displayName || fullUser?.email || user.id} filed a refund request. ${r.ok ? "Auto-response sent to Apple with consumption data." : "Auto-response FAILED — check the Ops tab."} Apple typically decides within 24-48h.`,
+              body: `${fullUser?.displayName || fullUser?.email || user.id} filed a refund request. ${r.ok ? "Auto-response sent to Apple with consumption data." : "Auto-response FAILED. Check the Ops tab."} Apple typically decides within 24-48h.`,
               userId: user.id,
               userEmail: fullUser?.email ?? null,
               originalTransactionId,
