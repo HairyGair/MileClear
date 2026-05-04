@@ -17,6 +17,11 @@ import { getDatabase } from "../../lib/db/index";
 import { AvatarIcon } from "../avatars/AvatarRegistry";
 import { segmentTrips, type StoredCoordinate } from "../../lib/tracking/index";
 import { reverseGeocode } from "../../lib/location/geocoding";
+import { colors, fonts } from "../../lib/theme";
+
+// Local theme aliases — same pattern as the (tabs) screens.
+const GREEN = colors.green;
+const RED = colors.red;
 
 
 // ── Lazy native map import (Expo Go safe) ──────────────────────────
@@ -79,15 +84,15 @@ interface LiveMapTrackerProps {
 
 // ── Constants ───────────────────────────────────────────────────────
 
-const AMBER = "#f5a623";
-const BG = "#0a1120";
+const AMBER = colors.amber;
+const BG = colors.bg;
 const CARD_BORDER = "rgba(255,255,255,0.05)";
-const TEXT_2 = "#8494a7";
+const TEXT_2 = colors.text2;
 const TRAIL_POLL_MS = 3000; // Poll shift_coordinates every 3s
 const LOCATION_INTERVAL_MS = 2000; // Foreground location watch interval
 
 const SEGMENT_COLORS = [
-  "#f5a623", "#10b981", "#3b82f6", "#8b5cf6", "#ec4899", "#06b6d4",
+  AMBER, GREEN, "#3b82f6", "#8b5cf6", "#ec4899", "#06b6d4",
 ];
 
 // ── Component ───────────────────────────────────────────────────────
@@ -462,7 +467,7 @@ export function LiveMapTracker({
           <Ionicons
             name={showTrail ? "trail-sign" : "trail-sign-outline"}
             size={18}
-            color={showTrail ? "#030712" : TEXT_2}
+            color={showTrail ? BG : TEXT_2}
           />
         </TouchableOpacity>
 
@@ -535,7 +540,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   fallbackText: {
-    fontFamily: "PlusJakartaSans_400Regular",
+    fontFamily: fonts.regular,
     fontSize: 13,
     color: TEXT_2,
     textAlign: "center",
@@ -572,7 +577,7 @@ const styles = StyleSheet.create({
     paddingVertical: 5,
   },
   distanceText: {
-    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontFamily: fonts.semibold,
     fontSize: 12,
     color: AMBER,
   },
@@ -588,9 +593,9 @@ const styles = StyleSheet.create({
     paddingVertical: 5,
   },
   tripCountText: {
-    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontFamily: fonts.semibold,
     fontSize: 12,
-    color: "#10b981",
+    color: GREEN,
   },
   // User location dot
   userDot: {
@@ -635,7 +640,7 @@ const styles = StyleSheet.create({
     width: 10,
     height: 10,
     borderRadius: 5,
-    backgroundColor: "#ef4444",
+    backgroundColor: RED,
     borderWidth: 2,
     borderColor: "#fff",
   },

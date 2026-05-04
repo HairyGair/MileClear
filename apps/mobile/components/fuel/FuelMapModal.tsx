@@ -10,6 +10,15 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { openDirections } from "../../lib/location/directions";
 import type { FuelStation } from "@mileclear/shared";
+import { colors, fonts } from "../../lib/theme";
+
+// Local theme aliases — same pattern as the (tabs) screens.
+const AMBER = colors.amber;
+const TEXT_2 = colors.text2;
+const TEXT_3 = colors.text3;
+const BG = colors.bg;
+const GREEN = colors.green;
+const RED = colors.red;
 
 // Lazy require — resolved at render time with try/catch for Expo Go safety
 function getMapComponents() {
@@ -38,11 +47,11 @@ function formatDistance(miles: number): string {
 }
 
 function getPriceColor(pricePence: number, nationalAvg: number | null): string {
-  if (nationalAvg === null) return "#f5a623";
+  if (nationalAvg === null) return AMBER;
   const diff = pricePence - nationalAvg;
-  if (diff < -3) return "#10b981";
-  if (diff > 3) return "#ef4444";
-  return "#f5a623";
+  if (diff < -3) return GREEN;
+  if (diff > 3) return RED;
+  return AMBER;
 }
 
 interface FuelMapModalProps {
@@ -131,7 +140,7 @@ export default function FuelMapModal({
         >
           {stations.map((s, i) => {
             const e10 = s.prices.E10;
-            const color = e10 != null ? getPriceColor(e10, nationalAvgPetrol) : "#f5a623";
+            const color = e10 != null ? getPriceColor(e10, nationalAvgPetrol) : AMBER;
             return (
               <MarkerNative
                 key={`${s.siteId}-${i}`}
@@ -247,7 +256,7 @@ export default function FuelMapModal({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#030712",
+    backgroundColor: BG,
   },
   map: {
     width: SCREEN_WIDTH,
@@ -260,12 +269,12 @@ const styles = StyleSheet.create({
   },
   calloutTitle: {
     fontSize: 13,
-    fontFamily: "PlusJakartaSans_600SemiBold",
-    color: "#030712",
+    fontFamily: fonts.semibold,
+    color: BG,
   },
   calloutPrice: {
     fontSize: 14,
-    fontFamily: "PlusJakartaSans_700Bold",
+    fontFamily: fonts.bold,
   },
   // Close button
   closeBtn: {
@@ -296,7 +305,7 @@ const styles = StyleSheet.create({
   },
   recenterIcon: {
     fontSize: 20,
-    color: "#f5a623",
+    color: AMBER,
   },
   // Bottom panel
   bottomPanel: {
@@ -318,14 +327,14 @@ const styles = StyleSheet.create({
   },
   panelBrand: {
     fontSize: 17,
-    fontFamily: "PlusJakartaSans_700Bold",
+    fontFamily: fonts.bold,
     color: "#fff",
     marginBottom: 2,
   },
   panelAddress: {
     fontSize: 13,
-    fontFamily: "PlusJakartaSans_400Regular",
-    color: "#9ca3af",
+    fontFamily: fonts.regular,
+    color: TEXT_2,
     marginBottom: 8,
   },
   panelPrices: {
@@ -338,51 +347,51 @@ const styles = StyleSheet.create({
   },
   panelFuelLabel: {
     fontSize: 10,
-    fontFamily: "PlusJakartaSans_500Medium",
-    color: "#6b7280",
+    fontFamily: fonts.medium,
+    color: TEXT_3,
     marginBottom: 2,
   },
   panelPrice: {
     fontSize: 20,
-    fontFamily: "PlusJakartaSans_700Bold",
+    fontFamily: fonts.bold,
   },
   panelDistance: {
     fontSize: 13,
-    fontFamily: "PlusJakartaSans_400Regular",
-    color: "#9ca3af",
+    fontFamily: fonts.regular,
+    color: TEXT_2,
   },
   // Directions button
   directionsBtn: {
-    backgroundColor: "#f5a623",
+    backgroundColor: AMBER,
     borderRadius: 12,
     paddingVertical: 16,
     alignItems: "center",
   },
   directionsBtnText: {
     fontSize: 16,
-    fontFamily: "PlusJakartaSans_700Bold",
-    color: "#030712",
+    fontFamily: fonts.bold,
+    color: BG,
   },
   // Hint text
   panelHint: {
     fontSize: 14,
-    fontFamily: "PlusJakartaSans_400Regular",
-    color: "#6b7280",
+    fontFamily: fonts.regular,
+    color: TEXT_3,
     textAlign: "center",
     paddingVertical: 8,
   },
   // Fallback
   fallbackContainer: {
     flex: 1,
-    backgroundColor: "#030712",
+    backgroundColor: BG,
     justifyContent: "center",
     alignItems: "center",
     padding: 32,
   },
   fallbackText: {
     fontSize: 16,
-    fontFamily: "PlusJakartaSans_400Regular",
-    color: "#9ca3af",
+    fontFamily: fonts.regular,
+    color: TEXT_2,
     textAlign: "center",
     marginBottom: 24,
     lineHeight: 24,
@@ -395,7 +404,7 @@ const styles = StyleSheet.create({
   },
   fallbackCloseText: {
     fontSize: 15,
-    fontFamily: "PlusJakartaSans_600SemiBold",
-    color: "#f5a623",
+    fontFamily: fonts.semibold,
+    color: AMBER,
   },
 });

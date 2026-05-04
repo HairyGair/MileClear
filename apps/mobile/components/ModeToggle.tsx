@@ -2,6 +2,13 @@ import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useMode } from "../lib/mode/context";
 import type { AppMode } from "../lib/mode/index";
+import { colors, fonts } from "../lib/theme";
+
+// Local theme aliases — same pattern as the (tabs) screens.
+const AMBER = colors.amber;
+const TEXT_2 = colors.text2;
+const TEXT_3 = colors.text3;
+const BG = colors.bg;
 
 const SEGMENTS: { label: string; value: AppMode }[] = [
   { label: "Work", value: "work" },
@@ -46,7 +53,7 @@ export function ModeToggle({ onInfoPress }: ModeToggleProps) {
           accessibilityRole="button"
           accessibilityLabel="What is Work mode?"
         >
-          <Ionicons name="information-circle-outline" size={20} color="#64748b" />
+          <Ionicons name="information-circle-outline" size={20} color={TEXT_3} />
         </TouchableOpacity>
       )}
     </View>
@@ -76,15 +83,15 @@ const styles = StyleSheet.create({
     borderRadius: 20,
   },
   segmentActive: {
-    backgroundColor: "#f5a623",
+    backgroundColor: AMBER,
   },
   label: {
     fontSize: 13,
-    fontFamily: "PlusJakartaSans_600SemiBold",
-    color: "#9ca3af",
+    fontFamily: fonts.semibold,
+    color: TEXT_2,
   },
   labelActive: {
-    color: "#030712",
+    color: BG,
   },
   infoBtn: {
     width: 32,

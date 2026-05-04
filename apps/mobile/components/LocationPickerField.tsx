@@ -14,6 +14,15 @@ import {
   type GeocodeSuggestion,
 } from "../lib/location/geocoding";
 import { MapPickerModal } from "./MapPickerModal";
+import { colors, fonts } from "../lib/theme";
+
+// Local theme aliases — same pattern as the (tabs) screens.
+const AMBER = colors.amber;
+const CARD_BG = colors.surface;
+const TEXT_1 = colors.text1;
+const TEXT_2 = colors.text2;
+const TEXT_3 = colors.text3;
+const BG = colors.bg;
 
 interface LocationPickerFieldProps {
   label: string;
@@ -105,7 +114,7 @@ export function LocationPickerField({
             accessibilityRole="button"
             accessibilityLabel={`Clear ${label}`}
           >
-            <Ionicons name="close-circle" size={18} color="#6b7280" accessible={false} />
+            <Ionicons name="close-circle" size={18} color={TEXT_3} accessible={false} />
           </TouchableOpacity>
         )}
       </View>
@@ -113,7 +122,7 @@ export function LocationPickerField({
       {/* Address display */}
       <View style={styles.addressBox}>
         {loading ? (
-          <ActivityIndicator size="small" color="#f5a623" accessibilityLabel="Loading location" />
+          <ActivityIndicator size="small" color={AMBER} accessibilityLabel="Loading location" />
         ) : hasValue ? (
           <>
             <Text style={styles.addressText} numberOfLines={2}>
@@ -139,7 +148,7 @@ export function LocationPickerField({
             accessibilityRole="button"
             accessibilityLabel={`Use current location for ${label}`}
           >
-            <Ionicons name="locate-outline" size={16} color="#f5a623" accessible={false} />
+            <Ionicons name="locate-outline" size={16} color={AMBER} accessible={false} />
             <Text style={styles.actionLabel}>Current</Text>
           </TouchableOpacity>
 
@@ -151,7 +160,7 @@ export function LocationPickerField({
             accessibilityRole="button"
             accessibilityLabel={`Pick ${label} on map`}
           >
-            <Ionicons name="map-outline" size={16} color="#f5a623" accessible={false} />
+            <Ionicons name="map-outline" size={16} color={AMBER} accessible={false} />
             <Text style={styles.actionLabel}>Map</Text>
           </TouchableOpacity>
 
@@ -170,7 +179,7 @@ export function LocationPickerField({
             accessibilityLabel={showSearch ? `Hide address search for ${label}` : `Search address for ${label}`}
             accessibilityState={{ expanded: showSearch }}
           >
-            <Ionicons name="search-outline" size={16} color="#f5a623" accessible={false} />
+            <Ionicons name="search-outline" size={16} color={AMBER} accessible={false} />
             <Text style={[styles.actionLabel, showSearch && styles.actionLabelActive]}>Search</Text>
           </TouchableOpacity>
         </View>
@@ -189,7 +198,7 @@ export function LocationPickerField({
                 setNoResults(false);
               }}
               placeholder="e.g. PureGym Sunderland or SR3 1AA"
-              placeholderTextColor="#6b7280"
+              placeholderTextColor={TEXT_3}
               returnKeyType="search"
               onSubmitEditing={handleSearch}
               autoFocus
@@ -209,7 +218,7 @@ export function LocationPickerField({
           {/* No results message */}
           {noResults && (
             <View style={styles.noResults}>
-              <Ionicons name="alert-circle-outline" size={15} color="#6b7280" accessible={false} />
+              <Ionicons name="alert-circle-outline" size={15} color={TEXT_3} accessible={false} />
               <Text style={styles.noResultsText}>
                 No results found. Try a postcode, street name, or place name.
               </Text>
@@ -229,7 +238,7 @@ export function LocationPickerField({
                   accessibilityRole="button"
                   accessibilityLabel={s.address}
                 >
-                  <Ionicons name="location-outline" size={15} color="#f5a623" accessible={false} />
+                  <Ionicons name="location-outline" size={15} color={AMBER} accessible={false} />
                   <Text style={styles.suggestionText} numberOfLines={2}>{s.address}</Text>
                 </TouchableOpacity>
               ))}
@@ -265,12 +274,12 @@ const styles = StyleSheet.create({
   },
   label: {
     fontSize: 14,
-    fontFamily: "PlusJakartaSans_600SemiBold",
-    color: "#d1d5db",
+    fontFamily: fonts.semibold,
+    color: TEXT_2,
   },
   // Address display
   addressBox: {
-    backgroundColor: "#0a1120",
+    backgroundColor: CARD_BG,
     borderRadius: 10,
     padding: 14,
     borderWidth: 1,
@@ -280,19 +289,19 @@ const styles = StyleSheet.create({
   },
   addressText: {
     fontSize: 15,
-    fontFamily: "PlusJakartaSans_500Medium",
+    fontFamily: fonts.medium,
     color: "#fff",
   },
   coordSubtext: {
     fontSize: 12,
-    fontFamily: "PlusJakartaSans_400Regular",
-    color: "#6b7280",
+    fontFamily: fonts.regular,
+    color: TEXT_3,
     marginTop: 4,
   },
   placeholder: {
     fontSize: 15,
-    fontFamily: "PlusJakartaSans_400Regular",
-    color: "#6b7280",
+    fontFamily: fonts.regular,
+    color: TEXT_3,
   },
   // Action buttons
   actionRow: {
@@ -306,7 +315,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     gap: 6,
-    backgroundColor: "#0a1120",
+    backgroundColor: CARD_BG,
     borderRadius: 8,
     paddingVertical: 10,
     borderWidth: 1,
@@ -318,11 +327,11 @@ const styles = StyleSheet.create({
   },
   actionLabel: {
     fontSize: 12,
-    fontFamily: "PlusJakartaSans_600SemiBold",
-    color: "#8494a7",
+    fontFamily: fonts.semibold,
+    color: TEXT_2,
   },
   actionLabelActive: {
-    color: "#f5a623",
+    color: AMBER,
   },
   // Search
   searchRow: {
@@ -332,25 +341,25 @@ const styles = StyleSheet.create({
   },
   searchInput: {
     flex: 1,
-    backgroundColor: "#0a1120",
+    backgroundColor: CARD_BG,
     borderRadius: 10,
     padding: 12,
     fontSize: 14,
-    fontFamily: "PlusJakartaSans_400Regular",
+    fontFamily: fonts.regular,
     color: "#fff",
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.06)",
   },
   searchBtn: {
-    backgroundColor: "#f5a623",
+    backgroundColor: AMBER,
     borderRadius: 10,
     paddingHorizontal: 16,
     justifyContent: "center",
   },
   searchBtnText: {
     fontSize: 14,
-    fontFamily: "PlusJakartaSans_700Bold",
-    color: "#030712",
+    fontFamily: fonts.bold,
+    color: BG,
   },
   // No results
   noResults: {
@@ -362,14 +371,14 @@ const styles = StyleSheet.create({
   },
   noResultsText: {
     fontSize: 13,
-    fontFamily: "PlusJakartaSans_400Regular",
-    color: "#6b7280",
+    fontFamily: fonts.regular,
+    color: TEXT_3,
     flex: 1,
   },
   // Suggestions
   suggestionList: {
     marginTop: 8,
-    backgroundColor: "#0a1120",
+    backgroundColor: CARD_BG,
     borderRadius: 10,
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.06)",
@@ -377,8 +386,8 @@ const styles = StyleSheet.create({
   },
   suggestionHint: {
     fontSize: 11,
-    fontFamily: "PlusJakartaSans_500Medium",
-    color: "#6b7280",
+    fontFamily: fonts.medium,
+    color: TEXT_3,
     paddingHorizontal: 12,
     paddingTop: 10,
     paddingBottom: 4,
@@ -394,8 +403,8 @@ const styles = StyleSheet.create({
   },
   suggestionText: {
     fontSize: 14,
-    fontFamily: "PlusJakartaSans_500Medium",
-    color: "#f0f2f5",
+    fontFamily: fonts.medium,
+    color: TEXT_1,
     flex: 1,
   },
 });

@@ -1,5 +1,9 @@
 import { View, StyleSheet, UIManager, Platform } from "react-native";
 import { useMemo } from "react";
+import { colors } from "../../lib/theme";
+
+// Local theme aliases — same pattern as the (tabs) screens.
+const AMBER = colors.amber;
 
 // Lazy import for Expo Go compatibility
 let MapViewComponent: any = null;
@@ -93,7 +97,7 @@ export function TripMapWidget({
       >
         <PolylineComponent
           coordinates={polylineCoords}
-          strokeColor="#f5a623"
+          strokeColor={AMBER}
           strokeWidth={3}
         />
         <MarkerComponent

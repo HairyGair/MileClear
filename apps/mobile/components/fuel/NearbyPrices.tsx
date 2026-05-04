@@ -10,6 +10,16 @@ import { fetchNearbyPrices } from "../../lib/api/fuel";
 import { openDirections } from "../../lib/location/directions";
 import FuelMapModal from "./FuelMapModal";
 import type { FuelStation, NationalAveragePrices } from "@mileclear/shared";
+import { colors, fonts } from "../../lib/theme";
+
+// Local theme aliases — same pattern as the (tabs) screens.
+const AMBER = colors.amber;
+const CARD_BG = colors.surface;
+const TEXT_2 = colors.text2;
+const TEXT_3 = colors.text3;
+const BG = colors.bg;
+const GREEN = colors.green;
+const RED = colors.red;
 
 type ViewMode = "list" | "map";
 
@@ -22,11 +32,11 @@ function formatPpl(pence: number): string {
 }
 
 function getPriceColor(pricePence: number, nationalAvg: number | null): string {
-  if (nationalAvg === null) return "#f5a623"; // amber if no benchmark
+  if (nationalAvg === null) return AMBER; // amber if no benchmark
   const diff = pricePence - nationalAvg;
-  if (diff < -3) return "#10b981"; // green — cheaper
-  if (diff > 3) return "#ef4444"; // red — more expensive
-  return "#f5a623"; // amber — within 3p
+  if (diff < -3) return GREEN; // green — cheaper
+  if (diff > 3) return RED; // red — more expensive
+  return AMBER; // amber — within 3p
 }
 
 function StationCard({
@@ -333,7 +343,7 @@ function InlineMapView({
       >
         {stations.map((s, i) => {
           const e10 = s.prices.E10;
-          const color = e10 != null ? getPriceColor(e10, nationalAvgPetrol) : "#f5a623";
+          const color = e10 != null ? getPriceColor(e10, nationalAvgPetrol) : AMBER;
           return (
             <Marker
               key={`${s.siteId}-${i}`}
@@ -378,7 +388,7 @@ const styles = StyleSheet.create({
   },
   sectionTitle: {
     fontSize: 16,
-    fontFamily: "PlusJakartaSans_700Bold",
+    fontFamily: fonts.bold,
     color: "#fff",
     marginBottom: 10,
   },
@@ -395,19 +405,19 @@ const styles = StyleSheet.create({
     borderRadius: 6,
   },
   toggleBtnActive: {
-    backgroundColor: "#f5a623",
+    backgroundColor: AMBER,
   },
   toggleText: {
     fontSize: 12,
-    fontFamily: "PlusJakartaSans_600SemiBold",
-    color: "#6b7280",
+    fontFamily: fonts.semibold,
+    color: TEXT_3,
   },
   toggleTextActive: {
-    color: "#030712",
+    color: BG,
   },
   // National average banner
   avgBanner: {
-    backgroundColor: "#0a1120",
+    backgroundColor: CARD_BG,
     borderRadius: 10,
     padding: 12,
     marginBottom: 10,
@@ -415,8 +425,8 @@ const styles = StyleSheet.create({
   },
   avgTitle: {
     fontSize: 12,
-    fontFamily: "PlusJakartaSans_600SemiBold",
-    color: "#9ca3af",
+    fontFamily: fonts.semibold,
+    color: TEXT_2,
     marginBottom: 4,
   },
   avgRow: {
@@ -426,12 +436,12 @@ const styles = StyleSheet.create({
   },
   avgLabel: {
     fontSize: 14,
-    fontFamily: "PlusJakartaSans_400Regular",
-    color: "#d1d5db",
+    fontFamily: fonts.regular,
+    color: TEXT_2,
   },
   avgValue: {
-    fontFamily: "PlusJakartaSans_700Bold",
-    color: "#f5a623",
+    fontFamily: fonts.bold,
+    color: AMBER,
   },
   avgDivider: {
     fontSize: 14,
@@ -439,7 +449,7 @@ const styles = StyleSheet.create({
   },
   // Station cards
   stationCard: {
-    backgroundColor: "#0a1120",
+    backgroundColor: CARD_BG,
     borderRadius: 10,
     padding: 12,
     marginBottom: 8,
@@ -452,19 +462,19 @@ const styles = StyleSheet.create({
   },
   brandName: {
     fontSize: 15,
-    fontFamily: "PlusJakartaSans_700Bold",
+    fontFamily: fonts.bold,
     color: "#fff",
   },
   stationAddress: {
     fontSize: 12,
-    fontFamily: "PlusJakartaSans_400Regular",
-    color: "#9ca3af",
+    fontFamily: fonts.regular,
+    color: TEXT_2,
     marginTop: 2,
   },
   stationDistance: {
     fontSize: 12,
-    fontFamily: "PlusJakartaSans_400Regular",
-    color: "#9ca3af",
+    fontFamily: fonts.regular,
+    color: TEXT_2,
   },
   stationBody: {
     flexDirection: "row",
@@ -480,25 +490,25 @@ const styles = StyleSheet.create({
   },
   fuelLabel: {
     fontSize: 10,
-    fontFamily: "PlusJakartaSans_500Medium",
-    color: "#6b7280",
+    fontFamily: fonts.medium,
+    color: TEXT_3,
     marginBottom: 2,
   },
   fuelPrice: {
     fontSize: 18,
-    fontFamily: "PlusJakartaSans_700Bold",
+    fontFamily: fonts.bold,
   },
   directionsPill: {
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: "#f5a623",
+    borderColor: AMBER,
   },
   directionsPillText: {
     fontSize: 11,
-    fontFamily: "PlusJakartaSans_600SemiBold",
-    color: "#f5a623",
+    fontFamily: fonts.semibold,
+    color: AMBER,
   },
   // Loading skeleton
   skeletonRow: {
@@ -508,20 +518,20 @@ const styles = StyleSheet.create({
   skeletonCard: {
     flex: 1,
     height: 70,
-    backgroundColor: "#0a1120",
+    backgroundColor: CARD_BG,
     borderRadius: 10,
   },
   // Message / empty state
   messageBox: {
-    backgroundColor: "#0a1120",
+    backgroundColor: CARD_BG,
     borderRadius: 10,
     padding: 16,
     alignItems: "center",
   },
   messageText: {
     fontSize: 13,
-    fontFamily: "PlusJakartaSans_400Regular",
-    color: "#9ca3af",
+    fontFamily: fonts.regular,
+    color: TEXT_2,
     textAlign: "center",
   },
   retryButton: {
@@ -533,8 +543,8 @@ const styles = StyleSheet.create({
   },
   retryText: {
     fontSize: 13,
-    fontFamily: "PlusJakartaSans_600SemiBold",
-    color: "#f5a623",
+    fontFamily: fonts.semibold,
+    color: AMBER,
   },
   // Map
   mapContainer: {
@@ -566,12 +576,12 @@ const styles = StyleSheet.create({
   },
   calloutTitle: {
     fontSize: 13,
-    fontFamily: "PlusJakartaSans_600SemiBold",
-    color: "#030712",
+    fontFamily: fonts.semibold,
+    color: BG,
   },
   calloutPrice: {
     fontSize: 14,
-    fontFamily: "PlusJakartaSans_700Bold",
-    color: "#030712",
+    fontFamily: fonts.bold,
+    color: BG,
   },
 });

@@ -11,6 +11,16 @@ import { Ionicons } from "@expo/vector-icons";
 import { formatPence } from "@mileclear/shared";
 import type { CommunityInsights } from "@mileclear/shared";
 import { fetchCommunityInsights } from "../../lib/api/communityInsights";
+import { colors, fonts } from "../../lib/theme";
+
+// Local theme aliases — same pattern as the (tabs) screens.
+const AMBER = colors.amber;
+const CARD_BG = colors.surface;
+const TEXT_1 = colors.text1;
+const TEXT_2 = colors.text2;
+const TEXT_3 = colors.text3;
+const GREEN = colors.green;
+const RED = colors.red;
 
 const GIG_LABELS: Record<string, string> = {
   uber: "Uber",
@@ -84,9 +94,9 @@ function anomalyLabel(type: string, topReasons?: string[]): string {
 
 function severityColor(severity?: string): string {
   switch (severity) {
-    case "high": return "#ef4444";
+    case "high": return RED;
     case "medium": return "#f59e0b";
-    default: return "#f5a623";
+    default: return AMBER;
   }
 }
 
@@ -137,10 +147,10 @@ export function CommunityInsightsCard({ isWork = true }: CommunityInsightsCardPr
     return (
       <View style={styles.card}>
         <View style={styles.header}>
-          <Ionicons name="people-outline" size={18} color="#f5a623" />
+          <Ionicons name="people-outline" size={18} color={AMBER} />
           <Text style={styles.title}>Community Intelligence</Text>
         </View>
-        <ActivityIndicator size="small" color="#f5a623" style={{ paddingVertical: 20 }} />
+        <ActivityIndicator size="small" color={AMBER} style={{ paddingVertical: 20 }} />
       </View>
     );
   }
@@ -161,7 +171,7 @@ export function CommunityInsightsCard({ isWork = true }: CommunityInsightsCardPr
       headlines.push({
         icon: "trending-up-outline",
         text: `${platformLabel(best.platform)} pays best nearby: ${formatPence(best.earningsPerMilePence)}/mi`,
-        color: "#10b981",
+        color: GREEN,
       });
     }
   }
@@ -212,7 +222,7 @@ export function CommunityInsightsCard({ isWork = true }: CommunityInsightsCardPr
         accessibilityState={{ expanded }}
       >
         <View style={styles.headerLeft}>
-          <Ionicons name="people-outline" size={18} color="#f5a623" />
+          <Ionicons name="people-outline" size={18} color={AMBER} />
           <Text style={styles.title}>Community Intelligence</Text>
         </View>
         <View style={styles.headerRight}>
@@ -222,7 +232,7 @@ export function CommunityInsightsCard({ isWork = true }: CommunityInsightsCardPr
           <Ionicons
             name={expanded ? "chevron-up" : "chevron-down"}
             size={16}
-            color="#6b7280"
+            color={TEXT_3}
           />
         </View>
       </TouchableOpacity>
@@ -325,7 +335,7 @@ export function CommunityInsightsCard({ isWork = true }: CommunityInsightsCardPr
 
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: "#0a1120",
+    backgroundColor: CARD_BG,
     borderRadius: 16,
     padding: 16,
     marginBottom: 16,
@@ -350,13 +360,13 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: 15,
-    fontFamily: "PlusJakartaSans_700Bold",
-    color: "#f0f2f5",
+    fontFamily: fonts.bold,
+    color: TEXT_1,
   },
   driverCount: {
     fontSize: 12,
-    fontFamily: "PlusJakartaSans_500Medium",
-    color: "#6b7280",
+    fontFamily: fonts.medium,
+    color: TEXT_3,
   },
   // Headlines
   headlineRow: {
@@ -367,7 +377,7 @@ const styles = StyleSheet.create({
   },
   headlineText: {
     fontSize: 13,
-    fontFamily: "PlusJakartaSans_500Medium",
+    fontFamily: fonts.medium,
     color: "#c9d1d9",
     flex: 1,
   },
@@ -392,13 +402,13 @@ const styles = StyleSheet.create({
   },
   statValue: {
     fontSize: 14,
-    fontFamily: "PlusJakartaSans_700Bold",
-    color: "#f5a623",
+    fontFamily: fonts.bold,
+    color: AMBER,
   },
   statLabel: {
     fontSize: 10,
-    fontFamily: "PlusJakartaSans_500Medium",
-    color: "#6b7280",
+    fontFamily: fonts.medium,
+    color: TEXT_3,
     textTransform: "uppercase",
     letterSpacing: 0.3,
     marginTop: 2,
@@ -409,8 +419,8 @@ const styles = StyleSheet.create({
   },
   sectionTitle: {
     fontSize: 12,
-    fontFamily: "PlusJakartaSans_600SemiBold",
-    color: "#8494a7",
+    fontFamily: fonts.semibold,
+    color: TEXT_2,
     textTransform: "uppercase",
     letterSpacing: 0.5,
     marginBottom: 8,
@@ -426,21 +436,21 @@ const styles = StyleSheet.create({
   },
   earningPlatform: {
     fontSize: 14,
-    fontFamily: "PlusJakartaSans_600SemiBold",
-    color: "#f0f2f5",
+    fontFamily: fonts.semibold,
+    color: TEXT_1,
   },
   earningRight: {
     alignItems: "flex-end",
   },
   earningRate: {
     fontSize: 14,
-    fontFamily: "PlusJakartaSans_700Bold",
-    color: "#10b981",
+    fontFamily: fonts.bold,
+    color: GREEN,
   },
   earningMeta: {
     fontSize: 11,
-    fontFamily: "PlusJakartaSans_400Regular",
-    color: "#6b7280",
+    fontFamily: fonts.regular,
+    color: TEXT_3,
     marginTop: 1,
   },
   // Peak hours
@@ -452,7 +462,7 @@ const styles = StyleSheet.create({
   },
   peakLabel: {
     fontSize: 13,
-    fontFamily: "PlusJakartaSans_500Medium",
+    fontFamily: fonts.medium,
     color: "#c9d1d9",
   },
   peakRight: {
@@ -462,13 +472,13 @@ const styles = StyleSheet.create({
   },
   peakTrips: {
     fontSize: 12,
-    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontFamily: fonts.semibold,
     color: "#3b82f6",
   },
   peakSpeed: {
     fontSize: 11,
-    fontFamily: "PlusJakartaSans_400Regular",
-    color: "#6b7280",
+    fontFamily: fonts.regular,
+    color: TEXT_3,
   },
   // Anomalies
   severityDot: {
@@ -488,13 +498,13 @@ const styles = StyleSheet.create({
   },
   anomalyText: {
     fontSize: 13,
-    fontFamily: "PlusJakartaSans_500Medium",
+    fontFamily: fonts.medium,
     color: "#c9d1d9",
   },
   anomalyMeta: {
     fontSize: 11,
-    fontFamily: "PlusJakartaSans_400Regular",
-    color: "#6b7280",
+    fontFamily: fonts.regular,
+    color: TEXT_3,
     marginTop: 1,
   },
 });

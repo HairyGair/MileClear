@@ -10,6 +10,12 @@ import {
 import type { ViewStyle } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useReducedMotion } from "../lib/accessibility";
+import { colors, fonts } from "../lib/theme";
+
+// Local theme aliases — same pattern as the (tabs) screens.
+const AMBER = colors.amber;
+const TEXT_2 = colors.text2;
+const BG = colors.bg;
 
 type ButtonVariant = "primary" | "secondary" | "destructive" | "ghost" | "hero";
 type ButtonSize = "sm" | "md" | "lg";
@@ -39,37 +45,37 @@ const SIZE_MAP = {
 // Variant visual definitions
 const VARIANTS = {
   primary: {
-    bg: "#f5a623",
-    text: "#030712",
-    font: "PlusJakartaSans_700Bold",
+    bg: AMBER,
+    text: BG,
+    font: fonts.bold,
     border: null as string | null,
     radius: 12,
   },
   secondary: {
     bg: "#151e2d",
     text: "#c9d1db",
-    font: "PlusJakartaSans_600SemiBold",
+    font: fonts.semibold,
     border: "#2a3544",
     radius: 12,
   },
   destructive: {
     bg: "rgba(239,68,68,0.08)",
     text: "#f87171",
-    font: "PlusJakartaSans_600SemiBold",
+    font: fonts.semibold,
     border: "rgba(239,68,68,0.20)",
     radius: 12,
   },
   ghost: {
     bg: "transparent",
-    text: "#8494a7",
-    font: "PlusJakartaSans_600SemiBold",
+    text: TEXT_2,
+    font: fonts.semibold,
     border: null as string | null,
     radius: 12,
   },
   hero: {
-    bg: "#f5a623",
-    text: "#030712",
-    font: "PlusJakartaSans_700Bold",
+    bg: AMBER,
+    text: BG,
+    font: fonts.bold,
     border: null as string | null,
     radius: 14,
   },
@@ -311,6 +317,6 @@ const styles = StyleSheet.create({
   },
   secondaryAccent: {
     borderLeftWidth: 3,
-    borderLeftColor: "#f5a623",
+    borderLeftColor: AMBER,
   },
 });

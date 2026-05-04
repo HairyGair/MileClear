@@ -2,8 +2,16 @@ import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useUser } from "../lib/user/context";
 import { usePaywall } from "./paywall";
+import { colors, fonts } from "../lib/theme";
 
-const AMBER = "#f5a623";
+// Local theme aliases — same pattern as the (tabs) screens.
+const CARD_BG = colors.surface;
+const TEXT_1 = colors.text1;
+const TEXT_2 = colors.text2;
+const TEXT_3 = colors.text3;
+const BG = colors.bg;
+
+const AMBER = colors.amber;
 
 interface PremiumGateProps {
   children: React.ReactNode;
@@ -52,7 +60,7 @@ export function PremiumTeaser({
         <Text style={styles.compactText}>
           {feature ? `${feature} — ` : ""}Upgrade to Pro
         </Text>
-        <Ionicons name="chevron-forward" size={14} color="#64748b" />
+        <Ionicons name="chevron-forward" size={14} color={TEXT_3} />
       </TouchableOpacity>
     );
   }
@@ -78,7 +86,7 @@ export function PremiumTeaser({
       </Text>
       <View style={styles.cta}>
         <Text style={styles.ctaText}>Upgrade to Pro</Text>
-        <Ionicons name="chevron-forward" size={14} color="#030712" />
+        <Ionicons name="chevron-forward" size={14} color={BG} />
       </View>
     </TouchableOpacity>
   );
@@ -94,7 +102,7 @@ export function useIsPremium(): boolean {
 
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: "#0a1120",
+    backgroundColor: CARD_BG,
     borderRadius: 14,
     padding: 20,
     borderWidth: 1,
@@ -115,14 +123,14 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: 16,
-    fontFamily: "PlusJakartaSans_700Bold",
-    color: "#f0f2f5",
+    fontFamily: fonts.bold,
+    color: TEXT_1,
     marginBottom: 4,
   },
   description: {
     fontSize: 13,
-    fontFamily: "PlusJakartaSans_400Regular",
-    color: "#8494a7",
+    fontFamily: fonts.regular,
+    color: TEXT_2,
     textAlign: "center",
     marginBottom: 14,
   },
@@ -137,14 +145,14 @@ const styles = StyleSheet.create({
   },
   ctaText: {
     fontSize: 14,
-    fontFamily: "PlusJakartaSans_700Bold",
-    color: "#030712",
+    fontFamily: fonts.bold,
+    color: BG,
   },
   compactCard: {
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
-    backgroundColor: "#0a1120",
+    backgroundColor: CARD_BG,
     borderRadius: 10,
     paddingVertical: 10,
     paddingHorizontal: 14,
@@ -154,8 +162,8 @@ const styles = StyleSheet.create({
   },
   compactText: {
     fontSize: 13,
-    fontFamily: "PlusJakartaSans_500Medium",
-    color: "#8494a7",
+    fontFamily: fonts.medium,
+    color: TEXT_2,
     flex: 1,
   },
 });

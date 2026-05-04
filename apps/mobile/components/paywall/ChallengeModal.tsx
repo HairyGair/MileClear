@@ -9,13 +9,17 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import { getDatabase } from "../../lib/db/index";
 import { Button } from "../Button";
+import { colors, fonts } from "../../lib/theme";
 
-const CARD_BG = "#0a1120";
-const AMBER = "#f5a623";
-const TEXT_1 = "#f0f2f5";
-const TEXT_2 = "#8494a7";
-const TEXT_3 = "#64748b";
-const SUCCESS = "#10b981";
+// Local theme aliases — same pattern as the (tabs) screens.
+const GREEN = colors.green;
+
+const CARD_BG = colors.surface;
+const AMBER = colors.amber;
+const TEXT_1 = colors.text1;
+const TEXT_2 = colors.text2;
+const TEXT_3 = colors.text3;
+const SUCCESS = GREEN;
 
 interface ChallengeModalProps {
   visible: boolean;
@@ -152,14 +156,14 @@ const s = StyleSheet.create({
   },
   heading: {
     fontSize: 22,
-    fontFamily: "PlusJakartaSans_700Bold",
+    fontFamily: fonts.bold,
     color: TEXT_1,
     textAlign: "center",
     marginBottom: 8,
   },
   subtitle: {
     fontSize: 14,
-    fontFamily: "PlusJakartaSans_400Regular",
+    fontFamily: fonts.regular,
     color: TEXT_2,
     textAlign: "center",
     lineHeight: 21,
@@ -191,7 +195,7 @@ const s = StyleSheet.create({
   },
   progressLabel: {
     fontSize: 11,
-    fontFamily: "PlusJakartaSans_500Medium",
+    fontFamily: fonts.medium,
     color: TEXT_3,
   },
   declineBtn: {
@@ -200,7 +204,7 @@ const s = StyleSheet.create({
   },
   declineText: {
     fontSize: 14,
-    fontFamily: "PlusJakartaSans_400Regular",
+    fontFamily: fonts.regular,
     color: TEXT_3,
   },
 });

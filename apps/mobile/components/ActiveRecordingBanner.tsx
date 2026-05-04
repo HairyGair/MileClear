@@ -13,6 +13,11 @@ import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { getDatabase } from "../lib/db/index";
 import { haversineDistance, formatMiles } from "@mileclear/shared";
+import { colors, fonts } from "../lib/theme";
+
+// Local theme aliases — same pattern as the (tabs) screens.
+const AMBER = colors.amber;
+const BG = colors.bg;
 
 interface State {
   active: boolean;
@@ -115,7 +120,7 @@ export function ActiveRecordingBanner() {
       </View>
       <View style={styles.arrowWrap}>
         <Text style={styles.arrowLabel}>View</Text>
-        <Ionicons name="chevron-forward" size={16} color="#030712" />
+        <Ionicons name="chevron-forward" size={16} color={BG} />
       </View>
     </TouchableOpacity>
   );
@@ -125,13 +130,13 @@ const styles = StyleSheet.create({
   banner: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#f5a623",
+    backgroundColor: AMBER,
     borderRadius: 12,
     paddingVertical: 12,
     paddingHorizontal: 14,
     marginHorizontal: 16,
     marginBottom: 12,
-    shadowColor: "#f5a623",
+    shadowColor: AMBER,
     shadowOpacity: 0.3,
     shadowRadius: 12,
     shadowOffset: { width: 0, height: 4 },
@@ -140,21 +145,21 @@ const styles = StyleSheet.create({
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: "#030712",
+    backgroundColor: BG,
     marginRight: 10,
   },
   textWrap: {
     flex: 1,
   },
   title: {
-    color: "#030712",
-    fontFamily: "PlusJakartaSans_700Bold",
+    color: BG,
+    fontFamily: fonts.bold,
     fontSize: 14,
     lineHeight: 18,
   },
   subtitle: {
-    color: "#030712",
-    fontFamily: "PlusJakartaSans_500Medium",
+    color: BG,
+    fontFamily: fonts.medium,
     fontSize: 12,
     opacity: 0.85,
     marginTop: 2,
@@ -169,8 +174,8 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   arrowLabel: {
-    color: "#030712",
-    fontFamily: "PlusJakartaSans_700Bold",
+    color: BG,
+    fontFamily: fonts.bold,
     fontSize: 12,
   },
 });

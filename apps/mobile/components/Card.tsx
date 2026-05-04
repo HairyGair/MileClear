@@ -1,5 +1,5 @@
 // Card — themed surface with consistent padding, radius and border.
-// Replaces the dozens of ad-hoc { backgroundColor: "#0a1120", padding: 16,
+// Replaces the dozens of ad-hoc { backgroundColor: CARD_BG, padding: 16,
 // borderRadius: 12, borderWidth: 1, borderColor: "rgba(255,255,255,0.06)" }
 // blocks scattered across screens.
 //

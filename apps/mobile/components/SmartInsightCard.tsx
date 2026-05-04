@@ -14,6 +14,16 @@ import {
   getTopInsights,
   dismissInsight,
 } from "../lib/insights/index";
+import { colors, fonts } from "../lib/theme";
+
+// Local theme aliases — same pattern as the (tabs) screens.
+const AMBER = colors.amber;
+const CARD_BG = colors.surface;
+const TEXT_1 = colors.text1;
+const TEXT_2 = colors.text2;
+const TEXT_3 = colors.text3;
+const GREEN = colors.green;
+const RED = colors.red;
 
 interface SmartInsightCardProps {
   stats: GamificationStats | null;
@@ -74,11 +84,11 @@ export function SmartInsightCard({
 
   const borderColor =
     insight.priority === "urgent"
-      ? "#ef4444"
+      ? RED
       : insight.priority === "actionable"
         ? "#f59e0b"
         : insight.priority === "positive"
-          ? "#10b981"
+          ? GREEN
           : "#6366f1";
 
   return (
@@ -109,7 +119,7 @@ export function SmartInsightCard({
           accessibilityRole="button"
           accessibilityLabel={`Dismiss insight: ${insight.title}`}
         >
-          <Ionicons name="close" size={16} color="#6b7280" />
+          <Ionicons name="close" size={16} color={TEXT_3} />
         </TouchableOpacity>
       </View>
 
@@ -160,7 +170,7 @@ export function SmartInsightCard({
 
 const s = StyleSheet.create({
   card: {
-    backgroundColor: "#0a1120",
+    backgroundColor: CARD_BG,
     borderRadius: 14,
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.05)",
@@ -185,15 +195,15 @@ const s = StyleSheet.create({
     paddingTop: 1,
   },
   title: {
-    color: "#f0f2f5",
+    color: TEXT_1,
     fontSize: 14,
-    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontFamily: fonts.semibold,
     marginBottom: 2,
   },
   body: {
-    color: "#8494a7",
+    color: TEXT_2,
     fontSize: 12.5,
-    fontFamily: "PlusJakartaSans_400Regular",
+    fontFamily: fonts.regular,
     lineHeight: 17,
   },
   dismissBtn: {
@@ -215,7 +225,7 @@ const s = StyleSheet.create({
   },
   actionText: {
     fontSize: 13,
-    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontFamily: fonts.semibold,
   },
   cycleBtn: {
     padding: 4,
@@ -231,7 +241,7 @@ const s = StyleSheet.create({
     backgroundColor: "rgba(255,255,255,0.12)",
   },
   dotActive: {
-    backgroundColor: "#f5a623",
+    backgroundColor: AMBER,
     width: 12,
   },
 });

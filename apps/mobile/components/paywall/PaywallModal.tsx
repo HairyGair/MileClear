@@ -25,19 +25,23 @@ import {
 import { validateApplePurchase } from "../../lib/api/billing";
 import { useUser } from "../../lib/user/context";
 import type { GamificationStats } from "@mileclear/shared";
+import { colors, fonts } from "../../lib/theme";
+
+// Local theme aliases — same pattern as the (tabs) screens.
+const GREEN = colors.green;
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
-const BG = "#030712";
-const CARD_BG = "#0a1120";
+const BG = colors.bg;
+const CARD_BG = colors.surface;
 const CARD_BORDER = "rgba(255,255,255,0.05)";
-const AMBER = "#f5a623";
+const AMBER = colors.amber;
 const AMBER_DIM = "rgba(245, 166, 35, 0.1)";
 const AMBER_BORDER = "rgba(245, 166, 35, 0.25)";
-const TEXT_1 = "#f0f2f5";
-const TEXT_2 = "#8494a7";
-const TEXT_3 = "#64748b";
-const SUCCESS = "#10b981";
+const TEXT_1 = colors.text1;
+const TEXT_2 = colors.text2;
+const TEXT_3 = colors.text3;
+const SUCCESS = GREEN;
 
 interface PaywallModalProps {
   visible: boolean;
@@ -357,7 +361,7 @@ export function PaywallModal({ visible, onClose, source: _source }: PaywallModal
                   accessibilityLabel={`Subscribe to MileClear Pro for ${price} per ${selectedPlan === "annual" ? "year" : "month"}`}
                 >
                   {purchasing ? (
-                    <ActivityIndicator color="#030712" />
+                    <ActivityIndicator color={BG} />
                   ) : (
                     <Text style={s.purchaseBtnText}>Subscribe Now</Text>
                   )}
@@ -483,14 +487,14 @@ const s = StyleSheet.create({
   },
   valueHeading: {
     fontSize: 22,
-    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontFamily: fonts.semibold,
     color: TEXT_1,
     textAlign: "center",
     marginBottom: 6,
   },
   valueSubheading: {
     fontSize: 15,
-    fontFamily: "PlusJakartaSans_400Regular",
+    fontFamily: fonts.regular,
     color: TEXT_2,
     textAlign: "center",
     lineHeight: 22,
@@ -498,7 +502,7 @@ const s = StyleSheet.create({
   },
   valueHighlight: {
     color: AMBER,
-    fontFamily: "PlusJakartaSans_700Bold",
+    fontFamily: fonts.bold,
   },
   valueCard: {
     backgroundColor: CARD_BG,
@@ -516,12 +520,12 @@ const s = StyleSheet.create({
   },
   valueLabel: {
     fontSize: 14,
-    fontFamily: "PlusJakartaSans_400Regular",
+    fontFamily: fonts.regular,
     color: TEXT_2,
   },
   valueAmount: {
     fontSize: 14,
-    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontFamily: fonts.semibold,
     color: TEXT_1,
   },
   valueDivider: {
@@ -530,7 +534,7 @@ const s = StyleSheet.create({
   },
   valueFooter: {
     fontSize: 13,
-    fontFamily: "PlusJakartaSans_400Regular",
+    fontFamily: fonts.regular,
     color: TEXT_3,
     textAlign: "center",
     lineHeight: 20,
@@ -540,14 +544,14 @@ const s = StyleSheet.create({
   // ── Trust screen ──
   trustHeading: {
     fontSize: 24,
-    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontFamily: fonts.semibold,
     color: TEXT_1,
     textAlign: "center",
     marginBottom: 6,
   },
   trustSubheading: {
     fontSize: 15,
-    fontFamily: "PlusJakartaSans_400Regular",
+    fontFamily: fonts.regular,
     color: TEXT_2,
     textAlign: "center",
     lineHeight: 22,
@@ -572,13 +576,13 @@ const s = StyleSheet.create({
   },
   trustCardTitle: {
     fontSize: 14,
-    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontFamily: fonts.semibold,
     color: TEXT_1,
     marginBottom: 3,
   },
   trustCardText: {
     fontSize: 13,
-    fontFamily: "PlusJakartaSans_400Regular",
+    fontFamily: fonts.regular,
     color: TEXT_2,
     lineHeight: 19,
   },
@@ -586,7 +590,7 @@ const s = StyleSheet.create({
   // ── Features screen ──
   featuresHeading: {
     fontSize: 24,
-    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontFamily: fonts.semibold,
     color: TEXT_1,
     textAlign: "center",
     marginBottom: 20,
@@ -616,13 +620,13 @@ const s = StyleSheet.create({
   },
   featureLabel: {
     fontSize: 14,
-    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontFamily: fonts.semibold,
     color: TEXT_1,
     marginBottom: 2,
   },
   featureDesc: {
     fontSize: 13,
-    fontFamily: "PlusJakartaSans_400Regular",
+    fontFamily: fonts.regular,
     color: TEXT_2,
   },
   socialProof: {
@@ -637,7 +641,7 @@ const s = StyleSheet.create({
   },
   socialProofText: {
     fontSize: 13,
-    fontFamily: "PlusJakartaSans_400Regular",
+    fontFamily: fonts.regular,
     color: TEXT_3,
   },
 
@@ -657,7 +661,7 @@ const s = StyleSheet.create({
   },
   nextBtnText: {
     fontSize: 15,
-    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontFamily: fonts.semibold,
     color: AMBER,
   },
 
@@ -676,21 +680,21 @@ const s = StyleSheet.create({
   },
   purchaseHeading: {
     fontSize: 26,
-    fontFamily: "PlusJakartaSans_700Bold",
+    fontFamily: fonts.bold,
     color: TEXT_1,
     textAlign: "center",
     marginBottom: 12,
   },
   purchasePrice: {
     fontSize: 32,
-    fontFamily: "PlusJakartaSans_700Bold",
+    fontFamily: fonts.bold,
     color: AMBER,
     textAlign: "center",
     marginBottom: 20,
   },
   purchasePeriod: {
     fontSize: 16,
-    fontFamily: "PlusJakartaSans_400Regular",
+    fontFamily: fonts.regular,
     color: TEXT_2,
   },
   planToggle: {
@@ -713,7 +717,7 @@ const s = StyleSheet.create({
   },
   planLabel: {
     fontSize: 14,
-    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontFamily: fonts.semibold,
     color: TEXT_2,
     marginBottom: 4,
   },
@@ -722,7 +726,7 @@ const s = StyleSheet.create({
   },
   planPrice: {
     fontSize: 16,
-    fontFamily: "PlusJakartaSans_700Bold",
+    fontFamily: fonts.bold,
     color: TEXT_2,
   },
   planPriceActive: {
@@ -737,8 +741,8 @@ const s = StyleSheet.create({
   },
   saveBadgeText: {
     fontSize: 11,
-    fontFamily: "PlusJakartaSans_700Bold",
-    color: "#030712",
+    fontFamily: fonts.bold,
+    color: BG,
   },
   purchaseChecks: {
     gap: 10,
@@ -751,7 +755,7 @@ const s = StyleSheet.create({
   },
   purchaseCheckText: {
     fontSize: 14,
-    fontFamily: "PlusJakartaSans_400Regular",
+    fontFamily: fonts.regular,
     color: TEXT_1,
   },
   purchaseBtn: {
@@ -767,8 +771,8 @@ const s = StyleSheet.create({
   },
   purchaseBtnText: {
     fontSize: 17,
-    fontFamily: "PlusJakartaSans_700Bold",
-    color: "#030712",
+    fontFamily: fonts.bold,
+    color: BG,
   },
   restoreBtn: {
     alignItems: "center",
@@ -777,7 +781,7 @@ const s = StyleSheet.create({
   },
   restoreBtnText: {
     fontSize: 14,
-    fontFamily: "PlusJakartaSans_500Medium",
+    fontFamily: fonts.medium,
     color: TEXT_3,
     textDecorationLine: "underline",
   },
@@ -790,7 +794,7 @@ const s = StyleSheet.create({
   },
   legalLink: {
     fontSize: 12,
-    fontFamily: "PlusJakartaSans_400Regular",
+    fontFamily: fonts.regular,
     color: TEXT_3,
     textDecorationLine: "underline",
   },
@@ -800,7 +804,7 @@ const s = StyleSheet.create({
   },
   legalSmall: {
     fontSize: 11,
-    fontFamily: "PlusJakartaSans_400Regular",
+    fontFamily: fonts.regular,
     color: "rgba(100,116,139,0.6)",
     textAlign: "center",
     lineHeight: 16,

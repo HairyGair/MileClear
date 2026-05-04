@@ -8,11 +8,12 @@ import {
   StyleSheet,
 } from "react-native";
 import { AVATARS, AvatarIcon, UserAvatar } from "./AvatarRegistry";
+import { colors, fonts } from "../../lib/theme";
 
-const AMBER = "#f5a623";
-const TEXT_1 = "#f0f2f5";
-const TEXT_2 = "#8494a7";
-const CARD_BG = "#0a1120";
+const AMBER = colors.amber;
+const TEXT_1 = colors.text1;
+const TEXT_2 = colors.text2;
+const CARD_BG = colors.surface;
 const CARD_BORDER = "rgba(255,255,255,0.05)";
 
 interface AvatarPickerProps {
@@ -122,7 +123,7 @@ const styles = StyleSheet.create({
   },
   changeText: {
     fontSize: 13,
-    fontFamily: "PlusJakartaSans_500Medium",
+    fontFamily: fonts.medium,
     color: AMBER,
   },
   overlay: {
@@ -131,7 +132,7 @@ const styles = StyleSheet.create({
     justifyContent: "flex-end",
   },
   sheet: {
-    backgroundColor: "#0a1120",
+    backgroundColor: CARD_BG,
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     paddingHorizontal: 20,
@@ -152,7 +153,7 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: 20,
-    fontFamily: "PlusJakartaSans_300Light",
+    fontFamily: fonts.light,
     color: TEXT_1,
     textAlign: "center",
     marginBottom: 16,
@@ -178,7 +179,7 @@ const styles = StyleSheet.create({
   },
   cellLabel: {
     fontSize: 11,
-    fontFamily: "PlusJakartaSans_500Medium",
+    fontFamily: fonts.medium,
     color: TEXT_2,
     marginTop: 4,
     textAlign: "center",
@@ -193,7 +194,7 @@ const styles = StyleSheet.create({
   },
   closeBtnText: {
     fontSize: 15,
-    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontFamily: fonts.semibold,
     color: TEXT_2,
   },
 });

@@ -19,6 +19,13 @@ import {
   StyleSheet,
   Platform,
 } from "react-native";
+import { colors, fonts } from "../lib/theme";
+
+// Local theme aliases — same pattern as the (tabs) screens.
+const AMBER = colors.amber;
+const CARD_BG = colors.surface;
+const TEXT_1 = colors.text1;
+const TEXT_2 = colors.text2;
 
 interface HydrationOverlayProps {
   visible: boolean;
@@ -67,7 +74,7 @@ export function HydrationOverlay({
 
           <ActivityIndicator
             size="large"
-            color="#f5a623"
+            color={AMBER}
             style={styles.spinner}
             accessibilityLabel="Loading"
           />
@@ -100,7 +107,7 @@ const styles = StyleSheet.create({
   card: {
     width: "100%",
     maxWidth: 320,
-    backgroundColor: "#0a1120",
+    backgroundColor: CARD_BG,
     borderRadius: 16,
     borderWidth: 1,
     borderColor: "rgba(255, 255, 255, 0.05)",
@@ -109,9 +116,9 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   title: {
-    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontFamily: fonts.semibold,
     fontSize: 17,
-    color: "#f0f2f5",
+    color: TEXT_1,
     textAlign: "center",
     marginBottom: 24,
   },
@@ -119,23 +126,23 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   stepText: {
-    fontFamily: "PlusJakartaSans_400Regular",
+    fontFamily: fonts.regular,
     fontSize: 13,
-    color: "#8494a7",
+    color: TEXT_2,
     textAlign: "center",
     marginBottom: 12,
     minHeight: 18, // prevents layout jump when text changes
   },
   counter: {
-    fontFamily: "PlusJakartaSans_400Regular",
+    fontFamily: fonts.regular,
     fontSize: 12,
     color: "rgba(132, 148, 167, 0.5)",
     textAlign: "center",
   },
   slowNote: {
-    fontFamily: "PlusJakartaSans_400Regular",
+    fontFamily: fonts.regular,
     fontSize: 12,
-    color: "#f5a623",
+    color: AMBER,
     textAlign: "center",
     marginTop: 16,
     paddingHorizontal: 8,

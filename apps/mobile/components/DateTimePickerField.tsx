@@ -8,6 +8,14 @@ import {
   Platform,
   TextInput,
 } from "react-native";
+import { colors, fonts } from "../lib/theme";
+
+// Local theme aliases — same pattern as the (tabs) screens.
+const AMBER = colors.amber;
+const CARD_BG = colors.surface;
+const TEXT_1 = colors.text1;
+const TEXT_2 = colors.text2;
+const TEXT_3 = colors.text3;
 
 // Lazy import for Expo Go compatibility
 let DateTimePicker: any = null;
@@ -125,7 +133,7 @@ export function DateTimePickerField({
               if (parsed) onChange(parsed);
             }}
             placeholder="DD/MM/YYYY HH:MM"
-            placeholderTextColor="#6b7280"
+            placeholderTextColor={TEXT_3}
             editable={!disabled}
             accessibilityLabel={`${label}, format: day month year hour minute`}
           />
@@ -315,19 +323,19 @@ const styles = StyleSheet.create({
   },
   label: {
     fontSize: 14,
-    fontFamily: "PlusJakartaSans_600SemiBold",
-    color: "#d1d5db",
+    fontFamily: fonts.semibold,
+    color: TEXT_2,
   },
   nowBtn: {
     fontSize: 13,
-    fontFamily: "PlusJakartaSans_600SemiBold",
-    color: "#f5a623",
+    fontFamily: fonts.semibold,
+    color: AMBER,
   },
   field: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    backgroundColor: "#0a1120",
+    backgroundColor: CARD_BG,
     borderRadius: 10,
     padding: 14,
     borderWidth: 1,
@@ -340,21 +348,21 @@ const styles = StyleSheet.create({
   },
   fieldText: {
     fontSize: 16,
-    fontFamily: "PlusJakartaSans_400Regular",
+    fontFamily: fonts.regular,
     color: "#fff",
   },
   fieldPlaceholder: {
     fontSize: 16,
-    fontFamily: "PlusJakartaSans_400Regular",
-    color: "#6b7280",
+    fontFamily: fonts.regular,
+    color: TEXT_3,
   },
   input: {
     flex: 1,
-    backgroundColor: "#0a1120",
+    backgroundColor: CARD_BG,
     borderRadius: 10,
     padding: 14,
     fontSize: 16,
-    fontFamily: "PlusJakartaSans_400Regular",
+    fontFamily: fonts.regular,
     color: "#fff",
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.06)",
@@ -367,8 +375,8 @@ const styles = StyleSheet.create({
   },
   clearText: {
     fontSize: 16,
-    fontFamily: "PlusJakartaSans_600SemiBold",
-    color: "#6b7280",
+    fontFamily: fonts.semibold,
+    color: TEXT_3,
   },
   // Modal
   modalOverlay: {
@@ -377,7 +385,7 @@ const styles = StyleSheet.create({
     justifyContent: "flex-end",
   },
   modalSheet: {
-    backgroundColor: "#0a1120",
+    backgroundColor: CARD_BG,
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     paddingHorizontal: 24,
@@ -403,17 +411,17 @@ const styles = StyleSheet.create({
   },
   modalCancel: {
     fontSize: 16,
-    fontFamily: "PlusJakartaSans_400Regular",
-    color: "#6b7280",
+    fontFamily: fonts.regular,
+    color: TEXT_3,
   },
   modalTitle: {
     fontSize: 16,
-    fontFamily: "PlusJakartaSans_600SemiBold",
-    color: "#f0f2f5",
+    fontFamily: fonts.semibold,
+    color: TEXT_1,
   },
   modalDone: {
     fontSize: 16,
-    fontFamily: "PlusJakartaSans_700Bold",
-    color: "#f5a623",
+    fontFamily: fonts.bold,
+    color: AMBER,
   },
 });

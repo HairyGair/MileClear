@@ -16,13 +16,18 @@ import { useUser } from "../lib/user/context";
 import { UserAvatar } from "./avatars/AvatarRegistry";
 import { useLayoutPrefs } from "../lib/layout/index";
 import { fetchUnclassifiedCount } from "../lib/api/trips";
+import { colors, fonts } from "../lib/theme";
 
-const AMBER = "#f5a623";
-const TEXT_1 = "#f0f2f5";
-const TEXT_2 = "#8494a7";
-const TEXT_3 = "#64748b";
-const CARD_BG = "#0a1120";
-const SHEET_BG = "#0a1120";
+// Local theme aliases — same pattern as the (tabs) screens.
+const BG = colors.bg;
+const RED = colors.red;
+
+const AMBER = colors.amber;
+const TEXT_1 = colors.text1;
+const TEXT_2 = colors.text2;
+const TEXT_3 = colors.text3;
+const CARD_BG = colors.surface;
+const SHEET_BG = CARD_BG;
 
 // ── Menu item definitions ──────────────────────────────────────────
 
@@ -285,7 +290,7 @@ export default function AvatarMenuButton() {
                           styles.iconCircle,
                           { backgroundColor: "rgba(239, 68, 68, 0.1)" },
                         ]}>
-                          <Ionicons name="shield-outline" size={18} color="#ef4444" />
+                          <Ionicons name="shield-outline" size={18} color={RED} />
                         </View>
                         <Text style={[
                           styles.menuLabel,
@@ -309,7 +314,7 @@ export default function AvatarMenuButton() {
                   accessibilityRole="button"
                   accessibilityLabel="Log out"
                 >
-                  <Ionicons name="log-out-outline" size={18} color="#ef4444" />
+                  <Ionicons name="log-out-outline" size={18} color={RED} />
                   <Text style={styles.logoutLabel}>Log out</Text>
                 </TouchableOpacity>
               </ScrollView>
@@ -374,12 +379,12 @@ const styles = StyleSheet.create({
   },
   userName: {
     fontSize: 16,
-    fontFamily: "PlusJakartaSans_700Bold",
+    fontFamily: fonts.bold,
     color: TEXT_1,
   },
   userEmail: {
     fontSize: 12,
-    fontFamily: "PlusJakartaSans_400Regular",
+    fontFamily: fonts.regular,
     color: TEXT_2,
     marginTop: 1,
   },
@@ -395,7 +400,7 @@ const styles = StyleSheet.create({
   },
   groupLabel: {
     fontSize: 11,
-    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontFamily: fonts.semibold,
     color: TEXT_3,
     letterSpacing: 1,
     marginBottom: 6,
@@ -437,13 +442,13 @@ const styles = StyleSheet.create({
   },
   menuLabel: {
     fontSize: 15,
-    fontFamily: "PlusJakartaSans_500Medium",
+    fontFamily: fonts.medium,
     color: TEXT_1,
     flex: 1,
   },
   menuLabelActive: {
     color: AMBER,
-    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontFamily: fonts.semibold,
   },
   activeDot: {
     width: 6,
@@ -459,12 +464,12 @@ const styles = StyleSheet.create({
   },
   badgeText: {
     fontSize: 11,
-    fontFamily: "PlusJakartaSans_700Bold",
-    color: "#030712",
+    fontFamily: fonts.bold,
+    color: BG,
     letterSpacing: 0.3,
   },
   badgeNumeric: {
-    backgroundColor: "#ef4444",
+    backgroundColor: RED,
     borderRadius: 10,
     minWidth: 20,
     alignItems: "center" as const,
@@ -477,7 +482,7 @@ const styles = StyleSheet.create({
     position: "absolute" as const,
     top: -3,
     right: -3,
-    backgroundColor: "#ef4444",
+    backgroundColor: RED,
     borderRadius: 9,
     minWidth: 18,
     height: 18,
@@ -485,11 +490,11 @@ const styles = StyleSheet.create({
     alignItems: "center" as const,
     paddingHorizontal: 4,
     borderWidth: 2,
-    borderColor: "#030712",
+    borderColor: BG,
   },
   avatarBadgeText: {
     fontSize: 10,
-    fontFamily: "PlusJakartaSans_700Bold",
+    fontFamily: fonts.bold,
     color: "#fff",
   },
 
@@ -504,8 +509,8 @@ const styles = StyleSheet.create({
   },
   adminBadgeText: {
     fontSize: 11,
-    fontFamily: "PlusJakartaSans_700Bold",
-    color: "#ef4444",
+    fontFamily: fonts.bold,
+    color: RED,
     letterSpacing: 0.3,
   },
 
@@ -525,7 +530,7 @@ const styles = StyleSheet.create({
   },
   logoutLabel: {
     fontSize: 14,
-    fontFamily: "PlusJakartaSans_600SemiBold",
-    color: "#ef4444",
+    fontFamily: fonts.semibold,
+    color: RED,
   },
 });

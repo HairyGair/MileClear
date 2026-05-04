@@ -14,6 +14,14 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import * as Location from "expo-location";
 import { reverseGeocode, forwardGeocode } from "../lib/location/geocoding";
+import { colors, fonts } from "../lib/theme";
+
+// Local theme aliases — same pattern as the (tabs) screens.
+const AMBER = colors.amber;
+const TEXT_1 = colors.text1;
+const TEXT_2 = colors.text2;
+const TEXT_3 = colors.text3;
+const BG = colors.bg;
 
 // Lazy import for Expo Go compatibility
 let MapView: any = null;
@@ -184,11 +192,11 @@ export function MapPickerModal({
         {/* Search bar at top */}
         <View style={styles.searchContainer}>
           <View style={[styles.searchBar, searchFocused && styles.searchBarFocused]}>
-            <Ionicons name="search" size={18} color="#6b7280" style={styles.searchIcon} />
+            <Ionicons name="search" size={18} color={TEXT_3} style={styles.searchIcon} />
             <TextInput
               style={styles.searchInput}
               placeholder="Search address or postcode..."
-              placeholderTextColor="#6b7280"
+              placeholderTextColor={TEXT_3}
               value={searchQuery}
               onChangeText={setSearchQuery}
               onFocus={() => setSearchFocused(true)}
@@ -199,7 +207,7 @@ export function MapPickerModal({
               accessibilityLabel="Search address or postcode"
             />
             {searching ? (
-              <ActivityIndicator size="small" color="#f5a623" accessibilityLabel="Searching" />
+              <ActivityIndicator size="small" color={AMBER} accessibilityLabel="Searching" />
             ) : searchQuery.length > 0 ? (
               <TouchableOpacity
                 onPress={handleSearch}
@@ -207,7 +215,7 @@ export function MapPickerModal({
                 accessibilityRole="button"
                 accessibilityLabel="Search for this address"
               >
-                <Ionicons name="arrow-forward-circle" size={24} color="#f5a623" accessible={false} />
+                <Ionicons name="arrow-forward-circle" size={24} color={AMBER} accessible={false} />
               </TouchableOpacity>
             ) : null}
           </View>
@@ -226,7 +234,7 @@ export function MapPickerModal({
         <View style={styles.bottomBar}>
           <View style={styles.addressContainer}>
             {geocoding ? (
-              <ActivityIndicator size="small" color="#f5a623" />
+              <ActivityIndicator size="small" color={AMBER} />
             ) : (
               <Text style={styles.addressText} numberOfLines={2}>
                 {address ?? "Move map to select location"}
@@ -265,7 +273,7 @@ export function MapPickerModal({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#030712",
+    backgroundColor: BG,
   },
   map: {
     width: SCREEN_WIDTH,
@@ -290,7 +298,7 @@ const styles = StyleSheet.create({
     borderColor: "rgba(107, 114, 128, 0.3)",
   },
   searchBarFocused: {
-    borderColor: "#f5a623",
+    borderColor: AMBER,
   },
   searchIcon: {
     marginRight: 8,
@@ -298,8 +306,8 @@ const styles = StyleSheet.create({
   searchInput: {
     flex: 1,
     fontSize: 15,
-    fontFamily: "PlusJakartaSans_400Regular",
-    color: "#f0f2f5",
+    fontFamily: fonts.regular,
+    color: TEXT_1,
     paddingVertical: 4,
   },
   // Crosshair pin
@@ -318,7 +326,7 @@ const styles = StyleSheet.create({
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: "#f5a623",
+    backgroundColor: AMBER,
     borderWidth: 3,
     borderColor: "#fff",
   },
@@ -330,7 +338,7 @@ const styles = StyleSheet.create({
     borderTopWidth: 10,
     borderLeftColor: "transparent",
     borderRightColor: "transparent",
-    borderTopColor: "#f5a623",
+    borderTopColor: AMBER,
     marginTop: -2,
   },
   pinShadow: {
@@ -360,17 +368,17 @@ const styles = StyleSheet.create({
   },
   addressText: {
     fontSize: 16,
-    fontFamily: "PlusJakartaSans_500Medium",
-    color: "#f0f2f5",
+    fontFamily: fonts.medium,
+    color: TEXT_1,
     marginBottom: 4,
   },
   coordText: {
     fontSize: 12,
-    fontFamily: "PlusJakartaSans_400Regular",
-    color: "#6b7280",
+    fontFamily: fonts.regular,
+    color: TEXT_3,
   },
   confirmBtn: {
-    backgroundColor: "#f5a623",
+    backgroundColor: AMBER,
     borderRadius: 12,
     paddingVertical: 16,
     alignItems: "center",
@@ -378,8 +386,8 @@ const styles = StyleSheet.create({
   },
   confirmBtnText: {
     fontSize: 16,
-    fontFamily: "PlusJakartaSans_700Bold",
-    color: "#030712",
+    fontFamily: fonts.bold,
+    color: BG,
   },
   cancelBtn: {
     paddingVertical: 12,
@@ -387,21 +395,21 @@ const styles = StyleSheet.create({
   },
   cancelBtnText: {
     fontSize: 15,
-    fontFamily: "PlusJakartaSans_600SemiBold",
-    color: "#6b7280",
+    fontFamily: fonts.semibold,
+    color: TEXT_3,
   },
   // Fallback
   fallbackContainer: {
     flex: 1,
-    backgroundColor: "#030712",
+    backgroundColor: BG,
     justifyContent: "center",
     alignItems: "center",
     padding: 32,
   },
   fallbackText: {
     fontSize: 16,
-    fontFamily: "PlusJakartaSans_400Regular",
-    color: "#9ca3af",
+    fontFamily: fonts.regular,
+    color: TEXT_2,
     textAlign: "center",
     marginBottom: 24,
     lineHeight: 24,

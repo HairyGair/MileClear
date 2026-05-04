@@ -1,5 +1,9 @@
 import React from "react";
 import { View, Image, Text, ImageSourcePropType, StyleSheet } from "react-native";
+import { colors, fonts } from "../../lib/theme";
+
+// Local theme aliases — same pattern as the (tabs) screens.
+const BG = colors.bg;
 
 // ---------------------------------------------------------------------------
 // Vehicle avatar system — AI-generated PNG images (Gemini Flash)
@@ -120,7 +124,7 @@ export function AvatarIcon({ avatarId, size }: AvatarIconProps) {
 // Handles both vehicle image avatars AND initial-letter fallbacks.
 // Uses aspectRatio: 1 + explicit dimensions to prevent flex stretching.
 
-const AMBER = "#f5a623";
+const AMBER = colors.amber;
 
 interface UserAvatarProps {
   avatarId?: string | null;
@@ -197,8 +201,8 @@ const baseStyles = StyleSheet.create({
     aspectRatio: 1,
   },
   initial: {
-    fontFamily: "PlusJakartaSans_700Bold",
-    color: "#030712",
+    fontFamily: fonts.bold,
+    color: BG,
     textAlign: "center",
     includeFontPadding: false,
     textAlignVertical: "center",

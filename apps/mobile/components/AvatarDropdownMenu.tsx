@@ -5,11 +5,16 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAuth } from "../lib/auth/context";
 import { useUser } from "../lib/user/context";
 import { UserAvatar } from "./avatars/AvatarRegistry";
+import { colors, fonts } from "../lib/theme";
 
-const AMBER = "#f5a623";
-const TEXT_1 = "#f0f2f5";
-const TEXT_2 = "#8494a7";
-const CARD_BG = "#0a1120";
+// Local theme aliases — same pattern as the (tabs) screens.
+const BG = colors.bg;
+const RED = colors.red;
+
+const AMBER = colors.amber;
+const TEXT_1 = colors.text1;
+const TEXT_2 = colors.text2;
+const CARD_BG = colors.surface;
 
 interface MenuItem {
   label: string;
@@ -188,7 +193,7 @@ export default function AvatarDropdownMenu({ visible, onClose }: Props) {
             onPress={handleLogout}
             activeOpacity={0.7}
           >
-            <Ionicons name="log-out-outline" size={18} color="#ef4444" />
+            <Ionicons name="log-out-outline" size={18} color={RED} />
             <Text style={styles.logoutLabel}>Log out</Text>
           </TouchableOpacity>
         </Pressable>
@@ -229,12 +234,12 @@ const styles = StyleSheet.create({
   },
   userName: {
     fontSize: 14,
-    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontFamily: fonts.semibold,
     color: TEXT_1,
   },
   userEmail: {
     fontSize: 11,
-    fontFamily: "PlusJakartaSans_400Regular",
+    fontFamily: fonts.regular,
     color: TEXT_2,
     marginTop: 1,
   },
@@ -265,13 +270,13 @@ const styles = StyleSheet.create({
   },
   menuLabel: {
     fontSize: 14,
-    fontFamily: "PlusJakartaSans_500Medium",
+    fontFamily: fonts.medium,
     color: TEXT_1,
     flex: 1,
   },
   menuLabelActive: {
     color: AMBER,
-    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontFamily: fonts.semibold,
   },
   badge: {
     backgroundColor: AMBER,
@@ -281,25 +286,25 @@ const styles = StyleSheet.create({
   },
   badgeText: {
     fontSize: 11,
-    fontFamily: "PlusJakartaSans_700Bold",
-    color: "#030712",
+    fontFamily: fonts.bold,
+    color: BG,
     letterSpacing: 0.3,
   },
   logoutLabel: {
     fontSize: 14,
-    fontFamily: "PlusJakartaSans_500Medium",
-    color: "#ef4444",
+    fontFamily: fonts.medium,
+    color: RED,
     flex: 1,
   },
   adminBadge: {
-    backgroundColor: "#ef4444",
+    backgroundColor: RED,
     paddingHorizontal: 5,
     paddingVertical: 1,
     borderRadius: 3,
   },
   adminBadgeText: {
     fontSize: 11,
-    fontFamily: "PlusJakartaSans_700Bold",
+    fontFamily: fonts.bold,
     color: "#fff",
     letterSpacing: 0.3,
   },
