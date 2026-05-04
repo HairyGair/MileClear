@@ -49,6 +49,95 @@ function project(lat: number, lng: number): { x: number; y: number } {
   return { x, y };
 }
 
+// Hand-traced simplified UK outlines. Points are [lat, lng]. Order
+// goes around the coast clockwise from the north for Great Britain,
+// and similarly for Northern Ireland. Detail is intentionally coarse
+// — admin diagnostic tool, not a navigation map.
+const GB_OUTLINE: Array<[number, number]> = [
+  [58.65, -3.05], // John o'Groats
+  [58.45, -2.95], // Wick coast
+  [57.70, -2.05], // Banff / Moray
+  [57.15, -2.10], // Aberdeen
+  [56.55, -2.50], // Arbroath / Dundee
+  [56.05, -2.55], // Berwickshire
+  [55.50, -1.60], // Northumberland
+  [54.95, -1.45], // Newcastle / Tynemouth
+  [54.55, -0.65], // Whitby
+  [54.10, -0.10], // Bridlington
+  [53.55, 0.10],  // Spurn / Humber
+  [53.10, 0.35],  // Skegness
+  [52.95, 1.35],  // Cromer
+  [52.50, 1.75],  // Lowestoft (easternmost)
+  [52.05, 1.35],  // Felixstowe
+  [51.50, 0.80],  // Southend / Thames mouth
+  [51.40, 1.40],  // Margate / North Foreland
+  [51.10, 1.30],  // Dover
+  [50.85, 0.55],  // Hastings
+  [50.75, -0.10], // Brighton
+  [50.75, -1.10], // Portsmouth / Selsey
+  [50.60, -1.95], // Bournemouth / Poole
+  [50.55, -2.45], // Weymouth
+  [50.20, -3.55], // Start Point
+  [50.35, -4.15], // Plymouth
+  [50.05, -5.20], // Lizard
+  [50.10, -5.70], // Land's End
+  [51.00, -4.25], // Bideford / N. Devon
+  [51.20, -4.20], // Ilfracombe
+  [51.40, -3.20], // Cardiff
+  [51.70, -3.05], // Newport / Severn
+  [51.65, -4.20], // Tenby
+  [51.70, -5.30], // Pembrokeshire
+  [52.35, -4.10], // Aberystwyth
+  [52.90, -4.60], // Llyn peninsula
+  [53.30, -4.55], // Anglesey
+  [53.30, -3.10], // North Wales coast
+  [53.40, -3.05], // Liverpool / Wirral
+  [53.85, -3.05], // Blackpool / Fylde
+  [54.05, -2.85], // Morecambe Bay
+  [54.50, -3.55], // Whitehaven / Cumbria
+  [54.95, -3.55], // Solway Firth
+  [54.65, -4.95], // Galloway / Mull of Galloway
+  [55.10, -4.65], // Ayrshire
+  [55.45, -4.85], // Ayr
+  [55.30, -5.65], // Mull of Kintyre
+  [56.05, -5.65], // Knapdale / Lorne
+  [56.45, -5.50], // Oban
+  [56.85, -5.95], // Ardnamurchan
+  [57.30, -5.85], // Kyle of Lochalsh
+  [57.85, -5.50], // Wester Ross
+  [58.30, -5.10], // Ullapool / Assynt
+  [58.60, -5.00], // Cape Wrath
+  [58.55, -4.40], // Tongue / Bettyhill
+  [58.65, -3.05], // John o'Groats (close)
+];
+
+const NI_OUTLINE: Array<[number, number]> = [
+  [55.10, -7.45], // Inishowen / Lough Foyle west
+  [55.15, -6.75], // Coleraine / Antrim coast
+  [55.20, -6.30], // Giant's Causeway
+  [54.85, -5.80], // Larne
+  [54.60, -5.55], // Belfast Lough mouth
+  [54.40, -5.45], // Ards peninsula
+  [54.20, -5.85], // Strangford / Newcastle
+  [54.05, -6.30], // Newry / Carlingford
+  [54.30, -7.65], // Fermanagh
+  [54.55, -7.85], // Donegal border
+  [55.05, -7.45], // back to NI northwest
+];
+
+function polygonPath(coords: Array<[number, number]>): string {
+  return (
+    coords
+      .map(([lat, lng], i) => {
+        const { x, y } = project(lat, lng);
+        return `${i === 0 ? "M" : "L"}${x.toFixed(1)},${y.toFixed(1)}`;
+      })
+      .join(" ") + " Z"
+  );
+}
+
+const UK_PATHS = [polygonPath(GB_OUTLINE), polygonPath(NI_OUTLINE)];
+
 function colorForIntensity(t: number): string {
   // 0..1 → cool (low) to hot (high). Uses amber accent at the top.
   if (t <= 0) return "#1e293b";
@@ -137,7 +226,7 @@ export default function GeographicDensityPage() {
                 role="img"
                 aria-label="UK trip-start density heatmap"
               >
-                {/* UK bounding-box reference frame */}
+                {/* Sea (background) */}
                 <rect
                   x={0}
                   y={0}
@@ -145,6 +234,18 @@ export default function GeographicDensityPage() {
                   height={SVG_HEIGHT}
                   fill="#0f172a"
                 />
+
+                {/* UK landmass (rough hand-traced outline) */}
+                {UK_PATHS.map((d, i) => (
+                  <path
+                    key={i}
+                    d={d}
+                    fill="#1e293b"
+                    stroke="rgba(148,163,184,0.35)"
+                    strokeWidth={1}
+                    strokeLinejoin="round"
+                  />
+                ))}
 
                 {/* Cells */}
                 {data.cells.map((c) => {
