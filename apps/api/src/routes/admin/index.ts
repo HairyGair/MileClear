@@ -2301,26 +2301,29 @@ export async function adminRoutes(app: FastifyInstance) {
     const GRID_SIZE = 0.1;
     const since = new Date(Date.now() - WINDOW_DAYS * 24 * 60 * 60 * 1000);
 
+    // MySQL's only_full_group_by mode rejects SELECT expressions that
+    // aren't byte-identical to GROUP BY ones. Group by bucket index
+    // and multiply back to coordinates in JS.
     const rows = await prisma.$queryRaw<
-      Array<{ lat: number; lng: number; tripCount: bigint; userCount: bigint }>
+      Array<{ latBucket: number; lngBucket: number; tripCount: bigint; userCount: bigint }>
     >(Prisma.sql`
       SELECT
-        ROUND(startLat / ${GRID_SIZE}) * ${GRID_SIZE} AS lat,
-        ROUND(startLng / ${GRID_SIZE}) * ${GRID_SIZE} AS lng,
+        ROUND(startLat / ${GRID_SIZE}) AS latBucket,
+        ROUND(startLng / ${GRID_SIZE}) AS lngBucket,
         COUNT(*) AS tripCount,
         COUNT(DISTINCT userId) AS userCount
       FROM trips
       WHERE startedAt >= ${since}
         AND startLat IS NOT NULL
         AND startLng IS NOT NULL
-      GROUP BY ROUND(startLat / ${GRID_SIZE}), ROUND(startLng / ${GRID_SIZE})
+      GROUP BY latBucket, lngBucket
       HAVING COUNT(DISTINCT userId) >= ${MIN_USERS_PER_CELL}
       ORDER BY tripCount DESC
     `);
 
     const cells = rows.map((r) => ({
-      lat: Math.round(r.lat * 100) / 100,
-      lng: Math.round(r.lng * 100) / 100,
+      lat: Math.round(r.latBucket * GRID_SIZE * 100) / 100,
+      lng: Math.round(r.lngBucket * GRID_SIZE * 100) / 100,
       tripCount: Number(r.tripCount),
       userCount: Number(r.userCount),
     }));
