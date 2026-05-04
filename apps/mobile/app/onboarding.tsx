@@ -24,19 +24,23 @@ import { createVehicle } from "../lib/api/vehicles";
 import { getDatabase } from "../lib/db/index";
 import { useMode } from "../lib/mode/context";
 import type { WorkType, VehicleType } from "@mileclear/shared";
+import { colors, fonts } from "../lib/theme";
+
+// Local theme aliases — same pattern as the (tabs) screens.
+const GREEN = colors.green;
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
-const BG = "#030712";
-const CARD_BG = "#0a1120";
+const BG = colors.bg;
+const CARD_BG = colors.surface;
 const CARD_BORDER = "rgba(255,255,255,0.05)";
-const AMBER = "#f5a623";
-const TEXT_1 = "#f0f2f5";
-const TEXT_2 = "#8494a7";
-const TEXT_3 = "#64748b";
+const AMBER = colors.amber;
+const TEXT_1 = colors.text1;
+const TEXT_2 = colors.text2;
+const TEXT_3 = colors.text3;
 const ERROR_BG = "rgba(220, 38, 38, 0.1)";
 const ERROR_BORDER = "rgba(220, 38, 38, 0.2)";
-const SUCCESS = "#10b981";
+const SUCCESS = GREEN;
 
 const TOTAL_STEPS = 7;
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
@@ -1226,7 +1230,7 @@ const s = StyleSheet.create({
   },
   painHeading: {
     fontSize: 26,
-    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontFamily: fonts.semibold,
     color: TEXT_1,
     textAlign: "center",
     lineHeight: 34,
@@ -1251,14 +1255,14 @@ const s = StyleSheet.create({
   },
   painBulletText: {
     fontSize: 15,
-    fontFamily: "PlusJakartaSans_400Regular",
+    fontFamily: fonts.regular,
     color: TEXT_2,
     lineHeight: 22,
     flex: 1,
   },
   painSecondary: {
     fontSize: 14,
-    fontFamily: "PlusJakartaSans_400Regular",
+    fontFamily: fonts.regular,
     color: TEXT_3,
     textAlign: "center",
     fontStyle: "italic",
@@ -1276,7 +1280,7 @@ const s = StyleSheet.create({
   },
   trustSignalText: {
     fontSize: 12,
-    fontFamily: "PlusJakartaSans_400Regular",
+    fontFamily: fonts.regular,
     color: TEXT_3,
   },
 
@@ -1298,7 +1302,7 @@ const s = StyleSheet.create({
   },
   transformHeading: {
     fontSize: 26,
-    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontFamily: fonts.semibold,
     color: TEXT_1,
     textAlign: "center",
     lineHeight: 34,
@@ -1323,13 +1327,13 @@ const s = StyleSheet.create({
   },
   transformBulletTitle: {
     fontSize: 15,
-    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontFamily: fonts.semibold,
     color: TEXT_1,
     marginBottom: 3,
   },
   transformBulletText: {
     fontSize: 13,
-    fontFamily: "PlusJakartaSans_400Regular",
+    fontFamily: fonts.regular,
     color: TEXT_2,
     lineHeight: 19,
   },
@@ -1343,7 +1347,7 @@ const s = StyleSheet.create({
   },
   socialProofText: {
     fontSize: 13,
-    fontFamily: "PlusJakartaSans_400Regular",
+    fontFamily: fonts.regular,
     color: TEXT_3,
   },
 
@@ -1364,17 +1368,17 @@ const s = StyleSheet.create({
   },
   wordmarkMile: {
     fontSize: 26,
-    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontFamily: fonts.semibold,
     color: TEXT_1,
   },
   wordmarkClear: {
     fontSize: 26,
-    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontFamily: fonts.semibold,
     color: AMBER,
   },
   welcomeHeading: {
     fontSize: 24,
-    fontFamily: "PlusJakartaSans_300Light",
+    fontFamily: fonts.light,
     color: TEXT_1,
     textAlign: "center",
     letterSpacing: -0.3,
@@ -1383,7 +1387,7 @@ const s = StyleSheet.create({
   },
   welcomeSubtitle: {
     fontSize: 14,
-    fontFamily: "PlusJakartaSans_400Regular",
+    fontFamily: fonts.regular,
     color: TEXT_2,
     textAlign: "center",
     marginBottom: 28,
@@ -1393,7 +1397,7 @@ const s = StyleSheet.create({
   // ── Section label ──────────────────────────────────────────────
   sectionLabel: {
     fontSize: 13,
-    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontFamily: fonts.semibold,
     color: TEXT_2,
     textTransform: "uppercase",
     letterSpacing: 0.5,
@@ -1401,7 +1405,7 @@ const s = StyleSheet.create({
   },
   helperText: {
     fontSize: 12,
-    fontFamily: "PlusJakartaSans_400Regular",
+    fontFamily: fonts.regular,
     color: TEXT_3,
     lineHeight: 17,
     marginTop: 8,
@@ -1445,7 +1449,7 @@ const s = StyleSheet.create({
   },
   intentTitle: {
     fontSize: 16,
-    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontFamily: fonts.semibold,
     color: TEXT_2,
     marginBottom: 2,
   },
@@ -1454,7 +1458,7 @@ const s = StyleSheet.create({
   },
   intentDesc: {
     fontSize: 13,
-    fontFamily: "PlusJakartaSans_400Regular",
+    fontFamily: fonts.regular,
     color: TEXT_3,
     lineHeight: 18,
   },
@@ -1485,12 +1489,12 @@ const s = StyleSheet.create({
   },
   workTypeChipText: {
     fontSize: 12,
-    fontFamily: "PlusJakartaSans_500Medium",
+    fontFamily: fonts.medium,
     color: TEXT_3,
   },
   workTypeChipTextActive: {
     color: AMBER,
-    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontFamily: fonts.semibold,
   },
 
   // ── Shared step chrome ─────────────────────────────────────────
@@ -1507,14 +1511,14 @@ const s = StyleSheet.create({
   },
   stepHeading: {
     fontSize: 26,
-    fontFamily: "PlusJakartaSans_300Light",
+    fontFamily: fonts.light,
     color: TEXT_1,
     letterSpacing: -0.4,
     marginBottom: 8,
   },
   stepSubtitle: {
     fontSize: 14,
-    fontFamily: "PlusJakartaSans_400Regular",
+    fontFamily: fonts.regular,
     color: TEXT_2,
     lineHeight: 22,
     marginBottom: 28,
@@ -1543,13 +1547,13 @@ const s = StyleSheet.create({
   },
   permCardTitle: {
     fontSize: 14,
-    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontFamily: fonts.semibold,
     color: TEXT_1,
     marginBottom: 3,
   },
   permCardText: {
     fontSize: 13,
-    fontFamily: "PlusJakartaSans_400Regular",
+    fontFamily: fonts.regular,
     color: TEXT_2,
     lineHeight: 19,
   },
@@ -1567,7 +1571,7 @@ const s = StyleSheet.create({
   },
   grantedText: {
     fontSize: 14,
-    fontFamily: "PlusJakartaSans_500Medium",
+    fontFamily: fonts.medium,
     color: SUCCESS,
   },
   deniedBanner: {
@@ -1584,7 +1588,7 @@ const s = StyleSheet.create({
   },
   deniedText: {
     fontSize: 13,
-    fontFamily: "PlusJakartaSans_400Regular",
+    fontFamily: fonts.regular,
     color: "#f87171",
     flex: 1,
     lineHeight: 19,
@@ -1606,18 +1610,18 @@ const s = StyleSheet.create({
   },
   deniedTitle: {
     fontSize: 15,
-    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontFamily: fonts.semibold,
     color: "#f87171",
   },
   deniedBody: {
     fontSize: 13,
-    fontFamily: "PlusJakartaSans_400Regular",
+    fontFamily: fonts.regular,
     color: TEXT_1,
     lineHeight: 19,
   },
   deniedHelp: {
     fontSize: 12,
-    fontFamily: "PlusJakartaSans_400Regular",
+    fontFamily: fonts.regular,
     color: TEXT_2,
     lineHeight: 17,
   },
@@ -1635,7 +1639,7 @@ const s = StyleSheet.create({
   },
   deniedSettingsBtnText: {
     fontSize: 13,
-    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontFamily: fonts.semibold,
     color: "#f87171",
   },
 
@@ -1655,14 +1659,14 @@ const s = StyleSheet.create({
   },
   readyHeading: {
     fontSize: 28,
-    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontFamily: fonts.semibold,
     color: TEXT_1,
     textAlign: "center",
     marginBottom: 10,
   },
   readySubtitle: {
     fontSize: 15,
-    fontFamily: "PlusJakartaSans_400Regular",
+    fontFamily: fonts.regular,
     color: TEXT_2,
     textAlign: "center",
     lineHeight: 23,
@@ -1687,7 +1691,7 @@ const s = StyleSheet.create({
   },
   setupHintText: {
     fontSize: 13,
-    fontFamily: "PlusJakartaSans_400Regular",
+    fontFamily: fonts.regular,
     color: TEXT_2,
     flex: 1,
   },
@@ -1700,11 +1704,11 @@ const s = StyleSheet.create({
   setupCheckLabel: {
     flex: 1,
     fontSize: 13,
-    fontFamily: "PlusJakartaSans_500Medium",
+    fontFamily: fonts.medium,
     color: TEXT_2,
   },
   setupCheckValue: {
-    fontFamily: "PlusJakartaSans_400Regular",
+    fontFamily: fonts.regular,
     color: TEXT_3,
   },
   supportCard: {
@@ -1721,14 +1725,14 @@ const s = StyleSheet.create({
   },
   supportCardText: {
     fontSize: 13,
-    fontFamily: "PlusJakartaSans_400Regular",
+    fontFamily: fonts.regular,
     color: "#c0c8d4",
     flex: 1,
     lineHeight: 20,
   },
   supportCardBold: {
-    fontFamily: "PlusJakartaSans_600SemiBold",
-    color: "#f5a623",
+    fontFamily: fonts.semibold,
+    color: AMBER,
   },
   dashboardLink: {
     marginTop: 16,
@@ -1736,7 +1740,7 @@ const s = StyleSheet.create({
   },
   dashboardLinkText: {
     fontSize: 14,
-    fontFamily: "PlusJakartaSans_400Regular",
+    fontFamily: fonts.regular,
     color: TEXT_3,
     textDecorationLine: "underline",
   },
