@@ -12,9 +12,13 @@
 // is the strongest signal we can send when we believe the refund is
 // not warranted.
 
-import { type ConsumptionRequest } from "@apple/app-store-server-library";
+import { type ConsumptionRequest, APIException } from "@apple/app-store-server-library";
 import { prisma } from "../lib/prisma.js";
-import { getAppleClient, fetchTransactionWithEnvFallback, type AppleIapEnvironment } from "./appleIap.js";
+import {
+  getAppleClient,
+  getAppleClientForEnv,
+  type AppleIapEnvironment,
+} from "./appleIap.js";
 import { logEvent } from "./appEvents.js";
 
 // Apple library doesn't re-export every enum from its top-level index,
@@ -209,45 +213,63 @@ export async function respondToConsumptionRequest(args: {
     payload = orphanPayload(args.appAccountToken);
   }
 
-  try {
-    // Use the env-fallback pattern: a transaction from production must be
-    // sent to the production API client. The Apple lib's own client is
-    // constructed once at boot, so we call directly on the configured client
-    // and rely on Apple to reject if env mismatched (which it shouldn't, but
-    // we log if it does).
-    await apiClient.sendConsumptionData(args.originalTransactionId, payload);
-    logEvent("billing.apple_consumption_responded", args.userId, {
-      originalTransactionId: args.originalTransactionId,
-      consumptionStatus: payload.consumptionStatus ?? null,
-      refundPreference: payload.refundPreference ?? null,
-      orphan: !args.userId,
-    });
-    return {
-      ok: true,
-      status: payload.consumptionStatus as ConsumptionStatus | undefined,
-      preference: payload.refundPreference as RefundPreference | undefined,
-    };
-  } catch (err) {
-    // Try the other environment if the first call rejected on env mismatch.
+  // Submission with env fallback. Apple's API rejects with 404 when
+  // the transaction lives in a different environment to the client.
+  // We try the env hint first, then the other one. Mirrors the
+  // fetchTransactionWithEnvFallback pattern that fixed validate +
+  // reprocess earlier.
+  const tryOrder: AppleIapEnvironment[] = args.environment
+    ? [args.environment, args.environment === "production" ? "sandbox" : "production"]
+    : ["production", "sandbox"];
+
+  let lastError: { httpStatusCode?: number; apiError?: unknown; message: string } | null = null;
+  for (const env of tryOrder) {
+    const client = getAppleClientForEnv(env);
+    if (!client) continue;
     try {
-      const fetched = await fetchTransactionWithEnvFallback(args.originalTransactionId);
-      // If the fallback succeeds the canonical fetch worked; the consumption
-      // submission still has to go through the matching client. The Apple
-      // library doesn't expose a per-call env override, so failing here is
-      // logged but we don't retry — operator can investigate.
-      logEvent("billing.apple_consumption_failed", args.userId, {
+      await client.sendConsumptionData(args.originalTransactionId, payload);
+      logEvent("billing.apple_consumption_responded", args.userId, {
         originalTransactionId: args.originalTransactionId,
-        canonicalEnv: fetched?.environment ?? null,
-        error: err instanceof Error ? err.message : String(err),
+        environment: env,
+        consumptionStatus: payload.consumptionStatus ?? null,
+        refundPreference: payload.refundPreference ?? null,
+        orphan: !args.userId,
       });
-    } catch {
-      // Nothing more we can do from here — log and return.
+      return {
+        ok: true,
+        status: payload.consumptionStatus as ConsumptionStatus | undefined,
+        preference: payload.refundPreference as RefundPreference | undefined,
+      };
+    } catch (err) {
+      const apiErr = err instanceof APIException ? err : null;
+      lastError = {
+        httpStatusCode: apiErr?.httpStatusCode,
+        apiError: apiErr?.apiError,
+        message:
+          apiErr?.errorMessage ??
+          (err instanceof Error ? err.message : String(err)) ??
+          "unknown",
+      };
+      // 404 = wrong-env. Continue to try the next env. Anything else
+      // (400/401/etc) is a payload or auth problem; bail out so we
+      // don't retry pointlessly.
+      if (apiErr?.httpStatusCode !== 404) break;
     }
-    return {
-      ok: false,
-      reason: err instanceof Error ? err.message : String(err),
-    };
   }
+
+  logEvent("billing.apple_consumption_failed", args.userId, {
+    originalTransactionId: args.originalTransactionId,
+    httpStatusCode: lastError?.httpStatusCode ?? null,
+    apiError: lastError?.apiError ?? null,
+    error: lastError?.message ?? "unknown",
+  });
+
+  return {
+    ok: false,
+    reason: lastError
+      ? `${lastError.httpStatusCode ?? "?"} ${lastError.message}`
+      : "unknown",
+  };
 }
 
 function orphanPayload(appAccountToken: string | null): ConsumptionRequest {
