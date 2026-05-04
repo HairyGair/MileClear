@@ -15,6 +15,12 @@ import { Ionicons } from "@expo/vector-icons";
 import { fetchAdminUserDetail, toggleUserPremium, deleteAdminUser, fetchUserDiagnostics, updateUserNotes, type DiagnosticDumpResponse } from "../lib/api/admin";
 import { formatPence } from "@mileclear/shared";
 import type { AdminUserDetail } from "@mileclear/shared";
+import { colors, fonts } from "../lib/theme";
+
+// Local theme aliases — same pattern as the (tabs) screens.
+const BG = colors.bg;
+const GREEN = colors.green;
+const RED = colors.red;
 
 function timeAgo(date: string | null | undefined): string {
   if (!date) return "—";
@@ -274,7 +280,7 @@ export default function AdminUserDetailScreen() {
             accessibilityLabel="Save admin notes"
           >
             {notesSaving ? (
-              <ActivityIndicator size="small" color="#030712" />
+              <ActivityIndicator size="small" color={BG} />
             ) : (
               <Text style={s.notesSaveBtnText}>Save notes</Text>
             )}
@@ -283,7 +289,7 @@ export default function AdminUserDetailScreen() {
             <Text
               style={[
                 s.notesMessage,
-                { color: notesMessage.startsWith("Error") ? "#ef4444" : "#34c759" },
+                { color: notesMessage.startsWith("Error") ? RED : "#34c759" },
               ]}
             >
               {notesMessage}
@@ -303,8 +309,8 @@ export default function AdminUserDetailScreen() {
                 backgroundColor: diagnostics.verdict === "healthy" ? "#10b98133" : diagnostics.verdict === "error" ? "#ef444433" : diagnostics.verdict === "warning" ? "#f9731633" : "#3b82f633",
               }}>
                 <Text style={{
-                  fontSize: 11, fontFamily: "PlusJakartaSans_700Bold", textTransform: "uppercase" as const, letterSpacing: 0.5,
-                  color: diagnostics.verdict === "healthy" ? "#10b981" : diagnostics.verdict === "error" ? "#ef4444" : diagnostics.verdict === "warning" ? "#f97316" : "#3b82f6",
+                  fontSize: 11, fontFamily: fonts.bold, textTransform: "uppercase" as const, letterSpacing: 0.5,
+                  color: diagnostics.verdict === "healthy" ? GREEN : diagnostics.verdict === "error" ? RED : diagnostics.verdict === "warning" ? "#f97316" : "#3b82f6",
                 }}>{diagnostics.verdict}</Text>
               </View>
               <Text style={s.listSecondary}>
@@ -331,16 +337,16 @@ export default function AdminUserDetailScreen() {
             </Text>
             {diagnostics.eventsJson.length > 0 && (
               <View style={{ marginTop: 10 }}>
-                <Text style={[s.listSecondary, { marginBottom: 6, fontFamily: "PlusJakartaSans_600SemiBold" }]}>
+                <Text style={[s.listSecondary, { marginBottom: 6, fontFamily: fonts.semibold }]}>
                   Recent events ({diagnostics.eventsJson.length})
                 </Text>
                 {(diagnostics.eventsJson as Array<{ recorded_at: string; event: string; data: string | null }>).slice(0, 10).map((ev, i) => (
-                  <Text key={i} style={{ fontSize: 11, fontFamily: "PlusJakartaSans_400Regular", color: "#8494a7", lineHeight: 16 }}>
+                  <Text key={i} style={{ fontSize: 11, fontFamily: fonts.regular, color: TEXT_2, lineHeight: 16 }}>
                     {ev.event}{ev.data ? ` ${ev.data}` : ""}
                   </Text>
                 ))}
                 {diagnostics.eventsJson.length > 10 && (
-                  <Text style={{ fontSize: 11, color: "#64748b", marginTop: 2 }}>
+                  <Text style={{ fontSize: 11, color: TEXT_3, marginTop: 2 }}>
                     + {diagnostics.eventsJson.length - 10} more
                   </Text>
                 )}
@@ -407,13 +413,13 @@ export default function AdminUserDetailScreen() {
           accessibilityState={{ disabled: toggling }}
         >
           {toggling ? (
-            <ActivityIndicator size="small" color={user.isPremium ? "#ef4444" : AMBER} accessibilityLabel="Loading" />
+            <ActivityIndicator size="small" color={user.isPremium ? RED : AMBER} accessibilityLabel="Loading" />
           ) : (
             <>
               <Ionicons
                 name={user.isPremium ? "star-outline" : "star"}
                 size={18}
-                color={user.isPremium ? "#ef4444" : AMBER}
+                color={user.isPremium ? RED : AMBER}
               />
               <Text style={[s.actionBtnText, user.isPremium ? s.actionTextDestructive : s.actionTextPrimary]}>
                 {user.isPremium ? "Revoke Premium" : "Grant Premium"}
@@ -429,7 +435,7 @@ export default function AdminUserDetailScreen() {
           accessibilityRole="button"
           accessibilityLabel={`Delete user ${user.email}`}
         >
-          <Ionicons name="trash-outline" size={18} color="#ef4444" />
+          <Ionicons name="trash-outline" size={18} color={RED} />
           <Text style={[s.actionBtnText, s.actionTextDestructive]}>Delete User</Text>
         </TouchableOpacity>
       </View>
@@ -439,18 +445,18 @@ export default function AdminUserDetailScreen() {
   );
 }
 
-const AMBER = "#f5a623";
-const TEXT_1 = "#f0f2f5";
-const TEXT_2 = "#8494a7";
-const TEXT_3 = "#64748b";
-const CARD_BG = "#0a1120";
+const AMBER = colors.amber;
+const TEXT_1 = colors.text1;
+const TEXT_2 = colors.text2;
+const TEXT_3 = colors.text3;
+const CARD_BG = colors.surface;
 const CARD_BORDER = "rgba(255,255,255,0.05)";
 
 const s = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#030712" },
+  container: { flex: 1, backgroundColor: BG },
   centered: { justifyContent: "center", alignItems: "center" },
   content: { paddingHorizontal: 20, paddingTop: 16, paddingBottom: 20 },
-  emptyText: { fontSize: 14, fontFamily: "PlusJakartaSans_400Regular", color: TEXT_3 },
+  emptyText: { fontSize: 14, fontFamily: fonts.regular, color: TEXT_3 },
 
   // Cards
   card: {
@@ -463,7 +469,7 @@ const s = StyleSheet.create({
   },
   cardTitle: {
     fontSize: 13,
-    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontFamily: fonts.semibold,
     color: TEXT_2,
     textTransform: "uppercase",
     letterSpacing: 0.5,
@@ -486,17 +492,17 @@ const s = StyleSheet.create({
   },
   avatarText: {
     fontSize: 18,
-    fontFamily: "PlusJakartaSans_700Bold",
-    color: "#030712",
+    fontFamily: fonts.bold,
+    color: BG,
   },
   profileName: {
     fontSize: 16,
-    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontFamily: fonts.semibold,
     color: TEXT_1,
   },
   profileEmail: {
     fontSize: 13,
-    fontFamily: "PlusJakartaSans_400Regular",
+    fontFamily: fonts.regular,
     color: TEXT_2,
     marginTop: 2,
   },
@@ -514,25 +520,25 @@ const s = StyleSheet.create({
   },
   proBadgeText: {
     fontSize: 11,
-    fontFamily: "PlusJakartaSans_700Bold",
-    color: "#030712",
+    fontFamily: fonts.bold,
+    color: BG,
     letterSpacing: 0.3,
   },
   adminBadge: {
-    backgroundColor: "#ef4444",
+    backgroundColor: RED,
     paddingHorizontal: 5,
     paddingVertical: 1,
     borderRadius: 3,
   },
   adminBadgeText: {
     fontSize: 11,
-    fontFamily: "PlusJakartaSans_700Bold",
+    fontFamily: fonts.bold,
     color: "#fff",
     letterSpacing: 0.3,
   },
   joinDate: {
     fontSize: 12,
-    fontFamily: "PlusJakartaSans_400Regular",
+    fontFamily: fonts.regular,
     color: TEXT_3,
     marginTop: 10,
   },
@@ -546,17 +552,17 @@ const s = StyleSheet.create({
   },
   detailLabel: {
     fontSize: 13,
-    fontFamily: "PlusJakartaSans_400Regular",
+    fontFamily: fonts.regular,
     color: TEXT_3,
   },
   detailValue: {
     fontSize: 13,
-    fontFamily: "PlusJakartaSans_500Medium",
+    fontFamily: fonts.medium,
     color: TEXT_1,
   },
   detailValueMono: {
     fontSize: 11,
-    fontFamily: "PlusJakartaSans_400Regular",
+    fontFamily: fonts.regular,
     color: TEXT_2,
     maxWidth: 160,
   },
@@ -579,13 +585,13 @@ const s = StyleSheet.create({
   },
   statNum: {
     fontSize: 18,
-    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontFamily: fonts.semibold,
     color: TEXT_1,
     letterSpacing: -0.5,
   },
   statUnit: {
     fontSize: 10,
-    fontFamily: "PlusJakartaSans_400Regular",
+    fontFamily: fonts.regular,
     color: TEXT_2,
     marginTop: 2,
   },
@@ -594,7 +600,7 @@ const s = StyleSheet.create({
   section: { marginBottom: 16 },
   sectionTitle: {
     fontSize: 14,
-    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontFamily: fonts.semibold,
     color: TEXT_1,
     marginBottom: 8,
   },
@@ -607,14 +613,14 @@ const s = StyleSheet.create({
     borderColor: CARD_BORDER,
   },
   notesInput: {
-    backgroundColor: "#030712",
+    backgroundColor: BG,
     borderRadius: 8,
     borderWidth: 1,
     borderColor: CARD_BORDER,
     padding: 10,
     minHeight: 90,
     fontSize: 13,
-    fontFamily: "PlusJakartaSans_400Regular",
+    fontFamily: fonts.regular,
     color: TEXT_1,
     marginTop: 4,
   },
@@ -635,21 +641,21 @@ const s = StyleSheet.create({
   },
   notesSaveBtnText: {
     fontSize: 13,
-    fontFamily: "PlusJakartaSans_700Bold",
-    color: "#030712",
+    fontFamily: fonts.bold,
+    color: BG,
   },
   notesMessage: {
     fontSize: 12,
-    fontFamily: "PlusJakartaSans_500Medium",
+    fontFamily: fonts.medium,
   },
   listPrimary: {
     fontSize: 14,
-    fontFamily: "PlusJakartaSans_500Medium",
+    fontFamily: fonts.medium,
     color: TEXT_1,
   },
   listSecondary: {
     fontSize: 12,
-    fontFamily: "PlusJakartaSans_400Regular",
+    fontFamily: fonts.regular,
     color: TEXT_3,
     marginTop: 2,
   },
@@ -666,7 +672,7 @@ const s = StyleSheet.create({
   },
   tripBadgeText: {
     fontSize: 10,
-    fontFamily: "PlusJakartaSans_500Medium",
+    fontFamily: fonts.medium,
     color: AMBER,
   },
 
@@ -700,18 +706,18 @@ const s = StyleSheet.create({
   },
   actionBtnText: {
     fontSize: 15,
-    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontFamily: fonts.semibold,
   },
   actionTextPrimary: { color: AMBER },
-  actionTextDestructive: { color: "#ef4444" },
+  actionTextDestructive: { color: RED },
 });
 
 function DiagRow({ label, value, good }: { label: string; value: string; good?: boolean }) {
-  const color = good === undefined ? "#8494a7" : good ? "#10b981" : "#ef4444";
+  const color = good === undefined ? TEXT_2 : good ? GREEN : RED;
   return (
     <View style={{ flexDirection: "row", justifyContent: "space-between", paddingVertical: 3 }}>
-      <Text style={{ fontSize: 12, fontFamily: "PlusJakartaSans_400Regular", color: "#8494a7" }}>{label}</Text>
-      <Text style={{ fontSize: 12, fontFamily: "PlusJakartaSans_600SemiBold", color }}>{value}</Text>
+      <Text style={{ fontSize: 12, fontFamily: fonts.regular, color: TEXT_2 }}>{label}</Text>
+      <Text style={{ fontSize: 12, fontFamily: fonts.semibold, color }}>{value}</Text>
     </View>
   );
 }

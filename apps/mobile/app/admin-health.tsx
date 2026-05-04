@@ -10,6 +10,11 @@ import {
 import { useFocusEffect } from "expo-router";
 import { fetchAdminHealth } from "../lib/api/admin";
 import type { AdminHealthStatus } from "@mileclear/shared";
+import { colors, fonts } from "../lib/theme";
+
+// Local theme aliases — same pattern as the (tabs) screens.
+const BG = colors.bg;
+const RED = colors.red;
 
 function formatUptime(seconds: number): string {
   const days = Math.floor(seconds / 86400);
@@ -142,18 +147,18 @@ export default function AdminHealthScreen() {
   );
 }
 
-const AMBER = "#f5a623";
-const TEXT_1 = "#f0f2f5";
-const TEXT_2 = "#8494a7";
-const TEXT_3 = "#64748b";
-const CARD_BG = "#0a1120";
+const AMBER = colors.amber;
+const TEXT_1 = colors.text1;
+const TEXT_2 = colors.text2;
+const TEXT_3 = colors.text3;
+const CARD_BG = colors.surface;
 const CARD_BORDER = "rgba(255,255,255,0.05)";
 
 const s = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#030712" },
+  container: { flex: 1, backgroundColor: BG },
   centered: { flex: 1, justifyContent: "center", alignItems: "center" },
   content: { paddingHorizontal: 20, paddingTop: 16, paddingBottom: 20 },
-  emptyText: { fontSize: 14, fontFamily: "PlusJakartaSans_400Regular", color: TEXT_3 },
+  emptyText: { fontSize: 14, fontFamily: fonts.regular, color: TEXT_3 },
 
   card: {
     backgroundColor: CARD_BG,
@@ -165,7 +170,7 @@ const s = StyleSheet.create({
   },
   cardTitle: {
     fontSize: 13,
-    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontFamily: fonts.semibold,
     color: TEXT_2,
     textTransform: "uppercase",
     letterSpacing: 0.5,
@@ -173,7 +178,7 @@ const s = StyleSheet.create({
   },
   sectionTitle: {
     fontSize: 14,
-    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontFamily: fonts.semibold,
     color: TEXT_1,
     marginBottom: 10,
   },
@@ -194,19 +199,19 @@ const s = StyleSheet.create({
     borderRadius: 4,
   },
   dotOk: { backgroundColor: "#34c759" },
-  dotError: { backgroundColor: "#ef4444" },
+  dotError: { backgroundColor: RED },
   statusLabel: {
     fontSize: 14,
-    fontFamily: "PlusJakartaSans_400Regular",
+    fontFamily: fonts.regular,
     color: TEXT_2,
   },
   statusValue: {
     fontSize: 14,
-    fontFamily: "PlusJakartaSans_500Medium",
+    fontFamily: fonts.medium,
     color: TEXT_1,
   },
   textOk: { color: "#34c759" },
-  textError: { color: "#ef4444" },
+  textError: { color: RED },
 
   grid: {
     flexDirection: "row",
@@ -226,13 +231,13 @@ const s = StyleSheet.create({
   },
   countValue: {
     fontSize: 20,
-    fontFamily: "PlusJakartaSans_700Bold",
+    fontFamily: fonts.bold,
     color: TEXT_1,
     letterSpacing: -0.5,
   },
   countLabel: {
     fontSize: 11,
-    fontFamily: "PlusJakartaSans_400Regular",
+    fontFamily: fonts.regular,
     color: TEXT_2,
     marginTop: 4,
   },

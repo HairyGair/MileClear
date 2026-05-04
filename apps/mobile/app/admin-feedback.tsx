@@ -25,20 +25,25 @@ import {
 import type { FeedbackListParams } from "../lib/api/feedback";
 import { FEEDBACK_CATEGORIES, FEEDBACK_STATUSES, KNOWN_ISSUE_STATUSES } from "@mileclear/shared";
 import type { FeedbackWithVoted, FeedbackStatus, FeedbackReply, KnownIssueStatus } from "@mileclear/shared";
+import { colors, fonts } from "../lib/theme";
 
-const AMBER = "#f5a623";
-const BG = "#030712";
-const CARD_BG = "#0a1120";
-const TEXT_1 = "#f0f2f5";
-const TEXT_2 = "#8494a7";
-const TEXT_3 = "#64748b";
+// Local theme aliases — same pattern as the (tabs) screens.
+const GREEN = colors.green;
+const RED = colors.red;
+
+const AMBER = colors.amber;
+const BG = colors.bg;
+const CARD_BG = colors.surface;
+const TEXT_1 = colors.text1;
+const TEXT_2 = colors.text2;
+const TEXT_3 = colors.text3;
 const CARD_BORDER = "rgba(255,255,255,0.05)";
 
 const CATEGORY_COLORS: Record<string, string> = {
   feature_request: "#3b82f6",
-  bug_report: "#ef4444",
+  bug_report: RED,
   improvement: "#a855f7",
-  other: "#8494a7",
+  other: TEXT_2,
 };
 
 type StatusFilter = "all" | FeedbackStatus;
@@ -299,15 +304,15 @@ export default function AdminFeedbackScreen() {
               </View>
             )}
             {item.isKnownIssue && (
-              <View style={[s.pill, { backgroundColor: "#ef4444" + "20" }]}>
-                <Text style={[s.pillText, { color: "#ef4444" }]}>Known Issue</Text>
+              <View style={[s.pill, { backgroundColor: RED + "20" }]}>
+                <Text style={[s.pillText, { color: RED }]}>Known Issue</Text>
               </View>
             )}
           </View>
           <View style={s.chipRow}>
             {item.replyCount > 0 && (
               <View style={s.replyChip}>
-                <Ionicons name="chatbubble" size={10} color="#10b981" />
+                <Ionicons name="chatbubble" size={10} color={GREEN} />
                 <Text style={s.replyChipText}>{item.replyCount}</Text>
               </View>
             )}
@@ -375,8 +380,8 @@ export default function AdminFeedbackScreen() {
                 accessibilityState={{ checked: item.isKnownIssue }}
                 accessibilityLabel="Mark as known issue"
               >
-                <Ionicons name={item.isKnownIssue ? "bug" : "bug-outline"} size={14} color={item.isKnownIssue ? "#ef4444" : TEXT_2} />
-                <Text style={[s.kiToggleText, item.isKnownIssue && { color: "#ef4444" }]}>
+                <Ionicons name={item.isKnownIssue ? "bug" : "bug-outline"} size={14} color={item.isKnownIssue ? RED : TEXT_2} />
+                <Text style={[s.kiToggleText, item.isKnownIssue && { color: RED }]}>
                   {item.isKnownIssue ? "Known Issue" : "Not flagged"}
                 </Text>
               </TouchableOpacity>
@@ -456,9 +461,9 @@ export default function AdminFeedbackScreen() {
                 accessibilityLabel="Send reply"
               >
                 {sendingReply ? (
-                  <ActivityIndicator size={16} color="#030712" />
+                  <ActivityIndicator size={16} color={BG} />
                 ) : (
-                  <Ionicons name="send" size={16} color="#030712" />
+                  <Ionicons name="send" size={16} color={BG} />
                 )}
               </TouchableOpacity>
             </View>
@@ -470,7 +475,7 @@ export default function AdminFeedbackScreen() {
               accessibilityRole="button"
               accessibilityLabel={`Delete feedback: ${item.title}`}
             >
-              <Ionicons name="trash-outline" size={16} color="#ef4444" />
+              <Ionicons name="trash-outline" size={16} color={RED} />
               <Text style={s.deleteButtonText}>Delete</Text>
             </TouchableOpacity>
           </View>
@@ -590,11 +595,11 @@ const s = StyleSheet.create({
   },
   statCount: {
     fontSize: 18,
-    fontFamily: "PlusJakartaSans_700Bold",
+    fontFamily: fonts.bold,
   },
   statLabel: {
     fontSize: 11,
-    fontFamily: "PlusJakartaSans_500Medium",
+    fontFamily: fonts.medium,
     color: TEXT_2,
     marginTop: 2,
     textTransform: "uppercase",
@@ -619,12 +624,12 @@ const s = StyleSheet.create({
   },
   filterChipText: {
     fontSize: 12,
-    fontFamily: "PlusJakartaSans_500Medium",
+    fontFamily: fonts.medium,
     color: TEXT_2,
   },
   filterChipTextActive: {
     color: AMBER,
-    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontFamily: fonts.semibold,
   },
   list: { paddingHorizontal: 16, paddingBottom: 24 },
   card: {
@@ -653,7 +658,7 @@ const s = StyleSheet.create({
   },
   pillText: {
     fontSize: 11,
-    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontFamily: fonts.semibold,
     textTransform: "uppercase",
     letterSpacing: 0.3,
   },
@@ -668,12 +673,12 @@ const s = StyleSheet.create({
   },
   voteChipText: {
     fontSize: 12,
-    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontFamily: fonts.semibold,
     color: AMBER,
   },
   cardTitle: {
     fontSize: 14,
-    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontFamily: fonts.semibold,
     color: TEXT_1,
     marginBottom: 4,
   },
@@ -684,7 +689,7 @@ const s = StyleSheet.create({
   },
   metaText: {
     fontSize: 11,
-    fontFamily: "PlusJakartaSans_400Regular",
+    fontFamily: fonts.regular,
     color: TEXT_3,
   },
   dot: {
@@ -701,14 +706,14 @@ const s = StyleSheet.create({
   },
   bodyText: {
     fontSize: 13,
-    fontFamily: "PlusJakartaSans_400Regular",
+    fontFamily: fonts.regular,
     color: TEXT_2,
     lineHeight: 19,
     marginBottom: 14,
   },
   sectionLabel: {
     fontSize: 11,
-    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontFamily: fonts.semibold,
     color: TEXT_3,
     textTransform: "uppercase",
     letterSpacing: 0.5,
@@ -736,7 +741,7 @@ const s = StyleSheet.create({
   },
   statusPillText: {
     fontSize: 11,
-    fontFamily: "PlusJakartaSans_500Medium",
+    fontFamily: fonts.medium,
   },
   knownIssueRow: {
     marginBottom: 14,
@@ -760,7 +765,7 @@ const s = StyleSheet.create({
   },
   kiToggleText: {
     fontSize: 12,
-    fontFamily: "PlusJakartaSans_500Medium",
+    fontFamily: fonts.medium,
     color: TEXT_2,
   },
   kiStatusRow: {
@@ -780,12 +785,12 @@ const s = StyleSheet.create({
     paddingHorizontal: 6,
     paddingVertical: 2,
     borderRadius: 6,
-    backgroundColor: "#10b981" + "15",
+    backgroundColor: GREEN + "15",
   },
   replyChipText: {
     fontSize: 12,
-    fontFamily: "PlusJakartaSans_600SemiBold",
-    color: "#10b981",
+    fontFamily: fonts.semibold,
+    color: GREEN,
   },
   repliesSection: {
     marginBottom: 14,
@@ -814,17 +819,17 @@ const s = StyleSheet.create({
   },
   replyAdminName: {
     fontSize: 11,
-    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontFamily: fonts.semibold,
     color: AMBER,
   },
   replyDate: {
     fontSize: 10,
-    fontFamily: "PlusJakartaSans_400Regular",
+    fontFamily: fonts.regular,
     color: TEXT_3,
   },
   replyBody: {
     fontSize: 13,
-    fontFamily: "PlusJakartaSans_400Regular",
+    fontFamily: fonts.regular,
     color: TEXT_2,
     lineHeight: 18,
     paddingRight: 20,
@@ -849,7 +854,7 @@ const s = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 10,
     fontSize: 13,
-    fontFamily: "PlusJakartaSans_400Regular",
+    fontFamily: fonts.regular,
     color: TEXT_1,
     maxHeight: 80,
   },
@@ -873,12 +878,12 @@ const s = StyleSheet.create({
   },
   deleteButtonText: {
     fontSize: 13,
-    fontFamily: "PlusJakartaSans_500Medium",
-    color: "#ef4444",
+    fontFamily: fonts.medium,
+    color: RED,
   },
   emptyText: {
     fontSize: 14,
-    fontFamily: "PlusJakartaSans_500Medium",
+    fontFamily: fonts.medium,
     color: TEXT_2,
     marginTop: 8,
   },

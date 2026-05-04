@@ -13,6 +13,11 @@ import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { fetchAdminUsers } from "../lib/api/admin";
 import type { AdminUserSummary } from "@mileclear/shared";
+import { colors, fonts } from "../lib/theme";
+
+// Local theme aliases — same pattern as the (tabs) screens.
+const BG = colors.bg;
+const RED = colors.red;
 
 const PAGE_SIZE = 20;
 
@@ -125,7 +130,7 @@ export default function AdminUsersScreen() {
                   {
                     backgroundColor:
                       item.diagnosticDump.verdict === "error"
-                        ? "#ef4444"
+                        ? RED
                         : item.diagnosticDump.verdict === "warning"
                           ? AMBER
                           : "#3b82f6",
@@ -228,15 +233,15 @@ export default function AdminUsersScreen() {
   );
 }
 
-const AMBER = "#f5a623";
-const TEXT_1 = "#f0f2f5";
-const TEXT_2 = "#8494a7";
-const TEXT_3 = "#64748b";
-const CARD_BG = "#0a1120";
+const AMBER = colors.amber;
+const TEXT_1 = colors.text1;
+const TEXT_2 = colors.text2;
+const TEXT_3 = colors.text3;
+const CARD_BG = colors.surface;
 const CARD_BORDER = "rgba(255,255,255,0.05)";
 
 const s = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#030712" },
+  container: { flex: 1, backgroundColor: BG },
   centered: { flex: 1, justifyContent: "center", alignItems: "center" },
   searchWrap: {
     flexDirection: "row",
@@ -255,7 +260,7 @@ const s = StyleSheet.create({
     flex: 1,
     height: 44,
     fontSize: 15,
-    fontFamily: "PlusJakartaSans_400Regular",
+    fontFamily: fonts.regular,
     color: TEXT_1,
   },
   sortRow: {
@@ -278,12 +283,12 @@ const s = StyleSheet.create({
   },
   sortChipText: {
     fontSize: 12,
-    fontFamily: "PlusJakartaSans_500Medium",
+    fontFamily: fonts.medium,
     color: TEXT_2,
   },
   sortChipTextActive: {
-    color: "#030712",
-    fontFamily: "PlusJakartaSans_700Bold",
+    color: BG,
+    fontFamily: fonts.bold,
   },
   listContent: { paddingHorizontal: 20, paddingBottom: 20 },
   userCard: {
@@ -302,12 +307,12 @@ const s = StyleSheet.create({
   },
   userEmail: {
     fontSize: 14,
-    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontFamily: fonts.semibold,
     color: TEXT_1,
   },
   userName: {
     fontSize: 12,
-    fontFamily: "PlusJakartaSans_400Regular",
+    fontFamily: fonts.regular,
     color: TEXT_2,
     marginTop: 2,
   },
@@ -330,19 +335,19 @@ const s = StyleSheet.create({
   },
   proBadgeText: {
     fontSize: 11,
-    fontFamily: "PlusJakartaSans_700Bold",
-    color: "#030712",
+    fontFamily: fonts.bold,
+    color: BG,
     letterSpacing: 0.3,
   },
   adminBadge: {
-    backgroundColor: "#ef4444",
+    backgroundColor: RED,
     paddingHorizontal: 5,
     paddingVertical: 1,
     borderRadius: 3,
   },
   adminBadgeText: {
     fontSize: 11,
-    fontFamily: "PlusJakartaSans_700Bold",
+    fontFamily: fonts.bold,
     color: "#fff",
     letterSpacing: 0.3,
   },
@@ -353,12 +358,12 @@ const s = StyleSheet.create({
   },
   userMeta: {
     fontSize: 11,
-    fontFamily: "PlusJakartaSans_400Regular",
+    fontFamily: fonts.regular,
     color: TEXT_3,
   },
   emptyText: {
     fontSize: 14,
-    fontFamily: "PlusJakartaSans_400Regular",
+    fontFamily: fonts.regular,
     color: TEXT_3,
     marginTop: 40,
   },

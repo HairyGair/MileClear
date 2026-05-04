@@ -10,14 +10,19 @@ import {
   StyleSheet,
 } from "react-native";
 import { sendAdminEmail } from "../lib/api/admin";
+import { colors, fonts } from "../lib/theme";
 
-const AMBER = "#f5a623";
-const EMERALD = "#10b981";
-const RED = "#ef4444";
-const TEXT_1 = "#f0f2f5";
-const TEXT_2 = "#8494a7";
-const TEXT_3 = "#64748b";
-const CARD_BG = "#0a1120";
+// Local theme aliases — same pattern as the (tabs) screens.
+const BG = colors.bg;
+const GREEN = colors.green;
+
+const AMBER = colors.amber;
+const EMERALD = GREEN;
+const RED = colors.red;
+const TEXT_1 = colors.text1;
+const TEXT_2 = colors.text2;
+const TEXT_3 = colors.text3;
+const CARD_BG = colors.surface;
 const CARD_BORDER = "rgba(255,255,255,0.05)";
 
 type CampaignType = "re-engagement" | "update" | "service-status";
@@ -125,7 +130,7 @@ export default function AdminEmailScreen() {
                   value={onlyInactive}
                   onValueChange={setOnlyInactive}
                   trackColor={{ false: "#1f2937", true: "rgba(245,166,35,0.4)" }}
-                  thumbColor={onlyInactive ? AMBER : "#4b5563"}
+                  thumbColor={onlyInactive ? AMBER : TEXT_3}
                   accessibilityLabel="Only send to inactive users"
                   accessibilityRole="switch"
                   accessibilityState={{ checked: onlyInactive }}
@@ -204,7 +209,7 @@ export default function AdminEmailScreen() {
 }
 
 const s = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#030712" },
+  container: { flex: 1, backgroundColor: BG },
   content: { paddingHorizontal: 20, paddingTop: 16, paddingBottom: 20 },
 
   card: {
@@ -218,13 +223,13 @@ const s = StyleSheet.create({
 
   campaignTitle: {
     fontSize: 15,
-    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontFamily: fonts.semibold,
     color: TEXT_1,
     marginBottom: 4,
   },
   campaignDescription: {
     fontSize: 13,
-    fontFamily: "PlusJakartaSans_400Regular",
+    fontFamily: fonts.regular,
     color: TEXT_2,
     lineHeight: 19,
     marginBottom: 14,
@@ -241,7 +246,7 @@ const s = StyleSheet.create({
   },
   toggleLabel: {
     fontSize: 14,
-    fontFamily: "PlusJakartaSans_400Regular",
+    fontFamily: fonts.regular,
     color: TEXT_2,
   },
 
@@ -269,12 +274,12 @@ const s = StyleSheet.create({
   },
   btnTextPrimary: {
     fontSize: 14,
-    fontFamily: "PlusJakartaSans_600SemiBold",
-    color: "#030712",
+    fontFamily: fonts.semibold,
+    color: BG,
   },
   btnTextSecondary: {
     fontSize: 14,
-    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontFamily: fonts.semibold,
     color: AMBER,
   },
 
@@ -294,7 +299,7 @@ const s = StyleSheet.create({
   },
   resultHeading: {
     fontSize: 12,
-    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontFamily: fonts.semibold,
     color: TEXT_3,
     textTransform: "uppercase",
     letterSpacing: 0.5,
@@ -309,7 +314,7 @@ const s = StyleSheet.create({
   },
   dryRunBadgeText: {
     fontSize: 10,
-    fontFamily: "PlusJakartaSans_700Bold",
+    fontFamily: fonts.bold,
     color: AMBER,
     letterSpacing: 0.5,
   },
@@ -329,12 +334,12 @@ const s = StyleSheet.create({
   },
   resultValue: {
     fontSize: 22,
-    fontFamily: "PlusJakartaSans_700Bold",
+    fontFamily: fonts.bold,
     letterSpacing: -0.5,
   },
   resultLabel: {
     fontSize: 10,
-    fontFamily: "PlusJakartaSans_400Regular",
+    fontFamily: fonts.regular,
     color: TEXT_3,
     marginTop: 3,
   },

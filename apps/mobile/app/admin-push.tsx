@@ -11,14 +11,19 @@ import {
 } from "react-native";
 import { sendAdminPush } from "../lib/api/admin";
 import type { AdminPushAudience, AdminPushResult } from "@mileclear/shared";
+import { colors, fonts } from "../lib/theme";
 
-const AMBER = "#f5a623";
-const EMERALD = "#10b981";
-const RED = "#ef4444";
-const TEXT_1 = "#f0f2f5";
-const TEXT_2 = "#8494a7";
-const TEXT_3 = "#64748b";
-const CARD_BG = "#0a1120";
+// Local theme aliases — same pattern as the (tabs) screens.
+const BG = colors.bg;
+const GREEN = colors.green;
+
+const AMBER = colors.amber;
+const EMERALD = GREEN;
+const RED = colors.red;
+const TEXT_1 = colors.text1;
+const TEXT_2 = colors.text2;
+const TEXT_3 = colors.text3;
+const CARD_BG = colors.surface;
 const CARD_BORDER = "rgba(255,255,255,0.05)";
 const INPUT_BG = "#111827";
 
@@ -238,7 +243,7 @@ export default function AdminPushScreen() {
 }
 
 const s = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#030712" },
+  container: { flex: 1, backgroundColor: BG },
   content: { paddingHorizontal: 20, paddingTop: 16, paddingBottom: 20 },
 
   card: {
@@ -251,7 +256,7 @@ const s = StyleSheet.create({
   },
   cardTitle: {
     fontSize: 13,
-    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontFamily: fonts.semibold,
     color: TEXT_2,
     textTransform: "uppercase",
     letterSpacing: 0.5,
@@ -260,7 +265,7 @@ const s = StyleSheet.create({
 
   fieldLabel: {
     fontSize: 12,
-    fontFamily: "PlusJakartaSans_500Medium",
+    fontFamily: fonts.medium,
     color: TEXT_2,
     marginBottom: 6,
     marginTop: 4,
@@ -286,11 +291,11 @@ const s = StyleSheet.create({
   },
   chipText: {
     fontSize: 13,
-    fontFamily: "PlusJakartaSans_500Medium",
+    fontFamily: fonts.medium,
     color: TEXT_2,
   },
   chipTextActive: {
-    color: "#030712",
+    color: BG,
   },
 
   input: {
@@ -301,7 +306,7 @@ const s = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 10,
     fontSize: 14,
-    fontFamily: "PlusJakartaSans_400Regular",
+    fontFamily: fonts.regular,
     color: TEXT_1,
     marginBottom: 12,
   },
@@ -335,12 +340,12 @@ const s = StyleSheet.create({
   },
   btnTextPrimary: {
     fontSize: 14,
-    fontFamily: "PlusJakartaSans_600SemiBold",
-    color: "#030712",
+    fontFamily: fonts.semibold,
+    color: BG,
   },
   btnTextSecondary: {
     fontSize: 14,
-    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontFamily: fonts.semibold,
     color: AMBER,
   },
   btnTextDisabled: {
@@ -363,7 +368,7 @@ const s = StyleSheet.create({
   },
   dryRunBadgeText: {
     fontSize: 10,
-    fontFamily: "PlusJakartaSans_700Bold",
+    fontFamily: fonts.bold,
     color: AMBER,
     letterSpacing: 0.5,
   },
@@ -383,12 +388,12 @@ const s = StyleSheet.create({
   },
   resultValue: {
     fontSize: 24,
-    fontFamily: "PlusJakartaSans_700Bold",
+    fontFamily: fonts.bold,
     letterSpacing: -0.5,
   },
   resultLabel: {
     fontSize: 11,
-    fontFamily: "PlusJakartaSans_400Regular",
+    fontFamily: fonts.regular,
     color: TEXT_3,
     marginTop: 4,
   },
