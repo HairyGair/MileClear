@@ -239,17 +239,36 @@ function setupSilentPushHandler(): void {
   Notifications.addNotificationReceivedListener(async (notification) => {
     const data = notification.request.content.data as { action?: string } | null;
     const action = data?.action;
-    if (action !== "finalize_check") return;
 
-    // Server told us a recording looks stuck on the device. Run the same
-    // cleanup the foreground handler runs on app open. If the recording is
-    // genuinely stale, finalizeStaleAutoRecordings finalises it; if it's
-    // healthy (e.g. the user IS still driving), the function no-ops.
-    try {
-      const { finalizeStaleAutoRecordings } = await import("../tracking/detection");
-      await finalizeStaleAutoRecordings();
-    } catch (err) {
-      console.warn("[notifications] silent finalize_check failed:", err);
+    if (action === "finalize_check") {
+      // Server told us a recording looks stuck on the device. Run the same
+      // cleanup the foreground handler runs on app open. If the recording
+      // is genuinely stale, finalizeStaleAutoRecordings finalises it; if
+      // it's healthy (e.g. the user IS still driving), the function no-ops.
+      try {
+        const { finalizeStaleAutoRecordings } = await import("../tracking/detection");
+        await finalizeStaleAutoRecordings();
+      } catch (err) {
+        console.warn("[notifications] silent finalize_check failed:", err);
+      }
+      return;
+    }
+
+    if (action === "drain_sync") {
+      // Server saw lastPendingSyncCount > 0 from this device's last
+      // heartbeat AND no fresh activity since. iOS likely suspended our
+      // JS runtime before the 60s periodicTick could drain. Wake long
+      // enough to flush the queue.
+      //
+      // processSyncQueue is idempotent and no-ops when offline / nothing
+      // pending. Safe to call on every wake.
+      try {
+        const { processSyncQueue } = await import("../sync/index");
+        await processSyncQueue();
+      } catch (err) {
+        console.warn("[notifications] silent drain_sync failed:", err);
+      }
+      return;
     }
   });
 }

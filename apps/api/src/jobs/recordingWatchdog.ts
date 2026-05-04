@@ -38,13 +38,35 @@ const STUCK_THRESHOLD_MS = 30 * 60 * 1000;
 
 // Don't ping the same user more than once per 30 minutes. Prevents the
 // silent-push budget from being burned on a user whose device is just
-// not responding (genuinely offline).
+// not responding (genuinely offline). Shared across the stuck-recording
+// and pending-sync checks so a single user with both problems gets at
+// most one push per cooldown window.
 const COOLDOWN_MS = 30 * 60 * 1000;
 
 // Only act on users whose last heartbeat is recent. Older than this and
 // we don't have reliable data - the device might have legitimately
 // finalised the trip and just hasn't sent a fresh heartbeat yet.
 const HEARTBEAT_FRESHNESS_MS = 26 * 60 * 60 * 1000; // 26h, slightly more than the 24h heartbeat cadence
+
+// Pending-sync check thresholds. Discovered 4 May 2026 via James Taylor:
+// trips finalise via the native background task, get queued in SQLite,
+// but the JS runtime dies before the 60s periodicTick can drain. Users
+// can sit on a multi-day backlog without realising. The watchdog now
+// silent-pushes them too.
+//
+// MIN: how stale the heartbeat has to be before we assume the JS runtime
+// is suspended. Below this and the device's own periodicTick is the
+// right tool. 30 min = 30 missed ticks worth of "should have drained
+// by now".
+//
+// MAX: how stale we'll go before giving up. James was 2 days stale; we
+// extend to 7 to catch genuinely suspended users without spamming
+// inactive ones.
+const PENDING_SYNC_MIN_STALE_MS = 30 * 60 * 1000;
+const PENDING_SYNC_MAX_STALE_MS = 7 * 24 * 60 * 60 * 1000;
+// Only ping users with recent driving signal — confirms they're actively
+// using the app, not someone who installed once and stopped.
+const PENDING_SYNC_DRIVING_RECENCY_MS = 14 * 24 * 60 * 60 * 1000;
 
 // In-memory cooldown map: userId -> last ping timestamp. Resets on server
 // restart, which is fine - the cron will simply re-evaluate next tick.
@@ -58,8 +80,57 @@ interface StuckUser {
   pushToken: string | null;
 }
 
+interface PendingSyncUser {
+  id: string;
+  lastPendingSyncCount: number | null;
+  lastSyncQueuePermFailed: number | null;
+  lastDrivingSpeedAt: Date | null;
+  lastHeartbeatAt: Date | null;
+  pushToken: string | null;
+}
+
+async function sendSilentPush(
+  user: { id: string; pushToken: string | null },
+  action: "finalize_check" | "drain_sync",
+  metadata: Record<string, unknown>
+): Promise<"sent" | "cooldown" | "failed"> {
+  if (!user.pushToken) return "failed";
+
+  const lastPing = lastPingedAt.get(user.id);
+  const now = Date.now();
+  if (lastPing && now - lastPing < COOLDOWN_MS) {
+    return "cooldown";
+  }
+
+  const ticket = await sendPushNotification({
+    to: user.pushToken,
+    data: { action },
+    _contentAvailable: true,
+    priority: "high",
+    sound: null,
+  });
+
+  if (ticket && ticket.status === "ok") {
+    lastPingedAt.set(user.id, now);
+    logEvent(
+      action === "drain_sync" ? "watchdog.drain_sync_push_sent" : "watchdog.silent_push_sent",
+      user.id,
+      metadata
+    );
+    return "sent";
+  }
+  if (ticket?.status === "error") {
+    console.warn(
+      `[watchdog] Push failed for user ${user.id}: ${ticket.message ?? "unknown"}`
+    );
+  }
+  return "failed";
+}
+
 export async function runRecordingWatchdogJob(): Promise<void> {
   const now = Date.now();
+
+  // ── Check 1: stuck auto-recordings ────────────────────────────────
   const staleCutoff = new Date(now - STUCK_THRESHOLD_MS);
   const heartbeatCutoff = new Date(now - HEARTBEAT_FRESHNESS_MS);
 
@@ -73,63 +144,83 @@ export async function runRecordingWatchdogJob(): Promise<void> {
       AND pushToken IS NOT NULL
   `;
 
-  if (stuck.length === 0) {
-    return;
-  }
-
-  let pinged = 0;
-  let cooldown = 0;
-
+  let stuckPinged = 0;
+  let stuckCooldown = 0;
   for (const user of stuck) {
-    if (!user.pushToken) continue;
-
-    const lastPing = lastPingedAt.get(user.id);
-    if (lastPing && now - lastPing < COOLDOWN_MS) {
-      cooldown++;
-      continue;
-    }
-
-    // Silent push. The mobile listener checks data.action === "finalize_check"
-    // and calls finalizeStaleAutoRecordings(). No alert / sound / title -
-    // the user sees nothing.
-    const ticket = await sendPushNotification({
-      to: user.pushToken,
-      data: { action: "finalize_check" },
-      _contentAvailable: true,
-      priority: "high",
-      sound: null,
+    const stuckMs =
+      user.lastDrivingSpeedAt != null
+        ? now - user.lastDrivingSpeedAt.getTime()
+        : null;
+    const result = await sendSilentPush(user, "finalize_check", {
+      stuckMs,
+      recordingStartedAt: user.recordingStartedAt?.toISOString() ?? null,
+      lastDrivingSpeedAt: user.lastDrivingSpeedAt?.toISOString() ?? null,
     });
-
-    if (ticket && ticket.status === "ok") {
-      lastPingedAt.set(user.id, now);
-      pinged++;
-
-      // Log so admin can see how often the watchdog fires per user.
-      // Useful for spotting users who get pinged repeatedly (their
-      // device probably isn't responding to silent pushes at all).
-      const stuckMs =
-        user.lastDrivingSpeedAt != null
-          ? now - user.lastDrivingSpeedAt.getTime()
-          : null;
-      logEvent("watchdog.silent_push_sent", user.id, {
-        stuckMs,
-        recordingStartedAt: user.recordingStartedAt?.toISOString() ?? null,
-        lastDrivingSpeedAt: user.lastDrivingSpeedAt?.toISOString() ?? null,
-      });
-    } else if (ticket?.status === "error") {
-      // Push failure typically means the token is invalid (user
-      // uninstalled, switched devices). Log but don't retry - the
-      // mobile heartbeat will refresh the token if the user is
-      // genuinely active.
-      console.warn(
-        `[watchdog] Push failed for user ${user.id}: ${ticket.message ?? "unknown"}`
-      );
-    }
+    if (result === "sent") stuckPinged++;
+    else if (result === "cooldown") stuckCooldown++;
   }
 
-  if (pinged > 0 || cooldown > 0) {
+  // ── Check 2: pending sync queue + suspended JS runtime ────────────
+  //
+  // The sister failure mode to stuck recordings: trips/earnings/etc were
+  // queued for sync, but iOS suspended the JS runtime before the 60s
+  // periodicTick could drain. The user sees their data on-device but
+  // the server has no record. Discovered 4 May 2026 via James Taylor —
+  // 2-day-old queue with finalised trips that never reached us.
+  //
+  // Criteria:
+  //   - lastPendingSyncCount > 0 OR lastSyncQueuePermFailed > 0
+  //   - heartbeat is stale enough that 30+ periodicTicks should have
+  //     drained the queue by now (so the runtime is genuinely dead)
+  //   - heartbeat isn't SO stale that the user has clearly moved on
+  //   - lastDrivingSpeedAt within ~2 weeks (active user, not a dormant
+  //     install we'd be wasting silent-push budget on)
+  const minStaleHb = new Date(now - PENDING_SYNC_MIN_STALE_MS);
+  const maxStaleHb = new Date(now - PENDING_SYNC_MAX_STALE_MS);
+  const drivingRecency = new Date(now - PENDING_SYNC_DRIVING_RECENCY_MS);
+
+  const pendingSync = await prisma.$queryRaw<PendingSyncUser[]>`
+    SELECT id, lastPendingSyncCount, lastSyncQueuePermFailed,
+           lastDrivingSpeedAt, lastHeartbeatAt, pushToken
+    FROM users
+    WHERE (
+        (lastPendingSyncCount IS NOT NULL AND lastPendingSyncCount > 0)
+        OR (lastSyncQueuePermFailed IS NOT NULL AND lastSyncQueuePermFailed > 0)
+      )
+      AND lastHeartbeatAt IS NOT NULL
+      AND lastHeartbeatAt < ${minStaleHb}
+      AND lastHeartbeatAt > ${maxStaleHb}
+      AND lastDrivingSpeedAt IS NOT NULL
+      AND lastDrivingSpeedAt > ${drivingRecency}
+      AND pushToken IS NOT NULL
+  `;
+
+  let syncPinged = 0;
+  let syncCooldown = 0;
+  for (const user of pendingSync) {
+    const heartbeatStaleMs =
+      user.lastHeartbeatAt != null
+        ? now - user.lastHeartbeatAt.getTime()
+        : null;
+    const result = await sendSilentPush(user, "drain_sync", {
+      pendingSyncCount: user.lastPendingSyncCount,
+      permFailedCount: user.lastSyncQueuePermFailed,
+      heartbeatStaleMs,
+      lastHeartbeatAt: user.lastHeartbeatAt?.toISOString() ?? null,
+    });
+    if (result === "sent") syncPinged++;
+    else if (result === "cooldown") syncCooldown++;
+  }
+
+  if (
+    stuckPinged > 0 ||
+    stuckCooldown > 0 ||
+    syncPinged > 0 ||
+    syncCooldown > 0
+  ) {
     console.log(
-      `[watchdog] Found ${stuck.length} stuck recording(s). Pinged ${pinged}, cooldown ${cooldown}.`
+      `[watchdog] stuck=${stuck.length} (pinged ${stuckPinged}, cooldown ${stuckCooldown}); ` +
+        `pendingSync=${pendingSync.length} (pinged ${syncPinged}, cooldown ${syncCooldown})`
     );
   }
 }
