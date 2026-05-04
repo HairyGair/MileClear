@@ -2,6 +2,7 @@ import { prisma } from "../lib/prisma.js";
 import { sendPushNotifications, sendPushToUser, ExpoPushMessage } from "../lib/push.js";
 import { runRecordingWatchdogJob } from "./recordingWatchdog.js";
 import { runIdempotencyPurgeJob } from "./idempotencyPurge.js";
+import { runReconciliationJob } from "./reconciliation.js";
 import { getPeriodRecap } from "../services/gamification.js";
 import {
   formatMiles,
@@ -816,6 +817,13 @@ export function startNotificationJobs(): void {
     const PURGE_INTERVAL_MS = 60 * 60 * 1000;
     void runJob("idempotency_purge", runIdempotencyPurgeJob);
     setInterval(() => void runJob("idempotency_purge", runIdempotencyPurgeJob), PURGE_INTERVAL_MS);
+
+    // Reconciliation cron: daily. Cross-checks cached aggregate figures
+    // (MileageSummary) against source-of-truth trips. Required for MTD
+    // ITSA — wrong quarterly figures get fined.
+    const RECONCILIATION_INTERVAL_MS = 24 * 60 * 60 * 1000;
+    void runJob("reconciliation", runReconciliationJob);
+    setInterval(() => void runJob("reconciliation", runReconciliationJob), RECONCILIATION_INTERVAL_MS);
   }, INITIAL_DELAY_MS);
 
   console.log("[jobs/notifications] Scheduled notification jobs started (first run in 60s)");
