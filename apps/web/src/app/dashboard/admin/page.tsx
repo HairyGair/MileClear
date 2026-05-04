@@ -3169,6 +3169,33 @@ function OpsTab() {
     }
   }, [webhookStatus, jobFilter]);
 
+  const respondPendingConsumption = useCallback(async () => {
+    setReprocessing("consumption");
+    setReprocessNotice(null);
+    try {
+      const res = await api.post<{
+        data: {
+          processed: number;
+          results: Array<{ txn: string; ok: boolean; reason?: string; orphan: boolean }>;
+        };
+      }>("/admin/apple/respond-consumption-pending", {});
+      const ok = res.data.results.filter((r) => r.ok).length;
+      const fail = res.data.results.length - ok;
+      setReprocessNotice({
+        kind: ok > 0 ? "ok" : fail === 0 ? "warn" : "err",
+        text:
+          res.data.processed === 0
+            ? "No CONSUMPTION_REQUEST webhooks pending."
+            : `Consumption responses: ${ok} submitted, ${fail} failed.`,
+      });
+      await load();
+    } catch (err: any) {
+      setReprocessNotice({ kind: "err", text: err?.message ?? "Consumption response failed" });
+    } finally {
+      setReprocessing(null);
+    }
+  }, [load]);
+
   const reprocessAll = useCallback(async () => {
     setReprocessing("all");
     setReprocessNotice(null);
@@ -3319,6 +3346,15 @@ function OpsTab() {
                   {reprocessing === "all" ? "Reprocessing…" : "Reprocess all orphans"}
                 </Button>
               )}
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={respondPendingConsumption}
+                disabled={reprocessing !== null}
+                title="Submit consumption-data responses for any CONSUMPTION_REQUEST webhooks awaiting a response (last 14 days)"
+              >
+                {reprocessing === "consumption" ? "Submitting…" : "Respond to pending CONSUMPTION_REQUESTs"}
+              </Button>
             </div>
             {reprocessNotice && (
               <div
