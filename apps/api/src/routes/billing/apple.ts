@@ -58,16 +58,16 @@ export async function appleBillingRoutes(app: FastifyInstance) {
       }
 
       try {
-        // Fetch transaction info from Apple Server API
-        const transactionResponse = await client.getTransactionInfo(transactionId);
-        if (!transactionResponse.signedTransactionInfo) {
+        // Fetch via the env-fallback helper so production App Store
+        // transactions resolve correctly even when APPLE_IAP_ENVIRONMENT
+        // is set to Sandbox (and vice versa). Without this, the Restore
+        // Purchases button silently fails for users on the production
+        // App Store. Discovered 4 May 2026.
+        const fetched = await fetchTransactionWithEnvFallback(transactionId);
+        if (!fetched) {
           return reply.status(400).send({ error: "Invalid transaction" });
         }
-
-        // Verify JWS signature
-        const transaction = await verifier.verifyAndDecodeTransaction(
-          transactionResponse.signedTransactionInfo
-        );
+        const transaction = fetched.transaction;
 
         // Validate bundle ID and product ID
         if (transaction.bundleId !== bundleId) {
