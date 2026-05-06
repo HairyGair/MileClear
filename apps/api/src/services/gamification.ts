@@ -1,7 +1,8 @@
 import { prisma } from "../lib/prisma.js";
 import {
   getTaxYear,
-  calculateHmrcDeduction,
+  calculateMileageDeduction,
+  resolveMileageRates,
   formatPence,
   formatMiles,
   ACHIEVEMENT_META,
@@ -486,15 +487,26 @@ export async function getShiftScorecard(
   if (!shift) return null;
 
   // Get trips in this shift
-  const trips = await prisma.trip.findMany({
-    where: { shiftId: shift.id, userId, isPhantomTrip: false },
-    include: { vehicle: true },
-  });
+  const [trips, scorecardUser] = await Promise.all([
+    prisma.trip.findMany({
+      where: { shiftId: shift.id, userId, isPhantomTrip: false },
+      include: { vehicle: true },
+    }),
+    prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        workType: true,
+        employerMileageRatePence: true,
+        employerMileageRatePenceAfter10k: true,
+      },
+    }),
+  ]);
 
   const tripsCompleted = trips.length;
   let totalMiles = 0;
   let businessMiles = 0;
   let deductionPence = 0;
+  const scorecardRateOpts = scorecardUser ? resolveMileageRates(scorecardUser) : {};
 
   for (const trip of trips) {
     totalMiles += trip.distanceMiles;
@@ -504,7 +516,7 @@ export async function getShiftScorecard(
         | "car"
         | "van"
         | "motorbike";
-      deductionPence += calculateHmrcDeduction(vType, trip.distanceMiles);
+      deductionPence += calculateMileageDeduction(vType, trip.distanceMiles, scorecardRateOpts).deductionPence;
     }
   }
 
@@ -606,21 +618,32 @@ export async function getPeriodRecap(
     label = fmt(start, { month: "long", year: "numeric" });
   }
 
-  const trips = await prisma.trip.findMany({
-    where: {
-      userId,
-      isPhantomTrip: false,
-      startedAt: { gte: start, lte: end },
-    },
-    include: { vehicle: true },
-    orderBy: { startedAt: "asc" },
-  });
+  const [trips, recapUser] = await Promise.all([
+    prisma.trip.findMany({
+      where: {
+        userId,
+        isPhantomTrip: false,
+        startedAt: { gte: start, lte: end },
+      },
+      include: { vehicle: true },
+      orderBy: { startedAt: "asc" },
+    }),
+    prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        workType: true,
+        employerMileageRatePence: true,
+        employerMileageRatePenceAfter10k: true,
+      },
+    }),
+  ]);
 
   let totalMiles = 0;
   let businessMiles = 0;
   let deductionPence = 0;
   let longestTripMiles = 0;
   let longestTripDate: string | null = null;
+  const recapRateOpts = recapUser ? resolveMileageRates(recapUser) : {};
 
   // Group by day for busiest day
   const milesByDay: Record<string, number> = {};
@@ -633,7 +656,7 @@ export async function getPeriodRecap(
         | "car"
         | "van"
         | "motorbike";
-      deductionPence += calculateHmrcDeduction(vType, trip.distanceMiles);
+      deductionPence += calculateMileageDeduction(vType, trip.distanceMiles, recapRateOpts).deductionPence;
     }
 
     if (trip.distanceMiles > longestTripMiles) {

@@ -261,7 +261,7 @@ function detectDrivingSpeed(locations: Location.LocationObject[]): DetectionResu
  * Used to diagnose "trip didn't start" / "wrong start time" reports without
  * requiring users to plug in a debugger.
  */
-async function logDetectionEvent(event: string, data?: Record<string, unknown>): Promise<void> {
+export async function logDetectionEvent(event: string, data?: Record<string, unknown>): Promise<void> {
   try {
     const db = await getDatabase();
     await db.runAsync(
@@ -784,6 +784,30 @@ async function _finalizeAutoTripInner(): Promise<void> {
       const { setDepartureAnchor } = await import("../geofencing/index");
       await setDepartureAnchor(last.lat, last.lng);
       logDetectionEvent("anchor_rearmed_after_phantom", { reason: "walking_shape" }).catch(() => {});
+    } catch {}
+    return;
+  }
+
+  // Crow-flies guard (6 May 2026). An auto-detected trip with fewer than
+  // 3 coordinates AND >= 1 mile of distance can only render as a single
+  // straight chord on the map. Real driving produces at least a handful
+  // of intermediate fixes; <3 at >=1 mile means GPS was severely
+  // intermittent (tunnel/underground/airplane mode toggling) or the
+  // buffer was emptied early. Either way the saved trip would be
+  // misleading - drop it before it reaches sync. The server-side guard
+  // in routes/trips/index.ts catches anything that does still slip
+  // through (e.g. older builds still running).
+  if (filteredCoords.length < 3 && totalDistance >= 1.0) {
+    logDetectionEvent("finalize_dropped_crow_flies", {
+      distance: totalDistance,
+      coords: filteredCoords.length,
+      durationSec: Math.round(durationSec),
+    }).catch(() => {});
+    endLiveActivity().catch(() => {});
+    try {
+      const { setDepartureAnchor } = await import("../geofencing/index");
+      await setDepartureAnchor(last.lat, last.lng);
+      logDetectionEvent("anchor_rearmed_after_phantom", { reason: "crow_flies" }).catch(() => {});
     } catch {}
     return;
   }
@@ -1610,17 +1634,27 @@ try {
       try {
         await db.runAsync("DELETE FROM tracking_state WHERE key = 'driving_detection_count'");
 
-        // Prune stale pre-detection coords before the recording officially
-        // begins. Pre-detection buffering writes every incoming location to
-        // the buffer (line ~1059) to capture the departure point. If an
-        // earlier finalize in the same or recent task invocation failed
-        // silently or left residue, those ancient coords will bleed into
-        // this new recording's saved trip with wildly wrong startedAt.
-        // Seen in the wild as Norman's Kingston Park return leg carrying 2
-        // coords from 3 min before the drive, and David Hall's Saturday
-        // trip carrying residue from 5 min before. Keep only the last 60
-        // seconds of pre-detection so the departure point is still visible.
-        const pruneCutoff = new Date(Date.now() - 60_000).toISOString();
+        // Prune stale residue from prior trips, but keep the legitimate
+        // pre-promotion buffer that captures the slow residential-streets
+        // leg of THIS drive. If watch mode is active, watch_mode_started_at
+        // is the moment the user crossed their departure-anchor radius —
+        // every coord since then is real driving and must be preserved.
+        // Without that preservation, Norman's trips appear starting mid-A1
+        // because the 15-20 minutes of slow residential driving gets
+        // deleted at promotion time.
+        //
+        // If watch mode isn't active (direct detection without anchor exit),
+        // fall back to the original 60-second cutoff to handle the residue
+        // case — Norman's earlier Kingston Park bug, David Hall's Saturday
+        // trip carrying 5-minute-old leftovers from a missed finalize.
+        const watchStartedAtRow = await db.getFirstAsync<{ value: string }>(
+          "SELECT value FROM tracking_state WHERE key = 'watch_mode_started_at'"
+        );
+        const watchStartedAtMs = watchStartedAtRow ? parseInt(watchStartedAtRow.value, 10) : null;
+        const cutoffMs = watchStartedAtMs && Number.isFinite(watchStartedAtMs)
+          ? watchStartedAtMs
+          : Date.now() - 60_000;
+        const pruneCutoff = new Date(cutoffMs).toISOString();
         const pruned = await db.runAsync(
           "DELETE FROM detection_coordinates WHERE recorded_at < ?",
           [pruneCutoff],
@@ -1628,7 +1662,8 @@ try {
         if (pruned.changes > 0) {
           logDetectionEvent("pre_detection_pruned", {
             droppedCoords: pruned.changes,
-            cutoffSecondsAgo: 60,
+            cutoffSource: watchStartedAtMs ? "watch_mode_start" : "60s_fallback",
+            cutoffAtMs: cutoffMs,
           }).catch(() => {});
         }
 

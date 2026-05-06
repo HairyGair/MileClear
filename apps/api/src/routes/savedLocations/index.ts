@@ -13,7 +13,7 @@ const createSavedLocationSchema = z.object({
   locationType: z.enum(LOCATION_TYPES),
   latitude: z.number().min(-90).max(90),
   longitude: z.number().min(-180).max(180),
-  radiusMeters: z.number().int().positive().default(150),
+  radiusMeters: z.number().int().positive().default(100),
   geofenceEnabled: z.boolean().default(true),
 });
 

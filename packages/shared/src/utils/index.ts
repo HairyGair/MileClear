@@ -23,24 +23,111 @@ function toRad(deg: number): number {
 }
 
 /**
+ * Mileage deduction breakdown - rates applied + total in pence + which set
+ * of rates was used (HMRC AMAP vs employer reimbursement).
+ */
+export interface MileageDeductionResult {
+  /** Pence per mile for the first HMRC_THRESHOLD_MILES (or flat rate for motorbike). */
+  rateFirst10kPence: number;
+  /** Pence per mile after HMRC_THRESHOLD_MILES. Equals rateFirst10kPence for motorbike or flat employer rates. */
+  rateAfter10kPence: number;
+  /** Total deduction in pence. */
+  deductionPence: number;
+  /** Which rate set was used. "employer" means custom override applied. */
+  source: "hmrc" | "employer";
+}
+
+/**
+ * Calculate a mileage deduction in pence using either HMRC AMAP rates or
+ * a user-supplied employer rate. The two-tier 10,000-mile threshold is
+ * preserved either way.
+ *
+ * Rate resolution:
+ *  - If `customRateFirst10kPence` is provided, source = "employer".
+ *    `customRateAfter10kPence` falls back to the same rate when null
+ *    (single flat employer rate).
+ *  - Otherwise, source = "hmrc" (AMAP defaults).
+ *
+ * Motorbike vehicles use a single flat HMRC rate; if a custom first-10k
+ * rate is provided, that flat rate is overridden.
+ */
+export function calculateMileageDeduction(
+  vehicleType: "car" | "van" | "motorbike",
+  totalBusinessMiles: number,
+  options?: {
+    customRateFirst10kPence?: number | null;
+    customRateAfter10kPence?: number | null;
+  },
+): MileageDeductionResult {
+  const customFirst = options?.customRateFirst10kPence;
+  const customAfter = options?.customRateAfter10kPence;
+  const useCustom = customFirst != null;
+  const source: "hmrc" | "employer" = useCustom ? "employer" : "hmrc";
+
+  if (vehicleType === "motorbike") {
+    const rate = useCustom ? customFirst! : HMRC_RATES.motorbike.flat;
+    return {
+      rateFirst10kPence: rate,
+      rateAfter10kPence: rate,
+      deductionPence: Math.round(totalBusinessMiles * rate),
+      source,
+    };
+  }
+
+  const hmrc = HMRC_RATES[vehicleType];
+  // The first-10k rate is the master switch. When in HMRC mode any supplied
+  // customRateAfter10kPence is ignored - if the user wants to override the
+  // tiered structure they must set both, or set first only (flat rate).
+  const rateFirst = useCustom ? customFirst! : hmrc.first10000;
+  const rateAfter = useCustom
+    ? (customAfter != null ? customAfter : rateFirst)
+    : hmrc.after10000;
+
+  let pence: number;
+  if (totalBusinessMiles <= HMRC_THRESHOLD_MILES) {
+    pence = totalBusinessMiles * rateFirst;
+  } else {
+    const first = HMRC_THRESHOLD_MILES * rateFirst;
+    const remaining = (totalBusinessMiles - HMRC_THRESHOLD_MILES) * rateAfter;
+    pence = first + remaining;
+  }
+
+  return {
+    rateFirst10kPence: rateFirst,
+    rateAfter10kPence: rateAfter,
+    deductionPence: Math.round(pence),
+    source,
+  };
+}
+
+/**
  * Calculate HMRC mileage deduction in pence for a given vehicle type and distance.
+ * Backwards-compatible thin wrapper around calculateMileageDeduction with no override.
  */
 export function calculateHmrcDeduction(
   vehicleType: "car" | "van" | "motorbike",
   totalBusinessMiles: number
 ): number {
-  if (vehicleType === "motorbike") {
-    return Math.round(totalBusinessMiles * HMRC_RATES.motorbike.flat);
-  }
+  return calculateMileageDeduction(vehicleType, totalBusinessMiles).deductionPence;
+}
 
-  const rates = HMRC_RATES[vehicleType];
-  if (totalBusinessMiles <= HMRC_THRESHOLD_MILES) {
-    return Math.round(totalBusinessMiles * rates.first10000);
-  }
-
-  const first = HMRC_THRESHOLD_MILES * rates.first10000;
-  const remaining = (totalBusinessMiles - HMRC_THRESHOLD_MILES) * rates.after10000;
-  return Math.round(first + remaining);
+/**
+ * Resolve which mileage rate options apply to a given user. Returns an empty
+ * object (HMRC defaults) for self-employed gig workers; for employee or "both"
+ * users it returns their configured employer rate(s) - or empty if they haven't
+ * set any. Pass the result straight to calculateMileageDeduction.
+ */
+export function resolveMileageRates(user: {
+  workType: string;
+  employerMileageRatePence: number | null;
+  employerMileageRatePenceAfter10k: number | null;
+}): { customRateFirst10kPence?: number | null; customRateAfter10kPence?: number | null } {
+  if (user.workType !== "employee" && user.workType !== "both") return {};
+  if (user.employerMileageRatePence == null) return {};
+  return {
+    customRateFirst10kPence: user.employerMileageRatePence,
+    customRateAfter10kPence: user.employerMileageRatePenceAfter10k,
+  };
 }
 
 /**

@@ -1,7 +1,8 @@
 import { prisma } from "../lib/prisma.js";
 import {
   estimateUkTax,
-  calculateHmrcDeduction,
+  calculateMileageDeduction,
+  resolveMileageRates,
   getTaxYear,
   parseTaxYear,
   formatPence,
@@ -57,7 +58,12 @@ export async function buildTaxSnapshot(userId: string): Promise<TaxSnapshot> {
   ] = await Promise.all([
       prisma.user.findUnique({
         where: { id: userId },
-        select: { fullName: true },
+        select: {
+          fullName: true,
+          workType: true,
+          employerMileageRatePence: true,
+          employerMileageRatePenceAfter10k: true,
+        },
       }),
       prisma.vehicle.findMany({
         where: { userId },
@@ -130,9 +136,10 @@ export async function buildTaxSnapshot(userId: string): Promise<TaxSnapshot> {
     const type = (trip.vehicle?.vehicleType ?? "car") as VehicleType;
     milesByType.set(type, (milesByType.get(type) ?? 0) + trip.distanceMiles);
   }
+  const rateOpts = user ? resolveMileageRates(user) : {};
   let mileageDeductionPence = 0;
   for (const [type, miles] of milesByType) {
-    mileageDeductionPence += calculateHmrcDeduction(type, miles);
+    mileageDeductionPence += calculateMileageDeduction(type, miles, rateOpts).deductionPence;
   }
 
   const grossEarningsPence = earningsYtd._sum.amountPence ?? 0;
@@ -216,6 +223,7 @@ export async function buildTaxSnapshot(userId: string): Promise<TaxSnapshot> {
     now,
     taxYear,
     thisYearTotalPence: mileageDeductionPence,
+    rateOpts,
   });
 
   return {
@@ -381,6 +389,9 @@ interface AcrossWindowsInput {
   /** Already-computed deduction for the current tax year, reused so we
    *  don't redo the full aggregation. */
   thisYearTotalPence: number;
+  /** Resolved mileage-rate options from the parent snapshot, so all four
+   *  windows apply the same rate set the user is set up to claim under. */
+  rateOpts: { customRateFirst10kPence?: number | null; customRateAfter10kPence?: number | null };
 }
 
 /**
@@ -394,7 +405,7 @@ interface AcrossWindowsInput {
 async function buildMileageDeductionAcrossWindows(
   input: AcrossWindowsInput
 ): Promise<NumberAcrossWindows> {
-  const { userId, now, taxYear, thisYearTotalPence } = input;
+  const { userId, now, taxYear, thisYearTotalPence, rateOpts } = input;
 
   // Window bounds.
   const last7DaysStart = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
@@ -452,7 +463,7 @@ async function buildMileageDeductionAcrossWindows(
     }
     let pence = 0;
     for (const [type, miles] of milesByTypeLocal) {
-      pence += calculateHmrcDeduction(type, miles);
+      pence += calculateMileageDeduction(type, miles, rateOpts).deductionPence;
     }
     return pence;
   };

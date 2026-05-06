@@ -1,17 +1,30 @@
 export { calculateHmrcDeduction } from "@mileclear/shared";
 
 import { prisma } from "../lib/prisma.js";
-import { calculateHmrcDeduction, parseTaxYear } from "@mileclear/shared";
+import { calculateMileageDeduction, parseTaxYear, resolveMileageRates } from "@mileclear/shared";
 
 /**
  * Recompute and upsert the MileageSummary for a user + tax year.
  * Aggregates all trips in that tax year window, computes deductions per vehicle type.
+ *
+ * Honours the user's employer rate when workType is "employee" or "both";
+ * otherwise applies HMRC AMAP rates. The MileageSummary stores a single
+ * `deductionPence` figure - whichever rate set produced it.
  */
 export async function upsertMileageSummary(
   userId: string,
   taxYear: string
 ): Promise<void> {
   const { start, end } = parseTaxYear(taxYear);
+
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: {
+      workType: true,
+      employerMileageRatePence: true,
+      employerMileageRatePenceAfter10k: true,
+    },
+  });
 
   // Aggregate total and business miles, grouped by vehicle type.
   // Phantom trips (auto-detected walking-speed misfires) are excluded
@@ -47,14 +60,17 @@ export async function upsertMileageSummary(
     }
   }
 
+  const rateOpts = user ? resolveMileageRates(user) : {};
+
   // Calculate deduction across all vehicle types
   let deductionPence = 0;
   for (const [vType, miles] of Object.entries(businessMilesByType)) {
     if (miles > 0) {
-      deductionPence += calculateHmrcDeduction(
+      deductionPence += calculateMileageDeduction(
         vType as "car" | "van" | "motorbike",
-        miles
-      );
+        miles,
+        rateOpts,
+      ).deductionPence;
     }
   }
 

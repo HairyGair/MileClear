@@ -34,6 +34,7 @@ import { hmrcRoutes } from "./routes/hmrc/index.js";
 import { startNotificationJobs } from "./jobs/notifications.js";
 import { startBriefingJobs } from "./jobs/briefing.js";
 import { logEvent, trackErrorForAlert } from "./services/appEvents.js";
+import { getAppleClient, getSignedDataVerifier } from "./services/appleIap.js";
 
 // Validate required secrets at startup
 const JWT_SECRET = process.env.JWT_SECRET;
@@ -48,6 +49,33 @@ if (!JWT_REFRESH_SECRET || JWT_REFRESH_SECRET.length < 32) {
 }
 if (process.env.STRIPE_SECRET_KEY && !process.env.STRIPE_WEBHOOK_SECRET) {
   console.warn("WARNING: STRIPE_SECRET_KEY set but STRIPE_WEBHOOK_SECRET missing — webhooks will be rejected");
+}
+
+// Apple IAP boot-time health check.
+//
+// History: on 5 May 2026 we discovered /billing/apple/validate had been silently
+// 503-ing in production for months. The Apple IAP client init had crashed once
+// at PM2 startup ("appAppleId is required when the environment is Production")
+// and stayed in a stuck null state. Every Apple subscription validate failed,
+// every webhook recovery failed, 5 paying customers were stranded. The
+// deployed code was correct - only the runtime was broken, and nothing
+// surfaced the failure until orphan-alert volume forced an investigation.
+//
+// Refusing to listen at boot when init has failed is the structural fix:
+// PM2 restart loop is loud (visible in `pm2 list`), users can't make new
+// purchases that would orphan, and the alert volume hits Anthony immediately.
+//
+// Only fatal when the env var is set. Dev envs without IAP credentials stay
+// in warn-and-continue mode.
+if (process.env.APPLE_IAP_PRIVATE_KEY) {
+  if (!getAppleClient() || !getSignedDataVerifier()) {
+    console.error(
+      "FATAL: Apple IAP credentials are configured but the App Store client/verifier failed to initialise. " +
+      "Refusing to listen — fix the underlying init error (see prior log lines) before restarting. " +
+      "Letting the API serve traffic in this state would 503 every /validate call and silently strand paying customers."
+    );
+    process.exit(1);
+  }
 }
 
 const PORT = Number(process.env.API_PORT) || 3001;

@@ -10,6 +10,13 @@ import {
   type PickupWaitInsight,
 } from "@mileclear/shared";
 
+// Maximum realistic pickup wait. Anything longer is a forgotten timer the
+// driver never tapped "Picked up" on - we cap and auto-close it both to
+// stop a runaway elapsed counter (Anthony saw 2986m / ~50h on 6 May 2026)
+// and to prevent skewing community-insight medians with junk durations.
+const MAX_WAIT_MS = 2 * 60 * 60 * 1000; // 2 hours
+const MAX_WAIT_SECONDS = MAX_WAIT_MS / 1000;
+
 const MIN_INSIGHT_CONTRIBUTORS = 5;
 // 300m radius captures the typical building footprint of a restaurant,
 // drive-thru forecourt, or depot bay - small enough to feel "this place"
@@ -62,6 +69,25 @@ function toPickupWait(row: {
   };
 }
 
+// Closes any of the user's still-open waits that exceed MAX_WAIT_MS, capping
+// their durationSeconds at the cap. Cheap UPDATE - safe to call on every
+// /start AND /active hit so a long-abandoned wait can't keep returning to
+// the client as "still active" with a runaway elapsed counter.
+async function autoEndStaleWaits(userId: string): Promise<void> {
+  const cutoff = new Date(Date.now() - MAX_WAIT_MS);
+  await prisma.pickupWait.updateMany({
+    where: {
+      userId,
+      endedAt: null,
+      startedAt: { lt: cutoff },
+    },
+    data: {
+      endedAt: new Date(),
+      durationSeconds: MAX_WAIT_SECONDS,
+    },
+  });
+}
+
 export async function pickupWaitRoutes(app: FastifyInstance) {
   app.addHook("preHandler", authMiddleware);
 
@@ -77,20 +103,10 @@ export async function pickupWaitRoutes(app: FastifyInstance) {
       })
       .parse(request.body);
 
-    // Auto-end any wait that's been open for >2h - assumed forgotten about.
-    // Otherwise drivers end up with one bogus 47-hour wait skewing averages.
-    const cutoff = new Date(Date.now() - 2 * 60 * 60 * 1000);
-    await prisma.pickupWait.updateMany({
-      where: {
-        userId: request.userId!,
-        endedAt: null,
-        startedAt: { lt: cutoff },
-      },
-      data: {
-        endedAt: new Date(),
-        durationSeconds: 7200, // capped at the cutoff value
-      },
-    });
+    // Auto-end any wait that's been open for >MAX_WAIT_MS - assumed forgotten
+    // about. Otherwise drivers end up with one bogus multi-hour wait skewing
+    // community averages.
+    await autoEndStaleWaits(request.userId!);
 
     const row = await prisma.pickupWait.create({
       data: {
@@ -149,7 +165,10 @@ export async function pickupWaitRoutes(app: FastifyInstance) {
 
   // GET /pickup-waits/active — returns the user's currently-open wait, if any.
   // Used by the mobile app on launch to restore an in-flight wait timer.
+  // Stale waits (>MAX_WAIT_MS old) are auto-closed before the lookup so the
+  // client never sees a runaway elapsed counter.
   app.get("/active", async (request, reply) => {
+    await autoEndStaleWaits(request.userId!);
     const row = await prisma.pickupWait.findFirst({
       where: { userId: request.userId!, endedAt: null },
       orderBy: { startedAt: "desc" },

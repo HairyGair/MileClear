@@ -3,7 +3,8 @@ import {
   HMRC_RATES,
   HMRC_THRESHOLD_MILES,
   parseTaxYear,
-  calculateHmrcDeduction,
+  calculateMileageDeduction,
+  resolveMileageRates,
   EXPENSE_CATEGORIES,
 } from "@mileclear/shared";
 import type {
@@ -159,7 +160,14 @@ export async function fetchExportSummary(
     }),
     prisma.user.findUnique({
       where: { id: userId },
-      select: { fullName: true, displayName: true, email: true },
+      select: {
+        fullName: true,
+        displayName: true,
+        email: true,
+        workType: true,
+        employerMileageRatePence: true,
+        employerMileageRatePenceAfter10k: true,
+      },
     }),
     // Fetch primary vehicle (or first vehicle) for trips without a vehicleId
     prisma.vehicle.findFirst({
@@ -214,11 +222,13 @@ export async function fetchExportSummary(
     }
   }
 
+  const rateOpts = user ? resolveMileageRates(user) : {};
+
   const vehicleBreakdown: ExportVehicleBreakdown[] = [];
   let totalDeductionPence = 0;
 
   for (const v of vehicleMap.values()) {
-    const deduction = calculateHmrcDeduction(v.type, v.businessMiles);
+    const deduction = calculateMileageDeduction(v.type, v.businessMiles, rateOpts).deductionPence;
     totalDeductionPence += deduction;
     vehicleBreakdown.push({
       vehicleName: v.name,
@@ -253,8 +263,9 @@ export async function fetchExportSummary(
     const key = `${MONTH_NAMES[d.getMonth()]} ${d.getFullYear()}`;
     const data = monthlyMap.get(key);
     if (data && data.trips > 0) {
-      // Calculate deduction for this month's business miles
-      const deduction = calculateHmrcDeduction("car", data.businessMiles);
+      // Calculate deduction for this month's business miles. Trips without
+      // a linked vehicle fall back to "car" rates (most common).
+      const deduction = calculateMileageDeduction("car", data.businessMiles, rateOpts).deductionPence;
       monthlyBreakdown.push({
         month: key,
         trips: data.trips,

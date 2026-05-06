@@ -2,7 +2,8 @@ import { prisma } from "../lib/prisma.js";
 import {
   getTaxYear,
   parseTaxYear,
-  calculateHmrcDeduction,
+  calculateMileageDeduction,
+  resolveMileageRates,
   type WeeklyReport,
   type FrequentRoute,
   type ShiftSweetSpot,
@@ -49,7 +50,7 @@ export async function getWeeklyReport(userId: string, weeksBack = 0): Promise<We
   const { start, end, label } = weekBounds(weeksBack);
   const prev = weekBounds(weeksBack + 1);
 
-  const [trips, shifts, earnings, achievements, stats] = await Promise.all([
+  const [trips, shifts, earnings, achievements, stats, dvrUser] = await Promise.all([
     prisma.trip.findMany({
       where: { userId, startedAt: { gte: start, lte: end } },
     }),
@@ -68,6 +69,14 @@ export async function getWeeklyReport(userId: string, weeksBack = 0): Promise<We
       select: { startedAt: true },
       orderBy: { startedAt: "desc" },
       take: 365,
+    }),
+    prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        workType: true,
+        employerMileageRatePence: true,
+        employerMileageRatePenceAfter10k: true,
+      },
     }),
   ]);
 
@@ -155,8 +164,11 @@ export async function getWeeklyReport(userId: string, weeksBack = 0): Promise<We
     ? personalTrips.reduce((s, t) => s + t.distanceMiles, 0) / personalTrips.length
     : 0;
 
-  // Deduction
-  const deductionPence = calculateHmrcDeduction("car", businessMiles);
+  // Deduction (employer-rate aware). Trips here are weekly aggregate so we
+  // pass total business miles as "car" - a tier crossing inside one week is
+  // unusual but the function still handles it correctly.
+  const dvrRateOpts = dvrUser ? resolveMileageRates(dvrUser) : {};
+  const deductionPence = calculateMileageDeduction("car", businessMiles, dvrRateOpts).deductionPence;
 
   return {
     weekLabel: label,

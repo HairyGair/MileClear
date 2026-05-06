@@ -28,7 +28,13 @@ model User {
   avatarId             String?   @db.VarChar(50)
   userIntent           String?   @db.VarChar(20)
   workType             String    @default("gig") @db.VarChar(20)
+  // Employer mileage reimbursement rate. employerMileageRatePence is the
+  // first-10k-miles tier; employerMileageRatePenceAfter10k is the >10k tier.
+  // If only the first-10k value is set, that rate applies to all miles
+  // (single flat rate). Both are pence per mile. Used by mileage calculations
+  // when workType is "employee" or "both" - falls back to HMRC AMAP otherwise.
   employerMileageRatePence Int?
+  employerMileageRatePenceAfter10k Int?
   dashboardMode        String    @default("both") @db.VarChar(20)
   notes                    String?   @db.Text
   lastLoginAt              DateTime?
@@ -536,7 +542,7 @@ model SavedLocation {
   locationType     String
   latitude         Float
   longitude        Float
-  radiusMeters     Int      @default(150)
+  radiusMeters     Int      @default(100)
   geofenceEnabled  Boolean  @default(true)
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt

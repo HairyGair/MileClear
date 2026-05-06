@@ -10,6 +10,7 @@ export interface User {
   userIntent: "work" | "personal" | "both" | null;
   workType: WorkType;
   employerMileageRatePence: number | null;
+  employerMileageRatePenceAfter10k: number | null;
   dashboardMode: "both" | "work" | "personal";
   weeklyEarningsGoalPence: number | null;
   marketingEmailsEnabled: boolean;

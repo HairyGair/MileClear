@@ -216,6 +216,7 @@ export async function tripRoutes(app: FastifyInstance) {
       startedAt: tripData.startedAt,
       endedAt: tripData.endedAt,
       isManualEntry,
+      coordinateCount: coordinates?.length ?? 0,
     });
 
     const tripPayload = {

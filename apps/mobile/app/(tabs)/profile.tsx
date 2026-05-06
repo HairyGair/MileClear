@@ -109,6 +109,7 @@ export default function ProfileScreen() {
   const [weeklyGoal, setWeeklyGoal] = useState<number | null>(null);
   const [workType, setWorkType] = useState<WorkType>("gig");
   const [employerRate, setEmployerRate] = useState<number | null>(null);
+  const [employerRateAfter10k, setEmployerRateAfter10k] = useState<number | null>(null);
   const profileLayout = useLayoutPrefs("profile");
 
   const handleAvatarSelect = useCallback(async (avatarId: string | null) => {
@@ -136,6 +137,7 @@ export default function ProfileScreen() {
       setUser(profileRes.data);
       if (profileRes.data.workType) setWorkType(profileRes.data.workType as WorkType);
       setEmployerRate(profileRes.data.employerMileageRatePence ?? null);
+      setEmployerRateAfter10k(profileRes.data.employerMileageRatePenceAfter10k ?? null);
       setVehicles(vehiclesRes.data);
       if (billingRes) setBilling(billingRes.data);
       setDriveDetection(detectionEnabled);
@@ -315,24 +317,54 @@ export default function ProfileScreen() {
   }, [refreshUser]);
 
   const handleEmployerRateChange = useCallback(() => {
-    if (Platform.OS === "ios") {
+    // Two-tier rate: first-10k pence per mile + optional after-10k tier.
+    // Mirrors HMRC AMAP's structure so employer policies like "40p first
+    // 10k, 25p after" round-trip cleanly into our maths.
+    const promptAfter10k = (firstTier: number | null) => {
+      if (firstTier == null) {
+        // Cleared the first tier - clear the second tier too
+        setEmployerRateAfter10k(null);
+        updateProfile({
+          employerMileageRatePence: null,
+          employerMileageRatePenceAfter10k: null,
+        }).catch(() => {});
+        refreshUser();
+        return;
+      }
       Alert.prompt(
-        "Employer Mileage Rate",
-        "Enter the pence per mile your employer reimburses (0 if none).\nHMRC allows you to claim the difference up to 45p.",
+        "Rate after 10,000 miles",
+        `Some employers pay less per mile after 10,000 business miles in the tax year. Leave blank if they pay ${firstTier}p the whole way.`,
         [
-          { text: "Cancel", style: "cancel" },
+          {
+            text: "Skip",
+            onPress: async () => {
+              setEmployerRateAfter10k(null);
+              try {
+                await updateProfile({
+                  employerMileageRatePence: firstTier,
+                  employerMileageRatePenceAfter10k: null,
+                });
+                refreshUser();
+              } catch {
+                Alert.alert("Couldn't save the rate", "Try again in a moment.");
+              }
+            },
+          },
           {
             text: "Save",
             onPress: async (value: string | undefined) => {
-              if (!value?.trim()) return;
-              const parsed = parseInt(value.trim(), 10);
-              if (isNaN(parsed) || parsed < 0 || parsed > 100) {
-                Alert.alert("Out of range", "Enter a value between 0 and 100.");
+              const trimmed = value?.trim() ?? "";
+              const after = trimmed === "" ? null : parseInt(trimmed, 10);
+              if (after !== null && (isNaN(after) || after < 0 || after > 100)) {
+                Alert.alert("Out of range", "Enter a value between 0 and 100, or leave blank.");
                 return;
               }
-              setEmployerRate(parsed);
+              setEmployerRateAfter10k(after);
               try {
-                await updateProfile({ employerMileageRatePence: parsed || null });
+                await updateProfile({
+                  employerMileageRatePence: firstTier,
+                  employerMileageRatePenceAfter10k: after,
+                });
                 refreshUser();
               } catch {
                 Alert.alert("Couldn't save the rate", "Try again in a moment.");
@@ -341,22 +373,52 @@ export default function ProfileScreen() {
           },
         ],
         "plain-text",
+        employerRateAfter10k ? String(employerRateAfter10k) : "",
+        "number-pad"
+      );
+    };
+
+    if (Platform.OS === "ios") {
+      Alert.prompt(
+        "Rate for first 10,000 miles",
+        "Pence per mile your employer reimburses (0 to clear). HMRC's AMAP rate is 45p, so anything below leaves a gap you can claim back via Mileage Allowance Relief.",
+        [
+          { text: "Cancel", style: "cancel" },
+          {
+            text: "Next",
+            onPress: (value: string | undefined) => {
+              if (!value?.trim()) return;
+              const parsed = parseInt(value.trim(), 10);
+              if (isNaN(parsed) || parsed < 0 || parsed > 100) {
+                Alert.alert("Out of range", "Enter a value between 0 and 100.");
+                return;
+              }
+              const firstTier = parsed === 0 ? null : parsed;
+              setEmployerRate(firstTier);
+              promptAfter10k(firstTier);
+            },
+          },
+        ],
+        "plain-text",
         employerRate ? String(employerRate) : "",
         "number-pad"
       );
     } else {
+      // Android Alert.alert can't capture text input. Quick presets cover
+      // the common employer policies; finer control lives in the web
+      // dashboard where we can render proper inputs.
       Alert.alert(
         "Employer Mileage Rate",
-        `Current: ${employerRate ? `${employerRate}p/mile` : "Not set"}\n\nYour employer reimburses you per mile. HMRC lets you claim the gap up to 45p.`,
+        `Current: ${employerRate ? `${employerRate}p${employerRateAfter10k != null ? ` / ${employerRateAfter10k}p after 10k` : ""}` : "Not set"}\n\nFor a custom two-tier rate, use the web dashboard.`,
         [
           { text: "Cancel", style: "cancel" },
-          { text: "0p (none)", onPress: async () => { setEmployerRate(null); await updateProfile({ employerMileageRatePence: null }).catch(() => {}); refreshUser(); } },
-          { text: "10p", onPress: async () => { setEmployerRate(10); await updateProfile({ employerMileageRatePence: 10 }).catch(() => {}); refreshUser(); } },
-          { text: "25p", onPress: async () => { setEmployerRate(25); await updateProfile({ employerMileageRatePence: 25 }).catch(() => {}); refreshUser(); } },
+          { text: "Clear", onPress: async () => { setEmployerRate(null); setEmployerRateAfter10k(null); await updateProfile({ employerMileageRatePence: null, employerMileageRatePenceAfter10k: null }).catch(() => {}); refreshUser(); } },
+          { text: "40p flat", onPress: async () => { setEmployerRate(40); setEmployerRateAfter10k(null); await updateProfile({ employerMileageRatePence: 40, employerMileageRatePenceAfter10k: null }).catch(() => {}); refreshUser(); } },
+          { text: "45p / 25p (HMRC)", onPress: async () => { setEmployerRate(45); setEmployerRateAfter10k(25); await updateProfile({ employerMileageRatePence: 45, employerMileageRatePenceAfter10k: 25 }).catch(() => {}); refreshUser(); } },
         ]
       );
     }
-  }, [employerRate, refreshUser]);
+  }, [employerRate, employerRateAfter10k, refreshUser]);
 
   const handleWeeklyGoal = useCallback(() => {
     if (Platform.OS === "ios") {
@@ -879,7 +941,11 @@ export default function ProfileScreen() {
                   <View style={{ flex: 1 }}>
                     <Text style={styles.itemLabel}>Employer Mileage Rate</Text>
                     <Text style={styles.itemHint}>
-                      {employerRate ? `${employerRate}p/mi — claim ${Math.max(0, 45 - employerRate)}p gap` : "Not set — claim full 45p HMRC rate"}
+                      {employerRate
+                        ? employerRateAfter10k != null
+                          ? `${employerRate}p first 10k mi / ${employerRateAfter10k}p after`
+                          : `${employerRate}p/mi flat`
+                        : "Not set - claim full 45p HMRC rate"}
                     </Text>
                   </View>
                   <Text style={styles.editLink}>

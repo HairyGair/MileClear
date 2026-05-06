@@ -10,6 +10,7 @@ export interface UpdateProfileData {
   userIntent?: "work" | "personal" | "both" | null;
   workType?: "gig" | "employee" | "both";
   employerMileageRatePence?: number | null;
+  employerMileageRatePenceAfter10k?: number | null;
   dashboardMode?: "both" | "work" | "personal";
   weeklyEarningsGoalPence?: number | null;
 }

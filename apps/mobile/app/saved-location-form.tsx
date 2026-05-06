@@ -40,7 +40,12 @@ const GREEN = colors.green;
 
 const MIN_RADIUS = 50;
 const MAX_RADIUS = 500;
-const DEFAULT_RADIUS = 150;
+// 100m is iOS's reliable minimum for geofence triggering (anything smaller
+// risks not firing in marginal GPS conditions). 150m used to be the default
+// but in practice it overlapped too much with neighbouring places on the
+// school run, making the dwell-based drive-through gate work harder than
+// it needed to.
+const DEFAULT_RADIUS = 100;
 
 const LOCATION_TYPE_ICONS: Record<LocationType, keyof typeof Ionicons.glyphMap> = {
   home: "home-outline",

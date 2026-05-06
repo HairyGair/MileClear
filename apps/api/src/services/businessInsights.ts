@@ -2,7 +2,8 @@ import { prisma } from "../lib/prisma.js";
 import {
   getTaxYear,
   parseTaxYear,
-  calculateHmrcDeduction,
+  calculateMileageDeduction,
+  resolveMileageRates,
   type BusinessInsights,
   type PlatformPerformance,
   type ShiftPerformance,
@@ -428,7 +429,7 @@ export async function getWeeklyPnL(
   const endStr = end.toLocaleDateString("en-GB", { day: "numeric", month: "short" });
   const periodLabel = `${startStr} – ${endStr}`;
 
-  const [earnings, trips, fuelLogs] = await Promise.all([
+  const [earnings, trips, fuelLogs, pnlUser] = await Promise.all([
     prisma.earning.findMany({
       where: {
         userId,
@@ -450,6 +451,14 @@ export async function getWeeklyPnL(
         loggedAt: { gte: start, lte: end },
       },
     }),
+    prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        workType: true,
+        employerMileageRatePence: true,
+        employerMileageRatePenceAfter10k: true,
+      },
+    }),
   ]);
 
   const grossEarningsPence = earnings.reduce((sum, e) => sum + e.amountPence, 0);
@@ -457,10 +466,11 @@ export async function getWeeklyPnL(
   const estimatedFuelCostPence = fuelLogs.reduce((sum, l) => sum + l.costPence, 0);
   const estimatedWearCostPence = Math.round(businessMiles * WEAR_COST_PENCE_PER_MILE);
 
+  const pnlRateOpts = pnlUser ? resolveMileageRates(pnlUser) : {};
   let hmrcDeductionPence = 0;
   for (const trip of trips) {
     const vType = (trip.vehicle?.vehicleType ?? "car") as "car" | "van" | "motorbike";
-    hmrcDeductionPence += calculateHmrcDeduction(vType, trip.distanceMiles);
+    hmrcDeductionPence += calculateMileageDeduction(vType, trip.distanceMiles, pnlRateOpts).deductionPence;
   }
 
   return {

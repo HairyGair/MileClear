@@ -20,7 +20,8 @@
 
 import { prisma } from "../lib/prisma.js";
 import {
-  calculateHmrcDeduction,
+  calculateMileageDeduction,
+  resolveMileageRates,
   parseTaxYear,
   type VehicleType,
 } from "@mileclear/shared";
@@ -89,18 +90,28 @@ export async function runReconciliationJob(): Promise<void> {
 
   for (const summary of summaries) {
     const { start, end } = parseTaxYear(summary.taxYear);
-    const trips = await prisma.trip.findMany({
-      where: {
-        userId: summary.userId,
-        isPhantomTrip: false,
-        classification: "business",
-        startedAt: { gte: start, lte: end },
-      },
-      select: {
-        distanceMiles: true,
-        vehicle: { select: { vehicleType: true } },
-      },
-    });
+    const [trips, reconUser] = await Promise.all([
+      prisma.trip.findMany({
+        where: {
+          userId: summary.userId,
+          isPhantomTrip: false,
+          classification: "business",
+          startedAt: { gte: start, lte: end },
+        },
+        select: {
+          distanceMiles: true,
+          vehicle: { select: { vehicleType: true } },
+        },
+      }),
+      prisma.user.findUnique({
+        where: { id: summary.userId },
+        select: {
+          workType: true,
+          employerMileageRatePence: true,
+          employerMileageRatePenceAfter10k: true,
+        },
+      }),
+    ]);
 
     let expectedMiles = 0;
     const milesByType = new Map<VehicleType, number>();
@@ -110,9 +121,10 @@ export async function runReconciliationJob(): Promise<void> {
       milesByType.set(type, (milesByType.get(type) ?? 0) + t.distanceMiles);
     }
 
+    const reconRateOpts = reconUser ? resolveMileageRates(reconUser) : {};
     let expectedPence = 0;
     for (const [type, miles] of milesByType) {
-      expectedPence += calculateHmrcDeduction(type, miles);
+      expectedPence += calculateMileageDeduction(type, miles, reconRateOpts).deductionPence;
     }
 
     const milesDrift = Math.abs(expectedMiles - summary.businessMiles);

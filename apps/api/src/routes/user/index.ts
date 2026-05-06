@@ -14,6 +14,7 @@ const updateProfileSchema = z.object({
   userIntent: z.enum(["work", "personal", "both"]).nullable().optional(),
   workType: z.enum(["gig", "employee", "both"]).optional(),
   employerMileageRatePence: z.number().int().min(0).max(100).nullable().optional(),
+  employerMileageRatePenceAfter10k: z.number().int().min(0).max(100).nullable().optional(),
   dashboardMode: z.enum(["both", "work", "personal"]).optional(),
   weeklyEarningsGoalPence: z.number().int().min(0).max(1000000).nullable().optional(),
   marketingEmailsEnabled: z.boolean().optional(),
@@ -34,6 +35,7 @@ const USER_SELECT = {
   userIntent: true,
   workType: true,
   employerMileageRatePence: true,
+  employerMileageRatePenceAfter10k: true,
   dashboardMode: true,
   weeklyEarningsGoalPence: true,
   marketingEmailsEnabled: true,
@@ -153,7 +155,7 @@ export async function userRoutes(app: FastifyInstance) {
     }
 
     const userId = request.userId!;
-    const { displayName, fullName, avatarId, userIntent, workType, employerMileageRatePence, dashboardMode, email, currentPassword } = parsed.data;
+    const { displayName, fullName, avatarId, userIntent, workType, employerMileageRatePence, employerMileageRatePenceAfter10k, dashboardMode, email, currentPassword } = parsed.data;
 
     const currentUser = await prisma.user.findUnique({
       where: { id: userId },
@@ -194,6 +196,9 @@ export async function userRoutes(app: FastifyInstance) {
     // Employer mileage rate can always be updated
     if (employerMileageRatePence !== undefined) {
       updateData.employerMileageRatePence = employerMileageRatePence;
+    }
+    if (employerMileageRatePenceAfter10k !== undefined) {
+      updateData.employerMileageRatePenceAfter10k = employerMileageRatePenceAfter10k;
     }
 
     // Dashboard mode can always be updated

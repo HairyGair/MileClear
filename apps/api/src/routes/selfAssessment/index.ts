@@ -9,7 +9,8 @@ import {
 } from "../../services/export-data.js";
 import {
   estimateUkTax,
-  calculateHmrcDeduction,
+  calculateMileageDeduction,
+  resolveMileageRates,
   parseTaxYear,
   UK_TAX_2025_26,
   type VehicleType,
@@ -67,7 +68,7 @@ export async function selfAssessmentRoutes(app: FastifyInstance) {
       const validatedTaxYear = parsed.data;
       const { start, end } = parseTaxYear(validatedTaxYear);
 
-      const [summary, expenseSummary, trips, earnings, primaryVehicle] =
+      const [summary, expenseSummary, trips, earnings, primaryVehicle, user] =
         await Promise.all([
           fetchExportSummary(userId, validatedTaxYear),
           fetchExpenseSummary(userId, validatedTaxYear),
@@ -96,6 +97,14 @@ export async function selfAssessmentRoutes(app: FastifyInstance) {
             where: { userId },
             orderBy: [{ isPrimary: "desc" }, { createdAt: "asc" }],
             select: { id: true, make: true, model: true, vehicleType: true },
+          }),
+          prisma.user.findUnique({
+            where: { id: userId },
+            select: {
+              workType: true,
+              employerMileageRatePence: true,
+              employerMileageRatePenceAfter10k: true,
+            },
           }),
         ]);
 
@@ -160,14 +169,16 @@ export async function selfAssessmentRoutes(app: FastifyInstance) {
         }
       }
 
+      const rateOpts = user ? resolveMileageRates(user) : {};
       for (const row of vehicleMap.values()) {
         row.businessMiles = Math.round(row.businessMiles * 100) / 100;
         row.personalMiles = Math.round(row.personalMiles * 100) / 100;
         row.totalMiles = Math.round(row.totalMiles * 100) / 100;
-        row.deductionPence = calculateHmrcDeduction(
+        row.deductionPence = calculateMileageDeduction(
           row.vehicleType as VehicleType,
-          row.businessMiles
-        );
+          row.businessMiles,
+          rateOpts,
+        ).deductionPence;
       }
       const vehicleBreakdown = Array.from(vehicleMap.values()).sort(
         (a, b) => b.businessMiles - a.businessMiles

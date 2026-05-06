@@ -34,6 +34,7 @@ export default function SettingsPage() {
   // Work settings
   const [workType, setWorkType] = useState<WorkType>("gig");
   const [employerRate, setEmployerRate] = useState("");
+  const [employerRateAfter10k, setEmployerRateAfter10k] = useState("");
   const [workSaving, setWorkSaving] = useState(false);
 
   // Profile
@@ -75,6 +76,7 @@ export default function SettingsPage() {
       setDashboardMode(user.dashboardMode ?? "both");
       setWorkType((user as any).workType ?? "gig");
       setEmployerRate((user as any).employerMileageRatePence != null ? String((user as any).employerMileageRatePence) : "");
+      setEmployerRateAfter10k((user as any).employerMileageRatePenceAfter10k != null ? String((user as any).employerMileageRatePenceAfter10k) : "");
       setAvatarId((user as any).avatarId ?? null);
       setMarketingEmailsEnabled((user as any).marketingEmailsEnabled !== false);
     }
@@ -161,9 +163,15 @@ export default function SettingsPage() {
     setError(null);
     try {
       const rateParsed = employerRate ? parseInt(employerRate, 10) : null;
+      const rateAfter10kParsed = employerRateAfter10k
+        ? parseInt(employerRateAfter10k, 10)
+        : null;
+      // The first-10k tier is the master switch — clearing it must clear
+      // the second tier too, otherwise the API leaves a dangling after-rate.
       await api.patch("/user/profile", {
         workType,
         employerMileageRatePence: rateParsed,
+        employerMileageRatePenceAfter10k: rateParsed === null ? null : rateAfter10kParsed,
       });
       await refreshUser();
       toast("Work settings saved");
@@ -476,16 +484,29 @@ export default function SettingsPage() {
               ]}
             />
             {(workType === "employee" || workType === "both") && (
-              <Input
-                id="employerRate"
-                label="Employer mileage rate (pence/mile)"
-                type="number"
-                min="0"
-                max="100"
-                value={employerRate}
-                onChange={(e) => setEmployerRate(e.target.value)}
-                placeholder="e.g. 25 (leave empty if none)"
-              />
+              <>
+                <Input
+                  id="employerRate"
+                  label="Employer rate (first 10,000 miles, pence/mile)"
+                  type="number"
+                  min="0"
+                  max="100"
+                  value={employerRate}
+                  onChange={(e) => setEmployerRate(e.target.value)}
+                  placeholder="e.g. 40 (leave empty if no employer rate)"
+                />
+                <Input
+                  id="employerRateAfter10k"
+                  label="Employer rate after 10,000 miles (optional)"
+                  type="number"
+                  min="0"
+                  max="100"
+                  value={employerRateAfter10k}
+                  onChange={(e) => setEmployerRateAfter10k(e.target.value)}
+                  placeholder="Leave blank if your employer pays the same rate the whole way"
+                  disabled={!employerRate}
+                />
+              </>
             )}
             <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
               <Button
@@ -499,7 +520,9 @@ export default function SettingsPage() {
             </div>
             {(workType === "employee" || workType === "both") && employerRate && (
               <p style={{ fontSize: "0.8125rem", color: "var(--text-muted)", margin: 0 }}>
-                Your employer reimburses {employerRate}p/mi. HMRC allows 45p/mi for cars — you can claim the {Math.max(0, 45 - parseInt(employerRate, 10))}p difference.
+                {employerRateAfter10k
+                  ? `Your employer pays ${employerRate}p for the first 10,000 business miles, then ${employerRateAfter10k}p. HMRC's AMAP is 45p / 25p — the gap can be claimed via Mileage Allowance Relief.`
+                  : `Your employer pays ${employerRate}p/mi flat. HMRC's AMAP is 45p / 25p — you can claim the gap via Mileage Allowance Relief.`}
               </p>
             )}
           </div>

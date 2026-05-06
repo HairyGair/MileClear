@@ -2,6 +2,8 @@ import { describe, it, expect } from "vitest";
 import {
   haversineDistance,
   calculateHmrcDeduction,
+  calculateMileageDeduction,
+  resolveMileageRates,
   formatPence,
   formatMiles,
   getTaxYear,
@@ -134,6 +136,118 @@ describe("calculateHmrcDeduction", () => {
   it("car: 10000.5 miles straddles threshold with fractional remainder", () => {
     // 10000 * 45 + 0.5 * 25 = 450000 + 12.5 → rounds to 450013
     expect(calculateHmrcDeduction("car", 10_000.5)).toBe(450_013);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// calculateMileageDeduction (with employer rate overrides)
+// ---------------------------------------------------------------------------
+
+describe("calculateMileageDeduction", () => {
+  it("falls back to HMRC rates when no overrides are passed", () => {
+    const r = calculateMileageDeduction("car", 100);
+    expect(r.deductionPence).toBe(4500);
+    expect(r.rateFirst10kPence).toBe(45);
+    expect(r.rateAfter10kPence).toBe(25);
+    expect(r.source).toBe("hmrc");
+  });
+
+  it("applies a flat employer rate when only first-10k override given", () => {
+    // Simon's case until he hits 10k: 40p flat
+    const r = calculateMileageDeduction("car", 100, {
+      customRateFirst10kPence: 40,
+    });
+    expect(r.deductionPence).toBe(4000);
+    expect(r.rateFirst10kPence).toBe(40);
+    expect(r.rateAfter10kPence).toBe(40);
+    expect(r.source).toBe("employer");
+  });
+
+  it("applies a two-tier employer rate", () => {
+    // Simon's full request: 40p first 10k, 25p after
+    const r = calculateMileageDeduction("car", 12_000, {
+      customRateFirst10kPence: 40,
+      customRateAfter10kPence: 25,
+    });
+    // 10000 * 40 + 2000 * 25 = 400000 + 50000 = 450000
+    expect(r.deductionPence).toBe(450_000);
+    expect(r.rateFirst10kPence).toBe(40);
+    expect(r.rateAfter10kPence).toBe(25);
+    expect(r.source).toBe("employer");
+  });
+
+  it("ignores customRateAfter10k when first-10k is null", () => {
+    // Sanity: just supplying after-10k without first-10k means no override
+    const r = calculateMileageDeduction("car", 12_000, {
+      customRateAfter10kPence: 30,
+    });
+    expect(r.deductionPence).toBe(500_000);
+    expect(r.source).toBe("hmrc");
+  });
+
+  it("motorbike override uses the flat custom rate", () => {
+    const r = calculateMileageDeduction("motorbike", 1000, {
+      customRateFirst10kPence: 20,
+    });
+    expect(r.deductionPence).toBe(20_000);
+    expect(r.source).toBe("employer");
+  });
+
+  it("car: 10001 miles with 40/25 employer rates", () => {
+    // 10000 * 40 + 1 * 25 = 400025
+    const r = calculateMileageDeduction("car", 10_001, {
+      customRateFirst10kPence: 40,
+      customRateAfter10kPence: 25,
+    });
+    expect(r.deductionPence).toBe(400_025);
+  });
+});
+
+describe("resolveMileageRates", () => {
+  it("returns no overrides for self-employed gig workers", () => {
+    expect(
+      resolveMileageRates({
+        workType: "gig",
+        employerMileageRatePence: 40,
+        employerMileageRatePenceAfter10k: 25,
+      })
+    ).toEqual({});
+  });
+
+  it("returns no overrides when employee mode but no rate set", () => {
+    expect(
+      resolveMileageRates({
+        workType: "employee",
+        employerMileageRatePence: null,
+        employerMileageRatePenceAfter10k: null,
+      })
+    ).toEqual({});
+  });
+
+  it("returns the configured rates for employee mode", () => {
+    expect(
+      resolveMileageRates({
+        workType: "employee",
+        employerMileageRatePence: 40,
+        employerMileageRatePenceAfter10k: 25,
+      })
+    ).toEqual({
+      customRateFirst10kPence: 40,
+      customRateAfter10kPence: 25,
+    });
+  });
+
+  it("returns the configured rates for both mode", () => {
+    expect(
+      resolveMileageRates({
+        workType: "both",
+        employerMileageRatePence: 35,
+        employerMileageRatePenceAfter10k: null,
+      })
+    ).toEqual({
+      customRateFirst10kPence: 35,
+      customRateAfter10kPence: null,
+    });
   });
 });
 
