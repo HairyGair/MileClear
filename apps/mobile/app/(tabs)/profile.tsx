@@ -946,8 +946,13 @@ export default function ProfileScreen() {
           </View>
         )}
 
-        {/* ── WORK SETTINGS ── */}
-        {profileLayout.isVisible("profile_work_settings") && user && (user.userIntent === "work" || user.userIntent === "both") && (
+        {/* ── WORK SETTINGS ──
+            Gate on dashboardMode rather than userIntent. dashboardMode controls
+            which dashboards render (and has a default of "both"), so it's the
+            right signal for whether work-related settings are relevant.
+            userIntent was nullable for legacy accounts created before that
+            onboarding step existed, which silently hid this whole section. */}
+        {profileLayout.isVisible("profile_work_settings") && user && (user.dashboardMode === "work" || user.dashboardMode === "both") && (
           <View style={styles.group}>
             <Text style={styles.groupLabel} accessibilityRole="header">WORK SETTINGS</Text>
             <View style={styles.groupCard}>
