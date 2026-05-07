@@ -35,6 +35,9 @@ export default function SettingsPage() {
   const [workType, setWorkType] = useState<WorkType>("gig");
   const [employerRate, setEmployerRate] = useState("");
   const [employerRateAfter10k, setEmployerRateAfter10k] = useState("");
+  // "Other annual income" is collected in pounds for human readability and
+  // converted to pence when saving. Empty string means "not set".
+  const [otherIncomeInput, setOtherIncomeInput] = useState("");
   const [workSaving, setWorkSaving] = useState(false);
 
   // Profile
@@ -77,6 +80,8 @@ export default function SettingsPage() {
       setWorkType((user as any).workType ?? "gig");
       setEmployerRate((user as any).employerMileageRatePence != null ? String((user as any).employerMileageRatePence) : "");
       setEmployerRateAfter10k((user as any).employerMileageRatePenceAfter10k != null ? String((user as any).employerMileageRatePenceAfter10k) : "");
+      const otherPence = (user as any).otherAnnualIncomePence;
+      setOtherIncomeInput(typeof otherPence === "number" && otherPence > 0 ? String(Math.round(otherPence / 100)) : "");
       setAvatarId((user as any).avatarId ?? null);
       setMarketingEmailsEnabled((user as any).marketingEmailsEnabled !== false);
     }
@@ -166,12 +171,28 @@ export default function SettingsPage() {
       const rateAfter10kParsed = employerRateAfter10k
         ? parseInt(employerRateAfter10k, 10)
         : null;
+      // Other annual income: pounds in the input -> pence on the wire.
+      // Empty string clears the override on the server.
+      const otherIncomeTrimmed = otherIncomeInput.trim().replace(/[£,\s]/g, "");
+      let otherIncomePencePayload: number | null;
+      if (otherIncomeTrimmed === "") {
+        otherIncomePencePayload = null;
+      } else {
+        const pounds = parseFloat(otherIncomeTrimmed);
+        if (!isFinite(pounds) || pounds < 0 || pounds > 10_000_000) {
+          toast("Other annual income must be a positive number, or blank.", "error");
+          setWorkSaving(false);
+          return;
+        }
+        otherIncomePencePayload = Math.round(pounds * 100);
+      }
       // The first-10k tier is the master switch — clearing it must clear
       // the second tier too, otherwise the API leaves a dangling after-rate.
       await api.patch("/user/profile", {
         workType,
         employerMileageRatePence: rateParsed,
         employerMileageRatePenceAfter10k: rateParsed === null ? null : rateAfter10kParsed,
+        otherAnnualIncomePence: otherIncomePencePayload,
       });
       await refreshUser();
       toast("Work settings saved");
@@ -508,6 +529,19 @@ export default function SettingsPage() {
                 />
               </>
             )}
+            <Input
+              id="otherAnnualIncome"
+              label="Other annual income (pounds, before tax)"
+              type="number"
+              min="0"
+              max="10000000"
+              value={otherIncomeInput}
+              onChange={(e) => setOtherIncomeInput(e.target.value)}
+              placeholder="Leave blank if MileClear is your only taxable income"
+            />
+            <p style={{ fontSize: "0.8125rem", color: "var(--text-muted)", margin: 0 }}>
+              Income from your main job, pension, rental, etc. Used to set the right tax bracket on your gig profit so the dashboard set-aside reflects your real marginal rate (not a basic-rate guess). NI calculations stay tied to gig profit only.
+            </p>
             <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
               <Button
                 variant="primary"

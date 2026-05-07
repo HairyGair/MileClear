@@ -11,6 +11,7 @@ export interface UpdateProfileData {
   workType?: "gig" | "employee" | "both";
   employerMileageRatePence?: number | null;
   employerMileageRatePenceAfter10k?: number | null;
+  otherAnnualIncomePence?: number | null;
   dashboardMode?: "both" | "work" | "personal";
   weeklyEarningsGoalPence?: number | null;
 }

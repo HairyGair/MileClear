@@ -29,7 +29,8 @@ function platformLabel(tag: string): string {
   const map: Record<string, string> = {
     uber: "Uber", deliveroo: "Deliveroo", just_eat: "Just Eat",
     amazon_flex: "Amazon Flex", stuart: "Stuart", gophr: "Gophr",
-    dpd: "DPD", yodel: "Yodel", evri: "Evri", other: "Other",
+    dpd: "DPD", yodel: "Yodel", evri: "Evri",
+    freelance: "Freelance", other: "Other",
   };
   return map[tag] ?? tag;
 }

@@ -35,6 +35,13 @@ model User {
   // when workType is "employee" or "both" - falls back to HMRC AMAP otherwise.
   employerMileageRatePence Int?
   employerMileageRatePenceAfter10k Int?
+  // Annual income from sources other than self-employed gig work (main job
+  // salary, pension, rental income, etc.) in pence. Used to calculate the
+  // marginal income-tax rate on gig profit so users with a £50k main job
+  // see the correct 40% set-aside instead of an inaccurate basic-rate
+  // estimate. NI bands stay independent (Class 4 NI is on profit only).
+  // Optional: null = assume gig profit is the user's only taxable income.
+  otherAnnualIncomePence Int?
   dashboardMode        String    @default("both") @db.VarChar(20)
   notes                    String?   @db.Text
   lastLoginAt              DateTime?

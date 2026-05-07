@@ -101,6 +101,7 @@ export const GIG_PLATFORMS = [
   { value: "dpd", label: "DPD" },
   { value: "yodel", label: "Yodel" },
   { value: "evri", label: "Evri" },
+  { value: "freelance", label: "Freelance / Private gig" },
   { value: "other", label: "Other" },
 ] as const;
 
@@ -233,6 +234,7 @@ export const PLATFORM_TAGS = [
   "dpd",
   "yodel",
   "evri",
+  "freelance",
   "other",
 ] as const;
 

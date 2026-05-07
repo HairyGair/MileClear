@@ -514,6 +514,8 @@ export default function DashboardScreen() {
       visible={showScorecard}
       animationType="slide"
       transparent
+      presentationStyle="overFullScreen"
+      statusBarTranslucent
       onRequestClose={() => setShowScorecard(false)}
     >
       <View style={s.modalOverlay}>
@@ -593,6 +595,8 @@ export default function DashboardScreen() {
       visible={showRecap}
       animationType="slide"
       transparent
+      presentationStyle="overFullScreen"
+      statusBarTranslucent
       onRequestClose={() => setShowRecap(false)}
     >
       <View style={s.modalOverlay}>
@@ -651,11 +655,17 @@ export default function DashboardScreen() {
   );
 
   // ── Work Mode Explainer Modal ─────────────────────────────────
+  // Plain TouchableOpacity instead of <Button>: the Button variant wraps its
+  // Pressable in two animated Views (glow + scale) which on iPad iPadOS 26
+  // can break hit-testing inside a Modal. Apple App Review hit this on
+  // iPad Air M3 / iPadOS 26.4.2 (build 60 rejection, guideline 2.1(a)).
   const workExplainerModal = (
     <Modal
       visible={showWorkExplainer}
       transparent
       animationType="fade"
+      presentationStyle="overFullScreen"
+      statusBarTranslucent
       onRequestClose={dismissWorkExplainer}
     >
       <View style={s.explainerOverlay}>
@@ -680,7 +690,7 @@ export default function DashboardScreen() {
 
             <Text style={s.explainerSubhead}>How it works</Text>
             <Text style={s.explainerBody}>
-              Business trips are tracked separately and used to calculate your <Text style={s.explainerBold}>HMRC mileage deduction</Text> — 45p per mile for the first 10,000, then 25p after that. This reduces your tax bill at the end of the year.
+              Business trips are tracked separately and used to calculate your <Text style={s.explainerBold}>HMRC mileage deduction</Text> - 45p per mile for the first 10,000, then 25p after that. This reduces your tax bill at the end of the year.
             </Text>
 
             <View style={s.explainerDivider} />
@@ -690,17 +700,21 @@ export default function DashboardScreen() {
               If you're employed and your employer reimburses mileage, you may still be able to claim the difference from HMRC. However, regular commuting to a fixed office is <Text style={s.explainerBold}>not</Text> claimable.
             </Text>
             <Text style={[s.explainerBody, { marginTop: 8 }]}>
-              If you just want to track personal driving, switch to <Text style={s.explainerBold}>Personal</Text> mode — you can always switch back later.
+              If you just want to track personal driving, switch to <Text style={s.explainerBold}>Personal</Text> mode - you can always switch back later.
             </Text>
           </ScrollView>
 
-          <Button
-            title="Got it"
-            icon="checkmark"
-            size="lg"
+          <TouchableOpacity
             onPress={dismissWorkExplainer}
-            style={{ marginTop: 16 }}
-          />
+            activeOpacity={0.85}
+            style={s.explainerCta}
+            accessibilityRole="button"
+            accessibilityLabel="Got it"
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
+            <Ionicons name="checkmark" size={20} color="#030712" />
+            <Text style={s.explainerCtaText}>Got it</Text>
+          </TouchableOpacity>
         </View>
       </View>
     </Modal>
@@ -709,14 +723,15 @@ export default function DashboardScreen() {
   // ── Active Shift ──────────────────────────────────────────────
   if (activeShift) {
     return (
-      <ScrollView
-        style={s.container}
-        contentContainerStyle={[s.content, { paddingTop: 16 }]}
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#f5a623" />
-        }
-      >
+      <>
         {scorecardModal}
+        <ScrollView
+          style={s.container}
+          contentContainerStyle={[s.content, { paddingTop: 16 }]}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#f5a623" />
+          }
+        >
         <Text style={s.greeting}>Shift Active</Text>
 
         <View style={s.timerWrap}>
@@ -770,23 +785,27 @@ export default function DashboardScreen() {
           loading={ending}
           size="lg"
         />
-      </ScrollView>
+        </ScrollView>
+      </>
     );
   }
 
   // ── Idle Dashboard ────────────────────────────────────────────
+  // Modals rendered as siblings of the ScrollView (not children) so they
+  // sit at the component root. Avoids any odd interaction between the
+  // outer ScrollView and the Modal's portal layer on iPad.
   return (
-    <ScrollView
-      style={s.container}
-      contentContainerStyle={[s.content, { paddingTop: 16 }]}
-      refreshControl={
-        <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#f5a623" />
-      }
-    >
+    <>
       {scorecardModal}
       {recapModal}
       {workExplainerModal}
-
+      <ScrollView
+        style={s.container}
+        contentContainerStyle={[s.content, { paddingTop: 16 }]}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#f5a623" />
+        }
+      >
       {/* Mode Toggle */}
       <ModeToggle onInfoPress={() => setShowWorkExplainer(true)} />
 
@@ -1259,7 +1278,8 @@ export default function DashboardScreen() {
           )}
         </Animated.View>
       )}
-    </ScrollView>
+      </ScrollView>
+    </>
   );
 }
 
@@ -2071,6 +2091,26 @@ const s = StyleSheet.create({
     fontFamily: fonts.semibold,
     color: TEXT_1,
     marginBottom: 8,
+  },
+  // Standalone "Got it" CTA: plain TouchableOpacity (not the Button variant)
+  // because the Button variant wraps its Pressable in two animated Views
+  // which break hit-testing inside an iPad Modal on iPadOS 26.
+  explainerCta: {
+    backgroundColor: AMBER,
+    paddingVertical: 18,
+    paddingHorizontal: 24,
+    borderRadius: 12,
+    alignItems: "center",
+    flexDirection: "row",
+    justifyContent: "center",
+    gap: 9,
+    marginTop: 16,
+  },
+  explainerCtaText: {
+    color: "#030712",
+    fontSize: 17,
+    fontFamily: fonts.bold,
+    letterSpacing: 0.3,
   },
   customizeFooter: {
     flexDirection: "row",

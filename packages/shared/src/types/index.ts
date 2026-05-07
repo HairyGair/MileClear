@@ -11,6 +11,11 @@ export interface User {
   workType: WorkType;
   employerMileageRatePence: number | null;
   employerMileageRatePenceAfter10k: number | null;
+  /** Annual income (pence) from sources outside self-employed gig work
+   *  (main job salary, pension, rental, etc.). Optional: null means we
+   *  treat gig profit as the user's only taxable income. Used to compute
+   *  the correct marginal income-tax rate on gig profit. */
+  otherAnnualIncomePence: number | null;
   dashboardMode: "both" | "work" | "personal";
   weeklyEarningsGoalPence: number | null;
   marketingEmailsEnabled: boolean;
@@ -436,6 +441,7 @@ export type PlatformTag =
   | "dpd"
   | "yodel"
   | "evri"
+  | "freelance"
   | "other";
 
 export type BusinessPurpose =

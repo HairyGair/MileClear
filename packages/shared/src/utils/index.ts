@@ -1023,28 +1023,59 @@ export function getMilestoneProgress(
 }
 
 /**
+ * Income tax due on a single income figure (pence) using 2025-26 UK bands.
+ * Treats the figure as taxable income (i.e. after personal allowance has
+ * NOT yet been deducted - the function applies the allowance internally).
+ */
+function ukIncomeTaxOn(incomePence: number): number {
+  const T = UK_TAX_2025_26;
+  const income = Math.max(0, incomePence);
+  let tax = 0;
+  if (income > T.higherRateThresholdPence) {
+    tax += (income - T.higherRateThresholdPence) * T.additionalRate;
+    tax += (T.higherRateThresholdPence - T.basicRateThresholdPence) * T.higherRate;
+    tax += (T.basicRateThresholdPence - T.personalAllowancePence) * T.basicRate;
+  } else if (income > T.basicRateThresholdPence) {
+    tax += (income - T.basicRateThresholdPence) * T.higherRate;
+    tax += (T.basicRateThresholdPence - T.personalAllowancePence) * T.basicRate;
+  } else if (income > T.personalAllowancePence) {
+    tax += (income - T.personalAllowancePence) * T.basicRate;
+  }
+  return tax;
+}
+
+/**
  * Estimate UK self-employed income tax + NI for a given taxable profit.
  * Uses 2025-26 tax year bands. All values in pence.
+ *
+ * If the user has other taxable income (main job salary, pension etc.) pass
+ * `opts.otherIncomePence` so the marginal income-tax rate on the gig profit
+ * is calculated correctly. Without it the calculation assumes profit is the
+ * user's only income, which under-estimates tax for anyone in the higher or
+ * additional rate bands.
+ *
+ * NI bands intentionally aren't shifted by other income: Class 2 + Class 4
+ * NI apply to self-employment profit only and are independent of any
+ * employed/Class-1 income.
  */
-export function estimateUkTax(taxableProfitPence: number): {
+export function estimateUkTax(
+  taxableProfitPence: number,
+  opts?: { otherIncomePence?: number | null }
+): {
   incomeTaxPence: number;
   class2NiPence: number;
   class4NiPence: number;
 } {
   const T = UK_TAX_2025_26;
   const profit = Math.max(0, taxableProfitPence);
+  const otherIncome = Math.max(0, opts?.otherIncomePence ?? 0);
 
-  let incomeTax = 0;
-  if (profit > T.higherRateThresholdPence) {
-    incomeTax += (profit - T.higherRateThresholdPence) * T.additionalRate;
-    incomeTax += (T.higherRateThresholdPence - T.basicRateThresholdPence) * T.higherRate;
-    incomeTax += (T.basicRateThresholdPence - T.personalAllowancePence) * T.basicRate;
-  } else if (profit > T.basicRateThresholdPence) {
-    incomeTax += (profit - T.basicRateThresholdPence) * T.higherRate;
-    incomeTax += (T.basicRateThresholdPence - T.personalAllowancePence) * T.basicRate;
-  } else if (profit > T.personalAllowancePence) {
-    incomeTax += (profit - T.personalAllowancePence) * T.basicRate;
-  }
+  // Marginal income tax on the profit: total tax due on (other + profit)
+  // minus tax that would be due on `other` alone. This handles the case
+  // where part of the profit straddles a tax band.
+  const incomeTax = otherIncome > 0
+    ? Math.max(0, ukIncomeTaxOn(otherIncome + profit) - ukIncomeTaxOn(otherIncome))
+    : ukIncomeTaxOn(profit);
 
   const class2Ni = profit > T.class2NiThresholdPence
     ? T.class2NiWeeklyPence * T.weeksInYear

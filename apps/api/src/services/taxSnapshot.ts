@@ -63,6 +63,7 @@ export async function buildTaxSnapshot(userId: string): Promise<TaxSnapshot> {
           workType: true,
           employerMileageRatePence: true,
           employerMileageRatePenceAfter10k: true,
+          otherAnnualIncomePence: true,
         },
       }),
       prisma.vehicle.findMany({
@@ -150,7 +151,13 @@ export async function buildTaxSnapshot(userId: string): Promise<TaxSnapshot> {
   // calculation lives in the premium Self Assessment wizard.
   const taxableProfitPence = Math.max(0, grossEarningsPence - mileageDeductionPence);
 
-  const taxEstimate = estimateUkTax(taxableProfitPence);
+  // Marginal-rate aware: if the user has declared other income (main job
+  // salary, pension etc.) the income-tax portion is calculated as the tax
+  // due on (other + profit) minus the tax due on `other` alone, so the
+  // estimate reflects their real bracket. NI portions stay bound to profit.
+  const taxEstimate = estimateUkTax(taxableProfitPence, {
+    otherIncomePence: user?.otherAnnualIncomePence ?? null,
+  });
   const estimatedTaxPence =
     taxEstimate.incomeTaxPence + taxEstimate.class2NiPence + taxEstimate.class4NiPence;
 

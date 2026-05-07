@@ -110,6 +110,7 @@ export default function ProfileScreen() {
   const [workType, setWorkType] = useState<WorkType>("gig");
   const [employerRate, setEmployerRate] = useState<number | null>(null);
   const [employerRateAfter10k, setEmployerRateAfter10k] = useState<number | null>(null);
+  const [otherIncomePence, setOtherIncomePence] = useState<number | null>(null);
   const profileLayout = useLayoutPrefs("profile");
 
   const handleAvatarSelect = useCallback(async (avatarId: string | null) => {
@@ -138,6 +139,7 @@ export default function ProfileScreen() {
       if (profileRes.data.workType) setWorkType(profileRes.data.workType as WorkType);
       setEmployerRate(profileRes.data.employerMileageRatePence ?? null);
       setEmployerRateAfter10k(profileRes.data.employerMileageRatePenceAfter10k ?? null);
+      setOtherIncomePence(profileRes.data.otherAnnualIncomePence ?? null);
       setVehicles(vehiclesRes.data);
       if (billingRes) setBilling(billingRes.data);
       setDriveDetection(detectionEnabled);
@@ -419,6 +421,71 @@ export default function ProfileScreen() {
       );
     }
   }, [employerRate, employerRateAfter10k, refreshUser]);
+
+  // "Other annual income" - user's salary/pension/etc. Drives the marginal
+  // tax-rate calculation on gig profit. Stored in pence on the server but
+  // collected in pounds for human-readable input.
+  const handleOtherIncomeChange = useCallback(() => {
+    const currentPounds = otherIncomePence != null
+      ? Math.round(otherIncomePence / 100).toString()
+      : "";
+    const save = async (value: string | undefined) => {
+      const trimmed = value?.trim() ?? "";
+      // Empty input clears the override.
+      if (trimmed === "") {
+        setOtherIncomePence(null);
+        try {
+          await updateProfile({ otherAnnualIncomePence: null });
+          refreshUser();
+        } catch {
+          Alert.alert("Couldn't save", "Try again in a moment.");
+        }
+        return;
+      }
+      const cleaned = trimmed.replace(/[£,\s]/g, "");
+      const pounds = parseFloat(cleaned);
+      if (!isFinite(pounds) || pounds < 0 || pounds > 10_000_000) {
+        Alert.alert("Out of range", "Enter your yearly income in pounds, or leave blank.");
+        return;
+      }
+      const pence = Math.round(pounds * 100);
+      setOtherIncomePence(pence);
+      try {
+        await updateProfile({ otherAnnualIncomePence: pence });
+        refreshUser();
+      } catch {
+        Alert.alert("Couldn't save", "Try again in a moment.");
+      }
+    };
+
+    if (Platform.OS === "ios") {
+      Alert.prompt(
+        "Other annual income",
+        "Pre-tax income from your main job, pension, rental, etc. We use this to calculate the right tax bracket on your gig profit. Leave blank if MileClear earnings are your only taxable income.",
+        [
+          { text: "Cancel", style: "cancel" },
+          { text: "Save", onPress: save },
+        ],
+        "plain-text",
+        currentPounds,
+        "number-pad"
+      );
+    } else {
+      // Android Alert can't capture text input. Quick presets cover the
+      // common bands; finer control lives in the web dashboard.
+      Alert.alert(
+        "Other annual income",
+        `Current: ${otherIncomePence != null ? `£${(otherIncomePence / 100).toLocaleString("en-GB")}` : "Not set"}\n\nFor a precise figure, use the web dashboard.`,
+        [
+          { text: "Cancel", style: "cancel" },
+          { text: "Clear", onPress: () => save("") },
+          { text: "£25,000 (basic)", onPress: () => save("25000") },
+          { text: "£50,000 (higher)", onPress: () => save("50000") },
+          { text: "£75,000 (higher)", onPress: () => save("75000") },
+        ]
+      );
+    }
+  }, [otherIncomePence, refreshUser]);
 
   const handleWeeklyGoal = useCallback(() => {
     if (Platform.OS === "ios") {
@@ -953,6 +1020,31 @@ export default function ProfileScreen() {
                   </Text>
                 </TouchableOpacity>
               )}
+
+              {/* Other annual income (drives marginal tax-rate calculation) */}
+              <TouchableOpacity
+                style={[styles.settingItem, styles.itemBorder]}
+                onPress={handleOtherIncomeChange}
+                activeOpacity={0.6}
+                accessibilityRole="button"
+                accessibilityLabel={`Other annual income, ${otherIncomePence != null ? `£${(otherIncomePence / 100).toLocaleString("en-GB")} per year` : "not set"}`}
+                accessibilityHint="Tap to set income from your main job or other sources, so we calculate your tax at the right bracket"
+              >
+                <View style={styles.iconCircle}>
+                  <Ionicons name="briefcase-outline" size={18} color={AMBER} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.itemLabel}>Other annual income</Text>
+                  <Text style={styles.itemHint}>
+                    {otherIncomePence != null
+                      ? `£${(otherIncomePence / 100).toLocaleString("en-GB")}/year - tax bracket adjusted`
+                      : "Main job, pension, etc. Sets the right tax bracket."}
+                  </Text>
+                </View>
+                <Text style={styles.editLink}>
+                  {otherIncomePence != null ? "Edit" : "Set"}
+                </Text>
+              </TouchableOpacity>
             </View>
           </View>
         )}

@@ -8,6 +8,7 @@ import {
   formatMiles,
   getTaxYear,
   parseTaxYear,
+  estimateUkTax,
 } from "./index.js";
 
 // ---------------------------------------------------------------------------
@@ -425,5 +426,72 @@ describe("parseTaxYear", () => {
     const { start, end } = parseTaxYear(taxYear);
     expect(date.getTime()).toBeGreaterThanOrEqual(start.getTime());
     expect(date.getTime()).toBeLessThanOrEqual(end.getTime());
+  });
+});
+
+// ---------------------------------------------------------------------------
+// estimateUkTax
+// ---------------------------------------------------------------------------
+
+describe("estimateUkTax", () => {
+  it("returns zero for profit at or below the personal allowance", () => {
+    const result = estimateUkTax(1_000_000); // £10,000 profit
+    expect(result.incomeTaxPence).toBe(0);
+    expect(result.class2NiPence).toBe(0);
+    expect(result.class4NiPence).toBe(0);
+  });
+
+  it("applies 20% basic rate above personal allowance with no other income", () => {
+    // £20,000 profit: £12,570 PA + £7,430 at 20% = £1,486 tax
+    const result = estimateUkTax(2_000_000);
+    expect(result.incomeTaxPence).toBe(148_600);
+    // Class 2 NI flat £3.45/wk × 52 = £179.40
+    expect(result.class2NiPence).toBe(17_940);
+    // Class 4 NI: £20k - £12,570 = £7,430 at 6%
+    expect(result.class4NiPence).toBe(44_580);
+  });
+
+  it("treats gig profit as marginal income when otherIncomePence is set (40% bracket)", () => {
+    // £50,000 main job already uses up most of basic band.
+    // Basic band runs 12,570 -> 50,270 = £37,700 of headroom.
+    // Other income of £50k uses 50,000 - 12,570 = £37,430 of basic band.
+    // Basic band remaining: £37,700 - £37,430 = £270.
+    // Gig profit £5,000: first £270 at 20% = £54, rest £4,730 at 40% = £1,892
+    // Total income tax on profit: £1,946
+    const result = estimateUkTax(500_000, { otherIncomePence: 5_000_000 });
+    expect(result.incomeTaxPence).toBe(194_600);
+    // Class 4 NI: profit £5k < lower threshold £12,570, so £0.
+    expect(result.class4NiPence).toBe(0);
+  });
+
+  it("puts all profit into 40% band when other income exceeds basic threshold", () => {
+    // £60,000 other income (already above £50,270 basic threshold).
+    // £10,000 profit fully at 40% = £4,000.
+    const result = estimateUkTax(1_000_000, { otherIncomePence: 6_000_000 });
+    expect(result.incomeTaxPence).toBe(400_000);
+  });
+
+  it("ignores undefined otherIncomePence (backwards compatible)", () => {
+    const a = estimateUkTax(2_000_000);
+    const b = estimateUkTax(2_000_000, {});
+    const c = estimateUkTax(2_000_000, { otherIncomePence: null });
+    expect(a).toEqual(b);
+    expect(a).toEqual(c);
+  });
+
+  it("clamps negative otherIncomePence to zero", () => {
+    const a = estimateUkTax(2_000_000);
+    const b = estimateUkTax(2_000_000, { otherIncomePence: -500_000 });
+    expect(a).toEqual(b);
+  });
+
+  it("keeps NI bands tied to profit only, regardless of other income", () => {
+    // Same profit, very different other income - Class 2 + Class 4 NI must
+    // be identical because NI is per-source.
+    const profit = 3_000_000; // £30k
+    const a = estimateUkTax(profit, { otherIncomePence: 0 });
+    const b = estimateUkTax(profit, { otherIncomePence: 8_000_000 });
+    expect(a.class2NiPence).toBe(b.class2NiPence);
+    expect(a.class4NiPence).toBe(b.class4NiPence);
   });
 });

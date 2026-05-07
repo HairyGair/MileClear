@@ -15,6 +15,10 @@ const updateProfileSchema = z.object({
   workType: z.enum(["gig", "employee", "both"]).optional(),
   employerMileageRatePence: z.number().int().min(0).max(100).nullable().optional(),
   employerMileageRatePenceAfter10k: z.number().int().min(0).max(100).nullable().optional(),
+  // Other annual income in pence. £10M cap rejects nonsense without
+  // constraining any realistic user. UI collects pounds and converts
+  // client-side.
+  otherAnnualIncomePence: z.number().int().min(0).max(1_000_000_000).nullable().optional(),
   dashboardMode: z.enum(["both", "work", "personal"]).optional(),
   weeklyEarningsGoalPence: z.number().int().min(0).max(1000000).nullable().optional(),
   marketingEmailsEnabled: z.boolean().optional(),
@@ -36,6 +40,7 @@ const USER_SELECT = {
   workType: true,
   employerMileageRatePence: true,
   employerMileageRatePenceAfter10k: true,
+  otherAnnualIncomePence: true,
   dashboardMode: true,
   weeklyEarningsGoalPence: true,
   marketingEmailsEnabled: true,
@@ -155,7 +160,7 @@ export async function userRoutes(app: FastifyInstance) {
     }
 
     const userId = request.userId!;
-    const { displayName, fullName, avatarId, userIntent, workType, employerMileageRatePence, employerMileageRatePenceAfter10k, dashboardMode, email, currentPassword } = parsed.data;
+    const { displayName, fullName, avatarId, userIntent, workType, employerMileageRatePence, employerMileageRatePenceAfter10k, otherAnnualIncomePence, dashboardMode, email, currentPassword } = parsed.data;
 
     const currentUser = await prisma.user.findUnique({
       where: { id: userId },
@@ -199,6 +204,12 @@ export async function userRoutes(app: FastifyInstance) {
     }
     if (employerMileageRatePenceAfter10k !== undefined) {
       updateData.employerMileageRatePenceAfter10k = employerMileageRatePenceAfter10k;
+    }
+
+    // Other annual income (main job salary, pension, etc.) - feeds into
+    // marginal tax-rate calculation on gig profit.
+    if (otherAnnualIncomePence !== undefined) {
+      updateData.otherAnnualIncomePence = otherAnnualIncomePence;
     }
 
     // Dashboard mode can always be updated
