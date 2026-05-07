@@ -385,6 +385,17 @@ function RootNavigator() {
         <Stack.Screen name="first-tax-return" options={{ headerShown: true, title: "First-Time Guide" }} />
         <Stack.Screen name="vehicle-mot-history" options={{ headerShown: true, title: "MOT History" }} />
         <Stack.Screen name="hmrc-reconciliation" options={{ headerShown: true, title: "HMRC Reconciliation" }} />
+        {/* Settings hub + sub-screens. Each is a small focused screen so
+            individual settings are findable. Profile tab links into here. */}
+        <Stack.Screen name="settings/index" options={{ headerShown: true, title: "Settings" }} />
+        <Stack.Screen name="settings/general" options={{ headerShown: true, title: "General" }} />
+        <Stack.Screen name="settings/tracking" options={{ headerShown: true, title: "Tracking & Locations" }} />
+        <Stack.Screen name="settings/work-tax" options={{ headerShown: true, title: "Work & Tax" }} />
+        <Stack.Screen name="settings/notifications" options={{ headerShown: true, title: "Notifications" }} />
+        <Stack.Screen name="settings/visibility" options={{ headerShown: true, title: "What you see" }} />
+        <Stack.Screen name="settings/data-exports" options={{ headerShown: true, title: "Data & Exports" }} />
+        <Stack.Screen name="settings/help" options={{ headerShown: true, title: "Help & Feedback" }} />
+        <Stack.Screen name="settings/legal" options={{ headerShown: true, title: "Legal" }} />
       </Stack>
       {/* Loading overlay - covers Stack while auth/onboarding resolves.
           Mirrors the dashboard's own skeleton layout so the transition from
