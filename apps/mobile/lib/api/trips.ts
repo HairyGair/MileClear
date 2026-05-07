@@ -99,8 +99,17 @@ export interface TripSummaryParams {
 }
 
 export interface TripSummary {
+  /** Trip count matching the active filters (incl. classification). */
   totalTrips: number;
+  /** Miles for the same set of trips as totalTrips. */
   totalMiles: number;
+  /** Per-classification splits, NOT scoped to the classification filter
+   *  so the stats card can show "Total / Business / Personal" together
+   *  even while the list itself is filtered to one of them. */
+  businessTrips: number;
+  businessMiles: number;
+  personalTrips: number;
+  personalMiles: number;
 }
 
 export function fetchTripSummary(params?: TripSummaryParams) {

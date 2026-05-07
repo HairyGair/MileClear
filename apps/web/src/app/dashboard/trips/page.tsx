@@ -24,9 +24,6 @@ interface DetailTrip extends Trip {
 }
 
 const PAGE_SIZE = 20;
-// When any non-default filter is active we fetch in one shot so the stats
-// summary card and the list both populate without paginating.
-const FILTERED_PAGE_SIZE = 500;
 
 const PLATFORM_OPTIONS = GIG_PLATFORMS.map((p) => ({
   value: p.value,
@@ -203,6 +200,15 @@ export default function TripsPage() {
   const [trips, setTrips] = useState<Trip[]>([]);
   const [total, setTotal] = useState(0);
   const [totalPages, setTotalPages] = useState(0);
+  // Server-side aggregate for the stats card. Stays accurate across pages.
+  const [summary, setSummary] = useState<{
+    totalTrips: number;
+    totalMiles: number;
+    businessTrips: number;
+    businessMiles: number;
+    personalTrips: number;
+    personalMiles: number;
+  } | null>(null);
   const [page, setPage] = useState(1);
   const [filter, setFilter] = useState<"all" | "business" | "personal" | "unclassified">(initialFilter);
   const [platformFilter, setPlatformFilter] = useState<PlatformTag | "all">("all");
@@ -339,12 +345,12 @@ export default function TripsPage() {
     setLoading(true);
     setError(null);
     try {
-      const isFiltered =
-        dateRange !== "all" || platformFilter !== "all" || filter !== "all";
-      const effectivePageSize = isFiltered ? FILTERED_PAGE_SIZE : PAGE_SIZE;
+      // Always 20 per page. The stats card is sourced from /trips/summary
+      // (server aggregate) so accuracy doesn't depend on which page the
+      // user is on.
       const params = new URLSearchParams({
         page: String(page),
-        pageSize: String(effectivePageSize),
+        pageSize: String(PAGE_SIZE),
       });
       if (filter !== "all") params.set("classification", filter);
       if (platformFilter !== "all") params.set("platformTag", platformFilter);
@@ -354,9 +360,7 @@ export default function TripsPage() {
       const res = await api.get<PaginatedResponse<Trip>>(`/trips/?${params}`);
       setTrips(res.data);
       setTotal(res.total);
-      // When filtered we collapse to a single page so the stats card
-      // covers the full set the user just asked for.
-      setTotalPages(isFiltered ? 1 : res.totalPages);
+      setTotalPages(res.totalPages);
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -364,9 +368,31 @@ export default function TripsPage() {
     }
   }, [page, filter, platformFilter, dateRange, customFrom, customTo]);
 
+  // Server-side stats. Re-runs on every filter change but ignores page so
+  // the totals stay stable as the user paginates through the list.
+  const loadSummary = useCallback(async () => {
+    try {
+      const params = new URLSearchParams();
+      if (filter !== "all") params.set("classification", filter);
+      if (platformFilter !== "all") params.set("platformTag", platformFilter);
+      const bounds = rangeBounds(dateRange, customFrom, customTo);
+      if (bounds.from) params.set("from", bounds.from);
+      if (bounds.to) params.set("to", bounds.to);
+      const qs = params.toString();
+      const res = await api.get<{ data: typeof summary }>(`/trips/summary${qs ? `?${qs}` : ""}`);
+      setSummary((res as any).data ?? res);
+    } catch {
+      setSummary(null);
+    }
+  }, [filter, platformFilter, dateRange, customFrom, customTo]);
+
   useEffect(() => {
     loadTrips();
   }, [loadTrips]);
+
+  useEffect(() => {
+    loadSummary();
+  }, [loadSummary]);
 
   const handleFilterChange = (f: "all" | "business" | "personal" | "unclassified") => {
     setFilter(f);
@@ -687,9 +713,11 @@ export default function TripsPage() {
         </div>
       )}
 
-      {/* Stats summary - shown whenever the user has narrowed the list. */}
-      {(dateRange !== "all" || platformFilter !== "all" || filter !== "all") && trips.length > 0 && (() => {
-        const stats = computeRangeStats(trips);
+      {/* Stats summary - shown whenever the user has narrowed the list.
+          Sourced from /trips/summary so totals stay accurate as the user
+          paginates. Falls back to the loaded page if the aggregate failed. */}
+      {(dateRange !== "all" || platformFilter !== "all" || filter !== "all") && (summary || trips.length > 0) && (() => {
+        const stats = summary ?? computeRangeStats(trips);
         const platformLabel = platformFilter === "all" ? null : (PLATFORM_LABEL_MAP[platformFilter] ?? platformFilter);
         const classLabel =
           filter === "all" ? null : filter.charAt(0).toUpperCase() + filter.slice(1);

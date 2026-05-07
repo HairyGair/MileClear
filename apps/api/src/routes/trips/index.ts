@@ -380,26 +380,99 @@ export async function tripRoutes(app: FastifyInstance) {
       return reply.status(400).send({ error: parsed.error.issues[0].message });
     }
     const { classification, platformTag, from, to } = parsed.data;
-    const where: Record<string, unknown> = { userId: request.userId!, isPhantomTrip: false };
-    if (classification) where.classification = classification;
-    if (platformTag) where.platformTag = platformTag;
+    const baseWhere: Record<string, unknown> = { userId: request.userId!, isPhantomTrip: false };
+    if (platformTag) baseWhere.platformTag = platformTag;
     if (from || to) {
-      where.startedAt = {
+      baseWhere.startedAt = {
         ...(from && { gte: from }),
         ...(to && { lte: to }),
       };
     }
 
-    const agg = await prisma.trip.aggregate({
-      where,
+    // Stats card on the trips screen wants the per-classification split
+    // (business/personal/total) regardless of which classification is
+    // currently filtered in the list view, so the card stays informative
+    // even when you flip between "All / Business / Personal" chips.
+    // groupBy gives us all three in a single round-trip.
+    const grouped = await prisma.trip.groupBy({
+      by: ["classification"],
+      where: baseWhere,
       _count: { id: true },
       _sum: { distanceMiles: true },
     });
 
+    let businessTrips = 0;
+    let businessMiles = 0;
+    let personalTrips = 0;
+    let personalMiles = 0;
+    let unclassifiedTrips = 0;
+    let unclassifiedMiles = 0;
+    for (const row of grouped) {
+      const trips = row._count.id;
+      const miles = row._sum.distanceMiles ?? 0;
+      if (row.classification === "business") {
+        businessTrips = trips;
+        businessMiles = miles;
+      } else if (row.classification === "personal") {
+        personalTrips = trips;
+        personalMiles = miles;
+      } else {
+        unclassifiedTrips += trips;
+        unclassifiedMiles += miles;
+      }
+    }
+
+    const totalTrips = businessTrips + personalTrips + unclassifiedTrips;
+    const totalMiles = businessMiles + personalMiles + unclassifiedMiles;
+
+    // If the caller filtered to a specific classification, the totalTrips/
+    // totalMiles fields reflect just that subset (mirrors the /trips list
+    // behaviour). The per-classification splits stay as-is so the stats
+    // card can still show the broader picture without a second request.
+    if (classification === "business") {
+      return reply.send({
+        data: {
+          totalTrips: businessTrips,
+          totalMiles: businessMiles,
+          businessTrips,
+          businessMiles,
+          personalTrips,
+          personalMiles,
+        },
+      });
+    }
+    if (classification === "personal") {
+      return reply.send({
+        data: {
+          totalTrips: personalTrips,
+          totalMiles: personalMiles,
+          businessTrips,
+          businessMiles,
+          personalTrips,
+          personalMiles,
+        },
+      });
+    }
+    if (classification === "unclassified") {
+      return reply.send({
+        data: {
+          totalTrips: unclassifiedTrips,
+          totalMiles: unclassifiedMiles,
+          businessTrips,
+          businessMiles,
+          personalTrips,
+          personalMiles,
+        },
+      });
+    }
     return reply.send({
       data: {
-        totalTrips: agg._count.id,
-        totalMiles: agg._sum.distanceMiles ?? 0,
+        totalTrips,
+        totalMiles,
+        businessTrips,
+        businessMiles,
+        personalTrips,
+        personalMiles,
       },
     });
   });

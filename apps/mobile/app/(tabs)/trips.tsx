@@ -19,7 +19,7 @@ import {
 import { useRouter, useFocusEffect } from "expo-router";
 import { Button } from "../../components/Button";
 import { DateTimePickerField } from "../../components/DateTimePickerField";
-import { fetchTrips, fetchUnclassifiedCount, fetchClassificationSuggestion, mergeTrips, TripWithVehicle, ClassificationSuggestion } from "../../lib/api/trips";
+import { fetchTrips, fetchTripSummary, fetchUnclassifiedCount, fetchClassificationSuggestion, mergeTrips, TripWithVehicle, ClassificationSuggestion, type TripSummary } from "../../lib/api/trips";
 import { syncUpdateTrip, syncDeleteTrip } from "../../lib/sync/actions";
 import { processSyncQueue } from "../../lib/sync";
 import { markLiveActivityClassified } from "../../lib/liveActivity";
@@ -249,32 +249,6 @@ function rangeLabel(
   }
 }
 
-function computeRangeStats(trips: TripWithVehicle[]) {
-  let totalMiles = 0;
-  let businessMiles = 0;
-  let personalMiles = 0;
-  let businessTrips = 0;
-  let personalTrips = 0;
-  for (const t of trips) {
-    totalMiles += t.distanceMiles;
-    if (t.classification === "business") {
-      businessMiles += t.distanceMiles;
-      businessTrips++;
-    } else if (t.classification === "personal") {
-      personalMiles += t.distanceMiles;
-      personalTrips++;
-    }
-  }
-  return {
-    totalMiles,
-    businessMiles,
-    personalMiles,
-    businessTrips,
-    personalTrips,
-    totalTrips: trips.length,
-  };
-}
-
 const PLATFORM_LABELS: Record<string, string> = Object.fromEntries(
   GIG_PLATFORMS.map((p) => [p.value, p.label])
 );
@@ -315,6 +289,11 @@ export default function TripsScreen() {
   const [unclassifiedCount, setUnclassifiedCount] = useState(0);
   const [classifyingId, setClassifyingId] = useState<string | null>(null);
   const [suggestions, setSuggestions] = useState<Record<string, ClassificationSuggestion>>({});
+  // Summary stats backed by /trips/summary (server-side aggregate). Lets the
+  // stats card show accurate totals regardless of which page the list is on,
+  // and means we can paginate the list at a sensible 20-per-page even when
+  // filtered. Replaces the old "fetch 500 at once when filtered" pattern.
+  const [summary, setSummary] = useState<TripSummary | null>(null);
 
   // Merge mode state
   const [mergeMode, setMergeMode] = useState(false);
@@ -379,6 +358,11 @@ export default function TripsScreen() {
   const customToRef = useRef(customTo);
   customToRef.current = customTo;
 
+  // Paginate at a consistent 20-per-page across every filter combo. The
+  // stats card sources from /trips/summary so accuracy isn't tied to how
+  // far the user has scrolled.
+  const PAGE_SIZE = 20;
+
   const loadTrips = useCallback(
     async (pageNum: number, append = false) => {
       try {
@@ -390,19 +374,12 @@ export default function TripsScreen() {
           customFromRef.current,
           customToRef.current
         );
-        // When any filter beyond "all" is active, fetch a larger page (one
-        // shot) so the stats card and the full list are both populated
-        // without paginating. Otherwise keep the existing 20-per-page
-        // pagination.
-        const isFiltered =
-          dateRangeRef.current !== "all" || platformFilterRef.current !== "all";
-        const pageSize = isFiltered ? 500 : 20;
         const res = await fetchTrips({
           classification,
           platformTag,
           ...bounds,
           page: pageNum,
-          pageSize,
+          pageSize: PAGE_SIZE,
         });
         setIsOffline(false);
 
@@ -424,9 +401,7 @@ export default function TripsScreen() {
           loadSuggestions(allTrips).catch(() => {});
         }
         setPage(res.page);
-        // When filtered, force a single-page UI by pretending there are no
-        // more pages - load-more is disabled.
-        setTotalPages(isFiltered ? 1 : res.totalPages);
+        setTotalPages(res.totalPages);
       } catch {
         // Offline fallback — show all local data
         if (!append) {
@@ -447,12 +422,39 @@ export default function TripsScreen() {
     [loadSuggestions]
   );
 
+  // Server-side aggregate for the stats card. Single round-trip, returns
+  // {totalTrips, totalMiles, businessTrips, businessMiles, personalTrips,
+  // personalMiles}. Re-fetched alongside loadTrips on every filter change.
+  const loadSummary = useCallback(async () => {
+    try {
+      const classification = filterRef.current === "all" ? undefined : filterRef.current;
+      const platformTag =
+        platformFilterRef.current === "all" ? undefined : platformFilterRef.current;
+      const bounds = rangeBounds(
+        dateRangeRef.current,
+        customFromRef.current,
+        customToRef.current
+      );
+      const res = await fetchTripSummary({
+        classification,
+        platformTag,
+        ...bounds,
+      });
+      setSummary(res.data);
+    } catch {
+      // If the aggregate fails we fall back to client-side stats from the
+      // currently-loaded trips. Not ideal but better than a blank card.
+      setSummary(null);
+    }
+  }, []);
+
   useFocusEffect(
     useCallback(() => {
       setLoading(true);
       loadTrips(1);
+      loadSummary();
       loadUnclassifiedCount();
-    }, [loadTrips, loadUnclassifiedCount])
+    }, [loadTrips, loadSummary, loadUnclassifiedCount])
   );
 
   const onRefresh = useCallback(() => {
@@ -463,8 +465,9 @@ export default function TripsScreen() {
     // recovers them without needing a force-quit.
     processSyncQueue().catch(() => {});
     loadTrips(1);
+    loadSummary();
     loadUnclassifiedCount();
-  }, [loadTrips, loadUnclassifiedCount]);
+  }, [loadTrips, loadSummary, loadUnclassifiedCount]);
 
   const onEndReached = useCallback(() => {
     if (loadingMore || page >= totalPages) return;
@@ -484,9 +487,10 @@ export default function TripsScreen() {
       // Directly reload - don't wait for useFocusEffect dependency chain
       // which causes a render gap where stale data can flash.
       loadTrips(1);
+      loadSummary();
       loadUnclassifiedCount();
     },
-    [loadTrips, loadUnclassifiedCount]
+    [loadTrips, loadSummary, loadUnclassifiedCount]
   );
 
   const handlePlatformChange = useCallback(
@@ -497,8 +501,9 @@ export default function TripsScreen() {
       setTrips([]);
       setLoading(true);
       loadTrips(1);
+      loadSummary();
     },
-    [loadTrips]
+    [loadTrips, loadSummary]
   );
 
   const onEndReachedSafe = useCallback(() => {
@@ -624,13 +629,14 @@ export default function TripsScreen() {
       // Refresh
       setLoading(true);
       loadTrips(1);
+      loadSummary();
       loadUnclassifiedCount();
     } catch (err: any) {
       Alert.alert("Merge Failed", err.message || "Something went wrong merging your trips.");
     } finally {
       setMergeLoading(false);
     }
-  }, [selectedIds, trips, mergeClassification, mergePlatform, exitMergeMode, loadTrips, loadUnclassifiedCount]);
+  }, [selectedIds, trips, mergeClassification, mergePlatform, exitMergeMode, loadTrips, loadSummary, loadUnclassifiedCount]);
 
   const toggleGroupExpanded = useCallback((key: string) => {
     setExpandedGroups((prev) => {
@@ -1163,6 +1169,7 @@ export default function TripsScreen() {
                       customFromRef.current = null;
                       customToRef.current = null;
                       loadTrips(1);
+                      loadSummary();
                     }}
                     accessibilityRole="button"
                     accessibilityLabel={`Date range: ${label}`}
@@ -1182,11 +1189,18 @@ export default function TripsScreen() {
             </ScrollView>
 
             {/* Stats summary - shown when any filter (date range OR platform)
-                is active. Computes from the loaded trips client-side; the
-                larger pageSize=500 fetch in loadTrips ensures this captures
-                the whole filtered set. */}
-            {(dateRange !== "all" || platformFilter !== "all") && trips.length > 0 && (() => {
-              const stats = computeRangeStats(trips);
+                is active. Sourced from /trips/summary so totals are accurate
+                no matter how far the user has scrolled. Falls back to a
+                client-side computation if the aggregate request failed. */}
+            {(dateRange !== "all" || platformFilter !== "all") && (summary || trips.length > 0) && (() => {
+              const stats = summary ?? {
+                totalMiles: trips.reduce((s, t) => s + t.distanceMiles, 0),
+                totalTrips: trips.length,
+                businessMiles: trips.filter((t) => t.classification === "business").reduce((s, t) => s + t.distanceMiles, 0),
+                businessTrips: trips.filter((t) => t.classification === "business").length,
+                personalMiles: trips.filter((t) => t.classification === "personal").reduce((s, t) => s + t.distanceMiles, 0),
+                personalTrips: trips.filter((t) => t.classification === "personal").length,
+              };
               const platformLabel =
                 platformFilter === "all"
                   ? null
@@ -1322,6 +1336,16 @@ export default function TripsScreen() {
                 color={AMBER}
                 style={{ marginBottom: 12 }}
               />
+            )}
+            {/* Page progress: visible whenever the list has scrolled or
+                paginated. Tells the user where they are in the dataset
+                without requiring a "Load more" button. */}
+            {!loading && trips.length > 0 && filter !== "unclassified" && (
+              <Text style={styles.pageProgress}>
+                {page >= totalPages
+                  ? `Showing all ${trips.length} trip${trips.length === 1 ? "" : "s"}`
+                  : `Showing ${trips.length} of ${summary?.totalTrips ?? "..."} trips · page ${page} of ${totalPages}`}
+              </Text>
             )}
             <Button
               title="Add Trip"
@@ -1538,6 +1562,7 @@ export default function TripsScreen() {
                   customToRef.current = customTo;
                   setShowCustomPicker(false);
                   loadTrips(1);
+                  loadSummary();
                 }}
                 disabled={!customFrom || !customTo}
                 style={{ flex: 1 }}
@@ -1963,6 +1988,13 @@ const styles = StyleSheet.create({
   footer: {
     marginTop: 16,
     paddingBottom: 20,
+  },
+  pageProgress: {
+    fontSize: 12,
+    fontFamily: fonts.regular,
+    color: TEXT_3,
+    textAlign: "center",
+    marginBottom: 12,
   },
   // Loading overlay
   loadingOverlay: {
