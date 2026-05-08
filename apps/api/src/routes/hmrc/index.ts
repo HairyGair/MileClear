@@ -26,6 +26,11 @@ import {
   HmrcNotConnectedError,
   HmrcReauthRequiredError,
   HmrcError,
+  listBusinesses,
+  retrieveBusiness,
+  listPeriodSummaries,
+  retrievePeriodSummary,
+  isValidHmrcTaxYear,
 } from "../../services/hmrc/index.js";
 import { logEvent } from "../../services/appEvents.js";
 
@@ -276,22 +281,210 @@ export async function hmrcRoutes(app: FastifyInstance) {
 
       return reply.send({ data: { obligations } });
     } catch (err) {
-      if (err instanceof HmrcNotConnectedError) {
-        return reply.status(400).send({ error: "Connect to HMRC first." });
-      }
-      if (err instanceof HmrcReauthRequiredError) {
-        return reply.status(401).send({
-          error: "HMRC connection expired. Please reconnect.",
-          code: "HMRC_REAUTH_REQUIRED",
-        });
-      }
-      if (err instanceof HmrcError) {
-        return reply.status(err.httpStatus >= 500 ? 502 : err.httpStatus).send({
-          error: err.message,
-          hmrcCode: err.hmrcCode,
-        });
-      }
-      throw err;
+      return handleHmrcError(reply, err);
     }
   });
+
+  // ── Self Employment Business + Business Details (Phase 2 day 2) ─────
+
+  // GET /hmrc/businesses — list every self-assessment trade HMRC has on
+  // file for this user. Most gig drivers have one self-employment
+  // business; some have additional landlord trades. Front-end picks one
+  // for submission.
+  app.get("/businesses", { preHandler: authMiddleware }, async (request, reply) => {
+    const ctx = await loadConnectionWithNino(request.userId!);
+    if ("error" in ctx) return reply.status(ctx.status).send({ error: ctx.error });
+    try {
+      const businesses = await listBusinesses({
+        userId: request.userId!,
+        nino: ctx.nino,
+        client: buildClientContext(request),
+        server: await buildServerContext(),
+      });
+      return reply.send({ data: { businesses } });
+    } catch (err) {
+      return handleHmrcError(reply, err);
+    }
+  });
+
+  // GET /hmrc/businesses/:businessId — full detail for one trade.
+  // Shows accounting type, commencement date, address; used to confirm
+  // before locking the businessId on HmrcConnection.
+  app.get("/businesses/:businessId", { preHandler: authMiddleware }, async (request, reply) => {
+    const businessId = (request.params as { businessId?: string }).businessId?.trim();
+    if (!businessId) {
+      return reply.status(400).send({ error: "businessId is required." });
+    }
+    const ctx = await loadConnectionWithNino(request.userId!);
+    if ("error" in ctx) return reply.status(ctx.status).send({ error: ctx.error });
+
+    try {
+      const business = await retrieveBusiness({
+        userId: request.userId!,
+        nino: ctx.nino,
+        businessId,
+        client: buildClientContext(request),
+        server: await buildServerContext(),
+      });
+      return reply.send({ data: business });
+    } catch (err) {
+      return handleHmrcError(reply, err);
+    }
+  });
+
+  // POST /hmrc/business-id — persist the user's chosen businessId on
+  // their HmrcConnection. After this every period-summary call uses it.
+  // The id format is HMRC's (e.g. "XAIS12345678910"); we trust HMRC's
+  // own list-businesses response and only require the user to have
+  // already fetched it.
+  const businessIdSchema = z.object({
+    businessId: z
+      .string()
+      .min(8)
+      .max(40)
+      .regex(/^[A-Za-z0-9]+$/, "businessId must be alphanumeric."),
+  });
+  app.post("/business-id", { preHandler: authMiddleware }, async (request, reply) => {
+    const parsed = businessIdSchema.safeParse(request.body);
+    if (!parsed.success) {
+      return reply.status(400).send({ error: parsed.error.issues[0].message });
+    }
+    const conn = await prisma.hmrcConnection.findUnique({
+      where: { userId: request.userId! },
+    });
+    if (!conn || conn.disconnectedAt) {
+      return reply.status(400).send({ error: "Connect to HMRC first." });
+    }
+    await prisma.hmrcConnection.update({
+      where: { id: conn.id },
+      data: { businessId: parsed.data.businessId },
+    });
+    logEvent("hmrc.business_id_set", request.userId!, {
+      businessId: parsed.data.businessId,
+    });
+    return reply.send({ data: { businessId: parsed.data.businessId } });
+  });
+
+  // GET /hmrc/businesses/:businessId/periods?taxYear=2025-26 — list the
+  // quarterly period summaries already submitted for the tax year.
+  // Drives the "Q1 ✓, Q2 not yet" UI on the obligations screen.
+  const periodsQuery = z.object({
+    taxYear: z
+      .string()
+      .refine(isValidHmrcTaxYear, "taxYear must be in YYYY-YY format (e.g. 2025-26)."),
+  });
+  app.get(
+    "/businesses/:businessId/periods",
+    { preHandler: authMiddleware },
+    async (request, reply) => {
+      const businessId = (request.params as { businessId?: string }).businessId?.trim();
+      if (!businessId) return reply.status(400).send({ error: "businessId is required." });
+      const queryParsed = periodsQuery.safeParse(request.query);
+      if (!queryParsed.success) {
+        return reply.status(400).send({ error: queryParsed.error.issues[0].message });
+      }
+      const ctx = await loadConnectionWithNino(request.userId!);
+      if ("error" in ctx) return reply.status(ctx.status).send({ error: ctx.error });
+
+      try {
+        const periods = await listPeriodSummaries({
+          userId: request.userId!,
+          nino: ctx.nino,
+          businessId,
+          taxYear: queryParsed.data.taxYear,
+          client: buildClientContext(request),
+          server: await buildServerContext(),
+        });
+        return reply.send({ data: { periods } });
+      } catch (err) {
+        return handleHmrcError(reply, err);
+      }
+    }
+  );
+
+  // GET /hmrc/businesses/:businessId/periods/:periodId?taxYear=2025-26
+  // — full income/expense detail for one previously-submitted period.
+  app.get(
+    "/businesses/:businessId/periods/:periodId",
+    { preHandler: authMiddleware },
+    async (request, reply) => {
+      const params = request.params as { businessId?: string; periodId?: string };
+      const businessId = params.businessId?.trim();
+      const periodId = params.periodId?.trim();
+      if (!businessId) return reply.status(400).send({ error: "businessId is required." });
+      if (!periodId) return reply.status(400).send({ error: "periodId is required." });
+      const queryParsed = periodsQuery.safeParse(request.query);
+      if (!queryParsed.success) {
+        return reply.status(400).send({ error: queryParsed.error.issues[0].message });
+      }
+      const ctx = await loadConnectionWithNino(request.userId!);
+      if ("error" in ctx) return reply.status(ctx.status).send({ error: ctx.error });
+
+      try {
+        const period = await retrievePeriodSummary({
+          userId: request.userId!,
+          nino: ctx.nino,
+          businessId,
+          periodId,
+          taxYear: queryParsed.data.taxYear,
+          client: buildClientContext(request),
+          server: await buildServerContext(),
+        });
+        return reply.send({ data: period });
+      } catch (err) {
+        return handleHmrcError(reply, err);
+      }
+    }
+  );
+}
+
+// ── Helpers (route-internal) ──────────────────────────────────────────
+
+/**
+ * Load the active HmrcConnection and validate that NINO is set. Returns
+ * either the resolved nino or an error envelope; callers do
+ * `if ("error" in ctx)` to short-circuit. Centralised so each new route
+ * doesn't reimplement the same three checks.
+ */
+async function loadConnectionWithNino(
+  userId: string
+): Promise<{ nino: string } | { error: string; status: 400 }> {
+  const conn = await prisma.hmrcConnection.findUnique({
+    where: { userId },
+    select: { nino: true, disconnectedAt: true },
+  });
+  if (!conn || conn.disconnectedAt) {
+    return { error: "Connect to HMRC first.", status: 400 };
+  }
+  if (!conn.nino) {
+    return {
+      error: "Set your NINO via POST /hmrc/nino before this call.",
+      status: 400,
+    };
+  }
+  return { nino: conn.nino };
+}
+
+/**
+ * Map HMRC errors thrown by hmrcCall onto the response shape. Single
+ * source of truth for "what does each HmrcError class become on the
+ * wire" so every route handles them identically.
+ */
+function handleHmrcError(reply: import("fastify").FastifyReply, err: unknown) {
+  if (err instanceof HmrcNotConnectedError) {
+    return reply.status(400).send({ error: "Connect to HMRC first." });
+  }
+  if (err instanceof HmrcReauthRequiredError) {
+    return reply.status(401).send({
+      error: "HMRC connection expired. Please reconnect.",
+      code: "HMRC_REAUTH_REQUIRED",
+    });
+  }
+  if (err instanceof HmrcError) {
+    return reply.status(err.httpStatus >= 500 ? 502 : err.httpStatus).send({
+      error: err.message,
+      hmrcCode: err.hmrcCode,
+    });
+  }
+  throw err;
 }

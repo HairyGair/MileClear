@@ -47,3 +47,27 @@ export {
   type NormalisedObligation,
   type HmrcObligationsResponse,
 } from "./obligations.js";
+
+export {
+  listBusinesses,
+  retrieveBusiness,
+  pickPrimarySelfEmployment,
+  type HmrcBusinessType,
+  type HmrcBusinessSummary,
+  type HmrcBusinessListResponse,
+  type HmrcBusinessAddress,
+  type HmrcBusinessDetails,
+  type HmrcBusinessDetailsResponse,
+} from "./businessDetails.js";
+
+export {
+  listPeriodSummaries,
+  retrievePeriodSummary,
+  isValidHmrcTaxYear,
+  type HmrcPeriodSummaryListItem,
+  type HmrcPeriodSummaryListResponse,
+  type HmrcPeriodIncome,
+  type HmrcPeriodExpenses,
+  type HmrcPeriodDisallowableExpenses,
+  type HmrcPeriodSummaryDetail,
+} from "./selfEmployment.js";

@@ -7,6 +7,8 @@ import {
   resetHmrcConfig,
   normaliseObligation,
   HMRC_SCOPES,
+  pickPrimarySelfEmployment,
+  isValidHmrcTaxYear,
 } from "../../services/hmrc/index.js";
 
 const originalEnv = { ...process.env };
@@ -277,5 +279,54 @@ describe("normaliseObligation", () => {
     expect(result.isFulfilled).toBe(true);
     expect(result.isOverdue).toBe(false);
     expect(result.isDueSoon).toBe(false);
+  });
+});
+
+describe("isValidHmrcTaxYear", () => {
+  it("accepts the standard YYYY-YY format with consecutive years", () => {
+    expect(isValidHmrcTaxYear("2025-26")).toBe(true);
+    expect(isValidHmrcTaxYear("2024-25")).toBe(true);
+    expect(isValidHmrcTaxYear("2023-24")).toBe(true);
+  });
+
+  it("handles the century boundary correctly", () => {
+    // 2099-00 is the last valid pre-2100 tax year per the modulo wrap.
+    expect(isValidHmrcTaxYear("2099-00")).toBe(true);
+  });
+
+  it("rejects non-consecutive year halves", () => {
+    expect(isValidHmrcTaxYear("2025-27")).toBe(false);
+    expect(isValidHmrcTaxYear("2025-24")).toBe(false);
+  });
+
+  it("rejects malformed strings", () => {
+    expect(isValidHmrcTaxYear("2025-2026")).toBe(false);
+    expect(isValidHmrcTaxYear("25-26")).toBe(false);
+    expect(isValidHmrcTaxYear("2025/26")).toBe(false);
+    expect(isValidHmrcTaxYear("")).toBe(false);
+    expect(isValidHmrcTaxYear("not a year")).toBe(false);
+  });
+});
+
+describe("pickPrimarySelfEmployment", () => {
+  it("returns the first self-employment business when one exists", () => {
+    const result = pickPrimarySelfEmployment([
+      { typeOfBusiness: "uk-property", businessId: "X1" },
+      { typeOfBusiness: "self-employment", businessId: "X2", tradingName: "Acme" },
+      { typeOfBusiness: "self-employment", businessId: "X3" },
+    ]);
+    expect(result?.businessId).toBe("X2");
+  });
+
+  it("returns null when no self-employment business exists", () => {
+    const result = pickPrimarySelfEmployment([
+      { typeOfBusiness: "uk-property", businessId: "X1" },
+      { typeOfBusiness: "foreign-property", businessId: "X2" },
+    ]);
+    expect(result).toBeNull();
+  });
+
+  it("returns null when the list is empty", () => {
+    expect(pickPrimarySelfEmployment([])).toBeNull();
   });
 });
