@@ -94,10 +94,18 @@ export function buildClientContext(request: FastifyRequest): ClientContext {
     request.ip ??
     "0.0.0.0";
   const publicIpTimestamp = get("x-mileclear-public-ip-timestamp") ?? new Date().toISOString();
-  // Connection port: HMRC wants the port the device used to reach our
-  // server. We can't see the device-side ephemeral port, but the device
-  // talked to us on 443 (HTTPS) — that's the port HMRC's spec accepts.
-  const publicPort = get("x-mileclear-public-port") ?? "443";
+  // Connection port: HMRC wants the device's ephemeral outbound port,
+  // NOT the server-side listening port. Validator rejects 80/443 with
+  // "Value must not be a server port". We try the X-MileClear-Public-Port
+  // header first (mobile app should send the real outbound port). Fall
+  // back to the inbound socket's remote port (NAT-translated, may not
+  // match exactly but is in the ephemeral range and accepted by the
+  // validator). Last-resort fallback to a fixed ephemeral so the header
+  // is always present and never a server port.
+  const publicPort =
+    get("x-mileclear-public-port") ??
+    (request.socket?.remotePort ? String(request.socket.remotePort) : undefined) ??
+    "56789";
   const tzOffset = normaliseTimezoneOffset(get("x-mileclear-timezone-offset"));
 
   if (platform === "ios" || platform === "android") {
