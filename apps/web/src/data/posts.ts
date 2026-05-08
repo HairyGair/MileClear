@@ -38,7 +38,9 @@ export const RELEASE_NOTES: ReleaseNote[] = [
   {
     version: "1.1.4",
     date: "8 May 2026",
-    label: "In Development",
+    label: "Latest",
+    ctaUrl: "https://apps.apple.com/app/mileclear/id6742044832",
+    ctaLabel: "Install on the App Store",
     items: [
       "Tax brackets you can actually trust. If you have a main job (or pension, or rental income) on top of your gig work, the dashboard tax estimate now uses your real marginal rate instead of assuming gig profit is your only taxable income. Settings → Work settings → Other annual income, enter your pre-tax salary from elsewhere, and every set-aside figure on the dashboard becomes accurate for your actual bracket. Drivers with a £50k+ main job were silently seeing basic-rate (20%) estimates when they should have been seeing 40%; that's now fixed for anyone who fills in the field. NI calculations stay tied to gig profit only because Class 4 NI is per-source.",
       "New 'Freelance / Private gig' platform tag for trips. If you do consultancy, photography, freelance bookings or anything that isn't food delivery or rideshare, you no longer have to file those trips under 'Other'. Picks the right voice and avoids the gig-platform clutter when you classify and review.",
@@ -309,6 +311,107 @@ export const RELEASE_NOTES: ReleaseNote[] = [
 // Blog Posts
 // ----------------------------------------------------------------
 export const BLOG_POSTS: BlogPost[] = [
+  {
+    slug: "whats-new-in-version-1-1-4",
+    title: "What's New in Version 1.1.4",
+    excerpt:
+      "Five rounds of polish across two months of work. Reliability fixes that compound across builds, two major tax features for drivers who don't fit the simple self-employed mould, and a settings hub that finally makes the app feel intentional.",
+    date: "8 May 2026",
+    author: "Gair",
+    category: "announcement",
+    content: `
+<p>Version 1.1.4 has just been approved by Apple. It is the fifth submission of this version line, which is more rounds than any previous release, and the result is a build that is materially more reliable, more accurate at tax time, and easier to navigate than 1.1.1 was.</p>
+
+<p>This is a different shape of release to 1.1.0. There are no new pillars - the four pillars 1.1.0 introduced (Tax Readiness, Anonymous Benchmarking, HMRC Reconciliation, Vehicle compliance) are intact and unchanged. What 1.1.4 does is sharpen every existing pillar, fix the foundation underneath them, and address two driver segments that 1.1.x had been silently under-serving.</p>
+
+<h2>Reliability is the headline</h2>
+
+<p>The single biggest theme of 1.1.4 is making trip recording bulletproof. Five separate fixes ship in this release, each closing a class of bug that had been producing wrong data for some users.</p>
+
+<p><strong>Cell-tower phantom trips are blocked at the source.</strong> A handful of users had been seeing trips appear in their list when they were actually parked - on break at a restaurant, sat at home, somewhere they had not been near. The cause was iOS occasionally falling back to cell-tower or Wi-Fi positioning when GPS signal dropped. Those fixes can be hundreds of metres off true position and look like motion to the app. As of 1.1.4, MileClear refuses to act on any location imprecise enough to be cell-tower derived. Phantom recordings while parked and phantom arrivals at saved places simply cannot form. Real GPS in the open or in built-up areas (50-80 m typical accuracy) flows through normally, and tunnels and multi-storey car parks are still captured during an active recording so legitimate distance is not lost.</p>
+
+<p><strong>Drives are now logged from where you actually set off.</strong> If your first 15-20 minutes of driving were slow residential streets before joining a main road, the recording used to chop those minutes off and save the trip as starting on the A1. The watch-mode buffer is now preserved end-to-end so the start address and start time match where you actually departed. This was a bug for anyone whose home is more than a few junctions away from a fast road - so most drivers, in practice.</p>
+
+<p><strong>Driving past a saved location no longer ends your trip.</strong> The school run was the most common failure: drop the kids at school, drive past your saved depot, end up at work - and the app saved it as three separate trips because every saved-location entry finalised the inbound recording. 1.1.4 waits to see if you have genuinely parked before deciding it is a real arrival, with three layers of protection: a 90-second dwell window, a position check at the moment iOS fires the entry event, and a position re-check at finalize.</p>
+
+<p><strong>"As the crow flies" trips are caught and dropped.</strong> Auto-detected trips with too few GPS points to render properly on the map - a 14-mile "trip" with only two coordinates that draws as a single straight line across the city - are now identified at finalize and never reach your trips list. Both the phone and the server enforce the rule, so existing crow-flies trips have already been hidden too.</p>
+
+<p><strong>The pickup wait timer cannot get stuck.</strong> If you ever forgot to tap "Picked up" after a wait, the timer used to accumulate runaway elapsed time - some users had multi-hour or multi-day "waits" pinned to their dashboard. The server now auto-closes any wait older than 2 hours the next time you open the app, and the timer resets to ready.</p>
+
+<h2>Tax accuracy for drivers who don't fit the simple self-employed mould</h2>
+
+<p>The second theme of 1.1.4 is that "self-employed gig driver, no other income" is not the only shape of MileClear user. Two new features address the segments that 1.1.x had been quietly under-serving.</p>
+
+<p><strong>Tax brackets that work for moonlighters.</strong> If you have a day job, pension, or rental income alongside your gig work, the dashboard tax estimate now uses your real marginal rate instead of assuming gig profit is your only taxable income. There is a new field at Settings, Work settings, Other annual income - plug your pre-tax salary in, and every set-aside figure on the dashboard becomes accurate for your actual bracket.</p>
+
+<p>The size of this fix is substantial. Drivers with a £50,000+ main job were silently seeing 20% basic-rate estimates when they should have been seeing 40%. A driver moonlighting for £15,000 of gig profit on top of a £50,000 PAYE salary was being told to set aside roughly £3,000 for HMRC; the real number is closer to £6,000 because all of that gig profit lands in higher-rate territory. Setting aside half the right amount is a catastrophe at filing time. 1.1.4 fixes it for anyone who fills in the field.</p>
+
+<p>National Insurance calculations stay tied to gig profit only because Class 4 NI is per-source - a deliberate choice to match how HMRC computes it.</p>
+
+<p><strong>Employer mileage rates.</strong> If you drive your own car for an employer who reimburses you per mile (rather than self-employed gig work), MileClear now lets you tell it what your employer pays. Settings, Work type, Employee using own vehicle, then enter your first-10,000-miles rate and an optional after-10,000-miles tier. Every total in the app then reflects what you actually claim from your employer, not the HMRC default.</p>
+
+<p>The gap between your employer's rate and HMRC's 45p / 25p is what you can reclaim through Mileage Allowance Relief on a P87 or self-assessment, and the new figures put that gap into your numbers all year, not just at year-end. Roughly 5 million UK drivers reimburse mileage from an employer; this update is for them.</p>
+
+<p>Both features are free, not Pro. Tax accuracy is "fighting your corner" software and stays free per <a href="/">MileClear's free vs Pro framework</a>.</p>
+
+<h2>"Why this number?" panels</h2>
+
+<p>The dashboard's tax-deduction figure on the Tax Readiness card is now tappable. Tapping opens a slide-up panel showing exactly how the number was calculated: the AMAP rate breakdown, which trips were counted, the date range, and links to the relevant HMRC pages. This is the first number with this treatment - more figures will get the same panel over the next few releases.</p>
+
+<p>The reason this matters: when MileClear says "you can deduct £6,734 in mileage", drivers want to know <em>why</em>. An accountant friend put it best - "the software that survives long-term is the software that shows its work". 1.1.4 shows the work for the headline number, with the rest to follow.</p>
+
+<h2>Settings hub and other UI work</h2>
+
+<p>The Profile screen had grown to a 2,000-line monster as features stacked up in 1.1.x. 1.1.4 splits it into a proper hub with eight focused sub-screens: General, Tracking, Work and tax, Notifications, What you see, Data and exports, Help, Legal. The "What you see" screen is new - it lets you toggle which dashboard cards appear, in plain English, instead of the hidden customisation gesture from 1.1.0.</p>
+
+<p>Other polish in this release:</p>
+
+<ul>
+<li><strong>Trips list paginates at 20 per page</strong> consistently across mobile and web. The stats summary at the top now comes from a dedicated server endpoint so totals are always accurate regardless of how many pages you have loaded.</li>
+<li><strong>iPad fix:</strong> the "Got it" button on the Work mode explainer now works reliably on iPadOS 26, which had changed how transparent modals are presented and broken the old animated button.</li>
+<li><strong>Rating prompt redesigned to be far less interruptive.</strong> The dashboard-focus trigger that fired every time you switched to the home tab is gone. The prompt now only appears after positive moments (achievement earned, streak milestone, trip saved), and dismissing once gives you 14 days of peace, twice gives you 30, after a third dismissal the app stops asking.</li>
+<li><strong>New "Rate MileClear" link in Profile, Help & Support.</strong> Opens the App Store rating screen directly, so you can leave a review on your own terms.</li>
+<li><strong>Freelance / Private gig platform tag.</strong> If you do consultancy, photography, freelance bookings, or anything that is not food delivery or rideshare, you no longer have to file those trips under "Other".</li>
+<li><strong>Default geofence radius reduced from 150m to 100m.</strong> Tighter circles fire more reliably for real arrivals and stop overlapping with neighbouring places. The slider on the saved-location form still lets you go down to 50m or up to 500m.</li>
+<li><strong>Auth screen no longer flashes a loading spinner</strong> in front of the dashboard during sign-in. Replaced with a skeleton placeholder so the dashboard cascade reveal stays the focal moment.</li>
+<li><strong>Live Activity now seeds with the correct buffered totals</strong> when watch-and-wait detection promotes a real trip. Previously it could show 0.0 mi / 0:00 while the in-app screen showed the right numbers.</li>
+</ul>
+
+<h2>Behind the scenes</h2>
+
+<p>A few things shipped in 1.1.4 that you will not see directly but that matter for the long term.</p>
+
+<p>The server now refuses to start if Apple's In-App Purchase service fails to initialise, instead of running in a half-broken state where validate calls quietly return errors and customer purchases do not link to their accounts. Discovery and fix of a long-standing latent issue here led to several stranded paying customers being recovered.</p>
+
+<p>The fuel-price fallback (when the gov.uk Fuel Finder API is having a bad day) used to log every fall-through; now it logs once on transition. DVLA lookups for any registration that returns a 4xx error stop retrying for a week, so a single bad plate does not generate noise on every cron run.</p>
+
+<p>The mobile screens are now substantially complete on the unified design tokens - meaning when we adjust spacing, button styles, or skeleton loaders, the change ripples through the whole app instead of needing to be done screen-by-screen. This is groundwork for the larger visual passes that come in 1.2.0 and beyond.</p>
+
+<h2>Why this took five rounds</h2>
+
+<p>1.1.4 went through five build submissions to Apple before approval. The earlier rounds shipped to TestFlight - watch-and-wait detection rewrite, server-side recording watchdog, hold-to-end-trip, walking-shape phantom guard - and the later ones added the iPad modal fix, the tax bracket field, the Freelance platform tag, the geofence drive-through pattern, the watch-mode coord preservation, and finally the cell-tower phantom block that is in the build approved today.</p>
+
+<p>The cost of that iteration is real: each round is a build, an internal test, an external test, a submission, a review, a verdict. The benefit is also real: every round caught something that would otherwise have shipped to the App Store as a regression, and the version that made it through is the one I would have been embarrassed to ship in any earlier form.</p>
+
+<p>Trip recording reliability is non-negotiable for MileClear - it is the foundation under every other feature - and 1.1.4 is the build where that foundation finally feels solid.</p>
+
+<h2>What's next</h2>
+
+<p>Two streams of work resume now that 1.1.4 is on the public side of the door.</p>
+
+<p>The first is <strong>MTD ITSA</strong> for the 7 August 2026 first quarterly submission deadline. Phase 1 (OAuth and fraud-prevention scaffolding) is complete. Phase 2 (Self Employment Business API submission, Individual Calculations, BSAS) is the next ten days of work. Phase 3 (mobile UI), Phase 4 (HMRC production accreditation, runs in parallel), and Phase 5 (TestFlight beta with high-earner drivers) follow. Target: TestFlight by 19 July, public by 7 August. This will ship as 1.2.0.</p>
+
+<p>The second is <strong>Other Expenses</strong> - food, accommodation, equipment, phone bills, working-from-home costs - which a Pro tester (thank you, Laura) requested earlier today. This will ship alongside MTD ITSA in 1.2.0 because the expense payload is part of the quarterly submission. Five phases, two to three weeks of work, seven HMRC-aligned categories that map directly to SA103S boxes 17, 18, and 19. Free tier will allow 5 manual expenses; Pro unlocks unlimited entries plus receipt OCR (reusing the Apple Vision pipeline already built for earnings) and categorised exports.</p>
+
+<h2>Get it</h2>
+
+<p>Version 1.1.4 is now live on the <a href="https://apps.apple.com/app/mileclear/id6742044832">App Store</a>. Install MileClear or update your existing install to get all of this.</p>
+
+<p>Thanks to everyone who tested through TestFlight across builds 58, 59, 60, 61, and 62 and flagged the rough edges. This release is better because of you.</p>
+
+<p>- Gair</p>
+    `.trim(),
+  },
   {
     slug: "does-amazon-flex-track-mileage",
     title: "Does Amazon Flex Track Mileage? (UK Tax Guide)",
