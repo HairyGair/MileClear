@@ -98,6 +98,32 @@ const MERGE_TIME_WINDOW_MS = 15 * 60 * 1000; // 15 minutes - merge trips that en
 const MERGE_DISTANCE_M = 500; // metres - merge trips whose end/start are within this radius
 const GPS_ACCURACY_THRESHOLD = 75; // metres - reject readings with worse accuracy (indoor GPS drift). Bumped from 50 to 75 to catch cold-start GPS fixes that are still accurate enough to trust the iOS-reported speed
 const GPS_ACCURACY_STRICT = 30; // metres - stricter threshold for calculated speed (not iOS-reported)
+// Ingest-side accuracy gate. Two-tier so phantom protection doesn't degrade
+// mileage accuracy on real trips through tunnels / multi-storey / canyons.
+//
+// 8 May 2026: a user reported "driving" trips logged while parked on break;
+// Anthony hit the same class via a phantom geofence Enter for "Mams" while
+// physically a village away at "Kaths". Cell-tower fixes typically report
+// accuracy 500-2000m; real GPS (even in built-up areas) clears 100m within
+// seconds of a fresh fix.
+//
+// PRE_RECORDING_M (strict) gates the watch-mode buffer and main detection
+// loop *before* a recording is active. This is where phantoms form — coarse
+// fixes that look like motion can promote watch mode to recording. Coords
+// with null accuracy are kept (some legitimate fixes don't populate the
+// field).
+//
+// DURING_RECORDING_M (looser) gates buffer writes after a recording is
+// already active. Tunnels and dense urban canyons can produce 100-250m
+// fixes that are real driving, not cell-tower phantoms. Allowing them
+// through preserves haversine accuracy until OSRM enrichment is fixed
+// (currently 100% failure in prod per crow_flies_phantom_guard.md). The
+// 250m ceiling still blocks 500m+ cell-tower drift that would inflate
+// distance during long stationary periods inside the recording window.
+export const INGEST_ACCURACY_PRE_RECORDING_M = 100;
+export const INGEST_ACCURACY_DURING_RECORDING_M = 250;
+// Backward-compat alias - prefer the explicit constants above for new code.
+export const INGEST_ACCURACY_M = INGEST_ACCURACY_PRE_RECORDING_M;
 const CONSECUTIVE_DETECTIONS_REQUIRED = 2; // How many consecutive driving-speed callbacks before starting recording (bypassed when speed >= FAST_GATE_SPEED_MS)
 const QUIET_HOURS_START = 22; // 10pm
 const QUIET_HOURS_END = 7;   // 7am
@@ -531,17 +557,25 @@ async function isStillDrivingViaLocation(source: string): Promise<boolean> {
     // Buffer the fetched coord so the recorded distance keeps growing
     // through the suspended-JS gap. Without this, finalize when it
     // eventually does fire would only have the original buffer.
-    await db.runAsync(
-      `INSERT INTO detection_coordinates (lat, lng, speed, accuracy, recorded_at)
-       VALUES (?, ?, ?, ?, ?)`,
-      [
-        current.coords.latitude,
-        current.coords.longitude,
-        speed,
-        current.coords.accuracy ?? null,
-        new Date(current.timestamp).toISOString(),
-      ]
-    );
+    if (current.coords.accuracy != null && current.coords.accuracy > INGEST_ACCURACY_DURING_RECORDING_M) {
+      logDetectionEvent("coord_dropped_low_accuracy", {
+        source: "aliveness_check",
+        accuracy: Math.round(current.coords.accuracy),
+        threshold: INGEST_ACCURACY_DURING_RECORDING_M,
+      }).catch(() => {});
+    } else {
+      await db.runAsync(
+        `INSERT INTO detection_coordinates (lat, lng, speed, accuracy, recorded_at)
+         VALUES (?, ?, ?, ?, ?)`,
+        [
+          current.coords.latitude,
+          current.coords.longitude,
+          speed,
+          current.coords.accuracy ?? null,
+          new Date(current.timestamp).toISOString(),
+        ]
+      );
+    }
 
     logDetectionEvent("stale_finalize_skipped_alive", {
       source,
@@ -1336,6 +1370,14 @@ try {
 
         // Buffer coords - recording is recent enough that this could be resumed driving.
         for (const loc of locations) {
+          if (loc.coords.accuracy != null && loc.coords.accuracy > INGEST_ACCURACY_DURING_RECORDING_M) {
+            logDetectionEvent("coord_dropped_low_accuracy", {
+              source: "resumed_driving",
+              accuracy: Math.round(loc.coords.accuracy),
+              threshold: INGEST_ACCURACY_DURING_RECORDING_M,
+            }).catch(() => {});
+            continue;
+          }
           await db.runAsync(
             `INSERT INTO detection_coordinates (lat, lng, speed, accuracy, recorded_at)
              VALUES (?, ?, ?, ?, ?)`,
@@ -1518,7 +1560,26 @@ try {
       // This captures the departure point and early route through residential
       // streets where speed stays below 15mph. Without this, the first miles
       // of a trip are lost because detection only triggered on faster roads.
+      //
+      // Accuracy threshold is two-tier: strict before recording (phantoms
+      // form here), looser during recording (preserves real coords through
+      // tunnels / canyons). Recording state read once per batch.
+      const recordingActiveRow = await db.getFirstAsync<{ value: string }>(
+        "SELECT value FROM tracking_state WHERE key = 'auto_recording_active'"
+      );
+      const isRecordingActive = recordingActiveRow?.value === "1";
+      const accuracyCeiling = isRecordingActive
+        ? INGEST_ACCURACY_DURING_RECORDING_M
+        : INGEST_ACCURACY_PRE_RECORDING_M;
       for (const loc of locations) {
+        if (loc.coords.accuracy != null && loc.coords.accuracy > accuracyCeiling) {
+          logDetectionEvent("coord_dropped_low_accuracy", {
+            source: isRecordingActive ? "detection_main_recording" : "detection_main_prerecord",
+            accuracy: Math.round(loc.coords.accuracy),
+            threshold: accuracyCeiling,
+          }).catch(() => {});
+          continue;
+        }
         await db.runAsync(
           `INSERT INTO detection_coordinates (lat, lng, speed, accuracy, recorded_at)
            VALUES (?, ?, ?, ?, ?)`,

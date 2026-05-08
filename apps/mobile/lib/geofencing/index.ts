@@ -10,7 +10,7 @@ import { randomUUID } from "expo-crypto";
 import { getDatabase } from "../db/index";
 import { reverseGeocode } from "../location/geocoding";
 import { DRIVING_SPEED_THRESHOLD_MPH, bestTripDistance } from "@mileclear/shared";
-import { stopDriveDetection, startDriveDetection, cancelAutoRecording, enterWatchMode, logDetectionEvent } from "../tracking/detection";
+import { stopDriveDetection, startDriveDetection, cancelAutoRecording, enterWatchMode, logDetectionEvent, INGEST_ACCURACY_PRE_RECORDING_M, INGEST_ACCURACY_DURING_RECORDING_M } from "../tracking/detection";
 
 const GEOFENCE_TASK_NAME = "mileclear-geofence-monitor";
 const GEOFENCE_TRACKING_TASK_NAME = "mileclear-geofence-tracking";
@@ -131,6 +131,14 @@ try {
       const db = await getDatabase();
 
       for (const loc of locations) {
+        if (loc.coords.accuracy != null && loc.coords.accuracy > INGEST_ACCURACY_DURING_RECORDING_M) {
+          logDetectionEvent("coord_dropped_low_accuracy", {
+            source: "geofence_tracking",
+            accuracy: Math.round(loc.coords.accuracy),
+            threshold: INGEST_ACCURACY_DURING_RECORDING_M,
+          }).catch(() => {});
+          continue;
+        }
         await db.runAsync(
           `INSERT INTO detection_coordinates (lat, lng, speed, accuracy, recorded_at)
            VALUES (?, ?, ?, ?, ?)`,
@@ -309,6 +317,24 @@ async function handleSavedLocationEnter(regionId: string): Promise<void> {
     );
     const pos = await Location.getLastKnownPositionAsync();
     if (loc && pos) {
+      // Accuracy gate: cell-tower / WiFi-positioning fixes typically come
+      // back at 500m+ accuracy. Real GPS in built-up areas clears 100m.
+      // The position-verify check below is circular for cell-tower
+      // phantoms - iOS's cached fix is the same coarse fix that fired
+      // the Enter, so the distance check passes against itself. Refusing
+      // a coarse fix as evidence breaks the loop. Anthony 8 May 2026:
+      // physically at "Kaths" in Shiney Row, system fired Enter for
+      // "Mams" in Penshaw (~1km away) and the position-verify let it
+      // through because iOS's cached fix was the same cell-tower fix
+      // that triggered Enter.
+      if (pos.coords.accuracy != null && pos.coords.accuracy > INGEST_ACCURACY_PRE_RECORDING_M) {
+        logDetectionEvent("geofence_enter_phantom_accuracy", {
+          locationId: regionId,
+          accuracy: Math.round(pos.coords.accuracy),
+          threshold: INGEST_ACCURACY_PRE_RECORDING_M,
+        }).catch(() => {});
+        return;
+      }
       const distMiles = haversine(
         pos.coords.latitude, pos.coords.longitude,
         loc.latitude, loc.longitude
