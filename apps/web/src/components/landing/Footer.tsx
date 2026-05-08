@@ -21,7 +21,7 @@ export default function Footer() {
 
           <nav className="footer__columns" aria-label="Footer">
             <div className="footer__col">
-              <h4 className="footer__col-title">Product</h4>
+              <h3 className="footer__col-title">Product</h3>
               <ul className="footer__col-list">
                 <li><a href="/features" className="footer__link">Features</a></li>
                 <li><a href="/pricing" className="footer__link">Pricing</a></li>
@@ -31,7 +31,7 @@ export default function Footer() {
             </div>
 
             <div className="footer__col">
-              <h4 className="footer__col-title">Guides</h4>
+              <h3 className="footer__col-title">Guides</h3>
               <ul className="footer__col-list">
                 <li><a href="/hmrc-mileage-rates" className="footer__link">HMRC mileage rates</a></li>
                 <li><a href="/business-mileage-guide" className="footer__link">Business mileage guide</a></li>
@@ -40,7 +40,7 @@ export default function Footer() {
             </div>
 
             <div className="footer__col">
-              <h4 className="footer__col-title">For drivers</h4>
+              <h3 className="footer__col-title">For drivers</h3>
               <ul className="footer__col-list">
                 <li><a href="/employee-mileage-tracker" className="footer__link">Employees with work car</a></li>
                 <li><a href="/delivery-driver-mileage-tracker" className="footer__link">Delivery drivers</a></li>
@@ -55,7 +55,7 @@ export default function Footer() {
             </div>
 
             <div className="footer__col">
-              <h4 className="footer__col-title">Company</h4>
+              <h3 className="footer__col-title">Company</h3>
               <ul className="footer__col-list">
                 <li><a href="/about" className="footer__link">About</a></li>
                 <li><a href="/faq" className="footer__link">FAQ</a></li>
@@ -64,7 +64,7 @@ export default function Footer() {
             </div>
 
             <div className="footer__col">
-              <h4 className="footer__col-title">Legal</h4>
+              <h3 className="footer__col-title">Legal</h3>
               <ul className="footer__col-list">
                 <li><a href="/privacy" className="footer__link">Privacy</a></li>
                 <li><a href="/terms" className="footer__link">Terms</a></li>

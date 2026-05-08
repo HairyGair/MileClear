@@ -142,6 +142,7 @@ export default function EarlyAccess() {
                     type="email"
                     required
                     placeholder="Your email address"
+                    aria-label="Your email address"
                     className="ea__input"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
@@ -149,6 +150,7 @@ export default function EarlyAccess() {
                   />
                   <select
                     className="ea__select"
+                    aria-label="What do you drive for"
                     value={driverType}
                     onChange={(e) => setDriverType(e.target.value)}
                   >
