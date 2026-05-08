@@ -147,7 +147,7 @@ Pulled out of the table above for easy follow-up:
 | R3 | Test backup restore | Anthony + Pixelish | 2026-08-09 |
 | R4 | Confirm Pixelish backup retention period in writing | Anthony + Pixelish | 2026-06-09 |
 | R5 | Request Pixelish security statement / ISO certifications | Anthony + Pixelish | 2026-06-09 |
-| R6 | Run OWASP ZAP baseline pentest + remediate findings | Anthony | 2026-05-09 (today) |
+| R6 | Run pentest (nuclei + manual) + remediate findings | Anthony | ✅ 2026-05-09 — see `docs/SECURITY_PENTEST_2026-05-09/REPORT.md` |
 | R7 | Validate fraud-prevention headers via HMRC Test API | Anthony | 2026-05-09 (today) |
 | R8 | Schedule formal log-review cadence | Anthony | 2026-08-09 |
 | R9 | Formalise RTO + business-continuity plan | Anthony | 2027-02-09 |
