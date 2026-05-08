@@ -1,7 +1,6 @@
 import { FastifyInstance, FastifyRequest } from "fastify";
 import { z } from "zod";
 import { authMiddleware } from "../../middleware/auth.js";
-import { premiumMiddleware } from "../../middleware/premium.js";
 import { prisma } from "../../lib/prisma.js";
 import {
   fetchExportSummary,
@@ -31,7 +30,11 @@ interface TaxBandRow {
 
 export async function selfAssessmentRoutes(app: FastifyInstance) {
   app.addHook("preHandler", authMiddleware);
-  app.addHook("preHandler", premiumMiddleware);
+  // Self-Assessment wizard data is FREE as of 8 May 2026 — the wizard
+  // helps users map their data to SA103 boxes ("fighting your corner"
+  // tax tooling per paywall_philosophy.md). The print-ready PDF stays
+  // Pro because PDF generation has real per-call compute cost; that's
+  // gated separately under /exports/self-assessment.
 
   /**
    * GET /self-assessment/summary?taxYear=2025-26
@@ -44,7 +47,7 @@ export async function selfAssessmentRoutes(app: FastifyInstance) {
    *   - apps/mobile/lib/api/selfAssessment.ts
    *   - apps/web/src/app/dashboard/self-assessment/page.tsx
    *
-   * Protected: auth + premium.
+   * Protected: auth only (free as of 8 May 2026).
    */
   app.get(
     "/summary",

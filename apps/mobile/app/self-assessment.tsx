@@ -10,7 +10,6 @@ import {
 } from "react-native";
 import { Stack, router } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
-import * as WebBrowser from "expo-web-browser";
 import { getTaxYear, formatPence, formatMiles, SA103_BOXES, SA103_GUIDANCE } from "@mileclear/shared";
 import { fetchSelfAssessmentSummary, type SelfAssessmentSummary } from "../lib/api/selfAssessment";
 import { downloadAndShareExport } from "../lib/api/exports";
@@ -316,10 +315,12 @@ function StepSa103Guide({
   summary,
   onDownload,
   downloading,
+  isPremium,
 }: {
   summary: SelfAssessmentSummary;
   onDownload: () => void;
   downloading: boolean;
+  isPremium: boolean | null;
 }) {
   const keyBoxNums = new Set([9, 27, 46]);
 
@@ -371,14 +372,21 @@ function StepSa103Guide({
         disabled={downloading}
         activeOpacity={0.7}
         accessibilityRole="button"
-        accessibilityLabel="Download Self-Assessment PDF"
+        accessibilityLabel={isPremium ? "Download Self-Assessment PDF" : "Download Self-Assessment PDF, Pro feature"}
       >
         {downloading ? (
           <ActivityIndicator color={BG} size="small" />
         ) : (
           <>
-            <Ionicons name="download-outline" size={18} color={BG} style={{ marginRight: 6 }} />
-            <Text style={styles.downloadBtnText}>Download PDF Summary</Text>
+            <Ionicons
+              name={isPremium ? "download-outline" : "lock-closed"}
+              size={18}
+              color={BG}
+              style={{ marginRight: 6 }}
+            />
+            <Text style={styles.downloadBtnText}>
+              {isPremium ? "Download PDF Summary" : "Download PDF Summary (Pro)"}
+            </Text>
           </>
         )}
       </TouchableOpacity>
@@ -430,19 +438,14 @@ export default function SelfAssessmentScreen() {
       setSummary(res.data);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Failed to load";
-      if (msg === "Premium subscription required" || msg.includes("403")) {
-        // API is authoritative for premium - if it 403s, reflect locally so
-        // the full-screen paywall gate renders instead of a blank wizard.
-        setIsPremium(false);
-        setStep(0);
-        showPaywall("self-assessment");
-        return;
-      }
+      // Wizard data is free as of 8 May 2026 — only the PDF download
+      // is Pro. A 403 here would be a server-side regression rather
+      // than the paywall, so surface it as an error.
       setError(msg);
     } finally {
       setLoading(false);
     }
-  }, [showPaywall]);
+  }, []);
 
   const handleNext = useCallback(() => {
     if (step === 0) {
@@ -497,51 +500,11 @@ export default function SelfAssessmentScreen() {
     }
   }, [selectedYear, showPaywall]);
 
-  // Loading premium status
-  if (isPremium === null) {
-    return (
-      <View style={styles.container}>
-        <Stack.Screen options={HEADER_OPTIONS} />
-        <View style={styles.centered}>
-          <ActivityIndicator color={AMBER} />
-        </View>
-      </View>
-    );
-  }
-
-  // Premium gate
-  if (isPremium === false) {
-    return (
-      <View style={styles.container}>
-        <Stack.Screen options={HEADER_OPTIONS} />
-        <ScrollView contentContainerStyle={styles.content}>
-          <TouchableOpacity
-            style={styles.paywallBanner}
-            onPress={() => showPaywall("self-assessment")}
-            activeOpacity={0.7}
-            accessibilityRole="button"
-            accessibilityLabel="Upgrade to MileClear Pro"
-          >
-            <Text style={styles.paywallTitle}>Pro Feature</Text>
-            <Text style={styles.paywallText}>
-              The Self Assessment Wizard - with income breakdowns, mileage deductions, SA103 box mapping and PDF summary - requires MileClear Pro.
-            </Text>
-            <Text style={styles.paywallCta}>Upgrade Now</Text>
-            <Text style={styles.paywallLegal}>Auto-renews monthly. Cancel anytime.</Text>
-            <View style={styles.paywallLinks}>
-              <Text style={styles.paywallLink} onPress={() => WebBrowser.openBrowserAsync("https://mileclear.com/terms")}>
-                Terms of Use
-              </Text>
-              <Text style={styles.paywallSep}>|</Text>
-              <Text style={styles.paywallLink} onPress={() => WebBrowser.openBrowserAsync("https://mileclear.com/privacy")}>
-                Privacy Policy
-              </Text>
-            </View>
-          </TouchableOpacity>
-        </ScrollView>
-      </View>
-    );
-  }
+  // Wizard is free as of 8 May 2026; the PDF download (handleDownload
+  // above) gates Pro inline by surfacing the paywall on 403. The
+  // full-screen Pro gate that previously sat here was removed in the
+  // same change — see self-assessment route on the API side which
+  // dropped its premiumMiddleware hook.
 
   const progressPct = step === 0 ? 0 : (step / (TOTAL_STEPS - 1)) * 100;
 
@@ -651,6 +614,7 @@ export default function SelfAssessmentScreen() {
                 summary={summary}
                 onDownload={handleDownload}
                 downloading={downloading}
+                isPremium={isPremium}
               />
             )}
           </>

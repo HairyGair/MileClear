@@ -1,7 +1,6 @@
 import { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { authMiddleware } from "../../middleware/auth.js";
-import { premiumMiddleware } from "../../middleware/premium.js";
 import {
   getStats,
   getAchievements,
@@ -33,7 +32,10 @@ export async function gamificationRoutes(app: FastifyInstance) {
     return reply.send({ data });
   });
 
-  app.get("/scorecard", { preHandler: premiumMiddleware }, async (request, reply) => {
+  // Shift scorecard moved to free 8 May 2026 — every shift end is a
+  // natural engagement check-in moment. Cost to compute is zero.
+  // Gating it lost retention without driving meaningful conversion.
+  app.get("/scorecard", async (request, reply) => {
     const parsed = scorecardQuery.safeParse(request.query);
     if (!parsed.success) {
       return reply.status(400).send({ error: parsed.error.issues[0].message });
@@ -49,16 +51,14 @@ export async function gamificationRoutes(app: FastifyInstance) {
     return reply.send({ data });
   });
 
+  // All recap periods (daily / weekly / monthly) are now free — moved
+  // 8 May 2026. Recaps are share-worthy by design; locking them turned
+  // a viral content-marketing channel into a paywall. Per
+  // paywall_philosophy.md gamification is a free engagement hook.
   app.get("/recap", async (request, reply) => {
     const parsed = recapQuery.safeParse(request.query);
     if (!parsed.success) {
       return reply.status(400).send({ error: parsed.error.issues[0].message });
-    }
-
-    // Daily recap is free (viral sharing); weekly/monthly require premium
-    if (parsed.data.period !== "daily") {
-      await premiumMiddleware(request, reply);
-      if (reply.sent) return;
     }
 
     const userId = request.userId!;

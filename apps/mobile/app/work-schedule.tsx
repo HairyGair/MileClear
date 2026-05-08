@@ -227,10 +227,14 @@ export default function WorkScheduleScreen() {
   return (
     <View style={s.container}>
       <Stack.Screen options={{ title: "Work Schedule" }} />
-      <PremiumGate feature="Work Schedule & Auto-Classify">
       <ScrollView contentContainerStyle={s.content}>
+        {/* Schedule editor itself is free as of 8 May 2026 — knowing your
+            own working hours is core "fighting your corner" functionality.
+            The Auto-Classify Rules section below stays Pro because that's
+            where the genuine automation value lives (rule engine state +
+            background reclassification). */}
         <Text style={s.subtitle}>
-          Set your regular work hours. Trips during these times can be auto-classified as business.
+          Set your regular work hours. With Pro, trips during these times can be auto-classified as business.
         </Text>
 
         {/* Day selector — quick toggle */}
@@ -358,9 +362,11 @@ export default function WorkScheduleScreen() {
           </>
         )}
 
-        {/* Settings */}
+        {/* Schedule Settings — auto-classify rules + auto-mode-switch +
+            shift reminders are Pro. Editing the schedule itself (above)
+            is free. */}
         {hasAnySlots && (
-          <>
+          <PremiumGate feature="Auto-Classify Rules">
             <Text style={s.settingsTitle}>Schedule Settings</Text>
 
             <View style={s.settingCard}>
@@ -416,10 +422,9 @@ export default function WorkScheduleScreen() {
                 />
               </View>
             </View>
-          </>
+          </PremiumGate>
         )}
       </ScrollView>
-      </PremiumGate>
     </View>
   );
 }

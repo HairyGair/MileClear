@@ -10,11 +10,8 @@ import { fetchAchievements, fetchGamificationStats } from "../lib/api/gamificati
 import {
   ACHIEVEMENT_TYPES,
   ACHIEVEMENT_META,
-  FREE_ACHIEVEMENT_TYPES,
 } from "@mileclear/shared";
 import type { AchievementWithMeta, GamificationStats } from "@mileclear/shared";
-import { useIsPremium } from "../components/PremiumGate";
-import { PremiumTeaser } from "../components/PremiumGate";
 import { maybeRequestReview } from "../lib/rating/index";
 import { colors, fonts } from "../lib/theme";
 
@@ -28,10 +25,10 @@ const TEXT_1 = colors.text1;
 const TEXT_2 = colors.text2;
 const TEXT_3 = colors.text3;
 
-const freeSet = new Set<string>(FREE_ACHIEVEMENT_TYPES);
+// All achievements free as of 8 May 2026 — see paywall_audit_2026-05-08.md.
+// Personal Records section is also free now (was previously gated).
 
 export default function AchievementsScreen() {
-  const isPremium = useIsPremium();
   const [earned, setEarned] = useState<AchievementWithMeta[]>([]);
   const [stats, setStats] = useState<GamificationStats | null>(null);
   const [loading, setLoading] = useState(true);
@@ -97,42 +94,34 @@ export default function AchievementsScreen() {
           const meta = ACHIEVEMENT_META[type];
           const isEarned = earnedTypes.has(type);
           const ach = earned.find((a) => a.type === type);
-          const isFree = freeSet.has(type);
-          const isLocked = !isPremium && !isFree;
 
           return (
             <View
               key={type}
-              style={[
-                s.badgeCard,
-                isEarned && !isLocked && s.badgeEarned,
-                isLocked && s.badgePremium,
-              ]}
+              style={[s.badgeCard, isEarned && s.badgeEarned]}
               accessible={true}
               accessibilityLabel={
-                isLocked
-                  ? `${meta.label}: Pro feature, locked`
-                  : isEarned
+                isEarned
                   ? `${meta.label}: ${meta.description}. Earned`
                   : `${meta.label}: ${meta.description}. Not yet earned`
               }
             >
-              <Text style={[s.badgeEmoji, (!isEarned || isLocked) && s.emojiLocked]}>
-                {isLocked ? "🔒" : meta.emoji}
+              <Text style={[s.badgeEmoji, !isEarned && s.emojiLocked]}>
+                {meta.emoji}
               </Text>
               <Text
-                style={[s.badgeLabel, (!isEarned || isLocked) && s.textLocked]}
+                style={[s.badgeLabel, !isEarned && s.textLocked]}
                 numberOfLines={1}
               >
                 {meta.label}
               </Text>
               <Text
-                style={[s.badgeDesc, (!isEarned || isLocked) && s.textLockedSoft]}
+                style={[s.badgeDesc, !isEarned && s.textLockedSoft]}
                 numberOfLines={2}
               >
-                {isLocked ? "Pro feature" : meta.description}
+                {meta.description}
               </Text>
-              {isEarned && !isLocked && ach && (
+              {isEarned && ach && (
                 <Text style={s.badgeDate}>
                   {new Date(ach.achievedAt).toLocaleDateString("en-GB", {
                     day: "numeric",
@@ -145,13 +134,8 @@ export default function AchievementsScreen() {
         })}
       </View>
 
-      {/* Premium upgrade teaser */}
-      {!isPremium && (
-        <PremiumTeaser feature="Unlock all 18 achievements" />
-      )}
-
-      {/* Personal Records */}
-      {stats && isPremium && (
+      {/* Personal Records — free as of 8 May 2026 */}
+      {stats && (
         <View style={s.recordsSection}>
           <Text style={s.sectionTitle}>Personal Records</Text>
           <View style={s.recordGrid}>

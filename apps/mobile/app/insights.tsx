@@ -178,24 +178,24 @@ export default function InsightsScreen() {
             <Text style={styles.recapBtnLabel}>Today</Text>
           </TouchableOpacity>
           <TouchableOpacity
-            style={[styles.recapBtn, !isPremium && styles.recapBtnLocked]}
-            onPress={() => isPremium ? handleRecap("weekly") : router.push("/(tabs)/profile" as any)}
+            style={styles.recapBtn}
+            onPress={() => handleRecap("weekly")}
             activeOpacity={0.7}
             accessibilityRole="button"
-            accessibilityLabel={isPremium ? "View this week's recap" : "Weekly recap, Pro feature. Tap to upgrade"}
+            accessibilityLabel="View this week's recap"
           >
-            <Ionicons name={isPremium ? "calendar-outline" : "lock-closed"} size={16} color={isPremium ? AMBER : TEXT_3} />
-            <Text style={[styles.recapBtnLabel, !isPremium && styles.recapBtnLabelLocked]}>Week</Text>
+            <Ionicons name="calendar-outline" size={16} color={AMBER} />
+            <Text style={styles.recapBtnLabel}>Week</Text>
           </TouchableOpacity>
           <TouchableOpacity
-            style={[styles.recapBtn, !isPremium && styles.recapBtnLocked]}
-            onPress={() => isPremium ? handleRecap("monthly") : router.push("/(tabs)/profile" as any)}
+            style={styles.recapBtn}
+            onPress={() => handleRecap("monthly")}
             activeOpacity={0.7}
             accessibilityRole="button"
-            accessibilityLabel={isPremium ? "View this month's recap" : "Monthly recap, Pro feature. Tap to upgrade"}
+            accessibilityLabel="View this month's recap"
           >
-            <Ionicons name={isPremium ? "calendar-outline" : "lock-closed"} size={16} color={isPremium ? AMBER : TEXT_3} />
-            <Text style={[styles.recapBtnLabel, !isPremium && styles.recapBtnLabelLocked]}>Month</Text>
+            <Ionicons name="calendar-outline" size={16} color={AMBER} />
+            <Text style={styles.recapBtnLabel}>Month</Text>
           </TouchableOpacity>
         </View>
 

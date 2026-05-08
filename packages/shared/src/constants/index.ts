@@ -384,21 +384,15 @@ export const ACHIEVEMENT_TYPES = [
 
 export type AchievementType = (typeof ACHIEVEMENT_TYPES)[number];
 
-// Free-tier achievements — available to all users
-export const FREE_ACHIEVEMENT_TYPES: readonly AchievementType[] = [
-  "first_trip",
-  "first_shift",
-  "miles_50",
-  "miles_100",
-  "miles_500",
-  "trips_1",
-  "trips_10",
-  "trips_25",
-  "shifts_1",
-  "streak_3",
-  "streak_7",
-  "earned_100",
-];
+// All achievements free as of 8 May 2026. Previously the higher-tier
+// mileage and earnings badges (miles_500+, earned_500+) were Pro,
+// gated client-side via this whitelist. Per paywall_philosophy.md
+// gamification is supposed to be a free engagement hook — locking
+// the high-tier badges dampened the climb without driving meaningful
+// conversion (£4.99/mo for 6 badges is a hard sell). Constant kept
+// as `readonly AchievementType[]` for backward-compat with any caller
+// still importing it; equivalent to ACHIEVEMENT_TYPES now.
+export const FREE_ACHIEVEMENT_TYPES: readonly AchievementType[] = ACHIEVEMENT_TYPES;
 
 // Achievement display metadata
 export const ACHIEVEMENT_META: Record<

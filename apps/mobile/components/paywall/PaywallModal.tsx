@@ -405,21 +405,17 @@ export function PaywallModal({ visible, onClose, source: _source }: PaywallModal
 }
 
 const FEATURES = [
-  { icon: "document-text-outline", label: "HMRC Exports", desc: "PDF & CSV for self-assessment" },
-  { icon: "checkmark-done-outline", label: "Self Assessment Wizard", desc: "Maps your data to SA103 boxes" },
+  { icon: "document-text-outline", label: "HMRC Self-Assessment PDF", desc: "Print-ready SA103 form for your tax return" },
   { icon: "cloud-upload-outline", label: "CSV Import", desc: "Bulk import platform earnings" },
   { icon: "card-outline", label: "Open Banking", desc: "Auto-import earnings from your bank" },
   { icon: "people-outline", label: "Accountant Sharing", desc: "Read-only dashboard for your accountant" },
-  { icon: "podium-outline", label: "Business Insights", desc: "Platform comparison, shift grades & P&L" },
-  { icon: "ribbon-outline", label: "Shift Scorecard", desc: "Performance grade after every shift" },
+  { icon: "podium-outline", label: "Business Insights", desc: "Platform comparison, P&L & golden hours" },
   { icon: "analytics-outline", label: "Driving Analytics", desc: "Weekly trends & deep efficiency metrics" },
-  { icon: "calendar-outline", label: "Monthly & Yearly Recaps", desc: "Track progress beyond today" },
   { icon: "time-outline", label: "Pickup Wait Insights", desc: "Community-aggregated wait times near you" },
-  { icon: "calendar-outline", label: "Work Schedule", desc: "Plan shifts & auto-classify trips" },
+  { icon: "calendar-outline", label: "Auto-Classify Rules", desc: "Set work-pattern rules for automatic classification" },
   { icon: "map-outline", label: "Journey Map", desc: "Visualise all your routes on one map" },
   { icon: "location-outline", label: "Unlimited Locations", desc: "Save as many depots as you need" },
   { icon: "car-outline", label: "Unlimited Vehicles", desc: "Add every car, van or motorbike you drive" },
-  { icon: "trophy-outline", label: "All Achievements", desc: "Unlock the high-tier mileage + earnings badges" },
 ];
 
 const s = StyleSheet.create({
