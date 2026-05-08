@@ -35,25 +35,63 @@ export const UK_TAX_2025_26 = {
 } as const;
 
 // Business expense categories
-// deductibleWithMileage: can be claimed alongside the HMRC simplified mileage allowance
-// Vehicle costs (fuel, insurance, maintenance) CANNOT be claimed alongside mileage -
+// deductibleWithMileage: can be claimed alongside the HMRC simplified mileage allowance.
+// Vehicle costs (fuel, insurance, maintenance) CANNOT be claimed alongside mileage —
 // they're tracked for comparison with the "actual costs" method.
+// sa103sBox: HMRC Self Assessment SA103S box this category maps to for the
+// self-assessment export and MTD ITSA quarterly submission. Boxes 17 (motor),
+// 18 (admin / general), 19 (other).
+// allowableNote: optional warning shown at expense entry + export time. Used for
+// categories with HMRC restrictions that drivers commonly get wrong (subsistence
+// is the canonical example — HMRC SE57240 disallows most daily meal claims for
+// self-employed drivers on a normal route).
 export const EXPENSE_CATEGORIES = [
-  { value: "parking", label: "Parking", deductibleWithMileage: true },
-  { value: "tolls", label: "Tolls & Bridges", deductibleWithMileage: true },
-  { value: "congestion", label: "Congestion / ULEZ", deductibleWithMileage: true },
-  { value: "phone", label: "Phone (Business %)", deductibleWithMileage: true },
-  { value: "equipment", label: "Equipment", deductibleWithMileage: true },
-  { value: "clothing", label: "Uniform / PPE", deductibleWithMileage: true },
-  { value: "subscription", label: "Subscriptions / Apps", deductibleWithMileage: true },
-  { value: "other", label: "Other Allowable", deductibleWithMileage: true },
-  { value: "maintenance", label: "Maintenance & Repairs", deductibleWithMileage: false },
-  { value: "insurance", label: "Vehicle Insurance", deductibleWithMileage: false },
-  { value: "road_tax", label: "Road Tax (VED)", deductibleWithMileage: false },
-  { value: "mot", label: "MOT", deductibleWithMileage: false },
+  // SA103S box 17 — motor expenses (mutually exclusive with AMAP)
+  { value: "parking", label: "Parking", deductibleWithMileage: true, sa103sBox: 17 },
+  { value: "tolls", label: "Tolls & Bridges", deductibleWithMileage: true, sa103sBox: 17 },
+  { value: "congestion", label: "Congestion / ULEZ", deductibleWithMileage: true, sa103sBox: 17 },
+  { value: "maintenance", label: "Maintenance & Repairs", deductibleWithMileage: false, sa103sBox: 17 },
+  { value: "insurance", label: "Vehicle Insurance", deductibleWithMileage: false, sa103sBox: 17 },
+  { value: "road_tax", label: "Road Tax (VED)", deductibleWithMileage: false, sa103sBox: 17 },
+  { value: "mot", label: "MOT", deductibleWithMileage: false, sa103sBox: 17 },
+
+  // SA103S box 18 — admin / general business expenses
+  { value: "phone", label: "Phone (Business %)", deductibleWithMileage: true, sa103sBox: 18 },
+  { value: "equipment", label: "Equipment", deductibleWithMileage: true, sa103sBox: 18 },
+  { value: "clothing", label: "Uniform / PPE", deductibleWithMileage: true, sa103sBox: 18 },
+  { value: "subscription", label: "Subscriptions / Apps", deductibleWithMileage: true, sa103sBox: 18 },
+
+  // SA103S box 19 — other allowable.
+  // Subsistence + accommodation: requested by users (Laura Joyce 8 May 2026
+  // for "food and hotels"). Subsistence carries an explicit HMRC warning —
+  // most daily meal claims are disallowed under HMRC SE57240 unless on an
+  // "irregular journey outside normal pattern". Accommodation is
+  // straightforwardly allowable when overnight away from home is genuinely
+  // required for the work.
+  {
+    value: "subsistence",
+    label: "Food / Subsistence",
+    deductibleWithMileage: true,
+    sa103sBox: 19,
+    allowableNote:
+      "HMRC restricts subsistence claims for self-employed drivers (SE57240). Generally allowed only on irregular journeys outside your normal working pattern. Daily meals on a usual route are not deductible.",
+  },
+  {
+    value: "accommodation",
+    label: "Accommodation / Hotels",
+    deductibleWithMileage: true,
+    sa103sBox: 19,
+    allowableNote:
+      "Allowable when overnight stay away from home is genuinely required for the work (e.g. multi-day delivery routes, out-of-region freelance bookings).",
+  },
+  { value: "professional_fees", label: "Professional Fees", deductibleWithMileage: true, sa103sBox: 19 },
+  { value: "other", label: "Other Allowable", deductibleWithMileage: true, sa103sBox: 19 },
 ] as const;
 
 export type ExpenseCategory = typeof EXPENSE_CATEGORIES[number]["value"];
+
+/** SA103S box ids returned by EXPENSE_CATEGORIES[i].sa103sBox. */
+export type Sa103sBox = 17 | 18 | 19;
 
 // Auth
 export const ACCESS_TOKEN_EXPIRY = "15m";
