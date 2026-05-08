@@ -4,6 +4,11 @@
 import nodemailer from "nodemailer";
 import { prisma } from "../lib/prisma.js";
 import { signUnsubscribeToken } from "../lib/unsubscribeToken.js";
+import {
+  getLatestRelease,
+  blogUrlForRelease,
+  type ReleaseNote,
+} from "@mileclear/shared";
 
 const transporter =
   process.env.BREVO_SMTP_USER && process.env.BREVO_SMTP_KEY
@@ -453,15 +458,55 @@ export async function sendReEngagementEmail(
   });
 }
 
-export async function sendUpdateEmail(
-  email: string,
-  displayName: string | null | undefined,
-  userId: string
-): Promise<void> {
-  if (!(await isMarketingAllowed(userId))) return;
-  const greeting = displayName ? `Hi ${escapeHtml(displayName)},` : "Hi there,";
-  const subject = "MileClear 1.1.0 - your tax-time co-pilot just got real";
-  const html = `<!DOCTYPE html>
+/**
+ * One-of-our-bullets renderer. Highlights are formatted as
+ *   "**Title** - body text"
+ * The "**Title** -" prefix is rendered bold + the rest in body weight.
+ * Highlights without a "**...**" prefix render as a plain bullet line.
+ */
+function renderHighlightBullet(highlight: string): string {
+  const escaped = escapeHtml(highlight);
+  // Convert **Title** at the start (followed by " - " or " — ") to <strong>Title</strong>.
+  const m = /^\*\*([^*]+)\*\*\s*[-–—]\s*(.*)$/.exec(highlight);
+  if (m) {
+    return `<strong style="color: #f0f2f5;">${escapeHtml(m[1])}</strong> - ${escapeHtml(m[2])}`;
+  }
+  return escaped;
+}
+
+/**
+ * Render the email body for a release. Used by both sendUpdateEmail
+ * (real send) and renderUpdateEmailPreview (admin dry-run preview).
+ */
+function renderUpdateEmailHtml(args: {
+  release: ReleaseNote;
+  greeting: string;
+  unsubscribeFooter: string;
+}): string {
+  const { release, greeting, unsubscribeFooter } = args;
+  const hero = release.emailHero ?? `What's new in ${release.version}`;
+  const tagline =
+    release.emailTagline ??
+    `MileClear ${release.version} is now live on the App Store.`;
+  const highlights =
+    release.emailHighlights && release.emailHighlights.length > 0
+      ? release.emailHighlights
+      : release.items.slice(0, 5);
+  const blogUrl = blogUrlForRelease(release.version);
+
+  const bulletRows = highlights
+    .map(
+      (h) => `
+          <tr><td style="padding: 10px 0; border-bottom: 1px solid rgba(255,255,255,0.04);">
+            <table role="presentation" cellpadding="0" cellspacing="0"><tr>
+              <td style="width: 28px; vertical-align: top; padding-top: 1px; color: #f5a623; font-size: 14px;">&#9672;</td>
+              <td style="color: #c0c8d4; font-size: 14px; line-height: 1.6;">${renderHighlightBullet(h)}</td>
+            </tr></table>
+          </td></tr>`
+    )
+    .join("");
+
+  return `<!DOCTYPE html>
 <html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
 <body style="margin: 0; padding: 0; background-color: #030712; font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color: #030712;">
@@ -474,59 +519,15 @@ export async function sendUpdateEmail(
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
       <tr><td style="height: 3px; background: linear-gradient(90deg, #f5a623, #e8950f); border-radius: 16px 16px 0 0; font-size: 0; line-height: 0;">&nbsp;</td></tr>
       <tr><td style="padding: 36px 32px 32px;">
-        <p style="color: #f5a623; font-size: 12px; font-weight: 700; letter-spacing: 0.6px; text-transform: uppercase; margin: 0 0 8px;">Version 1.1.0</p>
-        <h1 style="margin: 0 0 24px; font-size: 24px; font-weight: 700; color: #f0f2f5; letter-spacing: -0.4px;">A step change for <span style="color: #f5a623;">MileClear</span></h1>
+        <p style="color: #f5a623; font-size: 12px; font-weight: 700; letter-spacing: 0.6px; text-transform: uppercase; margin: 0 0 8px;">Version ${escapeHtml(release.version)}</p>
+        <h1 style="margin: 0 0 24px; font-size: 24px; font-weight: 700; color: #f0f2f5; letter-spacing: -0.4px;">${escapeHtml(hero)}</h1>
         <p style="color: #c0c8d4; font-size: 15px; line-height: 1.7; margin: 0 0 16px;">${greeting}</p>
-        <p style="color: #c0c8d4; font-size: 15px; line-height: 1.7; margin: 0 0 24px;">1.1.0 is the biggest release we've shipped. MileClear is no longer just a mileage tracker - it now actively helps you stay on top of tax, vehicle compliance, and how you compare to other UK gig drivers.</p>
+        <p style="color: #c0c8d4; font-size: 15px; line-height: 1.7; margin: 0 0 24px;">${escapeHtml(tagline)}</p>
 
-        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin: 0 0 24px;">
-          <tr><td style="padding: 10px 0; border-bottom: 1px solid rgba(255,255,255,0.04);">
-            <table role="presentation" cellpadding="0" cellspacing="0"><tr>
-              <td style="width: 28px; vertical-align: top; padding-top: 1px; color: #f5a623; font-size: 14px;">&#9672;</td>
-              <td style="color: #c0c8d4; font-size: 14px; line-height: 1.6;"><strong style="color: #f0f2f5;">Tax Readiness card</strong> - on the Work dashboard. Live estimated tax + NI for the year, weekly set-aside calculated from your real numbers, and a countdown to 31 January.</td>
-            </tr></table>
-          </td></tr>
-          <tr><td style="padding: 10px 0; border-bottom: 1px solid rgba(255,255,255,0.04);">
-            <table role="presentation" cellpadding="0" cellspacing="0"><tr>
-              <td style="width: 28px; vertical-align: top; padding-top: 1px; color: #f5a623; font-size: 14px;">&#9672;</td>
-              <td style="color: #c0c8d4; font-size: 14px; line-height: 1.6;"><strong style="color: #f0f2f5;">Anonymous Benchmarking</strong> - see how your weekly miles, trips, and platform mix compare to other UK MileClear drivers. Privacy floor of 5 contributors per cell. Your numbers, real industry context.</td>
-            </tr></table>
-          </td></tr>
-          <tr><td style="padding: 10px 0; border-bottom: 1px solid rgba(255,255,255,0.04);">
-            <table role="presentation" cellpadding="0" cellspacing="0"><tr>
-              <td style="width: 28px; vertical-align: top; padding-top: 1px; color: #f5a623; font-size: 14px;">&#9672;</td>
-              <td style="color: #c0c8d4; font-size: 14px; line-height: 1.6;"><strong style="color: #f0f2f5;">HMRC Reconciliation</strong> - HMRC has been receiving your earnings from every gig platform since January 2024. Enter what they have on file, see the gap against MileClear's tracked figure, fix it before they ask.</td>
-            </tr></table>
-          </td></tr>
-          <tr><td style="padding: 10px 0; border-bottom: 1px solid rgba(255,255,255,0.04);">
-            <table role="presentation" cellpadding="0" cellspacing="0"><tr>
-              <td style="width: 28px; vertical-align: top; padding-top: 1px; color: #f5a623; font-size: 14px;">&#9672;</td>
-              <td style="color: #c0c8d4; font-size: 14px; line-height: 1.6;"><strong style="color: #f0f2f5;">MOT &amp; tax expiry reminders</strong> - we now refresh your vehicle's DVLA data weekly and push you 14 days before MOT or tax runs out. Stops the missed-MOT income hit dead.</td>
-            </tr></table>
-          </td></tr>
-          <tr><td style="padding: 10px 0; border-bottom: 1px solid rgba(255,255,255,0.04);">
-            <table role="presentation" cellpadding="0" cellspacing="0"><tr>
-              <td style="width: 28px; vertical-align: top; padding-top: 1px; color: #f5a623; font-size: 14px;">&#9672;</td>
-              <td style="color: #c0c8d4; font-size: 14px; line-height: 1.6;"><strong style="color: #f0f2f5;">MOT History</strong> - the full DVSA record for any vehicle with a registration plate. Test results, advisories, defects, odometer growth between tests.</td>
-            </tr></table>
-          </td></tr>
-          <tr><td style="padding: 10px 0; border-bottom: 1px solid rgba(255,255,255,0.04);">
-            <table role="presentation" cellpadding="0" cellspacing="0"><tr>
-              <td style="width: 28px; vertical-align: top; padding-top: 1px; color: #f5a623; font-size: 14px;">&#9672;</td>
-              <td style="color: #c0c8d4; font-size: 14px; line-height: 1.6;"><strong style="color: #f0f2f5;">Activity Heatmap</strong> - 7 days &times; 24 hours of when you actually drive and earn most, filtered by platform.</td>
-            </tr></table>
-          </td></tr>
-          <tr><td style="padding: 10px 0;">
-            <table role="presentation" cellpadding="0" cellspacing="0"><tr>
-              <td style="width: 28px; vertical-align: top; padding-top: 1px; color: #f5a623; font-size: 14px;">&#9672;</td>
-              <td style="color: #c0c8d4; font-size: 14px; line-height: 1.6;"><strong style="color: #f0f2f5;">Pickup wait timer</strong> - on the Active Recording screen. Tap when you arrive at a restaurant, tap when picked up. Foundation for community wait-time insights coming in 1.2.</td>
-            </tr></table>
-          </td></tr>
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin: 0 0 24px;">${bulletRows}
         </table>
 
-        <p style="color: #c0c8d4; font-size: 15px; line-height: 1.7; margin: 0 0 8px;"><strong style="color: #f0f2f5;">Plus:</strong> first-time Self Assessment guide for new self-employed drivers, HMRC attestation cover sheet on the Self Assessment PDF (Pro), an earnings adoption nudge for the data-tracker-but-not-earnings-logger crowd, a higher-rate threshold warning for £40k+ profit drivers, and a sparse-GPS-trace fix for trips that previously rendered as straight lines.</p>
-
-        <p style="color: #c0c8d4; font-size: 15px; line-height: 1.7; margin: 16px 0 24px;">Full release notes: <a href="https://mileclear.com/updates/whats-new-in-version-1-1-0" style="color: #f5a623; text-decoration: none;">What's New in 1.1.0</a>. And what's coming next: <a href="https://mileclear.com/updates/whats-coming-next" style="color: #f5a623; text-decoration: none;">our roadmap</a>.</p>
+        <p style="color: #c0c8d4; font-size: 15px; line-height: 1.7; margin: 16px 0 24px;">Full release notes: <a href="${blogUrl}" style="color: #f5a623; text-decoration: none;">What's New in ${escapeHtml(release.version)}</a>.</p>
 
         <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin: 0 0 28px;">
           <tr><td style="background-color: rgba(245,166,35,0.08); border: 1px solid rgba(245,166,35,0.15); border-radius: 10px; padding: 18px 20px;">
@@ -540,12 +541,55 @@ export async function sendUpdateEmail(
     </table>
   </td></tr>
   <tr><td align="center" style="padding: 28px 0 8px;">
-    <p style="color: #4a5568; font-size: 12px; line-height: 1.5; margin: 0;">${unsubscribeFooterHtml(userId)}</p>
+    <p style="color: #4a5568; font-size: 12px; line-height: 1.5; margin: 0;">${unsubscribeFooter}</p>
   </td></tr>
 </table>
 </td></tr>
 </table>
 </body></html>`;
+}
+
+/**
+ * Preview the Product Update email for the current Latest release
+ * without sending. Used by the admin Dry Run flow so the operator
+ * can verify subject + body match expectations before tapping Send.
+ */
+export function renderUpdateEmailPreview(): { subject: string; html: string } | null {
+  const release = getLatestRelease();
+  if (!release) return null;
+  const subject =
+    release.emailSubject ?? `MileClear ${release.version} - what's new`;
+  const html = renderUpdateEmailHtml({
+    release,
+    greeting: "Hi {firstName},",
+    unsubscribeFooter: "&lt;unsubscribe footer rendered per recipient&gt;",
+  });
+  return { subject, html };
+}
+
+export async function sendUpdateEmail(
+  email: string,
+  displayName: string | null | undefined,
+  userId: string
+): Promise<void> {
+  if (!(await isMarketingAllowed(userId))) return;
+
+  const release = getLatestRelease();
+  if (!release) {
+    throw new Error(
+      "No release marked 'Latest' in RELEASE_NOTES — refusing to send update email."
+    );
+  }
+
+  const greeting = displayName ? `Hi ${escapeHtml(displayName)},` : "Hi there,";
+  const subject =
+    release.emailSubject ?? `MileClear ${release.version} - what's new`;
+  const html = renderUpdateEmailHtml({
+    release,
+    greeting,
+    unsubscribeFooter: unsubscribeFooterHtml(userId),
+  });
+
 
   if (!transporter) {
     console.log(`[EMAIL] Update email for ${email}`);

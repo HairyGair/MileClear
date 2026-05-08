@@ -5,7 +5,12 @@ import { prisma } from "../../lib/prisma.js";
 import { authMiddleware } from "../../middleware/auth.js";
 import { adminMiddleware } from "../../middleware/admin.js";
 import { stripe } from "../../lib/stripe.js";
-import { sendReEngagementEmail, sendServiceStatusEmail, sendUpdateEmail } from "../../services/email.js";
+import {
+  sendReEngagementEmail,
+  sendServiceStatusEmail,
+  sendUpdateEmail,
+  renderUpdateEmailPreview,
+} from "../../services/email.js";
 import { logEvent } from "../../services/appEvents.js";
 import { sendPushNotifications } from "../../lib/push.js";
 import { PREMIUM_PRICE_MONTHLY_PENCE, getTaxYear, haversineDistance } from "@mileclear/shared";
@@ -765,10 +770,24 @@ export async function adminRoutes(app: FastifyInstance) {
 
   // POST /admin/send-update
   // Sends the latest update/changelog email to all users.
-  // Query params: ?dryRun=true (preview without sending)
+  // Reads the entry marked label="Latest" in the shared RELEASE_NOTES;
+  // refuses to send if no such entry exists.
+  // Query params: ?dryRun=true (preview without sending — returns the
+  // resolved subject + truncated body excerpt so the admin can verify
+  // content matches expectations before tapping Send).
   app.post("/send-update", async (request, reply) => {
     const { dryRun } = request.query as { dryRun?: string };
     const isDryRun = dryRun === "true";
+
+    // Resolve the email content from RELEASE_NOTES first. If there's no
+    // Latest release, abort before touching the user list.
+    const preview = renderUpdateEmailPreview();
+    if (!preview) {
+      return reply.status(400).send({
+        error:
+          "No release marked 'Latest' in RELEASE_NOTES. Update packages/shared/src/data/releaseNotes.ts and rebuild before sending.",
+      });
+    }
 
     const users = await prisma.user.findMany({
       select: { id: true, email: true, displayName: true },
@@ -777,12 +796,28 @@ export async function adminRoutes(app: FastifyInstance) {
     let sent = 0;
     const errors: string[] = [];
 
-    for (const user of users) {
-      if (isDryRun) {
-        sent++;
-        continue;
-      }
+    if (isDryRun) {
+      // Dry run: don't enumerate users, return the resolved content.
+      // The admin UI shows this so the operator can verify subject and
+      // a snippet of the body before hitting the real Send.
+      return reply.send({
+        data: {
+          sent: users.length,
+          errors: 0,
+          dryRun: true,
+          totalUsers: users.length,
+          preview: {
+            subject: preview.subject,
+            // First 600 chars of the rendered HTML — enough to see
+            // hero, tagline, first highlight without dumping the
+            // whole 5KB email into the response.
+            htmlExcerpt: preview.html.slice(0, 600),
+          },
+        },
+      });
+    }
 
+    for (const user of users) {
       try {
         await sendUpdateEmail(user.email, user.displayName, user.id);
         sent++;
