@@ -14,6 +14,7 @@
 
 import { prisma } from "../../lib/prisma.js";
 import { logEvent } from "../appEvents.js";
+import { encrypt, decryptIfEncrypted } from "../../lib/encryption.js";
 import { getHmrcConfig, type HmrcEnvironment } from "./config.js";
 import {
   refreshAccessToken,
@@ -87,10 +88,17 @@ async function loadActiveConnection(userId: string): Promise<ConnectionTokens> {
   if (conn.environment !== "sandbox" && conn.environment !== "production") {
     throw new Error(`Invalid HMRC environment on connection: ${conn.environment}`);
   }
+  // Decrypt access/refresh tokens at the read boundary. Any row written
+  // before the encryption migration is still in plaintext on disk —
+  // decryptIfEncrypted handles both cases transparently. Once the
+  // migration script confirms zero plaintext rows remain, swap to
+  // decrypt() directly so plaintext can never silently be accepted.
+  const accessToken = decryptIfEncrypted(conn.accessToken) ?? "";
+  const refreshToken = decryptIfEncrypted(conn.refreshToken) ?? "";
   return {
     id: conn.id,
-    accessToken: conn.accessToken,
-    refreshToken: conn.refreshToken,
+    accessToken,
+    refreshToken,
     expiresAt: conn.expiresAt,
     environment: conn.environment,
   };
@@ -124,8 +132,10 @@ async function refreshAndPersist(
   const updated = await prisma.hmrcConnection.update({
     where: { id: conn.id },
     data: {
-      accessToken: tokens.access_token,
-      refreshToken: tokens.refresh_token,
+      // Encrypt at the write boundary. Pairs with decryptIfEncrypted in
+      // loadActiveConnection. Both paths share the same key (MTD_TOKEN_KEY).
+      accessToken: encrypt(tokens.access_token),
+      refreshToken: encrypt(tokens.refresh_token),
       expiresAt: expiryFromExpiresIn(tokens.expires_in),
       scope: tokens.scope,
     },
@@ -133,8 +143,8 @@ async function refreshAndPersist(
 
   return {
     id: updated.id,
-    accessToken: updated.accessToken,
-    refreshToken: updated.refreshToken,
+    accessToken: tokens.access_token,
+    refreshToken: tokens.refresh_token,
     expiresAt: updated.expiresAt,
     environment: conn.environment,
   };

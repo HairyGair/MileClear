@@ -50,14 +50,14 @@ describe("getHmrcConfig", () => {
 
   it("uses sandbox base URL when env=sandbox", () => {
     const config = getHmrcConfig();
-    expect(config?.apiBaseUrl).toBe("https://test-api.service.hmrc.uk");
+    expect(config?.apiBaseUrl).toBe("https://test-api.service.hmrc.gov.uk");
     expect(config?.environment).toBe("sandbox");
   });
 
   it("uses production base URL when env=production", () => {
     setHmrcEnv({ HMRC_ENVIRONMENT: "production" });
     const config = getHmrcConfig();
-    expect(config?.apiBaseUrl).toBe("https://api.service.hmrc.uk");
+    expect(config?.apiBaseUrl).toBe("https://api.service.hmrc.gov.uk");
     expect(config?.environment).toBe("production");
   });
 
@@ -68,8 +68,8 @@ describe("getHmrcConfig", () => {
 
   it("computes the correct authorize and token URLs", () => {
     const config = getHmrcConfig();
-    expect(config?.authorizeUrl).toBe("https://test-api.service.hmrc.uk/oauth/authorize");
-    expect(config?.tokenUrl).toBe("https://test-api.service.hmrc.uk/oauth/token");
+    expect(config?.authorizeUrl).toBe("https://test-api.service.hmrc.gov.uk/oauth/authorize");
+    expect(config?.tokenUrl).toBe("https://test-api.service.hmrc.gov.uk/oauth/token");
   });
 });
 

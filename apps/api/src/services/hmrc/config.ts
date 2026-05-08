@@ -26,8 +26,13 @@ export interface HmrcConfig {
   tokenUrl: string;
 }
 
-const SANDBOX_BASE = "https://test-api.service.hmrc.uk";
-const PRODUCTION_BASE = "https://api.service.hmrc.uk";
+// HMRC base hostnames live on the .gov.uk subdomain. Earlier values
+// here omitted ".gov" — `test-api.service.hmrc.uk` does not resolve,
+// so any production call would have failed at DNS lookup. Verified
+// 8 May 2026 against the HMRC Developer Hub during MTD ITSA Phase 2
+// day 2 work.
+const SANDBOX_BASE = "https://test-api.service.hmrc.gov.uk";
+const PRODUCTION_BASE = "https://api.service.hmrc.gov.uk";
 
 let cached: HmrcConfig | null = null;
 

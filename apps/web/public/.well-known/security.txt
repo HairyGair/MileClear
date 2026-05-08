@@ -1,0 +1,13 @@
+# MileClear security disclosure policy
+# RFC 9116 (https://www.rfc-editor.org/rfc/rfc9116)
+
+Contact: mailto:support@mileclear.com
+Contact: https://mileclear.com/support
+Expires: 2027-05-09T00:00:00.000Z
+Preferred-Languages: en
+Canonical: https://mileclear.com/.well-known/security.txt
+Policy: https://mileclear.com/privacy
+
+# We respond to security disclosures within 24 hours.
+# Please do not test against live customer accounts.
+# Test against your own MileClear account or contact us first.

@@ -13,6 +13,7 @@ import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { authMiddleware } from "../../middleware/auth.js";
 import { prisma } from "../../lib/prisma.js";
+import { encrypt, decryptIfEncrypted } from "../../lib/encryption.js";
 import {
   getHmrcConfig,
   generateStateToken,
@@ -171,8 +172,11 @@ export async function hmrcRoutes(app: FastifyInstance) {
       await prisma.hmrcConnection.update({
         where: { id: connection.id },
         data: {
-          accessToken: tokens.access_token,
-          refreshToken: tokens.refresh_token,
+          // Encrypt access/refresh tokens at the write boundary. Pairs
+          // with decryptIfEncrypted in services/hmrc/client.ts on read.
+          // See apps/api/src/lib/encryption.ts for wire format.
+          accessToken: encrypt(tokens.access_token),
+          refreshToken: encrypt(tokens.refresh_token),
           scope: tokens.scope,
           expiresAt: expiryFromExpiresIn(tokens.expires_in),
           environment: config.environment,
@@ -233,7 +237,8 @@ export async function hmrcRoutes(app: FastifyInstance) {
 
     await prisma.hmrcConnection.update({
       where: { id: conn.id },
-      data: { nino },
+      // NINO is sensitive PII under UK GDPR. Stored encrypted at rest.
+      data: { nino: encrypt(nino) },
     });
 
     logEvent("hmrc.nino_set", request.userId!);
@@ -254,24 +259,21 @@ export async function hmrcRoutes(app: FastifyInstance) {
       return reply.status(400).send({ error: parsed.error.issues[0].message });
     }
 
+    // Use the shared helper so NINO decryption happens in one place. The
+    // helper only returns nino; we still need businessId via a separate
+    // read since it's not sensitive PII (HMRC-issued public identifier).
+    const ctx = await loadConnectionWithNino(request.userId!);
+    if ("error" in ctx) return reply.status(ctx.status).send({ error: ctx.error });
     const conn = await prisma.hmrcConnection.findUnique({
       where: { userId: request.userId! },
-      select: { nino: true, businessId: true, disconnectedAt: true },
+      select: { businessId: true },
     });
-    if (!conn || conn.disconnectedAt) {
-      return reply.status(400).send({ error: "Connect to HMRC first." });
-    }
-    if (!conn.nino) {
-      return reply.status(400).send({
-        error: "Set your NINO via POST /hmrc/nino before fetching obligations.",
-      });
-    }
 
     try {
       const obligations = await fetchObligations({
         userId: request.userId!,
-        nino: conn.nino,
-        businessId: conn.businessId ?? undefined,
+        nino: ctx.nino,
+        businessId: conn?.businessId ?? undefined,
         from: parsed.data.from,
         to: parsed.data.to,
         status: parsed.data.status,
@@ -462,7 +464,16 @@ async function loadConnectionWithNino(
       status: 400,
     };
   }
-  return { nino: conn.nino };
+  // Decrypt at the read boundary. decryptIfEncrypted handles legacy
+  // plaintext rows transparently for the migration window.
+  const nino = decryptIfEncrypted(conn.nino);
+  if (!nino) {
+    return {
+      error: "Set your NINO via POST /hmrc/nino before this call.",
+      status: 400,
+    };
+  }
+  return { nino };
 }
 
 /**
