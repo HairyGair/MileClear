@@ -119,7 +119,12 @@ describe("buildFraudPreventionHeaders", () => {
     receivedAt: "2026-05-04T19:30:00.000Z",
   };
 
-  it("emits the mandatory vendor headers", () => {
+  // Spec v3.3 (validated 8 May 2026 against Test Fraud Prevention Headers
+  // API). Tests assert the key-value structures HMRC's validator expects;
+  // earlier shapes (plain UA strings, "+0100" timezone offsets) are
+  // rejected with INVALID_HEADER.
+
+  it("emits the mandatory vendor headers in key-value structure", () => {
     const headers = buildFraudPreventionHeaders({
       config,
       server,
@@ -127,31 +132,41 @@ describe("buildFraudPreventionHeaders", () => {
         connectionMethod: "MOBILE_APP_VIA_SERVER",
         deviceId: "device-uuid-1",
         publicIp: "5.6.7.8",
-        userAgent: "MileClear/1.2.0 (iPhone15,2; iOS 17.4.1)",
+        publicIpTimestamp: "2026-05-08T19:30:00.000Z",
+        publicPort: "443",
         osFamily: "iOS",
+        osVersion: "17.4.1",
+        deviceManufacturer: "Apple",
+        deviceModel: "iPhone15,2",
         screenWidth: 1170,
         screenHeight: 2532,
+        scalingFactor: 3,
+        colourDepth: 24,
         language: "en-GB",
-        deviceTimezone: "Europe/London",
-        timezoneOffset: "+0100",
+        timezone: "Europe/London",
+        timezoneOffset: "UTC+01:00",
       },
     });
 
     expect(headers["Gov-Vendor-Product-Name"]).toBe("MileClear");
-    expect(headers["Gov-Vendor-Version"]).toBe("1.2.0");
+    expect(headers["Gov-Vendor-Version"]).toBe("client=1.2.0&server=1.2.0");
     expect(headers["Gov-Vendor-Public-IP"]).toBe("1.2.3.4");
-    expect(headers["Gov-Vendor-Local-IP"]).toBe("10.0.0.1");
+    expect(headers["Gov-Vendor-Forwarded"]).toBe("by=1.2.3.4&for=5.6.7.8");
+    // Local-IP no longer sent — validator flags it as UNEXPECTED_HEADER.
+    expect(headers["Gov-Vendor-Local-IP"]).toBeUndefined();
     expect(headers["Gov-Client-Connection-Method"]).toBe("MOBILE_APP_VIA_SERVER");
     expect(headers["Gov-Client-Device-ID"]).toBe("device-uuid-1");
     expect(headers["Gov-Client-Public-IP"]).toBe("5.6.7.8");
+    expect(headers["Gov-Client-Public-IP-Timestamp"]).toBe("2026-05-08T19:30:00.000Z");
+    expect(headers["Gov-Client-Public-Port"]).toBe("443");
     expect(headers["Gov-Client-Screens"]).toBe(
-      "width=1170&height=2532&scaling-factor=1&colour-depth=24"
+      "width=1170&height=2532&scaling-factor=3&colour-depth=24"
     );
     expect(headers["Gov-Client-Window-Size"]).toBe("width=1170&height=2532");
-    expect(headers["Gov-Client-Timezone"]).toBe("+0100");
+    expect(headers["Gov-Client-Timezone"]).toBe("UTC+01:00");
   });
 
-  it("URL-encodes the user agent", () => {
+  it("encodes user-agent as os-family/version/manufacturer/model key-value", () => {
     const headers = buildFraudPreventionHeaders({
       config,
       server,
@@ -159,16 +174,22 @@ describe("buildFraudPreventionHeaders", () => {
         connectionMethod: "MOBILE_APP_VIA_SERVER",
         deviceId: "d1",
         publicIp: "5.6.7.8",
-        userAgent: "MileClear/1.2.0 (iPhone15,2)",
+        publicIpTimestamp: "2026-05-08T19:30:00.000Z",
+        publicPort: "443",
         osFamily: "iOS",
+        osVersion: "17.4.1",
+        deviceManufacturer: "Apple",
+        deviceModel: "iPhone15,2",
         screenWidth: 100,
         screenHeight: 200,
         language: "en-GB",
-        deviceTimezone: "Europe/London",
-        timezoneOffset: "+0100",
+        timezone: "Europe/London",
+        timezoneOffset: "UTC+01:00",
       },
     });
-    expect(headers["Gov-Client-User-Agent"]).toContain("%20");
+    expect(headers["Gov-Client-User-Agent"]).toBe(
+      "os-family=iOS&os-version=17.4.1&device-manufacturer=Apple&device-model=iPhone15%2C2"
+    );
   });
 
   it("emits web-shaped headers when connection method is web", () => {
@@ -178,17 +199,22 @@ describe("buildFraudPreventionHeaders", () => {
       client: {
         connectionMethod: "WEB_APP_VIA_SERVER",
         publicIp: "5.6.7.8",
-        userAgent: "Mozilla/5.0",
+        publicIpTimestamp: "2026-05-08T19:30:00.000Z",
+        publicPort: "443",
+        browserName: "Safari",
+        browserVersion: "17.4",
         windowWidth: 1440,
         windowHeight: 900,
         language: "en-GB",
         timezone: "Europe/London",
+        timezoneOffset: "UTC+01:00",
       },
     });
     expect(headers["Gov-Client-Connection-Method"]).toBe("WEB_APP_VIA_SERVER");
     expect(headers["Gov-Client-Window-Size"]).toBe("width=1440&height=900");
-    expect(headers["Gov-Client-Timezone"]).toBe("Europe/London");
+    expect(headers["Gov-Client-Timezone"]).toBe("UTC+01:00");
     expect(headers["Gov-Client-Device-ID"]).toBeUndefined();
+    expect(headers["Gov-Client-User-Agent"]).toBe("browser-name=Safari&browser-version=17.4");
   });
 
   it("throws when a required header would be empty", () => {
@@ -200,16 +226,74 @@ describe("buildFraudPreventionHeaders", () => {
           connectionMethod: "MOBILE_APP_VIA_SERVER",
           deviceId: "",
           publicIp: "5.6.7.8",
-          userAgent: "ua",
+          publicIpTimestamp: "2026-05-08T19:30:00.000Z",
+          publicPort: "443",
           osFamily: "iOS",
+          osVersion: "17.4.1",
+          deviceManufacturer: "Apple",
+          deviceModel: "iPhone15,2",
           screenWidth: 100,
           screenHeight: 200,
           language: "en-GB",
-          deviceTimezone: "Europe/London",
-          timezoneOffset: "+0100",
+          timezone: "Europe/London",
+          timezoneOffset: "UTC+01:00",
         },
       })
     ).toThrow(/Gov-Client-Device-ID.*empty/i);
+  });
+
+  it("includes Multi-Factor only when methods are provided, with unique-reference each", () => {
+    const withoutMfa = buildFraudPreventionHeaders({
+      config,
+      server,
+      client: {
+        connectionMethod: "MOBILE_APP_VIA_SERVER",
+        deviceId: "d1",
+        publicIp: "5.6.7.8",
+        publicIpTimestamp: "2026-05-08T19:30:00.000Z",
+        publicPort: "443",
+        osFamily: "iOS",
+        osVersion: "17.4.1",
+        deviceManufacturer: "Apple",
+        deviceModel: "iPhone15,2",
+        screenWidth: 100,
+        screenHeight: 200,
+        language: "en-GB",
+        timezone: "Europe/London",
+        timezoneOffset: "UTC+01:00",
+      },
+    });
+    expect(withoutMfa["Gov-Client-Multi-Factor"]).toBeUndefined();
+
+    const withMfa = buildFraudPreventionHeaders({
+      config,
+      server,
+      client: {
+        connectionMethod: "MOBILE_APP_VIA_SERVER",
+        deviceId: "d1",
+        publicIp: "5.6.7.8",
+        publicIpTimestamp: "2026-05-08T19:30:00.000Z",
+        publicPort: "443",
+        osFamily: "iOS",
+        osVersion: "17.4.1",
+        deviceManufacturer: "Apple",
+        deviceModel: "iPhone15,2",
+        screenWidth: 100,
+        screenHeight: 200,
+        language: "en-GB",
+        timezone: "Europe/London",
+        timezoneOffset: "UTC+01:00",
+        multiFactor: [
+          {
+            type: "TOTP",
+            uniqueReference: "user-totp-method-1",
+            timestamp: "2026-05-08T19:30:00.000Z",
+          },
+        ],
+      },
+    });
+    expect(withMfa["Gov-Client-Multi-Factor"]).toContain("type=TOTP");
+    expect(withMfa["Gov-Client-Multi-Factor"]).toContain("unique-reference=user-totp-method-1");
   });
 });
 

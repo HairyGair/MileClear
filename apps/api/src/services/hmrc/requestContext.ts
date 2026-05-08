@@ -31,12 +31,10 @@ let cachedServerPublicIp: string | null = null;
 let serverPublicIpFetchedAt = 0;
 
 async function getServerPublicIp(): Promise<string> {
-  // Cache for 1 hour. On Pixelish the IP is stable but a refresh is cheap.
   const ONE_HOUR = 60 * 60 * 1000;
   if (cachedServerPublicIp && Date.now() - serverPublicIpFetchedAt < ONE_HOUR) {
     return cachedServerPublicIp;
   }
-  // ipify is free + reliable. Fall back to env var if we ever ban it.
   if (process.env.HMRC_SERVER_PUBLIC_IP) {
     cachedServerPublicIp = process.env.HMRC_SERVER_PUBLIC_IP;
     serverPublicIpFetchedAt = Date.now();
@@ -49,7 +47,6 @@ async function getServerPublicIp(): Promise<string> {
     serverPublicIpFetchedAt = Date.now();
     return cachedServerPublicIp;
   } catch {
-    // Last resort: known Pixelish IP (per memory).
     return "85.234.151.224";
   }
 }
@@ -63,11 +60,26 @@ export async function buildServerContext(): Promise<ServerContext> {
 }
 
 /**
+ * Convert HMRC's mobile-shorthand offset ("+0100", "-0530") to the
+ * required "UTC±HH:MM" format. Pass-through if already in that shape.
+ * Validator otherwise rejects with: "Value must be a recognised timezone
+ * in UTC format, submitted as UTC±<hh>:<mm>".
+ */
+export function normaliseTimezoneOffset(raw: string | undefined): string {
+  if (!raw) return "UTC+00:00";
+  if (/^UTC[+-]\d{2}:\d{2}$/.test(raw)) return raw;
+  // "+0100" / "-0530" → "UTC+01:00" / "UTC-05:30"
+  const m = /^([+-])(\d{2}):?(\d{2})$/.exec(raw);
+  if (m) return `UTC${m[1]}${m[2]}:${m[3]}`;
+  return "UTC+00:00";
+}
+
+/**
  * Extract the ClientContext from a Fastify request's headers. Mobile sends
- * X-MileClear-Device-Id, X-MileClear-User-Agent, X-MileClear-Screen-Width
- * etc; web sends a simpler subset. Falls back to sensible defaults when
- * a header is missing so dev/test calls don't crash — production headers
- * are validated by HMRC's Test Fraud Prevention Headers API.
+ * X-MileClear-* headers (set by the API client wrapper). Falls back to
+ * sensible defaults when a header is missing so dev/test calls don't
+ * crash — production header shapes are validated against HMRC's Test
+ * Fraud Prevention Headers API in CI.
  */
 export function buildClientContext(request: FastifyRequest): ClientContext {
   const h = request.headers;
@@ -81,19 +93,32 @@ export function buildClientContext(request: FastifyRequest): ClientContext {
     get("x-forwarded-for")?.split(",")[0]?.trim() ??
     request.ip ??
     "0.0.0.0";
+  const publicIpTimestamp = get("x-mileclear-public-ip-timestamp") ?? new Date().toISOString();
+  // Connection port: HMRC wants the port the device used to reach our
+  // server. We can't see the device-side ephemeral port, but the device
+  // talked to us on 443 (HTTPS) — that's the port HMRC's spec accepts.
+  const publicPort = get("x-mileclear-public-port") ?? "443";
+  const tzOffset = normaliseTimezoneOffset(get("x-mileclear-timezone-offset"));
 
   if (platform === "ios" || platform === "android") {
     return {
       connectionMethod: "MOBILE_APP_VIA_SERVER",
       deviceId: get("x-mileclear-device-id") ?? "unknown-device",
       publicIp: ip,
-      userAgent: get("x-mileclear-user-agent") ?? get("user-agent") ?? "MileClear/1.x",
+      publicIpTimestamp,
+      publicPort,
       osFamily: platform === "ios" ? "iOS" : "Android",
+      osVersion: get("x-mileclear-os-version") ?? "0.0",
+      deviceManufacturer:
+        get("x-mileclear-device-manufacturer") ?? (platform === "ios" ? "Apple" : "Unknown"),
+      deviceModel: get("x-mileclear-device-model") ?? "Unknown",
       screenWidth: parseInt(get("x-mileclear-screen-width") ?? "1170", 10),
       screenHeight: parseInt(get("x-mileclear-screen-height") ?? "2532", 10),
+      scalingFactor: parseInt(get("x-mileclear-scaling-factor") ?? "3", 10),
+      colourDepth: parseInt(get("x-mileclear-colour-depth") ?? "24", 10),
       language: get("x-mileclear-language") ?? "en-GB",
-      deviceTimezone: get("x-mileclear-timezone") ?? "Europe/London",
-      timezoneOffset: get("x-mileclear-timezone-offset") ?? "+0100",
+      timezone: get("x-mileclear-timezone") ?? "Europe/London",
+      timezoneOffset: tzOffset,
       vendorIdentifier: get("x-mileclear-vendor-id"),
     };
   }
@@ -101,10 +126,18 @@ export function buildClientContext(request: FastifyRequest): ClientContext {
   return {
     connectionMethod: "WEB_APP_VIA_SERVER",
     publicIp: ip,
-    userAgent: get("user-agent") ?? "Mozilla/5.0",
+    publicIpTimestamp,
+    publicPort,
+    browserName: get("x-mileclear-browser-name") ?? "Unknown",
+    browserVersion: get("x-mileclear-browser-version") ?? "0.0",
     windowWidth: parseInt(get("x-mileclear-window-width") ?? "1440", 10),
     windowHeight: parseInt(get("x-mileclear-window-height") ?? "900", 10),
+    screenWidth: parseInt(get("x-mileclear-screen-width") ?? "1920", 10),
+    screenHeight: parseInt(get("x-mileclear-screen-height") ?? "1080", 10),
+    scalingFactor: parseInt(get("x-mileclear-scaling-factor") ?? "1", 10),
+    colourDepth: parseInt(get("x-mileclear-colour-depth") ?? "24", 10),
     language: get("accept-language")?.split(",")[0] ?? "en-GB",
     timezone: get("x-mileclear-timezone") ?? "Europe/London",
+    timezoneOffset: tzOffset,
   };
 }
