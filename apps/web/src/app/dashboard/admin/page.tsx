@@ -3655,6 +3655,14 @@ function AlertsTab() {
   if (loading) return <LoadingSkeleton variant="row" count={6} />;
 
   const alertLabel = (type: string) => {
+    // Heartbeat-driven (10 May 2026)
+    if (type === "alert.heartbeat_bg_location_lost") return "Background Location Lost";
+    if (type === "alert.heartbeat_bg_fetch_denied") return "Background Refresh Denied";
+    if (type === "alert.heartbeat_sync_perm_failed") return "Sync Queue Failed";
+    if (type === "alert.heartbeat_low_disk") return "Low Disk Space";
+    // Revenue-impact
+    if (type.includes("subscription_orphan")) return "Subscription Orphan";
+    // Diagnostic-dump-driven (legacy)
     if (type.includes("permission")) return "Permission Missing";
     if (type.includes("task_not")) return "Task Stopped";
     if (type.includes("stuck")) return "Stuck Recording";
@@ -3662,9 +3670,16 @@ function AlertsTab() {
   };
 
   const alertColor = (type: string) => {
+    // Red — actively breaking the user's tracking pipeline
+    if (type === "alert.heartbeat_bg_location_lost") return "var(--dash-red)";
+    if (type === "alert.heartbeat_bg_fetch_denied") return "var(--dash-red)";
+    if (type === "alert.heartbeat_sync_perm_failed") return "var(--dash-red)";
     if (type.includes("permission")) return "var(--dash-red)";
     if (type.includes("task_not")) return "var(--dash-red)";
+    // Amber — degraded but recoverable
+    if (type === "alert.heartbeat_low_disk") return "var(--amber-500)";
     if (type.includes("stuck")) return "var(--amber-500)";
+    if (type.includes("subscription_orphan")) return "var(--amber-500)";
     return "var(--text-secondary)";
   };
 

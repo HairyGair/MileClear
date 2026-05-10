@@ -484,13 +484,19 @@ export async function adminRoutes(app: FastifyInstance) {
       where: {
         type: {
           in: [
+            // Diagnostic-dump-driven alerts (manually-uploaded dumps)
             "alert.permission_missing",
             "alert.task_not_running",
             "alert.stuck_recording",
-            // 4 May 2026: revenue-impact alerts surface in the same
-            // feed so subscription orphans get the same urgency as
-            // tracking failures.
+            // Revenue-impact alerts (4 May 2026)
             "alert.subscription_orphan",
+            // Heartbeat-driven alerts (10 May 2026): catch silent
+            // tracking failures without requiring the user to upload
+            // a diagnostic dump first.
+            "alert.heartbeat_bg_location_lost",
+            "alert.heartbeat_bg_fetch_denied",
+            "alert.heartbeat_sync_perm_failed",
+            "alert.heartbeat_low_disk",
           ],
         },
       },
