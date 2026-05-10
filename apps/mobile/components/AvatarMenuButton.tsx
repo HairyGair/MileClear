@@ -45,6 +45,8 @@ const MENU_ITEMS: Record<string, MenuItem> = {
   menu_trips: { key: "menu_trips", label: "Trips", route: "/(tabs)/trips", icon: "car-outline", replace: true },
   menu_fuel: { key: "menu_fuel", label: "Fuel", route: "/(tabs)/fuel", icon: "water-outline", replace: true },
   menu_earnings: { key: "menu_earnings", label: "Earnings", route: "/(tabs)/earnings", icon: "cash-outline", replace: true },
+  menu_invoices: { key: "menu_invoices", label: "Invoices", route: "/invoices", icon: "document-text-outline" },
+  menu_work_tax: { key: "menu_work_tax", label: "Work & Tax", route: "/settings/work-tax", icon: "briefcase-outline" },
   menu_insights: { key: "menu_insights", label: "Insights", route: "/insights", icon: "stats-chart-outline", badge: "PRO" },
   menu_analytics: { key: "menu_analytics", label: "Analytics", route: "/analytics", icon: "bar-chart-outline", badge: "PRO" },
   menu_exports: { key: "menu_exports", label: "Tax Exports", route: "/exports", icon: "download-outline", badge: "PRO" },
@@ -55,7 +57,12 @@ const MENU_ITEMS: Record<string, MenuItem> = {
 // Group definitions — items render in layout-pref order within each group
 const GROUPS = [
   { id: "nav", label: "NAVIGATE", keys: ["menu_dashboard", "menu_trips", "menu_fuel", "menu_earnings"] },
-  { id: "tools", label: "TOOLS", keys: ["menu_insights", "menu_analytics", "menu_exports", "menu_suggestions", "menu_schedule"] },
+  // Work-related shortcuts. Settings hub has a Work & Tax sub-screen
+  // (PAYE deductions, tax basis, mileage rates, invoices entry) — this
+  // surfaces it one tap from the avatar menu so gig drivers don't have
+  // to navigate three layers deep to tweak their tax setup.
+  { id: "work", label: "WORK & TAX", keys: ["menu_work_tax", "menu_invoices", "menu_schedule"] },
+  { id: "tools", label: "TOOLS", keys: ["menu_insights", "menu_analytics", "menu_exports", "menu_suggestions"] },
 ];
 
 // ── Component ──────────────────────────────────────────────────────

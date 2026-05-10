@@ -14,6 +14,7 @@ import { Ionicons } from "@expo/vector-icons";
 import * as WebBrowser from "expo-web-browser";
 import { getTaxYear } from "@mileclear/shared";
 import { PremiumGate } from "../components/PremiumGate";
+import { BetaBanner } from "../components/BetaBanner";
 import {
   fetchHmrcStatus,
   fetchHmrcBusinesses,
@@ -245,6 +246,12 @@ function TaxMtdContent() {
       contentContainerStyle={{ padding: 16, paddingBottom: 64 }}
       refreshControl={<RefreshControl tintColor={AMBER} refreshing={refreshing} onRefresh={onRefresh} />}
     >
+      <BetaBanner
+        label="Beta · Sandbox"
+        title="HMRC integration is in beta"
+        body="The full flow works against HMRC's sandbox while we complete production accreditation (estimated 4-8 weeks). You can connect, preview, and walk through submissions — but they won't reach real HMRC yet. Your live tax data is unaffected."
+      />
+
       <Header status={state.status} onDisconnect={state.status?.connected ? onDisconnect : undefined} />
 
       {state.error && (

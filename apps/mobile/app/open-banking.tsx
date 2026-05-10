@@ -18,6 +18,7 @@ import {
 } from "../lib/api/earnings";
 import type { PlaidConnection } from "@mileclear/shared";
 import { Button } from "../components/Button";
+import { BetaBanner } from "../components/BetaBanner";
 import { useUser } from "../lib/user/context";
 import { isIapAvailable, purchaseSubscription } from "../lib/iap/index";
 import { createCheckoutSession } from "../lib/api/billing";
@@ -276,6 +277,11 @@ export default function OpenBankingScreen() {
         contentContainerStyle={styles.listContent}
         ListHeaderComponent={
           <View style={styles.header}>
+            <BetaBanner
+              label="Beta · Sandbox"
+              title="Test banks only for now"
+              body="We're connected to TrueLayer's sandbox while we finalise production access with their banking partners. You can run through the link flow and see how it works, but only test-bank data will pull through. Real bank imports go live with our next round of accreditation."
+            />
             <View style={styles.titleRow}>
               <Text style={styles.heading}>Open Banking</Text>
               <View style={styles.proBadge}>
