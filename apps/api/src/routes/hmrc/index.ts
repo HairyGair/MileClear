@@ -12,6 +12,7 @@
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { authMiddleware } from "../../middleware/auth.js";
+import { premiumMiddleware } from "../../middleware/premium.js";
 import { prisma } from "../../lib/prisma.js";
 import { encrypt, decryptIfEncrypted } from "../../lib/encryption.js";
 import {
@@ -31,7 +32,20 @@ import {
   retrieveBusiness,
   listPeriodSummaries,
   retrievePeriodSummary,
+  submitPeriodSummary,
+  amendPeriodSummary,
+  buildPeriodSubmission,
+  triggerCalculation,
+  listCalculations,
+  retrieveCalculation,
+  isValidCalculationType,
+  triggerBsas,
+  listBsas,
+  retrieveSelfEmploymentBsas,
+  isValidBsasBusinessType,
   isValidHmrcTaxYear,
+  type CalculationType,
+  type BsasBusinessType,
 } from "../../services/hmrc/index.js";
 import { logEvent } from "../../services/appEvents.js";
 
@@ -44,7 +58,11 @@ function normaliseNino(raw: string): string {
 }
 
 export async function hmrcRoutes(app: FastifyInstance) {
-  // GET /hmrc/status — connection state for the current user
+  // GET /hmrc/status — connection state for the current user.
+  // Returns the four setup flags (connected / hasNino / hasBusinessId /
+  // businessId) so the mobile entry screen can render its setup-state
+  // machine off a single round-trip instead of probing several endpoints.
+  // The actual NINO is never returned — only its presence.
   app.get("/status", { preHandler: authMiddleware }, async (request, reply) => {
     const config = getHmrcConfig();
     if (!config) {
@@ -59,6 +77,8 @@ export async function hmrcRoutes(app: FastifyInstance) {
         expiresAt: true,
         connectedAt: true,
         disconnectedAt: true,
+        nino: true,
+        businessId: true,
       },
     });
 
@@ -67,6 +87,8 @@ export async function hmrcRoutes(app: FastifyInstance) {
         data: {
           connected: false,
           environment: config.environment,
+          hasNino: false,
+          hasBusinessId: false,
         },
       });
     }
@@ -78,6 +100,9 @@ export async function hmrcRoutes(app: FastifyInstance) {
         scopes: connection.scope.split(" "),
         expiresAt: connection.expiresAt.toISOString(),
         connectedAt: connection.connectedAt.toISOString(),
+        hasNino: Boolean(connection.nino),
+        hasBusinessId: Boolean(connection.businessId),
+        businessId: connection.businessId ?? null,
       },
     });
   });
@@ -438,6 +463,426 @@ export async function hmrcRoutes(app: FastifyInstance) {
       }
     }
   );
+
+  // ── Period submission (Phase 2 day 3+) ────────────────────────────────
+  // Pro-gated. The mapping → preview → submit flow is the headline feature
+  // of the 1.2.0 MTD release; £4.99/mo gates the whole pipeline.
+
+  // ISO calendar date (YYYY-MM-DD) — calendar-only, no time component.
+  const isoDateRegex = /^\d{4}-\d{2}-\d{2}$/;
+  const submitBodySchema = z.object({
+    taxYear: z.string().refine(isValidHmrcTaxYear, "taxYear must be in YYYY-YY format."),
+    periodStartDate: z.string().regex(isoDateRegex, "periodStartDate must be YYYY-MM-DD."),
+    periodEndDate: z.string().regex(isoDateRegex, "periodEndDate must be YYYY-MM-DD."),
+  });
+
+  // GET /hmrc/businesses/:businessId/periods/preview?taxYear=&from=&to=
+  // — runs the mapper without submitting. Drives the mobile preview screen
+  // ("here's what we're about to send to HMRC"). Pro-gated; returns the
+  // full breakdown so the UI can show the per-platform / per-bucket split.
+  const previewQuery = z.object({
+    taxYear: z.string().refine(isValidHmrcTaxYear, "taxYear must be in YYYY-YY format."),
+    from: z.string().regex(isoDateRegex, "from must be YYYY-MM-DD."),
+    to: z.string().regex(isoDateRegex, "to must be YYYY-MM-DD."),
+  });
+  app.get(
+    "/businesses/:businessId/periods/preview",
+    { preHandler: [authMiddleware, premiumMiddleware] },
+    async (request, reply) => {
+      const businessId = (request.params as { businessId?: string }).businessId?.trim();
+      if (!businessId) return reply.status(400).send({ error: "businessId is required." });
+      const parsed = previewQuery.safeParse(request.query);
+      if (!parsed.success) {
+        return reply.status(400).send({ error: parsed.error.issues[0].message });
+      }
+
+      try {
+        const submission = await buildPeriodSubmission({
+          prisma,
+          userId: request.userId!,
+          taxYear: parsed.data.taxYear,
+          periodStartDate: parsed.data.from,
+          periodEndDate: parsed.data.to,
+        });
+        return reply.send({ data: submission });
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : "Failed to build period preview.";
+        return reply.status(400).send({ error: msg });
+      }
+    }
+  );
+
+  // POST /hmrc/businesses/:businessId/periods — submit a quarterly period
+  // summary to HMRC. Body: { taxYear, periodStartDate, periodEndDate }.
+  // Mapping happens server-side from MileClear data; the client never sees
+  // raw figures it could mutate before send. Returns the HMRC-assigned
+  // periodId on success.
+  app.post(
+    "/businesses/:businessId/periods",
+    { preHandler: [authMiddleware, premiumMiddleware] },
+    async (request, reply) => {
+      const businessId = (request.params as { businessId?: string }).businessId?.trim();
+      if (!businessId) return reply.status(400).send({ error: "businessId is required." });
+      const parsed = submitBodySchema.safeParse(request.body);
+      if (!parsed.success) {
+        return reply.status(400).send({ error: parsed.error.issues[0].message });
+      }
+      const ctx = await loadConnectionWithNino(request.userId!);
+      if ("error" in ctx) return reply.status(ctx.status).send({ error: ctx.error });
+
+      let submission;
+      try {
+        submission = await buildPeriodSubmission({
+          prisma,
+          userId: request.userId!,
+          taxYear: parsed.data.taxYear,
+          periodStartDate: parsed.data.periodStartDate,
+          periodEndDate: parsed.data.periodEndDate,
+        });
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : "Failed to build submission payload.";
+        return reply.status(400).send({ error: msg });
+      }
+
+      try {
+        const result = await submitPeriodSummary({
+          userId: request.userId!,
+          nino: ctx.nino,
+          businessId,
+          taxYear: parsed.data.taxYear,
+          body: {
+            periodDates: submission.periodDates,
+            periodIncome: submission.periodIncome,
+            periodExpenses: submission.periodExpenses,
+          },
+          client: buildClientContext(request),
+          server: await buildServerContext(),
+        });
+
+        logEvent("hmrc.period_submitted", request.userId!, {
+          businessId,
+          taxYear: parsed.data.taxYear,
+          periodId: result.periodId,
+          turnoverPence: submission.breakdown.income.turnoverPence,
+          mileagePence: submission.breakdown.mileage.deductionPence,
+        });
+
+        return reply.send({
+          data: {
+            periodId: result.periodId,
+            breakdown: submission.breakdown,
+          },
+        });
+      } catch (err) {
+        return handleHmrcError(reply, err);
+      }
+    }
+  );
+
+  // PUT /hmrc/businesses/:businessId/periods/:periodId — amend an existing
+  // period summary. Same body shape as create; periodDates are immutable
+  // on HMRC's side but we still need from/to so we know which range to
+  // re-aggregate from MileClear data.
+  app.put(
+    "/businesses/:businessId/periods/:periodId",
+    { preHandler: [authMiddleware, premiumMiddleware] },
+    async (request, reply) => {
+      const params = request.params as { businessId?: string; periodId?: string };
+      const businessId = params.businessId?.trim();
+      const periodId = params.periodId?.trim();
+      if (!businessId) return reply.status(400).send({ error: "businessId is required." });
+      if (!periodId) return reply.status(400).send({ error: "periodId is required." });
+      const parsed = submitBodySchema.safeParse(request.body);
+      if (!parsed.success) {
+        return reply.status(400).send({ error: parsed.error.issues[0].message });
+      }
+      const ctx = await loadConnectionWithNino(request.userId!);
+      if ("error" in ctx) return reply.status(ctx.status).send({ error: ctx.error });
+
+      let submission;
+      try {
+        submission = await buildPeriodSubmission({
+          prisma,
+          userId: request.userId!,
+          taxYear: parsed.data.taxYear,
+          periodStartDate: parsed.data.periodStartDate,
+          periodEndDate: parsed.data.periodEndDate,
+        });
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : "Failed to build amendment payload.";
+        return reply.status(400).send({ error: msg });
+      }
+
+      try {
+        await amendPeriodSummary({
+          userId: request.userId!,
+          nino: ctx.nino,
+          businessId,
+          taxYear: parsed.data.taxYear,
+          periodId,
+          body: {
+            periodIncome: submission.periodIncome,
+            periodExpenses: submission.periodExpenses,
+          },
+          client: buildClientContext(request),
+          server: await buildServerContext(),
+        });
+
+        logEvent("hmrc.period_amended", request.userId!, {
+          businessId,
+          taxYear: parsed.data.taxYear,
+          periodId,
+          turnoverPence: submission.breakdown.income.turnoverPence,
+          mileagePence: submission.breakdown.mileage.deductionPence,
+        });
+
+        return reply.send({
+          data: {
+            periodId,
+            breakdown: submission.breakdown,
+          },
+        });
+      } catch (err) {
+        return handleHmrcError(reply, err);
+      }
+    }
+  );
+
+  // ── Individual Calculations API (Phase 2 day 4) ──────────────────────
+  // Triggers HMRC's tax calc against the user's submitted period data,
+  // then reads back the headline figures (income tax, NI2, NI4, total).
+  // Drives the Tax Readiness cross-check ("here's what HMRC thinks vs
+  // what we estimated"). Pro-gated like the rest of MTD.
+
+  // POST /hmrc/calculations — trigger a new calculation. HMRC runs the
+  // calc asynchronously; the returned calculationId is then polled via
+  // GET /hmrc/calculations/:id until ready.
+  const triggerCalcSchema = z.object({
+    taxYear: z.string().refine(isValidHmrcTaxYear, "taxYear must be in YYYY-YY format."),
+    calculationType: z
+      .string()
+      .refine(isValidCalculationType, "calculationType must be one of in-year, intent-to-finalise, intent-to-amend.")
+      .optional(),
+  });
+  app.post(
+    "/calculations",
+    { preHandler: [authMiddleware, premiumMiddleware] },
+    async (request, reply) => {
+      const parsed = triggerCalcSchema.safeParse(request.body);
+      if (!parsed.success) {
+        return reply.status(400).send({ error: parsed.error.issues[0].message });
+      }
+      const ctx = await loadConnectionWithNino(request.userId!);
+      if ("error" in ctx) return reply.status(ctx.status).send({ error: ctx.error });
+
+      const calculationType: CalculationType =
+        (parsed.data.calculationType as CalculationType | undefined) ?? "in-year";
+
+      try {
+        const result = await triggerCalculation({
+          userId: request.userId!,
+          nino: ctx.nino,
+          taxYear: parsed.data.taxYear,
+          calculationType,
+          client: buildClientContext(request),
+          server: await buildServerContext(),
+        });
+
+        logEvent("hmrc.calculation_triggered", request.userId!, {
+          taxYear: parsed.data.taxYear,
+          calculationType,
+          calculationId: result.calculationId,
+        });
+
+        return reply.send({ data: result });
+      } catch (err) {
+        return handleHmrcError(reply, err);
+      }
+    }
+  );
+
+  // GET /hmrc/calculations?taxYear=YYYY-YY — list calculations for the
+  // tax year, most recent first.
+  const calcListQuery = z.object({
+    taxYear: z.string().refine(isValidHmrcTaxYear, "taxYear must be in YYYY-YY format."),
+  });
+  app.get(
+    "/calculations",
+    { preHandler: [authMiddleware, premiumMiddleware] },
+    async (request, reply) => {
+      const parsed = calcListQuery.safeParse(request.query);
+      if (!parsed.success) {
+        return reply.status(400).send({ error: parsed.error.issues[0].message });
+      }
+      const ctx = await loadConnectionWithNino(request.userId!);
+      if ("error" in ctx) return reply.status(ctx.status).send({ error: ctx.error });
+
+      try {
+        const calculations = await listCalculations({
+          userId: request.userId!,
+          nino: ctx.nino,
+          taxYear: parsed.data.taxYear,
+          client: buildClientContext(request),
+          server: await buildServerContext(),
+        });
+        return reply.send({ data: { calculations } });
+      } catch (err) {
+        return handleHmrcError(reply, err);
+      }
+    }
+  );
+
+  // GET /hmrc/calculations/:calculationId — full breakdown of one calc.
+  // Mobile/web polls this with backoff (start 2s, double up to 30s) until
+  // `data.ready === true`. The `raw` field contains HMRC's full response
+  // for any deeper "view full breakdown" UI we add later.
+  app.get(
+    "/calculations/:calculationId",
+    { preHandler: [authMiddleware, premiumMiddleware] },
+    async (request, reply) => {
+      const calculationId = (request.params as { calculationId?: string }).calculationId?.trim();
+      if (!calculationId) {
+        return reply.status(400).send({ error: "calculationId is required." });
+      }
+      const ctx = await loadConnectionWithNino(request.userId!);
+      if ("error" in ctx) return reply.status(ctx.status).send({ error: ctx.error });
+
+      try {
+        const summary = await retrieveCalculation({
+          userId: request.userId!,
+          nino: ctx.nino,
+          calculationId,
+          client: buildClientContext(request),
+          server: await buildServerContext(),
+        });
+        return reply.send({ data: summary });
+      } catch (err) {
+        return handleHmrcError(reply, err);
+      }
+    }
+  );
+
+  // ── Business Source Adjustable Summary (Phase 2 day 5) ───────────────
+  // BSAS is the year-end snapshot mechanism — not on the 7 August 2026
+  // critical path, but the API surface ships now so Phase 3 mobile UI
+  // has it available when we add the year-end review screen later.
+  // All routes Pro-gated.
+
+  // POST /hmrc/bsas — trigger a BSAS for a business + accounting period.
+  // Body: { taxYear, businessId, accountingPeriodStartDate, accountingPeriodEndDate, typeOfBusiness? }.
+  const triggerBsasSchema = z.object({
+    taxYear: z.string().refine(isValidHmrcTaxYear, "taxYear must be in YYYY-YY format."),
+    businessId: z
+      .string()
+      .min(8)
+      .max(40)
+      .regex(/^[A-Za-z0-9]+$/, "businessId must be alphanumeric."),
+    accountingPeriodStartDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "accountingPeriodStartDate must be YYYY-MM-DD."),
+    accountingPeriodEndDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "accountingPeriodEndDate must be YYYY-MM-DD."),
+    typeOfBusiness: z
+      .string()
+      .refine(isValidBsasBusinessType, "typeOfBusiness invalid.")
+      .optional(),
+  });
+  app.post(
+    "/bsas",
+    { preHandler: [authMiddleware, premiumMiddleware] },
+    async (request, reply) => {
+      const parsed = triggerBsasSchema.safeParse(request.body);
+      if (!parsed.success) {
+        return reply.status(400).send({ error: parsed.error.issues[0].message });
+      }
+
+      try {
+        const result = await triggerBsas({
+          userId: request.userId!,
+          businessId: parsed.data.businessId,
+          taxYear: parsed.data.taxYear,
+          accountingPeriodStartDate: parsed.data.accountingPeriodStartDate,
+          accountingPeriodEndDate: parsed.data.accountingPeriodEndDate,
+          typeOfBusiness: parsed.data.typeOfBusiness as BsasBusinessType | undefined,
+          client: buildClientContext(request),
+          server: await buildServerContext(),
+        });
+
+        logEvent("hmrc.bsas_triggered", request.userId!, {
+          taxYear: parsed.data.taxYear,
+          businessId: parsed.data.businessId,
+          calculationId: result.calculationId,
+        });
+
+        return reply.send({ data: result });
+      } catch (err) {
+        return handleHmrcError(reply, err);
+      }
+    }
+  );
+
+  // GET /hmrc/bsas?taxYear=&typeOfBusiness=&businessId= — list BSASes.
+  const bsasListQuery = z.object({
+    taxYear: z.string().refine(isValidHmrcTaxYear, "taxYear must be in YYYY-YY format."),
+    typeOfBusiness: z
+      .string()
+      .refine(isValidBsasBusinessType, "typeOfBusiness invalid.")
+      .optional(),
+    businessId: z.string().optional(),
+  });
+  app.get(
+    "/bsas",
+    { preHandler: [authMiddleware, premiumMiddleware] },
+    async (request, reply) => {
+      const parsed = bsasListQuery.safeParse(request.query);
+      if (!parsed.success) {
+        return reply.status(400).send({ error: parsed.error.issues[0].message });
+      }
+
+      try {
+        const list = await listBsas({
+          userId: request.userId!,
+          taxYear: parsed.data.taxYear,
+          typeOfBusiness: parsed.data.typeOfBusiness as BsasBusinessType | undefined,
+          businessId: parsed.data.businessId,
+          client: buildClientContext(request),
+          server: await buildServerContext(),
+        });
+        return reply.send({ data: list });
+      } catch (err) {
+        return handleHmrcError(reply, err);
+      }
+    }
+  );
+
+  // GET /hmrc/bsas/:bsasId?taxYear=YYYY-YY — retrieve one self-employment
+  // BSAS with the headline summary projected. Like calculations, callers
+  // can poll until `data.ready === true`.
+  const bsasRetrieveQuery = z.object({
+    taxYear: z.string().refine(isValidHmrcTaxYear, "taxYear must be in YYYY-YY format."),
+  });
+  app.get(
+    "/bsas/:bsasId",
+    { preHandler: [authMiddleware, premiumMiddleware] },
+    async (request, reply) => {
+      const bsasId = (request.params as { bsasId?: string }).bsasId?.trim();
+      if (!bsasId) return reply.status(400).send({ error: "bsasId is required." });
+      const parsed = bsasRetrieveQuery.safeParse(request.query);
+      if (!parsed.success) {
+        return reply.status(400).send({ error: parsed.error.issues[0].message });
+      }
+
+      try {
+        const summary = await retrieveSelfEmploymentBsas({
+          userId: request.userId!,
+          calculationId: bsasId,
+          taxYear: parsed.data.taxYear,
+          client: buildClientContext(request),
+          server: await buildServerContext(),
+        });
+        return reply.send({ data: summary });
+      } catch (err) {
+        return handleHmrcError(reply, err);
+      }
+    }
+  );
 }
 
 // ── Helpers (route-internal) ──────────────────────────────────────────
@@ -483,18 +928,33 @@ async function loadConnectionWithNino(
  */
 function handleHmrcError(reply: import("fastify").FastifyReply, err: unknown) {
   if (err instanceof HmrcNotConnectedError) {
-    return reply.status(400).send({ error: "Connect to HMRC first." });
+    return reply.status(400).send({
+      error: {
+        code: "HMRC_NOT_CONNECTED",
+        message: "Connect to HMRC first.",
+        retryable: false,
+      },
+    });
   }
   if (err instanceof HmrcReauthRequiredError) {
+    // Modern error shape so parseApiError on the client picks up the code
+    // and routes to the re-OAuth prompt instead of the generic
+    // session-expired flow.
     return reply.status(401).send({
-      error: "HMRC connection expired. Please reconnect.",
-      code: "HMRC_REAUTH_REQUIRED",
+      error: {
+        code: "HMRC_REAUTH_REQUIRED",
+        message: "HMRC connection expired. Please reconnect.",
+        retryable: false,
+      },
     });
   }
   if (err instanceof HmrcError) {
     return reply.status(err.httpStatus >= 500 ? 502 : err.httpStatus).send({
-      error: err.message,
-      hmrcCode: err.hmrcCode,
+      error: {
+        code: err.hmrcCode ?? "HMRC_API_ERROR",
+        message: err.message,
+        retryable: err.httpStatus >= 500,
+      },
     });
   }
   throw err;

@@ -385,6 +385,12 @@ function RootNavigator() {
         <Stack.Screen name="first-tax-return" options={{ headerShown: true, title: "First-Time Guide" }} />
         <Stack.Screen name="vehicle-mot-history" options={{ headerShown: true, title: "MOT History" }} />
         <Stack.Screen name="hmrc-reconciliation" options={{ headerShown: true, title: "HMRC Reconciliation" }} />
+        <Stack.Screen name="tax-mtd" options={{ headerShown: true, title: "Tax (MTD)" }} />
+        <Stack.Screen name="tax-mtd-nino" options={{ headerShown: true, title: "National Insurance Number" }} />
+        <Stack.Screen name="tax-mtd-business" options={{ headerShown: true, title: "Confirm trade" }} />
+        <Stack.Screen name="tax-mtd-preview" options={{ headerShown: true, title: "Review submission" }} />
+        <Stack.Screen name="tax-mtd-submitted" options={{ headerShown: true, title: "Submitted", headerBackVisible: false }} />
+        <Stack.Screen name="tax-mtd-history" options={{ headerShown: true, title: "Submission history" }} />
         {/* Settings hub + sub-screens. Each is a small focused screen so
             individual settings are findable. Profile tab links into here. */}
         <Stack.Screen name="settings/index" options={{ headerShown: true, title: "Settings" }} />

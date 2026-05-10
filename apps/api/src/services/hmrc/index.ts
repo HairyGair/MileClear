@@ -63,6 +63,8 @@ export {
 export {
   listPeriodSummaries,
   retrievePeriodSummary,
+  submitPeriodSummary,
+  amendPeriodSummary,
   isValidHmrcTaxYear,
   type HmrcPeriodSummaryListItem,
   type HmrcPeriodSummaryListResponse,
@@ -70,4 +72,42 @@ export {
   type HmrcPeriodExpenses,
   type HmrcPeriodDisallowableExpenses,
   type HmrcPeriodSummaryDetail,
+  type HmrcPeriodSummarySubmitBody,
+  type HmrcSubmitPeriodResponse,
 } from "./selfEmployment.js";
+
+export {
+  buildPeriodSubmission,
+  getQuartersForTaxYear,
+  penceToPounds,
+  poundsToPence,
+  type QuarterBoundary,
+  type PeriodSubmissionPayload,
+  type PeriodSubmissionBreakdown,
+} from "./periodMapping.js";
+
+export {
+  triggerCalculation,
+  listCalculations,
+  retrieveCalculation,
+  summariseCalculation,
+  isValidCalculationType,
+  type CalculationType,
+  type HmrcTriggerCalculationResponse,
+  type HmrcCalculationListItem,
+  type HmrcCalculationListResponse,
+  type HmrcCalculationSummary,
+} from "./calculations.js";
+
+export {
+  triggerBsas,
+  listBsas,
+  retrieveSelfEmploymentBsas,
+  summariseBsas,
+  isValidBsasBusinessType,
+  type BsasBusinessType,
+  type HmrcTriggerBsasResponse,
+  type HmrcBsasListItem,
+  type HmrcBsasListResponse,
+  type HmrcBsasSummary,
+} from "./bsas.js";

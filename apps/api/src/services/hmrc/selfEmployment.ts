@@ -1,14 +1,12 @@
-// HMRC MTD ITSA — Self Employment Business API (read operations).
+// HMRC MTD ITSA — Self Employment Business API.
 //
-// Phase 2 day 2: read-only. Period summary creation (the harder
-// mapping work) lands in day 3-5 once the schema-mapping helpers
-// in services/hmrc/periodMapping.ts are in place.
+// Read + write operations against the period summary endpoints. The
+// MileClear-data-to-HMRC-payload mapping lives in periodMapping.ts;
+// this file is the thin transport layer that talks to HMRC.
 //
-// Endpoints (read):
-//   GET /individuals/business/self-employment/{nino}/{businessId}/period?taxYear=YYYY-YY
-//   GET /individuals/business/self-employment/{nino}/{businessId}/period/{periodId}?taxYear=YYYY-YY
-//
-// Endpoints (write — TODO day 3-5):
+// Endpoints:
+//   GET  /individuals/business/self-employment/{nino}/{businessId}/period?taxYear=YYYY-YY
+//   GET  /individuals/business/self-employment/{nino}/{businessId}/period/{periodId}?taxYear=YYYY-YY
 //   POST /individuals/business/self-employment/{nino}/{businessId}/period?taxYear=YYYY-YY
 //   PUT  /individuals/business/self-employment/{nino}/{businessId}/period/{periodId}?taxYear=YYYY-YY
 //
@@ -161,6 +159,90 @@ export async function retrievePeriodSummary(args: {
     path: `/individuals/business/self-employment/${encodeURIComponent(args.nino)}/${encodeURIComponent(args.businessId)}/period/${encodeURIComponent(args.periodId)}`,
     apiVersion: SE_API_VERSION,
     query: { taxYear: args.taxYear },
+    client: args.client,
+    server: args.server,
+  });
+}
+
+/** Body shape for create + amend. periodDates only required on create. */
+export interface HmrcPeriodSummarySubmitBody {
+  periodDates?: {
+    periodStartDate: string;
+    periodEndDate: string;
+  };
+  periodIncome?: HmrcPeriodIncome;
+  periodExpenses?: HmrcPeriodExpenses;
+  periodDisallowableExpenses?: HmrcPeriodDisallowableExpenses;
+}
+
+/** HMRC's response when a period summary is created. */
+export interface HmrcSubmitPeriodResponse {
+  periodId: string;
+}
+
+/**
+ * Submit a new quarterly period summary to HMRC. Returns the periodId
+ * HMRC assigns — store it locally so the user can amend later if needed.
+ *
+ * Idempotency: HMRC rejects a second POST for the same period dates
+ * (returns RULE_OVERLAPPING_PERIOD or RULE_DUPLICATE_PERIOD). The route
+ * handler should catch those and route the user to the amend endpoint.
+ */
+export async function submitPeriodSummary(args: {
+  userId: string;
+  nino: string;
+  businessId: string;
+  taxYear: string;
+  body: HmrcPeriodSummarySubmitBody;
+  client: ClientContext;
+  server: ServerContext;
+}): Promise<HmrcSubmitPeriodResponse> {
+  if (!isValidHmrcTaxYear(args.taxYear)) {
+    throw new Error(`Invalid HMRC tax year format: ${args.taxYear} (expected YYYY-YY)`);
+  }
+  if (!args.body.periodDates) {
+    throw new Error("submitPeriodSummary requires body.periodDates");
+  }
+
+  return hmrcCall<HmrcSubmitPeriodResponse>({
+    userId: args.userId,
+    method: "POST",
+    path: `/individuals/business/self-employment/${encodeURIComponent(args.nino)}/${encodeURIComponent(args.businessId)}/period`,
+    apiVersion: SE_API_VERSION,
+    query: { taxYear: args.taxYear },
+    body: args.body,
+    client: args.client,
+    server: args.server,
+  });
+}
+
+/**
+ * Amend a previously-submitted period summary. periodDates cannot be
+ * changed (HMRC keys the record by period boundary); pass income +
+ * expenses only. HMRC accepts the same shape as create with periodDates
+ * omitted — the periodId in the path identifies the record.
+ */
+export async function amendPeriodSummary(args: {
+  userId: string;
+  nino: string;
+  businessId: string;
+  taxYear: string;
+  periodId: string;
+  body: Omit<HmrcPeriodSummarySubmitBody, "periodDates">;
+  client: ClientContext;
+  server: ServerContext;
+}): Promise<void> {
+  if (!isValidHmrcTaxYear(args.taxYear)) {
+    throw new Error(`Invalid HMRC tax year format: ${args.taxYear} (expected YYYY-YY)`);
+  }
+
+  await hmrcCall<unknown>({
+    userId: args.userId,
+    method: "PUT",
+    path: `/individuals/business/self-employment/${encodeURIComponent(args.nino)}/${encodeURIComponent(args.businessId)}/period/${encodeURIComponent(args.periodId)}`,
+    apiVersion: SE_API_VERSION,
+    query: { taxYear: args.taxYear },
+    body: args.body,
     client: args.client,
     server: args.server,
   });

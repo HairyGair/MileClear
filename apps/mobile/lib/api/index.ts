@@ -3,6 +3,7 @@
 import * as SecureStore from "expo-secure-store";
 import { syncTokenToSiri, clearSiriToken } from "../siri/index";
 import { parseApiError } from "./apiError";
+import { getClientContextHeaders } from "./clientContext";
 
 export { ApiError, isApiError } from "./apiError";
 
@@ -111,8 +112,15 @@ export async function apiRequest<T>(
 ): Promise<T> {
   let token = await getAccessToken();
 
+  // Capture fraud-prevention context headers in parallel with token
+  // refresh — both async, both cheap, no inter-dependency. Throwing here
+  // would block every API call, so we swallow errors and let the request
+  // go through with whatever subset of headers we built.
+  const clientContextHeaders = await getClientContextHeaders().catch(() => ({}));
+
   const makeRequest = async (accessToken: string | null) => {
     const headers: Record<string, string> = {
+      ...clientContextHeaders,
       ...(options.headers as Record<string, string>),
     };
     // Only set Content-Type for requests that have a body — Fastify rejects
@@ -133,8 +141,17 @@ export async function apiRequest<T>(
   // not expired tokens, so refreshing makes no sense and masks the real error
   const isAuthEndpoint = path.startsWith("/auth/");
 
-  // If 401 on a protected endpoint, try refreshing the token
+  // If 401 on a protected endpoint, try refreshing the token. EXCEPTION:
+  // HMRC-specific 401s (code: HMRC_REAUTH_REQUIRED) mean the user's HMRC
+  // OAuth tokens were revoked at HMRC's end — the MileClear access token
+  // is fine, refreshing it won't help. Surface the error directly so the
+  // calling screen can prompt for HMRC re-OAuth.
   if (res.status === 401 && !isAuthEndpoint) {
+    const peek = await peekErrorCode(res);
+    if (peek?.code === "HMRC_REAUTH_REQUIRED") {
+      throw parseApiError(peek.body, res.status);
+    }
+
     try {
       token = await refreshAccessToken();
     } catch {
@@ -161,4 +178,32 @@ export async function apiRequest<T>(
   }
 
   return res.json();
+}
+
+/**
+ * Peek at a 401 response body without consuming the original Response.
+ * Returns the parsed body + extracted error code, or null if the body
+ * isn't JSON. Used to short-circuit the access-token refresh loop when
+ * the 401 is HMRC-specific.
+ */
+async function peekErrorCode(
+  res: Response
+): Promise<{ code: string | null; body: unknown } | null> {
+  try {
+    const body = (await res.clone().json()) as unknown;
+    if (typeof body === "object" && body !== null && "error" in body) {
+      const errorField = (body as { error: unknown }).error;
+      if (
+        typeof errorField === "object" &&
+        errorField !== null &&
+        "code" in errorField &&
+        typeof (errorField as { code: unknown }).code === "string"
+      ) {
+        return { code: (errorField as { code: string }).code, body };
+      }
+    }
+    return { code: null, body };
+  } catch {
+    return null;
+  }
 }

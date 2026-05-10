@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { Alert, Platform, TouchableOpacity, View, Text, StyleSheet } from "react-native";
+import { router } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import type { WorkType } from "@mileclear/shared";
 import { SettingsScreen } from "../../components/settings/SettingsScreen";
@@ -363,6 +364,16 @@ export default function WorkTaxSettings() {
           hint={weeklyGoal ? `${weeklyGoal} miles / week` : "Track progress against a weekly target"}
           badge={weeklyGoal ? "Edit" : "Set"}
           onPress={handleWeeklyGoal}
+        />
+      </SettingsGroup>
+
+      <SettingsGroup title="MTD ITSA">
+        <SettingsRow
+          icon="cloud-upload-outline"
+          label="Quarterly Self Assessment"
+          hint="Connect to HMRC and submit quarterly updates direct from MileClear"
+          badge="Pro"
+          onPress={() => router.push("/tax-mtd")}
         />
       </SettingsGroup>
     </SettingsScreen>
