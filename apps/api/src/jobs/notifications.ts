@@ -819,6 +819,139 @@ async function runDiagnosticScanJob(): Promise<void> {
   }
 }
 
+/**
+ * Scans the User-table heartbeat fields and pushes alerts when a user's
+ * tracking pipeline is silently broken. Complements the diagnostic-dump
+ * scan (which only fires when the user manually uploads a dump) — this
+ * one runs against every active user's most-recent heartbeat.
+ *
+ * Alerts are 7-day-cooldown'd per problem-type per user via app_events
+ * so we don't repeatedly nag someone whose underlying issue can't be
+ * fixed without action they haven't taken yet.
+ */
+async function runHeartbeatAlertScanJob(): Promise<void> {
+  // 7-day cooldown — these are state-of-device alerts that don't change
+  // until the user takes action. 24h would spam users who can't change
+  // the setting (e.g. iOS prompts gone, MDM-locked).
+  const ALERT_COOLDOWN_MS = 7 * 24 * 60 * 60 * 1000;
+
+  // Only act on users who heartbeat-reported in the last 7 days. Anyone
+  // older has either uninstalled or stopped using the app — pushing them
+  // is just churn.
+  const heartbeatCutoff = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+
+  // And only push if the user has been recently active. Users dormant
+  // for >30 days don't need a "your tracking is broken" alert because
+  // they aren't trying to track anything right now.
+  const activityCutoff = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+
+  const users = await prisma.user.findMany({
+    where: {
+      pushToken: { not: null },
+      lastHeartbeatAt: { gte: heartbeatCutoff },
+      OR: [
+        { lastTripAt: { gte: activityCutoff } },
+        { lastDrivingSpeedAt: { gte: activityCutoff } },
+      ],
+    },
+    select: {
+      id: true,
+      bgLocationPermission: true,
+      backgroundFetchStatus: true,
+      lastSyncQueuePermFailed: true,
+      lastSyncQueueFailed: true,
+      secondsSinceLastTripPost: true,
+      daysSinceLastTrip: true,
+      freeDiskBytes: true,
+      autoRecordingActive: true,
+      lastDrivingSpeedAt: true,
+    },
+  });
+
+  let sent = 0;
+
+  for (const user of users) {
+    const checks: Array<{
+      condition: boolean;
+      alertType: string;
+      title: string;
+      body: string;
+      data: Record<string, unknown>;
+    }> = [];
+
+    // 1. Background location permission lost mid-flight. Without this
+    //    iOS won't wake the app to track, so trips silently stop.
+    if (user.bgLocationPermission && !["always", "granted"].includes(user.bgLocationPermission)) {
+      checks.push({
+        condition: true,
+        alertType: "alert.heartbeat_bg_location_lost",
+        title: "Trips aren't being tracked",
+        body: "Background location was turned off. Open Settings → MileClear → Location → Always to keep tracking working.",
+        data: { action: "open_settings" },
+      });
+    }
+
+    // 2. Background App Refresh denied/restricted. Without it the
+    //    BACKGROUND_FINALIZE_TASK can't fire, so trips stay stuck.
+    if (user.backgroundFetchStatus && ["denied", "restricted"].includes(user.backgroundFetchStatus)) {
+      checks.push({
+        condition: true,
+        alertType: "alert.heartbeat_bg_fetch_denied",
+        title: "Trip saving might fail",
+        body: "Background App Refresh is off. Open iOS Settings → General → Background App Refresh → MileClear → On.",
+        data: { action: "open_settings" },
+      });
+    }
+
+    // 3. Permanently-failed sync queue rows. The app has given up on
+    //    these — without manual intervention they never reach the cloud.
+    if ((user.lastSyncQueuePermFailed ?? 0) > 0) {
+      checks.push({
+        condition: true,
+        alertType: "alert.heartbeat_sync_perm_failed",
+        title: "Some trips couldn't be saved to the cloud",
+        body: `${user.lastSyncQueuePermFailed} trip${
+          (user.lastSyncQueuePermFailed ?? 0) === 1 ? "" : "s"
+        } failed to upload. Open MileClear and tap Sync to retry.`,
+        data: { action: "open_sync_status" },
+      });
+    }
+
+    // 4. Disk almost full. SQLite writes start failing silently when
+    //    iOS has < ~50 MB free.
+    if (user.freeDiskBytes != null && user.freeDiskBytes < 100_000_000n) {
+      checks.push({
+        condition: true,
+        alertType: "alert.heartbeat_low_disk",
+        title: "Phone storage critically low",
+        body: "MileClear may not be able to save new trips. Free up some space on your iPhone.",
+        data: { action: "open_dashboard" },
+      });
+    }
+
+    for (const check of checks) {
+      if (!check.condition) continue;
+      const cutoff = new Date(Date.now() - ALERT_COOLDOWN_MS);
+      const already = await prisma.appEvent.findFirst({
+        where: { userId: user.id, type: check.alertType, createdAt: { gte: cutoff } },
+      });
+      if (already) continue;
+
+      try {
+        await sendPushToUser(user.id, check.title, check.body, check.data);
+        logEvent(check.alertType, user.id);
+        sent++;
+      } catch {
+        // best-effort
+      }
+    }
+  }
+
+  if (sent > 0) {
+    console.log(`[jobs/notifications] Heartbeat scan sent ${sent} alert(s)`);
+  }
+}
+
 export function startNotificationJobs(): void {
   const INITIAL_DELAY_MS = 60 * 1000;       // 60 seconds
   const INTERVAL_MS = 6 * 60 * 60 * 1000;  // 6 hours
@@ -846,6 +979,12 @@ export function startNotificationJobs(): void {
 
     void runJob("diagnostic_scan", runDiagnosticScanJob);
     setInterval(() => void runJob("diagnostic_scan", runDiagnosticScanJob), INTERVAL_MS);
+
+    // Heartbeat-driven alert scan: every 6 hours. Catches users whose
+    // tracking pipeline broke silently (bg location revoked, sync queue
+    // stuck, etc) without requiring them to upload a diagnostic dump.
+    void runJob("heartbeat_alert_scan", runHeartbeatAlertScanJob);
+    setInterval(() => void runJob("heartbeat_alert_scan", runHeartbeatAlertScanJob), INTERVAL_MS);
 
     // Recording watchdog runs every 5 min — much higher frequency than other
     // jobs because stuck-recording detection is time-sensitive (we want the
