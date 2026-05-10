@@ -22,6 +22,7 @@ import { advanceLastTripAt } from "../../services/userActivity.js";
 import { looksLikePhantomTrip } from "../../lib/phantomTrip.js";
 import { resolveRouteDistance } from "../../services/routing.js";
 import { matchTripRoute, decodePolyline, isMatchPlausible } from "../../services/mapMatching.js";
+import { computeTripConfidence } from "../../services/tripConfidence.js";
 
 // Server-side geocoding: resolve an address to coordinates via Postcodes.io or Nominatim
 async function geocodeAddress(addr: string): Promise<{ lat: number; lng: number } | null> {
@@ -886,7 +887,23 @@ export async function tripRoutes(app: FastifyInstance) {
       }
     }
 
-    return reply.send({ data: { ...trip, insights, matchedCoordinates } });
+    // Per-trip confidence — surfaced as a badge on the mobile detail screen
+    // and (eventually) explained on tap. HMRC-defence positioning: every
+    // claimed mile becomes auditable with a clear quality signal.
+    const durationSecs = trip.endedAt
+      ? Math.round((trip.endedAt.getTime() - trip.startedAt.getTime()) / 1000)
+      : null;
+    const confidence = computeTripConfidence({
+      isManualEntry: trip.isManualEntry,
+      coordinateCount: trip.coordinates.length,
+      hasMatchedPolyline: trip.routePolyline != null,
+      distanceMiles: trip.distanceMiles,
+      durationSecs,
+      hasEndCoords: trip.endLat != null && trip.endLng != null,
+      gpsQuality: extractGpsQualityForConfidence(trip.gpsQuality),
+    });
+
+    return reply.send({ data: { ...trip, insights, matchedCoordinates, confidence } });
   });
 
   // POST /trips/:id/recalc — user-initiated re-routing of a single trip.
@@ -1419,4 +1436,22 @@ async function runMapMatchingForTrip(args: {
       currentDistanceMiles: args.currentDistanceMiles,
     });
   }
+}
+
+/**
+ * Pull just the fields the confidence calculator cares about out of the
+ * gpsQuality JSON blob (the schema is loose because mobile evolves it
+ * without server-side migrations). Returns null on any malformed shape.
+ */
+function extractGpsQualityForConfidence(
+  raw: unknown
+): { avgAccuracyMeters?: number; rawCount?: number; keptCount?: number } | null {
+  if (!raw || typeof raw !== "object") return null;
+  const r = raw as Record<string, unknown>;
+  const out: { avgAccuracyMeters?: number; rawCount?: number; keptCount?: number } = {};
+  if (typeof r.avgAccuracyMeters === "number") out.avgAccuracyMeters = r.avgAccuracyMeters;
+  if (typeof r.avgAccuracyM === "number") out.avgAccuracyMeters = r.avgAccuracyM;
+  if (typeof r.rawCount === "number") out.rawCount = r.rawCount;
+  if (typeof r.keptCount === "number") out.keptCount = r.keptCount;
+  return out;
 }

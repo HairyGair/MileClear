@@ -324,6 +324,64 @@ function buildSpeedSegments(
 }
 
 /**
+ * Per-trip confidence badge. Renders a high/medium/low pill with
+ * tap-to-expand reasons — gives users (and HMRC, if it ever comes to a
+ * review) visibility into the quality of the evidence behind a trip's
+ * claimed mileage.
+ */
+function ConfidenceBadge({
+  level,
+  reasons,
+}: {
+  level: "high" | "medium" | "low";
+  reasons: string[];
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const config = (
+    {
+      high: { color: "#10b981", icon: "shield-checkmark", label: "High confidence" },
+      medium: { color: "#f5a623", icon: "shield-half", label: "Medium confidence" },
+      low: { color: "#ef4444", icon: "alert-circle", label: "Low confidence" },
+    } as const
+  )[level];
+
+  return (
+    <TouchableOpacity
+      style={[
+        styles.confidenceBadge,
+        { borderColor: config.color, backgroundColor: `${config.color}15` },
+      ]}
+      onPress={() => setExpanded((v) => !v)}
+      activeOpacity={0.7}
+      accessibilityRole="button"
+      accessibilityLabel={`${config.label}. Tap to ${expanded ? "hide" : "see"} reasons.`}
+    >
+      <View style={styles.confidenceBadgeRow}>
+        <Ionicons name={config.icon as never} size={16} color={config.color} />
+        <Text style={[styles.confidenceBadgeLabel, { color: config.color }]}>
+          {config.label}
+        </Text>
+        <Ionicons
+          name={expanded ? "chevron-up" : "chevron-down"}
+          size={14}
+          color={config.color}
+          style={{ marginLeft: "auto" }}
+        />
+      </View>
+      {expanded && reasons.length > 0 && (
+        <View style={styles.confidenceReasons}>
+          {reasons.map((r, i) => (
+            <Text key={i} style={styles.confidenceReasonText}>
+              • {r}
+            </Text>
+          ))}
+        </View>
+      )}
+    </TouchableOpacity>
+  );
+}
+
+/**
  * User-facing label for the routing provenance. We show this so users
  * can verify the distance is auditable — important for HMRC mileage
  * claims where "where did this number come from?" is a real question.
@@ -411,6 +469,11 @@ export default function TripFormScreen() {
   const breadcrumbsRef = useRef<Breadcrumb[]>([]);
   const [routeTrail, setRouteTrail] = useState<{ latitude: number; longitude: number }[]>([]);
   const [insights, setInsights] = useState<TripInsights | null>(null);
+  // Per-trip confidence (only populated when loading an existing trip)
+  const [confidence, setConfidence] = useState<{
+    level: "high" | "medium" | "low";
+    reasons: string[];
+  } | null>(null);
 
   // Live stats during driving
   const [liveSpeed, setLiveSpeed] = useState(0);
@@ -588,6 +651,7 @@ export default function TripFormScreen() {
       startLat: number; startLng: number; endLat?: number | null; endLng?: number | null;
       distanceMiles: number; startedAt: string; endedAt?: string | null; notes?: string | null;
       insights?: TripInsights | null;
+      confidence?: { level: "high" | "medium" | "low"; reasons: string[] } | null;
     }) => {
       setClassification(t.classification as TripClassification);
       setPlatformTag((t.platformTag ?? undefined) as PlatformTag | undefined);
@@ -611,6 +675,7 @@ export default function TripFormScreen() {
       setEndedAt(t.endedAt ? new Date(t.endedAt) : null);
       setNotes(t.notes ?? "");
       if (t.insights) setInsights(t.insights);
+      if (t.confidence) setConfidence(t.confidence);
     };
 
     fetchTrip(id)
@@ -2307,6 +2372,11 @@ export default function TripFormScreen() {
               )}
             </View>
 
+            {/* Confidence badge — auditable quality signal for HMRC defence */}
+            {isEditing && confidence && (
+              <ConfidenceBadge level={confidence.level} reasons={confidence.reasons} />
+            )}
+
             {/* Trip Insights (from GPS data - editing mode) */}
             {isEditing && insights && (
               <View style={styles.insightsCard}>
@@ -3245,6 +3315,32 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontFamily: fonts.semibold,
     color: AMBER,
+  },
+  confidenceBadge: {
+    marginTop: 12,
+    borderRadius: 10,
+    borderWidth: 1,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+  confidenceBadgeRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  confidenceBadgeLabel: {
+    fontSize: 13,
+    fontFamily: fonts.semibold,
+  },
+  confidenceReasons: {
+    marginTop: 8,
+    gap: 4,
+  },
+  confidenceReasonText: {
+    fontSize: 12,
+    fontFamily: fonts.regular,
+    color: TEXT_2,
+    lineHeight: 17,
   },
   detailsToggle: {
     flexDirection: "row",

@@ -73,6 +73,12 @@ export interface TripDetail extends Trip {
    *  (older trips, GraphHopper unavailable at create time, or fewer
    *  than 10 breadcrumbs). */
   matchedCoordinates?: { lat: number; lng: number }[] | null;
+  /** Per-trip confidence assessment — used to render the badge on the
+   *  trip detail screen. Auditable in case of HMRC review. */
+  confidence?: {
+    level: "high" | "medium" | "low";
+    reasons: string[];
+  };
 }
 
 export interface CoordinateInput {
