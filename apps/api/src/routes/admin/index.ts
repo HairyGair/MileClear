@@ -3007,7 +3007,7 @@ export async function adminRoutes(app: FastifyInstance) {
 
     let scanned = 0;
     let updated = 0;
-    let skippedNoChange = 0;
+    const skippedNoChange = 0;
     let skippedAlreadyCorrect = 0;
     let skippedRoutingFailed = 0;
     const samples: Array<{

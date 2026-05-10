@@ -1213,7 +1213,7 @@ export async function tripRoutes(app: FastifyInstance) {
       return reply.status(404).send({ error: "Trip not found" });
     }
 
-    let oldMiles = trip.distanceMiles;
+    const oldMiles = trip.distanceMiles;
     let newMiles: number | null = null;
     let newPolyline: string | null = null;
     let source: "routing" | "map_match" | null = null;
