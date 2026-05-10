@@ -1,16 +1,21 @@
-# GraphHopper self-hosted on Pixelish — setup guide
+# GraphHopper self-hosted on Pixelish — operations guide
 
-This document walks through standing up GraphHopper as MileClear's primary road-routing engine. After this is in place, the API service automatically uses it for every cache miss; Google Maps stays wired as the fallback.
+**Status:** Live in production as of 10 May 2026. This document is now reference for operations + redeployment, not first-time setup.
 
-**Why we did this:** the previous path called `router.project-osrm.org` directly from the mobile app. When that endpoint rate-limited or timed out, the mobile silently fell back to crow-flies (haversine) distance — causing identical-address trips to return inconsistent miles (Laura Joyce report, 10 May 2026). Self-hosted GraphHopper eliminates the rate-limit issue, runs on data we control, and never silently degrades to crow-flies.
+## What's running
 
-## What you're standing up
+- GraphHopper 8.0 standalone JAR at `~/graphhopper/graphhopper-web.jar`
+- Portable Java 21 (Adoptium Temurin) at `~/java/jdk/`
+- Managed by PM2 as process `graphhopper`
+- Config at `~/graphhopper/config/config.yml`
+- Graph data + OSM extract at `~/graphhopper/data/`
+- Listens on `127.0.0.1:8989` (admin: `127.0.0.1:8990`) — both bound to localhost only
+- ~4.2 GB RAM at idle
+- API wires to it via `GRAPHHOPPER_URL=http://localhost:8989` in `.env`
 
-- A Docker container running GraphHopper with UK OpenStreetMap data
-- Listens on `localhost:8989` (not exposed to the internet)
-- Memory footprint: ~3.5–4 GB RAM
-- Disk: ~5 GB (UK OSM extract + processed graph)
-- Weekly cron pulls fresh OSM data and rebuilds the graph
+## Why not Docker
+
+Pixelish is cPanel-hosted with no Docker access. We use the GraphHopper standalone JAR + a portable JDK installed under `~/java/` (no root needed). Same engine, same accuracy, just runs as a plain Java process.
 
 ## One-time setup
 
