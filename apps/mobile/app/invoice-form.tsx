@@ -20,6 +20,8 @@ import {
   updateInvoice,
   deleteInvoice,
 } from "../lib/api/invoices";
+import { isApiError } from "../lib/api";
+import { usePaywall } from "../components/paywall";
 import { colors, fonts } from "../lib/theme";
 
 const AMBER = colors.amber;
@@ -38,6 +40,7 @@ function dateOnly(d: Date): string {
 export default function InvoiceFormScreen() {
   const { id } = useLocalSearchParams<{ id?: string }>();
   const isEditing = !!id;
+  const { showPaywall } = usePaywall();
 
   const [company, setCompany] = useState("");
   const [reference, setReference] = useState("");
@@ -119,10 +122,31 @@ export default function InvoiceFormScreen() {
       }
       router.back();
     } catch (err) {
+      // Free-tier monthly cap (3 invoices/month) returns PREMIUM_REQUIRED.
+      // Surface the paywall instead of a generic error so the user gets
+      // a clear next step — and we get a conversion moment in the right
+      // place: at the point they're trying to do more than the free
+      // tier supports.
+      if (isApiError(err) && err.code === "PREMIUM_REQUIRED") {
+        setSaving(false);
+        Alert.alert(
+          "Free plan limit reached",
+          err.message ?? "Free plan tracks 3 invoices per month. Upgrade to Pro for unlimited.",
+          [
+            { text: "Maybe later", style: "cancel" },
+            {
+              text: "See Pro",
+              style: "default",
+              onPress: () => showPaywall("invoice_tracker"),
+            },
+          ]
+        );
+        return;
+      }
       Alert.alert("Couldn't save", err instanceof Error ? err.message : "Try again.");
       setSaving(false);
     }
-  }, [company, reference, amountInput, sentDate, dueDate, paidDate, notes, isEditing, id]);
+  }, [company, reference, amountInput, sentDate, dueDate, paidDate, notes, isEditing, id, showPaywall]);
 
   const onDelete = useCallback(() => {
     if (!id) return;

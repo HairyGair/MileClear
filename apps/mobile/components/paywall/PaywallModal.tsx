@@ -344,7 +344,7 @@ export function PaywallModal({ visible, onClose, source: _source }: PaywallModal
                 )}
 
                 <View style={s.purchaseChecks}>
-                  {["HMRC tax exports (PDF & CSV)", "CSV earnings import", "Business insights & shift grades", "Monthly & yearly recaps", "Advanced analytics & journey map", "Unlimited saved locations", "Open Banking auto-import"].map((item) => (
+                  {["HMRC tax exports (PDF & CSV)", "Unlimited invoice tracking", "CSV earnings import", "Business insights & shift grades", "Advanced analytics & journey map", "Unlimited saved locations", "Open Banking auto-import"].map((item) => (
                     <View key={item} style={s.purchaseCheck}>
                       <Ionicons name="checkmark-circle" size={18} color={SUCCESS} />
                       <Text style={s.purchaseCheckText}>{item}</Text>
@@ -406,6 +406,7 @@ export function PaywallModal({ visible, onClose, source: _source }: PaywallModal
 
 const FEATURES = [
   { icon: "document-text-outline", label: "HMRC Self-Assessment PDF", desc: "Print-ready SA103 form for your tax return" },
+  { icon: "receipt-outline", label: "Unlimited Invoices", desc: "Track every freelance invoice (free plan: 3/month)" },
   { icon: "cloud-upload-outline", label: "CSV Import", desc: "Bulk import platform earnings" },
   { icon: "card-outline", label: "Open Banking", desc: "Auto-import earnings from your bank" },
   { icon: "people-outline", label: "Accountant Sharing", desc: "Read-only dashboard for your accountant" },

@@ -82,6 +82,45 @@ export async function invoiceRoutes(app: FastifyInstance) {
     const userId = request.userId!;
 
     const sentAt = new Date(`${data.sentAt}T00:00:00.000Z`);
+
+    // Free-tier cap: 3 invoices per calendar month (counted by sentAt).
+    // Pro users unlimited. We pick sentAt rather than createdAt so back-
+    // dating doesn't sneak past the cap — and so a user who genuinely
+    // sends 3 invoices in May can't be blocked in June just because
+    // they entered them all on the same day.
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        isPremium: true,
+        premiumExpiresAt: true,
+      },
+    });
+    const premiumActive =
+      user?.isPremium && (!user.premiumExpiresAt || user.premiumExpiresAt > new Date());
+
+    if (!premiumActive) {
+      const monthStart = new Date(Date.UTC(sentAt.getUTCFullYear(), sentAt.getUTCMonth(), 1));
+      const monthEnd = new Date(Date.UTC(sentAt.getUTCFullYear(), sentAt.getUTCMonth() + 1, 1));
+      const monthCount = await prisma.invoice.count({
+        where: {
+          userId,
+          sentAt: { gte: monthStart, lt: monthEnd },
+        },
+      });
+
+      if (monthCount >= 3) {
+        return reply.status(402).send({
+          error: {
+            code: "PREMIUM_REQUIRED",
+            message: "Free plan tracks 3 invoices per month. Upgrade to Pro for unlimited.",
+            hint: "Unlimited invoice tracking with Pro — £4.99/month.",
+            feature: "invoice_tracker",
+            retryable: false,
+          },
+        });
+      }
+    }
+
     // Default due-by: 30 days after sent. Matches the Late Payment of
     // Commercial Debts Act default — even though we don't surface the
     // legal helper, the date is the same default UK accounting uses.

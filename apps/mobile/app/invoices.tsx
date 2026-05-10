@@ -17,6 +17,8 @@ import {
   type Invoice,
   type InvoiceStatus,
 } from "../lib/api/invoices";
+import { useUser } from "../lib/user/context";
+import { usePaywall } from "../components/paywall";
 import { colors, fonts } from "../lib/theme";
 
 const AMBER = colors.amber;
@@ -44,6 +46,22 @@ export default function InvoicesScreen() {
   const [filter, setFilter] = useState<FilterTab>("all");
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const { user } = useUser();
+  const { showPaywall } = usePaywall();
+  const isPremium = user?.isPremium === true;
+
+  // Free-tier monthly cap: count invoices in the current calendar
+  // month from the loaded list. Lets us show "2 of 3 used this month"
+  // hint inline without an extra round-trip.
+  const monthInvoiceCount = data.filter((inv) => {
+    const sent = new Date(inv.sentAt);
+    const now = new Date();
+    return (
+      sent.getUTCFullYear() === now.getUTCFullYear() &&
+      sent.getUTCMonth() === now.getUTCMonth()
+    );
+  }).length;
+  const showFreeCapHint = !isPremium && monthInvoiceCount > 0;
 
   const load = useCallback(async () => {
     try {
@@ -152,6 +170,21 @@ export default function InvoicesScreen() {
           </TouchableOpacity>
         ))}
       </View>
+
+      {/* Free-tier monthly counter hint */}
+      {showFreeCapHint && (
+        <TouchableOpacity
+          style={styles.capHint}
+          onPress={() => monthInvoiceCount >= 3 && showPaywall("invoice_tracker")}
+          activeOpacity={monthInvoiceCount >= 3 ? 0.7 : 1}
+        >
+          <Ionicons name="information-circle-outline" size={14} color={TEXT_3} />
+          <Text style={styles.capHintText}>
+            {monthInvoiceCount} of 3 used this month — free plan.{" "}
+            {monthInvoiceCount >= 3 && <Text style={styles.capHintLink}>Tap to upgrade.</Text>}
+          </Text>
+        </TouchableOpacity>
+      )}
 
       {loading ? (
         <View style={styles.center}>
@@ -295,6 +328,17 @@ const styles = StyleSheet.create({
   tabActive: { backgroundColor: AMBER },
   tabLabel: { color: TEXT_3, fontSize: 12, fontFamily: fonts.semibold },
   tabLabelActive: { color: "#000" },
+
+  capHint: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 16,
+    paddingVertical: 4,
+    marginBottom: 4,
+  },
+  capHintText: { color: TEXT_3, fontSize: 11, fontFamily: fonts.regular, flex: 1 },
+  capHintLink: { color: AMBER, fontFamily: fonts.semibold },
 
   emptyTitle: { color: TEXT_1, fontSize: 17, fontFamily: fonts.semibold, marginTop: 12 },
   emptyBody: {
