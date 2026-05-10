@@ -90,10 +90,26 @@ export interface TaxSnapshot {
   daysToFilingDeadline: number;             // negative = overdue
 
   ytd: {
-    grossEarningsPence: number;
+    grossEarningsPence: number;             // gig earnings + invoice income (basis-aware)
+    /** Gig earnings only (CSV / Open Banking / manual). Added 10 May 2026. */
+    gigEarningsPence?: number;
+    /** Sole-trader invoice income. Cash basis = paid invoices only; accruals
+     *  = all sent invoices. Honours User.taxBasis. Added 10 May 2026. */
+    invoiceIncomePence?: number;
+    /** "cash" | "accruals" — the user's selected basis at the time of
+     *  snapshot. Surface this on the UI so users know which mode they're
+     *  in. Added 10 May 2026. */
+    taxBasis?: "cash" | "accruals";
+
     mileageDeductionPence: number;
     taxableProfitPence: number;             // earnings - mileage (no expenses, dashboard-light)
-    estimatedTaxPence: number;              // income tax + Class 2 + Class 4 NI
+    /** Gross income tax + NIC liability BEFORE PAYE offset. Useful for
+     *  the "you owe £X total, your employer's already paid £Y" breakdown. */
+    grossTaxLiabilityPence?: number;
+    /** Tax the user's employer has already deducted via PAYE. Subtracted
+     *  from gross liability to produce estimatedTaxPence. Added 10 May 2026. */
+    payeAlreadyPaidPence?: number;
+    estimatedTaxPence: number;              // gross liability - PAYE already paid (floored at 0)
     effectiveRatePercent: number;           // estimatedTaxPence / grossEarningsPence × 100
 
     // Provenance for the mileage deduction figure. Powers the "why this

@@ -64,6 +64,8 @@ export async function buildTaxSnapshot(userId: string): Promise<TaxSnapshot> {
           employerMileageRatePence: true,
           employerMileageRatePenceAfter10k: true,
           otherAnnualIncomePence: true,
+          payeAnnualPaidTaxPence: true,
+          taxBasis: true,
         },
       }),
       prisma.vehicle.findMany({
@@ -143,7 +145,25 @@ export async function buildTaxSnapshot(userId: string): Promise<TaxSnapshot> {
     mileageDeductionPence += calculateMileageDeduction(type, miles, rateOpts).deductionPence;
   }
 
-  const grossEarningsPence = earningsYtd._sum.amountPence ?? 0;
+  // Sole-trader invoices (Laura Joyce feature, 10 May 2026): basis-aware
+  // aggregation. Cash basis counts only invoices marked paid (date the
+  // money actually arrived); accruals counts every sent invoice that
+  // hasn't been written off. Default basis is cash for new users.
+  const userTaxBasis = (user?.taxBasis ?? "cash") as "cash" | "accruals";
+  const invoiceTotals = await prisma.invoice.aggregate({
+    where: {
+      userId,
+      status: { not: "written_off" },
+      ...(userTaxBasis === "cash"
+        ? { paidAt: { gte: start, lte: end } }
+        : { sentAt: { gte: start, lte: end } }),
+    },
+    _sum: { amountPence: true },
+  });
+  const invoiceIncomePence = invoiceTotals._sum.amountPence ?? 0;
+
+  const earningsBasePence = earningsYtd._sum.amountPence ?? 0;
+  const grossEarningsPence = earningsBasePence + invoiceIncomePence;
   const earningsLast7DaysPence = earningsLast7d._sum.amountPence ?? 0;
 
   // Profit = earnings - mileage deduction. Snapshot is intentionally simple
@@ -158,8 +178,19 @@ export async function buildTaxSnapshot(userId: string): Promise<TaxSnapshot> {
   const taxEstimate = estimateUkTax(taxableProfitPence, {
     otherIncomePence: user?.otherAnnualIncomePence ?? null,
   });
-  const estimatedTaxPence =
+  const grossTaxLiabilityPence =
     taxEstimate.incomeTaxPence + taxEstimate.class2NiPence + taxEstimate.class4NiPence;
+
+  // PAYE offset (Laura Joyce 10 May 2026): for mixed PAYE+self-employed
+  // users, subtract what their employer has already deducted so the
+  // headline figure represents what's STILL owed, not the gross
+  // liability. Floored at 0 — if PAYE has somehow over-paid we still
+  // show 0 owed rather than a negative number.
+  const payeAlreadyPaidPence = user?.payeAnnualPaidTaxPence ?? 0;
+  const estimatedTaxPence = Math.max(
+    0,
+    grossTaxLiabilityPence - payeAlreadyPaidPence
+  );
 
   const effectiveRatePercent =
     grossEarningsPence > 0
@@ -240,8 +271,14 @@ export async function buildTaxSnapshot(userId: string): Promise<TaxSnapshot> {
     daysToFilingDeadline,
     ytd: {
       grossEarningsPence,
+      // Breakdown so the dashboard can render "Gig £X · Invoices £Y" subtitle
+      gigEarningsPence: earningsBasePence,
+      invoiceIncomePence,
+      taxBasis: userTaxBasis,
       mileageDeductionPence,
       taxableProfitPence,
+      grossTaxLiabilityPence,
+      payeAlreadyPaidPence,
       estimatedTaxPence,
       effectiveRatePercent,
       mileageDeductionDerivation,

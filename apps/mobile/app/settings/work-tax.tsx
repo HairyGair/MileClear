@@ -26,6 +26,8 @@ export default function WorkTaxSettings() {
   const [employerRate, setEmployerRate] = useState<number | null>(null);
   const [employerRateAfter10k, setEmployerRateAfter10k] = useState<number | null>(null);
   const [otherIncomePence, setOtherIncomePence] = useState<number | null>(null);
+  const [payeTaxPaidPence, setPayeTaxPaidPence] = useState<number | null>(null);
+  const [taxBasis, setTaxBasis] = useState<"cash" | "accruals">("cash");
   const [weeklyGoal, setWeeklyGoal] = useState<number | null>(null);
 
   // Load on mount
@@ -37,6 +39,12 @@ export default function WorkTaxSettings() {
         setEmployerRate(res.data.employerMileageRatePence ?? null);
         setEmployerRateAfter10k(res.data.employerMileageRatePenceAfter10k ?? null);
         setOtherIncomePence(res.data.otherAnnualIncomePence ?? null);
+        const profile = res.data as unknown as {
+          payeAnnualPaidTaxPence?: number | null;
+          taxBasis?: "cash" | "accruals" | null;
+        };
+        setPayeTaxPaidPence(profile.payeAnnualPaidTaxPence ?? null);
+        setTaxBasis(profile.taxBasis ?? "cash");
       } catch (e) {
         console.warn("[settings/work-tax] profile load failed:", e);
       }
@@ -229,6 +237,89 @@ export default function WorkTaxSettings() {
     }
   }, [otherIncomePence, refreshUser]);
 
+  // ── PAYE tax already paid this year ──────────────────────────────
+  const handlePayeTaxPaid = useCallback(() => {
+    const currentPounds =
+      payeTaxPaidPence != null ? Math.round(payeTaxPaidPence / 100).toString() : "";
+    const save = async (value: string | undefined) => {
+      const trimmed = value?.trim() ?? "";
+      if (trimmed === "") {
+        setPayeTaxPaidPence(null);
+        try {
+          await updateProfile({ payeAnnualPaidTaxPence: null });
+          refreshUser();
+        } catch {
+          Alert.alert("Couldn't save", "Try again in a moment.");
+        }
+        return;
+      }
+      const cleaned = trimmed.replace(/[£,\s]/g, "");
+      const pounds = parseFloat(cleaned);
+      if (!isFinite(pounds) || pounds < 0 || pounds > 1_000_000) {
+        Alert.alert("Out of range", "Enter the tax already paid in pounds, or leave blank.");
+        return;
+      }
+      const pence = Math.round(pounds * 100);
+      setPayeTaxPaidPence(pence);
+      try {
+        await updateProfile({ payeAnnualPaidTaxPence: pence });
+        refreshUser();
+      } catch {
+        Alert.alert("Couldn't save", "Try again in a moment.");
+      }
+    };
+
+    if (Platform.OS === "ios") {
+      Alert.prompt(
+        "PAYE tax already paid",
+        "Total tax deducted by your employer so far this tax year (from your latest payslip). We subtract it from the Tax Readiness figure so you see what's still owed, not the gross liability.",
+        [
+          { text: "Cancel", style: "cancel" },
+          { text: "Save", onPress: save },
+        ],
+        "plain-text",
+        currentPounds,
+        "number-pad"
+      );
+    } else {
+      Alert.alert(
+        "PAYE tax already paid",
+        `Current: ${payeTaxPaidPence != null ? `£${(payeTaxPaidPence / 100).toLocaleString("en-GB")}` : "Not set"}\n\nFor a precise figure, use the web dashboard.`,
+        [
+          { text: "Cancel", style: "cancel" },
+          { text: "Clear", onPress: () => save("") },
+        ]
+      );
+    }
+  }, [payeTaxPaidPence, refreshUser]);
+
+  // ── Tax basis (cash vs accruals) ──────────────────────────────────
+  const handleTaxBasis = useCallback(() => {
+    Alert.alert(
+      "Tax basis",
+      "Cash basis (default since April 2024) counts income when it's received and expenses when paid. Accruals counts when invoiced. Most sole traders should stay on cash.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Cash basis",
+          onPress: async () => {
+            setTaxBasis("cash");
+            await updateProfile({ taxBasis: "cash" }).catch(() => {});
+            refreshUser();
+          },
+        },
+        {
+          text: "Accruals",
+          onPress: async () => {
+            setTaxBasis("accruals");
+            await updateProfile({ taxBasis: "accruals" }).catch(() => {});
+            refreshUser();
+          },
+        },
+      ]
+    );
+  }, [refreshUser]);
+
   // ── Weekly goal ───────────────────────────────────────────────────
   const handleWeeklyGoal = useCallback(() => {
     const persistGoal = async (n: number | null) => {
@@ -376,6 +467,38 @@ export default function WorkTaxSettings() {
           onPress={() => router.push("/tax-mtd")}
         />
       </SettingsGroup>
+
+      <SettingsGroup title="SOLE TRADER">
+        <SettingsRow
+          icon="document-text-outline"
+          label="Invoices"
+          hint="Track who owes you for freelance work + what's been paid"
+          onPress={() => router.push("/invoices")}
+        />
+        <SettingsRow
+          icon="layers-outline"
+          label="Tax basis"
+          hint={taxBasis === "cash" ? "Cash basis (recommended)" : "Accruals (count when invoiced)"}
+          badge={taxBasis === "cash" ? "Cash" : "Accruals"}
+          onPress={handleTaxBasis}
+        />
+      </SettingsGroup>
+
+      {(workType === "employee" || workType === "both") && (
+        <SettingsGroup title="PAYE EMPLOYMENT">
+          <SettingsRow
+            icon="receipt-outline"
+            label="Tax already deducted"
+            hint={
+              payeTaxPaidPence != null
+                ? `£${(payeTaxPaidPence / 100).toLocaleString("en-GB")} subtracted from "still owed"`
+                : "Enter PAYE deductions so Tax Readiness is honest"
+            }
+            badge={payeTaxPaidPence != null ? "Edit" : "Set"}
+            onPress={handlePayeTaxPaid}
+          />
+        </SettingsGroup>
+      )}
     </SettingsScreen>
   );
 }

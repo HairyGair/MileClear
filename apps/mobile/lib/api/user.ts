@@ -12,6 +12,13 @@ export interface UpdateProfileData {
   employerMileageRatePence?: number | null;
   employerMileageRatePenceAfter10k?: number | null;
   otherAnnualIncomePence?: number | null;
+  /** PAYE tax already deducted by an employer this tax year, in pence.
+   *  Drives the Tax Readiness "what's still owed" calculation for
+   *  mixed PAYE+self-employed users. Laura Joyce request 10 May 2026. */
+  payeAnnualPaidTaxPence?: number | null;
+  /** Accounting basis. cash = count when paid; accruals = count when
+   *  invoiced. Affects invoice → Tax Readiness aggregation. */
+  taxBasis?: "cash" | "accruals";
   dashboardMode?: "both" | "work" | "personal";
   weeklyEarningsGoalPence?: number | null;
 }

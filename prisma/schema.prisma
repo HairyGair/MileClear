@@ -42,6 +42,18 @@ model User {
   // estimate. NI bands stay independent (Class 4 NI is on profit only).
   // Optional: null = assume gig profit is the user's only taxable income.
   otherAnnualIncomePence Int?
+  // PAYE tax already deducted by an employer this tax year (in pence).
+  // For mixed PAYE+self-employed users, this is subtracted from the
+  // Tax Readiness "owed" figure so they see what they still owe vs the
+  // gross liability — otherwise the card double-counts tax their
+  // employer has already collected. Laura Joyce request 10 May 2026.
+  payeAnnualPaidTaxPence Int?
+  // Accounting basis for tax computations. Cash-basis (the default since
+  // April 2024 for most sole traders) counts income when received and
+  // expenses when paid. Accruals counts when invoiced/billed regardless
+  // of cash flow. Affects how Tax Readiness aggregates invoice income
+  // (cash = paid invoices only; accruals = all sent invoices).
+  taxBasis              String    @default("cash") @db.VarChar(16)
   dashboardMode        String    @default("both") @db.VarChar(20)
   notes                    String?   @db.Text
   lastLoginAt              DateTime?
@@ -128,6 +140,7 @@ model User {
   hmrcReconciliations HmrcReconciliation[]
   pickupWaits         PickupWait[]
   hmrcConnection      HmrcConnection?
+  invoices            Invoice[]
 
   @@map("users")
 }
@@ -767,6 +780,53 @@ model RouteCache {
   @@unique([startLatRounded, startLngRounded, endLatRounded, endLngRounded], map: "route_cache_coords_uk")
   @@index([computedAt])
   @@map("route_cache")
+}
+
+// Sole-trader invoice tracker. Shipped 10 May 2026 from Laura Joyce
+// feedback — drivers who freelance on the side need a clean list of
+// "who owes me, who's paid me, what's overdue" that they can hand to
+// their accountant. Deliberately NOT a Xero-style collections workflow
+// (Late Payment of Commercial Debts Act helper, formal letter generator
+// etc. were considered but Laura's feedback was "no idea what that is",
+// confirming most users want simple list + accountant export, not a
+// finance product).
+//
+// Tax basis interaction:
+//  - cash basis (default): Tax Readiness counts only paidAt-set invoices
+//  - accruals: Tax Readiness counts every status != "written_off"
+// The toggle lives on User.taxBasis.
+model Invoice {
+  id          String   @id @default(uuid())
+  userId      String
+  /** Free-text company / client name. */
+  company     String   @db.VarChar(200)
+  /** Optional reference for the user's own bookkeeping (PO numbers,
+   *  job numbers, etc). */
+  reference   String?  @db.VarChar(80)
+  /** Total amount in pence (gross — VAT handling deferred to a Pro
+   *  feature). */
+  amountPence Int
+  /** Date the invoice was sent / issued. */
+  sentAt      DateTime @db.Date
+  /** Calculated as sentAt + 30 days unless the user overrides. UK
+   *  Late Payment of Commercial Debts Act sets 30 days as the default
+   *  trigger for late-payment interest entitlement. */
+  dueAt       DateTime @db.Date
+  /** When the money was actually received. Drives cash-basis tax
+   *  calculations. Null until the user marks it paid. */
+  paidAt      DateTime? @db.Date
+  /** One of: sent, paid, overdue, written_off. Computed at save time
+   *  from paidAt + dueAt; cached here so list filters are cheap. */
+  status      String    @default("sent") @db.VarChar(16)
+  notes       String?   @db.Text
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, status])
+  @@index([userId, sentAt])
+  @@map("invoices")
 }
 
 // Idempotency keys for safe retry of mutation requests. When a client

@@ -19,6 +19,14 @@ const updateProfileSchema = z.object({
   // constraining any realistic user. UI collects pounds and converts
   // client-side.
   otherAnnualIncomePence: z.number().int().min(0).max(1_000_000_000).nullable().optional(),
+  // PAYE tax already deducted by an employer this tax year. Mixed-mode
+  // users (salary + side gig) enter this so Tax Readiness shows what
+  // they still owe, not the gross liability. Optional — null clears.
+  payeAnnualPaidTaxPence: z.number().int().min(0).max(1_000_000_000).nullable().optional(),
+  // Tax accounting basis. Cash (default) counts income when received;
+  // accruals counts when invoiced. Affects invoice → Tax Readiness
+  // aggregation logic.
+  taxBasis: z.enum(["cash", "accruals"]).optional(),
   dashboardMode: z.enum(["both", "work", "personal"]).optional(),
   weeklyEarningsGoalPence: z.number().int().min(0).max(1000000).nullable().optional(),
   marketingEmailsEnabled: z.boolean().optional(),
@@ -41,6 +49,8 @@ const USER_SELECT = {
   employerMileageRatePence: true,
   employerMileageRatePenceAfter10k: true,
   otherAnnualIncomePence: true,
+  payeAnnualPaidTaxPence: true,
+  taxBasis: true,
   dashboardMode: true,
   weeklyEarningsGoalPence: true,
   marketingEmailsEnabled: true,
@@ -160,7 +170,7 @@ export async function userRoutes(app: FastifyInstance) {
     }
 
     const userId = request.userId!;
-    const { displayName, fullName, avatarId, userIntent, workType, employerMileageRatePence, employerMileageRatePenceAfter10k, otherAnnualIncomePence, dashboardMode, email, currentPassword } = parsed.data;
+    const { displayName, fullName, avatarId, userIntent, workType, employerMileageRatePence, employerMileageRatePenceAfter10k, otherAnnualIncomePence, payeAnnualPaidTaxPence, taxBasis, dashboardMode, email, currentPassword } = parsed.data;
 
     const currentUser = await prisma.user.findUnique({
       where: { id: userId },
@@ -210,6 +220,20 @@ export async function userRoutes(app: FastifyInstance) {
     // marginal tax-rate calculation on gig profit.
     if (otherAnnualIncomePence !== undefined) {
       updateData.otherAnnualIncomePence = otherAnnualIncomePence;
+    }
+
+    // PAYE tax already deducted by an employer (mixed-mode users). Tax
+    // Readiness subtracts this from the total tax liability so the
+    // "still owed" figure is honest (Laura Joyce 10 May 2026).
+    if (payeAnnualPaidTaxPence !== undefined) {
+      updateData.payeAnnualPaidTaxPence = payeAnnualPaidTaxPence;
+    }
+
+    // Tax accounting basis (cash | accruals). Affects how invoice
+    // income is aggregated by Tax Readiness — cash counts paid invoices
+    // only; accruals counts every sent invoice.
+    if (taxBasis !== undefined) {
+      updateData.taxBasis = taxBasis;
     }
 
     // Dashboard mode can always be updated
