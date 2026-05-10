@@ -21,7 +21,7 @@ import { logEvent } from "../../services/appEvents.js";
 import { advanceLastTripAt } from "../../services/userActivity.js";
 import { looksLikePhantomTrip } from "../../lib/phantomTrip.js";
 import { resolveRouteDistance } from "../../services/routing.js";
-import { matchTripRoute, decodePolyline } from "../../services/mapMatching.js";
+import { matchTripRoute, decodePolyline, isMatchPlausible } from "../../services/mapMatching.js";
 
 // Server-side geocoding: resolve an address to coordinates via Postcodes.io or Nominatim
 async function geocodeAddress(addr: string): Promise<{ lat: number; lng: number } | null> {
@@ -1061,6 +1061,21 @@ async function runMapMatchingForTrip(args: {
 }): Promise<void> {
   const result = await matchTripRoute(args.breadcrumbs);
   if (!result) return;
+
+  // Plausibility gate: skip the match entirely if the matched distance is
+  // wildly off the stored value. GraphHopper occasionally takes a shortcut
+  // through a junction loop or gets thrown by a mid-trip GPS gap; we don't
+  // want to overwrite the polyline with a route that doesn't represent the
+  // actual trip.
+  if (!isMatchPlausible(result.distanceMiles, args.currentDistanceMiles)) {
+    logEvent("trip.map_match_skipped_implausible", args.userId, {
+      tripId: args.tripId,
+      currentDistanceMiles: args.currentDistanceMiles,
+      matchedDistanceMiles: result.distanceMiles,
+      ratio: Math.round((result.distanceMiles / args.currentDistanceMiles) * 100) / 100,
+    });
+    return;
+  }
 
   const updates: { routePolyline: string; distanceMiles?: number } = {
     routePolyline: result.encodedPolyline,

@@ -49,6 +49,29 @@ const MAX_POINTS = 500;
 const ACCURACY_CEILING_M = 50;
 /** Minimum points to attempt a match — any fewer and matching is unreliable. */
 const MIN_POINTS = 10;
+/** Lower / upper bounds on `matched / stored` ratio for trusting the match.
+ *  Outside this window the match almost certainly went wrong (GH chose a
+ *  shortcut through a junction loop, or breadcrumbs had a mid-trip gap that
+ *  threw the matcher). Caller skips persisting the polyline rather than
+ *  showing a route that doesn't represent the actual trip. */
+const MATCH_PLAUSIBLE_MIN_RATIO = 0.7;
+const MATCH_PLAUSIBLE_MAX_RATIO = 3.0;
+
+/**
+ * Decide whether a match result looks plausible relative to the stored
+ * distance. Routing engines occasionally produce wildly wrong matches on
+ * trips with mid-route GPS gaps or unusual road geometries — without a
+ * sanity check we'd happily overwrite a 22-mile trip's polyline with a
+ * 3-mile match.
+ */
+export function isMatchPlausible(
+  matchedDistanceMiles: number,
+  storedDistanceMiles: number
+): boolean {
+  if (storedDistanceMiles <= 0) return true; // can't sanity-check against 0
+  const ratio = matchedDistanceMiles / storedDistanceMiles;
+  return ratio >= MATCH_PLAUSIBLE_MIN_RATIO && ratio <= MATCH_PLAUSIBLE_MAX_RATIO;
+}
 
 /**
  * Snap GPS breadcrumbs to the nearest road network. Returns null on

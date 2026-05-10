@@ -19,7 +19,7 @@ import { advanceLastTripAt } from "../../services/userActivity.js";
 import { getAppleClient, getSignedDataVerifier, fetchTransactionWithEnvFallback, type AppleIapEnvironment } from "../../services/appleIap.js";
 import { calculateUserHealthScore } from "../../services/userHealthScore.js";
 import { resolveRouteDistance } from "../../services/routing.js";
-import { matchTripRoute } from "../../services/mapMatching.js";
+import { matchTripRoute, isMatchPlausible } from "../../services/mapMatching.js";
 
 const premiumToggleSchema = z.object({
   isPremium: z.boolean(),
@@ -3117,6 +3117,20 @@ export async function adminRoutes(app: FastifyInstance) {
 
       if (!result) {
         skippedMatchFailed += 1;
+        continue;
+      }
+
+      if (!isMatchPlausible(result.distanceMiles, t.distanceMiles)) {
+        skippedMatchFailed += 1;
+        if (!dryRun) {
+          logEvent("trip.map_match_skipped_implausible", t.userId, {
+            tripId: t.id,
+            currentDistanceMiles: t.distanceMiles,
+            matchedDistanceMiles: result.distanceMiles,
+            ratio: Math.round((result.distanceMiles / t.distanceMiles) * 100) / 100,
+            triggeredBy: "admin_backfill",
+          });
+        }
         continue;
       }
 

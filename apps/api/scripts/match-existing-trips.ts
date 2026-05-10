@@ -19,7 +19,7 @@
 
 import "dotenv/config";
 import { PrismaClient } from "@prisma/client";
-import { matchTripRoute } from "../src/services/mapMatching.js";
+import { matchTripRoute, isMatchPlausible } from "../src/services/mapMatching.js";
 import { upsertMileageSummary } from "../src/services/mileage.js";
 import { logEvent } from "../src/services/appEvents.js";
 import { getTaxYear } from "@mileclear/shared";
@@ -114,6 +114,25 @@ async function main() {
 
     if (!result) {
       skippedMatchFailed += 1;
+      continue;
+    }
+
+    if (!isMatchPlausible(result.distanceMiles, t.distanceMiles)) {
+      const startedLocal = t.startedAt.toISOString().slice(0, 16).replace("T", " ");
+      console.log(
+        `[skip implausible] ${t.id.slice(0, 8)} ${startedLocal}` +
+          ` ${t.distanceMiles.toFixed(2)} -> ${result.distanceMiles.toFixed(2)}mi (ratio out of trust window)`
+      );
+      skippedMatchFailed += 1;
+      if (!dryRun) {
+        await logEvent("trip.map_match_skipped_implausible", t.userId, {
+          tripId: t.id,
+          currentDistanceMiles: t.distanceMiles,
+          matchedDistanceMiles: result.distanceMiles,
+          ratio: Math.round((result.distanceMiles / t.distanceMiles) * 100) / 100,
+          triggeredBy: "ops_script",
+        });
+      }
       continue;
     }
 
