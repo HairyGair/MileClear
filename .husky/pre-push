@@ -1,0 +1,25 @@
+#!/usr/bin/env sh
+# Pre-push: mirror the two checks that GitHub Actions CI gates on.
+# Catches the "I forgot to run lint locally" failures that spam Anthony
+# with 22 emails per CI fail. Pre-commit is deliberately skipped — local
+# commits should stay fast.
+#
+# Skip with: git push --no-verify
+# (Use sparingly — every skip is a potential CI failure.)
+
+echo "[pre-push] Running CI checks locally..."
+
+if ! pnpm lint; then
+  echo ""
+  echo "[pre-push] ❌ Lint failed. Fix the errors above and re-push."
+  echo "[pre-push]    Tip: many issues auto-fix with: pnpm -r exec eslint --fix"
+  exit 1
+fi
+
+if ! pnpm typecheck; then
+  echo ""
+  echo "[pre-push] ❌ Typecheck failed. Fix the errors above and re-push."
+  exit 1
+fi
+
+echo "[pre-push] ✅ Lint + typecheck clean. Pushing."
