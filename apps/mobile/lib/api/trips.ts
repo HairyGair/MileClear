@@ -60,6 +60,13 @@ export async function fetchServerRouteDistance(args: {
 
 export interface TripWithVehicle extends Trip {
   vehicle: Vehicle | null;
+  /** Per-trip confidence — included on every list response since
+   *  10 May 2026 so the trips screen can render quality dots without
+   *  drilling into each row. Older builds simply ignore the new field. */
+  confidence?: {
+    level: "high" | "medium" | "low";
+    reasons: string[];
+  };
 }
 
 export interface TripDetail extends Trip {

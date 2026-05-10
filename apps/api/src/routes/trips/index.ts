@@ -464,16 +464,44 @@ export async function tripRoutes(app: FastifyInstance) {
       };
     }
 
-    const [data, total] = await Promise.all([
+    const [rawData, total] = await Promise.all([
       prisma.trip.findMany({
         where,
         orderBy: { startedAt: "desc" },
-        include: { vehicle: true },
+        include: {
+          vehicle: true,
+          // Include lightweight count + polyline presence so the client
+          // can render a confidence badge without a per-row round trip.
+          _count: { select: { coordinates: true } },
+        },
         skip: (page - 1) * pageSize,
         take: pageSize,
       }),
       prisma.trip.count({ where }),
     ]);
+
+    // Compute per-trip confidence inline. computeTripConfidence is pure
+    // and ~microseconds per call, so doing it for a 100-row page is
+    // negligible vs the DB query cost.
+    const data = rawData.map((trip) => {
+      const durationSecs = trip.endedAt
+        ? Math.round((trip.endedAt.getTime() - trip.startedAt.getTime()) / 1000)
+        : null;
+      const confidence = computeTripConfidence({
+        isManualEntry: trip.isManualEntry,
+        coordinateCount: trip._count.coordinates,
+        hasMatchedPolyline: trip.routePolyline != null,
+        distanceMiles: trip.distanceMiles,
+        durationSecs,
+        hasEndCoords: trip.endLat != null && trip.endLng != null,
+        gpsQuality: extractGpsQualityForConfidence(trip.gpsQuality),
+      });
+      // Strip the nested _count from the response — it's an
+      // implementation detail not a public field.
+      const { _count, ...rest } = trip;
+      void _count;
+      return { ...rest, confidence };
+    });
 
     return reply.send({
       data,

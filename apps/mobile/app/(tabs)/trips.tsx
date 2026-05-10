@@ -735,6 +735,18 @@ export default function TripsScreen() {
             </View>
           )}
           <Text style={[styles.tripDate, mergeMode && { flex: 1 }]}>{formatDate(item.startedAt)}</Text>
+          {item.confidence && item.confidence.level !== "high" && (
+            <View
+              style={[
+                styles.confidenceDot,
+                {
+                  backgroundColor:
+                    item.confidence.level === "low" ? "#ef4444" : "#f5a623",
+                },
+              ]}
+              accessible={false}
+            />
+          )}
           <View style={styles.tripHeaderRight}>
             {isUnclassified ? (
               <View style={styles.unclassifiedBadge}>
@@ -1787,6 +1799,12 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontFamily: fonts.semibold,
     color: "#fff",
+  },
+  confidenceDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    marginLeft: 6,
   },
   classificationBadge: {
     fontSize: 11,
