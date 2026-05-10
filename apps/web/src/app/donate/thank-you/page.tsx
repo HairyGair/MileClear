@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import Navbar from "@/components/landing/Navbar";
@@ -15,7 +15,27 @@ interface SessionData {
   donorName: string | null;
 }
 
+// Next.js 15 requires useSearchParams() callers to sit inside a Suspense
+// boundary so the page can stream the surrounding shell while the query
+// string resolves. Split: ThankYouPage is the boundary; ThankYouContent
+// reads the params.
 export default function ThankYouPage() {
+  return (
+    <>
+      <Navbar />
+      <main className="thank-you">
+        <Suspense
+          fallback={<p className="thank-you__loading">Confirming your payment…</p>}
+        >
+          <ThankYouContent />
+        </Suspense>
+      </main>
+      <Footer />
+    </>
+  );
+}
+
+function ThankYouContent() {
   const params = useSearchParams();
   const sessionId = params?.get("session_id") ?? null;
   const [session, setSession] = useState<SessionData | null>(null);
@@ -40,50 +60,48 @@ export default function ThankYouPage() {
       .finally(() => setLoading(false));
   }, [sessionId]);
 
+  if (loading) {
+    return <p className="thank-you__loading">Confirming your payment…</p>;
+  }
+
+  if (error) {
+    return (
+      <div className="thank-you__card thank-you__card--error">
+        <h1 className="thank-you__title">Hmm, we can't find that one</h1>
+        <p>{error}</p>
+        <Link href="/donate" className="thank-you__cta">Back to donate</Link>
+      </div>
+    );
+  }
+
+  if (session && session.status === "paid") {
+    return (
+      <div className="thank-you__card">
+        <div className="thank-you__sparkle" aria-hidden>✨</div>
+        <h1 className="thank-you__title">
+          Thanks{session.donorName ? `, ${session.donorName}` : ""}!
+        </h1>
+        <p className="thank-you__amount">
+          £{(session.amountPence / 100).toFixed(2)} received.
+        </p>
+        <p className="thank-you__body">
+          Genuinely — it makes a difference. MileClear gets a few hours more
+          of development per donation. The next feature you wish existed has
+          a slightly better chance of existing.
+        </p>
+        <p className="thank-you__small">
+          Your receipt's been emailed by Stripe. No further action needed.
+        </p>
+        <Link href="/" className="thank-you__cta">Back to mileclear.com</Link>
+      </div>
+    );
+  }
+
   return (
-    <>
-      <Navbar />
-      <main className="thank-you">
-        {loading && <p className="thank-you__loading">Confirming your payment…</p>}
-
-        {!loading && error && (
-          <div className="thank-you__card thank-you__card--error">
-            <h1 className="thank-you__title">Hmm, we can't find that one</h1>
-            <p>{error}</p>
-            <Link href="/donate" className="thank-you__cta">Back to donate</Link>
-          </div>
-        )}
-
-        {!loading && session && session.status === "paid" && (
-          <div className="thank-you__card">
-            <div className="thank-you__sparkle" aria-hidden>✨</div>
-            <h1 className="thank-you__title">
-              Thanks{session.donorName ? `, ${session.donorName}` : ""}!
-            </h1>
-            <p className="thank-you__amount">
-              £{(session.amountPence / 100).toFixed(2)} received.
-            </p>
-            <p className="thank-you__body">
-              Genuinely — it makes a difference. MileClear gets a few hours more
-              of development per donation. The next feature you wish existed has
-              a slightly better chance of existing.
-            </p>
-            <p className="thank-you__small">
-              Your receipt's been emailed by Stripe. No further action needed.
-            </p>
-            <Link href="/" className="thank-you__cta">Back to mileclear.com</Link>
-          </div>
-        )}
-
-        {!loading && session && session.status !== "paid" && (
-          <div className="thank-you__card thank-you__card--error">
-            <h1 className="thank-you__title">Payment didn't complete</h1>
-            <p>Status: {session.status}. No charge has been made. Try again any time.</p>
-            <Link href="/donate" className="thank-you__cta">Try again</Link>
-          </div>
-        )}
-      </main>
-      <Footer />
-    </>
+    <div className="thank-you__card thank-you__card--error">
+      <h1 className="thank-you__title">Payment didn't complete</h1>
+      <p>Status: {session?.status ?? "unknown"}. No charge has been made. Try again any time.</p>
+      <Link href="/donate" className="thank-you__cta">Try again</Link>
+    </div>
   );
 }
