@@ -21,6 +21,7 @@ import { logEvent } from "../../services/appEvents.js";
 import { advanceLastTripAt } from "../../services/userActivity.js";
 import { looksLikePhantomTrip } from "../../lib/phantomTrip.js";
 import { resolveRouteDistance } from "../../services/routing.js";
+import { matchTripRoute, decodePolyline } from "../../services/mapMatching.js";
 
 // Server-side geocoding: resolve an address to coordinates via Postcodes.io or Nominatim
 async function geocodeAddress(addr: string): Promise<{ lat: number; lng: number } | null> {
@@ -359,6 +360,21 @@ export async function tripRoutes(app: FastifyInstance) {
           sendMilestonePush(userId).catch(() => {});
         })
         .catch(() => {});
+
+      // Map-match the GPS breadcrumbs to road segments via GraphHopper.
+      // Snaps the route to actual roads (no GPS jitter, no driving-through-
+      // buildings artefacts) and stores the cleaned polyline. Fire-and-
+      // forget — never blocks the trip-create response. If GraphHopper is
+      // down or the trip has too few breadcrumbs, the polyline stays null
+      // and the trip detail screen falls back to the raw breadcrumbs.
+      if (hasCoordinates && coordinates && coordinates.length >= 10) {
+        runMapMatchingForTrip({
+          tripId: trip.id,
+          breadcrumbs: coordinates,
+          currentDistanceMiles: distanceMiles,
+          userId,
+        }).catch(() => {});
+      }
 
       logEvent("trip.created", userId, {
         distanceMiles,
@@ -772,7 +788,21 @@ export async function tripRoutes(app: FastifyInstance) {
       insights = computeTripInsights(trip.coordinates, trip.distanceMiles, durationSecs);
     }
 
-    return reply.send({ data: { ...trip, insights } });
+    // Decode the matched polyline (Google-encoded; produced by GraphHopper
+    // /match) to a coordinate array so the mobile map widget can render it
+    // directly without needing a polyline-decoding lib. Falls back to null
+    // when no match has been computed yet — client uses raw coordinates.
+    let matchedCoordinates: { lat: number; lng: number }[] | null = null;
+    if (trip.routePolyline) {
+      try {
+        matchedCoordinates = decodePolyline(trip.routePolyline);
+        if (matchedCoordinates.length === 0) matchedCoordinates = null;
+      } catch {
+        matchedCoordinates = null;
+      }
+    }
+
+    return reply.send({ data: { ...trip, insights, matchedCoordinates } });
   });
 
   // Update trip
@@ -1009,4 +1039,62 @@ export async function tripRoutes(app: FastifyInstance) {
 
     return reply.status(201).send({ data: anomaly });
   });
+}
+
+/**
+ * Run map-matching against a trip's GPS breadcrumbs and persist the
+ * results. Called fire-and-forget after trip create / update — never
+ * blocks the response. If GraphHopper is unreachable, returns null and
+ * the trip's routePolyline stays unset; the detail screen falls back
+ * to raw breadcrumbs and nothing breaks.
+ *
+ * Distance update rule: if the matched road distance is meaningfully
+ * higher than the breadcrumb-summed value (5%+ threshold), update
+ * Trip.distanceMiles to the matched figure. Same conservative rule as
+ * the recalc-distances script — never reduces a stored distance.
+ */
+async function runMapMatchingForTrip(args: {
+  tripId: string;
+  breadcrumbs: { lat: number; lng: number; accuracy?: number | null; recordedAt?: string | Date }[];
+  currentDistanceMiles: number;
+  userId: string;
+}): Promise<void> {
+  const result = await matchTripRoute(args.breadcrumbs);
+  if (!result) return;
+
+  const updates: { routePolyline: string; distanceMiles?: number } = {
+    routePolyline: result.encodedPolyline,
+  };
+
+  // Threshold: 5% increase. Map-matching is more accurate than the
+  // breadcrumb haversine sum (snaps to roads, follows actual curves)
+  // so when it disagrees by a meaningful margin in the user's favour,
+  // adopt it.
+  if (result.distanceMiles > args.currentDistanceMiles * 1.05) {
+    updates.distanceMiles = result.distanceMiles;
+  }
+
+  await prisma.trip.update({
+    where: { id: args.tripId },
+    data: updates,
+  });
+
+  if (updates.distanceMiles !== undefined) {
+    logEvent("trip.distance_recalculated", args.userId, {
+      tripId: args.tripId,
+      oldMiles: args.currentDistanceMiles,
+      newMiles: updates.distanceMiles,
+      ratio: Math.round((updates.distanceMiles / args.currentDistanceMiles) * 100) / 100,
+      source: "map_match",
+      triggeredBy: "trip_create_hook",
+    });
+  } else {
+    logEvent("trip.map_matched", args.userId, {
+      tripId: args.tripId,
+      pointsUsed: result.pointsUsed,
+      pointsFilteredOut: result.pointsFilteredOut,
+      matchedDistanceMiles: result.distanceMiles,
+      currentDistanceMiles: args.currentDistanceMiles,
+    });
+  }
 }

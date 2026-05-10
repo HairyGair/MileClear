@@ -19,6 +19,7 @@ import { advanceLastTripAt } from "../../services/userActivity.js";
 import { getAppleClient, getSignedDataVerifier, fetchTransactionWithEnvFallback, type AppleIapEnvironment } from "../../services/appleIap.js";
 import { calculateUserHealthScore } from "../../services/userHealthScore.js";
 import { resolveRouteDistance } from "../../services/routing.js";
+import { matchTripRoute } from "../../services/mapMatching.js";
 
 const premiumToggleSchema = z.object({
   isPremium: z.boolean(),
@@ -3015,6 +3016,184 @@ export async function adminRoutes(app: FastifyInstance) {
         skippedAlreadyCorrect,
         skippedRoutingFailed,
         skippedNoChange,
+        samples,
+      },
+    });
+  });
+
+  // POST /admin/match-existing-trips — backfill map-matched polylines
+  // for trips that haven't been matched yet (created before the feature
+  // shipped or at a time GraphHopper was unreachable).
+  //
+  // Same scope-and-safety pattern as /recalc-distances: optional userId
+  // / sinceDays / limit, dry-run support. Updates Trip.routePolyline
+  // with the GH-matched encoded polyline. Also bumps distanceMiles when
+  // the matched figure is meaningfully higher than the stored value
+  // (5%+ threshold) — never reduces a stored distance.
+  const matchBackfillSchema = z.object({
+    userId: z.string().uuid().optional(),
+    sinceDays: z.number().int().min(1).max(365).optional(),
+    threshold: z.number().min(0).max(1).optional(),
+    dryRun: z.boolean().optional(),
+    limit: z.number().int().min(1).max(2000).optional(),
+    /** When true, re-match trips that already have a polyline. Use this
+     *  to refresh the polyline after we tune the matcher; default false
+     *  so re-running the backfill is idempotent on already-matched trips. */
+    rematchExisting: z.boolean().optional(),
+  });
+  app.post("/match-existing-trips", async (request, reply) => {
+    const parsed = matchBackfillSchema.safeParse(request.body ?? {});
+    if (!parsed.success) {
+      return reply.status(400).send({ error: parsed.error.issues[0].message });
+    }
+    const {
+      userId,
+      sinceDays,
+      threshold = 0.05,
+      dryRun = true,
+      limit = 200,
+      rematchExisting = false,
+    } = parsed.data;
+
+    const where: Prisma.TripWhereInput = {
+      isPhantomTrip: false,
+      // Need GPS breadcrumbs to match against — manual trips with only
+      // start/end coords don't qualify (those go through resolveRouteDistance).
+      isManualEntry: false,
+      ...(rematchExisting ? {} : { routePolyline: null }),
+      ...(userId ? { userId } : {}),
+      ...(sinceDays
+        ? { startedAt: { gte: new Date(Date.now() - sinceDays * 86_400_000) } }
+        : {}),
+    };
+
+    const trips = await prisma.trip.findMany({
+      where,
+      select: {
+        id: true,
+        userId: true,
+        distanceMiles: true,
+        startedAt: true,
+        coordinates: {
+          orderBy: { recordedAt: "asc" },
+          select: { lat: true, lng: true, accuracy: true, recordedAt: true },
+        },
+      },
+      orderBy: { startedAt: "desc" },
+      take: limit,
+    });
+
+    let scanned = 0;
+    let matched = 0;
+    let distanceUpdated = 0;
+    let skippedTooFewPoints = 0;
+    let skippedMatchFailed = 0;
+    const samples: Array<{
+      tripId: string;
+      userId: string;
+      breadcrumbCount: number;
+      pointsUsed: number;
+      oldMiles: number;
+      matchedMiles: number;
+      distanceUpdated: boolean;
+      action: "matched" | "would_match" | "skipped";
+    }> = [];
+
+    for (const t of trips) {
+      scanned += 1;
+      if (t.coordinates.length < 10) {
+        skippedTooFewPoints += 1;
+        continue;
+      }
+
+      const result = await matchTripRoute(
+        t.coordinates.map((c) => ({
+          lat: c.lat,
+          lng: c.lng,
+          accuracy: c.accuracy,
+          recordedAt: c.recordedAt,
+        }))
+      );
+
+      if (!result) {
+        skippedMatchFailed += 1;
+        continue;
+      }
+
+      const updateDistance =
+        result.distanceMiles > t.distanceMiles * (1 + threshold);
+
+      if (!dryRun) {
+        await prisma.trip.update({
+          where: { id: t.id },
+          data: {
+            routePolyline: result.encodedPolyline,
+            ...(updateDistance ? { distanceMiles: result.distanceMiles } : {}),
+          },
+        });
+        if (updateDistance) {
+          logEvent("trip.distance_recalculated", t.userId, {
+            tripId: t.id,
+            oldMiles: t.distanceMiles,
+            newMiles: result.distanceMiles,
+            ratio: Math.round((result.distanceMiles / t.distanceMiles) * 100) / 100,
+            source: "map_match_backfill",
+            triggeredBy: "admin_backfill",
+          });
+          distanceUpdated += 1;
+        } else {
+          logEvent("trip.map_matched", t.userId, {
+            tripId: t.id,
+            pointsUsed: result.pointsUsed,
+            pointsFilteredOut: result.pointsFilteredOut,
+            matchedDistanceMiles: result.distanceMiles,
+            triggeredBy: "admin_backfill",
+          });
+        }
+      } else if (updateDistance) {
+        distanceUpdated += 1;
+      }
+
+      matched += 1;
+      if (samples.length < 50) {
+        samples.push({
+          tripId: t.id,
+          userId: t.userId,
+          breadcrumbCount: t.coordinates.length,
+          pointsUsed: result.pointsUsed,
+          oldMiles: t.distanceMiles,
+          matchedMiles: result.distanceMiles,
+          distanceUpdated: updateDistance,
+          action: dryRun ? "would_match" : "matched",
+        });
+      }
+    }
+
+    // Refresh affected mileage summaries when distances actually moved.
+    if (!dryRun && distanceUpdated > 0) {
+      const affectedUserIds = new Set(
+        samples
+          .filter((s) => s.action === "matched" && s.distanceUpdated)
+          .map((s) => s.userId)
+      );
+      for (const uid of affectedUserIds) {
+        try {
+          await upsertMileageSummary(uid, getTaxYear(new Date()));
+        } catch {
+          // best-effort; admin can re-run
+        }
+      }
+    }
+
+    return reply.send({
+      data: {
+        dryRun,
+        threshold,
+        scanned,
+        matched,
+        distanceUpdated,
+        skippedTooFewPoints,
+        skippedMatchFailed,
         samples,
       },
     });

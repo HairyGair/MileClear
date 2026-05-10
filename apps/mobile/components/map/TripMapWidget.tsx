@@ -29,25 +29,39 @@ interface Coordinate {
 }
 
 interface TripMapWidgetProps {
+  /** Raw GPS breadcrumbs from the trip — used as a fallback. */
   coordinates: Coordinate[];
+  /** Server-provided road-snapped polyline (GraphHopper /match output).
+   *  When present, takes priority over `coordinates` because it's a
+   *  cleaner visual route — no GPS jitter, follows actual roads. */
+  matchedCoordinates?: Coordinate[] | null;
   height?: number;
   interactive?: boolean;
 }
 
 export function TripMapWidget({
   coordinates,
+  matchedCoordinates,
   height = 200,
   interactive = false,
 }: TripMapWidgetProps) {
+  // Use the matched polyline when the server has computed one — it's
+  // road-snapped and looks materially cleaner than raw breadcrumbs.
+  // Fall back to breadcrumbs when no match is available (older trips,
+  // map-matching fail, or coords below the matching threshold).
+  const renderCoords = matchedCoordinates && matchedCoordinates.length >= 2
+    ? matchedCoordinates
+    : coordinates;
+
   const region = useMemo(() => {
-    if (coordinates.length === 0) return undefined;
+    if (renderCoords.length === 0) return undefined;
 
-    let minLat = coordinates[0].lat;
-    let maxLat = coordinates[0].lat;
-    let minLng = coordinates[0].lng;
-    let maxLng = coordinates[0].lng;
+    let minLat = renderCoords[0].lat;
+    let maxLat = renderCoords[0].lat;
+    let minLng = renderCoords[0].lng;
+    let maxLng = renderCoords[0].lng;
 
-    for (const c of coordinates) {
+    for (const c of renderCoords) {
       if (c.lat < minLat) minLat = c.lat;
       if (c.lat > maxLat) maxLat = c.lat;
       if (c.lng < minLng) minLng = c.lng;
@@ -63,21 +77,25 @@ export function TripMapWidget({
       latitudeDelta: latDelta,
       longitudeDelta: lngDelta,
     };
-  }, [coordinates]);
+  }, [renderCoords]);
 
   const polylineCoords = useMemo(
-    () => coordinates.map((c) => ({ latitude: c.lat, longitude: c.lng })),
-    [coordinates]
+    () => renderCoords.map((c) => ({ latitude: c.lat, longitude: c.lng })),
+    [renderCoords]
   );
 
-  if (!region || coordinates.length < 2) return null;
+  if (!region || renderCoords.length < 2) return null;
 
   if (!MapViewComponent || !PolylineComponent || !MarkerComponent) {
     return null; // Silently hide map widget in Expo Go
   }
 
-  const start = coordinates[0];
-  const end = coordinates[coordinates.length - 1];
+  // Always anchor markers to the original GPS breadcrumbs (the user's
+  // actual start and end), not the snapped endpoints — keeps the pins
+  // honest even when the matched route diverges slightly.
+  const markerSource = coordinates.length >= 2 ? coordinates : renderCoords;
+  const start = markerSource[0];
+  const end = markerSource[markerSource.length - 1];
 
   return (
     <View style={[styles.container, { height }]}>

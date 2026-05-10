@@ -107,6 +107,7 @@ export function JourneyTimeline({ trips }: JourneyTimelineProps) {
             <View style={styles.mapWrap}>
               <TripMapWidget
                 coordinates={trip.coordinates}
+                matchedCoordinates={trip.matchedCoordinates}
                 height={120}
               />
             </View>

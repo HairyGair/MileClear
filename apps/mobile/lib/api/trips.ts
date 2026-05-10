@@ -67,6 +67,12 @@ export interface TripDetail extends Trip {
   shift: Shift | null;
   coordinates: TripCoordinate[];
   insights: TripInsights | null;
+  /** Server-computed road-snapped polyline. Map widgets prefer this
+   *  over `coordinates` when present — cleaner visual, snapped to
+   *  actual roads. Null for trips that haven't been map-matched yet
+   *  (older trips, GraphHopper unavailable at create time, or fewer
+   *  than 10 breadcrumbs). */
+  matchedCoordinates?: { lat: number; lng: number }[] | null;
 }
 
 export interface CoordinateInput {
