@@ -214,6 +214,28 @@ export function recalculateTrip(id: string) {
   });
 }
 
+export interface ScanLowConfidenceResult {
+  scanned: number;
+  candidateCount: number;
+  applied: number;
+  improved: number;
+  totalMilesGained?: number;
+  polylinesAdded?: number;
+}
+
+/**
+ * Scan the user's recent trips for low/medium-confidence ones and re-run
+ * routing/match against each. Use scanOnly=true first to surface the
+ * count + ask for confirmation, then call again with scanOnly=false to
+ * apply. Conservative — never reduces stored distances.
+ */
+export function scanLowConfidenceTrips(args: { scanOnly?: boolean; sinceDays?: number; limit?: number } = {}) {
+  return apiRequest<{ data: ScanLowConfidenceResult }>("/trips/scan-low-confidence", {
+    method: "POST",
+    body: JSON.stringify(args),
+  });
+}
+
 export function createTrip(data: CreateTripData) {
   return apiRequest<{ data: TripWithVehicle }>("/trips", {
     method: "POST",

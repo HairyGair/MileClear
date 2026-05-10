@@ -934,6 +934,173 @@ export async function tripRoutes(app: FastifyInstance) {
     return reply.send({ data: { ...trip, insights, matchedCoordinates, confidence } });
   });
 
+  // POST /trips/scan-low-confidence — user-initiated bulk recalc.
+  // Finds the user's trips with low or medium confidence, re-runs the
+  // routing service or map-matcher per trip, returns a summary. Same
+  // conservative rules as the admin backfill: never reduces stored
+  // distance, plausibility-guards against bad map matches.
+  //
+  // Designed to be hit from a single-tap "Fix suspicious trips" button
+  // in Settings → Tools. Includes a `scanOnly` flag so the client can
+  // first surface "we found N trips" + a confirm step before applying.
+  const scanSchema = z.object({
+    scanOnly: z.boolean().optional(),
+    sinceDays: z.number().int().min(1).max(365).optional(),
+    limit: z.number().int().min(1).max(500).optional(),
+  });
+  app.post("/scan-low-confidence", async (request, reply) => {
+    const parsed = scanSchema.safeParse(request.body ?? {});
+    if (!parsed.success) {
+      return reply.status(400).send({ error: parsed.error.issues[0].message });
+    }
+    const { scanOnly = false, sinceDays, limit = 100 } = parsed.data;
+    const userId = request.userId!;
+
+    const where = {
+      userId,
+      isPhantomTrip: false,
+      ...(sinceDays
+        ? { startedAt: { gte: new Date(Date.now() - sinceDays * 86_400_000) } }
+        : {}),
+    };
+
+    const trips = await prisma.trip.findMany({
+      where,
+      orderBy: { startedAt: "desc" },
+      take: limit * 3, // over-fetch since most will be filtered as high-confidence
+      select: {
+        id: true,
+        startLat: true,
+        startLng: true,
+        endLat: true,
+        endLng: true,
+        distanceMiles: true,
+        startedAt: true,
+        endedAt: true,
+        isManualEntry: true,
+        routePolyline: true,
+        gpsQuality: true,
+        _count: { select: { coordinates: true } },
+      },
+    });
+
+    // Filter to low/medium-confidence trips with end coords (we can only
+    // recalc when there's something to route between).
+    const candidates: typeof trips = [];
+    for (const t of trips) {
+      if (t.endLat == null || t.endLng == null) continue;
+      const durationSecs = t.endedAt
+        ? Math.round((t.endedAt.getTime() - t.startedAt.getTime()) / 1000)
+        : null;
+      const c = computeTripConfidence({
+        isManualEntry: t.isManualEntry,
+        coordinateCount: t._count.coordinates,
+        hasMatchedPolyline: t.routePolyline != null,
+        distanceMiles: t.distanceMiles,
+        durationSecs,
+        hasEndCoords: true,
+        gpsQuality: extractGpsQualityForConfidence(t.gpsQuality),
+      });
+      if (c.level === "high") continue;
+      candidates.push(t);
+      if (candidates.length >= limit) break;
+    }
+
+    if (scanOnly) {
+      return reply.send({
+        data: {
+          scanned: trips.length,
+          candidateCount: candidates.length,
+          applied: 0,
+          improved: 0,
+        },
+      });
+    }
+
+    // Apply the same logic as the admin backfill, scoped to this user.
+    let improved = 0;
+    let totalMilesGained = 0;
+    let polylinesAdded = 0;
+
+    for (const t of candidates) {
+      if (t.endLat == null || t.endLng == null) continue;
+      let polyline: string | null = null;
+      let newMiles: number | null = null;
+
+      // Tracked trip with breadcrumbs → map-match
+      if (t._count.coordinates >= 10) {
+        const coords = await prisma.tripCoordinate.findMany({
+          where: { tripId: t.id },
+          orderBy: { recordedAt: "asc" },
+          select: { lat: true, lng: true, accuracy: true, recordedAt: true },
+        });
+        const result = await matchTripRoute(coords);
+        if (result && isMatchPlausible(result.distanceMiles, t.distanceMiles)) {
+          polyline = result.encodedPolyline;
+          if (result.distanceMiles > t.distanceMiles * 1.05) {
+            newMiles = result.distanceMiles;
+          }
+        }
+      }
+
+      // Falls back to routing service for manual or low-breadcrumb trips
+      if (newMiles === null && polyline === null) {
+        const route = await resolveRouteDistance({
+          startLat: t.startLat,
+          startLng: t.startLng,
+          endLat: t.endLat,
+          endLng: t.endLng,
+          userId,
+        });
+        if (route && route.distanceMiles > t.distanceMiles * 1.05) {
+          newMiles = route.distanceMiles;
+        }
+      }
+
+      if (newMiles === null && polyline === null) continue;
+
+      await prisma.trip.update({
+        where: { id: t.id },
+        data: {
+          ...(newMiles !== null ? { distanceMiles: newMiles } : {}),
+          ...(polyline !== null ? { routePolyline: polyline } : {}),
+        },
+      });
+
+      if (newMiles !== null) {
+        const gained = newMiles - t.distanceMiles;
+        totalMilesGained += gained;
+        logEvent("trip.distance_recalculated", userId, {
+          tripId: t.id,
+          oldMiles: t.distanceMiles,
+          newMiles,
+          ratio: Math.round((newMiles / t.distanceMiles) * 100) / 100,
+          source: polyline ? "map_match" : "routing",
+          triggeredBy: "user_bulk_scan",
+        });
+      }
+      if (polyline !== null) polylinesAdded += 1;
+      improved += 1;
+    }
+
+    if (totalMilesGained > 0) {
+      // Refresh MileageSummary for current tax year so the user's Tax
+      // Readiness card immediately reflects the recovered miles.
+      upsertMileageSummary(userId, getTaxYear(new Date())).catch(() => {});
+    }
+
+    return reply.send({
+      data: {
+        scanned: trips.length,
+        candidateCount: candidates.length,
+        applied: candidates.length,
+        improved,
+        totalMilesGained: Math.round(totalMilesGained * 100) / 100,
+        polylinesAdded,
+      },
+    });
+  });
+
   // POST /trips/:id/recalc — user-initiated re-routing of a single trip.
   // Runs the routing service against the trip's start/end (manual trips)
   // OR runs map-matching against its breadcrumbs (tracked trips), updates
