@@ -18,6 +18,7 @@ import { upsertMileageSummary } from "../../services/mileage.js";
 import { advanceLastTripAt } from "../../services/userActivity.js";
 import { getAppleClient, getSignedDataVerifier, fetchTransactionWithEnvFallback, type AppleIapEnvironment } from "../../services/appleIap.js";
 import { calculateUserHealthScore } from "../../services/userHealthScore.js";
+import { resolveRouteDistance } from "../../services/routing.js";
 
 const premiumToggleSchema = z.object({
   isPremium: z.boolean(),
@@ -2835,6 +2836,186 @@ export async function adminRoutes(app: FastifyInstance) {
         all: shape(rows),
         active: shape(activeRows),
         generatedAt: new Date().toISOString(),
+      },
+    });
+  });
+
+  // POST /admin/recalc-distances — re-run the routing service against
+  // existing manual trips to fix distances that were silently calculated
+  // as crow-flies by the old code path (Laura Joyce report 10 May 2026).
+  //
+  // Conservative rules:
+  //   - Only manual trips with both start + end coords are considered.
+  //   - Only updates if the new road distance is at least `threshold`
+  //     fraction higher than the stored value (default 5%). Never reduces
+  //     a stored distance — protects users who manually entered a higher
+  //     value than the buggy calc produced.
+  //   - dryRun=true returns what WOULD change without writing.
+  //   - Optional userId / sinceDays scope the run.
+  //
+  // Audit: every change logs `trip.distance_recalculated` to app_events
+  // with old/new values.
+  const recalcSchema = z.object({
+    userId: z.string().uuid().optional(),
+    sinceDays: z.number().int().min(1).max(365).optional(),
+    /** Minimum fractional increase to apply an update (default 0.05 = 5%). */
+    threshold: z.number().min(0).max(1).optional(),
+    dryRun: z.boolean().optional(),
+    /** Cap the run for safety on big batches. */
+    limit: z.number().int().min(1).max(5000).optional(),
+  });
+  app.post("/recalc-distances", async (request, reply) => {
+    const parsed = recalcSchema.safeParse(request.body ?? {});
+    if (!parsed.success) {
+      return reply.status(400).send({ error: parsed.error.issues[0].message });
+    }
+    const { userId, sinceDays, threshold = 0.05, dryRun = true, limit = 500 } = parsed.data;
+
+    const where: Prisma.TripWhereInput = {
+      isManualEntry: true,
+      isPhantomTrip: false,
+      // Both ends present — a manual trip without an end coord can't be re-routed.
+      endLat: { not: null },
+      endLng: { not: null },
+      ...(userId ? { userId } : {}),
+      ...(sinceDays
+        ? { startedAt: { gte: new Date(Date.now() - sinceDays * 86_400_000) } }
+        : {}),
+    };
+
+    const trips = await prisma.trip.findMany({
+      where,
+      select: {
+        id: true,
+        userId: true,
+        startLat: true,
+        startLng: true,
+        endLat: true,
+        endLng: true,
+        distanceMiles: true,
+        startedAt: true,
+        startAddress: true,
+        endAddress: true,
+      },
+      orderBy: { startedAt: "desc" },
+      take: limit,
+    });
+
+    let scanned = 0;
+    let updated = 0;
+    let skippedNoChange = 0;
+    let skippedAlreadyCorrect = 0;
+    let skippedRoutingFailed = 0;
+    const samples: Array<{
+      tripId: string;
+      userId: string;
+      startedAt: string;
+      oldMiles: number;
+      newMiles: number;
+      ratio: number;
+      source: string;
+      action: "updated" | "would_update" | "skipped";
+    }> = [];
+
+    for (const t of trips) {
+      scanned += 1;
+      if (t.endLat == null || t.endLng == null) continue;
+
+      const route = await resolveRouteDistance({
+        startLat: t.startLat,
+        startLng: t.startLng,
+        endLat: t.endLat,
+        endLng: t.endLng,
+        userId: t.userId,
+      });
+
+      if (!route) {
+        skippedRoutingFailed += 1;
+        continue;
+      }
+
+      const newMiles = route.distanceMiles;
+      const oldMiles = t.distanceMiles;
+      const ratio = oldMiles > 0 ? newMiles / oldMiles : Infinity;
+
+      // Only act if new is meaningfully HIGHER than stored — protects user
+      // overrides + avoids fighting OSRM/GraphHopper micro-route differences.
+      if (newMiles <= oldMiles * (1 + threshold)) {
+        skippedAlreadyCorrect += 1;
+        continue;
+      }
+
+      if (dryRun) {
+        samples.push({
+          tripId: t.id,
+          userId: t.userId,
+          startedAt: t.startedAt.toISOString(),
+          oldMiles,
+          newMiles,
+          ratio,
+          source: route.source,
+          action: "would_update",
+        });
+        updated += 1; // count what we WOULD update for the summary
+        continue;
+      }
+
+      await prisma.trip.update({
+        where: { id: t.id },
+        data: { distanceMiles: newMiles },
+      });
+      logEvent("trip.distance_recalculated", t.userId, {
+        tripId: t.id,
+        oldMiles,
+        newMiles,
+        ratio: Math.round(ratio * 100) / 100,
+        source: route.source,
+        startedAt: t.startedAt.toISOString(),
+        triggeredBy: "admin_recalc",
+      });
+      updated += 1;
+      // Cap sample size in the response to avoid huge payloads.
+      if (samples.length < 50) {
+        samples.push({
+          tripId: t.id,
+          userId: t.userId,
+          startedAt: t.startedAt.toISOString(),
+          oldMiles,
+          newMiles,
+          ratio,
+          source: route.source,
+          action: "updated",
+        });
+      }
+    }
+
+    // Refresh affected mileage summaries when we actually updated rows.
+    if (!dryRun && updated > 0) {
+      const affectedUserIds = new Set(
+        samples.filter((s) => s.action === "updated").map((s) => s.userId)
+      );
+      for (const uid of affectedUserIds) {
+        try {
+          // Recompute the cached MileageSummary for the current tax year so
+          // the user's tax-readiness card reflects the corrected distances.
+          // Done outside the per-trip loop to avoid N+1 churn.
+          await upsertMileageSummary(uid, getTaxYear(new Date()));
+        } catch {
+          // Non-fatal; admin can re-run if needed
+        }
+      }
+    }
+
+    return reply.send({
+      data: {
+        dryRun,
+        threshold,
+        scanned,
+        updated,
+        skippedAlreadyCorrect,
+        skippedRoutingFailed,
+        skippedNoChange,
+        samples,
       },
     });
   });
