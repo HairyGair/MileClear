@@ -12,6 +12,52 @@ import type {
   PaginatedResponse,
 } from "@mileclear/shared";
 
+/** Result from /trips/route-distance — provenance + sanity ratio included. */
+export interface RouteDistanceResult {
+  distanceMiles: number;
+  durationSecs: number;
+  /** Where the number came from: cached / our self-hosted GraphHopper /
+   *  Google Maps Routes API fallback. Surfaced to the user via a small
+   *  badge so the figure is auditable. */
+  source: "cache" | "graphhopper" | "google";
+  /** Distance / haversine ratio. Real routes are typically 1.1-1.6×;
+   *  values <0.95 or >5 should be reviewed. */
+  routeToHaversineRatio: number;
+}
+
+/**
+ * Server-side road-distance lookup. Replaces the previous direct-to-
+ * public-OSRM call which silently fell back to haversine on rate-limit
+ * / timeout (Laura Joyce report 10 May 2026). The server caches results
+ * permanently, so identical address pairs return identical mileage —
+ * structurally, not by luck.
+ *
+ * Returns null only on routing-unavailable (503). Caller should show
+ * a "couldn't calculate, enter manually" message rather than inventing
+ * a crow-flies fallback.
+ */
+export async function fetchServerRouteDistance(args: {
+  startLat: number;
+  startLng: number;
+  endLat: number;
+  endLng: number;
+}): Promise<RouteDistanceResult | null> {
+  const params = new URLSearchParams({
+    startLat: String(args.startLat),
+    startLng: String(args.startLng),
+    endLat: String(args.endLat),
+    endLng: String(args.endLng),
+  });
+  try {
+    const res = await apiRequest<{ data: RouteDistanceResult }>(
+      `/trips/route-distance?${params.toString()}`
+    );
+    return res.data;
+  } catch {
+    return null;
+  }
+}
+
 export interface TripWithVehicle extends Trip {
   vehicle: Vehicle | null;
 }

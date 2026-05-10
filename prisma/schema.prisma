@@ -731,6 +731,44 @@ model GeofenceRadiusRecommendation {
   @@map("geofence_radius_recommendations")
 }
 
+// Persistent cache of computed road distances between (start, end)
+// coordinate pairs. Once any route is computed (by GraphHopper or Google),
+// every future request for the same coords returns the cached value
+// regardless of which engine produced it. This is the foundation that
+// makes "user manually adds three trips A→B and the miles match" a
+// structural guarantee, not a hopeful coincidence.
+//
+// Coords stored rounded to 4 decimal places (~11 m precision) so trivial
+// drift in user-entered addresses still hits the cache. The composite
+// unique key is (startLatRounded, startLngRounded, endLatRounded, endLngRounded).
+//
+// Source enum:
+//   "graphhopper" — self-hosted GraphHopper on Pixelish (preferred)
+//   "google"       — Google Maps Routes API fallback
+// Never cache haversine fallbacks — those should never reach the user
+// without explicit opt-in.
+//
+// Bug fix shipped 10 May 2026 after Laura Joyce reported MileClear's
+// manual trips with identical addresses returned different mileages
+// (silent OSRM-failure → haversine fallback). See docs/routing-stack.md.
+model RouteCache {
+  id                  String   @id @default(uuid())
+  startLatRounded     Float
+  startLngRounded     Float
+  endLatRounded       Float
+  endLngRounded       Float
+  distanceMiles       Float
+  durationSecs        Int
+  source              String   @db.VarChar(20)  // "graphhopper" | "google"
+  computedAt          DateTime @default(now())
+  hitCount            Int      @default(0)     // bumped on each cache hit
+  lastHitAt           DateTime?
+
+  @@unique([startLatRounded, startLngRounded, endLatRounded, endLngRounded], map: "route_cache_coords_uk")
+  @@index([computedAt])
+  @@map("route_cache")
+}
+
 // Idempotency keys for safe retry of mutation requests. When a client
 // sends an `Idempotency-Key` header, the server caches the response
 // for the TTL window. Subsequent requests with the same key return the

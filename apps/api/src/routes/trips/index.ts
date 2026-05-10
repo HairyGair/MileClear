@@ -13,13 +13,14 @@ import {
   MAX_PAGE_SIZE,
   getTaxYear,
 } from "@mileclear/shared";
-import { haversineDistance, fetchRouteDistance, computeTripInsights } from "@mileclear/shared";
+import { haversineDistance, computeTripInsights } from "@mileclear/shared";
 import { upsertMileageSummary } from "../../services/mileage.js";
 import { checkAndAwardAchievements } from "../../services/gamification.js";
 import { sendMilestonePush, sendAchievementPush } from "../../jobs/notifications.js";
 import { logEvent } from "../../services/appEvents.js";
 import { advanceLastTripAt } from "../../services/userActivity.js";
 import { looksLikePhantomTrip } from "../../lib/phantomTrip.js";
+import { resolveRouteDistance } from "../../services/routing.js";
 
 // Server-side geocoding: resolve an address to coordinates via Postcodes.io or Nominatim
 async function geocodeAddress(addr: string): Promise<{ lat: number; lng: number } | null> {
@@ -126,6 +127,44 @@ export async function tripRoutes(app: FastifyInstance) {
   app.addHook("preHandler", authMiddleware);
   attachIdempotency(app);
 
+  // GET /trips/route-distance — server-side road-distance calc that
+  // the mobile manual-trip form calls when picking start/end points.
+  // Replaces the previous direct-to-public-OSRM call which silently
+  // fell back to haversine on rate-limit / timeout, causing identical
+  // addresses to return inconsistent miles. Returns provenance so the
+  // mobile UI can show "Calculated via GraphHopper / cached / Google".
+  const routeDistanceQuery = z.object({
+    startLat: z.coerce.number().min(-90).max(90),
+    startLng: z.coerce.number().min(-180).max(180),
+    endLat: z.coerce.number().min(-90).max(90),
+    endLng: z.coerce.number().min(-180).max(180),
+  });
+  app.get("/route-distance", async (request, reply) => {
+    const parsed = routeDistanceQuery.safeParse(request.query);
+    if (!parsed.success) {
+      return reply.status(400).send({
+        error: { code: "INVALID_REQUEST", message: parsed.error.issues[0].message, retryable: false },
+      });
+    }
+    const result = await resolveRouteDistance({
+      ...parsed.data,
+      userId: request.userId!,
+    });
+    if (!result) {
+      // All routing engines unavailable. Return 503 — mobile UI shows
+      // "Couldn't calculate, enter manually" instead of inventing a
+      // crow-flies number.
+      return reply.status(503).send({
+        error: {
+          code: "ROUTING_UNAVAILABLE",
+          message: "Road routing is temporarily unavailable. Try again or enter the distance manually.",
+          retryable: true,
+        },
+      });
+    }
+    return reply.send({ data: result });
+  });
+
   // Create trip (manual entry)
   app.post("/", async (request, reply) => {
     const parsed = createTripSchema.safeParse(request.body);
@@ -192,13 +231,33 @@ export async function tripRoutes(app: FastifyInstance) {
       }
     }
 
-    // Auto-calculate distance if end coords present and distance not provided
+    // Auto-calculate distance if end coords present and distance not provided.
+    // Use the routing service (cache → GraphHopper → Google) — never silently
+    // falls back to haversine, which previously caused identical-address
+    // trips to return inconsistent miles (Laura Joyce report 10 May 2026).
     let distanceMiles = data.distanceMiles ?? 0;
     if (resolvedEndLat != null && resolvedEndLng != null && hasValidCoords(resolvedStartLat, resolvedStartLng) && data.distanceMiles == null) {
-      const route = await fetchRouteDistance(resolvedStartLat, resolvedStartLng, resolvedEndLat, resolvedEndLng);
-      distanceMiles = route
-        ? route.distanceMiles
-        : haversineDistance(resolvedStartLat, resolvedStartLng, resolvedEndLat, resolvedEndLng);
+      const route = await resolveRouteDistance({
+        startLat: resolvedStartLat,
+        startLng: resolvedStartLng,
+        endLat: resolvedEndLat,
+        endLng: resolvedEndLng,
+        userId,
+      });
+      if (route) {
+        distanceMiles = route.distanceMiles;
+      } else {
+        // All routing engines unavailable. Use haversine as the explicit
+        // last resort and flag it so we can audit how often it fires.
+        distanceMiles = haversineDistance(resolvedStartLat, resolvedStartLng, resolvedEndLat, resolvedEndLng);
+        logEvent("routing.haversine_fallback_used", userId, {
+          startLat: resolvedStartLat,
+          startLng: resolvedStartLng,
+          endLat: resolvedEndLat,
+          endLng: resolvedEndLng,
+          distanceMiles,
+        });
+      }
     }
 
     const { coordinates, ...tripData } = data;
@@ -748,7 +807,7 @@ export async function tripRoutes(app: FastifyInstance) {
     }
 
     // Use explicit distanceMiles if provided (e.g. merged trip with GPS-measured distance),
-    // otherwise recalculate via OSRM if end coords changed
+    // otherwise recalculate via the routing service if end coords changed.
     let distanceMiles: number | undefined = updates.distanceMiles;
     if (distanceMiles === undefined) {
       const endLatChanged = updates.endLat !== undefined && updates.endLat !== existing.endLat;
@@ -758,10 +817,25 @@ export async function tripRoutes(app: FastifyInstance) {
         newEndLat != null &&
         newEndLng != null
       ) {
-        const route = await fetchRouteDistance(existing.startLat, existing.startLng, newEndLat, newEndLng);
-        distanceMiles = route
-          ? route.distanceMiles
-          : haversineDistance(existing.startLat, existing.startLng, newEndLat, newEndLng);
+        const route = await resolveRouteDistance({
+          startLat: existing.startLat,
+          startLng: existing.startLng,
+          endLat: newEndLat,
+          endLng: newEndLng,
+          userId,
+        });
+        if (route) {
+          distanceMiles = route.distanceMiles;
+        } else {
+          distanceMiles = haversineDistance(existing.startLat, existing.startLng, newEndLat, newEndLng);
+          logEvent("routing.haversine_fallback_used", userId, {
+            startLat: existing.startLat,
+            startLng: existing.startLng,
+            endLat: newEndLat,
+            endLng: newEndLng,
+            distanceMiles,
+          });
+        }
       }
     }
 

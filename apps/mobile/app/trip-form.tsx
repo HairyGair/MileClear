@@ -26,7 +26,8 @@ import {
   syncDeleteTrip,
 } from "../lib/sync/actions";
 import { fetchVehicles } from "../lib/api/vehicles";
-import { GIG_PLATFORMS, BUSINESS_PURPOSES, TRIP_CATEGORY_META, haversineDistance, fetchRouteDistance } from "@mileclear/shared";
+import { GIG_PLATFORMS, BUSINESS_PURPOSES, TRIP_CATEGORY_META, haversineDistance } from "@mileclear/shared";
+import { fetchServerRouteDistance, type RouteDistanceResult } from "../lib/api/trips";
 import type { TripClassification, TripCategory, PlatformTag, BusinessPurpose, Vehicle } from "@mileclear/shared";
 import { getDatabase } from "../lib/db/index";
 import { startQuickTripTracking, stopQuickTripTracking, clearDetectionCooldown, peekBackgroundCoordinates } from "../lib/tracking";
@@ -311,6 +312,18 @@ function buildSpeedSegments(
     segments.push({ coords: currentCoords, color: currentColor });
   }
   return segments;
+}
+
+/**
+ * User-facing label for the routing provenance. We show this so users
+ * can verify the distance is auditable — important for HMRC mileage
+ * claims where "where did this number come from?" is a real question.
+ */
+function provenanceLabel(source: RouteDistanceResult["source"]): string {
+  if (source === "cache") return "Route distance via road (cached)";
+  if (source === "graphhopper") return "Route distance via road";
+  if (source === "google") return "Route distance via Google Maps";
+  return "Route distance via road";
 }
 
 // Positive message based on trip data
@@ -676,8 +689,14 @@ export default function TripFormScreen() {
       .catch(() => {});
   }, [id]);
 
-  // Auto-calculate distance via OSRM route (falls back to Haversine)
+  // Auto-calculate distance via the server-side routing service.
+  // Cache → GraphHopper → Google. Never silently falls back to crow-flies
+  // (the bug Laura reported 10 May 2026). When all engines fail, we
+  // surface "couldn't calculate" so the user knows to enter manually
+  // rather than seeing a wrong number.
   const [calculatingRoute, setCalculatingRoute] = useState(false);
+  const [routeSource, setRouteSource] = useState<RouteDistanceResult["source"] | null>(null);
+  const [routeUnavailable, setRouteUnavailable] = useState(false);
   useEffect(() => {
     if (startLat == null || startLng == null || endLat == null || endLng == null) return;
     // In driving/arrived modes, distance is tracked via GPS breadcrumbs
@@ -697,16 +716,20 @@ export default function TripFormScreen() {
     }
     let cancelled = false;
     setCalculatingRoute(true);
-    fetchRouteDistance(startLat, startLng, endLat, endLng)
+    setRouteUnavailable(false);
+    setRouteSource(null);
+    fetchServerRouteDistance({ startLat, startLng, endLat, endLng })
       .then((result) => {
         if (cancelled) return;
         if (result) {
           setDistanceMiles(result.distanceMiles);
+          setRouteSource(result.source);
         } else {
-          // Fallback to straight-line
-          setDistanceMiles(
-            Math.round(haversineDistance(startLat, startLng, endLat, endLng) * 100) / 100
-          );
+          // Routing unavailable. Don't invent a haversine number — let the
+          // user see "couldn't calculate" and enter the distance manually
+          // if they want to. Honest friction beats silent under-counting.
+          setDistanceMiles(null);
+          setRouteUnavailable(true);
         }
       })
       .finally(() => { if (!cancelled) setCalculatingRoute(false); });
@@ -2175,10 +2198,15 @@ export default function TripFormScreen() {
               <Text style={styles.distanceValue}>
                 {calculatingRoute ? "Calculating..." : distanceMiles != null ? `${distanceMiles} mi` : "--"}
               </Text>
-              {!calculatingRoute && distanceMiles != null && (
-                <Text style={styles.distanceHint}>Route distance via road</Text>
+              {!calculatingRoute && distanceMiles != null && routeSource && (
+                <Text style={styles.distanceHint}>{provenanceLabel(routeSource)}</Text>
               )}
-              {!calculatingRoute && distanceMiles == null && (
+              {!calculatingRoute && distanceMiles == null && routeUnavailable && (
+                <Text style={[styles.distanceHint, { color: "#f59e0b" }]}>
+                  Couldn't calculate route — try again or enter distance manually
+                </Text>
+              )}
+              {!calculatingRoute && distanceMiles == null && !routeUnavailable && (
                 <Text style={styles.distanceHint}>Set both locations to auto-calculate</Text>
               )}
             </View>
