@@ -6,7 +6,7 @@ import * as Location from "expo-location";
 import * as TaskManager from "expo-task-manager";
 import { getDatabase } from "../db/index";
 import { syncCreateTrip } from "../sync/actions";
-import { startDriveDetection, stopDriveDetection, cancelAutoRecording } from "./detection";
+import { startDriveDetection, stopDriveDetection, cancelAutoRecording, clearNotDrivingCooldown } from "./detection";
 import { reverseGeocode } from "../location/geocoding";
 import { getScheduleClassification } from "../schedule/index";
 import { setDepartureAnchor } from "../geofencing/index";
@@ -69,6 +69,9 @@ export async function isTrackingActive(): Promise<boolean> {
 }
 
 export async function startShiftTracking(shiftId: string): Promise<void> {
+  // Starting a shift is an explicit "I am driving" signal. Clear any
+  // pending not-driving cooldown so the shift records normally.
+  await clearNotDrivingCooldown();
   await stopDriveDetection();
   await cancelAutoRecording();
 

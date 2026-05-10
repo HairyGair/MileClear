@@ -1234,8 +1234,10 @@ export async function finalizeStaleAutoRecordings(): Promise<void> {
 /**
  * Cancel any in-progress auto-recording.
  * @param clearCoords Whether to also delete buffered coordinates.
- *   - true: user tapped "Not Driving" (discard everything)
- *   - false: user started a shift (coords may be transferred)
+ *   - true: user tapped "Not Driving" / "I'm a passenger" (discard
+ *     everything AND set a not-driving cooldown so the next location
+ *     batch doesn't silently re-promote into a recording).
+ *   - false: user started a shift (coords may be transferred).
  */
 export async function cancelAutoRecording(clearCoords = false): Promise<void> {
   stopWatchdog();
@@ -1246,9 +1248,66 @@ export async function cancelAutoRecording(clearCoords = false): Promise<void> {
   );
   if (clearCoords) {
     await db.runAsync("DELETE FROM detection_coordinates");
+    // Also clear watch-mode flags so the detection task doesn't think
+    // we're still in the watch-and-wait phase. clearWatchModeFlags is
+    // idempotent — safe even if watch mode wasn't active.
+    await clearWatchModeFlags();
     // Dismiss Live Activity when user taps "Not Driving"
     endLiveActivity().catch(() => {});
+    // Set a not-driving cooldown. Anthony 10 May 2026: tapping "No, I'm
+    // a passenger" appeared to do nothing because the recording would
+    // silently re-promote on the next location batch (still in a moving
+    // car). The 20-min notification cooldown blocked the prompt but
+    // didn't block the recording start. This cooldown is checked in
+    // the detection-task pre-promotion guard (see below) so the
+    // recording stays cancelled for the lifetime of the cooldown.
+    const notDrivingUntil = Date.now() + COOLDOWN_MS;
+    await db.runAsync(
+      "INSERT OR REPLACE INTO tracking_state (key, value) VALUES ('not_driving_until', ?)",
+      [String(notDrivingUntil)]
+    );
+    logDetectionEvent("not_driving_cooldown_set", {
+      cooldownMs: COOLDOWN_MS,
+      until: notDrivingUntil,
+    }).catch(() => {});
   }
+}
+
+/**
+ * Clear the not-driving cooldown. Called when the user explicitly opts
+ * in to recording — tapping "Yes, track it", starting a shift, or
+ * tapping a Quick Trip CTA. Without this, the cooldown set by an
+ * earlier "I'm a passenger" tap would persist and silently block
+ * recordings the user actually wants.
+ */
+export async function clearNotDrivingCooldown(): Promise<void> {
+  const db = await getDatabase();
+  await db.runAsync(
+    "DELETE FROM tracking_state WHERE key = 'not_driving_until'"
+  );
+}
+
+/**
+ * True if a not-driving cooldown is currently active. Used by the
+ * detection task to suppress promotion to a recording during the
+ * cooldown window.
+ */
+export async function isNotDrivingCooldownActive(): Promise<boolean> {
+  const db = await getDatabase();
+  const row = await db.getFirstAsync<{ value: string }>(
+    "SELECT value FROM tracking_state WHERE key = 'not_driving_until'"
+  );
+  if (!row) return false;
+  const until = parseInt(row.value, 10);
+  if (!Number.isFinite(until)) return false;
+  if (Date.now() >= until) {
+    // Stale — clean it up so future reads are cheap.
+    await db.runAsync(
+      "DELETE FROM tracking_state WHERE key = 'not_driving_until'"
+    );
+    return false;
+  }
+  return true;
 }
 
 // ── Background task ──────────────────────────────────────────────────────
@@ -1634,6 +1693,35 @@ try {
 
       const detectedSpeedMs = detection.speedMs;
       const speedSource = detection.source;
+
+      // ── Not-driving cooldown gate ──
+      // If the user recently tapped "No, I'm a passenger" we suppress
+      // the recording-promotion path for COOLDOWN_MS regardless of how
+      // confidently we detect driving speed. Without this, the next
+      // location batch (still in a moving car) would silently re-promote
+      // and a fresh Live Activity + recording would start, which the
+      // user has to delete by hand. See cancelAutoRecording(true).
+      const notDrivingRow = await db.getFirstAsync<{ value: string }>(
+        "SELECT value FROM tracking_state WHERE key = 'not_driving_until'"
+      );
+      if (notDrivingRow) {
+        const until = parseInt(notDrivingRow.value, 10);
+        if (Number.isFinite(until) && Date.now() < until) {
+          // Don't reset the consecutive-detection counter — we want to
+          // be ready to record the moment the cooldown expires if the
+          // user starts driving themselves.
+          logDetectionEvent("detection_suppressed_not_driving_cooldown", {
+            speedMs: detectedSpeedMs,
+            source: speedSource,
+            cooldownRemainingMs: until - Date.now(),
+          }).catch(() => {});
+          return;
+        }
+        // Expired — clean up so the next pass is cheap.
+        await db.runAsync(
+          "DELETE FROM tracking_state WHERE key = 'not_driving_until'"
+        );
+      }
 
       // ── Saved-location gate ──
       // Indoor GPS drift (phone in pocket, walking around the house) can

@@ -2,7 +2,7 @@ import * as Notifications from "expo-notifications";
 import Constants from "expo-constants";
 import { router } from "expo-router";
 import { Linking } from "react-native";
-import { cancelAutoRecording, upgradeDetectionAccuracy } from "../tracking/detection";
+import { cancelAutoRecording, clearNotDrivingCooldown, upgradeDetectionAccuracy } from "../tracking/detection";
 
 try {
   Notifications.setNotificationHandler({
@@ -218,6 +218,11 @@ export async function registerForPushNotifications(): Promise<string | null> {
  */
 async function startTripFromDetection(): Promise<void> {
   try {
+    // User explicitly confirmed driving — clear any pending not-driving
+    // cooldown set by an earlier "I'm a passenger" tap, otherwise the
+    // detection task would suppress the recording the user just opted
+    // into.
+    await clearNotDrivingCooldown();
     await upgradeDetectionAccuracy();
   } catch (err) {
     console.error("Failed to upgrade detection accuracy:", err);
