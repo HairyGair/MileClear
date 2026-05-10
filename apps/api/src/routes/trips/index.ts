@@ -931,7 +931,95 @@ export async function tripRoutes(app: FastifyInstance) {
       gpsQuality: extractGpsQualityForConfidence(trip.gpsQuality),
     });
 
-    return reply.send({ data: { ...trip, insights, matchedCoordinates, confidence } });
+    // Merge suggestion: look for an adjacent trip of the same vehicle
+    // ending where this one starts (or starting where this one ends)
+    // within a 10-minute, 1km tolerance. That's the signature of a
+    // single drive that got split by a fuel stop, drive-through, or
+    // quick errand. Mobile shows "merge?" banner; user taps → existing
+    // /trips/merge endpoint runs.
+    let mergeSuggestion: {
+      otherTripId: string;
+      direction: "before" | "after";
+      gapMinutes: number;
+      gapMeters: number;
+    } | null = null;
+
+    if (trip.endLat != null && trip.endLng != null) {
+      // Look for "next trip" — same user + vehicle, starts shortly after
+      // this one ends, near this trip's end coords.
+      const after = await prisma.trip.findFirst({
+        where: {
+          userId: request.userId!,
+          vehicleId: trip.vehicleId,
+          isPhantomTrip: false,
+          id: { not: trip.id },
+          startedAt: {
+            gt: trip.endedAt ?? trip.startedAt,
+            lt: new Date((trip.endedAt ?? trip.startedAt).getTime() + 15 * 60 * 1000),
+          },
+        },
+        orderBy: { startedAt: "asc" },
+        select: { id: true, startedAt: true, startLat: true, startLng: true },
+      });
+      if (after) {
+        const gapMs = after.startedAt.getTime() - (trip.endedAt ?? trip.startedAt).getTime();
+        const gapMinutes = gapMs / 60_000;
+        const gapMeters = approximateMeters(
+          trip.endLat,
+          trip.endLng,
+          after.startLat,
+          after.startLng
+        );
+        if (gapMinutes <= 15 && gapMeters <= 1000) {
+          mergeSuggestion = {
+            otherTripId: after.id,
+            direction: "after",
+            gapMinutes: Math.round(gapMinutes * 10) / 10,
+            gapMeters: Math.round(gapMeters),
+          };
+        }
+      }
+    }
+
+    if (!mergeSuggestion) {
+      // Look for "previous trip" — ends shortly before this one starts.
+      const before = await prisma.trip.findFirst({
+        where: {
+          userId: request.userId!,
+          vehicleId: trip.vehicleId,
+          isPhantomTrip: false,
+          id: { not: trip.id },
+          endedAt: {
+            gt: new Date(trip.startedAt.getTime() - 15 * 60 * 1000),
+            lt: trip.startedAt,
+          },
+        },
+        orderBy: { endedAt: "desc" },
+        select: { id: true, endedAt: true, endLat: true, endLng: true },
+      });
+      if (before && before.endLat != null && before.endLng != null && before.endedAt) {
+        const gapMs = trip.startedAt.getTime() - before.endedAt.getTime();
+        const gapMinutes = gapMs / 60_000;
+        const gapMeters = approximateMeters(
+          before.endLat,
+          before.endLng,
+          trip.startLat,
+          trip.startLng
+        );
+        if (gapMinutes <= 15 && gapMeters <= 1000) {
+          mergeSuggestion = {
+            otherTripId: before.id,
+            direction: "before",
+            gapMinutes: Math.round(gapMinutes * 10) / 10,
+            gapMeters: Math.round(gapMeters),
+          };
+        }
+      }
+    }
+
+    return reply.send({
+      data: { ...trip, insights, matchedCoordinates, confidence, mergeSuggestion },
+    });
   });
 
   // POST /trips/scan-low-confidence — user-initiated bulk recalc.
@@ -1631,6 +1719,24 @@ async function runMapMatchingForTrip(args: {
       currentDistanceMiles: args.currentDistanceMiles,
     });
   }
+}
+
+/**
+ * Approximate distance in metres between two coordinates using a
+ * spherical-earth formula. Cheaper than full haversine and fine at
+ * the small distances we use it for (merge-suggestion proximity check
+ * — never need accuracy beyond a few hundred metres).
+ */
+function approximateMeters(lat1: number, lng1: number, lat2: number, lng2: number): number {
+  const R = 6_371_000; // Earth radius in metres
+  const toRad = (d: number) => (d * Math.PI) / 180;
+  const dLat = toRad(lat2 - lat1);
+  const dLng = toRad(lng2 - lng1);
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
 }
 
 /**

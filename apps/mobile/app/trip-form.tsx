@@ -25,6 +25,7 @@ import {
   fetchClassificationSuggestion,
   fetchClassificationSuggestionForPair,
   recalculateTrip,
+  mergeTrips,
   ClassificationSuggestion,
 } from "../lib/api/trips";
 import { getLocalTrip } from "../lib/db/queries";
@@ -685,6 +686,14 @@ export default function TripFormScreen() {
     level: "high" | "medium" | "low";
     reasons: string[];
   } | null>(null);
+  // Merge suggestion (server-flagged when a companion trip exists)
+  const [mergeSuggestion, setMergeSuggestion] = useState<{
+    otherTripId: string;
+    direction: "before" | "after";
+    gapMinutes: number;
+    gapMeters: number;
+  } | null>(null);
+  const [merging, setMerging] = useState(false);
 
   // Live stats during driving
   const [liveSpeed, setLiveSpeed] = useState(0);
@@ -863,6 +872,12 @@ export default function TripFormScreen() {
       distanceMiles: number; startedAt: string; endedAt?: string | null; notes?: string | null;
       insights?: TripInsights | null;
       confidence?: { level: "high" | "medium" | "low"; reasons: string[] } | null;
+      mergeSuggestion?: {
+        otherTripId: string;
+        direction: "before" | "after";
+        gapMinutes: number;
+        gapMeters: number;
+      } | null;
     }) => {
       setClassification(t.classification as TripClassification);
       setPlatformTag((t.platformTag ?? undefined) as PlatformTag | undefined);
@@ -887,6 +902,7 @@ export default function TripFormScreen() {
       setNotes(t.notes ?? "");
       if (t.insights) setInsights(t.insights);
       if (t.confidence) setConfidence(t.confidence);
+      if (t.mergeSuggestion) setMergeSuggestion(t.mergeSuggestion);
     };
 
     fetchTrip(id)
@@ -1448,6 +1464,44 @@ export default function TripFormScreen() {
     LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
     setMode("ready");
   }, []);
+
+  /**
+   * Accept the server's merge suggestion. Routes through the existing
+   * /trips/merge endpoint with this trip + the companion. Returns the
+   * user to the previous screen on success — the merged trip lives at
+   * a new ID, so we don't try to re-fetch.
+   */
+  const handleAcceptMerge = useCallback(async (otherTripId: string) => {
+    if (!id || merging) return;
+    Alert.alert(
+      "Merge trips",
+      "Combine these two into a single trip? The original two will be replaced by the merged trip. This can't be undone.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Merge",
+          style: "default",
+          onPress: async () => {
+            setMerging(true);
+            try {
+              await mergeTrips({
+                tripIds: [id, otherTripId],
+                classification,
+                platformTag: platformTag ?? null,
+              });
+              router.back();
+            } catch (err) {
+              Alert.alert(
+                "Couldn't merge",
+                err instanceof Error ? err.message : "Try again."
+              );
+              setMerging(false);
+            }
+          },
+        },
+      ]
+    );
+  }, [id, merging, classification, platformTag, router]);
 
   /**
    * One-tap recalculate. Asks the server to re-run the routing service
@@ -2617,6 +2671,37 @@ export default function TripFormScreen() {
               <ConfidenceBadge level={confidence.level} reasons={confidence.reasons} />
             )}
 
+            {/* Merge suggestion — adjacent trip looks like a fuel-stop continuation */}
+            {isEditing && mergeSuggestion && (
+              <View style={styles.mergeSuggestionCard}>
+                <Ionicons name="git-merge-outline" size={18} color={AMBER} />
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.mergeSuggestionTitle}>
+                    Looks like a quick stop?
+                  </Text>
+                  <Text style={styles.mergeSuggestionBody}>
+                    There's another trip {mergeSuggestion.direction === "after" ? "right after" : "right before"} this one
+                    {" — "}only {mergeSuggestion.gapMinutes < 1 ? "<1" : mergeSuggestion.gapMinutes.toFixed(0)} min
+                    {" and "}{mergeSuggestion.gapMeters < 100 ? "<100" : mergeSuggestion.gapMeters.toFixed(0)} m
+                    {" "}apart. Merge them into one trip?
+                  </Text>
+                </View>
+                <TouchableOpacity
+                  style={styles.mergeSuggestionButton}
+                  onPress={() => handleAcceptMerge(mergeSuggestion.otherTripId)}
+                  disabled={merging}
+                  accessibilityRole="button"
+                  accessibilityLabel="Merge with adjacent trip"
+                >
+                  {merging ? (
+                    <ActivityIndicator color="#000" size="small" />
+                  ) : (
+                    <Text style={styles.mergeSuggestionButtonText}>Merge</Text>
+                  )}
+                </TouchableOpacity>
+              </View>
+            )}
+
             {/* Trip Insights (from GPS data - editing mode) */}
             {isEditing && insights && (
               <View style={styles.insightsCard}>
@@ -3598,6 +3683,43 @@ const styles = StyleSheet.create({
     fontFamily: fonts.regular,
     color: TEXT_2,
     lineHeight: 17,
+  },
+  mergeSuggestionCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    backgroundColor: "rgba(245, 166, 35, 0.10)",
+    borderColor: "rgba(245, 166, 35, 0.30)",
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    marginTop: 12,
+  },
+  mergeSuggestionTitle: {
+    fontSize: 13,
+    fontFamily: fonts.semibold,
+    color: TEXT_1,
+  },
+  mergeSuggestionBody: {
+    fontSize: 12,
+    fontFamily: fonts.regular,
+    color: TEXT_2,
+    lineHeight: 16,
+    marginTop: 2,
+  },
+  mergeSuggestionButton: {
+    backgroundColor: AMBER,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 8,
+    minWidth: 64,
+    alignItems: "center",
+  },
+  mergeSuggestionButtonText: {
+    fontSize: 13,
+    fontFamily: fonts.semibold,
+    color: "#000",
   },
   detailsToggle: {
     flexDirection: "row",

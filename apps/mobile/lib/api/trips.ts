@@ -86,6 +86,16 @@ export interface TripDetail extends Trip {
     level: "high" | "medium" | "low";
     reasons: string[];
   };
+  /** Merge suggestion — when a companion trip exists within 15 min and
+   *  1km of this one's other end, server flags it as a likely
+   *  continuation (fuel stop, drive-through, quick errand). Mobile
+   *  shows a tap-to-merge banner. */
+  mergeSuggestion?: {
+    otherTripId: string;
+    direction: "before" | "after";
+    gapMinutes: number;
+    gapMeters: number;
+  } | null;
 }
 
 export interface CoordinateInput {
