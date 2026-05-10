@@ -2847,6 +2847,103 @@ export async function adminRoutes(app: FastifyInstance) {
     });
   });
 
+  // GET /admin/routing-health — one-shot health snapshot of the
+  // routing stack (RouteCache + GraphHopper + Google fallback).
+  // Standalone admin panel renders it on the dashboard so we can spot
+  // when GraphHopper is down (most cache misses falling through to
+  // Google would be the leading indicator).
+  app.get("/routing-health", async (_request, reply) => {
+    const graphhopperUrl = process.env.GRAPHHOPPER_URL;
+    const googleConfigured = Boolean(process.env.GOOGLE_MAPS_API_KEY);
+
+    // 1. Live GraphHopper probe — quick London→Manchester ping, 3s timeout.
+    let graphhopperReachable: boolean | null = null;
+    let graphhopperLatencyMs: number | null = null;
+    let graphhopperError: string | null = null;
+    if (graphhopperUrl) {
+      const probeStart = Date.now();
+      try {
+        const probeUrl =
+          `${graphhopperUrl.replace(/\/$/, "")}/route` +
+          `?point=51.5074,-0.1278&point=53.4808,-2.2426` +
+          `&profile=car&calc_points=false&instructions=false`;
+        const res = await fetch(probeUrl, { signal: AbortSignal.timeout(3000) });
+        graphhopperLatencyMs = Date.now() - probeStart;
+        graphhopperReachable = res.ok;
+        if (!res.ok) graphhopperError = `HTTP ${res.status}`;
+      } catch (err) {
+        graphhopperReachable = false;
+        graphhopperError = err instanceof Error ? err.message : String(err);
+      }
+    }
+
+    // 2. Cache stats.
+    const cacheTotal = await prisma.routeCache.count();
+    const cacheBySource = await prisma.routeCache.groupBy({
+      by: ["source"],
+      _count: { id: true },
+    });
+    const cacheTotalHits = await prisma.routeCache.aggregate({
+      _sum: { hitCount: true },
+    });
+
+    // 3. Recent resolutions (last 24h) from app_events.
+    const since = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    const recentEvents = await prisma.appEvent.findMany({
+      where: {
+        type: { in: ["routing.computed", "routing.unavailable"] },
+        createdAt: { gte: since },
+      },
+      select: { type: true, metadata: true },
+    });
+
+    let routesComputed = 0;
+    let routesUnavailable = 0;
+    const sourceCounts: Record<string, number> = { graphhopper: 0, google: 0 };
+    for (const e of recentEvents) {
+      if (e.type === "routing.unavailable") {
+        routesUnavailable += 1;
+      } else if (e.type === "routing.computed") {
+        routesComputed += 1;
+        const source =
+          e.metadata && typeof e.metadata === "object" && "source" in e.metadata
+            ? String((e.metadata as { source: unknown }).source)
+            : "unknown";
+        sourceCounts[source] = (sourceCounts[source] ?? 0) + 1;
+      }
+    }
+    const fallbackRate =
+      routesComputed > 0 ? sourceCounts.google / routesComputed : 0;
+
+    return reply.send({
+      data: {
+        config: {
+          graphhopperUrl: graphhopperUrl ? "configured" : "missing",
+          googleConfigured,
+        },
+        graphhopper: {
+          reachable: graphhopperReachable,
+          latencyMs: graphhopperLatencyMs,
+          error: graphhopperError,
+        },
+        cache: {
+          rowCount: cacheTotal,
+          bySource: Object.fromEntries(
+            cacheBySource.map((r) => [r.source, r._count.id])
+          ),
+          totalHits: cacheTotalHits._sum.hitCount ?? 0,
+        },
+        last24h: {
+          routesComputed,
+          routesUnavailable,
+          bySource: sourceCounts,
+          fallbackRate: Math.round(fallbackRate * 1000) / 10, // percent, 1dp
+        },
+        generatedAt: new Date().toISOString(),
+      },
+    });
+  });
+
   // POST /admin/recalc-distances — re-run the routing service against
   // existing manual trips to fix distances that were silently calculated
   // as crow-flies by the old code path (Laura Joyce report 10 May 2026).

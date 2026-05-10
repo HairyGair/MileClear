@@ -1700,8 +1700,22 @@ function UsersTab() {
 // Health Tab
 // ---------------------------------------------------------------------------
 
+interface RoutingHealthData {
+  config: { graphhopperUrl: string; googleConfigured: boolean };
+  graphhopper: { reachable: boolean | null; latencyMs: number | null; error: string | null };
+  cache: { rowCount: number; bySource: Record<string, number>; totalHits: number };
+  last24h: {
+    routesComputed: number;
+    routesUnavailable: number;
+    bySource: Record<string, number>;
+    fallbackRate: number;
+  };
+  generatedAt: string;
+}
+
 function HealthTab() {
   const [health, setHealth] = useState<HealthData | null>(null);
+  const [routingHealth, setRoutingHealth] = useState<RoutingHealthData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [lastRefreshed, setLastRefreshed] = useState<Date | null>(null);
@@ -1710,8 +1724,12 @@ function HealthTab() {
     setLoading(true);
     setError(null);
     try {
-      const res = await api.get<{ data: HealthData }>("/admin/health");
-      setHealth(res.data);
+      const [healthRes, routingRes] = await Promise.all([
+        api.get<{ data: HealthData }>("/admin/health"),
+        api.get<{ data: RoutingHealthData }>("/admin/routing-health").catch(() => null),
+      ]);
+      setHealth(healthRes.data);
+      if (routingRes) setRoutingHealth(routingRes.data);
       setLastRefreshed(new Date());
     } catch (err: any) {
       setError(err.message);
@@ -1877,6 +1895,98 @@ function HealthTab() {
               </table>
             </div>
           </Card>
+
+          {/* Routing stack health (added 10 May 2026) */}
+          {routingHealth && (
+            <Card title="Routing Stack Health">
+              <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+                <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
+                  <span
+                    style={{
+                      padding: "0.25rem 0.625rem",
+                      borderRadius: "999px",
+                      fontSize: "0.75rem",
+                      fontWeight: 600,
+                      color: routingHealth.graphhopper.reachable ? "var(--emerald-400)" : "var(--dash-red)",
+                      backgroundColor: routingHealth.graphhopper.reachable
+                        ? "rgba(52, 211, 153, 0.10)"
+                        : "rgba(239, 68, 68, 0.10)",
+                      border: `1px solid ${routingHealth.graphhopper.reachable ? "rgba(52, 211, 153, 0.30)" : "rgba(239, 68, 68, 0.30)"}`,
+                    }}
+                  >
+                    {routingHealth.graphhopper.reachable
+                      ? `GraphHopper · ${routingHealth.graphhopper.latencyMs ?? "?"} ms`
+                      : routingHealth.config.graphhopperUrl === "missing"
+                      ? "GraphHopper not configured"
+                      : `GraphHopper down${routingHealth.graphhopper.error ? `: ${routingHealth.graphhopper.error}` : ""}`}
+                  </span>
+                  <span
+                    style={{
+                      padding: "0.25rem 0.625rem",
+                      borderRadius: "999px",
+                      fontSize: "0.75rem",
+                      fontWeight: 600,
+                      color: routingHealth.config.googleConfigured ? "var(--emerald-400)" : "var(--text-secondary)",
+                      backgroundColor: routingHealth.config.googleConfigured
+                        ? "rgba(52, 211, 153, 0.10)"
+                        : "rgba(132, 148, 167, 0.10)",
+                      border: `1px solid ${routingHealth.config.googleConfigured ? "rgba(52, 211, 153, 0.30)" : "rgba(132, 148, 167, 0.30)"}`,
+                    }}
+                  >
+                    {routingHealth.config.googleConfigured ? "Google fallback ready" : "Google fallback not configured"}
+                  </span>
+                </div>
+
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: "0.75rem" }}>
+                  <div className="stat-card">
+                    <p className="stat-card__label">Cache rows</p>
+                    <p className="stat-card__value" style={{ fontSize: "1.5rem" }}>
+                      {routingHealth.cache.rowCount.toLocaleString("en-GB")}
+                    </p>
+                    <p style={{ fontSize: "0.75rem", color: "var(--text-secondary)", margin: "0.25rem 0 0" }}>
+                      {routingHealth.cache.totalHits.toLocaleString("en-GB")} hits served
+                    </p>
+                  </div>
+                  <div className="stat-card">
+                    <p className="stat-card__label">Routes 24h</p>
+                    <p className="stat-card__value" style={{ fontSize: "1.5rem" }}>
+                      {routingHealth.last24h.routesComputed.toLocaleString("en-GB")}
+                    </p>
+                    <p style={{ fontSize: "0.75rem", color: "var(--text-secondary)", margin: "0.25rem 0 0" }}>
+                      {routingHealth.last24h.routesUnavailable} failed
+                    </p>
+                  </div>
+                  <div className="stat-card">
+                    <p className="stat-card__label">Fallback rate</p>
+                    <p
+                      className="stat-card__value"
+                      style={{
+                        fontSize: "1.5rem",
+                        color:
+                          routingHealth.last24h.fallbackRate > 50
+                            ? "var(--dash-red)"
+                            : routingHealth.last24h.fallbackRate > 10
+                            ? "var(--amber-500)"
+                            : "var(--emerald-400)",
+                      }}
+                    >
+                      {routingHealth.last24h.fallbackRate}%
+                    </p>
+                    <p style={{ fontSize: "0.75rem", color: "var(--text-secondary)", margin: "0.25rem 0 0" }}>
+                      Google was used (vs GraphHopper)
+                    </p>
+                  </div>
+                </div>
+
+                <p style={{ fontSize: "0.75rem", color: "var(--text-tertiary)", margin: 0 }}>
+                  Cache by source:{" "}
+                  {Object.entries(routingHealth.cache.bySource)
+                    .map(([k, v]) => `${k} ${v}`)
+                    .join(" · ") || "—"}
+                </p>
+              </div>
+            </Card>
+          )}
         </div>
       )}
     </>
