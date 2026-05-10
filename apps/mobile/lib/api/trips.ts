@@ -218,6 +218,30 @@ export function fetchClassificationSuggestion(lat: number, lng: number, type: "s
   );
 }
 
+/**
+ * Pair-based pattern learning. Higher-confidence than the single-point
+ * suggestion because it requires BOTH endpoints to match the user's
+ * historical trips. Use this in the trip-form when both start and end
+ * are set; falls back to the single-point endpoint when only one end
+ * is known.
+ */
+export function fetchClassificationSuggestionForPair(args: {
+  startLat: number;
+  startLng: number;
+  endLat: number;
+  endLng: number;
+}) {
+  const params = new URLSearchParams({
+    startLat: String(args.startLat),
+    startLng: String(args.startLng),
+    endLat: String(args.endLat),
+    endLng: String(args.endLng),
+  });
+  return apiRequest<{ suggestion: ClassificationSuggestion | null }>(
+    `/trips/suggest-pair?${params.toString()}`
+  );
+}
+
 export function submitTripAnomaly(
   tripId: string,
   data: { type: string; response: string; customNote?: string | null; lat?: number; lng?: number; placeName?: string | null }

@@ -267,8 +267,45 @@ export async function tripRoutes(app: FastifyInstance) {
     // Classification is now handled by the mobile classification engine
     // (lib/classification/). The API respects whatever the client sends.
     // The /trips/suggest endpoint is still available for UI suggestions.
-    const finalClassification = tripData.classification;
-    const finalPlatformTag: string | null = tripData.platformTag ?? null;
+    let finalClassification = tripData.classification;
+    let finalPlatformTag: string | null = tripData.platformTag ?? null;
+    let finalBusinessPurpose: string | null = tripData.businessPurpose ?? null;
+    let finalCategory: string | null = tripData.category ?? null;
+    let learnedSuggestion: PairSuggestion | null = null;
+
+    // Pattern-learned auto-classification: when a user submits a trip
+    // tagged unclassified AND we have ≥3 prior trips with the same A→B
+    // pair classified consistently (≥80% agreement), apply that
+    // classification automatically. classificationAutoAccepted stays
+    // null so the user's first interaction with the trip records
+    // accept/reject feedback, not a forced acceptance.
+    if (
+      tripData.classification === "unclassified" &&
+      resolvedEndLat != null &&
+      resolvedEndLng != null &&
+      hasValidCoords(resolvedStartLat, resolvedStartLng)
+    ) {
+      learnedSuggestion = await suggestPairClassification({
+        userId,
+        startLat: resolvedStartLat,
+        startLng: resolvedStartLng,
+        endLat: resolvedEndLat,
+        endLng: resolvedEndLng,
+      });
+
+      if (shouldAutoApplySuggestion(learnedSuggestion) && learnedSuggestion) {
+        finalClassification = learnedSuggestion.classification as typeof finalClassification;
+        if (!finalPlatformTag && learnedSuggestion.platformTag) {
+          finalPlatformTag = learnedSuggestion.platformTag;
+        }
+        if (!finalBusinessPurpose && learnedSuggestion.businessPurpose) {
+          finalBusinessPurpose = learnedSuggestion.businessPurpose;
+        }
+        if (!finalCategory && learnedSuggestion.category) {
+          finalCategory = learnedSuggestion.category;
+        }
+      }
+    }
 
     const isManualEntry = !hasCoordinates;
     const isPhantomTrip = looksLikePhantomTrip({
@@ -296,8 +333,8 @@ export async function tripRoutes(app: FastifyInstance) {
       isPhantomTrip,
       classification: finalClassification,
       platformTag: finalPlatformTag,
-      businessPurpose: tripData.businessPurpose ?? null,
-      category: tripData.category ?? null,
+      businessPurpose: finalBusinessPurpose,
+      category: finalCategory,
       notes: tripData.notes ?? null,
       gpsQuality: (tripData.gpsQuality ?? undefined) as Prisma.InputJsonValue | undefined,
     };
@@ -382,10 +419,27 @@ export async function tripRoutes(app: FastifyInstance) {
         isManualEntry: !hasCoordinates,
         platformTag: finalPlatformTag,
         autoClassified: finalClassification !== data.classification,
+        autoClassifySource:
+          learnedSuggestion && finalClassification !== data.classification
+            ? "pattern_learning"
+            : null,
+        learnedSuggestionConfidence: learnedSuggestion?.confidence ?? null,
+        learnedSuggestionMatchCount: learnedSuggestion?.matchCount ?? null,
       });
     }
 
-    return reply.status(201).send({ data: trip });
+    return reply.status(201).send({
+      data: trip,
+      // Tell the client whether we auto-applied a learned classification.
+      // Mobile uses this to render an undo-able "Auto-classified as Work
+      // (5 similar trips)" toast.
+      learnedSuggestion: learnedSuggestion
+        ? {
+            ...learnedSuggestion,
+            autoApplied: finalClassification !== data.classification,
+          }
+        : null,
+    });
   });
 
   // List trips with pagination
@@ -637,6 +691,36 @@ export async function tripRoutes(app: FastifyInstance) {
         confidence: Math.round(confidence * 100),
       },
     });
+  });
+
+  // GET /trips/suggest-pair?startLat=&startLng=&endLat=&endLng=
+  //
+  // Pair-based pattern learning. Looks for previous trips with BOTH
+  // endpoints within ~500m of the candidate pair, then returns the
+  // modal classification. Higher confidence than the single-point
+  // /suggest because a complete A→B pair uniquely identifies a route
+  // (single-point matching can't tell "ending at Tesco for shopping"
+  // from "ending at Tesco for a delivery dropoff").
+  //
+  // Used by the trip-form to pre-fill classification when the user
+  // sets start + end. Also called server-side during trip create to
+  // auto-apply when confidence is high enough (see autoClassifyOnCreate).
+  const suggestPairQuery = z.object({
+    startLat: z.coerce.number().min(-90).max(90),
+    startLng: z.coerce.number().min(-180).max(180),
+    endLat: z.coerce.number().min(-90).max(90),
+    endLng: z.coerce.number().min(-180).max(180),
+  });
+  app.get("/suggest-pair", async (request, reply) => {
+    const parsed = suggestPairQuery.safeParse(request.query);
+    if (!parsed.success) {
+      return reply.status(400).send({ error: parsed.error.issues[0].message });
+    }
+    const suggestion = await suggestPairClassification({
+      userId: request.userId!,
+      ...parsed.data,
+    });
+    return reply.send({ suggestion });
   });
 
   // Merge multiple trips into one
@@ -1039,6 +1123,108 @@ export async function tripRoutes(app: FastifyInstance) {
 
     return reply.status(201).send({ data: anomaly });
   });
+}
+
+/**
+ * Suggest a classification for a candidate (start, end) coordinate pair
+ * by finding previous trips of this user with BOTH endpoints within
+ * ~500m of the candidate. Returns null when there's not enough history,
+ * or when no single classification has majority support.
+ *
+ * 500m radius is forgiving enough that the same A→B route always hits
+ * even with GPS jitter, but tight enough that "Tesco shopping" doesn't
+ * blend into "Tesco delivery dropoff" — those are usually different
+ * physical doors.
+ */
+export interface PairSuggestion {
+  classification: string;
+  platformTag: string | null;
+  businessPurpose: string | null;
+  category: string | null;
+  matchCount: number;
+  /** Integer 0-100 — share of nearby trips that agree on classification. */
+  confidence: number;
+}
+
+export async function suggestPairClassification(args: {
+  userId: string;
+  startLat: number;
+  startLng: number;
+  endLat: number;
+  endLng: number;
+}): Promise<PairSuggestion | null> {
+  const { userId, startLat, startLng, endLat, endLng } = args;
+
+  // ~500m bounding box at UK latitudes
+  const startLatDelta = 0.0045;
+  const startLngDelta = 0.0045 / Math.cos((startLat * Math.PI) / 180);
+  const endLatDelta = 0.0045;
+  const endLngDelta = 0.0045 / Math.cos((endLat * Math.PI) / 180);
+
+  const nearby = await prisma.trip.findMany({
+    where: {
+      userId,
+      isPhantomTrip: false,
+      classification: { not: "unclassified" },
+      startLat: { gte: startLat - startLatDelta, lte: startLat + startLatDelta },
+      startLng: { gte: startLng - startLngDelta, lte: startLng + startLngDelta },
+      endLat: { gte: endLat - endLatDelta, lte: endLat + endLatDelta },
+      endLng: { gte: endLng - endLngDelta, lte: endLng + endLngDelta },
+    },
+    select: {
+      classification: true,
+      platformTag: true,
+      businessPurpose: true,
+      category: true,
+    },
+    orderBy: { startedAt: "desc" },
+    take: 20,
+  });
+
+  if (nearby.length < 3) return null;
+
+  const counts: Record<string, number> = {};
+  for (const t of nearby) {
+    counts[t.classification] = (counts[t.classification] ?? 0) + 1;
+  }
+  const top = Object.entries(counts).sort((a, b) => b[1] - a[1])[0];
+  const confidence = top[1] / nearby.length;
+  if (confidence < 0.6) return null;
+
+  const matching = nearby.filter((t) => t.classification === top[0]);
+
+  const modeOf = <K extends keyof typeof matching[number]>(key: K): string | null => {
+    const c: Record<string, number> = {};
+    for (const t of matching) {
+      const v = t[key];
+      if (typeof v === "string" && v.length > 0) c[v] = (c[v] ?? 0) + 1;
+    }
+    const top = Object.entries(c).sort((a, b) => b[1] - a[1])[0];
+    return top ? top[0] : null;
+  };
+
+  return {
+    classification: top[0],
+    platformTag: modeOf("platformTag"),
+    businessPurpose: modeOf("businessPurpose"),
+    category: modeOf("category"),
+    matchCount: nearby.length,
+    confidence: Math.round(confidence * 100),
+  };
+}
+
+/**
+ * Threshold above which we silently auto-apply a learned classification
+ * to a brand-new trip. Below this, the suggestion is just a hint to the
+ * client UI. Conservative — we'd rather under-apply than wrongly tag a
+ * personal trip as work for HMRC purposes.
+ */
+const AUTO_APPLY_CONFIDENCE_PCT = 80;
+const AUTO_APPLY_MIN_MATCHES = 3;
+
+export function shouldAutoApplySuggestion(s: PairSuggestion | null): boolean {
+  if (!s) return false;
+  return s.confidence >= AUTO_APPLY_CONFIDENCE_PCT && s.matchCount >= AUTO_APPLY_MIN_MATCHES;
 }
 
 /**

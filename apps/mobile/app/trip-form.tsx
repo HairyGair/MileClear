@@ -18,7 +18,14 @@ import { Ionicons } from "@expo/vector-icons";
 import { useRouter, useLocalSearchParams, Stack } from "expo-router";
 import * as Location from "expo-location";
 import { getCurrentLocation, reverseGeocode } from "../lib/location/geocoding";
-import { fetchTrip, CreateTripData, submitTripAnomaly, fetchClassificationSuggestion, ClassificationSuggestion } from "../lib/api/trips";
+import {
+  fetchTrip,
+  CreateTripData,
+  submitTripAnomaly,
+  fetchClassificationSuggestion,
+  fetchClassificationSuggestionForPair,
+  ClassificationSuggestion,
+} from "../lib/api/trips";
 import { getLocalTrip } from "../lib/db/queries";
 import {
   syncCreateTrip,
@@ -1075,9 +1082,22 @@ export default function TripFormScreen() {
       LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
       setMode("arrived");
 
-      // Fetch smart classification suggestion based on end location
+      // Smart classification suggestion. Prefer pair-based matching
+      // (start + end coords) when both endpoints are known — much more
+      // confident than single-point because A→B uniquely identifies a
+      // route. Falls back to single-point on the end location otherwise.
       if (loc.lat && loc.lng) {
-        fetchClassificationSuggestion(loc.lat, loc.lng, "end")
+        const promise =
+          startLat != null && startLng != null
+            ? fetchClassificationSuggestionForPair({
+                startLat,
+                startLng,
+                endLat: loc.lat,
+                endLng: loc.lng,
+              })
+            : fetchClassificationSuggestion(loc.lat, loc.lng, "end");
+
+        promise
           .then((res) => {
             if (res.suggestion) {
               setSuggestion(res.suggestion);
