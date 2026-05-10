@@ -40,6 +40,7 @@ import {
   peekBackgroundCoordinates,
 } from "../../lib/tracking/index";
 import { fetchUnclassifiedCount } from "../../lib/api/trips";
+import { fetchDataQualityImprovement } from "../../lib/api/user";
 import type {
   Vehicle,
   GamificationStats,
@@ -154,6 +155,16 @@ export default function DashboardScreen() {
   // Vehicle nudge — show when user has no vehicles at all
   const showVehicleNudge = !loading && vehicles.length === 0;
 
+  // Data-quality improvement banner — fires once per user when they
+  // open the app after a server-side backfill corrected some of their
+  // trips. Turns invisible "we fixed your data" work into a visible
+  // trust moment. Dismissed via SQLite flag so it only shows once.
+  const [dqImprovement, setDqImprovement] = useState<{
+    improvedTripCount: number;
+    milesGained: number;
+  } | null>(null);
+  const [dqBannerSeen, setDqBannerSeen] = useState(true); // default seen until loaded
+
   // Pro nudge card — dismissible, for free users with 5+ trips
   const { showPaywall } = usePaywall();
   const [proNudgeDismissedUntil, setProNudgeDismissedUntil] = useState<number>(Date.now() + 999999999);
@@ -188,6 +199,52 @@ export default function DashboardScreen() {
     await db.runAsync(
       "INSERT OR REPLACE INTO tracking_state (key, value) VALUES ('pro_nudge_dismissed_at', ?)",
       [String(now)]
+    );
+  }, []);
+
+  // Load data-quality improvement banner state
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const db = await getDatabase();
+      const row = await db.getFirstAsync<{ value: string }>(
+        "SELECT value FROM tracking_state WHERE key = 'dq_banner_seen'"
+      );
+      const seen = row?.value === "1";
+      if (cancelled) return;
+      setDqBannerSeen(seen);
+      if (!seen) {
+        try {
+          const res = await fetchDataQualityImprovement();
+          if (cancelled) return;
+          if (res.data.improvedTripCount > 0 && res.data.milesGained > 0.5) {
+            setDqImprovement({
+              improvedTripCount: res.data.improvedTripCount,
+              milesGained: res.data.milesGained,
+            });
+          } else {
+            // Nothing to celebrate — silently mark seen so we never query again.
+            await db.runAsync(
+              "INSERT OR REPLACE INTO tracking_state (key, value) VALUES ('dq_banner_seen', '1')"
+            );
+            if (!cancelled) setDqBannerSeen(true);
+          }
+        } catch {
+          // Best-effort. If the endpoint fails, leave it for next launch.
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const dismissDqBanner = useCallback(async () => {
+    setDqBannerSeen(true);
+    setDqImprovement(null);
+    const db = await getDatabase();
+    await db.runAsync(
+      "INSERT OR REPLACE INTO tracking_state (key, value) VALUES ('dq_banner_seen', '1')"
     );
   }, []);
 
@@ -813,6 +870,34 @@ export default function DashboardScreen() {
           trip in progress, so the user always knows we're tracking even if
           the Live Activity silently failed to present. */}
       <ActiveRecordingBanner />
+
+      {/* Data-quality improvement celebration banner — fires once per user
+          when they open the app after a server-side backfill corrected
+          some of their trips. Turns invisible "we fixed your data" work
+          into a visible trust moment. SQLite-flagged so it only shows
+          once per device install. */}
+      {!dqBannerSeen && dqImprovement && (
+        <View style={s.dqBanner}>
+          <View style={s.dqBannerIconWrap}>
+            <Ionicons name="sparkles" size={20} color={colors.amber} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={s.dqBannerTitle}>We improved your trip data</Text>
+            <Text style={s.dqBannerBody}>
+              We re-routed {dqImprovement.improvedTripCount} of your recent {dqImprovement.improvedTripCount === 1 ? "trip" : "trips"} and recovered{" "}
+              {dqImprovement.milesGained.toFixed(1)} miles for you. Tax Readiness is up to date.
+            </Text>
+          </View>
+          <TouchableOpacity
+            onPress={dismissDqBanner}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            accessibilityRole="button"
+            accessibilityLabel="Dismiss"
+          >
+            <Ionicons name="close" size={20} color={colors.text3} />
+          </TouchableOpacity>
+        </View>
+      )}
 
       {/* Background location nudge - auto trip detection requires "Always".
           Uses the smart escalation helper so the right thing happens whether
@@ -1995,6 +2080,39 @@ const s = StyleSheet.create({
     justifyContent: "center" as const,
     alignItems: "center" as const,
     marginBottom: 12,
+  },
+
+  // Data-quality improvement celebration banner
+  dqBanner: {
+    flexDirection: "row" as const,
+    alignItems: "center" as const,
+    gap: 12,
+    backgroundColor: "rgba(16, 185, 129, 0.08)",
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "rgba(16, 185, 129, 0.2)",
+    padding: 14,
+    marginBottom: 12,
+  },
+  dqBannerIconWrap: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "rgba(245, 166, 35, 0.15)",
+    justifyContent: "center" as const,
+    alignItems: "center" as const,
+  },
+  dqBannerTitle: {
+    fontSize: 14,
+    fontFamily: fonts.semibold,
+    color: colors.text1,
+  },
+  dqBannerBody: {
+    fontSize: 12,
+    fontFamily: fonts.regular,
+    color: colors.text2,
+    lineHeight: 17,
+    marginTop: 2,
   },
 
   // Background location nudge

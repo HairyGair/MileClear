@@ -392,6 +392,73 @@ export async function userRoutes(app: FastifyInstance) {
     return reply.send({ data: result });
   });
 
+  // GET /user/data-quality-improvement
+  //
+  // Returns a one-shot summary of recent server-side-driven distance
+  // corrections for this user. Powers the dashboard celebration banner
+  // ("We improved N of your trips, recovered X miles") which fires the
+  // first time the user opens the app after a backfill ran.
+  //
+  // Filters specifically to *server-side* triggers (admin_recalc,
+  // admin_backfill, ops_script) — user-initiated recalcs aren't a
+  // surprise to the user, so they don't need celebrating.
+  app.get("/data-quality-improvement", async (request, reply) => {
+    const userId = request.userId!;
+
+    // Look back 14 days max — older fixes are stale, no point telling
+    // the user about distance corrections from a month ago.
+    const since = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000);
+
+    const events = await prisma.appEvent.findMany({
+      where: {
+        userId,
+        type: "trip.distance_recalculated",
+        createdAt: { gte: since },
+      },
+      select: { metadata: true, createdAt: true },
+    });
+
+    let improvedTripCount = 0;
+    let milesGained = 0;
+    let firstAt: Date | null = null;
+    let lastAt: Date | null = null;
+
+    for (const e of events) {
+      const meta = e.metadata as
+        | { oldMiles?: number; newMiles?: number; triggeredBy?: string }
+        | null;
+      if (!meta) continue;
+      const triggeredBy = meta.triggeredBy ?? "";
+      // Only celebrate server-side, behind-the-scenes corrections —
+      // skip user_recalc / user_bulk_scan / trip_create_hook because the
+      // user already knows about those.
+      if (
+        triggeredBy !== "admin_recalc" &&
+        triggeredBy !== "admin_backfill" &&
+        triggeredBy !== "ops_script"
+      ) {
+        continue;
+      }
+      const oldM = meta.oldMiles ?? 0;
+      const newM = meta.newMiles ?? 0;
+      if (newM > oldM) {
+        improvedTripCount += 1;
+        milesGained += newM - oldM;
+        if (firstAt === null || e.createdAt < firstAt) firstAt = e.createdAt;
+        if (lastAt === null || e.createdAt > lastAt) lastAt = e.createdAt;
+      }
+    }
+
+    return reply.send({
+      data: {
+        improvedTripCount,
+        milesGained: Math.round(milesGained * 10) / 10,
+        firstImprovementAt: firstAt?.toISOString() ?? null,
+        lastImprovementAt: lastAt?.toISOString() ?? null,
+      },
+    });
+  });
+
   // GDPR data export
   app.get("/export", async (request, reply) => {
     const userId = request.userId!;

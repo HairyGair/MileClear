@@ -38,6 +38,22 @@ export function deleteAccount(password: string) {
   });
 }
 
+export interface DataQualityImprovement {
+  improvedTripCount: number;
+  milesGained: number;
+  firstImprovementAt: string | null;
+  lastImprovementAt: string | null;
+}
+
+/**
+ * Fetch the user's recent server-side data corrections (last 14 days).
+ * Powers the dashboard celebration banner that fires once when the user
+ * first opens the app after a backfill ran.
+ */
+export function fetchDataQualityImprovement() {
+  return apiRequest<{ data: DataQualityImprovement }>("/user/data-quality-improvement");
+}
+
 export function fetchWeeklyProgress() {
   return apiRequest<{ data: WeeklyProgress }>("/user/weekly-progress");
 }
