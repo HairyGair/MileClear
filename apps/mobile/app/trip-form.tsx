@@ -34,7 +34,7 @@ import {
   syncDeleteTrip,
 } from "../lib/sync/actions";
 import { fetchVehicles } from "../lib/api/vehicles";
-import { GIG_PLATFORMS, BUSINESS_PURPOSES, TRIP_CATEGORY_META, haversineDistance } from "@mileclear/shared";
+import { GIG_PLATFORMS, BUSINESS_PURPOSES, TRIP_CATEGORY_META, haversineDistance, calculateHmrcDeduction } from "@mileclear/shared";
 import { fetchServerRouteDistance, type RouteDistanceResult } from "../lib/api/trips";
 import type { TripClassification, TripCategory, PlatformTag, BusinessPurpose, Vehicle } from "@mileclear/shared";
 import { getDatabase } from "../lib/db/index";
@@ -324,6 +324,204 @@ function buildSpeedSegments(
 }
 
 /**
+ * Post-trip review card — full-screen overlay shown briefly after a
+ * manual trip is saved. Replaces the abrupt router.back() with a
+ * proper "moment of completion" view: distance, AMAP £ value, the
+ * auto-classification we applied (with explanation), and the routing
+ * provenance. Gives drivers a clear, confidence-building summary of
+ * what just happened to their data.
+ */
+function PostTripReviewCard({
+  distanceMiles,
+  classification,
+  autoClassified,
+  learnedMatchCount,
+  routeSourceLabel,
+  onDone,
+}: {
+  distanceMiles: number;
+  classification: TripClassification;
+  autoClassified: boolean;
+  learnedMatchCount: number | null;
+  routeSourceLabel: string | null;
+  onDone: () => void;
+}) {
+  const accent = classification === "business" ? colors.amber : colors.green;
+
+  // Compute AMAP value at the standard car rate. We use calculateHmrcDeduction
+  // (45p/25p tiered, car) which matches the figure shown across the rest of
+  // the app for business trips. Personal trips don't claim, so we hide it.
+  const amapPence = classification === "business"
+    ? calculateHmrcDeduction("car", distanceMiles)
+    : 0;
+  const amapPounds = (amapPence / 100).toFixed(2);
+
+  const classLabel =
+    classification === "business" ? "Work" :
+    classification === "personal" ? "Personal" :
+    "Unclassified";
+
+  return (
+    <View style={reviewCardStyles.overlay}>
+      <View style={reviewCardStyles.card}>
+        <View style={[reviewCardStyles.iconCircle, { backgroundColor: `${accent}22` }]}>
+          <Ionicons name="checkmark-circle" size={36} color={accent} />
+        </View>
+        <Text style={reviewCardStyles.title}>Trip saved</Text>
+
+        <View style={reviewCardStyles.statsRow}>
+          <View style={reviewCardStyles.statItem}>
+            <Text style={[reviewCardStyles.statValue, { color: accent }]}>
+              {distanceMiles.toFixed(2)}
+            </Text>
+            <Text style={reviewCardStyles.statLabel}>MILES</Text>
+          </View>
+          {classification === "business" && (
+            <>
+              <View style={reviewCardStyles.divider} />
+              <View style={reviewCardStyles.statItem}>
+                <Text style={[reviewCardStyles.statValue, { color: accent }]}>
+                  £{amapPounds}
+                </Text>
+                <Text style={reviewCardStyles.statLabel}>HMRC</Text>
+              </View>
+            </>
+          )}
+          <View style={reviewCardStyles.divider} />
+          <View style={reviewCardStyles.statItem}>
+            <Text style={[reviewCardStyles.statValue, { color: accent, fontSize: 18 }]}>
+              {classLabel}
+            </Text>
+            <Text style={reviewCardStyles.statLabel}>TYPE</Text>
+          </View>
+        </View>
+
+        {autoClassified && learnedMatchCount !== null && (
+          <View style={[reviewCardStyles.context, { borderColor: `${accent}40` }]}>
+            <Ionicons name="sparkles" size={14} color={accent} />
+            <Text style={reviewCardStyles.contextText}>
+              Auto-classified as {classLabel} — based on {learnedMatchCount}{" "}
+              similar {learnedMatchCount === 1 ? "trip" : "trips"} you've taken.
+            </Text>
+          </View>
+        )}
+
+        {routeSourceLabel && (
+          <View style={reviewCardStyles.context}>
+            <Ionicons name="map-outline" size={14} color={colors.text3} />
+            <Text style={reviewCardStyles.contextText}>{routeSourceLabel}</Text>
+          </View>
+        )}
+
+        <TouchableOpacity
+          style={[reviewCardStyles.doneButton, { backgroundColor: accent }]}
+          onPress={onDone}
+          accessibilityRole="button"
+          accessibilityLabel="Done"
+        >
+          <Text style={reviewCardStyles.doneButtonText}>Done</Text>
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
+}
+
+const reviewCardStyles = StyleSheet.create({
+  overlay: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: "rgba(0,0,0,0.65)",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 20,
+    zIndex: 1000,
+  },
+  card: {
+    width: "100%",
+    maxWidth: 380,
+    backgroundColor: colors.surface,
+    borderRadius: 20,
+    padding: 24,
+    alignItems: "center",
+    gap: 14,
+  },
+  iconCircle: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  title: {
+    color: colors.text1,
+    fontSize: 22,
+    fontFamily: fonts.bold,
+  },
+  statsRow: {
+    flexDirection: "row",
+    alignItems: "stretch",
+    width: "100%",
+    paddingVertical: 8,
+  },
+  statItem: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 4,
+  },
+  statValue: {
+    fontSize: 26,
+    fontFamily: fonts.bold,
+    fontVariant: ["tabular-nums"],
+  },
+  statLabel: {
+    color: colors.text3,
+    fontSize: 10,
+    fontFamily: fonts.semibold,
+    letterSpacing: 0.8,
+  },
+  divider: {
+    width: 1,
+    backgroundColor: "rgba(255,255,255,0.08)",
+    marginVertical: 8,
+  },
+  context: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    borderRadius: 10,
+    backgroundColor: "rgba(255,255,255,0.04)",
+    width: "100%",
+    borderWidth: 1,
+    borderColor: "transparent",
+  },
+  contextText: {
+    flex: 1,
+    color: colors.text2,
+    fontSize: 12,
+    fontFamily: fonts.regular,
+    lineHeight: 17,
+  },
+  doneButton: {
+    width: "100%",
+    paddingVertical: 14,
+    borderRadius: 12,
+    alignItems: "center",
+    marginTop: 4,
+  },
+  doneButtonText: {
+    color: "#000",
+    fontSize: 16,
+    fontFamily: fonts.semibold,
+  },
+});
+
+/**
  * Per-trip confidence badge. Renders a high/medium/low pill with
  * tap-to-expand reasons — gives users (and HMRC, if it ever comes to a
  * review) visibility into the quality of the evidence behind a trip's
@@ -449,6 +647,19 @@ export default function TripFormScreen() {
 
   // One-tap recalculate
   const [recalculating, setRecalculating] = useState(false);
+
+  // Post-save review card. Shown briefly after a manual trip is created
+  // so the user gets a confident moment-of-completion view of what just
+  // happened (distance, AMAP £, learned classification, provenance) —
+  // before returning to the dashboard.
+  const [reviewCard, setReviewCard] = useState<{
+    tripId: string | null;
+    distanceMiles: number;
+    classification: TripClassification;
+    autoClassified: boolean;
+    learnedMatchCount: number | null;
+    routeSourceLabel: string | null;
+  } | null>(null);
 
   // UI state
   const [saving, setSaving] = useState(false);
@@ -1284,6 +1495,9 @@ export default function TripFormScreen() {
     }
 
     setSaving(true);
+    let createdTripId: string | null = null;
+    let createLearnedSuggestion: ClassificationSuggestion | null = null;
+    let createAutoApplied = false;
     try {
       if (isEditing) {
         await syncUpdateTrip(id!, {
@@ -1332,6 +1546,18 @@ export default function TripFormScreen() {
           ...(coords && { coordinates: coords }),
         };
         const tripResult = await syncCreateTrip(data);
+        createdTripId = tripResult?.data?.id ?? null;
+        // Server returns the learned suggestion + autoApplied flag in
+        // the create response when pattern-learning auto-classified the
+        // trip. Used to power the "Auto-classified as Work — based on
+        // 5 similar trips" line on the review card.
+        const ls = (tripResult as unknown as {
+          learnedSuggestion?: (ClassificationSuggestion & { autoApplied?: boolean }) | null;
+        })?.learnedSuggestion;
+        if (ls) {
+          createLearnedSuggestion = ls;
+          createAutoApplied = ls.autoApplied === true;
+        }
 
         // Submit anomaly response if user answered one
         if (anomalyDef && anomalyResponse && tripResult?.data?.id) {
@@ -1456,7 +1682,21 @@ export default function TripFormScreen() {
         } catch {}
       }
 
-      router.back();
+      // For new manual trips: show the review card before returning.
+      // For edits or trips without a final distance to celebrate: fall
+      // straight back to the previous screen.
+      if (!isEditing && createdTripId && distanceMiles != null && distanceMiles > 0) {
+        setReviewCard({
+          tripId: createdTripId,
+          distanceMiles,
+          classification,
+          autoClassified: createAutoApplied,
+          learnedMatchCount: createLearnedSuggestion?.matchCount ?? null,
+          routeSourceLabel: routeSource ? provenanceLabel(routeSource) : null,
+        });
+      } else {
+        router.back();
+      }
     } catch (err: unknown) {
       Alert.alert("Couldn't save the trip", err instanceof Error ? err.message : "Try again in a moment.");
     } finally {
@@ -1465,7 +1705,7 @@ export default function TripFormScreen() {
   }, [
     isEditing, id, classification, platformTag, businessPurpose, category, vehicleId,
     startAddress, endAddress, startLat, startLng, endLat, endLng,
-    distanceMiles, startedAt, endedAt, notes, router, showPaywall,
+    distanceMiles, startedAt, endedAt, notes, router, showPaywall, routeSource,
     anomalyDef, anomalyResponse, anomalyCustomNote,
     locationQuestions, locationResponses, locationCustomNotes,
   ]);
@@ -2724,6 +2964,23 @@ export default function TripFormScreen() {
           </>
         )}
       </ScrollView>}
+
+      {/* Post-save review card — shown briefly after a manual trip is
+          created. Synthesizes the routing + classification work into a
+          single confidence-building moment of completion. */}
+      {reviewCard && (
+        <PostTripReviewCard
+          distanceMiles={reviewCard.distanceMiles}
+          classification={reviewCard.classification}
+          autoClassified={reviewCard.autoClassified}
+          learnedMatchCount={reviewCard.learnedMatchCount}
+          routeSourceLabel={reviewCard.routeSourceLabel}
+          onDone={() => {
+            setReviewCard(null);
+            router.back();
+          }}
+        />
+      )}
     </View>
   );
 }
