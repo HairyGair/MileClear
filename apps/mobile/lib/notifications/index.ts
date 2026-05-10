@@ -414,6 +414,13 @@ export function setupNotificationResponseHandler(): void {
         Linking.openSettings();
         return;
 
+      case "open_sync_status":
+        // Heartbeat alert: sync queue has permanently-failed rows.
+        // Lands on the in-app sync status screen so the user can tap
+        // "Retry failed" rather than figuring out where to go.
+        router.navigate("/sync-status" as any);
+        break;
+
       case "open_billing":
       case "billing":
         router.navigate("/(tabs)/profile");
