@@ -179,6 +179,28 @@ export function fetchTrip(id: string) {
   return apiRequest<{ data: TripDetail }>(`/trips/${id}`);
 }
 
+export interface RecalcTripResult {
+  changed: boolean;
+  oldMiles: number;
+  newMiles: number;
+  source: "routing" | "map_match" | null;
+  trip?: TripDetail;
+}
+
+/**
+ * Re-run the routing service or map-matcher against an existing trip.
+ * Self-service fix for any trip with a wrong-looking distance — the
+ * "Recalculate distance" button on the trip detail screen calls this.
+ *
+ * Conservative: never reduces a stored distance, only updates if the
+ * fresh calculation is meaningfully higher (5%+ threshold).
+ */
+export function recalculateTrip(id: string) {
+  return apiRequest<{ data: RecalcTripResult }>(`/trips/${id}/recalc`, {
+    method: "POST",
+  });
+}
+
 export function createTrip(data: CreateTripData) {
   return apiRequest<{ data: TripWithVehicle }>("/trips", {
     method: "POST",

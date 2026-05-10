@@ -24,6 +24,7 @@ import {
   submitTripAnomaly,
   fetchClassificationSuggestion,
   fetchClassificationSuggestionForPair,
+  recalculateTrip,
   ClassificationSuggestion,
 } from "../lib/api/trips";
 import { getLocalTrip } from "../lib/db/queries";
@@ -387,6 +388,9 @@ export default function TripFormScreen() {
   // Smart suggestion
   const [suggestion, setSuggestion] = useState<ClassificationSuggestion | null>(null);
   const [suggestionApplied, setSuggestionApplied] = useState(false);
+
+  // One-tap recalculate
+  const [recalculating, setRecalculating] = useState(false);
 
   // UI state
   const [saving, setSaving] = useState(false);
@@ -1167,6 +1171,45 @@ export default function TripFormScreen() {
   const handleSwitchToQuick = useCallback(() => {
     LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
     setMode("ready");
+  }, []);
+
+  /**
+   * One-tap recalculate. Asks the server to re-run the routing service
+   * (or map-matcher for tracked trips) against the trip's coords. Server
+   * returns whether anything changed; we update local state + show a
+   * toast either way so the user gets feedback.
+   */
+  const handleRecalculate = useCallback(async (tripId: string) => {
+    setRecalculating(true);
+    try {
+      const res = await recalculateTrip(tripId);
+      const result = res.data;
+      if (result.changed) {
+        setDistanceMiles(result.newMiles);
+        const sourceLabel =
+          result.source === "map_match"
+            ? "Map-matched against road segments"
+            : result.source === "routing"
+            ? "Calculated via road routing"
+            : "Updated";
+        Alert.alert(
+          "Distance updated",
+          `${result.oldMiles.toFixed(2)} mi → ${result.newMiles.toFixed(2)} mi\n${sourceLabel}.`
+        );
+      } else {
+        Alert.alert(
+          "Already accurate",
+          "This trip's distance already matches the road-routed value. No change needed."
+        );
+      }
+    } catch (err) {
+      Alert.alert(
+        "Couldn't recalculate",
+        err instanceof Error ? err.message : "Try again."
+      );
+    } finally {
+      setRecalculating(false);
+    }
   }, []);
 
   const handleSave = useCallback(async () => {
@@ -2244,6 +2287,24 @@ export default function TripFormScreen() {
               {!calculatingRoute && distanceMiles == null && !routeUnavailable && (
                 <Text style={styles.distanceHint}>Set both locations to auto-calculate</Text>
               )}
+              {isEditing && id && (
+                <TouchableOpacity
+                  style={styles.recalcButton}
+                  onPress={() => handleRecalculate(id)}
+                  disabled={recalculating}
+                  accessibilityRole="button"
+                  accessibilityLabel="Recalculate distance"
+                >
+                  {recalculating ? (
+                    <ActivityIndicator color={AMBER} size="small" />
+                  ) : (
+                    <>
+                      <Ionicons name="refresh" size={14} color={AMBER} />
+                      <Text style={styles.recalcButtonText}>Recalculate distance</Text>
+                    </>
+                  )}
+                </TouchableOpacity>
+              )}
             </View>
 
             {/* Trip Insights (from GPS data - editing mode) */}
@@ -3167,6 +3228,23 @@ const styles = StyleSheet.create({
     fontFamily: fonts.regular,
     color: TEXT_3,
     marginTop: 4,
+  },
+  recalcButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    alignSelf: "flex-start",
+    gap: 6,
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    marginTop: 10,
+    backgroundColor: "rgba(245, 166, 35, 0.10)",
+    borderRadius: 8,
+    minHeight: 28,
+  },
+  recalcButtonText: {
+    fontSize: 12,
+    fontFamily: fonts.semibold,
+    color: AMBER,
   },
   detailsToggle: {
     flexDirection: "row",

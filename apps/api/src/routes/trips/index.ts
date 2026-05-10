@@ -889,6 +889,127 @@ export async function tripRoutes(app: FastifyInstance) {
     return reply.send({ data: { ...trip, insights, matchedCoordinates } });
   });
 
+  // POST /trips/:id/recalc — user-initiated re-routing of a single trip.
+  // Runs the routing service against the trip's start/end (manual trips)
+  // OR runs map-matching against its breadcrumbs (tracked trips), updates
+  // distance + polyline accordingly, and returns the updated trip.
+  //
+  // Used by the "Recalculate distance" button on the trip detail screen.
+  // Self-service fix for any trip the user thinks shows the wrong number,
+  // without admin involvement. Same conservative rules as the backfill
+  // scripts: never reduces distance, never overwrites with implausible
+  // map-match results.
+  app.post("/:id/recalc", async (request, reply) => {
+    const { id } = z.object({ id: z.string().uuid() }).parse(request.params);
+    const userId = request.userId!;
+
+    const trip = await prisma.trip.findFirst({
+      where: { id, userId, isPhantomTrip: false },
+      include: {
+        coordinates: { orderBy: { recordedAt: "asc" } },
+      },
+    });
+    if (!trip) {
+      return reply.status(404).send({ error: "Trip not found" });
+    }
+
+    let oldMiles = trip.distanceMiles;
+    let newMiles: number | null = null;
+    let newPolyline: string | null = null;
+    let source: "routing" | "map_match" | null = null;
+
+    // Tracked trip with breadcrumbs → map-match.
+    if (trip.coordinates.length >= 10) {
+      const result = await matchTripRoute(
+        trip.coordinates.map((c) => ({
+          lat: c.lat,
+          lng: c.lng,
+          accuracy: c.accuracy,
+          recordedAt: c.recordedAt,
+        }))
+      );
+
+      if (result && isMatchPlausible(result.distanceMiles, oldMiles)) {
+        newPolyline = result.encodedPolyline;
+        if (result.distanceMiles > oldMiles * 1.05) {
+          newMiles = result.distanceMiles;
+        }
+        source = "map_match";
+      }
+    }
+
+    // Manual trip OR tracked trip the matcher couldn't help with → run
+    // the routing service against the start/end coords.
+    if (newMiles === null && trip.endLat != null && trip.endLng != null) {
+      const route = await resolveRouteDistance({
+        startLat: trip.startLat,
+        startLng: trip.startLng,
+        endLat: trip.endLat,
+        endLng: trip.endLng,
+        userId,
+      });
+      if (route && route.distanceMiles > oldMiles * 1.05) {
+        newMiles = route.distanceMiles;
+        source = source ?? "routing";
+      }
+    }
+
+    if (newMiles === null && newPolyline === null) {
+      // Nothing changed — tell the client so it can show "Already accurate".
+      return reply.send({
+        data: {
+          changed: false,
+          oldMiles,
+          newMiles: oldMiles,
+          source: null,
+        },
+      });
+    }
+
+    const updated = await prisma.trip.update({
+      where: { id },
+      data: {
+        ...(newMiles !== null ? { distanceMiles: newMiles } : {}),
+        ...(newPolyline !== null ? { routePolyline: newPolyline } : {}),
+      },
+      include: { vehicle: true, shift: true, coordinates: { orderBy: { recordedAt: "asc" } } },
+    });
+
+    if (newMiles !== null) {
+      logEvent("trip.distance_recalculated", userId, {
+        tripId: id,
+        oldMiles,
+        newMiles,
+        ratio: Math.round((newMiles / oldMiles) * 100) / 100,
+        source: source ?? "routing",
+        triggeredBy: "user_recalc",
+      });
+      // Refresh the user's MileageSummary for the trip's tax year so
+      // their Tax Readiness card reflects the corrected total.
+      upsertMileageSummary(userId, getTaxYear(trip.startedAt)).catch(() => {});
+    }
+
+    let matchedCoordinates: { lat: number; lng: number }[] | null = null;
+    if (updated.routePolyline) {
+      try {
+        matchedCoordinates = decodePolyline(updated.routePolyline);
+        if (matchedCoordinates.length === 0) matchedCoordinates = null;
+      } catch {
+        matchedCoordinates = null;
+      }
+    }
+
+    return reply.send({
+      data: {
+        changed: true,
+        oldMiles,
+        newMiles: newMiles ?? oldMiles,
+        source,
+        trip: { ...updated, matchedCoordinates },
+      },
+    });
+  });
+
   // Update trip
   app.patch("/:id", async (request, reply) => {
     const { id } = z.object({ id: z.string().uuid() }).parse(request.params);
