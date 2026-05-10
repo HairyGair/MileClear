@@ -334,6 +334,9 @@ private struct LockScreenView: View {
             VStack(spacing: 14) {
                 header
                 stats
+                if shouldShowContextBand {
+                    contextBand
+                }
                 if !attrs.vehicleName.isEmpty && state.phase != "saving" {
                     vehicleRow
                 }
@@ -343,6 +346,66 @@ private struct LockScreenView: View {
             .padding(.top, 12)
             .padding(.bottom, 14)
         }
+    }
+
+    // MARK: - Context band (richness)
+
+    private var shouldShowContextBand: Bool {
+        if state.phase == "saving" { return false }
+        // Only show when we have something useful to say — daily total
+        // > current trip distance (otherwise it's just the same number)
+        // OR a milestone proximity message OR shift earnings.
+        let hasMeaningfulDailyTotal = state.dailyTotalMiles > state.distanceMiles + 0.1
+        let hasMilestone = state.milestoneText != nil && !(state.milestoneText ?? "").isEmpty
+        let hasEarnings = (state.earningsTodayPence ?? 0) > 0 && isShift
+        return hasMeaningfulDailyTotal || hasMilestone || hasEarnings
+    }
+
+    @ViewBuilder
+    private var contextBand: some View {
+        HStack(spacing: 14) {
+            if state.dailyTotalMiles > state.distanceMiles + 0.1 {
+                contextItem(
+                    icon: "calendar",
+                    label: "TODAY",
+                    value: String(format: "%.1f mi", state.dailyTotalMiles)
+                )
+            }
+            if let milestone = state.milestoneText, !milestone.isEmpty {
+                contextItem(
+                    icon: "flag.checkered",
+                    label: "NEXT",
+                    value: milestone
+                )
+            }
+            if isShift, let pence = state.earningsTodayPence, pence > 0 {
+                contextItem(
+                    icon: "sterlingsign.circle",
+                    label: "EARNED",
+                    value: String(format: "£%.2f", Double(pence) / 100.0)
+                )
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func contextItem(icon: String, label: String, value: String) -> some View {
+        HStack(spacing: 6) {
+            Image(systemName: icon)
+                .font(.system(size: 10, weight: .semibold))
+                .foregroundColor(accent.opacity(0.85))
+            VStack(alignment: .leading, spacing: 1) {
+                Text(label)
+                    .font(.system(size: 8, weight: .bold))
+                    .foregroundColor(textDim)
+                    .kerning(1.0)
+                Text(value)
+                    .font(.system(size: 11, weight: .semibold, design: .rounded))
+                    .foregroundColor(.white.opacity(0.9))
+                    .lineLimit(1)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     // MARK: - Header

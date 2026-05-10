@@ -72,6 +72,18 @@ export async function updateLiveActivity(params: {
   phase?: "active" | "saving" | "ended";
   endDateMs?: number;
   needsClassification?: boolean;
+  /** Today's total business+personal miles across all trips. Powers the
+   *  "TODAY" subtitle on the lock screen. Only shown when meaningfully
+   *  different from the per-trip distance — pass 0 to hide. */
+  dailyTotalMiles?: number;
+  /** Milestone proximity message — "5.4 mi to 10K Club", "100 miles
+   *  tonight!". Shown as the "NEXT" subtitle. Pass null/undefined to
+   *  hide. */
+  milestoneText?: string | null;
+  /** Today's earnings tally in pence, sum of manual + CSV + open-banking
+   *  sources. Shown on shift activities only — the "EARNED" subtitle.
+   *  Pass null/undefined to hide. */
+  earningsTodayPence?: number | null;
 }): Promise<void> {
   if (Platform.OS !== "ios" || !LiveActivityModule || !currentActivityId) return;
   try {
@@ -84,6 +96,9 @@ export async function updateLiveActivity(params: {
       phase: params.phase ?? "active",
       endDateMs: params.endDateMs ?? 0,
       needsClassification: params.needsClassification ?? false,
+      dailyTotalMiles: params.dailyTotalMiles ?? 0,
+      milestoneText: params.milestoneText ?? null,
+      earningsTodayPence: params.earningsTodayPence ?? null,
     });
   } catch {}
 }

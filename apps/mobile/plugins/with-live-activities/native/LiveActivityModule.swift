@@ -104,6 +104,12 @@ class LiveActivityModule: NSObject {
             endDate = Date(timeIntervalSince1970: endDateMs / 1000)
         }
 
+        // Optional richness fields. Each is nil-safe so older JS callers
+        // continue to work — defaults match the ContentState defaults.
+        let dailyTotalMiles = params["dailyTotalMiles"] as? Double ?? 0
+        let milestoneText = params["milestoneText"] as? String
+        let earningsTodayPence = params["earningsTodayPence"] as? Int
+
         let state = MileClearAttributes.ContentState(
             distanceMiles: params["distanceMiles"] as? Double ?? 0,
             speedMph: params["speedMph"] as? Double ?? 0,
@@ -111,7 +117,10 @@ class LiveActivityModule: NSObject {
             startDate: startDate,
             phase: phase,
             endDate: endDate,
-            needsClassification: needsClassification
+            needsClassification: needsClassification,
+            dailyTotalMiles: dailyTotalMiles,
+            milestoneText: milestoneText,
+            earningsTodayPence: earningsTodayPence
         )
 
         // For ended/saving states, give iOS a shorter stale window so the
@@ -221,7 +230,10 @@ class LiveActivityModule: NSObject {
                     startDate: currentState.startDate,
                     phase: currentState.phase,
                     endDate: currentState.endDate,
-                    needsClassification: false
+                    needsClassification: false,
+                    dailyTotalMiles: currentState.dailyTotalMiles,
+                    milestoneText: currentState.milestoneText,
+                    earningsTodayPence: currentState.earningsTodayPence
                 )
                 let content = ActivityContent(state: updatedState, staleDate: nil)
                 await activity.update(content)

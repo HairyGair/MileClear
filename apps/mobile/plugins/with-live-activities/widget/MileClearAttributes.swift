@@ -25,6 +25,28 @@ struct MileClearAttributes: ActivityAttributes {
         // classification decision. Drives the "Classify Trip" CTA in the
         // ended-phase lock screen view.
         var needsClassification: Bool = false
+
+        // ── Live Activity richness (10 May 2026) ────────────────────
+        // Each is optional / defaulted so older serialized states from
+        // activities running at update time still decode cleanly.
+
+        // Total business+personal miles the user has driven today across
+        // all trips, including this one in progress. Powers the "X.X mi
+        // today" subtitle on the lock screen — context for the per-trip
+        // distance shown above. 0 when not yet computed.
+        var dailyTotalMiles: Double = 0
+
+        // Milestone proximity message — e.g. "5.4 mi to 10K Club" or
+        // "100 miles tonight!". JS computes from the user's lifetime
+        // mileage + the next achievement threshold. Shown when within
+        // ~50mi of a milestone; nil otherwise.
+        var milestoneText: String? = nil
+
+        // Today's earnings tally in pence, summed from manual + CSV +
+        // open-banking sources. Shown only on shift activities for gig
+        // drivers — gives at-a-glance progress toward a daily goal.
+        // 0 when no earnings logged today; nil when hidden.
+        var earningsTodayPence: Int? = nil
     }
 
     var activityType: String // "trip" or "shift"

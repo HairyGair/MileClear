@@ -56,6 +56,7 @@ import {
   type LocationQuestion,
 } from "@mileclear/shared";
 import { startLiveActivity, updateLiveActivity, endLiveActivityWithSummary, markLiveActivityClassified } from "../lib/liveActivity";
+import { getLiveActivityContext } from "../lib/liveActivity/context";
 import { fetchCommunityInsights } from "../lib/api/communityInsights";
 import * as Notifications from "expo-notifications";
 import { colors, fonts } from "../lib/theme";
@@ -795,8 +796,22 @@ export default function TripFormScreen() {
               const dist = Math.round(runningDistanceRef.current * 100) / 100;
               setLiveDistance(dist);
 
-              // Update Dynamic Island
-              updateLiveActivity({ distanceMiles: dist, speedMph: mph });
+              // Update Dynamic Island. Enrich with TODAY mileage + milestone
+              // proximity from local SQLite — getLiveActivityContext is
+              // 60s-cached so this isn't a hot-path concern.
+              getLiveActivityContext({ currentTripMiles: dist })
+                .then((ctx) => {
+                  updateLiveActivity({
+                    distanceMiles: dist,
+                    speedMph: mph,
+                    dailyTotalMiles: ctx.dailyTotalMiles,
+                    milestoneText: ctx.milestoneText,
+                  });
+                })
+                .catch(() => {
+                  // Fall back to the basic update if context lookup fails.
+                  updateLiveActivity({ distanceMiles: dist, speedMph: mph });
+                });
             }
 
             // Build speed-coloured trail point
