@@ -11,13 +11,12 @@ import { getDatabase } from "../db/index";
 import { reverseGeocode } from "../location/geocoding";
 import { DRIVING_SPEED_THRESHOLD_MPH, bestTripDistance } from "@mileclear/shared";
 import { stopDriveDetection, startDriveDetection, cancelAutoRecording, enterWatchMode, logDetectionEvent, INGEST_ACCURACY_PRE_RECORDING_M, INGEST_ACCURACY_DURING_RECORDING_M } from "../tracking/detection";
+import { startLiveActivity, endLiveActivityWithSummary } from "../liveActivity";
 
 const GEOFENCE_TASK_NAME = "mileclear-geofence-monitor";
 const GEOFENCE_TRACKING_TASK_NAME = "mileclear-geofence-tracking";
 const SPEED_THRESHOLD_MS = DRIVING_SPEED_THRESHOLD_MPH * 0.44704; // mph → m/s
 const MIN_TRIP_DISTANCE_MILES = 0.1;
-const QUIET_HOURS_START = 22; // 10pm
-const QUIET_HOURS_END = 7;   // 7am
 
 // Minimum dwell inside a saved-location geofence before a trip is treated as
 // a real arrival. Driving past a saved location at speed fires Enter then
@@ -36,11 +35,6 @@ const TENTATIVE_FINALIZE_DELAY_MS = TENTATIVE_DWELL_MS + 5_000;
 // reliability guarantees. The timer just makes the foreground/active-walk
 // case feel snappy.
 let tentativeFinalizeTimer: ReturnType<typeof setTimeout> | null = null;
-
-function isQuietHours(): boolean {
-  const hour = new Date().getHours();
-  return hour >= QUIET_HOURS_START || hour < QUIET_HOURS_END;
-}
 
 function haversine(lat1: number, lng1: number, lat2: number, lng2: number): number {
   const R = 3958.8;
@@ -399,6 +393,26 @@ async function handleSavedLocationEnter(regionId: string): Promise<void> {
   // either finalize the trip or resolve as a drive-through.
 }
 
+/**
+ * Fire-and-forget Live Activity start for a freshly departed geofence trip.
+ * Wrapped in try/catch so any LA failure (iOS denied, simulator, etc.) never
+ * breaks the trip-capture flow that called it. Mode is derived from the
+ * current app_mode (work / personal) so the accent colour matches the
+ * trip's likely classification.
+ */
+async function startGeofenceTripLiveActivity(): Promise<void> {
+  try {
+    const db = await getDatabase();
+    const modeRow = await db.getFirstAsync<{ value: string }>(
+      "SELECT value FROM tracking_state WHERE key = 'app_mode'"
+    );
+    const isBusinessMode = modeRow?.value !== "personal";
+    await startLiveActivity({ activityType: "trip", isBusinessMode });
+  } catch {
+    // LA failed to start — trip capture continues unaffected.
+  }
+}
+
 async function handleSavedLocationExit(regionId: string): Promise<void> {
   const db = await getDatabase();
 
@@ -453,6 +467,7 @@ async function handleSavedLocationExit(regionId: string): Promise<void> {
     );
     await db.runAsync("DELETE FROM tracking_state WHERE key = 'geofence_arrived_location'");
     // GEOFENCE_TRACKING is already running — coords keep flowing into the new trip.
+    await startGeofenceTripLiveActivity();
     return;
   }
 
@@ -470,6 +485,7 @@ async function handleSavedLocationExit(regionId: string): Promise<void> {
   await stopDriveDetection();
   await cancelAutoRecording();
   await startGeofenceTracking();
+  await startGeofenceTripLiveActivity();
 }
 
 // ─── Public API ─────────────────────────────────────────────────────────
@@ -763,14 +779,31 @@ async function processGeofenceTrip(
     })),
   });
 
-  // Send confirmation notification (skip during quiet hours).
-  if (!isQuietHours()) {
-    await sendTripConfirmationNotification(tripId, startAddress, endAddress, totalDistance);
-    await scheduleConfirmationReminder(tripId, startAddress, endAddress, totalDistance);
-  }
+  // Fire the trip-confirmation notification unconditionally. A trip you just
+  // finished driving is a moment in the user's day, not a 3am alarm. iOS
+  // Focus / Do Not Disturb still mutes the sound; the notification itself
+  // should always land so the user can act on it when they next look.
+  await sendTripConfirmationNotification(tripId, startAddress, endAddress, totalDistance);
+  await scheduleConfirmationReminder(tripId, startAddress, endAddress, totalDistance);
 
   // Set departure anchor at trip end point
   await setDepartureAnchor(last.lat, last.lng).catch(() => {});
+
+  // Close out any Live Activity started at departure with a frozen
+  // "Trip Complete" summary. Classification is unconfirmed at this
+  // point, so the LA's classify CTA is left enabled. Wrapped in
+  // try/catch — a failed LA end never affects the saved trip.
+  try {
+    await endLiveActivityWithSummary({
+      distanceMiles: roundedDistance,
+      tripCount: 0,
+      startDateMs: new Date(departedAt).getTime(),
+      endDateMs: new Date(arrivedAt).getTime(),
+      needsClassification: classification === "unclassified",
+    });
+  } catch {
+    // No active LA, or end failed — fine, trip is saved.
+  }
 }
 
 // ─── Notifications ──────────────────────────────────────────────────────
