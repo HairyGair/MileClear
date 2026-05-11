@@ -39,6 +39,12 @@ export async function startLiveActivity(params: {
    * the earliest buffered coord time, not the moment of promotion.
    */
   startDateMs?: number;
+  /**
+   * Optional context label rendered below the header — e.g. "From Home"
+   * for a geofence-detected trip departing a saved location. Fixed for
+   * the activity's lifetime (lives on attrs, not state).
+   */
+  tripContextLabel?: string;
 }): Promise<string | null> {
   if (Platform.OS !== "ios" || !LiveActivityModule) return null;
   try {
@@ -46,6 +52,7 @@ export async function startLiveActivity(params: {
       activityType: params.activityType,
       vehicleName: params.vehicleName ?? "",
       isBusinessMode: params.isBusinessMode,
+      tripContextLabel: params.tripContextLabel ?? "",
     });
     currentActivityId = id;
     activityStartDateMs = params.startDateMs ?? Date.now();
@@ -166,6 +173,13 @@ export async function endLiveActivityWithSummary(params: {
   startDateMs?: number;
   endDateMs?: number;
   needsClassification?: boolean;
+  /**
+   * HMRC deduction earned by the trip, in pence. Rendered in the
+   * frozen summary's third stat column as "£X.XX · HMRC" for
+   * business trips. Pass null/undefined or 0 to keep the default
+   * "SAVED" checkmark.
+   */
+  hmrcDeductionPence?: number | null;
 }): Promise<void> {
   if (Platform.OS !== "ios" || !LiveActivityModule) return;
   try {
@@ -175,6 +189,7 @@ export async function endLiveActivityWithSummary(params: {
       startDateMs: params.startDateMs ?? activityStartDateMs ?? Date.now(),
       endDateMs: params.endDateMs ?? Date.now(),
       needsClassification: params.needsClassification ?? false,
+      hmrcDeductionPence: params.hmrcDeductionPence ?? null,
     });
     currentActivityId = null;
     activityStartDateMs = null;

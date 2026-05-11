@@ -9,7 +9,7 @@ import * as Notifications from "expo-notifications";
 import { randomUUID } from "expo-crypto";
 import { getDatabase } from "../db/index";
 import { reverseGeocode } from "../location/geocoding";
-import { DRIVING_SPEED_THRESHOLD_MPH, bestTripDistance } from "@mileclear/shared";
+import { DRIVING_SPEED_THRESHOLD_MPH, bestTripDistance, calculateHmrcDeduction } from "@mileclear/shared";
 import { stopDriveDetection, startDriveDetection, cancelAutoRecording, enterWatchMode, logDetectionEvent, INGEST_ACCURACY_PRE_RECORDING_M, INGEST_ACCURACY_DURING_RECORDING_M } from "../tracking/detection";
 import { startLiveActivity, updateLiveActivity, endLiveActivityWithSummary } from "../liveActivity";
 import { getLiveActivityContext } from "../liveActivity/context";
@@ -456,16 +456,28 @@ async function updateGeofenceTripLiveActivity(): Promise<void> {
  * Wrapped in try/catch so any LA failure (iOS denied, simulator, etc.) never
  * breaks the trip-capture flow that called it. Mode is derived from the
  * current app_mode (work / personal) so the accent colour matches the
- * trip's likely classification.
+ * trip's likely classification. Context label names the departure
+ * location so the Lock Screen reads "From Home" / "From Work".
  */
-async function startGeofenceTripLiveActivity(): Promise<void> {
+async function startGeofenceTripLiveActivity(departedLocationId: string): Promise<void> {
   try {
     const db = await getDatabase();
     const modeRow = await db.getFirstAsync<{ value: string }>(
       "SELECT value FROM tracking_state WHERE key = 'app_mode'"
     );
     const isBusinessMode = modeRow?.value !== "personal";
-    await startLiveActivity({ activityType: "trip", isBusinessMode });
+
+    const locRow = await db.getFirstAsync<{ name: string }>(
+      "SELECT name FROM saved_locations WHERE id = ?",
+      [departedLocationId]
+    );
+    const tripContextLabel = locRow?.name ? `From ${locRow.name}` : "";
+
+    await startLiveActivity({
+      activityType: "trip",
+      isBusinessMode,
+      tripContextLabel,
+    });
   } catch {
     // LA failed to start — trip capture continues unaffected.
   }
@@ -525,7 +537,7 @@ async function handleSavedLocationExit(regionId: string): Promise<void> {
     );
     await db.runAsync("DELETE FROM tracking_state WHERE key = 'geofence_arrived_location'");
     // GEOFENCE_TRACKING is already running — coords keep flowing into the new trip.
-    await startGeofenceTripLiveActivity();
+    await startGeofenceTripLiveActivity(regionId);
     return;
   }
 
@@ -543,7 +555,7 @@ async function handleSavedLocationExit(regionId: string): Promise<void> {
   await stopDriveDetection();
   await cancelAutoRecording();
   await startGeofenceTracking();
-  await startGeofenceTripLiveActivity();
+  await startGeofenceTripLiveActivity(regionId);
 }
 
 // ─── Public API ─────────────────────────────────────────────────────────
@@ -859,9 +871,16 @@ async function processGeofenceTrip(
   await setDepartureAnchor(last.lat, last.lng).catch(() => {});
 
   // Close out any Live Activity started at departure with a frozen
-  // "Trip Complete" summary. Classification is unconfirmed at this
+  // "Trip Complete" summary. For business trips, surface the HMRC
+  // deduction figure so the user sees the money they just earned
+  // back the moment they park. Personal trips show the neutral
+  // SAVED checkmark instead. Classification is unconfirmed at this
   // point, so the LA's classify CTA is left enabled. Wrapped in
   // try/catch — a failed LA end never affects the saved trip.
+  const hmrcDeductionPence =
+    classification === "business"
+      ? calculateHmrcDeduction("car", roundedDistance)
+      : null;
   try {
     await endLiveActivityWithSummary({
       distanceMiles: roundedDistance,
@@ -869,6 +888,7 @@ async function processGeofenceTrip(
       startDateMs: new Date(departedAt).getTime(),
       endDateMs: new Date(arrivedAt).getTime(),
       needsClassification: classification === "unclassified",
+      hmrcDeductionPence,
     });
   } catch {
     // No active LA, or end failed — fine, trip is saved.

@@ -427,9 +427,16 @@ private struct LockScreenView: View {
                     .font(.system(size: 12))
             }
 
-            Text(headerTitle)
-                .font(.system(size: 13, weight: .semibold))
-                .foregroundColor(.white)
+            VStack(alignment: .leading, spacing: 1) {
+                Text(headerTitle)
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundColor(.white)
+                if !attrs.tripContextLabel.isEmpty && state.phase != "saving" {
+                    Text(attrs.tripContextLabel)
+                        .font(.system(size: 10, weight: .medium))
+                        .foregroundColor(accent.opacity(0.85))
+                }
+            }
 
             Spacer()
 
@@ -502,13 +509,26 @@ private struct LockScreenView: View {
             // Speed or trip count - hidden in ended state (0 is not meaningful)
             VStack(spacing: 4) {
                 if state.phase == "ended" {
-                    Image(systemName: "checkmark.circle.fill")
-                        .font(.system(size: 22))
-                        .foregroundColor(accent)
-                    Text("SAVED")
-                        .font(.system(size: 8, weight: .bold))
-                        .foregroundColor(textMuted)
-                        .kerning(1.2)
+                    // For business trips with a known HMRC deduction, surface
+                    // the £ value the user just earned back. For everything
+                    // else, fall back to the SAVED confirmation.
+                    if let pence = state.hmrcDeductionPence, pence > 0 {
+                        Text(String(format: "£%.2f", Double(pence) / 100.0))
+                            .font(.system(size: 22, weight: .semibold, design: .rounded))
+                            .foregroundColor(accent)
+                        Text("HMRC")
+                            .font(.system(size: 8, weight: .bold))
+                            .foregroundColor(textMuted)
+                            .kerning(1.2)
+                    } else {
+                        Image(systemName: "checkmark.circle.fill")
+                            .font(.system(size: 22))
+                            .foregroundColor(accent)
+                        Text("SAVED")
+                            .font(.system(size: 8, weight: .bold))
+                            .foregroundColor(textMuted)
+                            .kerning(1.2)
+                    }
                 } else if isShift {
                     Text("\(state.tripCount)")
                         .font(.system(size: 26, weight: .semibold, design: .rounded))

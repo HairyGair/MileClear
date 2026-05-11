@@ -35,12 +35,14 @@ class LiveActivityModule: NSObject {
         let activityType = params["activityType"] as? String ?? "trip"
         let vehicleName = params["vehicleName"] as? String ?? ""
         let isBusinessMode = params["isBusinessMode"] as? Bool ?? true
+        let tripContextLabel = params["tripContextLabel"] as? String ?? ""
 
         let attributes = MileClearAttributes(
             activityType: activityType,
             startedAt: Date(),
             vehicleName: vehicleName,
-            isBusinessMode: isBusinessMode
+            isBusinessMode: isBusinessMode,
+            tripContextLabel: tripContextLabel
         )
 
         let initialState = MileClearAttributes.ContentState(
@@ -109,6 +111,7 @@ class LiveActivityModule: NSObject {
         let dailyTotalMiles = params["dailyTotalMiles"] as? Double ?? 0
         let milestoneText = params["milestoneText"] as? String
         let earningsTodayPence = params["earningsTodayPence"] as? Int
+        let hmrcDeductionPence = params["hmrcDeductionPence"] as? Int
 
         let state = MileClearAttributes.ContentState(
             distanceMiles: params["distanceMiles"] as? Double ?? 0,
@@ -120,7 +123,8 @@ class LiveActivityModule: NSObject {
             needsClassification: needsClassification,
             dailyTotalMiles: dailyTotalMiles,
             milestoneText: milestoneText,
-            earningsTodayPence: earningsTodayPence
+            earningsTodayPence: earningsTodayPence,
+            hmrcDeductionPence: hmrcDeductionPence
         )
 
         // For ended/saving states, give iOS a shorter stale window so the
@@ -182,6 +186,7 @@ class LiveActivityModule: NSObject {
         }
 
         let needsClassification = params["needsClassification"] as? Bool ?? false
+        let hmrcDeductionPence = params["hmrcDeductionPence"] as? Int
 
         let finalState = MileClearAttributes.ContentState(
             distanceMiles: params["distanceMiles"] as? Double ?? 0,
@@ -190,7 +195,8 @@ class LiveActivityModule: NSObject {
             startDate: startDate,
             phase: "ended",
             endDate: endDate,
-            needsClassification: needsClassification
+            needsClassification: needsClassification,
+            hmrcDeductionPence: hmrcDeductionPence
         )
 
         let finalContent = ActivityContent(
@@ -233,7 +239,8 @@ class LiveActivityModule: NSObject {
                     needsClassification: false,
                     dailyTotalMiles: currentState.dailyTotalMiles,
                     milestoneText: currentState.milestoneText,
-                    earningsTodayPence: currentState.earningsTodayPence
+                    earningsTodayPence: currentState.earningsTodayPence,
+                    hmrcDeductionPence: currentState.hmrcDeductionPence
                 )
                 let content = ActivityContent(state: updatedState, staleDate: nil)
                 await activity.update(content)

@@ -47,10 +47,26 @@ struct MileClearAttributes: ActivityAttributes {
         // drivers — gives at-a-glance progress toward a daily goal.
         // 0 when no earnings logged today; nil when hidden.
         var earningsTodayPence: Int? = nil
+
+        // HMRC mileage deduction earned by the trip so far, in pence.
+        // Rendered in the frozen "Trip Complete" summary phase so the
+        // user sees the tax saving the moment they park. Nil while
+        // active / for personal trips with no deduction. JS computes
+        // via calculateHmrcDeduction so the figure honours vehicle
+        // type + 10k tier crossover.
+        var hmrcDeductionPence: Int? = nil
     }
 
     var activityType: String // "trip" or "shift"
     var startedAt: Date
     var vehicleName: String
     var isBusinessMode: Bool
+
+    // Optional context label set at activity start — e.g. "From Home"
+    // for a geofence-detected trip departing a saved location. Renders
+    // below the header as the trip's origin badge. Fixed for the
+    // activity's lifetime (attrs are immutable in iOS Live Activities).
+    // Empty string = no badge shown (matches the existing vehicleName
+    // empty-check convention).
+    var tripContextLabel: String = ""
 }
