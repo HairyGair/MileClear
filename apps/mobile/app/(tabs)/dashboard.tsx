@@ -65,6 +65,7 @@ import { useUser } from "../../lib/user/context";
 import { useRecentTripsWithCoords } from "../../hooks/useRecentTripsWithCoords";
 import { Ionicons } from "@expo/vector-icons";
 import { startLiveActivity, updateLiveActivity, endLiveActivityWithSummary, recoverLiveActivity } from "../../lib/liveActivity";
+import { getLiveActivityContext } from "../../lib/liveActivity/context";
 import { useLayoutPrefs } from "../../lib/layout/index";
 import { PremiumGate, useIsPremium } from "../../components/PremiumGate";
 import { SmartInsightCard } from "../../components/SmartInsightCard";
@@ -409,7 +410,21 @@ export default function DashboardScreen() {
         // Update Dynamic Island every 5 seconds
         tick++;
         if (tick % 5 === 0) {
-          updateLiveActivity({ distanceMiles: liveDistRef.current, speedMph: 0, tripCount: 0 });
+          const dist = liveDistRef.current;
+          getLiveActivityContext({ currentTripMiles: dist, includeEarnings: true })
+            .then((ctx) => {
+              updateLiveActivity({
+                distanceMiles: dist,
+                speedMph: 0,
+                tripCount: 0,
+                dailyTotalMiles: ctx.dailyTotalMiles,
+                milestoneText: ctx.milestoneText,
+                earningsTodayPence: ctx.earningsTodayPence,
+              });
+            })
+            .catch(() => {
+              updateLiveActivity({ distanceMiles: dist, speedMph: 0, tripCount: 0 });
+            });
         }
       };
       updateElapsed();

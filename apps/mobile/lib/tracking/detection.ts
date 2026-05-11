@@ -15,6 +15,7 @@ import {
   filterTraceOutliers,
 } from "@mileclear/shared";
 import { startLiveActivity, updateLiveActivity, endLiveActivity, endLiveActivityWithSummary, recoverLiveActivity } from "../liveActivity";
+import { getLiveActivityContext } from "../liveActivity/context";
 import { getNotificationPreferences } from "../notifications/preferences";
 
 /**
@@ -69,7 +70,17 @@ async function startAutoTripLiveActivityFromBufferedState(
     // to arrive.
     const { miles, speedMph } = await getAutoTripRunningDistance();
     if (miles > 0 || speedMph > 0) {
-      await updateLiveActivity({ distanceMiles: miles, speedMph });
+      const ctx = await getLiveActivityContext({
+        currentTripMiles: miles,
+        includeEarnings: true,
+      }).catch(() => null);
+      await updateLiveActivity({
+        distanceMiles: miles,
+        speedMph,
+        dailyTotalMiles: ctx?.dailyTotalMiles,
+        milestoneText: ctx?.milestoneText,
+        earningsTodayPence: ctx?.earningsTodayPence,
+      });
     }
   } catch (err) {
     // Last-ditch fallback: still try to show an LA, even if we couldn't
@@ -1515,9 +1526,19 @@ try {
             "INSERT OR REPLACE INTO tracking_state (key, value) VALUES ('last_driving_speed_at', ?)",
             [Date.now().toString()]
           );
-          // Update Live Activity with running distance
-          getAutoTripRunningDistance().then(({ miles, speedMph }) => {
-            updateLiveActivity({ distanceMiles: miles, speedMph }).catch(() => {});
+          // Update Live Activity with running distance + context band.
+          getAutoTripRunningDistance().then(async ({ miles, speedMph }) => {
+            const ctx = await getLiveActivityContext({
+              currentTripMiles: miles,
+              includeEarnings: true,
+            }).catch(() => null);
+            updateLiveActivity({
+              distanceMiles: miles,
+              speedMph,
+              dailyTotalMiles: ctx?.dailyTotalMiles,
+              milestoneText: ctx?.milestoneText,
+              earningsTodayPence: ctx?.earningsTodayPence,
+            }).catch(() => {});
           }).catch(() => {});
           // If we were in finalization mode (waiting for stop timeout), switch back
           // to recording mode since the user is genuinely moving again.
