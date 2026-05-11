@@ -134,14 +134,14 @@ export function fetchHmrcStatus() {
 }
 
 /**
- * Returns the URL the mobile WebBrowser should open to start OAuth.
- * The server route is a 302 redirect; mobile uses Linking with the
- * authorize URL directly so the app gets the full HMRC consent page
- * inside the in-app browser.
+ * Authenticated call that returns the HMRC consent URL to open in an
+ * in-app browser. The mobile client cannot hit /hmrc/authorize directly
+ * via the browser because the browser session has no Authorization
+ * header. This API call carries the user's JWT, persists the state
+ * token server-side, and hands back the URL ready to open.
  */
-export function buildAuthorizeUrl(): string {
-  const base = process.env.EXPO_PUBLIC_API_URL || "https://api.mileclear.com";
-  return `${base}/hmrc/authorize`;
+export function fetchAuthorizeUrl() {
+  return apiRequest<{ data: { url: string } }>("/hmrc/authorize");
 }
 
 export function disconnectHmrc() {

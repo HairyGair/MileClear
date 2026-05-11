@@ -19,7 +19,7 @@ import {
   fetchHmrcStatus,
   fetchHmrcBusinesses,
   fetchHmrcObligations,
-  buildAuthorizeUrl,
+  fetchAuthorizeUrl,
   disconnectHmrc,
   type HmrcStatus,
   type HmrcBusinessSummary,
@@ -189,7 +189,8 @@ function TaxMtdContent() {
 
   const onConnect = useCallback(async () => {
     try {
-      const url = buildAuthorizeUrl();
+      const res = await fetchAuthorizeUrl();
+      const url = res.data.url;
       // openAuthSessionAsync handles the OAuth dance properly — closes
       // the browser when the deep-link redirect (mileclear://hmrc-connected)
       // fires after the server completes token exchange.

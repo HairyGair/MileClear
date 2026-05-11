@@ -139,7 +139,11 @@ export async function hmrcRoutes(app: FastifyInstance) {
       environment: config.environment,
     });
 
-    return reply.redirect(url);
+    // Return the URL as JSON so the mobile client can open it in an
+    // in-app browser. A 302 redirect doesn't work here because the
+    // browser session has no Authorization header, so the redirect
+    // origin must be requested via an authenticated API call first.
+    return reply.send({ data: { url } });
   });
 
   // GET /hmrc/callback — HMRC redirects here after consent
