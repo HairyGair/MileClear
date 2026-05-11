@@ -30,17 +30,19 @@ export interface ReleaseNote {
 export const RELEASE_NOTES: ReleaseNote[] = [
   {
     version: "1.2.0",
-    date: "10 May 2026",
+    date: "11 May 2026",
     label: "Pending Review",
     emailSubject: "MileClear 1.2.0 — your tax co-pilot just grew up",
     emailHero: "1.2.0 — the everything release",
     emailTagline:
-      "Everything we've shipped over the last two weeks rolled into one big release. HMRC quarterly submissions, road-snapped routes, smarter trip detection, and the sole-trader features the community asked for.",
+      "Everything we've shipped over the last two weeks rolled into one big release. HMRC quarterly submissions, road-snapped routes, smarter trip detection that actually feels alive on your Lock Screen, and the sole-trader features the community asked for.",
     emailHighlights: [
       "**Quarterly Self Assessment direct to HMRC.** Connect your HMRC account, confirm your trade, preview each quarterly update against your mapped MileClear figures, and submit. The headline figures cross-check against HMRC's own calculation engine so you can see the marginal-rate breakdown before it's locked in.",
       "**Road distances that are actually accurate.** Manual trip A→B now uses our self-hosted UK routing engine — same address pair always returns the same mileage, every time. Auto-tracked trips get road-snapped polylines so the map shows your actual route, not a GPS-jittered guess.",
-      "**Smarter trip classification.** When you've done the same A→B journey three times tagged as Work, the fourth time it auto-classifies. Stops you tapping the same dropdowns over and over.",
+      "**Smarter trip classification.** When you've done the same A→B journey three times tagged as Work, the fourth time it auto-classifies. Confirmation push for auto-detected trips now leads with the suggestion — 'Was this a Work trip?' with one-tap Yes / Personal / Not me buttons on the lock screen.",
+      "**Geofence trips light up the Lock Screen.** Leave home, head out for a delivery, and your Lock Screen now shows a 'Trip Active · From Home' Live Activity with miles ticking up in real time. Park at the destination and it flips to a frozen Trip Complete summary — for business trips that includes the £ HMRC value you just earned back.",
       "**Invoices for freelancers and sole traders.** Track who owes you, when invoices were sent, and what's been paid. Simple list that exports cleanly to your accountant. Free tier covers 3 invoices a month — plenty if you've got the odd side gig. Pro is unlimited. Cash basis (the default since April 2024) means Tax Readiness only counts income that's actually arrived.",
+      "**'My Accountant' factors the filing fee into your set-aside.** Settings → Work & Tax → My Accountant. Enter their annual fee and we spread it across 52 weeks so your weekly Tax Readiness set-aside covers both tax AND the accountant. By filing season, both are already in the pot.",
       "**PAYE deductions counted properly.** If you have a salaried day job alongside gig work, you can now tell MileClear what your employer's already deducted. The 'still owed' figure on Tax Readiness becomes honest instead of double-counting.",
       "**Confidence indicator on every trip.** High / medium / low badge with tap-to-expand reasons. HMRC-defence material — every claimed mile is auditable.",
       "**One-tap data-quality recheck.** Settings → Data Quality → Recheck suspicious trips. We scan your history, find anything with sparse GPS or unverified distances, and re-route through the new engine.",
@@ -68,6 +70,11 @@ export const RELEASE_NOTES: ReleaseNote[] = [
       "**Heartbeat sync deep-link.** Tapping a 'N trips failed to upload' push notification now lands you directly on the Sync Status screen with a retry button, instead of dumping you on the dashboard.",
       "**Pair-based classification suggestion endpoint.** Same as point 4 but available for client-side use in the Active Recording trip-end flow, giving real-time suggestions as soon as both endpoints of a trip are known.",
       "**Routing stack admin panel** (internal): live GraphHopper health probe, cache row count, recent route source breakdown, fallback rate. Lets us spot when the primary engine has issues before it shows up in user reports.",
+      "**Geofence trips get a full Live Activity.** Previously, when MileClear auto-detected a trip via geofence Exit / Enter (most commonly when you leave home or work without manually starting anything), the recording happened silently with no in-drive feedback. Now the Lock Screen shows a 'Trip Active' Live Activity from the moment you cross the saved-location boundary, with a 'From Home' / 'From Work' badge naming where you set off. Distance and speed tick up live as you drive. Park at the destination and the Activity flips to a frozen Trip Complete summary.",
+      "**HMRC £ value shown on the Trip Complete Lock Screen summary.** For business trips, the frozen summary card now shows the £X.XX HMRC mileage deduction you've just earned back — visible the moment you park, before you've even unlocked the phone. Personal trips show the standard 'Saved' confirmation. Calculation honours the 10,000-mile tier crossing and your vehicle type.",
+      "**Smart classification suggestion in the trip-confirmation push.** When MileClear auto-detects a trip and asks you to confirm it, the notification now leads with our best guess based on where you started and where you ended. 'Work trip detected · Home → Work · 12.3 mi · Tap Yes, Work to confirm.' Three action buttons live on the lock screen (Yes Work / Personal / Not me) so you can confirm without unlocking. Confirms feed back into the auto-classifier so future trips between the same pair get more confident over time.",
+      "**Trip-confirmation push respects your toggle, not iOS quiet hours.** A trip you've just finished driving is a moment in your day, not a 3am alarm — iOS Focus and Do Not Disturb already handle muting at the OS level. Previously the app silently suppressed confirmation pushes between 10pm and 7am, which meant evening drivers were sometimes missing the confirm-trip prompt entirely.",
+      "**'My Accountant' settings.** New screen under Settings → Work & Tax → Sole Trader → My Accountant. Enter your accountant's name, contact, and annual fee. The annual fee gets spread across 52 weeks and added to the weekly set-aside figure on your Tax Readiness card, so when filing season comes around the cash is already there for both the tax bill AND the accountant's invoice. Stays free tier (tax tooling, always free per the paywall philosophy).",
     ],
   },
   {
