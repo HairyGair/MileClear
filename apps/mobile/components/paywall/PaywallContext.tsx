@@ -40,9 +40,10 @@ export function PaywallProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const showPaywall = useCallback((src?: string) => {
+    if (!isFree) return;
     setSource(src);
     setVisible(true);
-  }, []);
+  }, [isFree]);
 
   const handleClose = useCallback(() => {
     setVisible(false);
