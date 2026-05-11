@@ -27,6 +27,13 @@ const updateProfileSchema = z.object({
   // accruals counts when invoiced. Affects invoice → Tax Readiness
   // aggregation logic.
   taxBasis: z.enum(["cash", "accruals"]).optional(),
+  // Accountant details (Laura Joyce 11 May 2026). Free-text name +
+  // contact + the annual fee in pence — the fee is amortised across
+  // 52 weeks and added to the weekly Tax Readiness set-aside. All
+  // optional; null clears.
+  accountantName: z.string().max(120).nullable().optional(),
+  accountantContact: z.string().max(255).nullable().optional(),
+  accountantAnnualFeePence: z.number().int().min(0).max(1_000_000_000).nullable().optional(),
   dashboardMode: z.enum(["both", "work", "personal"]).optional(),
   weeklyEarningsGoalPence: z.number().int().min(0).max(1000000).nullable().optional(),
   marketingEmailsEnabled: z.boolean().optional(),
@@ -51,6 +58,9 @@ const USER_SELECT = {
   otherAnnualIncomePence: true,
   payeAnnualPaidTaxPence: true,
   taxBasis: true,
+  accountantName: true,
+  accountantContact: true,
+  accountantAnnualFeePence: true,
   dashboardMode: true,
   weeklyEarningsGoalPence: true,
   marketingEmailsEnabled: true,
@@ -170,7 +180,7 @@ export async function userRoutes(app: FastifyInstance) {
     }
 
     const userId = request.userId!;
-    const { displayName, fullName, avatarId, userIntent, workType, employerMileageRatePence, employerMileageRatePenceAfter10k, otherAnnualIncomePence, payeAnnualPaidTaxPence, taxBasis, dashboardMode, email, currentPassword } = parsed.data;
+    const { displayName, fullName, avatarId, userIntent, workType, employerMileageRatePence, employerMileageRatePenceAfter10k, otherAnnualIncomePence, payeAnnualPaidTaxPence, taxBasis, accountantName, accountantContact, accountantAnnualFeePence, dashboardMode, email, currentPassword } = parsed.data;
 
     const currentUser = await prisma.user.findUnique({
       where: { id: userId },
@@ -227,6 +237,19 @@ export async function userRoutes(app: FastifyInstance) {
     // "still owed" figure is honest (Laura Joyce 10 May 2026).
     if (payeAnnualPaidTaxPence !== undefined) {
       updateData.payeAnnualPaidTaxPence = payeAnnualPaidTaxPence;
+    }
+
+    // Accountant details (Laura Joyce 11 May 2026). The annual fee is
+    // amortised across 52 weeks and added to the Tax Readiness weekly
+    // set-aside so the user budgets for both tax AND the accountant.
+    if (accountantName !== undefined) {
+      updateData.accountantName = accountantName;
+    }
+    if (accountantContact !== undefined) {
+      updateData.accountantContact = accountantContact;
+    }
+    if (accountantAnnualFeePence !== undefined) {
+      updateData.accountantAnnualFeePence = accountantAnnualFeePence;
     }
 
     // Tax accounting basis (cash | accruals). Affects how invoice

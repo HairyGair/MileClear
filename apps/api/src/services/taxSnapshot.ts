@@ -66,6 +66,7 @@ export async function buildTaxSnapshot(userId: string): Promise<TaxSnapshot> {
           otherAnnualIncomePence: true,
           payeAnnualPaidTaxPence: true,
           taxBasis: true,
+          accountantAnnualFeePence: true,
         },
       }),
       prisma.vehicle.findMany({
@@ -209,9 +210,22 @@ export async function buildTaxSnapshot(userId: string): Promise<TaxSnapshot> {
   // becomes more accurate. Defaults to 25% (sensible basic-rate guess) for
   // new users with no YTD data yet.
   const rateForSetAside = effectiveRatePercent > 0 ? effectiveRatePercent : 25;
-  const suggestedSetAsidePence = Math.round(
+  const taxComponentPence = Math.round(
     (earningsLast7DaysPence * rateForSetAside) / 100
   );
+
+  // Accountant fee component (Laura Joyce 11 May 2026): annual fee
+  // amortised across 52 weeks so the user's weekly set-aside also
+  // covers the accountant cost. Treated as a known upcoming expense,
+  // NOT a deduction against tax — the fee itself is separately
+  // deductible on the SA103 but that's handled by the expenses surface.
+  const accountantAnnualFeePence = user?.accountantAnnualFeePence ?? 0;
+  const accountantWeeklyFeePence =
+    accountantAnnualFeePence > 0
+      ? Math.round(accountantAnnualFeePence / 52)
+      : 0;
+
+  const suggestedSetAsidePence = taxComponentPence + accountantWeeklyFeePence;
 
   // Readiness checks. Three items, each contributes 33% (last gets 34%).
   // Keeping it small and meaningful - long checklists make people freeze.
@@ -295,6 +309,10 @@ export async function buildTaxSnapshot(userId: string): Promise<TaxSnapshot> {
       earningsLast7DaysPence,
       suggestedSetAsidePence,
       rateUsedPercent: rateForSetAside,
+      // Breakdown for UI ("£X tax + £Y accountant"). Zero when the
+      // user hasn't set an annual fee.
+      taxComponentPence,
+      accountantWeeklyFeePence,
     },
     readiness: {
       percentComplete,

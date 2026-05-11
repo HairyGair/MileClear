@@ -482,6 +482,12 @@ export default function WorkTaxSettings() {
           badge={taxBasis === "cash" ? "Cash" : "Accruals"}
           onPress={handleTaxBasis}
         />
+        <SettingsRow
+          icon="briefcase-outline"
+          label="My Accountant"
+          hint="Name, contact and annual fee — added to your weekly set-aside"
+          onPress={() => router.push("/accountant" as never)}
+        />
       </SettingsGroup>
 
       {(workType === "employee" || workType === "both") && (

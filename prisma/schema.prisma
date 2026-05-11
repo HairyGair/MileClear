@@ -54,6 +54,14 @@ model User {
   // of cash flow. Affects how Tax Readiness aggregates invoice income
   // (cash = paid invoices only; accruals = all sent invoices).
   taxBasis              String    @default("cash") @db.VarChar(16)
+  // Accountant details. Laura Joyce request 11 May 2026: she pays an
+  // accountant a known annual fee, wants MileClear to factor it into
+  // the weekly set-aside guidance ("set aside her fee also"). Stored
+  // as a free-text name + contact + the fee in pence. All optional —
+  // users without an accountant skip the section entirely.
+  accountantName            String?   @db.VarChar(120)
+  accountantContact         String?   @db.VarChar(255)
+  accountantAnnualFeePence  Int?
   dashboardMode        String    @default("both") @db.VarChar(20)
   notes                    String?   @db.Text
   lastLoginAt              DateTime?

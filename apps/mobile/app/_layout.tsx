@@ -393,6 +393,7 @@ function RootNavigator() {
         <Stack.Screen name="tax-mtd-history" options={{ headerShown: true, title: "Submission history" }} />
         <Stack.Screen name="invoices" options={{ headerShown: true, title: "Invoices" }} />
         <Stack.Screen name="invoice-form" options={{ headerShown: true, title: "Add invoice" }} />
+        <Stack.Screen name="accountant" options={{ headerShown: true, title: "My Accountant" }} />
         {/* Settings hub + sub-screens. Each is a small focused screen so
             individual settings are findable. Profile tab links into here. */}
         <Stack.Screen name="settings/index" options={{ headerShown: true, title: "Settings" }} />

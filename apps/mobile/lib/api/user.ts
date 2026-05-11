@@ -19,6 +19,14 @@ export interface UpdateProfileData {
   /** Accounting basis. cash = count when paid; accruals = count when
    *  invoiced. Affects invoice → Tax Readiness aggregation. */
   taxBasis?: "cash" | "accruals";
+  /** Accountant name. Laura Joyce 11 May 2026 — when set, the annual
+   *  fee gets amortised across 52 weeks and added to the Tax
+   *  Readiness weekly set-aside. */
+  accountantName?: string | null;
+  /** Accountant contact info (email or phone, free text). */
+  accountantContact?: string | null;
+  /** Annual accountant fee in pence. */
+  accountantAnnualFeePence?: number | null;
   dashboardMode?: "both" | "work" | "personal";
   weeklyEarningsGoalPence?: number | null;
 }

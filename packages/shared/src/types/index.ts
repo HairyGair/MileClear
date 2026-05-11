@@ -16,6 +16,19 @@ export interface User {
    *  treat gig profit as the user's only taxable income. Used to compute
    *  the correct marginal income-tax rate on gig profit. */
   otherAnnualIncomePence: number | null;
+  /** PAYE tax already deducted by the user's employer this tax year, in
+   *  pence. Subtracted from gross liability to compute the "still owed"
+   *  figure on Tax Readiness. Added 10 May 2026. */
+  payeAnnualPaidTaxPence?: number | null;
+  /** Tax accounting basis. "cash" = count when paid; "accruals" = count
+   *  when invoiced. Affects invoice → Tax Readiness aggregation. */
+  taxBasis?: "cash" | "accruals";
+  /** Accountant details (Laura Joyce 11 May 2026). When the annual fee
+   *  is set, it gets amortised across 52 weeks and added to the Tax
+   *  Readiness weekly set-aside. All three fields optional. */
+  accountantName?: string | null;
+  accountantContact?: string | null;
+  accountantAnnualFeePence?: number | null;
   dashboardMode: "both" | "work" | "personal";
   weeklyEarningsGoalPence: number | null;
   marketingEmailsEnabled: boolean;
@@ -127,6 +140,12 @@ export interface TaxSnapshot {
     earningsLast7DaysPence: number;
     suggestedSetAsidePence: number;
     rateUsedPercent: number;                // for transparency in the UI
+    /** Set-aside split — tax portion. Equal to suggestedSetAside when
+     *  the user has no accountant fee on file. Added 11 May 2026. */
+    taxComponentPence?: number;
+    /** Accountant fee component, prorated weekly. Annual fee / 52.
+     *  Zero when the user hasn't entered an accountant. */
+    accountantWeeklyFeePence?: number;
   };
 
   readiness: {
