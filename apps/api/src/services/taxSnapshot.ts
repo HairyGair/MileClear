@@ -83,6 +83,7 @@ export async function buildTaxSnapshot(userId: string): Promise<TaxSnapshot> {
         where: {
           userId,
           classification: "business",
+          isPhantomTrip: false,
           startedAt: { gte: start, lte: end },
         },
         select: {
@@ -109,6 +110,11 @@ export async function buildTaxSnapshot(userId: string): Promise<TaxSnapshot> {
         where: {
           userId,
           classification: "unclassified",
+          // Phantom trips (walking-speed false-positives) are flagged and
+          // hidden from the user's trips list — they shouldn't count toward
+          // the readiness "all trips classified" check either, or the card
+          // shows N to classify when the user can't actually see them.
+          isPhantomTrip: false,
           startedAt: { gte: start, lte: end },
         },
       }),
@@ -117,6 +123,7 @@ export async function buildTaxSnapshot(userId: string): Promise<TaxSnapshot> {
         where: {
           userId,
           classification: "business",
+          isPhantomTrip: false,
           startedAt: { gte: fourteenDaysAgo },
         },
       }),
@@ -468,6 +475,7 @@ async function buildMileageDeductionAcrossWindows(
       where: {
         userId,
         classification: "business",
+        isPhantomTrip: false,
         startedAt: { gte: last7DaysStart, lte: now },
       },
       select: {
@@ -479,6 +487,7 @@ async function buildMileageDeductionAcrossWindows(
       where: {
         userId,
         classification: "business",
+        isPhantomTrip: false,
         startedAt: { gte: thisMonthStart, lte: now },
       },
       select: {
@@ -490,6 +499,7 @@ async function buildMileageDeductionAcrossWindows(
       where: {
         userId,
         classification: "business",
+        isPhantomTrip: false,
         startedAt: { gte: lastTyStart, lte: lastTyEnd },
       },
       select: {
