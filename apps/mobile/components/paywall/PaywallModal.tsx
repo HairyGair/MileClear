@@ -13,7 +13,7 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import * as WebBrowser from "expo-web-browser";
-import { calculateHmrcDeduction, formatPence } from "@mileclear/shared";
+import { formatPence } from "@mileclear/shared";
 import { fetchGamificationStats } from "../../lib/api/gamification";
 import { createCheckoutSession } from "../../lib/api/billing";
 import {
@@ -141,11 +141,10 @@ export function PaywallModal({ visible, onClose, source: _source }: PaywallModal
     }
   }, [onClose, refreshUser]);
 
-  // Calculate personalised deduction value
-  const totalMiles = stats?.totalMiles ?? 0;
-  const deductionPence = calculateHmrcDeduction("car", totalMiles);
-  const deductionFormatted = formatPence(deductionPence);
-  const milesFormatted = totalMiles.toFixed(0);
+  // Personalised deduction value — server-authoritative (handles 10k tier + vehicle type)
+  const businessMiles = stats?.businessMiles ?? 0;
+  const deductionFormatted = formatPence(stats?.deductionPence ?? 0);
+  const milesFormatted = businessMiles.toFixed(0);
 
   const TOTAL_PAGES = 4;
 
@@ -213,7 +212,7 @@ export function PaywallModal({ visible, onClose, source: _source }: PaywallModal
                 </View>
 
                 <Text style={s.valueFooter}>
-                  Most drivers save 10x what Pro costs in recovered deductions.
+                  HMRC lets you claim every business mile. Pro turns this into a print-ready submission.
                 </Text>
 
                 <TouchableOpacity style={s.nextBtn} onPress={() => goToPage(1)} activeOpacity={0.7}>
@@ -232,7 +231,7 @@ export function PaywallModal({ visible, onClose, source: _source }: PaywallModal
 
                 <Text style={s.trustHeading}>Try risk-free</Text>
                 <Text style={s.trustSubheading}>
-                  Cancel anytime from your Apple or Google account. No hidden fees, no lock-in.
+                  Cancel anytime from your Apple ID settings. No hidden fees, no lock-in.
                 </Text>
 
                 <View style={s.trustCards}>
