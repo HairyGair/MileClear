@@ -56,10 +56,14 @@ export async function getLiveActivityContext(args: {
     startOfDay.setHours(0, 0, 0, 0);
     const startIso = startOfDay.toISOString();
 
+    // NB: local SQLite doesn't carry the is_phantom_trip column —
+    // phantom filtering is server-side only, so we just sum everything
+    // synced down. The phantom-trip rows the server hides never reach
+    // the mobile mirror, so this is equivalent in practice.
     const milesRow = await db.getFirstAsync<{ total: number | null }>(
       `SELECT COALESCE(SUM(distance_miles), 0) as total
          FROM trips
-         WHERE started_at >= ? AND COALESCE(is_phantom_trip, 0) = 0`,
+         WHERE started_at >= ?`,
       [startIso]
     );
     dailyPreTripMiles = milesRow?.total ?? 0;
