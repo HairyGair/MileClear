@@ -31,7 +31,7 @@ Quarterly Self Assessment direct to HMRC. Road-snapped trip maps. Smart auto-cla
 - All 18 milestone badges
 - 1 vehicle, 2 saved locations, 3 invoices per month
 
-**With Pro (£4.99/mo or £36/year):**
+**With Pro (£4.99/mo or £44.99/year):**
 - Quarterly Self Assessment submitted direct to HMRC (MTD ITSA)
 - HMRC self-assessment PDF, CSV exports, accounting integrations
 - Unlimited invoice tracking with cash/accruals tax basis
@@ -124,7 +124,7 @@ Demo account: `demo@mileclear.com` / `MileClear2026!`
 
 This build adds HMRC's Making Tax Digital for Income Tax Self Assessment (MTD ITSA) integration. The MTD flow lives behind a Pro paywall and connects to HMRC's official OAuth sandbox. No real tax submissions happen from the demo account — the sandbox returns synthetic data.
 
-The new in-app purchase product is unchanged: monthly subscription at £4.99/mo or yearly at £36/year (StoreKit configured in App Store Connect).
+The new in-app purchase product is unchanged: monthly subscription at £4.99/mo or yearly at £44.99/year (StoreKit configured in App Store Connect).
 
 The invoice tracker (free tier: 3 invoices per calendar month) demonstrates how the upgrade path surfaces. Try creating a 4th invoice in the demo account — the paywall fires with a clear upgrade prompt.
 
