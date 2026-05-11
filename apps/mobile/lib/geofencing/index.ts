@@ -11,7 +11,8 @@ import { getDatabase } from "../db/index";
 import { reverseGeocode } from "../location/geocoding";
 import { DRIVING_SPEED_THRESHOLD_MPH, bestTripDistance } from "@mileclear/shared";
 import { stopDriveDetection, startDriveDetection, cancelAutoRecording, enterWatchMode, logDetectionEvent, INGEST_ACCURACY_PRE_RECORDING_M, INGEST_ACCURACY_DURING_RECORDING_M } from "../tracking/detection";
-import { startLiveActivity, endLiveActivityWithSummary } from "../liveActivity";
+import { startLiveActivity, updateLiveActivity, endLiveActivityWithSummary } from "../liveActivity";
+import { getLiveActivityContext } from "../liveActivity/context";
 
 const GEOFENCE_TASK_NAME = "mileclear-geofence-monitor";
 const GEOFENCE_TRACKING_TASK_NAME = "mileclear-geofence-tracking";
@@ -145,6 +146,12 @@ try {
           ]
         );
       }
+
+      // Update the Live Activity with running distance + latest speed so
+      // the Lock Screen ticks up in real time during the drive. Wrapped in
+      // try/catch — a failed LA update never affects the coord ingest
+      // above. updateLiveActivity is itself a no-op if no LA is active.
+      updateGeofenceTripLiveActivity().catch(() => {});
 
       // Each new location update is also a chance to finalize a tentative
       // arrival whose dwell window has elapsed. iOS suspends JS timers when
@@ -391,6 +398,57 @@ async function handleSavedLocationEnter(regionId: string): Promise<void> {
   await setTentativeArrival(regionId);
   // GEOFENCE_TRACKING stays running so coords keep accumulating until we
   // either finalize the trip or resolve as a drive-through.
+}
+
+/**
+ * Recompute the in-progress geofence trip's running distance from
+ * detection_coordinates and push it to the active Live Activity. Reads
+ * coords since the most recent geofence_departed_at so the figure
+ * matches what processGeofenceTrip will eventually save. No-op if no
+ * geofence trip is in flight or no LA is active.
+ */
+async function updateGeofenceTripLiveActivity(): Promise<void> {
+  try {
+    const db = await getDatabase();
+    const departedRow = await db.getFirstAsync<{ value: string }>(
+      "SELECT value FROM tracking_state WHERE key = 'geofence_departed_at'"
+    );
+    if (!departedRow?.value) return;
+
+    const coords = await db.getAllAsync<{
+      lat: number;
+      lng: number;
+      speed: number | null;
+    }>(
+      "SELECT lat, lng, speed FROM detection_coordinates WHERE recorded_at >= ? ORDER BY recorded_at ASC",
+      [departedRow.value]
+    );
+    if (coords.length < 2) return;
+
+    let distMiles = 0;
+    for (let i = 1; i < coords.length; i++) {
+      distMiles += haversine(
+        coords[i - 1].lat, coords[i - 1].lng,
+        coords[i].lat, coords[i].lng
+      );
+    }
+    const latestSpeedMs = coords[coords.length - 1].speed ?? 0;
+    const latestSpeedMph = Math.max(0, latestSpeedMs * 2.23694);
+
+    const ctx = await getLiveActivityContext({
+      currentTripMiles: distMiles,
+      includeEarnings: false,
+    }).catch(() => null);
+
+    await updateLiveActivity({
+      distanceMiles: Math.round(distMiles * 100) / 100,
+      speedMph: Math.round(latestSpeedMph),
+      dailyTotalMiles: ctx?.dailyTotalMiles,
+      milestoneText: ctx?.milestoneText,
+    });
+  } catch {
+    // Diagnostic-only path — never block the trip flow.
+  }
 }
 
 /**
@@ -783,8 +841,19 @@ async function processGeofenceTrip(
   // finished driving is a moment in the user's day, not a 3am alarm. iOS
   // Focus / Do Not Disturb still mutes the sound; the notification itself
   // should always land so the user can act on it when they next look.
-  await sendTripConfirmationNotification(tripId, startAddress, endAddress, totalDistance);
-  await scheduleConfirmationReminder(tripId, startAddress, endAddress, totalDistance);
+  // Lead with the auto-classifier's guess so the user confirms in one tap.
+  const confirmCoords: TripConfirmCoords = {
+    startLat: first.lat,
+    startLng: first.lng,
+    endLat: last.lat,
+    endLng: last.lng,
+  };
+  await sendTripConfirmationNotification(
+    tripId, startAddress, endAddress, totalDistance, classification, confirmCoords,
+  );
+  await scheduleConfirmationReminder(
+    tripId, startAddress, endAddress, totalDistance, classification, confirmCoords,
+  );
 
   // Set departure anchor at trip end point
   await setDepartureAnchor(last.lat, last.lng).catch(() => {});
@@ -808,21 +877,64 @@ async function processGeofenceTrip(
 
 // ─── Notifications ──────────────────────────────────────────────────────
 
+interface TripConfirmCopy {
+  title: string;
+  body: string;
+}
+
+/** Build smart confirmation copy that leads with the auto-classifier's
+ *  guess. Cuts the user's cognitive load: they confirm with one tap
+ *  instead of re-thinking what the trip was.
+ */
+function buildConfirmCopy(
+  from: string,
+  to: string,
+  distance: string,
+  suggestedClassification: "business" | "personal" | "unclassified",
+): TripConfirmCopy {
+  if (suggestedClassification === "business") {
+    return {
+      title: "Work trip detected",
+      body: `${from} → ${to} (${distance} mi). Tap "Yes, Work" to confirm.`,
+    };
+  }
+  if (suggestedClassification === "personal") {
+    return {
+      title: "Personal trip detected",
+      body: `${from} → ${to} (${distance} mi). Tap "Personal" to confirm.`,
+    };
+  }
+  return {
+    title: "Trip detected",
+    body: `${from} → ${to} (${distance} mi). Was this Work or Personal?`,
+  };
+}
+
+interface TripConfirmCoords {
+  startLat: number;
+  startLng: number;
+  endLat: number;
+  endLng: number;
+}
+
 async function sendTripConfirmationNotification(
   tripId: string,
   startAddress: string | null,
   endAddress: string | null,
-  distanceMiles: number
+  distanceMiles: number,
+  suggestedClassification: "business" | "personal" | "unclassified",
+  coords: TripConfirmCoords,
 ): Promise<void> {
   const from = startAddress || "Unknown";
   const to = endAddress || "Unknown";
   const distance = distanceMiles.toFixed(1);
+  const { title, body } = buildConfirmCopy(from, to, distance, suggestedClassification);
 
   await Notifications.scheduleNotificationAsync({
     content: {
-      title: "Trip detected",
-      body: `${from} → ${to} (${distance} mi). Were you driving?`,
-      data: { type: "trip_confirmation", tripId },
+      title,
+      body,
+      data: { type: "trip_confirmation", tripId, ...coords },
       categoryIdentifier: "trip_confirm",
     },
     trigger: null, // Send immediately
@@ -833,17 +945,25 @@ async function scheduleConfirmationReminder(
   tripId: string,
   startAddress: string | null,
   endAddress: string | null,
-  distanceMiles: number
+  distanceMiles: number,
+  suggestedClassification: "business" | "personal" | "unclassified",
+  coords: TripConfirmCoords,
 ): Promise<void> {
   const from = startAddress || "Unknown";
   const to = endAddress || "Unknown";
   const distance = distanceMiles.toFixed(1);
+  const suggestionHint =
+    suggestedClassification === "business"
+      ? " Looks like Work."
+      : suggestedClassification === "personal"
+      ? " Looks like Personal."
+      : "";
 
   await Notifications.scheduleNotificationAsync({
     content: {
       title: "Unconfirmed trip",
-      body: `${from} → ${to} (${distance} mi) still needs confirmation`,
-      data: { type: "trip_confirmation_reminder", tripId },
+      body: `${from} → ${to} (${distance} mi) still needs confirmation.${suggestionHint}`,
+      data: { type: "trip_confirmation_reminder", tripId, ...coords },
       categoryIdentifier: "trip_confirm",
     },
     trigger: { type: "timeInterval" as any, seconds: 3 * 60 * 60, repeats: false } as any,

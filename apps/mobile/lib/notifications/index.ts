@@ -50,6 +50,29 @@ export async function registerNotificationCategories(): Promise<void> {
         options: { isDestructive: true, opensAppToForeground: false },
       },
     ]);
+    // trip_confirm: shown after a geofence-detected trip has saved. The
+    // copy includes a suggested classification (e.g. "Was this a Work
+    // trip?") so the user can confirm with one tap. Same three actions
+    // as trip_recorded — Business / Personal / Delete — but the data
+    // payload is `type: "trip_confirmation"` so the response handler
+    // can branch.
+    await Notifications.setNotificationCategoryAsync("trip_confirm", [
+      {
+        identifier: "classify_business",
+        buttonTitle: "Yes, Work",
+        options: { opensAppToForeground: false },
+      },
+      {
+        identifier: "classify_personal",
+        buttonTitle: "Personal",
+        options: { opensAppToForeground: false },
+      },
+      {
+        identifier: "delete_trip",
+        buttonTitle: "Not me",
+        options: { isDestructive: true, opensAppToForeground: false },
+      },
+    ]);
   } catch (err) {
     console.warn("Failed to register notification categories:", err);
   }
@@ -315,6 +338,55 @@ export function setupNotificationResponseHandler(): void {
       } catch (err) {
         console.error("Track trip from notification failed:", err);
       }
+      return;
+    }
+
+    // Handle geofence trip-confirmation responses from the lock screen.
+    // Same three actions as classify_trip below — share the classification
+    // + learnFromClassification + delete paths but key off the
+    // trip_confirmation data type. Body tap deep-links to /trips so the
+    // user can review.
+    const dataType = data?.type as string | undefined;
+    if (dataType === "trip_confirmation" || dataType === "trip_confirmation_reminder") {
+      const tripId = data?.tripId as string | undefined;
+      if (tripId && (actionId === "classify_business" || actionId === "classify_personal")) {
+        const classification = actionId === "classify_business" ? "business" : "personal";
+        try {
+          const { syncUpdateTrip } = await import("../sync/actions");
+          await syncUpdateTrip(tripId, { classification });
+          // Strip the local-only __unconfirmed__ marker so the trip stops
+          // shading expired in the trips list.
+          const { getDatabase } = await import("../db/index");
+          const db = await getDatabase();
+          await db.runAsync("UPDATE trips SET notes = NULL WHERE id = ?", [tripId]);
+          // Learn from this classification for future auto-classification.
+          const startLat = data?.startLat as number | undefined;
+          const startLng = data?.startLng as number | undefined;
+          const endLat = data?.endLat as number | undefined;
+          const endLng = data?.endLng as number | undefined;
+          if (startLat != null && startLng != null && endLat != null && endLng != null) {
+            const { learnFromClassification } = await import("../classification");
+            await learnFromClassification({
+              startLat, startLng, endLat, endLng,
+              classification,
+              platformTag: null,
+            });
+          }
+        } catch (err) {
+          console.error("Trip confirmation classification failed:", err);
+        }
+        return;
+      }
+      if (tripId && actionId === "delete_trip") {
+        try {
+          const { syncDeleteTrip } = await import("../sync/actions");
+          await syncDeleteTrip(tripId);
+        } catch (err) {
+          console.error("Trip confirmation delete failed:", err);
+        }
+        return;
+      }
+      router.navigate("/(tabs)/trips");
       return;
     }
 
