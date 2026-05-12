@@ -277,20 +277,50 @@ function RootNavigator() {
         const phase = await getLiveActivityPhase();
         if (phase !== "saving") return;
 
-        // Confirm we actually have an active recording to finalize -
-        // otherwise the "saving" state is stale and we just dismiss it.
         const db = await getDatabase();
+
+        // Three states the "saving" phase can have landed us in:
+        //   1. Auto-recording active   → finalize trip (existing path)
+        //   2. Active shift            → end shift via API (NEW 12 May 2026)
+        //   3. Neither                 → stale state, just dismiss the LA
+        //
+        // Without case 2, the shift LA's "End Shift" button silently
+        // dismissed the LA without ever calling endShift on the server,
+        // so Anthony's shift from the previous night stayed alive and
+        // today's drives accumulated into it (showing 19+ mi on the
+        // dashboard). Anthony 12 May 2026.
+
         const recording = await db.getFirstAsync<{ value: string }>(
           "SELECT value FROM tracking_state WHERE key = 'auto_recording_active'"
         );
         if (recording?.value === "1") {
           const { finalizeAutoTrip } = await import("../lib/tracking/detection");
           await finalizeAutoTrip();
-        } else {
-          // Stale "saving" state with nothing to finalize - dismiss the LA.
-          const { endLiveActivity } = await import("../lib/liveActivity");
-          await endLiveActivity();
+          return;
         }
+
+        // No auto-trip — check for an active shift the user just ended
+        // via the lock-screen "End Shift" button.
+        const activeShift = await db.getFirstAsync<{ id: string }>(
+          "SELECT id FROM shifts WHERE status = 'active' ORDER BY started_at DESC LIMIT 1"
+        );
+        if (activeShift?.id) {
+          const { syncEndShift } = await import("../lib/sync/actions");
+          try {
+            await syncEndShift(activeShift.id);
+          } catch {
+            // Network or API error — local SQLite already marked
+            // completed inside syncEndShift; the sync queue will
+            // retry. The LA still gets dismissed below.
+          }
+          const { endLiveActivityWithSummary } = await import("../lib/liveActivity");
+          await endLiveActivityWithSummary({ distanceMiles: 0 }).catch(() => {});
+          return;
+        }
+
+        // Stale "saving" state with nothing to finalize — dismiss the LA.
+        const { endLiveActivity } = await import("../lib/liveActivity");
+        await endLiveActivity();
       } catch {}
     };
 
