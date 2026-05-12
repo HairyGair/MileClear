@@ -198,7 +198,7 @@ export default function InvoiceFormScreen() {
           headerTintColor: TEXT_1,
           headerRight: () =>
             isEditing ? (
-              <TouchableOpacity onPress={onDelete} hitSlop={8} accessibilityLabel="Delete">
+              <TouchableOpacity onPress={onDelete} hitSlop={8} accessibilityRole="button" accessibilityLabel="Delete invoice">
                 <Ionicons name="trash-outline" size={20} color={TEXT_3} />
               </TouchableOpacity>
             ) : null,
@@ -214,6 +214,7 @@ export default function InvoiceFormScreen() {
             placeholderTextColor={TEXT_3}
             autoCapitalize="words"
             autoCorrect={false}
+            accessibilityLabel="Company or client"
           />
         </Field>
 
@@ -226,6 +227,7 @@ export default function InvoiceFormScreen() {
             placeholderTextColor={TEXT_3}
             keyboardType="decimal-pad"
             inputMode="decimal"
+            accessibilityLabel="Amount in pounds"
           />
         </Field>
 
@@ -237,17 +239,28 @@ export default function InvoiceFormScreen() {
             placeholder="PO number, job ID..."
             placeholderTextColor={TEXT_3}
             autoCapitalize="characters"
+            accessibilityLabel="Reference, optional"
           />
         </Field>
 
         <Field label="DATE SENT">
-          <TouchableOpacity style={styles.input} onPress={() => setActivePicker("sent")}>
+          <TouchableOpacity
+            style={styles.input}
+            onPress={() => setActivePicker("sent")}
+            accessibilityRole="button"
+            accessibilityLabel={`Date sent, ${formatHuman(sentDate)}`}
+          >
             <Text style={styles.dateText}>{formatHuman(sentDate)}</Text>
           </TouchableOpacity>
         </Field>
 
         <Field label="DUE DATE (auto-set to 30 days)">
-          <TouchableOpacity style={styles.input} onPress={() => setActivePicker("due")}>
+          <TouchableOpacity
+            style={styles.input}
+            onPress={() => setActivePicker("due")}
+            accessibilityRole="button"
+            accessibilityLabel={`Due date, ${formatHuman(dueDate)}`}
+          >
             <Text style={styles.dateText}>{formatHuman(dueDate)}</Text>
           </TouchableOpacity>
         </Field>
@@ -277,7 +290,12 @@ export default function InvoiceFormScreen() {
             </Text>
           </TouchableOpacity>
           {paidDate && (
-            <TouchableOpacity onPress={() => setActivePicker("paid")} hitSlop={8}>
+            <TouchableOpacity
+              onPress={() => setActivePicker("paid")}
+              hitSlop={8}
+              accessibilityRole="button"
+              accessibilityLabel="Change paid date"
+            >
               <Text style={styles.editPaidDate}>Change date</Text>
             </TouchableOpacity>
           )}
@@ -292,6 +310,7 @@ export default function InvoiceFormScreen() {
             placeholderTextColor={TEXT_3}
             multiline
             numberOfLines={3}
+            accessibilityLabel="Notes, optional"
           />
         </Field>
 
@@ -299,6 +318,9 @@ export default function InvoiceFormScreen() {
           style={[styles.saveButton, saving && styles.saveButtonDisabled]}
           onPress={onSave}
           disabled={saving || deleting}
+          accessibilityRole="button"
+          accessibilityLabel={isEditing ? "Save changes" : "Add invoice"}
+          accessibilityState={{ disabled: saving || deleting }}
         >
           {saving ? (
             <ActivityIndicator color="#000" />

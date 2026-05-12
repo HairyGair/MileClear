@@ -163,8 +163,8 @@ export function PaywallModal({ visible, onClose, source: _source }: PaywallModal
             <Ionicons name="close" size={24} color={TEXT_2} />
           </TouchableOpacity>
 
-          {/* Page dots */}
-          <View style={s.dots}>
+          {/* Page dots — decorative */}
+          <View style={s.dots} accessible={false}>
             {Array.from({ length: TOTAL_PAGES }).map((_, i) => (
               <View key={i} style={[s.dot, page === i && s.dotActive]} />
             ))}
@@ -215,7 +215,13 @@ export function PaywallModal({ visible, onClose, source: _source }: PaywallModal
                   HMRC lets you claim every business mile. Pro turns this into a print-ready submission.
                 </Text>
 
-                <TouchableOpacity style={s.nextBtn} onPress={() => goToPage(1)} activeOpacity={0.7}>
+                <TouchableOpacity
+                  style={s.nextBtn}
+                  onPress={() => goToPage(1)}
+                  activeOpacity={0.7}
+                  accessibilityRole="button"
+                  accessibilityLabel="See what's included"
+                >
                   <Text style={s.nextBtnText}>See what's included</Text>
                   <Ionicons name="arrow-forward" size={18} color={AMBER} />
                 </TouchableOpacity>
@@ -264,7 +270,13 @@ export function PaywallModal({ visible, onClose, source: _source }: PaywallModal
                   </View>
                 </View>
 
-                <TouchableOpacity style={s.nextBtn} onPress={() => goToPage(2)} activeOpacity={0.7}>
+                <TouchableOpacity
+                  style={s.nextBtn}
+                  onPress={() => goToPage(2)}
+                  activeOpacity={0.7}
+                  accessibilityRole="button"
+                  accessibilityLabel="See Pro features"
+                >
                   <Text style={s.nextBtnText}>See Pro features</Text>
                   <Ionicons name="arrow-forward" size={18} color={AMBER} />
                 </TouchableOpacity>
@@ -301,7 +313,13 @@ export function PaywallModal({ visible, onClose, source: _source }: PaywallModal
                   </Text>
                 </View>
 
-                <TouchableOpacity style={s.nextBtn} onPress={() => goToPage(3)} activeOpacity={0.7}>
+                <TouchableOpacity
+                  style={s.nextBtn}
+                  onPress={() => goToPage(3)}
+                  activeOpacity={0.7}
+                  accessibilityRole="button"
+                  accessibilityLabel="Get started"
+                >
                   <Text style={s.nextBtnText}>Get started</Text>
                   <Ionicons name="arrow-forward" size={18} color={AMBER} />
                 </TouchableOpacity>
@@ -319,11 +337,14 @@ export function PaywallModal({ visible, onClose, source: _source }: PaywallModal
 
                 {/* Plan toggle — only show if annual is available */}
                 {annualPrice ? (
-                  <View style={s.planToggle}>
+                  <View style={s.planToggle} accessibilityRole="radiogroup">
                     <TouchableOpacity
                       style={[s.planOption, selectedPlan === "monthly" && s.planOptionActive]}
                       onPress={() => setSelectedPlan("monthly")}
                       activeOpacity={0.7}
+                      accessibilityRole="radio"
+                      accessibilityLabel={`Monthly plan, ${monthlyPrice} per month`}
+                      accessibilityState={{ selected: selectedPlan === "monthly" }}
                     >
                       <Text style={[s.planLabel, selectedPlan === "monthly" && s.planLabelActive]}>Monthly</Text>
                       <Text style={[s.planPrice, selectedPlan === "monthly" && s.planPriceActive]}>{monthlyPrice}/mo</Text>
@@ -332,6 +353,9 @@ export function PaywallModal({ visible, onClose, source: _source }: PaywallModal
                       style={[s.planOption, selectedPlan === "annual" && s.planOptionActive]}
                       onPress={() => setSelectedPlan("annual")}
                       activeOpacity={0.7}
+                      accessibilityRole="radio"
+                      accessibilityLabel={`Annual plan, ${annualPrice} per year, save 25%`}
+                      accessibilityState={{ selected: selectedPlan === "annual" }}
                     >
                       <View style={s.saveBadge}><Text style={s.saveBadgeText}>Save 25%</Text></View>
                       <Text style={[s.planLabel, selectedPlan === "annual" && s.planLabelActive]}>Annual</Text>
@@ -372,6 +396,9 @@ export function PaywallModal({ visible, onClose, source: _source }: PaywallModal
                     onPress={handleRestore}
                     disabled={restoring || purchasing}
                     activeOpacity={0.7}
+                    accessibilityRole="button"
+                    accessibilityLabel="Restore purchases"
+                    accessibilityState={{ disabled: restoring || purchasing }}
                   >
                     <Text style={s.restoreBtnText}>
                       {restoring ? "Restoring..." : "Restore Purchases"}
@@ -380,11 +407,19 @@ export function PaywallModal({ visible, onClose, source: _source }: PaywallModal
                 )}
 
                 <View style={s.legalLinks}>
-                  <TouchableOpacity onPress={() => Linking.openURL("https://mileclear.com/terms")}>
+                  <TouchableOpacity
+                    onPress={() => Linking.openURL("https://mileclear.com/terms")}
+                    accessibilityRole="link"
+                    accessibilityLabel="Terms of Service"
+                  >
                     <Text style={s.legalLink}>Terms of Service</Text>
                   </TouchableOpacity>
                   <Text style={s.legalDot}>·</Text>
-                  <TouchableOpacity onPress={() => Linking.openURL("https://mileclear.com/privacy")}>
+                  <TouchableOpacity
+                    onPress={() => Linking.openURL("https://mileclear.com/privacy")}
+                    accessibilityRole="link"
+                    accessibilityLabel="Privacy Policy"
+                  >
                     <Text style={s.legalLink}>Privacy Policy</Text>
                   </TouchableOpacity>
                 </View>
