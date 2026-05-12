@@ -94,9 +94,9 @@ const styles = StyleSheet.create({
     fontFamily: fonts.medium,
   },
   hint: {
-    fontSize: 11,
+    fontSize: 13,
     fontFamily: fonts.regular,
-    color: colors.text3,
+    color: colors.text2,
     marginTop: 2,
   },
   badge: {

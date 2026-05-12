@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, Animated, Platform } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import type { LastSavedTrip } from "../../lib/events/lastTrip";
 import { colors, fonts } from "../../lib/theme";
+import { useReducedMotion } from "../../lib/accessibility";
 
 // Local theme aliases — same pattern as the (tabs) screens.
 const CARD_BG = colors.surface;
@@ -19,26 +20,34 @@ const TEXT_1 = colors.text1;
 const TEXT_2 = colors.text2;
 
 export function PostTripCard({ trip, insight, onDismiss }: PostTripCardProps) {
-  const opacity = useRef(new Animated.Value(0)).current;
-  const translateY = useRef(new Animated.Value(-20)).current;
+  const reducedMotion = useReducedMotion();
+  const opacity = useRef(new Animated.Value(reducedMotion ? 1 : 0)).current;
+  const translateY = useRef(new Animated.Value(reducedMotion ? 0 : -20)).current;
 
   useEffect(() => {
-    // Slide in
-    Animated.parallel([
-      Animated.timing(opacity, {
-        toValue: 1,
-        duration: 400,
-        useNativeDriver: true,
-      }),
-      Animated.timing(translateY, {
-        toValue: 0,
-        duration: 400,
-        useNativeDriver: true,
-      }),
-    ]).start();
+    if (!reducedMotion) {
+      // Slide in
+      Animated.parallel([
+        Animated.timing(opacity, {
+          toValue: 1,
+          duration: 400,
+          useNativeDriver: true,
+        }),
+        Animated.timing(translateY, {
+          toValue: 0,
+          duration: 400,
+          useNativeDriver: true,
+        }),
+      ]).start();
+    }
 
-    // Auto-dismiss after 15 seconds
+    // Auto-dismiss after 15 seconds. Skips the fade for Reduce Motion
+    // users — they get an instant dismiss instead of a 300ms cross-fade.
     const timer = setTimeout(() => {
+      if (reducedMotion) {
+        onDismiss();
+        return;
+      }
       Animated.timing(opacity, {
         toValue: 0,
         duration: 300,
@@ -47,7 +56,7 @@ export function PostTripCard({ trip, insight, onDismiss }: PostTripCardProps) {
     }, 15000);
 
     return () => clearTimeout(timer);
-  }, [opacity, translateY, onDismiss]);
+  }, [opacity, translateY, onDismiss, reducedMotion]);
 
   const milesStr =
     trip.distanceMiles < 10

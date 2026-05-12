@@ -1,9 +1,12 @@
 import "react-native-gesture-handler";
 import React, { useEffect, useRef, useState } from "react";
 import { View, Text, LogBox, ScrollView, StyleSheet, Alert, AppState, Linking } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { Stack, useRouter } from "expo-router";
+import { Ionicons } from "@expo/vector-icons";
 import * as Font from "expo-font";
+import { colors } from "../lib/theme";
 import {
   PlusJakartaSans_300Light,
   PlusJakartaSans_400Regular,
@@ -28,18 +31,104 @@ class ErrorBoundary extends React.Component<
   render() {
     if (this.state.hasError) {
       return (
-        <View style={{ flex: 1, backgroundColor: "#030712", padding: 40, justifyContent: "center" }}>
-          <Text style={{ color: "#ef4444", fontSize: 18, fontWeight: "bold", marginBottom: 12 }}>App Crash</Text>
-          <ScrollView>
-            <Text style={{ color: "#f0f2f5", fontSize: 13, lineHeight: 20 }}>{this.state.error?.message}</Text>
-            <Text style={{ color: "#6b7280", fontSize: 11, marginTop: 12, lineHeight: 16 }}>{this.state.error?.stack?.slice(0, 800)}</Text>
+        <SafeAreaView style={crashStyles.root}>
+          <ScrollView contentContainerStyle={crashStyles.content}>
+            <View style={crashStyles.iconWrap}>
+              <Ionicons name="warning-outline" size={36} color={colors.amber} />
+            </View>
+            <Text style={crashStyles.title} maxFontSizeMultiplier={1.4}>
+              Something went wrong
+            </Text>
+            <Text style={crashStyles.subtitle} maxFontSizeMultiplier={1.6}>
+              MileClear ran into an unexpected error. Your trips are
+              still saved — restart the app to continue.
+            </Text>
+            {this.state.error?.message ? (
+              <View style={crashStyles.detailsCard}>
+                <Text style={crashStyles.detailsLabel} maxFontSizeMultiplier={1.2}>
+                  DIAGNOSTIC
+                </Text>
+                <Text style={crashStyles.detailsMessage} maxFontSizeMultiplier={1.4}>
+                  {this.state.error.message}
+                </Text>
+              </View>
+            ) : null}
+            <Text style={crashStyles.support} maxFontSizeMultiplier={1.4}>
+              If this keeps happening, email support@mileclear.com.
+            </Text>
           </ScrollView>
-        </View>
+        </SafeAreaView>
       );
     }
     return this.props.children;
   }
 }
+
+const crashStyles = StyleSheet.create({
+  root: {
+    flex: 1,
+    backgroundColor: colors.bg,
+  },
+  content: {
+    flexGrow: 1,
+    padding: 24,
+    justifyContent: "center",
+  },
+  iconWrap: {
+    width: 72,
+    height: 72,
+    borderRadius: 24,
+    backgroundColor: colors.amberDim,
+    borderWidth: 1,
+    borderColor: "rgba(245, 166, 35, 0.25)",
+    justifyContent: "center",
+    alignItems: "center",
+    alignSelf: "center",
+    marginBottom: 20,
+  },
+  title: {
+    fontSize: 22,
+    fontFamily: "PlusJakartaSans_600SemiBold",
+    color: colors.text1,
+    textAlign: "center",
+    marginBottom: 8,
+  },
+  subtitle: {
+    fontSize: 15,
+    fontFamily: "PlusJakartaSans_400Regular",
+    color: colors.text2,
+    textAlign: "center",
+    lineHeight: 22,
+    marginBottom: 24,
+  },
+  detailsCard: {
+    backgroundColor: colors.surface,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: colors.subtleBorder,
+    padding: 16,
+    marginBottom: 24,
+  },
+  detailsLabel: {
+    fontSize: 11,
+    fontFamily: "PlusJakartaSans_700Bold",
+    color: colors.text3,
+    letterSpacing: 1,
+    marginBottom: 8,
+  },
+  detailsMessage: {
+    fontSize: 13,
+    fontFamily: "PlusJakartaSans_400Regular",
+    color: colors.text1,
+    lineHeight: 18,
+  },
+  support: {
+    fontSize: 12,
+    fontFamily: "PlusJakartaSans_400Regular",
+    color: colors.text3,
+    textAlign: "center",
+  },
+});
 
 import { AuthProvider, useAuth } from "../lib/auth/context";
 import { UserProvider, useUser } from "../lib/user/context";
@@ -47,7 +136,7 @@ import { ModeProvider } from "../lib/mode/context";
 import { SyncProvider } from "../lib/sync/context";
 import { HydrationOverlay } from "../components/HydrationOverlay";
 import { Skeleton } from "../components/Skeleton";
-import { colors, radii, spacing } from "../lib/theme";
+import { radii, spacing } from "../lib/theme";
 import "../lib/tracking/detection";
 import {
   setupNotificationResponseHandler,

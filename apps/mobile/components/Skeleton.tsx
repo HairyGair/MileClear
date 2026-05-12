@@ -16,6 +16,7 @@
 import { useEffect, useRef } from "react";
 import { Animated, View, StyleSheet, type ViewStyle, type DimensionValue } from "react-native";
 import { colors, radii, spacing } from "../lib/theme";
+import { useReducedMotion } from "../lib/accessibility";
 
 interface SkeletonProps {
   width?: DimensionValue;
@@ -25,9 +26,18 @@ interface SkeletonProps {
 }
 
 export function Skeleton({ width = "100%", height = 16, radius = radii.sm, style }: SkeletonProps) {
-  const opacity = useRef(new Animated.Value(0.35)).current;
+  const reducedMotion = useReducedMotion();
+  // Static mid-opacity when Reduce Motion is on. The flicker can be
+  // disorienting for vestibular-sensitive users; a static placeholder
+  // is still understood as "loading" because of the muted surface
+  // colour + accessibilityRole below.
+  const opacity = useRef(new Animated.Value(reducedMotion ? 0.45 : 0.35)).current;
 
   useEffect(() => {
+    if (reducedMotion) {
+      opacity.setValue(0.45);
+      return;
+    }
     const loop = Animated.loop(
       Animated.sequence([
         Animated.timing(opacity, { toValue: 0.6, duration: 700, useNativeDriver: true }),
@@ -36,7 +46,7 @@ export function Skeleton({ width = "100%", height = 16, radius = radii.sm, style
     );
     loop.start();
     return () => loop.stop();
-  }, [opacity]);
+  }, [opacity, reducedMotion]);
 
   return (
     <Animated.View

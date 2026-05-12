@@ -19,6 +19,7 @@
 
 import { useEffect, useRef } from "react";
 import { Animated } from "react-native";
+import { useReducedMotion } from "../lib/accessibility";
 
 interface FadeInStaggerProps {
   /** Position in the parent list. 0 = first, fades in immediately. */
@@ -37,10 +38,19 @@ export function FadeInStagger({
   delayPer = 50,
   maxStaggered = 8,
 }: FadeInStaggerProps) {
-  const opacity = useRef(new Animated.Value(0)).current;
-  const translateY = useRef(new Animated.Value(8)).current;
+  const reducedMotion = useReducedMotion();
+  // Skip the cascade entirely for Reduce Motion users — render cards
+  // at final opacity / position. The staggered fade-from-below is
+  // pure visual polish; the layout is identical with or without it.
+  const opacity = useRef(new Animated.Value(reducedMotion ? 1 : 0)).current;
+  const translateY = useRef(new Animated.Value(reducedMotion ? 0 : 8)).current;
 
   useEffect(() => {
+    if (reducedMotion) {
+      opacity.setValue(1);
+      translateY.setValue(0);
+      return;
+    }
     const delay = Math.min(index, maxStaggered) * delayPer;
     Animated.parallel([
       Animated.timing(opacity, {
@@ -60,7 +70,7 @@ export function FadeInStagger({
   // shouldn't restart if index changes (which would cause a re-shuffle
   // of the cards, animating again, which is jarring during scroll).
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [reducedMotion]);
 
   return (
     <Animated.View style={{ opacity, transform: [{ translateY }] }}>

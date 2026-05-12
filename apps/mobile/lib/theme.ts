@@ -14,10 +14,16 @@ export const colors = {
   amberDim: "rgba(245, 166, 35, 0.12)",
   amberGlow: "rgba(245, 166, 35, 0.35)",
 
-  // Text
+  // Text — contrast-audited 12 May 2026 against bg (#030712) and
+  // surface (#0a1120). All three pass WCAG AA at body-text weight:
+  //   text1  #f0f2f5  → 15.4:1 / 14.4:1   (display + primary copy)
+  //   text2  #8494a7  → 6.1:1  / 5.7:1    (secondary copy + labels)
+  //   text3  #94a3b8  → 8.3:1  / 7.8:1    (tertiary copy + hints)
+  // The previous text3 (#64748b) measured 4.23:1 on bg, sub-AA. Used
+  // in 276 sites — bumped to #94a3b8 for a single-line fix.
   text1: "#f0f2f5",
   text2: "#8494a7",
-  text3: "#64748b",
+  text3: "#94a3b8",
 
   // Semantic
   green: "#10b981",
@@ -61,6 +67,47 @@ export const fonts = {
   medium: "PlusJakartaSans_500Medium",
   semibold: "PlusJakartaSans_600SemiBold",
   bold: "PlusJakartaSans_700Bold",
+} as const;
+
+/**
+ * 6-step type scale. Existing screens use 15 distinct font sizes —
+ * any new code should pick from this scale. Migration of existing
+ * sites is intentionally not bundled into a single sweep (touches
+ * ~200 sites, unsafe without visual testing). New surfaces should
+ * reference these tokens; old surfaces can be migrated screen-by-
+ * screen as they get touched.
+ *
+ *   caption  12pt  — micro-labels, footnotes (12pt minimum for AA)
+ *   body     14pt  — secondary copy + form labels
+ *   bodyLg   16pt  — primary readable copy, button text
+ *   title    18pt  — card titles, screen sub-headers
+ *   heading  22pt  — screen headers
+ *   display  28pt  — hero stat values, modal headlines
+ */
+export const fontSizes = {
+  caption: 12,
+  body: 14,
+  bodyLg: 16,
+  title: 18,
+  heading: 22,
+  display: 28,
+} as const;
+
+/**
+ * Caps for the iOS Dynamic Type / Larger Text accessibility setting.
+ * Pass on every `<Text>` so user-scaled text doesn't overflow fixed-
+ * size containers (hero stat cards, badges, Live Activity views).
+ *
+ *   display    1.3  — large numbers must not break their card
+ *   heading    1.4  — section headers can grow but not double
+ *   body       1.6  — readable copy scales most freely
+ *   none       1.0  — never scale (badges, micro-icons text)
+ */
+export const fontScaleCap = {
+  display: 1.3,
+  heading: 1.4,
+  body: 1.6,
+  none: 1,
 } as const;
 
 // ── Shared Styles ───────────────────────────────────────────────────

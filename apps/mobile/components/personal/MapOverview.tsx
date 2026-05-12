@@ -14,6 +14,7 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import type { TripDetail } from "../../lib/api/trips";
 import { colors, fonts } from "../../lib/theme";
+import { useReducedMotion } from "../../lib/accessibility";
 
 // Local theme aliases — same pattern as the (tabs) screens.
 const AMBER = colors.amber;
@@ -132,9 +133,15 @@ export function MapOverview({ trips, title }: MapOverviewProps) {
     [allTripsWithCoords, timeFilter]
   );
 
+  const reducedMotion = useReducedMotion();
+
   const showSheet = useCallback(
     (index: number) => {
       setSelectedTrip(index);
+      if (reducedMotion) {
+        sheetAnim.setValue(0);
+        return;
+      }
       sheetAnim.setValue(250);
       Animated.spring(sheetAnim, {
         toValue: 0,
@@ -143,16 +150,21 @@ export function MapOverview({ trips, title }: MapOverviewProps) {
         friction: 12,
       }).start();
     },
-    [sheetAnim]
+    [sheetAnim, reducedMotion]
   );
 
   const dismissSheet = useCallback(() => {
+    if (reducedMotion) {
+      sheetAnim.setValue(250);
+      setSelectedTrip(null);
+      return;
+    }
     Animated.timing(sheetAnim, {
       toValue: 250,
       duration: 200,
       useNativeDriver: true,
     }).start(() => setSelectedTrip(null));
-  }, [sheetAnim]);
+  }, [sheetAnim, reducedMotion]);
 
   if (allTripsWithCoords.length === 0) {
     return (

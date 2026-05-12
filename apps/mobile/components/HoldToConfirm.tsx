@@ -24,6 +24,7 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import { colors, fonts, radii, spacing } from "../lib/theme";
 import { haptic } from "../lib/haptics";
+import { useScreenReader } from "../lib/accessibility";
 
 interface HoldToConfirmProps {
   /** Resting label, e.g. "End trip and save". */
@@ -53,6 +54,17 @@ export function HoldToConfirm({
   const fill = useRef(new Animated.Value(0)).current;
   const [holding, setHolding] = useState(false);
   const completedRef = useRef(false);
+  const screenReaderOn = useScreenReader();
+
+  // Shorten the hold when a screen reader is on — a sustained 1.5s
+  // press is a real motor-accessibility barrier (Switch Control,
+  // tremor, Parkinson's). 400ms is still long enough that an
+  // accidental tap won't fire, but reachable by users for whom a
+  // long hold is genuinely painful. The safety-delay property is
+  // preserved (still > a casual tap); the visual fill animation
+  // continues to convey progress, which is allowed under WCAG
+  // because it's a continuous progress indicator, not a flash.
+  const effectiveDuration = screenReaderOn ? 400 : durationMs;
 
   const handlePressIn = () => {
     if (loading) return;
@@ -61,7 +73,7 @@ export function HoldToConfirm({
     haptic("warning");
     Animated.timing(fill, {
       toValue: 1,
-      duration: durationMs,
+      duration: effectiveDuration,
       easing: Easing.out(Easing.quad),
       useNativeDriver: false,
     }).start(({ finished }) => {

@@ -22,6 +22,7 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import { getDatabase } from "../../lib/db/index";
 import { colors, fonts } from "../../lib/theme";
+import { useReducedMotion } from "../../lib/accessibility";
 
 // Local theme aliases — same pattern as the (tabs) screens.
 const AMBER = colors.amber;
@@ -126,6 +127,8 @@ export function DrivingGoals({ weekMiles }: DrivingGoalsProps) {
     };
   }, []);
 
+  const reducedMotion = useReducedMotion();
+
   // ── Animate progress bar whenever target or weekMiles changes ─────────────
   useEffect(() => {
     if (target === null || target <= 0) {
@@ -133,13 +136,17 @@ export function DrivingGoals({ weekMiles }: DrivingGoalsProps) {
       return;
     }
     const pct = Math.min(weekMiles / target, 1);
+    if (reducedMotion) {
+      progressAnim.setValue(pct);
+      return;
+    }
     Animated.spring(progressAnim, {
       toValue: pct,
       tension: 60,
       friction: 10,
       useNativeDriver: false, // width % not supported by native driver
     }).start();
-  }, [weekMiles, target, progressAnim]);
+  }, [weekMiles, target, progressAnim, reducedMotion]);
 
   // ── Persist goal to SQLite ────────────────────────────────────────────────
   async function saveGoal(miles: number) {

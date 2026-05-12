@@ -1,4 +1,4 @@
-import { View, Text, Switch, StyleSheet, Platform } from "react-native";
+import { View, Text, Switch, StyleSheet } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { colors, fonts, radii, spacing } from "../../lib/theme";
 
@@ -40,7 +40,6 @@ export function ToggleRow({
         trackColor={{ false: "#374151", true: colors.amber }}
         thumbColor="#fff"
         ios_backgroundColor="#374151"
-        style={Platform.OS === "ios" ? styles.iosToggle : undefined}
         accessibilityRole="switch"
         accessibilityLabel={label}
         accessibilityHint={hint}
@@ -82,12 +81,9 @@ const styles = StyleSheet.create({
     color: colors.text1,
   },
   hint: {
-    fontSize: 11,
+    fontSize: 13,
     fontFamily: fonts.regular,
-    color: colors.text3,
+    color: colors.text2,
     marginTop: 2,
-  },
-  iosToggle: {
-    transform: [{ scaleX: 0.85 }, { scaleY: 0.85 }],
   },
 });
