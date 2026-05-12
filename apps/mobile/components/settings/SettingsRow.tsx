@@ -1,6 +1,7 @@
 import { TouchableOpacity, View, Text, StyleSheet } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { colors, fonts, radii, spacing } from "../../lib/theme";
+import { ContextualHelp } from "../ContextualHelp";
 
 /**
  * Tappable row for settings sub-screens. Icon + label, optional hint,
@@ -8,6 +9,10 @@ import { colors, fonts, radii, spacing } from "../../lib/theme";
  *
  * `border` is auto-injected by SettingsGroup so callers usually don't
  * need to pass it. Pass `iconColor` to override the default amber.
+ *
+ * Pass `helpTopicId` to surface a (i) info button next to the label
+ * that opens a contextual help sheet. Tapping the (i) explicitly does
+ * NOT trigger the row's onPress (the help button captures the tap).
  */
 export function SettingsRow({
   icon,
@@ -20,6 +25,7 @@ export function SettingsRow({
   border,
   destructive,
   accessibilityHint,
+  helpTopicId,
 }: {
   icon: keyof typeof Ionicons.glyphMap;
   label: string;
@@ -31,6 +37,7 @@ export function SettingsRow({
   border?: boolean;
   destructive?: boolean;
   accessibilityHint?: string;
+  helpTopicId?: string;
 }) {
   const labelColor = destructive ? colors.red : colors.text1;
   const iconHue = iconColor ?? (destructive ? colors.red : colors.amber);
@@ -48,7 +55,12 @@ export function SettingsRow({
         <Ionicons name={icon} size={18} color={iconHue} accessible={false} />
       </View>
       <View style={styles.body}>
-        <Text style={[styles.label, { color: labelColor }]}>{label}</Text>
+        <View style={styles.labelRow}>
+          <Text style={[styles.label, { color: labelColor }]}>{label}</Text>
+          {helpTopicId ? (
+            <ContextualHelp topicId={helpTopicId} size={14} color={colors.text3} />
+          ) : null}
+        </View>
         {hint && <Text style={styles.hint}>{hint}</Text>}
       </View>
       {badge && (
@@ -88,6 +100,11 @@ const styles = StyleSheet.create({
   },
   body: {
     flex: 1,
+  },
+  labelRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
   },
   label: {
     fontSize: 15,

@@ -4,6 +4,7 @@ import { router } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { SettingsScreen } from "../components/settings/SettingsScreen";
 import { SettingsGroup } from "../components/settings/SettingsGroup";
+import { ContextualHelp } from "../components/ContextualHelp";
 import { fetchProfile, updateProfile } from "../lib/api/user";
 import { useUser } from "../lib/user/context";
 import { colors, fonts, radii, spacing } from "../lib/theme";
@@ -95,7 +96,10 @@ export default function AccountantSettings() {
   return (
     <SettingsScreen>
       <View style={styles.intro}>
-        <Text style={styles.introTitle}>Set aside the accountant fee too</Text>
+        <View style={styles.introTitleRow}>
+          <Text style={styles.introTitle}>Set aside the accountant fee too</Text>
+          <ContextualHelp topicId="accountant" size={16} />
+        </View>
         <Text style={styles.introBody}>
           Enter your accountant's annual fee and we'll spread it across your
           weekly set-aside on the Tax Readiness card. So when filing comes
@@ -169,11 +173,16 @@ const styles = StyleSheet.create({
     paddingTop: spacing.sm,
     paddingBottom: spacing.md,
   },
+  introTitleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginBottom: 6,
+  },
   introTitle: {
     fontSize: 16,
     fontFamily: fonts.semibold,
     color: colors.text1,
-    marginBottom: 6,
   },
   introBody: {
     fontSize: 13,

@@ -433,6 +433,7 @@ export default function WorkTaxSettings() {
             }
             badge={employerRate ? "Edit" : "Set"}
             onPress={handleEmployerRate}
+            helpTopicId="employer-mileage"
           />
         )}
         <SettingsRow
@@ -465,6 +466,7 @@ export default function WorkTaxSettings() {
           hint="Connect to HMRC and submit quarterly updates direct from MileClear"
           badge="Pro"
           onPress={() => router.push("/tax-mtd")}
+          helpTopicId="mtd-itsa"
         />
       </SettingsGroup>
 
@@ -474,6 +476,7 @@ export default function WorkTaxSettings() {
           label="Invoices"
           hint="Track who owes you for freelance work + what's been paid"
           onPress={() => router.push("/invoices")}
+          helpTopicId="earnings"
         />
         <SettingsRow
           icon="layers-outline"
@@ -481,12 +484,14 @@ export default function WorkTaxSettings() {
           hint={taxBasis === "cash" ? "Cash basis (recommended)" : "Accruals (count when invoiced)"}
           badge={taxBasis === "cash" ? "Cash" : "Accruals"}
           onPress={handleTaxBasis}
+          helpTopicId="cash-vs-accruals"
         />
         <SettingsRow
           icon="briefcase-outline"
           label="My Accountant"
           hint="Name, contact and annual fee — added to your weekly set-aside"
           onPress={() => router.push("/accountant" as never)}
+          helpTopicId="accountant"
         />
       </SettingsGroup>
 
@@ -502,6 +507,7 @@ export default function WorkTaxSettings() {
             }
             badge={payeTaxPaidPence != null ? "Edit" : "Set"}
             onPress={handlePayeTaxPaid}
+            helpTopicId="paye-offset"
           />
         </SettingsGroup>
       )}

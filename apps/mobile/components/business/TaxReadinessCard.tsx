@@ -14,6 +14,7 @@ import { formatPence, UK_TAX_2025_26 } from "@mileclear/shared";
 import type { TaxSnapshot } from "@mileclear/shared";
 import { DerivationPanel } from "../DerivationPanel";
 import { AcrossWindowsPanel } from "../AcrossWindowsPanel";
+import { ContextualHelp } from "../ContextualHelp";
 import { colors } from "../../lib/theme";
 
 // Show the higher-rate warning when YTD taxable profit is between £35k and
@@ -96,7 +97,10 @@ export function TaxReadinessCard() {
     <View style={s.card}>
       {/* Top row: tax year + filing deadline */}
       <View style={s.topRow}>
-        <Text style={s.taxYearLabel}>HMRC {snap.taxYear}</Text>
+        <View style={s.topRowLeft}>
+          <Text style={s.taxYearLabel}>HMRC {snap.taxYear}</Text>
+          <ContextualHelp topicId="tax-readiness" size={14} />
+        </View>
         <View style={[s.deadlinePill, { backgroundColor: tone.background }]}>
           <Ionicons name="time-outline" size={11} color={tone.color} />
           <Text style={[s.deadlinePillText, { color: tone.color }]}>{tone.label}</Text>
@@ -288,6 +292,11 @@ const s = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
     marginBottom: 10,
+  },
+  topRowLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
   },
   taxYearLabel: {
     color: TEXT_2,
