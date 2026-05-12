@@ -202,8 +202,41 @@ model RefreshToken {
   expiresAt DateTime
   createdAt DateTime @default(now())
 
+  // Token-family replay detection (12 May 2026, Laura Joyce bug).
+  // Refresh tokens are rotated on each /auth/refresh — but the network
+  // can drop the response mid-flight (iOS process suspension being the
+  // most common cause), leaving the client with the old token while
+  // the server has issued a new one. To handle this without false
+  // logouts, we keep old tokens linked to their successors:
+  //
+  //   familyId        — shared across every rotation chain stemming
+  //                     from a single login. Lets us revoke an entire
+  //                     family in one query when replay is detected.
+  //   rotatedToTokenId — set when a token has been rotated forward.
+  //                     Points to its immediate successor.
+  //   revokedAt       — set on every member of a family that's been
+  //                     killed (manual logout, family replay detected).
+  //
+  // Refresh logic:
+  //   - rotatedToTokenId IS NULL  → head of chain. Rotate normally.
+  //   - rotatedToTokenId set, successor IS still head → grace path.
+  //     Rotate the successor forward, return its replacement. The
+  //     stale presenter (legitimate client that missed an ack) gets
+  //     recovered seamlessly.
+  //   - rotatedToTokenId set, successor IS ALSO rotated → REPLAY.
+  //     The presenter is using a token >= 2 generations old, which
+  //     a legitimate client never does. Revoke the entire family.
+  //
+  // familyId migrated to NOT NULL with a backfill that uses the row's
+  // own id as the family for existing tokens (each pre-migration token
+  // becomes its own one-row family — equivalent to old behaviour).
+  familyId         String   @db.VarChar(191)
+  rotatedToTokenId String?  @db.VarChar(191)
+  revokedAt        DateTime?
+
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  @@index([familyId])
   @@map("refresh_tokens")
 }
 

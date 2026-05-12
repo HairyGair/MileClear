@@ -105,11 +105,73 @@ function hashToken(token: string): string {
   return crypto.createHash("sha256").update(token).digest("hex");
 }
 
-function storeRefreshToken(userId: string, token: string) {
+/**
+ * Persist a freshly issued refresh token.
+ *
+ * Two modes:
+ *   - opts.familyId omitted → starting a new login session. We mint a
+ *     new family UUID for this token; future rotations of it stay in
+ *     the same family so replay detection can revoke the whole chain
+ *     if it ever gets compromised.
+ *   - opts.familyId supplied → rotating from an existing token. The
+ *     new row joins the same family as its parent. The caller is
+ *     also expected to set the parent's rotatedToTokenId to this row's
+ *     id (done inside rotateRefreshToken below — direct callers must
+ *     handle it themselves).
+ *
+ * Returns the inserted row so the caller can wire up the rotation link.
+ */
+async function storeRefreshToken(
+  userId: string,
+  token: string,
+  opts: { familyId?: string } = {},
+) {
   const expiresAt = new Date();
   expiresAt.setDate(expiresAt.getDate() + REFRESH_TOKEN_EXPIRY_DAYS);
   return prisma.refreshToken.create({
-    data: { userId, token: hashToken(token), expiresAt },
+    data: {
+      userId,
+      token: hashToken(token),
+      expiresAt,
+      familyId: opts.familyId ?? crypto.randomUUID(),
+    },
+  });
+}
+
+/**
+ * Rotate an existing refresh token. The old token row is kept (NOT
+ * deleted) and its rotatedToTokenId is set to point at the new row.
+ * This preserves the chain that powers replay detection — see the
+ * RefreshToken model comment in schema.prisma for the full reasoning.
+ *
+ * Caller is responsible for generating the new plaintext token and
+ * checking the old token's validity before calling this.
+ */
+async function rotateRefreshToken(
+  userId: string,
+  newToken: string,
+  oldTokenId: string,
+  familyId: string,
+) {
+  const newRow = await storeRefreshToken(userId, newToken, { familyId });
+  await prisma.refreshToken.update({
+    where: { id: oldTokenId },
+    data: { rotatedToTokenId: newRow.id },
+  });
+  return newRow;
+}
+
+/**
+ * Mark every token in a family as revoked. Called when replay is
+ * detected (a stale token presented after its successor has itself
+ * been rotated forward) — assume compromise and force re-login. The
+ * legitimate client will hit a 401 on their next request and be
+ * bounced to the login screen with a clear "session expired" alert.
+ */
+async function revokeTokenFamily(familyId: string): Promise<void> {
+  await prisma.refreshToken.updateMany({
+    where: { familyId, revokedAt: null },
+    data: { revokedAt: new Date() },
   });
 }
 
@@ -266,33 +328,72 @@ export async function authRoutes(app: FastifyInstance) {
       where: { token: tokenHash },
     });
 
-    if (!stored || stored.expiresAt < new Date()) {
-      // Clean up expired token if it exists — use deleteMany to avoid
-      // race condition where another concurrent request already deleted it
-      if (stored) {
-        await prisma.refreshToken.deleteMany({ where: { id: stored.id } });
-      }
-      return reply.status(401).send({ error: "Invalid or expired refresh token" });
+    // 1. Token unknown — never issued, or already expired and reaped.
+    if (!stored) {
+      return reply.status(401).send({ error: "Invalid refresh token" });
     }
 
-    // Token rotation: delete old, issue new
-    // Use deleteMany to gracefully handle concurrent refresh requests
-    // where another request already consumed (deleted) this token.
-    const deleted = await prisma.refreshToken.deleteMany({ where: { id: stored.id } });
+    // 2. Token explicitly revoked — entire family was killed by a
+    //    replay-detection event (or admin revocation). Force re-login.
+    if (stored.revokedAt) {
+      return reply.status(401).send({ error: "Refresh token revoked" });
+    }
 
-    if (deleted.count === 0) {
-      // Another concurrent request already consumed this token
-      return reply.status(401).send({ error: "Refresh token already used" });
+    // 3. Token past its 30-day natural expiry.
+    if (stored.expiresAt < new Date()) {
+      return reply.status(401).send({ error: "Refresh token expired" });
+    }
+
+    let tokenToRotate: { id: string; userId: string; familyId: string };
+
+    if (stored.rotatedToTokenId == null) {
+      // 4a. Token is the chain head. Normal rotation.
+      tokenToRotate = stored;
+    } else {
+      // 4b. Token has already been rotated. Two sub-cases:
+      //
+      //     successor still head → GRACE PATH. The legitimate client
+      //       presented an old token because the rotation response
+      //       was dropped (iOS process suspension, network blip).
+      //       Rotate the successor forward and return the replacement.
+      //     successor itself already rotated → REPLAY. The presenter
+      //       is using a token two-or-more generations behind head,
+      //       which a legitimate client never does. Treat as
+      //       compromise: revoke the whole family.
+      const successor = await prisma.refreshToken.findUnique({
+        where: { id: stored.rotatedToTokenId },
+      });
+
+      if (!successor || successor.revokedAt) {
+        return reply.status(401).send({ error: "Refresh token revoked" });
+      }
+
+      if (successor.rotatedToTokenId != null) {
+        // Successor has also been rotated → presenter is stale by
+        // 2+ generations. Replay detection trigger.
+        await revokeTokenFamily(stored.familyId);
+        return reply
+          .status(401)
+          .send({ error: "Refresh token replay detected — session terminated" });
+      }
+
+      // Successor still head — grace recovery.
+      tokenToRotate = successor;
     }
 
     const user = await prisma.user.findUnique({
-      where: { id: stored.userId },
+      where: { id: tokenToRotate.userId },
       select: { isAdmin: true },
     });
 
-    const newAccessToken = generateAccessToken(stored.userId, user?.isAdmin ?? false);
-    const newRefreshToken = generateRefreshToken(stored.userId);
-    await storeRefreshToken(stored.userId, newRefreshToken);
+    const newAccessToken = generateAccessToken(tokenToRotate.userId, user?.isAdmin ?? false);
+    const newRefreshToken = generateRefreshToken(tokenToRotate.userId);
+    await rotateRefreshToken(
+      tokenToRotate.userId,
+      newRefreshToken,
+      tokenToRotate.id,
+      tokenToRotate.familyId,
+    );
 
     return reply.status(200).send({
       data: { accessToken: newAccessToken, refreshToken: newRefreshToken },
@@ -308,9 +409,21 @@ export async function authRoutes(app: FastifyInstance) {
 
     const { refreshToken } = parsed.data;
 
-    await prisma.refreshToken.deleteMany({
-      where: { token: hashToken(refreshToken), userId: request.userId! },
+    // Find the presented token so we can delete every member of its
+    // family — not just the row whose hash was sent. Under the
+    // family/rotation model the user's session is the whole chain
+    // (login token + every rotation since), and a logout should
+    // close all of them. Leaving rotated-from ancestors behind would
+    // mean a stolen old token could still hit the grace-recovery
+    // path until natural expiry. Scoped to the requesting user.
+    const stored = await prisma.refreshToken.findUnique({
+      where: { token: hashToken(refreshToken) },
     });
+    if (stored && stored.userId === request.userId!) {
+      await prisma.refreshToken.deleteMany({
+        where: { familyId: stored.familyId, userId: request.userId! },
+      });
+    }
 
     return reply.status(200).send({ message: "Logged out" });
   });
@@ -519,6 +632,7 @@ export async function authRoutes(app: FastifyInstance) {
             userId,
             token: hashToken(newRefreshToken),
             expiresAt: new Date(Date.now() + REFRESH_TOKEN_EXPIRY_DAYS * 24 * 60 * 60 * 1000),
+            familyId: crypto.randomUUID(),
           },
         }),
       ]);
