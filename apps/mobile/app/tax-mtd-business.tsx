@@ -129,6 +129,9 @@ export default function TaxMtdBusinessScreen() {
           style={[styles.primaryButton, submitting && styles.buttonDisabled]}
           onPress={onConfirm}
           disabled={submitting}
+          accessibilityRole="button"
+          accessibilityLabel="This is the right trade"
+          accessibilityState={{ disabled: submitting }}
         >
           {submitting ? (
             <ActivityIndicator color="#000" />

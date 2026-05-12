@@ -121,6 +121,8 @@ export default function TaxMtdSubmittedScreen() {
       <TouchableOpacity
         style={styles.doneButton}
         onPress={() => router.replace("/tax-mtd" as never)}
+        accessibilityRole="button"
+        accessibilityLabel="Done"
       >
         <Text style={styles.doneButtonText}>Done</Text>
       </TouchableOpacity>

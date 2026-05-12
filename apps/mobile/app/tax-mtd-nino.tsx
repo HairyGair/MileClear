@@ -104,6 +104,9 @@ export default function TaxMtdNinoScreen() {
             style={[styles.primaryButton, (!isValid || submitting) && styles.buttonDisabled]}
             onPress={onSubmit}
             disabled={!isValid || submitting}
+            accessibilityRole="button"
+            accessibilityLabel="Save NINO"
+            accessibilityState={{ disabled: !isValid || submitting }}
           >
             {submitting ? (
               <ActivityIndicator color="#000" />

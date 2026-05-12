@@ -50,7 +50,7 @@ function Bold({ children }: { children: React.ReactNode }) {
 
 function ExternalLink({ url, label }: { url: string; label: string }) {
   return (
-    <TouchableOpacity onPress={() => Linking.openURL(url)} style={s.link}>
+    <TouchableOpacity onPress={() => Linking.openURL(url)} style={s.link} accessibilityRole="link" accessibilityLabel={label}>
       <Ionicons name="open-outline" size={13} color={AMBER} />
       <Text style={s.linkText}>{label}</Text>
     </TouchableOpacity>
@@ -296,7 +296,7 @@ export default function FirstTaxReturnScreen() {
         </Text>
       </View>
 
-      <TouchableOpacity onPress={() => router.back()} style={s.cta}>
+      <TouchableOpacity onPress={() => router.back()} style={s.cta} accessibilityRole="button" accessibilityLabel="Got it">
         <Text style={s.ctaText}>Got it</Text>
       </TouchableOpacity>
     </ScrollView>

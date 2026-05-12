@@ -273,6 +273,9 @@ export default function TaxMtdPreviewScreen() {
           style={[styles.primaryButton, submitting && styles.buttonDisabled]}
           onPress={onSubmit}
           disabled={submitting}
+          accessibilityRole="button"
+          accessibilityLabel="Submit to HMRC"
+          accessibilityState={{ disabled: submitting }}
         >
           {submitting ? (
             <ActivityIndicator color="#000" />

@@ -108,6 +108,9 @@ export default function TaxMtdHistoryScreen() {
             key={y}
             style={[styles.tab, selectedYear === y && styles.tabActive]}
             onPress={() => setSelectedYear(y)}
+            accessibilityRole="button"
+            accessibilityLabel={`Tax year ${y}`}
+            accessibilityState={{ selected: selectedYear === y }}
           >
             <Text style={[styles.tabLabel, selectedYear === y && styles.tabLabelActive]}>{y}</Text>
           </TouchableOpacity>

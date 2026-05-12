@@ -90,6 +90,9 @@ export default function AdminDashboardScreen() {
         style={s.navCard}
         onPress={() => router.push("/admin-users")}
         activeOpacity={0.7}
+        accessibilityRole="button"
+        accessibilityLabel="User Management"
+        accessibilityHint="Opens the user management screen"
       >
         <View style={s.navCardLeft}>
           <Ionicons name="people-outline" size={22} color={AMBER} />
@@ -102,6 +105,9 @@ export default function AdminDashboardScreen() {
         style={s.navCard}
         onPress={() => router.push("/admin-health")}
         activeOpacity={0.7}
+        accessibilityRole="button"
+        accessibilityLabel="System Health"
+        accessibilityHint="Opens the system health screen"
       >
         <View style={s.navCardLeft}>
           <Ionicons name="pulse-outline" size={22} color={AMBER} />
@@ -114,6 +120,9 @@ export default function AdminDashboardScreen() {
         style={s.navCard}
         onPress={() => router.push("/admin-feedback")}
         activeOpacity={0.7}
+        accessibilityRole="button"
+        accessibilityLabel="Community Feedback"
+        accessibilityHint="Opens the community feedback screen"
       >
         <View style={s.navCardLeft}>
           <Ionicons name="chatbox-ellipses-outline" size={22} color={AMBER} />
@@ -126,6 +135,9 @@ export default function AdminDashboardScreen() {
         style={s.navCard}
         onPress={() => router.push("/admin-revenue")}
         activeOpacity={0.7}
+        accessibilityRole="button"
+        accessibilityLabel="Revenue"
+        accessibilityHint="Opens the revenue screen"
       >
         <View style={s.navCardLeft}>
           <Ionicons name="cash-outline" size={22} color={AMBER} />
@@ -138,6 +150,9 @@ export default function AdminDashboardScreen() {
         style={s.navCard}
         onPress={() => router.push("/admin-engagement")}
         activeOpacity={0.7}
+        accessibilityRole="button"
+        accessibilityLabel="Engagement"
+        accessibilityHint="Opens the engagement screen"
       >
         <View style={s.navCardLeft}>
           <Ionicons name="trending-up-outline" size={22} color={AMBER} />
@@ -150,6 +165,9 @@ export default function AdminDashboardScreen() {
         style={s.navCard}
         onPress={() => router.push("/admin-auto-trips")}
         activeOpacity={0.7}
+        accessibilityRole="button"
+        accessibilityLabel="Auto-trip Health"
+        accessibilityHint="Opens the auto-trip health screen"
       >
         <View style={s.navCardLeft}>
           <Ionicons name="car-outline" size={22} color={AMBER} />
@@ -162,6 +180,9 @@ export default function AdminDashboardScreen() {
         style={s.navCard}
         onPress={() => router.push("/admin-push")}
         activeOpacity={0.7}
+        accessibilityRole="button"
+        accessibilityLabel="Push Notifications"
+        accessibilityHint="Opens the push notifications screen"
       >
         <View style={s.navCardLeft}>
           <Ionicons name="notifications-outline" size={22} color={AMBER} />
@@ -174,6 +195,9 @@ export default function AdminDashboardScreen() {
         style={s.navCard}
         onPress={() => router.push("/admin-email")}
         activeOpacity={0.7}
+        accessibilityRole="button"
+        accessibilityLabel="Email Campaigns"
+        accessibilityHint="Opens the email campaigns screen"
       >
         <View style={s.navCardLeft}>
           <Ionicons name="mail-outline" size={22} color={AMBER} />

@@ -284,13 +284,17 @@ function Header({
     <View style={styles.header}>
       <View style={styles.headerRow}>
         <View style={styles.headerLeft}>
-          <View style={[styles.statusDot, { backgroundColor: isConnected ? GREEN : TEXT_3 }]} />
+          <View
+            style={[styles.statusDot, { backgroundColor: isConnected ? GREEN : TEXT_3 }]}
+            accessibilityLabel={isConnected ? "Connected" : "Not connected"}
+            accessible={true}
+          />
           <Text style={styles.headerTitle}>
             {isConnected ? "Connected to HMRC" : "Not connected"}
           </Text>
         </View>
         {onDisconnect && (
-          <TouchableOpacity onPress={onDisconnect} hitSlop={8}>
+          <TouchableOpacity onPress={onDisconnect} hitSlop={8} accessibilityRole="button" accessibilityLabel="Disconnect from HMRC">
             <Text style={styles.disconnectLink}>Disconnect</Text>
           </TouchableOpacity>
         )}
@@ -322,7 +326,7 @@ function ConnectStep({ onConnect }: { onConnect: () => void }) {
           "Cross-check HMRC's calc against your Tax Readiness estimate",
         ]}
       />
-      <TouchableOpacity style={styles.primaryButton} onPress={onConnect}>
+      <TouchableOpacity style={styles.primaryButton} onPress={onConnect} accessibilityRole="button" accessibilityLabel="Continue to HMRC">
         <Text style={styles.primaryButtonText}>Continue to HMRC</Text>
         <Ionicons name="arrow-forward" size={18} color="#000" />
       </TouchableOpacity>
@@ -348,6 +352,8 @@ function NinoStep({ onDone }: { onDone: () => void }) {
       <TouchableOpacity
         style={styles.primaryButton}
         onPress={() => router.push("/tax-mtd-nino" as never)}
+        accessibilityRole="button"
+        accessibilityLabel="Enter NINO"
       >
         <Text style={styles.primaryButtonText}>Enter NINO</Text>
         <Ionicons name="arrow-forward" size={18} color="#000" />
@@ -397,6 +403,9 @@ function BusinessStep({
               params: { businessId: b.businessId },
             })
           }
+          accessibilityRole="button"
+          accessibilityLabel={`Select trade: ${b.tradingName ?? "Self-Employment"}`}
+          accessibilityHint="Opens confirmation screen for this trade"
         >
           <View style={{ flex: 1 }}>
             <Text style={styles.businessName}>{b.tradingName ?? "Self-Employment"}</Text>
@@ -427,7 +436,7 @@ function ReadyStep({ obligations }: { obligations: HmrcObligation[] }) {
           No open quarterly obligations from HMRC right now. We'll show your next
           period here as soon as it's available.
         </Text>
-        <Text style={styles.helperLink} onPress={() => router.push("/tax-mtd-history" as never)}>
+        <Text style={styles.helperLink} onPress={() => router.push("/tax-mtd-history" as never)} accessibilityRole="button" accessibilityLabel="View submission history">
           View submission history →
         </Text>
       </View>
@@ -440,7 +449,7 @@ function ReadyStep({ obligations }: { obligations: HmrcObligation[] }) {
       {sorted.map((o, idx) => (
         <ObligationCard key={`${o.start}-${o.end}-${idx}`} obligation={o} />
       ))}
-      <Text style={[styles.helperLink, { marginTop: 8, textAlign: "center" }]} onPress={() => router.push("/tax-mtd-history" as never)}>
+      <Text style={[styles.helperLink, { marginTop: 8, textAlign: "center" }]} onPress={() => router.push("/tax-mtd-history" as never)} accessibilityRole="button" accessibilityLabel="View submission history">
         View submission history →
       </Text>
     </View>
@@ -463,6 +472,9 @@ function ObligationCard({ obligation }: { obligation: HmrcObligation }) {
           params: { from: obligation.start, to: obligation.end },
         })
       }
+      accessibilityRole="button"
+      accessibilityLabel={`Submit quarter: ${formatPeriodLabel(obligation.start, obligation.end)}`}
+      accessibilityHint="Opens preview screen to review and submit this quarterly update"
     >
       <View style={{ flex: 1 }}>
         <Text style={styles.obligationDates}>
