@@ -37,10 +37,10 @@ export default function HelpSettings() {
     <SettingsScreen>
       <SettingsGroup>
         <SettingsRow
-          icon="star-outline"
-          label="Rate MileClear"
-          hint="Open the App Store review screen"
-          onPress={handleRate}
+          icon="play-circle-outline"
+          label="Help & Tutorials"
+          hint="Quick start tour + categorised FAQ"
+          onPress={() => router.push("/help" as never)}
         />
         <SettingsRow
           icon="chatbubble-ellipses-outline"
@@ -55,9 +55,15 @@ export default function HelpSettings() {
           onPress={() => Linking.openURL("mailto:support@mileclear.com?subject=MileClear%20Support")}
         />
         <SettingsRow
-          icon="help-circle-outline"
-          label="FAQ & Help"
-          hint="Common questions and tax-time tips"
+          icon="star-outline"
+          label="Rate MileClear"
+          hint="Open the App Store review screen"
+          onPress={handleRate}
+        />
+        <SettingsRow
+          icon="globe-outline"
+          label="mileclear.com/support"
+          hint="The full online support knowledge base"
           onPress={() => WebBrowser.openBrowserAsync("https://mileclear.com/support")}
         />
       </SettingsGroup>

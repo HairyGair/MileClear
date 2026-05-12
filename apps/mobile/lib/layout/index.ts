@@ -264,6 +264,11 @@ export const SECTION_REGISTRY: Record<ScreenKey, SectionDef[]> = {
       icon: "time-outline",
     },
     {
+      key: "menu_help",
+      label: "Help & Tutorials",
+      icon: "help-circle-outline",
+    },
+    {
       key: "menu_logout",
       label: "Log out",
       icon: "log-out-outline",

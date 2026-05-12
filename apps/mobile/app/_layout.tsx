@@ -153,6 +153,7 @@ import { uploadDiagnosticDump } from "../lib/api/diagnostics";
 import { isIapAvailable, initializeIap, setupPurchaseListeners, endIapConnection } from "../lib/iap/index";
 import { validateApplePurchase } from "../lib/api/billing";
 import { PaywallProvider } from "../components/paywall";
+import { QuickStartModal } from "../components/QuickStartModal";
 
 const HEADER_STYLE = { backgroundColor: "#030712" } as const;
 const HEADER_TINT = "#f0f2f5";
@@ -164,6 +165,7 @@ function RootNavigator() {
 
   const [onboardingChecked, setOnboardingChecked] = useState(false);
   const [onboardingComplete, setOnboardingComplete] = useState(false);
+  const [quickStartVisible, setQuickStartVisible] = useState(false);
 
   useEffect(() => {
     if (!isAuthenticated) {
@@ -184,6 +186,19 @@ function RootNavigator() {
           setOnboardingComplete(true);
         }
         setOnboardingChecked(true);
+
+        // Quick Start tour — fires once after the user has signed in
+        // and any first-run vehicle onboarding has completed. Gated by
+        // a separate SQLite flag so the help screen can replay it on
+        // demand (the replay path clears this flag).
+        const qsRow = await db.getFirstAsync<{ value: string }>(
+          "SELECT value FROM tracking_state WHERE key = 'quick_start_shown'"
+        );
+        if (qsRow?.value !== "1") {
+          // Small delay so the dashboard mount finishes rendering
+          // before we slide the modal up over it.
+          setTimeout(() => setQuickStartVisible(true), 600);
+        }
       })
       .catch(() => {
         setOnboardingComplete(false);
@@ -529,6 +544,7 @@ function RootNavigator() {
         <Stack.Screen name="invoices" options={{ headerShown: true, title: "Invoices" }} />
         <Stack.Screen name="invoice-form" options={{ headerShown: true, title: "Add invoice" }} />
         <Stack.Screen name="accountant" options={{ headerShown: true, title: "My Accountant" }} />
+        <Stack.Screen name="help" options={{ headerShown: true, title: "Help & Tutorials" }} />
         {/* Settings hub + sub-screens. Each is a small focused screen so
             individual settings are findable. Profile tab links into here. */}
         <Stack.Screen name="settings/index" options={{ headerShown: true, title: "Settings" }} />
@@ -541,6 +557,10 @@ function RootNavigator() {
         <Stack.Screen name="settings/help" options={{ headerShown: true, title: "Help & Feedback" }} />
         <Stack.Screen name="settings/legal" options={{ headerShown: true, title: "Legal" }} />
       </Stack>
+      <QuickStartModal
+        visible={quickStartVisible}
+        onClose={() => setQuickStartVisible(false)}
+      />
       {/* Loading overlay - covers Stack while auth/onboarding resolves.
           Mirrors the dashboard's own skeleton layout so the transition from
           auth-loading -> dashboard-loading -> dashboard is visually

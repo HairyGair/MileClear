@@ -52,6 +52,7 @@ const MENU_ITEMS: Record<string, MenuItem> = {
   menu_exports: { key: "menu_exports", label: "Tax Exports", route: "/exports", icon: "download-outline", badge: "PRO" },
   menu_suggestions: { key: "menu_suggestions", label: "Suggestions", route: "/feedback", icon: "bulb-outline" },
   menu_schedule: { key: "menu_schedule", label: "Work Schedule", route: "/work-schedule", icon: "time-outline", badge: "PRO" },
+  menu_help: { key: "menu_help", label: "Help & Tutorials", route: "/help", icon: "help-circle-outline" },
 };
 
 // Group definitions — items render in layout-pref order within each group
@@ -63,6 +64,7 @@ const GROUPS = [
   // to navigate three layers deep to tweak their tax setup.
   { id: "work", label: "WORK & TAX", keys: ["menu_work_tax", "menu_invoices", "menu_schedule"] },
   { id: "tools", label: "TOOLS", keys: ["menu_insights", "menu_analytics", "menu_exports", "menu_suggestions"] },
+  { id: "support", label: "SUPPORT", keys: ["menu_help"] },
 ];
 
 // ── Component ──────────────────────────────────────────────────────
