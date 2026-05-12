@@ -17,7 +17,7 @@ import {
 import { Button } from "../../components/Button";
 import { Skeleton } from "../../components/Skeleton";
 import { FadeInStagger } from "../../components/FadeInStagger";
-import { colors, fonts, radii, spacing } from "../../lib/theme";
+import { colors, fonts, fontScaleCap, radii, spacing } from "../../lib/theme";
 import { ActiveRecordingBanner } from "../../components/ActiveRecordingBanner";
 import { useFocusEffect, useRouter } from "expo-router";
 import { fetchVehicles } from "../../lib/api/vehicles";
@@ -72,6 +72,7 @@ import { SmartInsightCard } from "../../components/SmartInsightCard";
 import { usePaywall } from "../../components/paywall";
 import * as Location from "expo-location";
 import { requestOrFixBackgroundLocation } from "../../lib/permissions/location";
+import { haptic } from "../../lib/haptics";
 
 function formatElapsed(seconds: number): string {
   const h = Math.floor(seconds / 3600);
@@ -289,6 +290,13 @@ export default function DashboardScreen() {
     }
   }, [stats?.currentStreakDays]);
 
+  // Fire achievement-unlock haptic when the scorecard becomes visible with new achievements
+  useEffect(() => {
+    if (showScorecard && scorecard && scorecard.newAchievements.length > 0) {
+      haptic("success");
+    }
+  }, [showScorecard]);
+
   // Trip segment bottom sheet
   const [tripTapInfo, setTripTapInfo] = useState<TripTapInfo | null>(null);
   const tripSheetAnim = useRef(new Animated.Value(200)).current;
@@ -478,6 +486,7 @@ export default function DashboardScreen() {
         selectedVehicleId ? { vehicleId: selectedVehicleId } : undefined
       );
       setActiveShift(res.data);
+      haptic("success");
 
       // Start Live Activity (Dynamic Island)
       const vehicleName = selectedVehicle ? `${selectedVehicle.make} ${selectedVehicle.model}` : "";
@@ -527,6 +536,7 @@ export default function DashboardScreen() {
             // 3. End shift (offline-aware — syncs when online)
             const res = await syncEndShift(activeShift.id);
             setActiveShift(null);
+            haptic("success");
             if (res) {
               const resAny = res as any;
               if (resAny.scorecard) {
@@ -807,9 +817,14 @@ export default function DashboardScreen() {
         <Text style={s.greeting}>Shift Active</Text>
 
         <View style={s.timerWrap}>
-          <View style={s.liveIndicator}>
-            <View style={s.liveDot} />
-            <Text style={s.liveText}>TRACKING</Text>
+          <View
+            style={s.liveIndicator}
+            accessible={true}
+            accessibilityLabel="Tracking shift, live"
+            accessibilityRole="text"
+          >
+            <View style={s.liveDot} accessible={false} />
+            <Text style={s.liveText} accessible={false}>TRACKING</Text>
           </View>
           <Text style={s.timer}>{formatElapsed(elapsed)}</Text>
           {activeShift.vehicle && (
@@ -830,19 +845,19 @@ export default function DashboardScreen() {
 
         <View style={s.statsRow}>
           <View style={[s.statCard, s.statCardLive]}>
-            <Text style={s.statNumLive}>
+            <Text style={s.statNumLive} maxFontSizeMultiplier={fontScaleCap.display}>
               {liveDistance.toFixed(1)}
             </Text>
             <Text style={s.statUnit}>mi this shift</Text>
           </View>
           <View style={s.statCard}>
-            <Text style={s.statNum}>
+            <Text style={s.statNum} maxFontSizeMultiplier={fontScaleCap.display}>
               {stats ? formatMilesShort(stats.todayMiles) : "0"}
             </Text>
             <Text style={s.statUnit}>mi today</Text>
           </View>
           <View style={s.statCard}>
-            <Text style={s.statNum}>
+            <Text style={s.statNum} maxFontSizeMultiplier={fontScaleCap.display}>
               {stats ? formatMilesShort(stats.weekMiles) : "0"}
             </Text>
             <Text style={s.statUnit}>mi this week</Text>
@@ -1016,7 +1031,7 @@ export default function DashboardScreen() {
                   <View style={s.heroTopRow}>
                     <Text style={s.heroLabel}>Welcome {"·"} Day 1</Text>
                   </View>
-                  <Text style={s.heroValue}>{"£"}0.00</Text>
+                  <Text style={s.heroValue} maxFontSizeMultiplier={fontScaleCap.display}>{"£"}0.00</Text>
                   <Text style={s.heroSavedLabel}>tax saved so far</Text>
                   <Text style={s.heroEmptyBody}>
                     Tap Start Trip the next time you drive. Your HMRC deduction starts adding up from your first business mile.
@@ -1040,7 +1055,7 @@ export default function DashboardScreen() {
                   <View style={s.heroTopRow}>
                     <Text style={s.heroLabel}>Tax Deduction {"·"} {stats.taxYear}</Text>
                   </View>
-                  <Text style={s.heroValue}>{"£"}0.00</Text>
+                  <Text style={s.heroValue} maxFontSizeMultiplier={fontScaleCap.display}>{"£"}0.00</Text>
                   <Text style={s.heroSavedLabel}>no business trips yet</Text>
                   <Text style={s.heroEmptyBody}>
                     You have {stats.totalTrips} trip{stats.totalTrips === 1 ? "" : "s"} tracked but none are marked Business. Tap any work-related trip in the Trips tab and switch its classification to start your HMRC deduction.
@@ -1058,7 +1073,7 @@ export default function DashboardScreen() {
                     </View>
                   )}
                 </View>
-                <Text style={s.heroValue}>
+                <Text style={s.heroValue} maxFontSizeMultiplier={fontScaleCap.display}>
                   {formatPence(stats.deductionPence)}
                 </Text>
                 {stats.deductionPence > 0 && (

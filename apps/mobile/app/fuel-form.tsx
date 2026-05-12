@@ -27,6 +27,7 @@ import type { Vehicle, FuelStation } from "@mileclear/shared";
 import { DateTimePickerField } from "../components/DateTimePickerField";
 import { Button } from "../components/Button";
 import { colors, fonts } from "../lib/theme";
+import { haptic } from "../lib/haptics";
 
 // Local theme aliases — same pattern as the (tabs) screens.
 const AMBER = colors.amber;
@@ -256,6 +257,7 @@ export default function FuelFormScreen() {
           loggedAt: loggedAt ? loggedAt.toISOString() : undefined,
         });
       }
+      haptic("success");
       router.back();
     } catch (err: unknown) {
       showSupportAlert("Save Failed", err instanceof Error ? err.message : "Failed to save fuel log.");

@@ -16,6 +16,7 @@ import { getDatabase } from "../lib/db/index";
 import { useUser } from "../lib/user/context";
 import { registerGeofences } from "../lib/geofencing/index";
 import { Button } from "../components/Button";
+import { EmptyState } from "../components/EmptyState";
 import type { SavedLocation, LocationType } from "@mileclear/shared";
 import { MAX_FREE_SAVED_LOCATIONS } from "@mileclear/shared";
 import { colors, fonts } from "../lib/theme";
@@ -247,15 +248,11 @@ export default function SavedLocationsScreen() {
         }
         ListEmptyComponent={
           !loading ? (
-            <View style={styles.emptyState}>
-              <View style={styles.emptyIcon}>
-                <Ionicons name="location-outline" size={40} color={TEXT_3} />
-              </View>
-              <Text style={styles.emptyTitle}>Save the places you drive from</Text>
-              <Text style={styles.emptyText}>
-                Pin home, work, or your depot. Trips between saved locations auto-classify, and the geofence triggers your live recording for free.
-              </Text>
-            </View>
+            <EmptyState
+              icon="location-outline"
+              title="Save the places you drive from"
+              description="Pin home, work, or your depot. Trips between saved locations auto-classify, and the geofence triggers your live recording for free."
+            />
           ) : null
         }
         ListFooterComponent={
@@ -355,36 +352,6 @@ const styles = StyleSheet.create({
   deleteBtn: {
     padding: 10,
     margin: -8,
-  },
-  // Empty state
-  emptyState: {
-    alignItems: "center",
-    paddingVertical: 60,
-    paddingHorizontal: 24,
-  },
-  emptyIcon: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
-    backgroundColor: CARD_BG,
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.06)",
-    justifyContent: "center",
-    alignItems: "center",
-    marginBottom: 16,
-  },
-  emptyTitle: {
-    fontSize: 17,
-    fontFamily: fonts.semibold,
-    color: TEXT_2,
-    marginBottom: 8,
-  },
-  emptyText: {
-    fontSize: 14,
-    fontFamily: fonts.regular,
-    color: TEXT_3,
-    textAlign: "center",
-    lineHeight: 20,
   },
   // Footer
   footer: {

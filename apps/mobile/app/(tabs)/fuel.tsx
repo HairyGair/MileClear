@@ -1,5 +1,4 @@
 import { useCallback, useState } from "react";
-import { Ionicons } from "@expo/vector-icons";
 import {
   View,
   Text,
@@ -18,6 +17,7 @@ import NearbyPrices from "../../components/fuel/NearbyPrices";
 import { FUEL_BRANDS, formatPence } from "@mileclear/shared";
 import type { FuelLogWithVehicle } from "@mileclear/shared";
 import { Skeleton } from "../../components/Skeleton";
+import { EmptyState } from "../../components/EmptyState";
 import { colors, fonts, radii } from "../../lib/theme";
 
 type FuelLogItem = FuelLogWithVehicle & { _isLocal?: boolean };
@@ -285,19 +285,11 @@ export default function FuelScreen() {
         }
         ListEmptyComponent={
           !loading ? (
-            <View
-              style={styles.emptyState}
-              accessibilityRole="text"
-              accessibilityLiveRegion="polite"
-            >
-              <View style={styles.emptyIcon}>
-                <Ionicons name="water-outline" size={40} color={TEXT_3} accessible={false} />
-              </View>
-              <Text style={styles.emptyTitle}>Log your first fill-up</Text>
-              <Text style={styles.emptyText}>
-                A few entries unlocks running cost-per-mile, MPG tracking, and which station saves you the most.
-              </Text>
-            </View>
+            <EmptyState
+              icon="water-outline"
+              title="Log your first fill-up"
+              description="A few entries unlocks running cost-per-mile, MPG tracking, and which station saves you the most."
+            />
           ) : null
         }
         ListFooterComponent={
@@ -483,34 +475,6 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontFamily: fonts.semibold,
     color: "#fef3c7",
-  },
-  // Empty state
-  emptyState: {
-    alignItems: "center",
-    paddingVertical: 40,
-  },
-  emptyIcon: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
-    backgroundColor: CARD_BG,
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.06)",
-    justifyContent: "center",
-    alignItems: "center",
-    marginBottom: 16,
-  },
-  emptyTitle: {
-    fontSize: 17,
-    fontFamily: fonts.semibold,
-    color: TEXT_2,
-    marginBottom: 4,
-  },
-  emptyText: {
-    fontSize: 14,
-    fontFamily: fonts.regular,
-    color: TEXT_3,
-    textAlign: "center",
   },
   // Footer
   footer: {

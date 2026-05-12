@@ -23,6 +23,7 @@ import {
 import { isApiError } from "../lib/api";
 import { usePaywall } from "../components/paywall";
 import { colors, fonts } from "../lib/theme";
+import { haptic } from "../lib/haptics";
 
 const AMBER = colors.amber;
 const CARD_BG = colors.surface;
@@ -120,6 +121,7 @@ export default function InvoiceFormScreen() {
       } else {
         await createInvoice(payload);
       }
+      haptic("success");
       router.back();
     } catch (err) {
       // Free-tier monthly cap (3 invoices/month) returns PREMIUM_REQUIRED.

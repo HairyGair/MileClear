@@ -25,6 +25,7 @@ import { DateTimePickerField } from "../components/DateTimePickerField";
 import { Button } from "../components/Button";
 import { isOcrAvailable } from "../lib/ocr";
 import { colors, fonts } from "../lib/theme";
+import { haptic } from "../lib/haptics";
 
 // Local theme aliases — same pattern as the (tabs) screens.
 const AMBER = colors.amber;
@@ -127,6 +128,7 @@ export default function EarningFormScreen() {
           periodEnd: periodEnd.toISOString(),
         });
       }
+      haptic("success");
       router.back();
     } catch (err: unknown) {
       showSupportAlert("Save Failed", err instanceof Error ? err.message : "Failed to save earning.");

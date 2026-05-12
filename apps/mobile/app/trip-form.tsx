@@ -62,6 +62,7 @@ import { getLiveActivityContext } from "../lib/liveActivity/context";
 import { fetchCommunityInsights } from "../lib/api/communityInsights";
 import * as Notifications from "expo-notifications";
 import { colors, fonts } from "../lib/theme";
+import { haptic } from "../lib/haptics";
 
 /**
  * One-time contextual notification permission ask for users who skipped onboarding.
@@ -1600,6 +1601,7 @@ export default function TripFormScreen() {
           ...(coords && { coordinates: coords }),
         };
         const tripResult = await syncCreateTrip(data);
+        haptic("success");
         createdTripId = tripResult?.data?.id ?? null;
         // Server returns the learned suggestion + autoApplied flag in
         // the create response when pattern-learning auto-classified the

@@ -11,6 +11,8 @@ import {
 } from "react-native";
 import { useFocusEffect, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
+import { EmptyState } from "../components/EmptyState";
+import { ErrorState } from "../components/ErrorState";
 import { useAuth } from "../lib/auth/context";
 import { fetchFeedbackList, fetchKnownIssues, toggleFeedbackVote } from "../lib/api/feedback";
 import type { FeedbackListParams } from "../lib/api/feedback";
@@ -306,15 +308,20 @@ export default function FeedbackScreen() {
         </View>
       ) : error ? (
         <View style={s.centered}>
-          <Ionicons name="cloud-offline-outline" size={48} color={TEXT_3} />
-          <Text style={s.emptyTitle}>Could not load suggestions</Text>
-          <Text style={s.emptySubtitle}>Pull down to try again</Text>
+          <ErrorState
+            title="Could not load suggestions"
+            description="Pull down to try again"
+            onRetry={() => { setLoading(true); loadData(1); }}
+          />
         </View>
       ) : items.length === 0 ? (
         <View style={s.centered}>
-          <Ionicons name="bulb-outline" size={48} color={AMBER} />
-          <Text style={s.emptyTitle}>No suggestions yet</Text>
-          <Text style={s.emptySubtitle}>You could be the first! Tell us what{"\n"}would make MileClear better for you.</Text>
+          <EmptyState
+            icon="bulb-outline"
+            title="No suggestions yet"
+            description={"You could be the first! Tell us what would make MileClear better for you."}
+            iconColor={colors.amber}
+          />
         </View>
       ) : (
         <FlatList
@@ -707,18 +714,5 @@ const s = StyleSheet.create({
     fontFamily: fonts.regular,
     color: TEXT_2,
     lineHeight: 18,
-  },
-  emptyTitle: {
-    fontSize: 17,
-    fontFamily: fonts.semibold,
-    color: TEXT_1,
-    marginTop: 8,
-  },
-  emptySubtitle: {
-    fontSize: 13,
-    fontFamily: fonts.regular,
-    color: TEXT_2,
-    textAlign: "center",
-    lineHeight: 19,
   },
 });

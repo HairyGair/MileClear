@@ -30,6 +30,8 @@ import { GIG_PLATFORMS, getTaxYear, parseTaxYear } from "@mileclear/shared";
 import type { TripClassification, PlatformTag } from "@mileclear/shared";
 import { Skeleton } from "../../components/Skeleton";
 import { colors, fonts, radii, spacing } from "../../lib/theme";
+import { EmptyState } from "../../components/EmptyState";
+import { haptic } from "../../lib/haptics";
 
 if (Platform.OS === "android" && UIManager.setLayoutAnimationEnabledExperimental) {
   UIManager.setLayoutAnimationEnabledExperimental(true);
@@ -517,6 +519,7 @@ export default function TripsScreen() {
       setClassifyingId(tripId);
       try {
         await syncUpdateTrip(tripId, { classification });
+        haptic("selection");
         // Clear "Classify Trip" CTA from any running Live Activity
         markLiveActivityClassified().catch(() => {});
         LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
@@ -720,7 +723,7 @@ export default function TripsScreen() {
         accessibilityLabel={
           mergeMode
             ? `${isSelected ? "Deselect" : "Select"} trip on ${formatDate(item.startedAt)}, ${item.distanceMiles.toFixed(1)} miles`
-            : `Trip on ${formatDate(item.startedAt)}, ${item.distanceMiles.toFixed(1)} miles${item.classification !== "unclassified" ? `, ${item.classification}` : ", needs classifying"}. Tap to edit.`
+            : `Trip on ${formatDate(item.startedAt)}, ${item.distanceMiles.toFixed(1)} miles${item.classification !== "unclassified" ? `, ${item.classification}` : ", needs classifying"}${item.confidence && item.confidence.level !== "high" ? `, confidence: ${item.confidence.level}` : ""}. Tap to edit.`
         }
         accessibilityState={mergeMode ? { selected: isSelected } : undefined}
         accessibilityHint={mergeMode ? undefined : "Long press to enter merge mode"}
@@ -1315,30 +1318,20 @@ export default function TripsScreen() {
         }
         ListEmptyComponent={
           !loading ? (
-            <View
-              style={styles.emptyState}
-              accessibilityRole="text"
-              accessibilityLiveRegion="polite"
-            >
-              <View style={styles.emptyIcon}>
-                <Ionicons
-                  name={filter === "unclassified" ? "checkmark-circle-outline" : "car-outline"}
-                  size={40}
-                  color={TEXT_3}
-                  accessible={false}
-                />
-              </View>
-              <Text style={styles.emptyTitle}>
-                {filter === "unclassified"
-                  ? "All caught up!"
-                  : "No trips recorded yet"}
-              </Text>
-              <Text style={styles.emptyText}>
-                {filter === "unclassified"
-                  ? "All your trips have been classified"
-                  : "Tap + at the top right to add a trip manually."}
-              </Text>
-            </View>
+            filter === "unclassified" ? (
+              <EmptyState
+                icon="checkmark-circle-outline"
+                title="All caught up!"
+                description="All your trips have been classified"
+                iconColor={colors.amber}
+              />
+            ) : (
+              <EmptyState
+                icon="car-outline"
+                title="No trips recorded yet"
+                description="Tap + at the top right to add a trip manually."
+              />
+            )
           ) : null
         }
         ListFooterComponent={
@@ -1973,34 +1966,6 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontFamily: fonts.semibold,
     color: "#fef3c7",
-  },
-  // Empty state
-  emptyState: {
-    alignItems: "center",
-    paddingVertical: 40,
-  },
-  emptyIcon: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
-    backgroundColor: CARD_BG,
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.06)",
-    justifyContent: "center",
-    alignItems: "center",
-    marginBottom: 16,
-  },
-  emptyTitle: {
-    fontSize: 17,
-    fontFamily: fonts.semibold,
-    color: TEXT_2,
-    marginBottom: 4,
-  },
-  emptyText: {
-    fontSize: 14,
-    fontFamily: fonts.regular,
-    color: TEXT_3,
-    textAlign: "center",
   },
   // Footer
   footer: {

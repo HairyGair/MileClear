@@ -19,12 +19,12 @@ import {
 } from "../lib/api/invoices";
 import { useUser } from "../lib/user/context";
 import { usePaywall } from "../components/paywall";
+import { EmptyState } from "../components/EmptyState";
 import { colors, fonts } from "../lib/theme";
 
 const AMBER = colors.amber;
 const CARD_BG = colors.surface;
 const TEXT_1 = colors.text1;
-const TEXT_2 = colors.text2;
 const TEXT_3 = colors.text3;
 const BG = colors.bg;
 const GREEN = colors.green;
@@ -192,19 +192,21 @@ export default function InvoicesScreen() {
         </View>
       ) : data.length === 0 ? (
         <View style={styles.center}>
-          <Ionicons name="document-text-outline" size={48} color={TEXT_3} />
-          <Text style={styles.emptyTitle}>No invoices yet</Text>
-          <Text style={styles.emptyBody}>
-            Track who owes you for freelance work. We'll keep the list tidy for your accountant.
-          </Text>
-          <TouchableOpacity
-            style={styles.emptyAction}
-            onPress={() => router.push("/invoice-form")}
-            accessibilityRole="button"
-          >
-            <Ionicons name="add" size={18} color="#000" />
-            <Text style={styles.emptyActionText}>Add an invoice</Text>
-          </TouchableOpacity>
+          <EmptyState
+            icon="document-text-outline"
+            title="No invoices yet"
+            description="Track who owes you for freelance work. We'll keep the list tidy for your accountant."
+            action={
+              <TouchableOpacity
+                style={styles.emptyAction}
+                onPress={() => router.push("/invoice-form")}
+                accessibilityRole="button"
+              >
+                <Ionicons name="add" size={18} color="#000" />
+                <Text style={styles.emptyActionText}>Add an invoice</Text>
+              </TouchableOpacity>
+            }
+          />
         </View>
       ) : (
         <FlatList
@@ -340,14 +342,6 @@ const styles = StyleSheet.create({
   capHintText: { color: TEXT_3, fontSize: 11, fontFamily: fonts.regular, flex: 1 },
   capHintLink: { color: AMBER, fontFamily: fonts.semibold },
 
-  emptyTitle: { color: TEXT_1, fontSize: 17, fontFamily: fonts.semibold, marginTop: 12 },
-  emptyBody: {
-    color: TEXT_2,
-    fontSize: 13,
-    fontFamily: fonts.regular,
-    textAlign: "center",
-    lineHeight: 19,
-  },
   emptyAction: {
     flexDirection: "row",
     alignItems: "center",

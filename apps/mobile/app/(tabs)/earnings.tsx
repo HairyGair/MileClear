@@ -1,5 +1,4 @@
 import { useCallback, useState } from "react";
-import { Ionicons } from "@expo/vector-icons";
 import { Button } from "../../components/Button";
 import {
   View,
@@ -17,6 +16,7 @@ import { getLocalEarnings, getLocalUnsyncedEarnings } from "../../lib/db/queries
 import { GIG_PLATFORMS, formatPence } from "@mileclear/shared";
 import type { Earning } from "@mileclear/shared";
 import { Skeleton } from "../../components/Skeleton";
+import { EmptyState } from "../../components/EmptyState";
 import { colors, fonts } from "../../lib/theme";
 
 type EarningItem = Earning & { _isLocal?: boolean };
@@ -240,19 +240,11 @@ export default function EarningsScreen() {
         }
         ListEmptyComponent={
           !loading ? (
-            <View
-              style={styles.emptyState}
-              accessibilityRole="text"
-              accessibilityLiveRegion="polite"
-            >
-              <View style={styles.emptyIcon}>
-                <Ionicons name="cash-outline" size={40} color={TEXT_3} accessible={false} />
-              </View>
-              <Text style={styles.emptyTitle}>Log your first payout</Text>
-              <Text style={styles.emptyText}>
-                Once your earnings are in here, MileClear can show your real take-home per mile and per hour.
-              </Text>
-            </View>
+            <EmptyState
+              icon="cash-outline"
+              title="Log your first payout"
+              description="Once your earnings are in here, MileClear can show your real take-home per mile and per hour."
+            />
           ) : null
         }
         ListFooterComponent={
@@ -313,7 +305,6 @@ const CARD_BORDER = colors.surfaceBorder;
 const AMBER = colors.amber;
 const TEXT_1 = colors.text1;
 const TEXT_2 = colors.text2;
-const TEXT_3 = colors.text3;
 const GREEN = colors.green;
 
 const styles = StyleSheet.create({
@@ -437,34 +428,6 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontFamily: fonts.semibold,
     color: "#fef3c7",
-  },
-  // Empty state
-  emptyState: {
-    alignItems: "center",
-    paddingVertical: 40,
-  },
-  emptyIcon: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
-    backgroundColor: CARD_BG,
-    borderWidth: 1,
-    borderColor: CARD_BORDER,
-    justifyContent: "center",
-    alignItems: "center",
-    marginBottom: 16,
-  },
-  emptyTitle: {
-    fontSize: 17,
-    fontFamily: fonts.semibold,
-    color: TEXT_2,
-    marginBottom: 4,
-  },
-  emptyText: {
-    fontSize: 14,
-    fontFamily: fonts.regular,
-    color: TEXT_3,
-    textAlign: "center",
   },
   // Footer
   footer: {
