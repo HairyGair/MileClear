@@ -518,6 +518,67 @@ async function startGeofenceTripLiveActivity(departedLocationId: string): Promis
 async function handleSavedLocationExit(regionId: string): Promise<void> {
   const db = await getDatabase();
 
+  // Position-verify the Exit before treating it as a real departure.
+  // iOS occasionally fires Exit events from cell-tower / wifi-positioning
+  // fixes that place the device hundreds of metres outside the geofence
+  // even though it hasn't physically moved. Anthony hit this 12 May 2026:
+  // his "St Roberts School" geofence fired Exit while he sat at the
+  // office all morning — a phantom trip then started recording GPS
+  // jitter (0.3 mi over 5 min at ~1 mph) and pinned the Live Activity
+  // to the Dynamic Island.
+  //
+  // Mirror the Enter-side gate (handleSavedLocationEnter): pull the
+  // last-known position, refuse to act if it sits inside the saved
+  // location's radius. Generous tolerance because iOS's cached fix is
+  // often a few seconds stale and built-up areas can show 50-100m of
+  // legitimate GPS error.
+  try {
+    const loc = await db.getFirstAsync<{
+      latitude: number;
+      longitude: number;
+      radius_meters: number;
+    }>(
+      "SELECT latitude, longitude, radius_meters FROM saved_locations WHERE id = ?",
+      [regionId]
+    );
+    const pos = await Location.getLastKnownPositionAsync();
+    if (loc && pos) {
+      // Refuse the Exit if the position came back too coarse to trust
+      // (cell-tower fixes are typically 500m+ accuracy). Real GPS in
+      // built-up areas clears 100m comfortably. Without this check
+      // the cached fix at the moment of Exit is the same cell-tower
+      // fix that triggered the event in the first place — circular.
+      const accuracy = pos.coords.accuracy ?? Infinity;
+      if (accuracy > 200) {
+        logDetectionEvent("geofence_exit_rejected_accuracy", {
+          locationId: regionId,
+          accuracy: Math.round(accuracy),
+        }).catch(() => {});
+        return;
+      }
+      const distMiles = haversine(
+        pos.coords.latitude, pos.coords.longitude,
+        loc.latitude, loc.longitude
+      );
+      const distMeters = distMiles * 1609.344;
+      // Inside-the-radius check: if the device's last-known fix is
+      // still inside the geofence (plus 50m GPS slop), the Exit was
+      // a phantom. Reject it.
+      if (distMeters <= loc.radius_meters + 50) {
+        logDetectionEvent("geofence_exit_rejected_inside", {
+          locationId: regionId,
+          distMeters: Math.round(distMeters),
+          radiusMeters: loc.radius_meters,
+          accuracy: Math.round(accuracy),
+        }).catch(() => {});
+        return;
+      }
+    }
+  } catch {
+    // Position-verify is a best-effort gate. If it fails (no permission,
+    // simulator, etc.) fall through and trust iOS's Exit event.
+  }
+
   const tentRow = await db.getFirstAsync<{ value: string }>(
     "SELECT value FROM tracking_state WHERE key = 'geofence_tentative_arrival'"
   );
