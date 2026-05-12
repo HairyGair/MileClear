@@ -426,6 +426,7 @@ export default function OnboardingScreen() {
                 source={require("../assets/branding/logo-original.png")}
                 style={s.welcomeLogo}
                 resizeMode="contain"
+                accessible={false}
               />
             </View>
 

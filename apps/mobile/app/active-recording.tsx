@@ -31,7 +31,7 @@ import { Skeleton } from "../components/Skeleton";
 import { Card } from "../components/Card";
 import { HoldToConfirm } from "../components/HoldToConfirm";
 import { WaitTimer } from "../components/business/WaitTimer";
-import { colors, fonts, radii, spacing } from "../lib/theme";
+import { colors, fonts, fontScaleCap, radii, spacing } from "../lib/theme";
 import { haptic } from "../lib/haptics";
 import { haversineDistance, formatMiles } from "@mileclear/shared";
 
@@ -278,13 +278,14 @@ export default function ActiveRecordingScreen() {
             <View style={styles.statBlock}>
               <Animated.Text
                 style={[styles.statValue, { transform: [{ scale: distancePulse }] }]}
+                maxFontSizeMultiplier={fontScaleCap.display}
               >
                 {formatMiles(snapshot.distanceMiles)}
               </Animated.Text>
               <Text style={styles.statLabel}>distance</Text>
             </View>
             <View style={styles.statBlock}>
-              <Text style={styles.statValue}>{formatDuration(elapsedMs)}</Text>
+              <Text style={styles.statValue} maxFontSizeMultiplier={fontScaleCap.display}>{formatDuration(elapsedMs)}</Text>
               <Text style={styles.statLabel}>duration</Text>
             </View>
           </View>

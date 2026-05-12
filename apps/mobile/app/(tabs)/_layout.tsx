@@ -3,15 +3,24 @@ import { View, Text, Image, TouchableOpacity, StyleSheet } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import AvatarMenuButton from "../../components/AvatarMenuButton";
 
+const ROUTE_LABELS: Record<string, string> = {
+  "/trip-form": "Add trip",
+  "/fuel-form": "Add fuel log",
+  "/earning-form": "Add earning",
+};
+
 function HeaderAddButton({ route }: { route: string }) {
   const router = useRouter();
+  const label = ROUTE_LABELS[route] ?? "Add";
   return (
     <TouchableOpacity
       onPress={() => router.push(route as any)}
       hitSlop={8}
       style={headerStyles.addBtn}
+      accessibilityRole="button"
+      accessibilityLabel={label}
     >
-      <Ionicons name="add" size={20} color="#f5a623" />
+      <Ionicons name="add" size={20} color="#f5a623" accessible={false} />
     </TouchableOpacity>
   );
 }
@@ -48,6 +57,7 @@ function BrandHeader() {
         source={require("../../assets/branding/logo-original.png")}
         style={brandStyles.icon}
         resizeMode="contain"
+        accessible={false}
       />
       <Text style={brandStyles.nameWhite}>Mile</Text>
       <Text style={brandStyles.nameAmber}>Clear</Text>

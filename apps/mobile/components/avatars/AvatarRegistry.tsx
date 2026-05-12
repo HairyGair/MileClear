@@ -115,6 +115,7 @@ export function AvatarIcon({ avatarId, size }: AvatarIconProps) {
         source={source}
         style={{ width: size, height: size, aspectRatio: 1 }}
         resizeMode="cover"
+        accessible={false}
       />
     </View>
   );
