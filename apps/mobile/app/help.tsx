@@ -100,6 +100,17 @@ const SECTIONS: Section[] = [
         a: "Settings → Work & Tax → Sole Trader → My Accountant. Enter their annual filing fee. We spread it across 52 weeks and add it to your weekly set-aside, so by filing season the cash is already there for both the tax and the accountant.",
         goTo: "/accountant",
       },
+      {
+        id: "employer-mileage",
+        q: "My employer reimburses me for mileage — what do I enter?",
+        a: "Settings → Work & Tax → set Work type to \"Employee using own vehicle\" or \"Both\", then enter your employer's per-mile rate. MileClear shows you the gap between what they pay and HMRC's 45p / 25p — that's the amount you can recover at year-end via Mileage Allowance Relief on a P87 or Self Assessment.",
+        goTo: "/settings/work-tax",
+      },
+      {
+        id: "accountant-sharing",
+        q: "Can my accountant log in to see my numbers? (Pro)",
+        a: "Yes — Settings → Work & Tax → Accountant Sharing. Generate a read-only link, send it to your accountant. They get a clean dashboard with all your trips, earnings, invoices, and HMRC figures. No password handover, no email forwarding. Pro feature.",
+      },
     ],
   },
   {
@@ -174,6 +185,11 @@ const SECTIONS: Section[] = [
         id: "battery",
         q: "Is GPS tracking going to kill my battery?",
         a: "MileClear uses iOS's significant-location-change API while you're stationary, and only escalates to active GPS during a recording. Typical impact is 2-4% per 8-hour shift. If you notice more than that, check Settings → Data Quality — your tracking permissions might be sub-optimal.",
+      },
+      {
+        id: "offline",
+        q: "Will MileClear work without signal?",
+        a: "Yes. Trip recording, classification, manual entries, fuel logs, earnings — all written to local SQLite first, no network needed. As soon as you're back online, the sync queue uploads everything to the server. You won't lose a mile in a tunnel, multi-storey car park, or rural blackspot.",
       },
       {
         id: "still-stuck",
