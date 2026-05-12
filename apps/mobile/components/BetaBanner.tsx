@@ -67,9 +67,9 @@ const betaStyles = StyleSheet.create({
   },
   icon: { color: colors.amber },
   pill: {
-    fontSize: 10,
+    fontSize: 11,
     fontFamily: fonts.bold,
-    letterSpacing: 0.6,
+    letterSpacing: 0.8,
     paddingHorizontal: 7,
     paddingVertical: 2,
     borderRadius: 999,
@@ -100,9 +100,9 @@ const soonStyles = StyleSheet.create({
   },
   icon: { color: colors.text3 },
   pill: {
-    fontSize: 10,
+    fontSize: 11,
     fontFamily: fonts.bold,
-    letterSpacing: 0.6,
+    letterSpacing: 0.8,
     paddingHorizontal: 7,
     paddingVertical: 2,
     borderRadius: 999,
