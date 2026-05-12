@@ -12,13 +12,12 @@
 
 import React, { useEffect, useState } from "react";
 import {
-  Modal,
   View,
   Text,
   ActivityIndicator,
   StyleSheet,
-  Platform,
 } from "react-native";
+import { AppModal } from "./AppModal";
 import { colors, fonts } from "../lib/theme";
 
 // Local theme aliases — same pattern as the (tabs) screens.
@@ -54,13 +53,11 @@ export function HydrationOverlay({
   }, [visible]);
 
   return (
-    <Modal
+    <AppModal
       visible={visible}
-      transparent
       animationType="fade"
       // Prevent hardware back button on Android from dismissing it
       onRequestClose={() => {}}
-      statusBarTranslucent={Platform.OS === "android"}
     >
       <View
         style={styles.overlay}
@@ -92,7 +89,7 @@ export function HydrationOverlay({
           )}
         </View>
       </View>
-    </Modal>
+    </AppModal>
   );
 }
 

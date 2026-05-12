@@ -4,13 +4,13 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
-  Modal,
   StyleSheet,
   ActivityIndicator,
   Dimensions,
   Keyboard,
   Platform,
 } from "react-native";
+import { AppModal } from "./AppModal";
 import { Ionicons } from "@expo/vector-icons";
 import * as Location from "expo-location";
 import { reverseGeocode, forwardGeocode } from "../lib/location/geocoding";
@@ -157,7 +157,7 @@ export function MapPickerModal({
 
   if (!MapView) {
     return (
-      <Modal visible={visible} animationType="slide" onRequestClose={onCancel}>
+      <AppModal visible={visible} animationType="slide" transparent={false} onRequestClose={onCancel}>
         <View style={styles.fallbackContainer} accessibilityViewIsModal>
           <Text style={styles.fallbackText}>
             Map view requires a development build.{"\n"}
@@ -172,12 +172,12 @@ export function MapPickerModal({
             <Text style={styles.cancelBtnText}>Close</Text>
           </TouchableOpacity>
         </View>
-      </Modal>
+      </AppModal>
     );
   }
 
   return (
-    <Modal visible={visible} animationType="slide" onRequestClose={onCancel}>
+    <AppModal visible={visible} animationType="slide" transparent={false} onRequestClose={onCancel}>
       <View style={styles.container} accessibilityViewIsModal>
         <MapView
           ref={mapRef}
@@ -266,7 +266,7 @@ export function MapPickerModal({
           </TouchableOpacity>
         </View>
       </View>
-    </Modal>
+    </AppModal>
   );
 }
 

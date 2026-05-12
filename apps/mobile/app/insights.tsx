@@ -6,9 +6,9 @@ import {
   TouchableOpacity,
   StyleSheet,
   Share,
-  Modal,
   RefreshControl,
 } from "react-native";
+import { AppModal } from "../components/AppModal";
 import { Stack, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect } from "expo-router";
@@ -123,10 +123,9 @@ export default function InsightsScreen() {
       <Stack.Screen options={{ title: "Insights & Analytics" }} />
 
       {/* Recap Modal */}
-      <Modal
+      <AppModal
         visible={showRecap}
         animationType="slide"
-        transparent
         onRequestClose={() => setShowRecap(false)}
       >
         <View style={styles.modalOverlay}>
@@ -165,7 +164,7 @@ export default function InsightsScreen() {
             )}
           </View>
         </View>
-      </Modal>
+      </AppModal>
 
       <ScrollView
         contentContainerStyle={styles.content}

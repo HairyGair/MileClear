@@ -3,12 +3,12 @@ import {
   View,
   Text,
   TouchableOpacity,
-  Modal,
   StyleSheet,
   Platform,
   TextInput,
 } from "react-native";
 import { colors, fonts } from "../lib/theme";
+import { AppModal } from "./AppModal";
 
 // Local theme aliases — same pattern as the (tabs) screens.
 const AMBER = colors.amber;
@@ -196,10 +196,9 @@ export function DateTimePickerField({
           )}
         </TouchableOpacity>
 
-        <Modal
+        <AppModal
           visible={showModal}
           animationType="slide"
-          transparent
           onRequestClose={() => setShowModal(false)}
         >
           <View style={styles.modalOverlay}>
@@ -238,7 +237,7 @@ export function DateTimePickerField({
               />
             </View>
           </View>
-        </Modal>
+        </AppModal>
       </View>
     );
   }

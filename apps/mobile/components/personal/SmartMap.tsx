@@ -7,10 +7,10 @@ import {
   Text,
   StyleSheet,
   TouchableOpacity,
-  Modal,
   UIManager,
   Platform,
 } from "react-native";
+import { AppModal } from "../AppModal";
 import * as Location from "expo-location";
 import { Ionicons } from "@expo/vector-icons";
 import { AvatarIcon } from "../avatars/AvatarRegistry";
@@ -304,9 +304,10 @@ export function SmartMap({ avatarId, lastTrip, height = 240 }: SmartMapProps) {
       </TouchableOpacity>
 
       {/* Fullscreen modal */}
-      <Modal
+      <AppModal
         visible={fullscreen}
         animationType="slide"
+        transparent={false}
         onRequestClose={() => setFullscreen(false)}
       >
         <View style={styles.fullscreenContainer}>
@@ -318,7 +319,7 @@ export function SmartMap({ avatarId, lastTrip, height = 240 }: SmartMapProps) {
             <Text style={styles.closeBtnText}>Close</Text>
           </TouchableOpacity>
         </View>
-      </Modal>
+      </AppModal>
     </>
   );
 }

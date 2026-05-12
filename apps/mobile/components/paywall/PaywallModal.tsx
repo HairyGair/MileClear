@@ -2,7 +2,6 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import {
   View,
   Text,
-  Modal,
   ScrollView,
   TouchableOpacity,
   StyleSheet,
@@ -11,6 +10,7 @@ import {
   ActivityIndicator,
   Linking,
 } from "react-native";
+import { AppModal } from "../AppModal";
 import { Ionicons } from "@expo/vector-icons";
 import * as WebBrowser from "expo-web-browser";
 import { formatPence } from "@mileclear/shared";
@@ -149,7 +149,7 @@ export function PaywallModal({ visible, onClose, source: _source }: PaywallModal
   const TOTAL_PAGES = 4;
 
   return (
-    <Modal visible={visible} animationType="slide" transparent statusBarTranslucent>
+    <AppModal visible={visible} animationType="slide" transparent>
       <View style={s.overlay}>
         <View style={s.container}>
           {/* Close button */}
@@ -434,7 +434,7 @@ export function PaywallModal({ visible, onClose, source: _source }: PaywallModal
           </ScrollView>
         </View>
       </View>
-    </Modal>
+    </AppModal>
   );
 }
 

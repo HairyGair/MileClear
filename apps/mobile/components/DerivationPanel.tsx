@@ -1,11 +1,11 @@
 import {
   View,
   Text,
-  Modal,
   Pressable,
   ScrollView,
   StyleSheet,
 } from "react-native";
+import { AppModal } from "./AppModal";
 import { Ionicons } from "@expo/vector-icons";
 import type { NumberDerivation } from "@mileclear/shared";
 import { colors, fonts } from "../lib/theme";
@@ -44,10 +44,9 @@ export function DerivationPanel({
   onClose,
 }: DerivationPanelProps) {
   return (
-    <Modal
+    <AppModal
       visible={visible}
       animationType="slide"
-      transparent
       onRequestClose={onClose}
     >
       <Pressable style={styles.scrim} onPress={onClose}>
@@ -169,7 +168,7 @@ export function DerivationPanel({
           </ScrollView>
         </Pressable>
       </Pressable>
-    </Modal>
+    </AppModal>
   );
 }
 

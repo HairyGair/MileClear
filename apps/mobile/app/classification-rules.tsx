@@ -5,7 +5,6 @@ import {
   ScrollView,
   TouchableOpacity,
   Switch,
-  Modal,
   TextInput,
   Alert,
   RefreshControl,
@@ -15,6 +14,7 @@ import {
   ActivityIndicator,
 } from "react-native";
 import { Stack, useFocusEffect } from "expo-router";
+import { AppModal } from "../components/AppModal";
 import { Ionicons } from "@expo/vector-icons";
 import { getDatabase } from "../lib/db/index";
 import { GIG_PLATFORMS } from "@mileclear/shared";
@@ -309,10 +309,9 @@ function AddRuleModal({
 
   if (showLocationPicker) {
     return (
-      <Modal
+      <AppModal
         visible={visible}
         animationType="slide"
-        presentationStyle="pageSheet"
         onRequestClose={() => setShowLocationPicker(false)}
       >
         <View style={s.modalContainer}>
@@ -369,15 +368,14 @@ function AddRuleModal({
             )}
           </ScrollView>
         </View>
-      </Modal>
+      </AppModal>
     );
   }
 
   return (
-    <Modal
+    <AppModal
       visible={visible}
       animationType="slide"
-      presentationStyle="pageSheet"
       onRequestClose={resetAndClose}
     >
       <KeyboardAvoidingView
@@ -663,7 +661,7 @@ function AddRuleModal({
           <View style={{ height: 40 }} />
         </ScrollView>
       </KeyboardAvoidingView>
-    </Modal>
+    </AppModal>
   );
 }
 

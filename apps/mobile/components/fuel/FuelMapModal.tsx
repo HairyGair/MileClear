@@ -3,10 +3,10 @@ import {
   View,
   Text,
   TouchableOpacity,
-  Modal,
   StyleSheet,
   Dimensions,
 } from "react-native";
+import { AppModal } from "../AppModal";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { openDirections } from "../../lib/location/directions";
 import type { FuelStation } from "@mileclear/shared";
@@ -102,11 +102,11 @@ export default function FuelMapModal({
   // Expo Go / missing native module fallback
   if (!maps) {
     return (
-      <Modal
+      <AppModal
         visible={visible}
         animationType="slide"
+        transparent={false}
         onRequestClose={onClose}
-        statusBarTranslucent
       >
         <View style={styles.fallbackContainer}>
           <Text style={styles.fallbackText}>
@@ -116,18 +116,18 @@ export default function FuelMapModal({
             <Text style={styles.fallbackCloseText}>Close</Text>
           </TouchableOpacity>
         </View>
-      </Modal>
+      </AppModal>
     );
   }
 
   const { MapView: MapViewNative, Marker: MarkerNative, Callout: CalloutNative } = maps;
 
   return (
-    <Modal
+    <AppModal
       visible={visible}
       animationType="slide"
+      transparent={false}
       onRequestClose={onClose}
-      statusBarTranslucent
     >
       <View style={styles.container}>
         <MapViewNative
@@ -249,7 +249,7 @@ export default function FuelMapModal({
           )}
         </View>
       </View>
-    </Modal>
+    </AppModal>
   );
 }
 

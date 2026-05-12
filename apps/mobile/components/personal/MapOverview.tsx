@@ -4,13 +4,13 @@ import {
   Text,
   TouchableOpacity,
   StyleSheet,
-  Modal,
   UIManager,
   Platform,
   Animated,
   SafeAreaView,
   ScrollView,
 } from "react-native";
+import { AppModal } from "../AppModal";
 import { Ionicons } from "@expo/vector-icons";
 import type { TripDetail } from "../../lib/api/trips";
 import { colors, fonts } from "../../lib/theme";
@@ -323,9 +323,10 @@ export function MapOverview({ trips, title }: MapOverviewProps) {
       </TouchableOpacity>
 
       {/* ── Fullscreen Modal ── */}
-      <Modal
+      <AppModal
         visible={fullscreen}
         animationType="slide"
+        transparent={false}
         onRequestClose={() => { dismissSheet(); setFullscreen(false); }}
       >
         <View style={styles.fullscreenContainer} accessibilityViewIsModal>
@@ -512,7 +513,7 @@ export function MapOverview({ trips, title }: MapOverviewProps) {
             </TouchableOpacity>
           </SafeAreaView>
         </View>
-      </Modal>
+      </AppModal>
     </>
   );
 }

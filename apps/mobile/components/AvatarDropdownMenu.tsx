@@ -1,4 +1,5 @@
-import { View, Text, TouchableOpacity, Modal, StyleSheet, Pressable } from "react-native";
+import { View, Text, TouchableOpacity, StyleSheet, Pressable } from "react-native";
+import { AppModal } from "./AppModal";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter, useSegments } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -80,9 +81,8 @@ export default function AvatarDropdownMenu({ visible, onClose }: Props) {
   };
 
   return (
-    <Modal
+    <AppModal
       visible={visible}
-      transparent
       animationType="fade"
       onRequestClose={onClose}
     >
@@ -198,7 +198,7 @@ export default function AvatarDropdownMenu({ visible, onClose }: Props) {
           </TouchableOpacity>
         </Pressable>
       </Pressable>
-    </Modal>
+    </AppModal>
   );
 }
 

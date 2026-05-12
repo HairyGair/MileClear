@@ -1,11 +1,11 @@
 import {
   View,
   Text,
-  Modal,
   Pressable,
   ScrollView,
   StyleSheet,
 } from "react-native";
+import { AppModal } from "./AppModal";
 import { Ionicons } from "@expo/vector-icons";
 import type { NumberAcrossWindows } from "@mileclear/shared";
 import { colors, fonts } from "../lib/theme";
@@ -43,10 +43,9 @@ export function AcrossWindowsPanel({
   onClose,
 }: AcrossWindowsPanelProps) {
   return (
-    <Modal
+    <AppModal
       visible={visible}
       animationType="slide"
-      transparent
       onRequestClose={onClose}
     >
       <Pressable style={styles.scrim} onPress={onClose}>
@@ -126,7 +125,7 @@ export function AcrossWindowsPanel({
           </ScrollView>
         </Pressable>
       </Pressable>
-    </Modal>
+    </AppModal>
   );
 }
 

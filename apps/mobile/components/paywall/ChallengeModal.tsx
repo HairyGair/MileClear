@@ -2,10 +2,10 @@ import { useCallback, useEffect, useState } from "react";
 import {
   View,
   Text,
-  Modal,
   StyleSheet,
   TouchableOpacity,
 } from "react-native";
+import { AppModal } from "../AppModal";
 import { Ionicons } from "@expo/vector-icons";
 import { getDatabase } from "../../lib/db/index";
 import { Button } from "../Button";
@@ -71,11 +71,9 @@ export function ChallengeModal({ visible, onClose }: ChallengeModalProps) {
   }, [onClose]);
 
   return (
-    <Modal
+    <AppModal
       visible={visible}
-      transparent
       animationType="fade"
-      statusBarTranslucent
     >
       <View style={s.overlay}>
         <View style={s.card}>
@@ -123,7 +121,7 @@ export function ChallengeModal({ visible, onClose }: ChallengeModalProps) {
           </TouchableOpacity>
         </View>
       </View>
-    </Modal>
+    </AppModal>
   );
 }
 

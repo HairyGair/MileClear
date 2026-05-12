@@ -3,10 +3,10 @@ import {
   View,
   Text,
   TouchableOpacity,
-  Modal,
   ScrollView,
   StyleSheet,
 } from "react-native";
+import { AppModal } from "../AppModal";
 import { AVATARS, AvatarIcon, UserAvatar } from "./AvatarRegistry";
 import { colors, fonts } from "../../lib/theme";
 
@@ -45,10 +45,9 @@ export function AvatarPicker({ currentAvatarId, onSelect }: AvatarPickerProps) {
         <Text style={styles.changeText}>Change Avatar</Text>
       </TouchableOpacity>
 
-      <Modal
+      <AppModal
         visible={visible}
         animationType="slide"
-        transparent
         onRequestClose={() => setVisible(false)}
       >
         <View style={styles.overlay}>
@@ -110,7 +109,7 @@ export function AvatarPicker({ currentAvatarId, onSelect }: AvatarPickerProps) {
             </TouchableOpacity>
           </View>
         </View>
-      </Modal>
+      </AppModal>
     </>
   );
 }

@@ -8,9 +8,9 @@ import {
   StyleSheet,
   Alert,
   Platform,
-  Modal,
   TextInput,
 } from "react-native";
+import { AppModal } from "../../components/AppModal";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter, useFocusEffect } from "expo-router";
 import * as WebBrowser from "expo-web-browser";
@@ -564,12 +564,9 @@ export default function ProfileScreen() {
       </ScrollView>
 
       {/* Android delete confirmation modal */}
-      <Modal
+      <AppModal
         visible={showDeleteModal}
-        transparent
         animationType="fade"
-        presentationStyle="overFullScreen"
-        statusBarTranslucent
         onRequestClose={() => setShowDeleteModal(false)}
       >
         <View style={styles.modalOverlay}>
@@ -612,7 +609,7 @@ export default function ProfileScreen() {
             </View>
           </View>
         </View>
-      </Modal>
+      </AppModal>
     </View>
   );
 }

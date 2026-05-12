@@ -3,11 +3,11 @@ import {
   Pressable,
   Text,
   View,
-  Modal,
   TouchableOpacity,
   ScrollView,
   StyleSheet,
 } from "react-native";
+import { AppModal } from "./AppModal";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter, useSegments } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -151,9 +151,8 @@ export default function AvatarMenuButton() {
 
       {/* ── Bottom Sheet Menu ── */}
       {menuVisible && (
-        <Modal
-          visible
-          transparent
+        <AppModal
+          visible={true}
           animationType="slide"
           onRequestClose={() => setMenuVisible(false)}
         >
@@ -327,7 +326,7 @@ export default function AvatarMenuButton() {
               </ScrollView>
             </View>
           </Pressable>
-        </Modal>
+        </AppModal>
       )}
     </View>
   );

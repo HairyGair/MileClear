@@ -8,12 +8,12 @@ import {
   ActivityIndicator,
   ScrollView,
   RefreshControl,
-  Modal,
   Share,
   Platform,
   Animated,
   Linking,
 } from "react-native";
+import { AppModal } from "../../components/AppModal";
 import { Button } from "../../components/Button";
 import { Skeleton } from "../../components/Skeleton";
 import { FadeInStagger } from "../../components/FadeInStagger";
@@ -592,12 +592,9 @@ export default function DashboardScreen() {
 
   // ── Scorecard Modal ───────────────────────────────────────────
   const scorecardModal = (
-    <Modal
+    <AppModal
       visible={showScorecard}
       animationType="slide"
-      transparent
-      presentationStyle="overFullScreen"
-      statusBarTranslucent
       onRequestClose={() => setShowScorecard(false)}
     >
       <View style={s.modalOverlay}>
@@ -668,17 +665,14 @@ export default function DashboardScreen() {
           />
         </View>
       </View>
-    </Modal>
+    </AppModal>
   );
 
   // ── Recap Modal ───────────────────────────────────────────────
   const recapModal = (
-    <Modal
+    <AppModal
       visible={showRecap}
       animationType="slide"
-      transparent
-      presentationStyle="overFullScreen"
-      statusBarTranslucent
       onRequestClose={() => setShowRecap(false)}
     >
       <View style={s.modalOverlay}>
@@ -733,7 +727,7 @@ export default function DashboardScreen() {
           )}
         </View>
       </View>
-    </Modal>
+    </AppModal>
   );
 
   // ── Work Mode Explainer Modal ─────────────────────────────────
@@ -742,12 +736,9 @@ export default function DashboardScreen() {
   // can break hit-testing inside a Modal. Apple App Review hit this on
   // iPad Air M3 / iPadOS 26.4.2 (build 60 rejection, guideline 2.1(a)).
   const workExplainerModal = (
-    <Modal
+    <AppModal
       visible={showWorkExplainer}
-      transparent
       animationType="fade"
-      presentationStyle="overFullScreen"
-      statusBarTranslucent
       onRequestClose={dismissWorkExplainer}
     >
       <View style={s.explainerOverlay}>
@@ -799,7 +790,7 @@ export default function DashboardScreen() {
           </TouchableOpacity>
         </View>
       </View>
-    </Modal>
+    </AppModal>
   );
 
   // ── Active Shift ──────────────────────────────────────────────

@@ -11,7 +11,6 @@ import {
   LayoutAnimation,
   Platform,
   UIManager,
-  Modal,
   Pressable,
   ScrollView,
   Alert,
@@ -32,6 +31,7 @@ import { Skeleton } from "../../components/Skeleton";
 import { colors, fonts, radii, spacing } from "../../lib/theme";
 import { EmptyState } from "../../components/EmptyState";
 import { haptic } from "../../lib/haptics";
+import { AppModal } from "../../components/AppModal";
 
 if (Platform.OS === "android" && UIManager.setLayoutAnimationEnabledExperimental) {
   UIManager.setLayoutAnimationEnabledExperimental(true);
@@ -1376,7 +1376,7 @@ export default function TripsScreen() {
 
       {/* Merge classification modal */}
       {mergeModalVisible && (
-        <Modal visible transparent animationType="slide" onRequestClose={() => setMergeModalVisible(false)}>
+        <AppModal visible={true} animationType="slide" onRequestClose={() => setMergeModalVisible(false)}>
           <Pressable
             style={styles.mergeBackdrop}
             onPress={() => setMergeModalVisible(false)}
@@ -1511,13 +1511,12 @@ export default function TripsScreen() {
               </TouchableOpacity>
             </View>
           </Pressable>
-        </Modal>
+        </AppModal>
       )}
 
       {/* Custom date-range picker modal */}
-      <Modal
+      <AppModal
         visible={showCustomPicker}
-        transparent
         animationType="slide"
         onRequestClose={() => setShowCustomPicker(false)}
       >
@@ -1575,7 +1574,7 @@ export default function TripsScreen() {
             </View>
           </Pressable>
         </Pressable>
-      </Modal>
+      </AppModal>
     </View>
   );
 }
