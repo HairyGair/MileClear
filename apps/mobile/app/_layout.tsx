@@ -324,12 +324,28 @@ function RootNavigator() {
       } catch {}
     };
 
+    // Independent cleanup pass for orphaned geofence trip LAs. Runs on
+    // the same triggers as checkPendingFinalize. Cleans up the state
+    // where a user departed a saved location, parked at a non-saved
+    // location, and the LA has been pinned to the Dynamic Island for
+    // hours. Bug surfaced 12 May 2026 after build 65 went out.
+    const cleanupOrphanedLA = async () => {
+      try {
+        const { cleanupStaleGeofenceLA } = await import("../lib/geofencing");
+        await cleanupStaleGeofenceLA();
+      } catch {}
+    };
+
     // Run once on mount (covers cold launch from intent)
     checkPendingFinalize();
+    cleanupOrphanedLA();
 
     // And on every foreground transition (warm launch from intent)
     const sub = AppState.addEventListener("change", (state) => {
-      if (state === "active") checkPendingFinalize();
+      if (state === "active") {
+        checkPendingFinalize();
+        cleanupOrphanedLA();
+      }
     });
     return () => sub.remove();
   }, [isAuthenticated, isLoading]);

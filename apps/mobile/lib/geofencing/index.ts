@@ -406,8 +406,31 @@ async function handleSavedLocationEnter(regionId: string): Promise<void> {
  * coords since the most recent geofence_departed_at so the figure
  * matches what processGeofenceTrip will eventually save. No-op if no
  * geofence trip is in flight or no LA is active.
+ *
+ * Two guards keep this from burning battery / pinning the LA on the
+ * Dynamic Island when the user has stopped moving:
+ *   1. Throttle: at most once every 20 seconds, regardless of how
+ *      often the geofence tracking task fires location callbacks.
+ *   2. Only push an update when distance has actually changed by at
+ *      least 0.05 mi. When the user parks at a non-saved location,
+ *      distance plateaus and we stop pushing — iOS lets the LA
+ *      stale-dismiss naturally after 8 min instead of being kept
+ *      perpetually fresh. (Bug introduced 11 May 2026, surfaced
+ *      12 May 2026 — Anthony hit "LA stays on Dynamic Island for
+ *      hours + battery drain" after build 65 went out.)
  */
+let lastGeofenceLAUpdateMs = 0;
+let lastGeofenceLADistanceMiles = -1;
+
+export function resetGeofenceLAState(): void {
+  lastGeofenceLAUpdateMs = 0;
+  lastGeofenceLADistanceMiles = -1;
+}
+
 async function updateGeofenceTripLiveActivity(): Promise<void> {
+  const now = Date.now();
+  if (now - lastGeofenceLAUpdateMs < 20_000) return;
+
   try {
     const db = await getDatabase();
     const departedRow = await db.getFirstAsync<{ value: string }>(
@@ -432,6 +455,11 @@ async function updateGeofenceTripLiveActivity(): Promise<void> {
         coords[i].lat, coords[i].lng
       );
     }
+
+    // Only update if the trip has actually advanced. Stationary user =
+    // no new distance = no update = LA stales and dismisses naturally.
+    if (Math.abs(distMiles - lastGeofenceLADistanceMiles) < 0.05) return;
+
     const latestSpeedMs = coords[coords.length - 1].speed ?? 0;
     const latestSpeedMph = Math.max(0, latestSpeedMs * 2.23694);
 
@@ -446,6 +474,9 @@ async function updateGeofenceTripLiveActivity(): Promise<void> {
       dailyTotalMiles: ctx?.dailyTotalMiles,
       milestoneText: ctx?.milestoneText,
     });
+
+    lastGeofenceLAUpdateMs = now;
+    lastGeofenceLADistanceMiles = distMiles;
   } catch {
     // Diagnostic-only path — never block the trip flow.
   }
@@ -473,6 +504,7 @@ async function startGeofenceTripLiveActivity(departedLocationId: string): Promis
     );
     const tripContextLabel = locRow?.name ? `From ${locRow.name}` : "";
 
+    resetGeofenceLAState();
     await startLiveActivity({
       activityType: "trip",
       isBusinessMode,
@@ -892,6 +924,61 @@ async function processGeofenceTrip(
     });
   } catch {
     // No active LA, or end failed — fine, trip is saved.
+  }
+  resetGeofenceLAState();
+}
+
+/**
+ * Foreground-cleanup for orphaned geofence trip Live Activities.
+ *
+ * Belt-and-braces guard for the case where:
+ *   - the user departed a saved location (LA started)
+ *   - they parked at a non-saved location (no arrival event)
+ *   - the geofence-tracking task fell silent (iOS suspended JS, the
+ *     user closed the app, etc.)
+ *
+ * iOS's 8-minute staleDate dismisses the LA naturally in most cases,
+ * but if the JS keeps poking the LA via background callbacks the
+ * staleDate gets renewed indefinitely. The throttle in
+ * updateGeofenceTripLiveActivity prevents that going forward — this
+ * helper cleans up activities that pre-date the throttle fix.
+ *
+ * Called from _layout.tsx on every AppState -> active transition.
+ * No-op if no LA exists or if a geofence trip is genuinely in flight
+ * with a recent location update.
+ */
+export async function cleanupStaleGeofenceLA(): Promise<void> {
+  try {
+    const db = await getDatabase();
+    const departedAtRow = await db.getFirstAsync<{ value: string }>(
+      "SELECT value FROM tracking_state WHERE key = 'geofence_departed_at'"
+    );
+    if (!departedAtRow?.value) {
+      // No active geofence trip — but we might still have an orphaned
+      // LA from a previous departure. Dismiss anything lingering.
+      const { endLiveActivity } = await import("../liveActivity");
+      await endLiveActivity().catch(() => {});
+      return;
+    }
+    // We DO have an active geofence trip on file. Dismiss only if it's
+    // been stale (>2 hours) — anything longer than that is almost
+    // certainly the user having parked at a non-saved location.
+    const departedAtMs = new Date(departedAtRow.value).getTime();
+    if (Date.now() - departedAtMs > 2 * 60 * 60 * 1000) {
+      // Clear the geofence trip state too so we don't keep treating
+      // it as in-flight. The user can manually add the trip if they
+      // need to capture it (or it'll be picked up by the next
+      // legitimate Enter event).
+      await db.runAsync(
+        "DELETE FROM tracking_state WHERE key IN ('geofence_departed_location', 'geofence_departed_at', 'geofence_tentative_arrival', 'geofence_tentative_arrival_at')"
+      );
+      await db.runAsync("DELETE FROM detection_coordinates");
+      const { endLiveActivity } = await import("../liveActivity");
+      await endLiveActivity().catch(() => {});
+      resetGeofenceLAState();
+    }
+  } catch {
+    // Cleanup-only path — never block app startup.
   }
 }
 
