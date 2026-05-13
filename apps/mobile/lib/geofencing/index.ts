@@ -518,20 +518,28 @@ async function startGeofenceTripLiveActivity(departedLocationId: string): Promis
 async function handleSavedLocationExit(regionId: string): Promise<void> {
   const db = await getDatabase();
 
-  // Position-verify the Exit before treating it as a real departure.
-  // iOS occasionally fires Exit events from cell-tower / wifi-positioning
-  // fixes that place the device hundreds of metres outside the geofence
-  // even though it hasn't physically moved. Anthony hit this 12 May 2026:
-  // his "St Roberts School" geofence fired Exit while he sat at the
-  // office all morning — a phantom trip then started recording GPS
-  // jitter (0.3 mi over 5 min at ~1 mph) and pinned the Live Activity
-  // to the Dynamic Island.
+  // Three-layer gate before treating any geofence Exit as a real
+  // departure. iOS fires Exits from cached cell-tower / wifi fixes
+  // that can be 100s of metres off — without these gates we'd start
+  // a phantom trip every time iOS gets confused.
   //
-  // Mirror the Enter-side gate (handleSavedLocationEnter): pull the
-  // last-known position, refuse to act if it sits inside the saved
-  // location's radius. Generous tolerance because iOS's cached fix is
-  // often a few seconds stale and built-up areas can show 50-100m of
-  // legitimate GPS error.
+  // Layer 1: registration grace period (added 13 May 2026 after
+  //   Anthony reported "trip starts the moment I open the app, not
+  //   moving"). When registerGeofences runs at app launch, iOS
+  //   immediately evaluates the device's cached position against
+  //   the new regions and fires Exits for any region it thinks the
+  //   device is outside. If that cached fix is wrong, we get a
+  //   phantom Exit at app start. Reject every Exit fired within
+  //   REGISTRATION_GRACE_MS of registration UNLESS we can confirm
+  //   the device is genuinely outside via a fresh high-accuracy fix.
+  //
+  // Layer 2: cached-fix accuracy gate. Reject if iOS's cached
+  //   position is > 200m accuracy (cell tower / wifi territory).
+  //
+  // Layer 3: position-inside-radius check. If the cached fix shows
+  //   the device still inside the geofence (plus 50m slop), the
+  //   Exit was a phantom. (Anthony 12 May 2026: St Roberts School
+  //   phantom from indoor GPS drift.)
   try {
     const loc = await db.getFirstAsync<{
       latitude: number;
@@ -541,13 +549,73 @@ async function handleSavedLocationExit(regionId: string): Promise<void> {
       "SELECT latitude, longitude, radius_meters FROM saved_locations WHERE id = ?",
       [regionId]
     );
+
+    // Layer 1: registration grace window
+    const regAtRow = await db.getFirstAsync<{ value: string }>(
+      "SELECT value FROM tracking_state WHERE key = 'geofence_registered_at'"
+    );
+    const regAtMs = regAtRow ? parseInt(regAtRow.value, 10) : 0;
+    const sinceRegistrationMs = Date.now() - regAtMs;
+    const REGISTRATION_GRACE_MS = 30_000;
+    if (loc && regAtMs > 0 && sinceRegistrationMs < REGISTRATION_GRACE_MS) {
+      // Just registered. iOS's cached position is the most likely
+      // cause of a phantom Exit here — its evaluation was the same
+      // cached fix that would now confirm a false "outside" answer.
+      // Demand a fresh, high-accuracy GPS fix before accepting.
+      // 5-second timeout — if we can't get a confirmation, we
+      // reject the Exit (it'll fire again from real movement when
+      // the user genuinely leaves, and at that point the registration
+      // grace will have elapsed and the standard gates apply).
+      type FreshPos = Awaited<ReturnType<typeof Location.getCurrentPositionAsync>>;
+      let freshPos: FreshPos | null = null;
+      try {
+        const result = await Promise.race<FreshPos | null>([
+          Location.getCurrentPositionAsync({
+            accuracy: Location.Accuracy.BestForNavigation,
+          }),
+          new Promise<null>((resolve) =>
+            setTimeout(() => resolve(null), 5000)
+          ),
+        ]);
+        freshPos = result;
+      } catch {
+        freshPos = null;
+      }
+      if (!freshPos) {
+        logDetectionEvent("geofence_exit_rejected_registration_grace", {
+          locationId: regionId,
+          sinceRegistrationMs,
+          reason: "no_fresh_fix",
+        }).catch(() => {});
+        return;
+      }
+      const freshAccuracy = freshPos.coords.accuracy ?? Infinity;
+      const freshDistMeters =
+        haversine(
+          freshPos.coords.latitude, freshPos.coords.longitude,
+          loc.latitude, loc.longitude
+        ) * 1609.344;
+      if (freshAccuracy > 100 || freshDistMeters <= loc.radius_meters + 50) {
+        logDetectionEvent("geofence_exit_rejected_registration_grace", {
+          locationId: regionId,
+          sinceRegistrationMs,
+          freshAccuracy: Math.round(freshAccuracy),
+          freshDistMeters: Math.round(freshDistMeters),
+          radiusMeters: loc.radius_meters,
+          reason: freshAccuracy > 100 ? "fresh_fix_imprecise" : "fresh_fix_inside",
+        }).catch(() => {});
+        return;
+      }
+      // Fresh high-accuracy fix confirms the device is actually
+      // outside the radius — the Exit is real, fall through to
+      // the normal path. (Edge case: user opens the app right after
+      // genuinely driving off — we don't want to drop their trip
+      // either.)
+    }
+
+    // Layer 2 + 3: standard gates for Exits outside the grace window.
     const pos = await Location.getLastKnownPositionAsync();
     if (loc && pos) {
-      // Refuse the Exit if the position came back too coarse to trust
-      // (cell-tower fixes are typically 500m+ accuracy). Real GPS in
-      // built-up areas clears 100m comfortably. Without this check
-      // the cached fix at the moment of Exit is the same cell-tower
-      // fix that triggered the event in the first place — circular.
       const accuracy = pos.coords.accuracy ?? Infinity;
       if (accuracy > 200) {
         logDetectionEvent("geofence_exit_rejected_accuracy", {
@@ -561,9 +629,6 @@ async function handleSavedLocationExit(regionId: string): Promise<void> {
         loc.latitude, loc.longitude
       );
       const distMeters = distMiles * 1609.344;
-      // Inside-the-radius check: if the device's last-known fix is
-      // still inside the geofence (plus 50m GPS slop), the Exit was
-      // a phantom. Reject it.
       if (distMeters <= loc.radius_meters + 50) {
         logDetectionEvent("geofence_exit_rejected_inside", {
           locationId: regionId,
@@ -705,6 +770,21 @@ export async function registerGeofences(): Promise<void> {
     await stopGeofencing();
     return;
   }
+
+  // Stamp registration time so handleSavedLocationExit can detect the
+  // "phantom Exit fired on registration" case. iOS's
+  // startGeofencingAsync immediately evaluates the device's cached
+  // position against the new regions and fires Exit / Enter events
+  // for any region the device isn't / is inside — but cached cell-
+  // tower fixes can place the device 100s of metres off, producing
+  // a phantom Exit at app launch when the device hasn't moved.
+  // Exits within REGISTRATION_GRACE_MS of this stamp are treated
+  // with a tighter bar — see handleSavedLocationExit.
+  const db2 = await getDatabase();
+  await db2.runAsync(
+    "INSERT OR REPLACE INTO tracking_state (key, value) VALUES ('geofence_registered_at', ?)",
+    [Date.now().toString()]
+  );
 
   await Location.startGeofencingAsync(GEOFENCE_TASK_NAME, regions);
 }
