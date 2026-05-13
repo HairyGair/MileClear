@@ -934,7 +934,17 @@ async function _finalizeAutoTripInner(): Promise<void> {
         first.lat, first.lng
       );
 
-      if (timeSinceLastTrip >= 0 && timeSinceLastTrip < MERGE_TIME_WINDOW_MS && distFromLastEnd < MERGE_DISTANCE_M) {
+      // Symmetric time window. The previous check required
+      // timeSinceLastTrip >= 0 (new trip strictly AFTER previous),
+      // but the watch-and-wait detector buffers coords from the first
+      // sighting of motion — those buffered timestamps can pre-date
+      // the previous trip's stop-detection finalize. The result was
+      // overlapping trips with timeSinceLastTrip < 0 being rejected
+      // for merge despite being the strongest possible signal of a
+      // continuous drive. (Raven 13 May 2026: 5.7 mi trip + 103 mi
+      // trip split at Spicewood, 18m apart, 1-second overlap.)
+      // Math.abs() so the 15-minute window is symmetric.
+      if (Math.abs(timeSinceLastTrip) < MERGE_TIME_WINDOW_MS && distFromLastEnd < MERGE_DISTANCE_M) {
         // Merge: extend the previous trip's end point, distance, and time
         const { syncUpdateTrip } = await import("../sync/actions");
         const newDistance = Math.round((recentTrip.distance_miles + totalDistance) * 100) / 100;
