@@ -25,6 +25,20 @@ export interface ReleaseNote {
   emailHero?: string;
   emailTagline?: string;
   emailHighlights?: string[];
+  // Site-wide announcement banner shown across mileclear.com. When
+  // `banner` is present AND the release's label is "Latest", every
+  // page renders a thin top bar with the headline + a "What's new"
+  // link to /releases + a "Download" CTA. Visitor-dismissable per
+  // browser via localStorage; key includes the version so a new
+  // release reactivates it. Remove `banner` (or flip the label
+  // away from "Latest") to retire the announcement.
+  banner?: {
+    /** Short headline. Keep under ~50 chars so it fits one line on
+     *  mobile without truncating. */
+    headline: string;
+    /** Optional sub-line for desktop / wider viewports. */
+    subline?: string;
+  };
 }
 
 export const RELEASE_NOTES: ReleaseNote[] = [
@@ -32,6 +46,10 @@ export const RELEASE_NOTES: ReleaseNote[] = [
     version: "1.2.0",
     date: "13 May 2026",
     label: "Pending Review",
+    banner: {
+      headline: "MileClear 1.2.0 is live",
+      subline: "Quarterly HMRC submissions, road-accurate distances, and 30+ updates",
+    },
     emailSubject: "MileClear 1.2.0 is here - and it's a big one",
     emailHero: "1.2.0 - the biggest update since launch",
     emailTagline:

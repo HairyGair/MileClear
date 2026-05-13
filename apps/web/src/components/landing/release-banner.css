@@ -1,0 +1,166 @@
+/* Site-wide release announcement banner.
+ *
+ * Sits at the very top of the page, above the navbar. Amber accent
+ * line + dark surface to match the dashboard's premium fintech feel.
+ * Single-line on mobile (subline hidden), two-segment layout on
+ * desktop (copy left, CTAs + dismiss right). Respects prefers-
+ * reduced-motion by skipping the pulse animation.
+ */
+
+.release-banner {
+  position: relative;
+  z-index: 60;
+  background: linear-gradient(
+    180deg,
+    rgba(245, 166, 35, 0.16) 0%,
+    rgba(245, 166, 35, 0.08) 100%
+  );
+  border-bottom: 1px solid rgba(245, 166, 35, 0.22);
+  color: var(--text-primary, #f0f2f5);
+  font-family: var(--font-display, "Sora", system-ui, sans-serif);
+}
+
+.release-banner__inner {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 10px clamp(1rem, 3vw, 2rem);
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  justify-content: space-between;
+}
+
+.release-banner__copy {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  min-width: 0;
+  flex: 1;
+}
+
+.release-banner__pulse {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #f5a623;
+  flex-shrink: 0;
+  box-shadow: 0 0 0 0 rgba(245, 166, 35, 0.7);
+  animation: release-banner-pulse 2s infinite;
+}
+
+@keyframes release-banner-pulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(245, 166, 35, 0.7);
+  }
+  70% {
+    box-shadow: 0 0 0 8px rgba(245, 166, 35, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(245, 166, 35, 0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .release-banner__pulse {
+    animation: none;
+  }
+}
+
+.release-banner__headline {
+  font-size: 0.875rem;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: #f0f2f5;
+}
+
+.release-banner__subline {
+  font-size: 0.8125rem;
+  color: rgba(240, 242, 245, 0.7);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Hide subline on tablet and below to keep banner one line */
+@media (max-width: 768px) {
+  .release-banner__subline {
+    display: none;
+  }
+  .release-banner__headline {
+    font-size: 0.8125rem;
+  }
+}
+
+.release-banner__ctas {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-shrink: 0;
+}
+
+.release-banner__link {
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: rgba(240, 242, 245, 0.85);
+  text-decoration: none;
+  padding: 0.375rem 0.625rem;
+  border-radius: 6px;
+  transition: color 0.15s, background-color 0.15s;
+}
+
+.release-banner__link:hover,
+.release-banner__link:focus-visible {
+  color: #f0f2f5;
+  background-color: rgba(255, 255, 255, 0.05);
+  outline: none;
+}
+
+/* Hide "What's new" link on small mobile to save space; the X dismiss
+ * is non-negotiable but the link is duplicated on /releases anyway. */
+@media (max-width: 480px) {
+  .release-banner__link {
+    display: none;
+  }
+}
+
+.release-banner__cta {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: #030712;
+  background: #f5a623;
+  text-decoration: none;
+  padding: 0.4375rem 0.875rem;
+  border-radius: 6px;
+  transition: background 0.15s;
+  white-space: nowrap;
+}
+
+.release-banner__cta:hover,
+.release-banner__cta:focus-visible {
+  background: #e8950f;
+  outline: none;
+}
+
+.release-banner__dismiss {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: none;
+  background: transparent;
+  color: rgba(240, 242, 245, 0.55);
+  cursor: pointer;
+  border-radius: 6px;
+  padding: 0;
+  transition: color 0.15s, background-color 0.15s;
+}
+
+.release-banner__dismiss:hover,
+.release-banner__dismiss:focus-visible {
+  color: #f0f2f5;
+  background-color: rgba(255, 255, 255, 0.06);
+  outline: none;
+}

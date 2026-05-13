@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Sora, Outfit } from "next/font/google";
 import "./globals.css";
+import ReleaseBanner from "@/components/landing/ReleaseBanner";
 
 const sora = Sora({
   subsets: ["latin"],
@@ -83,7 +84,10 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en-GB" className={`${sora.variable} ${outfit.variable}`}>
-      <body>{children}</body>
+      <body>
+        <ReleaseBanner />
+        {children}
+      </body>
     </html>
   );
 }
