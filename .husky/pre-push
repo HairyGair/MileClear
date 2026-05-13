@@ -1,8 +1,8 @@
 #!/usr/bin/env sh
-# Pre-push: mirror the two checks that GitHub Actions CI gates on.
-# Catches the "I forgot to run lint locally" failures that spam Anthony
-# with 22 emails per CI fail. Pre-commit is deliberately skipped — local
-# commits should stay fast.
+# Pre-push: mirror the three checks that GitHub Actions CI gates on.
+# Catches the "I forgot to run [lint|test] locally" failures that spam
+# Anthony with N emails per CI fail. Pre-commit is deliberately skipped
+# — local commits should stay fast.
 #
 # Skip with: git push --no-verify
 # (Use sparingly — every skip is a potential CI failure.)
@@ -22,4 +22,12 @@ if ! pnpm typecheck; then
   exit 1
 fi
 
-echo "[pre-push] ✅ Lint + typecheck clean. Pushing."
+if ! pnpm test; then
+  echo ""
+  echo "[pre-push] ❌ Tests failed. Fix the failures above and re-push."
+  echo "[pre-push]    To debug a single suite locally:"
+  echo "[pre-push]    pnpm --filter @mileclear/api test -- --reporter=verbose path/to/file.test.ts"
+  exit 1
+fi
+
+echo "[pre-push] ✅ Lint + typecheck + tests clean. Pushing."

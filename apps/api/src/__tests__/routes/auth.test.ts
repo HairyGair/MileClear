@@ -23,6 +23,8 @@ vi.mock("../../lib/prisma.js", () => ({
       findUnique: vi.fn(),
       delete: vi.fn(),
       deleteMany: vi.fn(),
+      update: vi.fn(),
+      updateMany: vi.fn(),
     },
     verificationCode: {
       create: vi.fn(),
@@ -316,19 +318,29 @@ describe("POST /auth/refresh", () => {
     app = await createTestApp();
   });
 
-  it("200 — issues new token pair for a valid refresh token", async () => {
+  it("200 — issues new token pair for a valid refresh token (chain head)", async () => {
     const validToken = makeRefreshToken(TEST_USER_ID);
     const futureExpiry = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
 
+    // Token is the chain head: rotatedToTokenId IS null.
     vi.mocked(prisma.refreshToken.findUnique).mockResolvedValue({
       id: "rt-1",
       userId: TEST_USER_ID,
       token: validToken,
       expiresAt: futureExpiry,
       createdAt: new Date(),
+      familyId: "fam-1",
+      rotatedToTokenId: null,
+      revokedAt: null,
     } as any);
 
-    vi.mocked(prisma.refreshToken.deleteMany).mockResolvedValue({ count: 1 } as any);
+    // Rotation creates a new row and sets the old row's rotatedToTokenId.
+    vi.mocked(prisma.refreshToken.create).mockResolvedValue({
+      id: "rt-2",
+      userId: TEST_USER_ID,
+      familyId: "fam-1",
+    } as any);
+    vi.mocked(prisma.refreshToken.update).mockResolvedValue({} as any);
 
     // isAdmin lookup
     vi.mocked(prisma.user.findUnique).mockResolvedValue({
@@ -345,9 +357,11 @@ describe("POST /auth/refresh", () => {
     const body = res.json();
     expect(body.data.accessToken).toBeDefined();
     expect(body.data.refreshToken).toBeDefined();
-    // Rotated — old token deleted, new one stored
-    expect(vi.mocked(prisma.refreshToken.deleteMany)).toHaveBeenCalledTimes(1);
+    // New design: rotation creates a new row AND updates the old
+    // row's rotatedToTokenId — it does NOT delete. The chain is the
+    // replay-detection signal.
     expect(vi.mocked(prisma.refreshToken.create)).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(prisma.refreshToken.update)).toHaveBeenCalledTimes(1);
   });
 
   it("401 — rejects an unknown refresh token", async () => {
@@ -360,7 +374,7 @@ describe("POST /auth/refresh", () => {
     });
 
     expect(res.statusCode).toBe(401);
-    expect(res.json().error).toMatch(/invalid or expired/i);
+    expect(res.json().error).toMatch(/invalid refresh token/i);
   });
 
   it("401 — rejects an expired refresh token stored in DB", async () => {
@@ -372,9 +386,10 @@ describe("POST /auth/refresh", () => {
       token: "expired-token",
       expiresAt: pastExpiry,
       createdAt: new Date(),
+      familyId: "fam-x",
+      rotatedToTokenId: null,
+      revokedAt: null,
     } as any);
-
-    vi.mocked(prisma.refreshToken.deleteMany).mockResolvedValue({ count: 1 } as any);
 
     const res = await app.inject({
       method: "POST",
@@ -383,8 +398,49 @@ describe("POST /auth/refresh", () => {
     });
 
     expect(res.statusCode).toBe(401);
-    // Expired token should be cleaned up from DB
-    expect(vi.mocked(prisma.refreshToken.deleteMany)).toHaveBeenCalledTimes(1);
+    expect(res.json().error).toMatch(/expired/i);
+    // New design: expired tokens are NOT auto-deleted on present —
+    // they age out via a separate reaper. The 401 is the contract.
+    expect(vi.mocked(prisma.refreshToken.create)).not.toHaveBeenCalled();
+  });
+
+  it("401 — revokes the entire family on replay (2+ generation stale token)", async () => {
+    const staleToken = "stale-token";
+
+    // The presented token has been rotated TWO generations forward:
+    // stale -> mid -> head. Replay detection should fire.
+    vi.mocked(prisma.refreshToken.findUnique)
+      .mockResolvedValueOnce({
+        id: "rt-stale",
+        userId: TEST_USER_ID,
+        token: staleToken,
+        expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+        createdAt: new Date(),
+        familyId: "fam-replay",
+        rotatedToTokenId: "rt-mid",
+        revokedAt: null,
+      } as any)
+      .mockResolvedValueOnce({
+        id: "rt-mid",
+        userId: TEST_USER_ID,
+        familyId: "fam-replay",
+        rotatedToTokenId: "rt-head", // successor itself rotated → replay
+        revokedAt: null,
+      } as any);
+
+    vi.mocked(prisma.refreshToken.updateMany).mockResolvedValue({ count: 3 } as any);
+
+    const res = await app.inject({
+      method: "POST",
+      url: "/auth/refresh",
+      payload: { refreshToken: staleToken },
+    });
+
+    expect(res.statusCode).toBe(401);
+    expect(res.json().error).toMatch(/replay/i);
+    // Family-wide revoke fired
+    expect(vi.mocked(prisma.refreshToken.updateMany)).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(prisma.refreshToken.create)).not.toHaveBeenCalled();
   });
 
   it("400 — rejects missing refreshToken field", async () => {
