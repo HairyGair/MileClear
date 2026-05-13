@@ -15,6 +15,7 @@ import {
 import { logEvent } from "../../services/appEvents.js";
 import { respondToConsumptionRequest } from "../../services/appleConsumption.js";
 import { notifyBillingEvent } from "../../services/billingAlerts.js";
+import { sendProWelcomeEmail } from "../../services/email.js";
 
 // Notification types that imply an active payment relationship. When
 // any of these arrive without a matching user, we surface a real-time
@@ -150,6 +151,25 @@ export async function appleBillingRoutes(app: FastifyInstance) {
             originalTransactionId,
             details: { premiumExpiresAt: premiumExpiresAt?.toISOString() ?? null },
           });
+          // One-shot founder welcome email. Idempotent — checks
+          // for a prior welcome.pro_sent AppEvent first so a
+          // Restore Purchases on an existing account doesn't
+          // re-send. Wrapped in try/catch so a Brevo outage can't
+          // break the IAP validate handshake.
+          if (fullUser?.email) {
+            try {
+              const alreadySent = await prisma.appEvent.findFirst({
+                where: { userId: request.userId!, type: "welcome.pro_sent" },
+                select: { id: true },
+              });
+              if (!alreadySent) {
+                await sendProWelcomeEmail(fullUser.email, fullUser.displayName);
+                await logEvent("welcome.pro_sent", request.userId!, { method: "email" });
+              }
+            } catch (err) {
+              app.log.error({ err }, "sendProWelcomeEmail failed (Apple path)");
+            }
+          }
         }
 
         return reply.send({

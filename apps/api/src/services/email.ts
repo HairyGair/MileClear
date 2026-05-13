@@ -325,6 +325,96 @@ export async function sendWelcomeEmail(
   await transporter.sendMail({ from: FROM_PERSONAL, to: email, replyTo: "gair@mileclear.com", subject, html });
 }
 
+/**
+ * Pro welcome email — founder-voice, personal, sent once when a user
+ * first upgrades to Pro (Stripe checkout completes OR Apple IAP
+ * validate flips isPremium to true). Idempotency is the caller's
+ * responsibility: check for an `appEvent` of type `welcome.pro_sent`
+ * for the user before calling this, and log it after.
+ *
+ * Transactional — does NOT honour the marketing opt-out. It's a
+ * one-shot thank-you for paying customers, not a marketing nudge.
+ */
+export async function sendProWelcomeEmail(
+  email: string,
+  displayName?: string | null
+): Promise<void> {
+  const firstName = (displayName ?? "").trim().split(/\s+/)[0];
+  const greeting = firstName ? `Hi ${escapeHtml(firstName)},` : "Hi there,";
+  const subject = "Thanks for trying MileClear Pro";
+  const html = `
+    <!DOCTYPE html>
+    <html>
+    <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
+    <body style="margin: 0; padding: 0; background-color: #030712; font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color: #030712;">
+        <tr><td align="center" style="padding: 32px 16px;">
+          <table role="presentation" width="520" cellpadding="0" cellspacing="0" style="max-width: 520px; width: 100%;">
+
+            <!-- Header with logo -->
+            <tr><td align="center" style="padding: 24px 0 32px;">
+              <img src="https://mileclear.com/branding/logo-120x120.png" alt="MileClear" width="56" height="56" style="display: block; border: 0; border-radius: 12px;" />
+            </td></tr>
+
+            <!-- Main card -->
+            <tr><td style="background-color: #0a1120; border-radius: 16px; border: 1px solid rgba(255,255,255,0.06);">
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+                <tr><td style="height: 3px; background: linear-gradient(90deg, #f5a623, #e8950f); border-radius: 16px 16px 0 0; font-size: 0; line-height: 0;">&nbsp;</td></tr>
+                <tr><td style="padding: 36px 32px 32px;">
+
+                  <p style="color: #c0c8d4; font-size: 15px; line-height: 1.7; margin: 0 0 16px;">${greeting}</p>
+
+                  <p style="color: #c0c8d4; font-size: 15px; line-height: 1.7; margin: 0 0 16px;">Anthony here, the founder of MileClear. I wanted to drop you a personal note to say thanks for upgrading to Pro today.</p>
+
+                  <p style="color: #c0c8d4; font-size: 15px; line-height: 1.7; margin: 0 0 20px;">When you build something like this on your own, every paying customer matters more than I can comfortably explain. You're one of them now, so genuinely &mdash; thank you.</p>
+
+                  <p style="color: #c0c8d4; font-size: 15px; line-height: 1.7; margin: 0 0 12px;">A few useful things now that you're in:</p>
+
+                  <ol style="color: #c0c8d4; font-size: 14px; line-height: 1.7; margin: 0 0 20px; padding-left: 20px;">
+                    <li style="margin-bottom: 12px;"><strong style="color: #f0f2f5;">Everything you record is yours.</strong> If you ever cancel Pro, every mile you've tracked stays with you. No data lock-in, no ransom.</li>
+                    <li style="margin-bottom: 12px;"><strong style="color: #f0f2f5;">HMRC quarterly submissions (MTD ITSA)</strong> live under Avatar &rarr; Work &amp; Tax &rarr; MTD ITSA. We're currently in HMRC's sandbox while their production accreditation lands &mdash; submissions go to a test environment, not your real tax account. The Sandbox banner makes that obvious so you don't accidentally rely on it for a real submission.</li>
+                    <li style="margin-bottom: 12px;"><strong style="color: #f0f2f5;">The Tax Readiness card on your dashboard</strong> shows what to set aside each week. The more trips and earnings you log, the more accurate it gets.</li>
+                    <li style="margin-bottom: 0;"><strong style="color: #f0f2f5;">There's a quick tour</strong> you can replay any time from Avatar &rarr; Help &amp; Tutorials. The same screen has a categorised FAQ for the trickier bits (cash vs accruals, PAYE offset, employer mileage rate).</li>
+                  </ol>
+
+                  <p style="color: #c0c8d4; font-size: 15px; line-height: 1.7; margin: 0 0 16px;">If anything looks wrong, doesn't make sense, or you have an idea for something the app should do &mdash; just reply to this email. I read every one and usually get back within a few hours.</p>
+
+                  <p style="color: #c0c8d4; font-size: 15px; line-height: 1.7; margin: 0 0 24px;">You can cancel anytime from iPhone Settings &rarr; your name &rarr; Subscriptions. Nothing locked away if you leave.</p>
+
+                  <p style="color: #c0c8d4; font-size: 15px; line-height: 1.7; margin: 0 0 4px;">Welcome aboard,</p>
+                  <p style="color: #f0f2f5; font-size: 15px; line-height: 1.7; margin: 0; font-weight: 600;">Anthony</p>
+                  <p style="color: #8494a7; font-size: 13px; line-height: 1.5; margin: 0;">Founder, MileClear</p>
+
+                </td></tr>
+              </table>
+            </td></tr>
+
+            <!-- Footer -->
+            <tr><td style="padding: 24px 16px 0;">
+              <p style="color: #4a5568; font-size: 12px; line-height: 1.5; margin: 0;">You're receiving this because you upgraded to MileClear Pro. Reply to this email for support &mdash; it lands in my inbox directly.</p>
+            </td></tr>
+
+          </table>
+        </td></tr>
+      </table>
+    </body>
+    </html>
+  `;
+
+  if (!transporter) {
+    console.log(`[EMAIL] Pro welcome email for ${email}`);
+    return;
+  }
+
+  await transporter.sendMail({
+    from: FROM_PERSONAL,
+    to: email,
+    replyTo: "gair@mileclear.com",
+    subject,
+    html,
+  });
+}
+
 export async function sendReEngagementEmail(
   email: string,
   displayName: string | null | undefined,

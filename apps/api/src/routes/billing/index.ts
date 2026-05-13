@@ -7,6 +7,33 @@ import { sendPushNotification } from "../../lib/push.js";
 import { appleBillingRoutes } from "./apple.js";
 import { logEvent } from "../../services/appEvents.js";
 import { notifyBillingEvent } from "../../services/billingAlerts.js";
+import { sendProWelcomeEmail } from "../../services/email.js";
+
+/**
+ * Idempotent wrapper around sendProWelcomeEmail. Checks for an existing
+ * `welcome.pro_sent` AppEvent for the user before sending; logs one
+ * after. Safe to call from any billing path that flips isPremium true.
+ * Failures don't bubble up — a flaky email send must not break the
+ * webhook handshake with Stripe / Apple.
+ */
+async function sendProWelcomeEmailOnce(
+  userId: string,
+  email: string | null,
+  displayName: string | null,
+): Promise<void> {
+  if (!email) return;
+  try {
+    const existing = await prisma.appEvent.findFirst({
+      where: { userId, type: "welcome.pro_sent" },
+      select: { id: true },
+    });
+    if (existing) return;
+    await sendProWelcomeEmail(email, displayName);
+    await logEvent("welcome.pro_sent", userId, { method: "email" });
+  } catch (err) {
+    console.error("sendProWelcomeEmailOnce failed:", err);
+  }
+}
 
 function getPeriodEnd(sub: Stripe.Subscription): number {
   return sub.items.data[0]?.current_period_end ?? 0;
@@ -130,6 +157,7 @@ export async function billingRoutes(app: FastifyInstance) {
             userEmail: fullUser?.email ?? null,
             details: { platform: "stripe", subscriptionId },
           });
+          await sendProWelcomeEmailOnce(userId, fullUser?.email ?? null, fullUser?.displayName ?? null);
         }
         break;
       }
