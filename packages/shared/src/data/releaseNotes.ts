@@ -44,8 +44,10 @@ export interface ReleaseNote {
 export const RELEASE_NOTES: ReleaseNote[] = [
   {
     version: "1.2.0",
-    date: "13 May 2026",
-    label: "Pending Review",
+    date: "14 May 2026",
+    label: "Latest",
+    ctaUrl: "https://apps.apple.com/app/mileclear/id6742044832",
+    ctaLabel: "Install on the App Store",
     banner: {
       headline: "MileClear 1.2.0 is live",
       subline: "Quarterly HMRC submissions, road-accurate distances, and 30+ updates",
