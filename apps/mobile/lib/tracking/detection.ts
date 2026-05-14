@@ -933,6 +933,23 @@ async function _finalizeAutoTripInner(): Promise<void> {
         recentTrip.end_lat, recentTrip.end_lng,
         first.lat, first.lng
       );
+      // Log every merge attempt with the decision factors. Was previously
+      // only logged on success via `finalize_merged`; rejections were
+      // silent. The Raven 13 May 2026 case (108-mile drive split into
+      // 5.7 + 103 trips at a petrol station) was invisible in the
+      // diagnostic dump until we queried the DB directly.
+      const decision: string =
+        Math.abs(timeSinceLastTrip) < MERGE_TIME_WINDOW_MS && distFromLastEnd < MERGE_DISTANCE_M
+          ? "merged"
+          : Math.abs(timeSinceLastTrip) >= MERGE_TIME_WINDOW_MS
+          ? "rejected_too_old"
+          : "rejected_too_far";
+      logDetectionEvent("merge_attempted", {
+        recentTripId: recentTrip.id,
+        timeSinceLastTripMs: timeSinceLastTrip,
+        distFromLastEndMeters: Math.round(distFromLastEnd),
+        decision,
+      }).catch(() => {});
 
       // Symmetric time window. The previous check required
       // timeSinceLastTrip >= 0 (new trip strictly AFTER previous),
@@ -1905,10 +1922,16 @@ try {
 
         // Send "Looks like you're driving" notification
         await sendDrivingDetectedNotification();
+        const now = Date.now();
         await db.runAsync(
           "INSERT OR REPLACE INTO tracking_state (key, value) VALUES ('last_detection_notification', ?)",
-          [Date.now().toString()]
+          [now.toString()]
         );
+        logDetectionEvent("cooldown_set", {
+          source: "drive_detection_notification",
+          untilMs: now + COOLDOWN_MS,
+          windowMs: COOLDOWN_MS,
+        }).catch(() => {});
       } finally {
         startingRecording = false;
       }

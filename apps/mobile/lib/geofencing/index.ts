@@ -351,6 +351,14 @@ async function handleSavedLocationEnter(regionId: string): Promise<void> {
         }).catch(() => {});
         return;
       }
+      // Symmetric accept log — was only logging rejections, which made
+      // it impossible to compute accept-rate from the diagnostic dump.
+      logDetectionEvent("geofence_enter_accepted", {
+        locationId: regionId,
+        distMeters: Math.round(distMeters),
+        radiusMeters: loc.radius_meters,
+        accuracy: Math.round(pos.coords.accuracy ?? -1),
+      }).catch(() => {});
     }
   } catch {
     // Position lookup failed - fall through to the existing flow rather
@@ -611,6 +619,13 @@ async function handleSavedLocationExit(regionId: string): Promise<void> {
       // the normal path. (Edge case: user opens the app right after
       // genuinely driving off — we don't want to drop their trip
       // either.)
+      logDetectionEvent("geofence_exit_accepted_registration_grace", {
+        locationId: regionId,
+        sinceRegistrationMs,
+        freshAccuracy: Math.round(freshAccuracy),
+        freshDistMeters: Math.round(freshDistMeters),
+        radiusMeters: loc.radius_meters,
+      }).catch(() => {});
     }
 
     // Layer 2 + 3: standard gates for Exits outside the grace window.
@@ -638,6 +653,14 @@ async function handleSavedLocationExit(regionId: string): Promise<void> {
         }).catch(() => {});
         return;
       }
+      // Standard-gate accept: log the positive decision so accept/reject
+      // counts can be compared in the diagnostic dump.
+      logDetectionEvent("geofence_exit_accepted", {
+        locationId: regionId,
+        distMeters: Math.round(distMeters),
+        radiusMeters: loc.radius_meters,
+        accuracy: Math.round(accuracy),
+      }).catch(() => {});
     }
   } catch {
     // Position-verify is a best-effort gate. If it fails (no permission,
@@ -947,7 +970,49 @@ async function processGeofenceTrip(
     [arrivedLocationId]
   );
 
-  const startAddress = departedLoc?.name || (await reverseGeocode(first.lat, first.lng)) || null;
+  // Resolve start/end addresses. When the user has a saved location at
+  // the trip's endpoint, we prefer the saved name over a generic
+  // reverse-geocoded street address. But before we accept the saved
+  // name, verify the trip's actual GPS first/last coord is inside that
+  // location's radius — Anthony 14 May 2026 hit a case where the
+  // departed_location was set to a school 6.9km from the trip's first
+  // coord (likely from a stale geofence-Exit event), and the resulting
+  // trip claimed to start at "St Roberts School" while the GPS trace
+  // started near Home. The verify-then-accept pattern logs both the
+  // decision and the distance check so the bug is visible in the
+  // diagnostic dump going forward.
+  let startAddress: string | null = null;
+  if (departedLoc) {
+    const departedLocFull = await db.getFirstAsync<{
+      latitude: number;
+      longitude: number;
+      radius_meters: number;
+    }>(
+      "SELECT latitude, longitude, radius_meters FROM saved_locations WHERE id = ?",
+      [departedLocationId]
+    );
+    if (departedLocFull) {
+      const distMeters =
+        haversine(
+          first.lat, first.lng,
+          departedLocFull.latitude, departedLocFull.longitude,
+        ) * 1609.344;
+      const withinRadius = distMeters <= departedLocFull.radius_meters + 100;
+      logDetectionEvent("start_address_decision", {
+        proposedName: departedLoc.name,
+        locationId: departedLocationId,
+        firstCoordDistMeters: Math.round(distMeters),
+        radiusMeters: departedLocFull.radius_meters,
+        accepted: withinRadius,
+      }).catch(() => {});
+      if (withinRadius) {
+        startAddress = departedLoc.name;
+      }
+    }
+  }
+  if (!startAddress) {
+    startAddress = (await reverseGeocode(first.lat, first.lng)) || null;
+  }
   const endAddress = arrivedLoc?.name || (await reverseGeocode(last.lat, last.lng)) || null;
 
   // Auto-classify based on saved location types

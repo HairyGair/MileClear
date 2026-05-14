@@ -37,17 +37,32 @@ export function mountAppStateTracker(): void {
   AppState.addEventListener("change", (next) => {
     if (next === currentState) return;
     const now = Date.now();
-    history.unshift({
+    const transition = {
       from: currentState,
       to: next,
       at: now,
       durationMs: now - lastTransitionAt,
-    });
+    };
+    history.unshift(transition);
     if (history.length > MAX_HISTORY) history.length = MAX_HISTORY;
     currentState = next;
     lastTransitionAt = now;
     if (next === "active") lastForegroundedAt = now;
     if (next === "background") lastBackgroundedAt = now;
+    // Emit a detection event so this transition shows up in the dump's
+    // event stream alongside trip-detection events. Lets a reader spot
+    // "the app was backgrounded for 14 minutes here, no surprise the
+    // detection task didn't fire." Lazy-import to avoid a circular
+    // require (appState <-> tracking/detection's logEvent helper).
+    import("./tracking/detection")
+      .then(({ logDetectionEvent }) =>
+        logDetectionEvent("app_state_change", {
+          from: transition.from,
+          to: transition.to,
+          previousStateDurationMs: transition.durationMs,
+        }).catch(() => {})
+      )
+      .catch(() => {});
   });
 }
 
