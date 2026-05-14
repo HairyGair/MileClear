@@ -148,7 +148,7 @@ import { registerPushToken } from "../lib/api/notifications";
 import { startDriveDetection, finalizeStaleAutoRecordings, registerBackgroundFinalize } from "../lib/tracking/detection";
 import { registerGeofences, shadeExpiredUnconfirmedTrips, setDepartureAnchor } from "../lib/geofencing/index";
 import { getDatabase } from "../lib/db/index";
-import { hydrateLocalData, isHydrationComplete } from "../lib/sync/hydrate";
+import { hydrateLocalData, isHydrationComplete, reconcileSavedLocations } from "../lib/sync/hydrate";
 import { uploadDiagnosticDump } from "../lib/api/diagnostics";
 import { mountAppStateTracker } from "../lib/appState";
 import { isIapAvailable, initializeIap, setupPurchaseListeners, endIapConnection } from "../lib/iap/index";
@@ -245,7 +245,16 @@ function RootNavigator() {
         .catch(() => {})
         .finally(() => startDriveDetection());
       registerBackgroundFinalize().catch(() => {});
-      registerGeofences().catch(() => {});
+      // Reconcile saved locations against server truth before registering
+      // geofences — otherwise rows deleted on another device would still
+      // be registered with iOS, and processGeofenceTrip would tag trips
+      // with their stale names. Awaiting indirectly via .then on the
+      // reconcile promise keeps the call order correct without blocking.
+      reconcileSavedLocations()
+        .catch(() => {})
+        .finally(() => {
+          registerGeofences().catch(() => {});
+        });
       setDepartureAnchor().catch(() => {});
       shadeExpiredUnconfirmedTrips().catch(() => {});
       registerForPushNotifications()

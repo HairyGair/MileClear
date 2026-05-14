@@ -1013,11 +1013,56 @@ async function processGeofenceTrip(
   if (!startAddress) {
     startAddress = (await reverseGeocode(first.lat, first.lng)) || null;
   }
-  const endAddress = arrivedLoc?.name || (await reverseGeocode(last.lat, last.lng)) || null;
 
-  // Auto-classify based on saved location types
-  const startType = departedLoc?.location_type ?? null;
-  const endType = arrivedLoc?.location_type ?? null;
+  // Same verify-then-accept gate on the arrival side. The asymmetry
+  // (only checking departure) was wrong — an arrived_location whose
+  // coords don't match the trip's last GPS point is just as suspect.
+  let endAddress: string | null = null;
+  if (arrivedLoc) {
+    const arrivedLocFull = await db.getFirstAsync<{
+      latitude: number;
+      longitude: number;
+      radius_meters: number;
+    }>(
+      "SELECT latitude, longitude, radius_meters FROM saved_locations WHERE id = ?",
+      [arrivedLocationId]
+    );
+    if (arrivedLocFull) {
+      const distMeters =
+        haversine(
+          last.lat, last.lng,
+          arrivedLocFull.latitude, arrivedLocFull.longitude,
+        ) * 1609.344;
+      const withinRadius = distMeters <= arrivedLocFull.radius_meters + 100;
+      logDetectionEvent("end_address_decision", {
+        proposedName: arrivedLoc.name,
+        locationId: arrivedLocationId,
+        lastCoordDistMeters: Math.round(distMeters),
+        radiusMeters: arrivedLocFull.radius_meters,
+        accepted: withinRadius,
+      }).catch(() => {});
+      if (withinRadius) {
+        endAddress = arrivedLoc.name;
+      }
+    }
+  }
+  if (!endAddress) {
+    endAddress = (await reverseGeocode(last.lat, last.lng)) || null;
+  }
+
+  // Auto-classify based on saved location types — but only if the
+  // verify-then-accept gates above ACCEPTED the saved-location name.
+  // If a name was rejected for being out-of-radius, the location_type
+  // can't be trusted either: it almost certainly belongs to somewhere
+  // else the user once visited, not this trip.
+  const startType =
+    startAddress && departedLoc && startAddress === departedLoc.name
+      ? departedLoc.location_type
+      : null;
+  const endType =
+    endAddress && arrivedLoc && endAddress === arrivedLoc.name
+      ? arrivedLoc.location_type
+      : null;
   const workTypes = ["work", "depot"];
   let classification: "business" | "personal" | "unclassified" = "unclassified";
   if ((startType && workTypes.includes(startType)) || (endType && workTypes.includes(endType))) {

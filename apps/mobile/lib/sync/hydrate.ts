@@ -192,13 +192,47 @@ async function hydrateFuelLogs(logs: FuelLogWithVehicle[]): Promise<void> {
 }
 
 async function hydrateSavedLocations(locations: SavedLocation[]): Promise<void> {
-  if (!locations.length) return;
+  // Full reconciliation against server truth. The old INSERT-OR-IGNORE
+  // pattern was append-only — if a saved location was deleted on another
+  // device (or via the web dashboard), the local copy stuck around and
+  // kept attributing trips to "Home" / "St Roberts School" / etc long
+  // after the server-side row was gone. The trip would then arrive at
+  // the API tagged with names that no longer existed in saved_locations,
+  // and the user would scratch their head trying to figure out why the
+  // app "remembers" deleted places. Anthony 14 May 2026.
   const db = await getDatabase();
   const now = new Date().toISOString();
+  const serverIds = new Set(locations.map((l) => l.id));
+
+  // Don't blow away rows that haven't synced yet — they're in sync_queue
+  // pending a CREATE. Once they upload they'll appear in the server
+  // response on the next reconcile pass.
+  const pendingCreates = await db.getAllAsync<{ entity_id: string }>(
+    "SELECT entity_id FROM sync_queue WHERE entity_type = 'saved_location' AND operation = 'create'"
+  );
+  const pendingCreateIds = new Set(pendingCreates.map((r) => r.entity_id));
+
+  // Same for pending DELETEs — the row needs to stay locally until the
+  // server confirms the delete, otherwise the sync engine has nothing
+  // to reference when it retries.
+  const pendingDeletes = await db.getAllAsync<{ entity_id: string }>(
+    "SELECT entity_id FROM sync_queue WHERE entity_type = 'saved_location' AND operation = 'delete'"
+  );
+  const pendingDeleteIds = new Set(pendingDeletes.map((r) => r.entity_id));
+
+  const localRows = await db.getAllAsync<{ id: string }>(
+    "SELECT id FROM saved_locations"
+  );
+  for (const row of localRows) {
+    if (serverIds.has(row.id)) continue;
+    if (pendingCreateIds.has(row.id)) continue;
+    if (pendingDeleteIds.has(row.id)) continue;
+    await db.runAsync("DELETE FROM saved_locations WHERE id = ?", [row.id]);
+  }
 
   for (const loc of locations) {
     await db.runAsync(
-      `INSERT OR IGNORE INTO saved_locations
+      `INSERT OR REPLACE INTO saved_locations
          (id, name, location_type, latitude, longitude, radius_meters,
           geofence_enabled, synced_at, created_at, updated_at)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
@@ -215,6 +249,26 @@ async function hydrateSavedLocations(locations: SavedLocation[]): Promise<void> 
         loc.updatedAt,
       ]
     );
+  }
+}
+
+/**
+ * Public reconcile pass for saved locations. Unlike `hydrateLocalData`
+ * (which runs once per fresh install, gated by `hydration_complete`),
+ * this is safe to call repeatedly — at app start, after sync flush, or
+ * when the saved-locations screen loads. It reaches out to the server,
+ * pulls authoritative state, deletes local rows the server no longer
+ * has, and upserts what it does. Pending sync_queue operations are
+ * preserved so offline edits aren't lost.
+ *
+ * No-ops on network failure — better to keep stale data than wipe it.
+ */
+export async function reconcileSavedLocations(): Promise<void> {
+  try {
+    const result = (await fetchSavedLocations()) as { data: SavedLocation[] };
+    await hydrateSavedLocations(result.data);
+  } catch (err) {
+    console.warn("[hydrate] saved-locations reconcile failed:", err);
   }
 }
 
