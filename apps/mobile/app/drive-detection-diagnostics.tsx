@@ -438,6 +438,20 @@ const BUILD_NUMBER =
   (Constants as unknown as { nativeBuildVersion?: string }).nativeBuildVersion ??
   "?";
 
+interface SavedLocationLookup {
+  [id: string]: string; // id -> display name
+}
+
+interface RecentTripRow {
+  id: string;
+  start_address: string | null;
+  end_address: string | null;
+  distance_miles: number;
+  started_at: string;
+  ended_at: string | null;
+  classification: string | null;
+}
+
 export default function DriveDetectionDiagnosticsScreen() {
   const { user } = useUser();
   const [loading, setLoading] = useState(true);
@@ -445,16 +459,31 @@ export default function DriveDetectionDiagnosticsScreen() {
   const [events, setEvents] = useState<DetectionEventRow[]>([]);
   const [busy, setBusy] = useState(false);
   const [capturedAt, setCapturedAt] = useState<Date>(() => new Date());
+  const [locationLookup, setLocationLookup] = useState<SavedLocationLookup>({});
+  const [recentTrips, setRecentTrips] = useState<RecentTripRow[]>([]);
+  const [tripFilter, setTripFilter] = useState<RecentTripRow | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [diag, ev] = await Promise.all([
+      const { getDatabase } = await import("../lib/db");
+      const db = await getDatabase();
+      const [diag, ev, locs, trips] = await Promise.all([
         getDriveDetectionDiagnostics(),
         getRecentDetectionEvents(50),
+        db.getAllAsync<{ id: string; name: string }>(
+          "SELECT id, name FROM saved_locations"
+        ).catch(() => [] as Array<{ id: string; name: string }>),
+        db.getAllAsync<RecentTripRow>(
+          "SELECT id, start_address, end_address, distance_miles, started_at, ended_at, classification FROM trips ORDER BY started_at DESC LIMIT 10"
+        ).catch(() => [] as RecentTripRow[]),
       ]);
       setDiagnostics(diag);
       setEvents(ev);
+      const lookup: SavedLocationLookup = {};
+      for (const l of locs) lookup[l.id] = l.name;
+      setLocationLookup(lookup);
+      setRecentTrips(trips);
       setCapturedAt(new Date());
     } catch (err) {
       console.error("Failed to load diagnostics", err);
@@ -462,6 +491,33 @@ export default function DriveDetectionDiagnosticsScreen() {
       setLoading(false);
     }
   }, []);
+
+  // Compute the 24h activity summary from the events list. Cheap —
+  // events is already loaded.
+  const activitySummary = useMemo(() => {
+    const counts: Record<string, number> = {};
+    const cutoff = Date.now() - 24 * 60 * 60 * 1000;
+    for (const ev of events) {
+      if (new Date(ev.recorded_at).getTime() < cutoff) continue;
+      counts[ev.event] = (counts[ev.event] ?? 0) + 1;
+    }
+    return counts;
+  }, [events]);
+
+  // Filter the events list to the time window of the selected trip,
+  // if any. Lets the operator focus on what happened DURING a trip
+  // without scrolling through unrelated noise.
+  const visibleEvents = useMemo(() => {
+    if (!tripFilter) return events;
+    const start = new Date(tripFilter.started_at).getTime() - 60_000; // 1 min before
+    const end = tripFilter.ended_at
+      ? new Date(tripFilter.ended_at).getTime() + 60_000 // 1 min after
+      : Date.now();
+    return events.filter((ev) => {
+      const t = new Date(ev.recorded_at).getTime();
+      return t >= start && t <= end;
+    });
+  }, [events, tripFilter]);
 
   const health = useMemo(
     () => (diagnostics ? computeHealth(diagnostics, events) : null),
@@ -773,23 +829,109 @@ export default function DriveDetectionDiagnosticsScreen() {
         )}
       </View>
 
+      {/* Activity summary — 24h event-type counts. One-line glance at
+          the shape of activity before scrolling the raw firehose. */}
+      {Object.keys(activitySummary).length > 0 && (
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>Activity (last 24h)</Text>
+          {Object.entries(activitySummary)
+            .sort(([, a], [, b]) => b - a)
+            .map(([event, count]) => (
+              <View key={event} style={styles.kvRow}>
+                <View
+                  style={[
+                    styles.eventDot,
+                    { backgroundColor: EVENT_COLORS[event] ?? TEXT_2, marginRight: 8 },
+                  ]}
+                />
+                <Text style={styles.kvKey} numberOfLines={1}>{event}</Text>
+                <Text style={[styles.kvValue, { textAlign: "right", minWidth: 32 }]}>{count}</Text>
+              </View>
+            ))}
+        </View>
+      )}
+
+      {/* Recent trips with tap-to-filter. Selecting a trip filters the
+          events list below to that trip's time window (±60s) so you can
+          see exactly what fired during a specific recording without
+          mental filtering of the 50-event firehose. */}
+      {recentTrips.length > 0 && (
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>Recent trips (tap to filter events)</Text>
+          {tripFilter && (
+            <TouchableOpacity
+              onPress={() => setTripFilter(null)}
+              style={[styles.kvRow, { paddingVertical: 8 }]}
+              accessibilityRole="button"
+              accessibilityLabel="Clear trip filter"
+            >
+              <Text style={[styles.kvKey, { color: AMBER }]}>← Show all events</Text>
+            </TouchableOpacity>
+          )}
+          {recentTrips.map((t) => {
+            const selected = tripFilter?.id === t.id;
+            return (
+              <TouchableOpacity
+                key={t.id}
+                onPress={() => setTripFilter(selected ? null : t)}
+                style={[
+                  styles.kvRow,
+                  { paddingVertical: 10, opacity: tripFilter && !selected ? 0.5 : 1 },
+                ]}
+                accessibilityRole="button"
+                accessibilityLabel={`${selected ? "Deselect" : "Filter events to"} trip from ${t.start_address ?? "unknown"} to ${t.end_address ?? "unknown"}`}
+              >
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.kvKey, { color: selected ? AMBER : TEXT_1 }]} numberOfLines={1}>
+                    {t.start_address ?? "?"} → {t.end_address ?? "?"}
+                  </Text>
+                  <Text style={[styles.kvValue, { fontSize: 11 }]}>
+                    {t.distance_miles.toFixed(1)} mi · {formatRelative(t.started_at)}
+                  </Text>
+                </View>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+      )}
+
       {/* detection_events list */}
       <View style={styles.card}>
-        <Text style={styles.cardTitle}>detection_events ({events.length})</Text>
-        {events.length === 0 ? (
+        <Text style={styles.cardTitle}>
+          detection_events ({visibleEvents.length}{tripFilter ? ` of ${events.length}, filtered` : ""})
+        </Text>
+        {visibleEvents.length === 0 ? (
           <Text style={styles.emptyText}>
-            No events logged yet. Drive detection hasn't fired.
+            {tripFilter ? "No events in this trip's time window." : "No events logged yet. Drive detection hasn't fired."}
           </Text>
         ) : (
-          events.map((ev, i) => {
+          visibleEvents.map((ev, i) => {
             const color = EVENT_COLORS[ev.event] ?? TEXT_2;
+            // Resolve saved-location UUIDs in event payloads to names.
+            // Makes events like geofence_tentative_arrival readable
+            // without a server lookup.
+            let dataDisplay = ev.data;
+            if (ev.data) {
+              try {
+                const parsed = JSON.parse(ev.data) as Record<string, unknown>;
+                const locId = parsed.locationId as string | undefined;
+                if (locId && locationLookup[locId]) {
+                  dataDisplay = ev.data.replace(
+                    locId,
+                    `${locId} (${locationLookup[locId]})`
+                  );
+                }
+              } catch {
+                // Not JSON or malformed — leave dataDisplay as-is.
+              }
+            }
             return (
               <View key={`${ev.recorded_at}-${i}`} style={styles.eventRow}>
                 <View style={[styles.eventDot, { backgroundColor: color }]} />
                 <View style={{ flex: 1 }}>
                   <Text style={styles.eventName}>{ev.event}</Text>
                   <Text style={styles.eventTime}>{formatRelative(ev.recorded_at)}</Text>
-                  {ev.data && <Text style={styles.eventData}>{ev.data}</Text>}
+                  {dataDisplay && <Text style={styles.eventData}>{dataDisplay}</Text>}
                 </View>
               </View>
             );
