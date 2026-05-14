@@ -699,7 +699,7 @@ export default function MtdItsaSoftwarePage() {
               MTD ITSA quarterly submission lands in 1.2.0.
             </p>
             <a
-              href="https://apps.apple.com/app/mileclear/id6742044832"
+              href="https://apps.apple.com/app/mileclear/id6759671005"
               style={{
                 display: "inline-block",
                 padding: "0.875rem 2rem",

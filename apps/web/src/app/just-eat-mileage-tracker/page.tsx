@@ -794,7 +794,7 @@ export default function JustEatMileageTracker() {
             </p>
             <div style={{ display: "flex", gap: "1rem", justifyContent: "center", flexWrap: "wrap" }}>
               <a
-                href="https://apps.apple.com/app/mileclear/id6742044832"
+                href="https://apps.apple.com/app/mileclear/id6759671005"
                 style={{
                   background: "#fbbf24",
                   color: "#030712",

@@ -9,7 +9,7 @@ import FAQ from "@/components/landing/FAQ";
 import Footer from "@/components/landing/Footer";
 import StructuredData from "@/components/landing/StructuredData";
 
-const APP_STORE_URL = "https://apps.apple.com/app/mileclear/id6742044832";
+const APP_STORE_URL = "https://apps.apple.com/app/mileclear/id6759671005";
 
 function SocialProof() {
   return (

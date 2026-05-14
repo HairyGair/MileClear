@@ -174,7 +174,7 @@ export default async function BlogPostPage({
                 &larr; Back to updates
               </Link>
               <a
-                href="https://apps.apple.com/app/mileclear/id6742044832"
+                href="https://apps.apple.com/app/mileclear/id6759671005"
                 className="post__cta"
                 target="_blank"
                 rel="noopener noreferrer"

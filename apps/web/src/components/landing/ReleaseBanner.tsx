@@ -5,7 +5,7 @@ import Link from "next/link";
 import { getLatestRelease } from "@mileclear/shared";
 import "./release-banner.css";
 
-const APP_STORE_URL = "https://apps.apple.com/app/mileclear/id6742044832";
+const APP_STORE_URL = "https://apps.apple.com/app/mileclear/id6759671005";
 
 /**
  * Site-wide announcement banner. Renders across every page on

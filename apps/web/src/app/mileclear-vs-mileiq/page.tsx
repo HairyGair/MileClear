@@ -59,7 +59,7 @@ const productSchema = {
   name: "MileClear",
   applicationCategory: "BusinessApplication",
   operatingSystem: "iOS",
-  downloadUrl: "https://apps.apple.com/app/mileclear/id6742044832",
+  downloadUrl: "https://apps.apple.com/app/mileclear/id6759671005",
   description:
     "The UK mileage tracker built for gig workers. HMRC-native rates, gig platform tagging, offline-first tracking, and a generous free tier.",
   offers: [
@@ -706,7 +706,7 @@ export default function MileClearVsMileIQ() {
             </p>
             <div style={{ display: "flex", gap: "1rem", justifyContent: "center", flexWrap: "wrap" }}>
               <a
-                href="https://apps.apple.com/app/mileclear/id6742044832"
+                href="https://apps.apple.com/app/mileclear/id6759671005"
                 style={{
                   background: "#fbbf24",
                   color: "#030712",

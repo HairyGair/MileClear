@@ -321,7 +321,7 @@ export default function PricingPage() {
 
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '1rem', justifyContent: 'center', alignItems: 'center' }}>
               <a
-                href="https://apps.apple.com/app/mileclear/id6742044832"
+                href="https://apps.apple.com/app/mileclear/id6759671005"
                 target="_blank"
                 rel="noopener noreferrer"
                 style={{

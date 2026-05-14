@@ -1406,7 +1406,7 @@ export default function FeaturesPage() {
             </p>
 
             <a
-              href="https://apps.apple.com/gb/app/mileclear/id6743601364"
+              href="https://apps.apple.com/gb/app/mileclear/id6759671005"
               target="_blank"
               rel="noopener noreferrer"
               className="ea__appstore-link"

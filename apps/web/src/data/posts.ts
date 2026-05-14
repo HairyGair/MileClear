@@ -133,7 +133,7 @@ export const BLOG_POSTS: BlogPost[] = [
 
 <h2>Install it</h2>
 
-<p>Version 1.2.0 is now live on the <a href="https://apps.apple.com/app/mileclear/id6742044832">App Store</a>. Install MileClear or update your existing install to get all of this.</p>
+<p>Version 1.2.0 is now live on the <a href="https://apps.apple.com/app/mileclear/id6759671005">App Store</a>. Install MileClear or update your existing install to get all of this.</p>
 
 <p>Thanks to everyone who tested through TestFlight across builds 63 through 67 and flagged the rough edges. Thanks especially to Laura, whose feature requests directly produced the invoice tracker, the My Accountant flow, and the PAYE offset. Thanks to Raven, whose 108-mile drive split into two trips at a petrol station exposed the merge bug that everyone now benefits from. And thanks to anyone who emailed support@mileclear.com about anything in the past two weeks - several of the smaller polish wins in 1.2.0 came directly from messages like that.</p>
 
@@ -234,7 +234,7 @@ export const BLOG_POSTS: BlogPost[] = [
 
 <h2>Get it</h2>
 
-<p>Version 1.1.4 is now live on the <a href="https://apps.apple.com/app/mileclear/id6742044832">App Store</a>. Install MileClear or update your existing install to get all of this.</p>
+<p>Version 1.1.4 is now live on the <a href="https://apps.apple.com/app/mileclear/id6759671005">App Store</a>. Install MileClear or update your existing install to get all of this.</p>
 
 <p>Thanks to everyone who tested through TestFlight across builds 58, 59, 60, 61, and 62 and flagged the rough edges. This release is better because of you.</p>
 
@@ -307,7 +307,7 @@ export const BLOG_POSTS: BlogPost[] = [
 
 <p>Amazon Flex does not track mileage. If you are claiming AMAP on Self Assessment, that gap is yours to fill. Track every mile contemporaneously with a tool built for HMRC compliance, or accept that you will under-claim by hundreds or thousands of pounds a year.</p>
 
-<p><a href="https://apps.apple.com/app/mileclear/id6742044832">Install MileClear free on the App Store</a>.</p>
+<p><a href="https://apps.apple.com/app/mileclear/id6759671005">Install MileClear free on the App Store</a>.</p>
 `,
   },
   {
@@ -372,7 +372,7 @@ export const BLOG_POSTS: BlogPost[] = [
 <li>Check your insurance and document expiry - this is usually the real cause.</li>
 <li>Sign on and try a job if the queue is live.</li>
 <li>Line up another platform for the week so your income does not stop.</li>
-<li><a href="https://apps.apple.com/app/mileclear/id6742044832">Install MileClear free</a> so the next time a platform throws a curveball, your records are yours.</li>
+<li><a href="https://apps.apple.com/app/mileclear/id6759671005">Install MileClear free</a> so the next time a platform throws a curveball, your records are yours.</li>
 </ul>
 
 <p>Inactivity on Gophr is almost always reversible. Lost mileage records are not. Sort the first; then make sure the second can never happen to you again.</p>
@@ -457,7 +457,7 @@ export const BLOG_POSTS: BlogPost[] = [
 
 <h2>Get it</h2>
 
-<p>Version 1.1.0 is now live on the <a href="https://apps.apple.com/app/mileclear/id6742044832">App Store</a>. Install MileClear or update your existing install to get all of this.</p>
+<p>Version 1.1.0 is now live on the <a href="https://apps.apple.com/app/mileclear/id6759671005">App Store</a>. Install MileClear or update your existing install to get all of this.</p>
 
 <p>If you have been following along through the 1.0.x cycle, thank you for sticking with it. The diagnostic dumps, the bug reports, the "this would be useful" notes - they all shaped this release.</p>
 
@@ -795,7 +795,7 @@ export const BLOG_POSTS: BlogPost[] = [
 
 <p>And eventually, Android. The most common question I get is "is it on Android?" Not yet. But the API, the web dashboard, and the business logic are all platform-independent. The mobile app is the only iOS-specific part. It is on the roadmap.</p>
 
-<p>If you are a driver in the UK and you want a mileage tracker that is built here, priced fairly, and actively improving every week, <a href="https://apps.apple.com/app/mileclear/id6742044832">MileClear is free on the App Store</a>. And if something does not work, tell me. I am listening even when it is quiet.</p>
+<p>If you are a driver in the UK and you want a mileage tracker that is built here, priced fairly, and actively improving every week, <a href="https://apps.apple.com/app/mileclear/id6759671005">MileClear is free on the App Store</a>. And if something does not work, tell me. I am listening even when it is quiet.</p>
 `,
   },
   {

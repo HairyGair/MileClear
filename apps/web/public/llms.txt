@@ -27,7 +27,7 @@ MileClear automatically records GPS trips, calculates HMRC mileage deductions (4
 
 ## Links
 - Website: https://mileclear.com
-- App Store: https://apps.apple.com/app/mileclear/id6742044832
+- App Store: https://apps.apple.com/app/mileclear/id6759671005
 - Support: https://mileclear.com/support
 - Privacy: https://mileclear.com/privacy
 - Updates: https://mileclear.com/updates

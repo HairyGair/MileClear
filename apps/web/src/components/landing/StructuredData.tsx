@@ -17,7 +17,7 @@ export default function StructuredData() {
       "@type": "Person",
       name: "Anthony Gair",
     },
-    sameAs: ["https://apps.apple.com/app/mileclear/id6742044832"],
+    sameAs: ["https://apps.apple.com/app/mileclear/id6759671005"],
     contactPoint: {
       "@type": "ContactPoint",
       email: "support@mileclear.com",
@@ -32,7 +32,7 @@ export default function StructuredData() {
     name: "MileClear",
     applicationCategory: "BusinessApplication",
     operatingSystem: "iOS",
-    downloadUrl: "https://apps.apple.com/app/mileclear/id6742044832",
+    downloadUrl: "https://apps.apple.com/app/mileclear/id6759671005",
     description:
       "The UK mileage tracker built for gig workers, delivery drivers, and anyone who drives for a living. Automatic trip recording, HMRC tax deductions, and real earnings insights.",
     featureList: [
