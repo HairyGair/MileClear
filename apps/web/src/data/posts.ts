@@ -39,6 +39,108 @@ export interface Guide {
 // ----------------------------------------------------------------
 export const BLOG_POSTS: BlogPost[] = [
   {
+    slug: "whats-new-in-version-1-2-0",
+    title: "What's New in Version 1.2.0",
+    excerpt:
+      "The biggest MileClear update since launch. Quarterly HMRC submissions, road-accurate trip distances, a Lock Screen that earns its keep while you drive, and every sole-trader feature the community has been asking for. Thirty-odd things in total.",
+    date: "14 May 2026",
+    author: "Gair",
+    category: "announcement",
+    content: `
+<p>Version 1.2.0 has just been approved by Apple. This is the biggest update MileClear has shipped since launch, and it is the first release where I genuinely feel the app has caught up to the idea behind it.</p>
+
+<p>I am going to walk you through the big stuff. Some of it is a brand-new feature that did not exist last week. Some of it is foundational work you will never see because it is the kind of bug that vanishes once it is fixed. All of it ships in the same install.</p>
+
+<h2>Quarterly Self Assessment direct to HMRC</h2>
+
+<p>From April 2026, sole traders earning over GBP 50,000 a year have to submit four quarterly returns to HMRC plus a year-end statement. No more single January 31 Self Assessment for that group - it is now five touchpoints with HMRC a year, every year, with deadlines in August, November, February, and May, and a final declaration the following January. It is called MTD ITSA (Making Tax Digital for Income Tax Self Assessment) and for a lot of drivers it is going to be the difference between knowing what they owe and getting an unwelcome surprise.</p>
+
+<p>MileClear Pro now does the whole thing.</p>
+
+<p>Avatar menu, Work and Tax, MTD ITSA. Connect your HMRC account once. Enter your National Insurance Number. Confirm your trade. From that moment on, every open obligation HMRC has for you shows up in MileClear, populated with the figures the app has been building all quarter from your trips, earnings, mileage, and expenses. The preview screen shows exactly what is about to be sent before you tap Submit, broken down per platform, with the AMAP tier crossover called out, and expenses bucketed so there are no surprises. After submission, MileClear asks HMRC's own calculation engine for the tax due and shows you their number alongside ours so you can sanity-check the marginal-rate breakdown before it is locked in.</p>
+
+<p>This is the feature that took the longest. Sandbox integration with HMRC required 18 separate API services, fraud-prevention header compliance, encrypted token storage, replay-detection on every request, and three rounds of spec-conformance fixes before the validator returned zero errors. Production accreditation is still in HMRC's review queue (reference 2026-IBW598). Until they sign off, every submission goes to HMRC's sandbox environment - a banner inside the app makes that explicit so nobody accidentally relies on a sandbox return for their real tax. The moment accreditation lands, the same flow flips to production and your submissions count.</p>
+
+<h2>Trip distances that are actually accurate</h2>
+
+<p>Before 1.2.0, manual A to B trips used a free public routing service that occasionally fell back to straight-line distance when it got rate-limited. Same address pair, different mileage, depending on time of day. For a self-employed driver that is the difference between a credible HMRC mileage figure and a number they cannot explain.</p>
+
+<p>1.2.0 replaces that with a three-layer routing stack: a persistent cache keyed on rounded coordinates, our own self-hosted UK routing engine on the MileClear server, and a commercial fallback for the rare case both fail. Same address pair, same mileage, every time, structurally. It is not a probabilistic improvement - the cache makes it deterministic.</p>
+
+<p>Auto-tracked trips get the same treatment via map-matching. The GPS breadcrumb trail your phone produces while you drive is not the route you actually took - it is a noisy approximation with corner-cutting, occasional driving-through-a-building artefacts, and a slight tendency to swing wide on roundabouts. The map-matching step snaps that trail onto the actual road network so the line in the app is the road you were on, not the noise.</p>
+
+<p>Both changes are invisible until you look at the trip detail screen and see "Route distance via road" or "Route distance via road (cached)" under the figure. That tiny line is the audit trail. Your HMRC mileage figure is now defensible at the level of each individual trip.</p>
+
+<h2>Your Lock Screen earns its keep</h2>
+
+<p>The most visible thing in 1.2.0 is what happens on your phone when you start driving.</p>
+
+<p>If you have saved Home and Work as locations, MileClear now auto-detects when you cross either boundary. The moment you leave, your Lock Screen lights up with a Trip Active Live Activity - a small card that shows distance ticking up live, current speed, a "From Home" or "From Work" badge naming where you set off, and the vehicle being used. You can see it without unlocking your phone. The shift duration, the miles driven, the milestone you are closing in on, today's total earnings tally if you are running a gig shift - all updated in real time.</p>
+
+<p>When you park at the destination - whether that destination is another saved location or somewhere new - the Activity flips to a Trip Complete summary. For business trips that includes the GBP value of the HMRC mileage deduction you just earned back. Park, see "GBP 5.54 HMRC" on your Lock Screen, before you have even unlocked the phone. That is the feedback loop that makes the app fade into the background and stay there.</p>
+
+<p>End the shift from the Lock Screen using the End Shift button. The shift closes properly on the server, the mileage caps off at the right number, the Activity flips to the summary. No need to open the app.</p>
+
+<h2>Smarter trip classification</h2>
+
+<p>Tap a trip three times to tag it as Work. The fourth time MileClear does it for you. You will see a toast confirming the decision so you can override if it is wrong, but in most cases it is right. The auto-classifier waits until it has 80 percent agreement across at least three prior trips before it commits to a suggestion - so it is conservative on purpose.</p>
+
+<p>For auto-detected trips, the confirmation notification on your Lock Screen now leads with the suggestion. Instead of "Trip detected, were you driving?" it now says "Work trip detected, from Home to Work, 12.3 mi, tap Yes Work to confirm." Three action buttons live on the lock screen: Yes Work, Personal, Not me. You confirm without unlocking. Each confirmation feeds back into the classifier so future trips between the same pair get more confident over time.</p>
+
+<h2>For sole traders and freelancers</h2>
+
+<p>The community has been asking for these features since 1.0. They are all in.</p>
+
+<p><strong>Invoices.</strong> Track outstanding freelance work right in MileClear. Company name, amount, sent date, due date (defaults to 30 days), paid status. Free tier covers 3 invoices a calendar month, which is plenty for the occasional side gig. Pro unlocks unlimited. Cash basis (the UK default since April 2024) means Tax Readiness only counts invoice income that has actually arrived in your account.</p>
+
+<p><strong>Tax basis: cash or accruals.</strong> Cash basis counts income when the money lands. Accruals counts when you sent the invoice. Most sole traders should leave it on cash - it matches how the money actually flows. Settings, Work and Tax, Tax basis.</p>
+
+<p><strong>My Accountant.</strong> If you pay an accountant a known annual filing fee, enter it under Settings, Work and Tax, My Accountant. MileClear spreads it across 52 weeks and adds it to your Tax Readiness weekly set-aside. By the time filing season comes round, the cash for both the tax bill AND the accountant is already in the pot.</p>
+
+<p><strong>PAYE deductions counted properly.</strong> If you have a salaried day job alongside gig work, you can now tell MileClear what your employer has already deducted in PAYE this year. The "still owed" figure on Tax Readiness becomes honest instead of double-counting tax that has already been collected via your payslip. NI is still calculated separately on your gig profits because Class 4 NI is per-source.</p>
+
+<p><strong>Confidence indicator on every trip.</strong> High, medium, or low badge with tap-to-expand reasons. HMRC-defence material - every claimed mile is now individually auditable. A trip with a Low confidence badge gets a one-tap Recalculate button in case the GPS quality was poor.</p>
+
+<h2>Rock-solid foundations</h2>
+
+<p>The work nobody sees but everyone benefits from.</p>
+
+<p><strong>You should never randomly get logged out.</strong> The previous refresh-token rotation deleted the old token before the client had a chance to acknowledge receipt of the new one. If iOS suspended the app mid-flight (common during cold starts) the client kept the old token, the server expected the new one, and the next API call kicked you to the login screen. From there, signing back in with Apple occasionally landed you in a fresh blank profile if the email lookups did not line up.</p>
+
+<p>1.2.0 replaces that with a token-family rotation model with replay detection. Old tokens stay linked to their successors rather than getting deleted. A dropped response no longer kicks you out - the legitimate retry succeeds. Genuine token theft still gets detected and the whole session is force-terminated, which is the security property the rotation existed for in the first place. Industry-standard pattern (OAuth 2.0 Security Best Current Practice) and an audit-friendly answer for the compliance reviews we know are coming.</p>
+
+<p><strong>End Shift from the Lock Screen actually ends the shift.</strong> Previously, tapping End Shift on the Live Activity dismissed the Activity but the shift itself stayed open on the server, so subsequent drives accumulated into it. Today's drives leaked into yesterday's shift. Now the shift closes cleanly via the API and the Activity flips to the summary view.</p>
+
+<p><strong>Opening the app while parked no longer triggers a phantom trip.</strong> iOS re-evaluates geofence positions the moment the app launches, and if the cached position fix was a stale cell-tower triangulation, it could fire a phantom Exit event and kick off a fake recording while you were sitting still at your desk. 1.2.0 demands a fresh high-accuracy GPS fix before accepting any Exit fired in the first 30 seconds after app open.</p>
+
+<p><strong>Brief stops no longer split a single drive into two records.</strong> Drive 5 minutes, park for under a minute at a petrol station, drive another 10 - that is one trip now, not two. The merge logic used to reject the join when the stop-detection split happened to overlap the new recording by a second, which is exactly the signal that says they are continuous. We made the merge window symmetric.</p>
+
+<h2>In-app help and onboarding</h2>
+
+<p>First-time users land on a 5-card Quick Start tour the first time they open the app. Covers the value loop in plain English: automatic trip tracking, Work and Personal classification, the Tax Readiness card, and how HMRC quarterly submissions work. Skippable from the top right, and you can replay it any time from Avatar, Help and Tutorials.</p>
+
+<p>The Help and Tutorials screen itself is a categorised FAQ with about 28 topics across Getting started, Tax and HMRC, Trips, Money, Privacy and data, and Troubleshooting. Tap a topic to expand the answer or jump straight to the relevant settings screen.</p>
+
+<p>Inline info buttons sit next to the trickier bits across the app. Tap the small icon next to the Tax Readiness card header, the PAYE field, the My Accountant row, or the tax basis toggle and a focused explainer slides up with the option to deep-link to the relevant screen. Same content as the full Help screen, surfaced exactly where you would think to ask the question.</p>
+
+<h2>What's not yet finished</h2>
+
+<p>Two notes for transparency.</p>
+
+<p>MTD ITSA submissions still go to HMRC's sandbox because our production accreditation is in their review queue. The Sandbox banner inside the app makes that explicit. The moment HMRC sign off (reference 2026-IBW598), submissions flip to production with no further work needed from you.</p>
+
+<p>Open Banking auto-import (Pro) is currently on TrueLayer's sandbox credentials. Same pattern - banner inside the app makes it clear, the flow itself is fully wired, the flip to production happens server-side when we promote the keys.</p>
+
+<h2>Install it</h2>
+
+<p>Version 1.2.0 is now live on the <a href="https://apps.apple.com/app/mileclear/id6742044832">App Store</a>. Install MileClear or update your existing install to get all of this.</p>
+
+<p>Thanks to everyone who tested through TestFlight across builds 63 through 67 and flagged the rough edges. Thanks especially to Laura, whose feature requests directly produced the invoice tracker, the My Accountant flow, and the PAYE offset. Thanks to Raven, whose 108-mile drive split into two trips at a petrol station exposed the merge bug that everyone now benefits from. And thanks to anyone who emailed support@mileclear.com about anything in the past two weeks - several of the smaller polish wins in 1.2.0 came directly from messages like that.</p>
+
+<p>- Gair</p>
+    `.trim(),
+  },
+  {
     slug: "whats-new-in-version-1-1-4",
     title: "What's New in Version 1.1.4",
     excerpt:
