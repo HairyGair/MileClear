@@ -2097,6 +2097,63 @@ export async function startDriveDetection(): Promise<void> {
     return;
   }
 
+  // Anchor-aware skip: when we have a recent departure anchor AND the
+  // device's last-known position is inside it, iOS-native geofencing alone
+  // is enough to detect "the user started driving" — the anchor's Exit
+  // event will fire from Core Location without any subscription on our
+  // end. Continuous GPS here would just light up the green Dynamic Island
+  // indicator for no reason and burn battery while parked.
+  //
+  // Falls back to starting continuous GPS if:
+  //   - no anchor (first run, post-reboot before first trip)
+  //   - lastKnownPosition unavailable or too stale to trust
+  //   - user is already outside the anchor (mid-walk, drove off without us
+  //     noticing, etc) — we need GPS to catch up
+  try {
+    const anchorRow = await db.getAllAsync<{ key: string; value: string }>(
+      "SELECT key, value FROM tracking_state WHERE key IN ('departure_anchor_lat', 'departure_anchor_lng')"
+    );
+    if (anchorRow.length === 2) {
+      const anchorMap = Object.fromEntries(anchorRow.map((r) => [r.key, r.value]));
+      const anchorLat = parseFloat(anchorMap["departure_anchor_lat"] ?? "");
+      const anchorLng = parseFloat(anchorMap["departure_anchor_lng"] ?? "");
+      if (Number.isFinite(anchorLat) && Number.isFinite(anchorLng)) {
+        const lastPos = await Location.getLastKnownPositionAsync({
+          maxAge: 10 * 60 * 1000, // 10 min — fresher than this and the
+          // device hasn't moved enough for iOS to bother updating
+          requiredAccuracy: 200,
+        });
+        if (lastPos) {
+          const distMiles = haversineMiles(
+            lastPos.coords.latitude, lastPos.coords.longitude,
+            anchorLat, anchorLng,
+          );
+          const distMeters = distMiles * 1609.344;
+          // Inside anchor radius (100m) + 20m of slop = device is parked.
+          // Skip continuous GPS. Anchor geofence Exit will wake us when
+          // the user actually starts moving.
+          if (distMeters < 120) {
+            logDetectionEvent("detection_skipped", {
+              reason: "anchored_still",
+              distMeters: Math.round(distMeters),
+            }).catch(() => {});
+            // Also stop any existing subscription so the green dot goes
+            // dark immediately on this app foreground (otherwise an
+            // already-running detection task would stay alive).
+            const running = await Location.hasStartedLocationUpdatesAsync(DETECTION_TASK_NAME);
+            if (running) {
+              try {
+                await Location.stopLocationUpdatesAsync(DETECTION_TASK_NAME);
+                logDetectionEvent("detection_stopped", { reason: "anchored_still" }).catch(() => {});
+              } catch {}
+            }
+            return;
+          }
+        }
+      }
+    }
+  } catch {}
+
   // Use hasStartedLocationUpdatesAsync - checks if location updates are actually
   // being delivered. The old check (isTaskRegisteredAsync) only checked if the
   // task handler was defined, which is ALWAYS true after module import. This meant

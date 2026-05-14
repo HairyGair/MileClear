@@ -74,23 +74,72 @@ try {
       if (activeShift) return;
 
       if (eventType === Location.GeofencingEventType.Exit && region.identifier === "__departure_anchor__") {
-        // User left their last stationary position. This is a strong SUSPICION
-        // that a drive is starting — but iOS geofences fire spuriously from
-        // indoor GPS drift, walks to the bin, carparks with bad signal, and
-        // a host of other non-driving causes. We used to treat this signal as
-        // a CONFIRMED drive (forceStartRecording → Live Activity → 0 mi
-        // phantom recordings sat in the Dynamic Island for hours).
+        // User left their last stationary position. We've tightened the
+        // anchor radius to 100m so the wake-up is fast, but at 100m GPS
+        // drift while indoors can falsely trip the Exit. Verify the
+        // device is genuinely outside the radius before promoting to
+        // watch mode — otherwise we'd boot continuous GPS for every
+        // bathroom break.
         //
-        // Now we enter "watch mode" instead: silently buffer GPS readings,
-        // upgrade to high-accuracy mode, and let the existing detection-task
-        // driving check (consecutive samples > 15mph or single fast-gate
-        // > 25mph) decide when to promote watch → recording. If real driving
-        // never happens within WATCH_MODE_MAX_AGE_MS (20 min), watch mode
-        // exits silently — no Live Activity ever appears, no notification
-        // was sent, and the user wasn't bothered.
-        //
-        // Departure anchor keys stay intact so registerGeofences() can still
-        // re-arm the anchor cleanly.
+        // The backfill that follows plants a synthetic detection_coordinate
+        // at the anchor's exact position. When the watch mode promotes to
+        // recording, the earliest stored coord IS the anchor — so the trip
+        // start point is the user's actual departure spot, not the random
+        // 100m-down-the-road point where iOS finally decided to wake us up.
+        const anchorRow = await db.getAllAsync<{ key: string; value: string }>(
+          "SELECT key, value FROM tracking_state WHERE key IN ('departure_anchor_lat', 'departure_anchor_lng')"
+        );
+        const anchorMap = Object.fromEntries(anchorRow.map((r) => [r.key, r.value]));
+        const anchorLat = parseFloat(anchorMap["departure_anchor_lat"] ?? "");
+        const anchorLng = parseFloat(anchorMap["departure_anchor_lng"] ?? "");
+
+        if (Number.isFinite(anchorLat) && Number.isFinite(anchorLng)) {
+          try {
+            const pos = await Location.getCurrentPositionAsync({
+              accuracy: Location.Accuracy.Balanced,
+            });
+            const distMeters = haversine(
+              pos.coords.latitude, pos.coords.longitude,
+              anchorLat, anchorLng,
+            ) * 1609.344;
+            // Anchor radius is 100m. Require the user be at least 30m
+            // outside (=130m) before accepting the Exit. Below that the
+            // signal is indistinguishable from indoor GPS drift.
+            if (distMeters < 130) {
+              logDetectionEvent("anchor_exit_drift_rejected", {
+                distMeters: Math.round(distMeters),
+              }).catch(() => {});
+              return;
+            }
+            logDetectionEvent("anchor_exit_verified", {
+              distMeters: Math.round(distMeters),
+            }).catch(() => {});
+
+            // Backfill: store a synthetic detection coord at the anchor
+            // center, timestamped a few seconds ago. The watch / record
+            // pipeline reads detection_coordinates ORDER BY recorded_at,
+            // so this row becomes the trip's start point.
+            const backfillTs = new Date(Date.now() - 30_000).toISOString();
+            await db.runAsync(
+              `INSERT INTO detection_coordinates (lat, lng, speed, accuracy, recorded_at)
+               VALUES (?, ?, ?, ?, ?)`,
+              [anchorLat, anchorLng, 0, 50, backfillTs]
+            );
+            logDetectionEvent("anchor_backfill_planted", {
+              lat: anchorLat,
+              lng: anchorLng,
+              recorded_at: backfillTs,
+            }).catch(() => {});
+          } catch (err) {
+            logDetectionEvent("anchor_exit_verify_failed", {
+              error: err instanceof Error ? err.message : "unknown",
+            }).catch(() => {});
+            // Fall through to enterWatchMode — better to proceed than miss
+            // a real drive because Location.getCurrentPositionAsync timed
+            // out.
+          }
+        }
+
         await enterWatchMode("anchor_exit");
         return;
       }
@@ -782,7 +831,10 @@ export async function registerGeofences(): Promise<void> {
       identifier: "__departure_anchor__",
       latitude: parseFloat(anchorLat.value),
       longitude: parseFloat(anchorLng.value),
-      radius: 200, // 200m — covers typical residential properties
+      radius: 100, // 100m — tight enough to detect drive-aways quickly,
+      // wide enough to absorb GPS drift while parked. Anchor Exit handler
+      // verifies the device is genuinely outside before promoting, so the
+      // smaller radius doesn't risk false positives from indoor jitter.
       notifyOnEnter: false,
       notifyOnExit: true,
     });
