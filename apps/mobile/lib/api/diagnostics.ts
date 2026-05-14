@@ -9,6 +9,9 @@ import {
   getDriveDetectionDiagnostics,
   getRecentDetectionEvents,
 } from "../tracking/detection";
+import { getDatabase } from "../db";
+import { getAppStateInfo } from "../appState";
+import { getRoutingStats } from "../tracking/routingStats";
 
 const APP_VERSION = Constants.expoConfig?.version ?? "unknown";
 const BUILD_NUMBER =
@@ -27,15 +30,105 @@ const STRIPPED_KEYS = new Set([
 ]);
 
 /**
+ * Pull the last N trip rows from local SQLite — gives the diagnostic
+ * reader a quick view of "what's the device storing as recent trips?"
+ * without round-tripping to the server. Used to spot client/server
+ * divergence (a class of bug we've hit twice now: client thinks one
+ * merged trip exists, server has two split rows).
+ */
+async function getRecentLocalTrips(limit = 10) {
+  try {
+    const db = await getDatabase();
+    return await db.getAllAsync<{
+      id: string;
+      start_address: string | null;
+      end_address: string | null;
+      distance_miles: number;
+      started_at: string;
+      ended_at: string | null;
+      classification: string | null;
+      is_manual_entry: number;
+      synced_at: string | null;
+    }>(
+      "SELECT id, start_address, end_address, distance_miles, started_at, ended_at, classification, is_manual_entry, synced_at FROM trips ORDER BY started_at DESC LIMIT ?",
+      [limit]
+    );
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Pull all saved locations from local SQLite so the diagnostic dump
+ * can resolve UUIDs in event payloads to human-readable names. Without
+ * this, every `geofence_tentative_arrival {locationId: "abc-123-..."}`
+ * event required a server query to make sense of.
+ */
+async function getSavedLocations() {
+  try {
+    const db = await getDatabase();
+    return await db.getAllAsync<{
+      id: string;
+      name: string;
+      location_type: string;
+      latitude: number;
+      longitude: number;
+      radius_meters: number;
+      geofence_enabled: number;
+    }>(
+      "SELECT id, name, location_type, latitude, longitude, radius_meters, geofence_enabled FROM saved_locations ORDER BY name ASC"
+    );
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Build a one-line summary of the last 24h of detection activity:
+ * how many trips saved, dropped as phantom, deduped, finalize_too_short'd,
+ * registration-grace rejected. Lets the diagnostic reader see at a glance
+ * what shape of activity the user has been having before scrolling 50
+ * raw events.
+ */
+async function getActivitySummary() {
+  try {
+    const db = await getDatabase();
+    const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+    const rows = await db.getAllAsync<{ event: string; count: number }>(
+      "SELECT event, COUNT(*) as count FROM detection_events WHERE recorded_at >= ? GROUP BY event ORDER BY count DESC",
+      [cutoff]
+    );
+    const summary: Record<string, number> = {};
+    for (const row of rows) summary[row.event] = row.count;
+    return summary;
+  } catch {
+    return {};
+  }
+}
+
+/**
  * Upload the current diagnostics dump to the server. Called once per app
  * startup from _layout.tsx. Fire-and-forget — never throws, never blocks.
  */
 export async function uploadDiagnosticDump(): Promise<void> {
   try {
-    const [diagnostics, events] = await Promise.all([
+    const [
+      diagnostics,
+      events,
+      recentTrips,
+      savedLocations,
+      activitySummary,
+      routingStats,
+    ] = await Promise.all([
       getDriveDetectionDiagnostics(),
       getRecentDetectionEvents(50),
+      getRecentLocalTrips(10),
+      getSavedLocations(),
+      getActivitySummary(),
+      getRoutingStats(24),
     ]);
+
+    const appState = getAppStateInfo();
 
     // Strip GDPR-sensitive tracking state entries
     const safeTrackingState = diagnostics.trackingState.filter(
@@ -73,6 +166,24 @@ export async function uploadDiagnosticDump(): Promise<void> {
           lastNotificationAt: diagnostics.lastNotificationAt,
           cooldownRemainingMs: diagnostics.cooldownRemainingMs,
           trackingState: safeTrackingState,
+          // ── Wave 1 context additions (14 May 2026) ────────────
+          recentTrips,
+          savedLocations,
+          appState,
+          activitySummary,
+          routingStats,
+          device: {
+            // JS-only fields. Battery / charging would need expo-battery
+            // (native rebuild). Add them when we next bump the build.
+            isPad: Platform.OS === "ios" && Platform.isPad,
+            isTV: Platform.isTV,
+            constants: {
+              deviceName: Constants.deviceName ?? null,
+              installationId: Constants.installationId ?? null,
+              appOwnership: Constants.appOwnership ?? null,
+              executionEnvironment: Constants.executionEnvironment ?? null,
+            },
+          },
         },
         eventsJson: events,
       }),

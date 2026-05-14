@@ -150,6 +150,7 @@ import { registerGeofences, shadeExpiredUnconfirmedTrips, setDepartureAnchor } f
 import { getDatabase } from "../lib/db/index";
 import { hydrateLocalData, isHydrationComplete } from "../lib/sync/hydrate";
 import { uploadDiagnosticDump } from "../lib/api/diagnostics";
+import { mountAppStateTracker } from "../lib/appState";
 import { isIapAvailable, initializeIap, setupPurchaseListeners, endIapConnection } from "../lib/iap/index";
 import { validateApplePurchase } from "../lib/api/billing";
 import { PaywallProvider } from "../components/paywall";
@@ -255,6 +256,10 @@ function RootNavigator() {
       checkUnclassifiedTripsNudge().catch(() => {});
       checkStreakAtRisk().catch(() => {});
       checkLongRunningShift().catch(() => {});
+      // Mount BEFORE uploading the diagnostic so the first dump after a
+      // cold start already has the current AppState snapshot. Idempotent
+      // — the tracker no-ops if already mounted.
+      mountAppStateTracker();
       uploadDiagnosticDump().catch(() => {});
     }
   }, [isAuthenticated, isLoading]);
