@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { getLatestRelease } from "@mileclear/shared";
 import "./release-banner.css";
@@ -26,6 +26,7 @@ const APP_STORE_URL = "https://apps.apple.com/app/mileclear/id6742044832";
 export default function ReleaseBanner() {
   const [shouldShow, setShouldShow] = useState(false);
   const [version, setVersion] = useState<string | null>(null);
+  const bannerRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     const release = getLatestRelease();
@@ -35,6 +36,28 @@ export default function ReleaseBanner() {
     setVersion(release.version);
     setShouldShow(true);
   }, []);
+
+  // Once the banner mounts, set the data attribute + --banner-h CSS
+  // variable on <html> so the fixed-position navbar (defined in
+  // globals.css with `top: 0`) shifts down by the banner's actual
+  // measured height. On unmount / dismiss, unset both so the navbar
+  // snaps back to top: 0 with no leftover gap.
+  useEffect(() => {
+    if (!shouldShow) return;
+    const root = document.documentElement;
+    const measure = () => {
+      const h = bannerRef.current?.offsetHeight ?? 44;
+      root.style.setProperty("--banner-h", `${h}px`);
+    };
+    root.dataset.releaseBanner = "1";
+    measure();
+    window.addEventListener("resize", measure);
+    return () => {
+      window.removeEventListener("resize", measure);
+      delete root.dataset.releaseBanner;
+      root.style.removeProperty("--banner-h");
+    };
+  }, [shouldShow]);
 
   if (!shouldShow || !version) return null;
 
@@ -55,7 +78,7 @@ export default function ReleaseBanner() {
   };
 
   return (
-    <div className="release-banner" role="region" aria-label="What's new in MileClear">
+    <div ref={bannerRef} className="release-banner" role="region" aria-label="What's new in MileClear">
       <div className="release-banner__inner">
         <div className="release-banner__copy">
           <span className="release-banner__pulse" aria-hidden="true" />

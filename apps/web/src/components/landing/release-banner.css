@@ -7,17 +7,36 @@
  * reduced-motion by skipping the pulse animation.
  */
 
+/* Banner pins to the top of the viewport ABOVE the navbar
+ * (.nav is position: fixed z-index: 1000). z-index 1100 keeps the
+ * banner on top. The navbar then gets shifted down by the banner's
+ * actual height via the --banner-h CSS variable, which the
+ * ReleaseBanner component sets on <html> when it mounts and unsets
+ * when dismissed. Without the shift the navbar covers the banner.
+ */
 .release-banner {
-  position: relative;
-  z-index: 60;
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 1100;
   background: linear-gradient(
     180deg,
-    rgba(245, 166, 35, 0.16) 0%,
-    rgba(245, 166, 35, 0.08) 100%
+    rgba(245, 166, 35, 0.95) 0%,
+    rgba(232, 149, 15, 0.95) 100%
   );
-  border-bottom: 1px solid rgba(245, 166, 35, 0.22);
-  color: var(--text-primary, #f0f2f5);
+  border-bottom: 1px solid rgba(232, 149, 15, 1);
+  color: #0a0f1a;
   font-family: var(--font-display, "Sora", system-ui, sans-serif);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+/* When the banner is present, shift the fixed navbar down by the
+ * banner's height. globals.css sets the navbar to top: 0 — this
+ * override stacks them properly. */
+html[data-release-banner="1"] .nav {
+  top: var(--banner-h, 44px);
 }
 
 .release-banner__inner {
@@ -42,21 +61,21 @@
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background: #f5a623;
+  background: #0a0f1a;
   flex-shrink: 0;
-  box-shadow: 0 0 0 0 rgba(245, 166, 35, 0.7);
+  box-shadow: 0 0 0 0 rgba(10, 15, 26, 0.6);
   animation: release-banner-pulse 2s infinite;
 }
 
 @keyframes release-banner-pulse {
   0% {
-    box-shadow: 0 0 0 0 rgba(245, 166, 35, 0.7);
+    box-shadow: 0 0 0 0 rgba(10, 15, 26, 0.6);
   }
   70% {
-    box-shadow: 0 0 0 8px rgba(245, 166, 35, 0);
+    box-shadow: 0 0 0 8px rgba(10, 15, 26, 0);
   }
   100% {
-    box-shadow: 0 0 0 0 rgba(245, 166, 35, 0);
+    box-shadow: 0 0 0 0 rgba(10, 15, 26, 0);
   }
 }
 
@@ -68,16 +87,16 @@
 
 .release-banner__headline {
   font-size: 0.875rem;
-  font-weight: 600;
+  font-weight: 700;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  color: #f0f2f5;
+  color: #0a0f1a;
 }
 
 .release-banner__subline {
   font-size: 0.8125rem;
-  color: rgba(240, 242, 245, 0.7);
+  color: rgba(10, 15, 26, 0.75);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -102,8 +121,8 @@
 
 .release-banner__link {
   font-size: 0.8125rem;
-  font-weight: 500;
-  color: rgba(240, 242, 245, 0.85);
+  font-weight: 600;
+  color: rgba(10, 15, 26, 0.85);
   text-decoration: none;
   padding: 0.375rem 0.625rem;
   border-radius: 6px;
@@ -112,8 +131,8 @@
 
 .release-banner__link:hover,
 .release-banner__link:focus-visible {
-  color: #f0f2f5;
-  background-color: rgba(255, 255, 255, 0.05);
+  color: #0a0f1a;
+  background-color: rgba(10, 15, 26, 0.08);
   outline: none;
 }
 
@@ -127,19 +146,19 @@
 
 .release-banner__cta {
   font-size: 0.8125rem;
-  font-weight: 600;
-  color: #030712;
-  background: #f5a623;
+  font-weight: 700;
+  color: #f5a623;
+  background: #0a0f1a;
   text-decoration: none;
   padding: 0.4375rem 0.875rem;
   border-radius: 6px;
-  transition: background 0.15s;
+  transition: background 0.15s, transform 0.15s;
   white-space: nowrap;
 }
 
 .release-banner__cta:hover,
 .release-banner__cta:focus-visible {
-  background: #e8950f;
+  background: #1a1f2e;
   outline: none;
 }
 
@@ -151,7 +170,7 @@
   height: 28px;
   border: none;
   background: transparent;
-  color: rgba(240, 242, 245, 0.55);
+  color: rgba(10, 15, 26, 0.55);
   cursor: pointer;
   border-radius: 6px;
   padding: 0;
@@ -160,7 +179,7 @@
 
 .release-banner__dismiss:hover,
 .release-banner__dismiss:focus-visible {
-  color: #f0f2f5;
-  background-color: rgba(255, 255, 255, 0.06);
+  color: #0a0f1a;
+  background-color: rgba(10, 15, 26, 0.08);
   outline: none;
 }
