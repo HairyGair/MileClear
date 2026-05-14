@@ -541,6 +541,14 @@ function UserDetailModal({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [diag, setDiag] = useState<DiagnosticDump | null>(null);
+  // Trip filter for the diagnostic events panel — when set, the events
+  // list is scoped to that trip's time window (±60s). Mirrors the
+  // mobile Drive Detection screen pattern.
+  const [tripFilter, setTripFilter] = useState<{
+    id: string;
+    started_at: string;
+    ended_at: string | null;
+  } | null>(null);
 
   // Push notification to specific user
   const [pushTitle, setPushTitle] = useState("");
@@ -1322,24 +1330,182 @@ function UserDetailModal({
                       </div>
                     ))}
                   </div>
-                  {diag.eventsJson.length > 0 && (
-                    <div>
-                      <p style={{ fontSize: "0.75rem", fontWeight: 600, color: "var(--text-secondary)", margin: "0 0 0.375rem" }}>
-                        Events ({diag.eventsJson.length})
-                      </p>
-                      <div style={{ maxHeight: "400px", overflow: "auto", fontSize: "0.75rem", lineHeight: 1.6, color: "var(--text-tertiary)", border: "1px solid var(--border-subtle, rgba(255,255,255,0.08))", borderRadius: "6px", padding: "0.5rem 0.625rem" }}>
-                        {diag.eventsJson.map((ev, i) => (
-                          <div key={i}>
-                            <span style={{ color: "var(--text-secondary)", fontWeight: 500 }}>{ev.event}</span>
-                            {ev.data && <span> {ev.data}</span>}
-                            <span style={{ marginLeft: "0.5rem", opacity: 0.6 }}>
-                              {new Date(ev.recorded_at).toLocaleTimeString()}
-                            </span>
-                          </div>
+
+                  {/* App state — current foreground/background + seconds since last
+                      transition. Lets a reviewer spot 'iOS suspended the app for
+                      14 minutes here' at a glance. */}
+                  {(() => {
+                    const appState = st.appState as { currentState?: string; secondsInCurrentState?: number; lastForegroundedAt?: string; lastBackgroundedAt?: string } | undefined;
+                    if (!appState) return null;
+                    return (
+                      <div style={{ fontSize: "0.75rem", color: "var(--text-secondary)", padding: "0.5rem 0.625rem", background: "rgba(255,255,255,0.02)", borderRadius: "6px" }}>
+                        <strong style={{ color: "var(--text-primary)" }}>App state:</strong> {appState.currentState ?? "?"}
+                        {typeof appState.secondsInCurrentState === "number" && (
+                          <> ({Math.round(appState.secondsInCurrentState / 60)} min ago)</>
+                        )}
+                        {appState.lastForegroundedAt && (
+                          <> · last fg {new Date(appState.lastForegroundedAt).toLocaleTimeString()}</>
+                        )}
+                      </div>
+                    );
+                  })()}
+
+                  {/* Activity summary (24h event counts) — matches the mobile
+                      Drive Detection screen layout. */}
+                  {(() => {
+                    const summary = st.activitySummary as Record<string, number> | undefined;
+                    const entries = summary ? Object.entries(summary).sort(([, a], [, b]) => b - a) : [];
+                    if (entries.length === 0) return null;
+                    return (
+                      <div>
+                        <p style={{ fontSize: "0.75rem", fontWeight: 600, color: "var(--text-secondary)", margin: "0 0 0.375rem" }}>
+                          Activity (last 24h)
+                        </p>
+                        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: "0.25rem 0.75rem", fontSize: "0.75rem" }}>
+                          {entries.map(([event, count]) => (
+                            <div key={event} style={{ display: "flex", justifyContent: "space-between", padding: "0.15rem 0" }}>
+                              <span style={{ color: "var(--text-tertiary)" }}>{event}</span>
+                              <span style={{ fontWeight: 600, color: "var(--text-secondary)" }}>{count}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })()}
+
+                  {/* Recent trips (last 10) — gives the reviewer a quick view of
+                      what the device thinks it's been recording. Tap to filter
+                      the events list below to that trip's time window. */}
+                  {(() => {
+                    const trips = st.recentTrips as Array<{
+                      id: string;
+                      start_address: string | null;
+                      end_address: string | null;
+                      distance_miles: number;
+                      started_at: string;
+                      ended_at: string | null;
+                      classification: string | null;
+                      synced_at: string | null;
+                    }> | undefined;
+                    if (!trips || trips.length === 0) return null;
+                    return (
+                      <div>
+                        <p style={{ fontSize: "0.75rem", fontWeight: 600, color: "var(--text-secondary)", margin: "0 0 0.375rem" }}>
+                          Recent trips on device (tap to filter events)
+                        </p>
+                        {tripFilter && (
+                          <button
+                            type="button"
+                            onClick={() => setTripFilter(null)}
+                            style={{ background: "none", border: "none", color: "var(--amber-500)", fontSize: "0.75rem", cursor: "pointer", padding: "0.25rem 0", marginBottom: "0.25rem" }}
+                          >
+                            ← Show all events
+                          </button>
+                        )}
+                        <div style={{ display: "flex", flexDirection: "column", gap: "0.25rem", maxHeight: "240px", overflow: "auto" }}>
+                          {trips.map((t) => {
+                            const selected = tripFilter?.id === t.id;
+                            return (
+                              <button
+                                key={t.id}
+                                type="button"
+                                onClick={() => setTripFilter(selected ? null : t)}
+                                style={{
+                                  display: "flex",
+                                  justifyContent: "space-between",
+                                  alignItems: "center",
+                                  gap: "0.5rem",
+                                  padding: "0.375rem 0.5rem",
+                                  fontSize: "0.75rem",
+                                  background: selected ? "rgba(245,166,35,0.12)" : "rgba(255,255,255,0.02)",
+                                  border: selected ? "1px solid rgba(245,166,35,0.4)" : "1px solid transparent",
+                                  borderRadius: "4px",
+                                  cursor: "pointer",
+                                  textAlign: "left",
+                                  opacity: tripFilter && !selected ? 0.5 : 1,
+                                  color: "var(--text-primary)",
+                                }}
+                              >
+                                <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                                  {t.start_address ?? "?"} → {t.end_address ?? "?"}
+                                </span>
+                                <span style={{ color: "var(--text-tertiary)", flexShrink: 0 }}>
+                                  {t.distance_miles.toFixed(1)} mi · {new Date(t.started_at).toLocaleTimeString()}
+                                  {!t.synced_at && <span style={{ color: "var(--amber-500)" }}> · unsynced</span>}
+                                </span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    );
+                  })()}
+
+                  {/* Routing stats (24h call breakdown by source) */}
+                  {(() => {
+                    const routing = st.routingStats as { totalCalls?: number; bySource?: Record<string, { count: number; avgLatencyMs: number }> } | undefined;
+                    if (!routing || !routing.totalCalls) return null;
+                    return (
+                      <div style={{ fontSize: "0.75rem", color: "var(--text-secondary)", padding: "0.5rem 0.625rem", background: "rgba(255,255,255,0.02)", borderRadius: "6px" }}>
+                        <strong style={{ color: "var(--text-primary)" }}>Routing (24h):</strong> {routing.totalCalls} calls
+                        {routing.bySource && Object.entries(routing.bySource).map(([source, stats]) => (
+                          <span key={source} style={{ marginLeft: "0.5rem" }}>
+                            · {source} ×{stats.count} (~{stats.avgLatencyMs}ms)
+                          </span>
                         ))}
                       </div>
-                    </div>
-                  )}
+                    );
+                  })()}
+
+                  {diag.eventsJson.length > 0 && (() => {
+                    // Resolve saved-location UUIDs to names in event payloads
+                    // (mirrors the mobile Drive Detection screen).
+                    const savedLocations = st.savedLocations as Array<{ id: string; name: string }> | undefined;
+                    const lookup = new Map<string, string>();
+                    if (savedLocations) for (const l of savedLocations) lookup.set(l.id, l.name);
+
+                    // Filter to the selected trip's time window (±60s).
+                    const filtered = tripFilter
+                      ? diag.eventsJson.filter((ev) => {
+                          const t = new Date(ev.recorded_at).getTime();
+                          const start = new Date(tripFilter.started_at).getTime() - 60_000;
+                          const end = tripFilter.ended_at
+                            ? new Date(tripFilter.ended_at).getTime() + 60_000
+                            : Date.now();
+                          return t >= start && t <= end;
+                        })
+                      : diag.eventsJson;
+                    return (
+                      <div>
+                        <p style={{ fontSize: "0.75rem", fontWeight: 600, color: "var(--text-secondary)", margin: "0 0 0.375rem" }}>
+                          Events ({filtered.length}{tripFilter ? ` of ${diag.eventsJson.length}, filtered` : ""})
+                        </p>
+                        <div style={{ maxHeight: "400px", overflow: "auto", fontSize: "0.75rem", lineHeight: 1.6, color: "var(--text-tertiary)", border: "1px solid var(--border-subtle, rgba(255,255,255,0.08))", borderRadius: "6px", padding: "0.5rem 0.625rem" }}>
+                          {filtered.map((ev, i) => {
+                            // Replace any locationId UUID in the data with `${uuid} (${name})`
+                            let dataDisplay = ev.data;
+                            if (dataDisplay) {
+                              for (const [id, name] of lookup) {
+                                if (dataDisplay.includes(id)) {
+                                  dataDisplay = dataDisplay.replace(id, `${id} (${name})`);
+                                  break;
+                                }
+                              }
+                            }
+                            return (
+                              <div key={i}>
+                                <span style={{ color: "var(--text-secondary)", fontWeight: 500 }}>{ev.event}</span>
+                                {dataDisplay && <span> {dataDisplay}</span>}
+                                <span style={{ marginLeft: "0.5rem", opacity: 0.6 }}>
+                                  {new Date(ev.recorded_at).toLocaleTimeString()}
+                                </span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    );
+                  })()}
                 </div>
               );
             })() : (
