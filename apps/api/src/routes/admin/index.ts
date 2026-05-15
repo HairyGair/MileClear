@@ -388,7 +388,26 @@ export async function adminRoutes(app: FastifyInstance) {
     const size = Math.min(100, Math.max(1, parseInt(pageSize || "50", 10) || 50));
     const skip = (pageNum - 1) * size;
 
-    const where = status ? { status } : {};
+    const includeGhosts =
+      (request.query as { includeGhosts?: string }).includeGhosts === "1";
+
+    // Pull the set of txn IDs flagged as ghosts once per request so we can
+    // (a) exclude them from the chip + main list by default and (b) tag
+    // any that remain so the client can render them differently.
+    const ghosts = await prisma.appleIapGhost.findMany({
+      select: { originalTransactionId: true },
+    });
+    const ghostIds = ghosts.map((g) => g.originalTransactionId);
+    const ghostIdSet = new Set(ghostIds);
+
+    const where: Record<string, unknown> = {};
+    if (status) where.status = status;
+    if (!includeGhosts && ghostIds.length > 0) {
+      where.OR = [
+        { originalTransactionId: { notIn: ghostIds } },
+        { originalTransactionId: null },
+      ];
+    }
 
     const [logs, total] = await Promise.all([
       prisma.appleIapWebhookLog.findMany({
@@ -400,11 +419,20 @@ export async function adminRoutes(app: FastifyInstance) {
       prisma.appleIapWebhookLog.count({ where }),
     ]);
 
-    // Summary counts by status for the last 24 hours
+    // Summary counts by status for the last 24 hours. Always excludes
+    // ghost-flagged transactions so the chip reflects real noise vs.
+    // signal (the whole point of the Mark-as-Ghost system).
     const since = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    const chipWhere: Record<string, unknown> = { receivedAt: { gte: since } };
+    if (ghostIds.length > 0) {
+      chipWhere.OR = [
+        { originalTransactionId: { notIn: ghostIds } },
+        { originalTransactionId: null },
+      ];
+    }
     const last24hRows = await prisma.appleIapWebhookLog.groupBy({
       by: ["status"],
-      where: { receivedAt: { gte: since } },
+      where: chipWhere,
       _count: { _all: true },
     });
     const last24h: Record<string, number> = {};
@@ -412,13 +440,21 @@ export async function adminRoutes(app: FastifyInstance) {
       last24h[row.status] = row._count._all;
     }
 
+    const annotatedLogs = logs.map((l) => ({
+      ...l,
+      isGhost: l.originalTransactionId
+        ? ghostIdSet.has(l.originalTransactionId)
+        : false,
+    }));
+
     return reply.send({
-      data: logs,
+      data: annotatedLogs,
       total,
       page: pageNum,
       pageSize: size,
       totalPages: Math.ceil(total / size),
       last24h,
+      ghostCount: ghostIds.length,
     });
   });
 
@@ -2205,8 +2241,26 @@ export async function adminRoutes(app: FastifyInstance) {
       return reply.status(503).send({ error: "Apple IAP not configured" });
     }
 
+    // Exclude ghost-flagged transactions from the reprocess loop —
+    // they're already confirmed unlinkable, retrying them is just
+    // burning API calls against Apple's rate limiter.
+    const ghosts = await prisma.appleIapGhost.findMany({
+      select: { originalTransactionId: true },
+    });
+    const ghostIds = ghosts.map((g) => g.originalTransactionId);
+
     const orphans = await prisma.appleIapWebhookLog.findMany({
-      where: { status: "no_user" },
+      where: {
+        status: "no_user",
+        ...(ghostIds.length > 0
+          ? {
+              OR: [
+                { originalTransactionId: { notIn: ghostIds } },
+                { originalTransactionId: null },
+              ],
+            }
+          : {}),
+      },
       orderBy: { receivedAt: "desc" },
     });
 
@@ -2215,7 +2269,9 @@ export async function adminRoutes(app: FastifyInstance) {
       results.push(await reprocessSingleOrphan(log));
     }
 
-    return reply.send({ data: { processed: results.length, results } });
+    return reply.send({
+      data: { processed: results.length, results, skippedGhosts: ghostIds.length },
+    });
   });
 
   // Reprocess a single orphan transaction. Used by the per-row "Reprocess"
@@ -2395,6 +2451,121 @@ export async function adminRoutes(app: FastifyInstance) {
       },
     });
   });
+
+  // ── Ghost transaction management ──────────────────────────────────
+  //
+  // Apple keeps sandbox subscriptions alive forever and even renews them
+  // monthly. When a TestFlight tester deletes their MileClear account
+  // (or the purchase predates appAccountToken tracking), every renewal
+  // event arrives here as `no_user`. The reprocess loop will never link
+  // them — there's nothing TO link. Marking the txn as a ghost stops
+  // those events counting toward the Last 24h noise chip and hides
+  // them from the default panel view.
+
+  app.post<{ Params: { txnId: string }; Body: { reason?: string } }>(
+    "/apple/ghosts/:txnId",
+    async (request, reply) => {
+      const { txnId } = request.params;
+      const reason = request.body?.reason?.slice(0, 1000) ?? null;
+
+      await prisma.appleIapGhost.upsert({
+        where: { originalTransactionId: txnId },
+        create: {
+          originalTransactionId: txnId,
+          dismissedBy: request.userId ?? null,
+          reason,
+        },
+        update: {
+          dismissedBy: request.userId ?? null,
+          reason,
+          dismissedAt: new Date(),
+        },
+      });
+
+      logEvent("billing.apple_iap_ghost_marked", request.userId ?? "system", {
+        originalTransactionId: txnId,
+        reason,
+      });
+
+      return reply.send({ data: { originalTransactionId: txnId, dismissed: true } });
+    }
+  );
+
+  app.delete<{ Params: { txnId: string } }>(
+    "/apple/ghosts/:txnId",
+    async (request, reply) => {
+      const { txnId } = request.params;
+      await prisma.appleIapGhost.deleteMany({
+        where: { originalTransactionId: txnId },
+      });
+      logEvent("billing.apple_iap_ghost_unmarked", request.userId ?? "system", {
+        originalTransactionId: txnId,
+      });
+      return reply.send({ data: { originalTransactionId: txnId, dismissed: false } });
+    }
+  );
+
+  // Auto-mark every transaction that has accumulated >= threshold
+  // `no_user` webhook events as a ghost. Default threshold = 3, which
+  // is empirically the point where a transaction is clearly not going
+  // to link (one INITIAL_BUY + two renewals or pref changes without
+  // ever finding a user). Idempotent — re-running just refreshes the
+  // dismissedAt timestamp via upsert.
+  app.post<{ Body: { threshold?: number } }>(
+    "/apple/ghosts/auto-mark",
+    async (request, reply) => {
+      const threshold = Math.max(1, Math.min(20, request.body?.threshold ?? 3));
+
+      const candidates = await prisma.appleIapWebhookLog.groupBy({
+        by: ["originalTransactionId"],
+        where: { status: "no_user", originalTransactionId: { not: null } },
+        _count: { _all: true },
+        having: { originalTransactionId: { _count: { gte: threshold } } },
+      });
+
+      const txnIds = candidates
+        .map((c) => c.originalTransactionId)
+        .filter((id): id is string => !!id);
+
+      if (txnIds.length === 0) {
+        return reply.send({
+          data: { marked: 0, threshold, candidates: [] },
+        });
+      }
+
+      const already = await prisma.appleIapGhost.findMany({
+        where: { originalTransactionId: { in: txnIds } },
+        select: { originalTransactionId: true },
+      });
+      const alreadySet = new Set(already.map((r) => r.originalTransactionId));
+      const newlyMarked = txnIds.filter((id) => !alreadySet.has(id));
+
+      for (const txnId of newlyMarked) {
+        await prisma.appleIapGhost.create({
+          data: {
+            originalTransactionId: txnId,
+            dismissedBy: request.userId ?? null,
+            reason: `Auto-marked: ${threshold}+ no_user events`,
+          },
+        });
+      }
+
+      logEvent("billing.apple_iap_ghosts_auto_marked", request.userId ?? "system", {
+        threshold,
+        marked: newlyMarked.length,
+        skipped: txnIds.length - newlyMarked.length,
+      });
+
+      return reply.send({
+        data: {
+          marked: newlyMarked.length,
+          skipped: txnIds.length - newlyMarked.length,
+          threshold,
+          candidates: txnIds,
+        },
+      });
+    }
+  );
 
   // ── Funnel cohorts (audit follow-up #3 of 5) ──────────────────────
   //

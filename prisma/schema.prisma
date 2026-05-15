@@ -723,6 +723,21 @@ model AppleIapWebhookLog {
   @@map("apple_iap_webhook_logs")
 }
 
+// Marker that an Apple originalTransactionId has been confirmed as a
+// ghost: a sandbox subscription with no matching MileClear user (deleted
+// TestFlight tester, pre-appAccountToken purchase, etc). Once flagged,
+// every webhook log row for that txn is filtered out of the admin
+// "Last 24h" chip and the orphan reprocess loop. The row stays in the
+// log for audit, but stops counting as noise.
+model AppleIapGhost {
+  originalTransactionId String   @id @db.VarChar(255)
+  dismissedAt           DateTime @default(now())
+  dismissedBy           String?  // user id of the admin who marked it
+  reason                String?  @db.Text
+
+  @@map("apple_iap_ghosts")
+}
+
 model JobRun {
   id           String    @id @default(uuid())
   jobName      String    @db.VarChar(100)

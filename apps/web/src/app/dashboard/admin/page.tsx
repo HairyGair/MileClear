@@ -3367,6 +3367,7 @@ interface AppleWebhookLog {
   status: string;
   errorMessage: string | null;
   receivedAt: string;
+  isGhost?: boolean;
 }
 
 interface JobRunLog {
@@ -3384,6 +3385,7 @@ interface AppleWebhookResponse {
   total: number;
   totalPages: number;
   last24h: Record<string, number>;
+  ghostCount?: number;
 }
 
 interface JobRunResponse {
@@ -3410,6 +3412,7 @@ interface OrphanReprocessResult {
 function OpsTab() {
   const [webhooks, setWebhooks] = useState<AppleWebhookResponse | null>(null);
   const [webhookStatus, setWebhookStatus] = useState("");
+  const [includeGhosts, setIncludeGhosts] = useState(false);
   const [jobs, setJobs] = useState<JobRunResponse | null>(null);
   const [jobFilter, setJobFilter] = useState("");
   const [loading, setLoading] = useState(true);
@@ -3423,6 +3426,8 @@ function OpsTab() {
   const [linkEmail, setLinkEmail] = useState("");
   const [linkSubmitting, setLinkSubmitting] = useState(false);
   const [linkError, setLinkError] = useState<string | null>(null);
+  // Per-row ghost mark/unmark in flight
+  const [ghostMarking, setGhostMarking] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -3430,6 +3435,7 @@ function OpsTab() {
     try {
       const webhookParams = new URLSearchParams({ page: "1", pageSize: "50" });
       if (webhookStatus) webhookParams.set("status", webhookStatus);
+      if (includeGhosts) webhookParams.set("includeGhosts", "1");
       const jobParams = new URLSearchParams({ page: "1", pageSize: "50" });
       if (jobFilter) jobParams.set("jobName", jobFilter);
       const [wh, jr] = await Promise.all([
@@ -3443,7 +3449,7 @@ function OpsTab() {
     } finally {
       setLoading(false);
     }
-  }, [webhookStatus, jobFilter]);
+  }, [webhookStatus, jobFilter, includeGhosts]);
 
   const respondPendingConsumption = useCallback(async () => {
     setReprocessing("consumption");
@@ -3467,6 +3473,62 @@ function OpsTab() {
       await load();
     } catch (err: any) {
       setReprocessNotice({ kind: "err", text: err?.message ?? "Consumption response failed" });
+    } finally {
+      setReprocessing(null);
+    }
+  }, [load]);
+
+  const markGhost = useCallback(async (txnId: string) => {
+    setGhostMarking(txnId);
+    setReprocessNotice(null);
+    try {
+      await api.post(`/admin/apple/ghosts/${encodeURIComponent(txnId)}`, {});
+      setReprocessNotice({
+        kind: "ok",
+        text: `${txnId.slice(0, 12)}…  Marked as ghost — silenced from chip + default view.`,
+      });
+      await load();
+    } catch (err: any) {
+      setReprocessNotice({ kind: "err", text: err?.message ?? "Mark ghost failed" });
+    } finally {
+      setGhostMarking(null);
+    }
+  }, [load]);
+
+  const unmarkGhost = useCallback(async (txnId: string) => {
+    setGhostMarking(txnId);
+    setReprocessNotice(null);
+    try {
+      await api.delete(`/admin/apple/ghosts/${encodeURIComponent(txnId)}`);
+      setReprocessNotice({
+        kind: "ok",
+        text: `${txnId.slice(0, 12)}…  Unmarked — back in the default view.`,
+      });
+      await load();
+    } catch (err: any) {
+      setReprocessNotice({ kind: "err", text: err?.message ?? "Unmark failed" });
+    } finally {
+      setGhostMarking(null);
+    }
+  }, [load]);
+
+  const autoMarkGhosts = useCallback(async () => {
+    setReprocessing("auto-mark");
+    setReprocessNotice(null);
+    try {
+      const res = await api.post<{
+        data: { marked: number; skipped: number; threshold: number; candidates: string[] };
+      }>("/admin/apple/ghosts/auto-mark", { threshold: 3 });
+      setReprocessNotice({
+        kind: res.data.marked > 0 ? "ok" : "warn",
+        text:
+          res.data.marked === 0 && res.data.skipped === 0
+            ? `No transactions with ≥${res.data.threshold} orphan events yet.`
+            : `Auto-marked ${res.data.marked} ghost(s) (≥${res.data.threshold} orphans). ${res.data.skipped} already flagged.`,
+      });
+      await load();
+    } catch (err: any) {
+      setReprocessNotice({ kind: "err", text: err?.message ?? "Auto-mark failed" });
     } finally {
       setReprocessing(null);
     }
@@ -3631,6 +3693,39 @@ function OpsTab() {
               >
                 {reprocessing === "consumption" ? "Submitting…" : "Respond to pending CONSUMPTION_REQUESTs"}
               </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={autoMarkGhosts}
+                disabled={reprocessing !== null}
+                title="Flag any transaction with 3+ no_user events as a ghost. Silences them from the Last 24h chip + default panel view."
+              >
+                {reprocessing === "auto-mark" ? "Marking…" : "Auto-mark ghosts"}
+              </Button>
+              <label
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "0.4rem",
+                  fontSize: "0.8125rem",
+                  color: "var(--text-tertiary)",
+                  cursor: "pointer",
+                  marginLeft: "0.5rem",
+                }}
+                title="Include rows for transactions you've marked as ghosts"
+              >
+                <input
+                  type="checkbox"
+                  checked={includeGhosts}
+                  onChange={(e) => setIncludeGhosts(e.target.checked)}
+                />
+                Show ghosts
+                {webhooks.ghostCount && webhooks.ghostCount > 0 ? (
+                  <span style={{ color: "var(--text-secondary)" }}>
+                    ({webhooks.ghostCount})
+                  </span>
+                ) : null}
+              </label>
             </div>
             {reprocessNotice && (
               <div
@@ -3678,7 +3773,10 @@ function OpsTab() {
                   </thead>
                   <tbody>
                     {webhooks.data.map((w) => (
-                      <tr key={w.id}>
+                      <tr
+                        key={w.id}
+                        style={w.isGhost ? { opacity: 0.55 } : undefined}
+                      >
                         <td style={{ fontSize: "0.75rem", whiteSpace: "nowrap" }}>
                           {new Date(w.receivedAt).toLocaleString()}
                         </td>
@@ -3686,6 +3784,24 @@ function OpsTab() {
                         <td style={{ fontSize: "0.75rem" }}>{w.subtype || "-"}</td>
                         <td style={{ fontSize: "0.75rem" }}>
                           <span style={{ color: statusColor(w.status), fontWeight: 600 }}>{w.status}</span>
+                          {w.isGhost && (
+                            <span
+                              title="Marked as ghost — excluded from chip + default view"
+                              style={{
+                                marginLeft: "0.4rem",
+                                padding: "0 0.35rem",
+                                borderRadius: 4,
+                                background: "color-mix(in srgb, var(--text-tertiary) 18%, transparent)",
+                                color: "var(--text-tertiary)",
+                                fontSize: "0.6875rem",
+                                fontWeight: 600,
+                                textTransform: "uppercase",
+                                letterSpacing: "0.5px",
+                              }}
+                            >
+                              ghost
+                            </span>
+                          )}
                         </td>
                         <td style={{ fontSize: "0.6875rem", fontFamily: "monospace", color: "var(--text-tertiary)" }}>
                           {w.originalTransactionId ? w.originalTransactionId.slice(0, 12) + "..." : "-"}
@@ -3708,27 +3824,52 @@ function OpsTab() {
                         </td>
                         <td style={{ fontSize: "0.75rem" }}>
                           {w.status === "no_user" && w.originalTransactionId ? (
-                            <div style={{ display: "flex", gap: "0.25rem" }}>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => reprocessOne(w.originalTransactionId!)}
-                                disabled={reprocessing !== null}
-                              >
-                                {reprocessing === w.originalTransactionId ? "…" : "Reprocess"}
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => {
-                                  setLinkModalTxn(w.originalTransactionId);
-                                  setLinkEmail("");
-                                  setLinkError(null);
-                                }}
-                                disabled={reprocessing !== null}
-                              >
-                                Link…
-                              </Button>
+                            <div style={{ display: "flex", gap: "0.25rem", flexWrap: "wrap" }}>
+                              {!w.isGhost && (
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => reprocessOne(w.originalTransactionId!)}
+                                  disabled={reprocessing !== null || ghostMarking !== null}
+                                >
+                                  {reprocessing === w.originalTransactionId ? "…" : "Reprocess"}
+                                </Button>
+                              )}
+                              {!w.isGhost && (
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => {
+                                    setLinkModalTxn(w.originalTransactionId);
+                                    setLinkEmail("");
+                                    setLinkError(null);
+                                  }}
+                                  disabled={reprocessing !== null || ghostMarking !== null}
+                                >
+                                  Link…
+                                </Button>
+                              )}
+                              {w.isGhost ? (
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => unmarkGhost(w.originalTransactionId!)}
+                                  disabled={ghostMarking !== null}
+                                  title="Bring this transaction back into the default view"
+                                >
+                                  {ghostMarking === w.originalTransactionId ? "…" : "Unmark"}
+                                </Button>
+                              ) : (
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => markGhost(w.originalTransactionId!)}
+                                  disabled={ghostMarking !== null || reprocessing !== null}
+                                  title="Mark this transaction as a known ghost — silence it from the chip + default view"
+                                >
+                                  {ghostMarking === w.originalTransactionId ? "…" : "Ghost"}
+                                </Button>
+                              )}
                             </div>
                           ) : (
                             "-"
