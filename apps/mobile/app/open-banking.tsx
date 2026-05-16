@@ -23,6 +23,7 @@ import { useUser } from "../lib/user/context";
 import { isIapAvailable, purchaseSubscription } from "../lib/iap/index";
 import { createCheckoutSession } from "../lib/api/billing";
 import * as SecureStore from "expo-secure-store";
+import { ACCESS_TOKEN_KEY } from "../lib/api/index";
 import { colors, fonts } from "../lib/theme";
 
 // Local theme aliases — same pattern as the (tabs) screens.
@@ -91,8 +92,14 @@ export default function OpenBankingScreen() {
       const res = await createOpenBankingAuthLink();
       const authLink = res.data.authLink;
 
-      // Get current auth token so the callback page can exchange the code
-      const token = await SecureStore.getItemAsync("access_token");
+      // Get current auth token so the callback page can exchange the code.
+      // Previously read "access_token" but the key is actually
+      // "mileclear_access_token" (ACCESS_TOKEN_KEY) — the unprefixed
+      // version always returned null, so the callback page hit
+      // sessionStorage with an empty token and the exchange call was
+      // refused with 401. Discovered during the 16 May TrueLayer smoke
+      // test.
+      const token = await SecureStore.getItemAsync(ACCESS_TOKEN_KEY);
       const linkUrl = `${API_URL}/earnings/open-banking/link?authLink=${encodeURIComponent(authLink)}&token=${encodeURIComponent(token || "")}`;
 
       await WebBrowser.openBrowserAsync(linkUrl);

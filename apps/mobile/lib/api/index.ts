@@ -8,7 +8,7 @@ import { getClientContextHeaders } from "./clientContext";
 export { ApiError, isApiError } from "./apiError";
 
 const API_URL = process.env.EXPO_PUBLIC_API_URL || "https://api.mileclear.com";
-const ACCESS_TOKEN_KEY = "mileclear_access_token";
+export const ACCESS_TOKEN_KEY = "mileclear_access_token";
 export const REFRESH_TOKEN_KEY = "mileclear_refresh_token";
 
 // In-memory token cache — SecureStore can throw "User interaction is not
