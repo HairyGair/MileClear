@@ -56,9 +56,11 @@ export async function earningRoutes(app: FastifyInstance) {
   // /callback (or /link) behind authMiddleware would break the entire
   // flow. (Anthony 16 May audit — Open Banking has been silently
   // unusable since launch because of this.)
+  // request.url includes the /earnings prefix from server.ts:170, so
+  // we match the full path here (not just the route-local path).
   const PUBLIC_PATHS = new Set([
-    "/open-banking/link",
-    "/open-banking/callback",
+    "/earnings/open-banking/link",
+    "/earnings/open-banking/callback",
   ]);
   app.addHook("preHandler", async (request, reply) => {
     const path = request.url.split("?")[0];
