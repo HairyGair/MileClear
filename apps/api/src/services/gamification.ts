@@ -1,6 +1,7 @@
 import { prisma } from "../lib/prisma.js";
 import {
   getTaxYear,
+  parseTaxYear,
   calculateMileageDeduction,
   resolveMileageRates,
   formatPence,
@@ -228,10 +229,21 @@ export async function getStats(userId: string): Promise<GamificationStats> {
     _sum: { distanceMiles: true },
   });
 
-  // Counts
-  const [totalTrips, totalShifts] = await Promise.all([
+  // Counts. Includes unclassifiedTrips for the current tax year so the
+  // mobile dashboard can detect "lots of trips, none business" and show
+  // a review-classifications nudge.
+  const taxYearRange = parseTaxYear(taxYear);
+  const [totalTrips, totalShifts, unclassifiedTrips] = await Promise.all([
     prisma.trip.count({ where: { userId, isPhantomTrip: false } }),
     prisma.shift.count({ where: { userId, status: "completed" } }),
+    prisma.trip.count({
+      where: {
+        userId,
+        isPhantomTrip: false,
+        classification: "unclassified",
+        startedAt: { gte: taxYearRange.start, lte: taxYearRange.end },
+      },
+    }),
   ]);
 
   // Streak from distinct trip dates (excluding phantoms — a walking
@@ -329,6 +341,7 @@ export async function getStats(userId: string): Promise<GamificationStats> {
     personalRecords,
     region,
     drivingPatterns,
+    unclassifiedTrips,
   };
 }
 

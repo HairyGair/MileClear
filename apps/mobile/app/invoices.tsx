@@ -136,7 +136,7 @@ export default function InvoicesScreen() {
       {summary && (
         <View style={styles.summary}>
           <View style={styles.summaryItem}>
-            <Text style={styles.summaryValue}>£{(unpaidTotal / 100).toFixed(0)}</Text>
+            <Text style={styles.summaryValue}>{formatSummaryPence(unpaidTotal)}</Text>
             <Text style={styles.summaryLabel}>OUTSTANDING</Text>
           </View>
           <View style={styles.summaryDivider} />
@@ -149,7 +149,7 @@ export default function InvoicesScreen() {
           <View style={styles.summaryDivider} />
           <View style={styles.summaryItem}>
             <Text style={[styles.summaryValue, { color: GREEN }]}>
-              £{((summary.paid.totalPence ?? 0) / 100).toFixed(0)}
+              {formatSummaryPence(summary.paid.totalPence ?? 0)}
             </Text>
             <Text style={styles.summaryLabel}>PAID</Text>
           </View>
@@ -293,6 +293,22 @@ function formatDate(iso: string): string {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return iso;
   return d.toLocaleDateString("en-GB", { day: "numeric", month: "short" });
+}
+
+/**
+ * Adaptive currency formatter for summary chips:
+ *   £0       (exactly zero — keep tight)
+ *   £0.01    (sub-£1 — show pence so penny-tests don't look like nothing)
+ *   £915     (whole pounds for readable headers)
+ *   £1.2k    (thousands compressed for narrow chips)
+ * Anthony 16 May audit — a £0.01 test invoice was rendering as "£0"
+ * which made the chip look broken.
+ */
+function formatSummaryPence(pence: number): string {
+  if (pence === 0) return "£0";
+  if (pence < 100) return `£${(pence / 100).toFixed(2)}`;
+  if (pence >= 100_000) return `£${(pence / 100_000).toFixed(1)}k`;
+  return `£${Math.round(pence / 100).toLocaleString("en-GB")}`;
 }
 
 const styles = StyleSheet.create({

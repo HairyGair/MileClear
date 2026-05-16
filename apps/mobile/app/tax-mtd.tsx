@@ -520,6 +520,9 @@ function formatExpiry(iso: string | undefined): string {
   if (!iso) return "—";
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return "—";
+  // Treat epoch-adjacent placeholders (the new Date(0) draft-row leak)
+  // as missing data rather than rendering "1 Jan 1970 at 01:00".
+  if (d.getFullYear() < 2000) return "—";
   return d.toLocaleString("en-GB", { dateStyle: "medium", timeStyle: "short" });
 }
 

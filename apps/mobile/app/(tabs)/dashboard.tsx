@@ -1075,17 +1075,32 @@ export default function DashboardScreen() {
                 )}
                 <View style={s.heroMeta}>
                   <Text style={s.heroMetaText}>
-                    {formatMilesShort(stats.todayMiles)} today
+                    {formatMilesShort(stats.todayMiles)} mi today
                   </Text>
                   <View style={s.heroDivider} />
                   <Text style={s.heroMetaText}>
-                    {formatMilesShort(stats.weekMiles)} this week
+                    {formatMilesShort(stats.weekMiles)} mi this week
                   </Text>
                   <View style={s.heroDivider} />
                   <Text style={s.heroMetaText}>
                     {stats.totalTrips} trips
                   </Text>
                 </View>
+                {(stats.unclassifiedTrips ?? 0) >= 5 && (
+                  <TouchableOpacity
+                    style={s.heroNudge}
+                    onPress={() => router.push("/(tabs)/trips" as any)}
+                    activeOpacity={0.7}
+                    accessibilityRole="button"
+                    accessibilityLabel={`${stats.unclassifiedTrips} unclassified trips this tax year. Tap to review.`}
+                  >
+                    <Ionicons name="alert-circle-outline" size={16} color="#fbbf24" />
+                    <Text style={s.heroNudgeText}>
+                      {stats.unclassifiedTrips} unclassified {stats.unclassifiedTrips === 1 ? "trip" : "trips"} this tax year — review to boost your deduction
+                    </Text>
+                    <Ionicons name="chevron-forward" size={14} color="#fbbf24" />
+                  </TouchableOpacity>
+                )}
               </View>
             ) : null;
           case "tax_readiness":
@@ -1505,6 +1520,25 @@ const s = StyleSheet.create({
     borderRadius: 1.5,
     backgroundColor: TEXT_3,
     marginHorizontal: 10,
+  },
+  heroNudge: {
+    marginTop: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 10,
+    backgroundColor: "rgba(251,191,36,0.08)",
+    borderWidth: 1,
+    borderColor: "rgba(251,191,36,0.18)",
+  },
+  heroNudgeText: {
+    flex: 1,
+    fontSize: 12,
+    fontFamily: fonts.medium,
+    color: "#fcd34d",
+    lineHeight: 16,
   },
 
   // Hero top row with inline streak

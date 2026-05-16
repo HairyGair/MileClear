@@ -242,8 +242,8 @@ export default function EarningsScreen() {
           !loading ? (
             <EmptyState
               icon="cash-outline"
-              title="Log your first payout"
-              description="Once your earnings are in here, MileClear can show your real take-home per mile and per hour."
+              title="Connect to see your real take-home"
+              description="Once your earnings are in here, MileClear shows your true £/mile, £/hour, and the right set-aside for tax — not estimates. Connect Bank pulls 90 days automatically."
             />
           ) : null
         }
@@ -255,23 +255,27 @@ export default function EarningsScreen() {
                 style={{ marginBottom: 12 }}
               />
             )}
+            {/* Connect Bank promoted to primary — it's the path with the
+                highest payoff (zero manual entry, last 90 days imported).
+                CSV + manual stay secondary for users without supported
+                banks or who prefer hand-tracking. */}
             <Button
-              title="Add Earning"
-              icon="add"
-              onPress={() => router.push("/earning-form")}
+              title="Connect Bank"
+              icon="business-outline"
+              onPress={() => router.push("/open-banking")}
             />
             <Button
               variant="secondary"
-              title="Import CSV"
+              title="Import CSV from platform"
               icon="document-text-outline"
               onPress={() => router.push("/csv-import")}
               style={{ marginTop: 10 }}
             />
             <Button
-              variant="secondary"
-              title="Connect Bank"
-              icon="business-outline"
-              onPress={() => router.push("/open-banking")}
+              variant="ghost"
+              title="Add manually"
+              icon="add"
+              onPress={() => router.push("/earning-form")}
               style={{ marginTop: 10 }}
             />
           </View>

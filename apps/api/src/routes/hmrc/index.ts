@@ -82,7 +82,16 @@ export async function hmrcRoutes(app: FastifyInstance) {
       },
     });
 
-    if (!connection || connection.disconnectedAt) {
+    // A row exists but has empty tokens + epoch expiresAt iff the user
+    // started /authorize and never completed the callback. Treat as not
+    // connected — otherwise the mobile client renders "Token expires
+    // 1 Jan 1970" which looks like a broken integration.
+    const hasValidTokens =
+      connection &&
+      !connection.disconnectedAt &&
+      connection.expiresAt.getTime() > 86_400_000; // > 2 Jan 1970
+
+    if (!connection || connection.disconnectedAt || !hasValidTokens) {
       return reply.send({
         data: {
           connected: false,

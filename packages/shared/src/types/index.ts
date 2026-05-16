@@ -825,6 +825,14 @@ export interface GamificationStats {
   personalRecords: PersonalRecords;
   region?: string;
   drivingPatterns?: DrivingPatterns;
+  /**
+   * Unclassified trips for the current tax year. Drives the dashboard's
+   * "review your classifications" nudge when the user has many trips
+   * tracked but few classified as business — otherwise £1.67 next to 100+
+   * tracked trips looks like the calc is broken when it's actually
+   * classification that's the gap.
+   */
+  unclassifiedTrips?: number;
 }
 
 export interface AchievementWithMeta {
