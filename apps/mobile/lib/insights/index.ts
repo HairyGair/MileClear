@@ -115,15 +115,28 @@ function generateInsights(input: InsightInput): Insight[] {
     });
   }
 
-  // Streak at risk (had a streak but no trips today)
-  if (stats.currentStreakDays >= 3 && stats.todayMiles === 0) {
+  // Streak at risk (had a streak but no trips today). Anthony 16 May
+  // audit: this used to fire from the moment the day rolled over, with
+  // an alarming orange "at risk" alert framing. That meant a user who
+  // opens the app at 8am to check yesterday's numbers got hit with a
+  // warning before they'd had a chance to drive. Two tweaks:
+  //   1. Only fire after 4pm UK time — by then a day without driving
+  //      is genuinely a signal, not a premature scold.
+  //   2. Use the streak amber + softer copy. It's a reminder, not a
+  //      warning.
+  const ukHour = new Date().getUTCHours() + 1; // rough BST; close enough for cutoff
+  if (
+    stats.currentStreakDays >= 3 &&
+    stats.todayMiles === 0 &&
+    ukHour >= 16
+  ) {
     insights.push({
       id: "streak_at_risk",
       icon: "flame-outline",
-      iconColor: "#f97316",
-      title: `Your ${stats.currentStreakDays}-day streak is at risk`,
-      body: "Log or track a trip today to keep it going.",
-      priority: "actionable",
+      iconColor: "#f5a623",
+      title: `Keep your ${stats.currentStreakDays}-day streak alive`,
+      body: "A trip today extends your streak.",
+      priority: "nudge",
       actionLabel: "Start trip",
       actionRoute: "/trip-form",
     });

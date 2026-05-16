@@ -153,6 +153,11 @@ export default function DashboardScreen() {
 
   // Background location permission — needed for auto trip detection
   const [bgLocationGranted, setBgLocationGranted] = useState(true); // default true until checked
+  // Dismissal cooldown: hides the "Auto-detection is off" nudge for 7
+  // days after a tap on the X. Avoids the every-load nag (Anthony 16
+  // May audit) while still resurfacing the prompt periodically so a
+  // user who genuinely benefits from auto-detection finds it again.
+  const [bgLocNudgeDismissedAt, setBgLocNudgeDismissedAt] = useState<number | null>(null);
 
   // Vehicle nudge — show when user has no vehicles at all
   const showVehicleNudge = !loading && vehicles.length === 0;
@@ -250,16 +255,37 @@ export default function DashboardScreen() {
     );
   }, []);
 
-  // Load work explainer flag
+  // Load work explainer flag + bg-location nudge dismissal cooldown
   useEffect(() => {
     (async () => {
       const db = await getDatabase();
-      const row = await db.getFirstAsync<{ value: string }>(
-        "SELECT value FROM tracking_state WHERE key = 'work_explainer_seen'"
+      const rows = await db.getAllAsync<{ key: string; value: string }>(
+        "SELECT key, value FROM tracking_state WHERE key IN ('work_explainer_seen', 'bg_loc_nudge_dismissed_at')"
       );
-      setWorkExplainerSeen(row?.value === "1");
+      const map = Object.fromEntries(rows.map((r) => [r.key, r.value]));
+      setWorkExplainerSeen(map["work_explainer_seen"] === "1");
+      const dismissedAt = map["bg_loc_nudge_dismissed_at"]
+        ? parseInt(map["bg_loc_nudge_dismissed_at"], 10)
+        : null;
+      setBgLocNudgeDismissedAt(Number.isFinite(dismissedAt as number) ? dismissedAt : null);
     })();
   }, []);
+
+  const dismissBgLocNudge = useCallback(async () => {
+    const now = Date.now();
+    setBgLocNudgeDismissedAt(now);
+    const db = await getDatabase();
+    await db.runAsync(
+      "INSERT OR REPLACE INTO tracking_state (key, value) VALUES ('bg_loc_nudge_dismissed_at', ?)",
+      [String(now)]
+    );
+  }, []);
+
+  // The nudge sleeps for 7 days after dismissal, then resurfaces.
+  const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
+  const bgLocNudgeSilenced =
+    bgLocNudgeDismissedAt !== null &&
+    Date.now() - bgLocNudgeDismissedAt < SEVEN_DAYS_MS;
 
   // Auto-show work explainer on first Work mode visit
   useEffect(() => {
@@ -926,7 +952,7 @@ export default function DashboardScreen() {
           outright. Linking.openSettings() alone is wrong for fresh installs:
           iOS doesn't show a Location row in Settings until the app has
           actually asked for permission once. */}
-      {!bgLocationGranted && !activeShift && (
+      {!bgLocationGranted && !activeShift && !bgLocNudgeSilenced && (
         <TouchableOpacity
           style={s.bgLocNudge}
           onPress={async () => {
@@ -947,7 +973,14 @@ export default function DashboardScreen() {
                 Tap to turn it on. iOS asks for location access in two steps - we'll guide you through both.
               </Text>
             </View>
-            <Ionicons name="chevron-forward" size={16} color="#64748b" accessible={false} />
+            <TouchableOpacity
+              onPress={dismissBgLocNudge}
+              hitSlop={{ top: 12, right: 12, bottom: 12, left: 12 }}
+              accessibilityRole="button"
+              accessibilityLabel="Dismiss for 7 days"
+            >
+              <Ionicons name="close" size={16} color="#6b7280" accessible={false} />
+            </TouchableOpacity>
           </View>
         </TouchableOpacity>
       )}
@@ -1064,13 +1097,27 @@ export default function DashboardScreen() {
                     </View>
                   )}
                 </View>
-                <Text style={s.heroValue} maxFontSizeMultiplier={fontScaleCap.display}>
+                {/* Adaptive typography: deductions under \u00A310 use a smaller
+                    type ramp so a "\u00A31.67" headline doesn't dominate a card
+                    that's meant to celebrate a building total. Once the
+                    number is meaningful (\u00A310+) it returns to the full
+                    heroValue size. */}
+                <Text
+                  style={[
+                    s.heroValue,
+                    stats.deductionPence < 1000 && s.heroValueGettingStarted,
+                  ]}
+                  maxFontSizeMultiplier={fontScaleCap.display}
+                >
                   {formatPence(stats.deductionPence)}
                 </Text>
-                {stats.deductionPence > 0 && (
+                {stats.deductionPence >= 1000 && (
                   <Text style={s.heroSavedLabel}>saved in tax this year</Text>
                 )}
-                {!isPremium && stats.deductionPence > 0 && (
+                {stats.deductionPence > 0 && stats.deductionPence < 1000 && (
+                  <Text style={s.heroSavedLabel}>building up \u2014 keep classifying business trips</Text>
+                )}
+                {!isPremium && stats.deductionPence >= 1000 && (
                   <Text style={s.heroLockedHint}>Upgrade to export for your tax return</Text>
                 )}
                 <View style={s.heroMeta}>
@@ -1483,6 +1530,11 @@ const s = StyleSheet.create({
     color: AMBER,
     letterSpacing: -1,
     marginBottom: 10,
+  },
+  heroValueGettingStarted: {
+    fontSize: 28,
+    color: TEXT_1, // dim white instead of bright amber when the number is small
+    fontFamily: fonts.regular,
   },
   heroSavedLabel: {
     fontSize: 13,

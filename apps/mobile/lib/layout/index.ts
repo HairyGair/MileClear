@@ -55,6 +55,17 @@ export const SECTION_REGISTRY: Record<ScreenKey, SectionDef[]> = {
       icon: "navigate",
       locked: true,
     },
+    // Tax Readiness moved up to position 3 — the most useful piece of
+    // information on the dashboard (estimated tax owed + weekly set-aside)
+    // was previously buried below Daily Recap and Business Mileage.
+    // Tax-anxious users now see "what HMRC will want" right after the
+    // hero (Anthony 16 May audit).
+    {
+      key: "tax_readiness",
+      label: "Tax Readiness",
+      icon: "shield-checkmark-outline",
+      description: "HMRC estimate, weekly set-aside, filing deadline countdown",
+    },
     // Summary cards (today / year / week)
     {
       key: "daily_recap",
@@ -67,12 +78,6 @@ export const SECTION_REGISTRY: Record<ScreenKey, SectionDef[]> = {
       label: "Business Mileage",
       icon: "speedometer-outline",
       description: "Business miles by month, with prev/next navigation to past months",
-    },
-    {
-      key: "tax_readiness",
-      label: "Tax Readiness",
-      icon: "shield-checkmark-outline",
-      description: "HMRC estimate, weekly set-aside, filing deadline countdown",
     },
     {
       key: "weekly_goal",
