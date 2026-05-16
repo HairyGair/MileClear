@@ -1,4 +1,6 @@
 import { notFound } from "next/navigation";
+import { existsSync } from "node:fs";
+import { join } from "node:path";
 import ScreenshotFrame from "@/components/screenshot/ScreenshotFrame";
 import { getSlot } from "@/components/screenshot/slots";
 
@@ -22,6 +24,21 @@ export default async function SlotPage({
   const slot = getSlot(slotParam);
   if (!slot) notFound();
 
+  // Strip any iphoneSrc / ipadSrc that point at files which don't actually
+  // exist yet. Without this the renderer outputs a broken <img> tag and
+  // the device frame looks empty instead of showing the helpful "Capture
+  // needed" placeholder.
+  const publicDir = join(process.cwd(), "public");
+  const resolvedSlot = {
+    ...slot,
+    iphoneSrc: slot.iphoneSrc && existsSync(join(publicDir, slot.iphoneSrc))
+      ? slot.iphoneSrc
+      : undefined,
+    ipadSrc: slot.ipadSrc && existsSync(join(publicDir, slot.ipadSrc))
+      ? slot.ipadSrc
+      : undefined,
+  };
+
   return (
     <main
       style={{
@@ -34,7 +51,7 @@ export default async function SlotPage({
         margin: 0,
       }}
     >
-      <ScreenshotFrame slot={slot} device={size} />
+      <ScreenshotFrame slot={resolvedSlot} device={size} />
     </main>
   );
 }

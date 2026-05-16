@@ -99,18 +99,35 @@ export default function ScreenshotFrame({ slot, device }: FrameProps) {
         <rect width="100%" height="100%" filter="url(#noise)" />
       </svg>
 
-      {/* Top eyebrow + badge row */}
+      {/* Top-left app icon — subtle brand presence on every screenshot.
+          Uses the iOS-style rounded icon, not the squared-off wordmark
+          M, because it's the icon Apple's editorial team will see on
+          the rest of the listing too. */}
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src="/branding/logo-120x120.png"
+        alt=""
+        style={{
+          position: "absolute",
+          top: isIpad ? 70 : 100,
+          left: isIpad ? 80 : 80,
+          width: isIpad ? 100 : 120,
+          height: isIpad ? 100 : 120,
+          borderRadius: isIpad ? 22 : 26,
+          boxShadow: `0 12px 32px rgba(0,0,0,0.5), 0 0 24px ${theme.glow}`,
+        }}
+      />
+
+      {/* Top-right eyebrow + badge row. Pinned to the right so the
+          app icon can sit on the left without colliding. */}
       <div
         style={{
           position: "absolute",
-          top: isIpad ? 88 : 120,
-          left: 0,
-          right: 0,
+          top: isIpad ? 90 : 130,
+          right: isIpad ? 80 : 80,
           display: "flex",
-          justifyContent: "center",
           alignItems: "center",
-          gap: 24,
-          padding: "0 80px",
+          gap: 20,
         }}
       >
         {slot.eyebrow ? (
@@ -212,39 +229,24 @@ export default function ScreenshotFrame({ slot, device }: FrameProps) {
         ))}
       </div>
 
-      {/* Bottom-right wordmark — light brand presence, not aggressive */}
-      <div
+      {/* Bottom-right wordmark — the official MileClear logotype.
+          Sourced from /public/branding/wordmark-dark.png. The asset is
+          designed for dark backgrounds (white "Mile" + amber "Clear"),
+          which matches every accent theme since we're always on the
+          dark gradient canvas. */}
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src="/branding/wordmark-dark.png"
+        alt="MileClear"
         style={{
           position: "absolute",
-          bottom: 40,
-          right: 60,
-          display: "flex",
-          alignItems: "center",
-          gap: 12,
-          opacity: 0.65,
+          bottom: isIpad ? 50 : 60,
+          right: isIpad ? 80 : 70,
+          width: isIpad ? 280 : 320,
+          height: "auto",
+          opacity: 0.95,
         }}
-      >
-        <span
-          style={{
-            fontSize: isIpad ? 28 : 32,
-            fontWeight: 800,
-            color: "#f9fafb",
-            letterSpacing: "-0.02em",
-          }}
-        >
-          Mile
-        </span>
-        <span
-          style={{
-            fontSize: isIpad ? 28 : 32,
-            fontWeight: 800,
-            color: theme.primary,
-            letterSpacing: "-0.02em",
-          }}
-        >
-          Clear
-        </span>
-      </div>
+      />
     </div>
   );
 }
