@@ -520,8 +520,8 @@ model PlaidConnection {
   userId          String
   institutionId   String?
   institutionName String?
-  accessToken     String    @db.VarChar(500)
-  refreshToken    String?   @db.VarChar(500)
+  accessToken     String    @db.Text
+  refreshToken    String?   @db.Text
   itemId          String    @unique
   lastSynced      DateTime?
   status          String    @default("active")
