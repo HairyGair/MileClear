@@ -42,7 +42,29 @@ const listEarningsQuery = z.object({
 });
 
 export async function earningRoutes(app: FastifyInstance) {
-  app.addHook("preHandler", authMiddleware);
+  // Two routes serve HTML to regular browsers as part of the TrueLayer
+  // OAuth handshake — they MUST be public:
+  //   - /open-banking/link   bounces the user to TrueLayer's auth dialog
+  //   - /open-banking/callback receives TrueLayer's post-auth redirect
+  // The flow:
+  //   App opens /link in Safari → /link returns HTML that stashes the
+  //   user's JWT in sessionStorage and window.location's to TrueLayer →
+  //   TrueLayer redirects back to /callback?code=... → /callback's
+  //   inline JS pulls the JWT from sessionStorage and POSTs to
+  //   /exchange with a proper Authorization header.
+  // TrueLayer can't send a Bearer header on the redirect, so gating
+  // /callback (or /link) behind authMiddleware would break the entire
+  // flow. (Anthony 16 May audit — Open Banking has been silently
+  // unusable since launch because of this.)
+  const PUBLIC_PATHS = new Set([
+    "/open-banking/link",
+    "/open-banking/callback",
+  ]);
+  app.addHook("preHandler", async (request, reply) => {
+    const path = request.url.split("?")[0];
+    if (PUBLIC_PATHS.has(path)) return;
+    return authMiddleware(request, reply);
+  });
   attachIdempotency(app);
 
   // Create earning (manual entry)
