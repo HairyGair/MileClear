@@ -32,6 +32,7 @@ import { colors, fonts, radii, spacing } from "../../lib/theme";
 import { EmptyState } from "../../components/EmptyState";
 import { haptic } from "../../lib/haptics";
 import { AppModal } from "../../components/AppModal";
+import { Swipeable, RectButton } from "react-native-gesture-handler";
 
 if (Platform.OS === "android" && UIManager.setLayoutAnimationEnabledExperimental) {
   UIManager.setLayoutAnimationEnabledExperimental(true);
@@ -267,6 +268,30 @@ function formatDate(iso: string): string {
 function formatTime(iso: string): string {
   const d = new Date(iso);
   return d.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
+}
+
+/**
+ * Short-form address for the compact trip row. Reverse-geocoded
+ * addresses often come back as long postcode-suffixed strings like
+ * "67, Durham Road, Sunderland, SR1 2NY". For a one-line route summary
+ * we want the most informative segment — typically the road name or
+ * locality, not the house number that leads the string. Strategy:
+ *   1. Saved-location names ("Home", "Work") come through clean — pass as-is
+ *   2. For comma-separated street addresses, skip leading segments that
+ *      are pure-numeric (house numbers) and pick the first meaningful one.
+ *   3. Cap to 22 chars so two ends still fit in one line.
+ */
+function shortAddress(addr: string): string {
+  if (!addr) return "";
+  const trimmed = addr.trim();
+  // Saved location names (no commas, short) → use directly
+  if (!trimmed.includes(",") || trimmed.length < 18) {
+    return trimmed.length > 22 ? trimmed.slice(0, 20) + "…" : trimmed;
+  }
+  const segments = trimmed.split(",").map((s) => s.trim());
+  // Skip pure-numeric or 1-2 char first segments (house numbers)
+  const first = segments.find((s) => s.length > 2 && !/^\d+$/.test(s)) ?? segments[0];
+  return first.length > 22 ? first.slice(0, 20) + "…" : first;
 }
 
 export default function TripsScreen() {
@@ -699,11 +724,77 @@ export default function TripsScreen() {
 
   const renderTrip = ({ item }: { item: TripItem }) => {
     const isUnclassified = item.classification === "unclassified";
+    const isBusiness = item.classification === "business";
     const isClassifying = classifyingId === item.id;
     const tripSuggestion = isUnclassified ? suggestions[item.id] : null;
     const isSelected = mergeMode && selectedIds.has(item.id);
 
-    return (
+    // iOS Mail-style left bar — single coloured stripe telling the
+    // classification at a glance. Replaces the heavier right-aligned
+    // Business/Personal pill which forced a multi-row header layout.
+    const classificationBarColour = isBusiness
+      ? AMBER
+      : isUnclassified
+        ? "#f5a623" // gold for needs-action
+        : "#475569"; // dim slate for personal — present but quiet
+
+    // Confidence pill (replaces the unexplained amber dot). Shows only
+    // when confidence is low or medium so high-confidence trips stay
+    // visually clean. Includes accessibilityLabel that explains the
+    // signal rather than just "dot".
+    const confidence = item.confidence?.level;
+    const showConfidence = confidence === "low" || confidence === "medium";
+
+    // Swipe actions — Anthony 16 May audit. Right swipe = quick classify
+    // (cycles Business / Personal / unclassified to the OTHER state),
+    // left swipe = delete. Disabled in merge-mode where taps mean
+    // multi-select.
+    const renderRightActions = () => (
+      <RectButton
+        style={styles.swipeDeleteAction}
+        onPress={() => {
+          handleDeleteTrip(item.id);
+        }}
+        accessibilityLabel="Delete trip"
+      >
+        <Ionicons name="trash-outline" size={22} color="#fff" />
+        <Text style={styles.swipeActionText}>Delete</Text>
+      </RectButton>
+    );
+
+    // Right-swipe (drag left-to-right) classifies. For unclassified
+    // trips it suggests Business; for already-classified trips it
+    // flips to the opposite class — matching the "primary positive
+    // action" iOS gesture pattern.
+    const targetClass: TripClassification = isBusiness ? "personal" : "business";
+    const targetLabel = targetClass === "business" ? "Business" : "Personal";
+    const targetColor = targetClass === "business" ? AMBER : "#374151";
+    const renderLeftActions = () =>
+      mergeMode ? null : (
+        <RectButton
+          style={[styles.swipeClassifyAction, { backgroundColor: targetColor }]}
+          onPress={() => {
+            handleQuickClassify(item.id, targetClass);
+          }}
+          accessibilityLabel={`Classify as ${targetLabel}`}
+        >
+          <Ionicons
+            name={targetClass === "business" ? "briefcase" : "person"}
+            size={22}
+            color={targetClass === "business" ? BG : "#fff"}
+          />
+          <Text
+            style={[
+              styles.swipeActionText,
+              { color: targetClass === "business" ? BG : "#fff" },
+            ]}
+          >
+            {targetLabel}
+          </Text>
+        </RectButton>
+      );
+
+    const cardInner = (
       <TouchableOpacity
         style={[
           styles.tripCard,
@@ -723,113 +814,93 @@ export default function TripsScreen() {
         accessibilityLabel={
           mergeMode
             ? `${isSelected ? "Deselect" : "Select"} trip on ${formatDate(item.startedAt)}, ${item.distanceMiles.toFixed(1)} miles`
-            : `Trip on ${formatDate(item.startedAt)}, ${item.distanceMiles.toFixed(1)} miles${item.classification !== "unclassified" ? `, ${item.classification}` : ", needs classifying"}${item.confidence && item.confidence.level !== "high" ? `, confidence: ${item.confidence.level}` : ""}. Tap to edit.`
+            : `Trip on ${formatDate(item.startedAt)}, ${item.distanceMiles.toFixed(1)} miles${item.classification !== "unclassified" ? `, ${item.classification}` : ", needs classifying"}${confidence && confidence !== "high" ? `, ${confidence} confidence` : ""}. Tap to edit. Swipe right to classify as ${targetLabel}. Swipe left to delete.`
         }
         accessibilityState={mergeMode ? { selected: isSelected } : undefined}
         accessibilityHint={mergeMode ? undefined : "Long press to enter merge mode"}
       >
-        <View style={styles.tripHeader}>
-          {mergeMode && (
-            <View
-              style={[styles.selectCircle, isSelected && styles.selectCircleActive]}
-              accessible={false}
-            >
-              {isSelected && <Ionicons name="checkmark" size={14} color={BG} accessible={false} />}
-            </View>
-          )}
-          <Text style={[styles.tripDate, mergeMode && { flex: 1 }]}>{formatDate(item.startedAt)}</Text>
-          {item.confidence && item.confidence.level !== "high" && (
-            <View
-              style={[
-                styles.confidenceDot,
-                {
-                  backgroundColor:
-                    item.confidence.level === "low" ? "#ef4444" : "#f5a623",
-                },
-              ]}
-              accessible={false}
-            />
-          )}
-          <View style={styles.tripHeaderRight}>
+        {/* Left classification bar */}
+        <View style={[styles.classificationBar, { backgroundColor: classificationBarColour }]} />
+
+        <View style={styles.tripCardBody}>
+          {/* Line 1: distance · time · from → to */}
+          <View style={styles.tripPrimaryRow}>
+            {mergeMode && (
+              <View
+                style={[styles.selectCircle, isSelected && styles.selectCircleActive]}
+                accessible={false}
+              >
+                {isSelected && <Ionicons name="checkmark" size={14} color={BG} accessible={false} />}
+              </View>
+            )}
+            <Text style={styles.distanceCompact}>
+              {item.distanceMiles.toFixed(1)} mi
+            </Text>
+            <Text style={styles.dotSep}>·</Text>
+            <Text style={styles.timeCompact}>{formatTime(item.startedAt)}</Text>
+            {(item.startAddress || item.endAddress) && (
+              <>
+                <Text style={styles.dotSep}>·</Text>
+                <Text style={styles.routeCompact} numberOfLines={1} ellipsizeMode="tail">
+                  {item.startAddress && shortAddress(item.startAddress)}
+                  {item.startAddress && item.endAddress && (
+                    <Text style={styles.arrowSubtle}> → </Text>
+                  )}
+                  {item.endAddress && shortAddress(item.endAddress)}
+                </Text>
+              </>
+            )}
+          </View>
+
+          {/* Line 2: date · vehicle · platform · classification chip */}
+          <View style={styles.tripSecondaryRow}>
+            <Text style={styles.dateCompact}>{formatDate(item.startedAt)}</Text>
+            {item.vehicle && (
+              <>
+                <Text style={styles.dotSepSubtle}>·</Text>
+                <Text style={styles.vehicleCompact} numberOfLines={1}>
+                  {item.vehicle.make} {item.vehicle.model}
+                </Text>
+              </>
+            )}
+            {item.platformTag && (
+              <Text style={styles.platformBadge}>
+                {PLATFORM_LABELS[item.platformTag] ?? item.platformTag}
+              </Text>
+            )}
+            {item._isLocal && <Text style={styles.syncBadge}>Pending</Text>}
+            {item.isManualEntry && <Text style={styles.manualBadge}>Manual</Text>}
+            <View style={{ flex: 1 }} />
             {isUnclassified ? (
               <View style={styles.unclassifiedBadge}>
-                <Ionicons name="help-circle" size={12} color={AMBER} accessible={false} />
-                <Text style={styles.unclassifiedBadgeText}>Needs classifying</Text>
+                <Ionicons name="help-circle" size={11} color={AMBER} accessible={false} />
+                <Text style={styles.unclassifiedBadgeText}>Classify</Text>
               </View>
             ) : (
               <Text
                 style={[
                   styles.classificationBadge,
-                  item.classification === "business"
-                    ? styles.businessBadge
-                    : styles.personalBadge,
+                  isBusiness ? styles.businessBadge : styles.personalBadge,
                 ]}
               >
-                {item.classification === "business" ? "Business" : "Personal"}
+                {isBusiness ? "Business" : "Personal"}
               </Text>
             )}
-            {!mergeMode && !item._isLocal && (
-              <TouchableOpacity
-                onPress={(e) => {
-                  e.stopPropagation?.();
-                  handleDeleteTrip(item.id);
-                }}
-                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-                accessibilityRole="button"
-                accessibilityLabel="Delete trip"
+            {showConfidence && (
+              <View
+                style={[
+                  styles.confidencePill,
+                  confidence === "low" && styles.confidencePillLow,
+                ]}
+                accessible={true}
+                accessibilityLabel={`${confidence} confidence — MileClear is less sure about this classification`}
               >
-                <Ionicons name="trash-outline" size={16} color={TEXT_3} accessible={false} />
-              </TouchableOpacity>
+                <Text style={styles.confidencePillText}>
+                  {confidence === "low" ? "Review" : "?"}
+                </Text>
+              </View>
             )}
           </View>
-        </View>
-
-        <View style={styles.tripDetails}>
-          <Text style={styles.distanceText}>
-            {item.distanceMiles.toFixed(1)} mi
-          </Text>
-          <Text style={styles.timeText}>
-            {formatTime(item.startedAt)}
-            {item.endedAt ? ` — ${formatTime(item.endedAt)}` : ""}
-          </Text>
-        </View>
-
-        {(item.startAddress || item.endAddress) && (
-          <View style={styles.addressRow}>
-            {item.startAddress && (
-              <Text style={styles.addressText} numberOfLines={1}>
-                {item.startAddress}
-              </Text>
-            )}
-            {item.startAddress && item.endAddress && (
-              <Text style={styles.arrowText}> → </Text>
-            )}
-            {item.endAddress && (
-              <Text style={styles.addressText} numberOfLines={1}>
-                {item.endAddress}
-              </Text>
-            )}
-          </View>
-        )}
-
-        <View style={styles.tripMeta}>
-          {item._isLocal && (
-            <Text style={styles.syncBadge}>Pending sync</Text>
-          )}
-          {item.platformTag && (
-            <Text style={styles.platformBadge}>
-              {PLATFORM_LABELS[item.platformTag] ?? item.platformTag}
-            </Text>
-          )}
-          {item.vehicle && (
-            <Text style={styles.metaText}>
-              {item.vehicle.make} {item.vehicle.model}
-            </Text>
-          )}
-          {item.isManualEntry && (
-            <Text style={styles.manualBadge}>Manual</Text>
-          )}
-        </View>
 
         {/* Quick classify buttons for unclassified trips */}
         {isUnclassified && (
@@ -903,7 +974,27 @@ export default function TripsScreen() {
             </View>
           </View>
         )}
+        </View>{/* /tripCardBody */}
       </TouchableOpacity>
+    );
+
+    // Don't wrap in Swipeable while in merge-mode — taps should toggle
+    // selection, not be eaten by gesture handlers. Also skip for local
+    // (unsynced) trips since the delete action requires a server round-trip.
+    if (mergeMode || item._isLocal) {
+      return cardInner;
+    }
+
+    return (
+      <Swipeable
+        renderLeftActions={renderLeftActions}
+        renderRightActions={renderRightActions}
+        overshootLeft={false}
+        overshootRight={false}
+        friction={2}
+      >
+        {cardInner}
+      </Swipeable>
     );
   };
 
@@ -1764,17 +1855,123 @@ const styles = StyleSheet.create({
     fontFamily: fonts.bold,
     color: BG,
   },
-  // Trip cards
+  // Trip cards — compact layout (Anthony 16 May audit)
   tripCard: {
     backgroundColor: CARD_BG,
     borderRadius: 12,
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.06)",
-    padding: 16,
     marginBottom: 10,
+    flexDirection: "row",
+    overflow: "hidden",
   },
   tripCardUnclassified: {
     borderColor: "rgba(245, 166, 35, 0.25)",
+  },
+  // Left coloured bar — classification at a glance (iOS Mail style)
+  classificationBar: {
+    width: 5,
+    alignSelf: "stretch",
+  },
+  tripCardBody: {
+    flex: 1,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+  },
+  tripPrimaryRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  tripSecondaryRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginTop: 6,
+  },
+  distanceCompact: {
+    fontSize: 16,
+    fontFamily: fonts.bold,
+    color: "#fff",
+  },
+  timeCompact: {
+    fontSize: 13,
+    fontFamily: fonts.regular,
+    color: TEXT_2,
+  },
+  routeCompact: {
+    fontSize: 13,
+    fontFamily: fonts.regular,
+    color: TEXT_2,
+    flexShrink: 1,
+    flex: 1,
+  },
+  arrowSubtle: {
+    color: TEXT_3,
+  },
+  dotSep: {
+    fontSize: 13,
+    color: TEXT_3,
+    marginHorizontal: 2,
+  },
+  dotSepSubtle: {
+    fontSize: 12,
+    color: TEXT_3,
+  },
+  dateCompact: {
+    fontSize: 12,
+    fontFamily: fonts.regular,
+    color: TEXT_3,
+  },
+  vehicleCompact: {
+    fontSize: 12,
+    fontFamily: fonts.regular,
+    color: TEXT_3,
+    flexShrink: 1,
+  },
+  // Confidence pill — replaces unexplained amber dot
+  confidencePill: {
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 4,
+    backgroundColor: "rgba(245, 166, 35, 0.15)",
+    borderWidth: 1,
+    borderColor: "rgba(245, 166, 35, 0.35)",
+  },
+  confidencePillLow: {
+    backgroundColor: "rgba(239, 68, 68, 0.15)",
+    borderColor: "rgba(239, 68, 68, 0.4)",
+  },
+  confidencePillText: {
+    fontSize: 10,
+    fontFamily: fonts.bold,
+    color: AMBER,
+    letterSpacing: 0.3,
+  },
+  // Swipe action buttons (Anthony 16 May audit — native iOS feel)
+  swipeClassifyAction: {
+    width: 110,
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 10,
+    borderTopLeftRadius: 12,
+    borderBottomLeftRadius: 12,
+    gap: 4,
+  },
+  swipeDeleteAction: {
+    width: 90,
+    backgroundColor: "#ef4444",
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 10,
+    borderTopRightRadius: 12,
+    borderBottomRightRadius: 12,
+    gap: 4,
+  },
+  swipeActionText: {
+    color: "#fff",
+    fontSize: 12,
+    fontFamily: fonts.semibold,
   },
   tripHeader: {
     flexDirection: "row",
