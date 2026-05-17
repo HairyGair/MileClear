@@ -176,6 +176,24 @@ export default function DashboardScreen() {
   const { showPaywall } = usePaywall();
   const [proNudgeDismissedUntil, setProNudgeDismissedUntil] = useState<number>(Date.now() + 999999999);
   const showProNudge = !isPremium && !loading && (stats?.totalTrips ?? 0) >= 5 && Date.now() >= proNudgeDismissedUntil;
+
+  // Saved-locations nudge — surfaces when a user has trip history but
+  // hasn't pinned anywhere yet. Server has clustering ready to suggest
+  // up to 8 places. Hidden once the user has any saved location, after
+  // dismissal (snoozed 7 days), or while the server hasn't found
+  // enough clusters worth surfacing.
+  // 7-day snooze is intentional: people who say "not yet" usually mean
+  // "remind me later", not "never". A week feels like a fair next nudge.
+  const [savedLocationsSuggestionCount, setSavedLocationsSuggestionCount] =
+    useState<number>(0);
+  const [savedLocationsCount, setSavedLocationsCount] = useState<number | null>(null);
+  const [savedLocsNudgeDismissedUntil, setSavedLocsNudgeDismissedUntil] =
+    useState<number>(Date.now() + 999999999);
+  const showSavedLocationsNudge =
+    !loading &&
+    savedLocationsCount === 0 &&
+    savedLocationsSuggestionCount > 0 &&
+    Date.now() >= savedLocsNudgeDismissedUntil;
   const proNudgeMessages = [
     stats ? `You've saved ${formatPence(stats.deductionPence)} in deductions — export them with Pro` : "Export your HMRC deductions with Pro",
     "See which platform pays best with business insights",
@@ -205,6 +223,62 @@ export default function DashboardScreen() {
     const db = await getDatabase();
     await db.runAsync(
       "INSERT OR REPLACE INTO tracking_state (key, value) VALUES ('pro_nudge_dismissed_at', ?)",
+      [String(now)]
+    );
+  }, []);
+
+  // Load saved-locations nudge state on mount. Dismissal stored in
+  // tracking_state as ms epoch; nudge re-appears 7 days later.
+  useEffect(() => {
+    (async () => {
+      const db = await getDatabase();
+      const row = await db.getFirstAsync<{ value: string }>(
+        "SELECT value FROM tracking_state WHERE key = 'saved_locs_nudge_dismissed_at'"
+      );
+      if (row) {
+        const dismissedAt = parseInt(row.value, 10);
+        setSavedLocsNudgeDismissedUntil(dismissedAt + 7 * 24 * 60 * 60 * 1000);
+      } else {
+        setSavedLocsNudgeDismissedUntil(0);
+      }
+      // Local SQLite count is faster than waiting for the API
+      const countRow = await db.getFirstAsync<{ count: number }>(
+        "SELECT COUNT(*) as count FROM saved_locations"
+      );
+      setSavedLocationsCount(countRow?.count ?? 0);
+    })();
+  }, []);
+
+  // Fetch suggestion count once per mount. Cheap (single query on
+  // recent trips) and only matters when the user has 0 saved
+  // locations — but we keep the call unconditional so the dashboard
+  // is responsive the moment a user deletes their last location.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const { fetchSavedLocationSuggestions } = await import(
+          "../../lib/api/savedLocations"
+        );
+        const res = await fetchSavedLocationSuggestions();
+        if (!cancelled) {
+          setSavedLocationsSuggestionCount(res.data?.length ?? 0);
+        }
+      } catch {
+        // Silent — no nudge appears, which is the right fallback.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const dismissSavedLocationsNudge = useCallback(async () => {
+    const now = Date.now();
+    setSavedLocsNudgeDismissedUntil(now + 7 * 24 * 60 * 60 * 1000);
+    const db = await getDatabase();
+    await db.runAsync(
+      "INSERT OR REPLACE INTO tracking_state (key, value) VALUES ('saved_locs_nudge_dismissed_at', ?)",
       [String(now)]
     );
   }, []);
@@ -993,6 +1067,47 @@ export default function DashboardScreen() {
         isWork={isWork}
         unclassifiedCount={unclassifiedCount}
       />
+
+      {/* Saved-locations nudge — users with 0 pinned places + clusters available */}
+      {showSavedLocationsNudge && (
+        <TouchableOpacity
+          style={s.savedLocsNudge}
+          onPress={() => router.push("/saved-locations-suggest" as never)}
+          activeOpacity={0.85}
+          accessibilityRole="button"
+          accessibilityLabel={`Review ${savedLocationsSuggestionCount} suggested ${
+            savedLocationsSuggestionCount === 1 ? "place" : "places"
+          }`}
+        >
+          <TouchableOpacity
+            style={s.savedLocsNudgeDismiss}
+            onPress={dismissSavedLocationsNudge}
+            hitSlop={{ top: 12, right: 12, bottom: 12, left: 12 }}
+            accessibilityRole="button"
+            accessibilityLabel="Dismiss"
+          >
+            <Ionicons name="close" size={16} color="#6b7280" accessible={false} />
+          </TouchableOpacity>
+          <View style={s.savedLocsNudgeIconWrap}>
+            <Ionicons name="sparkles" size={20} color={AMBER} accessible={false} />
+          </View>
+          <Text style={s.savedLocsNudgeTitle}>
+            Save the places you visit often
+          </Text>
+          <Text style={s.savedLocsNudgeBody}>
+            MileClear spotted{" "}
+            {savedLocationsSuggestionCount === 1
+              ? "1 place"
+              : `${savedLocationsSuggestionCount} places`}{" "}
+            in your recent trips. Save them so journeys are labelled with names
+            you recognise.
+          </Text>
+          <View style={s.savedLocsNudgeCta}>
+            <Text style={s.savedLocsNudgeCtaText}>Review suggestions</Text>
+            <Ionicons name="chevron-forward" size={14} color={AMBER} accessible={false} />
+          </View>
+        </TouchableOpacity>
+      )}
 
       {/* Pro Nudge Card — free users with 5+ trips */}
       {showProNudge && (
@@ -2187,6 +2302,60 @@ const s = StyleSheet.create({
     justifyContent: "center" as const,
     alignItems: "center" as const,
     marginBottom: 12,
+  },
+
+  // Saved-locations nudge (mirrors proNudgeCard styling so it sits well
+  // adjacent in the dashboard hierarchy).
+  savedLocsNudge: {
+    backgroundColor: "rgba(245, 166, 35, 0.06)",
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: "rgba(245, 166, 35, 0.15)",
+    padding: 20,
+    marginTop: 16,
+    position: "relative" as const,
+  },
+  savedLocsNudgeDismiss: {
+    position: "absolute" as const,
+    top: 12,
+    right: 12,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    justifyContent: "center" as const,
+    alignItems: "center" as const,
+  },
+  savedLocsNudgeIconWrap: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: "rgba(245, 166, 35, 0.12)",
+    justifyContent: "center" as const,
+    alignItems: "center" as const,
+    marginBottom: 12,
+  },
+  savedLocsNudgeTitle: {
+    fontSize: 16,
+    fontFamily: fonts.semibold,
+    color: AMBER,
+    marginBottom: 6,
+  },
+  savedLocsNudgeBody: {
+    fontSize: 13,
+    fontFamily: fonts.regular,
+    color: colors.text2,
+    lineHeight: 18,
+    marginBottom: 12,
+  },
+  savedLocsNudgeCta: {
+    flexDirection: "row" as const,
+    alignItems: "center" as const,
+    gap: 4,
+  },
+  savedLocsNudgeCtaText: {
+    fontSize: 13,
+    fontFamily: fonts.semibold,
+    color: AMBER,
   },
 
   // Data-quality improvement celebration banner

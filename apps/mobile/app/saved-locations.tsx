@@ -10,7 +10,10 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter, useFocusEffect, Stack } from "expo-router";
-import { fetchSavedLocations } from "../lib/api/savedLocations";
+import {
+  fetchSavedLocations,
+  fetchSavedLocationSuggestions,
+} from "../lib/api/savedLocations";
 import { syncDeleteSavedLocation } from "../lib/sync/actions";
 import { getDatabase } from "../lib/db/index";
 import { useUser } from "../lib/user/context";
@@ -115,6 +118,11 @@ export default function SavedLocationsScreen() {
   const [locations, setLocations] = useState<SavedLocation[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  // Number of place-suggestions the server has for this user (frequent
+  // endpoints not yet saved). Drives the "review N suggested places"
+  // affordance in the empty state. Updated alongside the locations
+  // fetch — fire-and-forget, never blocks the UI.
+  const [suggestionCount, setSuggestionCount] = useState<number>(0);
 
   const loadLocations = useCallback(async () => {
     try {
@@ -179,10 +187,24 @@ export default function SavedLocationsScreen() {
     }
   }, []);
 
+  // Fire-and-forget suggestion count. Don't block the screen render —
+  // even if the suggestions endpoint is slow, the user's existing
+  // locations should appear instantly. Errors are silently dropped:
+  // if we can't fetch suggestions we just don't show the CTA.
+  const loadSuggestionCount = useCallback(async () => {
+    try {
+      const res = await fetchSavedLocationSuggestions();
+      setSuggestionCount(res.data?.length ?? 0);
+    } catch {
+      setSuggestionCount(0);
+    }
+  }, []);
+
   useFocusEffect(
     useCallback(() => {
       loadLocations();
-    }, [loadLocations])
+      loadSuggestionCount();
+    }, [loadLocations, loadSuggestionCount])
   );
 
   const onRefresh = useCallback(() => {
@@ -248,11 +270,38 @@ export default function SavedLocationsScreen() {
         }
         ListEmptyComponent={
           !loading ? (
-            <EmptyState
-              icon="location-outline"
-              title="Save the places you drive from"
-              description="Pin home, work, or your depot. When a trip starts or ends within a saved location's radius, MileClear auto-classifies it and labels the route with the saved name."
-            />
+            <View>
+              <EmptyState
+                icon="location-outline"
+                title="Save the places you drive from"
+                description="Pin home, work, or your depot. When a trip starts or ends near a saved location, MileClear labels the route with the saved name."
+              />
+              {suggestionCount > 0 ? (
+                <TouchableOpacity
+                  style={styles.suggestCta}
+                  onPress={() => router.push("/saved-locations-suggest" as never)}
+                  activeOpacity={0.85}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Review ${suggestionCount} suggested ${
+                    suggestionCount === 1 ? "place" : "places"
+                  }`}
+                >
+                  <View style={styles.suggestCtaIcon}>
+                    <Ionicons name="sparkles" size={18} color={BG} />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.suggestCtaTitle}>
+                      Review {suggestionCount} suggested{" "}
+                      {suggestionCount === 1 ? "place" : "places"}
+                    </Text>
+                    <Text style={styles.suggestCtaSubtitle}>
+                      MileClear spotted places you visit often. Save them in seconds.
+                    </Text>
+                  </View>
+                  <Ionicons name="chevron-forward" size={20} color={TEXT_2} />
+                </TouchableOpacity>
+              ) : null}
+            </View>
           ) : null
         }
         ListFooterComponent={
@@ -383,5 +432,36 @@ const styles = StyleSheet.create({
     fontFamily: fonts.regular,
     color: TEXT_3,
     textAlign: "center",
+  },
+  suggestCta: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    padding: 14,
+    marginTop: 16,
+    marginHorizontal: 4,
+    borderRadius: 14,
+    backgroundColor: "rgba(245,166,35,0.10)",
+    borderWidth: 1,
+    borderColor: "rgba(245,166,35,0.35)",
+  },
+  suggestCtaIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: AMBER,
+  },
+  suggestCtaTitle: {
+    fontSize: 15,
+    fontFamily: fonts.semibold,
+    color: AMBER,
+  },
+  suggestCtaSubtitle: {
+    fontSize: 12,
+    fontFamily: fonts.regular,
+    color: TEXT_2,
+    marginTop: 2,
   },
 });

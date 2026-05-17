@@ -3,6 +3,7 @@ import { z } from "zod";
 import { authMiddleware } from "../../middleware/auth.js";
 import { attachIdempotency } from "../../middleware/idempotency.js";
 import { prisma } from "../../lib/prisma.js";
+import { getSuggestedSavedLocations } from "../../services/locationSuggestions.js";
 
 const LOCATION_TYPES = ["home", "work", "depot", "custom"] as const;
 
@@ -38,6 +39,16 @@ export async function savedLocationRoutes(app: FastifyInstance) {
     });
 
     return reply.send({ data: locations });
+  });
+
+  // GET /saved-locations/suggestions
+  // Cluster the user's recent trip endpoints and propose places worth
+  // saving. Returns 0-8 suggestions; empty if the user has too few trips
+  // (< 3) or every cluster is already covered by an existing saved
+  // location. Anthony 17 May 2026.
+  app.get("/suggestions", async (request, reply) => {
+    const suggestions = await getSuggestedSavedLocations(request.userId!);
+    return reply.send({ data: suggestions });
   });
 
   // Get single saved location

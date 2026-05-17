@@ -46,3 +46,26 @@ export function deleteSavedLocation(id: string) {
     method: "DELETE",
   });
 }
+
+/**
+ * Endpoint clusters from the user's recent trips that aren't already saved.
+ * Drives the "places you visit often" review screen + dashboard nudge.
+ * Returns empty when the user has <3 trips or every cluster is already
+ * covered by an existing saved location.
+ */
+export interface SuggestedSavedLocation {
+  id: string;
+  centroidLat: number;
+  centroidLng: number;
+  visitCount: number;
+  firstVisitedAt: string;
+  lastVisitedAt: string;
+  suggestedType: "home" | "work" | "other";
+  inferredName: string | null;
+}
+
+export function fetchSavedLocationSuggestions() {
+  return apiRequest<{ data: SuggestedSavedLocation[] }>(
+    "/saved-locations/suggestions"
+  );
+}
