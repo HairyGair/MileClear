@@ -10,7 +10,6 @@ import {
   StyleSheet,
   KeyboardAvoidingView,
   Platform,
-  Switch,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter, useLocalSearchParams, Stack } from "expo-router";
@@ -198,7 +197,13 @@ export default function SavedLocationFormScreen() {
   const [longitude, setLongitude] = useState<number | null>(null);
   const [address, setAddress] = useState<string | null>(null);
   const [radiusMeters, setRadiusMeters] = useState(DEFAULT_RADIUS);
-  const [geofenceEnabled, setGeofenceEnabled] = useState(true);
+  // Geofence-enabled state stays in the form (and the DB column persists) for
+  // backward compatibility with the API, but the toggle is no longer shown
+  // in the UI. From 17 May 2026 saved locations are address-tags only — the
+  // anchor at the user's last parked spot is the only geofence we register.
+  // Default to false for new locations; existing ones keep whatever they were
+  // set to (the value is ignored by registerGeofences regardless).
+  const [geofenceEnabled, setGeofenceEnabled] = useState(false);
 
   const [mapPickerVisible, setMapPickerVisible] = useState(false);
   const [loadingLocation, setLoadingLocation] = useState(false);
@@ -468,32 +473,17 @@ export default function SavedLocationFormScreen() {
           </TouchableOpacity>
         </View>
 
-        {/* Geofence Radius */}
-        <Text style={[styles.label, { marginTop: 20 }]}>Geofence Radius</Text>
+        {/* Match radius — used by auto-classification to decide whether a
+            trip's start/end point counts as being AT this location. Tighter
+            radius = stricter match (only trips that literally finish inside
+            the home/work boundary count). Bigger radius = looser match
+            (catches drives that end nearby, e.g. parked round the corner). */}
+        <Text style={[styles.label, { marginTop: 20 }]}>Match radius</Text>
         <Text style={styles.hintText}>
-          Trips starting or ending within this radius will be flagged for auto-classification
+          When a trip starts or ends within this radius, MileClear treats it as being from {name || "this location"}.
         </Text>
         <View style={{ marginTop: 12 }}>
           <RadiusSlider value={radiusMeters} onChange={setRadiusMeters} />
-        </View>
-
-        {/* Geofence Toggle */}
-        <View style={styles.toggleRow}>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.toggleLabel}>Geofence Active</Text>
-            <Text style={styles.toggleHint}>
-              Auto-detect trips near this location
-            </Text>
-          </View>
-          <Switch
-            value={geofenceEnabled}
-            onValueChange={setGeofenceEnabled}
-            trackColor={{ false: "#374151", true: AMBER }}
-            thumbColor="#fff"
-            accessibilityLabel="Geofence active"
-            accessibilityHint="Auto-detect trips near this location"
-            accessibilityRole="switch"
-          />
         </View>
 
         {/* Save */}
@@ -654,28 +644,5 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontFamily: fonts.semibold,
     color: AMBER,
-  },
-  // Toggle row
-  toggleRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    backgroundColor: CARD_BG,
-    borderRadius: 12,
-    padding: 16,
-    marginTop: 20,
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.06)",
-  },
-  toggleLabel: {
-    fontSize: 15,
-    fontFamily: fonts.medium,
-    color: "#fff",
-  },
-  toggleHint: {
-    fontSize: 12,
-    fontFamily: fonts.regular,
-    color: TEXT_3,
-    marginTop: 3,
   },
 });

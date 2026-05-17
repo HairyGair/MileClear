@@ -857,27 +857,54 @@ async function _finalizeAutoTripInner(): Promise<void> {
     return;
   }
 
+  // Resolve start/end addresses, preferring saved-location names when the
+  // trip's actual GPS coord is inside the location's radius. Falls back to
+  // reverse-geocoding for the road-name view. The verify-then-accept gate
+  // is important — without it, stale geofence-Exit events could tag trips
+  // with names from places hundreds of metres away (Anthony 14 May audit:
+  // trip from a golf course was labelled "from St Roberts School").
+  //
+  // After the 17 May geofencing rewrite, saved locations are no longer
+  // iOS geofences — they're pure data. This is where their NAMES get
+  // applied to the trip, gated on the coord actually being inside the
+  // radius. Classification happens separately via classifyTrip below
+  // (which has its own equivalent gate).
+  const resolveAddress = async (lat: number, lng: number): Promise<string | null> => {
+    try {
+      const savedLocs = await db.getAllAsync<{
+        name: string;
+        latitude: number;
+        longitude: number;
+        radius_meters: number;
+      }>(
+        "SELECT name, latitude, longitude, radius_meters FROM saved_locations"
+      );
+      for (const loc of savedLocs) {
+        const distMeters = haversineMeters(lat, lng, loc.latitude, loc.longitude);
+        // Generous tolerance — match radius + 100m of GPS slop. Same
+        // pattern as classifyTrip's saved-location check.
+        if (distMeters <= loc.radius_meters + 100) {
+          return loc.name;
+        }
+      }
+    } catch {
+      // Falls through to reverse geocoding
+    }
+    try {
+      const { reverseGeocode } = await import("../location/geocoding");
+      return await reverseGeocode(lat, lng);
+    } catch {
+      return null;
+    }
+  };
+
   // Reverse geocode + classify in parallel. All three are independent network
   // operations and previously ran sequentially, adding 1-3 seconds to the
   // user-perceived "trip landed in inbox" latency. Running them together
   // caps the total wait at the slowest call instead of the sum.
   const [startAddress, endAddress, classificationResult] = await Promise.all([
-    (async () => {
-      try {
-        const { reverseGeocode } = await import("../location/geocoding");
-        return await reverseGeocode(first.lat, first.lng);
-      } catch {
-        return null;
-      }
-    })(),
-    (async () => {
-      try {
-        const { reverseGeocode } = await import("../location/geocoding");
-        return await reverseGeocode(last.lat, last.lng);
-      } catch {
-        return null;
-      }
-    })(),
+    resolveAddress(first.lat, first.lng),
+    resolveAddress(last.lat, last.lng),
     (async () => {
       try {
         const { classifyTrip, AUTO_CLASSIFY_THRESHOLD } = await import("../classification");

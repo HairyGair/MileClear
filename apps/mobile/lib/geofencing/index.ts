@@ -1,41 +1,52 @@
-// Geofencing engine — monitors saved locations and auto-creates trips
-// Uses expo-location geofencing (OS-level, battery efficient)
-// EXIT a saved location → start GPS tracking
-// ENTER a saved location → stop tracking, save trip
+// Geofencing — anchor-only.
+//
+// History: this file used to drive auto-trip detection via per-saved-location
+// geofences. Each Home/Work/School fired Enter/Exit events that ran their
+// own tentative-arrival state machine, with drive-through guards,
+// registration-grace logic, position-verify gates, and a separate GPS
+// tracking task. Anthony 17 May 2026 reported the saved-location flow was
+// glitchier than just having an anchor at the user's last parked spot —
+// he deleted his saved locations and detection improved significantly.
+//
+// New architecture (17 May 2026):
+//   - ONE geofence: the departure anchor at the user's last stationary
+//     position. When iOS fires Exit on it, we enter watch-mode (silently
+//     buffer coords until real driving speed confirms the trip).
+//   - Saved locations are pure data. Used by detection.ts's classification
+//     engine to auto-tag trips, and by the trip-creation pipeline to
+//     attribute startAddress/endAddress when GPS coords are inside a
+//     saved location's radius. NOT registered as iOS geofences anymore.
+//   - Trip detection flows entirely through detection.ts: watch-mode →
+//     recording → stop-detection → finalize. No parallel path.
+//
+// What was removed (~750 lines deleted):
+//   - GEOFENCE_TRACKING_TASK_NAME and its TaskManager.defineTask
+//   - handleSavedLocationEnter / handleSavedLocationExit
+//   - setTentativeArrival / clearTentativeArrival / tryFinalizeTentativeArrival
+//   - processGeofenceTrip (geofence-driven trip creation)
+//   - updateGeofenceTripLiveActivity / startGeofenceTripLiveActivity
+//   - startGeofenceTracking / stopGeofenceTracking
+//   - Drive-through guard
+//   - Registration-grace logic for saved locations
+//   - sendTripConfirmationNotification / scheduleConfirmationReminder
+//     (detection.ts has its own "Trip recorded" notification path)
+//
+// Why this is better:
+//   - One trip-finalization codepath instead of two competing paths
+//   - No more iOS geofence-flap loops from overlapping regions
+//   - No more "St Roberts School" attribution from stale Exits
+//   - No more 90-second tentative dwell window for arrivals
+//   - Trip end is determined by stop-detection (>2min stationary in
+//     detection.ts), not by Enter events from arbitrary saved locations
+//   - Auto-classification still uses saved-location data, but via the
+//     proper classifyTrip engine in lib/classification
 
 import * as Location from "expo-location";
 import * as TaskManager from "expo-task-manager";
-import * as Notifications from "expo-notifications";
-import { randomUUID } from "expo-crypto";
 import { getDatabase } from "../db/index";
-import { reverseGeocode } from "../location/geocoding";
-import { DRIVING_SPEED_THRESHOLD_MPH, bestTripDistance, calculateHmrcDeduction } from "@mileclear/shared";
-import { stopDriveDetection, startDriveDetection, cancelAutoRecording, enterWatchMode, logDetectionEvent, INGEST_ACCURACY_PRE_RECORDING_M, INGEST_ACCURACY_DURING_RECORDING_M } from "../tracking/detection";
-import { startLiveActivity, updateLiveActivity, endLiveActivityWithSummary } from "../liveActivity";
-import { getLiveActivityContext } from "../liveActivity/context";
+import { enterWatchMode, logDetectionEvent } from "../tracking/detection";
 
 const GEOFENCE_TASK_NAME = "mileclear-geofence-monitor";
-const GEOFENCE_TRACKING_TASK_NAME = "mileclear-geofence-tracking";
-const SPEED_THRESHOLD_MS = DRIVING_SPEED_THRESHOLD_MPH * 0.44704; // mph → m/s
-const MIN_TRIP_DISTANCE_MILES = 0.1;
-
-// Minimum dwell inside a saved-location geofence before a trip is treated as
-// a real arrival. Driving past a saved location at speed fires Enter then
-// Exit within seconds; a real arrival means the user parked, so they will
-// still be inside the radius after this window. 90 seconds balances:
-// - long enough to filter drive-throughs of any saved location regardless
-//   of radius (a 200m radius at 30mph crosses in ~24s, well under 90s)
-// - short enough that a real "arrived at school, dropped kids, drove off"
-//   sequence still finalizes the inbound trip before the next trip starts
-const TENTATIVE_DWELL_MS = 90_000;
-const TENTATIVE_FINALIZE_DELAY_MS = TENTATIVE_DWELL_MS + 5_000;
-
-// In-memory timer for finalizing tentative arrivals while the JS runtime is
-// awake. Best-effort: iOS suspends timers while the app is backgrounded, so
-// the location-task tick and Exit-event paths in this module are the actual
-// reliability guarantees. The timer just makes the foreground/active-walk
-// case feel snappy.
-let tentativeFinalizeTimer: ReturnType<typeof setTimeout> | null = null;
 
 function haversine(lat1: number, lng1: number, lat2: number, lng2: number): number {
   const R = 3958.8;
@@ -49,7 +60,18 @@ function haversine(lat1: number, lng1: number, lat2: number, lng2: number): numb
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
-// ─── Geofence event handler ────────────────────────────────────────────────
+// ─── Anchor geofence handler ────────────────────────────────────────────
+//
+// The ONLY geofence handler. Listens for Exit on the departure anchor
+// (the synthetic 100m region around the user's last parked spot). On
+// verified Exit, plants a backfill coord at the anchor and triggers
+// watch-mode in detection.ts — which then promotes to recording iff
+// real driving speed is observed within the watch window.
+//
+// Saved-location identifiers are no longer registered as geofences, so
+// any Enter/Exit events for them would only happen if a legacy region
+// is still active in iOS's per-app geofence registry. The handler
+// ignores those events defensively (logs + returns).
 
 try {
   TaskManager.defineTask(GEOFENCE_TASK_NAME, async ({ data, error }) => {
@@ -67,90 +89,86 @@ try {
     try {
       const db = await getDatabase();
 
-      // Don't interfere with active shifts
+      // Don't interfere with active shifts (shift mode owns its own GPS).
       const activeShift = await db.getFirstAsync<{ value: string }>(
         "SELECT value FROM tracking_state WHERE key = 'active_shift_id'"
       );
       if (activeShift) return;
 
-      if (eventType === Location.GeofencingEventType.Exit && region.identifier === "__departure_anchor__") {
-        // User left their last stationary position. We've tightened the
-        // anchor radius to 100m so the wake-up is fast, but at 100m GPS
-        // drift while indoors can falsely trip the Exit. Verify the
-        // device is genuinely outside the radius before promoting to
-        // watch mode — otherwise we'd boot continuous GPS for every
-        // bathroom break.
-        //
-        // The backfill that follows plants a synthetic detection_coordinate
-        // at the anchor's exact position. When the watch mode promotes to
-        // recording, the earliest stored coord IS the anchor — so the trip
-        // start point is the user's actual departure spot, not the random
-        // 100m-down-the-road point where iOS finally decided to wake us up.
-        const anchorRow = await db.getAllAsync<{ key: string; value: string }>(
-          "SELECT key, value FROM tracking_state WHERE key IN ('departure_anchor_lat', 'departure_anchor_lng')"
-        );
-        const anchorMap = Object.fromEntries(anchorRow.map((r) => [r.key, r.value]));
-        const anchorLat = parseFloat(anchorMap["departure_anchor_lat"] ?? "");
-        const anchorLng = parseFloat(anchorMap["departure_anchor_lng"] ?? "");
-
-        if (Number.isFinite(anchorLat) && Number.isFinite(anchorLng)) {
-          try {
-            const pos = await Location.getCurrentPositionAsync({
-              accuracy: Location.Accuracy.Balanced,
-            });
-            const distMeters = haversine(
-              pos.coords.latitude, pos.coords.longitude,
-              anchorLat, anchorLng,
-            ) * 1609.344;
-            // Anchor radius is 100m. Require the user be at least 30m
-            // outside (=130m) before accepting the Exit. Below that the
-            // signal is indistinguishable from indoor GPS drift.
-            if (distMeters < 130) {
-              logDetectionEvent("anchor_exit_drift_rejected", {
-                distMeters: Math.round(distMeters),
-              }).catch(() => {});
-              return;
-            }
-            logDetectionEvent("anchor_exit_verified", {
-              distMeters: Math.round(distMeters),
-            }).catch(() => {});
-
-            // Backfill: store a synthetic detection coord at the anchor
-            // center, timestamped a few seconds ago. The watch / record
-            // pipeline reads detection_coordinates ORDER BY recorded_at,
-            // so this row becomes the trip's start point.
-            const backfillTs = new Date(Date.now() - 30_000).toISOString();
-            await db.runAsync(
-              `INSERT INTO detection_coordinates (lat, lng, speed, accuracy, recorded_at)
-               VALUES (?, ?, ?, ?, ?)`,
-              [anchorLat, anchorLng, 0, 50, backfillTs]
-            );
-            logDetectionEvent("anchor_backfill_planted", {
-              lat: anchorLat,
-              lng: anchorLng,
-              recorded_at: backfillTs,
-            }).catch(() => {});
-          } catch (err) {
-            logDetectionEvent("anchor_exit_verify_failed", {
-              error: err instanceof Error ? err.message : "unknown",
-            }).catch(() => {});
-            // Fall through to enterWatchMode — better to proceed than miss
-            // a real drive because Location.getCurrentPositionAsync timed
-            // out.
-          }
-        }
-
-        await enterWatchMode("anchor_exit");
+      // Only handle the anchor. Anything else is a legacy region from
+      // before the saved-location-geofences removal — defensively ignore.
+      if (region.identifier !== "__departure_anchor__") {
+        logDetectionEvent("geofence_legacy_region_ignored", {
+          identifier: region.identifier ?? "unknown",
+          eventType:
+            eventType === Location.GeofencingEventType.Enter ? "enter" : "exit",
+        }).catch(() => {});
         return;
       }
 
-      const regionId = region.identifier ?? "unknown";
+      if (eventType !== Location.GeofencingEventType.Exit) return;
 
-      if (eventType === Location.GeofencingEventType.Exit) {
-        await handleSavedLocationExit(regionId);
-      } else if (eventType === Location.GeofencingEventType.Enter) {
-        await handleSavedLocationEnter(regionId);
+      // Verify the device is genuinely outside the anchor before
+      // promoting to watch mode. iOS fires Exits from cached cell-tower
+      // fixes that can be 100s of metres off — without this gate we'd
+      // boot continuous GPS for every bathroom break.
+      const anchorRow = await db.getAllAsync<{ key: string; value: string }>(
+        "SELECT key, value FROM tracking_state WHERE key IN ('departure_anchor_lat', 'departure_anchor_lng')"
+      );
+      const anchorMap = Object.fromEntries(anchorRow.map((r) => [r.key, r.value]));
+      const anchorLat = parseFloat(anchorMap["departure_anchor_lat"] ?? "");
+      const anchorLng = parseFloat(anchorMap["departure_anchor_lng"] ?? "");
+
+      if (Number.isFinite(anchorLat) && Number.isFinite(anchorLng)) {
+        try {
+          const pos = await Location.getCurrentPositionAsync({
+            accuracy: Location.Accuracy.Balanced,
+          });
+          const distMeters =
+            haversine(
+              pos.coords.latitude, pos.coords.longitude,
+              anchorLat, anchorLng,
+            ) * 1609.344;
+          // Anchor radius is 100m. Require the user be at least 30m
+          // outside (130m total) before accepting the Exit. Below that
+          // the signal is indistinguishable from indoor GPS drift.
+          if (distMeters < 130) {
+            logDetectionEvent("anchor_exit_drift_rejected", {
+              distMeters: Math.round(distMeters),
+            }).catch(() => {});
+            return;
+          }
+          logDetectionEvent("anchor_exit_verified", {
+            distMeters: Math.round(distMeters),
+          }).catch(() => {});
+
+          // Backfill: plant a synthetic detection_coordinate at the
+          // anchor's exact lat/lng, timestamped 30s ago. The watch /
+          // record pipeline reads coords ORDER BY recorded_at, so this
+          // becomes the trip's first GPS point — route starts at the
+          // user's actual departure spot, not 100m down the road where
+          // iOS got around to firing Exit.
+          const backfillTs = new Date(Date.now() - 30_000).toISOString();
+          await db.runAsync(
+            `INSERT INTO detection_coordinates (lat, lng, speed, accuracy, recorded_at)
+             VALUES (?, ?, ?, ?, ?)`,
+            [anchorLat, anchorLng, 0, 50, backfillTs]
+          );
+          logDetectionEvent("anchor_backfill_planted", {
+            lat: anchorLat,
+            lng: anchorLng,
+            recorded_at: backfillTs,
+          }).catch(() => {});
+        } catch (err) {
+          logDetectionEvent("anchor_exit_verify_failed", {
+            error: err instanceof Error ? err.message : "unknown",
+          }).catch(() => {});
+          // Fall through to enterWatchMode — better to proceed than
+          // miss a real drive because getCurrentPositionAsync timed out.
+        }
       }
+
+      await enterWatchMode("anchor_exit");
     } catch (err) {
       console.error("Geofence handler error:", err);
     }
@@ -159,704 +177,53 @@ try {
   console.warn("Failed to define geofence task:", err);
 }
 
-// ─── GPS tracking for geofence trips ─────────────────────────────────────
-
-try {
-  TaskManager.defineTask(GEOFENCE_TRACKING_TASK_NAME, async ({ data, error }) => {
-    if (error) {
-      console.error("Geofence tracking error:", error);
-      return;
-    }
-    if (!data) return;
-
-    const { locations } = data as { locations: Location.LocationObject[] };
-
-    try {
-      const db = await getDatabase();
-
-      for (const loc of locations) {
-        if (loc.coords.accuracy != null && loc.coords.accuracy > INGEST_ACCURACY_DURING_RECORDING_M) {
-          logDetectionEvent("coord_dropped_low_accuracy", {
-            source: "geofence_tracking",
-            accuracy: Math.round(loc.coords.accuracy),
-            threshold: INGEST_ACCURACY_DURING_RECORDING_M,
-          }).catch(() => {});
-          continue;
-        }
-        await db.runAsync(
-          `INSERT INTO detection_coordinates (lat, lng, speed, accuracy, recorded_at)
-           VALUES (?, ?, ?, ?, ?)`,
-          [
-            loc.coords.latitude,
-            loc.coords.longitude,
-            loc.coords.speed ?? null,
-            loc.coords.accuracy ?? null,
-            new Date(loc.timestamp).toISOString(),
-          ]
-        );
-      }
-
-      // Update the Live Activity with running distance + latest speed so
-      // the Lock Screen ticks up in real time during the drive. Wrapped in
-      // try/catch — a failed LA update never affects the coord ingest
-      // above. updateLiveActivity is itself a no-op if no LA is active.
-      updateGeofenceTripLiveActivity().catch(() => {});
-
-      // Each new location update is also a chance to finalize a tentative
-      // arrival whose dwell window has elapsed. iOS suspends JS timers when
-      // the app is backgrounded, so this tick is the most reliable wake
-      // signal we get. The function is a no-op if no tentative is pending
-      // or the window hasn't elapsed yet.
-      await tryFinalizeTentativeArrival("location_tick");
-    } catch (err) {
-      console.error("Geofence tracking store error:", err);
-    }
-  });
-} catch (err) {
-  console.warn("Failed to define geofence tracking task:", err);
-}
-
-// ─── Tentative arrival handlers ─────────────────────────────────────────
-//
-// On Enter, we don't immediately finalize a trip — we mark the location as
-// a tentative arrival and wait TENTATIVE_DWELL_MS before deciding. Three
-// resolution paths converge on the same outcome:
-//
-//   1. Exit fires for the tentative location within the dwell window
-//      → drive-through. Discard tentative, keep tracking, no trip created.
-//   2. Exit fires AFTER the dwell window
-//      → real arrival. Finalize the inbound trip, then this Exit becomes
-//      the start of a new trip.
-//   3. Dwell elapses while still inside the radius (timer or location tick)
-//      → real arrival. Finalize inbound trip, idle until next departure.
-//
-// Without this gate, every saved-location Enter terminated the active trip,
-// so passing within the radius of any home/school/depot mid-drive would
-// split a single journey into multiple short legs (Anthony's school-run bug).
-
-async function setTentativeArrival(locationId: string): Promise<void> {
-  const db = await getDatabase();
-  const now = new Date().toISOString();
-  await db.runAsync(
-    "INSERT OR REPLACE INTO tracking_state (key, value) VALUES ('geofence_tentative_arrival', ?)",
-    [locationId]
-  );
-  await db.runAsync(
-    "INSERT OR REPLACE INTO tracking_state (key, value) VALUES ('geofence_tentative_arrival_at', ?)",
-    [now]
-  );
-  if (tentativeFinalizeTimer) clearTimeout(tentativeFinalizeTimer);
-  tentativeFinalizeTimer = setTimeout(() => {
-    tentativeFinalizeTimer = null;
-    void tryFinalizeTentativeArrival("timer");
-  }, TENTATIVE_FINALIZE_DELAY_MS);
-  logDetectionEvent("geofence_tentative_arrival", { locationId }).catch(() => {});
-}
-
-async function clearTentativeArrival(reason: string): Promise<void> {
-  const db = await getDatabase();
-  await db.runAsync(
-    "DELETE FROM tracking_state WHERE key IN ('geofence_tentative_arrival', 'geofence_tentative_arrival_at')"
-  );
-  if (tentativeFinalizeTimer) {
-    clearTimeout(tentativeFinalizeTimer);
-    tentativeFinalizeTimer = null;
-  }
-  logDetectionEvent("geofence_tentative_cleared", { reason }).catch(() => {});
-}
-
-async function tryFinalizeTentativeArrival(source: "timer" | "location_tick"): Promise<void> {
-  try {
-    const db = await getDatabase();
-    const tentRow = await db.getFirstAsync<{ value: string }>(
-      "SELECT value FROM tracking_state WHERE key = 'geofence_tentative_arrival'"
-    );
-    if (!tentRow) return;
-    const tentAtRow = await db.getFirstAsync<{ value: string }>(
-      "SELECT value FROM tracking_state WHERE key = 'geofence_tentative_arrival_at'"
-    );
-    if (!tentAtRow) return;
-    const arrivedAtIso = tentAtRow.value;
-    const age = Date.now() - new Date(arrivedAtIso).getTime();
-    if (age < TENTATIVE_DWELL_MS) return;
-
-    // Verify the user is still inside the geofence — if they've already
-    // moved out without iOS having fired Exit yet, defer to the Exit handler
-    // which will reconcile correctly once iOS catches up.
-    const loc = await db.getFirstAsync<{
-      latitude: number;
-      longitude: number;
-      radius_meters: number;
-    }>(
-      "SELECT latitude, longitude, radius_meters FROM saved_locations WHERE id = ?",
-      [tentRow.value]
-    );
-    if (!loc) {
-      await clearTentativeArrival("saved_location_deleted");
-      return;
-    }
-    const pos = await Location.getLastKnownPositionAsync();
-    if (!pos) return;
-    const distMiles = haversine(
-      pos.coords.latitude, pos.coords.longitude,
-      loc.latitude, loc.longitude
-    );
-    const distMeters = distMiles * 1609.344;
-    // Allow 50m of GPS slop around the boundary
-    if (distMeters > loc.radius_meters + 50) return;
-
-    const departed = await db.getFirstAsync<{ value: string }>(
-      "SELECT value FROM tracking_state WHERE key = 'geofence_departed_location'"
-    );
-    const departedAt = await db.getFirstAsync<{ value: string }>(
-      "SELECT value FROM tracking_state WHERE key = 'geofence_departed_at'"
-    );
-    if (!departed || !departedAt) {
-      await clearTentativeArrival("no_departure");
-      return;
-    }
-
-    await stopGeofenceTracking();
-    await processGeofenceTrip(departed.value, tentRow.value, departedAt.value, arrivedAtIso);
-    await db.runAsync(
-      "DELETE FROM tracking_state WHERE key IN ('geofence_departed_location', 'geofence_departed_at', 'geofence_tentative_arrival', 'geofence_tentative_arrival_at')"
-    );
-    await db.runAsync(
-      "INSERT OR REPLACE INTO tracking_state (key, value) VALUES ('geofence_arrived_location', ?)",
-      [tentRow.value]
-    );
-    if (tentativeFinalizeTimer) {
-      clearTimeout(tentativeFinalizeTimer);
-      tentativeFinalizeTimer = null;
-    }
-    logDetectionEvent("geofence_real_arrival", {
-      source,
-      locationId: tentRow.value,
-      ageMs: age,
-    }).catch(() => {});
-    await startDriveDetection();
-  } catch (err) {
-    console.error("tryFinalizeTentativeArrival error:", err);
-  }
-}
-
-async function handleSavedLocationEnter(regionId: string): Promise<void> {
-  const db = await getDatabase();
-
-  // Position-verify the Enter event before treating it as legitimate.
-  // iOS fires geofence Enter from cell-tower triangulation when GPS is poor,
-  // which can put the device 500m+ from the geofence centre. Anthony hit
-  // this 6 May 2026: at Shiney Row Roundabout (~955m from his "Mams"
-  // saved location), iOS fired Enter for Mams. Without this check the
-  // app would mark a tentative arrival and waste 90 seconds of dwell
-  // before the finalize path's position-verify caught it.
-  //
-  // We allow generous tolerance (radius * 2 + 100m) because iOS enforces
-  // its own ~100m minimum on geofence radii regardless of what we set,
-  // and the user's last-known position can be a few seconds stale.
-  // This gate only rejects clearly-wrong positions (e.g. half a kilometre
-  // out), not borderline cases - those still proceed to the dwell logic.
-  try {
-    const loc = await db.getFirstAsync<{
-      latitude: number;
-      longitude: number;
-      radius_meters: number;
-    }>(
-      "SELECT latitude, longitude, radius_meters FROM saved_locations WHERE id = ?",
-      [regionId]
-    );
-    const pos = await Location.getLastKnownPositionAsync();
-    if (loc && pos) {
-      // Accuracy gate: cell-tower / WiFi-positioning fixes typically come
-      // back at 500m+ accuracy. Real GPS in built-up areas clears 100m.
-      // The position-verify check below is circular for cell-tower
-      // phantoms - iOS's cached fix is the same coarse fix that fired
-      // the Enter, so the distance check passes against itself. Refusing
-      // a coarse fix as evidence breaks the loop. Anthony 8 May 2026:
-      // physically at "Kaths" in Shiney Row, system fired Enter for
-      // "Mams" in Penshaw (~1km away) and the position-verify let it
-      // through because iOS's cached fix was the same cell-tower fix
-      // that triggered Enter.
-      if (pos.coords.accuracy != null && pos.coords.accuracy > INGEST_ACCURACY_PRE_RECORDING_M) {
-        logDetectionEvent("geofence_enter_phantom_accuracy", {
-          locationId: regionId,
-          accuracy: Math.round(pos.coords.accuracy),
-          threshold: INGEST_ACCURACY_PRE_RECORDING_M,
-        }).catch(() => {});
-        return;
-      }
-      const distMiles = haversine(
-        pos.coords.latitude, pos.coords.longitude,
-        loc.latitude, loc.longitude
-      );
-      const distMeters = distMiles * 1609.344;
-      const tolerance = loc.radius_meters * 2 + 100;
-      if (distMeters > tolerance) {
-        logDetectionEvent("geofence_enter_phantom_position", {
-          locationId: regionId,
-          distMeters: Math.round(distMeters),
-          radiusMeters: loc.radius_meters,
-          toleranceMeters: tolerance,
-        }).catch(() => {});
-        return;
-      }
-      // Symmetric accept log — was only logging rejections, which made
-      // it impossible to compute accept-rate from the diagnostic dump.
-      logDetectionEvent("geofence_enter_accepted", {
-        locationId: regionId,
-        distMeters: Math.round(distMeters),
-        radiusMeters: loc.radius_meters,
-        accuracy: Math.round(pos.coords.accuracy ?? -1),
-      }).catch(() => {});
-    }
-  } catch {
-    // Position lookup failed - fall through to the existing flow rather
-    // than dropping a potentially-real Enter. The dwell finalize will
-    // still position-verify before saving a trip.
-  }
-
-  const departedRow = await db.getFirstAsync<{ value: string }>(
-    "SELECT value FROM tracking_state WHERE key = 'geofence_departed_location'"
-  );
-  const departedAtRow = await db.getFirstAsync<{ value: string }>(
-    "SELECT value FROM tracking_state WHERE key = 'geofence_departed_at'"
-  );
-
-  if (!departedRow || !departedAtRow) {
-    // No active trip in progress — just record idle arrival so future
-    // analytics or features can know "user is currently here".
-    await db.runAsync(
-      "INSERT OR REPLACE INTO tracking_state (key, value) VALUES ('geofence_arrived_location', ?)",
-      [regionId]
-    );
-    return;
-  }
-
-  const existingTent = await db.getFirstAsync<{ value: string }>(
-    "SELECT value FROM tracking_state WHERE key = 'geofence_tentative_arrival'"
-  );
-  if (existingTent?.value === regionId) {
-    // GPS jitter re-firing Enter for the same region — leave the existing
-    // tentative timestamp in place so the dwell window doesn't reset.
-    return;
-  }
-  if (existingTent && existingTent.value !== regionId) {
-    // Entered a different geofence while a tentative was pending. The
-    // previous tentative could not have hit its dwell (otherwise it would
-    // already have finalized via timer or location tick), so it must have
-    // been a drive-through past two close saved locations.
-    logDetectionEvent("geofence_tentative_supplanted", {
-      previous: existingTent.value,
-      next: regionId,
-    }).catch(() => {});
-    await clearTentativeArrival("supplanted");
-  }
-
-  await setTentativeArrival(regionId);
-  // GEOFENCE_TRACKING stays running so coords keep accumulating until we
-  // either finalize the trip or resolve as a drive-through.
-}
-
-/**
- * Recompute the in-progress geofence trip's running distance from
- * detection_coordinates and push it to the active Live Activity. Reads
- * coords since the most recent geofence_departed_at so the figure
- * matches what processGeofenceTrip will eventually save. No-op if no
- * geofence trip is in flight or no LA is active.
- *
- * Two guards keep this from burning battery / pinning the LA on the
- * Dynamic Island when the user has stopped moving:
- *   1. Throttle: at most once every 20 seconds, regardless of how
- *      often the geofence tracking task fires location callbacks.
- *   2. Only push an update when distance has actually changed by at
- *      least 0.05 mi. When the user parks at a non-saved location,
- *      distance plateaus and we stop pushing — iOS lets the LA
- *      stale-dismiss naturally after 8 min instead of being kept
- *      perpetually fresh. (Bug introduced 11 May 2026, surfaced
- *      12 May 2026 — Anthony hit "LA stays on Dynamic Island for
- *      hours + battery drain" after build 65 went out.)
- */
-let lastGeofenceLAUpdateMs = 0;
-let lastGeofenceLADistanceMiles = -1;
-
-export function resetGeofenceLAState(): void {
-  lastGeofenceLAUpdateMs = 0;
-  lastGeofenceLADistanceMiles = -1;
-}
-
-async function updateGeofenceTripLiveActivity(): Promise<void> {
-  const now = Date.now();
-  if (now - lastGeofenceLAUpdateMs < 20_000) return;
-
-  try {
-    const db = await getDatabase();
-    const departedRow = await db.getFirstAsync<{ value: string }>(
-      "SELECT value FROM tracking_state WHERE key = 'geofence_departed_at'"
-    );
-    if (!departedRow?.value) return;
-
-    const coords = await db.getAllAsync<{
-      lat: number;
-      lng: number;
-      speed: number | null;
-    }>(
-      "SELECT lat, lng, speed FROM detection_coordinates WHERE recorded_at >= ? ORDER BY recorded_at ASC",
-      [departedRow.value]
-    );
-    if (coords.length < 2) return;
-
-    let distMiles = 0;
-    for (let i = 1; i < coords.length; i++) {
-      distMiles += haversine(
-        coords[i - 1].lat, coords[i - 1].lng,
-        coords[i].lat, coords[i].lng
-      );
-    }
-
-    // Only update if the trip has actually advanced. Stationary user =
-    // no new distance = no update = LA stales and dismisses naturally.
-    if (Math.abs(distMiles - lastGeofenceLADistanceMiles) < 0.05) return;
-
-    const latestSpeedMs = coords[coords.length - 1].speed ?? 0;
-    const latestSpeedMph = Math.max(0, latestSpeedMs * 2.23694);
-
-    const ctx = await getLiveActivityContext({
-      currentTripMiles: distMiles,
-      includeEarnings: false,
-    }).catch(() => null);
-
-    await updateLiveActivity({
-      distanceMiles: Math.round(distMiles * 100) / 100,
-      speedMph: Math.round(latestSpeedMph),
-      dailyTotalMiles: ctx?.dailyTotalMiles,
-      milestoneText: ctx?.milestoneText,
-    });
-
-    lastGeofenceLAUpdateMs = now;
-    lastGeofenceLADistanceMiles = distMiles;
-  } catch {
-    // Diagnostic-only path — never block the trip flow.
-  }
-}
-
-/**
- * Fire-and-forget Live Activity start for a freshly departed geofence trip.
- * Wrapped in try/catch so any LA failure (iOS denied, simulator, etc.) never
- * breaks the trip-capture flow that called it. Mode is derived from the
- * current app_mode (work / personal) so the accent colour matches the
- * trip's likely classification. Context label names the departure
- * location so the Lock Screen reads "From Home" / "From Work".
- */
-async function startGeofenceTripLiveActivity(departedLocationId: string): Promise<void> {
-  try {
-    const db = await getDatabase();
-    const modeRow = await db.getFirstAsync<{ value: string }>(
-      "SELECT value FROM tracking_state WHERE key = 'app_mode'"
-    );
-    const isBusinessMode = modeRow?.value !== "personal";
-
-    const locRow = await db.getFirstAsync<{ name: string }>(
-      "SELECT name FROM saved_locations WHERE id = ?",
-      [departedLocationId]
-    );
-    const tripContextLabel = locRow?.name ? `From ${locRow.name}` : "";
-
-    resetGeofenceLAState();
-    await startLiveActivity({
-      activityType: "trip",
-      isBusinessMode,
-      tripContextLabel,
-    });
-  } catch {
-    // LA failed to start — trip capture continues unaffected.
-  }
-}
-
-async function handleSavedLocationExit(regionId: string): Promise<void> {
-  const db = await getDatabase();
-
-  // Three-layer gate before treating any geofence Exit as a real
-  // departure. iOS fires Exits from cached cell-tower / wifi fixes
-  // that can be 100s of metres off — without these gates we'd start
-  // a phantom trip every time iOS gets confused.
-  //
-  // Layer 1: registration grace period (added 13 May 2026 after
-  //   Anthony reported "trip starts the moment I open the app, not
-  //   moving"). When registerGeofences runs at app launch, iOS
-  //   immediately evaluates the device's cached position against
-  //   the new regions and fires Exits for any region it thinks the
-  //   device is outside. If that cached fix is wrong, we get a
-  //   phantom Exit at app start. Reject every Exit fired within
-  //   REGISTRATION_GRACE_MS of registration UNLESS we can confirm
-  //   the device is genuinely outside via a fresh high-accuracy fix.
-  //
-  // Layer 2: cached-fix accuracy gate. Reject if iOS's cached
-  //   position is > 200m accuracy (cell tower / wifi territory).
-  //
-  // Layer 3: position-inside-radius check. If the cached fix shows
-  //   the device still inside the geofence (plus 50m slop), the
-  //   Exit was a phantom. (Anthony 12 May 2026: St Roberts School
-  //   phantom from indoor GPS drift.)
-  try {
-    const loc = await db.getFirstAsync<{
-      latitude: number;
-      longitude: number;
-      radius_meters: number;
-    }>(
-      "SELECT latitude, longitude, radius_meters FROM saved_locations WHERE id = ?",
-      [regionId]
-    );
-
-    // Layer 1: registration grace window
-    const regAtRow = await db.getFirstAsync<{ value: string }>(
-      "SELECT value FROM tracking_state WHERE key = 'geofence_registered_at'"
-    );
-    const regAtMs = regAtRow ? parseInt(regAtRow.value, 10) : 0;
-    const sinceRegistrationMs = Date.now() - regAtMs;
-    const REGISTRATION_GRACE_MS = 30_000;
-    if (loc && regAtMs > 0 && sinceRegistrationMs < REGISTRATION_GRACE_MS) {
-      // Just registered. iOS's cached position is the most likely
-      // cause of a phantom Exit here — its evaluation was the same
-      // cached fix that would now confirm a false "outside" answer.
-      // Demand a fresh, high-accuracy GPS fix before accepting.
-      // 5-second timeout — if we can't get a confirmation, we
-      // reject the Exit (it'll fire again from real movement when
-      // the user genuinely leaves, and at that point the registration
-      // grace will have elapsed and the standard gates apply).
-      type FreshPos = Awaited<ReturnType<typeof Location.getCurrentPositionAsync>>;
-      let freshPos: FreshPos | null = null;
-      try {
-        const result = await Promise.race<FreshPos | null>([
-          Location.getCurrentPositionAsync({
-            accuracy: Location.Accuracy.BestForNavigation,
-          }),
-          new Promise<null>((resolve) =>
-            setTimeout(() => resolve(null), 5000)
-          ),
-        ]);
-        freshPos = result;
-      } catch {
-        freshPos = null;
-      }
-      if (!freshPos) {
-        logDetectionEvent("geofence_exit_rejected_registration_grace", {
-          locationId: regionId,
-          sinceRegistrationMs,
-          reason: "no_fresh_fix",
-        }).catch(() => {});
-        return;
-      }
-      const freshAccuracy = freshPos.coords.accuracy ?? Infinity;
-      const freshDistMeters =
-        haversine(
-          freshPos.coords.latitude, freshPos.coords.longitude,
-          loc.latitude, loc.longitude
-        ) * 1609.344;
-      if (freshAccuracy > 100 || freshDistMeters <= loc.radius_meters + 50) {
-        logDetectionEvent("geofence_exit_rejected_registration_grace", {
-          locationId: regionId,
-          sinceRegistrationMs,
-          freshAccuracy: Math.round(freshAccuracy),
-          freshDistMeters: Math.round(freshDistMeters),
-          radiusMeters: loc.radius_meters,
-          reason: freshAccuracy > 100 ? "fresh_fix_imprecise" : "fresh_fix_inside",
-        }).catch(() => {});
-        return;
-      }
-      // Fresh high-accuracy fix confirms the device is actually
-      // outside the radius — the Exit is real, fall through to
-      // the normal path. (Edge case: user opens the app right after
-      // genuinely driving off — we don't want to drop their trip
-      // either.)
-      logDetectionEvent("geofence_exit_accepted_registration_grace", {
-        locationId: regionId,
-        sinceRegistrationMs,
-        freshAccuracy: Math.round(freshAccuracy),
-        freshDistMeters: Math.round(freshDistMeters),
-        radiusMeters: loc.radius_meters,
-      }).catch(() => {});
-    }
-
-    // Layer 2 + 3: standard gates for Exits outside the grace window.
-    const pos = await Location.getLastKnownPositionAsync();
-    if (loc && pos) {
-      const accuracy = pos.coords.accuracy ?? Infinity;
-      if (accuracy > 200) {
-        logDetectionEvent("geofence_exit_rejected_accuracy", {
-          locationId: regionId,
-          accuracy: Math.round(accuracy),
-        }).catch(() => {});
-        return;
-      }
-      const distMiles = haversine(
-        pos.coords.latitude, pos.coords.longitude,
-        loc.latitude, loc.longitude
-      );
-      const distMeters = distMiles * 1609.344;
-      if (distMeters <= loc.radius_meters + 50) {
-        logDetectionEvent("geofence_exit_rejected_inside", {
-          locationId: regionId,
-          distMeters: Math.round(distMeters),
-          radiusMeters: loc.radius_meters,
-          accuracy: Math.round(accuracy),
-        }).catch(() => {});
-        return;
-      }
-      // Standard-gate accept: log the positive decision so accept/reject
-      // counts can be compared in the diagnostic dump.
-      logDetectionEvent("geofence_exit_accepted", {
-        locationId: regionId,
-        distMeters: Math.round(distMeters),
-        radiusMeters: loc.radius_meters,
-        accuracy: Math.round(accuracy),
-      }).catch(() => {});
-    }
-  } catch {
-    // Position-verify is a best-effort gate. If it fails (no permission,
-    // simulator, etc.) fall through and trust iOS's Exit event.
-  }
-
-  const tentRow = await db.getFirstAsync<{ value: string }>(
-    "SELECT value FROM tracking_state WHERE key = 'geofence_tentative_arrival'"
-  );
-
-  if (tentRow?.value === regionId) {
-    // Exiting the location we tentatively arrived at — dwell decides.
-    const tentAtRow = await db.getFirstAsync<{ value: string }>(
-      "SELECT value FROM tracking_state WHERE key = 'geofence_tentative_arrival_at'"
-    );
-    const arrivedAtIso = tentAtRow?.value ?? new Date().toISOString();
-    const age = tentAtRow ? Date.now() - new Date(arrivedAtIso).getTime() : 0;
-
-    if (age < TENTATIVE_DWELL_MS) {
-      // Drive-through. Keep the original departure intact so the eventual
-      // real arrival produces one continuous trip.
-      logDetectionEvent("geofence_drive_through", {
-        locationId: regionId,
-        ageMs: age,
-      }).catch(() => {});
-      await clearTentativeArrival("drive_through");
-      return;
-    }
-
-    // Real arrival — Exit fired after dwell elapsed because the user parked
-    // long enough then drove off again. Finalize the inbound trip, then
-    // treat this same Exit as the start of the next trip.
-    const departed = await db.getFirstAsync<{ value: string }>(
-      "SELECT value FROM tracking_state WHERE key = 'geofence_departed_location'"
-    );
-    const departedAt = await db.getFirstAsync<{ value: string }>(
-      "SELECT value FROM tracking_state WHERE key = 'geofence_departed_at'"
-    );
-    if (departed && departedAt) {
-      await processGeofenceTrip(departed.value, regionId, departedAt.value, arrivedAtIso);
-      logDetectionEvent("geofence_real_arrival", {
-        source: "exit",
-        locationId: regionId,
-        ageMs: age,
-      }).catch(() => {});
-    }
-    await clearTentativeArrival("real_arrival_via_exit");
-    await db.runAsync(
-      "INSERT OR REPLACE INTO tracking_state (key, value) VALUES ('geofence_departed_location', ?)",
-      [regionId]
-    );
-    await db.runAsync(
-      "INSERT OR REPLACE INTO tracking_state (key, value) VALUES ('geofence_departed_at', ?)",
-      [new Date().toISOString()]
-    );
-    await db.runAsync("DELETE FROM tracking_state WHERE key = 'geofence_arrived_location'");
-    // GEOFENCE_TRACKING is already running — coords keep flowing into the new trip.
-    await startGeofenceTripLiveActivity(regionId);
-    return;
-  }
-
-  // Standard departure from a saved location — no tentative was pending.
-  await db.runAsync(
-    "INSERT OR REPLACE INTO tracking_state (key, value) VALUES ('geofence_departed_location', ?)",
-    [regionId]
-  );
-  await db.runAsync(
-    "INSERT OR REPLACE INTO tracking_state (key, value) VALUES ('geofence_departed_at', ?)",
-    [new Date().toISOString()]
-  );
-  await db.runAsync("DELETE FROM tracking_state WHERE key = 'geofence_arrived_location'");
-
-  await stopDriveDetection();
-  await cancelAutoRecording();
-  await startGeofenceTracking();
-  await startGeofenceTripLiveActivity(regionId);
-}
-
 // ─── Public API ─────────────────────────────────────────────────────────
 
+/**
+ * (Re-)register the anchor geofence. Saved locations are not registered as
+ * geofences — they're pure data used by classification and address
+ * attribution only. Callers (app start, after saved-location edits) can
+ * still invoke this safely; it just re-applies the current anchor.
+ *
+ * If no anchor exists yet (fresh install, post-reboot before first trip),
+ * this no-ops. The first trip's end position will seed the anchor via
+ * setDepartureAnchor.
+ */
 export async function registerGeofences(): Promise<void> {
   const { status } = await Location.getBackgroundPermissionsAsync();
   if (status !== "granted") return;
 
   const db = await getDatabase();
-  const locations = await db.getAllAsync<{
-    id: string;
-    name: string;
-    latitude: number;
-    longitude: number;
-    radius_meters: number;
-    geofence_enabled: number;
-  }>(
-    "SELECT id, name, latitude, longitude, radius_meters, geofence_enabled FROM saved_locations WHERE geofence_enabled = 1"
-  );
-
-  const regions: Location.LocationRegion[] = locations.map((loc) => ({
-    identifier: loc.id,
-    latitude: loc.latitude,
-    longitude: loc.longitude,
-    radius: loc.radius_meters,
-    notifyOnEnter: true,
-    notifyOnExit: true,
-  }));
-
-  // Include departure anchor — a temporary geofence around the user's last
-  // stationary position. iOS manages geofences at the OS level, so they survive
-  // app termination. When the user leaves this radius, iOS wakes the app and
-  // the handler restarts drive detection. This is the most reliable way to
-  // ensure detection starts immediately for terminated apps.
   const anchorLat = await db.getFirstAsync<{ value: string }>(
     "SELECT value FROM tracking_state WHERE key = 'departure_anchor_lat'"
   );
   const anchorLng = await db.getFirstAsync<{ value: string }>(
     "SELECT value FROM tracking_state WHERE key = 'departure_anchor_lng'"
   );
-  if (anchorLat && anchorLng) {
-    regions.push({
-      identifier: "__departure_anchor__",
-      latitude: parseFloat(anchorLat.value),
-      longitude: parseFloat(anchorLng.value),
-      radius: 100, // 100m — tight enough to detect drive-aways quickly,
-      // wide enough to absorb GPS drift while parked. Anchor Exit handler
-      // verifies the device is genuinely outside before promoting, so the
-      // smaller radius doesn't risk false positives from indoor jitter.
-      notifyOnEnter: false,
-      notifyOnExit: true,
-    });
-  }
 
-  if (regions.length === 0) {
-    // Stop geofencing if no locations and no anchor
+  if (!anchorLat || !anchorLng) {
+    // No anchor to register. Stop any legacy regions to clear iOS's
+    // per-app registry of stale saved-location geofences from before
+    // the 17 May refactor.
     await stopGeofencing();
     return;
   }
 
-  // Stamp registration time so handleSavedLocationExit can detect the
-  // "phantom Exit fired on registration" case. iOS's
-  // startGeofencingAsync immediately evaluates the device's cached
-  // position against the new regions and fires Exit / Enter events
-  // for any region the device isn't / is inside — but cached cell-
-  // tower fixes can place the device 100s of metres off, producing
-  // a phantom Exit at app launch when the device hasn't moved.
-  // Exits within REGISTRATION_GRACE_MS of this stamp are treated
-  // with a tighter bar — see handleSavedLocationExit.
-  const db2 = await getDatabase();
-  await db2.runAsync(
+  const regions: Location.LocationRegion[] = [
+    {
+      identifier: "__departure_anchor__",
+      latitude: parseFloat(anchorLat.value),
+      longitude: parseFloat(anchorLng.value),
+      radius: 100, // 100m — tight wake-up, drift absorbed by verify gate
+      notifyOnEnter: false,
+      notifyOnExit: true,
+    },
+  ];
+
+  // Stamp registration time. Kept for diagnostics — the
+  // registration-grace logic on saved-location Exits no longer exists,
+  // but the timestamp is still useful when debugging anchor behaviour.
+  await db.runAsync(
     "INSERT OR REPLACE INTO tracking_state (key, value) VALUES ('geofence_registered_at', ?)",
     [Date.now().toString()]
   );
@@ -883,42 +250,15 @@ export async function isGeofencingActive(): Promise<boolean> {
   }
 }
 
-async function startGeofenceTracking(): Promise<void> {
-  const isRunning = await Location.hasStartedLocationUpdatesAsync(GEOFENCE_TRACKING_TASK_NAME);
-  if (isRunning) return;
-
-  await Location.startLocationUpdatesAsync(GEOFENCE_TRACKING_TASK_NAME, {
-    accuracy: Location.Accuracy.High,
-    distanceInterval: 50,
-    deferredUpdatesInterval: 10000,
-    showsBackgroundLocationIndicator: false,
-    foregroundService: {
-      notificationTitle: "MileClear",
-      notificationBody: "Tracking your trip...",
-    },
-  });
-}
-
-async function stopGeofenceTracking(): Promise<void> {
-  try {
-    const isRunning = await Location.hasStartedLocationUpdatesAsync(GEOFENCE_TRACKING_TASK_NAME);
-    if (isRunning) {
-      await Location.stopLocationUpdatesAsync(GEOFENCE_TRACKING_TASK_NAME);
-    }
-  } catch {
-    // Best effort
-  }
-}
-
 // ─── Departure anchor ───────────────────────────────────────────────────
 
 /**
  * Register a geofence around the user's current (or specified) position.
- * When the user exits this 200m radius, iOS reliably wakes the app —
+ * When the user exits this 100m radius, iOS reliably wakes the app —
  * even if it was terminated — and we restart drive detection.
  *
- * Call this after trips finish (user is stationary) and on app startup.
- * iOS limits to ~20 geofences per app, so this adds just 1 region.
+ * Called after trips finish (user is stationary) and on app startup.
+ * iOS limits to ~20 geofences per app. We only ever register 1.
  */
 export async function setDepartureAnchor(lat?: number, lng?: number): Promise<void> {
   try {
@@ -943,448 +283,59 @@ export async function setDepartureAnchor(lat?: number, lng?: number): Promise<vo
       [longitude.toString()]
     );
 
-    // Re-register geofences to include the new anchor
+    // Re-register so the anchor moves to the new position.
     await registerGeofences();
   } catch {
-    // Best effort — detection will still work via showsBackgroundLocationIndicator
+    // Best effort — detection still works via the in-process tracker.
   }
 }
 
-// ─── Trip processing ─────────────────────────────────────────────────────
-
-async function processGeofenceTrip(
-  departedLocationId: string,
-  arrivedLocationId: string,
-  departedAt: string,
-  arrivedAt: string,
-): Promise<void> {
-  const db = await getDatabase();
-
-  // Read coords accumulated up to the moment of arrival. Anything recorded
-  // after `arrivedAt` is "user inside the geofence after they parked"
-  // (walking around, sitting in the car, GPS jitter) and would inflate the
-  // trip's end-point and distance if included.
-  const coords = await db.getAllAsync<{
-    lat: number;
-    lng: number;
-    speed: number | null;
-    accuracy: number | null;
-    recorded_at: string;
-  }>(
-    "SELECT lat, lng, speed, accuracy, recorded_at FROM detection_coordinates WHERE recorded_at <= ? ORDER BY recorded_at ASC",
-    [arrivedAt]
-  );
-  // Drop the coords we just consumed AND any post-arrival noise. The next
-  // trip starts from a clean slate either way.
-  await db.runAsync("DELETE FROM detection_coordinates");
-  // Clear auto-recording state to prevent duplicate trip creation
-  await db.runAsync(
-    "DELETE FROM tracking_state WHERE key IN ('auto_recording_active', 'last_driving_speed_at')"
-  );
-
-  // Check if any coordinates indicate actual driving (speed > threshold)
-  const drivingCoords = coords.filter(
-    (c) => c.speed != null && c.speed >= SPEED_THRESHOLD_MS
-  );
-  if (drivingCoords.length === 0 && coords.length < 5) {
-    // Likely walking, not driving — discard
-    return;
-  }
-
-  // Sum GPS chord segments, then correct for chord-to-arc undercount via OSRM.
-  // bestTripDistance() takes max(haversineSum, osrmRoute) so winding-road undercount
-  // is fixed without overwriting any real detour the GPS sum captured.
-  let gpsSumDistance = 0;
-  for (let i = 1; i < coords.length; i++) {
-    gpsSumDistance += haversine(
-      coords[i - 1].lat, coords[i - 1].lng,
-      coords[i].lat, coords[i].lng
-    );
-  }
-
-  const first = coords[0] || { lat: 0, lng: 0, recorded_at: departedAt };
-  const last = coords[coords.length - 1] || first;
-  const totalDistance = await bestTripDistance(
-    gpsSumDistance,
-    first.lat, first.lng,
-    last.lat, last.lng,
-  );
-
-  if (totalDistance < MIN_TRIP_DISTANCE_MILES) return;
-
-  // Look up location names and types from saved_locations
-  const departedLoc = await db.getFirstAsync<{ name: string; location_type: string }>(
-    "SELECT name, location_type FROM saved_locations WHERE id = ?",
-    [departedLocationId]
-  );
-  const arrivedLoc = await db.getFirstAsync<{ name: string; location_type: string }>(
-    "SELECT name, location_type FROM saved_locations WHERE id = ?",
-    [arrivedLocationId]
-  );
-
-  // Resolve start/end addresses. When the user has a saved location at
-  // the trip's endpoint, we prefer the saved name over a generic
-  // reverse-geocoded street address. But before we accept the saved
-  // name, verify the trip's actual GPS first/last coord is inside that
-  // location's radius — Anthony 14 May 2026 hit a case where the
-  // departed_location was set to a school 6.9km from the trip's first
-  // coord (likely from a stale geofence-Exit event), and the resulting
-  // trip claimed to start at "St Roberts School" while the GPS trace
-  // started near Home. The verify-then-accept pattern logs both the
-  // decision and the distance check so the bug is visible in the
-  // diagnostic dump going forward.
-  let startAddress: string | null = null;
-  if (departedLoc) {
-    const departedLocFull = await db.getFirstAsync<{
-      latitude: number;
-      longitude: number;
-      radius_meters: number;
-    }>(
-      "SELECT latitude, longitude, radius_meters FROM saved_locations WHERE id = ?",
-      [departedLocationId]
-    );
-    if (departedLocFull) {
-      const distMeters =
-        haversine(
-          first.lat, first.lng,
-          departedLocFull.latitude, departedLocFull.longitude,
-        ) * 1609.344;
-      const withinRadius = distMeters <= departedLocFull.radius_meters + 100;
-      logDetectionEvent("start_address_decision", {
-        proposedName: departedLoc.name,
-        locationId: departedLocationId,
-        firstCoordDistMeters: Math.round(distMeters),
-        radiusMeters: departedLocFull.radius_meters,
-        accepted: withinRadius,
-      }).catch(() => {});
-      if (withinRadius) {
-        startAddress = departedLoc.name;
-      }
-    }
-  }
-  if (!startAddress) {
-    startAddress = (await reverseGeocode(first.lat, first.lng)) || null;
-  }
-
-  // Same verify-then-accept gate on the arrival side. The asymmetry
-  // (only checking departure) was wrong — an arrived_location whose
-  // coords don't match the trip's last GPS point is just as suspect.
-  let endAddress: string | null = null;
-  if (arrivedLoc) {
-    const arrivedLocFull = await db.getFirstAsync<{
-      latitude: number;
-      longitude: number;
-      radius_meters: number;
-    }>(
-      "SELECT latitude, longitude, radius_meters FROM saved_locations WHERE id = ?",
-      [arrivedLocationId]
-    );
-    if (arrivedLocFull) {
-      const distMeters =
-        haversine(
-          last.lat, last.lng,
-          arrivedLocFull.latitude, arrivedLocFull.longitude,
-        ) * 1609.344;
-      const withinRadius = distMeters <= arrivedLocFull.radius_meters + 100;
-      logDetectionEvent("end_address_decision", {
-        proposedName: arrivedLoc.name,
-        locationId: arrivedLocationId,
-        lastCoordDistMeters: Math.round(distMeters),
-        radiusMeters: arrivedLocFull.radius_meters,
-        accepted: withinRadius,
-      }).catch(() => {});
-      if (withinRadius) {
-        endAddress = arrivedLoc.name;
-      }
-    }
-  }
-  if (!endAddress) {
-    endAddress = (await reverseGeocode(last.lat, last.lng)) || null;
-  }
-
-  // Auto-classify based on saved location types — but only if the
-  // verify-then-accept gates above ACCEPTED the saved-location name.
-  // If a name was rejected for being out-of-radius, the location_type
-  // can't be trusted either: it almost certainly belongs to somewhere
-  // else the user once visited, not this trip.
-  const startType =
-    startAddress && departedLoc && startAddress === departedLoc.name
-      ? departedLoc.location_type
-      : null;
-  const endType =
-    endAddress && arrivedLoc && endAddress === arrivedLoc.name
-      ? arrivedLoc.location_type
-      : null;
-  const workTypes = ["work", "depot"];
-  let classification: "business" | "personal" | "unclassified" = "unclassified";
-  if ((startType && workTypes.includes(startType)) || (endType && workTypes.includes(endType))) {
-    classification = "business";
-  } else if (startType === "home" && endType === "home") {
-    classification = "personal";
-  }
-
-  const tripId = randomUUID();
-  const notes = `__unconfirmed__|${departedLocationId}|${arrivedLocationId}`;
-
-  const roundedDistance = Math.round(totalDistance * 100) / 100;
-
-  // Store trip locally. Notes carries the local-only `__unconfirmed__` marker
-  // until the user confirms; the server payload below sends notes=null since
-  // the marker is a UI affordance, not data the server cares about.
-  await db.runAsync(
-    `INSERT INTO trips (id, start_lat, start_lng, end_lat, end_lng, start_address, end_address,
-      distance_miles, started_at, ended_at, is_manual_entry, classification, notes)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?)`,
-    [
-      tripId,
-      first.lat,
-      first.lng,
-      last.lat,
-      last.lng,
-      startAddress,
-      endAddress,
-      roundedDistance,
-      departedAt,
-      arrivedAt,
-      classification,
-      notes,
-    ]
-  );
-
-  // Store coordinates for route replay
-  for (const c of coords) {
-    await db.runAsync(
-      `INSERT INTO coordinates (id, trip_id, lat, lng, speed, accuracy, recorded_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`,
-      [randomUUID(), tripId, c.lat, c.lng, c.speed, c.accuracy, c.recorded_at]
-    );
-  }
-
-  // Enqueue a server CREATE so this trip drains through processSyncQueue like
-  // detection-finalised trips do. Without this the row sits with synced_at NULL
-  // forever and any user-driven update (classify, edit) 404s on the server.
-  const { enqueueSync } = await import("../sync/queue");
-  await enqueueSync("trip", tripId, "create", {
-    startLat: first.lat,
-    startLng: first.lng,
-    endLat: last.lat,
-    endLng: last.lng,
-    startAddress: startAddress ?? undefined,
-    endAddress: endAddress ?? undefined,
-    distanceMiles: roundedDistance,
-    startedAt: departedAt,
-    endedAt: arrivedAt,
-    classification,
-    coordinates: coords.map((c) => ({
-      lat: c.lat,
-      lng: c.lng,
-      speed: c.speed,
-      accuracy: c.accuracy,
-      recordedAt: c.recorded_at,
-    })),
-  });
-
-  // Fire the trip-confirmation notification unconditionally. A trip you just
-  // finished driving is a moment in the user's day, not a 3am alarm. iOS
-  // Focus / Do Not Disturb still mutes the sound; the notification itself
-  // should always land so the user can act on it when they next look.
-  // Lead with the auto-classifier's guess so the user confirms in one tap.
-  const confirmCoords: TripConfirmCoords = {
-    startLat: first.lat,
-    startLng: first.lng,
-    endLat: last.lat,
-    endLng: last.lng,
-  };
-  await sendTripConfirmationNotification(
-    tripId, startAddress, endAddress, totalDistance, classification, confirmCoords,
-  );
-  await scheduleConfirmationReminder(
-    tripId, startAddress, endAddress, totalDistance, classification, confirmCoords,
-  );
-
-  // Set departure anchor at trip end point
-  await setDepartureAnchor(last.lat, last.lng).catch(() => {});
-
-  // Close out any Live Activity started at departure with a frozen
-  // "Trip Complete" summary. For business trips, surface the HMRC
-  // deduction figure so the user sees the money they just earned
-  // back the moment they park. Personal trips show the neutral
-  // SAVED checkmark instead. Classification is unconfirmed at this
-  // point, so the LA's classify CTA is left enabled. Wrapped in
-  // try/catch — a failed LA end never affects the saved trip.
-  const hmrcDeductionPence =
-    classification === "business"
-      ? calculateHmrcDeduction("car", roundedDistance)
-      : null;
-  try {
-    await endLiveActivityWithSummary({
-      distanceMiles: roundedDistance,
-      tripCount: 0,
-      startDateMs: new Date(departedAt).getTime(),
-      endDateMs: new Date(arrivedAt).getTime(),
-      needsClassification: classification === "unclassified",
-      hmrcDeductionPence,
-    });
-  } catch {
-    // No active LA, or end failed — fine, trip is saved.
-  }
-  resetGeofenceLAState();
-}
+// ─── Stale-state cleanup ────────────────────────────────────────────────
 
 /**
- * Foreground-cleanup for orphaned geofence trip Live Activities.
- *
- * Belt-and-braces guard for the case where:
- *   - the user departed a saved location (LA started)
- *   - they parked at a non-saved location (no arrival event)
- *   - the geofence-tracking task fell silent (iOS suspended JS, the
- *     user closed the app, etc.)
- *
- * iOS's 8-minute staleDate dismisses the LA naturally in most cases,
- * but if the JS keeps poking the LA via background callbacks the
- * staleDate gets renewed indefinitely. The throttle in
- * updateGeofenceTripLiveActivity prevents that going forward — this
- * helper cleans up activities that pre-date the throttle fix.
+ * Clear any legacy geofence-trip state left over from before the
+ * 17 May refactor. The old `geofence_departed_at` / `geofence_departed_location`
+ * / `geofence_tentative_arrival_*` keys could pin the Live Activity on
+ * the Dynamic Island indefinitely if their owning code path was deleted
+ * without resetting state.
  *
  * Called from _layout.tsx on every AppState -> active transition.
- * No-op if no LA exists or if a geofence trip is genuinely in flight
- * with a recent location update.
+ * No-op if no stale state exists.
  */
 export async function cleanupStaleGeofenceLA(): Promise<void> {
   try {
     const db = await getDatabase();
-    const departedAtRow = await db.getFirstAsync<{ value: string }>(
-      "SELECT value FROM tracking_state WHERE key = 'geofence_departed_at'"
+    // Wipe any legacy state keys from the old geofence-trip path. These
+    // should normally not exist on a fresh install, but lingering values
+    // from pre-refactor builds get cleaned up here.
+    await db.runAsync(
+      "DELETE FROM tracking_state WHERE key IN ('geofence_departed_location', 'geofence_departed_at', 'geofence_tentative_arrival', 'geofence_tentative_arrival_at', 'geofence_arrived_location')"
     );
-    if (!departedAtRow?.value) {
-      // No active geofence trip — but we might still have an orphaned
-      // LA from a previous departure. Dismiss anything lingering.
+    // Best-effort: dismiss any Live Activity that may have been orphaned
+    // by the old path. End is idempotent.
+    try {
       const { endLiveActivity } = await import("../liveActivity");
-      await endLiveActivity().catch(() => {});
-      return;
-    }
-    // We DO have an active geofence trip on file. Dismiss only if it's
-    // been stale (>2 hours) — anything longer than that is almost
-    // certainly the user having parked at a non-saved location.
-    const departedAtMs = new Date(departedAtRow.value).getTime();
-    if (Date.now() - departedAtMs > 2 * 60 * 60 * 1000) {
-      // Clear the geofence trip state too so we don't keep treating
-      // it as in-flight. The user can manually add the trip if they
-      // need to capture it (or it'll be picked up by the next
-      // legitimate Enter event).
-      await db.runAsync(
-        "DELETE FROM tracking_state WHERE key IN ('geofence_departed_location', 'geofence_departed_at', 'geofence_tentative_arrival', 'geofence_tentative_arrival_at')"
-      );
-      await db.runAsync("DELETE FROM detection_coordinates");
-      const { endLiveActivity } = await import("../liveActivity");
-      await endLiveActivity().catch(() => {});
-      resetGeofenceLAState();
+      await endLiveActivity();
+    } catch {
+      // No active LA, or end failed — fine.
     }
   } catch {
-    // Cleanup-only path — never block app startup.
+    // Cleanup path — never block app startup.
   }
 }
 
-// ─── Notifications ──────────────────────────────────────────────────────
-
-interface TripConfirmCopy {
-  title: string;
-  body: string;
-}
-
-/** Build smart confirmation copy that leads with the auto-classifier's
- *  guess. Cuts the user's cognitive load: they confirm with one tap
- *  instead of re-thinking what the trip was.
- */
-function buildConfirmCopy(
-  from: string,
-  to: string,
-  distance: string,
-  suggestedClassification: "business" | "personal" | "unclassified",
-): TripConfirmCopy {
-  if (suggestedClassification === "business") {
-    return {
-      title: "Work trip detected",
-      body: `${from} → ${to} (${distance} mi). Tap "Yes, Work" to confirm.`,
-    };
-  }
-  if (suggestedClassification === "personal") {
-    return {
-      title: "Personal trip detected",
-      body: `${from} → ${to} (${distance} mi). Tap "Personal" to confirm.`,
-    };
-  }
-  return {
-    title: "Trip detected",
-    body: `${from} → ${to} (${distance} mi). Was this Work or Personal?`,
-  };
-}
-
-interface TripConfirmCoords {
-  startLat: number;
-  startLng: number;
-  endLat: number;
-  endLng: number;
-}
-
-async function sendTripConfirmationNotification(
-  tripId: string,
-  startAddress: string | null,
-  endAddress: string | null,
-  distanceMiles: number,
-  suggestedClassification: "business" | "personal" | "unclassified",
-  coords: TripConfirmCoords,
-): Promise<void> {
-  const from = startAddress || "Unknown";
-  const to = endAddress || "Unknown";
-  const distance = distanceMiles.toFixed(1);
-  const { title, body } = buildConfirmCopy(from, to, distance, suggestedClassification);
-
-  await Notifications.scheduleNotificationAsync({
-    content: {
-      title,
-      body,
-      data: { type: "trip_confirmation", tripId, ...coords },
-      categoryIdentifier: "trip_confirm",
-    },
-    trigger: null, // Send immediately
-  });
-}
-
-async function scheduleConfirmationReminder(
-  tripId: string,
-  startAddress: string | null,
-  endAddress: string | null,
-  distanceMiles: number,
-  suggestedClassification: "business" | "personal" | "unclassified",
-  coords: TripConfirmCoords,
-): Promise<void> {
-  const from = startAddress || "Unknown";
-  const to = endAddress || "Unknown";
-  const distance = distanceMiles.toFixed(1);
-  const suggestionHint =
-    suggestedClassification === "business"
-      ? " Looks like Work."
-      : suggestedClassification === "personal"
-      ? " Looks like Personal."
-      : "";
-
-  await Notifications.scheduleNotificationAsync({
-    content: {
-      title: "Unconfirmed trip",
-      body: `${from} → ${to} (${distance} mi) still needs confirmation.${suggestionHint}`,
-      data: { type: "trip_confirmation_reminder", tripId, ...coords },
-      categoryIdentifier: "trip_confirm",
-    },
-    trigger: { type: "timeInterval" as any, seconds: 3 * 60 * 60, repeats: false } as any,
-  });
-}
-
-// ─── Trip confirmation/rejection ─────────────────────────────────────────
+// ─── Unconfirmed-trip helpers ───────────────────────────────────────────
+//
+// The pre-refactor geofence path marked auto-created trips with a
+// `__unconfirmed__` notes prefix and sent a per-trip confirmation push.
+// New geofence trips no longer use this pattern — detection.ts sends
+// its own "Trip recorded as X" / "Trip recorded - classify it" pushes
+// at finalize time. The helpers below are retained for backward compat
+// so historical __unconfirmed__ / __shaded__ trips still surface in the
+// UI surfaces that read them.
 
 export async function confirmGeofenceTrip(tripId: string): Promise<void> {
   const db = await getDatabase();
-  // Remove the __unconfirmed__ marker from notes
   const trip = await db.getFirstAsync<{ notes: string | null }>(
     "SELECT notes FROM trips WHERE id = ?",
     [tripId]
@@ -1428,18 +379,14 @@ export async function shadeExpiredUnconfirmedTrips(): Promise<number> {
   const midnight = new Date(now);
   midnight.setHours(0, 0, 0, 0);
 
-  // If it's before 9pm, shade trips from before today's midnight
-  // If it's after 9pm, don't shade today's trips (they get until tomorrow midnight)
   const cutoffHour = 21; // 9pm
   let cutoff: string;
 
   if (now.getHours() >= cutoffHour) {
-    // After 9pm — cutoff is yesterday's midnight (trips before yesterday midnight get shaded)
     const yesterday = new Date(midnight);
     yesterday.setDate(yesterday.getDate() - 1);
     cutoff = yesterday.toISOString();
   } else {
-    // Before 9pm — cutoff is today's midnight
     cutoff = midnight.toISOString();
   }
 

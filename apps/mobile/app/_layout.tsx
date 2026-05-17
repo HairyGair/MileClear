@@ -250,6 +250,11 @@ function RootNavigator() {
       // be registered with iOS, and processGeofenceTrip would tag trips
       // with their stale names. Awaiting indirectly via .then on the
       // reconcile promise keeps the call order correct without blocking.
+      // Saved-locations reconcile keeps local SQLite in sync with the
+      // server's truth. Geofence registration is now anchor-only (17 May
+      // 2026 refactor) — saved locations are no longer iOS geofences —
+      // but we still call registerGeofences afterwards to keep the anchor
+      // active.
       reconcileSavedLocations()
         .catch(() => {})
         .finally(() => {

@@ -251,7 +251,7 @@ export default function SavedLocationsScreen() {
             <EmptyState
               icon="location-outline"
               title="Save the places you drive from"
-              description="Pin home, work, or your depot. Trips between saved locations auto-classify, and the geofence triggers your live recording for free."
+              description="Pin home, work, or your depot. When a trip starts or ends within a saved location's radius, MileClear auto-classifies it and labels the route with the saved name."
             />
           ) : null
         }
