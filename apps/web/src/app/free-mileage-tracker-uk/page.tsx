@@ -3,7 +3,9 @@ import Navbar from "@/components/landing/Navbar";
 import Footer from "@/components/landing/Footer";
 
 export const metadata: Metadata = {
-  title: "Free Mileage Tracker UK - No Card, No Trial, No Catch | MileClear",
+  title: {
+    absolute: "Free Mileage Tracker UK - No Card, No Trial, No Catch | MileClear",
+  },
   description:
     "Genuinely free UK mileage tracker. Auto-track every business mile, HMRC 45p/25p rates built in, unlimited trips, no ads. Free forever - Pro is only for accountant-ready exports.",
   keywords: [

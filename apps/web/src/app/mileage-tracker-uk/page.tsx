@@ -3,7 +3,10 @@ import Navbar from "@/components/landing/Navbar";
 import Footer from "@/components/landing/Footer";
 
 export const metadata: Metadata = {
-  title: "Mileage Tracker UK - Free HMRC-Ready App for Self-Employed Drivers",
+  title: {
+    absolute:
+      "Mileage Tracker UK - Free HMRC-Ready App for Self-Employed Drivers | MileClear",
+  },
   description:
     "The UK mileage tracker built for HMRC Self Assessment. Auto-track every business mile, generate a tax-year PDF, claim 45p/25p per mile. Free to use, designed for UK drivers.",
   keywords: [

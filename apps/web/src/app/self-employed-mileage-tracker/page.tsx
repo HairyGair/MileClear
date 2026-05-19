@@ -3,7 +3,9 @@ import Navbar from "@/components/landing/Navbar";
 import Footer from "@/components/landing/Footer";
 
 export const metadata: Metadata = {
-  title: "Self-Employed Mileage Tracker UK - Sole Trader HMRC App | MileClear",
+  title: {
+    absolute: "Self-Employed Mileage Tracker UK - Sole Trader HMRC App | MileClear",
+  },
   description:
     "The mileage tracker built for UK sole traders. Auto-track every business mile, claim 45p/25p AMAP relief on Self Assessment, MTD ITSA ready for April 2026. Free.",
   keywords: [
