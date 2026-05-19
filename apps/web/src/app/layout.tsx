@@ -20,11 +20,11 @@ const outfit = Outfit({
 export const metadata: Metadata = {
   metadataBase: new URL("https://mileclear.com"),
   title: {
-    default: "MileClear — Track every mile. Keep every penny.",
+    default: "Mileage Tracker UK — Free HMRC-Ready App for Self-Employed | MileClear",
     template: "%s | MileClear",
   },
   description:
-    "The mileage tracker that actually works. Built for gig drivers, delivery riders, and anyone who drives for a living. Free to use, offline-first, HMRC ready.",
+    "Free mileage tracker UK app. Auto-track every business mile, generate HMRC-ready self-assessment exports, and keep every penny you're owed. Built for self-employed drivers, gig workers, and delivery riders.",
   icons: {
     icon: "/branding/logo-120x120.png",
     apple: "/branding/logo-120x120.png",
@@ -36,9 +36,9 @@ export const metadata: Metadata = {
     },
   },
   openGraph: {
-    title: "MileClear — Track every mile. Keep every penny.",
+    title: "Mileage Tracker UK — Free HMRC-Ready App | MileClear",
     description:
-      "The mileage tracker that actually works. Built for gig drivers, delivery riders, and anyone who drives for a living.",
+      "Free mileage tracker UK app. Auto-track every business mile, generate HMRC self-assessment exports, keep every penny you're owed.",
     type: "website",
     url: "https://mileclear.com",
     siteName: "MileClear",
@@ -54,9 +54,9 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    title: "MileClear — Track every mile. Keep every penny.",
+    title: "Mileage Tracker UK — Free HMRC-Ready App | MileClear",
     description:
-      "The mileage tracker that actually works. Built for gig drivers, delivery riders, and anyone who drives for a living.",
+      "Free mileage tracker UK app. Auto-track every business mile, generate HMRC self-assessment exports, keep every penny you're owed.",
     images: ["/branding/og-image.png"],
   },
   robots: {

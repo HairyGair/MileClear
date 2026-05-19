@@ -39,6 +39,443 @@ export interface Guide {
 // ----------------------------------------------------------------
 export const BLOG_POSTS: BlogPost[] = [
   {
+    slug: "how-to-track-miles-for-work-uk",
+    title: "How to Track Miles for Work in the UK (Without Spreadsheets)",
+    excerpt:
+      "If you drive for work in the UK - whether self-employed, gig delivery, or a PAYE employee - tracking your business miles can be worth hundreds or thousands of pounds at tax time. Here's how to do it properly, what HMRC actually requires, and why a spreadsheet probably won't cut it.",
+    date: "19 May 2026",
+    author: "Gair",
+    category: "guide",
+    content: `
+<p>If you drive for work in the UK and you're not tracking your miles, you're leaving money on the table. The Approved Mileage Allowance Payment (AMAP) lets self-employed drivers claim 45p per mile for the first 10,000 business miles in a tax year - 25p per mile after that. For a typical full-time delivery driver, that's £5,000 to £8,000 in deductions every year. For tradespeople driving between jobs, it's often £2,000-£4,000. Even part-time gig workers and PAYE employees who drive occasionally for work can save hundreds.</p>
+
+<p>This guide covers how to actually do it - what HMRC requires, what counts as a business mile, and the practical options for tracking. Spoiler: spreadsheets are the wrong answer.</p>
+
+<h2>What HMRC requires</h2>
+
+<p>To claim mileage relief on Self Assessment (or as a PAYE employee filing Mileage Allowance Relief), HMRC requires a <strong>contemporaneous record</strong> of every business journey. That means a record made at or near the time of the trip, not reconstructed from memory in January.</p>
+
+<p>Each entry needs:</p>
+<ul>
+<li>The <strong>date</strong> of the journey</li>
+<li>The <strong>start and end location</strong></li>
+<li>The <strong>business purpose</strong> of the trip</li>
+<li>The <strong>distance</strong> driven</li>
+</ul>
+
+<p>HMRC's official guidance (Helpsheet HS222) is clear that "estimates" of business mileage are not acceptable. If you get audited and your records don't survive scrutiny, the deduction is disallowed - and any tax saving you claimed becomes owed back, often with interest and penalties.</p>
+
+<h2>The current AMAP rates</h2>
+
+<ul>
+<li><strong>Cars and vans:</strong> 45p per mile for the first 10,000 business miles per tax year, then 25p per mile</li>
+<li><strong>Motorbikes:</strong> 24p per mile (flat rate, no threshold)</li>
+<li><strong>Bicycles:</strong> 20p per mile (flat rate)</li>
+<li><strong>Passenger payment:</strong> additional 5p per mile per business passenger you're carrying on the same trip</li>
+</ul>
+
+<p>The UK tax year runs from <strong>6 April to 5 April</strong>, so your 10,000-mile threshold resets each April, not each January.</p>
+
+<h2>What counts as a business mile?</h2>
+
+<p>This is the part most people get wrong. A business mile is one driven <strong>wholly and exclusively for business purposes</strong>. Examples:</p>
+
+<ul>
+<li>A self-employed plumber driving from one job to another</li>
+<li>A gig delivery driver from accepting an Uber Eats order until completing the drop-off</li>
+<li>A PAYE employee visiting a client site (where their normal workplace is the office)</li>
+<li>An accountant driving to a CPD course</li>
+</ul>
+
+<p>What does <em>not</em> count:</p>
+
+<ul>
+<li>Your <strong>commute</strong> from home to your normal workplace - this is "ordinary commuting" and is never claimable</li>
+<li>Any private journey, even in a vehicle used mostly for business</li>
+<li>For most self-employed drivers, the journey from home to your <em>first</em> job of the day (HMRC generally treats this as commuting unless you have no fixed workplace, which is the case for many gig drivers)</li>
+</ul>
+
+<p>Our <a href="/what-counts-as-business-mileage">full guide on what counts as business mileage</a> walks through the edge cases.</p>
+
+<h2>Why spreadsheets fail</h2>
+
+<p>The most common approach to mileage tracking is "I'll just write it down" - usually a notebook or a spreadsheet filled in at the end of the week. There are three problems with this:</p>
+
+<p><strong>1. It's not contemporaneous.</strong> Filling in a spreadsheet on Sunday for the week's trips is exactly what HMRC's "contemporaneous record" rule was written to exclude. If you're investigated, HMRC will ask for the source - did you write this down at the time? Maps Timeline or Apple Maps don't count either, because they don't show the business purpose.</p>
+
+<p><strong>2. It's wrong.</strong> Mileage estimated from memory is consistently wrong - usually 15-30% lower than reality, because you forget detours, return-to-depot legs, and short between-job trips. That's £500-£2,000 in deductions every year.</p>
+
+<p><strong>3. It's miserable.</strong> Sitting down on Sunday to reconstruct Monday's miles for the next 52 Sundays of your life is a tax on your time. Most people give up by week 6 and either don't claim or claim a guess.</p>
+
+<h2>What actually works</h2>
+
+<p>A purpose-built mileage tracker app. The good ones run in the background using GPS, detect when you start and stop driving automatically, let you tag each trip as business or personal (or auto-classify based on your work schedule), apply the HMRC rate to your vehicle, and produce a Self Assessment-ready PDF at tax-year end.</p>
+
+<p>Specifically you want:</p>
+
+<ul>
+<li><strong>Background GPS tracking</strong> - no taps per trip, no remembering to open the app</li>
+<li><strong>HMRC AMAP rates built in</strong> with the UK tax year (6 April to 5 April) and the 10,000-mile threshold applied automatically</li>
+<li><strong>Per-trip classification</strong> with the option to auto-classify based on saved locations or work schedule</li>
+<li><strong>Self Assessment export</strong> in a format HMRC accepts (per-trip detail + summary + attestation)</li>
+<li><strong>Offline-first</strong> tracking so tunnels, basements and rural blackspots don't lose data</li>
+<li><strong>Built for the UK</strong> - American apps use IRS rates and the 1-Jan tax year, which is the wrong answer for you</li>
+</ul>
+
+<h2>MileClear is built for this</h2>
+
+<p>MileClear is a free <a href="/mileage-tracker-uk">UK mileage tracker</a> built around HMRC's AMAP rates and the 6-April tax year. Background GPS captures every drive, you classify each trip with a tap (or set Auto-Classify Rules so you never need to), and the Self Assessment PDF is ready when you are. <a href="/free-mileage-tracker-uk">Free forever</a> for the tracking - Pro (£4.99/mo) only covers the tax-export PDF, business insights, and a few power-user extras.</p>
+
+<p>It works for <a href="/self-employed-mileage-tracker">self-employed sole traders</a>, <a href="/delivery-driver-mileage-tracker">gig delivery drivers</a>, and <a href="/employee-mileage-tracker">PAYE employees</a> claiming Mileage Allowance Relief.</p>
+
+<h2>Bottom line</h2>
+
+<p>If you drive any miles for work in the UK, tracking them properly is one of the highest-value pieces of admin you can do. AMAP is a real, claimable deduction. The records you keep this tax year are the difference between £0 and £4,000+ in your pocket - depending on your mileage and tax band.</p>
+
+<p>Don't do it in a spreadsheet. Let a purpose-built tracker do it for you - automatically, contemporaneously, and free. <a href="https://apps.apple.com/app/mileclear/id6759671005">Install MileClear on the App Store</a>.</p>
+`,
+  },
+  {
+    slug: "how-to-track-business-miles-hmrc",
+    title: "How to Track Business Miles for HMRC Self Assessment",
+    excerpt:
+      "A practical guide to recording business miles in a way HMRC will actually accept. What goes into a contemporaneous mileage log, what the AMAP rates are, how to fill in your SA103, and the real-world tools that make it painless.",
+    date: "19 May 2026",
+    author: "Gair",
+    category: "guide",
+    content: `
+<p>If you're self-employed in the UK and you drive for work, your business miles are one of the largest deductions available to you. HMRC's Approved Mileage Allowance Payment (AMAP) lets you claim 45p per mile for the first 10,000 business miles, then 25p per mile after. For a mid-mileage sole trader doing 15,000 business miles a year, that's £5,750 off your taxable profit - worth £1,150 to £2,300 in real tax back depending on your tax band.</p>
+
+<p>But - and this is the part most people miss - the deduction is only worth what you can prove. HMRC requires a <strong>contemporaneous mileage log</strong>, and getting it wrong can mean the deduction is disallowed retrospectively, with interest and penalties. This guide explains exactly what to record, how to record it, and where it goes on your Self Assessment.</p>
+
+<h2>What is a "business mile" for tax purposes?</h2>
+
+<p>A business mile is one driven wholly and exclusively for business. The clear-cut cases are easy:</p>
+
+<ul>
+<li>Driving between two client sites in the same day</li>
+<li>Going from your business base (which is not your home) to a customer</li>
+<li>For gig drivers: from accepting a job to completing the drop-off</li>
+<li>Driving to a supplier, training course, or business meeting</li>
+</ul>
+
+<p>The harder cases:</p>
+
+<ul>
+<li><strong>Home-to-work commute:</strong> not claimable. HMRC treats this as ordinary commuting whether you're employed or self-employed.</li>
+<li><strong>First job of the day from home:</strong> generally not claimable if you have a fixed workplace. <em>Is</em> claimable if you have no fixed base (e.g. a roofer who starts at a different site every day).</li>
+<li><strong>Travel within a job:</strong> claimable - moving between rooms of a development site doesn't count, but driving from one site to another in the same day does.</li>
+<li><strong>Personal detour on a business trip:</strong> the personal portion is not claimable. Stopping at Tesco between two client visits means the Tesco-to-second-client miles need to be split.</li>
+</ul>
+
+<p>See our <a href="/what-counts-as-business-mileage">full breakdown of what counts as business mileage</a> for the edge cases.</p>
+
+<h2>The contemporaneous record rule</h2>
+
+<p>HMRC requires a record of each business journey made at or near the time of the trip. The key word is contemporaneous - written then, not later. The record must show:</p>
+
+<ul>
+<li>The <strong>date</strong></li>
+<li>The <strong>start and end locations</strong> (postcodes or addresses)</li>
+<li>The <strong>business purpose</strong> (which client, which delivery, which meeting)</li>
+<li>The <strong>distance</strong> driven (in miles)</li>
+</ul>
+
+<p>What HMRC explicitly does not accept:</p>
+
+<ul>
+<li><strong>Estimates.</strong> "About 200 miles a week" is not a record - it's a guess.</li>
+<li><strong>Reconstructions from memory.</strong> Writing it all down in January for the year just gone fails the contemporaneous test.</li>
+<li><strong>Maps Timeline data alone.</strong> Google Maps Timeline and Apple Maps history do record where you went, but neither distinguishes business from personal, neither shows business purpose, and neither is in a tax-acceptable format.</li>
+</ul>
+
+<h2>The AMAP rates for 2025/26 and 2026/27</h2>
+
+<ul>
+<li><strong>Cars and vans:</strong> 45p per mile for the first 10,000 business miles per tax year, then 25p per mile</li>
+<li><strong>Motorbikes:</strong> 24p per mile (flat, no threshold)</li>
+<li><strong>Bicycles:</strong> 20p per mile (flat)</li>
+<li><strong>Passenger payment:</strong> additional 5p per mile per business passenger</li>
+</ul>
+
+<p>The 10,000-mile threshold resets at the start of each UK tax year (6 April). It does not carry over.</p>
+
+<h2>Where mileage goes on your SA103</h2>
+
+<p>The mileage deduction is claimed on the <strong>SA103S (short)</strong> or <strong>SA103F (full)</strong> Self Assessment page for self-employed income. Specifically:</p>
+
+<ul>
+<li><strong>SA103S (turnover under £85k):</strong> Box 20 "Car, van and travel expenses" - put your total AMAP claim here. Tick the "I have used cash basis or simplified expenses" box.</li>
+<li><strong>SA103F (turnover over £85k):</strong> Box 21 of the equivalent section. Same logic - simplified expenses (AMAP) goes in the travel box.</li>
+</ul>
+
+<p>You enter the total deduction, not the miles. So 15,000 business miles becomes £5,750 (10,000 × 45p + 5,000 × 25p) - that £5,750 is what you write on the form.</p>
+
+<h2>Practical record-keeping</h2>
+
+<p>You have three real options:</p>
+
+<h3>Option 1: Pen and paper</h3>
+<p>A small notebook in your glove compartment, filled in at the start and end of each business journey. Works if you're disciplined. Fails after about three weeks for most people.</p>
+
+<h3>Option 2: Spreadsheet</h3>
+<p>The most common approach and the worst one. Unless you fill it in <em>in the car</em> after every trip, it's not contemporaneous. Reconstructing a week's miles on Sunday from memory is exactly what HMRC's rule was written to exclude.</p>
+
+<h3>Option 3: A purpose-built mileage tracker app</h3>
+<p>The right answer for almost everyone. Background GPS captures the trip automatically as you drive, you tap once to classify it as business or personal, and the per-trip log + tax-year totals are ready when you need them. No discipline required - the app does the discipline for you.</p>
+
+<p>For self-employed UK drivers, what to look for:</p>
+
+<ul>
+<li>HMRC AMAP rates with the 10,000-mile threshold applied automatically</li>
+<li>UK tax year (6 April to 5 April) baked in</li>
+<li>Self Assessment-ready PDF with the per-trip detail HMRC requires</li>
+<li>HMRC attestation cover sheet on the export</li>
+<li>Offline-first GPS so you don't lose data in tunnels or rural areas</li>
+<li>Free for the tracking - paying to record your own miles makes no sense</li>
+</ul>
+
+<h2>What to do when HMRC asks</h2>
+
+<p>If HMRC opens an enquiry on your return, they'll ask to see your mileage log. Three things matter:</p>
+
+<ul>
+<li>Each business journey must be recorded individually</li>
+<li>Each record must include the four fields (date, start, end, purpose, distance)</li>
+<li>The record must have been made at or near the time of the journey</li>
+</ul>
+
+<p>A purpose-built tracker handles all three structurally. A spreadsheet filled in weekly does not.</p>
+
+<h2>MileClear's approach</h2>
+
+<p>MileClear is a free <a href="/mileage-tracker-uk">UK mileage tracker</a> built specifically for HMRC compliance. Every trip is GPS-recorded contemporaneously, classified business or personal with a tap (or auto-classified via saved locations or work schedule), and the AMAP calculation runs in real time as you drive. The Self Assessment PDF export (Pro, £4.99/mo) gives you per-trip detail + summary + attestation cover sheet - drop it onto your SA103 or hand it to your accountant. The tracking itself is <a href="/free-mileage-tracker-uk">free forever</a>.</p>
+
+<p><a href="https://apps.apple.com/app/mileclear/id6759671005">Install MileClear on the App Store</a>.</p>
+
+<h2>The bottom line</h2>
+
+<p>Tracking business miles for HMRC is straightforward in concept and miserable in practice if you do it manually. The deduction is real and worth claiming - usually four-figure savings every year - but only if your records survive HMRC's contemporaneous-record test. Use a purpose-built tracker, classify trips in real time, and the SA103 line writes itself.</p>
+`,
+  },
+  {
+    slug: "tracking-mileage-for-work-employee-vs-self-employed",
+    title: "Tracking Mileage for Work: Employee vs Self-Employed Guide",
+    excerpt:
+      "The rules for tracking mileage are different if you're a PAYE employee than if you're self-employed - but both groups can claim from HMRC. Here's how each works, what you can claim, and how to keep the right kind of record for your situation.",
+    date: "19 May 2026",
+    author: "Gair",
+    category: "guide",
+    content: `
+<p>If you drive for work in the UK, you can almost certainly claim tax relief on your mileage. But the rules differ depending on whether you're self-employed or PAYE-employed, and the right approach to tracking is different for each. This guide covers both.</p>
+
+<h2>If you're self-employed</h2>
+
+<p>Self-employed drivers - sole traders, gig delivery riders, private hire drivers, tradespeople, contractors - claim mileage as a business expense on Self Assessment. HMRC's Approved Mileage Allowance Payment (AMAP) lets you deduct:</p>
+
+<ul>
+<li>45p per mile for the first 10,000 business miles in a tax year (cars and vans)</li>
+<li>25p per mile thereafter</li>
+<li>24p per mile flat for motorbikes</li>
+<li>20p per mile flat for bicycles</li>
+</ul>
+
+<p>The deduction comes off your taxable profit. For a 15,000-mile-a-year self-employed driver, that's £5,750 off the top - worth £1,150 to £2,300 in tax back depending on your band.</p>
+
+<p>It goes on the <strong>SA103S box 20</strong> or <strong>SA103F box 21</strong> (the travel expenses line) of your Self Assessment, marked under simplified expenses. See our <a href="/updates/how-to-track-business-miles-hmrc">full SA103 guide</a> for the boxes.</p>
+
+<p>The <a href="/self-employed-mileage-tracker">self-employed mileage tracker page</a> has a full walkthrough.</p>
+
+<h2>If you're a PAYE employee</h2>
+
+<p>PAYE employees - people who get a payslip with tax taken at source - have a different but related route: <strong>Mileage Allowance Relief (MAR)</strong>.</p>
+
+<p>If your employer pays you a mileage rate for business journeys, but pays you <em>less</em> than HMRC's AMAP rate, you can claim the difference back from HMRC. Example:</p>
+
+<ul>
+<li>Your employer pays 25p per mile for business driving</li>
+<li>HMRC's AMAP rate is 45p per mile (for the first 10,000 miles)</li>
+<li>The 20p per mile gap is what you can claim back as Mileage Allowance Relief</li>
+</ul>
+
+<p>For 5,000 business miles a year, that's £1,000 in relief - worth £200 at basic rate, £400 at higher rate.</p>
+
+<p>If your employer pays you <strong>nothing</strong> for business mileage (rare but it happens), you can claim the full AMAP rate as MAR.</p>
+
+<p>If your employer pays <em>more</em> than the AMAP rate, the excess is taxable as a benefit in kind - the opposite direction. You don't claim MAR but you may need to declare the excess.</p>
+
+<p>PAYE employees claim MAR on the <strong>P87 form</strong> (online via gov.uk) for claims under £2,500 a year, or through Self Assessment if it's over £2,500 or you already file Self Assessment for other reasons.</p>
+
+<p>The <a href="/employee-mileage-tracker">employee mileage tracker page</a> covers the P87 process in detail.</p>
+
+<h2>What counts as a business journey - same for both</h2>
+
+<p>The definition of "business mileage" is the same for self-employed and PAYE. A business journey is one driven wholly and exclusively for work purposes. Key rules:</p>
+
+<ul>
+<li><strong>Commute is never claimable.</strong> Home to your normal workplace = ordinary commuting. Not deductible whether you're employed or self-employed.</li>
+<li><strong>Site-to-site is claimable.</strong> Once you're at work, any further driving for work is business mileage.</li>
+<li><strong>Temporary workplaces are claimable.</strong> If you're temporarily working at a different site (less than 24 months), the travel to that site can be claimable. PAYE employees with no fixed workplace can claim all work travel.</li>
+<li><strong>Detours for personal reasons aren't claimable.</strong> A 10-mile detour to the shops mid-business-trip means those 10 miles come off your business total.</li>
+</ul>
+
+<h2>What HMRC requires - also the same for both</h2>
+
+<p>Both groups need a <strong>contemporaneous mileage log</strong>. The records must include date, start, end, business purpose, and distance for each business journey, recorded at or near the time of the trip. HMRC explicitly does not accept estimates or reconstructions from memory.</p>
+
+<p>This is where most people fail. If your records don't survive an enquiry, the relief gets disallowed retrospectively. For PAYE employees that means owing tax back; for self-employed it means a higher tax bill plus potential penalties.</p>
+
+<h2>How to track - app vs spreadsheet vs paper</h2>
+
+<p>The mechanics are the same regardless of your employment status: you need a per-trip record made in real time. The realistic options:</p>
+
+<ul>
+<li><strong>Pen and paper:</strong> works if you're disciplined enough to write it down on every trip. Most people aren't.</li>
+<li><strong>Spreadsheet filled in weekly:</strong> not contemporaneous, won't survive an HMRC enquiry. Don't.</li>
+<li><strong>Purpose-built mileage tracker app:</strong> background GPS records the trip automatically, you classify it with a tap, the per-trip log and tax-year totals are ready when you need them. The right answer for almost everyone.</li>
+</ul>
+
+<h2>What to look for in a tracker if you're UK-based</h2>
+
+<ul>
+<li>Built around HMRC's AMAP rates (45p/25p/24p) and the UK tax year (6 April)</li>
+<li>Background GPS that captures the trip without you having to remember to start it</li>
+<li>Per-trip classification (business or personal) with auto-classification options for power users</li>
+<li>Export formats that work for both Self Assessment (SA103) and P87 / Mileage Allowance Relief</li>
+<li>Offline-first - tunnels and rural blackspots don't lose data</li>
+<li>Free for the basic tracking - paying to record your own miles makes no sense</li>
+</ul>
+
+<h2>MileClear works for both</h2>
+
+<p>MileClear is built for UK drivers regardless of employment status. Self-employed users get the SA103-ready PDF export; PAYE users get a Mileage Allowance Relief summary showing the gap between what their employer paid and what HMRC's AMAP would have been - the number that goes on the P87. The tracking itself is <a href="/free-mileage-tracker-uk">free forever</a>; Pro (£4.99/mo) covers the export PDFs and a few extras.</p>
+
+<p>Whichever side of PAYE you're on: <a href="https://apps.apple.com/app/mileclear/id6759671005">install MileClear on the App Store</a>.</p>
+
+<h2>The bottom line</h2>
+
+<p>Self-employed and PAYE employees both have legitimate, claimable tax relief on business mileage - through Self Assessment (AMAP) or P87 (MAR) respectively. The bar HMRC sets is the same for both: a contemporaneous, per-trip mileage log. Use a purpose-built tracker, capture every trip in real time, and the claim writes itself at tax-year end.</p>
+`,
+  },
+  {
+    slug: "free-mileage-tracker-uk-buyers-guide",
+    title: "Free Mileage Tracker UK: A Buyer's Guide for 2026",
+    excerpt:
+      "Not all 'free' mileage tracker apps are created equal. Some are free trials. Some lock the actual claimable features behind a paywall. Here's what a genuinely free UK mileage tracker should include - and where the real costs hide.",
+    date: "19 May 2026",
+    author: "Gair",
+    category: "guide",
+    content: `
+<p>Search "free mileage tracker UK" on the App Store and you'll find a dozen apps with the word "free" in the title. Install three of them and you'll discover the catch within five minutes:</p>
+
+<ul>
+<li>App A: free for 14 days, then £9.99/month</li>
+<li>App B: free to install, but limited to 30 trips a month (you can hit that in a week)</li>
+<li>App C: free to track, but the export and the actual HMRC rate calculation are behind the paywall</li>
+</ul>
+
+<p>None of these are really free. They're trial-ware. This guide walks through what a genuinely free UK mileage tracker should include - and where the real costs in a tracking app actually live, so you can spot the bait-and-switch before you install.</p>
+
+<h2>What "free" should mean</h2>
+
+<p>A genuinely free UK mileage tracker should give you:</p>
+
+<ul>
+<li><strong>Unlimited trips.</strong> No monthly cap, no annual cap. You should be able to track 50,000 miles a year if your work demands it.</li>
+<li><strong>Background GPS tracking.</strong> The trip should record automatically without you having to remember to open the app.</li>
+<li><strong>HMRC AMAP rates calculated automatically.</strong> The 45p/25p/24p calculation with the 10,000-mile threshold applied per UK tax year - this is the core value of any UK mileage tracker. If it's behind the paywall, the rest of the app is decoration.</li>
+<li><strong>Business / personal classification.</strong> A tap to mark each trip business or personal, with the option to auto-classify by saved location or work schedule.</li>
+<li><strong>UK tax year baked in.</strong> 6 April to 5 April, not the calendar year. Apps built for the US use 1 January and will report your numbers wrong.</li>
+<li><strong>No ads.</strong> Ads in a tax app are a privacy red flag - they often mean your trip data is being sold.</li>
+</ul>
+
+<p>What's reasonable to gate behind a paywall:</p>
+
+<ul>
+<li>The Self Assessment PDF export (PDF generation has real per-document cost)</li>
+<li>CSV bulk export</li>
+<li>Open Banking integration (Plaid / TrueLayer APIs charge per user per month)</li>
+<li>Multi-month analytics dashboards (heavy database queries)</li>
+<li>Accountant sharing (extra infrastructure)</li>
+<li>Unlimited vehicles + saved locations (storage scales with usage)</li>
+</ul>
+
+<p>What is <em>not</em> reasonable to gate:</p>
+
+<ul>
+<li>Recording a trip</li>
+<li>Calculating the HMRC deduction</li>
+<li>Classifying a trip as business or personal</li>
+<li>Viewing your own tax-year total on screen</li>
+<li>Receiving the AMAP rate applied to your vehicle</li>
+</ul>
+
+<p>The first list is "the cost of the developer running the app". The second list is "what every user needs to participate in the tax system at all". Gating the second list is the bait-and-switch pattern.</p>
+
+<h2>Red flags to watch for</h2>
+
+<ul>
+<li><strong>"Free trial".</strong> If the App Store listing mentions "free trial" anywhere, the app is paid. The trial just delays the bill.</li>
+<li><strong>Trip caps.</strong> 30 trips a month sounds generous until you do a Deliveroo shift with 12 orders before lunch.</li>
+<li><strong>Paywalled exports.</strong> If you can record trips but can't see the tax-year total or the AMAP calculation, the app is useless for its stated purpose.</li>
+<li><strong>"Upgrade to see your data".</strong> If you have to pay to see what you tracked, run.</li>
+<li><strong>Ads inside a tax app.</strong> Where do you think the ad money comes from?</li>
+<li><strong>Built for the IRS.</strong> Apps using "cents per mile" and "tax year starts January" are American. They'll calculate your numbers using the wrong rate and the wrong year boundaries.</li>
+</ul>
+
+<h2>Why "free" works as a business model for some apps</h2>
+
+<p>A free tier funded by a paid tier is sustainable for one reason: the paid features have real per-user costs the free features don't. PDF generation, banking API fees, multi-month analytics queries - these all scale with use. Pro-tier users genuinely pay for those features.</p>
+
+<p>What doesn't have real per-user cost: storing a few GPS coordinates per trip, applying a rate calculation, showing you your total on screen. That's the part that should be free, and the part the bait-and-switch apps gate.</p>
+
+<h2>MileClear's free tier</h2>
+
+<p>MileClear's <a href="/free-mileage-tracker-uk">free tier</a> includes:</p>
+
+<ul>
+<li>Unlimited GPS-tracked trips (no monthly cap, no annual cap)</li>
+<li>Business / personal classification</li>
+<li>HMRC 45p/25p/24p rate calculation with the 10,000-mile threshold</li>
+<li>UK tax year baked in (6 April to 5 April)</li>
+<li>Platform tagging for gig drivers (Uber, Deliveroo, Just Eat, Amazon Flex, DPD, Evri, etc.)</li>
+<li>1 vehicle with DVLA registration lookup</li>
+<li>Fuel logging + live UK prices from 8,300+ stations</li>
+<li>All 18 achievements + streaks + personal records</li>
+<li>Daily, weekly, monthly, yearly recaps</li>
+<li>2 saved locations with geofencing</li>
+<li>Tax Readiness card (running tax-year summary)</li>
+<li>Self Assessment wizard view (shows what each SA103 box should contain)</li>
+<li>Activity heatmap + anonymous benchmarking</li>
+<li>MOT + tax expiry reminders</li>
+<li>Manual expense tracking (15 SA103-mapped categories)</li>
+<li>Push notifications, profile, feedback voting</li>
+</ul>
+
+<p>Pro (£4.99/month or £44.99/year) covers:</p>
+<ul>
+<li>Printable Self Assessment PDF export</li>
+<li>CSV export + import</li>
+<li>Open Banking earnings sync</li>
+<li>Auto-Classify Rules</li>
+<li>Business Insights (£/mile, £/hour, platform comparison)</li>
+<li>Multi-month analytics</li>
+<li>Pickup Wait community insights</li>
+<li>Accountant sharing</li>
+<li>Journey Map (full-route visualisation)</li>
+<li>Unlimited vehicles + saved locations</li>
+</ul>
+
+<p>There are no ads. There will never be ads. The free tier is paid for by the people who choose Pro.</p>
+
+<h2>The bottom line</h2>
+
+<p>A genuinely free UK mileage tracker should let you record trips, classify them, see the HMRC calculation and see your tax-year total - all without paying anything. If an app gates any of those four things, it's not free, it's a trial in disguise.</p>
+
+<p>Want to try the genuinely free version? <a href="https://apps.apple.com/app/mileclear/id6759671005">Install MileClear on the App Store</a>.</p>
+`,
+  },
+  {
     slug: "whats-new-in-version-1-2-0",
     title: "What's New in Version 1.2.0",
     excerpt:
