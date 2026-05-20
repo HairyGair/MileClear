@@ -4,6 +4,7 @@ import { runRecordingWatchdogJob } from "./recordingWatchdog.js";
 import { runIdempotencyPurgeJob } from "./idempotencyPurge.js";
 import { runReconciliationJob } from "./reconciliation.js";
 import { runGeofenceRadiusRecommendJob } from "./geofenceRadiusRecommend.js";
+import { runHmrcKeepAliveJob } from "./hmrcKeepAlive.js";
 import { getPeriodRecap } from "../services/gamification.js";
 import {
   formatMiles,
@@ -1013,6 +1014,17 @@ export function startNotificationJobs(): void {
     setInterval(
       () => void runJob("geofence_radius_recommend", runGeofenceRadiusRecommendJob),
       GEOFENCE_RECOMMEND_INTERVAL_MS
+    );
+
+    // HMRC dev-hub keep-alive: weekly. Calls /hello/application against
+    // the sandbox so the "Last API call" timestamp on the developer hub
+    // stays current while production-credentials review is in progress.
+    // No-op when HMRC creds aren't configured.
+    const HMRC_KEEP_ALIVE_INTERVAL_MS = 7 * 24 * 60 * 60 * 1000;
+    void runJob("hmrc_keep_alive", runHmrcKeepAliveJob);
+    setInterval(
+      () => void runJob("hmrc_keep_alive", runHmrcKeepAliveJob),
+      HMRC_KEEP_ALIVE_INTERVAL_MS
     );
   }, INITIAL_DELAY_MS);
 

@@ -111,6 +111,57 @@ export async function refreshAccessToken(args: {
   return (await res.json()) as OAuthTokenResponse;
 }
 
+/**
+ * Application-restricted access token via the client_credentials grant.
+ *
+ * For server-side calls that don't represent a specific user — e.g. our
+ * weekly Hello World keep-alive ping that keeps "Last API call" fresh on
+ * the developer hub while production accreditation is in review. The
+ * token is short-lived (~4 hours per HMRC) and not refreshable; just
+ * request a new one when needed.
+ *
+ * The optional `scope` parameter is sent only when supplied — Hello World
+ * `/hello/application` doesn't need any scope, but other application-
+ * restricted endpoints may.
+ */
+export interface ApplicationTokenResponse {
+  access_token: string;
+  expires_in: number;
+  scope?: string;
+  token_type: "bearer";
+}
+
+export async function getApplicationAccessToken(args: {
+  config: HmrcConfig;
+  scope?: string;
+}): Promise<ApplicationTokenResponse> {
+  const params: Record<string, string> = {
+    grant_type: "client_credentials",
+    client_id: args.config.clientId,
+    client_secret: args.config.clientSecret,
+  };
+  if (args.scope) params.scope = args.scope;
+  const body = new URLSearchParams(params);
+
+  const res = await fetch(args.config.tokenUrl, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/x-www-form-urlencoded",
+      Accept: "application/vnd.hmrc.1.0+json",
+    },
+    body: body.toString(),
+  });
+
+  if (!res.ok) {
+    const detail = await res.text().catch(() => "");
+    throw new Error(
+      `HMRC application token request failed: HTTP ${res.status} - ${detail}`
+    );
+  }
+
+  return (await res.json()) as ApplicationTokenResponse;
+}
+
 /** Compute the absolute expiry time given an expires_in (seconds) value. */
 export function expiryFromExpiresIn(expiresIn: number): Date {
   return new Date(Date.now() + expiresIn * 1000);
