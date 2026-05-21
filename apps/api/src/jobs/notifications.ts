@@ -19,6 +19,11 @@ import { runVehicleRemindersJob } from "./vehicleReminders.js";
 import { runDiscordProSyncJob } from "./discordProSync.js";
 import { runTaxTipOfTheDayJob } from "./taxTipOfTheDay.js";
 import { runWeeklyDigestJob } from "./weeklyDigest.js";
+import { runTaxDeadlineRemindersJob } from "./taxDeadlineReminders.js";
+import {
+  runFirstTripCelebrationJob,
+  runMileageMilestoneCelebrationJob,
+} from "./discordCelebrations.js";
 
 // Persistent dedup via AppEvent table — survives PM2 restarts.
 // Checks if a notification event was already logged for a user today.
@@ -1058,6 +1063,35 @@ export function startNotificationJobs(): void {
     setInterval(
       () => void runJob("weekly_digest", runWeeklyDigestJob),
       WEEKLY_DIGEST_INTERVAL_MS
+    );
+
+    // HMRC deadline reminders: hourly tick with 8am UK gate. Posts
+    // when a deadline is 30/14/7/1/0 days away. Per-deadline dedup.
+    const DEADLINE_REMINDER_INTERVAL_MS = 60 * 60 * 1000;
+    void runJob("deadline_reminders", runTaxDeadlineRemindersJob);
+    setInterval(
+      () => void runJob("deadline_reminders", runTaxDeadlineRemindersJob),
+      DEADLINE_REMINDER_INTERVAL_MS
+    );
+
+    // First-business-trip celebrations: 6-hour cron. Anonymous post
+    // to #wins when a Discord-linked driver logs their first ever
+    // classified business trip. One-shot per user.
+    const FIRST_TRIP_INTERVAL_MS = 6 * 60 * 60 * 1000;
+    void runJob("first_trip_celebration", runFirstTripCelebrationJob);
+    setInterval(
+      () => void runJob("first_trip_celebration", runFirstTripCelebrationJob),
+      FIRST_TRIP_INTERVAL_MS
+    );
+
+    // Mileage milestone celebrations: daily cron. Checks if any
+    // Discord-linked driver crossed 1k/5k/10k/25k business miles
+    // in the last 24h. Anonymous posts to #wins.
+    const MILESTONE_INTERVAL_MS = 24 * 60 * 60 * 1000;
+    void runJob("milestone_celebration", runMileageMilestoneCelebrationJob);
+    setInterval(
+      () => void runJob("milestone_celebration", runMileageMilestoneCelebrationJob),
+      MILESTONE_INTERVAL_MS
     );
   }, INITIAL_DELAY_MS);
 

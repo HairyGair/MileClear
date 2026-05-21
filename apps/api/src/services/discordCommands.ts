@@ -15,6 +15,12 @@ import { formatPence, formatMiles } from "@mileclear/shared";
 import { lookupExpense, type ExpenseStatus } from "./expenseBank.js";
 import { nextOccurrences } from "./hmrcDeadlines.js";
 import { TAX_TIPS } from "./taxTips.js";
+import {
+  getWeeklyLeaderboard,
+  getPlatformStats,
+  normalisePlatformKey,
+  platformLabel,
+} from "./communityStats.js";
 
 const COLOUR_AMBER = 0xfbbf24;
 const COLOUR_EMERALD = 0x10b981;
@@ -60,6 +66,8 @@ export async function handleSlashCommand(
   if (commandName === "expense") return expenseReply(options);
   if (commandName === "deadline") return deadlineReply();
   if (commandName === "find") return findReply(options);
+  if (commandName === "leaderboard") return leaderboardReply();
+  if (commandName === "stats") return statsReply(options);
 
   // Personal-data commands require a linked account.
   if (!discordUserId) {
@@ -121,6 +129,13 @@ function helpReply(): SlashCommandResult {
               "`/expense <thing>` — can I claim this on tax?\n" +
               "`/deadline` — the next 3 HMRC deadlines\n" +
               "`/find <keyword>` — search the tax tip bank",
+            inline: false,
+          },
+          {
+            name: "🏆 Community (anonymised)",
+            value:
+              "`/leaderboard` — this week's top drivers by business miles\n" +
+              "`/stats <platform>` — community benchmark for Uber, Deliveroo, etc.",
             inline: false,
           },
           {
@@ -465,6 +480,119 @@ function findReply(options: Record<string, string | number | boolean>): SlashCom
           .map(({ tip }) => `**${tip.title}**\n${tip.body}`)
           .join("\n\n"),
         color: COLOUR_AMBER,
+        footer: FOOTER,
+      },
+    ],
+  };
+}
+
+// ── /leaderboard ────────────────────────────────────────────────────
+
+async function leaderboardReply(): Promise<SlashCommandResult> {
+  const board = await getWeeklyLeaderboard();
+  if (board.entries.length === 0) {
+    return {
+      embeds: [
+        {
+          title: "🏆 Weekly leaderboard",
+          description:
+            "Not enough drivers tracking yet to show a leaderboard. The community needs at least 5 active drivers in the week before we surface rankings (privacy floor).",
+          color: COLOUR_DIM,
+          footer: FOOTER,
+        },
+      ],
+    };
+  }
+  const lines = board.entries.map((e) => {
+    const medal = e.position === 1 ? "🥇" : e.position === 2 ? "🥈" : "🥉";
+    return `${medal} **${formatMiles(e.miles)}**`;
+  });
+  return {
+    embeds: [
+      {
+        title: "🏆 Top drivers this week",
+        description:
+          lines.join("\n") +
+          `\n\n_${board.totalActiveDrivers} drivers tracked at least one business trip this week. All anonymised._`,
+        color: COLOUR_AMBER,
+        footer: FOOTER,
+      },
+    ],
+  };
+}
+
+// ── /stats <platform> ──────────────────────────────────────────────
+
+async function statsReply(
+  options: Record<string, string | number | boolean>
+): Promise<SlashCommandResult> {
+  const raw = typeof options.platform === "string" ? options.platform : "";
+  if (!raw.trim()) {
+    return {
+      content:
+        "Tell me which platform, e.g. `/stats uber` or `/stats deliveroo`.",
+    };
+  }
+  const key = normalisePlatformKey(raw);
+  if (!key) {
+    return {
+      embeds: [
+        {
+          title: `Don't recognise "${raw}"`,
+          description:
+            "Try one of: `uber`, `deliveroo`, `just_eat`, `amazon_flex`, `stuart`, `gophr`, `dpd`, `yodel`, `evri`, `freelance`.",
+          color: COLOUR_DIM,
+          footer: FOOTER,
+        },
+      ],
+    };
+  }
+  const stats = await getPlatformStats(key);
+  if (!stats) {
+    return {
+      embeds: [
+        {
+          title: `${platformLabel(key)} stats`,
+          description:
+            "Not enough drivers tagging trips with this platform yet (privacy floor of 5 contributors). Check back as the community grows.",
+          color: COLOUR_DIM,
+          footer: FOOTER,
+        },
+      ],
+    };
+  }
+  const fields: Array<{ name: string; value: string; inline?: boolean }> = [
+    {
+      name: "Trips logged (30d)",
+      value: stats.trips.toString(),
+      inline: true,
+    },
+    {
+      name: "Average per trip",
+      value: formatMiles(stats.avgTripMiles),
+      inline: true,
+    },
+    {
+      name: "Contributing drivers",
+      value: stats.contributors.toString(),
+      inline: true,
+    },
+  ];
+  if (stats.earningsPerMilePence != null) {
+    const ppm = stats.earningsPerMilePence;
+    fields.push({
+      name: "Community average",
+      value: `${formatPence(ppm)} per mile`,
+      inline: false,
+    });
+  }
+  return {
+    embeds: [
+      {
+        title: `📊 ${platformLabel(key)} community stats`,
+        description: `Last 30 days across MileClear drivers. Anonymised aggregates.`,
+        color: COLOUR_SKY,
+        fields,
         footer: FOOTER,
       },
     ],

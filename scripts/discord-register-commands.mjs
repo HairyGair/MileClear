@@ -115,6 +115,24 @@ const COMMANDS = [
     ],
   },
   {
+    name: "leaderboard",
+    description: "This week's top drivers by business miles (anonymised)",
+    type: 1,
+  },
+  {
+    name: "stats",
+    description: "Community benchmark for a platform (Uber, Deliveroo, etc.)",
+    type: 1,
+    options: [
+      {
+        name: "platform",
+        description: "Platform name (uber, deliveroo, just_eat, amazon_flex, etc.)",
+        type: 3, // STRING
+        required: true,
+      },
+    ],
+  },
+  {
     name: "help",
     description: "What MileClear's slash commands do",
     type: 1,
