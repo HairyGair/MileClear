@@ -24,6 +24,7 @@ export type DiscordChannel =
   | "wins" // #wins — opt-in celebration channel
   | "botLogs" // #bot-logs — server-side event log
   | "modChat" // #mod-chat — oncall/moderation alerts
+  | "taxTips" // #tax-and-hmrc — daily tip-of-the-day cron
 ;
 
 function channelWebhookUrl(channel: DiscordChannel): string | null {
@@ -38,6 +39,8 @@ function channelWebhookUrl(channel: DiscordChannel): string | null {
       return process.env.DISCORD_WEBHOOK_BOTLOGS || null;
     case "modChat":
       return process.env.DISCORD_WEBHOOK_MODCHAT || null;
+    case "taxTips":
+      return process.env.DISCORD_WEBHOOK_TAXTIPS || null;
   }
 }
 

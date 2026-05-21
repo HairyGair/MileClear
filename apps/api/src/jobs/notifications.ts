@@ -17,6 +17,7 @@ import { runJob } from "../services/jobRun.js";
 import { getNearbyStations } from "../services/fuel.js";
 import { runVehicleRemindersJob } from "./vehicleReminders.js";
 import { runDiscordProSyncJob } from "./discordProSync.js";
+import { runTaxTipOfTheDayJob } from "./taxTipOfTheDay.js";
 
 // Persistent dedup via AppEvent table — survives PM2 restarts.
 // Checks if a notification event was already logged for a user today.
@@ -1036,6 +1037,16 @@ export function startNotificationJobs(): void {
     setInterval(
       () => void runJob("discord_pro_sync", runDiscordProSyncJob),
       DISCORD_PRO_SYNC_INTERVAL_MS
+    );
+
+    // Tax tip of the day: hourly cron with an internal 8am UK gate +
+    // already-posted-today dedup. No-op when DISCORD_WEBHOOK_TAXTIPS
+    // isn't configured.
+    const TAX_TIP_INTERVAL_MS = 60 * 60 * 1000; // hourly
+    void runJob("tax_tip_of_the_day", runTaxTipOfTheDayJob);
+    setInterval(
+      () => void runJob("tax_tip_of_the_day", runTaxTipOfTheDayJob),
+      TAX_TIP_INTERVAL_MS
     );
   }, INITIAL_DELAY_MS);
 

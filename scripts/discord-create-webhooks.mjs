@@ -77,6 +77,7 @@ const CHANNEL_TO_ENV = {
   wins: "DISCORD_WEBHOOK_WINS",
   "bot-logs": "DISCORD_WEBHOOK_BOTLOGS",
   "mod-chat": "DISCORD_WEBHOOK_MODCHAT",
+  "tax-and-hmrc": "DISCORD_WEBHOOK_TAXTIPS",
 };
 
 async function main() {
