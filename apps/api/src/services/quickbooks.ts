@@ -21,7 +21,10 @@ import type { QuickBooksConnection } from "@prisma/client";
 
 // ── URLs ─────────────────────────────────────────────────────────────
 
-const OAUTH_AUTHORIZE = "https://appcenter.intuit.com/connect/oauth2";
+// Intuit migrated the authorize endpoint to /app/connect/oauth2 in
+// 2025-26; the old /connect/oauth2 returns 301 but appcenter then
+// 404s in some browser flows. Use the new path directly.
+const OAUTH_AUTHORIZE = "https://appcenter.intuit.com/app/connect/oauth2";
 const OAUTH_TOKEN = "https://oauth.platform.intuit.com/oauth2/v1/tokens/bearer";
 const OAUTH_REVOKE = "https://developer.api.intuit.com/v2/oauth2/tokens/revoke";
 
