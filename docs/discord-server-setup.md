@@ -17,6 +17,10 @@ size, structured enough to scale to thousands without churn.
 - **Default notifications:** **Only @mentions** — so users don't get
   pinged for every general-chat message.
 - **Server icon:** `apps/web/public/branding/logo-120x120.png`
+- **MileClear Bot avatar:** `apps/mobile/assets/branding/bot-avatar.png`
+  — chat-bubble variant of the M-mark (1024×1024). Upload via the
+  Discord Developer Portal → Bot tab → Icon when creating the bot
+  application.
 - **Server banner:** `Branding/Landscape Banner Ad - 1200x720.png` (or
   re-export at 960×540 for the banner format).
 - **Vanity URL:** request `discord.gg/mileclear` once at Boost level 3
