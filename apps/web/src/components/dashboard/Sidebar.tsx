@@ -317,7 +317,7 @@ export function Sidebar({ open, onClose }: SidebarProps) {
               because next/link is for internal nav. Opens in a new
               tab so the user's dashboard session isn't disrupted. */}
           <a
-            href="https://discord.gg/mileclear"
+            href="https://discord.gg/Wxnvr3rzaq"
             target="_blank"
             rel="noopener noreferrer"
             className="sidebar__link"

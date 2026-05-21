@@ -34,7 +34,7 @@ const TEXT_2 = colors.text2;
 const TEXT_3 = colors.text3;
 
 const DISCORD_BLURPLE = "#5865F2";
-const DISCORD_INVITE = "https://discord.gg/mileclear";
+const DISCORD_INVITE = "https://discord.gg/Wxnvr3rzaq";
 
 export default function CommunitySettings() {
   const [status, setStatus] = useState<DiscordLinkStatus | null>(null);

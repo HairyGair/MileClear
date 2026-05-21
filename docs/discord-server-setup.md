@@ -23,8 +23,12 @@ size, structured enough to scale to thousands without churn.
   application.
 - **Server banner:** `Branding/Landscape Banner Ad - 1200x720.png` (or
   re-export at 960×540 for the banner format).
+- **Current invite URL:** `https://discord.gg/Wxnvr3rzaq` — a permanent
+  unlimited-use invite created on the `#welcome` channel via the bot.
+  Hardcoded into mobile + web Discord touchpoints.
 - **Vanity URL:** request `discord.gg/mileclear` once at Boost level 3
-  (or 14 active members for Community Servers).
+  (or 14 active members for Community Servers). When claimed, swap the
+  invite URL everywhere (one find-replace).
 - **Community Server:** enable once at 10+ members. Unlocks
   Announcements channels, Welcome screen, Discovery, Insights.
 
@@ -362,7 +366,7 @@ Run through this once when creating the server:
 10. **Add MileClear Bot webhooks** (env vars in `.env`, wire from
     `apps/api/src/services/discord.ts`).
 11. **Enable Community Server** once you hit 10 members.
-12. **Apply for vanity URL** `discord.gg/mileclear` at Boost level 3
+12. **Apply for vanity URL** `discord.gg/Wxnvr3rzaq` at Boost level 3
     (or 14 community members, whichever lands first).
 
 ## Migration plan from the Facebook group

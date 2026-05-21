@@ -63,7 +63,7 @@ export default function Footer() {
                 <li><a href="/support" className="footer__link">Support</a></li>
                 <li>
                   <a
-                    href="https://discord.gg/mileclear"
+                    href="https://discord.gg/Wxnvr3rzaq"
                     className="footer__link"
                     target="_blank"
                     rel="noopener noreferrer"

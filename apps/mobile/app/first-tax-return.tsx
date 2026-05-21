@@ -301,7 +301,7 @@ export default function FirstTaxReturnScreen() {
           aligned moment of the whole app. */}
       <TouchableOpacity
         style={s.communityLink}
-        onPress={() => Linking.openURL("https://discord.gg/mileclear")}
+        onPress={() => Linking.openURL("https://discord.gg/Wxnvr3rzaq")}
         accessibilityRole="link"
         accessibilityLabel="Open the MileClear community on Discord"
       >
