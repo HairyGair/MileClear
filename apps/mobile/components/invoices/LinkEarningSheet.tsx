@@ -9,7 +9,7 @@
 // "Link", the earning stops being counted on the tax snapshot. If
 // they pick "Keep both", we never ask about THIS invoice again.
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   View,
   Text,
@@ -20,7 +20,11 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { AppModal } from "../AppModal";
-import { linkInvoiceToEarning, type Invoice, type PotentialEarningMatch } from "../../lib/api/invoices";
+import {
+  linkInvoiceToEarnings,
+  type Invoice,
+  type PotentialEarningMatch,
+} from "../../lib/api/invoices";
 import { colors, fonts } from "../../lib/theme";
 
 const BG = colors.bg;
@@ -79,20 +83,63 @@ export function LinkEarningSheet({
   onResolved,
   onClose,
 }: LinkEarningSheetProps) {
-  const [linkingId, setLinkingId] = useState<string | null>(null);
+  // Local copy of the candidate list — we mutate it as the user links
+  // rows so each successful link removes that row from view, letting
+  // the user roll up multiple earnings into one invoice (Laura's 7
+  // daily £57.14 → 1 invoice case). The selected set tracks rows the
+  // user has linked in this session for an undo or final summary.
+  const [pendingMatches, setPendingMatches] = useState<PotentialEarningMatch[]>(matches);
+  const [linkedSoFar, setLinkedSoFar] = useState<PotentialEarningMatch[]>([]);
+  const [busy, setBusy] = useState(false);
   const [errorText, setErrorText] = useState<string | null>(null);
 
-  const handleLink = async (earningId: string) => {
+  useEffect(() => {
+    // Reset when the sheet pops with a fresh invoice.
+    if (visible) {
+      setPendingMatches(matches);
+      setLinkedSoFar([]);
+      setErrorText(null);
+    }
+  }, [visible, matches]);
+
+  const handleLink = async (earning: PotentialEarningMatch) => {
     if (!invoice) return;
-    setLinkingId(earningId);
+    setBusy(true);
     setErrorText(null);
     try {
-      await linkInvoiceToEarning(invoice.id, earningId);
-      onResolved();
+      await linkInvoiceToEarnings(invoice.id, [earning.id]);
+      setPendingMatches((prev) => prev.filter((m) => m.id !== earning.id));
+      setLinkedSoFar((prev) => [...prev, earning]);
     } catch (err) {
       setErrorText(err instanceof Error ? err.message : "Couldn't link them. Try again.");
     } finally {
-      setLinkingId(null);
+      setBusy(false);
+    }
+  };
+
+  const handleLinkAll = async () => {
+    if (!invoice || pendingMatches.length === 0) return;
+    setBusy(true);
+    setErrorText(null);
+    try {
+      await linkInvoiceToEarnings(
+        invoice.id,
+        pendingMatches.map((m) => m.id)
+      );
+      setLinkedSoFar((prev) => [...prev, ...pendingMatches]);
+      setPendingMatches([]);
+    } catch (err) {
+      setErrorText(err instanceof Error ? err.message : "Couldn't link them. Try again.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleDone = () => {
+    if (linkedSoFar.length > 0) {
+      onResolved();
+    } else {
+      onClose();
     }
   };
 
@@ -100,10 +147,12 @@ export function LinkEarningSheet({
 
   const singular = matches.length === 1;
   const onlyMatch = singular ? matches[0] : null;
+  const linkedTotalPence = linkedSoFar.reduce((sum, m) => sum + m.amountPence, 0);
+  const allDone = pendingMatches.length === 0 && linkedSoFar.length > 0;
 
   return (
-    <AppModal visible={visible} animationType="slide" onRequestClose={onClose}>
-      <Pressable style={styles.scrim} onPress={onClose}>
+    <AppModal visible={visible} animationType="slide" onRequestClose={handleDone}>
+      <Pressable style={styles.scrim} onPress={handleDone}>
         <Pressable style={styles.sheet} onPress={(e) => e.stopPropagation()}>
           <View style={styles.handle} />
 
@@ -113,12 +162,18 @@ export function LinkEarningSheet({
               <Ionicons name="link-outline" size={20} color={AMBER} />
             </View>
             <Text style={styles.title}>
-              {singular ? "Looks like a duplicate" : "Possible duplicates"}
+              {allDone
+                ? "Linked"
+                : singular
+                  ? "Looks like a duplicate"
+                  : "Possible duplicates"}
             </Text>
             <Text style={styles.subtitle}>
-              {singular
-                ? `You already logged ${formatPence(onlyMatch!.amountPence)} as a manual earning around the same time. Link them and we'll count it once on your tax.`
-                : `Found ${matches.length} earnings that might match this invoice. Link the right one so it isn't counted twice.`}
+              {allDone
+                ? `Linked ${linkedSoFar.length} ${linkedSoFar.length === 1 ? "earning" : "earnings"} (${formatPence(linkedTotalPence)}) to this invoice. We'll count the invoice once on your tax.`
+                : singular
+                  ? `You already logged ${formatPence(onlyMatch!.amountPence)} as a manual earning around the same time. Link them and we'll count it once.`
+                  : `Found ${pendingMatches.length} earnings that might match this invoice. Link the ones that are the same money so they aren't counted twice. ${matches.length > 1 ? "Tap each, or Link all if every row matches." : ""}`}
             </Text>
           </View>
 
@@ -136,77 +191,119 @@ export function LinkEarningSheet({
             {invoice.paidAt && (
               <Text style={styles.invoiceStripDate}>Paid {formatDate(invoice.paidAt)}</Text>
             )}
+            {linkedSoFar.length > 0 && (
+              <Text style={styles.invoiceStripLinked}>
+                <Ionicons name="link" size={11} color={GREEN} /> Linked{" "}
+                {linkedSoFar.length} {linkedSoFar.length === 1 ? "earning" : "earnings"} ·{" "}
+                {formatPence(linkedTotalPence)}
+              </Text>
+            )}
           </View>
 
-          {/* Matches */}
-          <ScrollView
-            style={styles.matchList}
-            contentContainerStyle={styles.matchListContent}
-          >
-            {matches.map((match) => {
-              const isLinking = linkingId === match.id;
-              const daysCopy =
-                match.daysFromAnchor === 0
-                  ? "same day"
-                  : match.daysFromAnchor > 0
-                    ? `${match.daysFromAnchor} ${match.daysFromAnchor === 1 ? "day" : "days"} after`
-                    : `${Math.abs(match.daysFromAnchor)} ${Math.abs(match.daysFromAnchor) === 1 ? "day" : "days"} before`;
+          {/* Link-all shortcut — only useful when there's more than one
+              candidate left. Saves Laura tapping Link 7 times. */}
+          {pendingMatches.length > 1 && (
+            <Pressable
+              style={styles.linkAllButton}
+              onPress={handleLinkAll}
+              disabled={busy}
+              accessibilityRole="button"
+              accessibilityLabel={`Link all ${pendingMatches.length} candidate earnings to this invoice`}
+            >
+              {busy ? (
+                <ActivityIndicator size="small" color={AMBER} />
+              ) : (
+                <>
+                  <Ionicons name="link" size={14} color={AMBER} />
+                  <Text style={styles.linkAllText}>
+                    Link all {pendingMatches.length} (
+                    {formatPence(pendingMatches.reduce((s, m) => s + m.amountPence, 0))})
+                  </Text>
+                </>
+              )}
+            </Pressable>
+          )}
 
-              return (
-                <View key={match.id} style={styles.matchRow}>
-                  <View style={styles.matchInfo}>
-                    <View style={styles.matchTopLine}>
-                      <Text style={styles.matchPlatform}>{platformLabel(match.platform)}</Text>
-                      <Text style={styles.matchAmount}>{formatPence(match.amountPence)}</Text>
-                    </View>
-                    <Text style={styles.matchMeta}>
-                      Logged {formatDate(match.periodStart)} · {daysCopy}
-                    </Text>
-                    {match.notes && (
-                      <Text style={styles.matchNotes} numberOfLines={2}>
-                        {match.notes}
+          {/* Matches */}
+          {pendingMatches.length > 0 && (
+            <ScrollView
+              style={styles.matchList}
+              contentContainerStyle={styles.matchListContent}
+            >
+              {pendingMatches.map((match) => {
+                const daysCopy =
+                  match.daysFromAnchor === 0
+                    ? "same day"
+                    : match.daysFromAnchor > 0
+                      ? `${match.daysFromAnchor} ${match.daysFromAnchor === 1 ? "day" : "days"} after`
+                      : `${Math.abs(match.daysFromAnchor)} ${Math.abs(match.daysFromAnchor) === 1 ? "day" : "days"} before`;
+
+                return (
+                  <View key={match.id} style={styles.matchRow}>
+                    <View style={styles.matchInfo}>
+                      <View style={styles.matchTopLine}>
+                        <Text style={styles.matchPlatform}>{platformLabel(match.platform)}</Text>
+                        <Text style={styles.matchAmount}>{formatPence(match.amountPence)}</Text>
+                      </View>
+                      <Text style={styles.matchMeta}>
+                        Logged {formatDate(match.periodStart)} · {daysCopy}
                       </Text>
-                    )}
+                      {match.notes && (
+                        <Text style={styles.matchNotes} numberOfLines={2}>
+                          {match.notes}
+                        </Text>
+                      )}
+                    </View>
+                    <Pressable
+                      style={[styles.linkButton, busy && styles.linkButtonBusy]}
+                      onPress={() => handleLink(match)}
+                      disabled={busy}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Link this earning of ${formatPence(match.amountPence)} to the invoice`}
+                    >
+                      <Ionicons name="link" size={14} color="#000" />
+                      <Text style={styles.linkButtonText}>Link</Text>
+                    </Pressable>
                   </View>
-                  <Pressable
-                    style={[
-                      styles.linkButton,
-                      isLinking && styles.linkButtonBusy,
-                    ]}
-                    onPress={() => handleLink(match.id)}
-                    disabled={linkingId !== null}
-                    accessibilityRole="button"
-                    accessibilityLabel={`Link this earning of ${formatPence(match.amountPence)} to the invoice`}
-                  >
-                    {isLinking ? (
-                      <ActivityIndicator size="small" color="#000" />
-                    ) : (
-                      <>
-                        <Ionicons name="link" size={14} color="#000" />
-                        <Text style={styles.linkButtonText}>Link</Text>
-                      </>
-                    )}
-                  </Pressable>
-                </View>
-              );
-            })}
-          </ScrollView>
+                );
+              })}
+            </ScrollView>
+          )}
 
           {errorText && <Text style={styles.errorText}>{errorText}</Text>}
 
-          {/* Keep both / Done */}
+          {/* Footer */}
           <View style={styles.footer}>
             <Pressable
-              style={styles.keepBothButton}
-              onPress={onClose}
+              style={[styles.keepBothButton, allDone && styles.keepBothButtonPrimary]}
+              onPress={handleDone}
               accessibilityRole="button"
-              accessibilityLabel="Keep both as separate income — don't link"
+              accessibilityLabel={
+                allDone
+                  ? "Done — close"
+                  : linkedSoFar.length > 0
+                    ? "Done — keep the rest as separate income"
+                    : "Keep all as separate income — don't link"
+              }
             >
-              <Text style={styles.keepBothText}>Keep both</Text>
+              <Text
+                style={[
+                  styles.keepBothText,
+                  allDone && styles.keepBothTextPrimary,
+                ]}
+              >
+                {allDone
+                  ? "Done"
+                  : linkedSoFar.length > 0
+                    ? "Done"
+                    : "Keep all separate"}
+              </Text>
             </Pressable>
-            <Text style={styles.footerHint}>
-              No link? Both will be counted as separate income.
-            </Text>
+            {!allDone && (
+              <Text style={styles.footerHint}>
+                Unlinked earnings stay as their own income on your tax.
+              </Text>
+            )}
           </View>
         </Pressable>
       </Pressable>
@@ -301,6 +398,29 @@ const styles = StyleSheet.create({
     fontFamily: fonts.regular,
     marginTop: 2,
   },
+  invoiceStripLinked: {
+    color: GREEN,
+    fontSize: 11.5,
+    fontFamily: fonts.semibold,
+    marginTop: 6,
+  },
+  linkAllButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    backgroundColor: "rgba(245,166,35,0.12)",
+    borderWidth: 1,
+    borderColor: "rgba(245,166,35,0.28)",
+    paddingVertical: 10,
+    borderRadius: 10,
+    marginBottom: 12,
+  },
+  linkAllText: {
+    color: AMBER,
+    fontSize: 13,
+    fontFamily: fonts.semibold,
+  },
   matchList: {
     flexShrink: 1,
   },
@@ -385,10 +505,19 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     paddingHorizontal: 18,
   },
+  keepBothButtonPrimary: {
+    backgroundColor: AMBER,
+    borderRadius: 12,
+    paddingHorizontal: 32,
+  },
   keepBothText: {
     color: TEXT_2,
     fontSize: 14,
     fontFamily: fonts.semibold,
+  },
+  keepBothTextPrimary: {
+    color: "#000",
+    fontSize: 14.5,
   },
   footerHint: {
     color: TEXT_3,

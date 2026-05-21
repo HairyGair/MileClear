@@ -454,13 +454,19 @@ model Earning {
   createdAt   DateTime @default(now())
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-  // Reverse side of Invoice.linkedEarningId. When an invoice is linked
-  // to this earning, the Tax Readiness aggregator counts the invoice
-  // and skips the earning to prevent double-counting.
-  linkedInvoices Invoice[]
+  // When a paid invoice represents the same money as this earning, the
+  // user can link them so the Tax Readiness aggregator counts the
+  // invoice and skips the earning. Many earnings can point at one
+  // invoice — Laura's case where 7 daily £57.14 entries roll up into a
+  // single £400 invoice. Anti-double-count (21 May 2026).
+  // ON DELETE SET NULL: removing the invoice unlinks the earnings
+  // rather than cascading.
+  replacedByInvoiceId String?  @db.VarChar(36)
+  replacedByInvoice   Invoice? @relation("InvoiceReplacements", fields: [replacedByInvoiceId], references: [id], onDelete: SetNull)
 
   @@unique([userId, externalId])
   @@index([userId, periodStart])
+  @@index([replacedByInvoiceId])
   @@map("earnings")
 }
 
@@ -879,25 +885,18 @@ model Invoice {
    *  from paidAt + dueAt; cached here so list filters are cheap. */
   status      String    @default("sent") @db.VarChar(16)
   notes       String?   @db.Text
-  /** Optional link to the manual Earning row that represents the same
-   *  money. When set, the Tax Readiness aggregator counts the invoice
-   *  and skips the linked earning — prevents the double-counting trap
-   *  where a freelancer logs both a gig-style earning AND an invoice
-   *  for the same job (Laura Joyce case, 21 May 2026).
-   *  ON DELETE SET NULL: if the earning is removed, the invoice stays
-   *  intact and just unlinks. Many invoices may share one earning (a
-   *  user who logged a quarterly total as a single earning and later
-   *  added per-job invoices for the same period). */
-  linkedEarningId String?  @db.VarChar(36)
-  linkedEarning   Earning? @relation(fields: [linkedEarningId], references: [id], onDelete: SetNull)
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  // Earnings whose money this invoice represents. Many-to-one: the
+  // user can link an unlimited number of manual earnings to a single
+  // invoice (Laura's case — 7 daily entries linked to one £400
+  // invoice). Anti-double-count (21 May 2026).
+  replacedEarnings Earning[] @relation("InvoiceReplacements")
 
   @@index([userId, status])
   @@index([userId, sentAt])
-  @@index([linkedEarningId])
   @@map("invoices")
 }
 

@@ -16,11 +16,13 @@ import {
   type NumberAcrossWindows,
 } from "@mileclear/shared";
 
-// Earnings dedup window. When a paid invoice has linkedEarningId set,
-// the linked earning is excluded from the gig-earnings sum so the same
-// money isn't counted twice (Laura Joyce, 21 May 2026). The link is
-// explicit — we never guess based on amount/date alone, only honour an
-// invoice the user explicitly linked via the mobile UI.
+// Earnings dedup window. When an earning has replacedByInvoiceId set
+// to a counted invoice, the earning is excluded from the gig-earnings
+// sum so the same money isn't counted twice (Laura Joyce, 21 May
+// 2026). The link is explicit — we never guess based on amount/date
+// alone, only honour the link the user established via the mobile UI.
+// Many earnings can point at one invoice (Laura's 7 daily entries
+// rolling up into a single invoice).
 
 /**
  * Build the dashboard tax snapshot for a user. Free for all users (auth only,
@@ -107,7 +109,13 @@ export async function buildTaxSnapshot(userId: string): Promise<TaxSnapshot> {
           periodStart: { gte: start },
           periodEnd: { lte: end },
         },
-        select: { id: true, amountPence: true, periodStart: true, platform: true },
+        select: {
+          id: true,
+          amountPence: true,
+          periodStart: true,
+          platform: true,
+          replacedByInvoiceId: true,
+        },
       }),
       prisma.earning.aggregate({
         where: {
@@ -181,7 +189,6 @@ export async function buildTaxSnapshot(userId: string): Promise<TaxSnapshot> {
       amountPence: true,
       paidAt: true,
       sentAt: true,
-      linkedEarningId: true,
     },
   });
   const invoiceIncomePence = countedInvoices.reduce(
@@ -195,12 +202,14 @@ export async function buildTaxSnapshot(userId: string): Promise<TaxSnapshot> {
   // paid (Laura Joyce, 21 May 2026). The link is user-driven — see
   // POST /invoices/:id/link-earning. We never auto-link based on
   // amount/date guessing.
-  const linkedEarningIds = new Set(
-    countedInvoices
-      .map((inv) => inv.linkedEarningId)
-      .filter((id): id is string => !!id)
+  //
+  // Direction is many earnings → one invoice (Earning.replacedByInvoiceId):
+  // Laura's £400 invoice covers 7 daily £57.14 earnings, all 7 get
+  // excluded once they're linked to the same invoice.
+  const countedInvoiceIds = new Set(countedInvoices.map((inv) => inv.id));
+  const countedEarnings = earningsYtdRows.filter(
+    (e) => !e.replacedByInvoiceId || !countedInvoiceIds.has(e.replacedByInvoiceId)
   );
-  const countedEarnings = earningsYtdRows.filter((e) => !linkedEarningIds.has(e.id));
   const dedupedEarningCount = earningsYtdRows.length - countedEarnings.length;
   const earningsBasePence = countedEarnings.reduce(
     (sum, e) => sum + e.amountPence,
@@ -650,7 +659,7 @@ interface EarningsDerivationInput {
   start: Date;
   end: Date;
   countedEarnings: Array<{ id: string; amountPence: number; periodStart: Date; platform: string }>;
-  countedInvoices: Array<{ id: string; company: string; amountPence: number; paidAt: Date | null; sentAt: Date; linkedEarningId: string | null }>;
+  countedInvoices: Array<{ id: string; company: string; amountPence: number; paidAt: Date | null; sentAt: Date }>;
   /** How many earning rows were skipped because they're linked to a counted invoice. */
   dedupedEarningCount: number;
   taxBasis: "cash" | "accruals";

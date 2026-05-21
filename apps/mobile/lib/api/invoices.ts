@@ -22,10 +22,6 @@ export interface Invoice {
   paidAt: string | null;
   status: InvoiceStatus;
   notes: string | null;
-  /** Optional FK to the manual Earning this invoice represents. When set,
-   *  the Tax Readiness aggregator counts the invoice and skips the
-   *  earning. Anti-double-count link (21 May 2026). */
-  linkedEarningId: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -117,11 +113,13 @@ export function deleteInvoice(id: string) {
   });
 }
 
-/** Link a paid invoice to the manual earning it represents. After this,
- *  the Tax Readiness card counts the invoice and skips the earning,
- *  preventing the double-count. */
+/** Link one (or many) manual earnings to a paid invoice. After this,
+ *  the Tax Readiness card counts the invoice and skips the earnings,
+ *  preventing the double-count. Many-to-one: a single invoice can be
+ *  the replacement for any number of earnings (e.g. 7 daily £57.14
+ *  entries rolled up into a single £400 invoice). */
 export function linkInvoiceToEarning(invoiceId: string, earningId: string) {
-  return apiRequest<{ data: Invoice }>(
+  return apiRequest<{ data: { invoiceId: string; linkedEarningIds: string[] } }>(
     `/invoices/${invoiceId}/link-earning`,
     {
       method: "POST",
@@ -130,12 +128,24 @@ export function linkInvoiceToEarning(invoiceId: string, earningId: string) {
   );
 }
 
-/** Clear the link. Both rows remain; both will be counted again. */
-export function unlinkInvoiceFromEarning(invoiceId: string) {
-  return apiRequest<{ data: Invoice }>(
+export function linkInvoiceToEarnings(invoiceId: string, earningIds: string[]) {
+  return apiRequest<{ data: { invoiceId: string; linkedEarningIds: string[] } }>(
+    `/invoices/${invoiceId}/link-earning`,
+    {
+      method: "POST",
+      body: JSON.stringify({ earningIds }),
+    }
+  );
+}
+
+/** Clear earning links from an invoice. Without an earningId, clears
+ *  every earning that points at this invoice. With one, only that one. */
+export function unlinkInvoiceFromEarning(invoiceId: string, earningId?: string) {
+  return apiRequest<{ data: { invoiceId: string; cleared: number } }>(
     `/invoices/${invoiceId}/unlink-earning`,
     {
       method: "POST",
+      body: earningId ? JSON.stringify({ earningId }) : JSON.stringify({}),
     }
   );
 }

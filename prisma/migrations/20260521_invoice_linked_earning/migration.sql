@@ -1,12 +1,8 @@
 -- Add an optional link from an Invoice to the manual Earning row that
--- represents the same money. When set, the Tax Readiness aggregator
--- counts the invoice and skips the linked earning, so a freelancer
--- who logged income twice (once as a gig-style earning, once as an
--- invoice marked paid) no longer sees their YTD total doubled.
---
--- ON DELETE SET NULL: removing an earning unlinks the invoice rather
--- than cascading. Many invoices may link to the same earning (someone
--- who recorded a quarterly total and later added per-job invoices).
+-- represents the same money. Anti-double-count link (Laura Joyce, 21
+-- May 2026). Superseded the same day by 20260521_invoice_linked_earning_redirect
+-- when we discovered the real case is many earnings → one invoice. This
+-- migration ran on prod; the redirect migration removes its column.
 ALTER TABLE `invoices`
   ADD COLUMN `linkedEarningId` VARCHAR(36) NULL,
   ADD INDEX `invoices_linkedEarningId_idx` (`linkedEarningId`),

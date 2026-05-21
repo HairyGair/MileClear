@@ -36,18 +36,21 @@ const DUPLICATE_DAYS_WINDOW = 14;
  * money on this invoice — within ±50p and ±14 days of the invoice's
  * paid (or sent, if not yet paid) date.
  *
- * Excludes earnings that are already linked to ANY invoice — once linked
- * they're not a candidate. The user can re-link from the invoice form
- * if they made a mistake.
+ * Excludes earnings already linked to another invoice. Also excludes
+ * earnings already linked to THIS invoice (they're already counted
+ * once and we don't want to surface them as a "match" the user could
+ * re-link).
  *
- * Returns at most 5 matches, closest amount first, then closest date.
- * Empty when nothing nearby — no UI is shown in that case.
+ * Returns up to 10 matches so a sole trader who tracks daily can roll
+ * up a week of entries into one invoice (Laura's case). Sort: closest
+ * date first since multi-day rollups are date-clustered rather than
+ * amount-clustered.
  */
 async function findPotentialEarningMatches(args: {
   userId: string;
+  invoiceId: string;
   amountPence: number;
   anchorDate: Date;
-  excludeEarningId?: string | null;
 }): Promise<
   Array<{
     id: string;
@@ -58,14 +61,11 @@ async function findPotentialEarningMatches(args: {
     daysFromAnchor: number;
   }>
 > {
-  const { userId, amountPence, anchorDate, excludeEarningId } = args;
+  const { userId, invoiceId, amountPence, anchorDate } = args;
   const windowMs = DUPLICATE_DAYS_WINDOW * 24 * 60 * 60 * 1000;
   const windowStart = new Date(anchorDate.getTime() - windowMs);
   const windowEnd = new Date(anchorDate.getTime() + windowMs);
 
-  // Pull a generously-sized candidate set then narrow in JS — Prisma
-  // can't express "amount within ±X" as cleanly as a JS filter and the
-  // user's earnings count in a 28-day window is bounded.
   const candidates = await prisma.earning.findMany({
     where: {
       userId,
@@ -74,9 +74,9 @@ async function findPotentialEarningMatches(args: {
         gte: amountPence - DUPLICATE_AMOUNT_TOLERANCE_PENCE,
         lte: amountPence + DUPLICATE_AMOUNT_TOLERANCE_PENCE,
       },
-      // Exclude earnings already linked to any invoice.
-      linkedInvoices: { none: {} },
-      ...(excludeEarningId ? { id: { not: excludeEarningId } } : {}),
+      // Exclude anything already linked to any invoice — once linked
+      // we don't re-surface it.
+      replacedByInvoiceId: null,
     },
     select: {
       id: true,
@@ -86,6 +86,10 @@ async function findPotentialEarningMatches(args: {
       notes: true,
     },
   });
+  // invoiceId arg is reserved for symmetry with the link/unlink flow;
+  // candidates are already filtered to unlinked rows so we never need
+  // to exclude rows pointing at the current invoice.
+  void invoiceId;
 
   return candidates
     .map((c) => ({
@@ -98,15 +102,19 @@ async function findPotentialEarningMatches(args: {
         (c.periodStart.getTime() - anchorDate.getTime()) / 86_400_000
       ),
     }))
-    .sort((a, b) => {
-      // Closest amount wins; tie-break by closest date.
-      const amtDelta =
-        Math.abs(a.amountPence - amountPence) -
-        Math.abs(b.amountPence - amountPence);
-      if (amtDelta !== 0) return amtDelta;
-      return Math.abs(a.daysFromAnchor) - Math.abs(b.daysFromAnchor);
-    })
-    .slice(0, 5);
+    .sort(
+      // Closest date first — multi-day rollups cluster on date, not
+      // amount. Tie-break by amount proximity.
+      (a, b) => {
+        const dateDelta = Math.abs(a.daysFromAnchor) - Math.abs(b.daysFromAnchor);
+        if (dateDelta !== 0) return dateDelta;
+        return (
+          Math.abs(a.amountPence - amountPence) -
+          Math.abs(b.amountPence - amountPence)
+        );
+      }
+    )
+    .slice(0, 10);
 }
 
 /**
@@ -245,6 +253,7 @@ export async function invoiceRoutes(app: FastifyInstance) {
     const potentialEarningMatches = paidAt
       ? await findPotentialEarningMatches({
           userId,
+          invoiceId: invoice.id,
           amountPence: invoice.amountPence,
           anchorDate: paidAt,
         })
@@ -395,9 +404,9 @@ export async function invoiceRoutes(app: FastifyInstance) {
     const potentialEarningMatches = justMarkedPaid
       ? await findPotentialEarningMatches({
           userId: request.userId!,
+          invoiceId: updated.id,
           amountPence: updated.amountPence,
           anchorDate: updated.paidAt!,
-          excludeEarningId: updated.linkedEarningId,
         })
       : [];
 
@@ -407,64 +416,95 @@ export async function invoiceRoutes(app: FastifyInstance) {
     });
   });
 
-  // POST /invoices/:id/link-earning — link a paid invoice to the manual
-  // earning it represents, so the Tax Readiness aggregator counts the
-  // invoice and skips the earning. This is the explicit, user-driven
-  // anti-duplicate flow (Laura Joyce, 21 May 2026). The link is replaced,
-  // not appended: an invoice has at most one linkedEarningId at a time.
+  // POST /invoices/:id/link-earning — link one or more manual earnings
+  // to a paid invoice. Many earnings can point at one invoice (Laura's
+  // case: 7 daily £57.14 entries → single £400 invoice). Once linked,
+  // the Tax Readiness aggregator counts the invoice and skips the
+  // earnings. Anti-duplicate flow (Laura Joyce, 21 May 2026).
+  //
+  // Accepts either `earningId` (single) or `earningIds` (array) — the
+  // client uses single for one-at-a-time taps in the link sheet and
+  // array for batch from a settings flow.
   app.post("/:id/link-earning", async (request, reply) => {
     const { id } = z.object({ id: z.string().uuid() }).parse(request.params);
     const body = z
-      .object({ earningId: z.string().uuid() })
+      .object({
+        earningId: z.string().uuid().optional(),
+        earningIds: z.array(z.string().uuid()).optional(),
+      })
+      .refine((v) => v.earningId || (v.earningIds && v.earningIds.length > 0), {
+        message: "earningId or earningIds is required",
+      })
       .safeParse(request.body);
     if (!body.success) {
-      return reply.status(400).send({ error: "earningId is required" });
+      return reply.status(400).send({ error: "earningId or earningIds is required" });
     }
+    const earningIds = body.data.earningId
+      ? [body.data.earningId]
+      : body.data.earningIds!;
 
-    // Both rows must belong to the caller. We check inside a single
-    // transaction so we can't race against a deletion.
-    const [invoice, earning] = await Promise.all([
+    // Both sides must belong to the caller.
+    const [invoice, earnings] = await Promise.all([
       prisma.invoice.findFirst({
         where: { id, userId: request.userId! },
       }),
-      prisma.earning.findFirst({
-        where: { id: body.data.earningId, userId: request.userId! },
+      prisma.earning.findMany({
+        where: { id: { in: earningIds }, userId: request.userId! },
       }),
     ]);
     if (!invoice) return reply.status(404).send({ error: "Invoice not found" });
-    if (!earning) return reply.status(404).send({ error: "Earning not found" });
+    if (earnings.length !== earningIds.length) {
+      return reply.status(404).send({ error: "One or more earnings not found" });
+    }
 
-    const updated = await prisma.invoice.update({
-      where: { id },
-      data: { linkedEarningId: earning.id },
+    await prisma.earning.updateMany({
+      where: { id: { in: earningIds }, userId: request.userId! },
+      data: { replacedByInvoiceId: id },
     });
 
     logEvent("invoice.linked_earning", request.userId!, {
       invoiceId: id,
-      earningId: earning.id,
+      earningIds,
+      count: earningIds.length,
       amountPence: invoice.amountPence,
     });
 
-    return reply.send({ data: updated });
+    return reply.send({
+      data: { invoiceId: id, linkedEarningIds: earningIds },
+    });
   });
 
-  // POST /invoices/:id/unlink-earning — clear the link without deleting
-  // either side. Useful if the user linked the wrong earning or wants to
-  // count both rows separately (genuinely different income, same amount).
+  // POST /invoices/:id/unlink-earning — clear one or all earning links
+  // from an invoice. Without args, clears every earning that points at
+  // this invoice. With an `earningId`, clears only that one.
   app.post("/:id/unlink-earning", async (request, reply) => {
     const { id } = z.object({ id: z.string().uuid() }).parse(request.params);
+    const body = z
+      .object({ earningId: z.string().uuid().optional() })
+      .safeParse(request.body ?? {});
+    if (!body.success) {
+      return reply.status(400).send({ error: "Invalid request body" });
+    }
+
     const existing = await prisma.invoice.findFirst({
       where: { id, userId: request.userId! },
     });
     if (!existing) return reply.status(404).send({ error: "Invoice not found" });
 
-    const updated = await prisma.invoice.update({
-      where: { id },
-      data: { linkedEarningId: null },
+    const where = body.data.earningId
+      ? { id: body.data.earningId, userId: request.userId!, replacedByInvoiceId: id }
+      : { userId: request.userId!, replacedByInvoiceId: id };
+
+    const result = await prisma.earning.updateMany({
+      where,
+      data: { replacedByInvoiceId: null },
     });
 
-    logEvent("invoice.unlinked_earning", request.userId!, { invoiceId: id });
-    return reply.send({ data: updated });
+    logEvent("invoice.unlinked_earning", request.userId!, {
+      invoiceId: id,
+      cleared: result.count,
+    });
+    return reply.send({ data: { invoiceId: id, cleared: result.count } });
   });
 
   // DELETE /invoices/:id

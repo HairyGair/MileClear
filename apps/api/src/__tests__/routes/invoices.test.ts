@@ -28,6 +28,7 @@ vi.mock("../../lib/prisma.js", () => ({
     earning: {
       findFirst: vi.fn(),
       findMany: vi.fn(),
+      updateMany: vi.fn(),
     },
     user: {
       findUnique: vi.fn(),
@@ -56,7 +57,6 @@ const PAID_INVOICE = {
   paidAt: new Date("2026-05-20"),
   status: "paid",
   notes: null,
-  linkedEarningId: null,
   createdAt: new Date(),
   updatedAt: new Date(),
 };
@@ -77,6 +77,7 @@ const MATCHING_EARNING = {
   source: "manual",
   externalId: null,
   notes: null,
+  replacedByInvoiceId: null,
   createdAt: new Date(),
 };
 
@@ -131,7 +132,7 @@ describe("POST /invoices/:id/link-earning", () => {
 
   it("404 — when invoice not owned by caller", async () => {
     vi.mocked(prisma.invoice.findFirst).mockResolvedValue(null);
-    vi.mocked(prisma.earning.findFirst).mockResolvedValue(MATCHING_EARNING as any);
+    vi.mocked(prisma.earning.findMany).mockResolvedValue([MATCHING_EARNING as any]);
 
     const res = await app.inject({
       method: "POST",
@@ -143,9 +144,9 @@ describe("POST /invoices/:id/link-earning", () => {
     expect(res.json().error).toMatch(/invoice/i);
   });
 
-  it("404 — when earning not owned by caller", async () => {
+  it("404 — when earning not found", async () => {
     vi.mocked(prisma.invoice.findFirst).mockResolvedValue(PAID_INVOICE as any);
-    vi.mocked(prisma.earning.findFirst).mockResolvedValue(null);
+    vi.mocked(prisma.earning.findMany).mockResolvedValue([]);
 
     const res = await app.inject({
       method: "POST",
@@ -157,13 +158,10 @@ describe("POST /invoices/:id/link-earning", () => {
     expect(res.json().error).toMatch(/earning/i);
   });
 
-  it("200 — links invoice to earning and persists linkedEarningId", async () => {
+  it("200 — links one earning by setting replacedByInvoiceId", async () => {
     vi.mocked(prisma.invoice.findFirst).mockResolvedValue(PAID_INVOICE as any);
-    vi.mocked(prisma.earning.findFirst).mockResolvedValue(MATCHING_EARNING as any);
-    vi.mocked(prisma.invoice.update).mockResolvedValue({
-      ...PAID_INVOICE,
-      linkedEarningId: EARNING_ID,
-    } as any);
+    vi.mocked(prisma.earning.findMany).mockResolvedValue([MATCHING_EARNING as any]);
+    vi.mocked(prisma.earning.updateMany).mockResolvedValue({ count: 1 } as any);
 
     const res = await app.inject({
       method: "POST",
@@ -172,10 +170,35 @@ describe("POST /invoices/:id/link-earning", () => {
       headers: authHeader(),
     });
     expect(res.statusCode).toBe(200);
-    expect(res.json().data.linkedEarningId).toBe(EARNING_ID);
-    expect(vi.mocked(prisma.invoice.update)).toHaveBeenCalledWith({
-      where: { id: INVOICE_ID },
-      data: { linkedEarningId: EARNING_ID },
+    expect(res.json().data.linkedEarningIds).toEqual([EARNING_ID]);
+    expect(vi.mocked(prisma.earning.updateMany)).toHaveBeenCalledWith({
+      where: { id: { in: [EARNING_ID] }, userId: USER_ID },
+      data: { replacedByInvoiceId: INVOICE_ID },
+    });
+  });
+
+  it("200 — links many earnings in one call (Laura's 7-day rollup)", async () => {
+    const sevenEarnings = Array.from({ length: 7 }, (_, i) => ({
+      ...MATCHING_EARNING,
+      id: `33333333-3333-3333-3333-3333333333${String(i).padStart(2, "0")}`,
+      amountPence: 5714,
+    }));
+    vi.mocked(prisma.invoice.findFirst).mockResolvedValue(PAID_INVOICE as any);
+    vi.mocked(prisma.earning.findMany).mockResolvedValue(sevenEarnings as any);
+    vi.mocked(prisma.earning.updateMany).mockResolvedValue({ count: 7 } as any);
+
+    const earningIds = sevenEarnings.map((e) => e.id);
+    const res = await app.inject({
+      method: "POST",
+      url: `/invoices/${INVOICE_ID}/link-earning`,
+      payload: { earningIds },
+      headers: authHeader(),
+    });
+    expect(res.statusCode).toBe(200);
+    expect(res.json().data.linkedEarningIds).toHaveLength(7);
+    expect(vi.mocked(prisma.earning.updateMany)).toHaveBeenCalledWith({
+      where: { id: { in: earningIds }, userId: USER_ID },
+      data: { replacedByInvoiceId: INVOICE_ID },
     });
   });
 });
@@ -188,15 +211,9 @@ describe("POST /invoices/:id/unlink-earning", () => {
     app = await createTestApp();
   });
 
-  it("200 — clears the link without deleting either side", async () => {
-    vi.mocked(prisma.invoice.findFirst).mockResolvedValue({
-      ...PAID_INVOICE,
-      linkedEarningId: EARNING_ID,
-    } as any);
-    vi.mocked(prisma.invoice.update).mockResolvedValue({
-      ...PAID_INVOICE,
-      linkedEarningId: null,
-    } as any);
+  it("200 — clears every earning pointing at this invoice when no earningId given", async () => {
+    vi.mocked(prisma.invoice.findFirst).mockResolvedValue(PAID_INVOICE as any);
+    vi.mocked(prisma.earning.updateMany).mockResolvedValue({ count: 3 } as any);
 
     const res = await app.inject({
       method: "POST",
@@ -204,10 +221,27 @@ describe("POST /invoices/:id/unlink-earning", () => {
       headers: authHeader(),
     });
     expect(res.statusCode).toBe(200);
-    expect(res.json().data.linkedEarningId).toBeNull();
-    expect(vi.mocked(prisma.invoice.update)).toHaveBeenCalledWith({
-      where: { id: INVOICE_ID },
-      data: { linkedEarningId: null },
+    expect(res.json().data.cleared).toBe(3);
+    expect(vi.mocked(prisma.earning.updateMany)).toHaveBeenCalledWith({
+      where: { userId: USER_ID, replacedByInvoiceId: INVOICE_ID },
+      data: { replacedByInvoiceId: null },
+    });
+  });
+
+  it("200 — clears only one earning when earningId is provided", async () => {
+    vi.mocked(prisma.invoice.findFirst).mockResolvedValue(PAID_INVOICE as any);
+    vi.mocked(prisma.earning.updateMany).mockResolvedValue({ count: 1 } as any);
+
+    const res = await app.inject({
+      method: "POST",
+      url: `/invoices/${INVOICE_ID}/unlink-earning`,
+      payload: { earningId: EARNING_ID },
+      headers: authHeader(),
+    });
+    expect(res.statusCode).toBe(200);
+    expect(vi.mocked(prisma.earning.updateMany)).toHaveBeenCalledWith({
+      where: { id: EARNING_ID, userId: USER_ID, replacedByInvoiceId: INVOICE_ID },
+      data: { replacedByInvoiceId: null },
     });
   });
 
@@ -271,7 +305,7 @@ describe("PATCH /invoices/:id — duplicate-earning surfacing", () => {
     expect(vi.mocked(prisma.earning.findMany)).not.toHaveBeenCalled();
   });
 
-  it("excludes already-linked earnings via the linkedInvoices: { none: {} } filter", async () => {
+  it("excludes earnings already linked via replacedByInvoiceId", async () => {
     vi.mocked(prisma.invoice.findFirst).mockResolvedValue(SENT_INVOICE as any);
     vi.mocked(prisma.invoice.update).mockResolvedValue({
       ...SENT_INVOICE,
@@ -290,7 +324,7 @@ describe("PATCH /invoices/:id — duplicate-earning surfacing", () => {
     const findManyCall = vi.mocked(prisma.earning.findMany).mock.calls[0][0];
     expect(findManyCall?.where).toMatchObject({
       userId: USER_ID,
-      linkedInvoices: { none: {} },
+      replacedByInvoiceId: null,
     });
   });
 });
