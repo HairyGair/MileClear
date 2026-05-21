@@ -43,15 +43,48 @@ export interface ReleaseNote {
 
 export const RELEASE_NOTES: ReleaseNote[] = [
   {
-    version: "1.2.0",
-    date: "14 May 2026",
+    version: "1.2.1",
+    date: "22 May 2026",
     label: "Latest",
     ctaUrl: "https://apps.apple.com/app/mileclear/id6742044832",
     ctaLabel: "Install on the App Store",
     banner: {
-      headline: "MileClear 1.2.0 is live",
-      subline: "Quarterly HMRC submissions, road-accurate distances, and 30+ updates",
+      headline: "MileClear 1.2.1 is live",
+      subline:
+        "Receipt scanning, a bank-feed inbox, and a categoriser that learns your spending",
     },
+    emailSubject: "MileClear 1.2.1 — your bank feed just got a brain",
+    emailHero: "Receipts, expenses, and a categoriser that learns",
+    emailTagline:
+      "Two weeks after 1.2.0, the next layer of the Money Picture stack is here. Snap a receipt and the amount, date, and vendor fill themselves in. Connect your bank and every transaction lands in a triage inbox — accept it as an earning or an expense in one tap. The more you triage, the smarter the suggestions get. Every business cost in one place, ready for HMRC.",
+    emailHighlights: [
+      "**Receipt scanning, everywhere.** Snap a photo of any receipt — fuel, parking, hotel — and Apple Vision OCR pulls the amount, date, and vendor straight off the paper. Goes into the new Expenses section without a single key tap. On-device only: nothing leaves your phone.",
+      "**Expenses, finally a first-class section.** New Avatar menu → Expenses screen. Every taxable purchase in one place, categorised by the 17 SA103S-mapped categories HMRC actually uses. Inline warnings for subsistence and accommodation so you know what's actually deductible. Tap to edit, swipe to delete.",
+      "**Bank transactions inbox.** Connect your bank (Pro), and from now on every transaction lands in a new Inbox screen — both money in and money out. Each row shows merchant, amount, date, and a category we've already suggested. One tap to accept, one tap to ignore. The transactions you used to lose track of are now triaged in 30 seconds.",
+      "**The categoriser learns from you.** First time you accept 'Costa Coffee → Subsistence', we remember. Second time the same merchant arrives in your inbox, it's already pre-selected with high confidence. Change your mind? It remembers that too. The longer you use it, the less you click.",
+      "**Project / client labels for freelancers.** Tag any expense with a freeform 'project' name — Theatre Royal tour, Acme Ltd, whatever you call it. The server-side profitability rollups are already wired so the per-project P&L view that's coming next will know exactly which costs belonged to which gig.",
+      "**Per-platform and per-shift profitability** (server-side ready). The data layer for 'Uber paid me £842 this month but cost me £156 in fuel and £52 in parking → £634 net' is now live. The visible card on the dashboard follows in 1.2.2 — early access via the API today if you fancy it.",
+      "**Cleaner Exports screen.** QuickBooks integration paused while we rework it for UK QuickBooks Online (turns out QBO's mileage entity is US/CA only — we're swapping to a universal approach). Xero and FreeAgent stay visible as Coming Soon. CSV + PDF exports unchanged.",
+    ],
+    items: [
+      "**Expenses screen on mobile.** Avatar menu → Expenses. Paginated list with category filter chips, this-month spend total, and prominent 'Scan Receipt' + 'Add manually' actions. Tap any row to edit, trash icon to delete. Backed by the existing 17 SA103S-mapped categories.",
+      "**Receipt OCR for expenses.** Same on-device Apple Vision pipeline that powered earnings receipts now powers expense receipts. Open the Expenses screen → 'Scan Receipt' → photo or library → amount, date, and vendor pulled out automatically. Goes into a pre-filled expense form for one-tap save.",
+      "**Subsistence + accommodation warnings inline.** When you pick those two categories, the form surfaces HMRC SE57240 — the rule that says daily meals on your regular route aren't deductible but irregular journeys away from your normal pattern are. No more accidentally over-claiming.",
+      "**Bank transaction inbox (Pro).** A new screen under Avatar → Inbox that holds every transaction your bank feed brings in. Pending count badge, signed amount (green/red), date, and a suggested category dot (green = high confidence, amber = medium, grey = low). Accept-or-ignore in one tap. New from your bank since the last sync gets surfaced here, not silently dropped.",
+      "**Smart categoriser with per-user learning.** Phase 1 ships with ~13 hand-curated UK merchant pattern groups covering parking, tolls, congestion/ULEZ, fuel chains, phone carriers, hotels, food, and SaaS subscriptions. Phase 2 (also in 1.2.1) layers a per-user learning table on top: every accept teaches the suggester, every override teaches it harder. After a few inbox triages, the categoriser knows your spending shape.",
+      "**Project / client labels.** Trip, Earning, and Expense records can now carry a freeform projectLabel — useful for theatre techs, freelance photographers, or anyone billing multiple clients. The Expenses form has the input; the per-project P&L rollup endpoint is live server-side. Filterable views in the app follow shortly.",
+      "**Per-platform / per-shift / per-project profitability — server side.** Three new API endpoints (/business-insights/platform-pnl, /project-pnl, /shift-pnl/:id) calculate gross earnings minus a share of allowable expenses minus a share of fuel = net, ranked by net. The visible cards on the dashboard arrive in 1.2.2; the data is queryable today.",
+      "**QuickBooks integration paused.** We had QuickBooks Online wired up on a sandbox connection, but discovered mid-rollout that the Vehicle and VehicleMileage entities don't exist in UK QBO (they're US/Canada only). Rather than ship something half-broken, the export button is hidden until we rework it to push as a Purchase entity (works in UK + US + Australia uniformly). Xero and FreeAgent remain marked Coming Soon and unchanged.",
+      "**Bank-feed inbox preserves the existing auto-import.** Connecting a bank still auto-promotes known-platform CREDITs (Uber, Deliveroo, Just Eat, Amazon Flex, etc.) straight to Earnings as it did before — no regression. The inbox is for everything else: unmatched income, all outgoing spend, anything the categoriser isn't sure about.",
+      "**Receipt-scan flow now routes by intent.** The same 'Scan Receipt' UI handles earnings receipts (existing behaviour) and the new expense receipts via a 'target' parameter. Less code, one mental model, two destinations.",
+    ],
+  },
+  {
+    version: "1.2.0",
+    date: "14 May 2026",
+    label: "App Store",
+    ctaUrl: "https://apps.apple.com/app/mileclear/id6742044832",
+    ctaLabel: "Install on the App Store",
     emailSubject: "MileClear 1.2.0 is here - and it's a big one",
     emailHero: "1.2.0 - the biggest update since launch",
     emailTagline:
