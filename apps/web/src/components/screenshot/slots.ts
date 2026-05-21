@@ -41,12 +41,14 @@ export interface ScreenshotSlot {
   // Annotations pointing at features
   callouts?: Callout[];
   // Layout variants:
-  //   "centered"   — device dead-centre with copy above (default)
-  //   "tilted"     — small rotation for editorial slots
-  //   "split"      — iPad: copy left, device right
-  //   "stack"      — hero composition: glow + tilt + secondary
-  //                  accent shapes. Reserved for slot 1 by convention.
-  layout?: "centered" | "tilted" | "split" | "stack";
+  //   "centered"      — device dead-centre with copy above (default)
+  //   "tilted"        — small left rotation (-1.5°) for editorial slots
+  //   "tilted-right"  — small right rotation (+1.5°) — alternate the
+  //                     direction across the carousel to create rhythm
+  //   "split"         — iPad: copy left, device right
+  //   "stack"         — hero composition: glow + tilt + secondary
+  //                     accent shapes. Reserved for slot 1 by convention.
+  layout?: "centered" | "tilted" | "tilted-right" | "split" | "stack";
   // Optional flag — TRUE if the captured device screen still needs a
   // refreshed grab from a current build. Render still happens, this is
   // only a hint for whoever's iterating.
@@ -77,6 +79,11 @@ export const SLOTS: ScreenshotSlot[] = [
     accent: "amber",
     badge: "1.2.0",
     layout: "stack",
+    callouts: [
+      // Anchors on the £46.92 tax-saved figure mid-screen. xPct/yPct
+      // are percentages of the captured screen (not the full canvas).
+      { xPct: 32, yPct: 45, label: "Live HMRC estimate", align: "right" },
+    ],
   },
   {
     slot: 2,
@@ -138,7 +145,7 @@ export const SLOTS: ScreenshotSlot[] = [
     iphoneSrc: "/screenshot-source/iphone/06-route.png",
     ipadSrc: "/screenshot-source/ipad/06-route.png",
     accent: "sky",
-    layout: "centered",
+    layout: "tilted-right",
   },
   {
     slot: 7,
@@ -150,7 +157,11 @@ export const SLOTS: ScreenshotSlot[] = [
     ipadSrc: "/screenshot-source/ipad/07-invoices.png",
     accent: "amber",
     badge: "PRO",
-    layout: "centered",
+    layout: "tilted-right",
+    callouts: [
+      // £915 OUTSTANDING in the top-left of the summary row.
+      { xPct: 22, yPct: 13, label: "Outstanding total", align: "below" },
+    ],
   },
   {
     slot: 8,
@@ -173,7 +184,11 @@ export const SLOTS: ScreenshotSlot[] = [
     ipadSrc: "/screenshot-source/ipad/10-pro.png",
     accent: "emerald",
     badge: "PRO",
-    layout: "centered",
+    layout: "tilted-right",
+    callouts: [
+      // £6.47 per mile in the BUSINESS INTELLIGENCE card.
+      { xPct: 25, yPct: 19, label: "Live earnings rate", align: "below" },
+    ],
   },
   {
     slot: 10,

@@ -276,7 +276,9 @@ export default function ScreenshotFrame({ slot, device }: FrameProps) {
             ? "rotate(-2.5deg)"
             : isTilted
               ? "rotate(-1.5deg)"
-              : "none",
+              : layout === "tilted-right"
+                ? "rotate(1.5deg)"
+                : "none",
           transformOrigin: "center top",
         }}
       >
@@ -286,6 +288,7 @@ export default function ScreenshotFrame({ slot, device }: FrameProps) {
           accent={theme}
           height={DEVICE_HEIGHT}
           extraGlow={isStack}
+          callouts={slot.callouts}
         />
       </div>
 
@@ -523,6 +526,7 @@ function DeviceMockup({
   accent,
   height,
   extraGlow = false,
+  callouts,
 }: {
   src?: string;
   device: "iphone" | "ipad";
@@ -531,6 +535,7 @@ function DeviceMockup({
   /** Hero stack layout — doubles the halo radius and adds an inner
    *  contour ring so the device reads as the centrepiece. */
   extraGlow?: boolean;
+  callouts?: Callout[];
 }) {
   const isIpad = device === "ipad";
   // Inner screen aspect ratio matches the real device. iPhone 6.9" is
@@ -579,11 +584,19 @@ function DeviceMockup({
         style={{
           position: "relative",
           zIndex: 1,
+          // Accent-tinted shadow gives each slot its own atmosphere even
+          // on centred layouts (21 May 2026). The first 60px-blur tint
+          // pulls a hint of the slot's accent colour through the shadow;
+          // the second neutral-black layer keeps it grounded.
           background: "linear-gradient(135deg, #1a2332 0%, #0a1120 50%, #1a2332 100%)",
           padding: bezelPad,
           borderRadius: radius + bezelPad,
-          boxShadow:
-            "0 60px 120px rgba(0,0,0,0.6), 0 0 0 1.5px rgba(255,255,255,0.08) inset, 0 0 40px rgba(255,255,255,0.03) inset",
+          boxShadow: [
+            `0 80px 120px ${accent.glow}`,
+            "0 60px 120px rgba(0,0,0,0.65)",
+            "0 0 0 1.5px rgba(255,255,255,0.08) inset",
+            "0 0 40px rgba(255,255,255,0.03) inset",
+          ].join(", "),
         }}
       >
         <div
@@ -611,9 +624,112 @@ function DeviceMockup({
           ) : (
             <PlaceholderScreen device={device} />
           )}
+
+          {/* Callouts: pin label + dot pairs to specific spots on the
+              captured screen. xPct/yPct are percentages of the inner
+              screen so the same callout pins correctly at any size. */}
+          {callouts?.map((c, i) => (
+            <CalloutOverlay key={i} callout={c} accent={accent} />
+          ))}
         </div>
       </div>
     </div>
+  );
+}
+
+function CalloutOverlay({
+  callout,
+  accent,
+}: {
+  callout: Callout;
+  accent: { primary: string; glow: string };
+}) {
+  const align = callout.align ?? "right";
+  // The callout sits as a dot at (xPct, yPct) with a label adjacent
+  // to it. The label is anchored to the dot via absolute positioning
+  // on the same parent. Inline styles only (no Tailwind) per the
+  // composer convention.
+  const dotSize = 28;
+  const labelGap = 22;
+
+  // Position the label relative to the dot's centre. We deliberately
+  // overshoot the device bezel — readable copy outweighs being inside
+  // the rectangle. The pill background carries enough contrast that it
+  // reads against any underlying capture.
+  let labelStyle: React.CSSProperties;
+  switch (align) {
+    case "left":
+      labelStyle = {
+        right: `calc(${100 - callout.xPct}% + ${labelGap}px)`,
+        top: `${callout.yPct}%`,
+        transform: "translateY(-50%)",
+      };
+      break;
+    case "above":
+      labelStyle = {
+        left: `${callout.xPct}%`,
+        bottom: `calc(${100 - callout.yPct}% + ${labelGap}px)`,
+        transform: "translateX(-50%)",
+      };
+      break;
+    case "below":
+      labelStyle = {
+        left: `${callout.xPct}%`,
+        top: `calc(${callout.yPct}% + ${labelGap}px)`,
+        transform: "translateX(-50%)",
+      };
+      break;
+    case "right":
+    default:
+      labelStyle = {
+        left: `calc(${callout.xPct}% + ${labelGap}px)`,
+        top: `${callout.yPct}%`,
+        transform: "translateY(-50%)",
+      };
+      break;
+  }
+
+  return (
+    <>
+      {/* Dot — accent-coloured with a halo so it reads on any capture */}
+      <div
+        style={{
+          position: "absolute",
+          left: `${callout.xPct}%`,
+          top: `${callout.yPct}%`,
+          width: dotSize,
+          height: dotSize,
+          marginLeft: -dotSize / 2,
+          marginTop: -dotSize / 2,
+          borderRadius: "50%",
+          background: accent.primary,
+          border: "3px solid rgba(255,255,255,0.95)",
+          boxShadow: `0 0 30px ${accent.glow}, 0 0 60px ${accent.glow}`,
+          zIndex: 5,
+        }}
+      />
+      {/* Label pill */}
+      <div
+        style={{
+          position: "absolute",
+          ...labelStyle,
+          padding: "12px 22px",
+          borderRadius: 999,
+          background: "rgba(7, 12, 24, 0.92)",
+          border: `1.5px solid ${accent.primary}`,
+          color: "#f9fafb",
+          fontFamily: "'Outfit', system-ui, sans-serif",
+          fontSize: 26,
+          fontWeight: 600,
+          letterSpacing: "0.01em",
+          whiteSpace: "nowrap",
+          boxShadow: `0 12px 36px rgba(0,0,0,0.5), 0 0 24px ${accent.glow}`,
+          zIndex: 6,
+        }}
+      >
+        {callout.label}
+      </div>
+    </>
   );
 }
 
@@ -649,79 +765,3 @@ function PlaceholderScreen({ device }: { device: "iphone" | "ipad" }) {
   );
 }
 
-function CalloutMarker({
-  callout,
-  accent,
-  isIpad,
-}: {
-  callout: Callout;
-  accent: { primary: string; glow: string };
-  isIpad: boolean;
-}) {
-  const align = callout.align ?? "right";
-  const labelSize = isIpad ? 26 : 28;
-
-  const labelStyle: React.CSSProperties = (() => {
-    switch (align) {
-      case "left":
-        return { right: "calc(100% + 24px)", top: "50%", transform: "translateY(-50%)" };
-      case "above":
-        return { bottom: "calc(100% + 16px)", left: "50%", transform: "translateX(-50%)" };
-      case "below":
-        return { top: "calc(100% + 16px)", left: "50%", transform: "translateX(-50%)" };
-      case "right":
-      default:
-        return { left: "calc(100% + 24px)", top: "50%", transform: "translateY(-50%)" };
-    }
-  })();
-
-  return (
-    <div
-      style={{
-        position: "absolute",
-        left: `${callout.xPct}%`,
-        top: `${callout.yPct}%`,
-        zIndex: 5,
-      }}
-    >
-      <div
-        style={{
-          position: "absolute",
-          inset: -20,
-          borderRadius: "50%",
-          border: `2px solid ${accent.primary}`,
-          opacity: 0.4,
-          width: 60,
-          height: 60,
-        }}
-      />
-      <div
-        style={{
-          width: 24,
-          height: 24,
-          borderRadius: "50%",
-          background: accent.primary,
-          boxShadow: `0 0 24px ${accent.glow}`,
-        }}
-      />
-      <div
-        style={{
-          position: "absolute",
-          ...labelStyle,
-          whiteSpace: "nowrap",
-          fontFamily: "'Outfit', system-ui, sans-serif",
-          fontSize: labelSize,
-          fontWeight: 600,
-          color: "#f9fafb",
-          background: "rgba(10,17,32,0.92)",
-          padding: "12px 24px",
-          borderRadius: 12,
-          border: `1.5px solid ${accent.primary}`,
-          boxShadow: `0 8px 24px rgba(0,0,0,0.4), 0 0 12px ${accent.glow}`,
-        }}
-      >
-        {callout.label}
-      </div>
-    </div>
-  );
-}
