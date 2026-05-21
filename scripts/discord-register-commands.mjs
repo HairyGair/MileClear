@@ -84,6 +84,37 @@ const COMMANDS = [
     type: 1,
   },
   {
+    name: "expense",
+    description: "Can I claim this on tax?",
+    type: 1,
+    options: [
+      {
+        name: "item",
+        description: "What you spent money on (e.g. parking, phone bill, accountant)",
+        type: 3, // STRING
+        required: true,
+      },
+    ],
+  },
+  {
+    name: "deadline",
+    description: "The next 3 HMRC deadlines with countdowns",
+    type: 1,
+  },
+  {
+    name: "find",
+    description: "Search the MileClear tax tip bank",
+    type: 1,
+    options: [
+      {
+        name: "query",
+        description: "Topic or keyword to search for (e.g. pension, mileage, deadline)",
+        type: 3, // STRING
+        required: true,
+      },
+    ],
+  },
+  {
     name: "help",
     description: "What MileClear's slash commands do",
     type: 1,

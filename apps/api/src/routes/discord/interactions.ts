@@ -101,9 +101,21 @@ export async function discordInteractionsRoutes(app: FastifyInstance) {
       const discordUserId: string | undefined =
         interaction.member?.user?.id ?? interaction.user?.id;
 
+      // Build a name→value map from the command's options array.
+      // Each option arrives as { name, type, value } in the payload.
+      const optionsArr: Array<{ name: string; value?: unknown }> =
+        interaction.data?.options ?? [];
+      const options: Record<string, string | number | boolean> = {};
+      for (const opt of optionsArr) {
+        if (opt.value !== undefined) {
+          options[opt.name] = opt.value as string | number | boolean;
+        }
+      }
+
       const result = await handleSlashCommand({
         commandName,
         discordUserId,
+        options,
       });
 
       return reply.send({

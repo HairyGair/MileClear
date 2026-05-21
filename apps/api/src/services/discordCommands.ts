@@ -12,6 +12,9 @@ import { prisma } from "../lib/prisma.js";
 import { buildTaxSnapshot } from "./taxSnapshot.js";
 import { getStats } from "./gamification.js";
 import { formatPence, formatMiles } from "@mileclear/shared";
+import { lookupExpense, type ExpenseStatus } from "./expenseBank.js";
+import { nextOccurrences } from "./hmrcDeadlines.js";
+import { TAX_TIPS } from "./taxTips.js";
 
 const COLOUR_AMBER = 0xfbbf24;
 const COLOUR_EMERALD = 0x10b981;
@@ -25,6 +28,8 @@ const FOOTER = { text: "MileClear · open the app for more" };
 export interface SlashCommandInput {
   commandName: string;
   discordUserId: string | undefined;
+  /** Option name → value map. Empty for commands that don't take args. */
+  options?: Record<string, string | number | boolean>;
 }
 
 export interface SlashCommandResult {
@@ -47,12 +52,16 @@ export interface SlashCommandResult {
 export async function handleSlashCommand(
   input: SlashCommandInput
 ): Promise<SlashCommandResult> {
-  const { commandName, discordUserId } = input;
+  const { commandName, discordUserId, options = {} } = input;
 
-  // /help is the one command that works without a linked account —
-  // useful for new joiners exploring what's possible.
+  // Commands that don't need a linked account work for anyone in the
+  // server — useful for new joiners exploring before they connect.
   if (commandName === "help") return helpReply();
+  if (commandName === "expense") return expenseReply(options);
+  if (commandName === "deadline") return deadlineReply();
+  if (commandName === "find") return findReply(options);
 
+  // Personal-data commands require a linked account.
   if (!discordUserId) {
     return unlinkedReply();
   }
@@ -94,28 +103,24 @@ function helpReply(): SlashCommandResult {
     embeds: [
       {
         title: "MileClear commands",
-        description:
-          "Quick personal stats from the app. Only you see the replies.",
+        description: "Ask the bot anything tax-related. Only you see the replies.",
         color: COLOUR_AMBER,
         fields: [
           {
-            name: "/miles",
-            value: "Business miles this tax year + AMAP deduction",
+            name: "📊 Personal stats (link your account first)",
+            value:
+              "`/miles` — business miles + AMAP deduction\n" +
+              "`/tax` — live HMRC estimate + this week's set-aside\n" +
+              "`/streak` — current + longest streak\n" +
+              "`/savings` — tax saved through MileClear this year",
             inline: false,
           },
           {
-            name: "/tax",
-            value: "Live HMRC estimate and the set-aside for this week",
-            inline: false,
-          },
-          {
-            name: "/streak",
-            value: "Current streak, longest streak, and personal records",
-            inline: false,
-          },
-          {
-            name: "/savings",
-            value: "Tax saved through MileClear so far this year",
+            name: "🧾 Tax tools (no login needed)",
+            value:
+              "`/expense <thing>` — can I claim this on tax?\n" +
+              "`/deadline` — the next 3 HMRC deadlines\n" +
+              "`/find <keyword>` — search the tax tip bank",
             inline: false,
           },
           {
@@ -324,6 +329,143 @@ async function savingsReply(userId: string): Promise<SlashCommandResult> {
           },
         ],
         footer: { text: "Estimate — see the app for the official breakdown." },
+      },
+    ],
+  };
+}
+
+// ── /expense ────────────────────────────────────────────────────────
+
+const STATUS_META: Record<
+  ExpenseStatus,
+  { emoji: string; label: string; color: number }
+> = {
+  yes: { emoji: "✅", label: "Yes — fully deductible", color: COLOUR_EMERALD },
+  partial: { emoji: "🟡", label: "Partial — business-use portion", color: COLOUR_AMBER },
+  no: { emoji: "❌", label: "No — not deductible", color: 0xef4444 },
+  depends: { emoji: "🤔", label: "Depends on your setup", color: COLOUR_SKY },
+};
+
+function expenseReply(options: Record<string, string | number | boolean>): SlashCommandResult {
+  const query = typeof options.item === "string" ? options.item : "";
+  if (!query.trim()) {
+    return {
+      content: "Tell me what you spent money on, e.g. `/expense parking` or `/expense phone bill`.",
+    };
+  }
+  const entry = lookupExpense(query);
+  if (!entry) {
+    return {
+      embeds: [
+        {
+          title: `🤔 I don't have "${query}" in the bank`,
+          description:
+            "Try a different phrasing — `parking`, `phone bill`, `accountant`, `breakdown cover`. Or open the app and ask in **#tax-and-hmrc** for community input.",
+          color: COLOUR_DIM,
+          footer: FOOTER,
+        },
+      ],
+    };
+  }
+
+  const meta = STATUS_META[entry.status];
+  const fields: Array<{ name: string; value: string; inline?: boolean }> = [];
+  if (entry.note) {
+    fields.push({ name: "Also worth knowing", value: entry.note });
+  }
+  return {
+    embeds: [
+      {
+        title: `${meta.emoji} ${entry.name}`,
+        description: `**${meta.label}**\n\n${entry.explanation}`,
+        color: meta.color,
+        fields: fields.length ? fields : undefined,
+        footer: { text: "General guidance only — your specifics may differ. Ask an accountant." },
+      },
+    ],
+  };
+}
+
+// ── /deadline ──────────────────────────────────────────────────────
+
+function deadlineReply(): SlashCommandResult {
+  const upcoming = nextOccurrences(new Date(), 3);
+  const lines = upcoming.map((d) => {
+    const dateStr = d.date.toLocaleDateString("en-GB", {
+      day: "numeric",
+      month: "long",
+      year: "numeric",
+    });
+    const countdown =
+      d.daysAway === 0
+        ? "**Today**"
+        : d.daysAway === 1
+          ? "**Tomorrow**"
+          : d.daysAway <= 30
+            ? `**${d.daysAway} days** — ${dateStr}`
+            : `${d.daysAway} days — ${dateStr}`;
+    return `${countdown}\n${d.label}\n_${d.what}_`;
+  });
+  return {
+    embeds: [
+      {
+        title: "📅 Next HMRC deadlines",
+        description: lines.join("\n\n"),
+        color: COLOUR_AMBER,
+        footer: FOOTER,
+      },
+    ],
+  };
+}
+
+// ── /find ──────────────────────────────────────────────────────────
+
+function findReply(options: Record<string, string | number | boolean>): SlashCommandResult {
+  const query = typeof options.query === "string" ? options.query.toLowerCase() : "";
+  if (!query.trim()) {
+    return {
+      content:
+        "Tell me what to search, e.g. `/find pension` or `/find self assessment`.",
+    };
+  }
+  // Score each tip on substring matches in title/body.
+  const scored = TAX_TIPS.map((tip) => {
+    const haystack = (tip.title + " " + tip.body).toLowerCase();
+    let score = 0;
+    if (haystack.includes(query)) score += 50;
+    // Bonus for each individual word match
+    for (const word of query.split(/\s+/)) {
+      if (word.length >= 3 && haystack.includes(word)) score += 10;
+    }
+    return { tip, score };
+  })
+    .filter((x) => x.score > 0)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 3);
+
+  if (scored.length === 0) {
+    return {
+      embeds: [
+        {
+          title: `No tips matching "${query}"`,
+          description:
+            "Try a broader keyword — `pension`, `mileage`, `expenses`, `deadline`. The full tip bank covers 65 topics.",
+          color: COLOUR_DIM,
+          footer: FOOTER,
+        },
+      ],
+    };
+  }
+
+  return {
+    embeds: [
+      {
+        title: `🔍 ${scored.length} matching tip${scored.length === 1 ? "" : "s"}`,
+        description: scored
+          .map(({ tip }) => `**${tip.title}**\n${tip.body}`)
+          .join("\n\n"),
+        color: COLOUR_AMBER,
+        footer: FOOTER,
       },
     ],
   };
