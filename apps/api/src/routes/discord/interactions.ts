@@ -51,15 +51,31 @@ function verifySignature(
 }
 
 export async function discordInteractionsRoutes(app: FastifyInstance) {
-  // Discord sends application/json but we need the raw body for
-  // signature verification. Same pattern as Stripe + Apple webhooks.
-  app.addContentTypeParser(
-    "application/json",
-    { parseAs: "buffer" },
-    (_req, body, done) => {
-      done(null, body);
+  // Read the raw body off Node's underlying IncomingMessage BEFORE
+  // any Fastify content-type parser runs. Discord signs the exact
+  // bytes it sent, so any JSON re-serialisation (different key order,
+  // whitespace, etc.) breaks signature verification.
+  //
+  // We don't use `app.addContentTypeParser("application/json", ...)`
+  // because Fastify silently falls back to its default JSON parser
+  // when plugin-scoped overrides collide with other plugins'
+  // application/json parsers in the same app (Stripe + Apple webhooks
+  // both register one). The preParsing hook below catches the raw
+  // bytes guaranteed-cleanly.
+  app.addHook("preParsing", async (request, _reply, payload) => {
+    if (request.routeOptions?.url !== "/interactions") return payload;
+    const chunks: Buffer[] = [];
+    for await (const chunk of payload as unknown as AsyncIterable<Buffer | string>) {
+      chunks.push(typeof chunk === "string" ? Buffer.from(chunk) : chunk);
     }
-  );
+    const raw = Buffer.concat(chunks);
+    // Stash on the request for the handler. Fastify will see our
+    // returned stream as empty so its parser is a no-op.
+    (request as unknown as { rawDiscordBody?: Buffer }).rawDiscordBody = raw;
+    const empty = new (await import("node:stream")).Readable();
+    empty.push(null);
+    return empty as unknown as typeof payload;
+  });
 
   app.post("/interactions", async (request, reply) => {
     if (!PUBLIC_KEY()) {
@@ -72,13 +88,15 @@ export async function discordInteractionsRoutes(app: FastifyInstance) {
       return reply.status(401).send({ error: "Missing signature headers" });
     }
 
-    const rawBody = Buffer.isBuffer(request.body)
-      ? request.body.toString("utf8")
-      : typeof request.body === "string"
-        ? request.body
-        : JSON.stringify(request.body);
+    const rawBuf = (request as unknown as { rawDiscordBody?: Buffer })
+      .rawDiscordBody;
+    const rawBody = rawBuf ? rawBuf.toString("utf8") : "";
 
     if (!verifySignature(signature, timestamp, rawBody)) {
+      request.log.warn(
+        { sigLen: signature.length, bodyLen: rawBody.length, timestamp },
+        "Discord signature verification failed"
+      );
       return reply.status(401).send({ error: "Bad signature" });
     }
 
