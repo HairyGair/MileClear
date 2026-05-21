@@ -24,6 +24,7 @@ const createEarningSchema = z.object({
   amountPence: z.number().int().positive("Amount must be positive"),
   periodStart: z.coerce.date({ required_error: "Period start date is required", invalid_type_error: "Invalid start date" }),
   periodEnd: z.coerce.date({ required_error: "Period end date is required", invalid_type_error: "Invalid end date" }),
+  projectLabel: z.string().max(100).optional(),
 });
 
 const updateEarningSchema = z.object({
@@ -31,6 +32,7 @@ const updateEarningSchema = z.object({
   amountPence: z.number().int().positive().optional(),
   periodStart: z.coerce.date().optional(),
   periodEnd: z.coerce.date().optional(),
+  projectLabel: z.string().max(100).nullable().optional(),
 });
 
 const listEarningsQuery = z.object({
@@ -76,7 +78,7 @@ export async function earningRoutes(app: FastifyInstance) {
       return reply.status(400).send({ error: parsed.error.issues[0].message });
     }
 
-    const { platform, amountPence, periodStart, periodEnd } = parsed.data;
+    const { platform, amountPence, periodStart, periodEnd, projectLabel } = parsed.data;
     const userId = request.userId!;
 
     if (periodEnd < periodStart) {
@@ -91,6 +93,7 @@ export async function earningRoutes(app: FastifyInstance) {
         periodStart,
         periodEnd,
         source: "manual",
+        projectLabel: projectLabel ?? null,
       },
     });
 

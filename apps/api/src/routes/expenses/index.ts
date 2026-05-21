@@ -19,6 +19,7 @@ const createExpenseSchema = z.object({
   description: z.string().max(500).optional(),
   vendor: z.string().max(200).optional(),
   notes: z.string().max(2000).optional(),
+  projectLabel: z.string().max(100).optional(),
 });
 
 const updateExpenseSchema = createExpenseSchema.partial();
@@ -102,6 +103,7 @@ export async function expenseRoutes(app: FastifyInstance) {
         description: data.description ?? null,
         vendor: data.vendor ?? null,
         notes: data.notes ?? null,
+        projectLabel: data.projectLabel ?? null,
       },
       include: {
         vehicle: { select: { id: true, make: true, model: true } },
@@ -135,6 +137,7 @@ export async function expenseRoutes(app: FastifyInstance) {
     if (parsed.data.vendor !== undefined) updateData.vendor = parsed.data.vendor;
     if (parsed.data.notes !== undefined) updateData.notes = parsed.data.notes;
     if (parsed.data.vehicleId !== undefined) updateData.vehicleId = parsed.data.vehicleId;
+    if (parsed.data.projectLabel !== undefined) updateData.projectLabel = parsed.data.projectLabel;
 
     const updated = await prisma.expense.update({
       where: { id },

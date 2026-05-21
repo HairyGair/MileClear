@@ -61,6 +61,7 @@ export default function ExpenseFormScreen() {
   const [vendor, setVendor] = useState(prefillVendor ?? "");
   const [description, setDescription] = useState("");
   const [notes, setNotes] = useState("");
+  const [projectLabel, setProjectLabel] = useState("");
   const [vehicleId, setVehicleId] = useState<string | null>(null);
   const [vehicles, setVehicles] = useState<VehicleLite[]>([]);
   const [saving, setSaving] = useState(false);
@@ -95,6 +96,7 @@ export default function ExpenseFormScreen() {
         setVendor(found.vendor ?? "");
         setDescription(found.description ?? "");
         setNotes(found.notes ?? "");
+        setProjectLabel(((found as { projectLabel?: string }).projectLabel) ?? "");
         setVehicleId(found.vehicleId ?? null);
       })
       .catch((e) => {
@@ -131,6 +133,7 @@ export default function ExpenseFormScreen() {
       description: description.trim() || undefined,
       notes: notes.trim() || undefined,
       vehicleId: vehicleId || undefined,
+      projectLabel: projectLabel.trim() || undefined,
     };
     setSaving(true);
     try {
@@ -154,6 +157,7 @@ export default function ExpenseFormScreen() {
     description,
     notes,
     vehicleId,
+    projectLabel,
     isEditing,
     id,
     router,
@@ -324,6 +328,16 @@ export default function ExpenseFormScreen() {
             </View>
           </>
         ) : null}
+
+        {/* Project / client (optional, freeform) */}
+        <Text style={styles.fieldLabel}>Project / client (optional)</Text>
+        <TextInput
+          style={styles.input}
+          value={projectLabel}
+          onChangeText={setProjectLabel}
+          placeholder="e.g. Theatre Royal tour, Acme Ltd"
+          placeholderTextColor={TEXT_3}
+        />
 
         {/* Notes */}
         <Text style={styles.fieldLabel}>Notes (optional)</Text>

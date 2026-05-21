@@ -13,6 +13,7 @@ export interface CreateEarningData {
   amountPence: number;
   periodStart: string;
   periodEnd: string;
+  projectLabel?: string;
 }
 
 export interface UpdateEarningData {
@@ -20,6 +21,7 @@ export interface UpdateEarningData {
   amountPence?: number;
   periodStart?: string;
   periodEnd?: string;
+  projectLabel?: string | null;
 }
 
 export interface ListEarningsParams {

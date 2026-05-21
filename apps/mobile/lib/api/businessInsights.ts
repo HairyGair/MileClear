@@ -41,3 +41,41 @@ export function fetchActivityHeatmap(opts?: {
 export function fetchBenchmarks() {
   return apiRequest<{ data: BenchmarkSnapshot }>("/business-insights/benchmarks");
 }
+
+// Phase 3 of the Money Picture stack (22 May 2026). Pro-only.
+export interface PnlRow {
+  grossEarningsPence: number;
+  expensesPence: number;
+  fuelPence: number;
+  netPence: number;
+  trips: number;
+  businessMiles: number;
+}
+export interface PlatformPnLRow extends PnlRow {
+  platform: string;
+}
+export interface ProjectPnLRow extends PnlRow {
+  projectLabel: string;
+}
+export interface ShiftPnLRow extends PnlRow {
+  shiftId: string;
+  startedAt: string;
+  endedAt: string | null;
+  durationSeconds: number;
+}
+
+export function fetchPlatformPnL(days: number = 30) {
+  return apiRequest<{ data: PlatformPnLRow[] }>(
+    `/business-insights/platform-pnl?days=${days}`
+  );
+}
+export function fetchProjectPnL(days: number = 90) {
+  return apiRequest<{ data: ProjectPnLRow[] }>(
+    `/business-insights/project-pnl?days=${days}`
+  );
+}
+export function fetchShiftPnL(shiftId: string) {
+  return apiRequest<{ data: ShiftPnLRow }>(
+    `/business-insights/shift-pnl/${shiftId}`
+  );
+}

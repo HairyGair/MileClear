@@ -157,6 +157,7 @@ model User {
   hmrcConnection      HmrcConnection?
   invoices            Invoice[]
   bankTransactions    BankTransaction[]
+  merchantMappings    MerchantMapping[]
 
   @@map("users")
 }
@@ -363,6 +364,13 @@ model Trip {
   notes          String?   @db.Text
   routePolyline  String?   @db.LongText
 
+  // Freeform per-trip project / client tag. Phase 3 of the Money
+  // Picture stack (22 May 2026). Drives /business-insights/project-pnl
+  // - the per-project profitability roll-up. Optional; null for trips
+  // not tied to a specific job. Useful for theatre techs, freelance
+  // photographers, multi-client gig drivers.
+  projectLabel   String?   @db.VarChar(100)
+
   // Per-trip GPS quality summary. JSON blob with raw/kept coord counts,
   // average accuracy metres, outliers filtered, which signal produced the
   // final distance. Used by the admin Trip Map and aggregate analytics.
@@ -459,6 +467,8 @@ model Earning {
   source      String
   externalId  String?  @db.VarChar(255)
   notes       String?  @db.Text
+  /** See Trip.projectLabel. Phase 3 of the Money Picture stack. */
+  projectLabel String? @db.VarChar(100)
   createdAt   DateTime @default(now())
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -598,6 +608,34 @@ model BankTransaction {
   @@unique([userId, externalId])
   @@index([userId, status, transactionDate])
   @@map("bank_transactions")
+}
+
+// Phase 2 of the "Money Picture" stack (22 May 2026). Per-user
+// learned merchant → category mappings. Trained by the inbox accept
+// flow: every accept upserts a row; every override (accept-with-
+// different-category) bumps `overrideCount` so we can later prompt
+// "you've changed this 3 times - keep the new one as your default?".
+//
+// Look-ups: `userId + merchantKey + kind` is the unique index, where
+// merchantKey is lowercase + whitespace-collapsed (see normalise
+// helper in services/merchantCategoriser.ts). Suggestion confidence
+// scales with acceptCount: 1 → 80, 3 → 90, 5+ → 95.
+model MerchantMapping {
+  id            String   @id @default(uuid())
+  userId        String
+  merchantKey   String   @db.VarChar(120)
+  kind          String   @db.VarChar(20) // earning | expense
+  category      String   @db.VarChar(50)
+  acceptCount   Int      @default(1)
+  overrideCount Int      @default(0)
+  lastUsedAt    DateTime @default(now())
+  createdAt     DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, merchantKey, kind])
+  @@index([userId, lastUsedAt])
+  @@map("merchant_mappings")
 }
 
 // QuickBooks Online OAuth + sync state. Pro-only export feature
@@ -848,6 +886,8 @@ model Expense {
   description String?   @db.VarChar(500)
   vendor      String?   @db.VarChar(200)
   notes       String?   @db.Text
+  /** See Trip.projectLabel. Phase 3 of the Money Picture stack. */
+  projectLabel String?  @db.VarChar(100)
   createdAt   DateTime  @default(now())
 
   user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)

@@ -6,6 +6,11 @@ import { getBusinessInsights, getWeeklyPnL } from "../../services/businessInsigh
 import { buildTaxSnapshot } from "../../services/taxSnapshot.js";
 import { buildActivityHeatmap } from "../../services/activityHeatmap.js";
 import { buildBenchmarkSnapshot } from "../../services/benchmarks.js";
+import {
+  getPlatformPnL,
+  getProjectPnL,
+  getShiftPnL,
+} from "../../services/profitabilityRollups.js";
 
 export async function businessInsightRoutes(app: FastifyInstance) {
   // Auth required for all routes; premium gate applied per-route below so
@@ -58,5 +63,42 @@ export async function businessInsightRoutes(app: FastifyInstance) {
   app.get("/benchmarks", async (request, reply) => {
     const snapshot = await buildBenchmarkSnapshot(request.userId!);
     return reply.send({ data: snapshot });
+  });
+
+  // ── Phase 3 of the Money Picture stack (22 May 2026) ───────────────
+  // Per-platform / per-project / per-shift P&L. All Pro-gated.
+
+  // GET /business-insights/platform-pnl?days=30
+  app.get("/platform-pnl", { preHandler: premiumMiddleware }, async (request, reply) => {
+    const { days } = z
+      .object({ days: z.coerce.number().int().min(1).max(365).default(30) })
+      .parse(request.query);
+    const to = new Date();
+    const from = new Date(to);
+    from.setDate(from.getDate() - days);
+    const rows = await getPlatformPnL({ userId: request.userId!, from, to });
+    return reply.send({ data: rows });
+  });
+
+  // GET /business-insights/project-pnl?days=90
+  app.get("/project-pnl", { preHandler: premiumMiddleware }, async (request, reply) => {
+    const { days } = z
+      .object({ days: z.coerce.number().int().min(1).max(730).default(90) })
+      .parse(request.query);
+    const to = new Date();
+    const from = new Date(to);
+    from.setDate(from.getDate() - days);
+    const rows = await getProjectPnL({ userId: request.userId!, from, to });
+    return reply.send({ data: rows });
+  });
+
+  // GET /business-insights/shift-pnl/:id
+  app.get("/shift-pnl/:id", { preHandler: premiumMiddleware }, async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const pnl = await getShiftPnL({ userId: request.userId!, shiftId: id });
+    if (!pnl) {
+      return reply.status(404).send({ error: "Shift not found" });
+    }
+    return reply.send({ data: pnl });
   });
 }

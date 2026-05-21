@@ -8,6 +8,7 @@ import {
 } from "../lib/truelayer.js";
 import { prisma } from "../lib/prisma.js";
 import { MERCHANT_PLATFORM_MAP } from "@mileclear/shared";
+import { resolveMerchantSuggestion } from "./merchantCategoriser.js";
 
 // ── Encryption (AES-256-GCM for tokens at rest) ──────────────────────
 
@@ -450,26 +451,20 @@ export async function syncTransactions(
       const externalId = String(txn.transaction_id || "");
       if (!externalId) continue;
 
-      // Resolve suggestion. Earnings keep the existing platform matcher;
-      // expenses use the new merchant categoriser (Phase 1 seed rules).
+      // Resolve suggestion via the Phase 2 categoriser:
+      //   1. User's learned MerchantMapping (highest confidence)
+      //   2. Phase 1 seed rules (platform matcher / expense categoriser)
+      //   3. Low-confidence fallback ("other") - user reviews
       const platform = isCredit ? matchMerchantToPlatform(merchantName) : null;
-      let suggestedKind: "earning" | "expense" | "unknown";
-      let suggestedCategory: string | null = null;
-      let suggestedConfidence = 0;
-      if (isCredit) {
-        suggestedKind = "earning";
-        if (platform) {
-          suggestedCategory = platform;
-          suggestedConfidence = 85;
-        } else {
-          suggestedConfidence = 30;
-        }
-      } else {
-        suggestedKind = "expense";
-        const cat = categoriseExpenseMerchant(merchantName);
-        suggestedCategory = cat.category;
-        suggestedConfidence = cat.confidence;
-      }
+      const suggestedKind: "earning" | "expense" =
+        isCredit ? "earning" : "expense";
+      const learned = await resolveMerchantSuggestion({
+        userId,
+        merchant: merchantName,
+        kind: suggestedKind,
+      });
+      const suggestedCategory = learned.category;
+      const suggestedConfidence = learned.confidence;
 
       // Auto-promote known-platform CREDITs to Earning rows. Preserves the
       // pre-inbox behaviour TrueLayer users already rely on.

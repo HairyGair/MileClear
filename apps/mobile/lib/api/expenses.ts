@@ -9,6 +9,7 @@ export interface CreateExpenseData {
   description?: string;
   vendor?: string;
   notes?: string;
+  projectLabel?: string;
 }
 
 export interface UpdateExpenseData {
@@ -19,6 +20,7 @@ export interface UpdateExpenseData {
   description?: string;
   vendor?: string;
   notes?: string;
+  projectLabel?: string | null;
 }
 
 export interface ListExpensesParams {

@@ -19,6 +19,7 @@ import { authMiddleware } from "../../middleware/auth.js";
 import { premiumMiddleware } from "../../middleware/premium.js";
 import { EXPENSE_CATEGORIES, GIG_PLATFORMS } from "@mileclear/shared";
 import { logEvent } from "../../services/appEvents.js";
+import { trainMerchantMapping } from "../../services/merchantCategoriser.js";
 
 const expenseCategoryValues = EXPENSE_CATEGORIES.map((c) => c.value) as [
   string,
@@ -136,6 +137,14 @@ export async function inboxRoutes(app: FastifyInstance) {
           reviewedAt: new Date(),
         },
       });
+      // Train the user's categoriser so the next sync auto-suggests
+      // this platform for the same merchant.
+      await trainMerchantMapping({
+        userId,
+        merchant: txn.merchant,
+        kind: "earning",
+        category: parsed.data.platform,
+      }).catch(() => undefined);
       logEvent("inbox.accepted_earning", userId, {
         bankTransactionId: txn.id,
         platform: parsed.data.platform,
@@ -174,6 +183,12 @@ export async function inboxRoutes(app: FastifyInstance) {
         reviewedAt: new Date(),
       },
     });
+    await trainMerchantMapping({
+      userId,
+      merchant: txn.merchant,
+      kind: "expense",
+      category: parsed.data.category,
+    }).catch(() => undefined);
     logEvent("inbox.accepted_expense", userId, {
       bankTransactionId: txn.id,
       category: parsed.data.category,
