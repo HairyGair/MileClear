@@ -62,19 +62,31 @@ export async function discordInteractionsRoutes(app: FastifyInstance) {
   // application/json parsers in the same app (Stripe + Apple webhooks
   // both register one). The preParsing hook below catches the raw
   // bytes guaranteed-cleanly.
+  //
+  // The hook is plugin-scoped (Fastify only fires it for routes
+  // registered inside this plugin), so we don't need a route-URL
+  // filter inside the hook. We rebuild the stream from the captured
+  // buffer and return it so Fastify's downstream JSON parser still
+  // sees the same bytes (in case anything wants request.body too).
+  const { Readable } = await import("node:stream");
   app.addHook("preParsing", async (request, _reply, payload) => {
-    if (request.routeOptions?.url !== "/interactions") return payload;
     const chunks: Buffer[] = [];
-    for await (const chunk of payload as unknown as AsyncIterable<Buffer | string>) {
-      chunks.push(typeof chunk === "string" ? Buffer.from(chunk) : chunk);
-    }
+    await new Promise<void>((resolve, reject) => {
+      payload.on("data", (chunk: Buffer | string) => {
+        chunks.push(typeof chunk === "string" ? Buffer.from(chunk) : chunk);
+      });
+      payload.on("end", () => resolve());
+      payload.on("error", (err: Error) => reject(err));
+    });
     const raw = Buffer.concat(chunks);
-    // Stash on the request for the handler. Fastify will see our
-    // returned stream as empty so its parser is a no-op.
     (request as unknown as { rawDiscordBody?: Buffer }).rawDiscordBody = raw;
-    const empty = new (await import("node:stream")).Readable();
-    empty.push(null);
-    return empty as unknown as typeof payload;
+    request.log.debug(
+      { bodyLen: raw.length, contentType: request.headers["content-type"] },
+      "Discord interaction raw body captured"
+    );
+    // Hand Fastify a fresh stream containing the same bytes so the
+    // JSON parser still works downstream.
+    return Readable.from(raw);
   });
 
   app.post("/interactions", async (request, reply) => {
