@@ -146,7 +146,7 @@ lets us @-mention you only when something's relevant to you.
 
 3️⃣ Say hi in **#introductions** so we know who you are.
 
-**New to MileClear?** Grab the app: https://apps.apple.com/gb/app/mileclear/idXXXXXXXXX
+**New to MileClear?** Grab the app: https://apps.apple.com/gb/app/mileclear/id6759671005
 
 **Need to file your first tax return?** Start in **#first-self-assessment**.
 
