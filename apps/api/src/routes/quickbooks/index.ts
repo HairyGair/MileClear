@@ -28,11 +28,14 @@ import {
   getQboConfig,
   buildAuthorizeUrl,
   exchangeCodeForTokens,
-  refreshAccessToken,
   revokeRefreshToken,
   upsertConnection,
   fetchCompanyName,
 } from "../../services/quickbooks.js";
+import {
+  pushTripsForDateRange,
+  countEligibleTripsInRange,
+} from "../../services/quickbooksMileage.js";
 
 const STATE_TTL_SECONDS = 600; // 10 minutes
 const stateSecret = () =>
@@ -225,6 +228,95 @@ export async function quickbooksRoutes(app: FastifyInstance) {
         realmId: connection.realmId,
       });
       return reply.send({ data: { disconnected: true } });
+    }
+  );
+
+  // ── POST /quickbooks/sync/mileage ──────────────────────────────
+  // Auth-required + premium-gated. Pushes every classified business
+  // trip in the given date range to QBO as a VehicleMileage entry,
+  // creating QBO Vehicle entities on demand. Idempotent: trips
+  // already synced are skipped.
+  //
+  // Body: { from: ISO date, to: ISO date }
+  // Returns: { pushed, skipped, failed, vehiclesCreated, failures[] }
+  app.post(
+    "/sync/mileage",
+    { preHandler: [authMiddleware, premiumMiddleware] },
+    async (request, reply) => {
+      const parsed = z
+        .object({
+          from: z.string().datetime().or(z.string().min(8)),
+          to: z.string().datetime().or(z.string().min(8)),
+        })
+        .safeParse(request.body);
+      if (!parsed.success) {
+        return reply
+          .status(400)
+          .send({ error: "Invalid date range", details: parsed.error.issues });
+      }
+      const from = new Date(parsed.data.from);
+      const to = new Date(parsed.data.to);
+      if (Number.isNaN(from.getTime()) || Number.isNaN(to.getTime())) {
+        return reply.status(400).send({ error: "Invalid date range" });
+      }
+      if (from > to) {
+        return reply.status(400).send({ error: "`from` must be <= `to`" });
+      }
+      // Hard cap to one tax year per request — prevents runaway batch
+      // jobs and matches the realistic user workflow.
+      const MAX_DAYS = 400;
+      const daysSpan = (to.getTime() - from.getTime()) / 86_400_000;
+      if (daysSpan > MAX_DAYS) {
+        return reply
+          .status(400)
+          .send({ error: `Date range too large (max ${MAX_DAYS} days)` });
+      }
+
+      try {
+        const result = await pushTripsForDateRange({
+          userId: request.userId!,
+          from,
+          to,
+        });
+        return reply.send({ data: result });
+      } catch (err) {
+        const reason = err instanceof Error ? err.message : String(err);
+        app.log.error({ err }, "QBO mileage sync failed");
+        return reply
+          .status(reason.includes("not connected") ? 409 : 500)
+          .send({ error: reason });
+      }
+    }
+  );
+
+  // ── GET /quickbooks/sync/mileage/preview ───────────────────────
+  // Auth-required + premium-gated. Returns the number of eligible
+  // trips in the given range without actually pushing — drives the
+  // pre-sync UI: "Push 23 trips · 5 already synced".
+  app.get(
+    "/sync/mileage/preview",
+    { preHandler: [authMiddleware, premiumMiddleware] },
+    async (request, reply) => {
+      const parsed = z
+        .object({
+          from: z.string(),
+          to: z.string(),
+        })
+        .safeParse(request.query);
+      if (!parsed.success) {
+        return reply.status(400).send({ error: "Invalid date range" });
+      }
+      const from = new Date(parsed.data.from);
+      const to = new Date(parsed.data.to);
+      if (Number.isNaN(from.getTime()) || Number.isNaN(to.getTime())) {
+        return reply.status(400).send({ error: "Invalid date range" });
+      }
+      const counts = await countEligibleTripsInRange({
+        userId: request.userId!,
+        from,
+        to,
+      });
+      return reply.send({ data: counts });
     }
   );
 }

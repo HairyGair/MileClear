@@ -586,6 +586,7 @@ model QuickBooksConnection {
   syncedTrips     QuickBooksSyncedTrip[]
   syncedEarnings  QuickBooksSyncedEarning[]
   syncedExpenses  QuickBooksSyncedExpense[]
+  syncedVehicles  QuickBooksSyncedVehicle[]
 
   @@index([userId])
   @@map("quickbooks_connections")
@@ -627,6 +628,27 @@ model QuickBooksSyncedEarning {
   @@unique([userId, earningId])
   @@index([connectionId])
   @@map("quickbooks_synced_earnings")
+}
+
+// One row per MileClear Vehicle resolved to a QBO Vehicle entity.
+// The first push of a mileage sync ensures every vehicle referenced
+// by the trip batch has a corresponding QBO Vehicle row, creating
+// one if necessary. Persisting the mapping means subsequent syncs
+// don't re-query QBO's Vehicle list — and the mapping survives
+// vehicle renames on either side.
+model QuickBooksSyncedVehicle {
+  id           String   @id @default(uuid())
+  connectionId String
+  userId       String
+  vehicleId    String
+  qboEntityId  String   @db.VarChar(64)
+  syncedAt     DateTime @default(now())
+
+  connection QuickBooksConnection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, vehicleId])
+  @@index([connectionId])
+  @@map("quickbooks_synced_vehicles")
 }
 
 // One row per MileClear expense pushed to QBO (Purchase by default).
