@@ -188,18 +188,26 @@ function RootNavigator() {
         }
         setOnboardingChecked(true);
 
-        // Quick Start tour — fires once after the user has signed in
-        // and any first-run vehicle onboarding has completed. Gated by
-        // a separate SQLite flag so the help screen can replay it on
-        // demand (the replay path clears this flag).
-        const qsRow = await db.getFirstAsync<{ value: string }>(
-          "SELECT value FROM tracking_state WHERE key = 'quick_start_shown'"
-        );
-        if (qsRow?.value !== "1") {
-          // Small delay so the dashboard mount finishes rendering
-          // before we slide the modal up over it.
-          setTimeout(() => setQuickStartVisible(true), 600);
-        }
+        // Quick Start tour AUTO-FIRE DISABLED (21 May 2026).
+        //
+        // Build 67 fresh installs froze immediately after the post-
+        // login dashboard render — the 600ms setTimeout fired the
+        // QuickStartModal and the modal-on-modal interaction (or
+        // AppModal presentationStyle on the dashboard's ScrollView)
+        // locked the UI thread. Retention-killer for every new
+        // App Store install.
+        //
+        // Mark the flag eagerly so any user who relaunches into this
+        // code path doesn't get the tour fired retroactively when we
+        // re-enable it. Users can replay the tour manually from
+        // Settings → Help & Tutorials.
+        await db
+          .runAsync(
+            "INSERT OR REPLACE INTO tracking_state (key, value) VALUES ('quick_start_shown', '1')"
+          )
+          .catch(() => {
+            // Non-fatal — worst case the tour briefly flickered.
+          });
       })
       .catch(() => {
         setOnboardingComplete(false);
@@ -502,7 +510,12 @@ function RootNavigator() {
     };
   }, [isAuthenticated, isLoading, refreshUser]);
 
-  const showLoading = isLoading || !onboardingChecked;
+  // Only block on the onboarding-check when the user IS authenticated.
+  // Unauthenticated users (fresh installs, logged-out devices) don't
+  // need a DB lookup before seeing the login screen — and gating on
+  // a never-resolving onboardingChecked would freeze them forever on
+  // the skeleton overlay. 21 May 2026 retention investigation.
+  const showLoading = isLoading || (isAuthenticated && !onboardingChecked);
 
   return (
     <>
