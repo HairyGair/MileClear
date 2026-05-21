@@ -268,7 +268,7 @@ export default function ExportsScreen() {
           Accounting Integrations
         </Text>
 
-        {["Xero", "FreeAgent", "QuickBooks"].map((name) => (
+        {["Xero", "FreeAgent"].map((name) => (
           <View key={name} style={[styles.row, { opacity: 0.5 }]}>
             <View style={{ flex: 1 }}>
               <View style={styles.comingSoonRow}>

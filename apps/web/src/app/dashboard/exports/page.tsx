@@ -32,7 +32,6 @@ export default function ExportsPage() {
 
   const [xeroPreview, setXeroPreview] = useState<string | null>(null);
   const [freeAgentPreview, setFreeAgentPreview] = useState<string | null>(null);
-  const [quickBooksPreview, setQuickBooksPreview] = useState<string | null>(null);
 
   const handleError = useCallback((err: unknown) => {
     if (err instanceof Error && err.message === "premium_required") {
@@ -263,27 +262,6 @@ export default function ExportsPage() {
           )}
         </div>
 
-        {/* QuickBooks */}
-        <div className="export-card export-card--muted">
-          <div className="export-card__title">
-            QuickBooks
-            <Badge variant="coming-soon">Coming Soon</Badge>
-          </div>
-          <p className="export-card__desc">
-            Sync mileage purchases to QuickBooks Online.
-          </p>
-          <Button
-            variant="secondary"
-            size="sm"
-            onClick={() => handlePreview("quickbooks", setQuickBooksPreview)}
-            style={{ marginTop: "auto" }}
-          >
-            Preview Export
-          </Button>
-          {quickBooksPreview && (
-            <pre className="export-card__preview">{quickBooksPreview}</pre>
-          )}
-        </div>
       </div>
     </>
   );
