@@ -28,6 +28,7 @@
 import { prisma } from "../lib/prisma.js";
 import { sendPushNotification } from "../lib/push.js";
 import { logEvent } from "../services/appEvents.js";
+import { postModAlert } from "../services/discord.js";
 
 // Recording is "stuck" if no driving speed seen for more than this.
 // Generous on purpose - a user genuinely stopped at lights, in a tunnel,
@@ -222,5 +223,25 @@ export async function runRecordingWatchdogJob(): Promise<void> {
       `[watchdog] stuck=${stuck.length} (pinged ${stuckPinged}, cooldown ${stuckCooldown}); ` +
         `pendingSync=${pendingSync.length} (pinged ${syncPinged}, cooldown ${syncCooldown})`
     );
+  }
+
+  // Discord ping when something actually needed intervention. We
+  // deliberately don't post if the run was clean — #mod-chat should
+  // stay quiet so when it lights up, it means something. Silent skip
+  // when DISCORD_WEBHOOK_MODCHAT isn't configured.
+  const actualPings = stuckPinged + syncPinged;
+  if (actualPings > 0) {
+    const detailLines: string[] = [];
+    if (stuck.length > 0) {
+      detailLines.push(`Stuck recordings: ${stuck.length} (pinged ${stuckPinged}, cooldown ${stuckCooldown})`);
+    }
+    if (pendingSync.length > 0) {
+      detailLines.push(`Pending sync queues: ${pendingSync.length} (pinged ${syncPinged}, cooldown ${syncCooldown})`);
+    }
+    await postModAlert({
+      severity: actualPings >= 3 ? "warning" : "info",
+      title: `Recording watchdog: ${actualPings} silent push${actualPings === 1 ? "" : "es"} sent`,
+      detail: detailLines.join("\n"),
+    });
   }
 }

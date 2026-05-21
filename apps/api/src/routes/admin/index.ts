@@ -18,6 +18,11 @@ import { upsertMileageSummary } from "../../services/mileage.js";
 import { advanceLastTripAt } from "../../services/userActivity.js";
 import { getAppleClient, getSignedDataVerifier, fetchTransactionWithEnvFallback, type AppleIapEnvironment } from "../../services/appleIap.js";
 import { calculateUserHealthScore } from "../../services/userHealthScore.js";
+import {
+  postToChannel,
+  postBuildAnnouncement,
+  type DiscordChannel,
+} from "../../services/discord.js";
 import { resolveRouteDistance } from "../../services/routing.js";
 import { matchTripRoute, isMatchPlausible } from "../../services/mapMatching.js";
 
@@ -43,6 +48,30 @@ const adminCreateTripSchema = z.object({
   classification: z.enum(["business", "personal", "unclassified"]).default("unclassified"),
   platformTag: z.string().max(50).optional(),
   notes: z.string().max(1000).optional(),
+});
+
+// Discord admin endpoints — manual posting to any of the known
+// webhooks. Used for ad-hoc announcements and build notes from the
+// Anthony's terminal. Free-form `postToChannel` is the escape hatch;
+// `announceBuild` is the structured helper.
+const discordPostSchema = z.object({
+  channel: z.enum(["whatsNew", "announcements", "wins", "botLogs", "modChat"]),
+  content: z.string().max(2000).optional(),
+  embedTitle: z.string().max(256).optional(),
+  embedDescription: z.string().max(4000).optional(),
+  embedUrl: z.string().url().optional(),
+  embedColorHex: z
+    .string()
+    .regex(/^#?[0-9a-fA-F]{6}$/, "Must be a 6-digit hex colour")
+    .optional(),
+});
+
+const discordBuildSchema = z.object({
+  version: z.string().min(3).max(32),
+  buildNumber: z.number().int().positive().optional(),
+  channel: z.enum(["ota", "testflight", "appstore"]),
+  notes: z.string().max(2000).optional(),
+  url: z.string().url().optional(),
 });
 
 const pushSchema = z.object({
@@ -3485,5 +3514,70 @@ export async function adminRoutes(app: FastifyInstance) {
         samples,
       },
     });
+  });
+
+  // POST /admin/discord/post — ad-hoc Discord post to any known channel.
+  // The escape hatch for one-off announcements that don't have their
+  // own scripted helper. Returns 503 if the channel's webhook isn't
+  // configured so it's obvious the post was a no-op.
+  app.post("/discord/post", async (request, reply) => {
+    const parsed = discordPostSchema.safeParse(request.body);
+    if (!parsed.success) {
+      return reply.status(400).send({ error: parsed.error.issues[0].message });
+    }
+    const {
+      channel,
+      content,
+      embedTitle,
+      embedDescription,
+      embedUrl,
+      embedColorHex,
+    } = parsed.data;
+
+    if (!content && !embedTitle && !embedDescription) {
+      return reply.status(400).send({
+        error: "Provide at least one of: content, embedTitle, embedDescription",
+      });
+    }
+
+    const embed =
+      embedTitle || embedDescription || embedUrl
+        ? {
+            title: embedTitle,
+            description: embedDescription,
+            url: embedUrl,
+            color: embedColorHex
+              ? parseInt(embedColorHex.replace(/^#/, ""), 16)
+              : undefined,
+            timestamp: new Date().toISOString(),
+          }
+        : undefined;
+
+    const sent = await postToChannel(channel as DiscordChannel, {
+      content,
+      embeds: embed ? [embed] : undefined,
+      suppressMentions: true,
+    });
+
+    if (!sent) {
+      return reply.status(503).send({
+        error: `Discord post failed or no webhook is configured for ${channel}.`,
+      });
+    }
+    logEvent("admin.discord_posted", request.userId!, { channel });
+    return reply.send({ data: { posted: true, channel } });
+  });
+
+  // POST /admin/discord/build — structured build/release announcement
+  // to #whats-new. Use after every OTA push, TestFlight build, or App
+  // Store release.
+  app.post("/discord/build", async (request, reply) => {
+    const parsed = discordBuildSchema.safeParse(request.body);
+    if (!parsed.success) {
+      return reply.status(400).send({ error: parsed.error.issues[0].message });
+    }
+    await postBuildAnnouncement(parsed.data);
+    logEvent("admin.discord_build_announced", request.userId!, parsed.data);
+    return reply.send({ data: { posted: true } });
   });
 }

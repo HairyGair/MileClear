@@ -213,6 +213,59 @@ repeated rule-breaks. We'll always explain why.
 By chatting here you're agreeing to these. Questions? DM @Founder.
 ```
 
+## Outbound webhook setup (server → Discord)
+
+Webhook URLs are how the API server posts to specific Discord
+channels. Each URL is channel-scoped, doesn't need the bot token, and
+can be leaked safely-ish (worst case: someone posts to that one channel).
+
+**Create one webhook per target channel:**
+
+For each of `#whats-new`, `#announcements`, `#wins`, `#bot-logs`,
+`#mod-chat`:
+
+1. Right-click the channel → **Edit Channel**
+2. **Integrations** → **Webhooks** → **New Webhook**
+3. Name it `MileClear` and upload `apps/mobile/assets/branding/bot-avatar.png`
+   as the avatar
+4. **Copy Webhook URL**
+5. Paste into `.env` against the matching variable:
+   ```
+   DISCORD_WEBHOOK_WHATSNEW=https://discord.com/api/webhooks/...
+   DISCORD_WEBHOOK_ANNOUNCEMENTS=https://discord.com/api/webhooks/...
+   DISCORD_WEBHOOK_WINS=https://discord.com/api/webhooks/...
+   DISCORD_WEBHOOK_BOTLOGS=https://discord.com/api/webhooks/...
+   DISCORD_WEBHOOK_MODCHAT=https://discord.com/api/webhooks/...
+   ```
+6. Copy those env lines to the prod server's `.env` too (`ssh
+   mileclear@85.234.151.224 → ~/mileclear-app/.env`)
+7. `pm2 restart mileclear-api` to pick up the new vars
+
+Missing env vars are silent skips — the API never errors over a
+missing webhook. Set them at your own pace.
+
+**What lights up automatically once URLs are in:**
+
+- New Pro signup (Apple IAP or Stripe) → `#bot-logs`
+- Pro orphan / payment failure / refund → `#mod-chat`
+- Recording watchdog detected stuck recordings → `#mod-chat`
+
+**Manual posts via admin endpoints:**
+
+```bash
+# Ad-hoc post to any channel (free-form)
+curl -X POST https://api.mileclear.com/admin/discord/post \
+  -H "Authorization: Bearer <your-admin-jwt>" \
+  -H "Content-Type: application/json" \
+  -d '{"channel":"announcements","content":"Hello drivers 👋"}'
+
+# Structured build announcement
+curl -X POST https://api.mileclear.com/admin/discord/build \
+  -H "Authorization: Bearer <your-admin-jwt>" \
+  -H "Content-Type: application/json" \
+  -d '{"version":"1.2.0","buildNumber":67,"channel":"appstore","notes":"Live on the App Store"}'
+```
+
 ## Bot wiring
 
 ### Recommended bots (free tiers cover everything below)

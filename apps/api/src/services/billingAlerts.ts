@@ -16,6 +16,7 @@ import nodemailer from "nodemailer";
 import { prisma } from "../lib/prisma.js";
 import { sendPushToUser } from "../lib/push.js";
 import { logEvent } from "./appEvents.js";
+import { postToChannel } from "./discord.js";
 
 const transporter =
   process.env.BREVO_SMTP_USER && process.env.BREVO_SMTP_KEY
@@ -125,6 +126,46 @@ async function notifyAdminByEmail(input: BillingAlertInput): Promise<boolean> {
   }
 }
 
+/**
+ * Mirror a billing alert to the relevant Discord channel. Routing:
+ *   celebrate → #bot-logs (eventually #wins once the audience is right)
+ *   act_now   → #mod-chat (oncall — orphans, payment fails)
+ *   aware     → #bot-logs (refund logs)
+ * Defensive: no-op when DISCORD_WEBHOOK_* env vars aren't set.
+ */
+async function notifyAdminByDiscord(input: BillingAlertInput): Promise<boolean> {
+  const channel = input.tier === "act_now" ? "modChat" : "botLogs";
+  const color =
+    input.tier === "act_now"
+      ? 0xef4444
+      : input.tier === "celebrate"
+        ? 0x10b981
+        : 0x38bdf8;
+  const fields: Array<{ name: string; value: string; inline?: boolean }> = [];
+  if (input.userEmail) fields.push({ name: "User", value: input.userEmail, inline: true });
+  if (input.userId) fields.push({ name: "ID", value: input.userId, inline: true });
+  if (input.originalTransactionId)
+    fields.push({
+      name: "Transaction",
+      value: `\`${input.originalTransactionId}\``,
+      inline: false,
+    });
+
+  return postToChannel(channel, {
+    embeds: [
+      {
+        title: input.title,
+        description: input.body,
+        color,
+        fields: fields.length ? fields : undefined,
+        footer: { text: input.kind },
+        timestamp: new Date().toISOString(),
+      },
+    ],
+    suppressMentions: true,
+  });
+}
+
 function escapeHtml(str: string): string {
   return str
     .replace(/&/g, "&amp;")
@@ -141,9 +182,10 @@ function escapeHtml(str: string): string {
  */
 export function notifyBillingEvent(input: BillingAlertInput): void {
   void (async () => {
-    const [pushSent, emailOk] = await Promise.all([
+    const [pushSent, emailOk, discordOk] = await Promise.all([
       notifyAdminsByPush(input).catch(() => 0),
       notifyAdminByEmail(input).catch(() => false),
+      notifyAdminByDiscord(input).catch(() => false),
     ]);
     logEvent("billing.alert_dispatched", input.userId ?? null, {
       kind: input.kind,
@@ -151,6 +193,7 @@ export function notifyBillingEvent(input: BillingAlertInput): void {
       title: input.title,
       pushSent,
       emailOk,
+      discordOk,
       originalTransactionId: input.originalTransactionId ?? null,
     });
   })();
