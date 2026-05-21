@@ -573,6 +573,7 @@ function RootNavigator() {
         <Stack.Screen name="settings/notifications" options={{ headerShown: true, title: "Notifications" }} />
         <Stack.Screen name="settings/visibility" options={{ headerShown: true, title: "What you see" }} />
         <Stack.Screen name="settings/data-exports" options={{ headerShown: true, title: "Data & Exports" }} />
+        <Stack.Screen name="settings/community" options={{ headerShown: true, title: "Community" }} />
         <Stack.Screen name="settings/help" options={{ headerShown: true, title: "Help & Feedback" }} />
         <Stack.Screen name="settings/legal" options={{ headerShown: true, title: "Legal" }} />
       </Stack>

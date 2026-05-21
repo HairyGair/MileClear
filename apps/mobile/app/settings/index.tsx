@@ -97,6 +97,12 @@ export default function SettingsHub() {
           onPress={go("/settings/data-exports")}
         />
         <SettingsRow
+          icon="chatbubbles-outline"
+          label="Community"
+          hint="Join the Discord, link your account for Pro perks"
+          onPress={go("/settings/community")}
+        />
+        <SettingsRow
           icon="help-circle-outline"
           label="Help & Feedback"
           hint="Rate, suggest, contact, FAQ"

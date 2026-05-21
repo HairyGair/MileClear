@@ -17,6 +17,12 @@ model User {
   emailVerified    Boolean   @default(false)
   appleId          String?   @unique
   googleId         String?   @unique
+  /** Discord user ID (snowflake) — set when a user links their MileClear
+   *  account to Discord via OAuth. Drives the Pro Member role auto-sync
+   *  + future personal slash commands in the community server.
+   *  Discord snowflakes are 17-19 digit numeric strings; 32 chars is
+   *  conservative future-proofing. Nullable because the link is opt-in. */
+  discordUserId    String?   @unique @db.VarChar(32)
   isPremium            Boolean   @default(false)
   isAdmin              Boolean   @default(false)
   premiumExpiresAt     DateTime?

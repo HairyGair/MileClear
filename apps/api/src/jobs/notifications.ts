@@ -16,6 +16,7 @@ import { logEvent } from "../services/appEvents.js";
 import { runJob } from "../services/jobRun.js";
 import { getNearbyStations } from "../services/fuel.js";
 import { runVehicleRemindersJob } from "./vehicleReminders.js";
+import { runDiscordProSyncJob } from "./discordProSync.js";
 
 // Persistent dedup via AppEvent table — survives PM2 restarts.
 // Checks if a notification event was already logged for a user today.
@@ -1025,6 +1026,16 @@ export function startNotificationJobs(): void {
     setInterval(
       () => void runJob("hmrc_keep_alive", runHmrcKeepAliveJob),
       HMRC_KEEP_ALIVE_INTERVAL_MS
+    );
+
+    // Discord Pro Member role sync: daily. Reconciles every linked
+    // user's Pro role against the source-of-truth subscription state.
+    // No-op when DISCORD_PRO_ROLE_ID / bot config isn't set.
+    const DISCORD_PRO_SYNC_INTERVAL_MS = 24 * 60 * 60 * 1000;
+    void runJob("discord_pro_sync", runDiscordProSyncJob);
+    setInterval(
+      () => void runJob("discord_pro_sync", runDiscordProSyncJob),
+      DISCORD_PRO_SYNC_INTERVAL_MS
     );
   }, INITIAL_DELAY_MS);
 

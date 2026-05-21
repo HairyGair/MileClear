@@ -7,6 +7,7 @@ import cookie from "@fastify/cookie";
 import helmet from "@fastify/helmet";
 import rateLimit from "@fastify/rate-limit";
 import { authRoutes } from "./routes/auth/index.js";
+import { discordAuthRoutes } from "./routes/auth/discord.js";
 import { shiftRoutes } from "./routes/shifts/index.js";
 import { tripRoutes } from "./routes/trips/index.js";
 import { vehicleRoutes } from "./routes/vehicles/index.js";
@@ -163,6 +164,7 @@ app.addHook("onResponse", (request, reply, done) => {
 
 // Routes
 await app.register(authRoutes, { prefix: "/auth" });
+await app.register(discordAuthRoutes, { prefix: "/auth/discord" });
 await app.register(shiftRoutes, { prefix: "/shifts" });
 await app.register(tripRoutes, { prefix: "/trips" });
 await app.register(vehicleRoutes, { prefix: "/vehicles" });

@@ -17,6 +17,7 @@ import { prisma } from "../lib/prisma.js";
 import { sendPushToUser } from "../lib/push.js";
 import { logEvent } from "./appEvents.js";
 import { postToChannel } from "./discord.js";
+import { syncProMemberRole } from "./discordBot.js";
 
 const transporter =
   process.env.BREVO_SMTP_USER && process.env.BREVO_SMTP_KEY
@@ -180,12 +181,35 @@ function escapeHtml(str: string): string {
  * never blocked by a notification failure. Logs the dispatch as a
  * billing.alert_dispatched app_event for audit.
  */
+/**
+ * Re-evaluate the user's Pro Member Discord role against their current
+ * subscription state. Fires as a side effect of any billing event so a
+ * Pro signup grants the badge in seconds (not the next 24h cron pass).
+ * Silent skip when the user hasn't linked Discord or role config is
+ * incomplete.
+ */
+async function syncUserDiscordRole(userId: string | null | undefined): Promise<"granted" | "revoked" | "noop_not_in_server" | "noop_not_configured" | "no_link" | "no_user"> {
+  if (!userId) return "no_user";
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { discordUserId: true, isPremium: true, premiumExpiresAt: true },
+  });
+  if (!user?.discordUserId) return "no_link";
+  const active =
+    !!user.isPremium && (!user.premiumExpiresAt || user.premiumExpiresAt > new Date());
+  return syncProMemberRole({
+    discordUserId: user.discordUserId,
+    isPremiumActive: active,
+  });
+}
+
 export function notifyBillingEvent(input: BillingAlertInput): void {
   void (async () => {
-    const [pushSent, emailOk, discordOk] = await Promise.all([
+    const [pushSent, emailOk, discordOk, roleSync] = await Promise.all([
       notifyAdminsByPush(input).catch(() => 0),
       notifyAdminByEmail(input).catch(() => false),
       notifyAdminByDiscord(input).catch(() => false),
+      syncUserDiscordRole(input.userId).catch(() => "error" as const),
     ]);
     logEvent("billing.alert_dispatched", input.userId ?? null, {
       kind: input.kind,
@@ -194,6 +218,7 @@ export function notifyBillingEvent(input: BillingAlertInput): void {
       pushSent,
       emailOk,
       discordOk,
+      roleSync,
       originalTransactionId: input.originalTransactionId ?? null,
     });
   })();
