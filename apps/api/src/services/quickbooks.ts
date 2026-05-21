@@ -301,6 +301,10 @@ export async function qboApi<T>(
   if (res.status === 401) {
     const config = getQboConfig();
     if (config) {
+      const tidBefore = res.headers.get("intuit_tid") ?? "no-tid";
+      console.warn(
+        `[quickbooks] 401 ${method} ${path} tid=${tidBefore} — refreshing token`
+      );
       const refreshToken = decrypt(connection.refreshTokenEncrypted);
       const fresh = await refreshAccessToken({ config, refreshToken });
       await prisma.quickBooksConnection.update({
@@ -315,9 +319,22 @@ export async function qboApi<T>(
     }
   }
 
+  // Intuit returns a transaction ID (`intuit_tid`) on every response.
+  // Their support team uses it to find the exact request in their
+  // logs, so we capture + surface it on every error.
+  const tid = res.headers.get("intuit_tid") ?? "no-tid";
+
   if (!res.ok) {
     const text = await res.text().catch(() => "");
-    throw new Error(`QBO ${method} ${path} → ${res.status}: ${text.slice(0, 400)}`);
+    console.error(
+      `[quickbooks] ${method} ${path} → ${res.status} tid=${tid} body=${text.slice(
+        0,
+        400
+      )}`
+    );
+    throw new Error(
+      `QBO ${method} ${path} → ${res.status} [tid=${tid}]: ${text.slice(0, 400)}`
+    );
   }
   if (res.status === 204) return null as unknown as T;
   return (await res.json()) as T;
