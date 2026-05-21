@@ -18,6 +18,7 @@ import { getNearbyStations } from "../services/fuel.js";
 import { runVehicleRemindersJob } from "./vehicleReminders.js";
 import { runDiscordProSyncJob } from "./discordProSync.js";
 import { runTaxTipOfTheDayJob } from "./taxTipOfTheDay.js";
+import { runWeeklyDigestJob } from "./weeklyDigest.js";
 
 // Persistent dedup via AppEvent table — survives PM2 restarts.
 // Checks if a notification event was already logged for a user today.
@@ -1047,6 +1048,16 @@ export function startNotificationJobs(): void {
     setInterval(
       () => void runJob("tax_tip_of_the_day", runTaxTipOfTheDayJob),
       TAX_TIP_INTERVAL_MS
+    );
+
+    // Weekly community digest: hourly tick, internal Sunday-9am-UK
+    // gate + 6-day dedup. Posts to #announcements with aggregated
+    // community stats. No-op when announcement webhook isn't set.
+    const WEEKLY_DIGEST_INTERVAL_MS = 60 * 60 * 1000;
+    void runJob("weekly_digest", runWeeklyDigestJob);
+    setInterval(
+      () => void runJob("weekly_digest", runWeeklyDigestJob),
+      WEEKLY_DIGEST_INTERVAL_MS
     );
   }, INITIAL_DELAY_MS);
 

@@ -37,6 +37,12 @@ export default function HelpSettings() {
     <SettingsScreen>
       <SettingsGroup>
         <SettingsRow
+          icon="chatbubbles-outline"
+          label="MileClear Community"
+          hint="Join UK drivers swapping tax tips on Discord"
+          onPress={() => router.push("/settings/community" as never)}
+        />
+        <SettingsRow
           icon="play-circle-outline"
           label="Help & Tutorials"
           hint="Quick start tour + categorised FAQ"

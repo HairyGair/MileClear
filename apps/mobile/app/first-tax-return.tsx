@@ -296,6 +296,21 @@ export default function FirstTaxReturnScreen() {
         </Text>
       </View>
 
+      {/* Community CTA — most readers of this guide are first-time filers
+          and feel alone in it. Surfacing the Discord here is the most
+          aligned moment of the whole app. */}
+      <TouchableOpacity
+        style={s.communityLink}
+        onPress={() => Linking.openURL("https://discord.gg/mileclear")}
+        accessibilityRole="button"
+        accessibilityLabel="Open the MileClear community on Discord"
+      >
+        <Ionicons name="chatbubbles-outline" size={16} color={AMBER} />
+        <Text style={s.communityLinkText}>
+          Stuck on something? Ask the community in our Discord — drivers helping drivers through their first return.
+        </Text>
+      </TouchableOpacity>
+
       <TouchableOpacity onPress={() => router.back()} style={s.cta} accessibilityRole="button" accessibilityLabel="Got it">
         <Text style={s.ctaText}>Got it</Text>
       </TouchableOpacity>
@@ -477,6 +492,25 @@ const s = StyleSheet.create({
     fontSize: 11,
     lineHeight: 15,
     flex: 1,
+  },
+  communityLink: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 14,
+    borderRadius: 12,
+    backgroundColor: AMBER_FAINT,
+    borderWidth: 1,
+    borderColor: "rgba(245,166,35,0.18)",
+    marginBottom: 16,
+  },
+  communityLinkText: {
+    color: AMBER,
+    fontSize: 13.5,
+    lineHeight: 18,
+    flex: 1,
+    fontWeight: "500",
   },
   cta: {
     backgroundColor: AMBER,

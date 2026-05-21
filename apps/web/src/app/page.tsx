@@ -6,6 +6,7 @@ import WhoItsFor from "@/components/landing/WhoItsFor";
 import Pricing from "@/components/landing/Pricing";
 import EarlyAccess from "@/components/landing/EarlyAccess";
 import FAQ from "@/components/landing/FAQ";
+import Community from "@/components/landing/Community";
 import Footer from "@/components/landing/Footer";
 import StructuredData from "@/components/landing/StructuredData";
 
@@ -135,6 +136,7 @@ export default function LandingPage() {
         <WhoItsFor />
         <Pricing />
         <EarlyAccess />
+        <Community />
         <FAQ />
       </main>
       <Footer />

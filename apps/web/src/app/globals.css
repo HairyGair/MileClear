@@ -663,6 +663,90 @@ body::after {
 @media (max-width: 600px) { .who__grid { grid-template-columns: 1fr; } }
 
 /* ================================================================
+   COMMUNITY
+   ================================================================ */
+.community { background: var(--bg-primary); }
+.community__center { text-align: center; }
+.community__title {
+  font-family: var(--font-display, var(--font-sans));
+  font-size: clamp(1.75rem, 4vw, 2.5rem);
+  font-weight: 700;
+  letter-spacing: -0.015em;
+  margin: 0.5rem 0 0.75rem;
+  color: var(--text-primary);
+}
+.community__brand { color: #5865F2; /* Discord blurple */ }
+.community__subtitle {
+  margin: 0 auto 3rem;
+  max-width: 640px;
+  color: var(--text-secondary);
+  font-size: 1.0625rem;
+  line-height: 1.6;
+}
+.community__perks {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1.25rem;
+  max-width: 920px;
+  margin: 0 auto 3rem;
+  list-style: none;
+  padding: 0;
+}
+.community__perk {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 1.5rem 1.25rem;
+  text-align: left;
+}
+.community__perk-icon { font-size: 1.75rem; display: block; margin-bottom: 0.75rem; }
+.community__perk-title {
+  font-size: 1rem;
+  font-weight: 700;
+  margin: 0 0 0.4rem;
+  color: var(--text-primary);
+}
+.community__perk-desc {
+  font-size: 0.875rem;
+  color: var(--text-muted);
+  line-height: 1.55;
+  margin: 0;
+}
+.community__cta-row {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+}
+.community__cta {
+  background: #5865F2;
+  color: #fff;
+  border: 0;
+  padding: 0.95rem 1.75rem;
+  font-size: 1.0625rem;
+  font-weight: 700;
+  border-radius: 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  text-decoration: none;
+  transition: background 150ms ease, transform 150ms ease;
+}
+.community__cta:hover {
+  background: #4752c4;
+  transform: translateY(-1px);
+}
+.community__cta-hint {
+  font-size: 0.8125rem;
+  color: var(--text-muted);
+  margin: 0;
+}
+
+@media (max-width: 720px) {
+  .community__perks { grid-template-columns: 1fr; }
+}
+
+/* ================================================================
    PRICING
    ================================================================ */
 .pricing__center { text-align: center; }
