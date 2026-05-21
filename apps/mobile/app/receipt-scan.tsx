@@ -10,10 +10,15 @@ import {
   StyleSheet,
   Alert,
 } from "react-native";
-import { useRouter, Stack } from "expo-router";
+import { useRouter, useLocalSearchParams, Stack } from "expo-router";
 import * as ImagePicker from "expo-image-picker";
 import { recognizeText, parseReceiptText, isOcrAvailable } from "../lib/ocr";
 import { colors, fonts } from "../lib/theme";
+
+// `target` query param controls which form receives the extracted data.
+// Defaults to /earning-form for backwards compatibility; /expense-form
+// is the new path used by the Expenses screen scan button.
+type ScanTarget = "earning" | "expense";
 
 // Local theme aliases — same pattern as the (tabs) screens.
 const CARD_BG = colors.surface;
@@ -29,6 +34,9 @@ type ScanState = "idle" | "scanning" | "review";
 
 export default function ReceiptScanScreen() {
   const router = useRouter();
+  const { target } = useLocalSearchParams<{ target?: string }>();
+  const scanTarget: ScanTarget = target === "expense" ? "expense" : "earning";
+  const destinationPath = scanTarget === "expense" ? "/expense-form" : "/earning-form";
 
   const [scanState, setScanState] = useState<ScanState>("idle");
   const [imageUri, setImageUri] = useState<string | null>(null);
@@ -112,8 +120,8 @@ export default function ReceiptScanScreen() {
     if (date.trim()) params.prefillDate = date.trim();
     if (vendor.trim()) params.prefillVendor = vendor.trim();
 
-    router.push({ pathname: "/earning-form", params });
-  }, [amount, date, vendor, router]);
+    router.replace({ pathname: destinationPath as any, params });
+  }, [amount, date, vendor, router, destinationPath]);
 
   const handleRetry = useCallback(() => {
     setImageUri(null);
@@ -126,10 +134,13 @@ export default function ReceiptScanScreen() {
 
   // ── Render ────────────────────────────────────────────────────────────────
 
+  const screenTitle =
+    scanTarget === "expense" ? "Scan Expense Receipt" : "Scan Receipt";
+
   if (!ocrAvailable) {
     return (
       <View style={styles.container}>
-        <Stack.Screen options={{ title: "Scan Receipt" }} />
+        <Stack.Screen options={{ title: screenTitle }} />
         <View style={styles.unavailableBox}>
           <Text style={styles.unavailableIcon}>📷</Text>
           <Text style={styles.unavailableTitle}>
@@ -153,7 +164,7 @@ export default function ReceiptScanScreen() {
 
   return (
     <View style={styles.container}>
-      <Stack.Screen options={{ title: "Scan Receipt" }} />
+      <Stack.Screen options={{ title: screenTitle }} />
 
       <ScrollView
         contentContainerStyle={styles.content}
