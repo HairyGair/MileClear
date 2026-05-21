@@ -51,6 +51,7 @@ export default function AvatarDropdownMenu({ visible, onClose }: Props) {
     { label: "Profile", route: "/(tabs)/profile", icon: "person-outline", isReplace: true },
     { label: "Tax Exports", route: "/exports", icon: "download-outline", badge: "PRO" },
     { label: "Edit Profile", route: "/profile-edit", icon: "create-outline" },
+    { label: "Community", route: "/settings/community", icon: "chatbubbles-outline" },
     { label: "Suggestions", route: "/feedback", icon: "bulb-outline" },
   ];
 

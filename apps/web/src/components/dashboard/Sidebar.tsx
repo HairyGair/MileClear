@@ -95,6 +95,13 @@ const icons = {
       <path d="M9 2l2 4h4l-3 3 1 4-4-2-4 2 1-4-3-3h4l2-4z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   ),
+  community: (
+    <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+      <path d="M3 4.5a2 2 0 012-2h8a2 2 0 012 2v6a2 2 0 01-2 2H8l-3 3v-3H5a2 2 0 01-2-2v-6z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
+      <circle cx="7" cy="7.5" r="0.75" fill="currentColor" />
+      <circle cx="11" cy="7.5" r="0.75" fill="currentColor" />
+    </svg>
+  ),
   business: (
     <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
       <rect x="2" y="6" width="14" height="10" rx="1.5" stroke="currentColor" strokeWidth="1.5" />
@@ -300,6 +307,20 @@ export function Sidebar({ open, onClose }: SidebarProps) {
           {/* Bottom items */}
           <div className="sidebar__section-label" />
           {BOTTOM_ITEMS.map(renderLink)}
+
+          {/* External: Discord community. Plain <a> rather than Link
+              because next/link is for internal nav. Opens in a new
+              tab so the user's dashboard session isn't disrupted. */}
+          <a
+            href="https://discord.gg/mileclear"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="sidebar__link"
+            onClick={onClose}
+          >
+            <span className="sidebar__link-icon">{icons.community}</span>
+            Discord community
+          </a>
         </nav>
 
         <div className="sidebar__bottom">
