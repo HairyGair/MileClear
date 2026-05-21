@@ -49,6 +49,7 @@ export default function AvatarDropdownMenu({ visible, onClose }: Props) {
 
   const secondaryItems: MenuItem[] = [
     { label: "Profile", route: "/(tabs)/profile", icon: "person-outline", isReplace: true },
+    { label: "Inbox", route: "/inbox", icon: "mail-unread-outline", badge: "PRO" },
     { label: "Expenses", route: "/expenses", icon: "receipt-outline" },
     { label: "Tax Exports", route: "/exports", icon: "download-outline", badge: "PRO" },
     { label: "Edit Profile", route: "/profile-edit", icon: "create-outline" },

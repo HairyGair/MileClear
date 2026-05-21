@@ -156,6 +156,7 @@ model User {
   pickupWaits         PickupWait[]
   hmrcConnection      HmrcConnection?
   invoices            Invoice[]
+  bankTransactions    BankTransaction[]
 
   @@map("users")
 }
@@ -549,6 +550,54 @@ model PlaidConnection {
 
   @@index([userId])
   @@map("plaid_connections")
+}
+
+// Phase 1 of the "Money Picture" stack (22 May 2026). Raw transactions
+// imported from TrueLayer land here first; the inbox UI lets the user
+// triage them into Earning or Expense rows. Idempotent via (userId,
+// externalId). Status workflow:
+//   pending   → fresh import, waiting for user decision
+//   consumed  → auto-promoted to Earning (known platform CREDIT)
+//   accepted  → user accepted into Earning OR Expense via the inbox
+//   ignored   → user dismissed (one-off — doesn't train the merchant
+//                map yet; that's Phase 2)
+//   duplicate → already represented by an existing row, skipped
+model BankTransaction {
+  id                  String    @id @default(uuid())
+  userId              String
+  plaidConnectionId   String
+  /** TrueLayer transaction_id — globally unique within a connection,
+   *  used as the idempotency key. */
+  externalId          String    @db.VarChar(128)
+  merchant            String    @db.VarChar(200)
+  descriptionRaw      String?   @db.Text
+  /** Signed pence: positive = CREDIT (money in), negative = DEBIT
+   *  (money out). Keeps the inbox card maths trivial. */
+  amountPence         Int
+  currency            String    @default("GBP") @db.VarChar(3)
+  transactionDate     DateTime  @db.Date
+
+  status              String    @default("pending") @db.VarChar(20)
+  /** Pre-categorisation hint for the inbox UI. earning | expense | unknown */
+  suggestedKind       String?   @db.VarChar(20)
+  /** Platform (for earnings) or expense category value (for expenses). */
+  suggestedCategory   String?   @db.VarChar(50)
+  /** 0-100. ≥80 = high-confidence (one-tap accept); below = needs review. */
+  suggestedConfidence Int?
+
+  /** When the user accepts a row, we backlink to the entity we created
+   *  so the inbox can show "already added" + offer undo. */
+  resolvedEarningId   String?
+  resolvedExpenseId   String?
+  reviewedAt          DateTime?
+
+  createdAt           DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, externalId])
+  @@index([userId, status, transactionDate])
+  @@map("bank_transactions")
 }
 
 // QuickBooks Online OAuth + sync state. Pro-only export feature
