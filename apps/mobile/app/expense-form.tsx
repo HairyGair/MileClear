@@ -10,10 +10,10 @@ import {
   StyleSheet,
   KeyboardAvoidingView,
   Platform,
-  Modal,
 } from "react-native";
 import { useRouter, useLocalSearchParams, Stack } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
+import { AppModal } from "../components/AppModal";
 import {
   fetchExpenses,
   createExpense,
@@ -375,10 +375,9 @@ export default function ExpenseFormScreen() {
       </ScrollView>
 
       {/* Category picker modal */}
-      <Modal
+      <AppModal
         visible={categoryPickerOpen}
         animationType="slide"
-        transparent
         onRequestClose={() => setCategoryPickerOpen(false)}
       >
         <TouchableOpacity
@@ -415,7 +414,7 @@ export default function ExpenseFormScreen() {
             </ScrollView>
           </View>
         </TouchableOpacity>
-      </Modal>
+      </AppModal>
     </KeyboardAvoidingView>
   );
 }

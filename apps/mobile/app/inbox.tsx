@@ -7,7 +7,6 @@ import {
   StyleSheet,
   Alert,
   RefreshControl,
-  Modal,
   ScrollView,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
@@ -18,6 +17,7 @@ import {
   ignoreInboxTransaction,
   type BankTransaction,
 } from "../lib/api/inbox";
+import { AppModal } from "../components/AppModal";
 import { EmptyState } from "../components/EmptyState";
 import { EXPENSE_CATEGORIES, GIG_PLATFORMS, formatPence } from "@mileclear/shared";
 import { colors, fonts } from "../lib/theme";
@@ -137,12 +137,7 @@ function CategoryPicker({
   onClose,
 }: CategoryPickerProps) {
   return (
-    <Modal
-      visible={visible}
-      animationType="slide"
-      transparent
-      onRequestClose={onClose}
-    >
+    <AppModal visible={visible} animationType="slide" onRequestClose={onClose}>
       <TouchableOpacity
         style={styles.modalBackdrop}
         activeOpacity={1}
@@ -171,7 +166,7 @@ function CategoryPicker({
           </ScrollView>
         </View>
       </TouchableOpacity>
-    </Modal>
+    </AppModal>
   );
 }
 
@@ -325,10 +320,9 @@ export default function InboxScreen() {
       )}
 
       {/* Action sheet for the active transaction */}
-      <Modal
+      <AppModal
         visible={!!active && !pickerOpen}
         animationType="slide"
-        transparent
         onRequestClose={() => setActive(null)}
       >
         <TouchableOpacity
@@ -373,7 +367,7 @@ export default function InboxScreen() {
             </View>
           ) : null}
         </TouchableOpacity>
-      </Modal>
+      </AppModal>
 
       {/* Platform / category picker */}
       <CategoryPicker

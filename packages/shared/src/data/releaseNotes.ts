@@ -45,14 +45,7 @@ export const RELEASE_NOTES: ReleaseNote[] = [
   {
     version: "1.2.1",
     date: "22 May 2026",
-    label: "Latest",
-    ctaUrl: "https://apps.apple.com/app/mileclear/id6742044832",
-    ctaLabel: "Install on the App Store",
-    banner: {
-      headline: "MileClear 1.2.1 is live",
-      subline:
-        "Receipt scanning, a bank-feed inbox, and a categoriser that learns your spending",
-    },
+    label: "In Testing",
     emailSubject: "MileClear 1.2.1 — your bank feed just got a brain",
     emailHero: "Receipts, expenses, and a categoriser that learns",
     emailTagline:
@@ -82,9 +75,14 @@ export const RELEASE_NOTES: ReleaseNote[] = [
   {
     version: "1.2.0",
     date: "14 May 2026",
-    label: "App Store",
+    label: "Latest",
     ctaUrl: "https://apps.apple.com/app/mileclear/id6742044832",
     ctaLabel: "Install on the App Store",
+    banner: {
+      headline: "MileClear 1.2.0 is live",
+      subline:
+        "Quarterly HMRC submissions, road-accurate distances, and 30+ updates",
+    },
     emailSubject: "MileClear 1.2.0 is here - and it's a big one",
     emailHero: "1.2.0 - the biggest update since launch",
     emailTagline:
