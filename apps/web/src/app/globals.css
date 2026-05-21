@@ -667,6 +667,26 @@ body::after {
    ================================================================ */
 .community { background: var(--bg-primary); }
 .community__center { text-align: center; }
+.community__brand-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0.5rem 0 1.25rem;
+  padding: 0.625rem;
+  border-radius: 16px;
+  background: rgba(88, 101, 242, 0.10);
+  border: 1px solid rgba(88, 101, 242, 0.20);
+  transition: transform 150ms ease, background 150ms ease;
+}
+.community__brand-link:hover {
+  background: rgba(88, 101, 242, 0.18);
+  transform: translateY(-1px);
+}
+.community__brand-mark {
+  width: 48px;
+  height: 48px;
+  display: block;
+}
 .community__title {
   font-family: var(--font-display, var(--font-sans));
   font-size: clamp(1.75rem, 4vw, 2.5rem);
@@ -675,7 +695,11 @@ body::after {
   margin: 0.5rem 0 0.75rem;
   color: var(--text-primary);
 }
-.community__brand { color: #5865F2; /* Discord blurple */ }
+.community__cta-icon {
+  width: 22px;
+  height: 22px;
+  flex-shrink: 0;
+}
 .community__subtitle {
   margin: 0 auto 3rem;
   max-width: 640px;

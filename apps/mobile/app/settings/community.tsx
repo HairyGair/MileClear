@@ -11,6 +11,7 @@ import {
   ActivityIndicator,
   Alert,
   StyleSheet,
+  Image,
 } from "react-native";
 import { useFocusEffect } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
@@ -129,9 +130,18 @@ export default function CommunitySettings() {
       {/* Hero card — Discord */}
       <View style={styles.card}>
         <View style={styles.cardHeader}>
-          <View style={styles.discordIcon}>
-            <Ionicons name="chatbubbles" size={20} color={DISCORD_BLURPLE} />
-          </View>
+          <Pressable
+            style={styles.discordIcon}
+            onPress={openInvite}
+            accessibilityRole="link"
+            accessibilityLabel="Open the MileClear Discord server"
+          >
+            <Image
+              source={require("../../assets/branding/discord/symbol-blurple.png")}
+              style={styles.discordIconImage}
+              resizeMode="contain"
+            />
+          </Pressable>
           <View style={{ flex: 1 }}>
             <Text style={styles.cardTitle}>MileClear on Discord</Text>
             <Text style={styles.cardSubtitle}>
@@ -191,7 +201,11 @@ export default function CommunitySettings() {
                 <ActivityIndicator size="small" color="#fff" />
               ) : (
                 <>
-                  <Ionicons name="link" size={16} color="#fff" />
+                  <Image
+                    source={require("../../assets/branding/discord/symbol-white.png")}
+                    style={styles.btnIcon}
+                    resizeMode="contain"
+                  />
                   <Text style={styles.btnPrimaryText}>Connect Discord</Text>
                 </>
               )}
@@ -246,12 +260,16 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   discordIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 10,
+    width: 44,
+    height: 44,
+    borderRadius: 11,
     backgroundColor: "rgba(88,101,242,0.12)",
     alignItems: "center",
     justifyContent: "center",
+  },
+  discordIconImage: {
+    width: 28,
+    height: 28,
   },
   cardTitle: {
     color: TEXT_1,
@@ -296,10 +314,14 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    gap: 6,
+    gap: 8,
     paddingVertical: 12,
     paddingHorizontal: 16,
     borderRadius: 10,
+  },
+  btnIcon: {
+    width: 18,
+    height: 18,
   },
   btnPrimary: {
     backgroundColor: DISCORD_BLURPLE,

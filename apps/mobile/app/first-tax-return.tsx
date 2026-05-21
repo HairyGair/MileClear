@@ -1,4 +1,4 @@
-import { ScrollView, View, Text, StyleSheet, TouchableOpacity, Linking } from "react-native";
+import { ScrollView, View, Text, StyleSheet, TouchableOpacity, Linking, Image } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { colors } from "../lib/theme";
@@ -302,10 +302,14 @@ export default function FirstTaxReturnScreen() {
       <TouchableOpacity
         style={s.communityLink}
         onPress={() => Linking.openURL("https://discord.gg/mileclear")}
-        accessibilityRole="button"
+        accessibilityRole="link"
         accessibilityLabel="Open the MileClear community on Discord"
       >
-        <Ionicons name="chatbubbles-outline" size={16} color={AMBER} />
+        <Image
+          source={require("../assets/branding/discord/symbol-blurple.png")}
+          style={s.communityLogo}
+          resizeMode="contain"
+        />
         <Text style={s.communityLinkText}>
           Stuck on something? Ask the community in our Discord — drivers helping drivers through their first return.
         </Text>
@@ -511,6 +515,10 @@ const s = StyleSheet.create({
     lineHeight: 18,
     flex: 1,
     fontWeight: "500",
+  },
+  communityLogo: {
+    width: 20,
+    height: 20,
   },
   cta: {
     backgroundColor: AMBER,

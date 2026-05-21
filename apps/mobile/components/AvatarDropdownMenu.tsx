@@ -1,4 +1,4 @@
-import { View, Text, TouchableOpacity, StyleSheet, Pressable } from "react-native";
+import { View, Text, TouchableOpacity, StyleSheet, Pressable, Image } from "react-native";
 import { AppModal } from "./AppModal";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter, useSegments } from "expo-router";
@@ -145,11 +145,22 @@ export default function AvatarDropdownMenu({ visible, onClose }: Props) {
               activeOpacity={0.7}
             >
               {isActive(item.route) && <View style={styles.activeIndicator} />}
-              <Ionicons
-                name={item.icon as any}
-                size={18}
-                color={isActive(item.route) ? AMBER : TEXT_2}
-              />
+              {item.label === "Community" ? (
+                // Official Discord brand mark. Sized to match the
+                // surrounding 18pt Ionicons line-height so the row
+                // stays flush with the rest of the menu.
+                <Image
+                  source={require("../assets/branding/discord/symbol-blurple.png")}
+                  style={styles.discordSymbol}
+                  resizeMode="contain"
+                />
+              ) : (
+                <Ionicons
+                  name={item.icon as any}
+                  size={18}
+                  color={isActive(item.route) ? AMBER : TEXT_2}
+                />
+              )}
               <Text style={[styles.menuLabel, isActive(item.route) && styles.menuLabelActive]}>
                 {item.label}
               </Text>
@@ -268,6 +279,10 @@ const styles = StyleSheet.create({
     width: 3,
     borderRadius: 1.5,
     backgroundColor: AMBER,
+  },
+  discordSymbol: {
+    width: 18,
+    height: 18,
   },
   menuLabel: {
     fontSize: 14,

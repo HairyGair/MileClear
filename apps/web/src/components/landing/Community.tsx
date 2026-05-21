@@ -32,9 +32,22 @@ export default function Community() {
       <div className="container community__center">
         <Reveal>
           <p className="eyebrow">Community</p>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <a
+            href={DISCORD_INVITE}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="community__brand-link"
+            aria-label="MileClear on Discord"
+          >
+            <img
+              src="/branding/discord/symbol-blurple.svg"
+              alt=""
+              className="community__brand-mark"
+            />
+          </a>
           <h2 className="community__title">
-            Join the UK driver community on{" "}
-            <span className="community__brand">Discord</span>
+            Join the UK driver community on Discord
           </h2>
           <p className="community__subtitle">
             A friendly server for self-employed drivers, gig workers, and PAYE
@@ -64,9 +77,15 @@ export default function Community() {
               href={DISCORD_INVITE}
               target="_blank"
               rel="noopener noreferrer"
+              aria-label="Join the MileClear Discord community"
             >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src="/branding/discord/symbol-white.svg"
+                alt=""
+                className="community__cta-icon"
+              />
               Join the Discord
-              <span aria-hidden>{"→"}</span>
             </a>
             <p className="community__cta-hint">
               Free. No app required. UK drivers only.

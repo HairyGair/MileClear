@@ -96,11 +96,16 @@ const icons = {
     </svg>
   ),
   community: (
-    <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
-      <path d="M3 4.5a2 2 0 012-2h8a2 2 0 012 2v6a2 2 0 01-2 2H8l-3 3v-3H5a2 2 0 01-2-2v-6z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
-      <circle cx="7" cy="7.5" r="0.75" fill="currentColor" />
-      <circle cx="11" cy="7.5" r="0.75" fill="currentColor" />
-    </svg>
+    // Official Discord brand mark. Loaded from /branding/discord/
+    // rather than inlined so brand updates only need a file swap.
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      src="/branding/discord/symbol-blurple.svg"
+      alt=""
+      width={18}
+      height={18}
+      style={{ display: "block" }}
+    />
   ),
   business: (
     <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
