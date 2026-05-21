@@ -134,6 +134,17 @@ export interface TaxSnapshot {
     // figure to see the same metric in last 7 days / this month / this
     // tax year / last tax year. Layer 3 polish (premium_app_feel.md).
     mileageDeductionAcrossWindows: NumberAcrossWindows;
+
+    /** Provenance for the gross-earnings figure. Same "why this number?"
+     *  pattern as the mileage deduction. Shows the gig-earnings + invoice
+     *  breakdown plus any rows that were de-duplicated against linked
+     *  earnings. Added 21 May 2026 (Laura Joyce double-count fix). */
+    earningsDerivation?: NumberDerivation;
+    /** Number of earning rows that were excluded because a paid invoice
+     *  is linked to them (and the invoice was counted instead). Zero for
+     *  most users — surfaced for the "we de-duplicated N entries" hint
+     *  on the breakdown card. */
+    dedupedEarningCount?: number;
   };
 
   setAsideThisWeek: {

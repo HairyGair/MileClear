@@ -16,10 +16,12 @@ import {
   markInvoicePaid,
   type Invoice,
   type InvoiceStatus,
+  type PotentialEarningMatch,
 } from "../lib/api/invoices";
 import { useUser } from "../lib/user/context";
 import { usePaywall } from "../components/paywall";
 import { EmptyState } from "../components/EmptyState";
+import { LinkEarningSheet } from "../components/invoices/LinkEarningSheet";
 import { colors, fonts } from "../lib/theme";
 
 const AMBER = colors.amber;
@@ -46,6 +48,9 @@ export default function InvoicesScreen() {
   const [filter, setFilter] = useState<FilterTab>("all");
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  // Link-or-keep sheet state. When mark-paid returns potentialEarningMatches
+  // we stash the invoice + matches and pop the sheet.
+  const [linkSheet, setLinkSheet] = useState<{ invoice: Invoice; matches: PotentialEarningMatch[] } | null>(null);
   const { user } = useUser();
   const { showPaywall } = usePaywall();
   const isPremium = user?.isPremium === true;
@@ -97,8 +102,16 @@ export default function InvoicesScreen() {
           onPress: async () => {
             try {
               const today = new Date().toISOString().slice(0, 10);
-              await markInvoicePaid(invoice.id, today);
-              load();
+              const res = await markInvoicePaid(invoice.id, today);
+              // If the server found a manual earning that looks like the
+              // same money, pop the link-or-keep sheet before the list
+              // reloads — the user resolves the ambiguity in one step.
+              const matches = res.potentialEarningMatches ?? [];
+              if (matches.length > 0) {
+                setLinkSheet({ invoice: res.data, matches });
+              } else {
+                load();
+              }
             } catch (err) {
               Alert.alert("Couldn't update", err instanceof Error ? err.message : "Try again.");
             }
@@ -229,6 +242,20 @@ export default function InvoicesScreen() {
           ItemSeparatorComponent={() => <View style={{ height: 10 }} />}
         />
       )}
+
+      <LinkEarningSheet
+        visible={linkSheet !== null}
+        invoice={linkSheet?.invoice ?? null}
+        matches={linkSheet?.matches ?? []}
+        onResolved={() => {
+          setLinkSheet(null);
+          load();
+        }}
+        onClose={() => {
+          setLinkSheet(null);
+          load();
+        }}
+      />
     </View>
   );
 }

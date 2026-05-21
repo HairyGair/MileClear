@@ -19,9 +19,12 @@ import {
   createInvoice,
   updateInvoice,
   deleteInvoice,
+  type Invoice,
+  type PotentialEarningMatch,
 } from "../lib/api/invoices";
 import { isApiError } from "../lib/api";
 import { usePaywall } from "../components/paywall";
+import { LinkEarningSheet } from "../components/invoices/LinkEarningSheet";
 import { colors, fonts } from "../lib/theme";
 import { haptic } from "../lib/haptics";
 
@@ -59,6 +62,11 @@ export default function InvoiceFormScreen() {
   const [loading, setLoading] = useState(isEditing);
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  // Track the initial paid state so we know on save whether this is a
+  // "marking paid" transition — only then do we show the link-earning
+  // sheet. Editing an already-paid invoice's amount shouldn't re-nag.
+  const [initialPaidAt, setInitialPaidAt] = useState<Date | null>(null);
+  const [linkSheet, setLinkSheet] = useState<{ invoice: Invoice; matches: PotentialEarningMatch[] } | null>(null);
 
   // Auto-update due date when sent date changes (unless user has already overridden)
   const [dueDateOverridden, setDueDateOverridden] = useState(false);
@@ -82,6 +90,7 @@ export default function InvoiceFormScreen() {
         setSentDate(new Date(inv.sentAt));
         setDueDate(new Date(inv.dueAt));
         setPaidDate(inv.paidAt ? new Date(inv.paidAt) : null);
+        setInitialPaidAt(inv.paidAt ? new Date(inv.paidAt) : null);
         setNotes(inv.notes ?? "");
         setDueDateOverridden(true); // assume any loaded due date is intentional
       } catch (err) {
@@ -116,12 +125,25 @@ export default function InvoiceFormScreen() {
         paidAt: paidDate ? dateOnly(paidDate) : null,
         notes: notes.trim() || null,
       };
-      if (isEditing && id) {
-        await updateInvoice(id, payload);
-      } else {
-        await createInvoice(payload);
-      }
+      const res = isEditing && id
+        ? await updateInvoice(id, payload)
+        : await createInvoice(payload);
       haptic("success");
+
+      // Show the link-earning sheet only on a real "marking paid"
+      // transition: new invoice saved as paid, OR existing unpaid
+      // invoice just flipped to paid. The server returns
+      // potentialEarningMatches on exactly these transitions.
+      const wasPaidBefore = initialPaidAt !== null;
+      const isPaidNow = !!paidDate;
+      const transitionedToPaid = !wasPaidBefore && isPaidNow;
+      const matches = res.potentialEarningMatches ?? [];
+
+      if (transitionedToPaid && matches.length > 0) {
+        setLinkSheet({ invoice: res.data, matches });
+        setSaving(false);
+        return; // stay on screen until the sheet resolves
+      }
       router.back();
     } catch (err) {
       // Free-tier monthly cap (3 invoices/month) returns PREMIUM_REQUIRED.
@@ -148,7 +170,7 @@ export default function InvoiceFormScreen() {
       Alert.alert("Couldn't save", err instanceof Error ? err.message : "Try again.");
       setSaving(false);
     }
-  }, [company, reference, amountInput, sentDate, dueDate, paidDate, notes, isEditing, id, showPaywall]);
+  }, [company, reference, amountInput, sentDate, dueDate, paidDate, notes, isEditing, id, initialPaidAt, showPaywall]);
 
   const onDelete = useCallback(() => {
     if (!id) return;
@@ -354,6 +376,20 @@ export default function InvoiceFormScreen() {
           themeVariant="dark"
         />
       )}
+
+      <LinkEarningSheet
+        visible={linkSheet !== null}
+        invoice={linkSheet?.invoice ?? null}
+        matches={linkSheet?.matches ?? []}
+        onResolved={() => {
+          setLinkSheet(null);
+          router.back();
+        }}
+        onClose={() => {
+          setLinkSheet(null);
+          router.back();
+        }}
+      />
     </KeyboardAvoidingView>
   );
 }

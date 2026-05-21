@@ -16,6 +16,12 @@ import {
   type NumberAcrossWindows,
 } from "@mileclear/shared";
 
+// Earnings dedup window. When a paid invoice has linkedEarningId set,
+// the linked earning is excluded from the gig-earnings sum so the same
+// money isn't counted twice (Laura Joyce, 21 May 2026). The link is
+// explicit — we never guess based on amount/date alone, only honour an
+// invoice the user explicitly linked via the mobile UI.
+
 /**
  * Build the dashboard tax snapshot for a user. Free for all users (auth only,
  * no premium gate). The point of the snapshot is to make the "this app saves
@@ -50,7 +56,7 @@ export async function buildTaxSnapshot(userId: string): Promise<TaxSnapshot> {
     user,
     vehicles,
     businessTrips,
-    earningsYtd,
+    earningsYtdRows,
     earningsLast7d,
     unclassifiedCount,
     recentBusinessTripCount,
@@ -92,13 +98,16 @@ export async function buildTaxSnapshot(userId: string): Promise<TaxSnapshot> {
           vehicle: { select: { vehicleType: true } },
         },
       }),
-      prisma.earning.aggregate({
+      // Earnings YTD — fetch as rows (not aggregate) so we can dedup any
+      // entries that are linked to a counted invoice. Fast: bounded by the
+      // user's own earnings count and we only need id + amount + date.
+      prisma.earning.findMany({
         where: {
           userId,
           periodStart: { gte: start },
           periodEnd: { lte: end },
         },
-        _sum: { amountPence: true },
+        select: { id: true, amountPence: true, periodStart: true, platform: true },
       }),
       prisma.earning.aggregate({
         where: {
@@ -158,7 +167,7 @@ export async function buildTaxSnapshot(userId: string): Promise<TaxSnapshot> {
   // money actually arrived); accruals counts every sent invoice that
   // hasn't been written off. Default basis is cash for new users.
   const userTaxBasis = (user?.taxBasis ?? "cash") as "cash" | "accruals";
-  const invoiceTotals = await prisma.invoice.aggregate({
+  const countedInvoices = await prisma.invoice.findMany({
     where: {
       userId,
       status: { not: "written_off" },
@@ -166,11 +175,37 @@ export async function buildTaxSnapshot(userId: string): Promise<TaxSnapshot> {
         ? { paidAt: { gte: start, lte: end } }
         : { sentAt: { gte: start, lte: end } }),
     },
-    _sum: { amountPence: true },
+    select: {
+      id: true,
+      company: true,
+      amountPence: true,
+      paidAt: true,
+      sentAt: true,
+      linkedEarningId: true,
+    },
   });
-  const invoiceIncomePence = invoiceTotals._sum.amountPence ?? 0;
+  const invoiceIncomePence = countedInvoices.reduce(
+    (sum, inv) => sum + inv.amountPence,
+    0
+  );
 
-  const earningsBasePence = earningsYtd._sum.amountPence ?? 0;
+  // Dedup: any earning explicitly linked to a counted invoice is excluded
+  // from the gig-earnings sum. Stops the double-count when a freelancer
+  // logs the same money as both a manual earning AND an invoice marked
+  // paid (Laura Joyce, 21 May 2026). The link is user-driven — see
+  // POST /invoices/:id/link-earning. We never auto-link based on
+  // amount/date guessing.
+  const linkedEarningIds = new Set(
+    countedInvoices
+      .map((inv) => inv.linkedEarningId)
+      .filter((id): id is string => !!id)
+  );
+  const countedEarnings = earningsYtdRows.filter((e) => !linkedEarningIds.has(e.id));
+  const dedupedEarningCount = earningsYtdRows.length - countedEarnings.length;
+  const earningsBasePence = countedEarnings.reduce(
+    (sum, e) => sum + e.amountPence,
+    0
+  );
   const grossEarningsPence = earningsBasePence + invoiceIncomePence;
   const earningsLast7DaysPence = earningsLast7d._sum.amountPence ?? 0;
 
@@ -285,6 +320,23 @@ export async function buildTaxSnapshot(userId: string): Promise<TaxSnapshot> {
     rateOpts,
   });
 
+  // Provenance for the gross-earnings figure. Same "why this number?"
+  // pattern as the mileage deduction. Critically calls out any deduped
+  // rows so a user looking at the breakdown can see exactly which
+  // entries we excluded as duplicates (Laura Joyce, 21 May 2026).
+  const earningsDerivation = buildEarningsDerivation({
+    taxYear,
+    start,
+    end,
+    countedEarnings,
+    countedInvoices,
+    dedupedEarningCount,
+    taxBasis: userTaxBasis,
+    earningsBasePence,
+    invoiceIncomePence,
+    grossEarningsPence,
+  });
+
   return {
     taxYear,
     taxYearEndDate: end.toISOString(),
@@ -304,6 +356,8 @@ export async function buildTaxSnapshot(userId: string): Promise<TaxSnapshot> {
       effectiveRatePercent,
       mileageDeductionDerivation,
       mileageDeductionAcrossWindows,
+      earningsDerivation,
+      dedupedEarningCount,
     },
     setAsideThisWeek: {
       earningsLast7DaysPence,
@@ -587,4 +641,139 @@ function monthLabel(date: Date): string {
 
 function shortDate(date: Date): string {
   return date.toLocaleDateString("en-GB", { day: "numeric", month: "short" });
+}
+
+// ── Earnings provenance helper ───────────────────────────────────────
+
+interface EarningsDerivationInput {
+  taxYear: string;
+  start: Date;
+  end: Date;
+  countedEarnings: Array<{ id: string; amountPence: number; periodStart: Date; platform: string }>;
+  countedInvoices: Array<{ id: string; company: string; amountPence: number; paidAt: Date | null; sentAt: Date; linkedEarningId: string | null }>;
+  /** How many earning rows were skipped because they're linked to a counted invoice. */
+  dedupedEarningCount: number;
+  taxBasis: "cash" | "accruals";
+  earningsBasePence: number;
+  invoiceIncomePence: number;
+  grossEarningsPence: number;
+}
+
+/**
+ * Build the "why this number?" panel for YTD gross earnings.
+ *
+ * The breakdown does three jobs:
+ *   1. Splits the figure into gig vs invoice income so the user can spot
+ *      which surface is feeding the total.
+ *   2. Calls out the basis (cash vs accruals) — invoices in cash mode are
+ *      only counted once paid, which is non-obvious when the figure jumps
+ *      the moment an invoice is marked paid.
+ *   3. Explicitly mentions any earnings that were de-duplicated against
+ *      linked invoices. Without this the user can't tell whether the
+ *      figure is "everything they entered" or "everything we counted".
+ *
+ * Audit item #5 (external_audit_may_2.md) — same pattern as the mileage
+ * deduction derivation.
+ */
+function buildEarningsDerivation(input: EarningsDerivationInput): NumberDerivation {
+  const {
+    taxYear,
+    start,
+    end,
+    countedEarnings,
+    countedInvoices,
+    dedupedEarningCount,
+    taxBasis,
+    earningsBasePence,
+    invoiceIncomePence,
+    grossEarningsPence,
+  } = input;
+
+  const components: NumberDerivation["components"] = [];
+
+  if (earningsBasePence > 0) {
+    components.push({
+      label: `Earnings (${countedEarnings.length} ${countedEarnings.length === 1 ? "entry" : "entries"})`,
+      value: formatPence(earningsBasePence),
+    });
+  }
+
+  if (invoiceIncomePence > 0) {
+    const invoiceLabel =
+      taxBasis === "cash"
+        ? `Paid invoices (${countedInvoices.length})`
+        : `Sent invoices (${countedInvoices.length})`;
+    components.push({
+      label: invoiceLabel,
+      value: formatPence(invoiceIncomePence),
+    });
+  }
+
+  if (dedupedEarningCount > 0) {
+    // Negative-style row — the user paid attention to add an invoice for
+    // money they'd already logged as a manual earning. We show them we
+    // noticed and what we skipped.
+    components.push({
+      label: `Excluded: ${dedupedEarningCount} ${dedupedEarningCount === 1 ? "earning" : "earnings"} linked to an invoice above`,
+      value: "counted once",
+    });
+  }
+
+  components.push({
+    label: "Total income counted",
+    value: formatPence(grossEarningsPence),
+    highlight: true,
+  });
+
+  // Summary copy adapts to whether the user has any data at all.
+  let summary: string;
+  if (grossEarningsPence > 0) {
+    const parts: string[] = [];
+    if (earningsBasePence > 0) parts.push("gig earnings");
+    if (invoiceIncomePence > 0) parts.push("sole-trader invoices");
+    const sourceText = parts.join(" + ") || "income";
+    summary = `Your year-to-date ${sourceText} for tax year ${taxYear}, the figure HMRC sees as your turnover before the mileage deduction.`;
+  } else {
+    summary = `No income logged in tax year ${taxYear} yet. Log earnings from the Earnings tab or invoices from the Invoices tab to see your turnover.`;
+  }
+
+  const notes: string[] = [];
+  notes.push(
+    taxBasis === "cash"
+      ? "Cash basis — invoices count once you mark them paid. Most sole traders use this."
+      : "Accruals basis — invoices count from the day you send them, regardless of when the money arrives."
+  );
+  if (dedupedEarningCount > 0) {
+    notes.push(
+      `${dedupedEarningCount} ${dedupedEarningCount === 1 ? "earning was" : "earnings were"} linked to an invoice in this list, so we count them once. Open Invoices to review or unlink.`
+    );
+  }
+
+  const sources: NumberDerivation["sources"] = [];
+  if (countedEarnings.length > 0) {
+    sources.push({
+      kind: "earnings",
+      count: countedEarnings.length,
+      description: `Earnings in tax year ${taxYear}`,
+      dateRange: { from: start.toISOString(), to: end.toISOString() },
+    });
+  }
+  if (countedInvoices.length > 0) {
+    sources.push({
+      kind: "invoices",
+      count: countedInvoices.length,
+      description:
+        taxBasis === "cash"
+          ? `Invoices paid in tax year ${taxYear}`
+          : `Invoices sent in tax year ${taxYear}`,
+      dateRange: { from: start.toISOString(), to: end.toISOString() },
+    });
+  }
+
+  return {
+    summary,
+    components,
+    sources: sources.length > 0 ? sources : undefined,
+    notes,
+  };
 }

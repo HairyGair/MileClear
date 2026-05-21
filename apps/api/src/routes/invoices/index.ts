@@ -22,6 +22,93 @@ import { logEvent } from "../../services/appEvents.js";
 const INVOICE_STATUSES = ["sent", "paid", "overdue", "written_off"] as const;
 type InvoiceStatus = (typeof INVOICE_STATUSES)[number];
 
+// Duplicate-detection window for the "you might have already logged this
+// as a manual earning" prompt that fires when an invoice flips to paid.
+// 50p tolerance handles VAT / rounding fuzz on small invoices; 14 days
+// either side of paidAt covers "I logged the earning when the work
+// happened, but the invoice took two weeks to pay". Wider windows turned
+// up too many false positives on Laura's data.
+const DUPLICATE_AMOUNT_TOLERANCE_PENCE = 50;
+const DUPLICATE_DAYS_WINDOW = 14;
+
+/**
+ * Find manual earnings that look like they might already represent the
+ * money on this invoice — within ±50p and ±14 days of the invoice's
+ * paid (or sent, if not yet paid) date.
+ *
+ * Excludes earnings that are already linked to ANY invoice — once linked
+ * they're not a candidate. The user can re-link from the invoice form
+ * if they made a mistake.
+ *
+ * Returns at most 5 matches, closest amount first, then closest date.
+ * Empty when nothing nearby — no UI is shown in that case.
+ */
+async function findPotentialEarningMatches(args: {
+  userId: string;
+  amountPence: number;
+  anchorDate: Date;
+  excludeEarningId?: string | null;
+}): Promise<
+  Array<{
+    id: string;
+    platform: string;
+    amountPence: number;
+    periodStart: string;
+    notes: string | null;
+    daysFromAnchor: number;
+  }>
+> {
+  const { userId, amountPence, anchorDate, excludeEarningId } = args;
+  const windowMs = DUPLICATE_DAYS_WINDOW * 24 * 60 * 60 * 1000;
+  const windowStart = new Date(anchorDate.getTime() - windowMs);
+  const windowEnd = new Date(anchorDate.getTime() + windowMs);
+
+  // Pull a generously-sized candidate set then narrow in JS — Prisma
+  // can't express "amount within ±X" as cleanly as a JS filter and the
+  // user's earnings count in a 28-day window is bounded.
+  const candidates = await prisma.earning.findMany({
+    where: {
+      userId,
+      periodStart: { gte: windowStart, lte: windowEnd },
+      amountPence: {
+        gte: amountPence - DUPLICATE_AMOUNT_TOLERANCE_PENCE,
+        lte: amountPence + DUPLICATE_AMOUNT_TOLERANCE_PENCE,
+      },
+      // Exclude earnings already linked to any invoice.
+      linkedInvoices: { none: {} },
+      ...(excludeEarningId ? { id: { not: excludeEarningId } } : {}),
+    },
+    select: {
+      id: true,
+      platform: true,
+      amountPence: true,
+      periodStart: true,
+      notes: true,
+    },
+  });
+
+  return candidates
+    .map((c) => ({
+      id: c.id,
+      platform: c.platform,
+      amountPence: c.amountPence,
+      periodStart: c.periodStart.toISOString().slice(0, 10),
+      notes: c.notes,
+      daysFromAnchor: Math.round(
+        (c.periodStart.getTime() - anchorDate.getTime()) / 86_400_000
+      ),
+    }))
+    .sort((a, b) => {
+      // Closest amount wins; tie-break by closest date.
+      const amtDelta =
+        Math.abs(a.amountPence - amountPence) -
+        Math.abs(b.amountPence - amountPence);
+      if (amtDelta !== 0) return amtDelta;
+      return Math.abs(a.daysFromAnchor) - Math.abs(b.daysFromAnchor);
+    })
+    .slice(0, 5);
+}
+
 /**
  * Compute the canonical status of an invoice from its date fields.
  * Server-of-truth — clients never set status directly, only paidAt /
@@ -151,7 +238,22 @@ export async function invoiceRoutes(app: FastifyInstance) {
       company: invoice.company,
     });
 
-    return reply.status(201).send({ data: invoice });
+    // If the invoice was created directly as paid, look for duplicate
+    // earnings so the client can prompt the user to link them. We anchor
+    // on paidAt (when the money arrived), falling back to sentAt for the
+    // accruals-basis edge case where a user pre-records future income.
+    const potentialEarningMatches = paidAt
+      ? await findPotentialEarningMatches({
+          userId,
+          amountPence: invoice.amountPence,
+          anchorDate: paidAt,
+        })
+      : [];
+
+    return reply.status(201).send({
+      data: invoice,
+      potentialEarningMatches,
+    });
   });
 
   // GET /invoices — list (paginated)
@@ -269,12 +371,13 @@ export async function invoiceRoutes(app: FastifyInstance) {
 
     // Telemetry: payment events get their own type so we can spot the
     // user-flow moment ("just marked an invoice paid") in analytics.
-    if (!existing.paidAt && updated.paidAt) {
+    const justMarkedPaid = !existing.paidAt && updated.paidAt;
+    if (justMarkedPaid) {
       logEvent("invoice.marked_paid", request.userId!, {
         invoiceId: id,
         amountPence: updated.amountPence,
         daysToPay: Math.round(
-          (updated.paidAt.getTime() - updated.sentAt.getTime()) / 86_400_000
+          (updated.paidAt!.getTime() - updated.sentAt.getTime()) / 86_400_000
         ),
       });
     } else if (updates.writeOff && existing.status !== "written_off") {
@@ -284,6 +387,83 @@ export async function invoiceRoutes(app: FastifyInstance) {
       });
     }
 
+    // Surface duplicate-earning candidates only on the transition to
+    // paid. We deliberately skip this on amount/date edits to avoid
+    // re-nagging the user about something they've already resolved.
+    // The current linkedEarningId is excluded so the user isn't shown
+    // a match they already chose.
+    const potentialEarningMatches = justMarkedPaid
+      ? await findPotentialEarningMatches({
+          userId: request.userId!,
+          amountPence: updated.amountPence,
+          anchorDate: updated.paidAt!,
+          excludeEarningId: updated.linkedEarningId,
+        })
+      : [];
+
+    return reply.send({
+      data: updated,
+      potentialEarningMatches,
+    });
+  });
+
+  // POST /invoices/:id/link-earning — link a paid invoice to the manual
+  // earning it represents, so the Tax Readiness aggregator counts the
+  // invoice and skips the earning. This is the explicit, user-driven
+  // anti-duplicate flow (Laura Joyce, 21 May 2026). The link is replaced,
+  // not appended: an invoice has at most one linkedEarningId at a time.
+  app.post("/:id/link-earning", async (request, reply) => {
+    const { id } = z.object({ id: z.string().uuid() }).parse(request.params);
+    const body = z
+      .object({ earningId: z.string().uuid() })
+      .safeParse(request.body);
+    if (!body.success) {
+      return reply.status(400).send({ error: "earningId is required" });
+    }
+
+    // Both rows must belong to the caller. We check inside a single
+    // transaction so we can't race against a deletion.
+    const [invoice, earning] = await Promise.all([
+      prisma.invoice.findFirst({
+        where: { id, userId: request.userId! },
+      }),
+      prisma.earning.findFirst({
+        where: { id: body.data.earningId, userId: request.userId! },
+      }),
+    ]);
+    if (!invoice) return reply.status(404).send({ error: "Invoice not found" });
+    if (!earning) return reply.status(404).send({ error: "Earning not found" });
+
+    const updated = await prisma.invoice.update({
+      where: { id },
+      data: { linkedEarningId: earning.id },
+    });
+
+    logEvent("invoice.linked_earning", request.userId!, {
+      invoiceId: id,
+      earningId: earning.id,
+      amountPence: invoice.amountPence,
+    });
+
+    return reply.send({ data: updated });
+  });
+
+  // POST /invoices/:id/unlink-earning — clear the link without deleting
+  // either side. Useful if the user linked the wrong earning or wants to
+  // count both rows separately (genuinely different income, same amount).
+  app.post("/:id/unlink-earning", async (request, reply) => {
+    const { id } = z.object({ id: z.string().uuid() }).parse(request.params);
+    const existing = await prisma.invoice.findFirst({
+      where: { id, userId: request.userId! },
+    });
+    if (!existing) return reply.status(404).send({ error: "Invoice not found" });
+
+    const updated = await prisma.invoice.update({
+      where: { id },
+      data: { linkedEarningId: null },
+    });
+
+    logEvent("invoice.unlinked_earning", request.userId!, { invoiceId: id });
     return reply.send({ data: updated });
   });
 

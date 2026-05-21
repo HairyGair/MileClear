@@ -57,6 +57,10 @@ export function TaxReadinessCard() {
   const [expanded, setExpanded] = useState(false);
   const [showDeductionDerivation, setShowDeductionDerivation] = useState(false);
   const [showDeductionWindows, setShowDeductionWindows] = useState(false);
+  // Earnings derivation panel — same "why this number?" pattern as the
+  // mileage deduction. Critical for users like Laura who can see at a
+  // glance that the figure splits into gig + invoice + any deduped rows.
+  const [showEarningsDerivation, setShowEarningsDerivation] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -113,7 +117,17 @@ export function TaxReadinessCard() {
           <Text style={s.heroLabel}>Estimated tax + NI this year</Text>
           <Text style={s.heroValue}>{formatPence(snap.ytd.estimatedTaxPence)}</Text>
           <Text style={s.heroMeta}>
-            On {formatPence(snap.ytd.grossEarningsPence)} earnings, after{" "}
+            On{" "}
+            <Text
+              style={s.heroMetaLink}
+              onPress={() => setShowEarningsDerivation(true)}
+              accessibilityRole="button"
+              accessibilityLabel={`${formatPence(snap.ytd.grossEarningsPence)} earnings. Tap to see the breakdown.`}
+            >
+              {formatPence(snap.ytd.grossEarningsPence)} earnings
+              <Text style={s.heroMetaLinkIcon}>{" ⓘ"}</Text>
+            </Text>
+            , after{" "}
             <Text
               style={s.heroMetaLink}
               onPress={() => setShowDeductionDerivation(true)}
@@ -125,6 +139,32 @@ export function TaxReadinessCard() {
               <Text style={s.heroMetaLinkIcon}>{" ⓘ"}</Text>
             </Text>
           </Text>
+
+          {/* Earnings breakdown subtitle — shown when both gig earnings
+              and invoice income are non-zero, so the user can see at a
+              glance where the headline figure comes from. Suppressed in
+              the single-source case to avoid noise. */}
+          {(snap.ytd.gigEarningsPence ?? 0) > 0 &&
+            (snap.ytd.invoiceIncomePence ?? 0) > 0 && (
+              <Text style={s.heroBreakdown}>
+                Gig {formatPence(snap.ytd.gigEarningsPence ?? 0)} · Invoices{" "}
+                {formatPence(snap.ytd.invoiceIncomePence ?? 0)}
+                {snap.ytd.taxBasis === "cash" ? " (paid)" : " (sent)"}
+              </Text>
+            )}
+
+          {/* Dedup hint — surfaced when one or more manual earnings were
+              skipped because a paid invoice already covers them. Without
+              this the user can't tell whether the figure is "everything
+              they entered" or "everything we counted". */}
+          {(snap.ytd.dedupedEarningCount ?? 0) > 0 && (
+            <Text style={s.heroDedupNote}>
+              <Ionicons name="link" size={11} color={GREEN} />{" "}
+              {snap.ytd.dedupedEarningCount}{" "}
+              {(snap.ytd.dedupedEarningCount ?? 0) === 1 ? "earning" : "earnings"} linked to{" "}
+              {(snap.ytd.dedupedEarningCount ?? 0) === 1 ? "an invoice" : "invoices"} — counted once.
+            </Text>
+          )}
         </>
       ) : (
         <>
@@ -269,6 +309,17 @@ export function TaxReadinessCard() {
         data={snap.ytd.mileageDeductionAcrossWindows}
         onClose={() => setShowDeductionWindows(false)}
       />
+
+      {/* Earnings derivation — opens via the £X earnings link in the
+          hero meta. Shows gig + invoice split, basis (cash/accruals),
+          and any deduped rows so the user can audit the figure. */}
+      <DerivationPanel
+        visible={showEarningsDerivation}
+        title={`Earnings · ${snap.taxYear}`}
+        formattedValue={formatPence(snap.ytd.grossEarningsPence)}
+        derivation={snap.ytd.earningsDerivation}
+        onClose={() => setShowEarningsDerivation(false)}
+      />
     </View>
   );
 }
@@ -342,6 +393,21 @@ const s = StyleSheet.create({
     fontSize: 12,
     lineHeight: 17,
     marginBottom: 12,
+  },
+  heroBreakdown: {
+    color: TEXT_3,
+    fontSize: 11.5,
+    lineHeight: 16,
+    fontVariant: ["tabular-nums"],
+    marginTop: -8,
+    marginBottom: 8,
+  },
+  heroDedupNote: {
+    color: TEXT_3,
+    fontSize: 11,
+    lineHeight: 16,
+    marginTop: -4,
+    marginBottom: 8,
   },
   heroMetaLink: {
     color: AMBER,

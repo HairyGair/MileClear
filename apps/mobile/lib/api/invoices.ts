@@ -1,5 +1,8 @@
 // Sole-trader invoice tracker API client.
 // Laura Joyce feature, 10 May 2026 (1.2.0).
+// Linked-earning anti-double-count flow added 21 May 2026 — see
+// `linkInvoiceToEarning` / `unlinkInvoiceFromEarning` plus the
+// PotentialEarningMatch type returned on mark-paid responses.
 
 import { apiRequest } from "./index";
 
@@ -19,8 +22,26 @@ export interface Invoice {
   paidAt: string | null;
   status: InvoiceStatus;
   notes: string | null;
+  /** Optional FK to the manual Earning this invoice represents. When set,
+   *  the Tax Readiness aggregator counts the invoice and skips the
+   *  earning. Anti-double-count link (21 May 2026). */
+  linkedEarningId: string | null;
   createdAt: string;
   updatedAt: string;
+}
+
+/** Returned alongside a paid invoice when the server thinks the user
+ *  may have already logged the same money as a manual earning. The
+ *  client shows a link-or-keep sheet when matches.length > 0. */
+export interface PotentialEarningMatch {
+  id: string;
+  platform: string;
+  amountPence: number;
+  /** ISO date (YYYY-MM-DD). */
+  periodStart: string;
+  notes: string | null;
+  /** Signed: negative = earning is before the invoice's paidAt date. */
+  daysFromAnchor: number;
 }
 
 export interface InvoiceListResponse {
@@ -53,6 +74,12 @@ export interface UpdateInvoiceInput {
   writeOff?: boolean;
 }
 
+/** Response shape for create + update — matches may be empty. */
+export interface InvoiceMutationResponse {
+  data: Invoice;
+  potentialEarningMatches?: PotentialEarningMatch[];
+}
+
 export function fetchInvoices(args: { status?: InvoiceStatus; page?: number; pageSize?: number } = {}) {
   const params = new URLSearchParams();
   if (args.status) params.set("status", args.status);
@@ -67,14 +94,14 @@ export function fetchInvoice(id: string) {
 }
 
 export function createInvoice(data: CreateInvoiceInput) {
-  return apiRequest<{ data: Invoice }>("/invoices", {
+  return apiRequest<InvoiceMutationResponse>("/invoices", {
     method: "POST",
     body: JSON.stringify(data),
   });
 }
 
 export function updateInvoice(id: string, data: UpdateInvoiceInput) {
-  return apiRequest<{ data: Invoice }>(`/invoices/${id}`, {
+  return apiRequest<InvoiceMutationResponse>(`/invoices/${id}`, {
     method: "PATCH",
     body: JSON.stringify(data),
   });
@@ -88,4 +115,27 @@ export function deleteInvoice(id: string) {
   return apiRequest<{ data: { deleted: boolean } }>(`/invoices/${id}`, {
     method: "DELETE",
   });
+}
+
+/** Link a paid invoice to the manual earning it represents. After this,
+ *  the Tax Readiness card counts the invoice and skips the earning,
+ *  preventing the double-count. */
+export function linkInvoiceToEarning(invoiceId: string, earningId: string) {
+  return apiRequest<{ data: Invoice }>(
+    `/invoices/${invoiceId}/link-earning`,
+    {
+      method: "POST",
+      body: JSON.stringify({ earningId }),
+    }
+  );
+}
+
+/** Clear the link. Both rows remain; both will be counted again. */
+export function unlinkInvoiceFromEarning(invoiceId: string) {
+  return apiRequest<{ data: Invoice }>(
+    `/invoices/${invoiceId}/unlink-earning`,
+    {
+      method: "POST",
+    }
+  );
 }

@@ -454,6 +454,10 @@ model Earning {
   createdAt   DateTime @default(now())
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  // Reverse side of Invoice.linkedEarningId. When an invoice is linked
+  // to this earning, the Tax Readiness aggregator counts the invoice
+  // and skips the earning to prevent double-counting.
+  linkedInvoices Invoice[]
 
   @@unique([userId, externalId])
   @@index([userId, periodStart])
@@ -875,6 +879,17 @@ model Invoice {
    *  from paidAt + dueAt; cached here so list filters are cheap. */
   status      String    @default("sent") @db.VarChar(16)
   notes       String?   @db.Text
+  /** Optional link to the manual Earning row that represents the same
+   *  money. When set, the Tax Readiness aggregator counts the invoice
+   *  and skips the linked earning — prevents the double-counting trap
+   *  where a freelancer logs both a gig-style earning AND an invoice
+   *  for the same job (Laura Joyce case, 21 May 2026).
+   *  ON DELETE SET NULL: if the earning is removed, the invoice stays
+   *  intact and just unlinks. Many invoices may share one earning (a
+   *  user who logged a quarterly total as a single earning and later
+   *  added per-job invoices for the same period). */
+  linkedEarningId String?  @db.VarChar(36)
+  linkedEarning   Earning? @relation(fields: [linkedEarningId], references: [id], onDelete: SetNull)
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 
@@ -882,6 +897,7 @@ model Invoice {
 
   @@index([userId, status])
   @@index([userId, sentAt])
+  @@index([linkedEarningId])
   @@map("invoices")
 }
 
