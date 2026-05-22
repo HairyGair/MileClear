@@ -236,50 +236,55 @@ export default function ExpensesScreen() {
         </TouchableOpacity>
       </View>
 
-      {/* Category filter chips */}
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.filterRow}
-      >
-        <TouchableOpacity
-          style={[
-            styles.filterChip,
-            filterCategory === null && styles.filterChipActive,
-          ]}
-          onPress={() => setFilterCategory(null)}
-          activeOpacity={0.7}
+      {/* Category filter chips. Wrapped in a View so the ScrollView
+          doesn't claim all remaining vertical space — without the
+          wrapper, the horizontal ScrollView flex-fills and stretches
+          every chip vertically to the bottom of the screen. */}
+      <View style={styles.filterRowWrap}>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.filterRow}
         >
-          <Text
-            style={[
-              styles.filterChipText,
-              filterCategory === null && styles.filterChipTextActive,
-            ]}
-          >
-            All
-          </Text>
-        </TouchableOpacity>
-        {EXPENSE_CATEGORIES.map((c) => (
           <TouchableOpacity
-            key={c.value}
             style={[
               styles.filterChip,
-              filterCategory === c.value && styles.filterChipActive,
+              filterCategory === null && styles.filterChipActive,
             ]}
-            onPress={() => setFilterCategory(c.value)}
+            onPress={() => setFilterCategory(null)}
             activeOpacity={0.7}
           >
             <Text
               style={[
                 styles.filterChipText,
-                filterCategory === c.value && styles.filterChipTextActive,
+                filterCategory === null && styles.filterChipTextActive,
               ]}
             >
-              {c.label}
+              All
             </Text>
           </TouchableOpacity>
-        ))}
-      </ScrollView>
+          {EXPENSE_CATEGORIES.map((c) => (
+            <TouchableOpacity
+              key={c.value}
+              style={[
+                styles.filterChip,
+                filterCategory === c.value && styles.filterChipActive,
+              ]}
+              onPress={() => setFilterCategory(c.value)}
+              activeOpacity={0.7}
+            >
+              <Text
+                style={[
+                  styles.filterChipText,
+                  filterCategory === c.value && styles.filterChipTextActive,
+                ]}
+              >
+                {c.label}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+      </View>
 
       {/* List */}
       {loading ? (
@@ -394,10 +399,15 @@ const styles = StyleSheet.create({
     color: TEXT_1,
   },
 
+  filterRowWrap: {
+    // Bounds the horizontal ScrollView so its children don't stretch
+    // to the full remaining viewport height.
+    paddingVertical: 14,
+  },
   filterRow: {
     paddingHorizontal: 20,
-    paddingVertical: 14,
     gap: 8,
+    alignItems: "center",
   },
   filterChip: {
     paddingHorizontal: 12,

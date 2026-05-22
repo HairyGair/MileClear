@@ -575,6 +575,10 @@ function RootNavigator() {
         <Stack.Screen name="tax-mtd-history" options={{ headerShown: true, title: "Submission history" }} />
         <Stack.Screen name="invoices" options={{ headerShown: true, title: "Invoices" }} />
         <Stack.Screen name="invoice-form" options={{ headerShown: true, title: "Add invoice" }} />
+        <Stack.Screen name="expenses" options={{ headerShown: true, title: "Expenses" }} />
+        <Stack.Screen name="expense-form" options={{ headerShown: true, title: "Add Expense" }} />
+        <Stack.Screen name="inbox" options={{ headerShown: true, title: "Inbox" }} />
+        <Stack.Screen name="receipt-scan" options={{ headerShown: true, title: "Scan Receipt" }} />
         <Stack.Screen name="accountant" options={{ headerShown: true, title: "My Accountant" }} />
         <Stack.Screen name="help" options={{ headerShown: true, title: "Help & Tutorials" }} />
         {/* Settings hub + sub-screens. Each is a small focused screen so
