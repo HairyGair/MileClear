@@ -28,7 +28,7 @@
 import { prisma } from "../lib/prisma.js";
 import { sendPushNotification } from "../lib/push.js";
 import { logEvent } from "../services/appEvents.js";
-import { postModAlert } from "../services/discord.js";
+import { postFounderAlert } from "../services/discord.js";
 
 // Recording is "stuck" if no driving speed seen for more than this.
 // Generous on purpose - a user genuinely stopped at lights, in a tunnel,
@@ -256,7 +256,7 @@ export async function runRecordingWatchdogJob(): Promise<void> {
         `⚠️ ${cooldownHits} user(s) still stuck after a recent silent push — device may not be responding (uninstalled, offline, or deep iOS suspension).`
       );
     }
-    await postModAlert({
+    await postFounderAlert({
       severity: actualPings >= 3 || cooldownHits >= 2 ? "warning" : "info",
       title: `Recording watchdog: ${actualPings} silent push${actualPings === 1 ? "" : "es"} sent`,
       detail: detailLines.join("\n"),

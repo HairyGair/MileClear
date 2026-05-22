@@ -23,7 +23,8 @@ export type DiscordChannel =
   | "announcements" // #announcements — public-facing news (App Store reviews, big milestones)
   | "wins" // #wins — opt-in celebration channel
   | "botLogs" // #bot-logs — server-side event log
-  | "modChat" // #mod-chat — oncall/moderation alerts
+  | "modChat" // #mod-chat — actionable moderation alerts (abuse, spam, ToS)
+  | "founder" // #founder — oncall/founder-only telemetry (watchdog, IAP orphans, payment fails)
   | "taxTips" // #tax-and-hmrc — daily tip-of-the-day cron
 ;
 
@@ -39,6 +40,11 @@ function channelWebhookUrl(channel: DiscordChannel): string | null {
       return process.env.DISCORD_WEBHOOK_BOTLOGS || null;
     case "modChat":
       return process.env.DISCORD_WEBHOOK_MODCHAT || null;
+    case "founder":
+      // Falls back to the mod-chat webhook if the founder channel
+      // isn't configured yet, so the oncall signal still lands
+      // somewhere visible until a private founder channel exists.
+      return process.env.DISCORD_WEBHOOK_FOUNDER || process.env.DISCORD_WEBHOOK_MODCHAT || null;
     case "taxTips":
       return process.env.DISCORD_WEBHOOK_TAXTIPS || null;
   }
@@ -228,10 +234,18 @@ export async function postAppStoreReview(args: {
 }
 
 /**
- * Oncall alert — pings #mod-chat. Used by the recording watchdog and
- * other server-side health checks. `severity` colours the embed.
+ * Founder-only oncall alert — pings #founder (falls back to #mod-chat
+ * if the founder webhook isn't configured yet). Used by the recording
+ * watchdog, IAP orphan detection, payment-fail surfacing, and other
+ * server-side telemetry that needs a human glance but is NOT actionable
+ * by community mods.
+ *
+ * Renamed from postModAlert on 22 May 2026 after mods asked why they
+ * were being pinged about things they couldn't action. Genuine mod
+ * alerts (abuse reports, spam, ToS) should call postModAlert (TODO) or
+ * postToChannel("modChat") directly.
  */
-export async function postModAlert(args: {
+export async function postFounderAlert(args: {
   severity: "info" | "warning" | "critical";
   title: string;
   detail?: string;
@@ -246,7 +260,7 @@ export async function postModAlert(args: {
         : COLOUR_SKY;
   const fields: DiscordEmbed["fields"] = [];
   if (args.userId) fields.push({ name: "User ID", value: args.userId, inline: true });
-  await postToChannel("modChat", {
+  await postToChannel("founder", {
     embeds: [
       {
         title: args.title,

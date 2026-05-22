@@ -55,7 +55,7 @@ const adminCreateTripSchema = z.object({
 // Anthony's terminal. Free-form `postToChannel` is the escape hatch;
 // `announceBuild` is the structured helper.
 const discordPostSchema = z.object({
-  channel: z.enum(["whatsNew", "announcements", "wins", "botLogs", "modChat"]),
+  channel: z.enum(["whatsNew", "announcements", "wins", "botLogs", "modChat", "founder"]),
   content: z.string().max(2000).optional(),
   embedTitle: z.string().max(256).optional(),
   embedDescription: z.string().max(4000).optional(),
