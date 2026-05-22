@@ -1596,6 +1596,8 @@ export const BLOG_POSTS: BlogPost[] = [
 
 <p>These rates cover fuel, wear and tear, insurance, and servicing - you can't claim those separately if you're using the mileage allowance.</p>
 
+<p><em>Editor's note (May 2026): HMRC raised the first-tier car/van rate from 45p to 55p per mile from 6 April 2026 for the 2026-27 tax year. The figures above are correct for any 2025-26 return; use 55p/25p for trips on or after 6 April 2026.</em></p>
+
 <p>If you haven't been tracking your mileage yet, it's not too late to start for the new tax year beginning 6 April. Download MileClear, add your vehicle, and every trip gets recorded automatically from day one.</p>
 
 <p>Get started free at <a href="https://mileclear.com">mileclear.com</a>.</p>
@@ -1617,6 +1619,8 @@ export const BLOG_POSTS: BlogPost[] = [
 <h2>1. Mileage (obviously)</h2>
 
 <p>This is the big one. HMRC lets you claim 45p per mile for the first 10,000 business miles in a tax year, then 25p per mile after that. If you're on a motorbike, it's 24p per mile flat.</p>
+
+<p><em>Editor's note (May 2026): HMRC raised the first-tier car/van rate from 45p to 55p per mile from 6 April 2026 for the 2026-27 tax year. The worked example below uses the 45p rate that was current at time of writing - for trips on or after 6 April 2026 the same 12,000 miles is worth £6,000 in deductions (10,000 × 55p + 2,000 × 25p) and £1,200 back at basic rate.</em></p>
 
 <p>Let's say you drive 12,000 business miles in a year. That's:</p>
 <ul>
@@ -1677,6 +1681,8 @@ export const BLOG_POSTS: BlogPost[] = [
     author: "Gair",
     category: "announcement",
     content: `
+<p><em>Editor's note (May 2026): the AMAP rate referenced below was 45p per mile for the first 10,000 business miles at time of writing. HMRC raised it to 55p from 6 April 2026 for the 2026-27 tax year onwards.</em></p>
+
 <p>I built MileClear because I couldn't find a mileage tracker that did what I actually needed.</p>
 
 <p>A couple of years back, I was doing some delivery driving on the side  - nothing serious, a few Deliveroo and Amazon Flex shifts a week. I knew I could claim mileage back against my tax bill (45p per mile, first 10,000 miles  - it adds up faster than you'd think), but keeping a proper log was a nightmare. I tried the popular apps. Most of them were clearly designed for American users: they talked about "IRS rates" and "Schedule C", the UI looked like it hadn't been touched since 2018, and they wanted £8–12 a month for basic export functionality. For someone doing part-time gig work, that felt completely wrong.</p>
@@ -1782,6 +1788,8 @@ export const BLOG_POSTS: BlogPost[] = [
     content: `
 <p>The HMRC Approved Mileage Allowance Payment (AMAP) scheme is one of the most straightforward tax reliefs available to UK drivers  - but a surprising number of people who are entitled to it never claim it. This guide explains who qualifies, what the rates are, what counts as business mileage, and how to calculate your deduction.</p>
 
+<p><em>Editor's note (May 2026): the figures below were the 2025-26 rates and correct at time of writing. HMRC raised the first-tier car/van rate from 45p to 55p per mile for the 2026-27 tax year, effective from 6 April 2026 - so for any trip on or after that date, use 55p (not 45p) on the first 10,000 business miles. The 25p second-tier rate, 24p motorbike rate and 20p bicycle rate are unchanged.</em></p>
+
 <h2>The rates</h2>
 
 <p>For the 2025–26 tax year, HMRC's approved mileage rates are:</p>
@@ -1792,7 +1800,7 @@ export const BLOG_POSTS: BlogPost[] = [
   <li><strong>Bicycles:</strong> 20p per mile</li>
 </ul>
 
-<p>These rates have been frozen since 2011, which is a mild annoyance given that fuel costs have roughly doubled since then  - but they're still a meaningful deduction, especially if you're putting in high mileage.</p>
+<p>These rates had been frozen since 2011 (until the 2026-27 rise to 55p), which was a mild annoyance given that fuel costs had roughly doubled since then  - but they're still a meaningful deduction, especially if you're putting in high mileage.</p>
 
 <h2>What does "business mileage" actually mean?</h2>
 
@@ -1877,7 +1885,7 @@ export const GUIDES: Guide[] = [
     slug: "hmrc-mileage-rates",
     title: "HMRC Mileage Rates for Cars and Vans",
     excerpt:
-      "The 45p/25p approved rates with a worked example: 18,800 miles a year reaches a £6,700 tax deduction. Covers sole traders, employees, and limited company directors.",
+      "The 55p/25p approved rates (raised from 45p on 6 April 2026) with a worked example: 18,800 miles a year reaches a £7,700 tax deduction. Covers sole traders, employees, and limited company directors.",
     category: "tax",
     readTime: "5 min read",
   },
