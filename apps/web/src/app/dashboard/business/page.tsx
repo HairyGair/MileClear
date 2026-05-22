@@ -120,6 +120,19 @@ export default function BusinessPage() {
   const [stats, setStats] = useState<GamificationStats | null>(null);
   const [insights, setInsights] = useState<BusinessInsights | null>(null);
   const [pnl, setPnl] = useState<WeeklyPnL | null>(null);
+  // Phase 3 of the Money Picture stack — per-platform gross/costs/net P&L
+  // for the last 30 days. Loaded alongside the rest on mount.
+  const [platformPnL, setPlatformPnL] = useState<
+    Array<{
+      platform: string;
+      grossEarningsPence: number;
+      expensesPence: number;
+      fuelPence: number;
+      netPence: number;
+      trips: number;
+      businessMiles: number;
+    }>
+  >([]);
   const [monthlyRecap, setMonthlyRecap] = useState<PeriodRecap | null>(null);
   const [recentTrips, setRecentTrips] = useState<Trip[]>([]);
   const [loading, setLoading] = useState(true);
@@ -153,13 +166,16 @@ export default function BusinessPage() {
     }
     async function load() {
       try {
-        const [statsRes, insightsRes, pnlRes, recapRes, tripsRes, wpRes] = await Promise.all([
+        const [statsRes, insightsRes, pnlRes, recapRes, tripsRes, wpRes, platformPnlRes] = await Promise.all([
           api.get<{ data: GamificationStats }>("/gamification/stats"),
           api.get<{ data: BusinessInsights }>("/business-insights"),
           api.get<{ data: WeeklyPnL }>("/business-insights/pnl"),
           api.get<{ data: PeriodRecap }>("/gamification/recap?period=monthly"),
           api.get<PaginatedResponse<Trip>>("/trips/?pageSize=5&classification=business"),
           api.get<{ data: WeeklyProgress }>("/user/weekly-progress"),
+          api
+            .get<{ data: typeof platformPnL }>("/business-insights/platform-pnl?days=30")
+            .catch(() => ({ data: [] as typeof platformPnL })),
         ]);
         setStats(statsRes.data);
         setInsights(insightsRes.data);
@@ -167,6 +183,7 @@ export default function BusinessPage() {
         setMonthlyRecap(recapRes.data);
         setRecentTrips(tripsRes.data);
         setWeeklyProgress(wpRes.data);
+        setPlatformPnL(platformPnlRes.data ?? []);
         if (wpRes.data.goalPence) setGoalInput(String(wpRes.data.goalPence / 100));
       } catch {
         // Handled by empty state
@@ -430,6 +447,72 @@ export default function BusinessPage() {
               </tbody>
             </table>
           </div>
+        </div>
+      )}
+
+      {/* Profit by Platform — Phase 3 of the Money Picture stack.
+          Where Platform Performance above shows earnings-per-mile (productivity),
+          this view subtracts a proportional share of fuel + allowable expenses
+          to show the REAL net £ each platform delivered over the last 30 days. */}
+      {platformPnL.length > 0 && (
+        <div className="biz-insights-section" style={{ marginBottom: "var(--dash-gap)" }}>
+          <div className="biz-insights-section__header">
+            <h3 className="biz-insights-section__title">Profit by Platform</h3>
+            <Badge variant="pro">
+              Best: {platformLabel(platformPnL[0].platform)} netted{" "}
+              {formatPence(platformPnL[0].netPence)}
+            </Badge>
+          </div>
+          <div className="table-wrap">
+            <table className="table">
+              <thead>
+                <tr>
+                  <th>Platform</th>
+                  <th style={{ textAlign: "right" }}>Gross</th>
+                  <th style={{ textAlign: "right" }}>Fuel</th>
+                  <th style={{ textAlign: "right" }}>Expenses</th>
+                  <th style={{ textAlign: "right" }}>Net</th>
+                </tr>
+              </thead>
+              <tbody>
+                {platformPnL.slice(0, 8).map((p, i) => (
+                  <tr key={p.platform} className={i === 0 ? "table__row--highlight" : ""}>
+                    <td>
+                      <Badge variant="business">{platformLabel(p.platform)}</Badge>
+                      <div style={{ fontSize: "0.6875rem", color: "var(--text-tertiary)", marginTop: 2 }}>
+                        {p.trips} trip{p.trips === 1 ? "" : "s"} · {formatMiles(p.businessMiles)}
+                      </div>
+                    </td>
+                    <td style={{ textAlign: "right", fontWeight: 600 }}>{formatPence(p.grossEarningsPence)}</td>
+                    <td style={{ textAlign: "right", color: "var(--text-secondary)" }}>{formatPence(p.fuelPence)}</td>
+                    <td style={{ textAlign: "right", color: "var(--text-secondary)" }}>{formatPence(p.expensesPence)}</td>
+                    <td
+                      style={{
+                        textAlign: "right",
+                        fontWeight: 700,
+                        color: p.netPence >= 0 ? "var(--emerald-400)" : "var(--dash-red)",
+                      }}
+                    >
+                      {formatPence(p.netPence)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <p
+            style={{
+              fontSize: "0.6875rem",
+              color: "var(--text-tertiary)",
+              margin: "0.5rem 0 0",
+              fontStyle: "italic",
+              lineHeight: 1.4,
+            }}
+          >
+            Fuel + expenses split by each platform&apos;s share of total earnings.
+            Mileage allowance not subtracted — that&apos;s a tax-line item, not a
+            real cash cost. Last 30 days.
+          </p>
         </div>
       )}
 

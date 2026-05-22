@@ -56,6 +56,7 @@ export default function EarningsPage() {
     amount: "",
     periodStart: "",
     periodEnd: "",
+    projectLabel: "",
   });
   const [addLoading, setAddLoading] = useState(false);
 
@@ -66,6 +67,7 @@ export default function EarningsPage() {
     amount: "",
     periodStart: "",
     periodEnd: "",
+    projectLabel: "",
   });
   const [editLoading, setEditLoading] = useState(false);
 
@@ -126,9 +128,10 @@ export default function EarningsPage() {
         amountPence,
         periodStart: addForm.periodStart,
         periodEnd: addForm.periodEnd,
+        projectLabel: addForm.projectLabel.trim() || undefined,
       });
       setShowAdd(false);
-      setAddForm({ platform: "uber", amount: "", periodStart: "", periodEnd: "" });
+      setAddForm({ platform: "uber", amount: "", periodStart: "", periodEnd: "", projectLabel: "" });
       loadEarnings();
       toast("Earning added");
     } catch (err: any) {
@@ -146,6 +149,7 @@ export default function EarningsPage() {
       amount: (earning.amountPence / 100).toFixed(2),
       periodStart: earning.periodStart.slice(0, 10),
       periodEnd: earning.periodEnd.slice(0, 10),
+      projectLabel: (earning as { projectLabel?: string | null }).projectLabel ?? "",
     });
   };
 
@@ -169,6 +173,7 @@ export default function EarningsPage() {
         amountPence,
         periodStart: editForm.periodStart,
         periodEnd: editForm.periodEnd,
+        projectLabel: editForm.projectLabel.trim() || null,
       });
       setEditEarning(null);
       loadEarnings();
@@ -405,6 +410,13 @@ export default function EarningsPage() {
             onChange={(e) => setAddForm((f) => ({ ...f, periodEnd: e.target.value }))}
           />
         </div>
+        <Input
+          id="addProjectLabel"
+          label="Project / client (optional)"
+          placeholder="e.g. Theatre Royal tour, Acme Ltd"
+          value={addForm.projectLabel}
+          onChange={(e) => setAddForm((f) => ({ ...f, projectLabel: e.target.value }))}
+        />
       </Modal>
 
       {/* Edit Earning Modal */}
@@ -456,6 +468,13 @@ export default function EarningsPage() {
             onChange={(e) => setEditForm((f) => ({ ...f, periodEnd: e.target.value }))}
           />
         </div>
+        <Input
+          id="editProjectLabel"
+          label="Project / client (optional)"
+          placeholder="e.g. Theatre Royal tour, Acme Ltd"
+          value={editForm.projectLabel}
+          onChange={(e) => setEditForm((f) => ({ ...f, projectLabel: e.target.value }))}
+        />
       </Modal>
 
       {/* CSV Import Modal */}

@@ -54,6 +54,7 @@ export default function ExpensesPage() {
   const [formDescription, setFormDescription] = useState("");
   const [formVendor, setFormVendor] = useState("");
   const [formNotes, setFormNotes] = useState("");
+  const [formProjectLabel, setFormProjectLabel] = useState("");
   const [formSaving, setFormSaving] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
 
@@ -68,6 +69,7 @@ export default function ExpensesPage() {
     setFormDescription("");
     setFormVendor("");
     setFormNotes("");
+    setFormProjectLabel("");
     setFormError(null);
     setEditId(null);
   };
@@ -110,6 +112,7 @@ export default function ExpensesPage() {
     setFormDescription(exp.description ?? "");
     setFormVendor(exp.vendor ?? "");
     setFormNotes(exp.notes ?? "");
+    setFormProjectLabel((exp as { projectLabel?: string | null }).projectLabel ?? "");
     setFormError(null);
     setShowForm(true);
   };
@@ -134,6 +137,7 @@ export default function ExpensesPage() {
         description: formDescription.trim() || undefined,
         vendor: formVendor.trim() || undefined,
         notes: formNotes.trim() || undefined,
+        projectLabel: formProjectLabel.trim() || undefined,
       };
       if (editId) {
         await api.patch(`/expenses/${editId}`, body);
@@ -393,6 +397,13 @@ export default function ExpensesPage() {
             label="Notes (optional)"
             value={formNotes}
             onChange={(e) => setFormNotes(e.target.value)}
+          />
+          <Input
+            id="exp-project"
+            label="Project / client (optional)"
+            placeholder="e.g. Theatre Royal tour, Acme Ltd"
+            value={formProjectLabel}
+            onChange={(e) => setFormProjectLabel(e.target.value)}
           />
           {formError && <div className="alert alert--error">{formError}</div>}
           <div style={{ display: "flex", gap: "0.5rem", justifyContent: "flex-end" }}>

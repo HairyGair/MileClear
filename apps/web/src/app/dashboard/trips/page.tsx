@@ -278,6 +278,7 @@ export default function TripsPage() {
     platformTag: "",
     businessPurpose: "",
     notes: "",
+    projectLabel: "",
     startedAt: new Date().toISOString().slice(0, 16),
   });
   const [addLoading, setAddLoading] = useState(false);
@@ -454,6 +455,7 @@ export default function TripsPage() {
         platformTag: addForm.platformTag || undefined,
         businessPurpose: addForm.businessPurpose || undefined,
         notes: addForm.notes || undefined,
+        projectLabel: addForm.projectLabel.trim() || undefined,
         startedAt: new Date(addForm.startedAt).toISOString(),
         startLat: addCoords?.startLat ?? 0,
         startLng: addCoords?.startLng ?? 0,
@@ -471,6 +473,7 @@ export default function TripsPage() {
         platformTag: "",
         businessPurpose: "",
         notes: "",
+        projectLabel: "",
         startedAt: new Date().toISOString().slice(0, 16),
       });
       toast("Trip added");
@@ -1091,6 +1094,13 @@ export default function TripsPage() {
           value={addForm.notes}
           onChange={(e) => setAddForm((f) => ({ ...f, notes: e.target.value }))}
           placeholder="Optional notes"
+        />
+        <Input
+          id="addProjectLabel"
+          label="Project / client (optional)"
+          value={addForm.projectLabel}
+          onChange={(e) => setAddForm((f) => ({ ...f, projectLabel: e.target.value }))}
+          placeholder="e.g. Theatre Royal tour, Acme Ltd"
         />
       </Modal>
 
