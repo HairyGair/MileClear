@@ -225,12 +225,25 @@ export async function runRecordingWatchdogJob(): Promise<void> {
     );
   }
 
-  // Discord ping when something actually needed intervention. We
-  // deliberately don't post if the run was clean — #mod-chat should
-  // stay quiet so when it lights up, it means something. Silent skip
-  // when DISCORD_WEBHOOK_MODCHAT isn't configured.
+  // Discord ping when something actually deserves a human glance.
+  // The watchdog is self-healing — every "1 silent push sent" is just
+  // the system doing its job, not a problem. Posting those to #mod-chat
+  // trained mods to ignore the channel, defeating the alert's purpose.
+  //
+  // Post only when:
+  //   1. 3+ pings in a single run → systemic (multi-user GPS issue,
+  //      bad release, etc), worth investigating
+  //   2. Any cooldown hits → a user was pinged within the last 30 min
+  //      and is STILL stuck. Their device isn't responding to silent
+  //      pushes (uninstalled, deep iOS suspension, offline). Most
+  //      actionable signal we have.
+  //
+  // Single-ping routine cases stay in the server log (line 222 above)
+  // but not Discord. Silent skip when DISCORD_WEBHOOK_MODCHAT isn't set.
   const actualPings = stuckPinged + syncPinged;
-  if (actualPings > 0) {
+  const cooldownHits = stuckCooldown + syncCooldown;
+  const worthAlerting = actualPings >= 3 || cooldownHits > 0;
+  if (actualPings > 0 && worthAlerting) {
     const detailLines: string[] = [];
     if (stuck.length > 0) {
       detailLines.push(`Stuck recordings: ${stuck.length} (pinged ${stuckPinged}, cooldown ${stuckCooldown})`);
@@ -238,8 +251,13 @@ export async function runRecordingWatchdogJob(): Promise<void> {
     if (pendingSync.length > 0) {
       detailLines.push(`Pending sync queues: ${pendingSync.length} (pinged ${syncPinged}, cooldown ${syncCooldown})`);
     }
+    if (cooldownHits > 0) {
+      detailLines.push(
+        `⚠️ ${cooldownHits} user(s) still stuck after a recent silent push — device may not be responding (uninstalled, offline, or deep iOS suspension).`
+      );
+    }
     await postModAlert({
-      severity: actualPings >= 3 ? "warning" : "info",
+      severity: actualPings >= 3 || cooldownHits >= 2 ? "warning" : "info",
       title: `Recording watchdog: ${actualPings} silent push${actualPings === 1 ? "" : "es"} sent`,
       detail: detailLines.join("\n"),
     });
