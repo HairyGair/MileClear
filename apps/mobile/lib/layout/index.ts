@@ -243,6 +243,8 @@ export const SECTION_REGISTRY: Record<ScreenKey, SectionDef[]> = {
     { key: "menu_earnings", label: "Earnings", icon: "cash-outline" },
     { key: "menu_work_tax", label: "Work & Tax", icon: "briefcase-outline" },
     { key: "menu_invoices", label: "Invoices", icon: "document-text-outline" },
+    { key: "menu_expenses", label: "Expenses", icon: "receipt-outline" },
+    { key: "menu_inbox", label: "Inbox", icon: "mail-unread-outline" },
     {
       key: "menu_insights",
       label: "Insights",

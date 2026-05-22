@@ -46,6 +46,8 @@ const MENU_ITEMS: Record<string, MenuItem> = {
   menu_fuel: { key: "menu_fuel", label: "Fuel", route: "/(tabs)/fuel", icon: "water-outline", replace: true },
   menu_earnings: { key: "menu_earnings", label: "Earnings", route: "/(tabs)/earnings", icon: "cash-outline", replace: true },
   menu_invoices: { key: "menu_invoices", label: "Invoices", route: "/invoices", icon: "document-text-outline" },
+  menu_expenses: { key: "menu_expenses", label: "Expenses", route: "/expenses", icon: "receipt-outline" },
+  menu_inbox: { key: "menu_inbox", label: "Inbox", route: "/inbox", icon: "mail-unread-outline", badge: "PRO" },
   menu_work_tax: { key: "menu_work_tax", label: "Work & Tax", route: "/settings/work-tax", icon: "briefcase-outline" },
   menu_insights: { key: "menu_insights", label: "Insights", route: "/insights", icon: "stats-chart-outline", badge: "PRO" },
   menu_analytics: { key: "menu_analytics", label: "Analytics", route: "/analytics", icon: "bar-chart-outline", badge: "PRO" },
@@ -62,7 +64,7 @@ const GROUPS = [
   // (PAYE deductions, tax basis, mileage rates, invoices entry) — this
   // surfaces it one tap from the avatar menu so gig drivers don't have
   // to navigate three layers deep to tweak their tax setup.
-  { id: "work", label: "WORK & TAX", keys: ["menu_work_tax", "menu_invoices", "menu_schedule"] },
+  { id: "work", label: "WORK & TAX", keys: ["menu_work_tax", "menu_invoices", "menu_expenses", "menu_inbox", "menu_schedule"] },
   { id: "tools", label: "TOOLS", keys: ["menu_insights", "menu_analytics", "menu_exports", "menu_suggestions"] },
   { id: "support", label: "SUPPORT", keys: ["menu_help"] },
 ];
