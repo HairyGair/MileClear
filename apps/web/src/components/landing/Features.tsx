@@ -153,7 +153,39 @@ const features = [
   },
 ];
 
+function ProBadge({ label }: { label: string }) {
+  return (
+    <span
+      style={{
+        marginLeft: "0.5rem",
+        fontSize: "0.6875rem",
+        fontWeight: 700,
+        textTransform: "uppercase",
+        letterSpacing: "0.5px",
+        padding: "2px 6px",
+        borderRadius: "4px",
+        background: "rgba(245,166,35,0.15)",
+        color: "var(--amber-400)",
+        verticalAlign: "middle",
+      }}
+    >
+      {label}
+    </span>
+  );
+}
+
 export default function Features() {
+  // Split the feature list: the ones with a paired screenshot become
+  // editorial "showcase rows" at the top (alternating text-left /
+  // text-right), the rest stay as an icon-only 3-up grid below.
+  const showcase = features.filter(
+    (f): f is typeof f & { screenshot: string } =>
+      "screenshot" in f && typeof (f as { screenshot?: string }).screenshot === "string"
+  );
+  const iconOnly = features.filter(
+    (f) => !("screenshot" in f) || !(f as { screenshot?: string }).screenshot
+  );
+
   return (
     <section id="features" className="section">
       <div className="container">
@@ -167,10 +199,44 @@ export default function Features() {
           </div>
         </Reveal>
 
+        {/* Editorial showcase rows — six pillar features paired with their
+            screenshot. Alternates text-left / text-right by index. */}
         <Reveal delay="reveal-d2">
-          <div className="features__grid">
-            {features.map((f) => {
-              const ff = f as typeof f & { screenshot?: string };
+          <div className="showcase">
+            {showcase.map((f, idx) => (
+              <div
+                key={f.title}
+                className={`showcase__row${idx % 2 === 1 ? " showcase__row--reverse" : ""}`}
+              >
+                <div className="showcase__text">
+                  <div className={`f-card__icon${f.alt ? " f-card__icon--alt" : ""}`}>
+                    {f.icon}
+                  </div>
+                  <h3 className="showcase__title">
+                    {f.title}
+                    {f.pro && <ProBadge label={f.pro} />}
+                  </h3>
+                  <p className="showcase__desc">{f.desc}</p>
+                </div>
+                <div className="showcase__image">
+                  <Image
+                    src={`/screenshot-source/iphone/${f.screenshot}`}
+                    alt={`MileClear: ${f.title.toLowerCase()}`}
+                    width={420}
+                    height={910}
+                    sizes="(max-width: 768px) 80vw, 360px"
+                    style={{ width: "100%", height: "auto", display: "block" }}
+                  />
+                </div>
+              </div>
+            ))}
+          </div>
+        </Reveal>
+
+        {/* Remaining features — icon-only uniform grid. */}
+        <Reveal delay="reveal-d3">
+          <div className="features__grid features__grid--secondary">
+            {iconOnly.map((f) => {
               return (
                 <div key={f.title} className="f-card">
                   <div className={`f-card__icon${f.alt ? " f-card__icon--alt" : ""}`}>
@@ -178,46 +244,9 @@ export default function Features() {
                   </div>
                   <h3 className="f-card__title">
                     {f.title}
-                    {f.pro && (
-                      <span style={{
-                        marginLeft: "0.5rem",
-                        fontSize: "0.6875rem",
-                        fontWeight: 700,
-                        textTransform: "uppercase",
-                        letterSpacing: "0.5px",
-                        padding: "2px 6px",
-                        borderRadius: "4px",
-                        background: "rgba(245,166,35,0.15)",
-                        color: "var(--amber-400)",
-                        verticalAlign: "middle",
-                      }}>{f.pro}</span>
-                    )}
+                    {f.pro && <ProBadge label={f.pro} />}
                   </h3>
                   <p className="f-card__desc">{f.desc}</p>
-                  {ff.screenshot && (
-                    <div
-                      style={{
-                        marginTop: "1rem",
-                        borderRadius: "12px",
-                        overflow: "hidden",
-                        background: "rgba(255,255,255,0.02)",
-                        border: "1px solid rgba(255,255,255,0.06)",
-                      }}
-                    >
-                      <Image
-                        src={`/screenshot-source/iphone/${ff.screenshot}`}
-                        alt={`MileClear: ${f.title.toLowerCase()}`}
-                        width={360}
-                        height={780}
-                        sizes="(max-width: 768px) 80vw, 360px"
-                        style={{
-                          width: "100%",
-                          height: "auto",
-                          display: "block",
-                        }}
-                      />
-                    </div>
-                  )}
                 </div>
               );
             })}

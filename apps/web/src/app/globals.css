@@ -625,6 +625,112 @@ body::after {
 @media (max-width: 1024px) { .features__grid { grid-template-columns: repeat(2, 1fr); } }
 @media (max-width: 540px)  { .features__grid { grid-template-columns: 1fr; } }
 
+/* Secondary grid (the icon-only features below the showcase rows). */
+.features__grid--secondary {
+  margin-top: 4rem;
+}
+
+/* ================================================================
+   FEATURES SHOWCASE — editorial rows pairing pillar features
+   with their screenshot. Alternates text-left / text-right by row.
+   ================================================================ */
+.showcase {
+  display: flex;
+  flex-direction: column;
+  gap: 4.5rem;
+  margin-bottom: 2rem;
+}
+.showcase__row {
+  display: grid;
+  grid-template-columns: 1fr 360px;
+  gap: 3.5rem;
+  align-items: center;
+}
+.showcase__row--reverse {
+  grid-template-columns: 360px 1fr;
+}
+.showcase__row--reverse .showcase__text {
+  order: 2;
+}
+.showcase__row--reverse .showcase__image {
+  order: 1;
+}
+
+.showcase__text {
+  display: flex;
+  flex-direction: column;
+  gap: 0.875rem;
+  max-width: 480px;
+}
+.showcase__text .f-card__icon {
+  width: 44px;
+  height: 44px;
+}
+.showcase__title {
+  font-family: var(--font-display);
+  font-size: 1.625rem;
+  font-weight: 700;
+  line-height: 1.2;
+  letter-spacing: -0.015em;
+  color: var(--text-primary);
+  margin: 0;
+}
+.showcase__desc {
+  font-size: 1rem;
+  line-height: 1.6;
+  color: var(--text-secondary);
+  margin: 0;
+}
+
+.showcase__image {
+  border-radius: 24px;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  box-shadow:
+    0 24px 56px -16px rgba(0, 0, 0, 0.55),
+    0 0 0 1px rgba(245, 166, 35, 0.05) inset;
+  transition: transform 0.3s ease;
+}
+.showcase__row:hover .showcase__image {
+  transform: translateY(-4px);
+}
+
+@media (max-width: 768px) {
+  .showcase {
+    gap: 3.5rem;
+  }
+  .showcase__row,
+  .showcase__row--reverse {
+    grid-template-columns: 1fr;
+    gap: 1.5rem;
+    text-align: center;
+  }
+  .showcase__row--reverse .showcase__text {
+    order: 2;
+  }
+  .showcase__row--reverse .showcase__image {
+    order: 1;
+  }
+  /* On mobile, always show image first then text — keeps the visual
+     hook at the top of every row regardless of reverse class. */
+  .showcase__row .showcase__text {
+    order: 2;
+  }
+  .showcase__row .showcase__image {
+    order: 1;
+  }
+  .showcase__text {
+    max-width: 100%;
+    align-items: center;
+  }
+  .showcase__image {
+    max-width: 280px;
+    margin: 0 auto;
+  }
+  .showcase__title { font-size: 1.375rem; }
+}
+
 /* ================================================================
    SCREENSHOTS — "See it in action" horizontal gallery
    ================================================================ */
