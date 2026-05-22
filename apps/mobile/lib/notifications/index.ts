@@ -498,6 +498,13 @@ export function setupNotificationResponseHandler(): void {
         router.navigate("/(tabs)/profile");
         break;
 
+      case "open_community":
+        // Discord invite push (22 May 2026 broadcast). Lands on the
+        // in-app Community screen which explains who's there before
+        // the user hits the OAuth-link flow / discord.gg link.
+        router.navigate("/settings/community" as any);
+        break;
+
       case "open_admin_health":
         router.navigate("/admin-health" as any);
         break;
