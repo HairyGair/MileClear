@@ -320,6 +320,36 @@ export default function DashboardScreen() {
     };
   }, []);
 
+  // AMAP rate change announcement banner (45p → 55p, effective 6 April
+  // 2026). Shows on every dashboard visit until dismissed; one-time
+  // SQLite flag keyed on the announcement id so a future announcement
+  // re-shows even to people who dismissed this one.
+  const AMAP_ANNOUNCEMENT_ID = "amap_rate_2026_27";
+  const [amapBannerSeen, setAmapBannerSeen] = useState(true); // default seen until loaded
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const db = await getDatabase();
+      const row = await db.getFirstAsync<{ value: string }>(
+        "SELECT value FROM tracking_state WHERE key = ?",
+        [`announcement_dismissed_${AMAP_ANNOUNCEMENT_ID}`]
+      );
+      if (cancelled) return;
+      setAmapBannerSeen(row?.value === "1");
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+  const dismissAmapBanner = useCallback(async () => {
+    setAmapBannerSeen(true);
+    const db = await getDatabase();
+    await db.runAsync(
+      "INSERT OR REPLACE INTO tracking_state (key, value) VALUES (?, '1')",
+      [`announcement_dismissed_${AMAP_ANNOUNCEMENT_ID}`]
+    );
+  }, []);
+
   const dismissDqBanner = useCallback(async () => {
     setDqBannerSeen(true);
     setDqImprovement(null);
@@ -1067,6 +1097,48 @@ export default function DashboardScreen() {
         isWork={isWork}
         unclassifiedCount={unclassifiedCount}
       />
+
+      {/* HMRC AMAP rate change announcement (45p -> 55p, effective
+          6 April 2026). Same visual treatment as the suggestion cards
+          below. Dismissible per device; one-time SQLite flag keyed on
+          the announcement id so a future announcement re-shows even
+          to people who dismissed this one. */}
+      {!amapBannerSeen && (
+        <TouchableOpacity
+          style={s.savedLocsNudge}
+          onPress={() => {
+            Linking.openURL("https://mileclear.com/hmrc-mileage-rates").catch(() => {});
+          }}
+          activeOpacity={0.85}
+          accessibilityRole="button"
+          accessibilityLabel="HMRC mileage rate raised to 55p from 6 April 2026"
+        >
+          <TouchableOpacity
+            style={s.savedLocsNudgeDismiss}
+            onPress={dismissAmapBanner}
+            hitSlop={{ top: 12, right: 12, bottom: 12, left: 12 }}
+            accessibilityRole="button"
+            accessibilityLabel="Dismiss"
+          >
+            <Ionicons name="close" size={16} color="#6b7280" accessible={false} />
+          </TouchableOpacity>
+          <View style={s.savedLocsNudgeIconWrap}>
+            <Ionicons name="megaphone" size={20} color={AMBER} accessible={false} />
+          </View>
+          <Text style={s.savedLocsNudgeTitle}>
+            HMRC mileage rate raised to 55p
+          </Text>
+          <Text style={s.savedLocsNudgeBody}>
+            From 6 April 2026, cars and vans claim 55p per mile for the first
+            10,000 business miles (up from 45p). MileClear picks the right
+            rate per trip date - older trips stay at 45p.
+          </Text>
+          <View style={s.savedLocsNudgeCta}>
+            <Text style={s.savedLocsNudgeCtaText}>Learn more</Text>
+            <Ionicons name="chevron-forward" size={14} color={AMBER} accessible={false} />
+          </View>
+        </TouchableOpacity>
+      )}
 
       {/* Saved-locations nudge — users with 0 pinned places + clusters available */}
       {showSavedLocationsNudge && (
