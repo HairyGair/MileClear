@@ -2,40 +2,81 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { getLatestRelease } from "@mileclear/shared";
+import { ACTIVE_ANNOUNCEMENT, getLatestRelease } from "@mileclear/shared";
 import "./release-banner.css";
 
 const APP_STORE_URL = "https://apps.apple.com/app/mileclear/id6759671005";
 
+type BannerContent =
+  | {
+      kind: "announcement";
+      dismissKey: string;
+      headline: string;
+      subline?: string;
+      ctaLabel?: string;
+      ctaHref?: string;
+    }
+  | {
+      kind: "release";
+      dismissKey: string;
+      headline: string;
+      subline?: string;
+    };
+
 /**
- * Site-wide announcement banner. Renders across every page on
- * mileclear.com when the current "Latest" release has a `banner`
- * field set (see ReleaseNote interface in @mileclear/shared).
+ * Site-wide banner. Renders across every page on mileclear.com.
  *
- * Conditions for showing:
- *   1. There's a release labelled "Latest" in RELEASE_NOTES
- *   2. That release has a `banner` object set
- *   3. The visitor hasn't dismissed THIS specific version's banner
- *      (localStorage key is version-scoped so a new release will
- *      re-show even to users who dismissed the previous one)
+ * Priority order:
+ *   1. ACTIVE_ANNOUNCEMENT — standalone news (regulatory changes,
+ *      outage notices) that isn't tied to a MileClear release.
+ *   2. The current "Latest" release's `banner` field — used for
+ *      shipping news, App Store launches, feature highlights.
+ *
+ * Either renders if the visitor hasn't dismissed this exact item
+ * (localStorage key is id/version-scoped, so changing the id/version
+ * re-shows even to people who dismissed the previous one).
  *
  * Renders empty during SSR + first client paint, then fills in
  * once we've checked localStorage. Avoids hydration flicker by
  * only mounting once we know dismissed-vs-shown.
  */
 export default function ReleaseBanner() {
-  const [shouldShow, setShouldShow] = useState(false);
-  const [version, setVersion] = useState<string | null>(null);
+  const [content, setContent] = useState<BannerContent | null>(null);
   const bannerRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    // Priority 1: standalone announcement.
+    if (ACTIVE_ANNOUNCEMENT) {
+      const key = `mc-announcement-dismissed-${ACTIVE_ANNOUNCEMENT.id}`;
+      if (window.localStorage.getItem(key) !== "1") {
+        setContent({
+          kind: "announcement",
+          dismissKey: key,
+          headline: ACTIVE_ANNOUNCEMENT.headline,
+          subline: ACTIVE_ANNOUNCEMENT.subline,
+          ctaLabel: ACTIVE_ANNOUNCEMENT.cta?.label,
+          ctaHref: ACTIVE_ANNOUNCEMENT.cta?.href,
+        });
+        return;
+      }
+    }
+
+    // Priority 2: release banner.
     const release = getLatestRelease();
     if (!release || !release.banner) return;
     const key = `mc-release-banner-dismissed-${release.version}`;
-    if (typeof window !== "undefined" && window.localStorage.getItem(key) === "1") return;
-    setVersion(release.version);
-    setShouldShow(true);
+    if (window.localStorage.getItem(key) === "1") return;
+    setContent({
+      kind: "release",
+      dismissKey: key,
+      headline: release.banner.headline,
+      subline: release.banner.subline,
+    });
   }, []);
+
+  const shouldShow = content !== null;
 
   // Once the banner mounts, set the data attribute + --banner-h CSS
   // variable on <html> so the fixed-position navbar (defined in
@@ -59,46 +100,56 @@ export default function ReleaseBanner() {
     };
   }, [shouldShow]);
 
-  if (!shouldShow || !version) return null;
-
-  const release = getLatestRelease();
-  if (!release?.banner) return null;
+  if (!content) return null;
 
   const handleDismiss = () => {
     try {
-      window.localStorage.setItem(
-        `mc-release-banner-dismissed-${version}`,
-        "1"
-      );
+      window.localStorage.setItem(content.dismissKey, "1");
     } catch {
       // localStorage might be unavailable (private mode, quota); fall
       // through and just hide for this page load only.
     }
-    setShouldShow(false);
+    setContent(null);
   };
 
+  const isAnnouncement = content.kind === "announcement";
+  // Release banners show the "What's new" + "Download" CTAs; standalone
+  // announcements show only their own CTA (if any), so they stay focused
+  // on the news rather than always nudging an App Store install.
+  const ariaLabel = isAnnouncement ? "MileClear announcement" : "What's new in MileClear";
+
   return (
-    <div ref={bannerRef} className="release-banner" role="region" aria-label="What's new in MileClear">
+    <div ref={bannerRef} className="release-banner" role="region" aria-label={ariaLabel}>
       <div className="release-banner__inner">
         <div className="release-banner__copy">
           <span className="release-banner__pulse" aria-hidden="true" />
-          <strong className="release-banner__headline">{release.banner.headline}</strong>
-          {release.banner.subline ? (
-            <span className="release-banner__subline">{release.banner.subline}</span>
+          <strong className="release-banner__headline">{content.headline}</strong>
+          {content.subline ? (
+            <span className="release-banner__subline">{content.subline}</span>
           ) : null}
         </div>
         <div className="release-banner__ctas">
-          <Link href="/releases" className="release-banner__link">
-            What&rsquo;s new
-          </Link>
-          <a
-            href={APP_STORE_URL}
-            className="release-banner__cta"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Download
-          </a>
+          {isAnnouncement ? (
+            content.ctaHref && content.ctaLabel ? (
+              <Link href={content.ctaHref} className="release-banner__link">
+                {content.ctaLabel}
+              </Link>
+            ) : null
+          ) : (
+            <>
+              <Link href="/releases" className="release-banner__link">
+                What&rsquo;s new
+              </Link>
+              <a
+                href={APP_STORE_URL}
+                className="release-banner__cta"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                Download
+              </a>
+            </>
+          )}
           <button
             type="button"
             className="release-banner__dismiss"

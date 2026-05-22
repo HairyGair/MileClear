@@ -41,6 +41,39 @@ export interface ReleaseNote {
   };
 }
 
+/**
+ * Standalone announcement banner. When set, takes precedence over the
+ * release banner — used for non-release news (regulatory changes,
+ * outage notices, important user actions). Set to null to retire.
+ *
+ * Dismissal is keyed on `id` so changing it to a new id re-shows the
+ * banner to everyone, even people who dismissed the previous one.
+ */
+export interface SiteAnnouncement {
+  /** Stable identifier for the announcement. Change to force re-display. */
+  id: string;
+  /** Short headline. Keep under ~50 chars so mobile fits one line. */
+  headline: string;
+  /** Optional sub-line for desktop / wider viewports. */
+  subline?: string;
+  /** Optional CTA link (text + href). If omitted, only "Dismiss" shows. */
+  cta?: {
+    label: string;
+    href: string;
+  };
+}
+
+export const ACTIVE_ANNOUNCEMENT: SiteAnnouncement | null = {
+  id: "amap-rate-2026-27",
+  headline: "HMRC AMAP rate raised to 55p for 2026-27",
+  subline:
+    "From 6 April 2026, cars and vans claim 55p per mile for the first 10,000 business miles (up from 45p). MileClear already applies the right rate per trip date.",
+  cta: {
+    label: "Read more",
+    href: "/hmrc-mileage-rates",
+  },
+};
+
 export const RELEASE_NOTES: ReleaseNote[] = [
   {
     version: "1.2.1",
