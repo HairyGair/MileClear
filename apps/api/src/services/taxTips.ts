@@ -170,7 +170,7 @@ export const TAX_TIPS: TaxTip[] = [
     id: "deadline-new-tax-year",
     title: "🆕 New tax year started 6 April",
     body:
-      "Fresh tax year, fresh £12,570 personal allowance, fresh 10,000-mile AMAP threshold. Use the new year well — every business mile from today is at 45p (cars/vans) up to 10k.",
+      "Fresh tax year, fresh £12,570 personal allowance, fresh 10,000-mile AMAP threshold. From 6 April 2026, the AMAP rate for cars and vans rose to 55p per mile (up from 45p) for the first 10k miles. Make this new year count.",
     category: "deadlines",
     season: { fromMonth: 4, fromDay: 6, toMonth: 4, toDay: 30 },
   },
@@ -224,14 +224,14 @@ export const TAX_TIPS: TaxTip[] = [
     id: "sa-capital-allowances",
     title: "🚗 Capital allowances vs simplified expenses",
     body:
-      "Once you pick simplified expenses (the 45p/25p AMAP rate) for a vehicle, you can't switch to capital allowances on the same one. Make the decision once, stick with it.",
+      "Once you pick simplified expenses (the AMAP rate — 55p/25p for cars and vans from 2026-27, 45p/25p before) for a vehicle, you can't switch to capital allowances on the same one. Make the decision once, stick with it.",
     category: "self-assessment",
   },
   {
     id: "sa-amap-vs-actual",
     title: "🚗 AMAP rates vs actual costs — which?",
     body:
-      "Cars + vans: 45p per mile (first 10k), 25p after. For most drivers covering 8-15k business miles this is more generous than tracking actual fuel/wear/insurance. Switch only if you have an expensive vehicle and low mileage.",
+      "Cars + vans (2026-27 onwards): 55p per mile for the first 10k, 25p after — up from 45p/25p in earlier years. For most drivers covering 8-15k business miles this is more generous than tracking actual fuel/wear/insurance. Switch only if you have an expensive vehicle and low mileage.",
     category: "self-assessment",
   },
   {
@@ -275,7 +275,7 @@ export const TAX_TIPS: TaxTip[] = [
     id: "dyk-amap-covers-everything",
     title: "💡 AMAP covers EVERYTHING vehicle-related",
     body:
-      "When you claim 45p/mile, that includes fuel + insurance + servicing + tyres + depreciation + MOT. You can't claim those separately on top. Parking + tolls though — those are extra.",
+      "When you claim the AMAP rate (55p/mile in 2026-27, was 45p before), that includes fuel + insurance + servicing + tyres + depreciation + MOT. You can't claim those separately on top. Parking + tolls though — those are extra.",
     category: "did-you-know",
   },
   {

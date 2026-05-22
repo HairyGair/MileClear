@@ -180,7 +180,7 @@ export async function selfAssessmentRoutes(app: FastifyInstance) {
         row.deductionPence = calculateMileageDeduction(
           row.vehicleType as VehicleType,
           row.businessMiles,
-          rateOpts,
+          { ...rateOpts, taxYear: validatedTaxYear },
         ).deductionPence;
       }
       const vehicleBreakdown = Array.from(vehicleMap.values()).sort(

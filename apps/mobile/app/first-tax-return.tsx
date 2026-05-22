@@ -180,6 +180,11 @@ export default function FirstTaxReturnScreen() {
           single deduction available to most drivers</Bold> - which is why MileClear
           tracks every mile automatically.
         </P>
+        <View style={[s.callout, { backgroundColor: AMBER_FAINT }]}>
+          <Text style={[s.calloutText, { color: AMBER }]}>
+            These are the rates for tax year 2025-26 (what you&apos;re filing now). From tax year 2026-27 onwards (trips from 6 April 2026), HMRC&apos;s car/van rate rises to 55p per mile for the first 10,000 miles - 25p after that stays the same.
+          </Text>
+        </View>
       </Section>
 
       <Section num="6" icon="alarm-outline" title="The 31 January deadline">

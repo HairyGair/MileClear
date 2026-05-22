@@ -7,7 +7,7 @@ export const metadata: Metadata = {
     absolute: "Free Mileage Tracker UK - No Card, No Trial, No Catch | MileClear",
   },
   description:
-    "Genuinely free UK mileage tracker. Auto-track every business mile, HMRC 45p/25p rates built in, unlimited trips, no ads. Free forever - Pro is only for accountant-ready exports.",
+    "Genuinely free UK mileage tracker. Auto-track every business mile, HMRC 55p/25p rates built in (raised from 45p on 6 April 2026), unlimited trips, no ads. Free forever - Pro is only for accountant-ready exports.",
   keywords: [
     "free mileage tracker uk",
     "free mileage tracker",
@@ -74,7 +74,7 @@ const faqSchema = {
       name: "What is included in the free tier?",
       acceptedAnswer: {
         "@type": "Answer",
-        text: "Free includes: unlimited GPS-tracked trips, business / personal classification, platform tagging for gig drivers, HMRC 45p/25p/24p rate calculation, one vehicle with DVLA lookup, fuel logging with live UK prices from 8,300+ stations, all 18 achievements, streaks and personal records, weekly and monthly recaps, two saved locations, the Tax Readiness card, the Self Assessment wizard view, AMAP calculator, and MOT + tax reminders.",
+        text: "Free includes: unlimited GPS-tracked trips, business / personal classification, platform tagging for gig drivers, HMRC 55p/25p/24p rate calculation (the car/van first-tier rate rose from 45p to 55p on 6 April 2026), one vehicle with DVLA lookup, fuel logging with live UK prices from 8,300+ stations, all 18 achievements, streaks and personal records, weekly and monthly recaps, two saved locations, the Tax Readiness card, the Self Assessment wizard view, AMAP calculator, and MOT + tax reminders.",
       },
     },
     {
@@ -149,7 +149,7 @@ export default function FreeMileageTrackerUk() {
             </h1>
             <p style={{ fontSize: "1.125rem", color: "#94a3b8", lineHeight: 1.75, maxWidth: 680 }}>
               MileClear is free to download and free to use indefinitely. Unlimited GPS-tracked trips,
-              HMRC 45p/25p rates built in, fuel prices from 8,300+ UK stations, gamification, all 18
+              HMRC 55p/25p rates built in (rate rose from 45p on 6 April 2026), fuel prices from 8,300+ UK stations, gamification, all 18
               achievements, vehicle records and a free Self Assessment wizard view - all free forever.
               Pro (£4.99/mo) only unlocks the tax-time export PDF and a few power-user extras.
             </p>
@@ -204,8 +204,9 @@ export default function FreeMileageTrackerUk() {
               Why the Tracking Is Free
             </h2>
             <p style={{ color: "#94a3b8", lineHeight: 1.8, marginBottom: "1rem" }}>
-              The mileage deduction is yours. HMRC's AMAP relief - 45p per mile for the first 10,000
-              business miles, then 25p after - is a right you have as a UK self-employed person.
+              The mileage deduction is yours. HMRC's AMAP relief - 55p per mile for the first 10,000
+              business miles (raised from 45p on 6 April 2026), then 25p after - is a right you have
+              as a UK self-employed person.
               MileClear's job is to make claiming it easy. Charging for the basic act of recording your
               own miles felt wrong to us, so we don't.
             </p>
@@ -259,7 +260,7 @@ export default function FreeMileageTrackerUk() {
                 <ul style={{ color: "#94a3b8", fontSize: "0.9rem", lineHeight: 1.8, paddingLeft: "1.25rem", margin: 0 }}>
                   <li>Unlimited GPS-tracked trips</li>
                   <li>Business / personal classification</li>
-                  <li>HMRC 45p/25p/24p calculation</li>
+                  <li>HMRC 55p/25p/24p calculation (rate rose from 45p on 6 April 2026)</li>
                   <li>Platform tagging (Uber/Deliveroo/etc)</li>
                   <li>1 vehicle with DVLA lookup</li>
                   <li>Fuel logging + 8,300+ UK price feeds</li>

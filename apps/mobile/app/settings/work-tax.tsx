@@ -139,7 +139,7 @@ export default function WorkTaxSettings() {
     if (Platform.OS === "ios") {
       Alert.prompt(
         "Rate for first 10,000 miles",
-        "Pence per mile your employer reimburses (0 to clear). HMRC's AMAP rate is 45p, so anything below leaves a gap you can claim back via Mileage Allowance Relief.",
+        "Pence per mile your employer reimburses (0 to clear). HMRC's AMAP rate is 55p for the first 10,000 miles, then 25p, so anything below leaves a gap you can claim back via Mileage Allowance Relief (rate rose from 45p to 55p on 6 April 2026).",
         [
           { text: "Cancel", style: "cancel" },
           {
@@ -171,7 +171,7 @@ export default function WorkTaxSettings() {
           { text: "Cancel", style: "cancel" },
           { text: "Clear", onPress: async () => { setEmployerRate(null); setEmployerRateAfter10k(null); await updateProfile({ employerMileageRatePence: null, employerMileageRatePenceAfter10k: null }).catch(() => {}); refreshUser(); } },
           { text: "40p flat", onPress: async () => { setEmployerRate(40); setEmployerRateAfter10k(null); await updateProfile({ employerMileageRatePence: 40, employerMileageRatePenceAfter10k: null }).catch(() => {}); refreshUser(); } },
-          { text: "45p / 25p (HMRC)", onPress: async () => { setEmployerRate(45); setEmployerRateAfter10k(25); await updateProfile({ employerMileageRatePence: 45, employerMileageRatePenceAfter10k: 25 }).catch(() => {}); refreshUser(); } },
+          { text: "55p / 25p (HMRC)", onPress: async () => { setEmployerRate(55); setEmployerRateAfter10k(25); await updateProfile({ employerMileageRatePence: 55, employerMileageRatePenceAfter10k: 25 }).catch(() => {}); refreshUser(); } },
         ]
       );
     }
@@ -429,7 +429,7 @@ export default function WorkTaxSettings() {
                 ? employerRateAfter10k != null
                   ? `${employerRate}p first 10k mi / ${employerRateAfter10k}p after`
                   : `${employerRate}p / mi flat`
-                : "Not set - claim full 45p HMRC rate"
+                : "Not set - claim full 55p HMRC rate"
             }
             badge={employerRate ? "Edit" : "Set"}
             onPress={handleEmployerRate}

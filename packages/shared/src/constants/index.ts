@@ -1,19 +1,60 @@
 export * from "./hmrc-sa103.js";
 
-// HMRC simplified mileage rates (pence per mile)
-export const HMRC_RATES = {
-  car: {
-    first10000: 45,
-    after10000: 25,
+/**
+ * HMRC Approved Mileage Allowance Payment (AMAP) rates by UK tax year.
+ *
+ * Source: https://www.gov.uk/government/publications/rates-and-allowances-travel-mileage-and-fuel-allowances
+ *
+ * Key change in tax year 2026-27: cars and vans first-10,000-miles rate
+ * increased from 45p to 55p (announced Spring Budget 2026, page updated
+ * 21 May 2026). The above-10,000 rate (25p) and motorbike rate (24p) are
+ * unchanged. UK tax year runs 6 April to 5 April of the following year.
+ *
+ * When HMRC changes rates again, add a new entry here keyed by the new
+ * tax year string. The lookup helper below falls back to the latest
+ * known year if asked for a future year. Never delete historical rates —
+ * users still need correct deductions for old trips.
+ *
+ * All values are pence per mile (integer).
+ */
+export const HMRC_RATES_BY_TAX_YEAR = {
+  "2025-26": {
+    car: { first10000: 45, after10000: 25 },
+    van: { first10000: 45, after10000: 25 },
+    motorbike: { flat: 24 },
   },
-  van: {
-    first10000: 45,
-    after10000: 25,
-  },
-  motorbike: {
-    flat: 24,
+  "2026-27": {
+    car: { first10000: 55, after10000: 25 },
+    van: { first10000: 55, after10000: 25 },
+    motorbike: { flat: 24 },
   },
 } as const;
+
+/** Latest known tax year. Update when HMRC publish new rates. */
+export const HMRC_LATEST_TAX_YEAR = "2026-27" as const;
+
+/**
+ * Look up the AMAP rate set for a UK tax year. Falls back to the latest
+ * known year for any future year we haven't catalogued yet (HMRC rates
+ * are sticky between announcements, so the latest known is the safest
+ * default).
+ */
+export function getHmrcRatesForTaxYear(
+  taxYear: string,
+): (typeof HMRC_RATES_BY_TAX_YEAR)[keyof typeof HMRC_RATES_BY_TAX_YEAR] {
+  const known = HMRC_RATES_BY_TAX_YEAR[taxYear as keyof typeof HMRC_RATES_BY_TAX_YEAR];
+  if (known) return known;
+  return HMRC_RATES_BY_TAX_YEAR[HMRC_LATEST_TAX_YEAR];
+}
+
+/**
+ * Default HMRC rates pointer — resolves to the latest known tax year.
+ * Existing call sites that import HMRC_RATES keep working and silently
+ * pick up new rates each year as HMRC_LATEST_TAX_YEAR is bumped.
+ * Prefer getHmrcRatesForTaxYear(taxYear) when calculating deductions
+ * for trips/summaries dated to a specific tax year.
+ */
+export const HMRC_RATES = HMRC_RATES_BY_TAX_YEAR[HMRC_LATEST_TAX_YEAR];
 
 export const HMRC_THRESHOLD_MILES = 10_000;
 

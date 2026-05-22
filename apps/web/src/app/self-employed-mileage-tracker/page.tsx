@@ -7,7 +7,7 @@ export const metadata: Metadata = {
     absolute: "Self-Employed Mileage Tracker UK - Sole Trader HMRC App | MileClear",
   },
   description:
-    "The mileage tracker built for UK sole traders. Auto-track every business mile, claim 45p/25p AMAP relief on Self Assessment, MTD ITSA ready for April 2026. Free.",
+    "The mileage tracker built for UK sole traders. Auto-track every business mile, claim 55p/25p AMAP relief on Self Assessment (rate raised from 45p on 6 April 2026), MTD ITSA ready. Free.",
   keywords: [
     "self employed mileage tracker uk",
     "sole trader mileage tracker",
@@ -66,7 +66,7 @@ const faqSchema = {
       name: "Do I need to track mileage if I'm self-employed in the UK?",
       acceptedAnswer: {
         "@type": "Answer",
-        text: "If you drive any miles for your self-employed work, yes. Mileage is the single largest deduction available to most UK sole traders - HMRC's AMAP relief lets you claim 45p per mile for the first 10,000 business miles in a tax year, then 25p per mile after that. To claim, HMRC requires a contemporaneous record of each business journey - made at or near the time of the trip - showing date, start, end, business purpose, and miles. MileClear builds that record automatically using background GPS.",
+        text: "If you drive any miles for your self-employed work, yes. Mileage is the single largest deduction available to most UK sole traders - HMRC's AMAP relief lets you claim 55p per mile for the first 10,000 business miles in a tax year, then 25p per mile after that (the first-tier rate rose from 45p to 55p on 6 April 2026). To claim, HMRC requires a contemporaneous record of each business journey - made at or near the time of the trip - showing date, start, end, business purpose, and miles. MileClear builds that record automatically using background GPS.",
       },
     },
     {
@@ -74,7 +74,7 @@ const faqSchema = {
       name: "How does a self-employed mileage tracker work for Self Assessment?",
       acceptedAnswer: {
         "@type": "Answer",
-        text: "It tracks every drive automatically using GPS, lets you classify each trip as business or personal, applies the HMRC 45p/25p rates in real time, and produces a Self Assessment-ready summary at tax-year end. The total goes onto your SA103 self-employed page; the per-trip detail backs it up if HMRC ever query. MileClear's Pro tier produces a printable PDF with HMRC attestation cover sheet you can attach to your return or hand to your accountant.",
+        text: "It tracks every drive automatically using GPS, lets you classify each trip as business or personal, applies the HMRC 55p/25p rates in real time (rate rose from 45p to 55p on 6 April 2026), and produces a Self Assessment-ready summary at tax-year end. The total goes onto your SA103 self-employed page; the per-trip detail backs it up if HMRC ever query. MileClear's Pro tier produces a printable PDF with HMRC attestation cover sheet you can attach to your return or hand to your accountant.",
       },
     },
     {
@@ -98,7 +98,7 @@ const faqSchema = {
       name: "Is the simplified expenses method or actual cost method better for me?",
       acceptedAnswer: {
         "@type": "Answer",
-        text: "For most self-employed UK drivers, the simplified expenses method (AMAP at 45p/25p) is both easier and produces a similar or larger deduction than the actual cost method (where you claim a percentage of vehicle running costs including fuel, insurance, MOT, depreciation). AMAP wraps all of that into one rate. The actual cost method can win out for higher-running-cost vehicles or low-mileage business use - but it requires keeping every receipt and a proportional usage log. MileClear is built around AMAP because it's the right answer 90% of the time.",
+        text: "For most self-employed UK drivers, the simplified expenses method (AMAP at 55p/25p, raised from 45p/25p on 6 April 2026) is both easier and produces a similar or larger deduction than the actual cost method (where you claim a percentage of vehicle running costs including fuel, insurance, MOT, depreciation). AMAP wraps all of that into one rate. The actual cost method can win out for higher-running-cost vehicles or low-mileage business use - but it requires keeping every receipt and a proportional usage log. MileClear is built around AMAP because it's the right answer 90% of the time.",
       },
     },
     {
@@ -106,7 +106,7 @@ const faqSchema = {
       name: "How much does the average self-employed driver save?",
       acceptedAnswer: {
         "@type": "Answer",
-        text: "A self-employed driver doing 15,000 business miles per year claims £5,750 in AMAP relief (10,000 at 45p + 5,000 at 25p). At 20% basic rate that is £1,150 off your tax bill; at 40% higher rate it is £2,300. Full-time delivery drivers and tradespeople often clear 25,000+ business miles, which is £8,250 in relief - £1,650 at basic rate or £3,300 at higher rate. Most under-claim because their records don't survive HMRC's contemporaneous-record test.",
+        text: "A self-employed driver doing 15,000 business miles per year claims £6,750 in AMAP relief at the new 2026-27 rate (10,000 at 55p + 5,000 at 25p). At 20% basic rate that is £1,350 off your tax bill; at 40% higher rate it is £2,700. Full-time delivery drivers and tradespeople often clear 25,000+ business miles, which is £9,250 in relief - £1,850 at basic rate or £3,700 at higher rate. Most under-claim because their records don't survive HMRC's contemporaneous-record test.",
       },
     },
   ],
@@ -148,11 +148,12 @@ export default function SelfEmployedMileageTracker() {
               The Self-Employed Mileage Tracker Built for UK Sole Traders
             </h1>
             <p style={{ fontSize: "1.125rem", color: "#94a3b8", lineHeight: 1.75, maxWidth: 680 }}>
-              If you're self-employed in the UK and drive for work, you're entitled to claim 45p
-              per mile (25p after 10,000 miles) under HMRC's AMAP relief. MileClear records every
-              business mile automatically, applies the right rate per vehicle, and produces a
-              Self Assessment-ready PDF when tax season comes. MTD ITSA quarterly submission is
-              built in for the April 2026 deadline. Free to download.
+              If you're self-employed in the UK and drive for work, you're entitled to claim 55p
+              per mile (25p after 10,000 miles) under HMRC's AMAP relief - the first-tier rate
+              rose from 45p to 55p on 6 April 2026. MileClear records every business mile
+              automatically, applies the right rate per vehicle, and produces a Self Assessment-ready
+              PDF when tax season comes. MTD ITSA quarterly submission is built in. Free to
+              download.
             </p>
             <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap", marginTop: "1.5rem" }}>
               <a
@@ -210,13 +211,13 @@ export default function SelfEmployedMileageTracker() {
               depreciation - everything - into a single per-mile rate:
             </p>
             <ul style={{ color: "#94a3b8", lineHeight: 1.9, paddingLeft: "1.25rem", marginBottom: "1rem" }}>
-              <li><strong style={{ color: "#e2e8f0" }}>Cars and vans:</strong> 45p per mile for the first 10,000 business miles, 25p thereafter</li>
+              <li><strong style={{ color: "#e2e8f0" }}>Cars and vans:</strong> 55p per mile for the first 10,000 business miles, 25p thereafter (rate rose from 45p on 6 April 2026)</li>
               <li><strong style={{ color: "#e2e8f0" }}>Motorbikes:</strong> 24p per mile (flat)</li>
               <li><strong style={{ color: "#e2e8f0" }}>Bicycles:</strong> 20p per mile (flat)</li>
             </ul>
             <p style={{ color: "#94a3b8", lineHeight: 1.8, marginBottom: "1rem" }}>
-              That's <strong>£5,750 off taxable profit</strong> for 15,000 business miles a year, or
-              <strong> £8,250</strong> for 25,000 - worth £1,150-£3,300 in real tax back depending on your
+              That's <strong>£6,750 off taxable profit</strong> for 15,000 business miles a year, or
+              <strong> £9,250</strong> for 25,000 - worth £1,350-£3,700 in real tax back depending on your
               tax band.
             </p>
             <p style={{ color: "#94a3b8", lineHeight: 1.8 }}>
@@ -374,7 +375,7 @@ export default function SelfEmployedMileageTracker() {
             {[
               {
                 q: "Do I need to track mileage if I'm self-employed in the UK?",
-                a: "If you drive any miles for work, yes. AMAP relief at 45p/25p is the single biggest deduction for most UK sole traders. HMRC requires a contemporaneous record - built automatically by MileClear.",
+                a: "If you drive any miles for work, yes. AMAP relief at 55p/25p (raised from 45p/25p on 6 April 2026) is the single biggest deduction for most UK sole traders. HMRC requires a contemporaneous record - built automatically by MileClear.",
               },
               {
                 q: "How does this work for Self Assessment?",

@@ -98,7 +98,7 @@ function generateInsights(input: InsightInput): Insight[] {
       icon: "trending-up-outline",
       iconColor: "#f59e0b",
       title: `${remaining.toFixed(0)} miles to the HMRC threshold`,
-      body: "After 10,000 business miles the rate drops from 45p to 25p per mile. Plan ahead.",
+      body: "After 10,000 business miles the rate drops from 55p to 25p per mile. Plan ahead.",
       priority: "urgent",
     });
   }

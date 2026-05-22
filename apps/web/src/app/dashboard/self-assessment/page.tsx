@@ -163,11 +163,16 @@ function StepIncome({ summary }: Pick<StepProps, "summary">) {
 
 function StepMileage({ summary }: Pick<StepProps, "summary">) {
   const multiVehicle = summary.vehicleBreakdown.length > 1;
+  const isPost2026 = summary.taxYear >= "2026-27";
+  const firstTier = isPost2026 ? "55p" : "45p";
   return (
     <div className="sa-step-content">
       <h2 className="sa-step-content__title">Mileage Deduction</h2>
       <p className="sa-step-content__desc">
-        MileClear uses the HMRC simplified mileage method - 45p per mile for the first 10,000 business miles, 25p thereafter. This figure goes in Box 46 of SA103.
+        MileClear uses the HMRC simplified mileage method - {firstTier} per mile
+        for the first 10,000 business miles in {summary.taxYear}, then 25p thereafter
+        ({isPost2026 ? "rate rose from 45p to 55p on 6 April 2026" : "the rate before 6 April 2026"}).
+        This figure goes in Box 46 of SA103.
       </p>
       <div className="sa-hero-value">
         <span className="sa-hero-value__label">Mileage Deduction (Box 46)</span>

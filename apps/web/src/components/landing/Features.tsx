@@ -33,7 +33,7 @@ const features = [
       </svg>
     ),
     title: "HMRC tax deductions",
-    desc: "Your running tax deduction total updates with every trip. 45p/25p for cars, 24p for motorbikes, calculated automatically per tax year.",
+    desc: "Your running tax deduction total updates with every trip. 55p/25p for cars in 2026-27 (45p/25p for earlier years), 24p for motorbikes — applied automatically by trip date.",
     screenshot: "iphone-03-mtd-itsa.png",
   },
   {

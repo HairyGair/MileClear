@@ -13,7 +13,9 @@
 //
 //   2. Mileage tier crossing. The HMRC AMAP 10,000-mile threshold is per
 //      tax year, not per period. A user with 8k miles in Q1 + 4k in Q2
-//      gets 2k at 45p (top-up to 10k) + 2k at 25p in Q2 — not 4k at 45p.
+//      gets 2k at the first-tier rate (top-up to 10k) + 2k at 25p in Q2,
+//      not 4k at the first-tier rate. Rate is tax-year-aware: 45p up to
+//      and including 2025-26, 55p from 2026-27 onwards.
 //      We compute prior-period business mileage to apply the right tier.
 //
 //   3. AMAP/actual-cost mutual exclusion. When using AMAP (the simplified
@@ -294,11 +296,13 @@ export async function buildPeriodSubmission(args: {
   // accurately straddling the 10k threshold.
   const cumulativeBefore = calculateMileageDeduction(
     vehicleType,
-    milesPriorInTaxYear
+    milesPriorInTaxYear,
+    { taxYear }
   );
   const cumulativeAfter = calculateMileageDeduction(
     vehicleType,
-    milesPriorInTaxYear + milesThisPeriod
+    milesPriorInTaxYear + milesThisPeriod,
+    { taxYear }
   );
   const mileageDeductionPence =
     cumulativeAfter.deductionPence - cumulativeBefore.deductionPence;

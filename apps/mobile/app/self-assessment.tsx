@@ -163,7 +163,7 @@ function StepMileage({ summary }: { summary: SelfAssessmentSummary }) {
       <SectionCard>
         <Text style={styles.stepTitle}>Mileage Deduction</Text>
         <Text style={styles.stepDesc}>
-          HMRC simplified mileage - 45p per mile for the first 10,000 business miles, 25p thereafter. Goes in Box 46.
+          HMRC simplified mileage - 55p per mile for the first 10,000 business miles, 25p thereafter (rate rose from 45p to 55p on 6 April 2026). Goes in Box 46.
         </Text>
         <HeroValue label="Mileage Deduction (Box 46)" value={formatPence(summary.mileageDeductionPence)} />
       </SectionCard>

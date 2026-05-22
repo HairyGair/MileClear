@@ -5,7 +5,7 @@ import Footer from "@/components/landing/Footer";
 export const metadata: Metadata = {
   title: "Employee Mileage Tracker UK - Claim Every Work Mile from Your Employer",
   description:
-    "Drive your own car for work? Claim every site-to-site mile from your employer, and the gap to HMRC's 45p rate via Mileage Allowance Relief. MileClear tracks every business mile automatically and exports a payroll-ready claim.",
+    "Drive your own car for work? Claim every site-to-site mile from your employer, and the gap to HMRC's 55p rate (raised from 45p on 6 April 2026) via Mileage Allowance Relief. MileClear tracks every business mile automatically and exports a payroll-ready claim.",
   keywords: [
     "employee mileage tracker uk",
     "mileage tracker for work car",
@@ -64,7 +64,7 @@ const faqSchema = {
       name: "I'm an employee who drives my own car for work - what can I claim?",
       acceptedAnswer: {
         "@type": "Answer",
-        text: "Two things. First, you can claim mileage back from your employer at whatever rate they've agreed to pay (typically 25p-45p per mile). Second, if your employer pays less than HMRC's Approved Mileage Allowance Payment (AMAP) rate of 45p per mile (for the first 10,000 business miles in the tax year), you can claim the gap from HMRC directly via Mileage Allowance Relief on your Self Assessment or by writing to HMRC. MileClear records every business mile automatically and shows you both numbers.",
+        text: "Two things. First, you can claim mileage back from your employer at whatever rate they've agreed to pay (typically 25p-55p per mile). Second, if your employer pays less than HMRC's Approved Mileage Allowance Payment (AMAP) rate of 55p per mile (for the first 10,000 business miles in the tax year; the rate rose from 45p to 55p on 6 April 2026), you can claim the gap from HMRC directly via Mileage Allowance Relief on your Self Assessment or by writing to HMRC. MileClear records every business mile automatically and shows you both numbers.",
       },
     },
     {
@@ -72,7 +72,7 @@ const faqSchema = {
       name: "What is Mileage Allowance Relief (MAR)?",
       acceptedAnswer: {
         "@type": "Answer",
-        text: "Mileage Allowance Relief is the HMRC tax relief that lets UK employees recover the gap between what their employer pays per business mile and the official AMAP rate (45p for the first 10,000 miles, 25p above that). For example, if your employer pays 30p per mile and you drive 10,000 business miles, your employer pays you £3,000 - but the HMRC rate would be £4,500. The £1,500 difference is the MAR you can claim. At basic-rate tax (20%) that's £300 back; at higher rate (40%), £600.",
+        text: "Mileage Allowance Relief is the HMRC tax relief that lets UK employees recover the gap between what their employer pays per business mile and the official AMAP rate (55p for the first 10,000 miles, 25p above that; the first-tier rate rose from 45p to 55p on 6 April 2026). For example, if your employer pays 30p per mile and you drive 10,000 business miles, your employer pays you £3,000 - but the HMRC rate would be £5,500. The £2,500 difference is the MAR you can claim. At basic-rate tax (20%) that's £500 back; at higher rate (40%), £1,000.",
       },
     },
     {
@@ -176,7 +176,8 @@ export default function EmployeeMileageTracker() {
               If you drive your own car for work - between sites, to clients, to patient visits, to
               regional offices - MileClear tracks every business mile in the background and exports
               a payroll-ready claim. It also calculates the HMRC top-up (Mileage Allowance Relief)
-              if your employer pays below 45p/mile. Free to download - Pro features unlock for £4.99
+              if your employer pays below 55p/mile (the AMAP rate rose from 45p to 55p on 6 April
+              2026). Free to download - Pro features unlock for £4.99
               per month.
             </p>
           </header>
@@ -226,9 +227,10 @@ export default function EmployeeMileageTracker() {
                 </h3>
                 <p style={{ color: "#94a3b8", fontSize: "0.9rem", lineHeight: 1.7 }}>
                   Your contract or expenses policy states a per-mile rate the employer pays. Common
-                  rates are 25p, 30p, 40p, or 45p. You submit a claim - usually monthly - and they
-                  reimburse you via payroll. MileClear logs every business mile so the claim is
-                  defensible.
+                  rates are 25p, 30p, 40p, 45p, or 55p (some employers track the HMRC AMAP rate,
+                  which rose from 45p to 55p on 6 April 2026). You submit a claim - usually monthly -
+                  and they reimburse you via payroll. MileClear logs every business mile so the claim
+                  is defensible.
                 </p>
               </div>
               <div
@@ -245,10 +247,10 @@ export default function EmployeeMileageTracker() {
                   2. From HMRC (the gap)
                 </h3>
                 <p style={{ color: "#94a3b8", fontSize: "0.9rem", lineHeight: 1.7 }}>
-                  HMRC&apos;s official rate (AMAP) is 45p per mile for the first 10,000 business
-                  miles. If your employer pays less, you can claim the difference - <strong>Mileage
-                  Allowance Relief</strong> - back as tax relief. Most employees never claim this
-                  because they don&apos;t track the underlying miles.
+                  HMRC&apos;s official rate (AMAP) is 55p per mile for the first 10,000 business
+                  miles (raised from 45p on 6 April 2026). If your employer pays less, you can claim
+                  the difference - <strong>Mileage Allowance Relief</strong> - back as tax relief.
+                  Most employees never claim this because they don&apos;t track the underlying miles.
                 </p>
               </div>
             </div>
@@ -304,9 +306,9 @@ export default function EmployeeMileageTracker() {
               >
                 {[
                   { label: "From employer", value: "£3,600", note: "12,000 × 30p" },
-                  { label: "MAR (HMRC top-up)", value: "£300", note: "(45p - 30p) × 10,000 × 20%" },
-                  { label: "Combined per year", value: "£3,900", note: "into your bank account" },
-                  { label: "If higher-rate (40%)", value: "£4,200", note: "MAR doubles to £600" },
+                  { label: "MAR (HMRC top-up)", value: "£480", note: "AMAP £6,000 - £3,600 gap × 20%" },
+                  { label: "Combined per year", value: "£4,080", note: "into your bank account" },
+                  { label: "If higher-rate (40%)", value: "£4,560", note: "MAR doubles to £960" },
                 ].map(({ label, value, note }) => (
                   <div key={label}>
                     <div style={{ fontSize: "0.8125rem", color: "#64748b", marginBottom: "0.25rem" }}>
@@ -326,9 +328,9 @@ export default function EmployeeMileageTracker() {
             </div>
 
             <p style={{ color: "#94a3b8", lineHeight: 1.8, marginBottom: "1rem" }}>
-              The £300 MAR is what most employees miss. It&apos;s a small annual amount on its own,
-              but compounds every year you claim it - and over a 10-year career it&apos;s £3,000+
-              that would otherwise stay with HMRC.
+              The £480 MAR is what most employees miss. It&apos;s a meaningful annual amount on its
+              own (and rose substantially with the AMAP increase to 55p on 6 April 2026) - and over
+              a 10-year career it&apos;s £4,800+ that would otherwise stay with HMRC.
             </p>
             <p style={{ color: "#94a3b8", lineHeight: 1.8 }}>
               MileClear records the underlying miles automatically. Your employer claim and your MAR
@@ -426,7 +428,7 @@ export default function EmployeeMileageTracker() {
                 {
                   title: "Set Your Employer Rate",
                   body:
-                    "Profile > Work Settings > enter the per-mile rate your employer pays (25p / 30p / 45p, whatever it is). MileClear shows you both 'owed by employer' and 'MAR claimable' figures in real time.",
+                    "Profile > Work Settings > enter the per-mile rate your employer pays (25p / 30p / 45p / 55p, whatever it is). MileClear shows you both 'owed by employer' and 'MAR claimable' figures in real time.",
                 },
                 {
                   title: "Monthly Payroll Export",
@@ -485,11 +487,11 @@ export default function EmployeeMileageTracker() {
             {[
               {
                 q: "I'm an employee who drives my own car for work - what can I claim?",
-                a: "Two things. First, the per-mile rate your employer agreed to pay. Second, if that rate is below HMRC's 45p/mi (for the first 10,000 business miles), you can claim the gap from HMRC as Mileage Allowance Relief on your Self Assessment or via writing to HMRC.",
+                a: "Two things. First, the per-mile rate your employer agreed to pay. Second, if that rate is below HMRC's 55p/mi (for the first 10,000 business miles; the rate rose from 45p to 55p on 6 April 2026), you can claim the gap from HMRC as Mileage Allowance Relief on your Self Assessment or via writing to HMRC.",
               },
               {
                 q: "What is Mileage Allowance Relief (MAR)?",
-                a: "The HMRC tax relief that recovers the gap between what your employer pays per business mile and the official AMAP rate. If you do 10,000 miles at 30p employer rate, your employer pays £3,000 - HMRC's rate would be £4,500. The £1,500 gap is MAR. At basic rate that's £300 back; at higher rate, £600.",
+                a: "The HMRC tax relief that recovers the gap between what your employer pays per business mile and the official AMAP rate. If you do 10,000 miles at 30p employer rate, your employer pays £3,000 - HMRC's rate would be £5,500 at the new 55p AMAP rate (it was £4,500 at 45p before 6 April 2026). The £2,500 gap is MAR. At basic rate that's £500 back; at higher rate, £1,000.",
               },
               {
                 q: "Does the journey from home to my main office count?",

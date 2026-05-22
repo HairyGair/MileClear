@@ -20,7 +20,7 @@ const types = [
 const stats = [
   { value: "8,300+", label: "UK fuel stations" },
   { value: "43", label: "achievements" },
-  { value: "45p", label: "per mile HMRC rate" },
+  { value: "55p", label: "HMRC rate (2026-27)" },
 ];
 
 export default function EarlyAccess() {

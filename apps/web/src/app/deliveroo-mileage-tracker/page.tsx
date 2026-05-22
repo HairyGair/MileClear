@@ -3,7 +3,7 @@ import Navbar from "@/components/landing/Navbar";
 import Footer from "@/components/landing/Footer";
 
 export const metadata: Metadata = {
-  title: "Deliveroo Mileage Tracker UK - 24p/Mile Moped, 45p/Mile Car",
+  title: "Deliveroo Mileage Tracker UK - 24p/Mile Moped, 55p/Mile Car (2026-27)",
   description:
     "Deliveroo logs orders, not the loops between them. MileClear captures every mile from go-online to go-offline, applies the right HMRC rate for your vehicle, and exports a tax-return PDF. See it in action.",
   keywords: [
@@ -17,17 +17,17 @@ export const metadata: Metadata = {
     canonical: "https://mileclear.com/deliveroo-mileage-tracker",
   },
   openGraph: {
-    title: "Deliveroo Mileage Tracker UK - 24p/Mile Moped, 45p/Mile Car",
+    title: "Deliveroo Mileage Tracker UK - 24p/Mile Moped, 55p/Mile Car (2026-27)",
     description:
-      "Track every Deliveroo mile automatically. HMRC rates by vehicle (24p moped, 45p car), full session logging, Self Assessment-ready PDF export. Free download.",
+      "Track every Deliveroo mile automatically. HMRC rates by vehicle (24p moped, 55p car for 2026-27), full session logging, Self Assessment-ready PDF export. Free download.",
     url: "https://mileclear.com/deliveroo-mileage-tracker",
     images: [{ url: "/branding/og-image.png", width: 1200, height: 628 }],
   },
   twitter: {
     card: "summary_large_image",
-    title: "Deliveroo Mileage Tracker UK - 24p/Mile Moped, 45p/Mile Car",
+    title: "Deliveroo Mileage Tracker UK - 24p/Mile Moped, 55p/Mile Car (2026-27)",
     description:
-      "Track every Deliveroo mile automatically. HMRC rates by vehicle (24p moped, 45p car), full session logging, Self Assessment-ready PDF export. Free download.",
+      "Track every Deliveroo mile automatically. HMRC rates by vehicle (24p moped, 55p car for 2026-27), full session logging, Self Assessment-ready PDF export. Free download.",
     images: ["/branding/og-image.png"],
   },
 };
@@ -86,7 +86,7 @@ const faqSchema = {
       name: "What mileage rate can Deliveroo car drivers claim?",
       acceptedAnswer: {
         "@type": "Answer",
-        text: "Deliveroo drivers using a car can claim 45p per mile for the first 10,000 business miles in a tax year, and 25p per mile for every mile after that.",
+        text: "Deliveroo drivers using a car can claim 55p per mile for the first 10,000 business miles in a tax year, and 25p per mile for every mile after that. The first-tier rate rose from 45p to 55p on 6 April 2026 (the 2026-27 tax year onwards).",
       },
     },
     {
@@ -239,11 +239,12 @@ export default function DeliverooMileageTracker() {
                     marginBottom: "0.375rem",
                   }}
                 >
-                  45p / 25p
+                  55p / 25p
                 </div>
                 <p style={{ color: "#94a3b8", fontSize: "0.875rem", lineHeight: 1.65 }}>
-                  45p per mile for the first 10,000 business miles in the tax year, then 25p per mile
-                  beyond that. Applies to all private cars and vans used for deliveries.
+                  55p per mile for the first 10,000 business miles in the tax year, then 25p per mile
+                  beyond that. Applies to all private cars and vans used for deliveries. The first-tier
+                  rate rose from 45p to 55p on 6 April 2026.
                 </p>
               </div>
 
@@ -314,7 +315,7 @@ export default function DeliverooMileageTracker() {
             </h2>
             <p style={{ color: "#94a3b8", fontSize: "0.9375rem", lineHeight: 1.7, marginBottom: "1rem" }}>
               If you ride a bicycle for Deliveroo, the standard HMRC mileage allowance does not apply. You
-              cannot claim 45p per mile - that rate is specifically for motor vehicles. What you can do
+              cannot claim 55p per mile - that rate is specifically for motor vehicles. What you can do
               instead is claim the actual costs associated with your bicycle and cycling gear as allowable
               business expenses.
             </p>
@@ -562,7 +563,7 @@ export default function DeliverooMileageTracker() {
               },
               {
                 q: "What mileage rate can Deliveroo car drivers claim?",
-                a: "45p per mile for the first 10,000 business miles in a tax year, then 25p per mile after that.",
+                a: "55p per mile for the first 10,000 business miles in a tax year, then 25p per mile after that (the first-tier rate rose from 45p to 55p on 6 April 2026).",
               },
               {
                 q: "Does Deliveroo count as self-employed for tax purposes?",

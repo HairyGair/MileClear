@@ -15,7 +15,7 @@ const faqSections = [
     faqs: [
       {
         q: 'What does MileClear actually do for me?',
-        a: 'MileClear automatically records every mile you drive for work and calculates the tax deduction HMRC owes you back. At year-end you can export a PDF Self Assessment, submit quarterly returns direct to HMRC (Pro), or hand the numbers to your accountant. For UK tax years 2024-25 and earlier the standard AMAP rate is 45p per mile for the first 10,000 business miles and 25p after — MileClear tracks both tiers automatically.',
+        a: 'MileClear automatically records every mile you drive for work and calculates the tax deduction HMRC owes you back. At year-end you can export a PDF Self Assessment, submit quarterly returns direct to HMRC (Pro), or hand the numbers to your accountant. For UK tax year 2026-27 onwards the AMAP rate is 55p per mile for the first 10,000 business miles and 25p after (the first-tier rate rose from 45p to 55p on 6 April 2026; for 2025-26 and earlier it was 45p) - MileClear tracks both tiers automatically across every tax year.',
       },
       {
         q: 'How does MileClear know when I’m driving?',
@@ -40,7 +40,7 @@ const faqSections = [
       },
       {
         q: 'What are the HMRC mileage rates?',
-        a: 'For cars and vans you can claim 45p per mile for the first 10,000 business miles in a tax year, and 25p per mile after that. Motorbikes are 24p per mile flat rate. MileClear applies the correct rate to every business trip automatically and tracks exactly where you sit on the 10,000-mile threshold.',
+        a: 'For cars and vans you can claim 55p per mile for the first 10,000 business miles in a tax year, and 25p per mile after that (the first-tier rate rose from 45p to 55p on 6 April 2026 for the 2026-27 tax year onwards). Motorbikes are 24p per mile flat rate. MileClear applies the correct rate to every business trip automatically and tracks exactly where you sit on the 10,000-mile threshold.',
       },
       {
         q: 'What is MTD ITSA — do I need to worry about it?',

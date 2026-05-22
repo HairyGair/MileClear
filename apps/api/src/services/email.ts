@@ -183,7 +183,7 @@ export async function sendWelcomeEmail(
                     <tr><td style="padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.04);">
                       <table role="presentation" cellpadding="0" cellspacing="0"><tr>
                         <td style="width: 28px; vertical-align: top; padding-top: 1px; color: #f5a623; font-size: 14px;">&#9672;</td>
-                        <td style="color: #c0c8d4; font-size: 14px; line-height: 1.6;"><strong style="color: #f0f2f5;">HMRC tax deductions</strong> - 45p/mile (or 24p for mopeds) calculated automatically per vehicle, with your running total on the dashboard.</td>
+                        <td style="color: #c0c8d4; font-size: 14px; line-height: 1.6;"><strong style="color: #f0f2f5;">HMRC tax deductions</strong> - 55p/mile (24p for mopeds, was 45p before 6 April 2026) calculated automatically per vehicle, with your running total on the dashboard.</td>
                       </tr></table>
                     </td></tr>
                     <tr><td style="padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.04);">
@@ -493,7 +493,7 @@ export async function sendReEngagementEmail(
                     <tr><td style="padding: 10px 0;">
                       <table role="presentation" cellpadding="0" cellspacing="0"><tr>
                         <td style="width: 32px; vertical-align: top; padding-top: 1px; color: #f5a623; font-size: 16px;">&#9672;</td>
-                        <td style="color: #c0c8d4; font-size: 14px; line-height: 1.6;"><strong style="color: #f0f2f5;">Plus everything else</strong>  - automatic GPS tracking, 45p/mile HMRC deductions, fuel-price comparison across 8,300+ UK stations, achievements, weekly recaps. All still free.</td>
+                        <td style="color: #c0c8d4; font-size: 14px; line-height: 1.6;"><strong style="color: #f0f2f5;">Plus everything else</strong>  - automatic GPS tracking, 55p/mile HMRC deductions (the new 2026-27 rate), fuel-price comparison across 8,300+ UK stations, achievements, weekly recaps. All still free.</td>
                       </tr></table>
                     </td></tr>
                   </table>

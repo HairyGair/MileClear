@@ -5,7 +5,7 @@ import Footer from "@/components/landing/Footer";
 export const metadata: Metadata = {
   title: "Uber Mileage Tracker UK - Reclaim Your Dead Miles in Tax",
   description:
-    "Uber only logs paid trips. HMRC lets you claim every on-shift mile - between jobs, repositioning, waiting. 20,000 miles/year = £7,250 off tax. MileClear captures the full shift. See how.",
+    "Uber only logs paid trips. HMRC lets you claim every on-shift mile - between jobs, repositioning, waiting. 20,000 miles/year = £8,000 off tax at the new 55p/25p rate. MileClear captures the full shift. See how.",
   keywords: [
     "uber driver mileage tracker",
     "uber mileage log uk",
@@ -19,7 +19,7 @@ export const metadata: Metadata = {
   openGraph: {
     title: "Uber Mileage Tracker UK - Reclaim Your Dead Miles in Tax",
     description:
-      "Uber misses your dead miles - HMRC doesn't have to. MileClear records the full shift via GPS, applies 45p/25p rates, and exports a Self Assessment-ready PDF in one tap.",
+      "Uber misses your dead miles - HMRC doesn't have to. MileClear records the full shift via GPS, applies 55p/25p rates (raised from 45p on 6 April 2026), and exports a Self Assessment-ready PDF in one tap.",
     url: "https://mileclear.com/uber-mileage-tracker",
     images: [{ url: "/branding/og-image.png", width: 1200, height: 628 }],
   },
@@ -27,7 +27,7 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: "Uber Mileage Tracker UK - Reclaim Your Dead Miles in Tax",
     description:
-      "Uber misses your dead miles - HMRC doesn't have to. MileClear records the full shift via GPS, applies 45p/25p rates, and exports a Self Assessment-ready PDF in one tap.",
+      "Uber misses your dead miles - HMRC doesn't have to. MileClear records the full shift via GPS, applies 55p/25p rates (raised from 45p on 6 April 2026), and exports a Self Assessment-ready PDF in one tap.",
     images: ["/branding/og-image.png"],
   },
 };
@@ -70,7 +70,7 @@ const faqSchema = {
       name: "What mileage can Uber drivers claim on HMRC?",
       acceptedAnswer: {
         "@type": "Answer",
-        text: "UK Uber drivers can claim 45p per mile for the first 10,000 business miles in a tax year, and 25p per mile after that. Business miles include passenger trips, positioning miles (driving to a busier area), and trips between jobs. The commute from home to your first pickup is generally not claimable.",
+        text: "UK Uber drivers can claim 55p per mile for the first 10,000 business miles in a tax year, and 25p per mile after that (the first-tier rate rose from 45p to 55p on 6 April 2026). Business miles include passenger trips, positioning miles (driving to a busier area), and trips between jobs. The commute from home to your first pickup is generally not claimable.",
       },
     },
     {
@@ -86,7 +86,7 @@ const faqSchema = {
       name: "How much can an Uber driver save with mileage tracking?",
       acceptedAnswer: {
         "@type": "Answer",
-        text: "An Uber driver covering 20,000 business miles a year would receive a tax deduction of £7,250 (10,000 x 45p + 10,000 x 25p). At a 20% tax rate, that is a saving of £1,450 per year directly from mileage allowance alone.",
+        text: "An Uber driver covering 20,000 business miles a year would receive a tax deduction of £8,000 at the new 2026-27 rates (10,000 x 55p + 10,000 x 25p). At a 20% tax rate, that is a saving of £1,600 per year directly from mileage allowance alone.",
       },
     },
   ],
@@ -161,11 +161,11 @@ export default function UberMileageTracker() {
             </p>
             <p style={{ color: "#94a3b8", lineHeight: 1.8, marginBottom: "1rem" }}>
               HMRC allows you to claim the Approved Mileage Allowance Payment (AMAP) rate for every
-              business mile you drive. For a car or van, that is 45p per mile for the first 10,000 business
-              miles in the tax year, and 25p per mile for every mile after that. If you drive 20,000
-              business miles a year - which is entirely realistic for a full-time Uber driver - that is a
-              £7,250 deduction from your taxable income. At 20% income tax, you save £1,450 per year.
-              At 40%, you save £2,900.
+              business mile you drive. For a car or van, that is 55p per mile for the first 10,000 business
+              miles in the tax year, and 25p per mile for every mile after that (the first-tier rate rose
+              from 45p to 55p on 6 April 2026). If you drive 20,000 business miles a year - which is
+              entirely realistic for a full-time Uber driver - that is a £8,000 deduction from your
+              taxable income. At 20% income tax, you save £1,600 per year. At 40%, you save £3,200.
             </p>
             <p style={{ color: "#94a3b8", lineHeight: 1.8 }}>
               But HMRC requires a contemporaneous mileage log. You cannot estimate or reconstruct your
@@ -395,10 +395,10 @@ export default function UberMileageTracker() {
                 }}
               >
                 {[
-                  { label: "First 10,000 miles", value: "£4,500", note: "at 45p/mile" },
+                  { label: "First 10,000 miles", value: "£5,500", note: "at 55p/mile" },
                   { label: "Next 10,000 miles", value: "£2,500", note: "at 25p/mile" },
-                  { label: "Total deduction", value: "£7,000", note: "from taxable income" },
-                  { label: "Tax saved (20% rate)", value: "£1,400", note: "straight back in your pocket" },
+                  { label: "Total deduction", value: "£8,000", note: "from taxable income" },
+                  { label: "Tax saved (20% rate)", value: "£1,600", note: "straight back in your pocket" },
                 ].map(({ label, value, note }) => (
                   <div key={label}>
                     <div style={{ fontSize: "0.8125rem", color: "#64748b", marginBottom: "0.25rem" }}>
@@ -494,7 +494,7 @@ export default function UberMileageTracker() {
               },
               {
                 q: "What mileage can Uber drivers claim on HMRC?",
-                a: "UK Uber drivers can claim 45p per mile for the first 10,000 business miles in a tax year, and 25p per mile after that. Business miles include passenger trips, positioning miles, and driving between jobs. The commute from home to your first pickup is generally not claimable.",
+                a: "UK Uber drivers can claim 55p per mile for the first 10,000 business miles in a tax year, and 25p per mile after that (the first-tier rate rose from 45p to 55p on 6 April 2026). Business miles include passenger trips, positioning miles, and driving between jobs. The commute from home to your first pickup is generally not claimable.",
               },
               {
                 q: "Do I need to log every mile I drive for Uber?",
@@ -502,7 +502,7 @@ export default function UberMileageTracker() {
               },
               {
                 q: "How much can an Uber driver save with mileage tracking?",
-                a: "An Uber driver covering 20,000 business miles a year gets a deduction of £7,000 (10,000 x 45p + 10,000 x 25p). At a 20% tax rate, that is a saving of £1,400 per year from mileage allowance alone.",
+                a: "An Uber driver covering 20,000 business miles a year gets a deduction of £8,000 at the new 2026-27 rate (10,000 x 55p + 10,000 x 25p). At a 20% tax rate, that is a saving of £1,600 per year from mileage allowance alone.",
               },
               {
                 q: "Does Uber report my earnings to HMRC?",

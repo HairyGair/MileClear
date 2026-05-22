@@ -201,7 +201,7 @@ export function PaywallModal({ visible, onClose, source: _source }: PaywallModal
                   </View>
                   <View style={s.valueDivider} />
                   <View style={s.valueRow}>
-                    <Text style={s.valueLabel}>HMRC rate (45p/mi)</Text>
+                    <Text style={s.valueLabel}>HMRC rate (55p/mi)</Text>
                     <Text style={s.valueAmount}>{deductionFormatted}</Text>
                   </View>
                   <View style={s.valueDivider} />

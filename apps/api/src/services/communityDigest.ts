@@ -9,7 +9,7 @@
 // Phase 1D of the Discord roadmap (21 May 2026).
 
 import { prisma } from "../lib/prisma.js";
-import { formatMiles, formatPence } from "@mileclear/shared";
+import { formatMiles, formatPence, getHmrcRatesForTaxYear, getTaxYear } from "@mileclear/shared";
 
 const MIN_CONTRIBUTORS_PER_BUCKET = 5;
 
@@ -114,9 +114,10 @@ export async function buildWeeklyDigest(): Promise<CommunityDigest> {
     }),
 
     // Total mileage deduction this week — approximate, at the
-    // generous AMAP rate (45p), since per-user deduction depends on
-    // each driver's vehicle type + 10k threshold position. For a
-    // community headline this is the right approximation.
+    // generous AMAP rate (55p for 2026-27, was 45p before), since
+    // per-user deduction depends on each driver's vehicle type +
+    // 10k threshold position. For a community headline this is the
+    // right approximation.
     prisma.trip.aggregate({
       where: {
         startedAt: { gte: sevenDaysAgo },
@@ -130,9 +131,11 @@ export async function buildWeeklyDigest(): Promise<CommunityDigest> {
   const totalBusinessMiles = tripAggregates._sum.distanceMiles ?? 0;
   const totalTripsTracked = tripAggregates._count.id ?? 0;
   const activeDriverCount = activeDriverIds.length;
-  // 45p/mi flat for the community headline. Real per-user calc varies.
+  // Use the current tax year's first-tier AMAP rate for the community
+  // headline. Real per-user calc varies by vehicle + threshold position.
+  const headlineRatePence = getHmrcRatesForTaxYear(getTaxYear(new Date())).car.first10000;
   const totalMileageDeductionPence = Math.round(
-    (deductionRollup._sum.distanceMiles ?? 0) * 45
+    (deductionRollup._sum.distanceMiles ?? 0) * headlineRatePence
   );
 
   // ── Platform breakdown w/ privacy floor ────────────────────────

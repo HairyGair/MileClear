@@ -529,7 +529,10 @@ export async function getShiftScorecard(
         | "car"
         | "van"
         | "motorbike";
-      deductionPence += calculateMileageDeduction(vType, trip.distanceMiles, scorecardRateOpts).deductionPence;
+      deductionPence += calculateMileageDeduction(vType, trip.distanceMiles, {
+        ...scorecardRateOpts,
+        taxYear: getTaxYear(trip.startedAt),
+      }).deductionPence;
     }
   }
 
@@ -669,7 +672,10 @@ export async function getPeriodRecap(
         | "car"
         | "van"
         | "motorbike";
-      deductionPence += calculateMileageDeduction(vType, trip.distanceMiles, recapRateOpts).deductionPence;
+      deductionPence += calculateMileageDeduction(vType, trip.distanceMiles, {
+        ...recapRateOpts,
+        taxYear: getTaxYear(trip.startedAt),
+      }).deductionPence;
     }
 
     if (trip.distanceMiles > longestTripMiles) {

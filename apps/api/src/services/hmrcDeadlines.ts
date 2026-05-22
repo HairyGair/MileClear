@@ -55,7 +55,7 @@ export const HMRC_DEADLINES: HmrcDeadlineRule[] = [
     day: 6,
     label: "New tax year begins",
     what:
-      "Fresh £12,570 personal allowance, fresh 10,000-mile AMAP threshold. Every business mile from today is at 45p (cars/vans) up to 10k.",
+      "Fresh £12,570 personal allowance, fresh 10,000-mile AMAP threshold. From 6 April 2026, the AMAP rate for cars and vans is 55p per mile (up from 45p) for the first 10k miles.",
   },
   {
     id: "sa-poa-jul31",

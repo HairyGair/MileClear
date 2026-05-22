@@ -228,7 +228,10 @@ export async function fetchExportSummary(
   let totalDeductionPence = 0;
 
   for (const v of vehicleMap.values()) {
-    const deduction = calculateMileageDeduction(v.type, v.businessMiles, rateOpts).deductionPence;
+    const deduction = calculateMileageDeduction(v.type, v.businessMiles, {
+      ...rateOpts,
+      taxYear,
+    }).deductionPence;
     totalDeductionPence += deduction;
     vehicleBreakdown.push({
       vehicleName: v.name,
@@ -265,7 +268,10 @@ export async function fetchExportSummary(
     if (data && data.trips > 0) {
       // Calculate deduction for this month's business miles. Trips without
       // a linked vehicle fall back to "car" rates (most common).
-      const deduction = calculateMileageDeduction("car", data.businessMiles, rateOpts).deductionPence;
+      const deduction = calculateMileageDeduction("car", data.businessMiles, {
+        ...rateOpts,
+        taxYear,
+      }).deductionPence;
       monthlyBreakdown.push({
         month: key,
         trips: data.trips,

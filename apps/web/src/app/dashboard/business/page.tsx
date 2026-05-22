@@ -92,7 +92,7 @@ function WorkModeInfo({ dismissed, onDismiss }: { dismissed: boolean; onDismiss:
           </p>
           <p style={{ fontSize: "0.875rem", color: "var(--text-muted)", lineHeight: 1.6, margin: "0.5rem 0 0" }}>
             Business trips are tracked separately and used to calculate your <strong style={{ color: "var(--text-secondary)" }}>HMRC
-            mileage deduction</strong> — 45p/mile for the first 10,000 miles, then 25p after that.
+            mileage deduction</strong> — 55p/mile for the first 10,000 miles in 2026-27 (was 45p in 2025-26), then 25p after that.
             Regular commuting to a fixed office is not claimable. If you just want to track personal driving,
             switch to the Personal dashboard instead.
           </p>
@@ -712,10 +712,10 @@ export default function BusinessPage() {
       )}
 
       {/* HMRC Rate Info */}
-      <Card title="HMRC Mileage Rates" style={{ marginBottom: "var(--dash-gap)" }}>
+      <Card title="HMRC Mileage Rates (2026-27)" style={{ marginBottom: "var(--dash-gap)" }}>
         <div className="recap-grid">
           <div className="recap-stat">
-            <div className="recap-stat__value">45p</div>
+            <div className="recap-stat__value">55p</div>
             <div className="recap-stat__label">First 10,000 mi</div>
           </div>
           <div className="recap-stat">
@@ -727,6 +727,10 @@ export default function BusinessPage() {
             <div className="recap-stat__label">Motorbike (flat)</div>
           </div>
         </div>
+        <p style={{ fontSize: "0.8125rem", color: "var(--text-muted)", marginTop: "0.75rem", marginBottom: 0, lineHeight: 1.5 }}>
+          Rate rose from 45p to 55p on 6 April 2026. Trips before that date are
+          still calculated at 45p.
+        </p>
       </Card>
 
       {/* Recent Business Trips */}

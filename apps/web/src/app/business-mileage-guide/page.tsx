@@ -90,17 +90,18 @@ export default function BusinessMileageGuidePage() {
             <div style={{ fontSize: "1rem", color: "var(--text-secondary)", lineHeight: 1.8 }}>
               <p style={{ marginBottom: "1rem" }}>
                 Every mile you drive for work in your own car or van is worth
-                something to you at tax time. HMRC allows 45p per mile for the
-                first 10,000 business miles in a tax year, and 25p after that.
-                That number is not a suggestion. It is a tax deduction you are
-                entitled to, and the only reason drivers miss it is poor
-                record keeping.
+                something to you at tax time. HMRC allows 55p per mile for the
+                first 10,000 business miles in a tax year, and 25p after that
+                (the first-tier rate rose from 45p to 55p on 6 April 2026 for
+                the 2026-27 tax year onwards). That number is not a suggestion.
+                It is a tax deduction you are entitled to, and the only reason
+                drivers miss it is poor record keeping.
               </p>
               <p style={{ marginBottom: "1rem" }}>
                 A driver doing 12,000 business miles a year is looking at
-                £5,000 off their taxable income. At 20% tax, that is £1,000 in
-                their pocket. Drive 18,000 miles and the figure jumps to
-                £6,500 deducted and £1,300 saved. Gig workers routinely cross
+                £6,000 off their taxable income at the new rates. At 20% tax,
+                that is £1,200 in their pocket. Drive 18,000 miles and the
+                figure jumps to £7,500 deducted and £1,500 saved. Gig workers routinely cross
                 20,000 miles a year and never claim a penny of it.
               </p>
               <p>
@@ -136,7 +137,7 @@ export default function BusinessMileageGuidePage() {
             >
               <p style={{ fontSize: "1rem", color: "var(--text-primary)", lineHeight: 1.75, marginBottom: "1rem" }}>
                 This is the single most common mistake we see in user
-                imports. The 45p/25p HMRC rate is designed to cover fuel,
+                imports. The 55p/25p HMRC rate (raised from 45p/25p on 6 April 2026) is designed to cover fuel,
                 insurance, servicing, tyres, road tax, and general wear. If
                 you claim the mileage rate, <strong style={{ color: "var(--text-white)" }}>you cannot also claim those costs</strong>.
               </p>
@@ -314,22 +315,24 @@ export default function BusinessMileageGuidePage() {
             <div style={{ marginBottom: "1.5rem" }}>
               <span className="label">05 / Calculating the deduction</span>
               <h2 className="heading" style={{ fontSize: "clamp(1.75rem, 3vw, 2.25rem)", marginBottom: "1rem" }}>
-                How the 45p/25p split works
+                How the 55p/25p split works
               </h2>
             </div>
             <div style={{ fontSize: "1rem", color: "var(--text-secondary)", lineHeight: 1.8 }}>
               <p style={{ marginBottom: "1rem" }}>
-                The first 10,000 business miles in a tax year are at 45p per
-                mile. Every mile after that, same tax year, is at 25p. The
-                counter resets on 6 April each year.
+                The first 10,000 business miles in a tax year are at 55p per
+                mile (the first-tier rate rose from 45p to 55p on 6 April
+                2026 for the 2026-27 tax year onwards). Every mile after that,
+                same tax year, is at 25p. The counter resets on 6 April each
+                year.
               </p>
               <p style={{ marginBottom: "1rem" }}>
                 One of our users - a gig worker splitting their time between
                 Uber and Deliveroo - covered 723.8 miles in two weeks.
                 Annualised, that is around 18,800 miles a year. Their HMRC
-                deduction works out at £4,500 (first 10k at 45p) plus £2,200
-                (remaining 8,800 at 25p), a total of <strong style={{ color: "var(--amber-400)" }}>£6,700</strong>.
-                At a 20% tax rate, that is £1,340 saved.
+                deduction works out at £5,500 (first 10k at 55p) plus £2,200
+                (remaining 8,800 at 25p), a total of <strong style={{ color: "var(--amber-400)" }}>£7,700</strong>.
+                At a 20% tax rate, that is £1,540 saved.
               </p>
               <p>
                 The full worked example, including how the rates apply to

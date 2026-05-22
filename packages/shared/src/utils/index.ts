@@ -1,4 +1,10 @@
-import { HMRC_RATES, HMRC_THRESHOLD_MILES, MILESTONE_MILES, UK_TAX_2025_26 } from "../constants/index.js";
+import {
+  HMRC_RATES,
+  HMRC_THRESHOLD_MILES,
+  MILESTONE_MILES,
+  UK_TAX_2025_26,
+  getHmrcRatesForTaxYear,
+} from "../constants/index.js";
 
 /**
  * Calculate the Haversine distance between two coordinates in miles.
@@ -57,15 +63,27 @@ export function calculateMileageDeduction(
   options?: {
     customRateFirst10kPence?: number | null;
     customRateAfter10kPence?: number | null;
+    /**
+     * UK tax year string (e.g. "2025-26"). Determines which HMRC rate
+     * table to apply — rates changed for 2026-27 (45p → 55p for cars
+     * and vans first 10k). Defaults to the latest known tax year if
+     * omitted, which is what most call sites want for current
+     * calculations; pass the historic year for back-calculating older
+     * trips so the figures remain HMRC-correct.
+     */
+    taxYear?: string;
   },
 ): MileageDeductionResult {
   const customFirst = options?.customRateFirst10kPence;
   const customAfter = options?.customRateAfter10kPence;
   const useCustom = customFirst != null;
   const source: "hmrc" | "employer" = useCustom ? "employer" : "hmrc";
+  const rateTable = options?.taxYear
+    ? getHmrcRatesForTaxYear(options.taxYear)
+    : HMRC_RATES;
 
   if (vehicleType === "motorbike") {
-    const rate = useCustom ? customFirst! : HMRC_RATES.motorbike.flat;
+    const rate = useCustom ? customFirst! : rateTable.motorbike.flat;
     return {
       rateFirst10kPence: rate,
       rateAfter10kPence: rate,
@@ -74,7 +92,7 @@ export function calculateMileageDeduction(
     };
   }
 
-  const hmrc = HMRC_RATES[vehicleType];
+  const hmrc = rateTable[vehicleType];
   // The first-10k rate is the master switch. When in HMRC mode any supplied
   // customRateAfter10kPence is ignored - if the user wants to override the
   // tiered structure they must set both, or set first only (flat rate).
@@ -106,9 +124,12 @@ export function calculateMileageDeduction(
  */
 export function calculateHmrcDeduction(
   vehicleType: "car" | "van" | "motorbike",
-  totalBusinessMiles: number
+  totalBusinessMiles: number,
+  taxYear?: string,
 ): number {
-  return calculateMileageDeduction(vehicleType, totalBusinessMiles).deductionPence;
+  return calculateMileageDeduction(vehicleType, totalBusinessMiles, {
+    taxYear,
+  }).deductionPence;
 }
 
 /**

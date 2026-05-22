@@ -351,8 +351,9 @@ function PostTripReviewCard({
   const accent = classification === "business" ? colors.amber : colors.green;
 
   // Compute AMAP value at the standard car rate. We use calculateHmrcDeduction
-  // (45p/25p tiered, car) which matches the figure shown across the rest of
-  // the app for business trips. Personal trips don't claim, so we hide it.
+  // (tax-year-aware tiered car rate - 55p/25p from 2026-27, was 45p/25p
+  // before) which matches the figure shown across the rest of the app for
+  // business trips. Personal trips don't claim, so we hide it.
   const amapPence = classification === "business"
     ? calculateHmrcDeduction("car", distanceMiles)
     : 0;

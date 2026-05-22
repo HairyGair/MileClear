@@ -69,7 +69,7 @@ export async function upsertMileageSummary(
       deductionPence += calculateMileageDeduction(
         vType as "car" | "van" | "motorbike",
         miles,
-        rateOpts,
+        { ...rateOpts, taxYear },
       ).deductionPence;
     }
   }

@@ -5,7 +5,7 @@ import Footer from "@/components/landing/Footer";
 export const metadata: Metadata = {
   title: "Just Eat Mileage Tracker UK - HMRC Sees Your Earnings From 2026",
   description:
-    "Just Eat now reports your earnings to HMRC under the Digital Platform Reporting rules. If you're on a moped, you claim 24p/mile - not 45p. MileClear logs every run, every Multi-Collect, every dead mile. See how.",
+    "Just Eat now reports your earnings to HMRC under the Digital Platform Reporting rules. If you're on a moped, you claim 24p/mile - not 55p. MileClear logs every run, every Multi-Collect, every dead mile. See how.",
   keywords: [
     "just eat mileage tracker",
     "just eat courier tax uk",
@@ -19,7 +19,7 @@ export const metadata: Metadata = {
   openGraph: {
     title: "Just Eat Mileage Tracker UK - HMRC Sees Your Earnings From 2026",
     description:
-      "MileClear records every Just Eat run from log-on to log-off via GPS, applies the right HMRC rate for your vehicle (24p moped, 45p car), and exports a Self Assessment-ready PDF.",
+      "MileClear records every Just Eat run from log-on to log-off via GPS, applies the right HMRC rate for your vehicle (24p moped, 55p car for 2026-27), and exports a Self Assessment-ready PDF.",
     url: "https://mileclear.com/just-eat-mileage-tracker",
     images: [{ url: "/branding/og-image.png", width: 1200, height: 628 }],
   },
@@ -27,7 +27,7 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: "Just Eat Mileage Tracker UK - HMRC Sees Your Earnings From 2026",
     description:
-      "MileClear records every Just Eat run from log-on to log-off via GPS, applies the right HMRC rate for your vehicle (24p moped, 45p car), and exports a Self Assessment-ready PDF.",
+      "MileClear records every Just Eat run from log-on to log-off via GPS, applies the right HMRC rate for your vehicle (24p moped, 55p car for 2026-27), and exports a Self Assessment-ready PDF.",
     images: ["/branding/og-image.png"],
   },
 };
@@ -78,7 +78,7 @@ const faqSchema = {
       name: "What HMRC mileage rate can a Just Eat moped courier claim?",
       acceptedAnswer: {
         "@type": "Answer",
-        text: "24p per mile, flat. The Approved Mileage Allowance Payment rate for motorbikes and mopeds is 24p for every business mile - there is no higher rate for the first 10,000 miles like there is for cars. A central London survey found 83 percent of food-delivery couriers ride mopeds; many of them claim the 45p car rate by mistake or simply do not claim at all.",
+        text: "24p per mile, flat. The Approved Mileage Allowance Payment rate for motorbikes and mopeds is 24p for every business mile - there is no higher rate for the first 10,000 miles like there is for cars. A central London survey found 83 percent of food-delivery couriers ride mopeds; many of them claim the 55p car rate by mistake (or the old 45p rate that ran until 5 April 2026) or simply do not claim at all.",
       },
     },
     {
@@ -86,7 +86,7 @@ const faqSchema = {
       name: "What HMRC mileage rate can a Just Eat car driver claim?",
       acceptedAnswer: {
         "@type": "Answer",
-        text: "45p per mile for the first 10,000 business miles in a tax year, and 25p per mile after that. Outside London the car share among Just Eat couriers rises substantially because of distance and weather, so this is the most common rate for suburban and regional couriers.",
+        text: "55p per mile for the first 10,000 business miles in a tax year, and 25p per mile after that (the first-tier rate rose from 45p to 55p on 6 April 2026). Outside London the car share among Just Eat couriers rises substantially because of distance and weather, so this is the most common rate for suburban and regional couriers.",
       },
     },
     {
@@ -154,8 +154,8 @@ export default function JustEatMileageTracker() {
             <p style={{ fontSize: "1.125rem", color: "#94a3b8", lineHeight: 1.75, maxWidth: 680 }}>
               Since January 2024 Just Eat has been required to report your annual earnings
               directly to HMRC. The first reports landed on 31 January 2026. If you ride a
-              moped you claim 24p per mile, not 45p - and the difference between the two on a
-              full-time year is over £4,000 of overstated deduction. MileClear records every
+              moped you claim 24p per mile, not 55p - and the difference between the two on a
+              full-time year is over £5,000 of overstated deduction. MileClear records every
               run, applies the right rate for your vehicle, and produces a Self Assessment-ready
               log. Free to download - Pro from £4.99 per month.
             </p>
@@ -235,7 +235,7 @@ export default function JustEatMileageTracker() {
                 marginBottom: "1.25rem",
               }}
             >
-              The Moped Trap - 24p/Mile, Not 45p
+              The Moped Trap - 24p/Mile, Not 55p
             </h2>
             <p style={{ color: "#94a3b8", lineHeight: 1.8, marginBottom: "1rem" }}>
               A 2024 academic study tracking 40,941 deliveries across 195 couriers in central
@@ -302,11 +302,11 @@ export default function JustEatMileageTracker() {
                     margin: "0 0 0.5rem",
                   }}
                 >
-                  45p / 25p
+                  55p / 25p
                 </p>
                 <p style={{ color: "#94a3b8", fontSize: "0.875rem", lineHeight: 1.65, margin: 0 }}>
-                  45p per mile for the first 10,000 business miles in the tax year, then 25p
-                  per mile thereafter.
+                  55p per mile for the first 10,000 business miles in the tax year, then 25p
+                  per mile thereafter (rate rose from 45p on 6 April 2026).
                 </p>
               </div>
               <div
@@ -429,8 +429,8 @@ export default function JustEatMileageTracker() {
               perspective. A multi-pickup Multi-Collect runs around 32 minutes versus 16 for a
               single order, with effective hourly rates at £15.54 multi-pickup, £15.70 single,
               and £14.55 two-from-one-restaurant. The dead miles between the two restaurants
-              feel like wasted time - until you remember each one is worth 24p (moped) or 45p
-              (car) of taxable income off your return.
+              feel like wasted time - until you remember each one is worth 24p (moped) or 55p
+              (car, for 2026-27) of taxable income off your return.
             </p>
             <p style={{ color: "#94a3b8", lineHeight: 1.8 }}>
               MileClear logs every mile by GPS without you having to tap anything between
@@ -508,10 +508,10 @@ export default function JustEatMileageTracker() {
                   Car, 18,000 mi / yr
                 </h3>
                 <p style={{ color: "#94a3b8", fontSize: "0.9rem", lineHeight: 1.7, marginBottom: "0.5rem" }}>
-                  10,000 × 45p + 8,000 × 25p = <strong style={{ color: "#f9fafb" }}>£6,500</strong>
+                  10,000 × 55p + 8,000 × 25p = <strong style={{ color: "#f9fafb" }}>£7,500</strong>
                 </p>
                 <p style={{ color: "#94a3b8", fontSize: "0.9rem", lineHeight: 1.7, margin: 0 }}>
-                  Tax saved at 20% basic rate: <strong style={{ color: "#f9fafb" }}>£1,300</strong>
+                  Tax saved at 20% basic rate: <strong style={{ color: "#f9fafb" }}>£1,500</strong>
                 </p>
               </div>
             </div>
@@ -673,7 +673,7 @@ export default function JustEatMileageTracker() {
               },
               {
                 q: "What HMRC mileage rate can a car courier claim?",
-                a: "45p per mile for the first 10,000 business miles in the tax year, 25p per mile after that.",
+                a: "55p per mile for the first 10,000 business miles in the tax year, 25p per mile after that (the rate rose from 45p to 55p on 6 April 2026).",
               },
               {
                 q: "Can I claim mileage if I deliver by bike?",

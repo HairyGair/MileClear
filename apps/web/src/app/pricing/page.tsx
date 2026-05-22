@@ -59,7 +59,7 @@ const freeFeatures = [
   'UK fuel prices from 8,300+ stations',
   'Live Activities on the lock screen',
   'Business and personal trip classification',
-  'HMRC mileage deduction calculator (45p/25p car, 24p moped)',
+  'HMRC mileage deduction calculator (55p/25p car, 24p moped) - rate rose from 45p on 6 April 2026',
   'Higher-rate threshold warning when approaching £50,270',
   'First-time Self Assessment guide',
   'Achievements, streaks, weekly and monthly recaps',

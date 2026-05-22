@@ -86,8 +86,8 @@ export default function QuickBooksLanding() {
                 <h3 className="qb-sync-card__title">Business mileage</h3>
                 <p className="qb-sync-card__body">
                   Every classified business trip becomes a QBO Vehicle Mileage
-                  entry. AMAP rates applied automatically (45p first 10k, 25p
-                  after).
+                  entry. AMAP rates applied automatically (55p first 10k, 25p
+                  after - rate rose from 45p on 6 April 2026).
                 </p>
               </article>
               <article className="qb-sync-card">

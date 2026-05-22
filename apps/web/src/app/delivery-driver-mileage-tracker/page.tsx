@@ -5,7 +5,7 @@ import Footer from "@/components/landing/Footer";
 export const metadata: Metadata = {
   title: "Delivery Driver Mileage Tracker UK - HMRC-Ready Tax Records",
   description:
-    "UK delivery drivers can claim 45p/mile in HMRC mileage relief. MileClear tracks every business mile across Uber Eats, Deliveroo, Just Eat, Amazon Flex, DPD, Evri, Stuart and Gophr - one app, every platform, Self Assessment-ready PDF.",
+    "UK delivery drivers can claim 55p/mile in HMRC mileage relief (raised from 45p on 6 April 2026). MileClear tracks every business mile across Uber Eats, Deliveroo, Just Eat, Amazon Flex, DPD, Evri, Stuart and Gophr - one app, every platform, Self Assessment-ready PDF.",
   keywords: [
     "delivery driver mileage tracker",
     "delivery driver mileage tracker uk",
@@ -63,7 +63,7 @@ const faqSchema = {
       name: "Do UK delivery drivers need to track mileage for tax?",
       acceptedAnswer: {
         "@type": "Answer",
-        text: "Yes. UK delivery drivers working through Uber Eats, Deliveroo, Just Eat, Amazon Flex, DPD, Evri, Stuart, Gophr or any other gig platform are self-employed and file Self Assessment. HMRC's Approved Mileage Allowance Payment (AMAP) lets you claim 45p per mile for the first 10,000 business miles per tax year, and 25p per mile after that. You need a contemporaneous mileage log to claim it - none of the gig platforms produce one for you.",
+        text: "Yes. UK delivery drivers working through Uber Eats, Deliveroo, Just Eat, Amazon Flex, DPD, Evri, Stuart, Gophr or any other gig platform are self-employed and file Self Assessment. HMRC's Approved Mileage Allowance Payment (AMAP) lets you claim 55p per mile for the first 10,000 business miles per tax year, and 25p per mile after that (the first-tier rate rose from 45p to 55p on 6 April 2026). You need a contemporaneous mileage log to claim it - none of the gig platforms produce one for you.",
       },
     },
     {
@@ -79,7 +79,7 @@ const faqSchema = {
       name: "How much can a delivery driver save on tax with mileage tracking?",
       acceptedAnswer: {
         "@type": "Answer",
-        text: "A full-time UK delivery driver covering 25,000 business miles per year can claim £8,250 in HMRC mileage relief (10,000 at 45p plus 15,000 at 25p). At a 20% basic-rate tax band that is £1,650 back in your pocket. At 40% it is £3,300. The deduction is on top of any other expenses (fuel beyond the AMAP, insurance, phone bills) and is what most drivers under-claim by miles.",
+        text: "A full-time UK delivery driver covering 25,000 business miles per year can claim £9,250 in HMRC mileage relief at the new 2026-27 rates (10,000 at 55p plus 15,000 at 25p). At a 20% basic-rate tax band that is £1,850 back in your pocket. At 40% it is £3,700. The deduction is on top of any other expenses (fuel beyond the AMAP, insurance, phone bills) and is what most drivers under-claim by miles.",
       },
     },
     {
@@ -190,7 +190,7 @@ export default function DeliveryDriverMileageTracker() {
             <p style={{ fontSize: "1.125rem", color: "#94a3b8", lineHeight: 1.75, maxWidth: 680 }}>
               UK delivery drivers cover serious mileage - and almost all of it is claimable as a Self Assessment expense.
               MileClear tracks every business mile automatically across every UK gig platform, applies the
-              HMRC 45p / 25p / 24p rates in real time, and exports a Self Assessment-ready PDF when tax season comes.
+              HMRC 55p / 25p / 24p rates in real time (the car/van first-tier rate rose from 45p to 55p on 6 April 2026), and exports a Self Assessment-ready PDF when tax season comes.
               Free to download - Pro features unlock for £4.99 per month.
             </p>
           </header>
@@ -219,13 +219,15 @@ export default function DeliveryDriverMileageTracker() {
             </p>
             <p style={{ color: "#94a3b8", lineHeight: 1.8, marginBottom: "1rem" }}>
               Mileage is the single biggest deduction available to you. HMRC&apos;s Approved Mileage Allowance
-              Payment (AMAP) lets you claim <strong>45p per mile for the first 10,000 business miles</strong> in
-              a tax year, and <strong>25p per mile after that</strong>. Motorbikes claim 24p flat. Bicycles claim
-              20p flat. None of the gig platforms calculate or produce this for you.
+              Payment (AMAP) lets you claim <strong>55p per mile for the first 10,000 business miles</strong> in
+              a tax year (raised from 45p on 6 April 2026), and <strong>25p per mile after that</strong>.
+              Motorbikes claim 24p flat. Bicycles claim 20p flat. None of the gig platforms calculate or produce
+              this for you.
             </p>
             <p style={{ color: "#94a3b8", lineHeight: 1.8, marginBottom: "1rem" }}>
-              For a full-time UK delivery driver doing 25,000 business miles a year, that is <strong>£8,250</strong> off
-              your taxable profit. At basic rate (20%) that is £1,650 back. At higher rate (40%) it is £3,300. Most
+              For a full-time UK delivery driver doing 25,000 business miles a year, that is <strong>£9,250</strong> off
+              your taxable profit at the new 2026-27 rates. At basic rate (20%) that is £1,850 back. At higher
+              rate (40%) it is £3,700. Most
               drivers under-claim every year because their records do not survive HMRC&apos;s &ldquo;contemporaneous
               record&rdquo; test - or because they do not have records at all.
             </p>
@@ -376,7 +378,7 @@ export default function DeliveryDriverMileageTracker() {
                 {
                   title: "HMRC AMAP Calculation",
                   body:
-                    "45p / 25p / 24p rates applied automatically based on your vehicle type, with the 10,000-mile threshold built in. The number on screen is the number for your Self Assessment.",
+                    "55p / 25p / 24p rates applied automatically based on your vehicle type, with the 10,000-mile threshold built in (the car/van first-tier rate rose from 45p to 55p on 6 April 2026). The number on screen is the number for your Self Assessment.",
                 },
                 {
                   title: "Saved Locations + Geofences",
@@ -464,10 +466,10 @@ export default function DeliveryDriverMileageTracker() {
                 }}
               >
                 {[
-                  { label: "First 10,000 miles", value: "£4,500", note: "at 45p/mile" },
+                  { label: "First 10,000 miles", value: "£5,500", note: "at 55p/mile" },
                   { label: "Next 15,000 miles", value: "£3,750", note: "at 25p/mile" },
-                  { label: "Total deduction", value: "£8,250", note: "from taxable income" },
-                  { label: "Tax saved (20% rate)", value: "£1,650", note: "directly from mileage" },
+                  { label: "Total deduction", value: "£9,250", note: "from taxable income" },
+                  { label: "Tax saved (20% rate)", value: "£1,850", note: "directly from mileage" },
                 ].map(({ label, value, note }) => (
                   <div key={label}>
                     <div style={{ fontSize: "0.8125rem", color: "#64748b", marginBottom: "0.25rem" }}>
@@ -510,7 +512,7 @@ export default function DeliveryDriverMileageTracker() {
             {[
               {
                 q: "Do UK delivery drivers need to track mileage for tax?",
-                a: "Yes. UK delivery drivers working through any gig platform are self-employed and file Self Assessment. HMRC's AMAP relief (45p/25p) is the single largest deduction available - but you need a contemporaneous mileage log to claim it.",
+                a: "Yes. UK delivery drivers working through any gig platform are self-employed and file Self Assessment. HMRC's AMAP relief (55p/25p as of 6 April 2026, raised from 45p/25p) is the single largest deduction available - but you need a contemporaneous mileage log to claim it.",
               },
               {
                 q: "Can one mileage tracker handle multiple delivery platforms?",

@@ -470,7 +470,11 @@ export async function getWeeklyPnL(
   let hmrcDeductionPence = 0;
   for (const trip of trips) {
     const vType = (trip.vehicle?.vehicleType ?? "car") as "car" | "van" | "motorbike";
-    hmrcDeductionPence += calculateMileageDeduction(vType, trip.distanceMiles, pnlRateOpts).deductionPence;
+    const tripTaxYear = getTaxYear(trip.startedAt);
+    hmrcDeductionPence += calculateMileageDeduction(vType, trip.distanceMiles, {
+      ...pnlRateOpts,
+      taxYear: tripTaxYear,
+    }).deductionPence;
   }
 
   return {

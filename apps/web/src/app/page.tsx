@@ -110,8 +110,8 @@ function AboutSection() {
         MileClear is a UK mileage tracking app built for gig economy workers,
         delivery drivers, and self-employed professionals. It automatically
         records GPS trips in the background, calculates HMRC mileage deductions
-        at the approved rates (45p per mile for the first 10,000 business miles,
-        25p per mile after that, 24p for motorbikes), and provides shift-based
+        at the approved rates (55p per mile for the first 10,000 business miles
+        from 2026-27, 25p after that, 24p for motorbikes), and provides shift-based
         earnings tracking with platform tagging for Uber, Deliveroo, Amazon
         Flex, and more. Available free on the App Store with a Pro tier at
         £4.99/month for tax exports and business intelligence.{" "}

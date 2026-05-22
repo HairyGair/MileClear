@@ -120,7 +120,7 @@ const faqSchema = {
       name: 'What are the HMRC approved mileage rates?',
       acceptedAnswer: {
         '@type': 'Answer',
-        text: 'For cars and vans: 45p per mile for the first 10,000 business miles in a tax year, and 25p per mile after that. For motorbikes: 24p per mile flat rate. These are the HMRC Approved Mileage Allowance Payment (AMAP) rates and MileClear calculates your deduction automatically using these figures.',
+        text: 'For cars and vans: 55p per mile for the first 10,000 business miles in a tax year, and 25p per mile after that (the rate rose from 45p to 55p on 6 April 2026 for the 2026-27 tax year onwards). For motorbikes: 24p per mile flat rate. These are the HMRC Approved Mileage Allowance Payment (AMAP) rates and MileClear calculates your deduction automatically using these figures.',
       },
     },
     {
@@ -136,7 +136,7 @@ const faqSchema = {
       name: 'I am an employee with a work car - can MileClear help me claim mileage from my employer?',
       acceptedAnswer: {
         '@type': 'Answer',
-        text: 'Yes. MileClear is built for both gig workers and UK employees who drive their personal car for work. Set your employer\'s per-mile rate in Profile > Work Settings (e.g. 30p/mi) and the app shows you "owed by employer" alongside your mileage figures. The Pro export produces a payroll-ready CSV/PDF claim per period. If your employer pays below HMRC\'s 45p rate, MileClear also calculates the gap you can recover from HMRC as Mileage Allowance Relief. See our employee mileage guide at mileclear.com/employee-mileage-tracker.',
+        text: 'Yes. MileClear is built for both gig workers and UK employees who drive their personal car for work. Set your employer\'s per-mile rate in Profile > Work Settings (e.g. 30p/mi) and the app shows you "owed by employer" alongside your mileage figures. The Pro export produces a payroll-ready CSV/PDF claim per period. If your employer pays below HMRC\'s 55p rate (raised from 45p on 6 April 2026), MileClear also calculates the gap you can recover from HMRC as Mileage Allowance Relief. See our employee mileage guide at mileclear.com/employee-mileage-tracker.',
       },
     },
     {
@@ -144,7 +144,7 @@ const faqSchema = {
       name: 'What is Mileage Allowance Relief (MAR)?',
       acceptedAnswer: {
         '@type': 'Answer',
-        text: 'Mileage Allowance Relief is the HMRC tax relief that lets UK employees recover the gap between what their employer pays per business mile and the official AMAP rate of 45p (for the first 10,000 business miles in a tax year, 25p above that). For example, if your employer pays 30p per mile and you drive 10,000 business miles, your employer pays £3,000 - the AMAP rate would be £4,500. The £1,500 gap is what MAR lets you reclaim. At basic-rate tax (20%) that returns £300 to you; at higher rate (40%), £600. You claim it via Self Assessment or by writing to HMRC.',
+        text: 'Mileage Allowance Relief is the HMRC tax relief that lets UK employees recover the gap between what their employer pays per business mile and the official AMAP rate of 55p (for the first 10,000 business miles in a tax year, 25p above that; the rate rose from 45p to 55p on 6 April 2026). For example, if your employer pays 30p per mile and you drive 10,000 business miles, your employer pays £3,000 - the AMAP rate would be £5,500. The £2,500 gap is what MAR lets you reclaim. At basic-rate tax (20%) that returns £500 to you; at higher rate (40%), £1,000. You claim it via Self Assessment or by writing to HMRC.',
       },
     },
     {
@@ -152,7 +152,7 @@ const faqSchema = {
       name: 'How does the UK tax year work in MileClear?',
       acceptedAnswer: {
         '@type': 'Answer',
-        text: 'The UK tax year runs from 6 April to 5 April the following year. MileClear automatically groups your mileage and deductions by tax year. When you cross the 10,000-mile threshold within a year, the rate automatically drops from 45p to 25p per mile. Your exports include a per-tax-year breakdown ready for your Self Assessment return.',
+        text: 'The UK tax year runs from 6 April to 5 April the following year. MileClear automatically groups your mileage and deductions by tax year. When you cross the 10,000-mile threshold within a year, the rate automatically drops from 55p to 25p per mile (the 2025-26 first-tier rate was 45p; HMRC raised it to 55p from 6 April 2026). Your exports include a per-tax-year breakdown ready for your Self Assessment return.',
       },
     },
     {
@@ -387,11 +387,12 @@ export default function FaqPage() {
               <div className="faq__qa">
                 <h3 className="faq__question">What are the HMRC approved mileage rates?</h3>
                 <p className="legal__text">
-                  For <strong>cars and vans</strong>: 45p per mile for the first 10,000 business
-                  miles in a tax year, and 25p per mile after that. For <strong>motorbikes</strong>:
-                  24p per mile flat rate. These are the HMRC Approved Mileage Allowance Payment
-                  (AMAP) rates and MileClear calculates your deduction automatically using these
-                  figures.
+                  For <strong>cars and vans</strong>: 55p per mile for the first 10,000 business
+                  miles in a tax year, and 25p per mile after that. The first-tier rate rose from
+                  45p to 55p on 6 April 2026 for the 2026-27 tax year onwards. For{" "}
+                  <strong>motorbikes</strong>: 24p per mile flat rate. These are the HMRC Approved
+                  Mileage Allowance Payment (AMAP) rates and MileClear calculates your deduction
+                  automatically using these figures.
                 </p>
               </div>
 
@@ -418,8 +419,9 @@ export default function FaqPage() {
                   car for work. Set your employer&apos;s per-mile rate in <strong>Profile &gt; Work
                   Settings</strong> (e.g. 30p/mi) and the app shows you &ldquo;owed by employer&rdquo;
                   alongside your mileage figures. The Pro export produces a payroll-ready CSV/PDF claim
-                  per period. If your employer pays below HMRC&apos;s 45p rate, MileClear also calculates
-                  the gap you can recover from HMRC as Mileage Allowance Relief. See our{" "}
+                  per period. If your employer pays below HMRC&apos;s 55p rate (raised from 45p on
+                  6 April 2026), MileClear also calculates the gap you can recover from HMRC as
+                  Mileage Allowance Relief. See our{" "}
                   <a href="/employee-mileage-tracker">employee mileage guide</a> for the full breakdown.
                 </p>
               </div>
@@ -429,11 +431,12 @@ export default function FaqPage() {
                 <p className="legal__text">
                   Mileage Allowance Relief is the HMRC tax relief that lets UK employees recover the
                   gap between what their employer pays per business mile and the official AMAP rate
-                  (45p for the first 10,000 business miles in a tax year, 25p above that). For example,
-                  if your employer pays 30p/mile and you drive 10,000 business miles, your employer
-                  pays £3,000 - the AMAP rate would be £4,500. The £1,500 gap is what MAR lets you
-                  reclaim. At basic-rate tax (20%) that returns £300 to you; at higher rate (40%), £600.
-                  You claim it via Self Assessment or by writing to HMRC.
+                  (55p for the first 10,000 business miles in a tax year, 25p above that; the rate
+                  rose from 45p to 55p on 6 April 2026). For example, if your employer pays 30p/mile
+                  and you drive 10,000 business miles, your employer pays £3,000 - the AMAP rate
+                  would be £5,500. The £2,500 gap is what MAR lets you reclaim. At basic-rate tax
+                  (20%) that returns £500 to you; at higher rate (40%), £1,000. You claim it via
+                  Self Assessment or by writing to HMRC.
                 </p>
               </div>
 
@@ -443,7 +446,8 @@ export default function FaqPage() {
                   The UK tax year runs from <strong>6 April to 5 April</strong> the following year.
                   MileClear automatically groups your mileage and deductions by tax year. When you
                   cross the 10,000-mile threshold within a year, the rate automatically drops from
-                  45p to 25p per mile. Your exports include a per-tax-year breakdown ready for your
+                  55p to 25p per mile (the 2025-26 first-tier rate was 45p; HMRC raised it to 55p
+                  from 6 April 2026). Your exports include a per-tax-year breakdown ready for your
                   Self Assessment return.
                 </p>
               </div>

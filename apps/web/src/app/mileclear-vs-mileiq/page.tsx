@@ -209,7 +209,7 @@ export default function MileClearVsMileIQ() {
                     },
                     {
                       feature: "HMRC Rate Support",
-                      mileclear: "UK-native: 45p/25p car, 24p motorbike",
+                      mileclear: "UK-native: 55p/25p car (raised from 45p on 6 April 2026), 24p motorbike",
                       mileiq: "IRS rates by default - manual HMRC setup required",
                       highlight: true,
                     },
@@ -401,9 +401,9 @@ export default function MileClearVsMileIQ() {
                 end up calculating the wrong deductions for your self-assessment return.
               </p>
               <p style={{ color: "#94a3b8", fontSize: "0.9375rem", lineHeight: 1.7 }}>
-                MileClear uses HMRC rates as the default with no setup required: 45p per mile for the first
-                10,000 business miles, 25p per mile after that for cars and vans, and 24p flat for
-                motorbikes. Your tax deduction total is correct from the moment you start tracking. If you
+                MileClear uses HMRC rates as the default with no setup required: 55p per mile for the first
+                10,000 business miles (raised from 45p on 6 April 2026), 25p per mile after that for cars
+                and vans, and 24p flat for motorbikes. Your tax deduction total is correct from the moment you start tracking. If you
                 drive for work in the UK, this is not a minor convenience - it is the difference between
                 accurate and inaccurate records.
               </p>
@@ -574,8 +574,9 @@ export default function MileClearVsMileIQ() {
             <p style={{ color: "#94a3b8", lineHeight: 1.8, marginBottom: "1rem" }}>
               The gig economy in the UK has grown significantly. Millions of drivers work across Uber,
               Deliveroo, Amazon Flex, Just Eat, DPD, and similar platforms - often juggling two or three at
-              once. The tax rules for these workers are clear: you can claim 45p per mile for the first 10,000
-              business miles in each tax year, then 25p per mile beyond that. For motorbikes, it is 24p flat.
+              once. The tax rules for these workers are clear: you can claim 55p per mile for the first 10,000
+              business miles in each tax year, then 25p per mile beyond that (the first-tier rate rose from
+              45p to 55p on 6 April 2026). For motorbikes, it is 24p flat.
               These HMRC Approved Mileage Allowance Payments (AMAP) rates are how self-employed drivers
               calculate the vehicle-running-cost portion of their self-assessment return.
             </p>

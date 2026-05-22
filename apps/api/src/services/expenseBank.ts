@@ -51,7 +51,7 @@ const BANK: ExpenseEntry[] = [
     status: "depends",
     category: "running-costs",
     explanation:
-      "Depends on your chosen method. If you claim AMAP rates (45p/25p per mile), fuel is ALREADY in that figure — you can't claim it separately. If you claim actual vehicle costs, you split fuel by business-use percentage.",
+      "Depends on your chosen method. If you claim AMAP rates (55p/25p per mile for cars/vans in 2026-27), fuel is ALREADY in that figure — you can't claim it separately. If you claim actual vehicle costs, you split fuel by business-use percentage.",
     note: "Most drivers stick with AMAP because it's higher per mile than actual costs.",
   },
   {
@@ -106,7 +106,7 @@ const BANK: ExpenseEntry[] = [
     status: "partial",
     category: "vehicle",
     explanation:
-      "If you use the AMAP rate (45p/mi), it already includes insurance — no separate claim. If you claim actual costs, the business-use portion of the premium is deductible.",
+      "If you use the AMAP rate (55p/mi for cars/vans in 2026-27), it already includes insurance — no separate claim. If you claim actual costs, the business-use portion of the premium is deductible.",
     note: "The premium increase from adding hire-and-reward to a personal policy is 100% deductible if you separate the figures.",
   },
   {
@@ -116,7 +116,7 @@ const BANK: ExpenseEntry[] = [
     status: "depends",
     category: "vehicle",
     explanation:
-      "Covered by the 45p/mile AMAP if you're using simplified expenses. If you're claiming actual costs, the business-use portion is deductible.",
+      "Covered by the 55p/mile AMAP (2026-27 rate) if you're using simplified expenses. If you're claiming actual costs, the business-use portion is deductible.",
   },
   {
     id: "servicing",
@@ -134,7 +134,7 @@ const BANK: ExpenseEntry[] = [
     status: "depends",
     category: "vehicle",
     explanation:
-      "Inside AMAP if you claim 45p/mi. Otherwise business-use proportion is deductible.",
+      "Inside AMAP if you claim the 55p/mi rate (2026-27 for cars/vans). Otherwise business-use proportion is deductible.",
   },
   {
     id: "breakdown-cover",
@@ -162,7 +162,7 @@ const BANK: ExpenseEntry[] = [
     status: "depends",
     category: "vehicle",
     explanation:
-      "Inside AMAP if you claim 45p/mi. If you claim actual costs, the business-use percentage of monthly lease payments is deductible (with a 15% disallowance if CO2 emissions exceed 50g/km for cars first leased after Apr 2021).",
+      "Inside AMAP if you claim the 55p/mi rate (2026-27 for cars/vans). If you claim actual costs, the business-use percentage of monthly lease payments is deductible (with a 15% disallowance if CO2 emissions exceed 50g/km for cars first leased after Apr 2021).",
   },
   {
     id: "adblue",
@@ -171,7 +171,7 @@ const BANK: ExpenseEntry[] = [
     status: "depends",
     category: "running-costs",
     explanation:
-      "Inside AMAP if you claim 45p/mi. If you claim actual costs, business-use proportion is deductible.",
+      "Inside AMAP if you claim the 55p/mi rate (2026-27 for cars/vans). If you claim actual costs, business-use proportion is deductible.",
   },
   {
     id: "car-wash",

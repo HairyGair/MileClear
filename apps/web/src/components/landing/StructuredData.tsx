@@ -38,7 +38,7 @@ export default function StructuredData() {
     featureList: [
       "Automatic GPS trip recording with background detection",
       "Live Activities on lock screen and Dynamic Island",
-      "HMRC tax deduction calculator (45p/25p car, 24p motorbike)",
+      "HMRC tax deduction calculator (55p/25p car for 2026-27, 24p motorbike)",
       "Shift mode with scorecards and platform tagging",
       "Business insights with earnings per mile, per hour, and weekly P&L",
       "UK fuel prices from 8,300+ government-mandated stations",

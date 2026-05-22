@@ -168,7 +168,10 @@ export async function getWeeklyReport(userId: string, weeksBack = 0): Promise<We
   // pass total business miles as "car" - a tier crossing inside one week is
   // unusual but the function still handles it correctly.
   const dvrRateOpts = dvrUser ? resolveMileageRates(dvrUser) : {};
-  const deductionPence = calculateMileageDeduction("car", businessMiles, dvrRateOpts).deductionPence;
+  const deductionPence = calculateMileageDeduction("car", businessMiles, {
+    ...dvrRateOpts,
+    taxYear: getTaxYear(start),
+  }).deductionPence;
 
   return {
     weekLabel: label,

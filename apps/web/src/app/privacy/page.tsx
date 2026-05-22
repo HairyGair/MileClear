@@ -240,7 +240,7 @@ export default function PrivacyPolicy() {
                   <li className="legal__list-item">Creating and managing your account</li>
                   <li className="legal__list-item">Authenticating you at login (email, Apple, or Google)</li>
                   <li className="legal__list-item">Tracking mileage and trips in real-time</li>
-                  <li className="legal__list-item">Calculating HMRC-compliant tax deductions (45p/mile for cars up to 10,000 miles, 25p/mile thereafter; 24p/mile for motorbikes)</li>
+                  <li className="legal__list-item">Calculating HMRC-compliant tax deductions (55p/mile for cars up to 10,000 miles, 25p/mile thereafter; 24p/mile for motorbikes - the first-tier rate rose from 45p to 55p on 6 April 2026)</li>
                   <li className="legal__list-item">Generating export files for tax reporting (PDF, CSV) and accounting software (Xero, FreeAgent, QuickBooks)</li>
                   <li className="legal__list-item">Sharing trip data with accountants via token-based access if you grant permission</li>
                 </ul>

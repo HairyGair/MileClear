@@ -8,7 +8,7 @@ import { Card } from "../../../components/ui/Card";
 import { Badge } from "../../../components/ui/Badge";
 import { Select } from "../../../components/ui/Select";
 import { LoadingSkeleton } from "../../../components/ui/LoadingSkeleton";
-import { HMRC_RATES } from "@mileclear/shared";
+import { getHmrcRatesForTaxYear } from "@mileclear/shared";
 
 interface GamificationStats {
   taxYear: string;
@@ -41,16 +41,21 @@ function formatMiles(miles: number): string {
   return miles.toLocaleString("en-GB", { maximumFractionDigits: 1 });
 }
 
-function calculateDeduction(miles: number, vehicleType: string = "car"): number {
+function calculateDeduction(
+  miles: number,
+  vehicleType: string = "car",
+  taxYear?: string,
+): number {
+  const rates = getHmrcRatesForTaxYear(taxYear ?? "");
   if (vehicleType === "motorbike") {
-    return Math.round(miles * HMRC_RATES.motorbike.flat);
+    return Math.round(miles * rates.motorbike.flat);
   }
   const threshold = 10000;
   if (miles <= threshold) {
-    return Math.round(miles * HMRC_RATES.car.first10000);
+    return Math.round(miles * rates.car.first10000);
   }
-  const firstPortion = threshold * HMRC_RATES.car.first10000;
-  const remainder = (miles - threshold) * HMRC_RATES.car.after10000;
+  const firstPortion = threshold * rates.car.first10000;
+  const remainder = (miles - threshold) * rates.car.after10000;
   return Math.round(firstPortion + remainder);
 }
 
@@ -169,7 +174,7 @@ export default function TaxPage() {
       trips: monthTrips.length,
       businessMiles,
       personalMiles,
-      deductionPence: calculateDeduction(businessMiles),
+      deductionPence: calculateDeduction(businessMiles, "car", taxYear),
     };
   });
 
@@ -180,7 +185,7 @@ export default function TaxPage() {
   const totalPersonalMiles = trips
     .filter((t) => t.classification === "personal")
     .reduce((sum, t) => sum + (t.distanceMiles || 0), 0);
-  const totalDeduction = calculateDeduction(totalBusinessMiles);
+  const totalDeduction = calculateDeduction(totalBusinessMiles, "car", taxYear);
 
   // Platform breakdown
   const platformMap = new Map<string, { trips: number; miles: number }>();
@@ -194,10 +199,14 @@ export default function TaxPage() {
   const platformBreakdown = Array.from(platformMap.entries())
     .sort((a, b) => b[1].miles - a[1].miles);
 
-  // HMRC rate info
+  // HMRC rate info (per the selected tax year — rate rose from 45p to 55p
+  // from 2026-27 onwards).
+  const yearRates = getHmrcRatesForTaxYear(taxYear);
+  const firstTierLabel = `${yearRates.car.first10000}p`;
+  const afterTierLabel = `${yearRates.car.after10000}p`;
   const rateInfo = totalBusinessMiles <= 10000
-    ? "45p per mile (first 10,000)"
-    : "45p first 10,000 + 25p thereafter";
+    ? `${firstTierLabel} per mile (first 10,000)`
+    : `${firstTierLabel} first 10,000 + ${afterTierLabel} thereafter`;
 
   return (
     <>
@@ -316,7 +325,7 @@ export default function TaxPage() {
                         <td>{data.trips}</td>
                         <td>{formatMiles(data.miles)} mi</td>
                         <td style={{ fontWeight: 600, color: "var(--amber-400)" }}>
-                          {formatPence(calculateDeduction(data.miles))}
+                          {formatPence(calculateDeduction(data.miles, "car", taxYear))}
                         </td>
                       </tr>
                     ))}
@@ -346,7 +355,9 @@ export default function TaxPage() {
                           <Badge variant="source">{v.vehicleType}</Badge>
                         </td>
                         <td>
-                          {v.vehicleType === "motorbike" ? "24p/mi flat" : "45p/25p per mile"}
+                          {v.vehicleType === "motorbike"
+                            ? `${yearRates.motorbike.flat}p/mi flat`
+                            : `${firstTierLabel}/${afterTierLabel} per mile`}
                         </td>
                       </tr>
                     ))}

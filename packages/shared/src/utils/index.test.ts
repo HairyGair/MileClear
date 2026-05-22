@@ -70,73 +70,117 @@ describe("haversineDistance", () => {
 // ---------------------------------------------------------------------------
 
 describe("calculateHmrcDeduction", () => {
-  // Car — below threshold
-  it("car: 100 miles at 45p/mi = 4500p (£45)", () => {
-    expect(calculateHmrcDeduction("car", 100)).toBe(4500);
+  // ---- Historical rate: tax year 2025-26 (cars/vans 45p/25p) -----------------
+  // These assertions are pinned to 2025-26 so older trip data stays HMRC-correct
+  // even after the rate bump in 2026-27.
+  describe("2025-26 (legacy rate: cars/vans 45p first 10k)", () => {
+    it("car: 100 miles at 45p = 4500p", () => {
+      expect(calculateHmrcDeduction("car", 100, "2025-26")).toBe(4500);
+    });
+
+    it("car: 1000 miles at 45p = 45000p", () => {
+      expect(calculateHmrcDeduction("car", 1000, "2025-26")).toBe(45_000);
+    });
+
+    it("car: exactly 10,000 miles = 450000p (all at 45p)", () => {
+      expect(calculateHmrcDeduction("car", 10_000, "2025-26")).toBe(450_000);
+    });
+
+    it("car: 10,001 miles — 1 mile over threshold at 25p", () => {
+      expect(calculateHmrcDeduction("car", 10_001, "2025-26")).toBe(450_025);
+    });
+
+    it("car: 12,000 miles — 2,000 miles above threshold at 25p", () => {
+      expect(calculateHmrcDeduction("car", 12_000, "2025-26")).toBe(500_000);
+    });
+
+    it("van: 15,000 miles — 10,000 at 45p + 5,000 at 25p", () => {
+      expect(calculateHmrcDeduction("van", 15_000, "2025-26")).toBe(575_000);
+    });
+
+    it("car: 100.5 fractional miles at 45p = 4523p (rounded)", () => {
+      expect(calculateHmrcDeduction("car", 100.5, "2025-26")).toBe(4523);
+    });
   });
 
-  it("car: 1000 miles at 45p/mi = 45000p", () => {
-    expect(calculateHmrcDeduction("car", 1000)).toBe(45000);
+  // ---- Current rate: tax year 2026-27 (cars/vans 55p/25p) -------------------
+  // Effective 6 April 2026 — Spring Budget 2026 raised the first-10k AMAP rate
+  // for cars and vans from 45p to 55p. Above-10k stays at 25p, motorbikes
+  // unchanged at 24p.
+  describe("2026-27 (current rate: cars/vans 55p first 10k)", () => {
+    it("car: 100 miles at 55p = 5500p", () => {
+      expect(calculateHmrcDeduction("car", 100, "2026-27")).toBe(5500);
+    });
+
+    it("car: 10,000 miles = 550000p (all at 55p)", () => {
+      expect(calculateHmrcDeduction("car", 10_000, "2026-27")).toBe(550_000);
+    });
+
+    it("car: 10,001 miles = 550025p (10k @ 55p + 1 @ 25p)", () => {
+      expect(calculateHmrcDeduction("car", 10_001, "2026-27")).toBe(550_025);
+    });
+
+    it("car: 12,000 miles = 600000p (10k @ 55p + 2k @ 25p)", () => {
+      expect(calculateHmrcDeduction("car", 12_000, "2026-27")).toBe(600_000);
+    });
+
+    it("van: 15,000 miles = 675000p (10k @ 55p + 5k @ 25p)", () => {
+      expect(calculateHmrcDeduction("van", 15_000, "2026-27")).toBe(675_000);
+    });
+
+    it("car: 100.5 fractional miles at 55p = 5528p (rounded)", () => {
+      // 100.5 * 55 = 5527.5 → rounds to 5528
+      expect(calculateHmrcDeduction("car", 100.5, "2026-27")).toBe(5528);
+    });
   });
 
-  it("car: exactly 10,000 miles = 450000p (all at 45p)", () => {
-    expect(calculateHmrcDeduction("car", 10_000)).toBe(450_000);
+  // ---- Defaults: omitting taxYear uses the latest known year -----------------
+  // Latest known tax year is 2026-27 today, so the default behaviour returns
+  // 55p figures. If you ever see this assertion fail with a £45-shaped number,
+  // HMRC_LATEST_TAX_YEAR has been bumped without these tests being updated.
+  describe("default tax year (HMRC_LATEST_TAX_YEAR)", () => {
+    it("car: 100 miles uses the latest rate (55p in 2026-27)", () => {
+      expect(calculateHmrcDeduction("car", 100)).toBe(5500);
+    });
+
+    it("car: 12,000 miles uses tiered latest rates", () => {
+      expect(calculateHmrcDeduction("car", 12_000)).toBe(600_000);
+    });
   });
 
-  it("car: 10,001 miles — 1 mile over threshold at 25p", () => {
-    // 10000 * 45 + 1 * 25 = 450000 + 25 = 450025
-    expect(calculateHmrcDeduction("car", 10_001)).toBe(450_025);
+  // ---- Motorbike (24p flat, unchanged across both rate eras) -----------------
+  describe("motorbike (24p flat, unchanged 2025-26 → 2026-27)", () => {
+    it("motorbike: 100 miles = 2400p", () => {
+      expect(calculateHmrcDeduction("motorbike", 100)).toBe(2400);
+    });
+
+    it("motorbike: 10,000 miles = 240000p (no tier change)", () => {
+      expect(calculateHmrcDeduction("motorbike", 10_000)).toBe(240_000);
+    });
+
+    it("motorbike: 15,000 miles = 360000p (flat rate continues above 10k)", () => {
+      expect(calculateHmrcDeduction("motorbike", 15_000)).toBe(360_000);
+    });
+
+    it("motorbike rate is identical in 2025-26 and 2026-27", () => {
+      const a = calculateHmrcDeduction("motorbike", 15_000, "2025-26");
+      const b = calculateHmrcDeduction("motorbike", 15_000, "2026-27");
+      expect(a).toBe(b);
+    });
   });
 
-  it("car: 12,000 miles — 2,000 miles above threshold at 25p", () => {
-    // 10000 * 45 + 2000 * 25 = 450000 + 50000 = 500000
-    expect(calculateHmrcDeduction("car", 12_000)).toBe(500_000);
-  });
-
-  it("car: 0 miles = 0p", () => {
+  // ---- Zeros + future year fallback ----------------------------------------
+  it("car: 0 miles = 0p in any tax year", () => {
     expect(calculateHmrcDeduction("car", 0)).toBe(0);
+    expect(calculateHmrcDeduction("car", 0, "2025-26")).toBe(0);
+    expect(calculateHmrcDeduction("car", 0, "2026-27")).toBe(0);
   });
 
-  // Van — same rates as car
-  it("van: 5000 miles = 225000p", () => {
-    expect(calculateHmrcDeduction("van", 5_000)).toBe(225_000);
-  });
-
-  it("van: 10,000 miles boundary = 450000p", () => {
-    expect(calculateHmrcDeduction("van", 10_000)).toBe(450_000);
-  });
-
-  it("van: 15,000 miles — 5000 above threshold", () => {
-    // 450000 + 5000 * 25 = 450000 + 125000 = 575000
-    expect(calculateHmrcDeduction("van", 15_000)).toBe(575_000);
-  });
-
-  // Motorbike — flat 24p/mi
-  it("motorbike: 100 miles at 24p/mi = 2400p", () => {
-    expect(calculateHmrcDeduction("motorbike", 100)).toBe(2400);
-  });
-
-  it("motorbike: 10,000 miles — flat rate, no threshold change", () => {
-    expect(calculateHmrcDeduction("motorbike", 10_000)).toBe(240_000);
-  });
-
-  it("motorbike: 15,000 miles — flat rate continues above 10k", () => {
-    expect(calculateHmrcDeduction("motorbike", 15_000)).toBe(360_000);
-  });
-
-  it("motorbike: 0 miles = 0p", () => {
-    expect(calculateHmrcDeduction("motorbike", 0)).toBe(0);
-  });
-
-  // Fractional miles
-  it("car: 100.5 miles rounds correctly", () => {
-    // 100.5 * 45 = 4522.5 → rounds to 4523
-    expect(calculateHmrcDeduction("car", 100.5)).toBe(4523);
-  });
-
-  it("car: 10000.5 miles straddles threshold with fractional remainder", () => {
-    // 10000 * 45 + 0.5 * 25 = 450000 + 12.5 → rounds to 450013
-    expect(calculateHmrcDeduction("car", 10_000.5)).toBe(450_013);
+  it("future unknown tax year falls back to the latest known rate", () => {
+    // "2030-31" isn't catalogued; should use the latest known table.
+    expect(calculateHmrcDeduction("car", 100, "2030-31")).toBe(
+      calculateHmrcDeduction("car", 100),
+    );
   });
 });
 
@@ -145,12 +189,20 @@ describe("calculateHmrcDeduction", () => {
 // ---------------------------------------------------------------------------
 
 describe("calculateMileageDeduction", () => {
-  it("falls back to HMRC rates when no overrides are passed", () => {
+  it("falls back to current-year HMRC rates when no overrides are passed", () => {
+    // Latest known year (2026-27) — first-10k for car is 55p.
     const r = calculateMileageDeduction("car", 100);
+    expect(r.deductionPence).toBe(5500);
+    expect(r.rateFirst10kPence).toBe(55);
+    expect(r.rateAfter10kPence).toBe(25);
+    expect(r.source).toBe("hmrc");
+  });
+
+  it("uses 2025-26 rates when taxYear='2025-26' is supplied", () => {
+    const r = calculateMileageDeduction("car", 100, { taxYear: "2025-26" });
     expect(r.deductionPence).toBe(4500);
     expect(r.rateFirst10kPence).toBe(45);
     expect(r.rateAfter10kPence).toBe(25);
-    expect(r.source).toBe("hmrc");
   });
 
   it("applies a flat employer rate when only first-10k override given", () => {
@@ -177,12 +229,13 @@ describe("calculateMileageDeduction", () => {
     expect(r.source).toBe("employer");
   });
 
-  it("ignores customRateAfter10k when first-10k is null", () => {
-    // Sanity: just supplying after-10k without first-10k means no override
+  it("ignores customRateAfter10k when first-10k is null (uses current HMRC tier)", () => {
+    // Sanity: just supplying after-10k without first-10k means no override.
+    // Default tax year (2026-27): 10000 * 55 + 2000 * 25 = 550000 + 50000 = 600000
     const r = calculateMileageDeduction("car", 12_000, {
       customRateAfter10kPence: 30,
     });
-    expect(r.deductionPence).toBe(500_000);
+    expect(r.deductionPence).toBe(600_000);
     expect(r.source).toBe("hmrc");
   });
 

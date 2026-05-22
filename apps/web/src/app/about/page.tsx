@@ -104,8 +104,9 @@ export default function AboutPage() {
                 income and mileage come from.
               </p>
               <p className="legal__text">
-                The 45p and 25p HMRC rates are built in from the start - not an afterthought. The
-                10,000-mile threshold is tracked automatically. Tax year summaries are generated
+                The 55p and 25p HMRC rates are built in from the start - not an afterthought (the
+                first-tier rate rose from 45p to 55p on 6 April 2026). The 10,000-mile threshold is
+                tracked automatically. Tax year summaries are generated
                 the way HMRC expects them. And it works offline, because gig drivers often work
                 in areas with poor mobile signal.
               </p>

@@ -3,9 +3,9 @@ import Navbar from "@/components/landing/Navbar";
 import Footer from "@/components/landing/Footer";
 
 export const metadata: Metadata = {
-  title: "Amazon Flex Mileage Tracker UK - Save Up To £3,300 in Tax",
+  title: "Amazon Flex Mileage Tracker UK - Save Up To £3,700 in Tax (2026-27)",
   description:
-    "25,000 Flex miles/year = £8,250 off your tax bill at HMRC's 45p/25p rates. MileClear records every block automatically and exports a Self Assessment-ready PDF. See the full breakdown.",
+    "25,000 Flex miles/year = £9,250 off your tax bill at HMRC's 55p/25p rates (raised from 45p on 6 April 2026). MileClear records every block automatically and exports a Self Assessment-ready PDF. See the full breakdown.",
   keywords: [
     "amazon flex mileage tracker",
     "amazon flex tax deduction uk",
@@ -17,17 +17,17 @@ export const metadata: Metadata = {
     canonical: "https://mileclear.com/amazon-flex-mileage-tracker",
   },
   openGraph: {
-    title: "Amazon Flex Mileage Tracker UK - Save Up To £3,300 in Tax",
+    title: "Amazon Flex Mileage Tracker UK - Save Up To £3,700 in Tax (2026-27)",
     description:
-      "Track every Amazon Flex block automatically. HMRC 45p/25p rates built in, return-to-depot miles captured, PDF export to drop straight onto your Self Assessment.",
+      "Track every Amazon Flex block automatically. HMRC 55p/25p rates built in (raised from 45p on 6 April 2026), return-to-depot miles captured, PDF export to drop straight onto your Self Assessment.",
     url: "https://mileclear.com/amazon-flex-mileage-tracker",
     images: [{ url: "/branding/og-image.png", width: 1200, height: 628 }],
   },
   twitter: {
     card: "summary_large_image",
-    title: "Amazon Flex Mileage Tracker UK - Save Up To £3,300 in Tax",
+    title: "Amazon Flex Mileage Tracker UK - Save Up To £3,700 in Tax (2026-27)",
     description:
-      "Track every Amazon Flex block automatically. HMRC 45p/25p rates built in, return-to-depot miles captured, PDF export to drop straight onto your Self Assessment.",
+      "Track every Amazon Flex block automatically. HMRC 55p/25p rates built in (raised from 45p on 6 April 2026), return-to-depot miles captured, PDF export to drop straight onto your Self Assessment.",
     images: ["/branding/og-image.png"],
   },
 };
@@ -70,7 +70,7 @@ const faqSchema = {
       name: "Can Amazon Flex drivers claim mileage on their UK tax return?",
       acceptedAnswer: {
         "@type": "Answer",
-        text: "Yes. Amazon Flex drivers are self-employed in the UK and can claim the HMRC Approved Mileage Allowance Payment rate: 45p per mile for the first 10,000 business miles in a tax year, and 25p per mile after that. Business miles include the entire route from the Amazon depot to the last delivery drop, plus any return trip if you drive back to the depot.",
+        text: "Yes. Amazon Flex drivers are self-employed in the UK and can claim the HMRC Approved Mileage Allowance Payment rate: 55p per mile for the first 10,000 business miles in a tax year, and 25p per mile after that (the first-tier rate rose from 45p to 55p on 6 April 2026). Business miles include the entire route from the Amazon depot to the last delivery drop, plus any return trip if you drive back to the depot.",
       },
     },
     {
@@ -86,7 +86,7 @@ const faqSchema = {
       name: "How much can an Amazon Flex driver save on tax with mileage tracking?",
       acceptedAnswer: {
         "@type": "Answer",
-        text: "An Amazon Flex driver covering 25,000 business miles a year would have a deduction of £8,750 (10,000 x 45p + 15,000 x 25p). At a 20% income tax rate, that is £1,750 back from HMRC purely from mileage allowance.",
+        text: "An Amazon Flex driver covering 25,000 business miles a year would have a deduction of £9,250 at the new 2026-27 rates (10,000 x 55p + 15,000 x 25p). At a 20% income tax rate, that is £1,850 back from HMRC purely from mileage allowance.",
       },
     },
     {
@@ -166,10 +166,11 @@ export default function AmazonFlexMileageTracker() {
               expenses. Mileage is almost always the single largest deductible expense for Flex drivers.
             </p>
             <p style={{ color: "#94a3b8", lineHeight: 1.8, marginBottom: "1rem" }}>
-              HMRC&apos;s Approved Mileage Allowance Payment (AMAP) rate lets you claim 45p per mile for
-              the first 10,000 business miles in a tax year, and 25p per mile after that. For a driver
-              running two or three blocks per day, five days a week, that mileage can reach 25,000 to
-              35,000 miles per year - giving a tax deduction worth over £9,000 in some cases.
+              HMRC&apos;s Approved Mileage Allowance Payment (AMAP) rate lets you claim 55p per mile for
+              the first 10,000 business miles in a tax year, and 25p per mile after that (the first-tier
+              rate rose from 45p to 55p on 6 April 2026). For a driver running two or three blocks per day,
+              five days a week, that mileage can reach 25,000 to 35,000 miles per year - giving a tax
+              deduction worth over £10,000 in some cases.
             </p>
             <p style={{ color: "#94a3b8", lineHeight: 1.8, marginBottom: "1rem" }}>
               The problem is that HMRC requires a contemporaneous mileage log. You cannot estimate at the
@@ -472,10 +473,10 @@ export default function AmazonFlexMileageTracker() {
                 }}
               >
                 {[
-                  { label: "First 10,000 miles", value: "£4,500", note: "at 45p/mile" },
+                  { label: "First 10,000 miles", value: "£5,500", note: "at 55p/mile" },
                   { label: "Next 15,000 miles", value: "£3,750", note: "at 25p/mile" },
-                  { label: "Total deduction", value: "£8,250", note: "from taxable income" },
-                  { label: "Tax saved (20% rate)", value: "£1,650", note: "directly from mileage" },
+                  { label: "Total deduction", value: "£9,250", note: "from taxable income" },
+                  { label: "Tax saved (20% rate)", value: "£1,850", note: "directly from mileage" },
                 ].map(({ label, value, note }) => (
                   <div key={label}>
                     <div style={{ fontSize: "0.8125rem", color: "#64748b", marginBottom: "0.25rem" }}>
@@ -608,7 +609,7 @@ export default function AmazonFlexMileageTracker() {
               },
               {
                 q: "Can Amazon Flex drivers claim mileage on their UK tax return?",
-                a: "Yes. Amazon Flex drivers are self-employed and can claim 45p per mile for the first 10,000 business miles and 25p per mile after that. Business miles include the full delivery route from depot to each drop, including inter-stop miles and any required return to depot.",
+                a: "Yes. Amazon Flex drivers are self-employed and can claim 55p per mile for the first 10,000 business miles and 25p per mile after that (the first-tier rate rose from 45p to 55p on 6 April 2026). Business miles include the full delivery route from depot to each drop, including inter-stop miles and any required return to depot.",
               },
               {
                 q: "Does driving to the Amazon depot count as a business mile?",

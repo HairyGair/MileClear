@@ -124,7 +124,10 @@ export async function runReconciliationJob(): Promise<void> {
     const reconRateOpts = reconUser ? resolveMileageRates(reconUser) : {};
     let expectedPence = 0;
     for (const [type, miles] of milesByType) {
-      expectedPence += calculateMileageDeduction(type, miles, reconRateOpts).deductionPence;
+      expectedPence += calculateMileageDeduction(type, miles, {
+        ...reconRateOpts,
+        taxYear: summary.taxYear,
+      }).deductionPence;
     }
 
     const milesDrift = Math.abs(expectedMiles - summary.businessMiles);

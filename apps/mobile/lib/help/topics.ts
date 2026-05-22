@@ -34,7 +34,7 @@ export const HELP_SECTIONS: HelpSection[] = [
       {
         id: "what-it-does",
         q: "What does MileClear do for me?",
-        a: "MileClear automatically records every mile you drive for work and calculates the tax deduction HMRC owes you back. At year-end you can export a PDF Self Assessment, submit quarterly returns direct to HMRC, or hand the numbers to your accountant.\n\nFor 2024-25 and earlier UK tax years, the standard rate is 45p per mile for the first 10,000 business miles and 25p after — MileClear tracks both tiers automatically.",
+        a: "MileClear automatically records every mile you drive for work and calculates the tax deduction HMRC owes you back. At year-end you can export a PDF Self Assessment, submit quarterly returns direct to HMRC, or hand the numbers to your accountant.\n\nFrom tax year 2026-27 (trips on or after 6 April 2026) the standard rate is 55p per mile for the first 10,000 business miles and 25p after - up from the previous 45p first tier. MileClear applies the correct rate per tax year automatically.",
       },
       {
         id: "trip-detection",
@@ -89,7 +89,7 @@ export const HELP_SECTIONS: HelpSection[] = [
       {
         id: "employer-mileage",
         q: "My employer reimburses me for mileage — what do I enter?",
-        a: "Settings → Work & Tax → set Work type to \"Employee using own vehicle\" or \"Both\", then enter your employer's per-mile rate. MileClear shows you the gap between what they pay and HMRC's 45p / 25p — that's the amount you can recover at year-end via Mileage Allowance Relief on a P87 or Self Assessment.",
+        a: "Settings → Work & Tax → set Work type to \"Employee using own vehicle\" or \"Both\", then enter your employer's per-mile rate. MileClear shows you the gap between what they pay and HMRC's 55p / 25p (up from 45p / 25p on 6 April 2026) - that's the amount you can recover at year-end via Mileage Allowance Relief on a P87 or Self Assessment.",
         goTo: "/settings/work-tax",
       },
       {
@@ -100,7 +100,7 @@ export const HELP_SECTIONS: HelpSection[] = [
       {
         id: "hmrc-rates",
         q: "What are the HMRC mileage rates?",
-        a: "Car / van: 45p per mile for the first 10,000 business miles, 25p per mile after that. Motorbike: 24p flat rate. MileClear applies the correct rate to every business trip automatically and tracks where you sit on the 10,000-mile threshold.",
+        a: "Car / van: 55p per mile for the first 10,000 business miles, 25p per mile after that (rate rose from 45p to 55p on 6 April 2026 - tax year 2026-27 onwards). Motorbike: 24p flat rate, unchanged. MileClear applies the correct rate per tax year to every business trip automatically and tracks where you sit on the 10,000-mile threshold.",
       },
     ],
   },

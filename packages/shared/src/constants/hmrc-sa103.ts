@@ -130,11 +130,12 @@ export const SA103_BOXES: readonly Sa103Box[] = [
     box: 46,
     label: "Flat rate expenses for vehicles (simplified expenses)",
     description:
-      "The HMRC flat-rate mileage allowance for your business miles: 45p per mile " +
-      "for the first 10,000 miles and 25p per mile above 10,000 miles (cars and vans). " +
-      "Motorbikes use 24p per mile flat. This is calculated automatically by MileClear " +
-      "from your classified business trips. Using this box means you cannot claim " +
-      "actual vehicle costs in Box 25.",
+      "The HMRC flat-rate mileage allowance for your business miles. For tax years " +
+      "from 2026-27 onwards, cars and vans claim 55p per mile for the first 10,000 " +
+      "miles and 25p per mile above 10,000 miles (the rate was 45p/25p up to and " +
+      "including tax year 2025-26). Motorbikes use 24p per mile flat. This is " +
+      "calculated automatically by MileClear from your classified business trips. " +
+      "Using this box means you cannot claim actual vehicle costs in Box 25.",
     dataKey: "mileageDeduction",
     section: "simplified_expenses",
   },
@@ -186,12 +187,13 @@ export const SA103_GUIDANCE: Sa103Guidance = {
   simplifiedMileage:
     "The simplified mileage method (also called the flat rate or fixed rate method) " +
     "lets you claim a set pence-per-mile rate instead of working out your actual " +
-    "vehicle running costs. For cars and vans the rate is 45p per mile for the first " +
-    "10,000 business miles in a tax year, then 25p per mile for every mile above " +
-    "10,000. Motorcycles use a flat 24p per mile. The amount goes in Box 46 of SA103. " +
-    "You cannot claim actual running costs (Box 25) for the same vehicle in the same " +
-    "year. Other expenses such as parking, tolls, and your work phone can still be " +
-    "claimed separately in Box 27.",
+    "vehicle running costs. From the 2026-27 tax year onwards (6 April 2026), cars " +
+    "and vans use 55p per mile for the first 10,000 business miles, then 25p per mile " +
+    "above 10,000 (the rate was 45p/25p up to and including 2025-26). Motorcycles " +
+    "use a flat 24p per mile. The amount goes in Box 46 of SA103. You cannot claim " +
+    "actual running costs (Box 25) for the same vehicle in the same year. Other " +
+    "expenses such as parking, tolls, and your work phone can still be claimed " +
+    "separately in Box 27.",
 
   actualCosts:
     "Under the actual costs method you work out the real running costs of your vehicle " +

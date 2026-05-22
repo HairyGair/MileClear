@@ -315,7 +315,7 @@ export default function OnboardingScreen() {
               <View style={s.painBullet}>
                 <View style={s.painBulletDot} />
                 <Text style={s.painBulletText}>
-                  Every forgotten mile is money lost - 45p/mile from HMRC, or whatever your employer pays
+                  Every forgotten mile is money lost - 55p/mile from HMRC, or whatever your employer pays
                 </Text>
               </View>
             </View>
@@ -637,12 +637,12 @@ export default function OnboardingScreen() {
                     ))}
                   </View>
                   <Text style={s.helperText}>
-                    Your employer&apos;s reimbursement rate (skip if you&apos;re not sure - you can set it later in Profile). If they pay below 45p you can claim the gap from HMRC as Mileage Allowance Relief.
+                    Your employer&apos;s reimbursement rate (skip if you&apos;re not sure - you can set it later in Profile). If they pay below 55p you can claim the gap from HMRC as Mileage Allowance Relief (rate rose from 45p to 55p on 6 April 2026).
                   </Text>
                 </View>
               )}
 
-            {/* Vehicle type capture - affects HMRC rate (45p/25p car/van vs 24p motorbike) */}
+            {/* Vehicle type capture - affects HMRC rate (55p/25p car/van vs 24p motorbike, from 2026-27) */}
             <View style={s.workTypeSection}>
               <Text style={s.sectionLabel}>What do you drive?</Text>
               <View style={s.workTypeRow}>
@@ -1075,9 +1075,9 @@ export default function OnboardingScreen() {
                   Vehicle:{" "}
                   <Text style={s.setupCheckValue}>
                     {vehicleType === "car"
-                      ? "Car (45p / 25p HMRC rate)"
+                      ? "Car (55p / 25p HMRC rate)"
                       : vehicleType === "van"
-                        ? "Van (45p / 25p HMRC rate)"
+                        ? "Van (55p / 25p HMRC rate)"
                         : "Motorbike (24p HMRC rate)"}
                   </Text>
                 </Text>

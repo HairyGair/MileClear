@@ -52,7 +52,7 @@ const cases: Array<{ q: string; verdict: Verdict; a: string }> = [
   {
     q: "Picking up materials from a supplier",
     verdict: "counts",
-    a: "Business mileage, straightforward. Whether you are picking up parts from a wholesaler, timber from a builders merchant, or stock from a warehouse, the trip is for work and qualifies for the 45p/25p rate.",
+    a: "Business mileage, straightforward. Whether you are picking up parts from a wholesaler, timber from a builders merchant, or stock from a warehouse, the trip is for work and qualifies for the 55p/25p rate (raised from 45p/25p on 6 April 2026).",
   },
   {
     q: "Driving to a client lunch",
@@ -62,7 +62,7 @@ const cases: Array<{ q: string; verdict: Verdict; a: string }> = [
   {
     q: "Driving for a registered charity",
     verdict: "counts",
-    a: "Volunteer drivers for a registered UK charity can claim the HMRC approved rate (45p/25p) against the mileage the charity reimburses them, as long as the charity is genuinely repaying mileage rather than paying for services. If the charity pays less than 45p, you can claim the shortfall as Mileage Allowance Relief. If they pay you more, the excess is taxable. Personal volunteering for a group that is not a registered charity does not qualify.",
+    a: "Volunteer drivers for a registered UK charity can claim the HMRC approved rate (55p/25p, raised from 45p/25p on 6 April 2026) against the mileage the charity reimburses them, as long as the charity is genuinely repaying mileage rather than paying for services. If the charity pays less than 55p, you can claim the shortfall as Mileage Allowance Relief. If they pay you more, the excess is taxable. Personal volunteering for a group that is not a registered charity does not qualify.",
   },
   {
     q: "School run, then on to a job site",

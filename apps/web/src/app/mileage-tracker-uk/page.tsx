@@ -8,7 +8,7 @@ export const metadata: Metadata = {
       "Mileage Tracker UK - Free HMRC-Ready App for Self-Employed Drivers | MileClear",
   },
   description:
-    "The UK mileage tracker built for HMRC Self Assessment. Auto-track every business mile, generate a tax-year PDF, claim 45p/25p per mile. Free to use, designed for UK drivers.",
+    "The UK mileage tracker built for HMRC Self Assessment. Auto-track every business mile, generate a tax-year PDF, claim 55p/25p per mile (raised from 45p on 6 April 2026). Free to use, designed for UK drivers.",
   keywords: [
     "mileage tracker uk",
     "mileage tracker",
@@ -25,7 +25,7 @@ export const metadata: Metadata = {
   openGraph: {
     title: "Mileage Tracker UK - Free HMRC-Ready App",
     description:
-      "Auto-track every business mile. HMRC 45p/25p rates built in. Self Assessment-ready PDF. Free.",
+      "Auto-track every business mile. HMRC 55p/25p rates built in (raised from 45p on 6 April 2026). Self Assessment-ready PDF. Free.",
     url: "https://mileclear.com/mileage-tracker-uk",
     images: [{ url: "/branding/og-image.png", width: 1200, height: 628 }],
   },
@@ -33,7 +33,7 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: "Mileage Tracker UK - Free HMRC-Ready App",
     description:
-      "Auto-track every business mile. HMRC 45p/25p rates built in. Self Assessment-ready PDF. Free.",
+      "Auto-track every business mile. HMRC 55p/25p rates built in (raised from 45p on 6 April 2026). Self Assessment-ready PDF. Free.",
     images: ["/branding/og-image.png"],
   },
 };
@@ -88,7 +88,7 @@ const faqSchema = {
       name: "What is the best mileage tracker UK app for self-employed drivers?",
       acceptedAnswer: {
         "@type": "Answer",
-        text: "The best UK mileage tracker is one built around HMRC's Approved Mileage Allowance Payment (AMAP) rates - 45p per mile for the first 10,000 business miles, 25p after that. MileClear automates GPS tracking in the background, applies the correct rate based on your vehicle, and produces a Self Assessment-ready PDF for each tax year (6 April to 5 April).",
+        text: "The best UK mileage tracker is one built around HMRC's Approved Mileage Allowance Payment (AMAP) rates - 55p per mile for the first 10,000 business miles, 25p after that (the first-tier rate rose from 45p to 55p on 6 April 2026). MileClear automates GPS tracking in the background, applies the correct rate based on your vehicle, and produces a Self Assessment-ready PDF for each tax year (6 April to 5 April).",
       },
     },
     {
@@ -112,7 +112,7 @@ const faqSchema = {
       name: "How much can I claim in mileage on Self Assessment?",
       acceptedAnswer: {
         "@type": "Answer",
-        text: "HMRC's AMAP rates are 45p per mile for the first 10,000 business miles in a tax year, then 25p per mile thereafter for cars and vans. Motorbikes are 24p flat. A driver covering 15,000 business miles claims £4,500 (10,000 x 45p) plus £1,250 (5,000 x 25p) = £5,750 off taxable profit. At 20% basic rate that is £1,150 back; at 40% higher rate it is £2,300.",
+        text: "HMRC's AMAP rates are 55p per mile for the first 10,000 business miles in a tax year, then 25p per mile thereafter for cars and vans (the first-tier rate rose from 45p to 55p on 6 April 2026). Motorbikes are 24p flat. A driver covering 15,000 business miles claims £5,500 (10,000 x 55p) plus £1,250 (5,000 x 25p) = £6,750 off taxable profit. At 20% basic rate that is £1,350 back; at 40% higher rate it is £2,700.",
       },
     },
     {
@@ -128,7 +128,7 @@ const faqSchema = {
       name: "Can I track multiple vehicles in one app?",
       acceptedAnswer: {
         "@type": "Answer",
-        text: "Yes. Add as many vehicles as you need - HMRC's mileage rates differ by vehicle type (car/van 45p/25p, motorbike 24p flat). MileClear pulls vehicle details direct from the DVLA registration database and applies the correct rate per trip. The free tier allows one vehicle; Pro is unlimited.",
+        text: "Yes. Add as many vehicles as you need - HMRC's mileage rates differ by vehicle type (car/van 55p/25p as of 6 April 2026, motorbike 24p flat). MileClear pulls vehicle details direct from the DVLA registration database and applies the correct rate per trip. The free tier allows one vehicle; Pro is unlimited.",
       },
     },
     {
@@ -183,8 +183,9 @@ export default function MileageTrackerUk() {
             </h1>
             <p style={{ fontSize: "1.125rem", color: "#94a3b8", lineHeight: 1.75, maxWidth: 680 }}>
               MileClear is a UK-built mileage tracker designed around HMRC's AMAP rates and the
-              UK tax year. Background GPS captures every business mile, the 45p/25p calculation
-              runs in real time, and your Self Assessment PDF is ready when you are.
+              UK tax year. Background GPS captures every business mile, the 55p/25p calculation
+              runs in real time (rate rose from 45p to 55p on 6 April 2026), and your Self
+              Assessment PDF is ready when you are.
               Free to download - no card needed.
             </p>
             <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap", marginTop: "1.5rem" }}>
@@ -243,9 +244,9 @@ export default function MileageTrackerUk() {
               None of that helps you file an HMRC Self Assessment.
             </p>
             <p style={{ color: "#94a3b8", lineHeight: 1.8, marginBottom: "1rem" }}>
-              MileClear is built UK-first. The Approved Mileage Allowance Payment rates - 45p per mile
-              for the first 10,000 business miles, then 25p for every mile after - are applied
-              automatically as you drive. Your tax year runs 6 April to 5 April, not 1 January.
+              MileClear is built UK-first. The Approved Mileage Allowance Payment rates - 55p per mile
+              for the first 10,000 business miles (raised from 45p on 6 April 2026), then 25p for
+              every mile after - are applied automatically as you drive. Your tax year runs 6 April to 5 April, not 1 January.
               Your export is the SA103 mileage box, with the per-trip detail HMRC asks for in case
               of an enquiry.
             </p>
@@ -284,7 +285,7 @@ export default function MileageTrackerUk() {
                 {
                   title: "HMRC AMAP rates built in",
                   body:
-                    "45p/25p for cars and vans, 24p flat for motorbikes. The 10,000-mile threshold is applied automatically across the UK tax year.",
+                    "55p/25p for cars and vans (raised from 45p on 6 April 2026), 24p flat for motorbikes. The 10,000-mile threshold is applied automatically across the UK tax year.",
                 },
                 {
                   title: "Automatic GPS tracking",
@@ -408,7 +409,7 @@ export default function MileageTrackerUk() {
             {[
               {
                 q: "What is the best mileage tracker UK app for self-employed drivers?",
-                a: "The best UK mileage tracker is built around HMRC's AMAP rates and the UK tax year. MileClear automates GPS tracking, applies the 45p/25p calculation in real time, and produces a Self Assessment-ready PDF.",
+                a: "The best UK mileage tracker is built around HMRC's AMAP rates and the UK tax year. MileClear automates GPS tracking, applies the 55p/25p calculation in real time (rate rose from 45p to 55p on 6 April 2026), and produces a Self Assessment-ready PDF.",
               },
               {
                 q: "Is there a free mileage tracker for the UK?",
@@ -420,7 +421,7 @@ export default function MileageTrackerUk() {
               },
               {
                 q: "How much can I claim in mileage on Self Assessment?",
-                a: "45p per mile for the first 10,000 business miles in a tax year, 25p after that for cars/vans (24p flat for motorbikes). 15,000 business miles = £5,750 off taxable profit. Worth £1,150 at basic rate, £2,300 at higher rate.",
+                a: "55p per mile for the first 10,000 business miles in a tax year, 25p after that for cars/vans (24p flat for motorbikes); the first-tier rate rose from 45p to 55p on 6 April 2026. 15,000 business miles = £6,750 off taxable profit. Worth £1,350 at basic rate, £2,700 at higher rate.",
               },
               {
                 q: "Does MileClear work offline?",

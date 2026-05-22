@@ -21,13 +21,16 @@ import { formatPence } from "@mileclear/shared";
 const APP_EVENT_FIRST_TRIP = "discord.first_trip_celebrated";
 const APP_EVENT_MILESTONE = "discord.mileage_milestone_celebrated";
 
-// Mileage thresholds to celebrate. Pence-per-mile (45p first 10k, 25p
-// after) so we can mention real savings in the post copy.
+// Mileage thresholds to celebrate. Pence-per-mile based on the 2026-27
+// AMAP rates (55p first 10k, 25p after) so the post copy can mention
+// real savings. The headline number is approximate — actual per-user
+// deduction depends on vehicle type and where in the year they hit the
+// milestone (some miles may have been claimed at the older 45p rate).
 const MILESTONES_PENCE = [
-  { miles: 1000, label: "1,000", deductionPence: 45_000 },
-  { miles: 5000, label: "5,000", deductionPence: 225_000 },
-  { miles: 10000, label: "10,000", deductionPence: 450_000 },
-  { miles: 25000, label: "25,000", deductionPence: 825_000 }, // 10k×45 + 15k×25
+  { miles: 1000, label: "1,000", deductionPence: 55_000 },
+  { miles: 5000, label: "5,000", deductionPence: 275_000 },
+  { miles: 10000, label: "10,000", deductionPence: 550_000 },
+  { miles: 25000, label: "25,000", deductionPence: 925_000 }, // 10k×55 + 15k×25
 ] as const;
 
 // ── First-trip celebration ──────────────────────────────────────────

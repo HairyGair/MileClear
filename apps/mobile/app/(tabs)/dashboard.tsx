@@ -863,7 +863,7 @@ export default function DashboardScreen() {
 
             <Text style={s.explainerSubhead}>How it works</Text>
             <Text style={s.explainerBody}>
-              Business trips are tracked separately and used to calculate your <Text style={s.explainerBold}>HMRC mileage deduction</Text> - 45p per mile for the first 10,000, then 25p after that. This reduces your tax bill at the end of the year.
+              Business trips are tracked separately and used to calculate your <Text style={s.explainerBold}>HMRC mileage deduction</Text> - 55p per mile for the first 10,000, then 25p after that. This reduces your tax bill at the end of the year.
             </Text>
 
             <View style={s.explainerDivider} />

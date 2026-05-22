@@ -565,7 +565,7 @@ export default function MtdItsaSoftwarePage() {
               {[
                 {
                   title: "Mileage deduction",
-                  body: "Every business-classified trip flows into your AMAP deduction at 45p/25p (cars/vans) or 24p (motorbike). Employer mileage rates supported for employees using their own car. The figure goes straight into HMRC's expenses.carVanTravelExpenses field.",
+                  body: "Every business-classified trip flows into your AMAP deduction at 55p/25p (cars/vans, rate rose from 45p on 6 April 2026) or 24p (motorbike). Employer mileage rates supported for employees using their own car. The figure goes straight into HMRC's expenses.carVanTravelExpenses field.",
                 },
                 {
                   title: "Earnings by platform",

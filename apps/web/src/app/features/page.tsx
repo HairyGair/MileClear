@@ -352,8 +352,9 @@ export default function FeaturesPage() {
                 >
                   HMRC allows self-employed drivers to claim mileage as a
                   business expense using the approved mileage rates. For cars
-                  and vans, that is 45p per mile for the first 10,000 business
-                  miles in a tax year, dropping to 25p per mile after that.
+                  and vans, that is 55p per mile for the first 10,000 business
+                  miles in a tax year, dropping to 25p per mile after that
+                  (the first-tier rate rose from 45p to 55p on 6 April 2026).
                   For motorbikes, the flat rate is 24p per mile. MileClear
                   applies these rates automatically to every business trip you
                   record.
@@ -406,7 +407,7 @@ export default function FeaturesPage() {
                   }}
                 >
                   {[
-                    "45p/mi (first 10,000 miles)",
+                    "55p/mi (first 10,000 miles)",
                     "25p/mi (after 10,000 miles)",
                     "24p/mi for motorbikes",
                     "Automatic per-trip calculation",
@@ -942,7 +943,7 @@ export default function FeaturesPage() {
                   The tax dashboard also shows how your deduction is split
                   across different vehicles, which matters if you switch
                   between a car and a motorbike during the year. The 10,000
-                  mile threshold for the higher 45p rate is tracked per
+                  mile threshold for the higher 55p rate is tracked per
                   vehicle type so the transition to 25p is applied correctly.
                   Read more about HMRC rules in our{" "}
                   <a

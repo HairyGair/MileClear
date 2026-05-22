@@ -167,7 +167,10 @@ export async function buildTaxSnapshot(userId: string): Promise<TaxSnapshot> {
   const rateOpts = user ? resolveMileageRates(user) : {};
   let mileageDeductionPence = 0;
   for (const [type, miles] of milesByType) {
-    mileageDeductionPence += calculateMileageDeduction(type, miles, rateOpts).deductionPence;
+    mileageDeductionPence += calculateMileageDeduction(type, miles, {
+      ...rateOpts,
+      taxYear,
+    }).deductionPence;
   }
 
   // Sole-trader invoices (Laura Joyce feature, 10 May 2026): basis-aware
@@ -405,7 +408,8 @@ interface DerivationInput {
  * The derivation shows:
  *   - which trips fed into the calculation (date range, count)
  *   - the per-vehicle-type breakdown (car/van vs motorbike use different rates)
- *   - the AMAP threshold split (45p first 10k, 25p after) for car/van
+ *   - the AMAP threshold split for car/van (55p first 10k, 25p after for
+ *     2026-27 onwards; 45p/25p for earlier years)
  *   - the final formula and total
  *
  * Empty (no business miles) returns a derivation that still explains
@@ -506,7 +510,9 @@ function buildMileageDeductionDerivation(input: DerivationInput): NumberDerivati
       },
     }] : undefined,
     notes: [
-      "AMAP rates: 45p per mile for the first 10,000 business miles, 25p per mile thereafter (cars and vans). Motorbikes are 24p flat.",
+      taxYear >= "2026-27"
+        ? "AMAP rates (cars and vans, 2026-27 onwards): 55p per mile for the first 10,000 business miles, 25p per mile thereafter. Motorbikes are 24p flat. Previous rate was 45p/25p — rate rose on 6 April 2026."
+        : "AMAP rates (cars and vans, up to 2025-26): 45p per mile for the first 10,000 business miles, 25p per mile thereafter. Motorbikes are 24p flat. Rate rose to 55p/25p from 6 April 2026.",
       "Trips without a linked vehicle assume car rates. Add or assign a vehicle on the Trip detail screen if a trip used a different vehicle type.",
     ],
   };
@@ -590,7 +596,10 @@ async function buildMileageDeductionAcrossWindows(
     }),
   ]);
 
-  const deductionFor = (trips: { distanceMiles: number; vehicle: { vehicleType: string } | null }[]) => {
+  const deductionFor = (
+    trips: { distanceMiles: number; vehicle: { vehicleType: string } | null }[],
+    windowTaxYear: string,
+  ) => {
     const milesByTypeLocal = new Map<VehicleType, number>();
     for (const t of trips) {
       const type = (t.vehicle?.vehicleType ?? "car") as VehicleType;
@@ -598,14 +607,20 @@ async function buildMileageDeductionAcrossWindows(
     }
     let pence = 0;
     for (const [type, miles] of milesByTypeLocal) {
-      pence += calculateMileageDeduction(type, miles, rateOpts).deductionPence;
+      pence += calculateMileageDeduction(type, miles, {
+        ...rateOpts,
+        taxYear: windowTaxYear,
+      }).deductionPence;
     }
     return pence;
   };
 
-  const last7DaysPence = deductionFor(last7DaysTrips);
-  const thisMonthPence = deductionFor(thisMonthTrips);
-  const lastTaxYearPence = deductionFor(lastTaxYearTrips);
+  // last7Days + thisMonth fall within the current tax year (we cap at `now`,
+  // we never look backwards across an April boundary here). lastTaxYearTrips
+  // is explicitly bounded to the previous tax year, so use that rate table.
+  const last7DaysPence = deductionFor(last7DaysTrips, taxYear);
+  const thisMonthPence = deductionFor(thisMonthTrips, taxYear);
+  const lastTaxYearPence = deductionFor(lastTaxYearTrips, lastTaxYear);
 
   return {
     label: "HMRC mileage deduction across windows",

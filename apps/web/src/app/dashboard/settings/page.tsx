@@ -555,8 +555,8 @@ export default function SettingsPage() {
             {(workType === "employee" || workType === "both") && employerRate && (
               <p style={{ fontSize: "0.8125rem", color: "var(--text-muted)", margin: 0 }}>
                 {employerRateAfter10k
-                  ? `Your employer pays ${employerRate}p for the first 10,000 business miles, then ${employerRateAfter10k}p. HMRC's AMAP is 45p / 25p — the gap can be claimed via Mileage Allowance Relief.`
-                  : `Your employer pays ${employerRate}p/mi flat. HMRC's AMAP is 45p / 25p — you can claim the gap via Mileage Allowance Relief.`}
+                  ? `Your employer pays ${employerRate}p for the first 10,000 business miles, then ${employerRateAfter10k}p. HMRC's AMAP is 55p / 25p from 2026-27 (was 45p / 25p before) — the gap can be claimed via Mileage Allowance Relief.`
+                  : `Your employer pays ${employerRate}p/mi flat. HMRC's AMAP is 55p / 25p from 2026-27 (was 45p / 25p before) — you can claim the gap via Mileage Allowance Relief.`}
               </p>
             )}
           </div>

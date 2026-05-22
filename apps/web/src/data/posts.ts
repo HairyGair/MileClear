@@ -47,7 +47,7 @@ export const BLOG_POSTS: BlogPost[] = [
     author: "Gair",
     category: "guide",
     content: `
-<p>If you drive for work in the UK and you're not tracking your miles, you're leaving money on the table. The Approved Mileage Allowance Payment (AMAP) lets self-employed drivers claim 45p per mile for the first 10,000 business miles in a tax year - 25p per mile after that. For a typical full-time delivery driver, that's £5,000 to £8,000 in deductions every year. For tradespeople driving between jobs, it's often £2,000-£4,000. Even part-time gig workers and PAYE employees who drive occasionally for work can save hundreds.</p>
+<p>If you drive for work in the UK and you're not tracking your miles, you're leaving money on the table. The Approved Mileage Allowance Payment (AMAP) lets self-employed drivers claim 55p per mile for the first 10,000 business miles in a tax year - 25p per mile after that (the first-tier rate rose from 45p to 55p on 6 April 2026 for the 2026-27 tax year onwards). For a typical full-time delivery driver, that's £6,000 to £9,000 in deductions every year. For tradespeople driving between jobs, it's often £2,500-£5,000. Even part-time gig workers and PAYE employees who drive occasionally for work can save hundreds.</p>
 
 <p>This guide covers how to actually do it - what HMRC requires, what counts as a business mile, and the practical options for tracking. Spoiler: spreadsheets are the wrong answer.</p>
 
@@ -68,7 +68,7 @@ export const BLOG_POSTS: BlogPost[] = [
 <h2>The current AMAP rates</h2>
 
 <ul>
-<li><strong>Cars and vans:</strong> 45p per mile for the first 10,000 business miles per tax year, then 25p per mile</li>
+<li><strong>Cars and vans:</strong> 55p per mile for the first 10,000 business miles per tax year, then 25p per mile (rate rose from 45p on 6 April 2026)</li>
 <li><strong>Motorbikes:</strong> 24p per mile (flat rate, no threshold)</li>
 <li><strong>Bicycles:</strong> 20p per mile (flat rate)</li>
 <li><strong>Passenger payment:</strong> additional 5p per mile per business passenger you're carrying on the same trip</li>
@@ -144,7 +144,7 @@ export const BLOG_POSTS: BlogPost[] = [
     author: "Gair",
     category: "guide",
     content: `
-<p>If you're self-employed in the UK and you drive for work, your business miles are one of the largest deductions available to you. HMRC's Approved Mileage Allowance Payment (AMAP) lets you claim 45p per mile for the first 10,000 business miles, then 25p per mile after. For a mid-mileage sole trader doing 15,000 business miles a year, that's £5,750 off your taxable profit - worth £1,150 to £2,300 in real tax back depending on your tax band.</p>
+<p>If you're self-employed in the UK and you drive for work, your business miles are one of the largest deductions available to you. HMRC's Approved Mileage Allowance Payment (AMAP) lets you claim 55p per mile for the first 10,000 business miles, then 25p per mile after (the first-tier rate rose from 45p to 55p on 6 April 2026 for the 2026-27 tax year onwards). For a mid-mileage sole trader doing 15,000 business miles a year, that's £6,750 off your taxable profit at the new rates - worth £1,350 to £2,700 in real tax back depending on your tax band.</p>
 
 <p>But - and this is the part most people miss - the deduction is only worth what you can prove. HMRC requires a <strong>contemporaneous mileage log</strong>, and getting it wrong can mean the deduction is disallowed retrospectively, with interest and penalties. This guide explains exactly what to record, how to record it, and where it goes on your Self Assessment.</p>
 
@@ -192,7 +192,8 @@ export const BLOG_POSTS: BlogPost[] = [
 <h2>The AMAP rates for 2025/26 and 2026/27</h2>
 
 <ul>
-<li><strong>Cars and vans:</strong> 45p per mile for the first 10,000 business miles per tax year, then 25p per mile</li>
+<li><strong>Cars and vans (2026-27 onwards):</strong> 55p per mile for the first 10,000 business miles per tax year, then 25p per mile. The first-tier rate rose from 45p to 55p on 6 April 2026.</li>
+<li><strong>Cars and vans (2025-26 and earlier):</strong> 45p per mile for the first 10,000 business miles, then 25p per mile - use this for late-filed returns covering the 2025-26 tax year.</li>
 <li><strong>Motorbikes:</strong> 24p per mile (flat, no threshold)</li>
 <li><strong>Bicycles:</strong> 20p per mile (flat)</li>
 <li><strong>Passenger payment:</strong> additional 5p per mile per business passenger</li>
@@ -209,7 +210,7 @@ export const BLOG_POSTS: BlogPost[] = [
 <li><strong>SA103F (turnover over £85k):</strong> Box 21 of the equivalent section. Same logic - simplified expenses (AMAP) goes in the travel box.</li>
 </ul>
 
-<p>You enter the total deduction, not the miles. So 15,000 business miles becomes £5,750 (10,000 × 45p + 5,000 × 25p) - that £5,750 is what you write on the form.</p>
+<p>You enter the total deduction, not the miles. So 15,000 business miles (in 2026-27) becomes £6,750 (10,000 × 55p + 5,000 × 25p) - that £6,750 is what you write on the form. For a 2025-26 return the same mileage was £5,750 at the old 45p/25p rates.</p>
 
 <h2>Practical record-keeping</h2>
 
@@ -274,13 +275,13 @@ export const BLOG_POSTS: BlogPost[] = [
 <p>Self-employed drivers - sole traders, gig delivery riders, private hire drivers, tradespeople, contractors - claim mileage as a business expense on Self Assessment. HMRC's Approved Mileage Allowance Payment (AMAP) lets you deduct:</p>
 
 <ul>
-<li>45p per mile for the first 10,000 business miles in a tax year (cars and vans)</li>
+<li>55p per mile for the first 10,000 business miles in a tax year (cars and vans, raised from 45p on 6 April 2026 for the 2026-27 tax year)</li>
 <li>25p per mile thereafter</li>
 <li>24p per mile flat for motorbikes</li>
 <li>20p per mile flat for bicycles</li>
 </ul>
 
-<p>The deduction comes off your taxable profit. For a 15,000-mile-a-year self-employed driver, that's £5,750 off the top - worth £1,150 to £2,300 in tax back depending on your band.</p>
+<p>The deduction comes off your taxable profit. For a 15,000-mile-a-year self-employed driver, that's £6,750 off the top at the new 2026-27 rates - worth £1,350 to £2,700 in tax back depending on your band. (At the old 45p/25p that figure was £5,750.)</p>
 
 <p>It goes on the <strong>SA103S box 20</strong> or <strong>SA103F box 21</strong> (the travel expenses line) of your Self Assessment, marked under simplified expenses. See our <a href="/updates/how-to-track-business-miles-hmrc">full SA103 guide</a> for the boxes.</p>
 
@@ -294,11 +295,11 @@ export const BLOG_POSTS: BlogPost[] = [
 
 <ul>
 <li>Your employer pays 25p per mile for business driving</li>
-<li>HMRC's AMAP rate is 45p per mile (for the first 10,000 miles)</li>
-<li>The 20p per mile gap is what you can claim back as Mileage Allowance Relief</li>
+<li>HMRC's AMAP rate is 55p per mile for the first 10,000 miles (raised from 45p on 6 April 2026)</li>
+<li>The 30p per mile gap is what you can claim back as Mileage Allowance Relief</li>
 </ul>
 
-<p>For 5,000 business miles a year, that's £1,000 in relief - worth £200 at basic rate, £400 at higher rate.</p>
+<p>For 5,000 business miles a year, that's £1,500 in relief - worth £300 at basic rate, £600 at higher rate. (The same example under the old 45p AMAP rate was a £1,000 relief.)</p>
 
 <p>If your employer pays you <strong>nothing</strong> for business mileage (rare but it happens), you can claim the full AMAP rate as MAR.</p>
 
@@ -338,7 +339,7 @@ export const BLOG_POSTS: BlogPost[] = [
 <h2>What to look for in a tracker if you're UK-based</h2>
 
 <ul>
-<li>Built around HMRC's AMAP rates (45p/25p/24p) and the UK tax year (6 April)</li>
+<li>Built around HMRC's AMAP rates (55p/25p/24p, raised from 45p/25p/24p on 6 April 2026) and the UK tax year (6 April)</li>
 <li>Background GPS that captures the trip without you having to remember to start it</li>
 <li>Per-trip classification (business or personal) with auto-classification options for power users</li>
 <li>Export formats that work for both Self Assessment (SA103) and P87 / Mileage Allowance Relief</li>
@@ -383,7 +384,7 @@ export const BLOG_POSTS: BlogPost[] = [
 <ul>
 <li><strong>Unlimited trips.</strong> No monthly cap, no annual cap. You should be able to track 50,000 miles a year if your work demands it.</li>
 <li><strong>Background GPS tracking.</strong> The trip should record automatically without you having to remember to open the app.</li>
-<li><strong>HMRC AMAP rates calculated automatically.</strong> The 45p/25p/24p calculation with the 10,000-mile threshold applied per UK tax year - this is the core value of any UK mileage tracker. If it's behind the paywall, the rest of the app is decoration.</li>
+<li><strong>HMRC AMAP rates calculated automatically.</strong> The 55p/25p/24p calculation with the 10,000-mile threshold applied per UK tax year (the first-tier rate rose from 45p to 55p on 6 April 2026) - this is the core value of any UK mileage tracker. If it's behind the paywall, the rest of the app is decoration.</li>
 <li><strong>Business / personal classification.</strong> A tap to mark each trip business or personal, with the option to auto-classify by saved location or work schedule.</li>
 <li><strong>UK tax year baked in.</strong> 6 April to 5 April, not the calendar year. Apps built for the US use 1 January and will report your numbers wrong.</li>
 <li><strong>No ads.</strong> Ads in a tax app are a privacy red flag - they often mean your trip data is being sold.</li>
@@ -436,7 +437,7 @@ export const BLOG_POSTS: BlogPost[] = [
 <ul>
 <li>Unlimited GPS-tracked trips (no monthly cap, no annual cap)</li>
 <li>Business / personal classification</li>
-<li>HMRC 45p/25p/24p rate calculation with the 10,000-mile threshold</li>
+<li>HMRC 55p/25p/24p rate calculation with the 10,000-mile threshold (rate rose from 45p on 6 April 2026)</li>
 <li>UK tax year baked in (6 April to 5 April)</li>
 <li>Platform tagging for gig drivers (Uber, Deliveroo, Just Eat, Amazon Flex, DPD, Evri, etc.)</li>
 <li>1 vehicle with DVLA registration lookup</li>
@@ -616,7 +617,7 @@ export const BLOG_POSTS: BlogPost[] = [
 
 <p><strong>Employer mileage rates.</strong> If you drive your own car for an employer who reimburses you per mile (rather than self-employed gig work), MileClear now lets you tell it what your employer pays. Settings, Work type, Employee using own vehicle, then enter your first-10,000-miles rate and an optional after-10,000-miles tier. Every total in the app then reflects what you actually claim from your employer, not the HMRC default.</p>
 
-<p>The gap between your employer's rate and HMRC's 45p / 25p is what you can reclaim through Mileage Allowance Relief on a P87 or self-assessment, and the new figures put that gap into your numbers all year, not just at year-end. Roughly 5 million UK drivers reimburse mileage from an employer; this update is for them.</p>
+<p>The gap between your employer's rate and HMRC's 55p / 25p (raised from 45p on 6 April 2026) is what you can reclaim through Mileage Allowance Relief on a P87 or self-assessment, and the new figures put that gap into your numbers all year, not just at year-end. Roughly 5 million UK drivers reimburse mileage from an employer; this update is for them.</p>
 
 <p>Both features are free, not Pro. Tax accuracy is "fighting your corner" software and stays free per <a href="/">MileClear's free vs Pro framework</a>.</p>
 
@@ -716,15 +717,15 @@ export const BLOG_POSTS: BlogPost[] = [
 
 <p>If you are claiming the Approved Mileage Allowance Payment (AMAP) deduction on your Self Assessment - and as a self-employed Flex driver you almost certainly should be - HMRC needs a contemporaneous record of every business journey. That means: the date, the start and end location, the reason for the trip, and the distance driven. Logged at the time, not reconstructed in January from memory.</p>
 
-<p>The current AMAP rates (2025/26 and 2026/27):</p>
+<p>The current AMAP rates:</p>
 <ul>
-<li><strong>45p per mile</strong> for the first 10,000 business miles in cars and vans.</li>
+<li><strong>55p per mile</strong> for the first 10,000 business miles in cars and vans, in tax year 2026-27 onwards (the rate rose from 45p to 55p on 6 April 2026; use 45p for any return covering 2025-26 or earlier).</li>
 <li><strong>25p per mile</strong> for every business mile after that.</li>
 <li><strong>24p per mile</strong> for motorcycles.</li>
 <li><strong>20p per mile</strong> for bicycles.</li>
 </ul>
 
-<p>For a typical Flex driver covering 200 business miles a week, that is around £4,500 a year in deductions. If your records do not exist - or do not pass HMRC's "contemporaneous" test - you cannot claim a penny of it.</p>
+<p>For a typical Flex driver covering 200 business miles a week, that is around £5,500 a year in deductions at the new 2026-27 rates (was around £4,500 at the old 45p rate). If your records do not exist - or do not pass HMRC's "contemporaneous" test - you cannot claim a penny of it.</p>
 
 <h2>"I'll just use Google Maps Timeline" - why that does not work</h2>
 
@@ -788,13 +789,13 @@ export const BLOG_POSTS: BlogPost[] = [
 
 <p>The reason "inactivity on gophr" makes couriers nervous is not just the lost income. It is the realisation that the platform holds the records of every job you have done. If they decide to deactivate you tomorrow, that history might become harder to access. Gophr is not unique here - every gig platform works this way.</p>
 
-<p>And here is the part most couriers do not realise until they need it: <strong>your mileage tax claim does not run on the platform's data. It runs on yours.</strong> HMRC requires a "contemporaneous record" - a log kept at the time the journey happened - of every business mile you drive. You can claim 45p per mile for the first 10,000 business miles in a tax year and 25p per mile after that, on top of whatever you took home from the platform. For a courier doing 200 miles a week, that is around £4,500 a year you can deduct from your taxable profit, regardless of what Gophr's app shows.</p>
+<p>And here is the part most couriers do not realise until they need it: <strong>your mileage tax claim does not run on the platform's data. It runs on yours.</strong> HMRC requires a "contemporaneous record" - a log kept at the time the journey happened - of every business mile you drive. You can claim 55p per mile for the first 10,000 business miles in a tax year (the first-tier rate rose from 45p to 55p on 6 April 2026) and 25p per mile after that, on top of whatever you took home from the platform. For a courier doing 200 miles a week, that is around £5,500 a year you can deduct from your taxable profit, regardless of what Gophr's app shows.</p>
 
 <p>If your records sit only in Gophr's app and Gophr deactivates you, you have a problem. Not catastrophic - HMRC accepts other forms of evidence - but harder than it needs to be.</p>
 
 <h2>This is exactly why I built MileClear</h2>
 
-<p>I built <a href="/">MileClear</a> because I watched too many UK couriers - on Gophr, on Deliveroo, on Just Eat, on Uber Eats - lose money at tax time because their records lived in someone else's app. MileClear tracks every business mile automatically, applies the <a href="/hmrc-mileage-rates">HMRC AMAP rate</a> (45p / 25p / 24p depending on vehicle), and keeps the record on your phone, in your name, exportable to a Self Assessment-ready PDF whenever you want it.</p>
+<p>I built <a href="/">MileClear</a> because I watched too many UK couriers - on Gophr, on Deliveroo, on Just Eat, on Uber Eats - lose money at tax time because their records lived in someone else's app. MileClear tracks every business mile automatically, applies the <a href="/hmrc-mileage-rates">HMRC AMAP rate</a> (55p / 25p / 24p depending on vehicle, raised from 45p/25p/24p on 6 April 2026), and keeps the record on your phone, in your name, exportable to a Self Assessment-ready PDF whenever you want it.</p>
 
 <p>It does not depend on Gophr being active, on Deliveroo accepting your application, or on Just Eat keeping your account alive. The tracker runs in the background, attaches the right platform tag to each trip (Gophr, Stuart, Uber, Deliveroo, Just Eat, Amazon Flex, DPD, Evri), and gives you a complete audit trail in case HMRC ever ask. If a platform deactivates you tomorrow, every mile you drove for them up to that point is still yours.</p>
 

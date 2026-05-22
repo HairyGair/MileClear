@@ -5,7 +5,7 @@ import Footer from "@/components/landing/Footer";
 export const metadata: Metadata = {
   title: "DPD Mileage Tracker UK - For ODFs Doing 40,000+ Miles a Year",
   description:
-    "Your DPD scanner tracks parcels, not miles. As an Owner Driver Franchisee you can claim 45p/25p per mile - £12,000+ off tax on a typical year. MileClear logs every route automatically. See the breakdown.",
+    "Your DPD scanner tracks parcels, not miles. As an Owner Driver Franchisee you can claim 55p/25p per mile (raised from 45p on 6 April 2026) - £13,000+ off tax on a typical year. MileClear logs every route automatically. See the breakdown.",
   keywords: [
     "dpd mileage tracker",
     "dpd owner driver franchisee tax",
@@ -70,7 +70,7 @@ const faqSchema = {
       name: "Can DPD drivers claim mileage on their tax return?",
       acceptedAnswer: {
         "@type": "Answer",
-        text: "It depends which tier you are on. If you are an Owner Driver Franchisee or Owner Driver Worker - meaning you own or lease your van - you can claim either Simplified Expenses (45p per mile for the first 10,000 business miles, 25p after that) or Actual Costs (fuel, insurance, lease, servicing, tyres, depreciation). If you are a directly-employed DPD driver using a DPD-provided van, you cannot claim AMAP because the vehicle is not yours.",
+        text: "It depends which tier you are on. If you are an Owner Driver Franchisee or Owner Driver Worker - meaning you own or lease your van - you can claim either Simplified Expenses (55p per mile for the first 10,000 business miles, 25p after that; the first-tier rate rose from 45p to 55p on 6 April 2026) or Actual Costs (fuel, insurance, lease, servicing, tyres, depreciation). If you are a directly-employed DPD driver using a DPD-provided van, you cannot claim AMAP because the vehicle is not yours.",
       },
     },
     {
@@ -86,7 +86,7 @@ const faqSchema = {
       name: "Should DPD drivers use Simplified Expenses or Actual Costs?",
       acceptedAnswer: {
         "@type": "Answer",
-        text: "Run the numbers both ways. A typical ODF doing 40,000 business miles a year claims £12,000 under Simplified Expenses (10,000 x 45p + 30,000 x 25p). The same driver with a leased Sprinter at £18,000 a year, plus £6,000 fuel, £1,200 insurance, £2,000 servicing and tyres, can claim £27,000+ under Actual Costs. Drivers with high running costs (recent leases, heavy diesel use) almost always benefit from Actual Costs. Drivers with older owned vans and low monthly outgoings often do better on Simplified. You cannot mix and match on the same vehicle - the choice is locked for that van's life with the business.",
+        text: "Run the numbers both ways. A typical ODF doing 40,000 business miles a year claims £13,000 under Simplified Expenses at the new 2026-27 rates (10,000 x 55p + 30,000 x 25p; was £12,000 at the old 45p/25p). The same driver with a leased Sprinter at £18,000 a year, plus £6,000 fuel, £1,200 insurance, £2,000 servicing and tyres, can claim £27,000+ under Actual Costs. Drivers with high running costs (recent leases, heavy diesel use) almost always benefit from Actual Costs. Drivers with older owned vans and low monthly outgoings often do better on Simplified. You cannot mix and match on the same vehicle - the choice is locked for that van's life with the business.",
       },
     },
     {
@@ -94,7 +94,7 @@ const faqSchema = {
       name: "How many miles a year does a typical DPD ODF cover?",
       acceptedAnswer: {
         "@type": "Answer",
-        text: "Roughly 30,000 to 60,000 business miles per year. A standard route is about 250 miles a day across 130-170 parcels and 120 stops, run 5 to 6 days a week for 48 weeks. That puts most full-time ODFs comfortably above HMRC's 10,000-mile threshold, where the rate drops from 45p to 25p per mile.",
+        text: "Roughly 30,000 to 60,000 business miles per year. A standard route is about 250 miles a day across 130-170 parcels and 120 stops, run 5 to 6 days a week for 48 weeks. That puts most full-time ODFs comfortably above HMRC's 10,000-mile threshold, where the rate drops from 55p to 25p per mile (the first-tier rate rose from 45p to 55p on 6 April 2026).",
       },
     },
     {
@@ -258,7 +258,7 @@ export default function DpdMileageTracker() {
 
             <p style={{ color: "#94a3b8", lineHeight: 1.8 }}>
               MileClear is for ODFs and ODWs - the two tiers where every business mile is
-              potentially worth 45p of taxable income off your return. If you are a directly
+              potentially worth 55p of taxable income off your return (the AMAP first-tier rate rose from 45p to 55p on 6 April 2026). If you are a directly
               employed driver, your tax is handled at source through PAYE and a mileage tracker
               does not change your liability.
             </p>
@@ -402,7 +402,7 @@ export default function DpdMileageTracker() {
                     margin: "0 0 0.75rem",
                   }}
                 >
-                  £12,000 / 40,000 miles
+                  £13,000 / 40,000 miles
                 </p>
                 <ul
                   style={{
@@ -413,7 +413,7 @@ export default function DpdMileageTracker() {
                     margin: 0,
                   }}
                 >
-                  <li>10,000 miles × 45p = £4,500</li>
+                  <li>10,000 miles × 55p = £5,500</li>
                   <li>30,000 miles × 25p = £7,500</li>
                   <li>No receipts to keep beyond the mileage log</li>
                   <li>Best for: older vans, low monthly outgoings</li>
@@ -650,10 +650,10 @@ export default function DpdMileageTracker() {
                 }}
               >
                 {[
-                  { label: "First 10,000 miles", value: "£4,500", note: "at 45p/mile" },
+                  { label: "First 10,000 miles", value: "£5,500", note: "at 55p/mile" },
                   { label: "Next 30,000 miles", value: "£7,500", note: "at 25p/mile" },
-                  { label: "Total deduction", value: "£12,000", note: "from taxable income" },
-                  { label: "Tax saved (20% rate)", value: "£2,400", note: "directly from mileage" },
+                  { label: "Total deduction", value: "£13,000", note: "from taxable income" },
+                  { label: "Tax saved (20% rate)", value: "£2,600", note: "directly from mileage" },
                 ].map(({ label, value, note }) => (
                   <div key={label}>
                     <div style={{ fontSize: "0.8125rem", color: "#64748b", marginBottom: "0.25rem" }}>
@@ -796,11 +796,11 @@ export default function DpdMileageTracker() {
               },
               {
                 q: "Should DPD drivers use Simplified Expenses or Actual Costs?",
-                a: "Run both. A 40,000-mile year claims £12,000 under Simplified. The same year on a leased Sprinter claims £25,000 to £30,000 under Actual. Drivers with high running costs almost always benefit from Actual; drivers with older owned vans and low overheads often do better on Simplified. The choice is locked for that van's life with the business - you can switch when you change vans.",
+                a: "Run both. A 40,000-mile year claims £13,000 under Simplified at the new 2026-27 rates (55p/25p, up from £12,000 at the old 45p/25p). The same year on a leased Sprinter claims £25,000 to £30,000 under Actual. Drivers with high running costs almost always benefit from Actual; drivers with older owned vans and low overheads often do better on Simplified. The choice is locked for that van's life with the business - you can switch when you change vans.",
               },
               {
                 q: "How many miles a year does a typical DPD ODF cover?",
-                a: "30,000 to 60,000 business miles. Most full-time routes sit around 40,000. That puts you well above HMRC's 10,000-mile threshold where the rate drops from 45p to 25p, so a typical Simplified claim is around £12,000 a year.",
+                a: "30,000 to 60,000 business miles. Most full-time routes sit around 40,000. That puts you well above HMRC's 10,000-mile threshold where the rate drops from 55p to 25p (the first-tier rate rose from 45p to 55p on 6 April 2026), so a typical Simplified claim is around £13,000 a year.",
               },
               {
                 q: "Does the DPD Driver app or scanner track mileage for HMRC?",

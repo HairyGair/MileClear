@@ -419,7 +419,8 @@ export default function EvriMileageTracker() {
               The pattern is consistent: as the round goes more rural, the per-parcel premium
               rises slightly but fuel takes more of it back. The mileage deduction does not
               flinch - it scales linearly with miles driven, capped only by the 10,000-mile
-              threshold where the rate steps from 45p to 25p. For full-time rural Evri couriers,
+              threshold where the rate steps from 55p to 25p (the first-tier rate rose from 45p
+              to 55p on 6 April 2026). For full-time rural Evri couriers,
               AMAP is often the largest line on the Self Assessment.
             </p>
           </section>
@@ -451,8 +452,9 @@ export default function EvriMileageTracker() {
               new pay claim.
             </p>
             <p style={{ color: "#94a3b8", lineHeight: 1.8, marginBottom: "1rem" }}>
-              The HMRC mileage rate did not move. AMAP is set by HMRC, not by Evri - 45p first
-              10,000 miles, 25p thereafter for cars, 24p flat for mopeds and motorbikes. When
+              The HMRC mileage rate did not move with Evri's pay change. AMAP is set by HMRC, not
+              by Evri - 55p first 10,000 miles (raised from 45p on 6 April 2026), 25p thereafter
+              for cars, 24p flat for mopeds and motorbikes. When
               parcel pay drops, mileage becomes a larger proportion of net take-home, not a
               smaller one.
             </p>
@@ -641,7 +643,7 @@ export default function EvriMileageTracker() {
               },
               {
                 q: "What HMRC mileage rate applies to my Evri round?",
-                a: "Cars and vans: 45p per mile for the first 10,000 business miles in the tax year, 25p after that. Mopeds and motorbikes: 24p per mile flat. Most full-time Evri couriers exceed 10,000 miles partway through the year, so the 25p rate applies for a meaningful chunk of their round.",
+                a: "Cars and vans: 55p per mile for the first 10,000 business miles in the tax year, 25p after that (the first-tier rate rose from 45p to 55p on 6 April 2026). Mopeds and motorbikes: 24p per mile flat. Most full-time Evri couriers exceed 10,000 miles partway through the year, so the 25p rate applies for a meaningful chunk of their round.",
               },
               {
                 q: "Should I use Simplified Expenses or Actual Costs?",

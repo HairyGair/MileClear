@@ -72,7 +72,7 @@ function generateWebInsights(
       icon: "↗",
       color: "#f59e0b",
       title: `${(HMRC_THRESHOLD_MILES - stats.businessMiles).toFixed(0)} miles to the HMRC 10k threshold`,
-      body: "After 10,000 miles the rate drops from 45p to 25p per mile.",
+      body: "After 10,000 miles the rate drops from 55p to 25p per mile.",
     });
   }
 
