@@ -24,6 +24,7 @@ import { usePersonalStats } from "../hooks/usePersonalStats";
 import { useRecentTripsWithCoords } from "../hooks/useRecentTripsWithCoords";
 import { BusinessInsightsCard } from "../components/business/BusinessInsightsCard";
 import { BusinessRecapCard } from "../components/business/BusinessRecapCard";
+import { PlatformPnLCard } from "../components/business/PlatformPnLCard";
 import { PremiumGate, useIsPremium } from "../components/PremiumGate";
 import { MilestoneTracker } from "../components/personal/MilestoneTracker";
 import { WeeklyActivity, buildWeekDays } from "../components/personal/WeeklyActivity";
@@ -202,6 +203,7 @@ export default function InsightsScreen() {
         {isWork && (
           <PremiumGate feature="Business Insights">
             <BusinessInsightsCard />
+            <PlatformPnLCard days={30} />
             <BusinessRecapCard />
           </PremiumGate>
         )}

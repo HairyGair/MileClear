@@ -123,6 +123,7 @@ export interface CreateTripData {
   businessPurpose?: BusinessPurpose;
   category?: TripCategory;
   notes?: string;
+  projectLabel?: string;
   coordinates?: CoordinateInput[];
   // Per-trip GPS quality summary computed at finalize time. Stored on the
   // server as a JSON column for admin analysis - see TripQuality in shared.
@@ -135,6 +136,7 @@ export interface UpdateTripData {
   businessPurpose?: BusinessPurpose | null;
   category?: TripCategory | null;
   notes?: string | null;
+  projectLabel?: string | null;
   endAddress?: string | null;
   endLat?: number | null;
   endLng?: number | null;

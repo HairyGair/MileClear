@@ -92,6 +92,7 @@ const createTripSchema = z.object({
   businessPurpose: z.enum(BUSINESS_PURPOSE_VALUES).optional(),
   notes: z.string().max(2000).optional(),
   category: z.enum(TRIP_CATEGORIES).nullable().optional(),
+  projectLabel: z.string().max(100).optional(),
   coordinates: z.array(coordinateInputSchema).max(20000).optional(),
   // Client-computed GPS quality summary. Free-form so we can iterate the
   // shape without a schema migration; admin queries look for known keys.
@@ -104,6 +105,7 @@ const updateTripSchema = z.object({
   businessPurpose: z.enum(BUSINESS_PURPOSE_VALUES).nullable().optional(),
   notes: z.string().max(2000).nullable().optional(),
   category: z.enum(TRIP_CATEGORIES).nullable().optional(),
+  projectLabel: z.string().max(100).nullable().optional(),
   endAddress: z.string().max(500).nullable().optional(),
   endLat: z.number().min(-90).max(90).nullable().optional(),
   endLng: z.number().min(-180).max(180).nullable().optional(),
@@ -337,6 +339,7 @@ export async function tripRoutes(app: FastifyInstance) {
       businessPurpose: finalBusinessPurpose,
       category: finalCategory,
       notes: tripData.notes ?? null,
+      projectLabel: tripData.projectLabel ?? null,
       gpsQuality: (tripData.gpsQuality ?? undefined) as Prisma.InputJsonValue | undefined,
     };
 

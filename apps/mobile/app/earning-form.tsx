@@ -58,6 +58,7 @@ export default function EarningFormScreen() {
     prefillDate ? new Date(prefillDate) : new Date()
   );
   const [notes, setNotes] = useState(prefillVendor ?? "");
+  const [projectLabel, setProjectLabel] = useState("");
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [loadingExisting, setLoadingExisting] = useState(isEditing);
@@ -67,11 +68,13 @@ export default function EarningFormScreen() {
     const populateEarning = (earning: {
       platform: string; amountPence: number;
       periodStart: string; periodEnd: string;
+      projectLabel?: string | null;
     }) => {
       setPlatform(earning.platform);
       setAmount((earning.amountPence / 100).toFixed(2));
       setPeriodStart(new Date(earning.periodStart));
       setPeriodEnd(new Date(earning.periodEnd));
+      setProjectLabel(earning.projectLabel ?? "");
     };
 
     fetchEarning(id)
@@ -119,6 +122,7 @@ export default function EarningFormScreen() {
           amountPence,
           periodStart: periodStart.toISOString(),
           periodEnd: periodEnd.toISOString(),
+          projectLabel: projectLabel.trim() || null,
         });
       } else {
         await syncCreateEarning({
@@ -126,6 +130,7 @@ export default function EarningFormScreen() {
           amountPence,
           periodStart: periodStart.toISOString(),
           periodEnd: periodEnd.toISOString(),
+          projectLabel: projectLabel.trim() || undefined,
         });
       }
       haptic("success");
@@ -135,7 +140,7 @@ export default function EarningFormScreen() {
     } finally {
       setSaving(false);
     }
-  }, [isEditing, id, platform, amount, periodStart, periodEnd, router]);
+  }, [isEditing, id, platform, amount, periodStart, periodEnd, projectLabel, router]);
 
   const handleDelete = useCallback(() => {
     Alert.alert("Delete earning", "Remove this earning? This can't be undone.", [
@@ -262,6 +267,19 @@ export default function EarningFormScreen() {
           onChange={setPeriodEnd}
           maximumDate={new Date()}
         />
+
+        {/* Project / client (optional, freeform) */}
+        <View>
+          <Text style={styles.label}>Project / client (optional)</Text>
+          <TextInput
+            style={styles.input}
+            value={projectLabel}
+            onChangeText={setProjectLabel}
+            placeholder="e.g. Theatre Royal tour, Acme Ltd"
+            placeholderTextColor={TEXT_3}
+            accessibilityLabel="Project or client name"
+          />
+        </View>
 
         {/* Save */}
         <Button

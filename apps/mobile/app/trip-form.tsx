@@ -641,6 +641,7 @@ export default function TripFormScreen() {
   const [vehicleId, setVehicleId] = useState<string | undefined>(undefined);
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [notes, setNotes] = useState("");
+  const [projectLabel, setProjectLabel] = useState("");
   const [showDetails, setShowDetails] = useState(false);
 
   // Smart suggestion
@@ -871,6 +872,7 @@ export default function TripFormScreen() {
       startAddress?: string | null; endAddress?: string | null;
       startLat: number; startLng: number; endLat?: number | null; endLng?: number | null;
       distanceMiles: number; startedAt: string; endedAt?: string | null; notes?: string | null;
+      projectLabel?: string | null;
       insights?: TripInsights | null;
       confidence?: { level: "high" | "medium" | "low"; reasons: string[] } | null;
       mergeSuggestion?: {
@@ -901,6 +903,7 @@ export default function TripFormScreen() {
       setStartedAt(new Date(t.startedAt));
       setEndedAt(t.endedAt ? new Date(t.endedAt) : null);
       setNotes(t.notes ?? "");
+      setProjectLabel(t.projectLabel ?? "");
       if (t.insights) setInsights(t.insights);
       if (t.confidence) setConfidence(t.confidence);
       if (t.mergeSuggestion) setMergeSuggestion(t.mergeSuggestion);
@@ -1561,6 +1564,7 @@ export default function TripFormScreen() {
           businessPurpose: businessPurpose ?? null,
           category: category ?? null,
           notes: notes.trim() || null,
+          projectLabel: projectLabel.trim() || null,
           endAddress: endAddress ?? null,
           endLat: endLat ?? null,
           endLng: endLng ?? null,
@@ -1597,6 +1601,7 @@ export default function TripFormScreen() {
           ...(businessPurpose && { businessPurpose }),
           ...(category && { category }),
           ...(notes.trim() && { notes: notes.trim() }),
+          ...(projectLabel.trim() && { projectLabel: projectLabel.trim() }),
           ...(vehicleId && { vehicleId }),
           ...(coords && { coordinates: coords }),
         };
@@ -1761,7 +1766,7 @@ export default function TripFormScreen() {
   }, [
     isEditing, id, classification, platformTag, businessPurpose, category, vehicleId,
     startAddress, endAddress, startLat, startLng, endLat, endLng,
-    distanceMiles, startedAt, endedAt, notes, router, showPaywall, routeSource,
+    distanceMiles, startedAt, endedAt, notes, projectLabel, router, showPaywall, routeSource,
     anomalyDef, anomalyResponse, anomalyCustomNote,
     locationQuestions, locationResponses, locationCustomNotes,
   ]);
@@ -3022,6 +3027,17 @@ export default function TripFormScreen() {
                   numberOfLines={3}
                   textAlignVertical="top"
                   accessibilityLabel="Notes about this trip"
+                />
+
+                {/* Project / client (optional, freeform) */}
+                <Text style={styles.label}>Project / client</Text>
+                <TextInput
+                  style={styles.input}
+                  value={projectLabel}
+                  onChangeText={setProjectLabel}
+                  placeholder="e.g. Theatre Royal tour, Acme Ltd"
+                  placeholderTextColor={TEXT_3}
+                  accessibilityLabel="Project or client name"
                 />
               </View>
             )}
