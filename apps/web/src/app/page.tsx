@@ -2,6 +2,7 @@ import Navbar from "@/components/landing/Navbar";
 import Hero from "@/components/landing/Hero";
 import Problem from "@/components/landing/Problem";
 import Features from "@/components/landing/Features";
+import Screenshots from "@/components/landing/Screenshots";
 import WhoItsFor from "@/components/landing/WhoItsFor";
 import Pricing from "@/components/landing/Pricing";
 import EarlyAccess from "@/components/landing/EarlyAccess";
@@ -133,6 +134,7 @@ export default function LandingPage() {
         <SocialProof />
         <Problem />
         <Features />
+        <Screenshots />
         <WhoItsFor />
         <Pricing />
         <EarlyAccess />

@@ -1,4 +1,4 @@
-import PhoneMockup from "./PhoneMockup";
+import Image from "next/image";
 
 const APP_STORE_URL = "https://apps.apple.com/app/mileclear/id6759671005";
 
@@ -31,7 +31,15 @@ export default function Hero() {
           </p>
         </div>
         <div className="hero__phone">
-          <PhoneMockup />
+          <Image
+            src="/screenshot-source/iphone/iphone-01-hero.png"
+            alt="MileClear app showing today's tax-deductible mileage and active shift"
+            width={480}
+            height={1040}
+            priority
+            sizes="(max-width: 768px) 80vw, 480px"
+            style={{ width: "100%", height: "auto", display: "block" }}
+          />
         </div>
       </div>
     </section>

@@ -1,3 +1,4 @@
+import Image from "next/image";
 import Reveal from "./Reveal";
 
 const features = [
@@ -10,6 +11,7 @@ const features = [
     ),
     title: "Auto trip recording and smart classification",
     desc: "MileClear detects when you start driving and records the trip automatically. It learns your routes - classify a trip three times and it's automatic from then on.",
+    screenshot: "iphone-05-auto-classify.png",
   },
   {
     icon: (
@@ -21,6 +23,7 @@ const features = [
     title: "Live Activities",
     desc: "See your miles, speed, and timer on the lock screen and Dynamic Island. End a trip or dismiss a false detection with buttons right on the widget.",
     alt: true,
+    screenshot: "iphone-04-live-activity.png",
   },
   {
     icon: (
@@ -31,6 +34,7 @@ const features = [
     ),
     title: "HMRC tax deductions",
     desc: "Your running tax deduction total updates with every trip. 45p/25p for cars, 24p for motorbikes, calculated automatically per tax year.",
+    screenshot: "iphone-03-mtd-itsa.png",
   },
   {
     icon: (
@@ -44,6 +48,7 @@ const features = [
     desc: "Log earnings by platform for free. Upgrade to Pro for earnings per mile, per hour, platform comparison, shift grades, and weekly P&L.",
     alt: true,
     pro: "Full insights",
+    screenshot: "iphone-09-pro.png",
   },
   {
     icon: (
@@ -99,6 +104,7 @@ const features = [
     ),
     title: "Offline first",
     desc: "Every trip is saved to your phone first and synced when you have signal. No dropped trips, no missing data.",
+    screenshot: "iphone-10-your-data.png",
   },
   {
     icon: (
@@ -110,6 +116,7 @@ const features = [
     desc: "Download PDF trip reports, CSV exports, and Self Assessment summaries with every trip dated, classified, and distance-verified.",
     alt: true,
     pro: "Pro",
+    screenshot: "iphone-02-first-tax-return.png",
   },
   {
     icon: (
@@ -162,31 +169,58 @@ export default function Features() {
 
         <Reveal delay="reveal-d2">
           <div className="features__grid">
-            {features.map((f) => (
-              <div key={f.title} className="f-card">
-                <div className={`f-card__icon${f.alt ? " f-card__icon--alt" : ""}`}>
-                  {f.icon}
-                </div>
-                <h3 className="f-card__title">
-                  {f.title}
-                  {f.pro && (
-                    <span style={{
-                      marginLeft: "0.5rem",
-                      fontSize: "0.6875rem",
-                      fontWeight: 700,
-                      textTransform: "uppercase",
-                      letterSpacing: "0.5px",
-                      padding: "2px 6px",
-                      borderRadius: "4px",
-                      background: "rgba(245,166,35,0.15)",
-                      color: "var(--amber-400)",
-                      verticalAlign: "middle",
-                    }}>{f.pro}</span>
+            {features.map((f) => {
+              const ff = f as typeof f & { screenshot?: string };
+              return (
+                <div key={f.title} className="f-card">
+                  <div className={`f-card__icon${f.alt ? " f-card__icon--alt" : ""}`}>
+                    {f.icon}
+                  </div>
+                  <h3 className="f-card__title">
+                    {f.title}
+                    {f.pro && (
+                      <span style={{
+                        marginLeft: "0.5rem",
+                        fontSize: "0.6875rem",
+                        fontWeight: 700,
+                        textTransform: "uppercase",
+                        letterSpacing: "0.5px",
+                        padding: "2px 6px",
+                        borderRadius: "4px",
+                        background: "rgba(245,166,35,0.15)",
+                        color: "var(--amber-400)",
+                        verticalAlign: "middle",
+                      }}>{f.pro}</span>
+                    )}
+                  </h3>
+                  <p className="f-card__desc">{f.desc}</p>
+                  {ff.screenshot && (
+                    <div
+                      style={{
+                        marginTop: "1rem",
+                        borderRadius: "12px",
+                        overflow: "hidden",
+                        background: "rgba(255,255,255,0.02)",
+                        border: "1px solid rgba(255,255,255,0.06)",
+                      }}
+                    >
+                      <Image
+                        src={`/screenshot-source/iphone/${ff.screenshot}`}
+                        alt={`MileClear: ${f.title.toLowerCase()}`}
+                        width={360}
+                        height={780}
+                        sizes="(max-width: 768px) 80vw, 360px"
+                        style={{
+                          width: "100%",
+                          height: "auto",
+                          display: "block",
+                        }}
+                      />
+                    </div>
                   )}
-                </h3>
-                <p className="f-card__desc">{f.desc}</p>
-              </div>
-            ))}
+                </div>
+              );
+            })}
           </div>
         </Reveal>
 
