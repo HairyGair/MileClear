@@ -875,7 +875,7 @@ export const BLOG_POSTS: BlogPost[] = [
 
 <h2>First-time Self Assessment guide</h2>
 
-<p>Plain-English walkthrough for drivers filing Self Assessment for the first time. Covers UTR registration, the UK tax year (6 April to 5 April), what you actually pay (income tax + Class 4 NI + Class 2 NI), the AMAP mileage deduction at 45p/25p (or 24p flat for mopeds), and the 31 January deadline.</p>
+<p>Plain-English walkthrough for drivers filing Self Assessment for the first time. Covers UTR registration, the UK tax year (6 April to 5 April), what you actually pay (income tax + Class 4 NI + Class 2 NI), the AMAP mileage deduction at 55p/25p (raised from 45p on 6 April 2026; or 24p flat for mopeds), and the 31 January deadline.</p>
 
 <p>It is reachable from the Tax Readiness card, and exists to make sure new self-employed drivers do not miss the basics in their first year. UTR registration alone takes 10 working days - drivers who leave it until October regret it.</p>
 
@@ -1453,6 +1453,8 @@ export const BLOG_POSTS: BlogPost[] = [
 <p>If you're starting fresh for 2026-27, you're in a great position. Every trip from tomorrow is a clean slate. Set up your vehicle, save your regular locations, and let MileClear learn your routes over the first few weeks. By the end of April, most of your trips will classify themselves.</p>
 
 <p>HMRC rates for 2026-27 remain the same: 45p per mile for the first 10,000 business miles (cars and vans), 25p after that, and 24p flat for motorbikes.</p>
+
+<p><em>Editor's note (May 2026): HMRC subsequently raised the first-tier car/van rate from 45p to 55p per mile for the 2026-27 tax year, effective from 6 April 2026. The 25p second-tier and 24p motorbike rates are unchanged. See our <a href="/hmrc-mileage-rates">HMRC mileage rates page</a> for the current figures.</em></p>
 
 <h2>What's next</h2>
 
