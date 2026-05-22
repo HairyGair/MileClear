@@ -5,6 +5,10 @@ import Reveal from "./Reveal";
 
 const faqs: { q: string; a: React.ReactNode }[] = [
   {
+    q: "What is the HMRC mileage rate for 2026-27?",
+    a: <>From 6 April 2026, HMRC&apos;s Approved Mileage Allowance Payment (AMAP) rate for cars and vans rose from 45p to <strong>55p</strong> per mile for the first 10,000 business miles, then 25p above that. Motorbikes stay at 24p flat. MileClear applies the correct rate per trip date - older trips stay at 45p, trips from 6 April 2026 use 55p, automatically. <a href="/hmrc-mileage-rates" style={{ color: "var(--amber-400)", textDecoration: "underline" }}>Full breakdown with worked examples</a>.</>,
+  },
+  {
     q: "Is MileClear really free?",
     a: "Yes. Trip tracking, shift mode, auto detection, fuel prices, achievements, and your HMRC deduction total are all completely free with no limits. Pro features like the Self Assessment wizard, PDF exports, the Accountant Portal, and receipt scanning are \u00A34.99/month.",
   },
@@ -76,7 +80,7 @@ export default function FAQ() {
         <Reveal delay="reveal-d2">
           <div style={{ textAlign: "center", marginTop: "1.5rem" }}>
             <a href="/faq" style={{ color: "var(--amber-400)", fontFamily: "var(--font-display)", fontSize: "0.9375rem", textDecoration: "none" }}>
-              View all 21 questions &rarr;
+              View all 29 questions &rarr;
             </a>
           </div>
         </Reveal>

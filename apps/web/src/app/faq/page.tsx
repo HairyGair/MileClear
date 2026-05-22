@@ -125,6 +125,30 @@ const faqSchema = {
     },
     {
       '@type': 'Question',
+      name: 'Why did the HMRC mileage rate change from 45p to 55p?',
+      acceptedAnswer: {
+        '@type': 'Answer',
+        text: 'HMRC raised the first-tier Approved Mileage Allowance Payment rate from 45p to 55p per mile for cars and vans, effective 6 April 2026 (start of the 2026-27 tax year). The rate had been frozen at 45p since April 2011. The 25p above-10,000-miles tier and the 24p motorbike flat rate are unchanged. The headline reason is to better reflect the real cost of running a vehicle in 2026 after years of fuel-price, insurance and depreciation inflation. For a driver covering 18,800 business miles a year that is roughly an extra £1,000 in deduction.',
+      },
+    },
+    {
+      '@type': 'Question',
+      name: 'Which rate does MileClear use - 45p or 55p?',
+      acceptedAnswer: {
+        '@type': 'Answer',
+        text: 'Both, automatically, based on the date of each trip. Trips on or before 5 April 2026 calculate at 45p for the first 10,000 miles. Trips from 6 April 2026 onwards calculate at 55p. The 25p above-10k tier and 24p motorbike rate are unchanged across both years. If you have not driven any business miles since 6 April 2026, you will still see 45p applied to your historic 2025-26 figures - this is correct. New Self Assessment summaries for 2026-27 use 55p automatically.',
+      },
+    },
+    {
+      '@type': 'Question',
+      name: 'I drove some miles before 6 April 2026 and some after - which rate applies?',
+      acceptedAnswer: {
+        '@type': 'Answer',
+        text: 'Each trip uses the rate that was in force on the date you drove it. Trips before 6 April 2026 stay at 45p (for the first 10,000 miles in the 2025-26 tax year), trips on or after 6 April 2026 use 55p (for the first 10,000 miles in the 2026-27 tax year). The 10,000-mile counter also resets at the tax-year boundary, so each tax year gets its own threshold. MileClear handles all of this automatically when you open the Self Assessment wizard or run any export.',
+      },
+    },
+    {
+      '@type': 'Question',
       name: 'What counts as a business mile?',
       acceptedAnswer: {
         '@type': 'Answer',
@@ -393,6 +417,46 @@ export default function FaqPage() {
                   <strong>motorbikes</strong>: 24p per mile flat rate. These are the HMRC Approved
                   Mileage Allowance Payment (AMAP) rates and MileClear calculates your deduction
                   automatically using these figures.
+                </p>
+              </div>
+
+              <div className="faq__qa">
+                <h3 className="faq__question">Why did the HMRC mileage rate change from 45p to 55p?</h3>
+                <p className="legal__text">
+                  HMRC raised the first-tier AMAP rate from 45p to 55p per mile for cars and vans,
+                  effective <strong>6 April 2026</strong> (start of the 2026-27 tax year). The rate
+                  had been frozen at 45p since April 2011. The 25p above-10,000-miles tier and the
+                  24p motorbike flat rate are unchanged. The headline reason is to better reflect
+                  the real cost of running a vehicle in 2026 after years of fuel-price, insurance
+                  and depreciation inflation. For a driver covering 18,800 business miles a year
+                  that is roughly an extra £1,000 in deduction.
+                </p>
+              </div>
+
+              <div className="faq__qa">
+                <h3 className="faq__question">Which rate does MileClear use - 45p or 55p?</h3>
+                <p className="legal__text">
+                  Both, automatically, based on the date of each trip. Trips on or before{" "}
+                  <strong>5 April 2026</strong> calculate at 45p for the first 10,000 miles. Trips
+                  from <strong>6 April 2026 onwards</strong> calculate at 55p. The 25p above-10k
+                  tier and 24p motorbike rate are unchanged across both years. If you have not
+                  driven any business miles since 6 April 2026, you will still see 45p applied to
+                  your historic 2025-26 figures - this is correct. New Self Assessment summaries
+                  for 2026-27 use 55p automatically.
+                </p>
+              </div>
+
+              <div className="faq__qa">
+                <h3 className="faq__question">
+                  I drove some miles before 6 April 2026 and some after - which rate applies?
+                </h3>
+                <p className="legal__text">
+                  Each trip uses the rate that was in force on the date you drove it. Trips before
+                  6 April 2026 stay at 45p (for the first 10,000 miles in the 2025-26 tax year),
+                  trips on or after 6 April 2026 use 55p (for the first 10,000 miles in the
+                  2026-27 tax year). The 10,000-mile counter also resets at the tax-year boundary,
+                  so each tax year gets its own threshold. MileClear handles all of this
+                  automatically when you open the Self Assessment wizard or run any export.
                 </p>
               </div>
 
