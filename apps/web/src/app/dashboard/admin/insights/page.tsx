@@ -57,6 +57,17 @@ interface OnboardingStep {
   label: string;
   count: number;
   pct: number;
+  note?: string;
+  dropFromPrev: number | null;
+  dropPctOfPrev: number | null;
+}
+
+interface OnboardingActivation {
+  label: string;
+  description: string;
+  cohort: number;
+  activated: number;
+  pct: number;
 }
 
 interface AuditEvent {
@@ -535,46 +546,151 @@ function DiagnosticPanelsCard() {
 // ───────────── 5. Onboarding-derived funnel ────────────────────────────────
 
 function OnboardingFunnelCard() {
-  const [data, setData] = useState<{ total: number; steps: OnboardingStep[] } | null>(null);
+  const [data, setData] = useState<{
+    total: number;
+    steps: OnboardingStep[];
+    activation: OnboardingActivation;
+  } | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     api
-      .get<{ data: { total: number; steps: OnboardingStep[] } }>("/admin/onboarding-derived")
+      .get<{
+        data: {
+          total: number;
+          steps: OnboardingStep[];
+          activation: OnboardingActivation;
+        };
+      }>("/admin/onboarding-derived")
       .then((res) => setData(res.data))
       .catch(() => setError("Could not load onboarding funnel"));
   }, []);
 
+  // Spot the biggest leak in the funnel - the step where the largest
+  // percentage of the preceding cohort drops off. Skip the first step
+  // (no previous) and skip "sidestep" steps where drop is suppressed
+  // because the count goes UP (employer rate, saved location etc).
+  const biggestLeak = data
+    ? data.steps.reduce<{ step: OnboardingStep | null; pctOfPrev: number }>(
+        (best, s) =>
+          s.dropPctOfPrev != null && s.dropPctOfPrev > best.pctOfPrev
+            ? { step: s, pctOfPrev: s.dropPctOfPrev }
+            : best,
+        { step: null, pctOfPrev: 0 }
+      )
+    : null;
+
   return (
     <Card
       title="Onboarding completion (derived)"
-      description="Per-step completion derived from observable user state (no per-step events emitted yet)."
+      description="Per-step completion derived from observable user state (no per-step events emitted yet). The drop column is users lost between this step and the previous - 0% on independent sidesteps where order doesn't matter."
     >
       {error && <p style={{ color: "#f87171" }}>{error}</p>}
       {!data && !error && <p style={{ color: "#64748b" }}>Loading…</p>}
       {data && (
-        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-          {data.steps.map((s) => (
+        <>
+          {biggestLeak?.step && biggestLeak.pctOfPrev >= 10 && (
             <div
-              key={s.label}
               style={{
-                display: "grid",
-                gridTemplateColumns: "1fr auto auto",
-                gap: 16,
-                padding: "8px 10px",
-                background: "rgba(255,255,255,0.03)",
+                background: "rgba(239, 68, 68, 0.08)",
+                border: "1px solid rgba(239, 68, 68, 0.22)",
                 borderRadius: 6,
-                alignItems: "center",
+                padding: "8px 12px",
+                marginBottom: 10,
+                fontSize: "0.8125rem",
+                color: "#fca5a5",
               }}
             >
-              <span style={{ color: "#e2e8f0", fontSize: "0.875rem" }}>{s.label}</span>
-              <span style={{ color: "#fbbf24", fontWeight: 700 }}>{s.count}</span>
-              <span style={{ color: "#64748b", fontSize: "0.8125rem", minWidth: 56, textAlign: "right" }}>
-                {s.pct.toFixed(1)}%
-              </span>
+              Biggest leak: <strong style={{ color: "#fecaca" }}>{biggestLeak.step.label}</strong>
+              {" "}drops{" "}
+              <strong style={{ color: "#fecaca" }}>
+                {biggestLeak.step.dropFromPrev} users ({biggestLeak.pctOfPrev.toFixed(1)}%)
+              </strong>{" "}
+              from the previous step.
             </div>
-          ))}
-        </div>
+          )}
+
+          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            {data.steps.map((s) => {
+              const hasDrop = s.dropFromPrev != null && s.dropFromPrev > 0;
+              return (
+                <div
+                  key={s.label}
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "1fr auto auto auto",
+                    gap: 16,
+                    padding: "8px 10px",
+                    background: "rgba(255,255,255,0.03)",
+                    borderRadius: 6,
+                    alignItems: "center",
+                  }}
+                  title={s.note ?? undefined}
+                >
+                  <span style={{ color: "#e2e8f0", fontSize: "0.875rem" }}>
+                    {s.label}
+                    {s.note ? (
+                      <span style={{ color: "#64748b", fontSize: "0.75rem", marginLeft: 8 }}>
+                        ⓘ
+                      </span>
+                    ) : null}
+                  </span>
+                  <span
+                    style={{
+                      color: hasDrop ? "#f87171" : "#475569",
+                      fontSize: "0.75rem",
+                      minWidth: 96,
+                      textAlign: "right",
+                      fontVariantNumeric: "tabular-nums",
+                    }}
+                  >
+                    {hasDrop
+                      ? `↓ ${s.dropFromPrev} (-${s.dropPctOfPrev!.toFixed(1)}%)`
+                      : s.dropFromPrev === 0
+                        ? "—"
+                        : ""}
+                  </span>
+                  <span style={{ color: "#fbbf24", fontWeight: 700, minWidth: 48, textAlign: "right" }}>
+                    {s.count}
+                  </span>
+                  <span style={{ color: "#64748b", fontSize: "0.8125rem", minWidth: 56, textAlign: "right" }}>
+                    {s.pct.toFixed(1)}%
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Activation: composite signal — the standard product-led metric.
+              Shown separately from the funnel because its denominator is
+              not "total signups" but "users who had time to activate". */}
+          <div
+            style={{
+              marginTop: 14,
+              padding: "10px 12px",
+              background: "rgba(16, 185, 129, 0.06)",
+              border: "1px solid rgba(16, 185, 129, 0.2)",
+              borderRadius: 8,
+              display: "grid",
+              gridTemplateColumns: "1fr auto",
+              gap: 16,
+              alignItems: "center",
+            }}
+            title={data.activation.description}
+          >
+            <div>
+              <div style={{ color: "#a7f3d0", fontSize: "0.8125rem", fontWeight: 600, marginBottom: 2 }}>
+                {data.activation.label}
+              </div>
+              <div style={{ color: "#64748b", fontSize: "0.75rem" }}>
+                {data.activation.activated} / {data.activation.cohort} eligible users
+              </div>
+            </div>
+            <div style={{ color: "#10b981", fontSize: "1.5rem", fontWeight: 700, fontVariantNumeric: "tabular-nums" }}>
+              {data.activation.pct.toFixed(1)}%
+            </div>
+          </div>
+        </>
       )}
     </Card>
   );

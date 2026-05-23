@@ -1747,16 +1747,41 @@ export async function adminRoutes(app: FastifyInstance) {
   // GET /admin/onboarding-derived
   // Derived from observable user state since we don't emit per-step events.
   // Each step is a state we can read directly from the DB.
+  //
+  // Each step returns:
+  //   count       - users at this step
+  //   pct         - % of total signups
+  //   dropFromPrev - absolute users lost between prev step and this
+  //   dropPctOfPrev - % of prev-step users who didn't reach this step
+  //
+  // The drop columns make the biggest funnel leaks immediately visible
+  // (a small absolute drop on a low-volume step is less interesting
+  // than a 20% drop right after sign-up).
   app.get("/onboarding-derived", async (_request, reply) => {
+    // 7-day activation cutoff. A user is "activated" if they signed up
+    // more than 7 days ago AND classified at least one trip within 7
+    // days of signing up. We exclude users newer than 7d from BOTH
+    // the numerator and denominator so the ratio isn't dragged down
+    // by fresh signups who haven't had time to activate yet.
+    const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
+    const sevenDaysAgo = new Date(Date.now() - SEVEN_DAYS_MS);
+
     const [
       total,
       withIntent,
       withVehicle,
       withEmployerRate,
+      withPushToken,
+      withSavedLocation,
       withFirstTrip,
       withClassifiedTrip,
       withEarning,
       premium,
+      // Activation cohort: users who signed up more than 7 days ago.
+      eligibleForActivation,
+      // Numerator: of that cohort, how many classified a trip within
+      // 7 days of their signup date.
+      activatedWithin7d,
     ] = await Promise.all([
       prisma.user.count(),
       prisma.user.count({ where: { userIntent: { not: null } } }),
@@ -1764,6 +1789,10 @@ export async function adminRoutes(app: FastifyInstance) {
         SELECT COUNT(DISTINCT userId) AS c FROM vehicles
       `.then((r) => Number(r[0]?.c ?? 0)),
       prisma.user.count({ where: { employerMileageRatePence: { not: null } } }),
+      prisma.user.count({ where: { pushToken: { not: null } } }),
+      prisma.$queryRaw<Array<{ c: bigint }>>`
+        SELECT COUNT(DISTINCT userId) AS c FROM saved_locations
+      `.then((r) => Number(r[0]?.c ?? 0)),
       prisma.$queryRaw<Array<{ c: bigint }>>`
         SELECT COUNT(DISTINCT userId) AS c FROM trips
       `.then((r) => Number(r[0]?.c ?? 0)),
@@ -1775,24 +1804,76 @@ export async function adminRoutes(app: FastifyInstance) {
         SELECT COUNT(DISTINCT userId) AS c FROM earnings
       `.then((r) => Number(r[0]?.c ?? 0)),
       prisma.user.count({ where: { isPremium: true } }),
+      prisma.user.count({ where: { createdAt: { lt: sevenDaysAgo } } }),
+      prisma.$queryRaw<Array<{ c: bigint }>>`
+        SELECT COUNT(DISTINCT t.userId) AS c
+        FROM trips t
+        JOIN users u ON u.id = t.userId
+        WHERE t.classification IN ('business', 'personal')
+          AND u.createdAt < ${sevenDaysAgo}
+          AND t.startedAt <= DATE_ADD(u.createdAt, INTERVAL 7 DAY)
+      `.then((r) => Number(r[0]?.c ?? 0)),
     ]);
 
     const pct = (n: number) =>
       total > 0 ? Math.round((n / total) * 1000) / 10 : 0;
+    const activatedPct =
+      eligibleForActivation > 0
+        ? Math.round((activatedWithin7d / eligibleForActivation) * 1000) / 10
+        : 0;
+
+    const rawSteps: { label: string; count: number; pct: number; note?: string }[] = [
+      { label: "Signed up", count: total, pct: 100 },
+      { label: "Set work intent", count: withIntent, pct: pct(withIntent) },
+      { label: "Granted push notifications", count: withPushToken, pct: pct(withPushToken) },
+      { label: "Added a vehicle", count: withVehicle, pct: pct(withVehicle) },
+      {
+        label: "Set employer rate",
+        count: withEmployerRate,
+        pct: pct(withEmployerRate),
+        note: "Only relevant for employee work type - low % is expected",
+      },
+      {
+        label: "Pinned a saved location",
+        count: withSavedLocation,
+        pct: pct(withSavedLocation),
+        note: "Home or Work - improves auto-detection",
+      },
+      { label: "Logged first trip", count: withFirstTrip, pct: pct(withFirstTrip) },
+      { label: "Classified at least one trip", count: withClassifiedTrip, pct: pct(withClassifiedTrip) },
+      { label: "Logged earnings", count: withEarning, pct: pct(withEarning) },
+      { label: "Upgraded to Pro", count: premium, pct: pct(premium) },
+    ];
+
+    // Annotate each step with drop-from-previous metrics. The first
+    // step has no previous step so its drop fields are null.
+    const steps = rawSteps.map((s, i) => {
+      if (i === 0) {
+        return { ...s, dropFromPrev: null, dropPctOfPrev: null };
+      }
+      const prev = rawSteps[i - 1];
+      // Funnel drop only makes sense when step N <= step N-1.
+      // Some steps (employer rate, saved location) are independent
+      // user choices that can exceed their preceding step in count.
+      // Negative drops are clamped to 0 so the UI doesn't show
+      // misleading "-15% drop" for sidesteps.
+      const drop = Math.max(0, prev.count - s.count);
+      const dropPctOfPrev = prev.count > 0 ? Math.round((drop / prev.count) * 1000) / 10 : 0;
+      return { ...s, dropFromPrev: drop, dropPctOfPrev };
+    });
 
     return reply.send({
       data: {
         total,
-        steps: [
-          { label: "Signed up", count: total, pct: 100 },
-          { label: "Set work intent", count: withIntent, pct: pct(withIntent) },
-          { label: "Added a vehicle", count: withVehicle, pct: pct(withVehicle) },
-          { label: "Set employer rate", count: withEmployerRate, pct: pct(withEmployerRate) },
-          { label: "Logged first trip", count: withFirstTrip, pct: pct(withFirstTrip) },
-          { label: "Classified at least one trip", count: withClassifiedTrip, pct: pct(withClassifiedTrip) },
-          { label: "Logged earnings", count: withEarning, pct: pct(withEarning) },
-          { label: "Upgraded to Pro", count: premium, pct: pct(premium) },
-        ],
+        steps,
+        activation: {
+          label: "Activated within 7 days",
+          description:
+            "Signed up >7d ago AND classified at least one trip within 7 days of signup. The activation rate among users who had time to do so.",
+          cohort: eligibleForActivation,
+          activated: activatedWithin7d,
+          pct: activatedPct,
+        },
       },
     });
   });
