@@ -327,8 +327,8 @@ export default function OnboardingScreen() {
             {/* Trust signals */}
             <View style={s.trustSignals}>
               <View style={s.trustSignalRow}>
-                <Ionicons name="shield-checkmark-outline" size={14} color={SUCCESS} />
-                <Text style={s.trustSignalText}>Free forever for trip tracking</Text>
+                <Ionicons name="infinite-outline" size={14} color={SUCCESS} />
+                <Text style={s.trustSignalText}>Unlimited trip tracking, free forever - no drive cap</Text>
               </View>
               <View style={s.trustSignalRow}>
                 <Ionicons name="card-outline" size={14} color={SUCCESS} />
@@ -370,9 +370,9 @@ export default function OnboardingScreen() {
               <View style={s.transformBullet}>
                 <Ionicons name="navigate" size={20} color={AMBER} />
                 <View style={s.transformBulletBody}>
-                  <Text style={s.transformBulletTitle}>Automatic GPS tracking</Text>
+                  <Text style={s.transformBulletTitle}>Automatic GPS tracking - unlimited, free</Text>
                   <Text style={s.transformBulletText}>
-                    Start driving and we'll record your route in the background
+                    Start driving and we'll record your route in the background. No drive cap, ever - other apps stop you at 40 a month.
                   </Text>
                 </View>
               </View>

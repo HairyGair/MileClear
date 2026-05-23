@@ -34,7 +34,7 @@ export const HELP_SECTIONS: HelpSection[] = [
       {
         id: "what-it-does",
         q: "What does MileClear do for me?",
-        a: "MileClear automatically records every mile you drive for work and calculates the tax deduction HMRC owes you back. At year-end you can export a PDF Self Assessment, submit quarterly returns direct to HMRC, or hand the numbers to your accountant.\n\nFrom tax year 2026-27 (trips on or after 6 April 2026) the standard rate is 55p per mile for the first 10,000 business miles and 25p after - up from the previous 45p first tier. MileClear applies the correct rate per tax year automatically.",
+        a: "MileClear automatically records every mile you drive for work and calculates the tax deduction HMRC owes you back. Unlike most mileage trackers, the tracking itself is unlimited and free - no monthly drive cap, no \"upgrade to keep recording\" paywall. MileIQ stops you at 40 drives a month, Driversnote at 20; MileClear never does.\n\nAt year-end you can export a PDF Self Assessment, submit quarterly returns direct to HMRC, or hand the numbers to your accountant.\n\nFrom tax year 2026-27 (trips on or after 6 April 2026) the standard rate is 55p per mile for the first 10,000 business miles and 25p after - up from the previous 45p first tier. MileClear applies the correct rate per tax year automatically.",
       },
       {
         id: "trip-detection",

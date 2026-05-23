@@ -7,7 +7,7 @@ const Tick = () => (
 );
 
 const free = [
-  "Unlimited GPS trip tracking with auto-detection",
+  "Unlimited GPS trip tracking with auto-detection - no monthly drive cap (MileIQ stops you at 40)",
   "Tax Readiness card (live tax estimate, weekly set-aside, deadline countdown)",
   "Anonymous Benchmarking vs other UK drivers",
   "HMRC Reconciliation - compare what HMRC sees to what you tracked",
@@ -39,9 +39,14 @@ export default function Pricing() {
       <div className="container pricing__center">
         <Reveal>
           <p className="label">Pricing</p>
-          <h2 className="heading">Simple, honest pricing</h2>
+          <h2 className="heading">Tracking is free. Forever.</h2>
           <p className="subtext">
-            The free plan is genuinely free. No trip limits, no time limits, no surprise paywalls on basic features.
+            No drive caps, no time limits, no surprise paywalls on basic features.
+            MileIQ stops you at 40 drives a month unless you pay &pound;5.99.
+            TripLog limits you to 40. Driversnote limits you to 20. We don&apos;t
+            limit any of it &mdash; track as many miles as you like, on us. Pro
+            (&pound;4.99/month) adds the tax-export and analyst toolkit; it
+            never gates the tracker itself.
           </p>
         </Reveal>
 
@@ -54,7 +59,8 @@ export default function Pricing() {
                 &pound;0<span className="p-card__period"> /month</span>
               </p>
               <p className="p-card__desc">
-                Full mileage tracking with everything you need to record your driving.
+                Unlimited mileage tracking, forever. Everything you need to
+                record your driving and see what HMRC owes you.
               </p>
               <ul className="p-card__list">
                 {free.map((f) => (

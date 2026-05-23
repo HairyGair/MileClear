@@ -75,8 +75,9 @@ export default function EarlyAccess() {
               Ready to claim what you&apos;re owed?
             </h2>
             <p className="subtext ea__subtext">
-              Download MileClear for free. No credit card, no trial period, no trip limits.
-              Just open it, drive, and watch your HMRC deduction grow.
+              Download MileClear free. <strong>Unlimited tracking, forever</strong> &mdash;
+              not 40 drives a month like MileIQ, not 20 like Driversnote. No credit
+              card, no trial period. Just open it, drive, and watch your HMRC deduction grow.
             </p>
           </div>
         </Reveal>

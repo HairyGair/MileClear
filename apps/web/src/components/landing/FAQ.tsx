@@ -10,11 +10,11 @@ const faqs: { q: string; a: React.ReactNode }[] = [
   },
   {
     q: "Is MileClear really free?",
-    a: "Yes. Trip tracking, shift mode, auto detection, fuel prices, achievements, and your HMRC deduction total are all completely free with no limits. Pro features like the Self Assessment wizard, PDF exports, the Accountant Portal, and receipt scanning are \u00A34.99/month.",
+    a: <>Yes - and unlike the competition, the tracker itself is <strong>unlimited</strong>. MileIQ caps free users at 40 drives a month, TripLog caps at 40, Driversnote caps at 20. MileClear has no monthly drive cap at all - track as many trips as you want, forever, without paying. Shift mode, auto-detection, fuel prices, the Tax Readiness card showing your live HMRC deduction, achievements - all free. Pro (&pound;4.99/month) adds tax exports, the Self Assessment wizard, the Accountant Portal and receipt scanning. It never gates the tracker.</>,
   },
   {
     q: "How is this different from MileIQ?",
-    a: <>MileClear is built for UK drivers from the ground up. It uses HMRC rates (not IRS), tracks by gig platform (Uber, Deliveroo, Amazon Flex), groups trips into shifts, and costs half the price. It also works offline, so you never lose a trip when you lose signal. <a href="/mileclear-vs-mileiq" style={{ color: "var(--amber-400)", textDecoration: "underline" }}>See the full comparison</a>.</>,
+    a: <>Two big things. First, MileClear&apos;s tracking is unlimited and free, while MileIQ caps free users at 40 drives a month then charges &pound;5.99 to keep tracking. Second, MileClear is built for UK drivers from the ground up - HMRC rates (not IRS), platform tags for Uber/Deliveroo/Amazon Flex, trips grouped into shifts, offline-first so you never lose a trip when signal drops. Pro is &pound;4.99 vs MileIQ&apos;s &pound;5.99. <a href="/mileclear-vs-mileiq" style={{ color: "var(--amber-400)", textDecoration: "underline" }}>See the full comparison</a>.</>,
   },
   {
     q: "Does it track in the background?",

@@ -9,7 +9,7 @@ export default function Hero() {
         <div className="hero__text">
           <div className="hero__badge">
             <span className="hero__badge-dot" />
-            Available on the App Store
+            Unlimited tracking. Free, forever.
           </div>
           <h1 className="hero__h1">
             Track every mile.
@@ -20,14 +20,16 @@ export default function Hero() {
             The UK mileage tracker built for gig workers, delivery drivers, and
             employees who drive their own car for work. Automatic trip recording,
             smart classification that learns your routes, HMRC AMAP rates and
-            employer-reimbursement claims handled in one place.
+            employer-reimbursement claims handled in one place &mdash;{" "}
+            <strong>with no monthly drive cap</strong>. MileIQ stops you at
+            40 drives a month unless you pay. We never do.
           </p>
           <a href={APP_STORE_URL} target="_blank" rel="noopener noreferrer" className="hero__cta">
             Download free
             <span className="hero__cta-arrow" aria-hidden="true">&rarr;</span>
           </a>
           <p className="hero__trust">
-            Free to use &middot; No card required &middot; Your data stays yours
+            Unlimited trips &middot; No card required &middot; Pro is optional, never gates tracking
           </p>
         </div>
         <div className="hero__phone">
