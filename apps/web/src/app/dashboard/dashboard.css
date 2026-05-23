@@ -4542,3 +4542,19 @@
     font-size: 0.875rem;
   }
 }
+
+/* Working Calendar drill-through hover */
+.cal-day {
+  transform: translateZ(0);
+}
+.cal-day--active:hover,
+.cal-day--active:focus-visible {
+  filter: brightness(1.15);
+  transform: scale(1.04);
+  box-shadow: 0 4px 12px rgba(245, 166, 35, 0.25);
+  outline: none;
+}
+.cal-day--active:focus-visible {
+  outline: 2px solid var(--amber-400);
+  outline-offset: 2px;
+}

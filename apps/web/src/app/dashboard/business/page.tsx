@@ -844,33 +844,61 @@ export default function BusinessPage() {
             const hasActivity = data && (data.tripCount > 0 || data.earningsPence > 0);
             const isToday = dateStr === new Date().toISOString().slice(0, 10);
 
-            cells.push(
-              <div
-                key={dateStr}
-                title={data ? `${formatPence(data.earningsPence)} earned, ${data.tripCount} trips, ${data.miles} mi${data.shiftMinutes > 0 ? `, ${Math.round(data.shiftMinutes / 60)}h worked` : ""}` : "No activity"}
-                style={{
-                  textAlign: "center",
-                  padding: "0.375rem 0.125rem",
-                  borderRadius: 6,
-                  fontSize: "0.75rem",
-                  fontWeight: hasActivity ? 600 : 400,
-                  cursor: "default",
-                  color: hasActivity ? "#fff" : "var(--text-muted)",
-                  background: hasActivity
-                    ? `rgba(245, 166, 35, ${intensity})`
-                    : "transparent",
-                  border: isToday ? "1px solid var(--amber-400)" : "1px solid transparent",
-                  lineHeight: 1.6,
-                }}
-              >
+            const cellTitle = data
+              ? `${formatPence(data.earningsPence)} earned, ${data.tripCount} trips, ${data.miles} mi${data.shiftMinutes > 0 ? `, ${Math.round(data.shiftMinutes / 60)}h worked` : ""}${hasActivity ? " — tap to view trips" : ""}`
+              : "No activity";
+
+            const cellStyle: React.CSSProperties = {
+              display: "block",
+              textAlign: "center",
+              padding: "0.375rem 0.125rem",
+              borderRadius: 6,
+              fontSize: "0.75rem",
+              fontWeight: hasActivity ? 600 : 400,
+              cursor: hasActivity ? "pointer" : "default",
+              color: hasActivity ? "#fff" : "var(--text-muted)",
+              background: hasActivity ? `rgba(245, 166, 35, ${intensity})` : "transparent",
+              border: isToday ? "1px solid var(--amber-400)" : "1px solid transparent",
+              lineHeight: 1.6,
+              textDecoration: "none",
+              transition: "transform 120ms ease, box-shadow 120ms ease",
+            };
+
+            const cellContent = (
+              <>
                 {day}
                 {data && data.earningsPence > 0 && (
                   <div style={{ fontSize: "0.5625rem", color: "rgba(255,255,255,0.7)", marginTop: 1 }}>
                     {formatPence(data.earningsPence)}
                   </div>
                 )}
-              </div>
+              </>
             );
+
+            if (hasActivity) {
+              // Drill-through: filter the trips list to this single day.
+              // `from` and `to` are honoured by /dashboard/trips via
+              // useSearchParams (see initialDateRange / qpFrom logic there).
+              const href = `/dashboard/trips?from=${dateStr}&to=${dateStr}`;
+              cells.push(
+                <Link
+                  key={dateStr}
+                  href={href}
+                  title={cellTitle}
+                  aria-label={`View ${data?.tripCount ?? 0} trips on ${dateStr}`}
+                  style={cellStyle}
+                  className="cal-day cal-day--active"
+                >
+                  {cellContent}
+                </Link>
+              );
+            } else {
+              cells.push(
+                <div key={dateStr} title={cellTitle} style={cellStyle}>
+                  {cellContent}
+                </div>
+              );
+            }
           }
 
           return (

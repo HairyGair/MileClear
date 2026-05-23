@@ -196,6 +196,13 @@ export default function TripsPage() {
   const isEmployeeDriver = workType === "employee" || workType === "both";
 
   const initialFilter = (searchParams?.get("filter") as "all" | "business" | "personal" | "unclassified") || "all";
+  // Calendar drill-through: ?from=YYYY-MM-DD&to=YYYY-MM-DD opens the
+  // trips list pre-filtered to that range with the custom date picker
+  // populated. Anything before today's date works; an invalid pair just
+  // falls through to "all".
+  const qpFrom = searchParams?.get("from") ?? "";
+  const qpTo = searchParams?.get("to") ?? "";
+  const initialDateRange: DateRange = qpFrom && qpTo ? "custom" : "all";
 
   const [trips, setTrips] = useState<Trip[]>([]);
   const [total, setTotal] = useState(0);
@@ -212,10 +219,10 @@ export default function TripsPage() {
   const [page, setPage] = useState(1);
   const [filter, setFilter] = useState<"all" | "business" | "personal" | "unclassified">(initialFilter);
   const [platformFilter, setPlatformFilter] = useState<PlatformTag | "all">("all");
-  const [dateRange, setDateRange] = useState<DateRange>("all");
+  const [dateRange, setDateRange] = useState<DateRange>(initialDateRange);
   // Custom-range pickers - only consulted when dateRange === "custom".
-  const [customFrom, setCustomFrom] = useState("");
-  const [customTo, setCustomTo] = useState("");
+  const [customFrom, setCustomFrom] = useState(qpFrom);
+  const [customTo, setCustomTo] = useState(qpTo);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
