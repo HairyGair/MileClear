@@ -44,6 +44,26 @@ const STUCK_THRESHOLD_MS = 30 * 60 * 1000;
 // most one push per cooldown window.
 const COOLDOWN_MS = 30 * 60 * 1000;
 
+// Hard cap on consecutive failed wake attempts. Without this, users with
+// broken silent-push delivery get pinged forever on every cron tick the
+// moment their cooldown expires - one production user accumulated 292
+// wakes in 14 days (~21/day) because their device never responds and
+// their autoRecordingActive flag never clears.
+//
+// Threshold tuning: at the 30-min cooldown, 4 attempts spans roughly 2
+// hours of unresponsive device. If the silent push hasn't broken
+// through in that window, it almost certainly never will - the device
+// is uninstalled, offline, in deep suspension, or has a stale push
+// token. Anything beyond is wasted budget + noise in the diagnostic
+// dashboard.
+const MAX_RECENT_ATTEMPTS = 4;
+const RECENT_ATTEMPT_WINDOW_MS = 6 * 60 * 60 * 1000; // 6h
+// Rate-limit watchdog.gave_up event logging to avoid replacing one
+// noisy event (silent_push_sent) with another (gave_up). One log per
+// user per 6 hours is enough for the admin signal.
+const GAVE_UP_LOG_WINDOW_MS = 6 * 60 * 60 * 1000;
+const lastGaveUpLoggedAt = new Map<string, number>();
+
 // Only act on users whose last heartbeat is recent. Older than this and
 // we don't have reliable data - the device might have legitimately
 // finalised the trip and just hasn't sent a fresh heartbeat yet.
@@ -94,13 +114,41 @@ async function sendSilentPush(
   user: { id: string; pushToken: string | null },
   action: "finalize_check" | "drain_sync",
   metadata: Record<string, unknown>
-): Promise<"sent" | "cooldown" | "failed"> {
+): Promise<"sent" | "cooldown" | "failed" | "gave_up"> {
   if (!user.pushToken) return "failed";
 
   const lastPing = lastPingedAt.get(user.id);
   const now = Date.now();
   if (lastPing && now - lastPing < COOLDOWN_MS) {
     return "cooldown";
+  }
+
+  // Bail out if we've already tried this user too many times recently.
+  // Counts every prior watchdog push to this user (both stuck-recording
+  // and pending-sync) in the last RECENT_ATTEMPT_WINDOW_MS - if the
+  // device wasn't going to respond to the first 4 pushes, the 5th
+  // won't change anything.
+  const eventTypes = ["watchdog.silent_push_sent", "watchdog.drain_sync_push_sent"];
+  const windowStart = new Date(now - RECENT_ATTEMPT_WINDOW_MS);
+  const recentAttempts = await prisma.appEvent.count({
+    where: {
+      userId: user.id,
+      type: { in: eventTypes },
+      createdAt: { gte: windowStart },
+    },
+  });
+  if (recentAttempts >= MAX_RECENT_ATTEMPTS) {
+    const lastLog = lastGaveUpLoggedAt.get(user.id);
+    if (!lastLog || now - lastLog >= GAVE_UP_LOG_WINDOW_MS) {
+      logEvent("watchdog.gave_up", user.id, {
+        action,
+        recentAttempts,
+        windowHours: RECENT_ATTEMPT_WINDOW_MS / 3.6e6,
+        ...metadata,
+      });
+      lastGaveUpLoggedAt.set(user.id, now);
+    }
+    return "gave_up";
   }
 
   const ticket = await sendPushNotification({
@@ -147,6 +195,7 @@ export async function runRecordingWatchdogJob(): Promise<void> {
 
   let stuckPinged = 0;
   let stuckCooldown = 0;
+  let stuckGaveUp = 0;
   for (const user of stuck) {
     const stuckMs =
       user.lastDrivingSpeedAt != null
@@ -159,6 +208,7 @@ export async function runRecordingWatchdogJob(): Promise<void> {
     });
     if (result === "sent") stuckPinged++;
     else if (result === "cooldown") stuckCooldown++;
+    else if (result === "gave_up") stuckGaveUp++;
   }
 
   // ── Check 2: pending sync queue + suspended JS runtime ────────────
@@ -198,6 +248,7 @@ export async function runRecordingWatchdogJob(): Promise<void> {
 
   let syncPinged = 0;
   let syncCooldown = 0;
+  let syncGaveUp = 0;
   for (const user of pendingSync) {
     const heartbeatStaleMs =
       user.lastHeartbeatAt != null
@@ -211,17 +262,20 @@ export async function runRecordingWatchdogJob(): Promise<void> {
     });
     if (result === "sent") syncPinged++;
     else if (result === "cooldown") syncCooldown++;
+    else if (result === "gave_up") syncGaveUp++;
   }
 
   if (
     stuckPinged > 0 ||
     stuckCooldown > 0 ||
+    stuckGaveUp > 0 ||
     syncPinged > 0 ||
-    syncCooldown > 0
+    syncCooldown > 0 ||
+    syncGaveUp > 0
   ) {
     console.log(
-      `[watchdog] stuck=${stuck.length} (pinged ${stuckPinged}, cooldown ${stuckCooldown}); ` +
-        `pendingSync=${pendingSync.length} (pinged ${syncPinged}, cooldown ${syncCooldown})`
+      `[watchdog] stuck=${stuck.length} (pinged ${stuckPinged}, cooldown ${stuckCooldown}, gave_up ${stuckGaveUp}); ` +
+        `pendingSync=${pendingSync.length} (pinged ${syncPinged}, cooldown ${syncCooldown}, gave_up ${syncGaveUp})`
     );
   }
 
@@ -235,30 +289,44 @@ export async function runRecordingWatchdogJob(): Promise<void> {
   //      bad release, etc), worth investigating
   //   2. Any cooldown hits → a user was pinged within the last 30 min
   //      and is STILL stuck. Their device isn't responding to silent
-  //      pushes (uninstalled, deep iOS suspension, offline). Most
-  //      actionable signal we have.
+  //      pushes (uninstalled, deep iOS suspension, offline).
+  //   3. Any gave_up hits → a user has had 4+ failed silent pushes in
+  //      6 hours. Their push delivery is structurally broken. Most
+  //      actionable signal we have - these need manual intervention.
   //
-  // Single-ping routine cases stay in the server log (line 222 above)
-  // but not Discord. Silent skip when DISCORD_WEBHOOK_MODCHAT isn't set.
+  // Single-ping routine cases stay in the server log but not Discord.
+  // Silent skip when DISCORD_WEBHOOK_FOUNDER isn't set.
   const actualPings = stuckPinged + syncPinged;
   const cooldownHits = stuckCooldown + syncCooldown;
-  const worthAlerting = actualPings >= 3 || cooldownHits > 0;
-  if (actualPings > 0 && worthAlerting) {
+  const gaveUpHits = stuckGaveUp + syncGaveUp;
+  const worthAlerting = actualPings >= 3 || cooldownHits > 0 || gaveUpHits > 0;
+  if (worthAlerting) {
     const detailLines: string[] = [];
     if (stuck.length > 0) {
-      detailLines.push(`Stuck recordings: ${stuck.length} (pinged ${stuckPinged}, cooldown ${stuckCooldown})`);
+      detailLines.push(
+        `Stuck recordings: ${stuck.length} (pinged ${stuckPinged}, cooldown ${stuckCooldown}, gave_up ${stuckGaveUp})`
+      );
     }
     if (pendingSync.length > 0) {
-      detailLines.push(`Pending sync queues: ${pendingSync.length} (pinged ${syncPinged}, cooldown ${syncCooldown})`);
+      detailLines.push(
+        `Pending sync queues: ${pendingSync.length} (pinged ${syncPinged}, cooldown ${syncCooldown}, gave_up ${syncGaveUp})`
+      );
     }
-    if (cooldownHits > 0) {
+    if (gaveUpHits > 0) {
+      detailLines.push(
+        `🚨 ${gaveUpHits} user(s) hit the 4-attempts-in-6h cap — push delivery is structurally broken for them. Check /admin/build-health for the watchdog.gave_up event list.`
+      );
+    } else if (cooldownHits > 0) {
       detailLines.push(
         `⚠️ ${cooldownHits} user(s) still stuck after a recent silent push — device may not be responding (uninstalled, offline, or deep iOS suspension).`
       );
     }
     await postFounderAlert({
-      severity: actualPings >= 3 || cooldownHits >= 2 ? "warning" : "info",
-      title: `Recording watchdog: ${actualPings} silent push${actualPings === 1 ? "" : "es"} sent`,
+      severity: gaveUpHits > 0 || actualPings >= 3 || cooldownHits >= 2 ? "warning" : "info",
+      title:
+        gaveUpHits > 0
+          ? `Recording watchdog: ${gaveUpHits} user(s) over retry cap`
+          : `Recording watchdog: ${actualPings} silent push${actualPings === 1 ? "" : "es"} sent`,
       detail: detailLines.join("\n"),
     });
   }
