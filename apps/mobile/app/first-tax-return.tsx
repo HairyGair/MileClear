@@ -160,29 +160,39 @@ export default function FirstTaxReturnScreen() {
       >
         <P>
           HMRC&apos;s Approved Mileage Allowance Payment (AMAP) lets you deduct a flat
-          rate per business mile from your profit:
+          rate per business mile from your profit. The car/van rate jumped on
+          6 April 2026, so make sure you&apos;re using the right one for the year
+          you&apos;re filing:
         </P>
         <View style={s.taxRow}>
           <View style={s.taxRowLabel}>
-            <Text style={s.taxRowName}>Cars and vans</Text>
+            <Text style={s.taxRowName}>Cars and vans (2025-26)</Text>
             <Text style={s.taxRowDetail}>45p/mile first 10,000, then 25p</Text>
           </View>
         </View>
         <View style={s.taxRow}>
           <View style={s.taxRowLabel}>
+            <Text style={s.taxRowName}>Cars and vans (2026-27 onwards)</Text>
+            <Text style={s.taxRowDetail}>55p/mile first 10,000, then 25p</Text>
+          </View>
+        </View>
+        <View style={s.taxRow}>
+          <View style={s.taxRowLabel}>
             <Text style={s.taxRowName}>Mopeds and motorbikes</Text>
-            <Text style={s.taxRowDetail}>24p/mile flat</Text>
+            <Text style={s.taxRowDetail}>24p/mile flat (both years)</Text>
           </View>
         </View>
         <P>
-          A driver covering 20,000 business miles in a car claims £7,250 off their
-          profit. At basic rate that&apos;s £1,450 less tax. <Bold>It&apos;s the largest
-          single deduction available to most drivers</Bold> - which is why MileClear
-          tracks every mile automatically.
+          For your 2025-26 return, a driver covering 20,000 business miles in
+          a car claims £7,000 off their profit. At basic rate that&apos;s £1,400 less
+          tax. The same mileage in 2026-27 is worth £8,000 (£1,600 at basic rate)
+          because of the rise. <Bold>It&apos;s the largest single deduction available
+          to most drivers</Bold> - which is why MileClear tracks every mile and
+          applies the right rate per trip date automatically.
         </P>
         <View style={[s.callout, { backgroundColor: AMBER_FAINT }]}>
           <Text style={[s.calloutText, { color: AMBER }]}>
-            These are the rates for tax year 2025-26 (what you&apos;re filing now). From tax year 2026-27 onwards (trips from 6 April 2026), HMRC&apos;s car/van rate rises to 55p per mile for the first 10,000 miles - 25p after that stays the same.
+            This guide is for filing tax year 2025-26 (deadline 31 January 2027), so the worked figures above use the 45p first-tier rate that was in force for that year. MileClear already applies 55p to any business miles you drive from 6 April 2026 onwards.
           </Text>
         </View>
       </Section>
