@@ -1017,8 +1017,82 @@ export default function OnboardingScreen() {
 
             <Text style={s.readyHeading}>You're all set!</Text>
             <Text style={s.readySubtitle}>
-              MileClear is ready to track your first trip. You can add your vehicle and tweak settings from the dashboard anytime.
+              From now on, every business mile you drive is tracked automatically - free, forever, no drive cap. You can tweak any setting from the dashboard anytime.
             </Text>
+
+            {/* What happens next - quick three-step preview of the first
+                week so users know what to expect when they open the app */}
+            <View style={s.nextStepsBlock}>
+              <Text style={s.sectionLabel}>What happens next</Text>
+              <View style={s.nextStepCard}>
+                <View style={s.nextStepNumber}>
+                  <Text style={s.nextStepNumberText}>1</Text>
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={s.nextStepTitle}>Just drive</Text>
+                  <Text style={s.nextStepBody}>
+                    Auto-detection starts a trip the moment you move and ends it when you stop. You don't need to open the app.
+                  </Text>
+                </View>
+              </View>
+              <View style={s.nextStepCard}>
+                <View style={s.nextStepNumber}>
+                  <Text style={s.nextStepNumberText}>2</Text>
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={s.nextStepTitle}>Tap to classify</Text>
+                  <Text style={s.nextStepBody}>
+                    Mark each trip business or personal in one tap. Only business miles count toward your HMRC deduction.
+                  </Text>
+                </View>
+              </View>
+              <View style={s.nextStepCard}>
+                <View style={s.nextStepNumber}>
+                  <Text style={s.nextStepNumberText}>3</Text>
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={s.nextStepTitle}>Watch your deduction grow</Text>
+                  <Text style={s.nextStepBody}>
+                    Open the Tax Readiness card on the dashboard for a live HMRC + NI estimate that updates with every mile.
+                  </Text>
+                </View>
+              </View>
+            </View>
+
+            {/* Pro tip - small actionable next-step that improves the
+                auto-detection experience materially */}
+            <View style={s.tipCard}>
+              <View style={s.tipIconWrap}>
+                <Ionicons name="bulb-outline" size={18} color={AMBER} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={s.tipTitle}>Pro tip: pin Home and Work</Text>
+                <Text style={s.tipBody}>
+                  Add saved locations from Profile - Locations. Auto-detection pauses when you're parked at one, which saves battery and keeps your trip list clean.
+                </Text>
+              </View>
+            </View>
+
+            {/* Discord community - soft invite to the public Discord
+                where other UK drivers swap tax tips and platform notes */}
+            <TouchableOpacity
+              style={s.discordCard}
+              onPress={() => Linking.openURL("https://discord.gg/Wxnvr3rzaq").catch(() => {})}
+              activeOpacity={0.85}
+              accessibilityRole="link"
+              accessibilityLabel="Join the MileClear Discord community"
+            >
+              <View style={s.discordIconWrap}>
+                <Ionicons name="chatbubbles-outline" size={20} color="#5865F2" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={s.discordTitle}>Join the Discord</Text>
+                <Text style={s.discordBody}>
+                  Chat tax, platforms, fuel deals and product updates with other UK drivers. Free, no obligation.
+                </Text>
+              </View>
+              <Ionicons name="chevron-forward" size={16} color={TEXT_3} />
+            </TouchableOpacity>
 
             {/* Setup status - dynamic checklist of what's actually configured */}
             <View style={s.setupHints}>
@@ -1674,6 +1748,118 @@ const s = StyleSheet.create({
     marginBottom: 28,
     paddingHorizontal: 8,
   },
+  // "What happens next" three-step block
+  nextStepsBlock: {
+    gap: 10,
+    marginBottom: 24,
+    alignSelf: "stretch",
+  },
+  nextStepCard: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 12,
+    backgroundColor: CARD_BG,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: CARD_BORDER,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+  },
+  nextStepNumber: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: "rgba(245, 166, 35, 0.18)",
+    justifyContent: "center",
+    alignItems: "center",
+    marginTop: 1,
+  },
+  nextStepNumberText: {
+    fontSize: 12,
+    fontFamily: fonts.semibold,
+    color: AMBER,
+  },
+  nextStepTitle: {
+    fontSize: 14,
+    fontFamily: fonts.semibold,
+    color: TEXT_1,
+    marginBottom: 2,
+  },
+  nextStepBody: {
+    fontSize: 12,
+    fontFamily: fonts.regular,
+    color: TEXT_2,
+    lineHeight: 17,
+  },
+
+  // Pro tip card
+  tipCard: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 12,
+    backgroundColor: "rgba(245, 166, 35, 0.06)",
+    borderWidth: 1,
+    borderColor: "rgba(245, 166, 35, 0.15)",
+    borderRadius: 12,
+    padding: 14,
+    marginBottom: 12,
+    alignSelf: "stretch",
+  },
+  tipIconWrap: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: "rgba(245, 166, 35, 0.12)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  tipTitle: {
+    fontSize: 13,
+    fontFamily: fonts.semibold,
+    color: TEXT_1,
+    marginBottom: 2,
+  },
+  tipBody: {
+    fontSize: 12,
+    fontFamily: fonts.regular,
+    color: TEXT_2,
+    lineHeight: 17,
+  },
+
+  // Discord community card
+  discordCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    backgroundColor: "rgba(88, 101, 242, 0.08)",
+    borderWidth: 1,
+    borderColor: "rgba(88, 101, 242, 0.22)",
+    borderRadius: 12,
+    padding: 14,
+    marginBottom: 24,
+    alignSelf: "stretch",
+  },
+  discordIconWrap: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: "rgba(88, 101, 242, 0.18)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  discordTitle: {
+    fontSize: 14,
+    fontFamily: fonts.semibold,
+    color: TEXT_1,
+    marginBottom: 2,
+  },
+  discordBody: {
+    fontSize: 12,
+    fontFamily: fonts.regular,
+    color: TEXT_2,
+    lineHeight: 17,
+  },
+
   setupHints: {
     gap: 10,
     marginBottom: 32,
