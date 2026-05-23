@@ -113,6 +113,14 @@ const faqSchema = {
         text: "Yes, in two stages. Making Tax Digital for Income Tax Self Assessment (MTD ITSA) becomes mandatory from April 2026 for self-employed earning over £50,000 a year, and from April 2027 for those over £30,000 a year. That covers a significant slice of full-time Evri couriers. Mileage records will need to be kept digitally and submitted quarterly. MileClear's data is already in a digital, exportable format ready for the transition.",
       },
     },
+    {
+      "@type": "Question",
+      name: "Is the free tracker capped at a number of trips per month?",
+      acceptedAnswer: {
+        "@type": "Answer",
+        text: "No. MileClear's tracking is unlimited and free forever. That matters more for Evri couriers than for almost any other gig role: an urban round is 150-250 parcels in a single day, and even a quieter suburban round is 100+. MileIQ caps its free tier at 40 drives a month and Driversnote at 20 - either would run out before lunchtime on day one. MileClear has no cap, no time limit, no surprise paywall on the tracker. Pro (£4.99/month) only unlocks the HMRC PDF, CSV export, Accountant Portal, and business insights.",
+      },
+    },
   ],
 };
 
@@ -156,8 +164,11 @@ export default function EvriMileageTracker() {
               estimated pay. It does not track your mileage. A rural round at 25,000 business
               miles a year claims £8,250 in HMRC AMAP deduction - often more than a quiet week
               of small-packet pay. MileClear records every round automatically, applies the
-              right rate, and produces a Self Assessment-ready log. Free to download - Pro from
-              £4.99 per month.
+              right rate, and produces a Self Assessment-ready log. Tracking is unlimited and
+              free forever - no monthly drive cap. An urban Evri round is 150-250 parcels a
+              day; even a quiet suburban round is 100+. MileIQ caps the free tier at 40 drives
+              a month and Driversnote at 20, both of which an Evri courier would burn through
+              in a single morning. Pro from £4.99 per month only adds the exports.
             </p>
           </header>
 

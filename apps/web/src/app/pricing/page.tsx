@@ -87,6 +87,10 @@ const faqs = [
     a: 'Yes, genuinely. The free plan has no trip limits, no time limits, and no surprise paywalls on core features. The Tax Readiness card, Anonymous Benchmarking, MOT reminders, HMRC Reconciliation - all free for everyone. The free plan is not a trial - it stays free for as long as you use it.',
   },
   {
+    q: 'Does MileClear cap how many trips I can track on the free tier?',
+    a: 'No. Trip tracking is unlimited and free forever - no monthly drive cap. That is the single biggest difference between MileClear and the US-built alternatives most UK drivers are pointed at: MileIQ stops at 40 drives a month on the free tier, Driversnote at 20, TripLog at 40. A full-time gig driver or a DPD ODF burns through any of those inside the first shift. MileClear has no cap, no time limit, and never will. Pro (£4.99/month) is only for the HMRC exports, Self Assessment wizard, Accountant Portal, and business insights.',
+  },
+  {
     q: 'What happens when I upgrade to Pro?',
     a: 'You unlock the Self Assessment wizard, PDF and CSV exports, the Accountant Portal, receipt scanning, CSV earnings import, business insights (golden hours, P&L, shift grades), pickup-wait community insights, and unlimited saved locations. Everything switches on the moment your payment goes through.',
   },
@@ -201,7 +205,7 @@ export default function PricingPage() {
               className="subtext"
               style={{ margin: '0 auto', maxWidth: 560 }}
             >
-              Track every mile for free. Upgrade to Pro when you need exports and business intelligence.
+              Track every mile for free, with no monthly drive cap - unlike MileIQ (40/month) or Driversnote (20/month). Upgrade to Pro when you need exports and business intelligence.
             </p>
 
             {/* Pricing Cards */}

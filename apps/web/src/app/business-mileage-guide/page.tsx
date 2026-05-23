@@ -368,9 +368,11 @@ export default function BusinessMileageGuidePage() {
                 using GPS, tags each trip with a classification and
                 platform, and produces a HMRC-ready export when you need it.
                 MileClear is built for this specifically, for UK drivers -
-                the free tier covers the tracking and the calculation, and
-                the £4.99/month Pro tier adds the PDF and CSV exports you
-                need for Self Assessment or to send to your accountant.
+                the free tier covers the tracking and the calculation with
+                no monthly drive cap (MileIQ caps its free tier at 40 drives
+                a month, Driversnote at 20), and the £4.99/month Pro tier
+                adds the PDF and CSV exports you need for Self Assessment
+                or to send to your accountant.
               </p>
               <p>
                 Other apps exist. Pick one that saves you more time than it

@@ -89,6 +89,14 @@ const faqSchema = {
         text: "An Uber driver covering 20,000 business miles a year would receive a tax deduction of £8,000 at the new 2026-27 rates (10,000 x 55p + 10,000 x 25p). At a 20% tax rate, that is a saving of £1,600 per year directly from mileage allowance alone.",
       },
     },
+    {
+      "@type": "Question",
+      name: "Will I run out of free trip tracking on MileClear?",
+      acceptedAnswer: {
+        "@type": "Answer",
+        text: "No. MileClear's tracking is unlimited and free forever - there is no monthly drive cap. That matters for Uber drivers specifically: MileIQ's free tier stops after 40 drives a month and Driversnote caps at 20. A full-time Uber driver routinely does 100-200 trips a week and would blow through either of those inside a few days. Pro (£4.99/month) only unlocks the HMRC exports and business insights. The tracker itself stays free no matter how many trips you do.",
+      },
+    },
   ],
 };
 
@@ -130,8 +138,10 @@ export default function UberMileageTracker() {
             <p style={{ fontSize: "1.125rem", color: "#94a3b8", lineHeight: 1.75, maxWidth: 680 }}>
               Every mile you drive for Uber is a tax deduction waiting to happen. MileClear tracks your
               trips automatically, calculates your HMRC deduction in real time, and gives you an
-              export-ready mileage log whenever you need it for self-assessment. Free to download and
-              use - no subscription required for the core features.
+              export-ready mileage log whenever you need it for self-assessment. Tracking is
+              unlimited and free forever - no 40-drive monthly cap like MileIQ, no 20-drive cap like
+              Driversnote. A full-time Uber driver doing 100-200 pickups a week would burn through
+              MileIQ's free tier inside a few days; MileClear has no cap at all.
             </p>
           </header>
 

@@ -122,8 +122,10 @@ export default function MileClearVsMileIQ() {
               Choosing a mileage tracker as a UK driver in 2026 means looking past the big American brand names.
               MileIQ is well-established and widely recognised, but it was built for the US market. MileClear was
               designed from day one for UK drivers - using HMRC rates by default, tagging gig platforms like Uber
-              and Deliveroo, and working completely offline. This comparison breaks down the key differences so you
-              can decide which one actually suits how you drive.
+              and Deliveroo, and working completely offline. The single biggest practical difference: MileClear's
+              tracking is unlimited and free forever, where MileIQ stops at 40 drives a month on its free tier
+              before asking £5.99 per month to continue. For any driver doing more than the occasional business
+              trip, that one detail decides which app is actually usable.
             </p>
           </header>
 
@@ -202,9 +204,15 @@ export default function MileClearVsMileIQ() {
                 <tbody>
                   {[
                     {
+                      feature: "Free Trip Tracking",
+                      mileclear: "Unlimited - no monthly cap, ever",
+                      mileiq: "Capped at 40 drives/month, then £5.99/mo to continue",
+                      highlight: true,
+                    },
+                    {
                       feature: "Price",
                       mileclear: "Free tier + £4.99/mo Pro",
-                      mileiq: "~£7.99/mo (paid-only for full features)",
+                      mileiq: "~£5.99-£7.99/mo (paid-only for full features)",
                       highlight: true,
                     },
                     {
@@ -429,14 +437,22 @@ export default function MileClearVsMileIQ() {
                   marginBottom: "0.875rem",
                 }}
               >
-                Half the Price with a Full Free Tier
+                Unlimited Free Tracking - No 40-Drive Cap
               </h2>
               <p style={{ color: "#94a3b8", fontSize: "0.9375rem", lineHeight: 1.7, marginBottom: "1rem" }}>
-                MileIQ&apos;s pricing puts most useful features behind a paywall with a very limited free
-                tier. MileClear gives you unlimited trip tracking, the live Tax Readiness card, Anonymous
+                This is the single biggest day-to-day difference. MileIQ&apos;s free tier stops at 40 drives
+                a month, after which the app asks £5.99 per month to keep tracking. TripLog uses the same
+                40-drive cap; Driversnote stops at 20. For any UK driver doing more than the occasional
+                business trip, that limit is the deciding factor - a Deliveroo rider runs into it inside
+                two shifts, a DPD route hits it before mid-morning on day one, a hybrid manager with a
+                fortnight of site visits is on the wall by week three.
+              </p>
+              <p style={{ color: "#94a3b8", fontSize: "0.9375rem", lineHeight: 1.7, marginBottom: "1rem" }}>
+                MileClear gives you unlimited trip tracking, the live Tax Readiness card, Anonymous
                 Benchmarking, HMRC Reconciliation, MOT and tax expiry reminders, the Activity Heatmap,
                 shift mode, automatic drive detection, achievements, and real-time fuel prices for free -
-                with no cap on the number of trips.
+                with no cap on the number of trips, no time limit, no surprise paywall on the tracker
+                itself.
               </p>
               <p style={{ color: "#94a3b8", fontSize: "0.9375rem", lineHeight: 1.7 }}>
                 Pro is £4.99 per month - roughly 60% of what MileIQ charges - and adds the Self Assessment
@@ -651,6 +667,10 @@ export default function MileClearVsMileIQ() {
               {
                 q: "Is there a free trial for MileClear Pro?",
                 a: "MileClear's free tier is genuinely unlimited for trip tracking - there is no trial period, it is just free. The Tax Readiness card, Anonymous Benchmarking, HMRC Reconciliation, and MOT reminders are all on the free tier. Pro features like the Self Assessment wizard, PDF exports, and the Accountant Portal can be unlocked at any time for £4.99 per month.",
+              },
+              {
+                q: "Does MileIQ really cap the free tier at 40 drives a month?",
+                a: "Yes, as of late 2025. After 40 drives in a calendar month, MileIQ stops tracking until you either pay £5.99/month or wait for the next month to start. TripLog uses the same 40-drive cap. Driversnote caps at 20. For UK gig drivers and any employee doing regular site visits, those limits are gone in days. MileClear has no monthly drive cap at all - tracking is unlimited and free forever, and the Pro upgrade (£4.99/month) is purely for the HMRC exports and business insights.",
               },
               {
                 q: "Does MileClear work without internet?",

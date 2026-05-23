@@ -98,6 +98,14 @@ const faqSchema = {
         text: "Generally the home-to-depot or home-to-pickup-zone commute is treated as ordinary commuting by HMRC and is not claimable. Once you accept your first job and start moving on the platform's behalf, the miles are business. MileClear lets you mark the commute segment as personal so your records accurately reflect what is and is not deductible.",
       },
     },
+    {
+      "@type": "Question",
+      name: "Does MileClear cap how many trips I can log per month?",
+      acceptedAnswer: {
+        "@type": "Answer",
+        text: "No. Trip tracking is unlimited and free forever. That is the headline difference between MileClear and the major US-built alternatives: MileIQ stops tracking at 40 drives per month on its free tier, Driversnote stops at 20, TripLog caps at 40. UK delivery drivers routinely do 30-50 drops in a single shift, so any of those caps is gone before the end of day one. MileClear has no cap, no time limit, no surprise paywall on the tracker. Pro (£4.99/month) only unlocks the HMRC exports, business insights, and CSV earnings import.",
+      },
+    },
   ],
 };
 
@@ -191,7 +199,9 @@ export default function DeliveryDriverMileageTracker() {
               UK delivery drivers cover serious mileage - and almost all of it is claimable as a Self Assessment expense.
               MileClear tracks every business mile automatically across every UK gig platform, applies the
               HMRC 55p / 25p / 24p rates in real time (the car/van first-tier rate rose from 45p to 55p on 6 April 2026), and exports a Self Assessment-ready PDF when tax season comes.
-              Free to download - Pro features unlock for £4.99 per month.
+              Tracking is unlimited and free forever - no monthly drive cap. MileIQ stops at 40
+              drives a month and Driversnote at 20; a full-time gig driver burns through either of
+              those inside a single shift. Pro features unlock for £4.99 per month.
             </p>
           </header>
 

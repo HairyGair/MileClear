@@ -97,6 +97,14 @@ const faqSchema = {
         text: "Yes. Deliveroo riders in the UK are classified as self-employed contractors, which means they are responsible for their own tax via self-assessment. Business mileage is one of the most significant deductions available to them.",
       },
     },
+    {
+      "@type": "Question",
+      name: "Is there a monthly limit on free trip tracking?",
+      acceptedAnswer: {
+        "@type": "Answer",
+        text: "No. MileClear's trip tracking is unlimited and free forever. A typical Deliveroo dinner shift is 8-15 drops, plus the loops between restaurants - 30 or 40 short trips in an evening is normal. MileIQ's free tier stops at 40 drives a month and Driversnote stops at 20, which a Deliveroo rider would burn through in two or three shifts. MileClear has no cap. Pro (£4.99/month) only adds the HMRC Self Assessment export, the Accountant Portal, and business insights.",
+      },
+    },
   ],
 };
 
@@ -138,8 +146,10 @@ export default function DeliverooMileageTracker() {
             <p style={{ fontSize: "1.125rem", color: "#94a3b8", lineHeight: 1.75, maxWidth: 680 }}>
               Whether you ride a motorbike, drive a car, or cycle for Deliveroo, your vehicle costs are
               a tax deduction. MileClear automatically records every business mile, applies the correct
-              HMRC rate for your vehicle type, and generates an export-ready mileage log. Free to download
-              - no subscription needed for the core tracking features.
+              HMRC rate for your vehicle type, and generates an export-ready mileage log. Tracking is
+              unlimited and free - no monthly drive cap. A Deliveroo dinner shift can easily be 30-50
+              short drops; MileIQ's free tier (40 drives a month) and Driversnote's (20 a month) would
+              be gone before the weekend. MileClear's tracker has no cap at all, ever.
             </p>
           </header>
 

@@ -97,6 +97,14 @@ const faqSchema = {
         text: "Yes. Amazon is required to report Flex driver payments to HMRC under UK tax rules. That makes accurate expense records - including a contemporaneous mileage log - essential for Flex drivers who want to maximise their deductions legitimately.",
       },
     },
+    {
+      "@type": "Question",
+      name: "Will MileClear cap how many drives I can log in a month?",
+      acceptedAnswer: {
+        "@type": "Answer",
+        text: "No. Trip tracking is unlimited and free forever. That is a real difference for Flex drivers - a single four-hour block can be 40 to 70 individual stops, more than MileIQ's whole free-tier monthly cap (40 drives) or Driversnote's (20 drives) in one shift. MileClear has no cap, no time limit, no per-trip fee. Pro (£4.99/month) only unlocks the HMRC Self Assessment PDF, CSV earnings import, and business insights.",
+      },
+    },
   ],
 };
 
@@ -137,9 +145,12 @@ export default function AmazonFlexMileageTracker() {
             </h1>
             <p style={{ fontSize: "1.125rem", color: "#94a3b8", lineHeight: 1.75, maxWidth: 680 }}>
               Amazon Flex drivers in the UK cover serious mileage. A four-hour block in a suburban area
-              can mean 40 to 80 miles of delivery routes. MileClear tracks every mile automatically,
-              groups them into blocks that match how Flex actually works, and calculates your HMRC
-              deduction in real time. Free to download - Pro features unlock for £4.99 per month.
+              can mean 40 to 80 miles of delivery routes and 40-70 individual stops. MileClear tracks
+              every mile automatically, groups them into blocks that match how Flex actually works,
+              and calculates your HMRC deduction in real time. Tracking is unlimited and free forever
+              - no 40-drive monthly cap like MileIQ, no 20-drive cap like Driversnote. A single Flex
+              block can be more stops than either of those competitors lets you log in a whole month.
+              Pro features unlock for £4.99 per month.
             </p>
           </header>
 

@@ -107,6 +107,14 @@ const faqSchema = {
         text: "Different rules apply for company cars. The AMAP rates are for personal cars used for business. If you have a company car, you can claim Advisory Fuel Rates (AFR) for business miles where you've paid for the fuel personally. MileClear is built around the personal-car AMAP model and is best suited to employees and self-employed people who use their own vehicle for work.",
       },
     },
+    {
+      "@type": "Question",
+      name: "Is there a monthly limit on free mileage tracking?",
+      acceptedAnswer: {
+        "@type": "Answer",
+        text: "No. MileClear's tracking is unlimited and free forever. That matters for hybrid employees and field staff who might do 20-50 business miles in a month - none of which you can afford to lose because your employer claim and your Mileage Allowance Relief both depend on every mile being recorded. MileIQ caps the free tier at 40 drives a month; Driversnote at 20. MileClear has no cap. Pro (£4.99/month) only unlocks the CSV and PDF claim exports you'd send to your employer or attach to a Self Assessment.",
+      },
+    },
   ],
 };
 
@@ -177,8 +185,12 @@ export default function EmployeeMileageTracker() {
               regional offices - MileClear tracks every business mile in the background and exports
               a payroll-ready claim. It also calculates the HMRC top-up (Mileage Allowance Relief)
               if your employer pays below 55p/mile (the AMAP rate rose from 45p to 55p on 6 April
-              2026). Free to download - Pro features unlock for £4.99
-              per month.
+              2026). Tracking is unlimited and free forever - no monthly drive cap. Hybrid workers
+              might only do 20-50 business miles in a month, but every single one of those miles
+              counts toward your employer reimbursement and MAR claim. MileIQ stops tracking at 40
+              drives a month on the free tier and Driversnote at 20, so even a fortnight of site
+              visits could put you up against the wall. MileClear has no cap, ever. Pro features
+              unlock for £4.99 per month.
             </p>
           </header>
 

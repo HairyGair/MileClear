@@ -113,6 +113,14 @@ const faqSchema = {
         text: "Just Eat's term for stacked deliveries - one or more orders combined into a single trip. A multi-pickup Multi-Collect averages around 32 minutes from acceptance to final drop, versus 16 minutes for a single order. From a mileage perspective, every leg is a business mile, including the inter-restaurant detour and any empty repositioning afterwards.",
       },
     },
+    {
+      "@type": "Question",
+      name: "Does MileClear cap how many trips I can track per month?",
+      acceptedAnswer: {
+        "@type": "Answer",
+        text: "No. Trip tracking is unlimited and free forever. That matters for Just Eat couriers because Multi-Collect Offers and rapid-fire single drops add up fast - a busy 4-hour Run can easily be 15-25 deliveries before you count the inter-restaurant legs. MileIQ caps the free tier at 40 drives a month and Driversnote at 20. MileClear has no cap, no time limit, no surprise paywall on the tracker. Pro (£4.99/month) is only for the Self Assessment PDF export and business insights.",
+      },
+    },
   ],
 };
 
@@ -157,7 +165,10 @@ export default function JustEatMileageTracker() {
               moped you claim 24p per mile, not 55p - and the difference between the two on a
               full-time year is over £5,000 of overstated deduction. MileClear records every
               run, applies the right rate for your vehicle, and produces a Self Assessment-ready
-              log. Free to download - Pro from £4.99 per month.
+              log. Tracking is unlimited and free forever - no monthly drive cap, where MileIQ
+              stops at 40 drives a month and Driversnote at 20. A Just Eat courier doing two
+              4-hour Runs a day would burn through those caps in three or four shifts. Pro from
+              £4.99 per month only adds the exports.
             </p>
           </header>
 

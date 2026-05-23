@@ -96,7 +96,7 @@ const faqSchema = {
       name: "Is there a free mileage tracker for the UK?",
       acceptedAnswer: {
         "@type": "Answer",
-        text: "Yes. MileClear is free to download and free to use for the core tracking, classification, vehicle records, fuel logging and HMRC rate calculations. Pro (£4.99/month) unlocks the Self Assessment PDF export, CSV export, business insights, open-banking earnings sync, and a few quality-of-life extras. The deduction is yours either way - Pro just makes filing it painless.",
+        text: "Yes. MileClear is free to download and free to use for the core tracking, classification, vehicle records, fuel logging and HMRC rate calculations - with no monthly drive cap. That last point is what separates MileClear from the US-built alternatives: MileIQ caps the free tier at 40 drives a month, Driversnote at 20, TripLog at 40. MileClear has no cap and never will. Pro (£4.99/month) unlocks the Self Assessment PDF export, CSV export, business insights, open-banking earnings sync, and a few quality-of-life extras. The deduction is yours either way - Pro just makes filing it painless.",
       },
     },
     {
@@ -185,8 +185,9 @@ export default function MileageTrackerUk() {
               MileClear is a UK-built mileage tracker designed around HMRC's AMAP rates and the
               UK tax year. Background GPS captures every business mile, the 55p/25p calculation
               runs in real time (rate rose from 45p to 55p on 6 April 2026), and your Self
-              Assessment PDF is ready when you are.
-              Free to download - no card needed.
+              Assessment PDF is ready when you are. Tracking is unlimited and free forever - no
+              monthly drive cap like MileIQ's 40-drive limit or Driversnote's 20-drive limit.
+              No card needed.
             </p>
             <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap", marginTop: "1.5rem" }}>
               <a

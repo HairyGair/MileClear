@@ -219,7 +219,11 @@ export default function FeaturesPage() {
                   remember to press start or stop - the app handles it for you
                   using GPS data from your iPhone. Trips are recorded with
                   full route breadcrumbs so you can replay the exact path you
-                  took.
+                  took. Tracking is unlimited and free forever - no monthly
+                  drive cap, where MileIQ stops the free tier at 40 drives a
+                  month and Driversnote at 20. A full-time gig driver can hit
+                  either of those limits in a single shift; MileClear's
+                  tracker has no cap, ever.
                 </p>
                 <p
                   style={{

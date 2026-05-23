@@ -109,6 +109,14 @@ const faqSchema = {
         text: "A self-employed driver doing 15,000 business miles per year claims £6,750 in AMAP relief at the new 2026-27 rate (10,000 at 55p + 5,000 at 25p). At 20% basic rate that is £1,350 off your tax bill; at 40% higher rate it is £2,700. Full-time delivery drivers and tradespeople often clear 25,000+ business miles, which is £9,250 in relief - £1,850 at basic rate or £3,700 at higher rate. Most under-claim because their records don't survive HMRC's contemporaneous-record test.",
       },
     },
+    {
+      "@type": "Question",
+      name: "Does MileClear cap how many trips I can log on the free tier?",
+      acceptedAnswer: {
+        "@type": "Answer",
+        text: "No. Trip tracking is unlimited and free forever. MileIQ stops tracking at 40 drives a month on the free tier and then asks £5.99/month to continue; Driversnote caps at 20. MileClear doesn't cap the tracker at all - whether you do five trips a month or five hundred, every mile is captured. Pro (£4.99/month) only unlocks the Self Assessment PDF export, CSV, Accountant Portal, and business insights.",
+      },
+    },
   ],
 };
 
@@ -152,8 +160,10 @@ export default function SelfEmployedMileageTracker() {
               per mile (25p after 10,000 miles) under HMRC's AMAP relief - the first-tier rate
               rose from 45p to 55p on 6 April 2026. MileClear records every business mile
               automatically, applies the right rate per vehicle, and produces a Self Assessment-ready
-              PDF when tax season comes. MTD ITSA quarterly submission is built in. Free to
-              download.
+              PDF when tax season comes. Tracking is unlimited and free forever - no 40-drive
+              monthly cap like MileIQ, no 20-drive cap like Driversnote. Whether you're a
+              tradesperson on 10 jobs a day or a consultant doing two client visits a week, every
+              mile is captured. MTD ITSA quarterly submission is built in.
             </p>
             <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap", marginTop: "1.5rem" }}>
               <a
