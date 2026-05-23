@@ -763,10 +763,10 @@ export default function DashboardScreen() {
                 <View style={s.pbBadge}>
                   <Text style={s.pbText}>
                     {scorecard.isPersonalBestMiles && scorecard.isPersonalBestTrips
-                      ? "New record \u2014 Miles & Trips"
+                      ? "New record - Miles & Trips"
                       : scorecard.isPersonalBestMiles
-                        ? "New record \u2014 Most Miles"
-                        : "New record \u2014 Most Trips"}
+                        ? "New record - Most Miles"
+                        : "New record - Most Trips"}
                   </Text>
                 </View>
               )}
@@ -1302,7 +1302,7 @@ export default function DashboardScreen() {
                   <Text style={s.heroSavedLabel}>saved in tax this year</Text>
                 )}
                 {stats.deductionPence > 0 && stats.deductionPence < 1000 && (
-                  <Text style={s.heroSavedLabel}>building up \u2014 keep classifying business trips</Text>
+                  <Text style={s.heroSavedLabel}>building up - keep classifying business trips</Text>
                 )}
                 {!isPremium && stats.deductionPence >= 1000 && (
                   <Text style={s.heroLockedHint}>Upgrade to export for your tax return</Text>

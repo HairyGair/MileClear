@@ -318,13 +318,13 @@ export function BusinessInsightsCard() {
             <View style={s.pnlRow}>
               <Text style={s.pnlLabel}>Fuel Cost</Text>
               <Text style={[s.pnlValue, { color: pnl.estimatedFuelCostPence > 0 ? RED : TEXT_3 }]}>
-                {pnl.estimatedFuelCostPence > 0 ? `- ${formatPence(pnl.estimatedFuelCostPence)}` : "\u2014"}
+                {pnl.estimatedFuelCostPence > 0 ? `- ${formatPence(pnl.estimatedFuelCostPence)}` : "-"}
               </Text>
             </View>
             <View style={s.pnlRow}>
               <Text style={s.pnlLabel}>Vehicle Wear (est.)</Text>
               <Text style={[s.pnlValue, { color: pnl.estimatedWearCostPence > 0 ? RED : TEXT_3 }]}>
-                {pnl.estimatedWearCostPence > 0 ? `- ${formatPence(pnl.estimatedWearCostPence)}` : "\u2014"}
+                {pnl.estimatedWearCostPence > 0 ? `- ${formatPence(pnl.estimatedWearCostPence)}` : "-"}
               </Text>
             </View>
             <View style={s.pnlDivider} />

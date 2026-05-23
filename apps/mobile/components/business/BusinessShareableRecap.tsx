@@ -198,7 +198,7 @@ async function textFallbackShare(data: BusinessRecapShareData): Promise<void> {
   }
   lines.push(
     "",
-    "Tracked with MileClear \u2014 track smarter, earn more",
+    "Tracked with MileClear - track smarter, earn more",
     "https://apps.apple.com/app/mileclear/id6759671005",
   );
 
