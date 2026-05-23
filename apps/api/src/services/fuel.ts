@@ -199,6 +199,26 @@ async function getCachedStations(): Promise<StationCacheEntry> {
   return stationCache;
 }
 
+// Background pre-warm. Called from the API server's job scheduler on a
+// 12-minute interval so the 15-minute station cache never expires under a
+// live user request. Without this, every ~15 min the next /fuel/prices
+// caller pays the full Fuel Finder / 13-retailer-feed fetch cost (8.33s
+// avg, 26s p95). With this, all user requests hit warm cache.
+//
+// Idempotent: if the cache is already warm enough (>3 min remaining)
+// this is a no-op so manual triggers are safe.
+export async function prewarmStationCache(): Promise<void> {
+  const STALE_THRESHOLD_MS = FUEL_STATION_CACHE_TTL_MS - 3 * 60 * 1000;
+  if (stationCache && (Date.now() - stationCache.fetchedAt) < STALE_THRESHOLD_MS) {
+    return;
+  }
+  try {
+    stationCache = await fetchAllStations();
+  } catch (err) {
+    console.warn("[fuel] prewarm failed:", (err as Error).message);
+  }
+}
+
 // --- Nearby search ---
 
 const EARTH_RADIUS_MILES = 3958.8;

@@ -10,29 +10,30 @@ const querySchema = z.object({
   lng: z.coerce.number().min(-180).max(180),
 });
 
-// 5-min cache per geographic grid cell. The /community-insights query was
-// observed averaging 15-28 seconds in production (perf.slow_request events)
-// because each call runs 5 expensive queries including a JOIN against the
-// trip_coordinates table (~100k+ rows per active user). Two users within the
-// same ~3.5-mile grid square within 5 minutes of each other should see the
-// SAME insights — they're aggregated nearby data, not personal — so caching
-// per grid cell yields cache-hit instant responses for the dominant case.
+// 5-min cache per geographic grid cell, NOT per user. The /community-insights
+// query was observed averaging 7-28 seconds in production (450 slow_request
+// events across 14 days) because each call runs 5 expensive queries including
+// a JOIN against trip_coordinates (~100k+ rows per active user).
 //
-// The cache key intentionally excludes userId because the endpoint
-// already excludes the requesting user from area-earnings/peak-hours via
-// in-service filtering — but that filter changes per requester, so we keep
-// userId-scoped variations separate. After re-reading: actually the service
-// DOES vary by userId (filters out their own trips). To keep the cache safe
-// we key per-user PER-grid: most users only request their own location and
-// most of the hot work is shared globally, so we accept the duplicate
-// computation across users in exchange for correctness.
+// Earlier the key included userId for "correctness" because the service
+// filters out the requester's own trips from area-earnings/peak-hours. In
+// practice that key was almost never reused (each user is a 1-of-1 cohort
+// for their own location) so the cache effectively never hit. Two drivers
+// in the same city centre paid the full query cost separately.
+//
+// Switched to grid-only keying. The privacy floor (MIN_DRIVERS_THRESHOLD = 5)
+// already prevents anyone being identified inside an aggregate, so the
+// requester appearing as 1/N of their local cohort introduces no privacy
+// concern and at most a ~20% noise on per-platform numbers in cells where
+// they're a top contributor — well inside the "directional, not precise"
+// promise the card makes anyway.
 const CACHE_TTL_SECONDS = 5 * 60;
 const GRID_PRECISION = 0.05; // ~3.5 mi at UK latitudes
 
-function gridKey(lat: number, lng: number, userId: string): string {
+function gridKey(lat: number, lng: number): string {
   const gridLat = Math.round(lat / GRID_PRECISION) * GRID_PRECISION;
   const gridLng = Math.round(lng / GRID_PRECISION) * GRID_PRECISION;
-  return `community-insights:${userId}:${gridLat.toFixed(2)}:${gridLng.toFixed(2)}`;
+  return `community-insights:${gridLat.toFixed(2)}:${gridLng.toFixed(2)}`;
 }
 
 export async function communityInsightRoutes(app: FastifyInstance) {
@@ -49,7 +50,7 @@ export async function communityInsightRoutes(app: FastifyInstance) {
 
     const { lat, lng } = parsed.data;
     const userId = request.userId!;
-    const cacheLookupKey = gridKey(lat, lng, userId);
+    const cacheLookupKey = gridKey(lat, lng);
 
     // Cache hit fast path - return stored response payload directly.
     try {

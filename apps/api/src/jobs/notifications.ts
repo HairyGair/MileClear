@@ -14,7 +14,7 @@ import {
 import { sendCheckinEmail } from "../services/email.js";
 import { logEvent } from "../services/appEvents.js";
 import { runJob } from "../services/jobRun.js";
-import { getNearbyStations } from "../services/fuel.js";
+import { getNearbyStations, prewarmStationCache } from "../services/fuel.js";
 import { runVehicleRemindersJob } from "./vehicleReminders.js";
 import { runDiscordProSyncJob } from "./discordProSync.js";
 import { runTaxTipOfTheDayJob } from "./taxTipOfTheDay.js";
@@ -1006,6 +1006,14 @@ export function startNotificationJobs(): void {
     const PURGE_INTERVAL_MS = 60 * 60 * 1000;
     void runJob("idempotency_purge", runIdempotencyPurgeJob);
     setInterval(() => void runJob("idempotency_purge", runIdempotencyPurgeJob), PURGE_INTERVAL_MS);
+
+    // Fuel station cache pre-warm: every 12 minutes. Keeps the 15-minute
+    // in-memory cache fresh so user-facing /fuel/prices requests never
+    // pay the cold-fetch cost (8.33s avg, 26s p95 in production before
+    // this). One initial warm on boot then a recurring tick.
+    const FUEL_PREWARM_INTERVAL_MS = 12 * 60 * 1000;
+    void runJob("fuel_prewarm", prewarmStationCache);
+    setInterval(() => void runJob("fuel_prewarm", prewarmStationCache), FUEL_PREWARM_INTERVAL_MS);
 
     // Reconciliation cron: daily. Cross-checks cached aggregate figures
     // (MileageSummary) against source-of-truth trips. Required for MTD
