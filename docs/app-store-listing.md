@@ -66,33 +66,32 @@ Built for UK self-employed drivers - Uber, Deliveroo, Just Eat, Amazon Flex, Stu
 
 WHAT IT DOES
 
-- Unlimited automatic GPS tracking. Start driving and MileClear records every business mile in the background, including the dead miles between deliveries that platforms do not pay for but HMRC does. No monthly drive cap, ever.
-- HMRC rates built in. 55p per mile for the first 10,000 business miles in a tax year, 25p after (the first-tier car/van rate rose from 45p to 55p on 6 April 2026 for the 2026-27 tax year). Mopeds and motorbikes claim 24p flat. The app applies the correct rate per trip date automatically, so older trips stay at 45p while new ones use 55p.
-- Tax Readiness card. Live tax + NI estimate, suggested weekly set-aside from your real numbers, and a countdown to the 31 January filing deadline that turns amber at 90 days, red at 30. Free for all users.
-- HMRC Reconciliation. Enter the figures HMRC has on file from each platform's Digital Platform Reporting and see the gap against MileClear's tracked total. Catch under- or over-reporting before HMRC do.
-- Anonymous Benchmarking. Compare your weekly miles, trips and earnings against the median of UK MileClear drivers. Per-platform breakdowns light up at 5+ contributors. Privacy floor never exposes individual data.
-- Activity Heatmap. 7 by 24 grid of when you actually drive and earn most across the last 12 weeks. Filter by platform, toggle between trips and earnings. Tap any cell for the breakdown.
+- Unlimited automatic GPS tracking. MileClear records every business mile in the background, including the dead miles between deliveries that platforms do not pay for but HMRC does. No monthly drive cap, ever.
+- HMRC rates built in. 55p per mile for the first 10,000 business miles, 25p after (the car/van rate rose from 45p to 55p on 6 April 2026). Mopeds and motorbikes claim 24p flat. The right rate is applied per trip date automatically.
+- Tax Readiness card. Live tax + NI estimate, suggested weekly set-aside, and a countdown to the 31 January deadline. Free.
+- HMRC Reconciliation. Enter the figures HMRC has from each platform's Digital Platform Reporting and see the gap against MileClear's tracked total.
+- Anonymous Benchmarking. Compare your weekly miles, trips and earnings against the median of UK MileClear drivers. Privacy floor never exposes individual data.
+- Activity Heatmap. 7 by 24 grid of when you actually drive and earn most across the last 12 weeks.
 - Pickup wait timer. Tap "Wait at pickup" when you arrive at a restaurant or depot. The stopwatch survives app suspension.
-- MOT and tax expiry reminders. Add a vehicle with a registration plate and MileClear refreshes DVLA data weekly. Push notification 14 days before expiry. Tap "View MOT History" for the full DVSA record - test results, advisories, defects, odometer growth.
+- MOT and tax expiry reminders. Add a vehicle by registration plate and MileClear refreshes DVLA data weekly. Push notification 14 days before expiry, plus full DVSA MOT history.
 - Self Assessment-ready exports. CSV and PDF mileage logs in HMRC-accepted formats, per tax year, per vehicle, per platform.
 - Self Assessment wizard (Pro). Step-by-step guide mapping your data to the actual HMRC SA103 form boxes, with full income tax + NI breakdown.
-- HMRC attestation cover sheet (Pro). One-page signed declaration in front of the Self Assessment PDF with the contemporaneous-record language HMRC inspectors recognise.
+- HMRC attestation cover sheet (Pro). One-page signed declaration with the contemporaneous-record language HMRC inspectors recognise.
 - Accountant Portal (Pro). Invite your accountant by email to a read-only dashboard.
 - Receipt scanning (Pro). Camera at parking, fuel and toll receipts. On-device only.
-- Siri Shortcuts. "Hey Siri, start my shift", "How many miles today?", "Log expense".
 - Real-time fuel prices. 8,300+ UK stations from the government-mandated reporting database.
-- Saved locations. Home, work, depot. The app stops auto-detecting trips when you are parked there.
+- Saved locations. Home, work, depot. Trip detection pauses when you are parked there.
 - Personal and Work modes. Everyday driving goals in Personal, HMRC-deductible mileage and tax tools in Work.
 
 PRICING
 
-Free, with no drive cap: full mileage tracking, HMRC rate calculation, manual earnings, fuel prices, gamification, Tax Readiness, Anonymous Benchmarking, HMRC Reconciliation, MOT history, Activity Heatmap, two saved locations, first-time Self Assessment guide.
+Free, with no drive cap: full mileage tracking, HMRC rate calculation, manual earnings, fuel prices, gamification, Tax Readiness, Anonymous Benchmarking, HMRC Reconciliation, MOT history, Activity Heatmap, two saved locations.
 
 Pro at £4.99 per month: all exports (CSV, PDF, Self Assessment), Self Assessment wizard, HMRC attestation cover sheet, Accountant Portal, receipt scanning, CSV earnings import, unlimited saved locations, pickup-wait community insights. Pro never gates the tracker itself.
 
 PRIVACY
 
-Your trip data lives on your phone first. We sync to UK servers only what is needed to back up across devices. Receipt scanning is on-device only.
+Trip data lives on your phone first. We sync to UK servers only what is needed to back up across devices. Receipt scanning is on-device only.
 
 Subscription terms:
 MileClear Pro is £4.99/month, auto-renewing. Subscriptions automatically renew unless cancelled at least 24 hours before the end of the current period. You can manage and cancel subscriptions in your iTunes & App Store account settings after purchase.
@@ -103,9 +102,8 @@ Terms of Use (EULA): https://mileclear.com/terms
 Support: support@mileclear.com
 ```
 
-(Roughly 3,950 chars — just inside the 4,000-char limit. If Apple
-flags any line for length, the easiest trim is to drop the Siri
-Shortcuts bullet or shorten the HMRC Reconciliation description.)
+(~3,800 chars — comfortably under the 4,000-char limit, with the
+Apple-compliance subscription + EULA paragraph intact at the bottom.)
 
 ---
 
