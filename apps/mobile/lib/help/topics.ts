@@ -50,7 +50,18 @@ export const HELP_SECTIONS: HelpSection[] = [
       {
         id: "first-trip",
         q: "I just installed the app — what should I do first?",
-        a: "Three things, in order:\n\n1. Add your vehicle in Settings → Vehicles. We need fuel type + MPG to calculate fuel costs.\n2. Add Home and Work as saved locations (Settings → Saved Locations). The app will then auto-detect trips between them.\n3. Take your first drive. You'll see a \"Trip Active\" Live Activity on the Lock Screen.",
+        a: "Five things in order:\n\n1. Add your vehicle in Settings → Vehicles. We need fuel type + MPG to calculate fuel costs.\n2. Allow notifications when prompted. Push is how we send trip-classify nudges, MOT reminders, and the streak / recap pings.\n3. Pin Home and Work as saved locations (Settings → Saved Locations). The app will then auto-detect trips between them. After you've taken a handful of trips MileClear suggests other places to pin, surfaced as a sparkles card on the dashboard.\n4. Take your first drive. You'll see a \"Trip Active\" Live Activity on the Lock Screen.\n5. Optional but recommended: join the Discord (Profile → Settings → Community) for tax tips, platform talk and product updates from other UK drivers.",
+      },
+      {
+        id: "unlimited-free",
+        q: "Why is MileClear free? What's the catch?",
+        a: "There isn't one. Trip tracking, auto-detection, classification, HMRC rate calculation, fuel prices, gamification, Tax Readiness, Anonymous Benchmarking, HMRC Reconciliation, MOT history, two saved locations - all free, with no monthly drive cap.\n\nFor comparison: MileIQ caps the free tier at 40 drives a month then charges £5.99 to keep tracking. TripLog also caps at 40. Driversnote caps at 20. MileClear doesn't cap the tracker, ever - that's the whole point.\n\nPro (£4.99/month or £44.99/year) only covers tax-time work and analyst extras: PDF / CSV / Self Assessment exports, the SA103 wizard, Accountant Portal, receipt scanning, CSV earnings import, Open Banking auto-import, business insights, unlimited saved locations and vehicles. It never gates the tracker.",
+      },
+      {
+        id: "discord-community",
+        q: "Is there a community I can join?",
+        a: "Yes - Profile → Settings → Community, or jump straight to discord.gg/Wxnvr3rzaq. UK drivers (gig + employee + sole trader), tax chat, platform talk, fuel deals, and product updates from Anthony (founder). No obligation, no DMs from us unless you start a thread.\n\nLaura's tip: pin the #tax-questions channel - tax season gets busy and answers there save you an accountant call.",
+        externalUrl: "https://discord.gg/Wxnvr3rzaq",
       },
     ],
   },
@@ -102,6 +113,11 @@ export const HELP_SECTIONS: HelpSection[] = [
         q: "What are the HMRC mileage rates?",
         a: "Car / van: 55p per mile for the first 10,000 business miles, 25p per mile after that (rate rose from 45p to 55p on 6 April 2026 - tax year 2026-27 onwards). Motorbike: 24p flat rate, unchanged. MileClear applies the correct rate per tax year to every business trip automatically and tracks where you sit on the 10,000-mile threshold.",
       },
+      {
+        id: "which-rate-applies",
+        q: "Why is one trip at 45p and another at 55p?",
+        a: "The HMRC car/van rate for the first 10,000 business miles went up from 45p to 55p on 6 April 2026 - the start of the 2026-27 tax year. MileClear uses the rate that was in force on the date each trip happened, automatically:\n\n• Trips on or before 5 April 2026 → 45p first 10k, 25p after\n• Trips on or after 6 April 2026 → 55p first 10k, 25p after\n• The 24p motorbike rate is unchanged across both years\n\nSo if you have trips in both tax years, the totals split correctly - you don't lose anything from older trips, and you get the new rate the moment 6 April 2026 ticked over. Same applies if HMRC change the rate again in future.",
+      },
     ],
   },
   {
@@ -127,6 +143,12 @@ export const HELP_SECTIONS: HelpSection[] = [
         id: "confidence",
         q: "What does the High / Medium / Low badge mean?",
         a: "Confidence level for each trip's distance figure, based on GPS sample quality, breadcrumb count, route verification, and average speed sanity. Tap any badge for the plain-English breakdown. High = bulletproof for HMRC defence; Low = worth a Recalculate before you rely on it.",
+      },
+      {
+        id: "saved-location-suggestions",
+        q: "MileClear suggested some places I should save - what are they?",
+        a: "After you've taken at least 3 trips ending in roughly the same spot, MileClear clusters those endpoints and surfaces them as a sparkles card on the dashboard: \"MileClear spotted N places in your recent trips.\"\n\nTap Review suggestions to see them on a list. Each one shows how many times you've visited and where. Save the ones that mean something - Home, your usual depot, the gym, your kid's school - so journeys appear in the trip list with a name you recognise instead of a postcode.\n\nSaved suggestions don't auto-enable geofencing (no trip auto-confirming from them yet); they're just anchor points. Pinning the right places makes the trip log read like a diary instead of a map.",
+        goTo: "/saved-locations-suggest",
       },
     ],
   },
@@ -176,6 +198,16 @@ export const HELP_SECTIONS: HelpSection[] = [
         id: "battery",
         q: "Is GPS tracking going to kill my battery?",
         a: "MileClear uses iOS's significant-location-change API while you're stationary, and only escalates to active GPS during a recording. Typical impact is 2-4% per 8-hour shift. If you notice more than that, check Settings → Data Quality — your tracking permissions might be sub-optimal.",
+      },
+      {
+        id: "notification-permission",
+        q: "Why does MileClear keep asking for notifications?",
+        a: "Three things stop working if push notifications are off:\n\n1. Trip-classify nudges. When MileClear auto-detects a trip ending, we send a Lock Screen push so you can tap \"Yes, Work\" or \"No, Personal\" in one tap - no opening the app.\n2. Recovery wakes. If iOS suspends the JS runtime mid-trip (common in deep background), our server-side watchdog sends a silent push to wake the app and drain the recording. Without push permission, stuck trips can sit for hours.\n3. MOT / road tax expiry reminders, streak prompts, and the weekly / monthly recap.\n\nIf you originally said no, you can flip it back on: Settings (iOS) → MileClear → Notifications → Allow Notifications.",
+      },
+      {
+        id: "auto-detection-missed",
+        q: "Auto-detection missed a trip - what now?",
+        a: "Three layered fixes:\n\n1. Add it manually. Dashboard → Start Trip → Manual. Enter start + end address (or pick on the map), set the date, classify, save. The routing engine gives the same mileage for the same address pair every time, so HMRC accepts it.\n2. Check why it was missed. Settings → Data Quality. Common culprits: Location set to \"While Using\" instead of \"Always\", Background App Refresh off, app force-quit before the trip started, signal blackspot for the whole journey.\n3. Pin Home / Work / regular stops as saved locations. With those in place we don't need to rely on speed detection - the geofence picks up the moment you leave / arrive.\n\nIf detection's missing trips often, send a screenshot of Settings → Data Quality to support@mileclear.com - Anthony will work out what's tripping it.",
       },
       {
         id: "offline",
