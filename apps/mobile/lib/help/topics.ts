@@ -170,7 +170,34 @@ export const HELP_SECTIONS: HelpSection[] = [
       {
         id: "pro-features",
         q: "What's in Pro?",
-        a: "Quarterly HMRC submissions, HMRC self-assessment PDF, CSV earnings import, Open Banking auto-import, auto-classify rules, business insights, journey map, accountant sharing, unlimited invoices, unlimited saved locations and vehicles.\n\n£4.99/month or £44.99/year. Cancel anytime from your Apple ID settings.",
+        a: "Quarterly HMRC submissions, HMRC self-assessment PDF, CSV earnings import, Open Banking auto-import, the Bank-feed Inbox, receipt scanning, auto-classify rules, business insights, journey map, accountant sharing, unlimited invoices, unlimited saved locations and vehicles.\n\n£4.99/month or £44.99/year. Cancel anytime from your Apple ID settings.",
+      },
+      {
+        id: "expenses",
+        q: "What can I put in Expenses?",
+        a: "Avatar menu → Expenses. Any taxable purchase that supports your work: parking, tolls, congestion / ULEZ, fuel (when you're claiming actual costs not the AMAP rate), insurance, phone bill, hotel for an out-of-town gig, repairs, accountant fees, subscriptions, equipment.\n\n17 categories mapped to the SA103S boxes HMRC actually uses on Self Assessment - so when tax time rolls around your numbers slot straight in. Add manually (Add expense) or via Scan Receipt to OCR the amount, date and vendor off a photo automatically.",
+        goTo: "/expenses",
+      },
+      {
+        id: "receipt-scanning",
+        q: "How does receipt scanning work?",
+        a: "Avatar → Expenses → Scan Receipt. Snap a photo or pick one from your library. Apple's on-device Vision OCR reads the amount, date and vendor straight off the paper and pre-fills the expense form for one-tap save.\n\nNothing leaves your phone - the OCR runs locally on the iPhone's Neural Engine, so receipts for sensitive stuff (medical, hotel) stay private. Apple Vision is the same engine that powers Live Text and Translate, so it handles thermal-print fuel receipts, faded parking stubs and crumpled hotel bills better than most cloud OCR services.\n\nWorks on Pro. The earnings receipt scanner uses the same pipeline.",
+      },
+      {
+        id: "inbox",
+        q: "What's the Bank-feed Inbox? (Pro)",
+        a: "Connect your bank with Open Banking (Profile → Settings → Open Banking) and every transaction lands in a triage screen at Avatar → Inbox. Each row shows the merchant, amount, date and a suggested category dot - green for high confidence, amber for medium, grey for low.\n\nOne tap to Accept as Earning, Accept as Expense, or Ignore. The categoriser learns from every override - if you mark \"Costa Coffee\" as Subsistence twice, the third time it auto-suggests Subsistence with high confidence.\n\nKnown gig platforms (Uber, Deliveroo, Just Eat, Amazon Flex, Stuart, Gophr) still auto-import as Earnings in the background - the Inbox is for everything else.",
+        goTo: "/inbox",
+      },
+      {
+        id: "subsistence-rules",
+        q: "Why is my meal expense flagged with a warning?",
+        a: "HMRC rule SE57240 - daily meals on your regular working route aren't deductible (you'd have eaten anyway). Irregular journeys away from your normal pattern usually are - business travel that takes you well outside your usual area.\n\nMileClear shows the inline warning when you pick Subsistence or Accommodation so you only claim what's actually deductible. It's a guide, not a block - you can still save the expense if it qualifies. The warning helps you avoid the most common over-claim that triggers HMRC enquiries.",
+      },
+      {
+        id: "project-labels",
+        q: "What are project / client labels?",
+        a: "Optional freeform tag on trips, earnings and expenses. Useful if you bill multiple clients (theatre techs, freelance photographers, mobile hairdressers with a regular salon list) - tag everything related to one gig with the same project name and the per-project P&L view tells you which client actually paid after fuel, parking and expenses came out.\n\nLeave blank if you're a single-stream gig driver - the field doesn't get in the way.",
       },
     ],
   },
