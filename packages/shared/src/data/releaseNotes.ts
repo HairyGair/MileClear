@@ -63,22 +63,25 @@ export interface SiteAnnouncement {
   };
 }
 
-export const ACTIVE_ANNOUNCEMENT: SiteAnnouncement | null = {
-  id: "amap-rate-2026-27",
-  headline: "HMRC AMAP rate raised to 55p for 2026-27",
-  subline:
-    "From 6 April 2026, cars and vans claim 55p per mile for the first 10,000 business miles (up from 45p). MileClear already applies the right rate per trip date.",
-  cta: {
-    label: "Read more",
-    href: "/hmrc-mileage-rates",
-  },
-};
+// Retired 26 May 2026 once 1.2.1 went live on the App Store - the 1.2.1
+// release banner now carries the AMAP rate message in its subline and the
+// dedicated /hmrc-mileage-rates page covers the detail. Restore (with a
+// fresh id to force re-display) when the next non-release news needs
+// surfacing site-wide.
+export const ACTIVE_ANNOUNCEMENT: SiteAnnouncement | null = null;
 
 export const RELEASE_NOTES: ReleaseNote[] = [
   {
     version: "1.2.1",
-    date: "22 May 2026",
-    label: "In Testing",
+    date: "26 May 2026",
+    label: "Latest",
+    ctaUrl: "https://apps.apple.com/app/mileclear/id6759671005",
+    ctaLabel: "Update on the App Store",
+    banner: {
+      headline: "MileClear 1.2.1 is live on the App Store",
+      subline:
+        "HMRC's new 55p rate, Expenses, Bank-feed Inbox and on-device receipt scanning",
+    },
     emailSubject: "MileClear 1.2.1 — your bank feed just got a brain",
     emailHero: "Receipts, expenses, and a categoriser that learns",
     emailTagline:
@@ -110,14 +113,9 @@ export const RELEASE_NOTES: ReleaseNote[] = [
   {
     version: "1.2.0",
     date: "14 May 2026",
-    label: "Latest",
-    ctaUrl: "https://apps.apple.com/app/mileclear/id6742044832",
+    label: "App Store",
+    ctaUrl: "https://apps.apple.com/app/mileclear/id6759671005",
     ctaLabel: "Install on the App Store",
-    banner: {
-      headline: "MileClear 1.2.0 is live",
-      subline:
-        "Quarterly HMRC submissions, road-accurate distances, and 30+ updates",
-    },
     emailSubject: "MileClear 1.2.0 is here - and it's a big one",
     emailHero: "1.2.0 - the biggest update since launch",
     emailTagline:
