@@ -1,5 +1,5 @@
-FACEBOOK POSTS - READY TO PASTE
-================================
+FACEBOOK + INSTAGRAM POSTS - READY TO PASTE
+============================================
 
 Each post below is plain text, no formatting. Just highlight from the
 "=== START ===" line to the "=== END ===" line and paste into Meta
@@ -9,6 +9,54 @@ them.
 No em-dashes (Anthony's house rule). Regular hyphens only. Emojis are
 fine.
 
+Every post has an IMAGE: line with either (a) the file path to an
+existing screenshot you can drag straight into Meta Business Suite,
+(b) instructions for a quick in-app screenshot grab, or (c) a quote-
+card recipe (build once in Canva, save the template, re-skin in 60s).
+
+
+
+IMAGE LIBRARY (where most of these come from)
+=============================================
+
+iPhone marketing screenshots - both at:
+  apps/web/public/screenshot-source/iphone/
+  apps/mobile/assets/appstore-screenshots/
+
+  iphone-01-hero.png             - dashboard with HMRC deduction figure
+  iphone-02-first-tax-return.png - First Self Assessment guide
+  iphone-03-mtd-itsa.png         - MTD ITSA quarterly submissions
+  iphone-04-live-activity.png    - Lock Screen Live Activity
+  iphone-05-auto-classify.png    - Auto-classify nudge
+  iphone-06-road-accurate.png    - Road-snapped polyline map
+  iphone-07-invoices.png         - Invoices screen
+  iphone-08-free-tier.png        - "Free forever" pricing card
+  iphone-09-pro.png              - Pro features card
+  iphone-10-your-data.png        - Privacy / data control
+
+Brand assets:
+  apps/mobile/assets/branding/wordmark-dark.png
+  apps/mobile/assets/branding/logo-original.png
+  apps/mobile/assets/branding/icon-1024.png
+
+
+
+QUOTE-CARD RECIPE (for posts without a screenshot)
+==================================================
+
+Build ONCE in Canva (or Figma). Save as a template. Re-skin in 60s for
+each new post.
+
+  Size: 1080 x 1080 px (square for Insta feed + works on FB)
+  Background: #030712 (the brand dark navy)
+  Subtle grain texture on background, very low opacity
+  Headline: amber #fcd34d, Sora bold, 64-90px
+  Body: white #f9fafb, Outfit medium, 32-44px
+  Bottom-right: MileClear wordmark (small, white) + mileclear.com
+  Optional accent: thin amber line above headline
+
+For Stories: same content but 1080 x 1920 (vertical).
+
 
 
 ================================================================
@@ -17,6 +65,10 @@ WEEK 1
 
 
 --- MONDAY - TAX TIP ---
+
+IMAGE: Quote card.
+  Headline: "Trade subs are tax-deductible"
+  Body: "Industry mags. Professional bodies. Even paid Stack Overflow if you code on the side. If it supports your work, claim it."
 
 === START ===
 Tax tip of the week
@@ -30,6 +82,11 @@ Free guide to UK driver tax: mileclear.com/business-mileage-guide
 
 
 --- WEDNESDAY - DRIVER TIP ---
+
+IMAGE: apps/web/public/screenshot-source/iphone/iphone-01-hero.png
+  (dashboard with running HMRC deduction figure - works because the
+  post is about claiming miles, and this screenshot shows the £ value
+  building up as you track)
 
 === START ===
 5 things every Uber driver should track for tax - and most don't:
@@ -48,6 +105,12 @@ Read the full Uber guide: mileclear.com/uber-mileage-tracker
 
 --- FRIDAY - FEATURE SPOTLIGHT ---
 
+IMAGE: Open MileClear, dashboard, scroll to Anonymous Benchmarking
+card. Screenshot the whole card (iPhone power+volume-up). The card
+has its own header so it's recognisable out of context. Save as
+"anonymous-benchmarking-card.png" in apps/web/public/screenshot-source/
+for future re-use.
+
 === START ===
 Have you tried Anonymous Benchmarking?
 
@@ -62,6 +125,9 @@ mileclear.com
 
 
 --- SUNDAY - COMMUNITY ---
+
+IMAGE: apps/web/public/screenshot-source/iphone/iphone-08-free-tier.png
+  (the "free forever" pricing card - direct visual match for this post)
 
 === START ===
 Q: Is MileClear really free?
@@ -84,6 +150,10 @@ WEEK 2
 
 --- MONDAY - TAX TIP ---
 
+IMAGE: Quote card.
+  Headline: "Your phone bill is deductible"
+  Body: "Claim the business-use percentage. Most gig drivers can fairly claim 50-70%. Be honest, be consistent, write a one-line justification."
+
 === START ===
 Tax tip of the week
 
@@ -98,6 +168,12 @@ mileclear.com/features
 
 
 --- WEDNESDAY - DRIVER TIP ---
+
+IMAGE: Open MileClear, go to dashboard, find the HMRC Reconciliation
+card. Screenshot. Save as "hmrc-reconciliation-card.png".
+
+Alternative: apps/web/public/screenshot-source/iphone/iphone-01-hero.png
+if you don't want to capture a fresh screen.
 
 === START ===
 Just Eat / Deliveroo / Uber Eats drivers - three things tax-time always catches you out on:
@@ -114,6 +190,15 @@ mileclear.com/deliveroo-mileage-tracker
 
 --- FRIDAY - FEATURE SPOTLIGHT ---
 
+IMAGE: Capture the Expenses Scan Receipt flow. Steps:
+  1. Open MileClear, avatar menu, Expenses
+  2. Tap "Scan Receipt"
+  3. Pick a receipt photo from your library (any old fuel receipt)
+  4. Screenshot the pre-filled expense form
+
+Save as "receipt-scan-flow.png". For Insta, also capture the receipt
+itself as a side-by-side comparison in a carousel.
+
 === START ===
 Receipt scanning, on-device.
 
@@ -128,6 +213,9 @@ mileclear.com
 
 
 --- SUNDAY - COMMUNITY ---
+
+IMAGE: apps/web/public/screenshot-source/iphone/iphone-02-first-tax-return.png
+  (First Self Assessment guide - perfect match for this post)
 
 === START ===
 A fun fact for the early-tax-return crew:
@@ -148,6 +236,10 @@ WEEK 3
 
 --- MONDAY - TAX TIP ---
 
+IMAGE: Quote card.
+  Headline: "Pick a mileage method. Stick to it."
+  Body: "Simplified expenses (55p/25p) vs capital allowances - once you pick one for a vehicle, you can't switch later. For most gig drivers, simplified wins."
+
 === START ===
 Tax tip of the week
 
@@ -162,6 +254,14 @@ mileclear.com/hmrc-mileage-rates
 
 
 --- WEDNESDAY - DRIVER TIP ---
+
+IMAGE: Quote card OR screenshot of the Amazon Flex landing page hero
+on mileclear.com/amazon-flex-mileage-tracker (use the Mac screenshot
+tool to grab the hero at 1080px wide).
+
+Quote-card alternative:
+  Headline: "Amazon Flex doesn't tell HMRC your miles"
+  Body: "Block estimates miss positioning miles, dead miles between blocks, and the trip home. A typical Flex driver under-claims £600-£1,200 a year."
 
 === START ===
 Amazon Flex drivers - does Amazon track your mileage for you?
@@ -178,6 +278,13 @@ mileclear.com/amazon-flex-mileage-tracker
 
 --- FRIDAY - FEATURE SPOTLIGHT ---
 
+IMAGE: apps/web/public/screenshot-source/iphone/iphone-01-hero.png
+  (the dashboard screenshot has Tax Readiness front-and-centre)
+
+Even better: capture a fresh dashboard screenshot from YOUR account
+showing your current Tax Readiness figure - feels more authentic than
+a marketing render.
+
 === START ===
 The Tax Readiness card.
 
@@ -192,6 +299,10 @@ mileclear.com
 
 
 --- SUNDAY - COMMUNITY ---
+
+IMAGE: apps/web/public/screenshot-source/iphone/iphone-06-road-accurate.png
+  (road-snapped polyline map - direct visual match for the post about
+  fixing the GPS-straight-lining bug)
 
 === START ===
 Behind-the-scenes story time.
@@ -214,6 +325,17 @@ WEEK 4
 
 --- MONDAY - TAX TIP ---
 
+IMAGE: Quote card (this one's a list, so use the larger 1080x1350
+portrait size for Insta feed - room for 6 lines).
+  Headline: "Expenses drivers forget to claim"
+  Body (bullet list):
+    - Hire-and-reward insurance
+    - Public liability
+    - PPE + driver kit
+    - Trade subs
+    - Marketing
+    - Working-from-home £6/wk
+
 === START ===
 Tax tip of the week
 
@@ -234,6 +356,15 @@ mileclear.com
 
 --- WEDNESDAY - DRIVER TIP ---
 
+IMAGE: Capture the Activity Heatmap screen from MileClear (avatar →
+Insights → Activity Heatmap, or check the business dashboard). The
+7x24 grid is visually distinctive and tells the dead-miles-economy
+story instantly. Save as "activity-heatmap.png".
+
+Quote-card alternative:
+  Headline: "Couriers run 50-70% dead miles"
+  Body: "On 25,000 business miles a year, that's £8,750 deducted from your profit. £1,750 less tax. HMRC pays for every mile - rideshare or not."
+
 === START ===
 Courier drivers (Stuart / Gophr / DPD owner-driver / Evri) - your dead-mile economics are different to rideshare:
 
@@ -246,6 +377,14 @@ Track every mile (free, no cap): mileclear.com/delivery-driver-mileage-tracker
 
 
 --- FRIDAY - FEATURE SPOTLIGHT ---
+
+IMAGE: Capture the Saved Locations screen with the suggestion sparkles
+card visible. Steps:
+  1. Open MileClear, dashboard
+  2. Screenshot the "MileClear spotted N places in your recent trips"
+     card if it's showing
+  3. If not, avatar → Saved Locations + screenshot the list
+Save as "saved-locations-suggestion.png".
 
 === START ===
 Pinned Home and Work yet?
@@ -265,6 +404,18 @@ mileclear.com
 
 --- SUNDAY - COMMUNITY ---
 
+IMAGE: Quote card with the real numbers stack.
+  Headline: "Same drives. £200 more in your pocket."
+  Body:
+    18,800 business miles a year
+    Old rate (2025-26, 45p):  £6,700 deducted, £1,340 less tax
+    New rate (2026-27, 55p):  £7,700 deducted, £1,540 less tax
+  Footer: "MileClear applies the right rate per trip date. Automatically."
+
+Alternative: apps/web/public/screenshot-source/iphone/iphone-01-hero.png
+  (dashboard with a HMRC deduction figure - cropped to the deduction
+  card so the £ is the hero)
+
 === START ===
 Real numbers from a real driver (Newcastle, anonymous):
 
@@ -278,6 +429,39 @@ If you don't have a system tracking those miles - the average UK gig driver unde
 
 Try MileClear: mileclear.com (free, no card, no drive cap)
 === END ===
+
+
+
+================================================================
+INSTAGRAM-SPECIFIC NOTES
+================================================================
+
+Same posts work on Insta, but a few tweaks help:
+
+1. **Hashtags belong on Insta, not FB.** Append 8-15 hashtags to each
+   Insta caption (in the first comment is fine, hides them from the
+   main view). Suggested mix:
+     #UKDriver #UberDriver #DeliverooRider #JustEatDriver
+     #AmazonFlex #GigEconomy #SelfEmployedUK #SoleTraderUK
+     #HMRCSelfAssessment #SelfAssessment #MileageTracker
+     #SmallBusinessUK #TaxTips #UKTax #UKGigWorker
+
+2. **Carousels work better than single images on Insta.** For each
+   "5 things" or "common expenses" post, build a 5-10 slide carousel
+   instead of one image. Slide 1 = hook, slides 2-6 = one item each,
+   final slide = CTA + mileclear.com.
+
+3. **Stories: re-share the feed post within 24h.** Re-shared posts
+   reach about 30% of your follower base in Stories on top of the
+   feed reach. Quick win.
+
+4. **Vertical when you can.** 1080x1350 portrait for feed posts,
+   1080x1920 for Stories + Reels. Insta squeezes square posts in the
+   feed; portrait dominates the screen.
+
+5. **Pin three posts to your profile grid.** The "What is MileClear",
+   "Free vs Pro", and "55p rate change" posts should sit pinned at
+   the top so first-time profile visitors get the pitch instantly.
 
 
 
