@@ -80,6 +80,7 @@ export default function Footer() {
               <ul className="footer__col-list">
                 <li><a href="/privacy" className="footer__link">Privacy</a></li>
                 <li><a href="/terms" className="footer__link">Terms</a></li>
+                <li><a href="/accessibility" className="footer__link">Accessibility</a></li>
               </ul>
             </div>
           </nav>
