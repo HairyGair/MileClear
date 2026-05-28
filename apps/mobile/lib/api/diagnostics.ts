@@ -137,10 +137,15 @@ export async function uploadDiagnosticDump(): Promise<void> {
 
     // Compute a simple verdict string without importing the full
     // computeHealth UI logic. Just check the critical flags.
+    // `!taskRunning` is NORMAL when parked at the anchor: the anchored-skip
+    // intentionally stops the location task and relies on the anchor geofence
+    // Exit to wake detection. So it's only an error if the device is NOT
+    // legitimately anchored (no live geofence + anchor to fall back on).
+    const legitimatelyAnchored = diagnostics.geofencingActive && diagnostics.hasAnchor;
     let verdict = "healthy";
     if (!diagnostics.enabled) verdict = "error";
     else if (diagnostics.backgroundPermission !== "granted") verdict = "error";
-    else if (diagnostics.enabled && diagnostics.backgroundPermission === "granted" && !diagnostics.taskRunning && !diagnostics.activeShiftId) verdict = "error";
+    else if (diagnostics.enabled && diagnostics.backgroundPermission === "granted" && !diagnostics.taskRunning && !diagnostics.activeShiftId && !legitimatelyAnchored) verdict = "error";
     else if (diagnostics.autoRecordingActive) verdict = "warning";
     else if (diagnostics.quietHours || diagnostics.cooldownRemainingMs > 0) verdict = "info";
 
@@ -165,6 +170,9 @@ export async function uploadDiagnosticDump(): Promise<void> {
           bufferedCoordinates: diagnostics.bufferedCoordinates,
           lastNotificationAt: diagnostics.lastNotificationAt,
           cooldownRemainingMs: diagnostics.cooldownRemainingMs,
+          geofencingActive: diagnostics.geofencingActive,
+          hasAnchor: diagnostics.hasAnchor,
+          lastFixAccuracyMeters: diagnostics.lastFixAccuracyMeters,
           trackingState: safeTrackingState,
           // ── Wave 1 context additions (14 May 2026) ────────────
           recentTrips,

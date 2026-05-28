@@ -250,6 +250,46 @@ export async function isGeofencingActive(): Promise<boolean> {
   }
 }
 
+/**
+ * Confirm the anchor geofence is actually being monitored by iOS. The
+ * anchored-skip in startDriveDetection relies entirely on this region's
+ * Exit event to wake detection when the user drives off — if iOS silently
+ * evicted the region (happens after reboot, OS/app update, or Precise
+ * Location toggles) the anchored-skip would strand detection forever,
+ * logging only `anchored_still`.
+ *
+ * If an anchor exists but monitoring isn't live, re-register and re-verify.
+ * Returns the final state so the caller can decide whether the anchored-skip
+ * is safe (active) or whether it must fall back to a continuous subscription.
+ */
+export async function ensureAnchorGeofenceArmed(): Promise<{
+  hasAnchor: boolean;
+  active: boolean;
+}> {
+  const db = await getDatabase();
+  const lat = await db.getFirstAsync<{ value: string }>(
+    "SELECT value FROM tracking_state WHERE key = 'departure_anchor_lat'"
+  );
+  const lng = await db.getFirstAsync<{ value: string }>(
+    "SELECT value FROM tracking_state WHERE key = 'departure_anchor_lng'"
+  );
+  if (!lat || !lng) return { hasAnchor: false, active: false };
+
+  let active = false;
+  try {
+    active = await Location.hasStartedGeofencingAsync(GEOFENCE_TASK_NAME);
+  } catch {}
+  if (active) return { hasAnchor: true, active: true };
+
+  // Anchor exists but iOS isn't monitoring it — re-arm and re-check.
+  try {
+    await registerGeofences();
+    active = await Location.hasStartedGeofencingAsync(GEOFENCE_TASK_NAME);
+  } catch {}
+  logDetectionEvent("anchor_geofence_rearm_attempt", { active }).catch(() => {});
+  return { hasAnchor: true, active };
+}
+
 // ─── Departure anchor ───────────────────────────────────────────────────
 
 /**

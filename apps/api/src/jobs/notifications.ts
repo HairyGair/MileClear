@@ -760,6 +760,15 @@ async function runDiagnosticScanJob(): Promise<void> {
     const taskRunning = status.taskRunning as boolean | undefined;
     const enabled = status.enabled as boolean | undefined;
     const autoRecording = status.autoRecordingActive as boolean | undefined;
+    // Post-anchor refactor (14 May 2026): a parked device intentionally stops
+    // the location task and relies on the anchor geofence Exit to wake it. So
+    // `!taskRunning` is normal when the device is legitimately anchored (live
+    // geofence + present anchor) — don't push "Drive detection paused" then.
+    // Older dumps lack these fields (undefined) → legitimatelyAnchored is
+    // false → the alert behaves exactly as before. Backward compatible.
+    const geofencingActive = status.geofencingActive as boolean | undefined;
+    const hasAnchor = status.hasAnchor as boolean | undefined;
+    const legitimatelyAnchored = geofencingActive === true && hasAnchor === true;
     const trackingState = status.trackingState as Array<{ key: string; value: string }> | undefined;
     const lastDrivingStr = trackingState?.find((s) => s.key === "last_driving_speed_at")?.value;
 
@@ -779,7 +788,7 @@ async function runDiagnosticScanJob(): Promise<void> {
         data: { action: "open_settings" },
       },
       {
-        condition: taskRunning === false && enabled === true,
+        condition: taskRunning === false && enabled === true && !legitimatelyAnchored,
         alertType: "alert.task_not_running",
         title: "Drive detection paused",
         body: "Open MileClear once to restart background tracking.",

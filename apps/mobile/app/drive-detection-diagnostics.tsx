@@ -158,15 +158,40 @@ function computeHealth(d: DriveDetectionDiagnostics, events: DetectionEventRow[]
     });
   }
 
-  // 3. Task should be running but isn't
+  // 3. Task isn't running. Post-anchor refactor this is NORMAL when parked
+  //    at the anchor (the location task is stopped on purpose; the anchor
+  //    geofence Exit wakes detection). It's only a fault when the geofence
+  //    that's meant to wake us isn't actually armed.
   if (d.enabled && d.backgroundPermission === "granted" && !d.taskRunning && !d.activeShiftId) {
-    problems.push({
-      severity: "error",
-      title: "Detection task isn't running",
-      cause:
-        "The background location subscription isn't registered with iOS. This usually means iOS killed the task after idle, a reboot, or a crash.",
-      action: "Tap Restart detection below. If it keeps happening, reboot the phone.",
-    });
+    if (d.hasAnchor && d.geofencingActive) {
+      problems.push({
+        severity: "info",
+        title: "Parked — waiting for you to drive off",
+        cause:
+          "GPS is off to save battery while you're parked at your last stop. iOS is monitoring the departure geofence and will wake detection the moment you drive away.",
+        action: "This is expected. Nothing to do.",
+      });
+    } else if (d.hasAnchor && !d.geofencingActive) {
+      problems.push({
+        severity: "error",
+        title: "Departure geofence isn't armed",
+        cause:
+          "You're parked at an anchor, but iOS isn't monitoring its geofence — so nothing will wake detection when you drive off. iOS drops region monitoring after a reboot, an update, or if Precise Location is off.",
+        action:
+          "Check Settings → MileClear → Location is 'Always' with 'Precise Location' ON, then tap Restart detection below.",
+        onAction: () => {
+          Linking.openSettings().catch(() => {});
+        },
+      });
+    } else {
+      problems.push({
+        severity: "error",
+        title: "Detection task isn't running",
+        cause:
+          "The background location subscription isn't registered with iOS. This usually means iOS killed the task after idle, a reboot, or a crash.",
+        action: "Tap Restart detection below. If it keeps happening, reboot the phone.",
+      });
+    }
   }
 
   // 4. Active shift (informational, not an error)
@@ -555,6 +580,9 @@ export default function DriveDetectionDiagnosticsScreen() {
     lines.push("── Status ──");
     lines.push(`Enabled: ${diagnostics.enabled}`);
     lines.push(`Task running: ${diagnostics.taskRunning}`);
+    lines.push(`Anchor set: ${diagnostics.hasAnchor}`);
+    lines.push(`Geofence armed: ${diagnostics.geofencingActive}`);
+    lines.push(`Last fix accuracy: ${diagnostics.lastFixAccuracyMeters == null ? "unknown" : diagnostics.lastFixAccuracyMeters + "m"}`);
     lines.push(`Foreground permission: ${diagnostics.foregroundPermission}`);
     lines.push(`Background permission: ${diagnostics.backgroundPermission}`);
     lines.push(`Active shift: ${diagnostics.activeShiftId ?? "none"}`);
@@ -732,7 +760,29 @@ export default function DriveDetectionDiagnosticsScreen() {
       <View style={styles.card}>
         <Text style={styles.cardTitle}>Status</Text>
         <StatusRow label="Enabled" value={String(d.enabled)} color={boolColor(d.enabled)} />
-        <StatusRow label="Task running" value={String(d.taskRunning)} color={boolColor(d.taskRunning)} />
+        <StatusRow
+          label="Task running"
+          value={String(d.taskRunning)}
+          color={d.taskRunning || (d.hasAnchor && d.geofencingActive) ? GREEN : RED}
+          hint={!d.taskRunning && d.hasAnchor && d.geofencingActive ? "Off by design — parked, geofence is watching" : undefined}
+        />
+        <StatusRow
+          label="Anchor set"
+          value={String(d.hasAnchor)}
+          color={d.hasAnchor ? GREEN : TEXT_2}
+        />
+        <StatusRow
+          label="Geofence armed"
+          value={String(d.geofencingActive)}
+          color={d.geofencingActive ? GREEN : d.hasAnchor ? RED : TEXT_2}
+          hint={d.hasAnchor && !d.geofencingActive ? "iOS isn't monitoring the anchor — nothing will wake detection" : undefined}
+        />
+        <StatusRow
+          label="Last fix accuracy"
+          value={d.lastFixAccuracyMeters == null ? "unknown" : `${d.lastFixAccuracyMeters} m`}
+          color={d.lastFixAccuracyMeters != null && d.lastFixAccuracyMeters > 65 ? ORANGE : TEXT_2}
+          hint={d.lastFixAccuracyMeters != null && d.lastFixAccuracyMeters > 65 ? "Coarse — Precise Location may be OFF" : undefined}
+        />
         <StatusRow
           label="Foreground perm"
           value={d.foregroundPermission}

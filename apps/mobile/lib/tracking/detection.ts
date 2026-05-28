@@ -17,6 +17,11 @@ import {
 import { startLiveActivity, updateLiveActivity, endLiveActivity, endLiveActivityWithSummary, recoverLiveActivity } from "../liveActivity";
 import { getLiveActivityContext } from "../liveActivity/context";
 import { getNotificationPreferences } from "../notifications/preferences";
+// Lazy-safe: geofencing imports enterWatchMode/logDetectionEvent from this
+// module, so this is a cycle. Both directions only touch the other module's
+// exports at runtime (inside functions), never at module-eval time, so the
+// live bindings are resolved by the time anything runs.
+import { ensureAnchorGeofenceArmed, isGeofencingActive } from "../geofencing";
 
 /**
  * Wrapper around startLiveActivity for auto-detected trips. Honors the user
@@ -341,6 +346,18 @@ export interface DriveDetectionDiagnostics {
   speedThresholdMph: number;
   trackingState: Array<{ key: string; value: string }>;
   bufferedCoordinates: number;
+  // Whether iOS is actually monitoring the anchor geofence. Post-anchor
+  // refactor the anchored-skip depends entirely on this region's Exit, so
+  // an unarmed geofence + present anchor is the silent-death signature.
+  geofencingActive: boolean;
+  // Whether a departure anchor exists (coords stripped from upload for GDPR,
+  // so this boolean is the only safe way to see "is this device anchored?").
+  hasAnchor: boolean;
+  // Accuracy (metres) of the device's last cached fix. A consistently coarse
+  // value (~65m+) hints at Precise Location being OFF, which makes a 100m
+  // geofence unreliable. Proxy only — expo-location 19 can't read the
+  // CLLocationManager accuracyAuthorization flag directly.
+  lastFixAccuracyMeters: number | null;
 }
 
 /**
@@ -362,6 +379,9 @@ export async function getDriveDetectionDiagnostics(): Promise<DriveDetectionDiag
     speedThresholdMph: DRIVING_SPEED_THRESHOLD_MPH,
     trackingState: [],
     bufferedCoordinates: 0,
+    geofencingActive: false,
+    hasAnchor: false,
+    lastFixAccuracyMeters: null,
   };
 
   try {
@@ -370,6 +390,17 @@ export async function getDriveDetectionDiagnostics(): Promise<DriveDetectionDiag
 
   try {
     result.taskRunning = await Location.hasStartedLocationUpdatesAsync(DETECTION_TASK_NAME);
+  } catch {}
+
+  try {
+    result.geofencingActive = await isGeofencingActive();
+  } catch {}
+
+  try {
+    const lastPos = await Location.getLastKnownPositionAsync();
+    if (lastPos && typeof lastPos.coords.accuracy === "number") {
+      result.lastFixAccuracyMeters = Math.round(lastPos.coords.accuracy);
+    }
   } catch {}
 
   try {
@@ -391,6 +422,7 @@ export async function getDriveDetectionDiagnostics(): Promise<DriveDetectionDiag
     for (const row of rows) {
       if (row.key === "active_shift_id") result.activeShiftId = row.value;
       if (row.key === "auto_recording_active") result.autoRecordingActive = row.value === "1";
+      if (row.key === "departure_anchor_lat" && row.value) result.hasAnchor = true;
       if (row.key === "last_detection_notification") {
         const ts = Number(row.value);
         if (!Number.isNaN(ts)) {
@@ -428,6 +460,13 @@ export async function restartDriveDetection(): Promise<void> {
     if (isRunning) {
       await Location.stopLocationUpdatesAsync(DETECTION_TASK_NAME);
     }
+  } catch {}
+  // Re-arm the anchor geofence first. The manual "Restart Detection" button
+  // must be able to recover a wedged anchor whose iOS region monitoring died
+  // — startDriveDetection alone can't, because when parked at the anchor it
+  // short-circuits at the anchored-skip before ever touching the geofence.
+  try {
+    await ensureAnchorGeofenceArmed();
   } catch {}
   await startDriveDetection();
 }
@@ -2157,24 +2196,38 @@ export async function startDriveDetection(): Promise<void> {
           );
           const distMeters = distMiles * 1609.344;
           // Inside anchor radius (100m) + 20m of slop = device is parked.
-          // Skip continuous GPS. Anchor geofence Exit will wake us when
-          // the user actually starts moving.
+          // The anchored-skip is ONLY safe if iOS is genuinely monitoring
+          // the anchor geofence — its Exit event is the sole thing that
+          // wakes detection when the user drives off. If iOS evicted the
+          // region (reboot/update/Precise-Location toggle), skipping here
+          // would strand detection forever. Confirm the geofence is armed;
+          // if it can't be, fall through to a continuous subscription so a
+          // drive is still caught. Missing trips beats a dark green dot —
+          // trip capture is priority 1.
           if (distMeters < 120) {
-            logDetectionEvent("detection_skipped", {
-              reason: "anchored_still",
+            const geo = await ensureAnchorGeofenceArmed();
+            if (geo.active) {
+              logDetectionEvent("detection_skipped", {
+                reason: "anchored_still",
+                distMeters: Math.round(distMeters),
+              }).catch(() => {});
+              // Also stop any existing subscription so the green dot goes
+              // dark immediately on this app foreground (otherwise an
+              // already-running detection task would stay alive).
+              const running = await Location.hasStartedLocationUpdatesAsync(DETECTION_TASK_NAME);
+              if (running) {
+                try {
+                  await Location.stopLocationUpdatesAsync(DETECTION_TASK_NAME);
+                  logDetectionEvent("detection_stopped", { reason: "anchored_still" }).catch(() => {});
+                } catch {}
+              }
+              return;
+            }
+            // Anchor geofence couldn't be armed — don't strand detection.
+            // Fall through to start continuous GPS (pre-anchor behaviour).
+            logDetectionEvent("anchored_geofence_unavailable", {
               distMeters: Math.round(distMeters),
             }).catch(() => {});
-            // Also stop any existing subscription so the green dot goes
-            // dark immediately on this app foreground (otherwise an
-            // already-running detection task would stay alive).
-            const running = await Location.hasStartedLocationUpdatesAsync(DETECTION_TASK_NAME);
-            if (running) {
-              try {
-                await Location.stopLocationUpdatesAsync(DETECTION_TASK_NAME);
-                logDetectionEvent("detection_stopped", { reason: "anchored_still" }).catch(() => {});
-              } catch {}
-            }
-            return;
           }
         }
       }
