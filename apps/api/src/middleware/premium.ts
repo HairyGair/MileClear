@@ -1,6 +1,7 @@
 import { FastifyRequest, FastifyReply } from "fastify";
 import { prisma } from "../lib/prisma.js";
 import { unauthorized, premiumRequired } from "../lib/apiError.js";
+import { resolvePremiumStatus } from "../services/referral.js";
 
 export async function premiumMiddleware(
   request: FastifyRequest,
@@ -13,18 +14,18 @@ export async function premiumMiddleware(
 
   const user = await prisma.user.findUnique({
     where: { id: request.userId },
-    select: { isPremium: true, premiumExpiresAt: true },
+    select: { isPremium: true, premiumExpiresAt: true, referralProUntil: true },
   });
 
-  if (!user?.isPremium) {
-    const err = premiumRequired();
-    return reply.status(err.statusCode).send(err.toBody(request.id));
-  }
-
-  if (user.premiumExpiresAt && user.premiumExpiresAt < new Date()) {
+  // Effective premium = active paid subscription OR banked referral credit.
+  // resolvePremiumStatus never touches subscription state; it just ORs in
+  // referralProUntil so earned free months unlock Pro without corrupting
+  // Stripe/Apple tracking. It also handles the expired-subscription case
+  // (isPremium true but premiumExpiresAt in the past -> not active).
+  if (!user || !resolvePremiumStatus(user).active) {
     const err = premiumRequired(
-      "Your MileClear Pro subscription has expired.",
-      "Renew in Settings to restore tax exports, CSV import, and unlimited saved locations."
+      "MileClear Pro is required for this feature.",
+      "Upgrade in Settings - or invite friends to earn free months."
     );
     return reply.status(err.statusCode).send(err.toBody(request.id));
   }

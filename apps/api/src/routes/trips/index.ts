@@ -19,6 +19,7 @@ import { checkAndAwardAchievements } from "../../services/gamification.js";
 import { sendMilestonePush, sendAchievementPush } from "../../jobs/notifications.js";
 import { logEvent } from "../../services/appEvents.js";
 import { advanceLastTripAt } from "../../services/userActivity.js";
+import { qualifyReferralOnFirstTrip } from "../../services/referral.js";
 import { looksLikePhantomTrip } from "../../lib/phantomTrip.js";
 import { resolveRouteDistance } from "../../services/routing.js";
 import { matchTripRoute, decodePolyline, isMatchPlausible } from "../../services/mapMatching.js";
@@ -395,6 +396,12 @@ export async function tripRoutes(app: FastifyInstance) {
       const taxYear = getTaxYear(data.startedAt);
       upsertMileageSummary(userId, taxYear).catch(() => {});
       advanceLastTripAt(userId, data.startedAt).catch(() => {});
+
+      // Referral qualification: if this user was invited and this is their
+      // first real trip, the referrer earns a free month. Idempotent + only
+      // acts on a pending referral, so it's safe to call on every non-phantom
+      // trip (the helper no-ops after the first qualification).
+      qualifyReferralOnFirstTrip(userId).catch(() => {});
       checkAndAwardAchievements(userId)
         .then((newAchievements) => {
           sendAchievementPush(userId, newAchievements).catch(() => {});

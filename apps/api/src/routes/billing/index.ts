@@ -8,6 +8,7 @@ import { appleBillingRoutes } from "./apple.js";
 import { logEvent } from "../../services/appEvents.js";
 import { notifyBillingEvent } from "../../services/billingAlerts.js";
 import { sendProWelcomeEmail } from "../../services/email.js";
+import { resolvePremiumStatus } from "../../services/referral.js";
 
 /**
  * Idempotent wrapper around sendProWelcomeEmail. Checks for an existing
@@ -287,6 +288,7 @@ export async function billingRoutes(app: FastifyInstance) {
         select: {
           isPremium: true,
           premiumExpiresAt: true,
+          referralProUntil: true,
           stripeSubscriptionId: true,
           appleOriginalTransactionId: true,
         },
@@ -295,6 +297,13 @@ export async function billingRoutes(app: FastifyInstance) {
       if (!user) {
         return reply.status(404).send({ error: "User not found" });
       }
+
+      // Effective premium ORs an active subscription with banked referral
+      // credit. Subscription details below stay driven by the real plan so the
+      // management UI is correct; referral-only users get isPremium:true with
+      // subscriptionPlatform:"none" + premiumSource:"referral" so the UI shows
+      // "Pro via referral credit" rather than a subscribe CTA.
+      const premium = resolvePremiumStatus(user);
 
       // Determine subscription platform
       const subscriptionPlatform: "apple" | "stripe" | "none" =
@@ -331,12 +340,14 @@ export async function billingRoutes(app: FastifyInstance) {
 
       return reply.send({
         data: {
-          isPremium: user.isPremium,
+          isPremium: premium.active,
           premiumExpiresAt: user.premiumExpiresAt?.toISOString() ?? null,
           subscriptionStatus,
           cancelAtPeriodEnd,
           currentPeriodEnd,
           subscriptionPlatform,
+          premiumSource: premium.source,
+          referralProUntil: user.referralProUntil?.toISOString() ?? null,
         },
       });
     }

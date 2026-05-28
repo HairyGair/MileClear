@@ -16,6 +16,7 @@ import {
 } from "../../services/email.js";
 import { authMiddleware } from "../../middleware/auth.js";
 import { logEvent } from "../../services/appEvents.js";
+import { attachReferral } from "../../services/referral.js";
 import { REFRESH_TOKEN_EXPIRY_DAYS } from "@mileclear/shared";
 
 const registerSchema = z.object({
@@ -23,6 +24,9 @@ const registerSchema = z.object({
   password: z.string().min(8, "Password must be at least 8 characters").max(128),
   displayName: z.string().max(100).optional(),
   agreedToTerms: z.boolean().optional(),
+  // Optional referral code the new user signed up with (from a /r/CODE link
+  // or typed at sign-up). Attributed best-effort; never blocks registration.
+  referralCode: z.string().max(16).optional(),
 });
 
 const loginSchema = z.object({
@@ -230,7 +234,7 @@ export async function authRoutes(app: FastifyInstance) {
       return reply.status(400).send({ error: parsed.error.errors[0].message });
     }
 
-    const { email, password, displayName } = parsed.data;
+    const { email, password, displayName, referralCode } = parsed.data;
 
     const existing = await prisma.user.findUnique({ where: { email } });
     if (existing) {
@@ -260,6 +264,12 @@ export async function authRoutes(app: FastifyInstance) {
     );
 
     logEvent("user.registered", user.id, { method: "email" });
+
+    // Attribute the referral (fire-and-forget, never blocks signup). The
+    // reward isn't granted now — only when this user records their first trip.
+    if (referralCode) {
+      attachReferral(user.id, referralCode, { enforceWindow: false }).catch(() => {});
+    }
 
     return reply.status(201).send({
       data: { accessToken, refreshToken },

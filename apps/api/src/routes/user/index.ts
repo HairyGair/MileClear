@@ -6,6 +6,7 @@ import { stripe } from "../../lib/stripe.js";
 import { verifyPassword } from "../../services/auth.js";
 import { sendPushToUser } from "../../lib/push.js";
 import { logEvent } from "../../services/appEvents.js";
+import { resolvePremiumStatus } from "../../services/referral.js";
 
 const updateProfileSchema = z.object({
   displayName: z.string().max(100).nullable().optional(),
@@ -68,8 +69,22 @@ const USER_SELECT = {
   isPremium: true,
   isAdmin: true,
   premiumExpiresAt: true,
+  referralProUntil: true,
   createdAt: true,
 } as const;
+
+/**
+ * Map a raw user row to the client shape, overriding `isPremium` with the
+ * EFFECTIVE status (paid subscription OR banked referral credit). All app
+ * feature-gating reads profile.isPremium, so this makes referral-earned Pro
+ * unlock everything without any client change. premiumSource lets the UI
+ * label "Pro via referral" vs a real subscription. Subscription management
+ * still reads /billing/status for the raw plan details.
+ */
+function withEffectivePremium<T extends { isPremium: boolean; premiumExpiresAt: Date | null; referralProUntil: Date | null }>(user: T) {
+  const status = resolvePremiumStatus(user);
+  return { ...user, isPremium: status.active, premiumSource: status.source };
+}
 
 const ALERT_COOLDOWN_DAYS = 7;
 
@@ -169,7 +184,7 @@ export async function userRoutes(app: FastifyInstance) {
       return reply.status(404).send({ error: "User not found" });
     }
 
-    return reply.send({ data: user });
+    return reply.send({ data: withEffectivePremium(user) });
   });
 
   // Update profile
@@ -320,7 +335,7 @@ export async function userRoutes(app: FastifyInstance) {
       select: USER_SELECT,
     });
 
-    return reply.send({ data: user });
+    return reply.send({ data: withEffectivePremium(user) });
   });
 
   // GET /user/weekly-progress

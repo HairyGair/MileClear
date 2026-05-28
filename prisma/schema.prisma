@@ -127,6 +127,19 @@ model User {
   recordingStartedAt    DateTime?
   lastDrivingSpeedAt    DateTime?
 
+  // Referral program (28 May 2026). Each user gets a unique code to share;
+  // when an invited friend signs up AND records their first trip, the
+  // referrer earns a free month of Pro (capped at 3). referralProUntil banks
+  // those earned months WITHOUT touching the Stripe/Apple subscription fields
+  // above - effective premium is the OR of an active subscription and this
+  // date, so a referral month never corrupts real subscription tracking and a
+  // paying user's earned months simply kick in if they ever lapse.
+  // referredByCode records the code a user signed up with (attribution +
+  // self-referral guard). See services/referral.ts.
+  referralCode          String?   @unique @db.VarChar(16)
+  referralProUntil      DateTime?
+  referredByCode        String?   @db.VarChar(16)
+
   createdAt            DateTime  @default(now())
   updatedAt            DateTime  @updatedAt
 
@@ -158,8 +171,33 @@ model User {
   invoices            Invoice[]
   bankTransactions    BankTransaction[]
   merchantMappings    MerchantMapping[]
+  referralsMade       Referral[]         @relation("Referrer")
 
   @@map("users")
+}
+
+// Referral program (28 May 2026). One row per invited friend who signs up
+// with a referrer's code. status: "pending" = friend registered but hasn't
+// recorded a first trip yet; "qualified" = friend recorded their first real
+// (non-phantom) trip and the referrer's free month was granted; "over_cap" =
+// friend qualified but the referrer already had 3 rewards, so no month was
+// granted (kept for analytics). refereeId is unique - a user can be referred
+// at most once, which is the core anti-double-attribution guard. The
+// qualifying-on-first-trip rule (not on signup) is the anti-fraud measure:
+// fake accounts that never drive never pay out. See services/referral.ts.
+model Referral {
+  id              String    @id @default(uuid())
+  referrerId      String
+  referrer        User      @relation("Referrer", fields: [referrerId], references: [id], onDelete: Cascade)
+  refereeId       String    @unique
+  code            String    @db.VarChar(16)
+  status          String    @default("pending") @db.VarChar(16)
+  rewardGrantedAt DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@index([referrerId])
+  @@map("referrals")
 }
 
 // MTD ITSA OAuth connection. One per user - they grant MileClear permission

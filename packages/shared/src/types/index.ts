@@ -33,9 +33,14 @@ export interface User {
   weeklyEarningsGoalPence: number | null;
   marketingEmailsEnabled: boolean;
   emailVerified: boolean;
+  // EFFECTIVE premium: true if a paid subscription OR banked referral credit
+  // is active. premiumSource says which. premiumExpiresAt is the subscription
+  // expiry; referralProUntil is the banked referral-credit expiry.
   isPremium: boolean;
   isAdmin: boolean;
   premiumExpiresAt: string | null;
+  premiumSource?: "subscription" | "referral" | "none";
+  referralProUntil?: string | null;
   createdAt: string;
 }
 
@@ -797,6 +802,21 @@ export interface BillingStatus {
   cancelAtPeriodEnd: boolean;
   currentPeriodEnd: string | null;
   subscriptionPlatform: "apple" | "stripe" | "none";
+  // Whether the active Pro comes from a paid subscription or banked referral
+  // credit. referralProUntil is the referral-credit expiry (null if none).
+  premiumSource?: "subscription" | "referral" | "none";
+  referralProUntil?: string | null;
+}
+
+// Referral program
+export interface ReferralSummary {
+  code: string;
+  shareUrl: string;
+  maxRewards: number;
+  earnedMonths: number;
+  pendingCount: number;
+  referralProUntil: string | null;
+  referrals: Array<{ status: string; createdAt: string; rewardGrantedAt: string | null }>;
 }
 
 // Gamification types
