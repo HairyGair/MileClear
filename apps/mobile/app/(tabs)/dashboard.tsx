@@ -41,6 +41,7 @@ import {
 } from "../../lib/tracking/index";
 import { fetchUnclassifiedCount } from "../../lib/api/trips";
 import { fetchDataQualityImprovement } from "../../lib/api/user";
+import { apiRequest } from "../../lib/api/index";
 import type {
   Vehicle,
   GamificationStats,
@@ -103,6 +104,21 @@ function calcDistance(coords: { lat: number; lng: number }[]): number {
   return total;
 }
 
+/**
+ * Fire-and-forget client event log (lands in app_events, admin-visible).
+ * Same channel the rating funnel uses. Used here to measure the Work Mode
+ * Explainer: shown vs dismissed-via-button + dwell time. A "shown" with no
+ * following "dismissed" is the signature of the modal freezing / the user
+ * force-quitting on it (Anthony's "not working" hunch); a tiny dwellMs is
+ * the "putting people off" signature (instant bounce without reading).
+ */
+function trackEvent(type: string, metadata?: Record<string, unknown>): void {
+  apiRequest("/user/event", {
+    method: "POST",
+    body: JSON.stringify({ type, metadata }),
+  }).catch(() => {});
+}
+
 function ExplainerItem({ icon, text }: { icon: keyof typeof Ionicons.glyphMap; text: string }) {
   return (
     <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 10, marginBottom: 10 }}>
@@ -150,6 +166,8 @@ export default function DashboardScreen() {
   // Work mode explainer — shown once on first Work mode visit
   const [showWorkExplainer, setShowWorkExplainer] = useState(false);
   const [workExplainerSeen, setWorkExplainerSeen] = useState(true); // default true until loaded
+  // Timestamp the explainer was shown, to measure dwell time on dismiss.
+  const explainerShownAtRef = useRef<number | null>(null);
 
   // Background location permission — needed for auto trip detection
   const [bgLocationGranted, setBgLocationGranted] = useState(true); // default true until checked
@@ -430,11 +448,19 @@ export default function DashboardScreen() {
   // Auto-show work explainer on first Work mode visit
   useEffect(() => {
     if (isWork && !workExplainerSeen && !loading) {
+      explainerShownAtRef.current = Date.now();
+      trackEvent("work_explainer.shown", { source: "auto" });
       setShowWorkExplainer(true);
     }
   }, [isWork, workExplainerSeen, loading]);
 
-  const dismissWorkExplainer = useCallback(async () => {
+  const dismissWorkExplainer = useCallback(async (method: string = "got_it") => {
+    const shownAt = explainerShownAtRef.current;
+    explainerShownAtRef.current = null;
+    trackEvent("work_explainer.dismissed", {
+      method,
+      dwellMs: shownAt ? Date.now() - shownAt : null,
+    });
     setShowWorkExplainer(false);
     setWorkExplainerSeen(true);
     const db = await getDatabase();
@@ -905,7 +931,7 @@ export default function DashboardScreen() {
     <AppModal
       visible={showWorkExplainer}
       animationType="fade"
-      onRequestClose={dismissWorkExplainer}
+      onRequestClose={() => dismissWorkExplainer("system")}
     >
       <View style={s.explainerOverlay}>
         <View style={s.explainerCard}>
@@ -944,7 +970,7 @@ export default function DashboardScreen() {
           </ScrollView>
 
           <TouchableOpacity
-            onPress={dismissWorkExplainer}
+            onPress={() => dismissWorkExplainer("got_it")}
             activeOpacity={0.85}
             style={s.explainerCta}
             accessibilityRole="button"
@@ -1051,7 +1077,13 @@ export default function DashboardScreen() {
         }
       >
       {/* Mode Toggle */}
-      <ModeToggle onInfoPress={() => setShowWorkExplainer(true)} />
+      <ModeToggle
+        onInfoPress={() => {
+          explainerShownAtRef.current = Date.now();
+          trackEvent("work_explainer.shown", { source: "manual" });
+          setShowWorkExplainer(true);
+        }}
+      />
 
       {/* Active recording banner — appears whenever auto-detection has a
           trip in progress, so the user always knows we're tracking even if
