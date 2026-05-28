@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { useState, useEffect, type FormEvent } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { register } from "../../../lib/auth";
@@ -14,8 +14,24 @@ export default function RegisterPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [referralCode, setReferralCode] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+
+  // Pre-fill the referral code from a ?ref= param or the value the /r/[code]
+  // landing page stashed in localStorage when the friend arrived via a link.
+  useEffect(() => {
+    const fromUrl = new URLSearchParams(window.location.search).get("ref");
+    const stored = (() => {
+      try {
+        return window.localStorage.getItem("mc_referral_code");
+      } catch {
+        return null;
+      }
+    })();
+    const code = (fromUrl || stored || "").trim().toUpperCase();
+    if (code) setReferralCode(code);
+  }, []);
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -34,7 +50,18 @@ export default function RegisterPage() {
     setLoading(true);
 
     try {
-      await register(email, password, displayName || undefined, true);
+      await register(
+        email,
+        password,
+        displayName || undefined,
+        true,
+        referralCode.trim().toUpperCase() || undefined
+      );
+      try {
+        window.localStorage.removeItem("mc_referral_code");
+      } catch {
+        // ignore
+      }
       router.push("/verify");
     } catch (err: any) {
       setError(err.message || "Registration failed");
@@ -102,6 +129,15 @@ export default function RegisterPage() {
             onChange={(e) => setConfirmPassword(e.target.value)}
             required
             autoComplete="new-password"
+          />
+          <Input
+            id="referralCode"
+            type="text"
+            label="Referral code (optional)"
+            placeholder="Got a code from a friend?"
+            value={referralCode}
+            onChange={(e) => setReferralCode(e.target.value.toUpperCase())}
+            maxLength={16}
           />
           <p className="auth-form__terms-notice">
             By signing up, you agree to our{" "}

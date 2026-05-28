@@ -22,13 +22,15 @@ export async function register(
   email: string,
   password: string,
   displayName?: string,
-  agreedToTerms?: boolean
+  agreedToTerms?: boolean,
+  referralCode?: string
 ): Promise<User> {
   const res = await api.post<AuthResponse>("/auth/register", {
     email,
     password,
     displayName,
     agreedToTerms,
+    referralCode,
   });
   handleTokens(res);
   return fetchProfile();
