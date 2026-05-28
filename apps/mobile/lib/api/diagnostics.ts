@@ -137,10 +137,12 @@ export async function uploadDiagnosticDump(): Promise<void> {
 
     // Compute a simple verdict string without importing the full
     // computeHealth UI logic. Just check the critical flags.
-    // `!taskRunning` is NORMAL when parked at the anchor: the anchored-skip
-    // intentionally stops the location task and relies on the anchor geofence
-    // Exit to wake detection. So it's only an error if the device is NOT
-    // legitimately anchored (no live geofence + anchor to fall back on).
+    // Post-28-May backstop refactor: a parked device keeps a low-power
+    // subscription alive (the "backstop" profile, possibly auto-paused by iOS),
+    // so taskRunning is normally TRUE even when parked — `!taskRunning` is a
+    // genuine problem again. legitimatelyAnchored is kept as a belt-and-braces
+    // suppressor for the brief window where iOS has paused the backstop and an
+    // armed anchor geofence is the active wake signal.
     const legitimatelyAnchored = diagnostics.geofencingActive && diagnostics.hasAnchor;
     let verdict = "healthy";
     if (!diagnostics.enabled) verdict = "error";
@@ -173,6 +175,7 @@ export async function uploadDiagnosticDump(): Promise<void> {
           geofencingActive: diagnostics.geofencingActive,
           hasAnchor: diagnostics.hasAnchor,
           lastFixAccuracyMeters: diagnostics.lastFixAccuracyMeters,
+          detectionProfile: diagnostics.detectionProfile,
           trackingState: safeTrackingState,
           // ── Wave 1 context additions (14 May 2026) ────────────
           recentTrips,

@@ -21,7 +21,7 @@ import { getNotificationPreferences } from "../notifications/preferences";
 // module, so this is a cycle. Both directions only touch the other module's
 // exports at runtime (inside functions), never at module-eval time, so the
 // live bindings are resolved by the time anything runs.
-import { ensureAnchorGeofenceArmed, isGeofencingActive } from "../geofencing";
+import { ensureAnchorGeofenceArmed } from "../geofencing";
 
 /**
  * Wrapper around startLiveActivity for auto-detected trips. Honors the user
@@ -112,6 +112,8 @@ const RESUME_DISPLACEMENT_M = 80; // metres - must move this far from stop ancho
 const MIN_AUTO_TRIP_DISTANCE_MILES = 0.3; // Filter noise / parking lot shuffles / GPS drift mini-trips
 const MERGE_TIME_WINDOW_MS = 15 * 60 * 1000; // 15 minutes - merge trips that ended within this window
 const MERGE_DISTANCE_M = 500; // metres - merge trips whose end/start are within this radius
+const ANCHOR_EXIT_VERIFY_M = 130; // metres - device must be this far outside the 100m anchor before a backstop "missed Exit" is trusted (mirrors the geofence handler's verify gate)
+const BACKSTOP_DISTANCE_INTERVAL_M = 500; // metres - displacement filter for the low-power parked backstop subscription (the geofence is the precise fast path; this is the safety net)
 const GPS_ACCURACY_THRESHOLD = 75; // metres - reject readings with worse accuracy (indoor GPS drift). Bumped from 50 to 75 to catch cold-start GPS fixes that are still accurate enough to trust the iOS-reported speed
 const GPS_ACCURACY_STRICT = 30; // metres - stricter threshold for calculated speed (not iOS-reported)
 // Ingest-side accuracy gate. Two-tier so phantom protection doesn't degrade
@@ -358,6 +360,15 @@ export interface DriveDetectionDiagnostics {
   // geofence unreliable. Proxy only — expo-location 19 can't read the
   // CLLocationManager accuracyAuthorization flag directly.
   lastFixAccuracyMeters: number | null;
+  // Which location-subscription profile is currently applied:
+  //   "backstop" — parked at the anchor, low-power Balanced/500m with
+  //                pausesUpdatesAutomatically (dark dot when stationary, the
+  //                independent second leg behind the anchor geofence)
+  //   "standard" — away from any anchor, Balanced/200m continuous
+  //   null       — no subscription decision recorded yet (fresh install)
+  // Recording/finalization profiles override the subscription transiently but
+  // don't update this field (startDriveDetection early-returns while recording).
+  detectionProfile: string | null;
 }
 
 /**
@@ -382,6 +393,7 @@ export async function getDriveDetectionDiagnostics(): Promise<DriveDetectionDiag
     geofencingActive: false,
     hasAnchor: false,
     lastFixAccuracyMeters: null,
+    detectionProfile: null,
   };
 
   try {
@@ -393,7 +405,20 @@ export async function getDriveDetectionDiagnostics(): Promise<DriveDetectionDiag
   } catch {}
 
   try {
-    result.geofencingActive = await isGeofencingActive();
+    // Report the *re-armed* truth, not a bare isGeofencingActive() sample.
+    // iOS evicts region monitoring while the app is backgrounded, so a plain
+    // read taken at dump time was always-false — even for devices that record
+    // trips fine the moment startDriveDetection re-arms. ensureAnchorGeofenceArmed
+    // re-registers if needed and returns whether iOS now reports it monitoring,
+    // which is the honest "is the anchor armed" signal AND opportunistically
+    // recovers a dropped region every time the dump runs.
+    const geo = await ensureAnchorGeofenceArmed();
+    result.geofencingActive = geo.active;
+    result.hasAnchor = geo.hasAnchor;
+  } catch {}
+
+  try {
+    result.detectionProfile = await getDetectionProfile();
   } catch {}
 
   try {
@@ -1766,6 +1791,13 @@ try {
         );
       }
 
+      // Backstop missed-Exit catch: if these coords show the device is well
+      // outside the departure anchor while we're not recording/watching, the
+      // iOS geofence Exit that should have woken us never fired. Enter watch
+      // mode so the start is preserved and accuracy bumps; the speed gate below
+      // still promotes to a real recording. Tightly guarded — see the helper.
+      await maybeCatchMissedAnchorExit(db, locations[locations.length - 1]);
+
       // Check if locations indicate driving speed (>15mph to start recording).
       // Returns the highest detected speed with source ("reported" = trusted iOS
       // Kalman, "calculated" = distance/time + susceptible to GPS noise), or null.
@@ -2196,38 +2228,45 @@ export async function startDriveDetection(): Promise<void> {
           );
           const distMeters = distMiles * 1609.344;
           // Inside anchor radius (100m) + 20m of slop = device is parked.
-          // The anchored-skip is ONLY safe if iOS is genuinely monitoring
-          // the anchor geofence — its Exit event is the sole thing that
-          // wakes detection when the user drives off. If iOS evicted the
-          // region (reboot/update/Precise-Location toggle), skipping here
-          // would strand detection forever. Confirm the geofence is armed;
-          // if it can't be, fall through to a continuous subscription so a
-          // drive is still caught. Missing trips beats a dark green dot —
-          // trip capture is priority 1.
+          //
+          // Pre-28-May this STOPPED all location updates and relied solely on
+          // the iOS anchor-geofence Exit to wake detection when the user drove
+          // off. That was a silent single point of failure: on some devices iOS
+          // accepts the region (hasStartedGeofencingAsync → true) yet never
+          // delivers the Exit, stranding detection for days (Anthony's own
+          // device, 22–28 May, daily drives, zero trips). The "fall through to
+          // GPS only when geo.active is false" guard added earlier didn't help —
+          // the failure mode is a false-positive active:true.
+          //
+          // Fix: keep a low-power BACKSTOP subscription alive as an independent
+          // second leg. pausesUpdatesAutomatically lets iOS idle it (dark dot,
+          // ~zero battery) while genuinely stationary and resume on driving, so
+          // a dead geofence Exit can no longer mean total trip loss. The anchor
+          // geofence is still re-armed here as the precise, termination-surviving
+          // fast path. Trip capture is priority 1.
           if (distMeters < 120) {
             const geo = await ensureAnchorGeofenceArmed();
-            if (geo.active) {
-              logDetectionEvent("detection_skipped", {
-                reason: "anchored_still",
+            const running = await Location.hasStartedLocationUpdatesAsync(DETECTION_TASK_NAME);
+            const profile = await getDetectionProfile();
+            if (running && profile === "backstop") {
+              // Already in the low-power backstop profile — leave it; no churn.
+              logDetectionEvent("detection_backstop_active", {
                 distMeters: Math.round(distMeters),
+                geofenceArmed: geo.active,
               }).catch(() => {});
-              // Also stop any existing subscription so the green dot goes
-              // dark immediately on this app foreground (otherwise an
-              // already-running detection task would stay alive).
-              const running = await Location.hasStartedLocationUpdatesAsync(DETECTION_TASK_NAME);
-              if (running) {
-                try {
-                  await Location.stopLocationUpdatesAsync(DETECTION_TASK_NAME);
-                  logDetectionEvent("detection_stopped", { reason: "anchored_still" }).catch(() => {});
-                } catch {}
-              }
               return;
             }
-            // Anchor geofence couldn't be armed — don't strand detection.
-            // Fall through to start continuous GPS (pre-anchor behaviour).
-            logDetectionEvent("anchored_geofence_unavailable", {
+            // Cold start, or just downgraded from a finished trip's standard
+            // profile — (re)start in the low-power backstop profile.
+            try {
+              if (running) await Location.stopLocationUpdatesAsync(DETECTION_TASK_NAME);
+            } catch {}
+            await startDetectionBackstopSubscription();
+            logDetectionEvent("detection_backstop_started", {
               distMeters: Math.round(distMeters),
+              geofenceArmed: geo.active,
             }).catch(() => {});
+            return;
           }
         }
       }
@@ -2262,6 +2301,7 @@ export async function startDriveDetection(): Promise<void> {
       notificationBody: "Monitoring for driving activity",
     },
   });
+  await setDetectionProfile("standard");
   logDetectionEvent("detection_started").catch(() => {});
 }
 
@@ -2664,9 +2704,129 @@ async function downgradeToDetectionMode(): Promise<void> {
         notificationBody: "Monitoring for driving activity",
       },
     });
+    await setDetectionProfile("standard");
   } catch {
     // Best-effort - detection will restart next time startDriveDetection() is called
   }
+}
+
+/**
+ * Which location-subscription profile startDriveDetection last applied
+ * ("backstop" | "standard"). Lets the anchored branch avoid restart churn:
+ * if the backstop is already running we leave it alone. Recording and
+ * finalization profiles don't write this — startDriveDetection early-returns
+ * while a recording is active, so it never reads a stale value in that state.
+ */
+async function setDetectionProfile(profile: string): Promise<void> {
+  try {
+    const db = await getDatabase();
+    await db.runAsync(
+      "INSERT OR REPLACE INTO tracking_state (key, value) VALUES ('detection_subscription_profile', ?)",
+      [profile]
+    );
+  } catch {}
+}
+
+async function getDetectionProfile(): Promise<string | null> {
+  try {
+    const db = await getDatabase();
+    const row = await db.getFirstAsync<{ value: string }>(
+      "SELECT value FROM tracking_state WHERE key = 'detection_subscription_profile'"
+    );
+    return row?.value ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Low-power BACKSTOP subscription, kept alive while the device is parked at the
+ * departure anchor.
+ *
+ * Before 28 May 2026 the anchored case STOPPED all location updates and relied
+ * entirely on the iOS anchor-geofence Exit to wake detection when the user drove
+ * off. That was a silent single point of failure: on some devices iOS accepts
+ * the region (hasStartedGeofencingAsync → true) yet never delivers the Exit
+ * (Anthony's own device went dark 22–28 May with daily drives). When the Exit
+ * never fires, nothing wakes detection and trips vanish with no recovery.
+ *
+ * This subscription is the independent second leg. `pausesUpdatesAutomatically`
+ * + AutomotiveNavigation let iOS idle it (no GPS, dark Dynamic Island, ~zero
+ * battery) while the device is genuinely stationary, and resume the moment
+ * driving motion begins — near-SLC semantics, the closest expo-location exposes.
+ * The anchor geofence remains the precise, termination-surviving fast path; both
+ * legs must fail for a drive to be missed. Trip capture is priority 1: a faint
+ * occasional indicator beats silent total trip loss.
+ */
+async function startDetectionBackstopSubscription(): Promise<void> {
+  await Location.startLocationUpdatesAsync(DETECTION_TASK_NAME, {
+    accuracy: Location.Accuracy.Balanced,
+    distanceInterval: BACKSTOP_DISTANCE_INTERVAL_M,
+    deferredUpdatesInterval: 30000,
+    activityType: Location.ActivityType.AutomotiveNavigation,
+    pausesUpdatesAutomatically: true,
+    showsBackgroundLocationIndicator: false,
+    foregroundService: {
+      notificationTitle: "MileClear",
+      notificationBody: "Monitoring for driving activity",
+    },
+  });
+  await setDetectionProfile("backstop");
+}
+
+/**
+ * Backstop missed-Exit catch. Runs on detection-task callbacks while NOT
+ * recording. If the device is well outside the departure anchor it means the
+ * user drove off but the iOS geofence Exit that should have woken us never
+ * arrived (silently-dead region). Enter watch mode so accuracy is bumped and
+ * the trip start is preserved — the speed gate downstream still promotes to a
+ * real recording. Mirrors what the geofence Exit handler would have done.
+ *
+ * Guards: never act while recording or already watching (idempotent, no
+ * subscription churn), require a present anchor, require a reasonably accurate
+ * fix (a coarse cell-tower fix can sit 500m off the anchor and fake an Exit
+ * while parked — the exact phantom the verify gate exists to block), and
+ * require the device be ANCHOR_EXIT_VERIFY_M beyond the 100m radius.
+ */
+async function maybeCatchMissedAnchorExit(
+  db: Awaited<ReturnType<typeof getDatabase>>,
+  loc: Location.LocationObject | undefined
+): Promise<void> {
+  if (!loc) return;
+  try {
+    // Coarse fix → don't trust the distance (phantom-Exit protection).
+    if (loc.coords.accuracy == null || loc.coords.accuracy > GPS_ACCURACY_THRESHOLD) return;
+
+    const recording = await db.getFirstAsync<{ value: string }>(
+      "SELECT value FROM tracking_state WHERE key = 'auto_recording_active'"
+    );
+    if (recording?.value === "1") return;
+    const watching = await db.getFirstAsync<{ value: string }>(
+      "SELECT value FROM tracking_state WHERE key = 'watch_mode_active'"
+    );
+    if (watching?.value === "1") return;
+
+    const anchorRows = await db.getAllAsync<{ key: string; value: string }>(
+      "SELECT key, value FROM tracking_state WHERE key IN ('departure_anchor_lat', 'departure_anchor_lng')"
+    );
+    if (anchorRows.length !== 2) return;
+    const anchorMap = Object.fromEntries(anchorRows.map((r) => [r.key, r.value]));
+    const anchorLat = parseFloat(anchorMap["departure_anchor_lat"] ?? "");
+    const anchorLng = parseFloat(anchorMap["departure_anchor_lng"] ?? "");
+    if (!Number.isFinite(anchorLat) || !Number.isFinite(anchorLng)) return;
+
+    const distM = haversineMeters(
+      loc.coords.latitude, loc.coords.longitude,
+      anchorLat, anchorLng
+    );
+    if (distM < ANCHOR_EXIT_VERIFY_M) return; // still parked / GPS drift
+
+    logDetectionEvent("backstop_missed_exit_caught", {
+      distMeters: Math.round(distM),
+      accuracy: Math.round(loc.coords.accuracy),
+    }).catch(() => {});
+    await enterWatchMode("backstop_missed_exit");
+  } catch {}
 }
 
 export async function getAndClearBufferedCoordinates(): Promise<BufferedCoordinate[]> {

@@ -158,38 +158,31 @@ function computeHealth(d: DriveDetectionDiagnostics, events: DetectionEventRow[]
     });
   }
 
-  // 3. Task isn't running. Post-anchor refactor this is NORMAL when parked
-  //    at the anchor (the location task is stopped on purpose; the anchor
-  //    geofence Exit wakes detection). It's only a fault when the geofence
-  //    that's meant to wake us isn't actually armed.
+  // 3. Subscription isn't running. Post-28-May backstop refactor a parked
+  //    device keeps a low-power subscription alive (auto-idled by iOS when
+  //    stationary, hasStartedLocationUpdatesAsync still reports true), so
+  //    !taskRunning is a genuine fault again — the backstop should be up. If
+  //    the anchor geofence is armed it's still a backup wake signal, so soften
+  //    to a warning; otherwise nothing is watching and it's an error.
   if (d.enabled && d.backgroundPermission === "granted" && !d.taskRunning && !d.activeShiftId) {
     if (d.hasAnchor && d.geofencingActive) {
       problems.push({
-        severity: "info",
-        title: "Parked — waiting for you to drive off",
+        severity: "warning",
+        title: "Backstop subscription isn't running",
         cause:
-          "GPS is off to save battery while you're parked at your last stop. iOS is monitoring the departure geofence and will wake detection the moment you drive away.",
-        action: "This is expected. Nothing to do.",
-      });
-    } else if (d.hasAnchor && !d.geofencingActive) {
-      problems.push({
-        severity: "error",
-        title: "Departure geofence isn't armed",
-        cause:
-          "You're parked at an anchor, but iOS isn't monitoring its geofence — so nothing will wake detection when you drive off. iOS drops region monitoring after a reboot, an update, or if Precise Location is off.",
-        action:
-          "Check Settings → MileClear → Location is 'Always' with 'Precise Location' ON, then tap Restart detection below.",
-        onAction: () => {
-          Linking.openSettings().catch(() => {});
-        },
+          "The low-power monitoring subscription isn't registered with iOS. Your anchor geofence is still armed as a backup, but the backstop is meant to be running too.",
+        action: "Tap Restart detection below.",
       });
     } else {
       problems.push({
         severity: "error",
-        title: "Detection task isn't running",
+        title: "Detection isn't running",
         cause:
-          "The background location subscription isn't registered with iOS. This usually means iOS killed the task after idle, a reboot, or a crash.",
-        action: "Tap Restart detection below. If it keeps happening, reboot the phone.",
+          "No background location subscription is registered with iOS and the anchor geofence isn't armed — nothing will catch your next drive. iOS drops these after a reboot, an update, or if Precise Location is off.",
+        action: "Tap Restart detection below. If it keeps happening, check Location is 'Always' + 'Precise Location' ON, then reboot the phone.",
+        onAction: () => {
+          Linking.openSettings().catch(() => {});
+        },
       });
     }
   }
@@ -580,6 +573,7 @@ export default function DriveDetectionDiagnosticsScreen() {
     lines.push("── Status ──");
     lines.push(`Enabled: ${diagnostics.enabled}`);
     lines.push(`Task running: ${diagnostics.taskRunning}`);
+    lines.push(`Detection mode: ${diagnostics.detectionProfile ?? "—"}`);
     lines.push(`Anchor set: ${diagnostics.hasAnchor}`);
     lines.push(`Geofence armed: ${diagnostics.geofencingActive}`);
     lines.push(`Last fix accuracy: ${diagnostics.lastFixAccuracyMeters == null ? "unknown" : diagnostics.lastFixAccuracyMeters + "m"}`);
@@ -763,8 +757,20 @@ export default function DriveDetectionDiagnosticsScreen() {
         <StatusRow
           label="Task running"
           value={String(d.taskRunning)}
-          color={d.taskRunning || (d.hasAnchor && d.geofencingActive) ? GREEN : RED}
-          hint={!d.taskRunning && d.hasAnchor && d.geofencingActive ? "Off by design — parked, geofence is watching" : undefined}
+          color={d.taskRunning ? GREEN : RED}
+          hint={!d.taskRunning ? "Backstop subscription isn't running — tap Restart detection" : undefined}
+        />
+        <StatusRow
+          label="Detection mode"
+          value={d.detectionProfile ?? "—"}
+          color={d.detectionProfile ? GREEN : TEXT_2}
+          hint={
+            d.detectionProfile === "backstop"
+              ? "Parked — low-power backstop (idles dark, wakes on driving)"
+              : d.detectionProfile === "standard"
+              ? "Away from anchor — continuous monitoring"
+              : undefined
+          }
         />
         <StatusRow
           label="Anchor set"
@@ -774,8 +780,8 @@ export default function DriveDetectionDiagnosticsScreen() {
         <StatusRow
           label="Geofence armed"
           value={String(d.geofencingActive)}
-          color={d.geofencingActive ? GREEN : d.hasAnchor ? RED : TEXT_2}
-          hint={d.hasAnchor && !d.geofencingActive ? "iOS isn't monitoring the anchor — nothing will wake detection" : undefined}
+          color={d.geofencingActive ? GREEN : d.hasAnchor ? ORANGE : TEXT_2}
+          hint={d.hasAnchor && !d.geofencingActive ? "Anchor geofence not monitoring — the backstop subscription is the active wake signal" : undefined}
         />
         <StatusRow
           label="Last fix accuracy"
