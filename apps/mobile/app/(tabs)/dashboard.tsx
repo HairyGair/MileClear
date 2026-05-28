@@ -184,6 +184,10 @@ export default function DashboardScreen() {
   // hero alone leaves ~27% of vehicle-setup users never recording anything.
   const [firstTripNudgeDismissedAt, setFirstTripNudgeDismissedAt] = useState<number | null>(null);
 
+  // Referral promo card dismissal. Promotional (not urgent), so it sleeps
+  // longer than the other nudges (30 days) before resurfacing.
+  const [referralCardDismissedAt, setReferralCardDismissedAt] = useState<number | null>(null);
+
   // Vehicle nudge — show when user has no vehicles at all
   const showVehicleNudge = !loading && vehicles.length === 0;
 
@@ -389,7 +393,7 @@ export default function DashboardScreen() {
     (async () => {
       const db = await getDatabase();
       const rows = await db.getAllAsync<{ key: string; value: string }>(
-        "SELECT key, value FROM tracking_state WHERE key IN ('work_explainer_seen', 'bg_loc_nudge_dismissed_at', 'first_trip_nudge_dismissed_at')"
+        "SELECT key, value FROM tracking_state WHERE key IN ('work_explainer_seen', 'bg_loc_nudge_dismissed_at', 'first_trip_nudge_dismissed_at', 'referral_card_dismissed_at')"
       );
       const map = Object.fromEntries(rows.map((r) => [r.key, r.value]));
       setWorkExplainerSeen(map["work_explainer_seen"] === "1");
@@ -401,6 +405,10 @@ export default function DashboardScreen() {
         ? parseInt(map["first_trip_nudge_dismissed_at"], 10)
         : null;
       setFirstTripNudgeDismissedAt(Number.isFinite(ftDismissedAt as number) ? ftDismissedAt : null);
+      const refDismissedAt = map["referral_card_dismissed_at"]
+        ? parseInt(map["referral_card_dismissed_at"], 10)
+        : null;
+      setReferralCardDismissedAt(Number.isFinite(refDismissedAt as number) ? refDismissedAt : null);
     })();
   }, []);
 
@@ -444,6 +452,25 @@ export default function DashboardScreen() {
     bgLocationGranted &&
     !activeShift &&
     !firstTripNudgeSilenced;
+
+  // Referral promo card — shown near the top of both dashboards, dismissible
+  // for 30 days. Suppressed during the first-trip nudge so we don't stack two
+  // promos on a brand-new user (capture-first comes before invite-friends),
+  // and during an active shift.
+  const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
+  const referralCardSilenced =
+    referralCardDismissedAt !== null &&
+    Date.now() - referralCardDismissedAt < THIRTY_DAYS_MS;
+  const dismissReferralCard = useCallback(async () => {
+    const now = Date.now();
+    setReferralCardDismissedAt(now);
+    const db = await getDatabase();
+    await db.runAsync(
+      "INSERT OR REPLACE INTO tracking_state (key, value) VALUES ('referral_card_dismissed_at', ?)",
+      [String(now)]
+    );
+  }, []);
+  const showReferralCard = !loading && !activeShift && !referralCardSilenced && !showFirstTripNudge;
 
   // Auto-show work explainer on first Work mode visit
   useEffect(() => {
@@ -1204,6 +1231,38 @@ export default function DashboardScreen() {
             </TouchableOpacity>
           </View>
         </View>
+      )}
+
+      {/* Referral promo — dismissible (30 days), both modes. Links to the
+          Invite Friends screen. Suppressed while the first-trip nudge shows. */}
+      {showReferralCard && (
+        <TouchableOpacity
+          style={s.referralCard}
+          onPress={() => router.push("/refer" as never)}
+          activeOpacity={0.85}
+          accessibilityRole="button"
+          accessibilityLabel="Invite friends and get a free month of Pro for each. Opens the invite screen."
+        >
+          <View style={s.referralCardIcon}>
+            <Ionicons name="gift" size={20} color={AMBER} accessible={false} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={s.referralCardTitle}>Get Pro free - invite friends</Text>
+            <Text style={s.referralCardBody}>
+              A free month of Pro for every friend who joins and takes a trip (up to 3).
+            </Text>
+          </View>
+          <Ionicons name="chevron-forward" size={16} color={TEXT_3} accessible={false} />
+          <TouchableOpacity
+            onPress={dismissReferralCard}
+            hitSlop={{ top: 12, right: 12, bottom: 12, left: 12 }}
+            style={s.referralCardDismiss}
+            accessibilityRole="button"
+            accessibilityLabel="Dismiss"
+          >
+            <Ionicons name="close" size={15} color="#6b7280" accessible={false} />
+          </TouchableOpacity>
+        </TouchableOpacity>
       )}
 
       {/* Smart Insights */}
@@ -2662,6 +2721,46 @@ const s = StyleSheet.create({
     fontSize: 13,
     fontFamily: fonts.semibold,
     color: "#0b0e14",
+  },
+
+  // Referral promo card
+  referralCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    backgroundColor: "rgba(245, 166, 35, 0.06)",
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "rgba(245, 166, 35, 0.18)",
+    padding: 14,
+    paddingRight: 34,
+    marginBottom: 12,
+  },
+  referralCardIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "rgba(245, 166, 35, 0.14)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  referralCardTitle: {
+    fontSize: 14,
+    fontFamily: fonts.semibold,
+    color: "#f0f2f5",
+    marginBottom: 2,
+  },
+  referralCardBody: {
+    fontSize: 12,
+    fontFamily: fonts.regular,
+    color: "#8494a7",
+    lineHeight: 17,
+  },
+  referralCardDismiss: {
+    position: "absolute",
+    top: 8,
+    right: 8,
+    padding: 2,
   },
 
   // Work mode explainer
