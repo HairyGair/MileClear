@@ -37,11 +37,12 @@ export async function register(
   email: string,
   password: string,
   displayName?: string,
-  agreedToTerms?: boolean
+  agreedToTerms?: boolean,
+  referralCode?: string
 ): Promise<void> {
   const res = await apiRequest<{ data: AuthTokens }>("/auth/register", {
     method: "POST",
-    body: JSON.stringify({ email, password, displayName, agreedToTerms }),
+    body: JSON.stringify({ email, password, displayName, agreedToTerms, referralCode }),
   });
   await setTokens(res.data.accessToken, res.data.refreshToken);
 }

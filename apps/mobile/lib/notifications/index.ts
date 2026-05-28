@@ -498,6 +498,11 @@ export function setupNotificationResponseHandler(): void {
         router.navigate("/(tabs)/profile");
         break;
 
+      case "open_referrals":
+        // Referral reward earned -> the invite screen shows updated progress.
+        router.navigate("/refer" as any);
+        break;
+
       case "open_community":
         // Discord invite push (22 May 2026 broadcast). Lands on the
         // in-app Community screen which explains who's there before

@@ -55,6 +55,15 @@ export default function SettingsHub() {
     <SettingsScreen>
       <SettingsGroup>
         <SettingsRow
+          icon="gift-outline"
+          label="Invite friends, get Pro free"
+          hint="A free month of Pro for every friend who joins (up to 3)"
+          onPress={go("/refer")}
+        />
+      </SettingsGroup>
+
+      <SettingsGroup>
+        <SettingsRow
           icon="person-outline"
           label="Profile"
           hint="Name, avatar, email, password"

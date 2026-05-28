@@ -21,7 +21,7 @@ interface AuthContextValue {
   login: (email: string, password: string) => Promise<void>;
   loginWithApple: (agreedToTerms?: boolean) => Promise<void>;
   loginWithGoogle: (agreedToTerms?: boolean) => Promise<void>;
-  register: (email: string, password: string, displayName?: string, agreedToTerms?: boolean) => Promise<void>;
+  register: (email: string, password: string, displayName?: string, agreedToTerms?: boolean, referralCode?: string) => Promise<void>;
   logout: () => Promise<void>;
   completeAuth: () => void;
   sendVerificationCode: () => Promise<void>;
@@ -77,8 +77,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setIsAuthenticated(true);
   }, []);
 
-  const register = useCallback(async (email: string, password: string, displayName?: string, agreedToTerms?: boolean) => {
-    await authRegister(email, password, displayName, agreedToTerms);
+  const register = useCallback(async (email: string, password: string, displayName?: string, agreedToTerms?: boolean, referralCode?: string) => {
+    await authRegister(email, password, displayName, agreedToTerms, referralCode);
     // Don't set isAuthenticated — user stays in auth group for verify screen
   }, []);
 

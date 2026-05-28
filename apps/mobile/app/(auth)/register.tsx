@@ -33,6 +33,7 @@ export default function RegisterScreen() {
   const [displayName, setDisplayName] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [referralCode, setReferralCode] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [, setSocialLoading] = useState<string | null>(null);
@@ -78,6 +79,7 @@ export default function RegisterScreen() {
         password,
         displayName.trim() || undefined,
         true,
+        referralCode.trim().toUpperCase() || undefined,
       );
       router.replace("/(auth)/verify");
     } catch (e: any) {
@@ -205,6 +207,22 @@ export default function RegisterScreen() {
             secureTextEntry
             editable={!loading}
             accessibilityLabel="Confirm password"
+          />
+
+          <Text style={s.label}>Referral code (optional)</Text>
+          <TextInput
+            style={inputStyle("referral")}
+            value={referralCode}
+            onChangeText={(t) => setReferralCode(t.toUpperCase())}
+            onFocus={() => setFocusedField("referral")}
+            onBlur={() => setFocusedField(null)}
+            placeholder="Got a code from a friend?"
+            placeholderTextColor={TEXT_3}
+            autoCapitalize="characters"
+            autoCorrect={false}
+            maxLength={16}
+            editable={!loading}
+            accessibilityLabel="Referral code, optional"
           />
 
           {/* Terms notice */}

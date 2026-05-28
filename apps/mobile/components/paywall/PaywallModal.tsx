@@ -12,6 +12,7 @@ import {
 } from "react-native";
 import { AppModal } from "../AppModal";
 import { Ionicons } from "@expo/vector-icons";
+import { useRouter } from "expo-router";
 import * as WebBrowser from "expo-web-browser";
 import { formatPence } from "@mileclear/shared";
 import { fetchGamificationStats } from "../../lib/api/gamification";
@@ -51,6 +52,7 @@ interface PaywallModalProps {
 
 export function PaywallModal({ visible, onClose, source: _source }: PaywallModalProps) {
   const scrollRef = useRef<ScrollView>(null);
+  const router = useRouter();
   const { user, refreshUser } = useUser();
   const [page, setPage] = useState(0);
   const [stats, setStats] = useState<GamificationStats | null>(null);
@@ -388,6 +390,20 @@ export function PaywallModal({ visible, onClose, source: _source }: PaywallModal
                   ) : (
                     <Text style={s.purchaseBtnText}>Subscribe Now</Text>
                   )}
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={s.referLink}
+                  onPress={() => {
+                    onClose();
+                    router.push("/refer" as never);
+                  }}
+                  activeOpacity={0.7}
+                  accessibilityRole="button"
+                  accessibilityLabel="Get Pro free by inviting friends"
+                >
+                  <Ionicons name="gift-outline" size={15} color={AMBER} />
+                  <Text style={s.referLinkText}>Or get Pro free - invite 3 friends</Text>
                 </TouchableOpacity>
 
                 {isIapAvailable() && (
@@ -809,6 +825,19 @@ const s = StyleSheet.create({
     fontSize: 17,
     fontFamily: fonts.bold,
     color: BG,
+  },
+  referLink: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    paddingVertical: 12,
+    marginTop: 4,
+  },
+  referLinkText: {
+    fontSize: 14,
+    fontFamily: fonts.semibold,
+    color: AMBER,
   },
   restoreBtn: {
     alignItems: "center",

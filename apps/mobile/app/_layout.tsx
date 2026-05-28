@@ -541,6 +541,7 @@ function RootNavigator() {
         <Stack.Screen name="change-password" options={{ headerShown: true, title: "Change Password" }} />
         <Stack.Screen name="active-recording" options={{ headerShown: true, title: "Recording trip" }} />
         <Stack.Screen name="exports" options={{ headerShown: true, title: "Tax Exports" }} />
+        <Stack.Screen name="refer" options={{ headerShown: true, title: "Invite Friends" }} />
         <Stack.Screen name="achievements" options={{ headerShown: true, title: "Achievements" }} />
         <Stack.Screen name="csv-import" options={{ headerShown: true, title: "Import CSV" }} />
         <Stack.Screen name="open-banking" options={{ headerShown: true, title: "Open Banking" }} />
