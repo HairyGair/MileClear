@@ -36,6 +36,11 @@ interface Analytics {
   usersThisMonth: number;
   tripsThisMonth: number;
   ratingFunnel?: RatingFunnel;
+  referrals?: {
+    attached: number;
+    qualified: number;
+    activeCreditUsers: number;
+  };
 }
 
 interface AdminUser {
@@ -397,6 +402,29 @@ function OverviewTab() {
           <p className="stat-card__value">{formatNumber(analytics.tripsThisMonth)}</p>
         </div>
       </div>
+
+      {/* Referral program */}
+      {analytics.referrals && (
+        <div style={{ marginBottom: "1.5rem" }}>
+          <h3 style={{ color: "var(--text-2, #8494a7)", fontSize: "0.85rem", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "0.75rem" }}>
+            Referral Program
+          </h3>
+          <div className="stat-grid">
+            <div className="stat-card">
+              <p className="stat-card__label">Friends Signed Up</p>
+              <p className="stat-card__value">{formatNumber(analytics.referrals.attached)}</p>
+            </div>
+            <div className="stat-card">
+              <p className="stat-card__label">Free Months Granted</p>
+              <p className="stat-card__value stat-card__value--emerald">{formatNumber(analytics.referrals.qualified)}</p>
+            </div>
+            <div className="stat-card">
+              <p className="stat-card__label">On Referral Pro Now</p>
+              <p className="stat-card__value stat-card__value--amber">{formatNumber(analytics.referrals.activeCreditUsers)}</p>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Rating Funnel */}
       {analytics.ratingFunnel && analytics.ratingFunnel.promptsShown > 0 && (

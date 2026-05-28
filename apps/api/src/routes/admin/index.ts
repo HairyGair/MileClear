@@ -115,6 +115,9 @@ export async function adminRoutes(app: FastifyInstance) {
       ratingAlreadyRated,
       ratingNotNow,
       ratingNativeRequested,
+      referralsAttached,
+      referralsQualified,
+      referralActiveUsers,
     ] = await Promise.all([
       prisma.user.count(),
       prisma.user.count({ where: { isPremium: true } }),
@@ -134,6 +137,9 @@ export async function adminRoutes(app: FastifyInstance) {
       prisma.appEvent.count({ where: { type: "rating.already_rated" } }),
       prisma.appEvent.count({ where: { type: "rating.not_now" } }),
       prisma.appEvent.count({ where: { type: "rating.native_dialog_requested" } }),
+      prisma.referral.count(),
+      prisma.referral.count({ where: { status: "qualified" } }),
+      prisma.user.count({ where: { referralProUntil: { gt: now } } }),
     ]);
 
     return reply.send({
@@ -153,6 +159,14 @@ export async function adminRoutes(app: FastifyInstance) {
           alreadyRated: ratingAlreadyRated,
           notNow: ratingNotNow,
           nativeDialogRequested: ratingNativeRequested,
+        },
+        referrals: {
+          // friends who signed up with a code (pending + qualified + over_cap)
+          attached: referralsAttached,
+          // friends who recorded a first trip -> a free month was granted
+          qualified: referralsQualified,
+          // users currently enjoying Pro via banked referral credit
+          activeCreditUsers: referralActiveUsers,
         },
       },
     });
