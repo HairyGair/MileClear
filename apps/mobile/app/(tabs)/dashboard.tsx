@@ -42,6 +42,7 @@ import {
 import { fetchUnclassifiedCount } from "../../lib/api/trips";
 import { fetchDataQualityImprovement } from "../../lib/api/user";
 import { apiRequest } from "../../lib/api/index";
+import { fetchReferralSummary } from "../../lib/api/referrals";
 import type {
   Vehicle,
   GamificationStats,
@@ -453,14 +454,15 @@ export default function DashboardScreen() {
     !activeShift &&
     !firstTripNudgeSilenced;
 
-  // Referral promo card — shown near the top of both dashboards, dismissible
-  // for 30 days. Suppressed during the first-trip nudge so we don't stack two
-  // promos on a brand-new user (capture-first comes before invite-friends),
-  // and during an active shift.
-  const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
+  // Referral promo card — shown near the top of both dashboards. Resurfaces
+  // every 7 days after a dismissal (and on a fresh login, since the device has
+  // no dismissal flag then). Suppressed during the first-trip nudge so we
+  // don't stack two promos on a brand-new user, during an active shift, and
+  // once the user has earned all 3 free months (cap reached -> nothing left to
+  // promote).
   const referralCardSilenced =
     referralCardDismissedAt !== null &&
-    Date.now() - referralCardDismissedAt < THIRTY_DAYS_MS;
+    Date.now() - referralCardDismissedAt < SEVEN_DAYS_MS;
   const dismissReferralCard = useCallback(async () => {
     const now = Date.now();
     setReferralCardDismissedAt(now);
@@ -470,7 +472,28 @@ export default function DashboardScreen() {
       [String(now)]
     );
   }, []);
-  const showReferralCard = !loading && !activeShift && !referralCardSilenced && !showFirstTripNudge;
+  // Earned referral months (qualified referrals). null until fetched. Used to
+  // hide the card once the user has maxed out at 3. Fetched only when the card
+  // could otherwise show, to avoid an extra call on every dashboard load.
+  const [referralEarnedMonths, setReferralEarnedMonths] = useState<number | null>(null);
+  useEffect(() => {
+    if (referralCardSilenced) return;
+    let cancelled = false;
+    fetchReferralSummary()
+      .then((sum) => {
+        if (!cancelled) setReferralEarnedMonths(sum.earnedMonths);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [referralCardSilenced]);
+  const showReferralCard =
+    !loading &&
+    !activeShift &&
+    !referralCardSilenced &&
+    !showFirstTripNudge &&
+    (referralEarnedMonths === null || referralEarnedMonths < 3);
 
   // Auto-show work explainer on first Work mode visit
   useEffect(() => {
