@@ -323,13 +323,31 @@ async function runWelcomeNudgeJob(): Promise<void> {
       });
       if (tripCount > 0) continue;
 
+      // Permission-aware copy. ~47% of users never grant "Always" location,
+      // so background auto-detection silently never runs for them — telling
+      // those users to "just drive, it records automatically" is misleading
+      // and a likely activation killer. Branch on the latest diagnostic dump's
+      // backgroundPermission: if it isn't "granted" (or we have no dump), steer
+      // them to turn on Always rather than promising automatic capture.
+      const dump = await prisma.diagnosticDump.findUnique({
+        where: { userId: user.id },
+        select: { statusJson: true },
+      });
+      const bgPerm =
+        dump && dump.statusJson && typeof dump.statusJson === "object"
+          ? (dump.statusJson as Record<string, unknown>).backgroundPermission
+          : undefined;
+      const hasAlways = bgPerm === "granted";
+
       logEvent("notification.welcome_nudge", user.id);
 
       const name = user.displayName ? ` ${user.displayName}` : "";
       messages.push({
         to: user.pushToken!,
-        title: "Your first trip is the hardest",
-        body: `Welcome${name}. Tap Start Trip, or just drive: MileClear records automatically once you're moving.`,
+        title: hasAlways ? "Your first trip is the hardest" : "Turn on automatic tracking",
+        body: hasAlways
+          ? `Welcome${name}. Tap Start Trip, or just drive: MileClear records automatically once you're moving.`
+          : `Welcome${name}. MileClear records trips by itself once you allow "Always" location — tap to switch it on, then just drive.`,
         sound: "default",
         data: { type: "welcome_nudge", action: "open_dashboard" },
       });

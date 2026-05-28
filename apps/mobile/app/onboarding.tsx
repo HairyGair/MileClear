@@ -16,13 +16,13 @@ import {
 } from "react-native";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
-import * as Location from "expo-location";
 import * as Notifications from "expo-notifications";
 import { Button } from "../components/Button";
 import { updateProfile } from "../lib/api/user";
 import { createVehicle } from "../lib/api/vehicles";
 import { getDatabase } from "../lib/db/index";
 import { useMode } from "../lib/mode/context";
+import { requestOrFixBackgroundLocation, getLocationPermissionStatus } from "../lib/permissions/location";
 import type { WorkType, VehicleType } from "@mileclear/shared";
 import { colors, fonts } from "../lib/theme";
 
@@ -65,9 +65,12 @@ export default function OnboardingScreen() {
   const [employerRate, setEmployerRate] = useState<number | null>(null);
   const { setMode: setAppMode } = useMode();
 
-  // Location state
+  // Location state. "foreground" is a distinct, NOT-done state: the user
+  // granted "While Using" but auto-detection needs "Always". Treating
+  // foreground as success was the activation leak — ~47% of users never had
+  // Always, so background trip detection silently never ran for them.
   const [locationStatus, setLocationStatus] = useState<
-    "idle" | "requesting" | "granted" | "denied"
+    "idle" | "requesting" | "always" | "foreground" | "denied"
   >("idle");
 
   // Notification state
@@ -115,37 +118,29 @@ export default function OnboardingScreen() {
   const handleRequestLocation = useCallback(async () => {
     setLocationStatus("requesting");
     try {
-      const { status: fgStatus } =
-        await Location.requestForegroundPermissionsAsync();
-
-      if (fgStatus !== "granted") {
-        setLocationStatus("denied");
-        return;
-      }
-
-      // Foreground granted — that's enough to proceed.
-      // Try background but don't require it (may fail in Expo Go too).
-      try {
-        await Location.requestBackgroundPermissionsAsync();
-      } catch {
-        // Expected in Expo Go — foreground-only is fine
-      }
-
-      setLocationStatus("granted");
+      // Smart two-step escalation: fires the FG prompt, then the BG ("Always")
+      // prompt, walking the user all the way to Always. We render our own
+      // inline guidance below, so suppress the helper's Settings alert.
+      const final = await requestOrFixBackgroundLocation({ showSettingsAlert: false });
+      setLocationStatus(
+        final.tier === "always" ? "always" : final.tier === "foreground" ? "foreground" : "denied"
+      );
     } catch {
       setLocationStatus("denied");
     }
   }, []);
 
-  // Re-check permission when returning from Settings (user may have enabled it there)
+  // Re-check permission when returning from Settings — the user may have
+  // flipped Location to Always (or to While Using). Re-evaluate the full tier
+  // so the step reflects reality, not just a one-way denied->granted flip.
   useEffect(() => {
     const sub = AppState.addEventListener("change", async (state) => {
-      if (state !== "active" || locationStatus !== "denied") return;
+      if (state !== "active") return;
+      if (locationStatus !== "denied" && locationStatus !== "foreground") return;
       try {
-        const fg = await Location.getForegroundPermissionsAsync();
-        if (fg.status === "granted") {
-          setLocationStatus("granted");
-        }
+        const { tier } = await getLocationPermissionStatus();
+        if (tier === "always") setLocationStatus("always");
+        else if (tier === "foreground") setLocationStatus("foreground");
       } catch {
         // ignore
       }
@@ -275,6 +270,26 @@ export default function OnboardingScreen() {
           ]}
         />
       </View>
+
+      {/* Skip setup — escape hatch for the ~33% who abandon mid-flow. Rather
+          than force-quitting (and landing as a half-set-up, never-activated
+          account), this completes onboarding with sensible defaults + the
+          auto-created vehicle and drops them on the dashboard, where the
+          location nudge + welcome nudge can still pull them to a first trip.
+          Shown only after the value-prop steps (1-2), hidden on the final
+          step (which has its own finish actions). */}
+      {step >= 3 && step < TOTAL_STEPS && !finishingSetup && (
+        <TouchableOpacity
+          style={s.skipSetup}
+          onPress={() => handleFinish("dashboard")}
+          hitSlop={{ top: 10, right: 10, bottom: 10, left: 10 }}
+          accessibilityRole="button"
+          accessibilityLabel="Skip setup and go to the dashboard"
+        >
+          <Text style={s.skipSetupText}>Skip</Text>
+          <Ionicons name="chevron-forward" size={14} color={TEXT_3} accessible={false} />
+        </TouchableOpacity>
+      )}
 
       <ScrollView
         ref={scrollRef}
@@ -742,10 +757,38 @@ export default function OnboardingScreen() {
               </View>
             </View>
 
-            {locationStatus === "granted" && (
+            {locationStatus === "always" && (
               <View style={s.grantedBanner}>
                 <Ionicons name="checkmark-circle" size={20} color={SUCCESS} />
-                <Text style={s.grantedText}>Location access enabled</Text>
+                <Text style={s.grantedText}>Always location on — auto-detection is live</Text>
+              </View>
+            )}
+
+            {/* Foreground-only: the critical "almost there" state. The user
+                granted "While Using" but auto-detection needs "Always". This
+                was previously treated as success, which is why ~half of users
+                never got a single auto-trip. */}
+            {locationStatus === "foreground" && (
+              <View style={s.deniedCard}>
+                <View style={s.deniedHeader}>
+                  <Ionicons name="alert-circle-outline" size={20} color="#f59e0b" />
+                  <Text style={[s.deniedTitle, { color: "#f59e0b" }]}>One more tap for auto-tracking</Text>
+                </View>
+                <Text style={s.deniedBody}>
+                  You allowed location <Text style={{ fontFamily: fonts.semibold }}>While Using the App</Text>. Automatic trip detection needs <Text style={{ fontFamily: fonts.semibold }}>Always</Text> — otherwise trips only record while MileClear is open on screen.
+                </Text>
+                <Text style={s.deniedHelp}>
+                  In Settings: Location {"->"} Always, and turn Precise Location on.
+                </Text>
+                <TouchableOpacity
+                  style={[s.deniedSettingsBtn, { backgroundColor: "rgba(245,166,35,0.15)", borderColor: "rgba(245,166,35,0.3)" }]}
+                  onPress={() => Linking.openSettings()}
+                  accessibilityRole="button"
+                  accessibilityLabel="Open Settings to switch to Always location access"
+                >
+                  <Ionicons name="settings-outline" size={16} color="#f59e0b" />
+                  <Text style={[s.deniedSettingsBtnText, { color: "#f59e0b" }]}>Open Settings</Text>
+                </TouchableOpacity>
               </View>
             )}
 
@@ -774,14 +817,10 @@ export default function OnboardingScreen() {
             )}
 
             <View style={s.buttonStack}>
-              {locationStatus !== "granted" && locationStatus !== "denied" && (
+              {(locationStatus === "idle" || locationStatus === "requesting") && (
                 <Button
                   variant="hero"
-                  title={
-                    locationStatus === "requesting"
-                      ? "Requesting..."
-                      : "Enable Location"
-                  }
+                  title={locationStatus === "requesting" ? "Requesting..." : "Enable Location"}
                   icon="location-outline"
                   size="lg"
                   onPress={handleRequestLocation}
@@ -789,9 +828,29 @@ export default function OnboardingScreen() {
                 />
               )}
 
+              {/* foreground/denied: let them retry the in-app escalation as well
+                  as the Settings route in the card above. */}
+              {(locationStatus === "foreground" || locationStatus === "denied") && (
+                <Button
+                  variant="primary"
+                  title="Try again"
+                  icon="refresh"
+                  size="lg"
+                  onPress={handleRequestLocation}
+                />
+              )}
+
               <Button
-                variant={locationStatus === "granted" ? "hero" : "primary"}
-                title={locationStatus === "denied" ? "Continue without auto-detection" : "Continue"}
+                variant={locationStatus === "always" ? "hero" : "primary"}
+                title={
+                  locationStatus === "always"
+                    ? "Continue"
+                    : locationStatus === "foreground"
+                      ? "Continue with limited tracking"
+                      : locationStatus === "denied"
+                        ? "Continue without auto-detection"
+                        : "Continue"
+                }
                 icon="arrow-forward"
                 size="lg"
                 onPress={goNext}
@@ -1101,18 +1160,20 @@ export default function OnboardingScreen() {
               {/* Location */}
               <View style={s.setupCheckRow}>
                 <Ionicons
-                  name={locationStatus === "granted" ? "checkmark-circle" : "alert-circle-outline"}
+                  name={locationStatus === "always" ? "checkmark-circle" : "alert-circle-outline"}
                   size={18}
-                  color={locationStatus === "granted" ? SUCCESS : "#f59e0b"}
+                  color={locationStatus === "always" ? SUCCESS : "#f59e0b"}
                 />
                 <Text style={s.setupCheckLabel}>
                   Location:{" "}
                   <Text style={s.setupCheckValue}>
-                    {locationStatus === "granted"
-                      ? "Granted"
-                      : locationStatus === "denied"
-                        ? "Denied - auto-detection off"
-                        : "Skipped - auto-detection off"}
+                    {locationStatus === "always"
+                      ? "Always - auto-detection on"
+                      : locationStatus === "foreground"
+                        ? "While Using only - auto-detection off"
+                        : locationStatus === "denied"
+                          ? "Denied - auto-detection off"
+                          : "Skipped - auto-detection off"}
                   </Text>
                 </Text>
               </View>
@@ -1252,6 +1313,24 @@ const s = StyleSheet.create({
     height: 3,
     backgroundColor: AMBER,
     borderRadius: 1.5,
+  },
+
+  // Skip-setup escape hatch (top-right, clears the status bar)
+  skipSetup: {
+    position: "absolute",
+    top: 52,
+    right: 16,
+    zIndex: 10,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 2,
+    paddingVertical: 6,
+    paddingLeft: 10,
+  },
+  skipSetupText: {
+    fontSize: 14,
+    fontFamily: fonts.medium,
+    color: TEXT_3,
   },
 
   // Step scroller

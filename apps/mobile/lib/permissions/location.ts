@@ -43,8 +43,16 @@ export async function getLocationPermissionStatus(): Promise<LocationPermissionS
  *    deep-link to Settings with the exact toggle path spelled out
  *
  * Returns the final status after every attempt.
+ *
+ * `showSettingsAlert` (default true) controls the Path-3 fallback Alert that
+ * deep-links to Settings. Callers that render their own inline guidance (e.g.
+ * the onboarding location step) pass false so the user isn't hit with a system
+ * Alert on top of their own UI.
  */
-export async function requestOrFixBackgroundLocation(): Promise<LocationPermissionStatus> {
+export async function requestOrFixBackgroundLocation(
+  opts: { showSettingsAlert?: boolean } = {}
+): Promise<LocationPermissionStatus> {
+  const { showSettingsAlert = true } = opts;
   let status = await getLocationPermissionStatus();
 
   // Path 1: never been asked - fire the in-app FG prompt. This also creates
@@ -71,7 +79,7 @@ export async function requestOrFixBackgroundLocation(): Promise<LocationPermissi
   }
 
   // Path 3: still not "always" - explain the manual route and offer Settings.
-  if (status.tier !== "always") {
+  if (status.tier !== "always" && showSettingsAlert) {
     showSettingsExplainer(status);
   }
 

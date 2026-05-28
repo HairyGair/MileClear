@@ -159,6 +159,13 @@ export default function DashboardScreen() {
   // user who genuinely benefits from auto-detection finds it again.
   const [bgLocNudgeDismissedAt, setBgLocNudgeDismissedAt] = useState<number | null>(null);
 
+  // First-trip nudge dismissal. Mirrors the bg-loc nudge cooldown. The
+  // in-app safety net for the activation funnel: a user who has Always
+  // location on but still has zero trips needs an explicit "record your
+  // first trip" prompt (with a manual-add path), since the passive Day-1
+  // hero alone leaves ~27% of vehicle-setup users never recording anything.
+  const [firstTripNudgeDismissedAt, setFirstTripNudgeDismissedAt] = useState<number | null>(null);
+
   // Vehicle nudge — show when user has no vehicles at all
   const showVehicleNudge = !loading && vehicles.length === 0;
 
@@ -364,7 +371,7 @@ export default function DashboardScreen() {
     (async () => {
       const db = await getDatabase();
       const rows = await db.getAllAsync<{ key: string; value: string }>(
-        "SELECT key, value FROM tracking_state WHERE key IN ('work_explainer_seen', 'bg_loc_nudge_dismissed_at')"
+        "SELECT key, value FROM tracking_state WHERE key IN ('work_explainer_seen', 'bg_loc_nudge_dismissed_at', 'first_trip_nudge_dismissed_at')"
       );
       const map = Object.fromEntries(rows.map((r) => [r.key, r.value]));
       setWorkExplainerSeen(map["work_explainer_seen"] === "1");
@@ -372,6 +379,10 @@ export default function DashboardScreen() {
         ? parseInt(map["bg_loc_nudge_dismissed_at"], 10)
         : null;
       setBgLocNudgeDismissedAt(Number.isFinite(dismissedAt as number) ? dismissedAt : null);
+      const ftDismissedAt = map["first_trip_nudge_dismissed_at"]
+        ? parseInt(map["first_trip_nudge_dismissed_at"], 10)
+        : null;
+      setFirstTripNudgeDismissedAt(Number.isFinite(ftDismissedAt as number) ? ftDismissedAt : null);
     })();
   }, []);
 
@@ -390,6 +401,31 @@ export default function DashboardScreen() {
   const bgLocNudgeSilenced =
     bgLocNudgeDismissedAt !== null &&
     Date.now() - bgLocNudgeDismissedAt < SEVEN_DAYS_MS;
+
+  const dismissFirstTripNudge = useCallback(async () => {
+    const now = Date.now();
+    setFirstTripNudgeDismissedAt(now);
+    const db = await getDatabase();
+    await db.runAsync(
+      "INSERT OR REPLACE INTO tracking_state (key, value) VALUES ('first_trip_nudge_dismissed_at', ?)",
+      [String(now)]
+    );
+  }, []);
+
+  // First-trip nudge: zero trips, Always location already on (so we don't
+  // collide with the "Auto-detection is off" nudge above — that one owns the
+  // permission case), not in an active shift, and not snoozed. Reaches both
+  // Work and Personal mode, unlike the work-only Day-1 hero.
+  const firstTripNudgeSilenced =
+    firstTripNudgeDismissedAt !== null &&
+    Date.now() - firstTripNudgeDismissedAt < SEVEN_DAYS_MS;
+  const showFirstTripNudge =
+    !loading &&
+    stats !== null &&
+    (stats.totalTrips ?? 0) === 0 &&
+    bgLocationGranted &&
+    !activeShift &&
+    !firstTripNudgeSilenced;
 
   // Auto-show work explainer on first Work mode visit
   useEffect(() => {
@@ -1087,6 +1123,55 @@ export default function DashboardScreen() {
             </TouchableOpacity>
           </View>
         </TouchableOpacity>
+      )}
+
+      {/* First-trip nudge — in-app activation safety net. Shows when the user
+          has Always location on but still zero trips. Two paths: take a live
+          trip now, or backfill one they already drove. */}
+      {showFirstTripNudge && (
+        <View style={s.ftNudge}>
+          <View style={s.bgLocNudgeRow}>
+            <View style={s.ftNudgeIcon}>
+              <Ionicons name="navigate-outline" size={20} color={AMBER} accessible={false} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={s.bgLocNudgeTitle}>Record your first trip</Text>
+              <Text style={s.bgLocNudgeBody}>
+                Auto-detection is on - just drive and it records itself. Already made a journey? Add it now so your deduction starts.
+              </Text>
+            </View>
+            <TouchableOpacity
+              onPress={dismissFirstTripNudge}
+              hitSlop={{ top: 12, right: 12, bottom: 12, left: 12 }}
+              accessibilityRole="button"
+              accessibilityLabel="Dismiss for 7 days"
+            >
+              <Ionicons name="close" size={16} color="#6b7280" accessible={false} />
+            </TouchableOpacity>
+          </View>
+          <View style={s.ftNudgeActions}>
+            <TouchableOpacity
+              style={[s.ftNudgeBtn, s.ftNudgeBtnPrimary]}
+              onPress={() => router.push("/trip-form")}
+              activeOpacity={0.8}
+              accessibilityRole="button"
+              accessibilityLabel="Start a trip now"
+            >
+              <Ionicons name="play" size={14} color="#0b0e14" accessible={false} />
+              <Text style={s.ftNudgeBtnTextPrimary}>Start a trip</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={s.ftNudgeBtn}
+              onPress={() => router.push({ pathname: "/trip-form", params: { mode: "manual" } } as any)}
+              activeOpacity={0.8}
+              accessibilityRole="button"
+              accessibilityLabel="Add a past trip manually"
+            >
+              <Ionicons name="create-outline" size={14} color={AMBER} accessible={false} />
+              <Text style={s.ftNudgeBtnText}>Add a past trip</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
       )}
 
       {/* Smart Insights */}
@@ -2496,6 +2581,55 @@ const s = StyleSheet.create({
     fontFamily: fonts.regular,
     color: TEXT_2,
     lineHeight: 17,
+  },
+
+  // First-trip nudge (activation safety net)
+  ftNudge: {
+    backgroundColor: "rgba(245, 166, 35, 0.06)",
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "rgba(245, 166, 35, 0.18)",
+    padding: 14,
+    marginBottom: 12,
+  },
+  ftNudgeIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "rgba(245, 166, 35, 0.14)",
+    justifyContent: "center" as const,
+    alignItems: "center" as const,
+  },
+  ftNudgeActions: {
+    flexDirection: "row" as const,
+    gap: 8,
+    marginTop: 12,
+  },
+  ftNudgeBtn: {
+    flex: 1,
+    flexDirection: "row" as const,
+    alignItems: "center" as const,
+    justifyContent: "center" as const,
+    gap: 6,
+    paddingVertical: 9,
+    borderRadius: 9,
+    borderWidth: 1,
+    borderColor: "rgba(245, 166, 35, 0.35)",
+    backgroundColor: "rgba(245, 166, 35, 0.06)",
+  },
+  ftNudgeBtnPrimary: {
+    backgroundColor: AMBER,
+    borderColor: AMBER,
+  },
+  ftNudgeBtnText: {
+    fontSize: 13,
+    fontFamily: fonts.semibold,
+    color: AMBER,
+  },
+  ftNudgeBtnTextPrimary: {
+    fontSize: 13,
+    fontFamily: fonts.semibold,
+    color: "#0b0e14",
   },
 
   // Work mode explainer

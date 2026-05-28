@@ -613,12 +613,18 @@ const CLASSIFICATIONS: { value: TripClassification; label: string }[] = [
 
 export default function TripFormScreen() {
   const router = useRouter();
-  const { id } = useLocalSearchParams<{ id?: string }>();
+  const { id, mode: modeParam } = useLocalSearchParams<{ id?: string; mode?: string }>();
   const isEditing = !!id;
   const { user: currentUser } = useUser();
   const { showPaywall } = usePaywall();
 
-  const [mode, setMode] = useState<TripMode>(isEditing ? "editing" : "ready");
+  // Honor a `mode=manual` deep link (e.g. the dashboard first-trip nudge's
+  // "Add a past trip" CTA) so the user lands straight in manual entry rather
+  // than the live "Start Trip" flow. Live-tracking effects are gated on
+  // driving/arrived, so starting in manual is inert for them.
+  const [mode, setMode] = useState<TripMode>(
+    isEditing ? "editing" : modeParam === "manual" ? "manual" : "ready"
+  );
   const [loading, setLoading] = useState(true);
 
   // Location data
