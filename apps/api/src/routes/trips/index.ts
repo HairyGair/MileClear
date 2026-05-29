@@ -20,7 +20,7 @@ import { sendMilestonePush, sendAchievementPush } from "../../jobs/notifications
 import { logEvent } from "../../services/appEvents.js";
 import { advanceLastTripAt } from "../../services/userActivity.js";
 import { qualifyReferralOnFirstTrip } from "../../services/referral.js";
-import { looksLikePhantomTrip } from "../../lib/phantomTrip.js";
+import { looksLikePhantomTrip, hasRealMovementEvidence } from "../../lib/phantomTrip.js";
 import { resolveRouteDistance } from "../../services/routing.js";
 import { matchTripRoute, decodePolyline, isMatchPlausible } from "../../services/mapMatching.js";
 import { computeTripConfidence } from "../../services/tripConfidence.js";
@@ -332,6 +332,7 @@ export async function tripRoutes(app: FastifyInstance) {
       endedAt: tripData.endedAt,
       isManualEntry,
       coordinateCount: coordinates?.length ?? 0,
+      hasRealMovementEvidence: hasRealMovementEvidence(tripData.gpsQuality),
     });
 
     const tripPayload = {

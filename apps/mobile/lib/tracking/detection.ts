@@ -13,6 +13,7 @@ import {
   bestTraceDistance,
   computeTripQuality,
   filterTraceOutliers,
+  hasRealMovementEvidence,
 } from "@mileclear/shared";
 import { startLiveActivity, updateLiveActivity, endLiveActivity, endLiveActivityWithSummary, recoverLiveActivity } from "../liveActivity";
 import { getLiveActivityContext } from "../liveActivity/context";
@@ -906,7 +907,18 @@ async function _finalizeAutoTripInner(): Promise<void> {
   // misleading - drop it before it reaches sync. The server-side guard
   // in routes/trips/index.ts catches anything that does still slip
   // through (e.g. older builds still running).
-  if (filteredCoords.length < 3 && totalDistance >= 1.0) {
+  //
+  // EXCEPTION: if the device has independent evidence it genuinely moved
+  // (a dense raw trace mostly dropped for low accuracy on weak signal, or a
+  // successful road map-match), the sparseness is a GPS-quality artifact, not
+  // a fake chord. Keep the trip and let it sync - dropping it here is exactly
+  // what hid real weak-signal drives (golf-club case, audit Track A #4).
+  // Same shared rule the server uses, so the two guards never disagree.
+  if (
+    filteredCoords.length < 3 &&
+    totalDistance >= 1.0 &&
+    !hasRealMovementEvidence(tripQuality)
+  ) {
     logDetectionEvent("finalize_dropped_crow_flies", {
       distance: totalDistance,
       coords: filteredCoords.length,

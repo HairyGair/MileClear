@@ -438,6 +438,48 @@ export function computeTripQuality(
   };
 }
 
+/** Minimum raw fixes that prove the device tracked real movement even when
+ *  few survived accuracy filtering. The crow-flies phantom guard (client and
+ *  server) fires at < 3 KEPT coords; a raw trace this dense means the device
+ *  was actively logging position the whole drive - weak signal just dropped
+ *  most fixes for accuracy - so it is NOT a 2-point chord. */
+export const REAL_MOVEMENT_MIN_RAW_COORDS = 6;
+
+/**
+ * Single source of truth (shared by mobile finalize + the API trips route):
+ * does this trip have independent evidence of genuine movement, despite few
+ * coords surviving accuracy filtering? Used to rescue real sparse-GPS drives
+ * (weak signal, cell-tower 1000m fixes) from the crow-flies phantom flag -
+ * the golf-club loss, audit Track A #4/#5/#7.
+ *
+ * Tolerant of schema drift: accepts either a TripQuality object or the loose
+ * gpsQuality JSON blob the server stores, and returns false on any
+ * unrecognised shape (fail safe = treat as no evidence). It must NOT be used
+ * to suppress the walking signature - a stationary GPS-drift "walk" also
+ * produces many raw fixes, so raw count is not evidence of driving there.
+ */
+export function hasRealMovementEvidence(gpsQuality: unknown): boolean {
+  if (!gpsQuality || typeof gpsQuality !== "object") return false;
+  const q = gpsQuality as Record<string, unknown>;
+
+  // OSRM map-matched the trace onto real roads - impossible for a fake chord.
+  if (q.matchSucceeded === true) return true;
+  if (q.distanceSource === "match") return true;
+
+  // Device captured a dense raw trace; sparseness is accuracy filtering, not
+  // an absence of movement. TripQuality emits `rawCoords`; tolerate the
+  // `rawCount` alias used by the server's confidence extractor.
+  const rawCoords =
+    typeof q.rawCoords === "number"
+      ? q.rawCoords
+      : typeof q.rawCount === "number"
+        ? q.rawCount
+        : null;
+  if (rawCoords !== null && rawCoords >= REAL_MOVEMENT_MIN_RAW_COORDS) return true;
+
+  return false;
+}
+
 /**
  * Best-estimate trip distance using the full GPS trace.
  *

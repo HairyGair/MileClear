@@ -32,17 +32,31 @@ export interface PhantomCheckInput {
    *  and meaningful distance, the saved trip can only render as a single
    *  chord — almost always wrong data. */
   coordinateCount?: number;
+  /** True when the device has independent evidence it genuinely moved, even
+   *  though few coords survived accuracy filtering: it captured a dense raw
+   *  trace (many fixes dropped only for low accuracy, e.g. cell-tower 1000m
+   *  fixes on weak signal), or OSRM map-matched the trace to real roads.
+   *  This suppresses ONLY the crow-flies signature (sparse-but-far), never
+   *  the walking signature - a stationary GPS-drift "walk" also produces
+   *  many raw fixes, so raw count is not evidence of driving there.
+   *  Fixes genuine sparse drives being hidden as phantoms (golf-club case,
+   *  audit Track A #5/#7). */
+  hasRealMovementEvidence?: boolean;
 }
 
 export function looksLikePhantomTrip(args: PhantomCheckInput): boolean {
   if (args.isManualEntry) return false;
 
   // Crow-flies check fires regardless of duration/avg-speed. An auto trip
-  // with 0/1/2 coords and >=1 mile distance is structurally suspect.
+  // with 0/1/2 coords and >=1 mile distance is structurally suspect —
+  // UNLESS the device has independent evidence it really moved (dense raw
+  // trace or a successful road map-match), in which case the sparseness is a
+  // GPS-quality artifact of weak signal, not a fake chord.
   if (
     args.coordinateCount !== undefined &&
     args.coordinateCount < CROW_FLIES_MIN_COORDS &&
-    args.distanceMiles >= CROW_FLIES_MIN_DISTANCE_MILES
+    args.distanceMiles >= CROW_FLIES_MIN_DISTANCE_MILES &&
+    !args.hasRealMovementEvidence
   ) {
     return true;
   }
@@ -61,3 +75,8 @@ export function looksLikePhantomTrip(args: PhantomCheckInput): boolean {
   const avgMph = args.distanceMiles / hours;
   return avgMph < PHANTOM_MAX_AVG_MPH;
 }
+
+// Single source of truth lives in @mileclear/shared so the mobile finalize
+// guard and this server guard can never drift. Re-exported here so existing
+// imports from this module keep working.
+export { hasRealMovementEvidence } from "@mileclear/shared";
