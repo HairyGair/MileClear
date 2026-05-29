@@ -211,7 +211,21 @@ export async function tripRoutes(app: FastifyInstance) {
       include: { vehicle: true, shift: true },
     });
     if (existing) {
-      return reply.send({ data: existing });
+      // Audit fix #6 (29 May 2026): a previously-saved PHANTOM must NOT block a
+      // re-POST of the real drive. Phantoms are excluded from every user-facing
+      // read, so replacing one is always safe — and it recovers a genuine drive
+      // whose first capture was sparse (the native engine, especially early,
+      // can emit a sparse shape that gets phantom-flagged, then a fuller
+      // version later). Delete the phantom (+ its coords) and fall through to
+      // create the incoming trip normally. A genuine duplicate of a REAL trip
+      // still dedups as before.
+      if (existing.isPhantomTrip) {
+        await prisma.tripCoordinate.deleteMany({ where: { tripId: existing.id } }).catch(() => {});
+        await prisma.trip.delete({ where: { id: existing.id } }).catch(() => {});
+        logEvent("trip.phantom_superseded", userId, { phantomTripId: existing.id });
+      } else {
+        return reply.send({ data: existing });
+      }
     }
 
     // Server-side geocoding fallback: resolve addresses to coordinates if missing/zero
