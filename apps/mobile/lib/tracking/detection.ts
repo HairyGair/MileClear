@@ -2750,13 +2750,21 @@ async function getDetectionProfile(): Promise<string | null> {
  * (Anthony's own device went dark 22–28 May with daily drives). When the Exit
  * never fires, nothing wakes detection and trips vanish with no recovery.
  *
- * This subscription is the independent second leg. `pausesUpdatesAutomatically`
- * + AutomotiveNavigation let iOS idle it (no GPS, dark Dynamic Island, ~zero
- * battery) while the device is genuinely stationary, and resume the moment
- * driving motion begins — near-SLC semantics, the closest expo-location exposes.
- * The anchor geofence remains the precise, termination-surviving fast path; both
- * legs must fail for a drive to be missed. Trip capture is priority 1: a faint
- * occasional indicator beats silent total trip loss.
+ * This subscription is the independent second leg.
+ *
+ * ⚠️ 29 May 2026: `pausesUpdatesAutomatically: true` was WRONG. Anthony's
+ * diagnostics proved iOS pauses the subscription while parked and does NOT
+ * resume it when driving begins in the background — so the backstop fired zero
+ * events across an 11-min / 7.7km background drive and only "caught" it when he
+ * manually opened the app (which runs startDriveDetection's foreground check).
+ * That defeats the whole point. Switched to `pausesUpdatesAutomatically: false`
+ * so iOS keeps delivering background location and wakes detection the moment the
+ * device moves ~`BACKSTOP_DISTANCE_INTERVAL_M`. Cost: the location indicator
+ * shows while parked-and-app-alive (the dark-dot we removed 14 May) — but that
+ * is exactly the trade Anthony chose: trip capture is priority 1, a visible dot
+ * beats silent total trip loss. The true no-dot answer is a native SLC module
+ * (expo-location can't do significant-location-change); see native_tracking_module.
+ * The anchor geofence remains the precise, termination-surviving fast path.
  */
 async function startDetectionBackstopSubscription(): Promise<void> {
   await Location.startLocationUpdatesAsync(DETECTION_TASK_NAME, {
@@ -2764,7 +2772,9 @@ async function startDetectionBackstopSubscription(): Promise<void> {
     distanceInterval: BACKSTOP_DISTANCE_INTERVAL_M,
     deferredUpdatesInterval: 30000,
     activityType: Location.ActivityType.AutomotiveNavigation,
-    pausesUpdatesAutomatically: true,
+    // Continuous, not auto-paused — iOS doesn't reliably resume a paused
+    // background subscription on driving (see note above).
+    pausesUpdatesAutomatically: false,
     showsBackgroundLocationIndicator: false,
     foregroundService: {
       notificationTitle: "MileClear",
