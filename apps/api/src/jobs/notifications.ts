@@ -778,17 +778,31 @@ async function runDiagnosticScanJob(): Promise<void> {
     const taskRunning = status.taskRunning as boolean | undefined;
     const enabled = status.enabled as boolean | undefined;
     const autoRecording = status.autoRecordingActive as boolean | undefined;
-    // Post-anchor refactor (14 May 2026): a parked device intentionally stops
-    // the location task and relies on the anchor geofence Exit to wake it. So
-    // `!taskRunning` is normal when the device is legitimately anchored (live
-    // geofence + present anchor) — don't push "Drive detection paused" then.
-    // Older dumps lack these fields (undefined) → legitimatelyAnchored is
-    // false → the alert behaves exactly as before. Backward compatible.
-    const geofencingActive = status.geofencingActive as boolean | undefined;
-    const hasAnchor = status.hasAnchor as boolean | undefined;
-    const legitimatelyAnchored = geofencingActive === true && hasAnchor === true;
     const trackingState = status.trackingState as Array<{ key: string; value: string }> | undefined;
     const lastDrivingStr = trackingState?.find((s) => s.key === "last_driving_speed_at")?.value;
+
+    // "Drive detection stopped" — re-gated 29 May 2026. The old condition fired
+    // on the raw `taskRunning` flag, which is unreliable: both the anchored-skip
+    // and the backstop legitimately leave taskRunning=false while the device is
+    // parked. A 3-day analysis of the alert found ~44% were false (users were
+    // recording trips fine) and most "dark" hits were never-driven or
+    // permission-missing users (the latter already covered by
+    // permission_missing). So we now key off the OUTCOME, not the flag: a
+    // previously-active driver (>=3 lifetime auto-trips) with Always granted
+    // who has recorded no auto-trip in the last 4 days. The cheap dump flags
+    // gate the (slightly more expensive) trip counts so we only query for
+    // plausibly-stalled devices.
+    let captureStalled = false;
+    if (enabled === true && bgPerm === "granted" && taskRunning === false) {
+      const fourDaysAgo = new Date(Date.now() - 4 * 24 * 60 * 60 * 1000);
+      const [lifetimeAuto, recentAuto] = await Promise.all([
+        prisma.trip.count({ where: { userId: dump.userId, isManualEntry: false, isPhantomTrip: false } }),
+        prisma.trip.count({
+          where: { userId: dump.userId, isManualEntry: false, isPhantomTrip: false, createdAt: { gte: fourDaysAgo } },
+        }),
+      ]);
+      captureStalled = lifetimeAuto >= 3 && recentAuto === 0;
+    }
 
     // Check each alert type with cooldown
     const checks: Array<{
@@ -806,10 +820,12 @@ async function runDiagnosticScanJob(): Promise<void> {
         data: { action: "open_settings" },
       },
       {
-        condition: taskRunning === false && enabled === true && !legitimatelyAnchored,
+        // alertType kept for continuity (admin Alerts tab + dedup history);
+        // the meaning is now "capture stalled" — see captureStalled above.
+        condition: captureStalled,
         alertType: "alert.task_not_running",
-        title: "Drive detection paused",
-        body: "Open MileClear once to restart background tracking.",
+        title: "We haven't logged a trip in a few days",
+        body: "Tracking may have stopped. Open MileClear to check auto-detection is on.",
         data: { action: "open_dashboard" },
       },
     ];
