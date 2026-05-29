@@ -503,6 +503,14 @@ export function setupNotificationResponseHandler(): void {
         router.navigate("/refer" as any);
         break;
 
+      case "open_diagnostics":
+        // Detection-health alerts (capture stalled, background location lost).
+        // Lands on the Drive Detection diagnostics screen, which shows live
+        // detection status + a "Restart detection" button + a Settings
+        // shortcut — i.e. the page where the user can actually act on it.
+        router.navigate("/drive-detection-diagnostics" as any);
+        break;
+
       case "open_community":
         // Discord invite push (22 May 2026 broadcast). Lands on the
         // in-app Community screen which explains who's there before
@@ -513,6 +521,20 @@ export function setupNotificationResponseHandler(): void {
       case "open_admin_health":
         router.navigate("/admin-health" as any);
         break;
+
+      case "open_admin_billing": {
+        // Admin-only billing lifecycle alert (orphan, payment failed, refund,
+        // revoke, new sub). Deep-link to the affected user's admin detail when
+        // we have their id — that's where the admin acts (premium toggle, see
+        // subscription state) — else the admin analytics tab.
+        const billingUserId = data?.userId as string | undefined;
+        if (billingUserId) {
+          router.navigate(`/admin-user-detail?userId=${billingUserId}` as any);
+        } else {
+          router.navigate("/(tabs)/admin");
+        }
+        break;
+      }
 
       case "open_vehicle": {
         // Vehicle expiry reminder (MOT / tax). Opens the vehicle edit form

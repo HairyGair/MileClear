@@ -825,8 +825,11 @@ async function runDiagnosticScanJob(): Promise<void> {
         condition: captureStalled,
         alertType: "alert.task_not_running",
         title: "We haven't logged a trip in a few days",
-        body: "Tracking may have stopped. Open MileClear to check auto-detection is on.",
-        data: { action: "open_dashboard" },
+        body: "Tracking may have stopped. Tap to check your detection status and restart it.",
+        // Deep-link to the Drive Detection diagnostics screen — the page that
+        // shows live status + a Restart detection button, i.e. where the user
+        // can actually act on this.
+        data: { action: "open_diagnostics" },
       },
     ];
 
