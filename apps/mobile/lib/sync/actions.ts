@@ -7,6 +7,7 @@
 import { randomUUID } from "expo-crypto";
 import type { SQLiteBindValue } from "expo-sqlite";
 import { getDatabase } from "../db/index";
+import { ApiError } from "../api/apiError";
 import { enqueueSync } from "./queue";
 import {
   createTrip as apiCreateTrip,
@@ -39,12 +40,21 @@ import {
 import type { CreateSavedLocationData, UpdateSavedLocationData } from "../api/savedLocations";
 
 function isNetworkError(err: unknown): boolean {
-  if (err instanceof TypeError && err.message.includes("Network request failed")) {
-    return true;
-  }
-  if (err instanceof Error && err.message.includes("Network request failed")) {
-    return true;
-  }
+  if (!(err instanceof Error)) return false;
+  const msg = err.message;
+  // React Native's raw fetch failure...
+  if (msg.includes("Network request failed")) return true;
+  // ...and the messages apiRequest() itself throws when the network is
+  // unreachable. The sync layer used to only know "Network request failed",
+  // so a token-refresh-network-failure (thrown as "Network error" by
+  // apiRequest) was misclassified as a validation error and the captured
+  // trip was DELETED + re-thrown. That is what lost real drives on weak
+  // signal (e.g. the golf-club finalize). Recognise our own messages so
+  // transient failures keep the local row and queue for retry.
+  if (msg.includes("Network error")) return true;
+  if (msg.includes("REFRESH_NETWORK_ERROR")) return true;
+  if (msg.includes("Failed to fetch")) return true;
+  if (msg.includes("timed out") || msg.includes("timeout")) return true;
   return false;
 }
 
@@ -62,6 +72,20 @@ function isLocalSystemError(err: unknown): boolean {
     msg.includes("Session expired") ||
     msg.includes("REFRESH_NETWORK_ERROR")
   );
+}
+
+/** The ONLY safe reason to discard a captured local row: the server
+ *  definitively rejected the payload as malformed (a 4xx client error,
+ *  excluding 429 rate-limit which is retryable). Anything else - network
+ *  blips, token-refresh failures, 5xx, timeouts, unknown errors - must keep
+ *  the local row and queue for retry. Losing a real captured drive is far
+ *  worse than a duplicate or a stuck queue item (offline-first, and trip
+ *  capture is product priority 1). */
+function isDefiniteClientRejection(err: unknown): boolean {
+  if (err instanceof ApiError) {
+    return err.statusCode >= 400 && err.statusCode < 500 && err.statusCode !== 429;
+  }
+  return false;
 }
 
 // ─── Trips ───────────────────────────────────────────────────────────────────
@@ -135,15 +159,19 @@ export async function syncCreateTrip(data: CreateTripData) {
     }
     return result;
   } catch (err) {
-    if (isNetworkError(err) || isLocalSystemError(err)) {
-      // Network failure or local system error (e.g. SecureStore blocked by
-      // iOS in background) — keep the local row and queue for retry.
-      await enqueueSync("trip", localId, "create", data as unknown as Record<string, unknown>);
-      return null;
+    // Offline-first, trip-capture-priority-1: keep the captured row by
+    // DEFAULT. Only discard it when the server definitively rejected the
+    // payload as malformed (a real 4xx). Network failures, token-refresh
+    // network failures (thrown as "Network error"), SecureStore-in-
+    // background errors, 5xx, timeouts and any unrecognised error all keep
+    // the local row and queue for retry — a real drive is never lost to a
+    // transient blip. This is the fix for the golf-club trip loss.
+    if (isDefiniteClientRejection(err)) {
+      await db.runAsync("DELETE FROM trips WHERE id = ?", [localId]);
+      throw err;
     }
-    // API validation error (4xx) — clean up local row and re-throw
-    await db.runAsync("DELETE FROM trips WHERE id = ?", [localId]);
-    throw err;
+    await enqueueSync("trip", localId, "create", data as unknown as Record<string, unknown>);
+    return null;
   }
 }
 
