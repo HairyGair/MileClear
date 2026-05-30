@@ -7,6 +7,13 @@ import { apiRequest } from "../api/index";
 import { isOnline, onConnectivityChange } from "../network";
 import { getPendingCount, MAX_RETRIES } from "./queue";
 import { backfillGhostTrips } from "./backfill";
+import {
+  isNetworkError,
+  isLocalSystemError,
+  isSessionExpired,
+  isRateLimited,
+  isDefiniteClientRejection,
+} from "./errors";
 
 export type SyncState = "idle" | "syncing" | "error";
 
@@ -204,45 +211,49 @@ export async function processSyncQueue(): Promise<void> {
           `);
         }
       } catch (err) {
-        const isNetwork =
-          err instanceof TypeError && err.message.includes("Network request failed");
-
-        if (isNetwork) {
-          // Network failure — stop processing rest (they'll all fail too)
+        // PRESERVE-AND-STOP: the network was unreachable (including the
+        // token-refresh-network-failure that apiRequest throws as "Network
+        // error"), a local system error (SecureStore in background), the
+        // session expired, or we're being rate-limited. None of these mean
+        // the item is bad - the rest of the batch will hit the same wall.
+        // Break WITHOUT touching retry_count. This is the load-bearing fix:
+        // the old code only knew `TypeError: Network request failed`, so an
+        // offline pass on an expired token fell through to the "transient"
+        // branch and incremented retry_count on up to BATCH_SIZE items per
+        // pass - parking real trips as permanently_failed after a few offline
+        // app-opens (the weeks-stuck / never-appears queue bug).
+        if (
+          isNetworkError(err) ||
+          isLocalSystemError(err) ||
+          isSessionExpired(err) ||
+          isRateLimited(err)
+        ) {
           break;
         }
 
-        const isSessionExpired =
-          err instanceof Error && /Session expired/.test(err.message);
+        const errMsg = err instanceof Error ? err.message : "Unknown error";
+        const now2 = new Date().toISOString();
 
-        if (isSessionExpired) {
-          // Session expired — stop processing, user needs to re-authenticate
-          // Leave items as pending so they sync after re-login
-          break;
-        }
-
-        const is4xx =
-          err instanceof Error && /HTTP 4\d\d/.test(err.message);
-
-        if (is4xx) {
-          // Permanent failure — stop retrying but preserve local data
-          // The user's data stays in the local table for manual review/retry
+        if (isDefiniteClientRejection(err)) {
+          // The server definitively rejected THIS payload (a real 4xx, not
+          // 429). Retrying won't help - park it but keep the local row for
+          // manual review. Other items in the batch may be fine, so continue.
           await db.runAsync(
             "UPDATE sync_queue SET status = 'permanently_failed', last_error = ?, updated_at = ? WHERE id = ?",
-            [err instanceof Error ? err.message : "Unknown error", new Date().toISOString(), item.id]
+            [errMsg, now2, item.id]
           );
-        } else {
-          // Transient failure — increment retry count. When we hit the
-          // retry ceiling, transition to permanently_failed so the row is
-          // properly accounted for instead of lingering as a 'failed' row
-          // that the engine silently filters out.
-          const newRetry = item.retry_count + 1;
-          const newStatus = newRetry >= MAX_RETRIES ? "permanently_failed" : "failed";
-          await db.runAsync(
-            "UPDATE sync_queue SET status = ?, retry_count = ?, last_error = ?, updated_at = ? WHERE id = ?",
-            [newStatus, newRetry, err instanceof Error ? err.message : "Unknown error", new Date().toISOString(), item.id]
-          );
+          continue;
         }
+
+        // Genuine transient failure (5xx, or anything unrecognised). Increment
+        // retry count; at the ceiling, park as permanently_failed so it's
+        // accounted for instead of lingering as a silently-filtered 'failed'.
+        const newRetry = item.retry_count + 1;
+        const newStatus = newRetry >= MAX_RETRIES ? "permanently_failed" : "failed";
+        await db.runAsync(
+          "UPDATE sync_queue SET status = ?, retry_count = ?, last_error = ?, updated_at = ? WHERE id = ?",
+          [newStatus, newRetry, errMsg, now2, item.id]
+        );
       }
     }
 
@@ -294,6 +305,36 @@ export function onSyncStateChange(listener: SyncStateListener): () => void {
 const PERIODIC_RETRY_MS = 60_000;
 let retryTimer: ReturnType<typeof setInterval> | null = null;
 
+/**
+ * One-time-per-cold-start recovery for items the OLD engine wrongly parked.
+ * A network failure on an expired token used to be misclassified as transient
+ * and burn retry_count until the row hit permanently_failed - so real trips
+ * died purely from weak signal. Revive rows whose last_error matches a
+ * network / refresh / session / timeout signature; reset them to pending with
+ * a fresh retry budget. Server-rejected rows (4xx/5xx messages) don't match
+ * and stay parked. Idempotent and cheap - a still-offline revived item just
+ * breaks again next pass without burning a retry under the new logic.
+ */
+async function reviveNetworkParkedItems(): Promise<void> {
+  const db = await getDatabase();
+  await db.runAsync(
+    `UPDATE sync_queue
+        SET status = 'pending', retry_count = 0, updated_at = ?
+      WHERE (status = 'permanently_failed' OR (status = 'failed' AND retry_count >= ?))
+        AND last_error IS NOT NULL
+        AND (
+          last_error LIKE '%Network error%' OR
+          last_error LIKE '%Network request failed%' OR
+          last_error LIKE '%REFRESH_NETWORK_ERROR%' OR
+          last_error LIKE '%Failed to fetch%' OR
+          last_error LIKE '%timed out%' OR
+          last_error LIKE '%timeout%' OR
+          last_error LIKE '%Session expired%'
+        )`,
+    [new Date().toISOString(), MAX_RETRIES]
+  );
+}
+
 async function periodicTick() {
   try {
     const pending = await getPendingCount();
@@ -306,18 +347,31 @@ async function periodicTick() {
 }
 
 export function startAutoSync(): () => void {
-  // Sweep ghost trips (local-only rows with no queued CREATE) into the queue
-  // before the first sync pass, then kick off processing. Idempotent - safe
-  // to run on every cold start because it skips trips that already have a
-  // CREATE row in flight.
-  backfillGhostTrips()
-    .catch(() => {
-      // Backfill failures shouldn't block sync. If it errored, the next
-      // cold start tries again.
-    })
-    .finally(() => {
-      processSyncQueue();
-    });
+  // Recover items the OLD engine wrongly parked. Before this fix, an offline
+  // pass on an expired token misclassified "Network error" as a transient
+  // failure and burned retry_count on every item, so real trips ended up as
+  // permanently_failed (or retry-exhausted) purely because of weak signal -
+  // never retried again. Revive exactly those (last_error matches a network /
+  // refresh / session / timeout signature) so they get a fair retry now.
+  // Genuinely-bad items (4xx, 5xx server messages) don't match and stay
+  // parked. Cheap, idempotent: a revived item that's still offline simply
+  // breaks again next pass without burning a retry.
+  // Sequence: revive wrongly-parked items, then sweep ghost trips (local-only
+  // rows with no queued CREATE) into the queue, then kick off the first pass.
+  // Each step is best-effort and must not block the next.
+  (async () => {
+    try {
+      await reviveNetworkParkedItems();
+    } catch {
+      // Recovery is best-effort; the next cold start retries.
+    }
+    try {
+      await backfillGhostTrips();
+    } catch {
+      // Backfill failures shouldn't block sync. Next cold start tries again.
+    }
+    processSyncQueue();
+  })();
 
   // Process when connectivity changes to online
   connectivityUnsub = onConnectivityChange((online) => {

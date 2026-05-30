@@ -122,3 +122,66 @@ describe("processSyncQueue cascade after a create syncs", () => {
     expect(payloadRewriteCall).toBeDefined();
   });
 });
+
+describe("processSyncQueue error classification (preserve vs park)", () => {
+  const queueItem = (over: Record<string, unknown> = {}) => ({
+    id: "q1",
+    entity_type: "trip",
+    entity_id: "local-1",
+    action: "create",
+    payload: JSON.stringify({ startLat: 1, startLng: 2, distanceMiles: 3 }),
+    status: "pending",
+    retry_count: 0,
+    created_at: "2026-05-30T07:00:00.000Z",
+    ...over,
+  });
+
+  // The load-bearing regression: a network failure (incl. apiRequest's own
+  // "Network error" from a 401-refresh-network-fail) must NOT increment
+  // retry_count. The old engine burned retries on every offline pass, parking
+  // real trips as permanently_failed - the weeks-stuck / never-appears bug.
+  it("does NOT touch retry_count on a network error", async () => {
+    mocks.db.getAllAsync.mockResolvedValueOnce([queueItem()]);
+    mocks.apiRequest.mockRejectedValueOnce(new Error("Network error"));
+
+    await processSyncQueue();
+
+    const mutated = mocks.db.runAsync.mock.calls.find((c: unknown[]) =>
+      /UPDATE sync_queue SET status/.test(String(c[0]))
+    );
+    expect(mutated).toBeUndefined(); // broke out, item preserved as-is
+  });
+
+  it("parks a real 4xx as permanently_failed", async () => {
+    const { ApiError } = await import("../../api/apiError");
+    mocks.db.getAllAsync.mockResolvedValueOnce([queueItem()]);
+    mocks.apiRequest.mockRejectedValueOnce(
+      new ApiError({ code: "BAD", message: "bad", statusCode: 400, retryable: false })
+    );
+
+    await processSyncQueue();
+
+    const parked = mocks.db.runAsync.mock.calls.find(
+      (c: unknown[]) =>
+        /UPDATE sync_queue SET status = 'permanently_failed'/.test(String(c[0]))
+    );
+    expect(parked).toBeDefined();
+  });
+
+  it("increments retry_count on a 5xx transient error", async () => {
+    const { ApiError } = await import("../../api/apiError");
+    mocks.db.getAllAsync.mockResolvedValueOnce([queueItem()]);
+    mocks.apiRequest.mockRejectedValueOnce(
+      new ApiError({ code: "INTERNAL", message: "boom", statusCode: 500, retryable: true })
+    );
+
+    await processSyncQueue();
+
+    const retried = mocks.db.runAsync.mock.calls.find((c: unknown[]) => {
+      const sql = String(c[0]);
+      const args = c[1] as unknown[];
+      return /UPDATE sync_queue SET status = \?, retry_count = \?/.test(sql) && args[1] === 1;
+    });
+    expect(retried).toBeDefined();
+  });
+});
