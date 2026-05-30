@@ -2093,7 +2093,46 @@ try {
         "SELECT value FROM tracking_state WHERE key = 'auto_recording_active'"
       );
       if (recording?.value !== "1") {
-        return BackgroundFetch.BackgroundFetchResult.NoData;
+        // Not recording. This is the ONLY detection leg that survives app
+        // termination (registered startOnBoot:true, stopOnTerminate:false), so
+        // it's the safety net for exactly the failure that lost Anthony's
+        // trips: iOS killed the app, the backstop subscription died with it,
+        // and the anchor geofence silently never delivered Exit. Previously
+        // this just returned NoData and the missed drive vanished.
+        //
+        // Now: force-refresh the (possibly dead) geofence, then check whether
+        // the device has driven away from the parked anchor. If so, enter
+        // watch mode — which starts a live GPS subscription and captures the
+        // ongoing drive even though we missed the live start.
+        try {
+          const watching = await db.getFirstAsync<{ value: string }>(
+            "SELECT value FROM tracking_state WHERE key = 'watch_mode_active'"
+          );
+          if (watching?.value !== "1") {
+            const geo = await ensureAnchorGeofenceArmed();
+            let loc = await Location.getLastKnownPositionAsync({
+              maxAge: 2 * 60 * 1000,
+              requiredAccuracy: GPS_ACCURACY_THRESHOLD,
+            });
+            logDetectionEvent("background_fetch_detection_check", {
+              geofenceArmed: geo.active,
+              hadCachedFix: !!loc,
+            }).catch(() => {});
+            if (!loc) {
+              loc = await Location.getCurrentPositionAsync({
+                accuracy: Location.Accuracy.Balanced,
+              }).catch(() => null);
+            }
+            if (loc) {
+              await maybeCatchMissedAnchorExit(db, loc);
+            }
+          }
+        } catch (e) {
+          logDetectionEvent("background_fetch_missed_exit_error", {
+            error: e instanceof Error ? e.message.slice(0, 120) : "unknown",
+          }).catch(() => {});
+        }
+        return BackgroundFetch.BackgroundFetchResult.NewData;
       }
 
       const lastDriving = await db.getFirstAsync<{ value: string }>(

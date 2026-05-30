@@ -48,6 +48,12 @@ import { enterWatchMode, logDetectionEvent } from "../tracking/detection";
 
 const GEOFENCE_TASK_NAME = "mileclear-geofence-monitor";
 
+// How long before a still-"active" anchor region is force re-registered to
+// defeat iOS's silently-dead-region failure (reports active, delivers no Exit).
+// Short enough that a stale region is refreshed within a normal day's app use,
+// long enough to avoid churning Core Location on every foreground.
+const GEOFENCE_REFRESH_MS = 60 * 60 * 1000; // 1 hour
+
 function haversine(lat1: number, lng1: number, lat2: number, lng2: number): number {
   const R = 3958.8;
   const dLat = ((lat2 - lat1) * Math.PI) / 180;
@@ -279,14 +285,34 @@ export async function ensureAnchorGeofenceArmed(): Promise<{
   try {
     active = await Location.hasStartedGeofencingAsync(GEOFENCE_TASK_NAME);
   } catch {}
-  if (active) return { hasAnchor: true, active: true };
 
-  // Anchor exists but iOS isn't monitoring it — re-arm and re-check.
+  // CRITICAL: do NOT trust active === true. The dominant real-world failure is
+  // iOS accepting the region (hasStartedGeofencingAsync → true) yet silently
+  // never delivering the Exit — Anthony's device went dark 22-28 May AND again
+  // 30 May with the geofence reporting active:true the whole time and zero
+  // Exits across daily drives. A region that's been registered for a while is
+  // the prime suspect. Force a fresh re-registration when it's gone stale,
+  // even if iOS claims it's active — re-registering resets Core Location's
+  // monitoring and clears the dead-region state. This is the fix for "armed
+  // but never fires".
+  let stale = !active;
+  if (active) {
+    const reg = await db.getFirstAsync<{ value: string }>(
+      "SELECT value FROM tracking_state WHERE key = 'geofence_registered_at'"
+    );
+    const lastReg = reg ? parseInt(reg.value, 10) : 0;
+    if (!Number.isFinite(lastReg) || Date.now() - lastReg > GEOFENCE_REFRESH_MS) {
+      stale = true;
+    }
+  }
+  if (active && !stale) return { hasAnchor: true, active: true };
+
+  // Not monitoring, or monitoring a possibly-dead stale region — re-arm fresh.
   try {
     await registerGeofences();
     active = await Location.hasStartedGeofencingAsync(GEOFENCE_TASK_NAME);
   } catch {}
-  logDetectionEvent("anchor_geofence_rearm_attempt", { active }).catch(() => {});
+  logDetectionEvent("anchor_geofence_rearm_attempt", { active, forcedRefresh: stale }).catch(() => {});
   return { hasAnchor: true, active };
 }
 
