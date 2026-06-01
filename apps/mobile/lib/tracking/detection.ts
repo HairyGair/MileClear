@@ -107,6 +107,7 @@ const QUICK_TRIP_LIVE_COORD_MS = 20 * 60 * 1000; // 20 min - a breadcrumb this r
 const BACKGROUND_FETCH_INTERVAL_S = 15 * 60; // 15 minutes - iOS treats as a hint, actual cadence varies
 const COOLDOWN_MS = 20 * 60 * 1000; // 20 minutes
 const BUFFER_MAX_AGE_MS = 30 * 60 * 1000; // 30 minutes
+const SESSION_GAP_MS = 5 * 60 * 1000; // 5 min gap between buffered coords = a prior-trip boundary; below this it's one continuous drive
 const SPEED_THRESHOLD_MS = DRIVING_SPEED_THRESHOLD_MPH * 0.44704; // mph to m/s
 const FAST_GATE_SPEED_MS = 25 * 0.44704; // 25 mph - bypass consecutive detection gate
 const STOP_TIMEOUT_MS = 10 * 60 * 1000; // 10 minutes - trip ends after this idle period (covers fuel stops, drive-throughs)
@@ -1944,26 +1945,46 @@ try {
       try {
         await db.runAsync("DELETE FROM tracking_state WHERE key = 'driving_detection_count'");
 
-        // Prune stale residue from prior trips, but keep the legitimate
-        // pre-promotion buffer that captures the slow residential-streets
-        // leg of THIS drive. If watch mode is active, watch_mode_started_at
-        // is the moment the user crossed their departure-anchor radius —
-        // every coord since then is real driving and must be preserved.
-        // Without that preservation, Norman's trips appear starting mid-A1
-        // because the 15-20 minutes of slow residential driving gets
-        // deleted at promotion time.
+        // Prune stale residue from prior trips while preserving the FULL
+        // continuous track of THIS drive. The old cutoff used
+        // watch_mode_started_at — correct only on the geofence-Exit path,
+        // where watch mode starts AT the anchor. On the backstop_missed_exit
+        // path watch_mode_started_at is set hundreds of metres into the drive
+        // (the backstop catches at its 500m interval), so pruning there
+        // deleted the real early driving. Anthony 1 June: a Lakeside->Home
+        // drive recorded only the last 0.55mi because 7 buffered start coords
+        // were pruned at watch_mode_start.
         //
-        // If watch mode isn't active (direct detection without anchor exit),
-        // fall back to the original 60-second cutoff to handle the residue
-        // case — Norman's earlier Kingston Park bug, David Hall's Saturday
-        // trip carrying 5-minute-old leftovers from a missed finalize.
-        const watchStartedAtRow = await db.getFirstAsync<{ value: string }>(
-          "SELECT value FROM tracking_state WHERE key = 'watch_mode_started_at'"
+        // Instead: keep the continuous run ending at the newest buffered coord
+        // and prune only coords separated from it by a SESSION_GAP (a genuine
+        // prior-trip boundary — e.g. David Hall's leftover residue from a
+        // missed finalize) or older than the buffer max age.
+        const buffered = await db.getAllAsync<{ recorded_at: string }>(
+          "SELECT recorded_at FROM detection_coordinates ORDER BY recorded_at ASC"
         );
-        const watchStartedAtMs = watchStartedAtRow ? parseInt(watchStartedAtRow.value, 10) : null;
-        const cutoffMs = watchStartedAtMs && Number.isFinite(watchStartedAtMs)
-          ? watchStartedAtMs
-          : Date.now() - 60_000;
+        let cutoffMs = Date.now();
+        let cutoffSource = "no_buffer";
+        if (buffered.length > 0) {
+          let sessionStartMs = new Date(buffered[buffered.length - 1].recorded_at).getTime();
+          cutoffSource = "continuous_run";
+          for (let i = buffered.length - 1; i > 0; i--) {
+            const cur = new Date(buffered[i].recorded_at).getTime();
+            const prev = new Date(buffered[i - 1].recorded_at).getTime();
+            if (!Number.isFinite(cur) || !Number.isFinite(prev)) break;
+            if (cur - prev > SESSION_GAP_MS) {
+              cutoffSource = "session_gap";
+              break; // everything before this gap is a prior session
+            }
+            sessionStartMs = prev;
+          }
+          // Absolute floor — never carry coords older than the buffer max age.
+          const ageFloorMs = Date.now() - BUFFER_MAX_AGE_MS;
+          if (ageFloorMs > sessionStartMs) {
+            sessionStartMs = ageFloorMs;
+            cutoffSource = "age_floor";
+          }
+          cutoffMs = sessionStartMs;
+        }
         const pruneCutoff = new Date(cutoffMs).toISOString();
         const pruned = await db.runAsync(
           "DELETE FROM detection_coordinates WHERE recorded_at < ?",
@@ -1972,7 +1993,7 @@ try {
         if (pruned.changes > 0) {
           logDetectionEvent("pre_detection_pruned", {
             droppedCoords: pruned.changes,
-            cutoffSource: watchStartedAtMs ? "watch_mode_start" : "60s_fallback",
+            cutoffSource,
             cutoffAtMs: cutoffMs,
           }).catch(() => {});
         }
