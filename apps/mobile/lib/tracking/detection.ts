@@ -2390,7 +2390,31 @@ export async function startDriveDetection(): Promise<void> {
  * recording and Live Activity, producing "0 mi · 35m" phantoms whenever
  * indoor GPS drift fired a false geofence exit.
  */
+let watchModeEntering = false;
+
 export async function enterWatchMode(reason: string): Promise<void> {
+  // Synchronous re-entrancy guard. Two triggers can fire in the SAME tick -
+  // the anchor_exit geofence handler AND the backstop_missed_exit catch both
+  // detect the departure (seen 31 May 13:20:24: two watch_mode_entered in one
+  // second). Without this, both run upgradeDetectionAccuracy's stop->start
+  // concurrently; the calls interleave, one's stop kills the other's start,
+  // and the location task is left DEAD - no coords delivered, watch never
+  // promotes to recording, 90-min silent watch then timeout, drive lost. Set
+  // the flag synchronously BEFORE any await so the second same-tick caller
+  // bails immediately.
+  if (watchModeEntering) {
+    logDetectionEvent("watch_mode_entry_deduped", { reason }).catch(() => {});
+    return;
+  }
+  watchModeEntering = true;
+  try {
+    await enterWatchModeImpl(reason);
+  } finally {
+    watchModeEntering = false;
+  }
+}
+
+async function enterWatchModeImpl(reason: string): Promise<void> {
   // Same guards as forceStartRecording — don't override user disable, no
   // permission, or active shift.
   const enabled = await isDriveDetectionEnabled();
@@ -2420,6 +2444,23 @@ export async function enterWatchMode(reason: string): Promise<void> {
   );
   if (recording?.value === "1") {
     logDetectionEvent("watch_mode_skipped", { reason, cause: "already_recording" }).catch(() => {});
+    return;
+  }
+
+  // Already watching from an earlier trigger this drive — just refresh the
+  // timeout and return. Do NOT re-run upgradeDetectionAccuracy: re-running its
+  // stop->start is exactly what races the location task dead when a second
+  // trigger (anchor_exit vs backstop_missed_exit, or a later geofence ping)
+  // arrives. The subscription is already live; leave it alone.
+  const alreadyWatching = await db.getFirstAsync<{ value: string }>(
+    "SELECT value FROM tracking_state WHERE key = 'watch_mode_active'"
+  );
+  if (alreadyWatching?.value === "1") {
+    await db.runAsync(
+      "INSERT OR REPLACE INTO tracking_state (key, value) VALUES ('watch_mode_started_at', ?)",
+      [Date.now().toString()]
+    );
+    logDetectionEvent("watch_mode_timer_refreshed", { reason }).catch(() => {});
     return;
   }
 
@@ -2642,7 +2683,27 @@ export async function setDriveDetectionEnabled(enabled: boolean): Promise<void> 
  * Never throws. Failures are logged via recording_upgrade_failed diagnostic
  * events for admin review.
  */
+let upgradeInProgress = false;
+
 export async function upgradeDetectionAccuracy(): Promise<void> {
+  // Serialize upgrades. The stop->start inside tryUpgrade() is destructive:
+  // two concurrent calls interleave and one's stop kills the other's start,
+  // leaving the location task dead. If an upgrade is already running, skip -
+  // it targets the same BestForNavigation mode, so the in-flight call achieves
+  // the same result. Set synchronously before any await.
+  if (upgradeInProgress) {
+    logDetectionEvent("recording_upgrade_skipped_concurrent", {}).catch(() => {});
+    return;
+  }
+  upgradeInProgress = true;
+  try {
+    await runUpgradeWithRetry();
+  } finally {
+    upgradeInProgress = false;
+  }
+}
+
+async function runUpgradeWithRetry(): Promise<void> {
   const firstAttempt = await tryUpgrade();
   if (firstAttempt.ok) return;
 
