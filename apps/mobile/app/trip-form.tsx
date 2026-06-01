@@ -136,6 +136,13 @@ type TripMode = "ready" | "driving" | "arrived" | "saving" | "manual" | "editing
 
 const QUICK_TRIP_KEY = "quick_trip_start";
 
+// A straight chord longer than this between consecutive breadcrumbs is a GPS
+// gap (app was backgrounded/suspended and the subscription stopped delivering).
+// At 50m background sampling, normal points are <=50m apart, so >=0.2mi (~320m)
+// is a real dropout worth routing through roads instead of measuring as a chord.
+const GAP_FILL_THRESHOLD_MILES = 0.2;
+const MAX_GAP_FILLS = 8; // cap server route lookups per save
+
 interface QuickTripStart {
   lat: number;
   lng: number;
@@ -1336,14 +1343,37 @@ export default function TripFormScreen() {
       }
       breadcrumbsRef.current = crumbs;
 
-      // Calculate distance from merged breadcrumb trail
+      // Calculate distance from merged breadcrumb trail. Where a GPS gap left
+      // a long straight chord between consecutive points (app backgrounded /
+      // suspended, subscription stopped delivering), the chord undercounts the
+      // real winding-road distance. Fill those gaps with the road route via
+      // GraphHopper (server, cached) so the saved mileage is accurate
+      // immediately - not only after the server's async full-trace map-match
+      // lands. Offline-safe: a failed lookup falls back to the chord, and we
+      // never use a routed distance shorter than what GPS already proved.
       let trailDistance = 0;
+      let gapsFilled = 0;
       if (crumbs.length >= 2) {
         for (let i = 1; i < crumbs.length; i++) {
-          trailDistance += haversineDistance(
-            crumbs[i - 1].lat, crumbs[i - 1].lng,
-            crumbs[i].lat, crumbs[i].lng
-          );
+          const prev = crumbs[i - 1];
+          const cur = crumbs[i];
+          const seg = haversineDistance(prev.lat, prev.lng, cur.lat, cur.lng);
+          if (seg >= GAP_FILL_THRESHOLD_MILES && gapsFilled < MAX_GAP_FILLS) {
+            const routed = await fetchServerRouteDistance({
+              startLat: prev.lat,
+              startLng: prev.lng,
+              endLat: cur.lat,
+              endLng: cur.lng,
+            }).catch(() => null);
+            if (routed && routed.distanceMiles >= seg && routed.routeToHaversineRatio <= 5) {
+              trailDistance += routed.distanceMiles;
+              gapsFilled++;
+            } else {
+              trailDistance += seg;
+            }
+          } else {
+            trailDistance += seg;
+          }
         }
       }
       // Fall back to straight-line if trail is too short
