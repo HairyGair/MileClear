@@ -793,17 +793,31 @@ async function _finalizeAutoTripInner(): Promise<void> {
     return;
   }
 
-  // Trim trailing stationary coordinates to find the true trip end.
-  // After the user parks, GPS pings continue at the same location - these
-  // inflate the end time to when the trip was finalized (or when the app
-  // was next opened for stale recordings) instead of when driving actually stopped.
+  // Trim the trailing tail to find the true trip end. Two ways a recording
+  // over-runs the real arrival:
+  //   1. Stationary drift — after parking, GPS keeps pinging the same spot.
+  //   2. A late absorbed ping — when the app is backgrounded on arrival the
+  //      stop-timeout can't fire, so the recording stays open and a single
+  //      fix captured hours later (next movement / app wake) gets glued on.
+  //      That ping is >30m from the cluster, so the old movement-only check
+  //      wrongly treated it as the endpoint, inflating duration by hours
+  //      (Anthony 1 June: a ~28-min school run showed 07:32->14:14).
+  // Fix: a coord separated from the previous one by more than the stop timeout
+  // sits across a parked gap — the trip ended at the PREVIOUS coord; trim it
+  // and keep looking. Otherwise, the last coord with real movement is the end.
   let endIdx = allCoords.length - 1;
   for (let i = allCoords.length - 1; i > 0; i--) {
     const curr = allCoords[i];
     const prev = allCoords[i - 1];
+    const gapMs = new Date(curr.recorded_at).getTime() - new Date(prev.recorded_at).getTime();
+    if (Number.isFinite(gapMs) && gapMs > STOP_TIMEOUT_MS) {
+      // Parked gap before this coord — the journey ended at prev. Drop this
+      // coord (and any later ones already dropped) and continue walking back.
+      endIdx = i - 1;
+      continue;
+    }
     const distM = haversineMeters(prev.lat, prev.lng, curr.lat, curr.lng);
     const speed = curr.speed != null && curr.speed > 0 ? curr.speed : 0;
-
     // This coordinate represents real movement - use it as the trip endpoint
     if (speed >= CONTINUE_SPEED_MS || distM > 30) {
       endIdx = i;

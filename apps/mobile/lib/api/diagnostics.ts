@@ -135,21 +135,28 @@ export async function uploadDiagnosticDump(): Promise<void> {
       (row) => !STRIPPED_KEYS.has(row.key)
     );
 
-    // Compute a simple verdict string without importing the full
-    // computeHealth UI logic. Just check the critical flags.
-    // Post-28-May backstop refactor: a parked device keeps a low-power
-    // subscription alive (the "backstop" profile, possibly auto-paused by iOS),
-    // so taskRunning is normally TRUE even when parked — `!taskRunning` is a
-    // genuine problem again. legitimatelyAnchored is kept as a belt-and-braces
-    // suppressor for the brief window where iOS has paused the backstop and an
-    // armed anchor geofence is the active wake signal.
-    const legitimatelyAnchored = diagnostics.geofencingActive && diagnostics.hasAnchor;
+    // Verdict. The previous logic flagged "error" whenever taskRunning was
+    // false — but under the backstop model taskRunning:false is the NORMAL
+    // parked/backgrounded state (the subscription restarts on foreground and
+    // catches drives via the missed-exit path), and geofencingActive is
+    // unreliable dump telemetry. So a perfectly healthy device that had just
+    // auto-captured trips reported "error" (Anthony 1 June: verdict "error"
+    // with TWO auto-trips the same day). The honest signal is whether
+    // auto-capture is actually happening — recent auto-trips => healthy. The
+    // only hard errors are the two things a user can act on: detection turned
+    // off, or background-location permission missing. A long dry spell with
+    // both of those fine is a soft "warning" (could be the capture bug, could
+    // just be no driving), never a hard error.
+    const lastAutoTrip = recentTrips.find((t) => !t.is_manual_entry);
+    const daysSinceAutoTrip = lastAutoTrip
+      ? (Date.now() - new Date(lastAutoTrip.started_at).getTime()) / 86_400_000
+      : Infinity;
     let verdict = "healthy";
     if (!diagnostics.enabled) verdict = "error";
     else if (diagnostics.backgroundPermission !== "granted") verdict = "error";
-    else if (diagnostics.enabled && diagnostics.backgroundPermission === "granted" && !diagnostics.taskRunning && !diagnostics.activeShiftId && !legitimatelyAnchored) verdict = "error";
-    else if (diagnostics.autoRecordingActive) verdict = "warning";
+    else if (diagnostics.autoRecordingActive) verdict = "info";
     else if (diagnostics.quietHours || diagnostics.cooldownRemainingMs > 0) verdict = "info";
+    else if (!Number.isFinite(daysSinceAutoTrip) || daysSinceAutoTrip > 10) verdict = "warning";
 
     await apiRequest("/user/diagnostics", {
       method: "POST",
