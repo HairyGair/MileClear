@@ -102,7 +102,8 @@ import type { TripClassification, PlatformTag } from "@mileclear/shared";
 const DETECTION_TASK_NAME = "mileclear-drive-detection";
 const BACKGROUND_FINALIZE_TASK = "mileclear-background-finalize";
 const QUICK_TRIP_SHIFT_ID = "__quick_trip__"; // mirrors lib/tracking/index.ts
-const QUICK_TRIP_STALE_MS = 3 * 60 * 60 * 1000; // 3h - a quick trip still "active" past this with no end was abandoned (app killed mid-trip / save interrupted)
+const QUICK_TRIP_STALE_MS = 3 * 60 * 60 * 1000; // 3h - a quick_trip_start older than this with no end was abandoned
+const QUICK_TRIP_LIVE_COORD_MS = 20 * 60 * 1000; // 20 min - a breadcrumb this recent means the quick trip is genuinely recording RIGHT NOW; never clear it
 const BACKGROUND_FETCH_INTERVAL_S = 15 * 60; // 15 minutes - iOS treats as a hint, actual cadence varies
 const COOLDOWN_MS = 20 * 60 * 1000; // 20 minutes
 const BUFFER_MAX_AGE_MS = 30 * 60 * 1000; // 30 minutes
@@ -2227,29 +2228,48 @@ export async function startDriveDetection(): Promise<void> {
     // orphan — clear it and continue detecting. Real shifts (UUID ids) always
     // yield.
     if (activeShift.value === QUICK_TRIP_SHIFT_ID) {
-      const qts = await db.getFirstAsync<{ value: string }>(
-        "SELECT value FROM tracking_state WHERE key = 'quick_trip_start'"
+      // Is this quick trip genuinely LIVE, or an abandoned lock blocking
+      // detection? Ground truth is GPS capture activity, NOT the
+      // quick_trip_start row — that row can be absent even mid-trip (Anthony's
+      // 1 June live 6.1mi quick trip had active_shift_id set and fresh
+      // breadcrumbs but NO quick_trip_start). Treat as LIVE if a breadcrumb
+      // landed within QUICK_TRIP_LIVE_COORD_MS, OR a quick_trip_start is newer
+      // than QUICK_TRIP_STALE_MS (covers the gap between tapping Start and the
+      // first fix). Only an orphan (no recent coords AND no fresh start row)
+      // gets cleared — so we can NEVER kill a recording trip.
+      let live = false;
+      const lastCoord = await db.getFirstAsync<{ recorded_at: string }>(
+        "SELECT recorded_at FROM shift_coordinates WHERE shift_id = ? ORDER BY recorded_at DESC LIMIT 1",
+        [QUICK_TRIP_SHIFT_ID]
       );
-      let orphaned = !qts; // no trip details = orphaned lock
-      if (qts) {
-        try {
-          const startedMs = new Date(JSON.parse(qts.value).startedAt).getTime();
-          if (!Number.isFinite(startedMs) || Date.now() - startedMs > QUICK_TRIP_STALE_MS) {
-            orphaned = true;
+      if (lastCoord) {
+        const ms = new Date(lastCoord.recorded_at).getTime();
+        if (Number.isFinite(ms) && Date.now() - ms < QUICK_TRIP_LIVE_COORD_MS) live = true;
+      }
+      if (!live) {
+        const qts = await db.getFirstAsync<{ value: string }>(
+          "SELECT value FROM tracking_state WHERE key = 'quick_trip_start'"
+        );
+        if (qts) {
+          try {
+            const startedMs = new Date(JSON.parse(qts.value).startedAt).getTime();
+            if (Number.isFinite(startedMs) && Date.now() - startedMs < QUICK_TRIP_STALE_MS) live = true;
+          } catch {
+            // malformed row — not a reason to keep the lock
           }
-        } catch {
-          orphaned = true;
         }
       }
-      if (orphaned) {
-        await db.runAsync("DELETE FROM tracking_state WHERE key = 'active_shift_id'");
-        await db.runAsync("DELETE FROM shift_coordinates WHERE shift_id = ?", [QUICK_TRIP_SHIFT_ID]);
-        logDetectionEvent("orphaned_quick_trip_cleared", {}).catch(() => {});
-        // fall through — detection proceeds this run
-      } else {
+      if (live) {
         logDetectionEvent("detection_skipped", { reason: "active_quick_trip" }).catch(() => {});
         return;
       }
+      // Abandoned lock (app killed mid-trip / save interrupted): clear it so
+      // auto-detection isn't suppressed forever.
+      await db.runAsync("DELETE FROM tracking_state WHERE key = 'active_shift_id'");
+      await db.runAsync("DELETE FROM tracking_state WHERE key = 'quick_trip_start'");
+      await db.runAsync("DELETE FROM shift_coordinates WHERE shift_id = ?", [QUICK_TRIP_SHIFT_ID]);
+      logDetectionEvent("orphaned_quick_trip_cleared", {}).catch(() => {});
+      // fall through — detection proceeds this run
     } else {
       logDetectionEvent("detection_skipped", { reason: "active_shift" }).catch(() => {});
       return;
