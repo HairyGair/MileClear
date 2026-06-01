@@ -101,6 +101,8 @@ import type { TripClassification, PlatformTag } from "@mileclear/shared";
 
 const DETECTION_TASK_NAME = "mileclear-drive-detection";
 const BACKGROUND_FINALIZE_TASK = "mileclear-background-finalize";
+const QUICK_TRIP_SHIFT_ID = "__quick_trip__"; // mirrors lib/tracking/index.ts
+const QUICK_TRIP_STALE_MS = 3 * 60 * 60 * 1000; // 3h - a quick trip still "active" past this with no end was abandoned (app killed mid-trip / save interrupted)
 const BACKGROUND_FETCH_INTERVAL_S = 15 * 60; // 15 minutes - iOS treats as a hint, actual cadence varies
 const COOLDOWN_MS = 20 * 60 * 1000; // 20 minutes
 const BUFFER_MAX_AGE_MS = 30 * 60 * 1000; // 30 minutes
@@ -2208,14 +2210,50 @@ export async function startDriveDetection(): Promise<void> {
     return;
   }
 
-  // Guard: don't start if a shift is active
+  // Guard: don't start if a shift is active — a real shift / live quick trip
+  // owns the GPS subscription and detection must yield to it.
   const db = await getDatabase();
   const activeShift = await db.getFirstAsync<{ value: string }>(
     "SELECT value FROM tracking_state WHERE key = 'active_shift_id'"
   );
   if (activeShift) {
-    logDetectionEvent("detection_skipped", { reason: "active_shift" }).catch(() => {});
-    return;
+    // Self-heal an ORPHANED quick trip. A quick trip started then never ended
+    // (app killed mid-trip, or the save was interrupted) leaves
+    // active_shift_id=__quick_trip__ stuck forever, permanently suppressing
+    // auto-detection. Anthony hit this 1 June: active_shift_id=__quick_trip__
+    // with NO quick_trip_start row and taskRunning:false, blocking every
+    // detection attempt for hours. A genuinely live quick trip always has a
+    // recent quick_trip_start row; if it's missing or stale, the lock is an
+    // orphan — clear it and continue detecting. Real shifts (UUID ids) always
+    // yield.
+    if (activeShift.value === QUICK_TRIP_SHIFT_ID) {
+      const qts = await db.getFirstAsync<{ value: string }>(
+        "SELECT value FROM tracking_state WHERE key = 'quick_trip_start'"
+      );
+      let orphaned = !qts; // no trip details = orphaned lock
+      if (qts) {
+        try {
+          const startedMs = new Date(JSON.parse(qts.value).startedAt).getTime();
+          if (!Number.isFinite(startedMs) || Date.now() - startedMs > QUICK_TRIP_STALE_MS) {
+            orphaned = true;
+          }
+        } catch {
+          orphaned = true;
+        }
+      }
+      if (orphaned) {
+        await db.runAsync("DELETE FROM tracking_state WHERE key = 'active_shift_id'");
+        await db.runAsync("DELETE FROM shift_coordinates WHERE shift_id = ?", [QUICK_TRIP_SHIFT_ID]);
+        logDetectionEvent("orphaned_quick_trip_cleared", {}).catch(() => {});
+        // fall through — detection proceeds this run
+      } else {
+        logDetectionEvent("detection_skipped", { reason: "active_quick_trip" }).catch(() => {});
+        return;
+      }
+    } else {
+      logDetectionEvent("detection_skipped", { reason: "active_shift" }).catch(() => {});
+      return;
+    }
   }
 
   // Guard: don't restart if auto-recording is active (would downgrade 50m -> 100m)
