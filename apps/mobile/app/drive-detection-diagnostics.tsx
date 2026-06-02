@@ -15,6 +15,7 @@ import {
   ActivityIndicator,
   Platform,
   Linking,
+  Switch,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect } from "expo-router";
@@ -24,8 +25,17 @@ import {
   getDriveDetectionDiagnostics,
   clearDetectionEvents,
   restartDriveDetection,
+  stopDriveDetection,
   type DriveDetectionDiagnostics,
 } from "../lib/tracking/detection";
+import {
+  isNativeLocationEngineEnabled,
+  setNativeLocationEngineEnabled,
+} from "../lib/tracking/nativeEngineFlag";
+import {
+  isNativeEngineAvailable,
+  stopNativeLocationEngine,
+} from "../lib/tracking/nativeLocation";
 import { useUser } from "../lib/user/context";
 import { colors, fonts } from "../lib/theme";
 
@@ -480,13 +490,17 @@ export default function DriveDetectionDiagnosticsScreen() {
   const [locationLookup, setLocationLookup] = useState<SavedLocationLookup>({});
   const [recentTrips, setRecentTrips] = useState<RecentTripRow[]>([]);
   const [tripFilter, setTripFilter] = useState<RecentTripRow | null>(null);
+  // Native location engine (staged rollout). `available` = the native binary
+  // is bundled (a dev/production build); false in Expo Go / OTA-only builds.
+  const [nativeOn, setNativeOn] = useState(false);
+  const nativeAvailable = useMemo(() => isNativeEngineAvailable(), []);
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
       const { getDatabase } = await import("../lib/db");
       const db = await getDatabase();
-      const [diag, ev, locs, trips] = await Promise.all([
+      const [diag, ev, locs, trips, nativeFlag] = await Promise.all([
         getDriveDetectionDiagnostics(),
         getRecentDetectionEvents(50),
         db.getAllAsync<{ id: string; name: string }>(
@@ -495,6 +509,7 @@ export default function DriveDetectionDiagnosticsScreen() {
         db.getAllAsync<RecentTripRow>(
           "SELECT id, start_address, end_address, distance_miles, started_at, ended_at, classification FROM trips ORDER BY started_at DESC LIMIT 10"
         ).catch(() => [] as RecentTripRow[]),
+        isNativeLocationEngineEnabled().catch(() => false),
       ]);
       setDiagnostics(diag);
       setEvents(ev);
@@ -502,6 +517,7 @@ export default function DriveDetectionDiagnosticsScreen() {
       for (const l of locs) lookup[l.id] = l.name;
       setLocationLookup(lookup);
       setRecentTrips(trips);
+      setNativeOn(nativeFlag);
       setCapturedAt(new Date());
     } catch (err) {
       console.error("Failed to load diagnostics", err);
@@ -509,6 +525,36 @@ export default function DriveDetectionDiagnosticsScreen() {
       setLoading(false);
     }
   }, []);
+
+  // Flip the native engine for THIS device. On→ stop the JS task + start the
+  // native engine (via startDriveDetection's flag check). Off→ stop native +
+  // restart the JS engine. Restarting picks the right engine either way.
+  const handleToggleNative = useCallback(async (next: boolean) => {
+    setBusy(true);
+    try {
+      await setNativeLocationEngineEnabled(next);
+      setNativeOn(next);
+      if (!next) {
+        await stopNativeLocationEngine();
+      } else {
+        await stopDriveDetection().catch(() => {});
+      }
+      await restartDriveDetection();
+      await load();
+      Alert.alert(
+        next ? "Native engine ON" : "Native engine OFF",
+        next
+          ? nativeAvailable
+            ? "Detection now runs on the native location engine. Drive and check the events for native_engine_started."
+            : "Flag set, but this build doesn't include the native module yet - detection stays on the JS engine until you install a dev build."
+          : "Back on the JavaScript detection engine."
+      );
+    } catch (err) {
+      Alert.alert("Couldn't switch engine", (err as Error).message ?? "Try again.");
+    } finally {
+      setBusy(false);
+    }
+  }, [load, nativeAvailable]);
 
   // Compute the 24h activity summary from the events list. Cheap —
   // events is already loaded.
@@ -870,6 +916,30 @@ export default function DriveDetectionDiagnosticsScreen() {
         </TouchableOpacity>
       </View>
 
+      {/* Native location engine toggle (staged rollout) */}
+      <View style={styles.card}>
+        <View style={styles.nativeRow}>
+          <View style={{ flex: 1, paddingRight: 12 }}>
+            <Text style={styles.cardTitle}>Native location engine</Text>
+            <Text style={styles.nativeSub}>
+              {nativeAvailable
+                ? "Runs wake + capture in native CLLocationManager - survives the app being backgrounded or killed. Reuses the same finalize/sync pipeline."
+                : "Not in this build yet. Install a dev build with the native module, then flip this on to test."}
+            </Text>
+            <Text style={[styles.nativeStatus, { color: nativeAvailable ? GREEN : TEXT_3 }]}>
+              {nativeAvailable ? "● native module available" : "○ native module not bundled"}
+            </Text>
+          </View>
+          <Switch
+            value={nativeOn}
+            onValueChange={handleToggleNative}
+            disabled={busy}
+            trackColor={{ true: AMBER, false: "#3f3f46" }}
+            thumbColor="#fff"
+          />
+        </View>
+      </View>
+
       {/* tracking_state dump */}
       <View style={styles.card}>
         <Text style={styles.cardTitle}>tracking_state ({d.trackingState.length})</Text>
@@ -1148,6 +1218,22 @@ const styles = StyleSheet.create({
     textTransform: "uppercase",
     letterSpacing: 0.8,
     marginBottom: 12,
+  },
+  nativeRow: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  nativeSub: {
+    fontFamily: fonts.regular,
+    fontSize: 12,
+    color: TEXT_2,
+    lineHeight: 17,
+    marginTop: -4,
+  },
+  nativeStatus: {
+    fontFamily: fonts.semibold,
+    fontSize: 11,
+    marginTop: 8,
   },
   statusRow: {
     flexDirection: "row",
