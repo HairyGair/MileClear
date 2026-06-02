@@ -720,9 +720,9 @@ export default function OnboardingScreen() {
               <Ionicons name="location-outline" size={36} color={AMBER} />
             </View>
 
-            <Text style={s.stepHeading}>Enable Location</Text>
+            <Text style={s.stepHeading}>Never miss a mile</Text>
             <Text style={s.stepSubtitle}>
-              This is how MileClear tracks your trips automatically — GPS records your route while you drive.
+              MileClear logs every business mile automatically — even with your screen off. A forgotten 20-mile trip is about £11 you can&apos;t claim back. &ldquo;Always&rdquo; location means you never miss one.
             </Text>
 
             {/* Explanation cards */}
@@ -751,7 +751,7 @@ export default function OnboardingScreen() {
                 <View style={s.permCardBody}>
                   <Text style={s.permCardTitle}>Always (recommended)</Text>
                   <Text style={s.permCardText}>
-                    Continues tracking with the screen off. Required for automatic trip detection.
+                    Records trips with the app closed — so every claimable mile is captured, even the ones you&apos;d forget.
                   </Text>
                 </View>
               </View>
@@ -840,26 +840,26 @@ export default function OnboardingScreen() {
                 />
               )}
 
-              <Button
-                variant={locationStatus === "always" ? "hero" : "primary"}
-                title={
-                  locationStatus === "always"
-                    ? "Continue"
-                    : locationStatus === "foreground"
-                      ? "Continue with limited tracking"
-                      : locationStatus === "denied"
-                        ? "Continue without auto-detection"
-                        : "Continue"
-                }
-                icon="arrow-forward"
-                size="lg"
-                onPress={goNext}
-              />
-
-              {locationStatus === "idle" && (
+              {/* Forward only AFTER the OS prompt has been answered. When idle we
+                  deliberately offer no in-step bypass — the old "Continue" +
+                  "Skip for now" buttons let a new user pass with permission still
+                  'undetermined' (never even asked), landing in an app that can
+                  never record a trip (Adnan K, 1 June). The OS dialog itself is
+                  the choice: "Don't Allow" -> denied -> the
+                  "Continue without auto-detection" path still lets them proceed,
+                  but only once they've actually been asked. */}
+              {locationStatus !== "idle" && locationStatus !== "requesting" && (
                 <Button
-                  variant="ghost"
-                  title="Skip for now"
+                  variant={locationStatus === "always" ? "hero" : "primary"}
+                  title={
+                    locationStatus === "always"
+                      ? "Continue"
+                      : locationStatus === "foreground"
+                        ? "Continue with limited tracking"
+                        : "Continue without auto-detection"
+                  }
+                  icon="arrow-forward"
+                  size="lg"
                   onPress={goNext}
                 />
               )}

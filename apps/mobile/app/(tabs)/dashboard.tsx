@@ -72,8 +72,7 @@ import { useLayoutPrefs } from "../../lib/layout/index";
 import { PremiumGate, useIsPremium } from "../../components/PremiumGate";
 import { SmartInsightCard } from "../../components/SmartInsightCard";
 import { usePaywall } from "../../components/paywall";
-import * as Location from "expo-location";
-import { requestOrFixBackgroundLocation } from "../../lib/permissions/location";
+import { requestOrFixBackgroundLocation, getLocationPermissionStatus, type LocationPermissionTier } from "../../lib/permissions/location";
 import { haptic } from "../../lib/haptics";
 
 function formatElapsed(seconds: number): string {
@@ -172,6 +171,12 @@ export default function DashboardScreen() {
 
   // Background location permission — needed for auto trip detection
   const [bgLocationGranted, setBgLocationGranted] = useState(true); // default true until checked
+  // Full permission tier so the dashboard can tell "records when open"
+  // (foreground) apart from "can't record at all" (none = undetermined/denied).
+  // The latter is an activation blocker — the app is non-functional — so it
+  // gets a PERSISTENT, non-dismissible banner, not the soft 7-day nudge.
+  // Default "always" until checked to avoid a flash on load.
+  const [locationTier, setLocationTier] = useState<LocationPermissionTier>("always");
   // Dismissal cooldown: hides the "Auto-detection is off" nudge for 7
   // days after a tap on the X. Avoids the every-load nag (Anthony 16
   // May audit) while still resurfacing the prompt periodically so a
@@ -638,9 +643,10 @@ export default function DashboardScreen() {
   useFocusEffect(
     useCallback(() => {
       loadData();
-      // Check background location permission on each focus
-      Location.getBackgroundPermissionsAsync().then((res) => {
-        setBgLocationGranted(res.status === Location.PermissionStatus.GRANTED);
+      // Check the full location permission tier on each focus.
+      getLocationPermissionStatus().then(({ tier }) => {
+        setLocationTier(tier);
+        setBgLocationGranted(tier === "always");
       }).catch(() => {});
       // dashboard_focus rating trigger removed 4 May 2026 — was the
       // dominant source of "Not now" dismissals. Rating prompts now
@@ -1174,25 +1180,62 @@ export default function DashboardScreen() {
           outright. Linking.openSettings() alone is wrong for fresh installs:
           iOS doesn't show a Location row in Settings until the app has
           actually asked for permission once. */}
-      {!bgLocationGranted && !activeShift && !bgLocNudgeSilenced && (
+      {/* ACTIVATION BLOCKER — no location access at all (undetermined/denied):
+          the app literally cannot record a single trip. Persistent and
+          NON-dismissible until fixed. This is the dead state a new user lands
+          in after skipping the onboarding permission prompt (Adnan K, 1 June:
+          onboarding_complete with permission 'undetermined', zero trips, gone
+          in 90s). An app that silently can't work is worse than an honest one
+          that says so. */}
+      {locationTier === "none" && !activeShift && (
         <TouchableOpacity
-          style={s.bgLocNudge}
+          style={[s.bgLocNudge, s.bgLocBlocker]}
           onPress={async () => {
             const final = await requestOrFixBackgroundLocation();
+            setLocationTier(final.tier);
             setBgLocationGranted(final.tier === "always");
           }}
           activeOpacity={0.7}
           accessibilityRole="button"
-          accessibilityLabel="Auto-detection is off. Tap to enable location access. iOS asks in two steps; we'll guide you through both."
+          accessibilityLabel="Your trips are not being recorded. Tap to turn on location access so MileClear can log your miles."
+        >
+          <View style={s.bgLocNudgeRow}>
+            <View style={s.bgLocNudgeIcon}>
+              <Ionicons name="warning" size={20} color="#ef4444" accessible={false} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={s.bgLocBlockerTitle}>Your trips aren&apos;t being recorded</Text>
+              <Text style={s.bgLocNudgeBody}>
+                MileClear needs location access to log your miles. Until it&apos;s on, every drive — and every £ of tax deduction — is lost. Tap to turn it on.
+              </Text>
+            </View>
+          </View>
+        </TouchableOpacity>
+      )}
+
+      {/* Foreground-only ("While Using"): records while the app is open but
+          misses backgrounded drives. The app still works, so this stays a soft,
+          dismissible nudge to upgrade to Always. */}
+      {locationTier === "foreground" && !activeShift && !bgLocNudgeSilenced && (
+        <TouchableOpacity
+          style={s.bgLocNudge}
+          onPress={async () => {
+            const final = await requestOrFixBackgroundLocation();
+            setLocationTier(final.tier);
+            setBgLocationGranted(final.tier === "always");
+          }}
+          activeOpacity={0.7}
+          accessibilityRole="button"
+          accessibilityLabel="Auto-detection is limited. Tap to allow Always location so trips record in the background too."
         >
           <View style={s.bgLocNudgeRow}>
             <View style={s.bgLocNudgeIcon}>
               <Ionicons name="location-outline" size={20} color="#f59e0b" accessible={false} />
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={s.bgLocNudgeTitle}>Auto-detection is off</Text>
+              <Text style={s.bgLocNudgeTitle}>Auto-detection is limited</Text>
               <Text style={s.bgLocNudgeBody}>
-                Tap to turn it on. iOS asks for location access in two steps - we'll guide you through both.
+                Trips only record while MileClear is open. Switch to &ldquo;Always&rdquo; so backgrounded drives are captured too - tap to fix.
               </Text>
             </View>
             <TouchableOpacity
@@ -2670,6 +2713,17 @@ const s = StyleSheet.create({
     borderColor: "rgba(245, 158, 11, 0.2)",
     padding: 14,
     marginBottom: 12,
+  },
+  // Danger variant for the "can't record at all" activation blocker.
+  bgLocBlocker: {
+    backgroundColor: "rgba(239, 68, 68, 0.1)",
+    borderColor: "rgba(239, 68, 68, 0.35)",
+  },
+  bgLocBlockerTitle: {
+    fontFamily: fonts.semibold,
+    fontSize: 15,
+    color: "#ef4444",
+    marginBottom: 2,
   },
   bgLocNudgeRow: {
     flexDirection: "row" as const,
