@@ -16,12 +16,13 @@
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "com.mileclear.app",
-      "buildNumber": "71",
+      "buildNumber": "72",
       "usesAppleSignIn": true,
       "infoPlist": {
         "NSLocationAlwaysAndWhenInUseUsageDescription": "MileClear needs location access to track your mileage during shifts and detect when you start driving.",
         "NSLocationWhenInUseUsageDescription": "MileClear needs location access to track your mileage during shifts and detect when you start driving.",
         "NSLocationAlwaysUsageDescription": "MileClear needs background location access to track your mileage during shifts and detect when you start driving.",
+        "NSMotionUsageDescription": "MileClear uses motion activity to detect when you start and stop driving, so your trips record automatically without keeping GPS running and draining your battery.",
         "UIBackgroundModes": [
           "location",
           "fetch",
