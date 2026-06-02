@@ -107,9 +107,7 @@
       "react-native-iap",
       "./plugins/with-live-activities",
       "./plugins/with-vision-ocr",
-      "./plugins/with-siri-shortcuts",
-      "react-native-background-geolocation",
-      "react-native-background-fetch"
+      "./plugins/with-siri-shortcuts"
     ],
     "extra": {
       "router": {},
