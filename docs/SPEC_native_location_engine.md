@@ -78,3 +78,65 @@ The fleet records fine today via working geofences. We do NOT rip that out until
 ## 7. Immediate protection (already live)
 
 `pausesUpdatesAutomatically:false` (commit e9f6683, OTA 33759a4b) makes the current backstop continuous so it wakes on background drives now. Verify with one locked-phone test drive. The native engine is the permanent, no-compromise replacement.
+
+---
+
+## 8. Scaffolding shipped (2 June 2026) + activation recipe
+
+The flagged JS scaffold is committed and inert on the fleet (flag default OFF,
+native module require-guarded so it compiles/runs without the dep installed):
+
+- `apps/mobile/lib/tracking/nativeLocation.ts` — the adapter. Lazy-loads the
+  native module; on `onMotionChange(moving)` opens a recording, on
+  `onMotionChange(stationary)` calls the existing `finalizeAutoTrip()`; on
+  `onLocation` buffers into `detection_coordinates` while recording. The entire
+  finalize → distance/map-match → phantom-guard → offline-sync pipeline is reused.
+- `apps/mobile/lib/tracking/nativeEngineFlag.ts` — `isNativeLocationEngineEnabled()`
+  / `setNativeLocationEngineEnabled()`, backed by a `native_location_engine`
+  `tracking_state` row. Default OFF.
+- `startDriveDetection()` (detection.ts) — when the flag is ON **and** the native
+  binary is present, hands off to the native engine and skips the JS path
+  entirely (logs `detection_using_native_engine`). Flag OFF → unchanged JS path.
+
+### Cost correction
+Per Transistor's own README: **iOS release builds need NO licence** (free); only
+Android requires a paid licence (relevant only when MileClear ships Android).
+DEBUG builds are free on both. So for MileClear-iOS today: **£0**.
+
+### Activation steps (Anthony — needs a dev build, can't be OTA'd)
+1. Install the dep with the SDK-54-compatible version (don't hand-pick a version):
+   ```bash
+   cd apps/mobile
+   npx expo install react-native-background-geolocation react-native-background-fetch
+   ```
+2. Add the config plugin to `apps/mobile/app.json` `plugins` array:
+   ```json
+   [
+     "react-native-background-geolocation",
+     { "license": "" }
+   ],
+   "react-native-background-fetch"
+   ```
+   (Empty `license` is fine for iOS.) The existing `UIBackgroundModes`
+   (`location`, `fetch`) and `NSLocation*` strings already cover it.
+3. Bump `ios.buildNumber` in app.json, then build a dev client:
+   ```bash
+   eas build --profile development --platform ios
+   ```
+   (New native dep → fresh native compile. Submit via Transporter / install the
+   dev build on your device.)
+4. On-device, flip the flag for your device only:
+   `setNativeLocationEngineEnabled(true)` — wire a hidden Profile/diagnostics
+   toggle (small follow-up) or set the `native_location_engine` tracking_state
+   row to `'1'`.
+5. Drive. Watch the dump for `native_engine_started`, `native_recording_started`,
+   `native_recording_finalizing`, and a saved trip with dense coords. Compare
+   capture vs the JS engine.
+
+### Rollout
+Your device → confirm over several drives → a few testers (flag on) → fleet
+(flip default). Flag-off is instant rollback; nothing native runs.
+
+### Tunables to expect to adjust on-device
+`distanceFilter` (20m), `stopTimeout` (5min), `stationaryRadius` (25m),
+`desiredAccuracy` in `nativeLocation.ts:buildConfig`.

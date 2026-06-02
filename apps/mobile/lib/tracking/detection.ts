@@ -2246,6 +2246,30 @@ export async function startDriveDetection(): Promise<void> {
     return;
   }
 
+  // Native engine opt-in. When this device has flipped the flag AND the native
+  // binary is present (a dev/production build that bundled it), hand wake +
+  // capture to the native location engine and skip the JS expo-location path
+  // entirely — running both would double-subscribe. Dynamic import avoids a
+  // static cycle (nativeLocation imports finalize/log from this module) and
+  // keeps the native require out of the JS-only/OTA path. Flag default OFF, so
+  // the fleet is unaffected.
+  try {
+    const { isNativeLocationEngineEnabled } = await import("./nativeEngineFlag");
+    if (await isNativeLocationEngineEnabled()) {
+      const { isNativeEngineAvailable, startNativeLocationEngine } = await import("./nativeLocation");
+      if (isNativeEngineAvailable()) {
+        await startNativeLocationEngine();
+        logDetectionEvent("detection_using_native_engine", {}).catch(() => {});
+        return;
+      }
+      // Flag on but binary missing (e.g. an OTA before the dev build) — fall
+      // through to the JS engine so detection still runs.
+      logDetectionEvent("native_engine_unavailable_fallback_js", {}).catch(() => {});
+    }
+  } catch {
+    // Any flag/adapter error must never break the existing JS path.
+  }
+
   // Guard: don't start if a shift is active — a real shift / live quick trip
   // owns the GPS subscription and detection must yield to it.
   const db = await getDatabase();
