@@ -873,6 +873,21 @@ export default function DriveDetectionDiagnosticsScreen() {
             }
           />
         )}
+        {nativeOn && nativeAvailable && (() => {
+          const motion = events.find((e) => e.event === "native_motionchange");
+          return (
+            <StatusRow
+              label="Motion detection"
+              value={motion ? `fired ${formatMs(Date.now() - new Date(motion.recorded_at).getTime())} ago` : "no events seen"}
+              color={motion ? GREEN : AMBER}
+              hint={
+                motion
+                  ? undefined
+                  : "RNBG hasn't reported a motion change. If this stays empty after a drive, check Settings → MileClear → Motion & Fitness is ON — without it, start detection falls back to the slower geofence path."
+              }
+            />
+          );
+        })()}
         <StatusRow
           label="Detection mode"
           value={d.detectionProfile ?? "—"}

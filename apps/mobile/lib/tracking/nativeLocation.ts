@@ -46,6 +46,9 @@ type BgGeo = {
   // returns every fix RNBG persisted natively; destroyLocations() clears them.
   getLocations: () => Promise<Array<{ coords?: NativeLocation["coords"]; timestamp: string }>>;
   destroyLocations: () => Promise<unknown>;
+  // Force RNBG into continuous-tracking (moving) state immediately, bypassing
+  // CoreMotion's slow "automotive" classification — the short-journey backstop.
+  changePace?: (isMoving: boolean) => Promise<unknown>;
   DESIRED_ACCURACY_NAVIGATION: number;
   DESIRED_ACCURACY_HIGH: number;
   PERSIST_MODE_LOCATION: number;
@@ -61,6 +64,13 @@ interface NativeMotionEvent {
   isMoving: boolean;
   location: NativeLocation;
 }
+
+// Short-journey backstop thresholds. A single confident driving-speed fix
+// force-starts a recording, so the native engine doesn't depend solely on
+// CoreMotion's automotive classification (which is latent by design — 20s to
+// ~2min — and loses the start of short 1-2 mile trips).
+const FORCE_START_SPEED_MS = 12 * 0.44704; // ~12 mph — clearly automotive, above run pace
+const FORCE_START_ACCURACY_M = 30; // require a tight fix to avoid GPS-spike false starts
 
 let bgGeo: BgGeo | null = null;
 let loadAttempted = false;
@@ -178,6 +188,58 @@ export async function stopNativeLocationEngine(): Promise<void> {
 
 // ─── Event → existing pipeline ──────────────────────────────────────────────
 
+type DB = Awaited<ReturnType<typeof getDatabase>>;
+
+/** Append a fix to the recording buffer + stamp the last-driving-speed time. */
+async function bufferCoord(db: DB, loc: NativeLocation): Promise<void> {
+  await db.runAsync(
+    `INSERT INTO detection_coordinates (lat, lng, speed, accuracy, recorded_at)
+     VALUES (?, ?, ?, ?, ?)`,
+    [
+      loc.coords.latitude,
+      loc.coords.longitude,
+      loc.coords.speed ?? null,
+      loc.coords.accuracy ?? null,
+      loc.timestamp,
+    ]
+  );
+  await db.runAsync(
+    "INSERT OR REPLACE INTO tracking_state (key, value) VALUES ('last_driving_speed_at', ?)",
+    [Date.now().toString()]
+  );
+}
+
+/**
+ * Open a recording: clean the native store, mark recording active, seed the
+ * first coord, and fire the Live Activity. reason="speed" also forces RNBG into
+ * continuous tracking via changePace (the backstop path), since CoreMotion
+ * hasn't classified "moving" yet.
+ */
+async function openNativeRecording(
+  seed: NativeLocation,
+  reason: "motion" | "speed"
+): Promise<void> {
+  const db = await getDatabase();
+  const BGGeo = loadNativeModule();
+  if (reason === "speed") {
+    try {
+      await BGGeo?.changePace?.(true);
+    } catch {}
+  }
+  try {
+    await BGGeo?.destroyLocations();
+  } catch {}
+  await db.runAsync(
+    "INSERT OR REPLACE INTO tracking_state (key, value) VALUES ('auto_recording_active', '1')"
+  );
+  await bufferCoord(db, seed);
+  logDetectionEvent("native_recording_started", {
+    accuracy: Math.round(seed.coords.accuracy ?? -1),
+    reason,
+  }).catch(() => {});
+  startNativeAutoTripLiveActivity().catch(() => {});
+}
+
 async function handleNativeLocation(loc: NativeLocation): Promise<void> {
   try {
     if (!(await isDriveDetectionEnabled())) return;
@@ -189,28 +251,41 @@ async function handleNativeLocation(loc: NativeLocation): Promise<void> {
       "INSERT OR REPLACE INTO tracking_state (key, value) VALUES ('last_native_location_at', ?)",
       [Date.now().toString()]
     );
-    // Only buffer while a recording is active — motionchange(moving) opens it,
-    // motionchange(stationary) closes it. This keeps the buffer scoped to the
-    // current drive, exactly like the JS path.
+
     const recording = await db.getFirstAsync<{ value: string }>(
       "SELECT value FROM tracking_state WHERE key = 'auto_recording_active'"
     );
-    if (recording?.value !== "1") return;
-    await db.runAsync(
-      `INSERT INTO detection_coordinates (lat, lng, speed, accuracy, recorded_at)
-       VALUES (?, ?, ?, ?, ?)`,
-      [
-        loc.coords.latitude,
-        loc.coords.longitude,
-        loc.coords.speed ?? null,
-        loc.coords.accuracy ?? null,
-        loc.timestamp,
-      ]
-    );
-    await db.runAsync(
-      "INSERT OR REPLACE INTO tracking_state (key, value) VALUES ('last_driving_speed_at', ?)",
-      [Date.now().toString()]
-    );
+    if (recording?.value === "1") {
+      await bufferCoord(db, loc);
+      return;
+    }
+
+    // Short-journey backstop: a single confident driving-speed fix force-starts
+    // a recording so we don't wait on CoreMotion's slow "automotive" verdict.
+    const speed = loc.coords.speed;
+    const acc = loc.coords.accuracy;
+    if (
+      speed != null &&
+      speed >= FORCE_START_SPEED_MS &&
+      acc != null &&
+      acc <= FORCE_START_ACCURACY_M
+    ) {
+      // Respect an active shift and the "not driving" cooldown (a dismissed
+      // detection), so we don't re-open something the user/app turned off.
+      const shift = await db.getFirstAsync<{ value: string }>(
+        "SELECT value FROM tracking_state WHERE key = 'active_shift_id'"
+      );
+      if (shift) return;
+      const ndu = await db.getFirstAsync<{ value: string }>(
+        "SELECT value FROM tracking_state WHERE key = 'not_driving_until'"
+      );
+      if (ndu && Date.now() < Number(ndu.value)) return;
+      logDetectionEvent("native_force_start_from_speed", {
+        speedMph: Math.round(speed * 2.23694),
+        accuracy: Math.round(acc),
+      }).catch(() => {});
+      await openNativeRecording(loc, "speed");
+    }
   } catch {
     // never throw out of a native callback
   }
@@ -235,25 +310,14 @@ async function handleNativeMotionChange(event: NativeMotionEvent): Promise<void>
     const BGGeo = loadNativeModule();
 
     if (event.isMoving) {
-      // Driving started — start a clean native store for this trip, open the
-      // recording, seed the first coord, and fire the Live Activity.
-      try {
-        await BGGeo?.destroyLocations();
-      } catch {}
-      await db.runAsync(
-        "INSERT OR REPLACE INTO tracking_state (key, value) VALUES ('auto_recording_active', '1')"
+      // Driving started (CoreMotion classified it) — open the recording. If the
+      // backstop already opened it from a speed fix, this is a harmless no-op.
+      const already = await db.getFirstAsync<{ value: string }>(
+        "SELECT value FROM tracking_state WHERE key = 'auto_recording_active'"
       );
-      await db.runAsync(
-        "INSERT OR REPLACE INTO tracking_state (key, value) VALUES ('last_driving_speed_at', ?)",
-        [Date.now().toString()]
-      );
-      await handleNativeLocation(event.location);
-      logDetectionEvent("native_recording_started", {
-        accuracy: Math.round(event.location.coords.accuracy ?? -1),
-      }).catch(() => {});
-      // Fire the Live Activity / Dynamic Island (the JS path does this; the
-      // native path previously didn't, so it stayed dark).
-      startNativeAutoTripLiveActivity().catch(() => {});
+      if (already?.value !== "1") {
+        await openNativeRecording(event.location, "motion");
+      }
     } else {
       // Stationary — finalize through the existing pipeline (trim, distance,
       // map-match, phantom guards, offline sync all reused).
