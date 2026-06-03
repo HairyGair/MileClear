@@ -97,6 +97,28 @@ async function startAutoTripLiveActivityFromBufferedState(
     console.warn("startAutoTripLiveActivityFromBufferedState failed:", err);
   }
 }
+
+/**
+ * Start the auto-trip Live Activity for the native engine path. The native
+ * engine (nativeLocation.ts) opens a recording from onMotionChange but had no
+ * way to fire the Live Activity / Dynamic Island — so it stayed dark on native
+ * (Anthony, 3 June). Mirrors the JS path: derives business mode from app_mode
+ * and starts the LA from the buffered detection state.
+ */
+export async function startNativeAutoTripLiveActivity(): Promise<void> {
+  let isBusinessMode = true;
+  try {
+    const db = await getDatabase();
+    const m = await db.getFirstAsync<{ value: string }>(
+      "SELECT value FROM tracking_state WHERE key = 'app_mode'"
+    );
+    isBusinessMode = m?.value !== "personal";
+  } catch {
+    // default to business mode
+  }
+  await startAutoTripLiveActivityFromBufferedState({ activityType: "trip", isBusinessMode });
+}
+
 import type { TripClassification, PlatformTag } from "@mileclear/shared";
 
 const DETECTION_TASK_NAME = "mileclear-drive-detection";

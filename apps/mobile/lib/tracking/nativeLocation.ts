@@ -24,7 +24,12 @@
 // real finalize path; config values are sensible defaults to tune on-device.
 
 import { getDatabase } from "../db/index";
-import { logDetectionEvent, finalizeAutoTrip, isDriveDetectionEnabled } from "./detection";
+import {
+  logDetectionEvent,
+  finalizeAutoTrip,
+  isDriveDetectionEnabled,
+  startNativeAutoTripLiveActivity,
+} from "./detection";
 
 // ─── Lazy, crash-safe native module load ────────────────────────────────────
 // Never a static import: the module is native-only (crashes in Expo Go, absent
@@ -37,8 +42,13 @@ type BgGeo = {
   onLocation: (cb: (loc: NativeLocation) => void, err?: (e: unknown) => void) => void;
   onMotionChange: (cb: (e: NativeMotionEvent) => void) => void;
   removeAllListeners: () => Promise<unknown>;
+  // Native location store (survives JS-runtime suspension). getLocations()
+  // returns every fix RNBG persisted natively; destroyLocations() clears them.
+  getLocations: () => Promise<Array<{ coords?: NativeLocation["coords"]; timestamp: string }>>;
+  destroyLocations: () => Promise<unknown>;
   DESIRED_ACCURACY_NAVIGATION: number;
   DESIRED_ACCURACY_HIGH: number;
+  PERSIST_MODE_LOCATION: number;
   [key: string]: unknown;
 };
 
@@ -90,9 +100,14 @@ function buildConfig(BGGeo: BgGeo): Record<string, unknown> {
     // iOS background behaviour
     pausesLocationUpdatesAutomatically: false,
     showsBackgroundLocationIndicator: false,
-    // We do our own persistence (detection_coordinates + the sync queue), so
-    // disable the SDK's SQLite store and HTTP layer.
-    persistMode: 0,
+    // CRITICAL: persist every fix in RNBG's OWN native SQLite store. The JS
+    // onLocation callback writes to detection_coordinates, but iOS suspends the
+    // JS runtime on a long backgrounded drive — so those callbacks stop firing
+    // and the route is lost (Anthony, 3 June: a 14.6mi drive saved only 2
+    // coords). Native persistence survives suspension; we drain it on finalize
+    // via getLocations() and rebuild the buffer if JS missed fixes. autoSync
+    // stays off — we upload through our own offline sync queue, not RNBG's HTTP.
+    persistMode: BGGeo.PERSIST_MODE_LOCATION ?? 1,
     autoSync: false,
     // Quieter logs in production.
     debug: false,
@@ -204,14 +219,27 @@ async function handleNativeLocation(loc: NativeLocation): Promise<void> {
 async function handleNativeMotionChange(event: NativeMotionEvent): Promise<void> {
   try {
     if (!(await isDriveDetectionEnabled())) return;
+    // Log every motion-state change (low volume, high diagnostic value) so a
+    // dump shows whether RNBG actually fired "moving" when a drive started.
+    logDetectionEvent("native_motionchange", {
+      isMoving: event.isMoving,
+      speed: Math.round((event.location?.coords?.speed ?? -1) * 10) / 10,
+    }).catch(() => {});
+
     const db = await getDatabase();
     const activeShift = await db.getFirstAsync<{ value: string }>(
       "SELECT value FROM tracking_state WHERE key = 'active_shift_id'"
     );
     if (activeShift) return; // shift mode owns GPS
 
+    const BGGeo = loadNativeModule();
+
     if (event.isMoving) {
-      // Driving started — open a recording and seed the first coord.
+      // Driving started — start a clean native store for this trip, open the
+      // recording, seed the first coord, and fire the Live Activity.
+      try {
+        await BGGeo?.destroyLocations();
+      } catch {}
       await db.runAsync(
         "INSERT OR REPLACE INTO tracking_state (key, value) VALUES ('auto_recording_active', '1')"
       );
@@ -223,6 +251,9 @@ async function handleNativeMotionChange(event: NativeMotionEvent): Promise<void>
       logDetectionEvent("native_recording_started", {
         accuracy: Math.round(event.location.coords.accuracy ?? -1),
       }).catch(() => {});
+      // Fire the Live Activity / Dynamic Island (the JS path does this; the
+      // native path previously didn't, so it stayed dark).
+      startNativeAutoTripLiveActivity().catch(() => {});
     } else {
       // Stationary — finalize through the existing pipeline (trim, distance,
       // map-match, phantom guards, offline sync all reused).
@@ -230,12 +261,57 @@ async function handleNativeMotionChange(event: NativeMotionEvent): Promise<void>
         "SELECT value FROM tracking_state WHERE key = 'auto_recording_active'"
       );
       if (recording?.value === "1") {
+        // Rebuild the buffer from RNBG's native store if the JS callbacks were
+        // suspended mid-drive and missed fixes, so finalize sees the full route.
+        if (BGGeo) await reconcileNativeBuffer(BGGeo);
         logDetectionEvent("native_recording_finalizing", {}).catch(() => {});
         await finalizeAutoTrip();
+        try {
+          await BGGeo?.destroyLocations();
+        } catch {}
       }
     }
   } catch (err) {
     logDetectionEvent("native_motionchange_error", {
+      error: err instanceof Error ? err.message.slice(0, 120) : String(err),
+    }).catch(() => {});
+  }
+}
+
+/**
+ * Rebuild detection_coordinates from RNBG's native location store when the JS
+ * onLocation callbacks were suspended mid-drive and missed fixes. The native
+ * store is authoritative — iOS keeps delivering to RNBG natively even when the
+ * JS runtime is asleep — so if it holds more points than the JS buffer, replace
+ * the buffer with it so finalize runs on the complete route instead of a
+ * 2-point straight line.
+ */
+async function reconcileNativeBuffer(BGGeo: BgGeo): Promise<void> {
+  try {
+    const native = await BGGeo.getLocations();
+    if (!Array.isArray(native) || native.length === 0) return;
+    const db = await getDatabase();
+    const jsCount =
+      (await db.getFirstAsync<{ c: number }>(
+        "SELECT COUNT(*) AS c FROM detection_coordinates"
+      ))?.c ?? 0;
+    if (native.length <= jsCount) return; // JS buffer already has everything
+    await db.runAsync("DELETE FROM detection_coordinates");
+    for (const loc of native) {
+      const c = loc.coords;
+      if (!c) continue;
+      await db.runAsync(
+        `INSERT INTO detection_coordinates (lat, lng, speed, accuracy, recorded_at)
+         VALUES (?, ?, ?, ?, ?)`,
+        [c.latitude, c.longitude, c.speed ?? null, c.accuracy ?? null, loc.timestamp]
+      );
+    }
+    logDetectionEvent("native_buffer_reconciled", {
+      jsCount,
+      nativeCount: native.length,
+    }).catch(() => {});
+  } catch (err) {
+    logDetectionEvent("native_reconcile_error", {
       error: err instanceof Error ? err.message.slice(0, 120) : String(err),
     }).catch(() => {});
   }
