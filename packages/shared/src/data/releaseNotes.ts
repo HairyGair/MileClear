@@ -87,6 +87,7 @@ export const RELEASE_NOTES: ReleaseNote[] = [
       "**Correct trip times.** Trips now end when you actually arrive, instead of occasionally running on for hours when the phone was asleep on arrival.",
       "**Nothing gets lost.** A captured trip is now saved to your phone first and can't be dropped by a weak signal, and the sync queue no longer gives up on a trip after a few failed offline attempts.",
       "**Stay signed in.** Fixed the issue that quietly signed people out while their phone was locked — which also stranded trips that couldn't upload until the next login.",
+      "**Loads even on a poor connection.** The app no longer gets stuck on the setup screen when your signal is weak or restricted — it times out gracefully, lets you straight in, and syncs the rest in the background.",
       "**Honest about setup.** If location access isn't granted, the app now says so clearly instead of looking ready while silently recording nothing.",
     ],
     items: [
@@ -97,6 +98,7 @@ export const RELEASE_NOTES: ReleaseNote[] = [
       "**Trips end when you arrive.** A backgrounded arrival could leave a recording open, occasionally producing a trip that ran for hours. Finalisation now trims to the true end of the journey.",
       "**Offline-first save that can't lose a trip.** A finalised trip is written to your phone first and only then uploaded, so a momentary loss of signal at the end of a drive can never delete it. The offline sync queue also stops burning through its retries on a network blip, which previously could park a real trip as permanently failed.",
       "**No more silent sign-outs (and stranded trips).** Login tokens are now stored so background tasks can read them while your phone is locked. Previously a background sync during a locked drive could fail to read your session and quietly sign you out — which also left captured trips unable to upload until you next opened the app and logged back in. This was a significant, invisible cause of trips appearing to go missing.",
+      "**Resilient startup on any connection.** Loading your data on first launch could previously stall indefinitely if a single request hung on a weak or restricted connection (for example with iCloud Private Relay), trapping you on the 'Setting up offline access' screen. Each load step now times out and carries on, so you always get into the app and anything missing syncs in the background.",
       "**Honest setup + diagnostics.** Onboarding now makes the Always-location step unmissable, the dashboard shows a clear 'your trips aren't being recorded' banner if permission is missing, and the in-app diagnostics report reflects reality rather than crying wolf.",
       "**Coming next: a native motion-detection engine.** In testing now — a new under-the-hood detection layer that senses the moment you start moving, built specifically to catch the short one-and-two-mile trips that are hardest for automatic detection. Rolling out carefully once it's proven.",
     ],
