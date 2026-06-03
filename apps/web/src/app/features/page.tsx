@@ -1097,7 +1097,7 @@ export default function FeaturesPage() {
                   }}
                 >
                   {[
-                    "43 achievement types",
+                    "18 achievement types",
                     "Driving streaks",
                     "Personal records",
                     "Distance milestones",
@@ -1340,7 +1340,7 @@ export default function FeaturesPage() {
                 color: "var(--text-muted)",
               }}
             >
-              Pro is £4.99/month, billed monthly. Cancel any time. Available via the App Store
+              Pro is £4.99/month or £44.99/year. Cancel any time. Available via the App Store
               on iOS or{" "}
               <a
                 href="/pricing"

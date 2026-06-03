@@ -43,7 +43,7 @@ export default function StructuredData() {
       "Business insights with earnings per mile, per hour, and weekly P&L",
       "UK fuel prices from 8,300+ government-mandated stations",
       "Saved locations with geofencing for auto-classification",
-      "43 achievements, streaks, and driving records",
+      "18 achievements, streaks, and driving records",
       "PDF and CSV exports for Self Assessment",
       "Open Banking earnings sync",
       "Offline-first with background tracking",

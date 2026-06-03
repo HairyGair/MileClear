@@ -201,7 +201,7 @@ const faqSchema = {
       name: 'What is included in the free plan?',
       acceptedAnswer: {
         '@type': 'Answer',
-        text: 'The free plan includes unlimited GPS trip tracking, the Tax Readiness card with live HMRC tax estimate and weekly set-aside, Anonymous Benchmarking against other UK drivers, HMRC Reconciliation against your platforms\' Digital Platform Reporting figures, MOT and tax expiry reminders, full DVSA MOT history with advisories, the Activity Heatmap showing when you drive and earn most, shift management with platform tagging, vehicle management with DVLA lookup, fuel logs and nearby fuel prices from 8,300+ UK stations, manual earnings tracking, the pickup wait timer, achievements and gamification, up to 2 saved locations with geofencing, push notifications, and a first-time Self Assessment guide.',
+        text: 'The free plan includes unlimited GPS trip tracking, the Tax Readiness card with live HMRC tax estimate and weekly set-aside, the Self Assessment wizard, Anonymous Benchmarking against other UK drivers, HMRC Reconciliation against your platforms\' Digital Platform Reporting figures, MOT and tax expiry reminders, full DVSA MOT history with advisories, the Activity Heatmap showing when you drive and earn most, shift management with the shift scorecard and platform tagging, 1 vehicle with DVLA lookup, fuel logs and nearby fuel prices from 8,300+ UK stations, manual earnings and expenses tracking, the pickup wait timer, all 18 achievements and gamification, up to 2 saved locations with geofencing, push notifications, and a first-time Self Assessment guide.',
       },
     },
     {
@@ -209,7 +209,7 @@ const faqSchema = {
       name: 'What does MileClear Pro include?',
       acceptedAnswer: {
         '@type': 'Answer',
-        text: 'MileClear Pro (£4.99 per month) adds: the Self Assessment wizard with step-by-step HMRC SA103 box mapping, PDF mileage log with a signed HMRC attestation cover sheet, CSV trip exports, the Accountant Portal (read-only dashboard you can invite your accountant to by email), on-device receipt scanning for parking, fuel and toll receipts, CSV earnings import from Uber, Deliveroo, Just Eat, Amazon Flex and Stuart, business insights including earnings per mile, golden hours and weekly P&L, pickup-wait community insights, and unlimited saved locations.',
+        text: 'MileClear Pro (£4.99 per month or £44.99 per year) adds: the PDF Self Assessment export with a signed HMRC attestation cover sheet, CSV and PDF trip exports, CSV earnings import from Uber, Deliveroo, Just Eat, Amazon Flex and Stuart, Open Banking auto-import via TrueLayer, auto-classify rules driven by your Work Schedule, the Accountant Portal (read-only dashboard you can invite your accountant to by email), business insights including earnings per mile, golden hours and weekly P&L, Driving Analytics, the Journey Map, pickup-wait community insights, unlimited saved locations, and unlimited vehicles. The Self Assessment wizard itself is free; Pro adds the print-ready PDF.',
       },
     },
     {
@@ -225,7 +225,7 @@ const faqSchema = {
       name: 'Is there an annual plan?',
       acceptedAnswer: {
         '@type': 'Answer',
-        text: 'Not yet. Pro is currently monthly only at £4.99/month. An annual plan is on the roadmap and will land before public App Store launch.',
+        text: 'Yes. Pro is £4.99 per month or £44.99 per year. The annual plan works out cheaper than 12 monthly payments, so if you know you will be tracking mileage all year it is the better value option. You can choose either when you upgrade in the app or on the web.',
       },
     },
     // Data & Privacy
@@ -546,12 +546,13 @@ export default function FaqPage() {
                 <h3 className="faq__question">What is included in the free plan?</h3>
                 <p className="legal__text">
                   The free plan includes unlimited GPS trip tracking, the Tax Readiness card with
-                  live HMRC tax estimate and weekly set-aside, Anonymous Benchmarking against other
-                  UK drivers, HMRC Reconciliation against your Digital Platform Reporting figures,
-                  MOT and tax expiry reminders, full DVSA MOT history with advisories, the Activity
-                  Heatmap, shift management with platform tagging, vehicle management with DVLA
-                  lookup, fuel logs and nearby fuel prices from over 8,300 stations across the UK,
-                  manual earnings tracking, the pickup wait timer, achievements and gamification, up
+                  live HMRC tax estimate and weekly set-aside, the Self Assessment wizard,
+                  Anonymous Benchmarking against other UK drivers, HMRC Reconciliation against your
+                  Digital Platform Reporting figures, MOT and tax expiry reminders, full DVSA MOT
+                  history with advisories, the Activity Heatmap, shift management with the shift
+                  scorecard and platform tagging, 1 vehicle with DVLA lookup, fuel logs and nearby
+                  fuel prices from over 8,300 stations across the UK, manual earnings and expenses
+                  tracking, the pickup wait timer, all 18 achievements and gamification, up
                   to 2 saved locations with geofencing, push notifications, and a first-time Self
                   Assessment guide.
                 </p>
@@ -560,14 +561,16 @@ export default function FaqPage() {
               <div className="faq__qa">
                 <h3 className="faq__question">What does MileClear Pro include?</h3>
                 <p className="legal__text">
-                  MileClear Pro adds the Self Assessment wizard with step-by-step HMRC SA103 box
-                  mapping, PDF mileage log with a signed HMRC attestation cover sheet, CSV trip
-                  exports, the Accountant Portal (read-only dashboard you can invite your accountant
-                  to by email), on-device receipt scanning for parking, fuel and toll receipts, CSV
-                  earnings import from Uber, Deliveroo, Just Eat, Amazon Flex and Stuart, business
-                  insights including earnings per mile, golden hours and weekly P&amp;L, pickup-wait
-                  community insights (&quot;drivers here average 12-min waits&quot;), and unlimited
-                  saved locations. See{' '}
+                  MileClear Pro (£4.99/month or £44.99/year) adds the PDF Self Assessment export
+                  with a signed HMRC attestation cover sheet, CSV and PDF trip exports, CSV
+                  earnings import from Uber, Deliveroo, Just Eat, Amazon Flex and Stuart, Open
+                  Banking auto-import via TrueLayer, auto-classify rules driven by your Work
+                  Schedule, the Accountant Portal (read-only dashboard you can invite your
+                  accountant to by email), business insights including earnings per mile, golden
+                  hours and weekly P&amp;L, Driving Analytics, the Journey Map, pickup-wait
+                  community insights (&quot;drivers here average 12-min waits&quot;), unlimited
+                  saved locations, and unlimited vehicles. The Self Assessment wizard itself is
+                  free; Pro adds the print-ready PDF. See{' '}
                   <a href="/pricing" style={{ color: 'var(--amber-400)' }}>our pricing page</a>{' '}
                   for plan details.
                 </p>
@@ -576,8 +579,10 @@ export default function FaqPage() {
               <div className="faq__qa">
                 <h3 className="faq__question">Is there an annual plan?</h3>
                 <p className="legal__text">
-                  Not yet. Pro is currently monthly only at £4.99/month. An annual plan is on the
-                  roadmap and will land before public App Store launch.
+                  Yes. Pro is £4.99 per month or £44.99 per year. The annual plan works out
+                  cheaper than 12 monthly payments, so if you track mileage all year round it is
+                  the better-value option. You can choose either when you upgrade in the app or on
+                  the web.
                 </p>
               </div>
 

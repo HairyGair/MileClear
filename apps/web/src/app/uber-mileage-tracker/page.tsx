@@ -428,13 +428,13 @@ export default function UberMileageTracker() {
             </div>
 
             <p style={{ color: "#94a3b8", lineHeight: 1.8, marginBottom: "1rem" }}>
-              That £1,400 is what the mileage deduction is worth to a basic-rate taxpayer driving 20,000
-              business miles. Higher-rate taxpayers save £2,800 from the same mileage. This is money that
+              That £1,600 is what the mileage deduction is worth to a basic-rate taxpayer driving 20,000
+              business miles. Higher-rate taxpayers save £3,200 from the same mileage. This is money that
               belongs to you - but only if you have the records to back up the claim. Without a mileage log,
               HMRC can disallow the entire deduction.
             </p>
             <p style={{ color: "#94a3b8", lineHeight: 1.8 }}>
-              MileClear Pro costs £4.99 per month - £59.88 per year. Against a potential saving of £1,400 or
+              MileClear Pro costs £4.99 per month, or £44.99 per year. Against a potential saving of £1,600 or
               more, that is a very straightforward return on investment.
             </p>
           </section>

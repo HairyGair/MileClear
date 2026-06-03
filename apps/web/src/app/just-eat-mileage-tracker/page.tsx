@@ -163,7 +163,7 @@ export default function JustEatMileageTracker() {
               Since January 2024 Just Eat has been required to report your annual earnings
               directly to HMRC. The first reports landed on 31 January 2026. If you ride a
               moped you claim 24p per mile, not 55p - and the difference between the two on a
-              full-time year is over £5,000 of overstated deduction. MileClear records every
+              full-time year is several thousand pounds of overstated deduction. MileClear records every
               run, applies the right rate for your vehicle, and produces a Self Assessment-ready
               log. Tracking is unlimited and free forever - no monthly drive cap, where MileIQ
               stops at 40 drives a month and Driversnote at 20. A Just Eat courier doing two

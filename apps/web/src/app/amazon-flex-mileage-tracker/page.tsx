@@ -507,9 +507,9 @@ export default function AmazonFlexMileageTracker() {
             </div>
 
             <p style={{ color: "#94a3b8", lineHeight: 1.8, marginBottom: "1rem" }}>
-              At 40% tax (higher rate), that same 25,000 miles produces a saving of £3,300 per year from
+              At 40% tax (higher rate), that same 25,000 miles produces a saving of £3,700 per year from
               mileage alone. Even a part-time Flex driver doing 12,000 business miles per year would have
-              a deduction of £4,900 - worth £980 in tax at the basic rate.
+              a deduction of £6,000 - worth £1,200 in tax at the basic rate.
             </p>
             <p style={{ color: "#94a3b8", lineHeight: 1.8 }}>
               The question is not whether the deduction is worth claiming. It clearly is. The question is
@@ -628,7 +628,7 @@ export default function AmazonFlexMileageTracker() {
               },
               {
                 q: "How much can an Amazon Flex driver save on tax with mileage tracking?",
-                a: "A Flex driver covering 25,000 business miles per year has a deduction of £8,250. At a 20% tax rate that is a £1,650 saving directly from mileage allowance. At 40%, it is £3,300.",
+                a: "A Flex driver covering 25,000 business miles per year has a deduction of £9,250 at the 2026-27 rates. At a 20% tax rate that is an £1,850 saving directly from mileage allowance. At 40%, it is £3,700.",
               },
               {
                 q: "Does Amazon report Flex earnings to HMRC?",

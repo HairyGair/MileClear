@@ -29,7 +29,7 @@ const pro = [
   "Receipt scanning - on-device OCR, your images stay on your phone",
   "CSV earnings import from Uber, Deliveroo, Just Eat, Amazon Flex, Stuart",
   "Business insights - earnings/mile, golden hours, weekly P&L, shift grades",
-  "Pickup-wait community insights (where averages 12-min waits)",
+  "Pickup-wait community insights (\"drivers here average 12-min waits\")",
   "Unlimited saved locations",
 ];
 
@@ -45,8 +45,8 @@ export default function Pricing() {
             MileIQ stops you at 40 drives a month unless you pay &pound;5.99.
             TripLog limits you to 40. Driversnote limits you to 20. We don&apos;t
             limit any of it &mdash; track as many miles as you like, on us. Pro
-            (&pound;4.99/month) adds the tax-export and analyst toolkit; it
-            never gates the tracker itself.
+            (&pound;4.99/month or &pound;44.99/year) adds the tax-export and
+            analyst toolkit; it never gates the tracker itself.
           </p>
         </Reveal>
 

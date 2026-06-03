@@ -47,14 +47,16 @@ export default function QuickBooksLanding() {
         {/* Hero */}
         <section className="qb-hero">
           <div className="container qb-hero__inner">
-            <p className="qb-hero__eyebrow">Pro integration</p>
+            <p className="qb-hero__eyebrow">Pro integration - coming soon</p>
             <h1 className="qb-hero__title">
               MileClear <span className="qb-hero__plus">+</span> QuickBooks Online
             </h1>
             <p className="qb-hero__subtitle">
-              Push your business mileage, gig earnings, and allowable expenses
-              from MileClear straight into your QuickBooks books. Your
-              accountant gets clean records; you stop copy-pasting.
+              We're building a QuickBooks Online integration that will push your
+              business mileage, gig earnings, and allowable expenses from
+              MileClear straight into your QuickBooks books - so your accountant
+              gets clean records and you stop copy-pasting. It's being reworked
+              for UK QuickBooks Online and isn't live yet.
             </p>
             <div className="qb-hero__cta-row">
               <a
@@ -65,13 +67,10 @@ export default function QuickBooksLanding() {
               >
                 Get MileClear
               </a>
-              <a className="btn btn--secondary qb-hero__cta-secondary" href="/dashboard/settings">
-                Already a member? Connect
-              </a>
             </div>
             <p className="qb-hero__finepoint">
-              QuickBooks Online required (Simple Start or higher). Open Banking
-              + cash basis supported.
+              When it launches, it will require QuickBooks Online (Simple Start
+              or higher). Pro feature.
             </p>
           </div>
         </section>
@@ -79,14 +78,14 @@ export default function QuickBooksLanding() {
         {/* What syncs */}
         <section className="qb-section">
           <div className="container">
-            <h2 className="qb-section__title">What syncs to QuickBooks</h2>
+            <h2 className="qb-section__title">What will sync to QuickBooks</h2>
             <div className="qb-syncs">
               <article className="qb-sync-card">
                 <div className="qb-sync-card__icon" aria-hidden>🛣️</div>
                 <h3 className="qb-sync-card__title">Business mileage</h3>
                 <p className="qb-sync-card__body">
-                  Every classified business trip becomes a QBO Vehicle Mileage
-                  entry. AMAP rates applied automatically (55p first 10k, 25p
+                  Every classified business trip will push into QuickBooks
+                  Online. AMAP rates applied automatically (55p first 10k, 25p
                   after - rate rose from 45p on 6 April 2026).
                 </p>
               </article>
@@ -95,16 +94,16 @@ export default function QuickBooksLanding() {
                 <h3 className="qb-sync-card__title">Gig earnings</h3>
                 <p className="qb-sync-card__body">
                   Uber, Deliveroo, Just Eat, Amazon Flex and manual earnings
-                  push to QBO as Sales Receipts, ready for your accountant's
-                  reconciliation.
+                  will push to QBO as Sales Receipts, ready for your
+                  accountant's reconciliation.
                 </p>
               </article>
               <article className="qb-sync-card">
                 <div className="qb-sync-card__icon" aria-hidden>🧾</div>
                 <h3 className="qb-sync-card__title">Allowable expenses</h3>
                 <p className="qb-sync-card__body">
-                  Parking, tolls, phone bills, accountancy fees, equipment —
-                  every expense you log lands in QBO as a Purchase, with the
+                  Parking, tolls, phone bills, accountancy fees, equipment -
+                  every expense you log will land in QBO as a Purchase, with the
                   right SA103S category.
                 </p>
               </article>
@@ -115,15 +114,15 @@ export default function QuickBooksLanding() {
         {/* How it works */}
         <section className="qb-section qb-section--alt">
           <div className="container">
-            <h2 className="qb-section__title">How it works</h2>
+            <h2 className="qb-section__title">How it will work</h2>
             <ol className="qb-steps">
               <li className="qb-step">
                 <span className="qb-step__num">1</span>
                 <div>
                   <h3 className="qb-step__title">Connect once</h3>
                   <p className="qb-step__body">
-                    Open MileClear → Settings → Integrations → QuickBooks → tap
-                    Connect. Sign into QBO, authorise MileClear, done.
+                    Open MileClear, go to Settings, Integrations, QuickBooks and
+                    tap Connect. Sign into QBO, authorise MileClear, done.
                   </p>
                 </div>
               </li>
@@ -132,19 +131,20 @@ export default function QuickBooksLanding() {
                 <div>
                   <h3 className="qb-step__title">Pick a date range</h3>
                   <p className="qb-step__body">
-                    Push this tax year, last month, or any custom window. We
-                    de-duplicate against previous pushes so re-running is safe.
+                    Push this tax year, last month, or any custom window.
+                    Records will de-duplicate against previous pushes so
+                    re-running is safe.
                   </p>
                 </div>
               </li>
               <li className="qb-step">
                 <span className="qb-step__num">3</span>
                 <div>
-                  <h3 className="qb-step__title">Done — your accountant sees it</h3>
+                  <h3 className="qb-step__title">Done - your accountant sees it</h3>
                   <p className="qb-step__body">
-                    Every record lands in QBO with a MileClear reference, so
+                    Every record will land in QBO with a MileClear reference, so
                     your accountant can trace anything back to the source
-                    trip / earning / receipt.
+                    trip, earning, or receipt.
                   </p>
                 </div>
               </li>
@@ -157,9 +157,17 @@ export default function QuickBooksLanding() {
           <div className="container">
             <h2 className="qb-section__title">Common questions</h2>
             <details className="qb-faq">
-              <summary className="qb-faq__q">Is this Pro-only?</summary>
+              <summary className="qb-faq__q">Is it available yet?</summary>
               <p className="qb-faq__a">
-                Yes. The QuickBooks integration is part of MileClear Pro
+                Not yet. The QuickBooks integration is coming soon - we're
+                reworking it for UK QuickBooks Online before launch. This page
+                explains how it will work once it ships.
+              </p>
+            </details>
+            <details className="qb-faq">
+              <summary className="qb-faq__q">Will it be Pro-only?</summary>
+              <p className="qb-faq__a">
+                Yes. The QuickBooks integration will be part of MileClear Pro
                 (£4.99/month or £44.99/year). All free features stay free.
               </p>
             </details>
@@ -168,7 +176,7 @@ export default function QuickBooksLanding() {
               <p className="qb-faq__a">
                 QuickBooks Online (Simple Start, Essentials, Plus or
                 Advanced). QuickBooks Self-Employed and QuickBooks Desktop
-                aren't supported — Intuit's APIs for those products are
+                won't be supported - Intuit's APIs for those products are
                 read-only or unavailable.
               </p>
             </details>
@@ -177,17 +185,18 @@ export default function QuickBooksLanding() {
                 What happens to data already in QBO?
               </summary>
               <p className="qb-faq__a">
-                We never delete or modify entries we didn't create.
-                MileClear-pushed records are tagged so we can update or remove
-                them later, but anything else in your QBO file is untouched.
+                MileClear will never delete or modify entries it didn't create.
+                MileClear-pushed records will be tagged so they can be updated
+                or removed later, but anything else in your QBO file stays
+                untouched.
               </p>
             </details>
             <details className="qb-faq">
-              <summary className="qb-faq__q">How do I disconnect?</summary>
+              <summary className="qb-faq__q">How will I disconnect?</summary>
               <p className="qb-faq__a">
-                In MileClear: Settings → Integrations → QuickBooks → Disconnect.
-                Or from inside QuickBooks: Apps → Connected apps → MileClear →
-                Disconnect. Either side works; both will sync.
+                In MileClear: Settings, Integrations, QuickBooks, Disconnect. Or
+                from inside QuickBooks: Apps, Connected apps, MileClear,
+                Disconnect. Either side will work; both will sync.
               </p>
             </details>
           </div>
@@ -198,8 +207,8 @@ export default function QuickBooksLanding() {
           <div className="container qb-cta">
             <h2 className="qb-cta__title">Stop copy-pasting your mileage</h2>
             <p className="qb-cta__body">
-              MileClear Pro + QuickBooks Online. Two taps and your tax records
-              are in one place.
+              MileClear Pro + QuickBooks Online is coming soon. Get the app now
+              and start tracking, so your records are ready the day it lands.
             </p>
             <a
               className="btn btn--primary qb-cta__btn"

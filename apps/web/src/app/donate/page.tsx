@@ -49,7 +49,7 @@ export default function DonatePage() {
         throw new Error(typeof msg === "string" ? msg : "Couldn't start checkout. Try again.");
       }
       const { data } = await res.json();
-      if (!data?.url) throw new Error("Checkout URL missing — try again.");
+      if (!data?.url) throw new Error("Checkout URL missing - try again.");
       window.location.href = data.url;
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong.");
@@ -64,7 +64,7 @@ export default function DonatePage() {
         <header className="donate__header">
           <h1 className="donate__title">Buy MileClear a coffee</h1>
           <p className="donate__lede">
-            MileClear stays free for everyone — mileage tracking, tax calc, HMRC
+            MileClear stays free for everyone - mileage tracking, tax calc, HMRC
             categories, all of it. If the app's saved you time or money and you
             want to chip in towards keeping it going, here's the spot.
           </p>
@@ -129,7 +129,7 @@ export default function DonatePage() {
             className="donate__submit"
             disabled={!valid || loading}
           >
-            {loading ? "Redirecting to Stripe…" : `Continue to secure checkout${valid ? ` · £${(finalPence / 100).toFixed(2)}` : ""}`}
+            {loading ? "Redirecting to Stripe..." : `Continue to secure checkout${valid ? ` · £${(finalPence / 100).toFixed(2)}` : ""}`}
           </button>
         </form>
 
@@ -149,7 +149,7 @@ export default function DonatePage() {
             <li>
               <strong>Want ongoing access to Pro features?</strong> You're looking
               for the <a href="https://apps.apple.com/app/mileclear/id6759671005" className="donate__inline-link">subscription</a>{" "}
-              instead — £4.99/month or £44.99/year unlocks HMRC quarterly submissions,
+              instead - £4.99/month or £44.99/year unlocks HMRC quarterly submissions,
               unlimited invoices, business insights, and the rest.
             </li>
             <li>

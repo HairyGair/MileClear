@@ -112,7 +112,7 @@ const faqs = [
   },
   {
     q: 'Do you offer an annual plan?',
-    a: 'Not yet. Pro is currently monthly only at £4.99/month. An annual plan is on the roadmap and will land before public App Store launch.',
+    a: 'Yes. Pro is £4.99/month or £44.99/year - the annual plan works out at under £3.75 a month, so two months are effectively free. You can pick either when you upgrade in the app.',
   },
 ];
 
@@ -158,6 +158,24 @@ export default function PricingPage() {
           unitCode: 'MON',
           unitText: 'month',
           billingDuration: 'P1M',
+        },
+      },
+      {
+        '@type': 'Offer',
+        name: 'Pro Annual',
+        price: '44.99',
+        priceCurrency: 'GBP',
+        availability: 'https://schema.org/InStock',
+        url: 'https://mileclear.com/pricing',
+        description:
+          'Self Assessment wizard, PDF and CSV exports with HMRC attestation cover sheet, Accountant Portal, receipt scanning, CSV earnings import, business insights, pickup-wait community insights, unlimited saved locations. Billed yearly.',
+        priceSpecification: {
+          '@type': 'UnitPriceSpecification',
+          price: '44.99',
+          priceCurrency: 'GBP',
+          unitCode: 'ANN',
+          unitText: 'year',
+          billingDuration: 'P1Y',
         },
       },
     ],
@@ -236,6 +254,9 @@ export default function PricingPage() {
                 <p className="p-card__name">Pro</p>
                 <p className="p-card__price">
                   &pound;4.99<span className="p-card__period"> /month</span>
+                </p>
+                <p className="p-card__period" style={{ marginTop: '-0.5rem', marginBottom: '0.75rem' }}>
+                  or &pound;44.99/year (two months free)
                 </p>
                 <p className="p-card__desc">
                   Self Assessment wizard, HMRC-ready exports, Accountant Portal, receipt scanning, and the full business-insights toolkit for self-employed drivers.

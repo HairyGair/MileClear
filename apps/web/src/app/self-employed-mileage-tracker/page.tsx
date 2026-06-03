@@ -82,7 +82,7 @@ const faqSchema = {
       name: "What about MTD ITSA - making tax digital for self-employed?",
       acceptedAnswer: {
         "@type": "Answer",
-        text: "From April 2026, UK sole traders with self-employed income above £50,000 must submit quarterly digital updates to HMRC instead of (and on top of) the annual Self Assessment - this is Making Tax Digital for Income Tax (MTD ITSA). The threshold drops to £30,000 in April 2027. MileClear's MTD ITSA module connects to HMRC directly using our developer-hub credentials, pulls your obligations, and lets you submit your quarterly mileage and earnings totals from inside the app. Built in, no extra software needed.",
+        text: "From April 2026, UK sole traders with self-employed income above £50,000 must submit quarterly digital updates to HMRC instead of (and on top of) the annual Self Assessment - this is Making Tax Digital for Income Tax (MTD ITSA). The threshold drops to £30,000 in April 2027. MileClear is registered with HMRC's developer hub and building MTD ITSA support: pulling your obligations and submitting your quarterly mileage and earnings totals from inside the app. This is in development now, not yet live - it is targeted for the 1.2.0 release ahead of the first quarterly deadline. Your mileage records are already in the digital, exportable shape MTD will need.",
       },
     },
     {
@@ -163,7 +163,8 @@ export default function SelfEmployedMileageTracker() {
               PDF when tax season comes. Tracking is unlimited and free forever - no 40-drive
               monthly cap like MileIQ, no 20-drive cap like Driversnote. Whether you're a
               tradesperson on 10 jobs a day or a consultant doing two client visits a week, every
-              mile is captured. MTD ITSA quarterly submission is built in.
+              mile is captured. MTD ITSA quarterly submission is in development and
+              coming soon.
             </p>
             <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap", marginTop: "1.5rem" }}>
               <a
@@ -349,7 +350,7 @@ export default function SelfEmployedMileageTracker() {
                 marginBottom: "1.25rem",
               }}
             >
-              MTD ITSA - Ready for the April 2026 Deadline
+              MTD ITSA - Getting You Ready for the April 2026 Deadline
             </h2>
             <p style={{ color: "#94a3b8", lineHeight: 1.8, marginBottom: "1rem" }}>
               From <strong style={{ color: "#e2e8f0" }}>6 April 2026</strong>, sole traders with
@@ -358,10 +359,12 @@ export default function SelfEmployedMileageTracker() {
               The first quarterly deadline is <strong style={{ color: "#e2e8f0" }}>7 August 2026</strong>.
             </p>
             <p style={{ color: "#94a3b8", lineHeight: 1.8, marginBottom: "1rem" }}>
-              MileClear's MTD ITSA module connects directly to HMRC using our authorised
-              developer-hub credentials. Your quarterly mileage and earnings totals submit straight from
-              the app - no third-party bridging software needed, no spreadsheet uploads, no extra
-              subscription. It's built in.
+              MileClear is registered with HMRC's developer hub and building MTD ITSA support so your
+              quarterly mileage and earnings totals can submit straight from the app - no third-party
+              bridging software, no spreadsheet uploads, no extra subscription. This is in development
+              now, targeted for the 1.2.0 release ahead of the first quarterly deadline. In the
+              meantime, every business mile you track is already stored in the digital, exportable
+              shape MTD needs.
             </p>
             <p style={{ color: "#94a3b8", lineHeight: 1.8 }}>
               See the <a href="/mtd-itsa-software-for-sole-traders" style={{ color: "#fbbf24", textDecoration: "underline" }}>full
@@ -393,7 +396,7 @@ export default function SelfEmployedMileageTracker() {
               },
               {
                 q: "What about MTD ITSA?",
-                a: "From 6 April 2026, sole traders earning over £50k must submit quarterly digital updates to HMRC. MileClear's MTD ITSA module connects to HMRC directly and submits from inside the app.",
+                a: "From 6 April 2026, sole traders earning over £50k must submit quarterly digital updates to HMRC. MileClear is registered with HMRC's developer hub and building MTD ITSA submission into the app - it's in development now, targeted for the 1.2.0 release ahead of the first deadline. Your mileage records are already in the digital, exportable shape MTD needs.",
               },
               {
                 q: "Can I claim home-to-work miles?",
@@ -490,7 +493,7 @@ export default function SelfEmployedMileageTracker() {
               Claim Every Mile You're Owed
             </h2>
             <p style={{ color: "#94a3b8", fontSize: "1rem", lineHeight: 1.7, marginBottom: "1.75rem", maxWidth: 520, margin: "0 auto 1.75rem" }}>
-              Free to download. HMRC AMAP rates from your first trip. MTD ITSA built in.
+              Free to download. HMRC AMAP rates from your first trip. MTD ITSA support on the way.
             </p>
             <a
               href="https://apps.apple.com/app/mileclear/id6759671005"

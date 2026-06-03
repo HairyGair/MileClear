@@ -29,7 +29,7 @@ export const metadata: Metadata = {
 const faqs = [
   {
     q: "What are the HMRC mileage rates for 2026-27?",
-    a: "From 6 April 2026 (the start of the 2026-27 tax year), HMRC raised the Approved Mileage Allowance Payment (AMAP) rate for cars and vans to 55p per mile for the first 10,000 business miles, then 25p per mile for every mile after that. Motorbikes stay at 24p per mile flat. The previous rate (55p/25p for cars and vans) had been in place since April 2011. The 10,000-mile counter resets on 6 April each year.",
+    a: "From 6 April 2026 (the start of the 2026-27 tax year), HMRC raised the Approved Mileage Allowance Payment (AMAP) rate for cars and vans to 55p per mile for the first 10,000 business miles, then 25p per mile for every mile after that. Motorbikes stay at 24p per mile flat and bicycles at 20p per mile. The previous rate (45p/25p for cars and vans) had been in place since April 2011. The 10,000-mile counter resets on 6 April each year.",
   },
   {
     q: "What rate do I use for tax year 2025-26?",
@@ -53,7 +53,7 @@ const faqs = [
   },
   {
     q: "What about tax years before 2025-26?",
-    a: "The rates were 55p/25p for cars and vans from April 2011 right through to 5 April 2026. So the same figures apply if you are doing a late Self Assessment for any year up to and including 2025-26. From 6 April 2026 onwards the rate is 55p/25p. Always check HMRC's own guidance for the exact tax year you are filing.",
+    a: "The rates were 45p/25p for cars and vans from April 2011 right through to 5 April 2026. So the same figures apply if you are doing a late Self Assessment for any year up to and including 2025-26. From 6 April 2026 onwards the rate is 55p/25p. Always check HMRC's own guidance for the exact tax year you are filing.",
   },
 ];
 
@@ -116,7 +116,8 @@ export default function HmrcRatesPage() {
               <p className="subtext" style={{ margin: "0 auto", maxWidth: 620 }}>
                 The approved rates that let you claim tax relief on every
                 business mile you drive. Covers the 2025-26 and 2026-27 tax
-                years. Rates have not changed since 2011.
+                years. The cars-and-vans rate rose from 45p to 55p on 6 April
+                2026, after holding at 45p since 2011.
               </p>
             </div>
 

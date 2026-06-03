@@ -92,7 +92,7 @@ export default function AboutPage() {
               <div className="about__platform-grid">
                 {[
                   'Uber', 'Deliveroo', 'Amazon Flex', 'Just Eat',
-                  'Stuart', 'DPD', 'Evri', 'Gophr', 'Yodel', 'Bolt',
+                  'Stuart', 'DPD', 'Evri', 'Gophr', 'Yodel',
                 ].map((platform) => (
                   <span key={platform} className="about__platform-tag">{platform}</span>
                 ))}
@@ -141,17 +141,18 @@ export default function AboutPage() {
               </p>
               <ul className="legal__list" style={{ marginBottom: '1rem' }}>
                 <li className="legal__list-item">
-                  Improving auto-trip detection reliability across more device types and Android
+                  Improving auto-trip detection reliability across more iPhone models
                 </li>
                 <li className="legal__list-item">
                   Expanding business intelligence features - route analytics, shift grading
                   improvements, and smarter golden hours
                 </li>
                 <li className="legal__list-item">
-                  Preparing for an Android launch later in 2026
+                  Deepening Making Tax Digital (MTD ITSA) support ahead of the quarterly
+                  reporting deadlines
                 </li>
                 <li className="legal__list-item">
-                  Accounting software integrations for Xero, FreeAgent, and QuickBooks
+                  Accounting software integrations for Xero and FreeAgent (coming soon)
                 </li>
               </ul>
               <p className="legal__text">

@@ -550,8 +550,10 @@ export default function MtdItsaSoftwarePage() {
             </h2>
             <p style={{ color: "var(--text-secondary)", marginBottom: "1.5rem" }}>
               The whole point of MTD-compliant software is that you stop
-              copying numbers between spreadsheets. Here&apos;s what runs
-              automatically once your quarterly window opens:
+              copying numbers between spreadsheets. Here&apos;s what the MTD
+              ITSA feature, in development now and targeted for the 1.2.0
+              release, is being built to handle automatically once your
+              quarterly window opens:
             </p>
 
             <div

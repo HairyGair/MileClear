@@ -231,7 +231,8 @@ export default function DeliveryDriverMileageTracker() {
               Mileage is the single biggest deduction available to you. HMRC&apos;s Approved Mileage Allowance
               Payment (AMAP) lets you claim <strong>55p per mile for the first 10,000 business miles</strong> in
               a tax year (raised from 45p on 6 April 2026), and <strong>25p per mile after that</strong>.
-              Motorbikes claim 24p flat. Bicycles claim 20p flat. None of the gig platforms calculate or produce
+              Motorbikes claim 24p flat. The 20p bicycle rate applies only to employees, so self-employed
+              cyclists claim actual running costs instead. None of the gig platforms calculate or produce
               this for you.
             </p>
             <p style={{ color: "#94a3b8", lineHeight: 1.8, marginBottom: "1rem" }}>
@@ -499,8 +500,8 @@ export default function DeliveryDriverMileageTracker() {
             </div>
 
             <p style={{ color: "#94a3b8", lineHeight: 1.8, marginBottom: "1rem" }}>
-              Even a part-time delivery driver doing 12,000 business miles per year has a deduction of £4,900 -
-              worth £980 in tax at the basic rate or £1,960 at the higher rate. The question is not whether the
+              Even a part-time delivery driver doing 12,000 business miles per year has a deduction of £6,000 -
+              worth £1,200 in tax at the basic rate or £2,400 at the higher rate. The question is not whether the
               deduction is worth claiming. It is whether you have the records to claim it. MileClear builds those
               records automatically, every time you drive.
             </p>
@@ -538,7 +539,7 @@ export default function DeliveryDriverMileageTracker() {
               },
               {
                 q: "How much can a delivery driver save?",
-                a: "A driver covering 25,000 business miles per year can claim £8,250 in HMRC mileage relief - £1,650 back at basic rate, £3,300 at higher rate. Even a part-time driver at 12,000 miles claims £4,900.",
+                a: "A driver covering 25,000 business miles per year can claim £9,250 in HMRC mileage relief at the 2026-27 rates - £1,850 back at basic rate, £3,700 at higher rate. Even a part-time driver at 12,000 miles claims £6,000.",
               },
               {
                 q: "What format does the export use?",

@@ -89,7 +89,7 @@ const features = [
         <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
       </svg>
     ),
-    title: "43 achievements and streaks",
+    title: "18 achievements and streaks",
     desc: "Unlock badges for milestones, keep your driving streak alive, and get weekly recaps with shareable stats.",
     alt: true,
   },
@@ -137,7 +137,7 @@ const features = [
       </svg>
     ),
     title: "CSV import and Open Banking",
-    desc: "Bulk import earnings from platform CSVs or sync automatically via Open Banking with Plaid. No more manual data entry.",
+    desc: "Bulk import earnings from platform CSVs or sync automatically via Open Banking with TrueLayer. No more manual data entry.",
     alt: true,
     pro: "Pro",
   },
