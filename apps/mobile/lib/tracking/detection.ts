@@ -2429,6 +2429,21 @@ export async function startDriveDetection(): Promise<void> {
   const { status } = await Location.getBackgroundPermissionsAsync();
   if (status !== "granted") {
     logDetectionEvent("permission_lost", { status }).catch(() => {});
+    // If background was EVER granted, this is a genuine regression (iOS
+    // downgraded it, an OS update, the user changed it) — flag it so the
+    // dashboard shows a firm "you've lost background access" recovery banner.
+    // 40% of the fleet has a permission_lost event; many had it working.
+    db.getFirstAsync<{ value: string }>(
+      "SELECT value FROM tracking_state WHERE key = 'bg_was_granted'"
+    )
+      .then((row) => {
+        if (row?.value === "1") {
+          db.runAsync(
+            "INSERT OR REPLACE INTO tracking_state (key, value) VALUES ('bg_permission_lost', '1')"
+          ).catch(() => {});
+        }
+      })
+      .catch(() => {});
     const now = Date.now();
     if (!isQuietHours() && now - lastBgPermissionNudge > BG_PERMISSION_NUDGE_COOLDOWN_MS) {
       lastBgPermissionNudge = now;

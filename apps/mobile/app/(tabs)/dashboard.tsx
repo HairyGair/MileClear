@@ -180,6 +180,10 @@ export default function DashboardScreen() {
   // iOS Background App Refresh off => the app can't run in the background, so
   // recording fails regardless of location/engine. Surfaced as a blocker banner.
   const [bgRefreshOff, setBgRefreshOff] = useState(false);
+  // Background location was granted before and has since been lost (iOS
+  // downgrade / OS update / user change). Firm recovery banner, distinct from
+  // the soft "upgrade to Always" nudge for users who never granted it.
+  const [bgPermissionLost, setBgPermissionLost] = useState(false);
   // Dismissal cooldown: hides the "Auto-detection is off" nudge for 7
   // days after a tap on the X. Avoids the every-load nag (Anthony 16
   // May audit) while still resurfacing the prompt periodically so a
@@ -650,6 +654,24 @@ export default function DashboardScreen() {
       getLocationPermissionStatus().then(({ tier }) => {
         setLocationTier(tier);
         setBgLocationGranted(tier === "always");
+        // Track whether background was ever granted, and detect a regression.
+        getDatabase().then(async (db) => {
+          if (tier === "always") {
+            // Healthy now — remember it was granted, clear any lost flag.
+            await db.runAsync(
+              "INSERT OR REPLACE INTO tracking_state (key, value) VALUES ('bg_was_granted', '1')"
+            ).catch(() => {});
+            await db.runAsync(
+              "DELETE FROM tracking_state WHERE key = 'bg_permission_lost'"
+            ).catch(() => {});
+            setBgPermissionLost(false);
+          } else {
+            const lost = await db.getFirstAsync<{ value: string }>(
+              "SELECT value FROM tracking_state WHERE key = 'bg_permission_lost'"
+            ).catch(() => null);
+            setBgPermissionLost(lost?.value === "1");
+          }
+        }).catch(() => {});
       }).catch(() => {});
       // Background App Refresh: if iOS won't run us in the background, recording
       // fails no matter what — surface it so the user can re-enable the setting.
@@ -1250,10 +1272,42 @@ export default function DashboardScreen() {
         </TouchableOpacity>
       )}
 
+      {/* REGRESSION — background location was granted before and has been lost
+          (iOS downgrade, OS update, user change). 40% of the fleet has a
+          permission_lost event. Firm, non-dismissible recovery banner, distinct
+          from the soft "upgrade to Always" nudge below (which is for users who
+          never granted it). Takes precedence over that nudge. */}
+      {bgPermissionLost && locationTier !== "always" && !activeShift && (
+        <TouchableOpacity
+          style={[s.bgLocNudge, s.bgLocBlocker]}
+          onPress={async () => {
+            const final = await requestOrFixBackgroundLocation();
+            setLocationTier(final.tier);
+            setBgLocationGranted(final.tier === "always");
+          }}
+          activeOpacity={0.7}
+          accessibilityRole="button"
+          accessibilityLabel="You've lost background location access. Tap to restore it so MileClear can record your trips again."
+        >
+          <View style={s.bgLocNudgeRow}>
+            <View style={s.bgLocNudgeIcon}>
+              <Ionicons name="warning" size={20} color="#ef4444" accessible={false} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={s.bgLocBlockerTitle}>Your trips stopped recording</Text>
+              <Text style={s.bgLocNudgeBody}>
+                MileClear had background location access, but it&apos;s been turned off — so your drives aren&apos;t being recorded anymore. Tap to switch it back to &ldquo;Always&rdquo;.
+              </Text>
+            </View>
+          </View>
+        </TouchableOpacity>
+      )}
+
       {/* Foreground-only ("While Using"): records while the app is open but
           misses backgrounded drives. The app still works, so this stays a soft,
-          dismissible nudge to upgrade to Always. */}
-      {locationTier === "foreground" && !activeShift && !bgLocNudgeSilenced && (
+          dismissible nudge to upgrade to Always. Suppressed when the firm
+          regression banner above is showing. */}
+      {locationTier === "foreground" && !activeShift && !bgLocNudgeSilenced && !bgPermissionLost && (
         <TouchableOpacity
           style={s.bgLocNudge}
           onPress={async () => {
