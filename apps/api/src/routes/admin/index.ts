@@ -1424,6 +1424,135 @@ export async function adminRoutes(app: FastifyInstance) {
     });
   });
 
+  // GET /admin/detection-fleet
+  // Fleet-wide detection health. Reliable signals come from the trips table
+  // (captures, "gone quiet"); the engine split comes from the latest
+  // DiagnosticDump per user (sampled — only devices that have uploaded a dump —
+  // so it's indicative, not exhaustive). Native heartbeat freshness is judged
+  // relative to each dump's capturedAt, not "now", so an old dump doesn't make
+  // a healthy device look stale.
+  app.get("/detection-fleet", async (_request, reply) => {
+    const now = Date.now();
+    const sevenDaysAgo = new Date(now - 7 * 24 * 60 * 60 * 1000);
+    const thirtyDaysAgo = new Date(now - 30 * 24 * 60 * 60 * 1000);
+    const FRESH_MS = 48 * 60 * 60 * 1000;
+
+    // Engine split + native heartbeat health from the latest dump per user.
+    const dumps = await prisma.diagnosticDump.findMany({
+      select: {
+        capturedAt: true,
+        statusJson: true,
+        user: { select: { email: true, displayName: true } },
+      },
+    });
+
+    let nativeOn = 0;
+    let jsEngine = 0;
+    let nativeFresh = 0;
+    let nativeStale = 0;
+    let nativeNever = 0;
+    const nativeNeedsAttention: Array<{
+      email: string;
+      displayName: string | null;
+      lastNativeLocationAt: string | null;
+      dumpAt: string;
+    }> = [];
+
+    for (const d of dumps) {
+      const s = (d.statusJson ?? {}) as {
+        nativeEngineEnabled?: boolean;
+        lastNativeLocationAt?: string | null;
+      };
+      if (s.nativeEngineEnabled === true) {
+        nativeOn++;
+        const last = s.lastNativeLocationAt
+          ? new Date(s.lastNativeLocationAt).getTime()
+          : null;
+        const capMs = d.capturedAt.getTime();
+        if (last == null) {
+          nativeNever++;
+        } else if (capMs - last <= FRESH_MS) {
+          nativeFresh++;
+        } else {
+          nativeStale++;
+        }
+        if (last == null || capMs - last > FRESH_MS) {
+          nativeNeedsAttention.push({
+            email: d.user.email,
+            displayName: d.user.displayName,
+            lastNativeLocationAt: s.lastNativeLocationAt ?? null,
+            dumpAt: d.capturedAt.toISOString(),
+          });
+        }
+      } else if (s.nativeEngineEnabled === false) {
+        jsEngine++;
+      }
+    }
+
+    // Drivers gone quiet: >=3 auto-trips in the prior window (30d..7d) but ZERO
+    // trips of any kind in the last 7d. The silent-capture-failure / churn signal.
+    const quietRows = await prisma.$queryRaw<
+      Array<{ email: string; displayName: string | null; lastTripAt: Date; priorTrips: bigint }>
+    >`
+      SELECT u.email, u.displayName, MAX(t.startedAt) AS lastTripAt, COUNT(*) AS priorTrips
+      FROM users u
+      JOIN trips t ON t.userId = u.id
+      WHERE t.isManualEntry = false
+        AND t.startedAt >= ${thirtyDaysAgo}
+        AND t.startedAt < ${sevenDaysAgo}
+      GROUP BY u.id, u.email, u.displayName
+      HAVING COUNT(*) >= 3
+        AND u.id NOT IN (SELECT DISTINCT userId FROM trips WHERE startedAt >= ${sevenDaysAgo})
+      ORDER BY lastTripAt DESC
+      LIMIT 50
+    `;
+
+    const [activeDrivers7d, autoTrips7d, manualTrips7d] = await Promise.all([
+      prisma.trip.findMany({
+        where: { startedAt: { gte: sevenDaysAgo } },
+        select: { userId: true },
+        distinct: ["userId"],
+      }),
+      prisma.trip.count({
+        where: { isManualEntry: false, startedAt: { gte: sevenDaysAgo } },
+      }),
+      prisma.trip.count({
+        where: { isManualEntry: true, startedAt: { gte: sevenDaysAgo } },
+      }),
+    ]);
+
+    const totalTrips7d = autoTrips7d + manualTrips7d;
+    const autoSharePercent =
+      totalTrips7d > 0 ? Math.round((autoTrips7d / totalTrips7d) * 1000) / 10 : 0;
+
+    return reply.send({
+      data: {
+        engineSplit: {
+          nativeOn,
+          jsEngine,
+          nativeFresh,
+          nativeStale,
+          nativeNever,
+          dumpsTotal: dumps.length,
+        },
+        nativeNeedsAttention,
+        quietDrivers: quietRows.map((r) => ({
+          email: r.email,
+          displayName: r.displayName,
+          lastTripAt: r.lastTripAt.toISOString(),
+          priorTrips: Number(r.priorTrips),
+          daysSinceLastTrip: Math.floor((now - r.lastTripAt.getTime()) / 86400000),
+        })),
+        kpis: {
+          activeDrivers7d: activeDrivers7d.length,
+          autoTrips7d,
+          manualTrips7d,
+          autoSharePercent,
+        },
+      },
+    });
+  });
+
   // POST /admin/send-push
   app.post("/send-push", async (request, reply) => {
     const parsed = pushSchema.safeParse(request.body);

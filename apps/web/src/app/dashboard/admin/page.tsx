@@ -2456,15 +2456,52 @@ interface AutoTripData {
   dailyAutoTrips: Array<{ date: string; autoCount: number; manualCount: number }>;
 }
 
+interface DetectionFleetData {
+  engineSplit: {
+    nativeOn: number;
+    jsEngine: number;
+    nativeFresh: number;
+    nativeStale: number;
+    nativeNever: number;
+    dumpsTotal: number;
+  };
+  nativeNeedsAttention: Array<{
+    email: string;
+    displayName: string | null;
+    lastNativeLocationAt: string | null;
+    dumpAt: string;
+  }>;
+  quietDrivers: Array<{
+    email: string;
+    displayName: string | null;
+    lastTripAt: string;
+    priorTrips: number;
+    daysSinceLastTrip: number;
+  }>;
+  kpis: {
+    activeDrivers7d: number;
+    autoTrips7d: number;
+    manualTrips7d: number;
+    autoSharePercent: number;
+  };
+}
+
 function AutoTripsTab() {
   const [data, setData] = useState<AutoTripData | null>(null);
+  const [fleet, setFleet] = useState<DetectionFleetData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    api
-      .get<{ data: AutoTripData }>("/admin/auto-trip-health")
-      .then((res) => setData(res.data))
+    Promise.all([
+      api
+        .get<{ data: AutoTripData }>("/admin/auto-trip-health")
+        .then((res) => setData(res.data)),
+      api
+        .get<{ data: DetectionFleetData }>("/admin/detection-fleet")
+        .then((res) => setFleet(res.data))
+        .catch(() => {}), // fleet view is non-fatal context
+    ])
       .catch((err: Error) => setError(err.message))
       .finally(() => setLoading(false));
   }, []);
@@ -2514,6 +2551,82 @@ function AutoTripsTab() {
           <p className="stat-card__value">{data.avgAutoTripDistanceMiles} mi</p>
         </div>
       </div>
+
+      {fleet && (
+        <>
+          <h3 style={{ fontSize: "0.8125rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--text-secondary)", margin: "1rem 0 -0.25rem" }}>
+            Fleet detection health
+          </h3>
+          <div className="stats-grid">
+            <div className="stat-card">
+              <p className="stat-card__label">Active Drivers (7d)</p>
+              <p className="stat-card__value stat-card__value--amber">{fleet.kpis.activeDrivers7d}</p>
+            </div>
+            <div className="stat-card">
+              <p className="stat-card__label">Auto Share (7d)</p>
+              <p className="stat-card__value" style={{ color: fleet.kpis.autoSharePercent >= 60 ? "var(--emerald-400)" : "var(--amber-400)" }}>{fleet.kpis.autoSharePercent}%</p>
+              <p style={{ fontSize: "0.75rem", color: "var(--text-secondary)", marginTop: 2 }}>{fleet.kpis.autoTrips7d} auto / {fleet.kpis.manualTrips7d} manual</p>
+            </div>
+            <div className="stat-card">
+              <p className="stat-card__label">Native Engine</p>
+              <p className="stat-card__value">{fleet.engineSplit.nativeOn}</p>
+              <p style={{ fontSize: "0.75rem", color: "var(--text-secondary)", marginTop: 2 }}>vs {fleet.engineSplit.jsEngine} JS · {fleet.engineSplit.dumpsTotal} dumps</p>
+            </div>
+            <div className="stat-card">
+              <p className="stat-card__label">Native Healthy</p>
+              <p className="stat-card__value" style={{ color: fleet.engineSplit.nativeStale + fleet.engineSplit.nativeNever === 0 ? "var(--emerald-400)" : "var(--amber-400)" }}>{fleet.engineSplit.nativeFresh}</p>
+              <p style={{ fontSize: "0.75rem", color: "var(--text-secondary)", marginTop: 2 }}>{fleet.engineSplit.nativeStale} stale / {fleet.engineSplit.nativeNever} no fix</p>
+            </div>
+          </div>
+
+          <Card title={`Drivers gone quiet (${fleet.quietDrivers.length})`}>
+            <p style={{ fontSize: "0.8125rem", color: "var(--text-secondary)", marginBottom: "0.75rem" }}>
+              Were capturing (≥3 auto-trips in the prior 30→7 days) but have recorded nothing in the last 7 days — the silent-capture-failure / churn signal.
+            </p>
+            {fleet.quietDrivers.length === 0 ? (
+              <p style={{ fontSize: "0.875rem", color: "var(--emerald-400)" }}>None — every recently-active driver is still capturing.</p>
+            ) : (
+              <div className="table-wrap">
+                <table className="table">
+                  <thead><tr><th>Driver</th><th style={{ textAlign: "right" }}>Prior trips</th><th style={{ textAlign: "right" }}>Last trip</th><th style={{ textAlign: "right" }}>Quiet for</th></tr></thead>
+                  <tbody>
+                    {fleet.quietDrivers.map((q) => (
+                      <tr key={q.email}>
+                        <td>{q.displayName || q.email}</td>
+                        <td style={{ textAlign: "right", fontVariantNumeric: "tabular-nums" }}>{q.priorTrips}</td>
+                        <td style={{ textAlign: "right" }}>{new Date(q.lastTripAt).toLocaleDateString("en-GB")}</td>
+                        <td style={{ textAlign: "right", fontWeight: 600, color: q.daysSinceLastTrip >= 10 ? "var(--dash-red)" : "var(--amber-400)" }}>{q.daysSinceLastTrip}d</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </Card>
+
+          {fleet.nativeNeedsAttention.length > 0 && (
+            <Card title={`Native engine needs attention (${fleet.nativeNeedsAttention.length})`}>
+              <p style={{ fontSize: "0.8125rem", color: "var(--text-secondary)", marginBottom: "0.75rem" }}>
+                On the native engine, but their last diagnostic dump showed no recent native fix — native may not be delivering for them.
+              </p>
+              <div className="table-wrap">
+                <table className="table">
+                  <thead><tr><th>Driver</th><th style={{ textAlign: "right" }}>Last native fix</th><th style={{ textAlign: "right" }}>Last dump</th></tr></thead>
+                  <tbody>
+                    {fleet.nativeNeedsAttention.map((n) => (
+                      <tr key={n.email}>
+                        <td>{n.displayName || n.email}</td>
+                        <td style={{ textAlign: "right", color: n.lastNativeLocationAt ? undefined : "var(--dash-red)" }}>{n.lastNativeLocationAt ? new Date(n.lastNativeLocationAt).toLocaleDateString("en-GB") : "never"}</td>
+                        <td style={{ textAlign: "right" }}>{new Date(n.dumpAt).toLocaleDateString("en-GB")}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </Card>
+          )}
+        </>
+      )}
 
       {data.dailyAutoTrips.length > 0 && (
         <Card title="Daily Breakdown (7d)">
