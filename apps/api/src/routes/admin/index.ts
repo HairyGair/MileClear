@@ -1507,7 +1507,13 @@ export async function adminRoutes(app: FastifyInstance) {
       LIMIT 50
     `;
 
-    const [activeDrivers7d, autoTrips7d, manualTrips7d] = await Promise.all([
+    const [
+      activeDrivers7d,
+      autoTrips7d,
+      manualTrips7d,
+      shortAutoTrips7d,
+      shortManualTrips7d,
+    ] = await Promise.all([
       prisma.trip.findMany({
         where: { startedAt: { gte: sevenDaysAgo } },
         select: { userId: true },
@@ -1519,11 +1525,32 @@ export async function adminRoutes(app: FastifyInstance) {
       prisma.trip.count({
         where: { isManualEntry: true, startedAt: { gte: sevenDaysAgo } },
       }),
+      // Short trips (< 2 miles) are the hard case for auto-detection. A low
+      // auto-share here = short trips being missed and added by hand.
+      prisma.trip.count({
+        where: {
+          isManualEntry: false,
+          distanceMiles: { lt: 2, gt: 0 },
+          startedAt: { gte: sevenDaysAgo },
+        },
+      }),
+      prisma.trip.count({
+        where: {
+          isManualEntry: true,
+          distanceMiles: { lt: 2, gt: 0 },
+          startedAt: { gte: sevenDaysAgo },
+        },
+      }),
     ]);
 
     const totalTrips7d = autoTrips7d + manualTrips7d;
     const autoSharePercent =
       totalTrips7d > 0 ? Math.round((autoTrips7d / totalTrips7d) * 1000) / 10 : 0;
+    const shortTotal7d = shortAutoTrips7d + shortManualTrips7d;
+    const shortAutoSharePercent =
+      shortTotal7d > 0
+        ? Math.round((shortAutoTrips7d / shortTotal7d) * 1000) / 10
+        : 0;
 
     return reply.send({
       data: {
@@ -1548,6 +1575,9 @@ export async function adminRoutes(app: FastifyInstance) {
           autoTrips7d,
           manualTrips7d,
           autoSharePercent,
+          shortAutoTrips7d,
+          shortManualTrips7d,
+          shortAutoSharePercent,
         },
       },
     });

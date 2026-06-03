@@ -2483,6 +2483,9 @@ interface DetectionFleetData {
     autoTrips7d: number;
     manualTrips7d: number;
     autoSharePercent: number;
+    shortAutoTrips7d: number;
+    shortManualTrips7d: number;
+    shortAutoSharePercent: number;
   };
 }
 
@@ -2576,6 +2579,11 @@ function AutoTripsTab() {
               <p className="stat-card__label">Native Healthy</p>
               <p className="stat-card__value" style={{ color: fleet.engineSplit.nativeStale + fleet.engineSplit.nativeNever === 0 ? "var(--emerald-400)" : "var(--amber-400)" }}>{fleet.engineSplit.nativeFresh}</p>
               <p style={{ fontSize: "0.75rem", color: "var(--text-secondary)", marginTop: 2 }}>{fleet.engineSplit.nativeStale} stale / {fleet.engineSplit.nativeNever} no fix</p>
+            </div>
+            <div className="stat-card">
+              <p className="stat-card__label">Short-trip Auto-share (7d)</p>
+              <p className="stat-card__value" style={{ color: fleet.kpis.shortAutoSharePercent >= 70 ? "var(--emerald-400)" : fleet.kpis.shortAutoSharePercent >= 50 ? "var(--amber-400)" : "var(--dash-red)" }}>{fleet.kpis.shortAutoSharePercent}%</p>
+              <p style={{ fontSize: "0.75rem", color: "var(--text-secondary)", marginTop: 2 }}>&lt;2mi · {fleet.kpis.shortAutoTrips7d} auto / {fleet.kpis.shortManualTrips7d} manual</p>
             </div>
           </div>
 
