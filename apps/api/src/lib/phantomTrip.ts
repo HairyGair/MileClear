@@ -17,6 +17,8 @@
 // in the DB for diagnostics, but excluded from user-facing reads and
 // analytics aggregates.
 
+import { DRIVING_EVIDENCE_SPEED_MPH } from "@mileclear/shared";
+
 const PHANTOM_MIN_DURATION_SEC = 5 * 60;   // 5 min
 const PHANTOM_MAX_DISTANCE_MILES = 1.0;    // 1 mile
 const PHANTOM_MAX_AVG_MPH = 5;             // 5 mph (walking)
@@ -42,10 +44,18 @@ export interface PhantomCheckInput {
    *  Fixes genuine sparse drives being hidden as phantoms (golf-club case,
    *  audit Track A #5/#7). */
   hasRealMovementEvidence?: boolean;
+  /** Highest device-reported speed (mph) on the trip. A genuine driving speed
+   *  can't be reached on foot or by GPS drift, so it rescues a short/sparse
+   *  trip from BOTH the crow-flies and walking signatures. */
+  maxSpeedMph?: number | null;
 }
 
 export function looksLikePhantomTrip(args: PhantomCheckInput): boolean {
   if (args.isManualEntry) return false;
+
+  // Speed reprieve: if the trip clocked a real driving speed at any point, it's
+  // a genuine drive however short or sparse — never a phantom.
+  if ((args.maxSpeedMph ?? 0) >= DRIVING_EVIDENCE_SPEED_MPH) return false;
 
   // Crow-flies check fires regardless of duration/avg-speed. An auto trip
   // with 0/1/2 coords and >=1 mile distance is structurally suspect —

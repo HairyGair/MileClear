@@ -326,6 +326,7 @@ export async function tripRoutes(app: FastifyInstance) {
     }
 
     const isManualEntry = !hasCoordinates;
+    const gq = tripData.gpsQuality as { maxSpeedMph?: number | null } | null | undefined;
     const isPhantomTrip = looksLikePhantomTrip({
       distanceMiles,
       startedAt: tripData.startedAt,
@@ -333,6 +334,7 @@ export async function tripRoutes(app: FastifyInstance) {
       isManualEntry,
       coordinateCount: coordinates?.length ?? 0,
       hasRealMovementEvidence: hasRealMovementEvidence(tripData.gpsQuality),
+      maxSpeedMph: typeof gq?.maxSpeedMph === "number" ? gq.maxSpeedMph : null,
     });
 
     const tripPayload = {

@@ -10,6 +10,7 @@ import {
 } from "../notifications/index";
 import {
   DRIVING_SPEED_THRESHOLD_MPH,
+  DRIVING_EVIDENCE_SPEED_MPH,
   bestTraceDistance,
   computeTripQuality,
   filterTraceOutliers,
@@ -943,7 +944,10 @@ async function _finalizeAutoTripInner(): Promise<void> {
   const durationMs = new Date(last.recorded_at).getTime() - new Date(first.recorded_at).getTime();
   const durationSec = durationMs / 1000;
   const avgMph = durationSec > 0 ? totalDistance / (durationSec / 3600) : 0;
-  if (totalDistance < 1.0 && durationSec > 5 * 60 && avgMph < 5) {
+  // Speed reprieve: a trip that clocked a real driving speed is a genuine
+  // (short, stop-go) drive, not a walking-shape GPS-drift misfire — never drop it.
+  const hitDrivingSpeed = (tripQuality.maxSpeedMph ?? 0) >= DRIVING_EVIDENCE_SPEED_MPH;
+  if (totalDistance < 1.0 && durationSec > 5 * 60 && avgMph < 5 && !hitDrivingSpeed) {
     logDetectionEvent("finalize_dropped_phantom", {
       distance: totalDistance,
       durationSec: Math.round(durationSec),

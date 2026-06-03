@@ -397,6 +397,10 @@ export interface TripQuality {
   pctHighAccuracy: number | null; // 0-100, coords with accuracy <= 50m
   distanceSource: "match" | "haversine" | "start_end_route";
   matchSucceeded: boolean;
+  // Highest device-reported speed (mph) seen across the raw trace. iOS Doppler
+  // speed is reliable when >= 0, so a high value is strong evidence of genuine
+  // driving — used to rescue short, sparse real trips from the phantom guards.
+  maxSpeedMph: number | null;
 }
 
 /**
@@ -404,7 +408,7 @@ export interface TripQuality {
  * plus the final distance decision. Called at finalize time on mobile.
  */
 export function computeTripQuality(
-  rawCoords: { accuracy: number | null }[],
+  rawCoords: { accuracy: number | null; speed?: number | null }[],
   filteredCoords: { accuracy: number | null }[],
   opts: {
     distanceSource: TripQuality["distanceSource"];
@@ -414,6 +418,16 @@ export function computeTripQuality(
   const withAccuracy = rawCoords.filter((c) => c.accuracy != null) as {
     accuracy: number;
   }[];
+
+  // Highest valid device-reported speed (m/s, -1/null when unknown) → mph.
+  let maxSpeedMph: number | null = null;
+  for (const c of rawCoords) {
+    if (typeof c.speed === "number" && c.speed >= 0) {
+      const mph = c.speed * 2.23694;
+      if (maxSpeedMph === null || mph > maxSpeedMph) maxSpeedMph = mph;
+    }
+  }
+  if (maxSpeedMph !== null) maxSpeedMph = Math.round(maxSpeedMph);
   const avgAccuracyM =
     withAccuracy.length > 0
       ? Math.round(
@@ -435,6 +449,7 @@ export function computeTripQuality(
     pctHighAccuracy,
     distanceSource: opts.distanceSource,
     matchSucceeded: opts.matchSucceeded,
+    maxSpeedMph,
   };
 }
 
@@ -444,6 +459,12 @@ export function computeTripQuality(
  *  was actively logging position the whole drive - weak signal just dropped
  *  most fixes for accuracy - so it is NOT a 2-point chord. */
 export const REAL_MOVEMENT_MIN_RAW_COORDS = 6;
+
+/** Device-reported speed (mph) above which a trip is definitively driving, not
+ *  walking or GPS drift. You cannot sustain this on foot, and iOS Doppler speed
+ *  is reliable, so even a short, sparse trip that hit this speed is real and
+ *  must never be dropped as a phantom. */
+export const DRIVING_EVIDENCE_SPEED_MPH = 18;
 
 /**
  * Single source of truth (shared by mobile finalize + the API trips route):
@@ -465,6 +486,16 @@ export function hasRealMovementEvidence(gpsQuality: unknown): boolean {
   // OSRM map-matched the trace onto real roads - impossible for a fake chord.
   if (q.matchSucceeded === true) return true;
   if (q.distanceSource === "match") return true;
+
+  // The device clocked a genuine driving speed at some point — you can't hit
+  // this on foot, so however short or sparse the trip, it's a real drive. This
+  // is what rescues short trips (1-2 miles) the phantom guards used to eat.
+  if (
+    typeof q.maxSpeedMph === "number" &&
+    q.maxSpeedMph >= DRIVING_EVIDENCE_SPEED_MPH
+  ) {
+    return true;
+  }
 
   // Device captured a dense raw trace; sparseness is accuracy filtering, not
   // an absence of movement. TripQuality emits `rawCoords`; tolerate the
