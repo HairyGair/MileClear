@@ -72,6 +72,36 @@ export const ACTIVE_ANNOUNCEMENT: SiteAnnouncement | null = null;
 
 export const RELEASE_NOTES: ReleaseNote[] = [
   {
+    version: "1.3.0",
+    date: "June 2026",
+    label: "In Testing",
+    ctaUrl: "https://testflight.apple.com/join/SGrmnaaH",
+    ctaLabel: "Join the TestFlight beta",
+    emailSubject: "MileClear 1.3.0 — we rebuilt trip recording to be reliable",
+    emailHero: "The reliability release",
+    emailTagline:
+      "You told us trips were slipping through, and you were right. 1.3.0 is a top-to-bottom overhaul of how MileClear detects, records, and saves your journeys — so your miles are captured from the first mile, measured accurately, and never lost. No new features this time. Just the core, done properly.",
+    emailHighlights: [
+      "**Trips capture from the start, not halfway.** Detection now keeps the beginning of your drive instead of trimming it, so a trip reads from where you actually set off — not 500 metres down the road.",
+      "**Accurate distance, even through tunnels and dead spots.** When GPS drops for a stretch, MileClear now fills the gap by matching your route to the real road network rather than drawing a straight line across it. Your mileage reflects the road you drove.",
+      "**Correct trip times.** Trips now end when you actually arrive, instead of occasionally running on for hours when the phone was asleep on arrival.",
+      "**Nothing gets lost.** A captured trip is now saved to your phone first and can't be dropped by a weak signal, and the sync queue no longer gives up on a trip after a few failed offline attempts.",
+      "**Stay signed in.** Fixed the issue that quietly signed people out while their phone was locked — which also stranded trips that couldn't upload until the next login.",
+      "**Honest about setup.** If location access isn't granted, the app now says so clearly instead of looking ready while silently recording nothing.",
+    ],
+    items: [
+      "**Trip detection reliability — a top-to-bottom overhaul.** This release does not add features. It fixes the thing that matters most: making sure your drives are actually recorded. Multiple long-standing causes of missed and mis-recorded trips have been found and fixed.",
+      "**Captures the start of your drive.** Auto-detection used to occasionally trim the slow residential leg at the start of a journey, so a trip would appear to begin part-way along. It now keeps the full continuous track from where you set off.",
+      "**More reliable wake-up.** The mechanism that wakes the app when you start driving is now refreshed automatically rather than trusted blindly, fixing a case where it could silently stop working for days. A background safety net also re-checks for drives the wake step missed.",
+      "**Road-matched distance, including across GPS gaps.** Distances are matched to the real road network (via our self-hosted routing), and when GPS drops mid-trip the gap is now filled with the road route instead of a straight line — so a tunnel or a dead spot no longer undercounts your miles.",
+      "**Trips end when you arrive.** A backgrounded arrival could leave a recording open, occasionally producing a trip that ran for hours. Finalisation now trims to the true end of the journey.",
+      "**Offline-first save that can't lose a trip.** A finalised trip is written to your phone first and only then uploaded, so a momentary loss of signal at the end of a drive can never delete it. The offline sync queue also stops burning through its retries on a network blip, which previously could park a real trip as permanently failed.",
+      "**No more silent sign-outs (and stranded trips).** Login tokens are now stored so background tasks can read them while your phone is locked. Previously a background sync during a locked drive could fail to read your session and quietly sign you out — which also left captured trips unable to upload until you next opened the app and logged back in. This was a significant, invisible cause of trips appearing to go missing.",
+      "**Honest setup + diagnostics.** Onboarding now makes the Always-location step unmissable, the dashboard shows a clear 'your trips aren't being recorded' banner if permission is missing, and the in-app diagnostics report reflects reality rather than crying wolf.",
+      "**Coming next: a native motion-detection engine.** In testing now — a new under-the-hood detection layer that senses the moment you start moving, built specifically to catch the short one-and-two-mile trips that are hardest for automatic detection. Rolling out carefully once it's proven.",
+    ],
+  },
+  {
     version: "1.2.1",
     date: "26 May 2026",
     label: "Latest",

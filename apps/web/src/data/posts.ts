@@ -39,6 +39,66 @@ export interface Guide {
 // ----------------------------------------------------------------
 export const BLOG_POSTS: BlogPost[] = [
   {
+    slug: "an-apology-and-a-reliability-overhaul",
+    title: "An apology, and a reliability overhaul",
+    excerpt:
+      "Some of you have had trips go missing recently, and for a mileage tracker that's not good enough. Here's an honest account of what went wrong, what I've fixed, and what's coming next.",
+    date: "3 June 2026",
+    author: "Gair",
+    category: "announcement",
+    content: `
+<p>I want to be straight with you.</p>
+
+<p>Over the past few weeks, some of you have had journeys that MileClear didn't record. For an app whose one job is to capture your miles, that isn't good enough - and if it happened to you, I'm sorry. You trusted MileClear with something that's worth real money at tax time, and on those trips it let you down.</p>
+
+<p>I'd rather tell you honestly what happened and what I've done about it than pretend everything has been fine.</p>
+
+<h2>What went wrong</h2>
+
+<p>Recording a drive automatically on an iPhone is genuinely hard. iOS aggressively suspends apps in the background to save battery, and getting it to reliably wake up the moment you start driving - without draining your battery or making you open the app every time - is a real engineering challenge.</p>
+
+<p>On top of that, I found several specific bugs that were quietly making it worse:</p>
+
+<ul>
+<li>Trips that were captured, then <strong>deleted by a momentary loss of signal</strong> at the end of a drive.</li>
+<li>A wake-up mechanism that could <strong>silently stop working for days</strong>.</li>
+<li>The start of a journey occasionally being <strong>trimmed off</strong>, so a trip looked like it began halfway along.</li>
+<li>Trips with <strong>wildly wrong durations</strong> when the phone fell asleep on arrival.</li>
+<li>And the one that stung most: a bug that <strong>quietly signed people out while their phone was locked</strong>, which meant captured trips couldn't upload until the next time the app was opened. Trips that recorded perfectly looked "missing" simply because they couldn't reach your account.</li>
+</ul>
+
+<p>Some of these had been hiding for a while. Finding them meant a lot of late nights reading diagnostic logs from real drives - and I'm grateful to the people who sent those in. They are the reason these are fixed.</p>
+
+<h2>What I've fixed</h2>
+
+<p>The latest release (1.3.0) is not a features release. It is a top-to-bottom overhaul of how MileClear detects, records, and saves your trips:</p>
+
+<ul>
+<li>Trips now capture from where you actually set off, not part-way along.</li>
+<li>Distances are matched to the real road network, and gaps where GPS dropped are filled with the road route instead of a straight line - so tunnels and dead spots no longer undercount your miles.</li>
+<li>A finalised trip is saved to your phone first and can no longer be lost to a weak signal.</li>
+<li>The sign-out bug is fixed, so your trips reach your account reliably.</li>
+<li>If location access isn't granted, the app now tells you plainly instead of looking ready while recording nothing.</li>
+</ul>
+
+<h2>What's coming next</h2>
+
+<p>Those fixes make a real difference, but there's one case they don't fully solve: the short, quick, one-and-two-mile trips around town - the ones that are over before the app is even sure you're driving. Those are the hardest of all.</p>
+
+<p>So I'm building a new <strong>native motion-detection engine</strong> - the same kind of technology the big mileage apps use, which senses the very moment you start moving. It's in testing now, built specifically to catch those short trips from the first second. I'm rolling it out carefully, because I'd rather get it right than rush it.</p>
+
+<h2>Finally</h2>
+
+<p>MileClear is built by one person. That means I move fast, I answer your emails myself, and I take it personally when it doesn't work. It also means I sometimes ship bugs a bigger team might have caught. I'm fixing them as fast as I find them, and reliability is - and will stay - my number one priority over any new feature.</p>
+
+<p>If MileClear has missed trips for you, please give it another go after updating. If anything still isn't right, email me directly. The in-app diagnostics report (in the menu) tells me exactly what happened on your phone, and it's the single most useful thing you can send.</p>
+
+<p>Thank you for your patience, and for sticking with a small app that's trying to do right by you.</p>
+
+<p>- Gair</p>
+`,
+  },
+  {
     slug: "how-to-track-miles-for-work-uk",
     title: "How to Track Miles for Work in the UK (Without Spreadsheets)",
     excerpt:
