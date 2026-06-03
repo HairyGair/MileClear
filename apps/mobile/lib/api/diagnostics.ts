@@ -183,6 +183,8 @@ export async function uploadDiagnosticDump(): Promise<void> {
           hasAnchor: diagnostics.hasAnchor,
           lastFixAccuracyMeters: diagnostics.lastFixAccuracyMeters,
           detectionProfile: diagnostics.detectionProfile,
+          nativeEngineEnabled: diagnostics.nativeEngineEnabled,
+          lastNativeLocationAt: diagnostics.lastNativeLocationAt,
           trackingState: safeTrackingState,
           // ── Wave 1 context additions (14 May 2026) ────────────
           recentTrips,

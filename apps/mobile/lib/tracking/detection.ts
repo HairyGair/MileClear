@@ -374,6 +374,15 @@ export interface DriveDetectionDiagnostics {
   // Recording/finalization profiles override the subscription transiently but
   // don't update this field (startDriveDetection early-returns while recording).
   detectionProfile: string | null;
+  // ── Native location engine ──
+  // Whether this device opted into the native location engine (RNBG owns GPS
+  // directly). When true, taskRunning / anchor / geofence are idle BY DESIGN —
+  // the native engine is the detector, not the JS task.
+  nativeEngineEnabled: boolean;
+  // Heartbeat: ISO time of the most recent native location fix (stamped on
+  // every onLocation callback). Proves the native engine is alive and
+  // delivering locations. null = native has never reported a fix on this device.
+  lastNativeLocationAt: string | null;
 }
 
 /**
@@ -399,7 +408,14 @@ export async function getDriveDetectionDiagnostics(): Promise<DriveDetectionDiag
     hasAnchor: false,
     lastFixAccuracyMeters: null,
     detectionProfile: null,
+    nativeEngineEnabled: false,
+    lastNativeLocationAt: null,
   };
+
+  try {
+    const { isNativeLocationEngineEnabled } = await import("./nativeEngineFlag");
+    result.nativeEngineEnabled = await isNativeLocationEngineEnabled();
+  } catch {}
 
   try {
     result.enabled = await isDriveDetectionEnabled();
@@ -453,6 +469,10 @@ export async function getDriveDetectionDiagnostics(): Promise<DriveDetectionDiag
       if (row.key === "active_shift_id") result.activeShiftId = row.value;
       if (row.key === "auto_recording_active") result.autoRecordingActive = row.value === "1";
       if (row.key === "departure_anchor_lat" && row.value) result.hasAnchor = true;
+      if (row.key === "last_native_location_at") {
+        const ts = Number(row.value);
+        if (!Number.isNaN(ts)) result.lastNativeLocationAt = new Date(ts).toISOString();
+      }
       if (row.key === "last_detection_notification") {
         const ts = Number(row.value);
         if (!Number.isNaN(ts)) {

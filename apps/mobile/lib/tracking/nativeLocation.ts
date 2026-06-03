@@ -167,6 +167,13 @@ async function handleNativeLocation(loc: NativeLocation): Promise<void> {
   try {
     if (!(await isDriveDetectionEnabled())) return;
     const db = await getDatabase();
+    // Heartbeat: stamp every native fix (recording or not) so the diagnostics
+    // screen can positively confirm the native engine is alive and delivering
+    // locations, instead of only inferring it from the enabled flag.
+    await db.runAsync(
+      "INSERT OR REPLACE INTO tracking_state (key, value) VALUES ('last_native_location_at', ?)",
+      [Date.now().toString()]
+    );
     // Only buffer while a recording is active — motionchange(moving) opens it,
     // motionchange(stationary) closes it. This keeps the buffer scoped to the
     // current drive, exactly like the JS path.

@@ -178,13 +178,26 @@ function computeHealth(
   // "Restart detection" can never clear it, because the restart re-runs the
   // very handoff that (correctly) leaves the JS task stopped. (Anthony, 3 June.)
   if (nativeActive) {
-    problems.push({
-      severity: "info",
-      title: "Running on the native location engine",
-      cause:
-        "This device uses the native location engine, which owns GPS directly. The JS background task shows 'Task running: false' by design — detection still runs natively.",
-      action: "No action needed.",
-    });
+    const lastFixMs = d.lastNativeLocationAt
+      ? Date.now() - new Date(d.lastNativeLocationAt).getTime()
+      : null;
+    if (lastFixMs != null) {
+      problems.push({
+        severity: "info",
+        title: "Running on the native location engine",
+        cause: `The native engine owns GPS directly, so 'Task running: false' is expected. It last reported a location ${formatMs(lastFixMs)} ago — it's alive and delivering fixes.`,
+        action: "No action needed.",
+      });
+    } else {
+      problems.push({
+        severity: "warning",
+        title: "Native engine on, but no location reported yet",
+        cause:
+          "The native location engine is enabled and owns GPS, but it hasn't delivered a single location fix on this device yet. That's normal right after enabling it; if it persists through a drive, the engine may not actually be running.",
+        action:
+          "Take a short drive to confirm it captures. If no trip appears, toggle the native engine off (falls back to the JS engine) and tap Restart detection.",
+      });
+    }
   }
 
   // 3. Subscription isn't running. Post-28-May backstop refactor a parked
@@ -837,6 +850,29 @@ export default function DriveDetectionDiagnosticsScreen() {
               : undefined
           }
         />
+        {nativeOn && (
+          <StatusRow
+            label="Native engine"
+            value={nativeAvailable ? "on" : "on (binary missing → JS)"}
+            color={nativeAvailable ? GREEN : AMBER}
+          />
+        )}
+        {nativeOn && nativeAvailable && (
+          <StatusRow
+            label="Last native fix"
+            value={
+              d.lastNativeLocationAt
+                ? `${formatMs(Date.now() - new Date(d.lastNativeLocationAt).getTime())} ago`
+                : "never"
+            }
+            color={d.lastNativeLocationAt ? GREEN : AMBER}
+            hint={
+              !d.lastNativeLocationAt
+                ? "Native engine hasn't reported a location yet — drive to confirm it's capturing"
+                : undefined
+            }
+          />
+        )}
         <StatusRow
           label="Detection mode"
           value={d.detectionProfile ?? "—"}
