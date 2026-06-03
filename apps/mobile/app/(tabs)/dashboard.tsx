@@ -19,6 +19,7 @@ import { Skeleton } from "../../components/Skeleton";
 import { FadeInStagger } from "../../components/FadeInStagger";
 import { colors, fonts, fontScaleCap, radii, spacing } from "../../lib/theme";
 import { ActiveRecordingBanner } from "../../components/ActiveRecordingBanner";
+import { SyncStatusBanner } from "../../components/SyncStatusBanner";
 import { useFocusEffect, useRouter } from "expo-router";
 import { fetchVehicles } from "../../lib/api/vehicles";
 import {
@@ -1177,6 +1178,7 @@ export default function DashboardScreen() {
           trip in progress, so the user always knows we're tracking even if
           the Live Activity silently failed to present. */}
       <ActiveRecordingBanner />
+      <SyncStatusBanner />
 
       {/* Data-quality improvement celebration banner — fires once per user
           when they open the app after a server-side backfill corrected
