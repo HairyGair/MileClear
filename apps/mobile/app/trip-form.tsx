@@ -655,6 +655,10 @@ export default function TripFormScreen() {
   const [category, setCategory] = useState<TripCategory | undefined>(undefined);
   const [vehicleId, setVehicleId] = useState<string | undefined>(undefined);
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
+  // Manual distance entry — fixes the dead-end where "enter distance manually"
+  // was shown with no field to actually enter it (audit point 1).
+  const [manualDistanceMode, setManualDistanceMode] = useState(false);
+  const [manualDistanceText, setManualDistanceText] = useState("");
   const [notes, setNotes] = useState("");
   const [projectLabel, setProjectLabel] = useState("");
   const [showDetails, setShowDetails] = useState(false);
@@ -2695,6 +2699,49 @@ export default function TripFormScreen() {
               {!calculatingRoute && distanceMiles == null && !routeUnavailable && (
                 <Text style={styles.distanceHint}>Set both locations to auto-calculate</Text>
               )}
+
+              {/* Manual distance entry — the actual field behind "enter distance
+                  manually", auto-shown when routing fails, opt-in otherwise. */}
+              {(manualDistanceMode || (routeUnavailable && distanceMiles == null)) && (
+                <View style={styles.manualDistanceRow}>
+                  <TextInput
+                    style={styles.manualDistanceInput}
+                    value={manualDistanceText}
+                    onChangeText={(t) => {
+                      const cleaned = t.replace(/[^0-9.]/g, "");
+                      setManualDistanceText(cleaned);
+                      const n = parseFloat(cleaned);
+                      if (Number.isFinite(n) && n > 0) {
+                        setDistanceMiles(Math.round(n * 10) / 10);
+                        setRouteSource(null);
+                      } else if (cleaned === "") {
+                        setDistanceMiles(null);
+                      }
+                    }}
+                    keyboardType="decimal-pad"
+                    placeholder="0.0"
+                    placeholderTextColor="#64748b"
+                    accessibilityLabel="Enter the trip distance in miles"
+                  />
+                  <Text style={styles.manualDistanceUnit}>miles</Text>
+                </View>
+              )}
+              {!manualDistanceMode && !(routeUnavailable && distanceMiles == null) && (
+                <TouchableOpacity
+                  onPress={() => {
+                    setManualDistanceMode(true);
+                    setManualDistanceText(distanceMiles != null ? String(distanceMiles) : "");
+                  }}
+                  accessibilityRole="button"
+                  accessibilityLabel="Enter distance manually"
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                >
+                  <Text style={[styles.distanceHint, { color: "#f5a623", marginTop: 6 }]}>
+                    Enter distance manually
+                  </Text>
+                </TouchableOpacity>
+              )}
+
               {isEditing && id && (
                 <TouchableOpacity
                   style={styles.recalcButton}
@@ -3700,6 +3747,29 @@ const styles = StyleSheet.create({
     fontFamily: fonts.regular,
     color: TEXT_3,
     marginTop: 4,
+  },
+  manualDistanceRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: 10,
+    gap: 8,
+  },
+  manualDistanceInput: {
+    flex: 1,
+    backgroundColor: "rgba(255,255,255,0.06)",
+    borderWidth: 1,
+    borderColor: "rgba(245,166,35,0.4)",
+    borderRadius: 10,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    color: "#e2e8f0",
+    fontFamily: fonts.bold,
+    fontSize: 18,
+  },
+  manualDistanceUnit: {
+    color: "#94a3b8",
+    fontFamily: fonts.medium,
+    fontSize: 14,
   },
   recalcButton: {
     flexDirection: "row",
