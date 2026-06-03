@@ -48,6 +48,10 @@ export interface PhantomCheckInput {
    *  can't be reached on foot or by GPS drift, so it rescues a short/sparse
    *  trip from BOTH the crow-flies and walking signatures. */
   maxSpeedMph?: number | null;
+  /** The client deliberately KEPT this sparse trip flagged low-confidence (a
+   *  >=1mi drive whose coords were lost to iOS suspension) rather than dropping
+   *  it. Don't re-hide it as a crow-flies phantom — it's real, just uncertain. */
+  lowConfidence?: boolean;
 }
 
 export function looksLikePhantomTrip(args: PhantomCheckInput): boolean {
@@ -66,7 +70,8 @@ export function looksLikePhantomTrip(args: PhantomCheckInput): boolean {
     args.coordinateCount !== undefined &&
     args.coordinateCount < CROW_FLIES_MIN_COORDS &&
     args.distanceMiles >= CROW_FLIES_MIN_DISTANCE_MILES &&
-    !args.hasRealMovementEvidence
+    !args.hasRealMovementEvidence &&
+    !args.lowConfidence
   ) {
     return true;
   }

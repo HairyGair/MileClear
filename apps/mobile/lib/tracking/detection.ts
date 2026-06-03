@@ -993,18 +993,33 @@ async function _finalizeAutoTripInner(): Promise<void> {
     totalDistance >= 1.0 &&
     !hasRealMovementEvidence(tripQuality)
   ) {
-    logDetectionEvent("finalize_dropped_crow_flies", {
+    // A >=1mi displacement is REAL movement — you cannot GPS-drift a mile — so
+    // this is almost always a genuine drive whose intermediate coords were lost
+    // to iOS suspension, not a fake chord. NEVER silently delete it. Save it
+    // flagged low-confidence so it lands in the inbox for the user to review or
+    // fix, instead of vanishing. (Phase 0: stop silent losses.) Only an absurd
+    // sparse "distance" (>150mi from <3 coords) is a clear GPS-spike teleport
+    // worth dropping outright.
+    if (totalDistance > 150) {
+      logDetectionEvent("finalize_dropped_crow_flies", {
+        distance: totalDistance,
+        coords: filteredCoords.length,
+        reason: "implausible_distance",
+      }).catch(() => {});
+      endLiveActivity().catch(() => {});
+      try {
+        const { setDepartureAnchor } = await import("../geofencing/index");
+        await setDepartureAnchor(last.lat, last.lng);
+        logDetectionEvent("anchor_rearmed_after_phantom", { reason: "crow_flies" }).catch(() => {});
+      } catch {}
+      return;
+    }
+    tripQuality.lowConfidence = true;
+    logDetectionEvent("finalize_crow_flies_kept_low_confidence", {
       distance: totalDistance,
       coords: filteredCoords.length,
-      durationSec: Math.round(durationSec),
     }).catch(() => {});
-    endLiveActivity().catch(() => {});
-    try {
-      const { setDepartureAnchor } = await import("../geofencing/index");
-      await setDepartureAnchor(last.lat, last.lng);
-      logDetectionEvent("anchor_rearmed_after_phantom", { reason: "crow_flies" }).catch(() => {});
-    } catch {}
-    return;
+    // fall through and SAVE the trip (flagged low-confidence) instead of dropping
   }
 
   // Resolve start/end addresses, preferring saved-location names when the

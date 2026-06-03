@@ -401,6 +401,11 @@ export interface TripQuality {
   // speed is reliable when >= 0, so a high value is strong evidence of genuine
   // driving — used to rescue short, sparse real trips from the phantom guards.
   maxSpeedMph: number | null;
+  // Set when the trip was kept despite a sparse/straight-line shape (a >=1mi
+  // crow-flies drive whose coords were lost to iOS suspension). The trip is real
+  // and must be shown, but the route/distance is uncertain — surface a badge and
+  // route it to the inbox for review rather than silently deleting it.
+  lowConfidence?: boolean;
 }
 
 /**
