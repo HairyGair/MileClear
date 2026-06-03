@@ -319,6 +319,18 @@ async function openNativeRecording(
 ): Promise<void> {
   const db = await getDatabase();
   const BGGeo = loadNativeModule();
+  // Start with a clean buffer. A native recording open is always a fresh start
+  // (the engine doesn't pre-buffer before recording), so any coords already in
+  // the table are stale leftovers from a prior recording that never finalized
+  // (app killed mid-drive). Clearing them stops stale coords mixing with this
+  // drive and being (mis)gap-trimmed — the buffer hygiene problem affecting
+  // ~1 in 5 users in the fleet diagnostics.
+  const cleared = await db.runAsync("DELETE FROM detection_coordinates");
+  if (cleared.changes > 0) {
+    logDetectionEvent("native_buffer_cleared_on_open", {
+      droppedCoords: cleared.changes,
+    }).catch(() => {});
+  }
   if (reason === "speed") {
     try {
       await BGGeo?.changePace?.(true);
