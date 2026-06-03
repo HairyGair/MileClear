@@ -61,6 +61,16 @@ export async function requestLocationPermissions(): Promise<boolean> {
     // Expected in Expo Go - foreground-only is fine
   }
 
+  // Request Motion & Fitness too. The native engine's CoreMotion start-detection
+  // needs it to catch the moment a drive begins (especially short trips);
+  // without it, detection falls back to the slower geofence path. Best-effort.
+  try {
+    const { requestMotionPermission } = await import("./motionPermission");
+    await requestMotionPermission();
+  } catch {
+    // no-op on builds without expo-sensors
+  }
+
   return true;
 }
 

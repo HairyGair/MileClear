@@ -198,6 +198,18 @@ function computeHealth(
           "Take a short drive to confirm it captures. If no trip appears, toggle the native engine off (falls back to the JS engine) and tap Restart detection.",
       });
     }
+    if (d.motionPermission === "denied") {
+      problems.push({
+        severity: "warning",
+        title: "Motion & Fitness is off",
+        cause:
+          "The native engine uses iOS motion detection to catch the moment a drive starts. With Motion & Fitness denied, it falls back to the slower geofence path and is more likely to miss the start of short trips.",
+        action: "Turn it on in Settings → MileClear → Motion & Fitness.",
+        onAction: () => {
+          Linking.openSettings().catch(() => {});
+        },
+      });
+    }
   }
 
   // 3. Subscription isn't running. Post-28-May backstop refactor a parked
@@ -873,6 +885,22 @@ export default function DriveDetectionDiagnosticsScreen() {
             }
           />
         )}
+        {nativeOn && (
+          <StatusRow
+            label={"Motion & Fitness"}
+            value={d.motionPermission}
+            color={d.motionPermission === "granted" ? GREEN : d.motionPermission === "denied" ? RED : AMBER}
+            hint={
+              d.motionPermission === "granted"
+                ? undefined
+                : d.motionPermission === "denied"
+                  ? "Turn ON in Settings → MileClear → Motion & Fitness. Without it, the engine misses the start of short trips."
+                  : d.motionPermission === "unavailable"
+                    ? "This build can't read it yet — comes in the next build."
+                    : "Not granted yet — enable in Settings → MileClear → Motion & Fitness."
+            }
+          />
+        )}
         {nativeOn && nativeAvailable && (() => {
           const motion = events.find((e) => e.event === "native_motionchange");
           return (
@@ -880,11 +908,7 @@ export default function DriveDetectionDiagnosticsScreen() {
               label="Motion detection"
               value={motion ? `fired ${formatMs(Date.now() - new Date(motion.recorded_at).getTime())} ago` : "no events seen"}
               color={motion ? GREEN : AMBER}
-              hint={
-                motion
-                  ? undefined
-                  : "RNBG hasn't reported a motion change. If this stays empty after a drive, check Settings → MileClear → Motion & Fitness is ON — without it, start detection falls back to the slower geofence path."
-              }
+              hint={motion ? undefined : "RNBG hasn't reported a motion change yet — drive to confirm."}
             />
           );
         })()}

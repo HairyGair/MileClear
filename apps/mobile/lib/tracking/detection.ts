@@ -406,6 +406,10 @@ export interface DriveDetectionDiagnostics {
   // every onLocation callback). Proves the native engine is alive and
   // delivering locations. null = native has never reported a fix on this device.
   lastNativeLocationAt: string | null;
+  // Motion & Fitness permission ("granted" | "denied" | "undetermined" |
+  // "unavailable"). CoreMotion start-detection needs it; "unavailable" means the
+  // build doesn't bundle expo-sensors yet (OTA-only / pre-native-build).
+  motionPermission: string;
 }
 
 /**
@@ -433,11 +437,17 @@ export async function getDriveDetectionDiagnostics(): Promise<DriveDetectionDiag
     detectionProfile: null,
     nativeEngineEnabled: false,
     lastNativeLocationAt: null,
+    motionPermission: "unavailable",
   };
 
   try {
     const { isNativeLocationEngineEnabled } = await import("./nativeEngineFlag");
     result.nativeEngineEnabled = await isNativeLocationEngineEnabled();
+  } catch {}
+
+  try {
+    const { getMotionPermission } = await import("./motionPermission");
+    result.motionPermission = await getMotionPermission();
   } catch {}
 
   try {
