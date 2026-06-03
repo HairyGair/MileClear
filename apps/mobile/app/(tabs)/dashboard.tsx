@@ -177,6 +177,9 @@ export default function DashboardScreen() {
   // gets a PERSISTENT, non-dismissible banner, not the soft 7-day nudge.
   // Default "always" until checked to avoid a flash on load.
   const [locationTier, setLocationTier] = useState<LocationPermissionTier>("always");
+  // iOS Background App Refresh off => the app can't run in the background, so
+  // recording fails regardless of location/engine. Surfaced as a blocker banner.
+  const [bgRefreshOff, setBgRefreshOff] = useState(false);
   // Dismissal cooldown: hides the "Auto-detection is off" nudge for 7
   // days after a tap on the X. Avoids the every-load nag (Anthony 16
   // May audit) while still resurfacing the prompt periodically so a
@@ -648,6 +651,13 @@ export default function DashboardScreen() {
         setLocationTier(tier);
         setBgLocationGranted(tier === "always");
       }).catch(() => {});
+      // Background App Refresh: if iOS won't run us in the background, recording
+      // fails no matter what — surface it so the user can re-enable the setting.
+      import("../../lib/permissions/backgroundRefresh")
+        .then(({ getBackgroundRefreshStatus, isBackgroundRefreshBlocked }) =>
+          getBackgroundRefreshStatus().then((s) => setBgRefreshOff(isBackgroundRefreshBlocked(s)))
+        )
+        .catch(() => {});
       // dashboard_focus rating trigger removed 4 May 2026 — was the
       // dominant source of "Not now" dismissals. Rating prompts now
       // only fire after positive moments (achievement, streak, trip
@@ -1207,6 +1217,33 @@ export default function DashboardScreen() {
               <Text style={s.bgLocBlockerTitle}>Your trips aren&apos;t being recorded</Text>
               <Text style={s.bgLocNudgeBody}>
                 MileClear needs location access to log your miles. Until it&apos;s on, every drive — and every £ of tax deduction — is lost. Tap to turn it on.
+              </Text>
+            </View>
+          </View>
+        </TouchableOpacity>
+      )}
+
+      {/* BACKGROUND APP REFRESH OFF — iOS won't run the app in the background,
+          so recording fails no matter how good detection is (fleet diagnostics
+          found 11 active users in this state, 3 Jun 2026). Only shown once
+          location itself is sorted (locationTier !== "none"), so we never stack
+          two red blockers. Opens Settings directly — there's no in-app fix. */}
+      {bgRefreshOff && locationTier !== "none" && !activeShift && (
+        <TouchableOpacity
+          style={[s.bgLocNudge, s.bgLocBlocker]}
+          onPress={() => Linking.openSettings().catch(() => {})}
+          activeOpacity={0.7}
+          accessibilityRole="button"
+          accessibilityLabel="Background App Refresh is off. Tap to open Settings and turn it on so MileClear can record your trips in the background."
+        >
+          <View style={s.bgLocNudgeRow}>
+            <View style={s.bgLocNudgeIcon}>
+              <Ionicons name="warning" size={20} color="#ef4444" accessible={false} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={s.bgLocBlockerTitle}>Background App Refresh is off</Text>
+              <Text style={s.bgLocNudgeBody}>
+                iOS won&apos;t let MileClear run in the background, so your trips can&apos;t record automatically. Turn it on in Settings → MileClear → Background App Refresh. Tap to open Settings.
               </Text>
             </View>
           </View>
