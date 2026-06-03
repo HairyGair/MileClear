@@ -1252,7 +1252,32 @@ export default function TripFormScreen() {
     return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
   };
 
-  const handleStartTrip = useCallback(async () => {
+  const handleStartTrip = useCallback(async (skipChecks = false) => {
+    // Two-recordings guard (audit point 9): don't start a manual trip while a
+    // real shift is already recording — that's two trackers writing at once.
+    if (!skipChecks) {
+      try {
+        const db = await getDatabase();
+        const shiftRow = await db.getFirstAsync<{ value: string }>(
+          "SELECT value FROM tracking_state WHERE key = 'active_shift_id'"
+        );
+        const sid = shiftRow?.value;
+        if (sid && sid !== "__quick_trip__") {
+          Alert.alert(
+            "A shift is already recording",
+            "You've got a shift running. Starting a trip now would record two journeys at once. End the shift first, or start anyway?",
+            [
+              { text: "Cancel", style: "cancel" },
+              { text: "Start anyway", onPress: () => handleStartTrip(true) },
+            ]
+          );
+          return;
+        }
+      } catch {
+        // best-effort guard — never block a legitimate start on a read error
+      }
+    }
+
     setLoading(true);
     try {
       const loc = await getCurrentLocation();
@@ -1588,10 +1613,39 @@ export default function TripFormScreen() {
     }
   }, []);
 
-  const handleSave = useCallback(async () => {
+  const handleSave = useCallback(async (skipGuards = false) => {
     if (startLat == null || startLng == null) {
       Alert.alert("Missing location", "Set a start location.");
       return;
+    }
+
+    // ── Mistake guards (gentle confirms, never hard blocks) — audit point 9.
+    // Only on new trips; an edit shouldn't re-nag. Re-runs the save with
+    // skipGuards once the user confirms.
+    if (!skipGuards && !isEditing) {
+      if (distanceMiles == null || distanceMiles <= 0) {
+        Alert.alert(
+          "This trip has no distance",
+          "It'll be saved with 0 miles. Add a distance, or save it anyway?",
+          [
+            { text: "Add distance", style: "cancel" },
+            { text: "Save anyway", onPress: () => handleSave(true) },
+          ]
+        );
+        return;
+      }
+      // No vehicle — only nag if the user actually HAS vehicles to pick from.
+      if (!vehicleId && vehicles.length > 0) {
+        Alert.alert(
+          "No vehicle selected",
+          "This trip won't be linked to a vehicle, so it won't count towards that vehicle's mileage. Pick one, or save without?",
+          [
+            { text: "Pick vehicle", style: "cancel" },
+            { text: "Save without", onPress: () => handleSave(true) },
+          ]
+        );
+        return;
+      }
     }
 
     setSaving(true);
@@ -1810,7 +1864,7 @@ export default function TripFormScreen() {
       setSaving(false);
     }
   }, [
-    isEditing, id, classification, platformTag, businessPurpose, category, vehicleId,
+    isEditing, id, classification, platformTag, businessPurpose, category, vehicleId, vehicles,
     startAddress, endAddress, startLat, startLng, endLat, endLng,
     distanceMiles, startedAt, endedAt, notes, projectLabel, router, showPaywall, routeSource,
     anomalyDef, anomalyResponse, anomalyCustomNote,
@@ -2214,7 +2268,7 @@ export default function TripFormScreen() {
               variant="hero"
               title="Start Trip"
               icon="navigate"
-              onPress={handleStartTrip}
+              onPress={() => handleStartTrip()}
               loading={loading}
               size="lg"
             />
@@ -2634,7 +2688,7 @@ export default function TripFormScreen() {
               </View>
             )}
 
-            <Button title="Save Trip" icon="checkmark" onPress={handleSave} loading={saving} />
+            <Button title="Save Trip" icon="checkmark" onPress={() => handleSave()} loading={saving} />
             <Button variant="ghost" title="Discard" onPress={handleCancel} style={{ marginTop: 8 }} />
           </>
         )}
@@ -3135,7 +3189,7 @@ export default function TripFormScreen() {
             <Button
               title={isEditing ? "Save Changes" : "Add Trip"}
               icon="checkmark"
-              onPress={handleSave}
+              onPress={() => handleSave()}
               loading={saving}
               disabled={deleting}
               style={{ marginTop: 28 }}
