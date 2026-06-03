@@ -438,6 +438,10 @@ model Trip {
 
   @@index([userId, startedAt])
   @@index([userId, classification])
+  // Geo bounding-box lookups for /community-insights (startLat/startLng BETWEEN).
+  // Without this, those area queries full-scanned trips; see migration
+  // 20260603_trips_geo_index.
+  @@index([startLat, startLng])
   @@map("trips")
 }
 

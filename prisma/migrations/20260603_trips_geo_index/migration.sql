@@ -1,0 +1,18 @@
+-- Add a geo bounding-box index to trips (3 June 2026).
+--
+-- /community-insights filters trips by `startLat BETWEEN ... AND startLng
+-- BETWEEN ...` (a ~20-mile box) in three queries, one of which JOINs to
+-- trip_coordinates. There was no index on the geo columns, so every call
+-- full-scanned `trips`. Individually tolerable, but under concurrent load
+-- (cold cache => every user's app hitting it at once) the scans piled up,
+-- exhausted the DB connection pool, and stalled the whole API (max 85s
+-- observed; the "app stuck on Setting up offline access... 0/6" incident).
+--
+-- trips is tiny (~3,500 rows / 6 MB), so this index builds in milliseconds
+-- and adding a secondary index in MySQL 8 is an online (INPLACE) operation,
+-- so it does not block reads or writes. trip_coordinates already has its
+-- (tripId, recordedAt) index, so no change is needed on the larger table.
+--
+-- Index name matches Prisma's @@index([startLat, startLng]) convention so the
+-- schema and database stay in sync.
+CREATE INDEX `trips_startLat_startLng_idx` ON `trips`(`startLat`, `startLng`);
