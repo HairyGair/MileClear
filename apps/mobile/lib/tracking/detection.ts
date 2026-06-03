@@ -2105,6 +2105,18 @@ try {
 try {
   TaskManager.defineTask(BACKGROUND_FINALIZE_TASK, async () => {
     try {
+      // When the native engine owns detection, the JS background-fetch must NOT
+      // re-arm the JS geofence or run missed-exit detection — that's what kept
+      // the JS layer alive and fighting RNBG (Anthony 3 June). Let RNBG handle
+      // wake + capture in native.
+      try {
+        const { isNativeLocationEngineEnabled } = await import("./nativeEngineFlag");
+        const { isNativeEngineAvailable } = await import("./nativeLocation");
+        if (isNativeEngineAvailable() && (await isNativeLocationEngineEnabled())) {
+          return BackgroundFetch.BackgroundFetchResult.NoData;
+        }
+      } catch {}
+
       const db = await getDatabase();
 
       // First: clean up stale watch mode if the user never actually drove.
@@ -2258,6 +2270,19 @@ export async function startDriveDetection(): Promise<void> {
     if (await isNativeLocationEngineEnabled()) {
       const { isNativeEngineAvailable, startNativeLocationEngine } = await import("./nativeLocation");
       if (isNativeEngineAvailable()) {
+        // Tear down the JS layer BEFORE starting native — running both
+        // concurrently makes them fight over CLLocationManager + geofences, and
+        // the JS subscription keeping location active disrupts RNBG's
+        // stationary->moving motion detection so it never starts a recording
+        // (Anthony 3 June: native_engine_started fired, but the JS backstop,
+        // geofence task and background-fetch kept running, RNBG's
+        // __STATIONARY_REGION__ collided with our geofence handler, and the
+        // drive was missed). Native must own location exclusively.
+        try { await stopDriveDetection(); } catch {}
+        try {
+          const { stopGeofencing } = await import("../geofencing/index");
+          await stopGeofencing();
+        } catch {}
         await startNativeLocationEngine();
         logDetectionEvent("detection_using_native_engine", {}).catch(() => {});
         return;

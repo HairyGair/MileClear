@@ -196,6 +196,20 @@ try {
  * setDepartureAnchor.
  */
 export async function registerGeofences(): Promise<void> {
+  // When the native engine owns detection, the JS anchor geofence must never
+  // arm — it competes with RNBG's own geofences/location (Anthony 3 June:
+  // RNBG's __STATIONARY_REGION__ collided with this handler and the drive was
+  // missed). Every JS geofence arm funnels through here, so this single gate
+  // covers startup, finalize, ensureAnchorGeofenceArmed, restart, etc.
+  try {
+    const { isNativeLocationEngineEnabled } = await import("../tracking/nativeEngineFlag");
+    const { isNativeEngineAvailable } = await import("../tracking/nativeLocation");
+    if (isNativeEngineAvailable() && (await isNativeLocationEngineEnabled())) {
+      await stopGeofencing();
+      return;
+    }
+  } catch {}
+
   const { status } = await Location.getBackgroundPermissionsAsync();
   if (status !== "granted") return;
 
