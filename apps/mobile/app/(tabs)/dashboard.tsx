@@ -20,6 +20,7 @@ import { FadeInStagger } from "../../components/FadeInStagger";
 import { colors, fonts, fontScaleCap, radii, spacing } from "../../lib/theme";
 import { ActiveRecordingBanner } from "../../components/ActiveRecordingBanner";
 import { SyncStatusBanner } from "../../components/SyncStatusBanner";
+import { describeError } from "../../lib/api/apiError";
 import { useFocusEffect, useRouter } from "expo-router";
 import { fetchVehicles } from "../../lib/api/vehicles";
 import {
@@ -787,8 +788,9 @@ export default function DashboardScreen() {
           ]
         );
       }
-    } catch (err: any) {
-      Alert.alert("Couldn't start the shift", err.message || "Try again in a moment.");
+    } catch (err: unknown) {
+      const { title, message } = describeError(err, "Couldn't start the shift");
+      Alert.alert(title, message);
     } finally {
       setStarting(false);
     }

@@ -37,6 +37,7 @@ import {
 import { fetchVehicles } from "../lib/api/vehicles";
 import { GIG_PLATFORMS, BUSINESS_PURPOSES, TRIP_CATEGORY_META, haversineDistance, calculateHmrcDeduction } from "@mileclear/shared";
 import { fetchServerRouteDistance, type RouteDistanceResult } from "../lib/api/trips";
+import { describeError } from "../lib/api/apiError";
 import type { TripClassification, TripCategory, PlatformTag, BusinessPurpose, Vehicle } from "@mileclear/shared";
 import { getDatabase } from "../lib/db/index";
 import { startQuickTripTracking, stopQuickTripTracking, clearDetectionCooldown, peekBackgroundCoordinates } from "../lib/tracking";
@@ -1796,7 +1797,8 @@ export default function TripFormScreen() {
         router.back();
       }
     } catch (err: unknown) {
-      Alert.alert("Couldn't save the trip", err instanceof Error ? err.message : "Try again in a moment.");
+      const { title, message } = describeError(err, "Couldn't save the trip");
+      Alert.alert(title, message);
     } finally {
       setSaving(false);
     }

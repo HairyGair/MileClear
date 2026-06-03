@@ -121,3 +121,78 @@ function deriveLegacyCode(statusCode: number): string {
 export function isApiError(err: unknown): err is ApiError {
   return err instanceof ApiError;
 }
+
+/**
+ * Turn any thrown error into a clear, specific user-facing { title, message }
+ * for an Alert — instead of "Something went wrong / Try again". Names the real
+ * reason (offline, session, permission, server, validation) using the ApiError
+ * taxonomy, and crucially REASSURES on offline rather than alarming, since the
+ * action is saved locally first. Phase 1 of the reliability work (point 12).
+ */
+export function describeError(
+  err: unknown,
+  fallbackTitle = "Something went wrong"
+): { title: string; message: string } {
+  // Sentinel strings thrown by apiRequest for connectivity/session issues.
+  if (err instanceof Error) {
+    const m = err.message;
+    if (
+      m === "Network error" ||
+      m === "REFRESH_NETWORK_ERROR" ||
+      m === "REFRESH_SECURESTORE_BLOCKED"
+    ) {
+      return {
+        title: "You're offline",
+        message:
+          "We couldn't reach the server. Your change is saved on your phone and will upload automatically when you're back online.",
+      };
+    }
+    if (m === "Session expired") {
+      return {
+        title: "Session expired",
+        message: "Please sign in again to continue.",
+      };
+    }
+  }
+
+  if (isApiError(err)) {
+    switch (err.code) {
+      case "PREMIUM_REQUIRED":
+        return {
+          title: "Pro feature",
+          message: err.hint ?? "This is a MileClear Pro feature. Upgrade to use it.",
+        };
+      case "UNAUTHORIZED":
+        return { title: "Session expired", message: "Please sign in again to continue." };
+      case "FORBIDDEN":
+        return { title: "Not allowed", message: err.hint ?? err.message };
+      case "NOT_FOUND":
+        return {
+          title: "Not found",
+          message: "That item no longer exists — it may have already been removed.",
+        };
+      case "TOO_MANY_REQUESTS":
+        return {
+          title: "Too many requests",
+          message: "Please wait a moment and try again.",
+        };
+      case "CONFLICT":
+        return { title: "Already exists", message: err.hint ?? err.message };
+      case "BAD_REQUEST":
+        return { title: "Please check the details", message: err.hint ?? err.message };
+      case "INTERNAL":
+        return {
+          title: "Server problem",
+          message:
+            "Something went wrong on our end — your data is safe. Please try again in a moment.",
+        };
+      default:
+        return { title: fallbackTitle, message: err.hint ?? err.message };
+    }
+  }
+
+  return {
+    title: fallbackTitle,
+    message: err instanceof Error ? err.message : "Please try again in a moment.",
+  };
+}
