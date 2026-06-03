@@ -174,6 +174,10 @@ export async function startNativeLocationEngine(): Promise<boolean> {
       await BGGeo.start();
       started = true;
       logDetectionEvent("native_engine_started", {}).catch(() => {});
+      // Arm the car-audio + CLVisit triggers (dynamic import avoids a cycle).
+      import("./carDetection")
+        .then((m) => m.startCarAndVisitTriggers())
+        .catch(() => {});
       return true;
     } catch (err) {
       logDetectionEvent("native_engine_start_failed", {
@@ -190,9 +194,30 @@ export async function startNativeLocationEngine(): Promise<boolean> {
   }
 }
 
+/**
+ * Wake RNBG into continuous tracking immediately, bypassing CoreMotion's latency.
+ * Called when an external signal says a drive is starting (car audio connected,
+ * a CLVisit departure) so the engine captures from the first metre. The recording
+ * itself still opens on the first driving-speed fix (the speed backstop), so this
+ * never creates a false trip — it just ensures RNBG is awake and delivering.
+ */
+export async function wakeNativeTracking(reason: string): Promise<void> {
+  const BGGeo = loadNativeModule();
+  if (!BGGeo || !started) return;
+  try {
+    await BGGeo.changePace?.(true);
+    logDetectionEvent("native_wake", { reason }).catch(() => {});
+  } catch {
+    // best effort
+  }
+}
+
 export async function stopNativeLocationEngine(): Promise<void> {
   const BGGeo = loadNativeModule();
   if (!BGGeo || !started) return;
+  import("./carDetection")
+    .then((m) => m.stopCarAndVisitTriggers())
+    .catch(() => {});
   try {
     await BGGeo.stop();
     await BGGeo.removeAllListeners();
