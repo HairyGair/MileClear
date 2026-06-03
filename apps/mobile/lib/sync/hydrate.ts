@@ -288,9 +288,38 @@ export async function hydrateLocalData(
   // whatever data we have and still mark hydration complete at the end.
   type FetchResult<T> = { ok: true; data: T } | { ok: false; error: unknown };
 
+  // Per-fetch timeout. A constrained cellular path (e.g. iCloud Private Relay)
+  // can leave a fetch hanging indefinitely — it never resolves AND never
+  // rejects — so the Promise.all below would never settle and the user is
+  // trapped on the "0/6" hydration overlay forever (Anthony, 3 June: app loaded
+  // on company WiFi but hung at 0/6 on 5G). The timeout converts a hung fetch
+  // into a normal failure: attempt() catches it, hydration carries on with
+  // whatever arrived and marks itself complete, and the sync engine backfills
+  // the rest once the connection recovers.
+  const FETCH_TIMEOUT_MS = 12000;
+
+  function withTimeout<T>(p: Promise<T>): Promise<T> {
+    return new Promise<T>((resolve, reject) => {
+      const timer = setTimeout(
+        () => reject(new Error("hydrate fetch timed out")),
+        FETCH_TIMEOUT_MS
+      );
+      p.then(
+        (v) => {
+          clearTimeout(timer);
+          resolve(v);
+        },
+        (e) => {
+          clearTimeout(timer);
+          reject(e);
+        }
+      );
+    });
+  }
+
   async function attempt<T>(fn: () => Promise<T>): Promise<FetchResult<T>> {
     try {
-      return { ok: true, data: await fn() };
+      return { ok: true, data: await withTimeout(fn()) };
     } catch (error) {
       console.warn("[hydrate] fetch failed:", error);
       return { ok: false, error };
@@ -304,7 +333,10 @@ export async function hydrateLocalData(
       attempt(() => fetchVehicles()),
       attempt(() => fetchShifts()),
       attempt(() =>
-        fetchTrips({ from, pageSize: 200 }) as Promise<PaginatedResponse<TripWithVehicle>>
+        // 100 (was 200) — halves the largest hydration payload (~310 KB -> ~155
+        // KB) so it's far likelier to complete on a marginal cellular link. The
+        // rest of the history loads on demand from the server / via sync.
+        fetchTrips({ from, pageSize: 100 }) as Promise<PaginatedResponse<TripWithVehicle>>
       ),
       attempt(() =>
         fetchEarnings({ from, pageSize: 100 }) as Promise<PaginatedResponse<Earning>>
@@ -376,10 +408,27 @@ export async function hydrateLocalData(
     console.warn("[hydrate] saved locations insert failed:", err);
   }
 
-  // Mark hydration complete regardless of partial failures. This prevents
-  // an infinite loop where a transient error on one endpoint re-runs the
-  // whole process on every subsequent login. The sync engine will fill
-  // any gaps from the server side going forward.
+  // Mark hydration complete as long as SOMETHING came through. Partial data is
+  // fine — the sync engine backfills gaps, and this prevents an infinite loop
+  // where a transient error on one endpoint re-runs the whole process on every
+  // login. But if EVERY fetch failed (fully offline, or a cellular path that
+  // timed out all six), leave hydration incomplete so it retries on the next
+  // launch rather than stranding the user with an empty, "complete" local store.
+  const anySucceeded =
+    vehiclesResult.ok ||
+    shiftsResult.ok ||
+    tripsResult.ok ||
+    earningsResult.ok ||
+    fuelResult.ok ||
+    savedLocationsResult.ok;
+
+  if (!anySucceeded) {
+    console.warn(
+      "[hydrate] every fetch failed — leaving hydration incomplete to retry next launch"
+    );
+    return;
+  }
+
   const db = await getDatabase();
   await db.runAsync(
     "INSERT OR REPLACE INTO tracking_state (key, value) VALUES ('hydration_complete', '1')"
