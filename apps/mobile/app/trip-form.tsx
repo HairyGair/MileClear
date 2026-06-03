@@ -1607,6 +1607,9 @@ export default function TripFormScreen() {
           endLat: endLat ?? null,
           endLng: endLng ?? null,
           endedAt: endedAt ? endedAt.toISOString() : null,
+          // Allow correcting a wrong vehicle — was never sent, so the picker in
+          // edit mode did nothing on save (audit point 5).
+          vehicleId: vehicleId ?? null,
         });
         // Clear "Classify Trip" CTA from any running Live Activity
         if (classification !== "unclassified") {

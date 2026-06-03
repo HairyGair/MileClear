@@ -142,6 +142,8 @@ export interface UpdateTripData {
   endLng?: number | null;
   endedAt?: string | null;
   distanceMiles?: number;
+  // Correct a wrong vehicle after the fact (audit point 5).
+  vehicleId?: string | null;
   // Classification feedback: set by syncUpdateTrip on the first user
   // classification of an auto-classified trip. API write-once-protects it.
   classificationAutoAccepted?: boolean;

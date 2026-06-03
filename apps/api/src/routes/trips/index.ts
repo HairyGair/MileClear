@@ -112,6 +112,10 @@ const updateTripSchema = z.object({
   endLng: z.number().min(-180).max(180).nullable().optional(),
   endedAt: z.coerce.date().nullable().optional(),
   distanceMiles: z.number().min(0).optional(),
+  // Correct a wrong vehicle after the fact. Was missing from the update schema,
+  // so the PATCH silently stripped it and a corrected vehicle reverted on the
+  // next hydration (audit point 5). Ownership is validated in the handler.
+  vehicleId: z.string().uuid().nullable().optional(),
   // Classification feedback: mobile sends this on the first user classification
   // of an auto-classified trip. Server ignores the value if already set, so
   // later PATCHes never overwrite the original accept/reject signal.
@@ -1357,6 +1361,18 @@ export async function tripRoutes(app: FastifyInstance) {
     });
     if (!existing) {
       return reply.status(404).send({ error: "Trip not found" });
+    }
+
+    // Vehicle correction: if reassigning to a vehicle, it must belong to this
+    // user (never let a trip be tagged with someone else's vehicle).
+    if (updates.vehicleId) {
+      const vehicle = await prisma.vehicle.findFirst({
+        where: { id: updates.vehicleId, userId },
+        select: { id: true },
+      });
+      if (!vehicle) {
+        return reply.status(400).send({ error: "Vehicle not found" });
+      }
     }
 
     // Geocode end address if provided without coordinates
