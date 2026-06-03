@@ -129,7 +129,11 @@ interface Health {
  * problem determines the top-level verdict banner. Lower-severity items
  * (info) still render in the problems card so the user sees context.
  */
-function computeHealth(d: DriveDetectionDiagnostics, events: DetectionEventRow[]): Health {
+function computeHealth(
+  d: DriveDetectionDiagnostics,
+  events: DetectionEventRow[],
+  nativeActive: boolean
+): Health {
   const problems: Problem[] = [];
 
   // 1. Kill switches (highest severity - nothing can work)
@@ -168,13 +172,30 @@ function computeHealth(d: DriveDetectionDiagnostics, events: DetectionEventRow[]
     });
   }
 
+  // Native location engine active: it owns GPS directly, so the JS detection
+  // task ("Task running") is idle BY DESIGN. Surface that as context and skip
+  // the backstop fault below — otherwise the screen flags a false alarm and
+  // "Restart detection" can never clear it, because the restart re-runs the
+  // very handoff that (correctly) leaves the JS task stopped. (Anthony, 3 June.)
+  if (nativeActive) {
+    problems.push({
+      severity: "info",
+      title: "Running on the native location engine",
+      cause:
+        "This device uses the native location engine, which owns GPS directly. The JS background task shows 'Task running: false' by design — detection still runs natively.",
+      action: "No action needed.",
+    });
+  }
+
   // 3. Subscription isn't running. Post-28-May backstop refactor a parked
   //    device keeps a low-power subscription alive (auto-idled by iOS when
   //    stationary, hasStartedLocationUpdatesAsync still reports true), so
   //    !taskRunning is a genuine fault again — the backstop should be up. If
   //    the anchor geofence is armed it's still a backup wake signal, so soften
   //    to a warning; otherwise nothing is watching and it's an error.
-  if (d.enabled && d.backgroundPermission === "granted" && !d.taskRunning && !d.activeShiftId) {
+  //    Skipped when the native engine owns location — taskRunning:false is the
+  //    expected, healthy state there.
+  if (d.enabled && d.backgroundPermission === "granted" && !d.taskRunning && !d.activeShiftId && !nativeActive) {
     if (d.hasAnchor && d.geofencingActive) {
       problems.push({
         severity: "warning",
@@ -584,8 +605,8 @@ export default function DriveDetectionDiagnosticsScreen() {
   }, [events, tripFilter]);
 
   const health = useMemo(
-    () => (diagnostics ? computeHealth(diagnostics, events) : null),
-    [diagnostics, events]
+    () => (diagnostics ? computeHealth(diagnostics, events, nativeOn && nativeAvailable) : null),
+    [diagnostics, events, nativeOn, nativeAvailable]
   );
 
   useFocusEffect(
@@ -802,9 +823,19 @@ export default function DriveDetectionDiagnosticsScreen() {
         <StatusRow label="Enabled" value={String(d.enabled)} color={boolColor(d.enabled)} />
         <StatusRow
           label="Task running"
-          value={String(d.taskRunning)}
-          color={d.taskRunning ? GREEN : RED}
-          hint={!d.taskRunning ? "Backstop subscription isn't running — tap Restart detection" : undefined}
+          value={
+            d.taskRunning
+              ? "true"
+              : nativeOn && nativeAvailable
+                ? "false (native engine owns location)"
+                : "false"
+          }
+          color={d.taskRunning || (nativeOn && nativeAvailable) ? GREEN : RED}
+          hint={
+            !d.taskRunning && !(nativeOn && nativeAvailable)
+              ? "Backstop subscription isn't running — tap Restart detection"
+              : undefined
+          }
         />
         <StatusRow
           label="Detection mode"
