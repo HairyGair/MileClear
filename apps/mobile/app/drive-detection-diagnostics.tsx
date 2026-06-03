@@ -734,6 +734,35 @@ export default function DriveDetectionDiagnosticsScreen() {
     }
   }, [load]);
 
+  const handleSimulate = useCallback(
+    (miles: number) => {
+      Alert.alert(
+        `Simulate a ${miles} mi trip?`,
+        "Injects a synthetic GPS route and runs the real finalize pipeline (distance, road-match, phantom guards, save, display). It does NOT test start detection - just everything after the engine has the coordinates. A test trip will appear in your list.",
+        [
+          { text: "Cancel", style: "cancel" },
+          {
+            text: "Simulate",
+            onPress: async () => {
+              setBusy(true);
+              try {
+                const { simulateTrip } = await import("../lib/tracking/simulateTrip");
+                const res = await simulateTrip(miles);
+                await load();
+                Alert.alert(res.ok ? "Trip simulated" : "No trip saved", res.message);
+              } catch (err) {
+                Alert.alert("Simulation failed", (err as Error).message ?? "Try again.");
+              } finally {
+                setBusy(false);
+              }
+            },
+          },
+        ]
+      );
+    },
+    [load]
+  );
+
   if (loading && !diagnostics) {
     return (
       <View style={[styles.container, styles.center]}>
@@ -1045,6 +1074,36 @@ export default function DriveDetectionDiagnosticsScreen() {
           />
         </View>
       </View>
+
+      {/* Simulate a trip (admin only) - test the capture->save pipeline without driving */}
+      {user?.isAdmin ? (
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>Simulate a trip</Text>
+          <Text style={styles.nativeSub}>
+            Inject a synthetic route and run the real finalize pipeline - distance, road-match,
+            phantom guards, save, display. Tests everything after the engine has the coordinates
+            (not wake/start detection). A test trip appears in your list; delete it after.
+          </Text>
+          <View style={[styles.actionsRow, { marginTop: 12 }]}>
+            <TouchableOpacity
+              style={[styles.buttonSecondary, busy && styles.buttonDisabled]}
+              onPress={() => handleSimulate(0.8)}
+              disabled={busy}
+            >
+              <Ionicons name="car-outline" size={16} color={TEXT_1} />
+              <Text style={styles.buttonSecondaryText}>Short (0.8 mi)</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.buttonSecondary, busy && styles.buttonDisabled]}
+              onPress={() => handleSimulate(5)}
+              disabled={busy}
+            >
+              <Ionicons name="car-sport-outline" size={16} color={TEXT_1} />
+              <Text style={styles.buttonSecondaryText}>Longer (5 mi)</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      ) : null}
 
       {/* tracking_state dump */}
       <View style={styles.card}>
