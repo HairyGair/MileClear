@@ -23,9 +23,27 @@ interface State {
   active: boolean;
   startedAt: number | null;
   distanceMiles: number;
+  // "auto" = auto-detected recording; "quick" = a manual "Start Trip" the user
+  // kicked off (was previously INVISIBLE on the dashboard once backgrounded).
+  mode: "auto" | "quick" | null;
 }
 
-const EMPTY: State = { active: false, startedAt: null, distanceMiles: 0 };
+const EMPTY: State = { active: false, startedAt: null, distanceMiles: 0, mode: null };
+
+const QUICK_TRIP_SHIFT_ID = "__quick_trip__";
+
+function sumMiles(coords: { lat: number; lng: number }[]): number {
+  let distance = 0;
+  for (let i = 1; i < coords.length; i++) {
+    distance += haversineDistance(
+      coords[i - 1].lat,
+      coords[i - 1].lng,
+      coords[i].lat,
+      coords[i].lng
+    );
+  }
+  return distance;
+}
 
 function formatDuration(ms: number): string {
   if (ms < 0) ms = 0;
@@ -45,39 +63,48 @@ export function ActiveRecordingBanner() {
   const refresh = useCallback(async () => {
     try {
       const db = await getDatabase();
-      const row = await db.getFirstAsync<{ value: string }>(
+
+      // 1) Auto-detected recording (coords in detection_coordinates).
+      const autoRow = await db.getFirstAsync<{ value: string }>(
         "SELECT value FROM tracking_state WHERE key = 'auto_recording_active'"
       );
-      const active = row?.value === "1";
-      if (!mountedRef.current) return;
-
-      if (!active) {
-        setState(EMPTY);
+      if (autoRow?.value === "1") {
+        const coords = await db.getAllAsync<{ lat: number; lng: number; recorded_at: string }>(
+          "SELECT lat, lng, recorded_at FROM detection_coordinates ORDER BY recorded_at ASC"
+        );
+        if (!mountedRef.current) return;
+        setState({
+          active: true,
+          mode: "auto",
+          startedAt: coords.length > 0 ? new Date(coords[0].recorded_at).getTime() : null,
+          distanceMiles: sumMiles(coords),
+        });
         return;
       }
 
-      const coords = await db.getAllAsync<{
-        lat: number;
-        lng: number;
-        recorded_at: string;
-      }>(
-        "SELECT lat, lng, recorded_at FROM detection_coordinates ORDER BY recorded_at ASC"
+      // 2) Manual "Start Trip" (quick trip) — active_shift_id == __quick_trip__,
+      // coords in shift_coordinates. This was invisible on the dashboard before:
+      // start a trip, return to dashboard, and nothing showed it was recording.
+      const shiftRow = await db.getFirstAsync<{ value: string }>(
+        "SELECT value FROM tracking_state WHERE key = 'active_shift_id'"
       );
-
-      let distance = 0;
-      for (let i = 1; i < coords.length; i++) {
-        distance += haversineDistance(
-          coords[i - 1].lat,
-          coords[i - 1].lng,
-          coords[i].lat,
-          coords[i].lng
+      if (shiftRow?.value === QUICK_TRIP_SHIFT_ID) {
+        const coords = await db.getAllAsync<{ lat: number; lng: number; recorded_at: string }>(
+          "SELECT lat, lng, recorded_at FROM shift_coordinates WHERE shift_id = ? ORDER BY recorded_at ASC",
+          [QUICK_TRIP_SHIFT_ID]
         );
+        if (!mountedRef.current) return;
+        setState({
+          active: true,
+          mode: "quick",
+          startedAt: coords.length > 0 ? new Date(coords[0].recorded_at).getTime() : null,
+          distanceMiles: sumMiles(coords),
+        });
+        return;
       }
-      const startedAt =
-        coords.length > 0 ? new Date(coords[0].recorded_at).getTime() : null;
 
       if (!mountedRef.current) return;
-      setState({ active: true, startedAt, distanceMiles: distance });
+      setState(EMPTY);
     } catch {
       // Silent failure - the banner is best-effort
     }
@@ -105,7 +132,7 @@ export function ActiveRecordingBanner() {
 
   return (
     <TouchableOpacity
-      onPress={() => router.push("/active-recording")}
+      onPress={() => router.push(state.mode === "quick" ? "/trip-form" : "/active-recording")}
       activeOpacity={0.8}
       style={styles.banner}
       accessibilityRole="button"
