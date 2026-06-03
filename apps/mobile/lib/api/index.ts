@@ -47,8 +47,15 @@ export async function setTokens(
   refreshToken: string
 ): Promise<void> {
   cachedAccessToken = accessToken;
-  await SecureStore.setItemAsync(ACCESS_TOKEN_KEY, accessToken);
-  await SecureStore.setItemAsync(REFRESH_TOKEN_KEY, refreshToken);
+  // CRITICAL: keychainAccessible AFTER_FIRST_UNLOCK so background tasks (the
+  // native location engine, sync queue, finalize) can READ the tokens while the
+  // phone is LOCKED — the normal case during a drive. The SecureStore default
+  // (WHEN_UNLOCKED) makes them unreadable when locked, so a background refresh
+  // failed, the session was cleared, and the user was logged out (Anthony: 293
+  // re-login sessions). THIS_DEVICE_ONLY keeps them out of iCloud keychain/backup.
+  const opts = { keychainAccessible: SecureStore.AFTER_FIRST_UNLOCK_THIS_DEVICE_ONLY };
+  await SecureStore.setItemAsync(ACCESS_TOKEN_KEY, accessToken, opts);
+  await SecureStore.setItemAsync(REFRESH_TOKEN_KEY, refreshToken, opts);
   // Keep App Group UserDefaults in sync so Siri App Intents can authenticate
   syncTokenToSiri(accessToken).catch(() => {});
 }
@@ -74,8 +81,12 @@ async function refreshAccessToken(): Promise<string | null> {
     try {
       refreshToken = await SecureStore.getItemAsync(REFRESH_TOKEN_KEY);
     } catch {
-      // SecureStore blocked — can't refresh without the token
-      return null;
+      // SecureStore blocked (device locked, e.g. a token still stored with the
+      // old WHEN_UNLOCKED accessibility). Do NOT return null — the caller treats
+      // null as a rejected session and clears the tokens, forcing a re-login.
+      // Throw so apiRequest treats it as transient (like a network error) and
+      // leaves the session intact; it'll refresh fine once unlocked.
+      throw new Error("REFRESH_SECURESTORE_BLOCKED");
     }
     if (!refreshToken) return null;
 
