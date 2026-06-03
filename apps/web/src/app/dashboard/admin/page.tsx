@@ -2827,12 +2827,24 @@ function PushTab() {
 // Email Campaigns Tab
 // ---------------------------------------------------------------------------
 
+const EMAIL_AUDIENCES = [
+  { value: "test", label: "Send a test to one address" },
+  { value: "all", label: "All users" },
+  { value: "active", label: "Active users (1+ trips)" },
+  { value: "inactive", label: "Inactive users (0 trips)" },
+  { value: "premium", label: "Premium users" },
+  { value: "free", label: "Free users" },
+];
+
 function EmailTab() {
+  // ── Campaigns ──
   const [sending, setSending] = useState<string | null>(null);
   const [result, setResult] = useState<{ type: string; sent: number; errors: number; dryRun: boolean; totalUsers: number } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [showConfirm, setShowConfirm] = useState<string | null>(null);
   const [onlyInactive, setOnlyInactive] = useState(false);
+  const [previewLoading, setPreviewLoading] = useState<string | null>(null);
+  const [preview, setPreview] = useState<{ title: string; html: string } | null>(null);
 
   const sendEmail = async (type: string, dryRun: boolean) => {
     setSending(type);
@@ -2852,11 +2864,100 @@ function EmailTab() {
     }
   };
 
+  const previewTemplate = async (id: string, title: string) => {
+    setPreviewLoading(id);
+    setError(null);
+    try {
+      const res = await api.get<{ data: { html: string } }>(`/admin/email/template-preview?type=${id}`);
+      setPreview({ title, html: res.data.html });
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setPreviewLoading(null);
+    }
+  };
+
   const campaigns = [
     { id: "re-engagement", title: "Re-engagement", desc: "Personalised email to bring users back, with their trip stats." },
-    { id: "update", title: "Product Update", desc: "Send the latest changelog/update email to all users." },
-    { id: "service-status", title: "Service Status", desc: "Quick 'we're back up' or status notification to all users." },
+    { id: "update", title: "Product Update", desc: "Send the latest changelog/update email (reads the 'Latest' release notes)." },
+    { id: "service-status", title: "Service Status", desc: "Quick 'we're back up' notification to all users." },
   ];
+
+  // ── Custom composer ──
+  const [subject, setSubject] = useState("");
+  const [eyebrow, setEyebrow] = useState("");
+  const [title, setTitle] = useState("");
+  const [body, setBody] = useState("");
+  const [ctaLabel, setCtaLabel] = useState("");
+  const [ctaUrl, setCtaUrl] = useState("");
+  const [preheader, setPreheader] = useState("");
+  const [includeGreeting, setIncludeGreeting] = useState(true);
+  const [includeSignoff, setIncludeSignoff] = useState(true);
+  const [audience, setAudience] = useState("test");
+  const [testEmail, setTestEmail] = useState("anthonygair@icloud.com");
+  const [gated, setGated] = useState(true);
+  const [composerPreview, setComposerPreview] = useState("");
+  const [composerSending, setComposerSending] = useState(false);
+  const [composerResult, setComposerResult] = useState<string | null>(null);
+  const [composerError, setComposerError] = useState<string | null>(null);
+  const [composerConfirm, setComposerConfirm] = useState(false);
+  const previewTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const composerPayload = useCallback(
+    () => ({ subject, eyebrow, title, bodyMarkdown: body, ctaLabel, ctaUrl, preheader, includeGreeting, includeSignoff }),
+    [subject, eyebrow, title, body, ctaLabel, ctaUrl, preheader, includeGreeting, includeSignoff]
+  );
+
+  // Live, debounced preview as the form is typed.
+  useEffect(() => {
+    if (previewTimer.current) clearTimeout(previewTimer.current);
+    previewTimer.current = setTimeout(async () => {
+      try {
+        const res = await api.post<{ data: { html: string } }>("/admin/email/preview-custom", composerPayload());
+        setComposerPreview(res.data.html);
+      } catch {
+        /* preview errors are non-fatal */
+      }
+    }, 400);
+    return () => {
+      if (previewTimer.current) clearTimeout(previewTimer.current);
+    };
+  }, [composerPayload]);
+
+  const sendCustom = async (dryRun: boolean) => {
+    setComposerSending(true);
+    setComposerError(null);
+    setComposerResult(null);
+    try {
+      const res = await api.post<{ data: any }>("/admin/email/send-custom", {
+        ...composerPayload(),
+        audience,
+        testEmail,
+        gated,
+        dryRun,
+      });
+      const d = res.data;
+      setComposerResult(
+        d.test
+          ? dryRun
+            ? `Dry run OK — would send a test to ${testEmail}`
+            : `Test sent to ${testEmail}`
+          : dryRun
+            ? `Dry run: would send to ${d.sent} of ${d.totalUsers} users`
+            : `Sent to ${d.sent} users, ${d.errors} errors`
+      );
+    } catch (err: any) {
+      setComposerError(err.message);
+    } finally {
+      setComposerSending(false);
+      setComposerConfirm(false);
+    }
+  };
+
+  const canSend = subject.trim() && title.trim() && body.trim() && (audience !== "test" || testEmail.trim());
+  const isTest = audience === "test";
+
+  const labelStyle = { display: "flex", alignItems: "center", gap: "0.5rem", fontSize: "0.875rem", cursor: "pointer" } as const;
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "1.25rem" }}>
@@ -2871,16 +2972,23 @@ function EmailTab() {
         </Card>
       )}
 
+      <h3 style={{ fontSize: "0.8125rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--text-secondary)", margin: "0.25rem 0 -0.25rem" }}>
+        Ready-made campaigns
+      </h3>
+
       {campaigns.map((c) => (
         <Card key={c.id} title={c.title}>
           <p style={{ fontSize: "0.875rem", color: "var(--text-secondary)", marginBottom: "1rem" }}>{c.desc}</p>
           {c.id === "re-engagement" && (
-            <label style={{ display: "flex", alignItems: "center", gap: "0.5rem", fontSize: "0.875rem", marginBottom: "1rem", cursor: "pointer" }}>
+            <label style={{ ...labelStyle, marginBottom: "1rem" }}>
               <input type="checkbox" checked={onlyInactive} onChange={(e) => setOnlyInactive(e.target.checked)} />
               Only users with 0 trips
             </label>
           )}
           <div style={{ display: "flex", gap: "0.75rem" }}>
+            <Button variant="ghost" size="sm" onClick={() => previewTemplate(c.id, c.title)} disabled={previewLoading === c.id}>
+              {previewLoading === c.id ? "..." : "Preview"}
+            </Button>
             <Button variant="secondary" size="sm" onClick={() => sendEmail(c.id, true)} disabled={sending === c.id}>
               {sending === c.id ? "..." : "Dry Run"}
             </Button>
@@ -2891,6 +2999,103 @@ function EmailTab() {
         </Card>
       ))}
 
+      <h3 style={{ fontSize: "0.8125rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--text-secondary)", margin: "1rem 0 -0.25rem" }}>
+        Compose a custom email
+      </h3>
+
+      <Card>
+        <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) minmax(0, 1fr)", gap: "1.5rem", alignItems: "start" }} className="email-composer-grid">
+          {/* Form */}
+          <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+            <Input label="Subject line" value={subject} onChange={(e) => setSubject(e.target.value)} placeholder="What lands in their inbox" />
+            <Input label="Eyebrow (small pill above the title)" value={eyebrow} onChange={(e) => setEyebrow(e.target.value)} placeholder="e.g. PRODUCT UPDATE" />
+            <Input label="Headline" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="The big bold title" />
+            <div className="form-group">
+              <label className="form-label">Body</label>
+              <textarea
+                className="form-input"
+                value={body}
+                onChange={(e) => setBody(e.target.value)}
+                rows={9}
+                placeholder={"Write your message here.\n\nBlank line = new paragraph.\n- start a line with a dash for bullets\n> a line starting with > is an amber callout\n**bold** and [links](https://mileclear.com) work too."}
+                style={{ resize: "vertical", fontFamily: "inherit", lineHeight: 1.6 }}
+              />
+              <span style={{ fontSize: "0.75rem", color: "var(--text-secondary)" }}>
+                Formatting: blank line = paragraph · <code>- </code> = bullet · <code>&gt; </code> = callout · <code>**bold**</code> · <code>[label](url)</code>
+              </span>
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.75rem" }}>
+              <Input label="Button label (optional)" value={ctaLabel} onChange={(e) => setCtaLabel(e.target.value)} placeholder="Open MileClear" />
+              <Input label="Button link (optional)" value={ctaUrl} onChange={(e) => setCtaUrl(e.target.value)} placeholder="https://mileclear.com/..." />
+            </div>
+            <Input label="Preview text (optional inbox preview line)" value={preheader} onChange={(e) => setPreheader(e.target.value)} placeholder="Defaults to the headline" />
+
+            <div style={{ display: "flex", flexWrap: "wrap", gap: "1rem", marginTop: "0.25rem" }}>
+              <label style={labelStyle}>
+                <input type="checkbox" checked={includeGreeting} onChange={(e) => setIncludeGreeting(e.target.checked)} />
+                Include &quot;Hi {"{name}"},&quot;
+              </label>
+              <label style={labelStyle}>
+                <input type="checkbox" checked={includeSignoff} onChange={(e) => setIncludeSignoff(e.target.checked)} />
+                Include &quot;Cheers, Gair&quot;
+              </label>
+            </div>
+
+            <hr style={{ border: "none", borderTop: "1px solid var(--border)", margin: "0.5rem 0" }} />
+
+            <Select label="Send to" value={audience} onChange={(e) => setAudience(e.target.value)} options={EMAIL_AUDIENCES} />
+            {isTest ? (
+              <Input label="Test address" value={testEmail} onChange={(e) => setTestEmail(e.target.value)} placeholder="you@example.com" />
+            ) : (
+              <label style={{ ...labelStyle, marginTop: "-0.25rem" }}>
+                <input type="checkbox" checked={gated} onChange={(e) => setGated(e.target.checked)} />
+                Respect unsubscribes (recommended for marketing)
+              </label>
+            )}
+
+            {composerError && <div className="alert alert--error">{composerError}</div>}
+            {composerResult && (
+              <div style={{ fontSize: "0.875rem", color: "var(--emerald-400, #34d399)", fontWeight: 600 }}>{composerResult}</div>
+            )}
+
+            <div style={{ display: "flex", gap: "0.75rem", marginTop: "0.25rem" }}>
+              <Button variant="secondary" size="sm" onClick={() => sendCustom(true)} disabled={composerSending || !canSend}>
+                {composerSending ? "..." : "Dry Run"}
+              </Button>
+              <Button
+                variant="primary"
+                size="sm"
+                onClick={() => (isTest ? sendCustom(false) : setComposerConfirm(true))}
+                disabled={composerSending || !canSend}
+              >
+                {composerSending ? "Sending..." : isTest ? "Send Test" : "Send"}
+              </Button>
+            </div>
+          </div>
+
+          {/* Live preview */}
+          <div style={{ position: "sticky", top: "1rem" }}>
+            <p style={{ fontSize: "0.75rem", color: "var(--text-secondary)", margin: "0 0 0.5rem", fontWeight: 600 }}>Live preview</p>
+            <iframe
+              title="Email preview"
+              srcDoc={composerPreview}
+              sandbox=""
+              style={{ width: "100%", height: 620, border: "1px solid var(--border)", borderRadius: 12, background: "#030712" }}
+            />
+          </div>
+        </div>
+      </Card>
+
+      {/* Campaign preview modal */}
+      <Modal open={!!preview} onClose={() => setPreview(null)} title={preview ? `Preview — ${preview.title}` : ""} large>
+        <iframe
+          title="Campaign preview"
+          srcDoc={preview?.html ?? ""}
+          sandbox=""
+          style={{ width: "100%", height: 640, border: "none", borderRadius: 8, background: "#030712" }}
+        />
+      </Modal>
+
       <ConfirmModal
         open={!!showConfirm}
         onClose={() => setShowConfirm(null)}
@@ -2899,6 +3104,16 @@ function EmailTab() {
         message="This will send emails to users. Brevo's free tier has a 300/day limit. Are you sure?"
         confirmLabel="Send Now"
         loading={!!sending}
+      />
+
+      <ConfirmModal
+        open={composerConfirm}
+        onClose={() => setComposerConfirm(false)}
+        onConfirm={() => sendCustom(false)}
+        title="Send custom email"
+        message={`This will send your email to "${EMAIL_AUDIENCES.find((a) => a.value === audience)?.label}". Brevo's free tier has a 300/day limit. Run a dry run first if you're unsure. Continue?`}
+        confirmLabel="Send Now"
+        loading={composerSending}
       />
     </div>
   );

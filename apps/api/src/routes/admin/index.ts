@@ -10,6 +10,11 @@ import {
   sendServiceStatusEmail,
   sendUpdateEmail,
   renderUpdateEmailPreview,
+  renderReEngagementPreview,
+  renderServiceStatusPreview,
+  renderCustomEmailHtml,
+  sendCustomEmail,
+  type CustomEmailArgs,
 } from "../../services/email.js";
 import { logEvent } from "../../services/appEvents.js";
 import { sendPushNotifications } from "../../lib/push.js";
@@ -971,6 +976,171 @@ export async function adminRoutes(app: FastifyInstance) {
         errors: errors.length,
         errorDetails: errors.slice(0, 10),
         dryRun: isDryRun,
+        totalUsers: users.length,
+      },
+    });
+  });
+
+  // GET /admin/email/template-preview?type=re-engagement|update|service-status
+  // Renders a built-in campaign email to HTML so the admin panel can show a
+  // live preview before sending.
+  app.get("/email/template-preview", async (request, reply) => {
+    const { type } = request.query as { type?: string };
+    let preview: { subject: string; html: string } | null = null;
+    if (type === "re-engagement") preview = renderReEngagementPreview();
+    else if (type === "service-status") preview = renderServiceStatusPreview();
+    else if (type === "update") preview = renderUpdateEmailPreview();
+    if (!preview) {
+      return reply
+        .status(400)
+        .send({ error: "Unknown template, or no 'Latest' release to preview." });
+    }
+    return reply.send({ data: preview });
+  });
+
+  // Shared schema for the custom email composer.
+  const customEmailSchema = z.object({
+    subject: z.string().min(1).max(200),
+    eyebrow: z.string().max(60).optional(),
+    title: z.string().min(1).max(160),
+    bodyMarkdown: z.string().min(1).max(20000),
+    ctaLabel: z.string().max(60).optional(),
+    ctaUrl: z.string().url().max(500).optional().or(z.literal("")),
+    preheader: z.string().max(200).optional(),
+    includeGreeting: z.boolean().default(true),
+    includeSignoff: z.boolean().default(true),
+  });
+
+  // POST /admin/email/preview-custom
+  // Renders an admin-composed email to branded HTML without sending. Lenient
+  // about empty fields so the live preview updates as the form is typed.
+  app.post("/email/preview-custom", async (request, reply) => {
+    const b = (request.body ?? {}) as Partial<CustomEmailArgs>;
+    const ctaUrl =
+      b.ctaUrl && /^https?:\/\//.test(b.ctaUrl) ? b.ctaUrl : undefined;
+    const args: CustomEmailArgs = {
+      subject: b.subject || "",
+      eyebrow: b.eyebrow,
+      title: b.title || "Your headline goes here",
+      bodyMarkdown: b.bodyMarkdown || "Write your message here.",
+      ctaLabel: b.ctaLabel,
+      ctaUrl,
+      preheader: b.preheader,
+      includeGreeting: b.includeGreeting !== false,
+      includeSignoff: b.includeSignoff !== false,
+    };
+    const html = renderCustomEmailHtml(args, "Anthony", "preview");
+    return reply.send({ data: { html } });
+  });
+
+  // POST /admin/email/send-custom
+  // Sends an admin-composed branded email to a chosen audience (or a single
+  // test address). audience="test" always delivers to testEmail. Other
+  // audiences respect marketingEmailsEnabled when gated=true.
+  app.post("/email/send-custom", async (request, reply) => {
+    const parsed = customEmailSchema
+      .extend({
+        audience: z.enum([
+          "test",
+          "all",
+          "inactive",
+          "active",
+          "premium",
+          "free",
+        ]),
+        testEmail: z.string().email().optional(),
+        gated: z.boolean().default(true),
+        dryRun: z.boolean().default(false),
+      })
+      .safeParse(request.body);
+    if (!parsed.success) {
+      return reply
+        .status(400)
+        .send({ error: parsed.error.issues[0]?.message ?? "Invalid input" });
+    }
+    const b = parsed.data;
+    const ctaUrl = b.ctaUrl && b.ctaUrl.length > 0 ? b.ctaUrl : undefined;
+    const args: CustomEmailArgs = {
+      subject: b.subject,
+      eyebrow: b.eyebrow,
+      title: b.title,
+      bodyMarkdown: b.bodyMarkdown,
+      ctaLabel: b.ctaLabel,
+      ctaUrl,
+      preheader: b.preheader,
+      includeGreeting: b.includeGreeting,
+      includeSignoff: b.includeSignoff,
+    };
+
+    // Single test address — always delivers, ignores consent + audience.
+    if (b.audience === "test") {
+      const to = b.testEmail?.trim();
+      if (!to) {
+        return reply.status(400).send({ error: "Enter a test email address." });
+      }
+      if (!b.dryRun) {
+        await sendCustomEmail(to, "Anthony", args, "preview", false);
+      }
+      request.log.info(
+        { adminId: request.userId, action: "custom-email-test", to, dryRun: b.dryRun },
+        `Custom test email -> ${to}${b.dryRun ? " (DRY RUN)" : ""}`
+      );
+      return reply.send({
+        data: { sent: b.dryRun ? 0 : 1, errors: 0, dryRun: b.dryRun, totalUsers: 1, test: true },
+      });
+    }
+
+    const where: Prisma.UserWhereInput =
+      b.audience === "inactive"
+        ? { trips: { none: {} } }
+        : b.audience === "active"
+          ? { trips: { some: {} } }
+          : b.audience === "premium"
+            ? { isPremium: true }
+            : b.audience === "free"
+              ? { isPremium: false }
+              : {};
+
+    const users = await prisma.user.findMany({
+      where,
+      select: { id: true, email: true, displayName: true },
+    });
+
+    let sent = 0;
+    const errors: string[] = [];
+    for (const user of users) {
+      if (b.dryRun) {
+        sent++;
+        continue;
+      }
+      try {
+        await sendCustomEmail(user.email, user.displayName, args, user.id, b.gated);
+        sent++;
+        await new Promise((r) => setTimeout(r, 200));
+      } catch (err: any) {
+        errors.push(`${user.email}: ${err.message}`);
+      }
+    }
+
+    request.log.info(
+      {
+        adminId: request.userId,
+        action: "custom-email",
+        audience: b.audience,
+        sent,
+        errors: errors.length,
+        dryRun: b.dryRun,
+        gated: b.gated,
+      },
+      `Custom email (${b.audience}): ${sent} sent, ${errors.length} errors${b.dryRun ? " (DRY RUN)" : ""}`
+    );
+
+    return reply.send({
+      data: {
+        sent,
+        errors: errors.length,
+        errorDetails: errors.slice(0, 10),
+        dryRun: b.dryRun,
         totalUsers: users.length,
       },
     });

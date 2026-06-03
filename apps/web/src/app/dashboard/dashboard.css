@@ -4558,3 +4558,10 @@
   outline: 2px solid var(--amber-400);
   outline-offset: 2px;
 }
+
+/* Admin email composer — stack form + preview on narrow screens */
+@media (max-width: 900px) {
+  .email-composer-grid {
+    grid-template-columns: 1fr !important;
+  }
+}
