@@ -87,7 +87,7 @@ export async function getCommunityInsights(
 
     // 3. Earnings from users who have trips in the area (excluding requesting user)
     prisma.$queryRaw<Array<{ userId: string; platform: string; totalPence: bigint; count: bigint }>>`
-      SELECT e.userId, e.platform, SUM(e.amountPence) as totalPence, COUNT(*) as count
+      SELECT /*+ MAX_EXECUTION_TIME(6000) */ e.userId, e.platform, SUM(e.amountPence) as totalPence, COUNT(*) as count
       FROM earnings e
       WHERE e.userId IN (
         SELECT DISTINCT t.userId FROM trips t
@@ -100,7 +100,7 @@ export async function getCommunityInsights(
       AND e.userId != ${userId}
       AND e.periodStart >= ${lookbackDate}
       GROUP BY e.userId, e.platform
-    `,
+    `.catch(() => []),
 
     // 4. Nearby anomalies (14 day window — time-decay filters relevance, excluding self)
     prisma.tripAnomaly.findMany({
@@ -124,7 +124,7 @@ export async function getCommunityInsights(
 
     // 5. Speed data from trip coordinates near the location
     prisma.$queryRaw<Array<{ avgSpeed: number; hour: number; count: bigint }>>`
-      SELECT AVG(tc.speed) as avgSpeed, HOUR(tc.recordedAt) as hour, COUNT(*) as count
+      SELECT /*+ MAX_EXECUTION_TIME(6000) */ AVG(tc.speed) as avgSpeed, HOUR(tc.recordedAt) as hour, COUNT(*) as count
       FROM trip_coordinates tc
       JOIN trips t ON tc.tripId = t.id
       WHERE t.startLat BETWEEN ${minLat} AND ${maxLat}
@@ -135,7 +135,7 @@ export async function getCommunityInsights(
       GROUP BY HOUR(tc.recordedAt)
       HAVING COUNT(*) >= 10
       ORDER BY hour
-    `,
+    `.catch(() => []),
   ]);
 
   // Exclude requesting user's own data from community results
