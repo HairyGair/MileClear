@@ -190,6 +190,62 @@ export async function stopNativeLocationEngine(): Promise<void> {
 
 type DB = Awaited<ReturnType<typeof getDatabase>>;
 
+/** Great-circle distance in metres. */
+function metersBetween(
+  lat1: number,
+  lng1: number,
+  lat2: number,
+  lng2: number
+): number {
+  const R = 6371000;
+  const dLat = ((lat2 - lat1) * Math.PI) / 180;
+  const dLng = ((lng2 - lng1) * Math.PI) / 180;
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos((lat1 * Math.PI) / 180) *
+      Math.cos((lat2 * Math.PI) / 180) *
+      Math.sin(dLng / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(a));
+}
+
+/**
+ * Plant the departure anchor as the trip's first coordinate so the route reads
+ * from where the user actually set off — not from wherever the engine woke up.
+ * Critical for SHORT trips, where wake latency loses the whole start. finalize
+ * reads coords ORDER BY recorded_at and road-matches them, so this synthetic
+ * first point gets routed onto real roads with the rest. The JS geofence path
+ * does this on Exit; the native path has no geofence, so it must do it here.
+ */
+async function plantNativeAnchorBackfill(db: DB, seed: NativeLocation): Promise<void> {
+  try {
+    const rows = await db.getAllAsync<{ key: string; value: string }>(
+      "SELECT key, value FROM tracking_state WHERE key IN ('departure_anchor_lat', 'departure_anchor_lng')"
+    );
+    const map: Record<string, string> = {};
+    for (const r of rows) map[r.key] = r.value;
+    const aLat = parseFloat(map["departure_anchor_lat"] ?? "");
+    const aLng = parseFloat(map["departure_anchor_lng"] ?? "");
+    if (!Number.isFinite(aLat) || !Number.isFinite(aLng)) return;
+    const distM = metersBetween(aLat, aLng, seed.coords.latitude, seed.coords.longitude);
+    // Plant only when the device clearly moved away from the parked spot (so
+    // the start really was lost) but the anchor isn't a stale faraway location.
+    if (distM < 40 || distM > 5000) return;
+    const seedMs = new Date(seed.timestamp).getTime();
+    const base = Number.isFinite(seedMs) ? seedMs : Date.now();
+    const backfillTs = new Date(base - 30_000).toISOString();
+    await db.runAsync(
+      `INSERT INTO detection_coordinates (lat, lng, speed, accuracy, recorded_at)
+       VALUES (?, ?, ?, ?, ?)`,
+      [aLat, aLng, 0, 50, backfillTs]
+    );
+    logDetectionEvent("native_anchor_backfill_planted", {
+      distMeters: Math.round(distM),
+    }).catch(() => {});
+  } catch {
+    // best effort — a missing backfill is far better than a thrown callback
+  }
+}
+
 /** Append a fix to the recording buffer + stamp the last-driving-speed time. */
 async function bufferCoord(db: DB, loc: NativeLocation): Promise<void> {
   await db.runAsync(
@@ -232,6 +288,10 @@ async function openNativeRecording(
   await db.runAsync(
     "INSERT OR REPLACE INTO tracking_state (key, value) VALUES ('auto_recording_active', '1')"
   );
+  // Recover the lost start: plant the parked departure anchor as the first
+  // coord (earlier timestamp) before the seed, so short trips read from where
+  // the user actually set off.
+  await plantNativeAnchorBackfill(db, seed);
   await bufferCoord(db, seed);
   logDetectionEvent("native_recording_started", {
     accuracy: Math.round(seed.coords.accuracy ?? -1),
