@@ -208,7 +208,7 @@ async function hydrateSavedLocations(locations: SavedLocation[]): Promise<void> 
   // pending a CREATE. Once they upload they'll appear in the server
   // response on the next reconcile pass.
   const pendingCreates = await db.getAllAsync<{ entity_id: string }>(
-    "SELECT entity_id FROM sync_queue WHERE entity_type = 'saved_location' AND operation = 'create'"
+    "SELECT entity_id FROM sync_queue WHERE entity_type = 'saved_location' AND action = 'create'"
   );
   const pendingCreateIds = new Set(pendingCreates.map((r) => r.entity_id));
 
@@ -216,7 +216,7 @@ async function hydrateSavedLocations(locations: SavedLocation[]): Promise<void> 
   // server confirms the delete, otherwise the sync engine has nothing
   // to reference when it retries.
   const pendingDeletes = await db.getAllAsync<{ entity_id: string }>(
-    "SELECT entity_id FROM sync_queue WHERE entity_type = 'saved_location' AND operation = 'delete'"
+    "SELECT entity_id FROM sync_queue WHERE entity_type = 'saved_location' AND action = 'delete'"
   );
   const pendingDeleteIds = new Set(pendingDeletes.map((r) => r.entity_id));
 

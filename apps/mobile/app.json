@@ -134,7 +134,7 @@
     },
     "owner": "hairygair00",
     "runtimeVersion": {
-      "policy": "appVersion"
+      "policy": "fingerprint"
     },
     "updates": {
       "url": "https://u.expo.dev/db25fbc4-87aa-4b72-bcf8-e6b382e8a5ee"
