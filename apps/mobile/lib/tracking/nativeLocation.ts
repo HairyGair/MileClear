@@ -127,49 +127,66 @@ function buildConfig(BGGeo: BgGeo): Record<string, unknown> {
 }
 
 let started = false;
+// Single-flight guard. startDriveDetection runs on every app foreground, so two
+// foregrounds milliseconds apart both called this before `started` was set at
+// the end — each ran removeAllListeners + re-registered onLocation/onMotionChange,
+// so every event DOUBLE-FIRED (Anthony, 3 June: paired native_engine_started /
+// native_force_start_from_speed / native_recording_started events, stray coords,
+// gap-trimmed trips). Dedup concurrent starts so listeners register exactly once.
+let startPromise: Promise<boolean> | null = null;
 
 /**
- * Start the native engine. Idempotent. Wires native location + motion events
- * into the EXISTING detection_coordinates buffer + finalizeAutoTrip pipeline,
- * so distance/map-match/phantom-guards/offline-sync all still apply.
+ * Start the native engine. Idempotent + re-entrancy-safe. Wires native location
+ * + motion events into the EXISTING detection_coordinates buffer +
+ * finalizeAutoTrip pipeline, so distance/map-match/phantom-guards/offline-sync
+ * all still apply.
  */
 export async function startNativeLocationEngine(): Promise<boolean> {
   const BGGeo = loadNativeModule();
   if (!BGGeo) return false;
   if (started) return true;
+  if (startPromise) return startPromise; // a start is already in flight
+
+  startPromise = (async () => {
+    try {
+      await BGGeo.removeAllListeners();
+
+      // onLocation: buffer every fix into the same table the JS task uses. The
+      // finalize path reads detection_coordinates ordered by recorded_at.
+      BGGeo.onLocation(
+        (loc: NativeLocation) => {
+          void handleNativeLocation(loc);
+        },
+        (err: unknown) => {
+          logDetectionEvent("native_location_error", {
+            error: err instanceof Error ? err.message.slice(0, 120) : String(err),
+          }).catch(() => {});
+        }
+      );
+
+      // onMotionChange: the reliable driving signal. moving → mark recording
+      // active; stationary → finalize the trip through the existing pipeline.
+      BGGeo.onMotionChange((event: NativeMotionEvent) => {
+        void handleNativeMotionChange(event);
+      });
+
+      await BGGeo.ready(buildConfig(BGGeo));
+      await BGGeo.start();
+      started = true;
+      logDetectionEvent("native_engine_started", {}).catch(() => {});
+      return true;
+    } catch (err) {
+      logDetectionEvent("native_engine_start_failed", {
+        error: err instanceof Error ? err.message.slice(0, 160) : String(err),
+      }).catch(() => {});
+      return false;
+    }
+  })();
 
   try {
-    await BGGeo.removeAllListeners();
-
-    // onLocation: buffer every fix into the same table the JS task uses. The
-    // finalize path reads detection_coordinates ordered by recorded_at.
-    BGGeo.onLocation(
-      (loc: NativeLocation) => {
-        void handleNativeLocation(loc);
-      },
-      (err: unknown) => {
-        logDetectionEvent("native_location_error", {
-          error: err instanceof Error ? err.message.slice(0, 120) : String(err),
-        }).catch(() => {});
-      }
-    );
-
-    // onMotionChange: the reliable driving signal. moving → mark recording
-    // active; stationary → finalize the trip through the existing pipeline.
-    BGGeo.onMotionChange((event: NativeMotionEvent) => {
-      void handleNativeMotionChange(event);
-    });
-
-    await BGGeo.ready(buildConfig(BGGeo));
-    await BGGeo.start();
-    started = true;
-    logDetectionEvent("native_engine_started", {}).catch(() => {});
-    return true;
-  } catch (err) {
-    logDetectionEvent("native_engine_start_failed", {
-      error: err instanceof Error ? err.message.slice(0, 160) : String(err),
-    }).catch(() => {});
-    return false;
+    return await startPromise;
+  } finally {
+    startPromise = null;
   }
 }
 
