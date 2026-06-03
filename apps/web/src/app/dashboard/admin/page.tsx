@@ -2999,9 +2999,11 @@ function EmailTab() {
   };
 
   const campaigns = [
-    { id: "re-engagement", title: "Re-engagement", desc: "Personalised email to bring users back, with their trip stats." },
-    { id: "update", title: "Product Update", desc: "Send the latest changelog/update email (reads the 'Latest' release notes)." },
-    { id: "service-status", title: "Service Status", desc: "Quick 'we're back up' notification to all users." },
+    { id: "re-engagement", title: "Re-engagement", desc: "Personalised email to bring users back, with their trip stats.", cohort: false },
+    { id: "update", title: "Product Update", desc: "Send the latest changelog/update email (reads the 'Latest' release notes).", cohort: false },
+    { id: "service-status", title: "Service Status", desc: "Quick 'we're back up' notification to all users.", cohort: false },
+    { id: "permission-nudge", title: "Permission nudge (can't-record cohort)", desc: "Email + push to users active in 30d whose latest diagnostic shows background location is OFF — they physically can't auto-record. Dry-run shows the cohort size.", cohort: true },
+    { id: "update-nudge", title: "Update nudge (old builds)", desc: "Push to users active in 30d on an old build (<62) telling them to update for the reliability fixes. Dry-run shows the cohort size.", cohort: true },
   ];
 
   // ── Custom composer ──
@@ -3107,9 +3109,11 @@ function EmailTab() {
             </label>
           )}
           <div style={{ display: "flex", gap: "0.75rem" }}>
-            <Button variant="ghost" size="sm" onClick={() => previewTemplate(c.id, c.title)} disabled={previewLoading === c.id}>
-              {previewLoading === c.id ? "..." : "Preview"}
-            </Button>
+            {!c.cohort && (
+              <Button variant="ghost" size="sm" onClick={() => previewTemplate(c.id, c.title)} disabled={previewLoading === c.id}>
+                {previewLoading === c.id ? "..." : "Preview"}
+              </Button>
+            )}
             <Button variant="secondary" size="sm" onClick={() => sendEmail(c.id, true)} disabled={sending === c.id}>
               {sending === c.id ? "..." : "Dry Run"}
             </Button>

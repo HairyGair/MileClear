@@ -14,6 +14,7 @@ import {
   renderServiceStatusPreview,
   renderCustomEmailHtml,
   sendCustomEmail,
+  sendLocationPermissionEmail,
   type CustomEmailArgs,
 } from "../../services/email.js";
 import { logEvent } from "../../services/appEvents.js";
@@ -1579,6 +1580,156 @@ export async function adminRoutes(app: FastifyInstance) {
           shortManualTrips7d,
           shortAutoSharePercent,
         },
+      },
+    });
+  });
+
+  // POST /admin/send-permission-nudge?dryRun=true
+  // The proactive lever for the can't-record cohort. Finds users active in the
+  // last 30 days whose latest diagnostic dump shows background location is NOT
+  // granted (undetermined/denied) — they physically can't auto-record — and
+  // sends the location-permission email + a push. Reaches the people who never
+  // open the app to see the in-app banner.
+  app.post("/send-permission-nudge", async (request, reply) => {
+    const isDryRun = (request.query as { dryRun?: string }).dryRun === "true";
+    const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+
+    const dumps = await prisma.diagnosticDump.findMany({
+      select: {
+        userId: true,
+        statusJson: true,
+        user: {
+          select: {
+            email: true,
+            displayName: true,
+            pushToken: true,
+            lastLoginAt: true,
+          },
+        },
+      },
+    });
+
+    const cohort = dumps.filter((d) => {
+      const s = (d.statusJson ?? {}) as { backgroundPermission?: string };
+      const active = d.user.lastLoginAt && d.user.lastLoginAt > thirtyDaysAgo;
+      return (
+        active &&
+        (s.backgroundPermission === "undetermined" || s.backgroundPermission === "denied")
+      );
+    });
+
+    let emailsSent = 0;
+    const errors: string[] = [];
+    const pushMessages: Array<{
+      to: string;
+      sound: "default";
+      title: string;
+      body: string;
+      data: Record<string, string>;
+    }> = [];
+
+    for (const d of cohort) {
+      if (isDryRun) continue;
+      try {
+        await sendLocationPermissionEmail(d.user.email, d.user.displayName, d.userId);
+        emailsSent++;
+        await new Promise((r) => setTimeout(r, 200));
+      } catch (err: any) {
+        errors.push(`${d.user.email}: ${err.message}`);
+      }
+      if (d.user.pushToken) {
+        pushMessages.push({
+          to: d.user.pushToken,
+          sound: "default",
+          title: "MileClear can't see your trips",
+          body: "Background location is off, so your drives aren't recording. Tap to switch it back on.",
+          data: { action: "open_settings" },
+        });
+      }
+    }
+
+    let pushSent = 0;
+    if (!isDryRun && pushMessages.length > 0) {
+      try {
+        await sendPushNotifications(pushMessages);
+        pushSent = pushMessages.length;
+      } catch (err: any) {
+        errors.push(`push: ${err.message}`);
+      }
+    }
+
+    request.log.info(
+      { adminId: request.userId, action: "permission-nudge", cohort: cohort.length, emailsSent, pushSent, dryRun: isDryRun },
+      `Permission nudge: cohort ${cohort.length}, ${emailsSent} emails, ${pushSent} pushes${isDryRun ? " (DRY RUN)" : ""}`
+    );
+
+    return reply.send({
+      data: {
+        cohort: cohort.length,
+        sent: isDryRun ? cohort.length : emailsSent,
+        pushSent,
+        errors: errors.length,
+        errorDetails: errors.slice(0, 10),
+        dryRun: isDryRun,
+        totalUsers: cohort.length,
+      },
+    });
+  });
+
+  // POST /admin/send-update-nudge?dryRun=true&maxBuild=62
+  // Nudges users active in the last 30 days whose latest dump is on an old build
+  // (buildNumber < maxBuild, default 62 = pre-1.1.4) to update — they're missing
+  // months of reliability fixes. Push-only (App Store update is the action).
+  app.post("/send-update-nudge", async (request, reply) => {
+    const q = request.query as { dryRun?: string; maxBuild?: string };
+    const isDryRun = q.dryRun === "true";
+    const maxBuild = q.maxBuild ? parseInt(q.maxBuild, 10) : 62;
+    const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+
+    const dumps = await prisma.diagnosticDump.findMany({
+      select: {
+        buildNumber: true,
+        user: { select: { pushToken: true, lastLoginAt: true } },
+      },
+    });
+
+    const cohort = dumps.filter((d) => {
+      const build = parseInt(d.buildNumber ?? "", 10);
+      const active = d.user.lastLoginAt && d.user.lastLoginAt > thirtyDaysAgo;
+      return active && Number.isFinite(build) && build < maxBuild && d.user.pushToken;
+    });
+
+    let pushSent = 0;
+    const errors: string[] = [];
+    if (!isDryRun && cohort.length > 0) {
+      const messages = cohort.map((d) => ({
+        to: d.user.pushToken!,
+        sound: "default" as const,
+        title: "Time to update MileClear",
+        body: "We've fixed the trip-recording issues you may have hit. Update in the App Store for reliable tracking.",
+        data: { action: "open_app" },
+      }));
+      try {
+        await sendPushNotifications(messages);
+        pushSent = messages.length;
+      } catch (err: any) {
+        errors.push(`push: ${err.message}`);
+      }
+    }
+
+    request.log.info(
+      { adminId: request.userId, action: "update-nudge", maxBuild, cohort: cohort.length, pushSent, dryRun: isDryRun },
+      `Update nudge (<build ${maxBuild}): cohort ${cohort.length}, ${pushSent} pushes${isDryRun ? " (DRY RUN)" : ""}`
+    );
+
+    return reply.send({
+      data: {
+        cohort: cohort.length,
+        sent: isDryRun ? cohort.length : pushSent,
+        pushSent,
+        errors: errors.length,
+        dryRun: isDryRun,
+        totalUsers: cohort.length,
       },
     });
   });
