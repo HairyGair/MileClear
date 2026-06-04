@@ -21,6 +21,7 @@ import { DateTimePickerField } from "../../components/DateTimePickerField";
 import { fetchTrips, fetchTripSummary, fetchUnclassifiedCount, fetchClassificationSuggestion, mergeTrips, TripWithVehicle, ClassificationSuggestion, type TripSummary } from "../../lib/api/trips";
 import { syncUpdateTrip, syncDeleteTrip } from "../../lib/sync/actions";
 import { processSyncQueue } from "../../lib/sync";
+import { isNetworkError } from "../../lib/sync/errors";
 import { markLiveActivityClassified } from "../../lib/liveActivity";
 import { getLocalTrips, getLocalUnsyncedTrips } from "../../lib/db/queries";
 import { learnFromClassification } from "../../lib/classification";
@@ -430,15 +431,18 @@ export default function TripsScreen() {
         }
         setPage(res.page);
         setTotalPages(res.totalPages);
-      } catch {
-        // Offline fallback — show all local data
+      } catch (err) {
+        // Fall back to local data on any fetch failure, but only flag "offline"
+        // for a genuine network error - a token hiccup or a one-off 500 must not
+        // claim you're offline (Anthony, 4 Jun: a transient blip latched the
+        // banner until a manual refresh).
         if (!append) {
           const classification = filterRef.current === "all" ? undefined : filterRef.current;
           const platformTag =
             platformFilterRef.current === "all" ? undefined : platformFilterRef.current;
           const local = await getLocalTrips({ classification, platformTag });
           setTrips(local as TripItem[]);
-          setIsOffline(true);
+          setIsOffline(isNetworkError(err));
           setTotalPages(1);
         }
       } finally {
