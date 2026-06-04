@@ -118,6 +118,17 @@ export async function startNativeAutoTripLiveActivity(): Promise<void> {
     // default to business mode
   }
   await startAutoTripLiveActivityFromBufferedState({ activityType: "trip", isBusinessMode });
+  // Surface whether the Live Activity actually started. iOS silently rejects a
+  // Live Activity START while the app is backgrounded, and startLiveActivity
+  // swallows that error - so a dark Dynamic Island left no trace in the dump.
+  // Logging the real outcome tells us whether the background start succeeded or
+  // whether the foreground catch-up (dashboard) is what's carrying it.
+  try {
+    const started = await recoverLiveActivity();
+    logDetectionEvent(started ? "native_la_started" : "native_la_start_blocked").catch(() => {});
+  } catch {
+    // diagnostics only - never throw
+  }
 }
 
 import type { TripClassification, PlatformTag } from "@mileclear/shared";

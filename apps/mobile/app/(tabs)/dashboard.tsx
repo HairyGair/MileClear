@@ -649,6 +649,40 @@ export default function DashboardScreen() {
     }
   }, [isWork]);
 
+  // Auto-trip Live Activity catch-up. iOS blocks STARTING a Live Activity while
+  // the app is backgrounded, so the native engine's start is rejected when a
+  // drive begins with MileClear not in front (Anthony's car-mount drive, 4 Jun:
+  // the trip recorded fine but the Dynamic Island stayed dark). When the app
+  // next comes to the foreground during an active auto-recording, start it here
+  // - foreground starts ARE allowed - and it then persists on the Dynamic Island
+  // for the rest of the drive even after the app is backgrounded again.
+  useFocusEffect(
+    useCallback(() => {
+      let cancelled = false;
+      (async () => {
+        try {
+          const db = await getDatabase();
+          const rec = await db.getFirstAsync<{ value: string }>(
+            "SELECT value FROM tracking_state WHERE key = 'auto_recording_active'"
+          );
+          if (cancelled || rec?.value !== "1") return;
+          // Re-bind if one's already live; only start a fresh one if none is.
+          const showing = await recoverLiveActivity();
+          if (cancelled || showing) return;
+          const { startNativeAutoTripLiveActivity } = await import(
+            "../../lib/tracking/detection"
+          );
+          await startNativeAutoTripLiveActivity();
+        } catch {
+          // best-effort - never block focus on this
+        }
+      })();
+      return () => {
+        cancelled = true;
+      };
+    }, [])
+  );
+
   useFocusEffect(
     useCallback(() => {
       loadData();
