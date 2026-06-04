@@ -52,9 +52,16 @@ export function MissingTripReporter() {
 
   return (
     <>
-      <TouchableOpacity style={styles.link} onPress={() => setOpen(true)} activeOpacity={0.7}>
+      <TouchableOpacity
+        style={styles.link}
+        onPress={() => setOpen(true)}
+        activeOpacity={0.7}
+        accessibilityRole="button"
+        accessibilityLabel="Missing a trip you made? Tap to tell us."
+      >
         <Ionicons name="help-circle-outline" size={16} color={colors.text2} />
         <Text style={styles.linkText}>Missing a trip you made?</Text>
+        <Ionicons name="chevron-forward" size={15} color={colors.text3} style={styles.linkChevron} />
       </TouchableOpacity>
 
       <Modal
@@ -108,14 +115,22 @@ const styles = StyleSheet.create({
   link: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
-    gap: 6,
-    paddingVertical: 16,
+    gap: 8,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    marginBottom: 10,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: colors.surfaceBorder,
+    backgroundColor: colors.surface,
   },
   linkText: {
     color: colors.text2,
     fontFamily: fonts.medium,
     fontSize: 13.5,
+  },
+  linkChevron: {
+    marginLeft: "auto",
   },
   backdrop: {
     flex: 1,

@@ -1406,6 +1406,10 @@ export default function TripsScreen() {
                 </View>
               </View>
             )}
+
+            {/* "Missing a trip?" - kept near the top of the list so it's seen
+                without scrolling (the list isn't paginated for the user). */}
+            {filter !== "unclassified" && <MissingTripReporter />}
           </View>
         }
         ListEmptyComponent={
@@ -1449,7 +1453,6 @@ export default function TripsScreen() {
               icon="add"
               onPress={() => router.push("/trip-form")}
             />
-            {!loading && filter !== "unclassified" && <MissingTripReporter />}
           </View>
         }
       />
