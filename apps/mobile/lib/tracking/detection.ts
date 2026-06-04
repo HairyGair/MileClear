@@ -768,22 +768,32 @@ async function _finalizeAutoTripInner(): Promise<void> {
   // be kept or long commutes get saved as "half trips".
   let allCoords = rawCoords;
   if (rawCoords.length >= 2) {
-    let segmentStart = 0;
+    // Split into contiguous segments separated by gaps > BUFFER_MAX_AGE_MS. A
+    // big gap means a stale stuck-state buffer (ancient coords from a crash)
+    // sitting next to a fresh recording. The OLD logic kept the LAST segment -
+    // but that discarded a real drive when it was followed by a couple of
+    // post-arrival GPS stragglers across a gap (Anthony's drive home, 4 Jun:
+    // 221 coords captured, kept 2, dropped 219, then dropped as a phantom).
+    // Keep the LARGEST segment instead - that's the actual drive; a 2-coord
+    // tail can never be the trip. Ties prefer the more recent segment.
+    const segments: BufferedCoordinate[][] = [[rawCoords[0]]];
     for (let i = 1; i < rawCoords.length; i++) {
       const prev = new Date(rawCoords[i - 1].recorded_at).getTime();
       const curr = new Date(rawCoords[i].recorded_at).getTime();
       if (curr - prev > BUFFER_MAX_AGE_MS) {
-        // Large gap = boundary between a stale stuck-state buffer and fresh
-        // recording. Everything before this gap is garbage from a crash.
-        segmentStart = i;
+        segments.push([]);
       }
+      segments[segments.length - 1].push(rawCoords[i]);
     }
-    if (segmentStart > 0) {
-      allCoords = rawCoords.slice(segmentStart);
+    if (segments.length > 1) {
+      let best = segments[0];
+      for (const seg of segments) if (seg.length >= best.length) best = seg;
+      allCoords = best;
       logDetectionEvent("finalize_gap_trimmed", {
         totalCoords: rawCoords.length,
         keptCoords: allCoords.length,
-        droppedCoords: segmentStart,
+        droppedCoords: rawCoords.length - allCoords.length,
+        segments: segments.length,
       }).catch(() => {});
     }
   }
