@@ -184,18 +184,18 @@ function computeHealth(
     if (lastFixMs != null) {
       problems.push({
         severity: "info",
-        title: "Running on the native location engine",
-        cause: `The native engine owns GPS directly, so 'Task running: false' is expected. It last reported a location ${formatMs(lastFixMs)} ago — it's alive and delivering fixes.`,
+        title: "Running on ClearTrack",
+        cause: `ClearTrack owns GPS directly, so 'Task running: false' is expected. It last reported a location ${formatMs(lastFixMs)} ago — it's alive and delivering fixes.`,
         action: "No action needed.",
       });
     } else {
       problems.push({
         severity: "warning",
-        title: "Native engine on, but no location reported yet",
+        title: "ClearTrack on, but no location reported yet",
         cause:
-          "The native location engine is enabled and owns GPS, but it hasn't delivered a single location fix on this device yet. That's normal right after enabling it; if it persists through a drive, the engine may not actually be running.",
+          "ClearTrack is enabled and owns GPS, but it hasn't delivered a single location fix on this device yet. That's normal right after enabling it; if it persists through a drive, the engine may not actually be running.",
         action:
-          "Take a short drive to confirm it captures. If no trip appears, toggle the native engine off (falls back to the JS engine) and tap Restart detection.",
+          "Take a short drive to confirm it captures. If no trip appears, toggle ClearTrack off (falls back to the JS engine) and tap Restart detection.",
       });
     }
     if (d.motionPermission === "denied") {
@@ -203,7 +203,7 @@ function computeHealth(
         severity: "warning",
         title: "Motion & Fitness is off",
         cause:
-          "The native engine uses iOS motion detection to catch the moment a drive starts. With Motion & Fitness denied, it falls back to the slower geofence path and is more likely to miss the start of short trips.",
+          "ClearTrack uses iOS motion detection to catch the moment a drive starts. With Motion & Fitness denied, it falls back to the slower geofence path and is more likely to miss the start of short trips.",
         action: "Turn it on in Settings → MileClear → Motion & Fitness.",
         onAction: () => {
           Linking.openSettings().catch(() => {});
@@ -588,10 +588,10 @@ export default function DriveDetectionDiagnosticsScreen() {
       await restartDriveDetection();
       await load();
       Alert.alert(
-        next ? "Native engine ON" : "Native engine OFF",
+        next ? "ClearTrack ON" : "ClearTrack OFF",
         next
           ? nativeAvailable
-            ? "Detection now runs on the native location engine. Drive and check the events for native_engine_started."
+            ? "Detection now runs on ClearTrack. Drive and check the events for native_engine_started."
             : "Flag set, but this build doesn't include the native module yet - detection stays on the JS engine until you install a dev build."
           : "Back on the JavaScript detection engine."
       );
@@ -881,7 +881,7 @@ export default function DriveDetectionDiagnosticsScreen() {
             d.taskRunning
               ? "true"
               : nativeOn && nativeAvailable
-                ? "false (native engine owns location)"
+                ? "false (ClearTrack owns location)"
                 : "false"
           }
           color={d.taskRunning || (nativeOn && nativeAvailable) ? GREEN : RED}
@@ -893,14 +893,14 @@ export default function DriveDetectionDiagnosticsScreen() {
         />
         {nativeOn && (
           <StatusRow
-            label="Native engine"
+            label="ClearTrack"
             value={nativeAvailable ? "on" : "on (binary missing → JS)"}
             color={nativeAvailable ? GREEN : AMBER}
           />
         )}
         {nativeOn && nativeAvailable && (
           <StatusRow
-            label="Last native fix"
+            label="Last ClearTrack fix"
             value={
               d.lastNativeLocationAt
                 ? `${formatMs(Date.now() - new Date(d.lastNativeLocationAt).getTime())} ago`
@@ -909,7 +909,7 @@ export default function DriveDetectionDiagnosticsScreen() {
             color={d.lastNativeLocationAt ? GREEN : AMBER}
             hint={
               !d.lastNativeLocationAt
-                ? "Native engine hasn't reported a location yet — drive to confirm it's capturing"
+                ? "ClearTrack hasn't reported a location yet — drive to confirm it's capturing"
                 : undefined
             }
           />
@@ -1051,18 +1051,18 @@ export default function DriveDetectionDiagnosticsScreen() {
         </TouchableOpacity>
       </View>
 
-      {/* Native location engine toggle (staged rollout) */}
+      {/* ClearTrack engine toggle */}
       <View style={styles.card}>
         <View style={styles.nativeRow}>
           <View style={{ flex: 1, paddingRight: 12 }}>
-            <Text style={styles.cardTitle}>Native location engine</Text>
+            <Text style={styles.cardTitle}>ClearTrack engine</Text>
             <Text style={styles.nativeSub}>
               {nativeAvailable
-                ? "Runs wake + capture in native CLLocationManager - survives the app being backgrounded or killed. Reuses the same finalize/sync pipeline."
-                : "Not in this build yet. Install a dev build with the native module, then flip this on to test."}
+                ? "MileClear's ClearTrack engine - wake + capture run natively, surviving the app being backgrounded or killed. Reuses the same finalize/sync pipeline."
+                : "Not in this build yet. Install a dev build with the ClearTrack module, then flip this on to test."}
             </Text>
             <Text style={[styles.nativeStatus, { color: nativeAvailable ? GREEN : TEXT_3 }]}>
-              {nativeAvailable ? "● native module available" : "○ native module not bundled"}
+              {nativeAvailable ? "● ClearTrack available" : "○ ClearTrack not bundled"}
             </Text>
           </View>
           <Switch

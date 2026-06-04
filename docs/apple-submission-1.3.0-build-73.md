@@ -11,10 +11,10 @@ Drop-in copy for the App Store Connect submission. Paste-ready, no em dashes, Br
 Updateable any time without resubmitting. New headline for 1.3.0: reliable automatic tracking.
 
 ```
-Automatic mileage tracking that catches every drive, even the short ones. Built for UK gig drivers and the self-employed. HMRC-ready exports at tax time.
+Powered by ClearTrack: automatic tracking that catches every drive, even the short ones. Built for UK gig drivers and the self-employed. HMRC-ready exports.
 ```
 
-(151 characters)
+(154 characters)
 
 ---
 
@@ -25,8 +25,8 @@ Covers everything since 1.2.1 (build 69) reached the App Store. Plain language, 
 ```
 This is our biggest reliability release yet. The whole focus: capture every mile automatically, so your tax return looks after itself.
 
-More reliable automatic tracking
-- Rebuilt trip detection that catches more of your drives on its own, including the short ones (the quick shop run, the school drop) that used to slip through.
+Introducing ClearTrack - more reliable automatic tracking
+- ClearTrack, our rebuilt trip detection, catches more of your drives on its own, including the short ones (the quick shop run, the school drop) that used to slip through.
 - A stop partway through no longer splits a journey in two. Pull over for a coffee, carry on, and MileClear keeps it as one trip from start to finish.
 - Trips start where you actually set off and end where you park, with the full route in between.
 
