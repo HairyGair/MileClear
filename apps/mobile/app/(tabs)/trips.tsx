@@ -30,6 +30,7 @@ import type { TripClassification, PlatformTag } from "@mileclear/shared";
 import { Skeleton } from "../../components/Skeleton";
 import { colors, fonts, radii, spacing } from "../../lib/theme";
 import { EmptyState } from "../../components/EmptyState";
+import { MissingTripReporter } from "../../components/MissingTripReporter";
 import { haptic } from "../../lib/haptics";
 import { AppModal } from "../../components/AppModal";
 import { Swipeable, RectButton } from "react-native-gesture-handler";
@@ -1448,6 +1449,7 @@ export default function TripsScreen() {
               icon="add"
               onPress={() => router.push("/trip-form")}
             />
+            {!loading && filter !== "unclassified" && <MissingTripReporter />}
           </View>
         }
       />

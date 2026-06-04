@@ -338,3 +338,15 @@ export function mergeTrips(data: MergeTripsData) {
     body: JSON.stringify(data),
   });
 }
+
+/**
+ * "Missing a trip?" report from the Trips screen. The server already has the
+ * user's diagnostic dumps, so we only send one line of context; the API
+ * attaches the latest dump and posts it to Discord for the team to triage.
+ */
+export function reportMissingTrip(note: string) {
+  return apiRequest<{ ok: boolean }>("/trips/report-missing", {
+    method: "POST",
+    body: JSON.stringify({ note }),
+  });
+}

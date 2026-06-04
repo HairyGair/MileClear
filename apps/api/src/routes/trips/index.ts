@@ -136,6 +136,59 @@ export async function tripRoutes(app: FastifyInstance) {
   app.addHook("preHandler", authMiddleware);
   attachIdempotency(app);
 
+  // POST /trips/report-missing — user taps "Missing a trip?" on the Trips
+  // screen. We already have their diagnostic dumps server-side, so the report
+  // just carries one line of context; we attach the latest dump's verdict +
+  // time so a glance at #trip-reports tells us whether the engine logged
+  // anything for that drive. Posts to Discord (best-effort), never blocks.
+  const reportMissingSchema = z.object({
+    note: z.string().trim().max(1000).optional(),
+  });
+  app.post("/report-missing", async (request, reply) => {
+    const userId = request.userId!;
+    const parsed = reportMissingSchema.safeParse(request.body ?? {});
+    if (!parsed.success) {
+      return reply.code(400).send({ error: "Invalid report" });
+    }
+    const note = parsed.data.note?.trim() || "(no details given)";
+
+    const [user, latestDump] = await Promise.all([
+      prisma.user.findUnique({ where: { id: userId }, select: { email: true, displayName: true } }),
+      prisma.diagnosticDump.findFirst({
+        where: { userId },
+        orderBy: { capturedAt: "desc" },
+        select: { verdict: true, buildNumber: true, capturedAt: true },
+      }),
+    ]);
+
+    const dumpLine = latestDump
+      ? `Latest diagnostic: verdict "${latestDump.verdict}", build ${latestDump.buildNumber}, ${latestDump.capturedAt.toISOString()}`
+      : "No diagnostic dump on file for this user.";
+
+    logEvent("trip.report_missing", userId, { hasNote: note !== "(no details given)" });
+
+    // Best-effort Discord post — import locally to avoid widening the route's
+    // import surface, and never let a Discord failure fail the user's report.
+    try {
+      const { postToChannel } = await import("../../services/discord.js");
+      await postToChannel("tripReports", {
+        embeds: [
+          {
+            title: "Missing trip reported",
+            description: `**${user?.displayName || user?.email || userId}**\n\n> ${note}\n\n${dumpLine}`,
+            color: 0xf5a623,
+            fields: [{ name: "User ID", value: userId, inline: true }],
+            timestamp: new Date().toISOString(),
+          },
+        ],
+      });
+    } catch {
+      // swallow - the report is logged via logEvent regardless
+    }
+
+    return reply.send({ ok: true });
+  });
+
   // GET /trips/route-distance — server-side road-distance calc that
   // the mobile manual-trip form calls when picking start/end points.
   // Replaces the previous direct-to-public-OSRM call which silently

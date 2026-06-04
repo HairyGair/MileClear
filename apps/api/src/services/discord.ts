@@ -26,6 +26,7 @@ export type DiscordChannel =
   | "modChat" // #mod-chat — actionable moderation alerts (abuse, spam, ToS)
   | "founder" // #founder — oncall/founder-only telemetry (watchdog, IAP orphans, payment fails)
   | "taxTips" // #tax-and-hmrc — daily tip-of-the-day cron
+  | "tripReports" // #trip-reports — user "missing a trip?" reports (falls back to #founder)
 ;
 
 function channelWebhookUrl(channel: DiscordChannel): string | null {
@@ -47,6 +48,16 @@ function channelWebhookUrl(channel: DiscordChannel): string | null {
       return process.env.DISCORD_WEBHOOK_FOUNDER || process.env.DISCORD_WEBHOOK_MODCHAT || null;
     case "taxTips":
       return process.env.DISCORD_WEBHOOK_TAXTIPS || null;
+    case "tripReports":
+      // Falls back to #founder (then #mod-chat) until a dedicated
+      // #trip-reports channel + webhook exists, so user reports always land
+      // somewhere the team sees them.
+      return (
+        process.env.DISCORD_WEBHOOK_TRIPREPORTS ||
+        process.env.DISCORD_WEBHOOK_FOUNDER ||
+        process.env.DISCORD_WEBHOOK_MODCHAT ||
+        null
+      );
   }
 }
 
