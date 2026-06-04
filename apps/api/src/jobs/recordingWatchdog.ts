@@ -188,9 +188,6 @@ async function sendSilentPush(
 
 export async function runRecordingWatchdogJob(): Promise<void> {
   const now = Date.now();
-  // Users in a persistent flagged state (cooldown / over-cap) this run - drives
-  // the founder-alert dedup signature so the same stuck user doesn't re-alert.
-  const flaggedUserIds = new Set<string>();
 
   // ── Check 1: stuck auto-recordings ────────────────────────────────
   const staleCutoff = new Date(now - STUCK_THRESHOLD_MS);
@@ -222,7 +219,6 @@ export async function runRecordingWatchdogJob(): Promise<void> {
     if (result === "sent") stuckPinged++;
     else if (result === "cooldown") stuckCooldown++;
     else if (result === "gave_up") stuckGaveUp++;
-    if (result === "cooldown" || result === "gave_up") flaggedUserIds.add(user.id);
   }
 
   // ── Check 2: pending sync queue + suspended JS runtime ────────────
@@ -277,7 +273,6 @@ export async function runRecordingWatchdogJob(): Promise<void> {
     if (result === "sent") syncPinged++;
     else if (result === "cooldown") syncCooldown++;
     else if (result === "gave_up") syncGaveUp++;
-    if (result === "cooldown" || result === "gave_up") flaggedUserIds.add(user.id);
   }
 
   if (
@@ -316,21 +311,23 @@ export async function runRecordingWatchdogJob(): Promise<void> {
   const gaveUpHits = stuckGaveUp + syncGaveUp;
   const worthAlerting = actualPings >= 3 || cooldownHits > 0 || gaveUpHits > 0;
 
-  // Dedup the founder alert: post only when the flagged-user set changes, or
-  // when an unchanged condition has been quiet for ALERT_REPOST_MS. Reset the
-  // signature the moment the condition lifts, so a recurrence alerts at once.
-  if (!worthAlerting) {
+  // Dedup the founder alert. The signature is the SET OF STUCK USERS this run,
+  // not their ping/cooldown/gave_up state - so a single stuck user cycling
+  // ping -> cooldown -> over-cap doesn't re-alert at each transition (Anthony
+  // 4 Jun: a re-alert fired when one user's state flipped). Re-alert only when a
+  // DIFFERENT user becomes stuck, or after ALERT_REPOST_MS for an unchanged set.
+  // Reset only when nobody is stuck, so a genuinely fresh occurrence alerts.
+  const stuckUserIds = [...stuck.map((u) => u.id), ...pendingSync.map((u) => u.id)].sort();
+  if (stuckUserIds.length === 0) {
     lastAlertSignature = "";
   }
-  const alertSignature = worthAlerting
-    ? [...flaggedUserIds].sort().join(",") + (actualPings >= 3 ? `|spike:${actualPings}` : "")
-    : "";
+  const alertSignature = stuckUserIds.join(",");
   const shouldPost =
     worthAlerting &&
     (alertSignature !== lastAlertSignature || now - lastAlertAt >= ALERT_REPOST_MS);
   if (worthAlerting && !shouldPost) {
     console.log(
-      `[watchdog] founder alert suppressed - unchanged condition (${flaggedUserIds.size} flagged user(s))`
+      `[watchdog] founder alert suppressed - unchanged stuck set (${stuckUserIds.length} user(s))`
     );
   }
   if (shouldPost) {
