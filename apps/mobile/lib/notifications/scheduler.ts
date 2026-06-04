@@ -139,11 +139,15 @@ export async function checkUnclassifiedTripsNudge(): Promise<void> {
 
   const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
 
+  // Match the Inbox exactly: genuinely UNCLASSIFIED trips (business/personal not
+  // yet decided), the same set tapping the notification opens. The old query
+  // targeted business trips missing a platform/note and called them "unreviewed"
+  // - but the app has no review list for those, so the notification pointed at
+  // an empty Inbox (Anthony, 4 Jun). Phantom trips never sync to the local DB
+  // (the server list excludes them), so there's nothing to filter here.
   const rows = await db.getAllAsync<{ id: string }>(
     `SELECT id FROM trips
-     WHERE classification = 'business'
-       AND notes IS NULL
-       AND platform_tag IS NULL
+     WHERE classification = 'unclassified'
        AND ended_at IS NOT NULL
        AND started_at < ?
      LIMIT 1`,
@@ -152,23 +156,22 @@ export async function checkUnclassifiedTripsNudge(): Promise<void> {
 
   if (rows.length === 0) return;
 
-  // Count total unreviewed trips for a more informative message
   const countRow = await db.getFirstAsync<{ count: number }>(
     `SELECT COUNT(*) as count FROM trips
-     WHERE classification = 'business'
-       AND notes IS NULL
-       AND platform_tag IS NULL
+     WHERE classification = 'unclassified'
        AND ended_at IS NOT NULL
        AND started_at < ?`,
     [cutoff]
   );
   const count = countRow?.count ?? 1;
-  const tripWord = count === 1 ? "trip" : "trips";
 
   await Notifications.scheduleNotificationAsync({
     content: {
-      title: "Trips need reviewing",
-      body: `${count} unreviewed ${tripWord}. Add a platform or note to keep your records clean.`,
+      title: "Trips to classify",
+      body:
+        count === 1
+          ? "1 trip needs classifying. Tap to mark it business or personal."
+          : `${count} trips need classifying. Tap to mark them business or personal.`,
       data: { action: "open_unclassified_trips" },
       ...(require("react-native").Platform.OS === "android" && {
         channelId: "reminders",
