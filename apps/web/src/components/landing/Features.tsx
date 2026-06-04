@@ -9,8 +9,8 @@ const features = [
         <circle cx="12" cy="10" r="3" />
       </svg>
     ),
-    title: "Auto trip recording and smart classification",
-    desc: "MileClear detects when you start driving and records the trip automatically. It learns your routes - classify a trip three times and it's automatic from then on.",
+    title: "ClearTrack auto recording and smart classification",
+    desc: "Powered by ClearTrack, MileClear detects when you start driving and records the trip automatically - even short hops that other apps miss. It learns your routes: classify a trip three times and it's automatic from then on.",
     screenshot: "iphone-05-auto-classify.png",
   },
   {

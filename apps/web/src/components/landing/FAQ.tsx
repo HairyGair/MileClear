@@ -18,7 +18,7 @@ const faqs: { q: string; a: React.ReactNode }[] = [
   },
   {
     q: "Does it track in the background?",
-    a: "Yes. MileClear detects when you start driving and records trips automatically in the background. You can also start a shift manually if you prefer. Either way, your miles are captured even when the app is not on screen.",
+    a: "Yes. MileClear's ClearTrack engine detects when you start driving and records trips automatically in the background, even short trips. You can also start a shift manually if you prefer. Either way, your miles are captured even when the app is not on screen.",
   },
   {
     q: "Is my data safe?",
