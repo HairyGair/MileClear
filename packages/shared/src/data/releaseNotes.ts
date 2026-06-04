@@ -77,11 +77,12 @@ export const RELEASE_NOTES: ReleaseNote[] = [
     label: "In Testing",
     ctaUrl: "https://testflight.apple.com/join/SGrmnaaH",
     ctaLabel: "Join the TestFlight beta",
-    emailSubject: "MileClear 1.3.0 — we rebuilt trip recording to be reliable",
-    emailHero: "The reliability release",
+    emailSubject: "MileClear 1.3.0 — meet ClearTrack, trip detection rebuilt",
+    emailHero: "Meet ClearTrack",
     emailTagline:
-      "You told us trips were slipping through, and you were right. 1.3.0 is a top-to-bottom overhaul of how MileClear detects, records, and saves your journeys — so your miles are captured from the first mile, measured accurately, and never lost. No new features this time. Just the core, done properly.",
+      "You told us trips were slipping through, and you were right. 1.3.0 is a top-to-bottom overhaul of how MileClear detects, records, and saves your journeys. At its heart is ClearTrack, our rebuilt detection engine that catches every drive on its own — even the short one-and-two-mile trips other apps miss — and keeps recording when the app is closed or in your pocket.",
     emailHighlights: [
+      "**Meet ClearTrack.** Our rebuilt detection engine catches every drive on its own, including the short trips that used to slip through, and keeps recording when the app is closed or in your pocket.",
       "**Trips capture from the start, not halfway.** Detection now keeps the beginning of your drive instead of trimming it, so a trip reads from where you actually set off — not 500 metres down the road.",
       "**Accurate distance, even through tunnels and dead spots.** When GPS drops for a stretch, MileClear now fills the gap by matching your route to the real road network rather than drawing a straight line across it. Your mileage reflects the road you drove.",
       "**Correct trip times.** Trips now end when you actually arrive, instead of occasionally running on for hours when the phone was asleep on arrival.",
@@ -91,7 +92,7 @@ export const RELEASE_NOTES: ReleaseNote[] = [
       "**Honest about setup.** If location access isn't granted, the app now says so clearly instead of looking ready while silently recording nothing.",
     ],
     items: [
-      "**Trip detection reliability — a top-to-bottom overhaul.** This release does not add features. It fixes the thing that matters most: making sure your drives are actually recorded. Multiple long-standing causes of missed and mis-recorded trips have been found and fixed.",
+      "**Meet ClearTrack — trip detection, rebuilt.** ClearTrack is our new detection engine, built to catch every drive on its own, including the short one-and-two-mile trips that are hardest to detect. It runs at your phone's own location level, so it keeps recording when the app is closed, backgrounded, or in your pocket. Alongside it, this release fixes a long list of long-standing causes of missed and mis-recorded trips.",
       "**Captures the start of your drive.** Auto-detection used to occasionally trim the slow residential leg at the start of a journey, so a trip would appear to begin part-way along. It now keeps the full continuous track from where you set off.",
       "**More reliable wake-up.** The mechanism that wakes the app when you start driving is now refreshed automatically rather than trusted blindly, fixing a case where it could silently stop working for days. A background safety net also re-checks for drives the wake step missed.",
       "**Road-matched distance, including across GPS gaps.** Distances are matched to the real road network (via our self-hosted routing), and when GPS drops mid-trip the gap is now filled with the road route instead of a straight line — so a tunnel or a dead spot no longer undercounts your miles.",
@@ -100,7 +101,9 @@ export const RELEASE_NOTES: ReleaseNote[] = [
       "**No more silent sign-outs (and stranded trips).** Login tokens are now stored so background tasks can read them while your phone is locked. Previously a background sync during a locked drive could fail to read your session and quietly sign you out — which also left captured trips unable to upload until you next opened the app and logged back in. This was a significant, invisible cause of trips appearing to go missing.",
       "**Resilient startup on any connection.** Loading your data on first launch could previously stall indefinitely if a single request hung on a weak or restricted connection (for example with iCloud Private Relay), trapping you on the 'Setting up offline access' screen. Each load step now times out and carries on, so you always get into the app and anything missing syncs in the background.",
       "**Honest setup + diagnostics.** Onboarding now makes the Always-location step unmissable, the dashboard shows a clear 'your trips aren't being recorded' banner if permission is missing, and the in-app diagnostics report reflects reality rather than crying wolf.",
-      "**Coming next: a native motion-detection engine.** In testing now — a new under-the-hood detection layer that senses the moment you start moving, built specifically to catch the short one-and-two-mile trips that are hardest for automatic detection. Rolling out carefully once it's proven.",
+      "**See your trip as it happens.** When a trip is recording, a Live Activity and Dynamic Island show it live on your lock screen — distance and duration at a glance.",
+      "**Save with confidence.** Gentle checks when you save a trip (no distance, or no vehicle picked) catch easy mistakes, you can correct a wrong vehicle on any saved trip, and you can type a distance in by hand if it couldn't be calculated.",
+      "**Missing a trip? Tell us.** A one-tap report on the Trips screen flags a drive that didn't record, so we can look into it.",
     ],
   },
   {
