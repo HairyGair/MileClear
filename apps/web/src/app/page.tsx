@@ -1,6 +1,7 @@
 import Navbar from "@/components/landing/Navbar";
 import Hero from "@/components/landing/Hero";
 import Problem from "@/components/landing/Problem";
+import ClearTrack from "@/components/landing/ClearTrack";
 import Features from "@/components/landing/Features";
 import Screenshots from "@/components/landing/Screenshots";
 import WhoItsFor from "@/components/landing/WhoItsFor";
@@ -133,6 +134,7 @@ export default function LandingPage() {
         <AboutSection />
         <SocialProof />
         <Problem />
+        <ClearTrack />
         <Features />
         <Screenshots />
         <WhoItsFor />
