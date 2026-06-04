@@ -31,12 +31,13 @@ Introducing ClearTrack - more reliable automatic tracking
 - Trips start where you actually set off and end where you park, with the full route in between.
 
 See your trip as it happens
-- A Live Activity and Dynamic Island show your trip recording in real time, with distance and duration, so you can glance down and know it is working without opening the app.
+- When a trip is recording, a Live Activity and Dynamic Island show it live on your lock screen - distance and duration at a glance.
 
 Never lose or mis-save a trip
 - Gentle check-ins when you save: if a trip has no distance, or no vehicle picked, MileClear asks first (you can always save anyway).
 - Cannot calculate a distance? You can now type the miles in yourself instead of being stuck.
 - Assigned to the wrong vehicle? Fix it on any saved trip in a tap.
+- Missing a trip? A new one-tap report on the Trips screen lets you flag a drive that did not record, so we can look into it.
 
 Always know what the app is doing
 - Clear banners tell you when a trip is recording, when something has not synced, or when a permission that tracking needs has been switched off, each with a one-tap fix.
