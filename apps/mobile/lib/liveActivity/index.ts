@@ -12,6 +12,15 @@ const LiveActivityModule = NativeModules.LiveActivityModule;
 let currentActivityId: string | null = null;
 let activityStartDateMs: number | null = null;
 
+// The last error from a failed startActivity - typically iOS refusing a
+// background start. Surfaced to the diagnostics so we can see WHY a background
+// auto-start was blocked (e.g. an ActivityAuthorizationError) instead of
+// guessing. Foreground starts succeed; the gap is the background path.
+let lastStartError: string | null = null;
+export function getLastLiveActivityStartError(): string | null {
+  return lastStartError;
+}
+
 /**
  * Check if Live Activities are supported and enabled on this device.
  */
@@ -56,8 +65,10 @@ export async function startLiveActivity(params: {
     });
     currentActivityId = id;
     activityStartDateMs = params.startDateMs ?? Date.now();
+    lastStartError = null;
     return id;
-  } catch {
+  } catch (e) {
+    lastStartError = e instanceof Error ? e.message : String(e);
     return null;
   }
 }

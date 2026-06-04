@@ -16,7 +16,7 @@ import {
   filterTraceOutliers,
   hasRealMovementEvidence,
 } from "@mileclear/shared";
-import { startLiveActivity, updateLiveActivity, endLiveActivity, endLiveActivityWithSummary, recoverLiveActivity } from "../liveActivity";
+import { startLiveActivity, updateLiveActivity, endLiveActivity, endLiveActivityWithSummary, recoverLiveActivity, getLastLiveActivityStartError } from "../liveActivity";
 import { getLiveActivityContext } from "../liveActivity/context";
 import { getNotificationPreferences } from "../notifications/preferences";
 // Lazy-safe: geofencing imports enterWatchMode/logDetectionEvent from this
@@ -125,7 +125,10 @@ export async function startNativeAutoTripLiveActivity(): Promise<void> {
   // whether the foreground catch-up (dashboard) is what's carrying it.
   try {
     const started = await recoverLiveActivity();
-    logDetectionEvent(started ? "native_la_started" : "native_la_start_blocked").catch(() => {});
+    logDetectionEvent(
+      started ? "native_la_started" : "native_la_start_blocked",
+      started ? undefined : { error: getLastLiveActivityStartError() ?? "unknown" }
+    ).catch(() => {});
   } catch {
     // diagnostics only - never throw
   }
