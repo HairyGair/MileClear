@@ -20,6 +20,7 @@ import { runDiscordProSyncJob } from "./discordProSync.js";
 import { runTaxTipOfTheDayJob } from "./taxTipOfTheDay.js";
 import { runWeeklyDigestJob } from "./weeklyDigest.js";
 import { runTaxDeadlineRemindersJob } from "./taxDeadlineReminders.js";
+import { postFounderAlert } from "../services/discord.js";
 import {
   runFirstTripCelebrationJob,
   runMileageMilestoneCelebrationJob,
@@ -874,6 +875,78 @@ async function runDiagnosticScanJob(): Promise<void> {
   }
 }
 
+// Founder-facing dedup state for the native-engine health monitor.
+let lastNativeHealthSig = "";
+let lastNativeHealthAt = 0;
+const NATIVE_HEALTH_REPOST_MS = 6 * 60 * 60 * 1000; // re-surface an unchanged problem at most every 6h
+
+/**
+ * Founder-facing health monitor for the native-engine rollout (build 73, on by
+ * default since 4 Jun 2026). Watches the diagnostic dumps we already collect and
+ * pings #founder when native-engine devices report detection errors - the signal
+ * to roll the flag back. Deduped: posts only when the set of unhealthy devices
+ * changes, or after a long quiet window. Stays silent when every native device
+ * is healthy (the common case), so the channel only lights up on real trouble.
+ */
+async function runNativeEngineHealthJob(): Promise<void> {
+  const WINDOW_MS = 12 * 60 * 60 * 1000;
+  const cutoff = new Date(Date.now() - WINDOW_MS);
+
+  const dumps = await prisma.diagnosticDump.findMany({
+    where: { createdAt: { gte: cutoff }, buildNumber: "73" },
+    orderBy: { capturedAt: "desc" },
+    select: {
+      userId: true,
+      verdict: true,
+      statusJson: true,
+      user: { select: { email: true } },
+    },
+  });
+
+  // Reduce to the latest dump per user (the list is desc by capturedAt).
+  const latest = new Map<string, (typeof dumps)[number]>();
+  for (const d of dumps) if (!latest.has(d.userId)) latest.set(d.userId, d);
+
+  let nativeTotal = 0;
+  const unhealthy: { email: string; userId: string }[] = [];
+  for (const d of latest.values()) {
+    const status = (d.statusJson ?? {}) as Record<string, unknown>;
+    if (status.nativeEngineEnabled !== true) continue; // native-engine devices only
+    nativeTotal++;
+    if (d.verdict === "error") {
+      unhealthy.push({ email: d.user.email ?? d.userId, userId: d.userId });
+    }
+  }
+
+  if (unhealthy.length === 0) {
+    lastNativeHealthSig = ""; // reset so a fresh problem alerts immediately
+    return;
+  }
+
+  const now = Date.now();
+  const sig = unhealthy.map((u) => u.userId).sort().join(",");
+  const shouldPost =
+    sig !== lastNativeHealthSig || now - lastNativeHealthAt >= NATIVE_HEALTH_REPOST_MS;
+  if (!shouldPost) {
+    console.log(
+      `[native-health] alert suppressed - unchanged (${unhealthy.length}/${nativeTotal} native devices unhealthy)`
+    );
+    return;
+  }
+  lastNativeHealthSig = sig;
+  lastNativeHealthAt = now;
+
+  const list = unhealthy.slice(0, 15).map((u) => `• ${u.email}`).join("\n");
+  await postFounderAlert({
+    severity: unhealthy.length >= 3 ? "critical" : "warning",
+    title: `Native engine: ${unhealthy.length}/${nativeTotal} device(s) reporting detection errors`,
+    detail:
+      `Build-73 native-engine devices whose own diagnostics verdict is "error" in the last 12h. ` +
+      `If this set is growing across runs, consider rolling the native engine flag back.\n\n${list}` +
+      (unhealthy.length > 15 ? `\n…and ${unhealthy.length - 15} more` : ""),
+  });
+}
+
 /**
  * Scans the User-table heartbeat fields and pushes alerts when a user's
  * tracking pipeline is silently broken. Complements the diagnostic-dump
@@ -1047,6 +1120,14 @@ export function startNotificationJobs(): void {
     const WATCHDOG_INTERVAL_MS = 5 * 60 * 1000;
     void runJob("recording_watchdog", runRecordingWatchdogJob);
     setInterval(() => void runJob("recording_watchdog", runRecordingWatchdogJob), WATCHDOG_INTERVAL_MS);
+
+    // Native-engine health monitor (founder-facing): every 15 min during the
+    // build-73 rollout. Watches the diagnostics we already collect and pings
+    // #founder only when native devices report errors - deduped, so the frequent
+    // cadence never spams. This is the rollback signal for the native engine.
+    const NATIVE_HEALTH_INTERVAL_MS = 15 * 60 * 1000;
+    void runJob("native_engine_health", runNativeEngineHealthJob);
+    setInterval(() => void runJob("native_engine_health", runNativeEngineHealthJob), NATIVE_HEALTH_INTERVAL_MS);
 
     // Idempotency-key purge: hourly. Just deletes expired rows — cheap.
     const PURGE_INTERVAL_MS = 60 * 60 * 1000;

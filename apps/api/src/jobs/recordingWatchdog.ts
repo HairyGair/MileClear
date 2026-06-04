@@ -93,6 +93,16 @@ const PENDING_SYNC_DRIVING_RECENCY_MS = 14 * 24 * 60 * 60 * 1000;
 // restart, which is fine - the cron will simply re-evaluate next tick.
 const lastPingedAt = new Map<string, number>();
 
+// Founder-alert dedup. The cron runs every 5 min, but an ongoing condition (the
+// same user over the retry cap) must NOT re-post every cycle - that floods
+// #founder and trains us to ignore it (Anthony, 4 Jun: a gave_up alert every 5
+// minutes). Re-alert only when the set of flagged users changes, or after a long
+// quiet window for an unchanged condition. Cleared when the condition lifts so a
+// fresh occurrence alerts immediately. In-memory: a restart re-alerts once.
+let lastAlertSignature = "";
+let lastAlertAt = 0;
+const ALERT_REPOST_MS = 6 * 60 * 60 * 1000; // re-surface an unchanged condition at most every 6h
+
 interface StuckUser {
   id: string;
   recordingStartedAt: Date | null;
@@ -178,6 +188,9 @@ async function sendSilentPush(
 
 export async function runRecordingWatchdogJob(): Promise<void> {
   const now = Date.now();
+  // Users in a persistent flagged state (cooldown / over-cap) this run - drives
+  // the founder-alert dedup signature so the same stuck user doesn't re-alert.
+  const flaggedUserIds = new Set<string>();
 
   // ── Check 1: stuck auto-recordings ────────────────────────────────
   const staleCutoff = new Date(now - STUCK_THRESHOLD_MS);
@@ -209,6 +222,7 @@ export async function runRecordingWatchdogJob(): Promise<void> {
     if (result === "sent") stuckPinged++;
     else if (result === "cooldown") stuckCooldown++;
     else if (result === "gave_up") stuckGaveUp++;
+    if (result === "cooldown" || result === "gave_up") flaggedUserIds.add(user.id);
   }
 
   // ── Check 2: pending sync queue + suspended JS runtime ────────────
@@ -263,6 +277,7 @@ export async function runRecordingWatchdogJob(): Promise<void> {
     if (result === "sent") syncPinged++;
     else if (result === "cooldown") syncCooldown++;
     else if (result === "gave_up") syncGaveUp++;
+    if (result === "cooldown" || result === "gave_up") flaggedUserIds.add(user.id);
   }
 
   if (
@@ -300,7 +315,27 @@ export async function runRecordingWatchdogJob(): Promise<void> {
   const cooldownHits = stuckCooldown + syncCooldown;
   const gaveUpHits = stuckGaveUp + syncGaveUp;
   const worthAlerting = actualPings >= 3 || cooldownHits > 0 || gaveUpHits > 0;
-  if (worthAlerting) {
+
+  // Dedup the founder alert: post only when the flagged-user set changes, or
+  // when an unchanged condition has been quiet for ALERT_REPOST_MS. Reset the
+  // signature the moment the condition lifts, so a recurrence alerts at once.
+  if (!worthAlerting) {
+    lastAlertSignature = "";
+  }
+  const alertSignature = worthAlerting
+    ? [...flaggedUserIds].sort().join(",") + (actualPings >= 3 ? `|spike:${actualPings}` : "")
+    : "";
+  const shouldPost =
+    worthAlerting &&
+    (alertSignature !== lastAlertSignature || now - lastAlertAt >= ALERT_REPOST_MS);
+  if (worthAlerting && !shouldPost) {
+    console.log(
+      `[watchdog] founder alert suppressed - unchanged condition (${flaggedUserIds.size} flagged user(s))`
+    );
+  }
+  if (shouldPost) {
+    lastAlertSignature = alertSignature;
+    lastAlertAt = now;
     const detailLines: string[] = [];
     if (stuck.length > 0) {
       detailLines.push(
