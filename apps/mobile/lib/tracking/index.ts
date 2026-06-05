@@ -389,7 +389,6 @@ export async function processShiftTrips(
         }
         sampled.push(filteredSegment[filteredSegment.length - 1]);
         tripCoords = sampled;
-        console.log(`[processShiftTrips] Downsampled ${filteredSegment.length} coords to ${tripCoords.length}`);
       }
 
       await syncCreateTrip({

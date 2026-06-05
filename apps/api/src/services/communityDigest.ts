@@ -9,7 +9,7 @@
 // Phase 1D of the Discord roadmap (21 May 2026).
 
 import { prisma } from "../lib/prisma.js";
-import { formatMiles, formatPence, getHmrcRatesForTaxYear, getTaxYear } from "@mileclear/shared";
+import { getHmrcRatesForTaxYear, getTaxYear } from "@mileclear/shared";
 
 const MIN_CONTRIBUTORS_PER_BUCKET = 5;
 
@@ -42,24 +42,6 @@ export interface CommunityDigest {
   /** Optional flavour line — pre-formatted Discord-ready summary
    *  that wraps the numbers into one or two human sentences. */
   highlight?: string;
-}
-
-const PLATFORM_LABELS: Record<string, string> = {
-  uber: "Uber",
-  deliveroo: "Deliveroo",
-  just_eat: "Just Eat",
-  amazon_flex: "Amazon Flex",
-  stuart: "Stuart",
-  gophr: "Gophr",
-  dpd: "DPD",
-  yodel: "Yodel",
-  evri: "Evri",
-  freelance: "Freelance",
-  other: "Other",
-};
-
-function platformLabel(raw: string): string {
-  return PLATFORM_LABELS[raw] ?? raw.replace(/_/g, " ");
 }
 
 /**

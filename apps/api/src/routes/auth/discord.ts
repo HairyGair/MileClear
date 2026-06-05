@@ -159,7 +159,7 @@ export async function discordAuthRoutes(app: FastifyInstance) {
     if (!query.success) {
       return reply.redirect("mileclear://discord-linked?ok=false&reason=bad_request");
     }
-    const { code, state, error, error_description } = query.data;
+    const { code, state, error } = query.data;
 
     // User declined / Discord errored
     if (error || !code || !state) {

@@ -55,3 +55,13 @@ coverage/
 # Claude
 CLAUDE.md
 .last-deployed-sha
+
+# Local scratch / junk (never commit these)
+mileclear-*-secret.txt
+/app.json
+/PNG image.png
+/iphone-*.png
+/mileclear-seo-audit-full.pdf
+/Branding/
+*.docx.download/
+*.eml

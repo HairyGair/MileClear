@@ -15,7 +15,6 @@ export type MotionPermission =
   | "undetermined"
   | "unavailable";
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 let Pedometer: any = null;
 let loadAttempted = false;
 
@@ -40,10 +39,8 @@ function normalise(res: { granted?: boolean; status?: string } | null): MotionPe
 /** Current Motion & Fitness permission state (no prompt). */
 export async function getMotionPermission(): Promise<MotionPermission> {
   const P = load();
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   if (!P || typeof (P as any).getPermissionsAsync !== "function") return "unavailable";
   try {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     return normalise(await (P as any).getPermissionsAsync());
   } catch {
     return "unavailable";
@@ -53,10 +50,8 @@ export async function getMotionPermission(): Promise<MotionPermission> {
 /** Prompt for Motion & Fitness if not yet decided; returns the resulting state. */
 export async function requestMotionPermission(): Promise<MotionPermission> {
   const P = load();
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   if (!P || typeof (P as any).requestPermissionsAsync !== "function") return "unavailable";
   try {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     return normalise(await (P as any).requestPermissionsAsync());
   } catch {
     return "unavailable";

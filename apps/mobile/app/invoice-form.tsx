@@ -31,11 +31,9 @@ import { haptic } from "../lib/haptics";
 const AMBER = colors.amber;
 const CARD_BG = colors.surface;
 const TEXT_1 = colors.text1;
-const TEXT_2 = colors.text2;
 const TEXT_3 = colors.text3;
 const BG = colors.bg;
 const GREEN = colors.green;
-const RED = colors.red;
 
 function dateOnly(d: Date): string {
   return d.toISOString().slice(0, 10);

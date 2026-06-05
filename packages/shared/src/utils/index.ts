@@ -244,34 +244,6 @@ export async function fetchRouteDistance(
 }
 
 /**
- * Returns the best-estimate trip distance in miles.
- *
- * GPS-based haversine sums systematically undercount actual road distance
- * because the straight chord between samples is shorter than the road's arc.
- * This is most pronounced on winding roads at typical 50m sampling intervals,
- * leading to ~5-10% undercounts that users notice on HMRC mileage claims.
- *
- * Strategy: take the max of the haversine sum and the OSRM start->end route.
- * - Boring A->B winding trip: OSRM > GPS sum -> use OSRM (fixes undercount)
- * - Loop or detour-heavy trip: GPS sum > OSRM -> use GPS (preserves reality)
- * - OSRM unreachable: fall back to GPS sum
- *
- * Never undercounts vs the existing GPS-only calculation.
- */
-export async function bestTripDistance(
-  haversineSumMiles: number,
-  startLat: number,
-  startLng: number,
-  endLat: number,
-  endLng: number,
-  timeoutMs = 5000
-): Promise<number> {
-  const route = await fetchRouteDistance(startLat, startLng, endLat, endLng, timeoutMs);
-  if (!route) return haversineSumMiles;
-  return Math.max(haversineSumMiles, route.distanceMiles);
-}
-
-/**
  * Filter outlier GPS points before distance calculation.
  *
  * Two passes:

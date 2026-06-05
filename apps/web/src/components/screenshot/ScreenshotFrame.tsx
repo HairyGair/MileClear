@@ -493,7 +493,6 @@ function BrandMark({
           fontFamily: "'Sora', system-ui, sans-serif",
         }}
       >
-        {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           src="/branding/logo-120x120.png"
           alt=""
@@ -610,7 +609,6 @@ function DeviceMockup({
           }}
         >
           {src ? (
-            // eslint-disable-next-line @next/next/no-img-element
             <img
               src={src}
               alt=""

@@ -6,7 +6,6 @@
 // Phase 2 of the Discord roadmap (21 May 2026).
 
 import { prisma } from "../lib/prisma.js";
-import { formatMiles } from "@mileclear/shared";
 
 const MIN_CONTRIBUTORS = 5;
 

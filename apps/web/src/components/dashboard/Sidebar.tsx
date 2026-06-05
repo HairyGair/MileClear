@@ -98,7 +98,6 @@ const icons = {
   community: (
     // Official Discord brand mark. Loaded from /branding/discord/
     // rather than inlined so brand updates only need a file swap.
-    // eslint-disable-next-line @next/next/no-img-element
     <img
       src="/branding/discord/symbol-blurple.svg"
       alt=""

@@ -49,8 +49,6 @@ export async function donationRoutes(app: FastifyInstance) {
     }
     const { amountPence, name } = parsed.data;
 
-    const baseUrl = process.env.NEXT_PUBLIC_API_URL?.replace("/api", "") ?? "https://mileclear.com";
-
     try {
       const session = await stripe.checkout.sessions.create({
         mode: "payment",

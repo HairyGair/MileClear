@@ -32,7 +32,6 @@ export default function Community() {
       <div className="container community__center">
         <Reveal>
           <p className="eyebrow">Community</p>
-          {/* eslint-disable-next-line @next/next/no-img-element */}
           <a
             href={DISCORD_INVITE}
             target="_blank"
@@ -79,7 +78,6 @@ export default function Community() {
               rel="noopener noreferrer"
               aria-label="Join the MileClear Discord community"
             >
-              {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src="/branding/discord/symbol-white.svg"
                 alt=""

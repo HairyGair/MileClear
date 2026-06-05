@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import {
   View,
   Text,
@@ -340,7 +340,7 @@ function ConnectStep({ onConnect }: { onConnect: () => void }) {
 
 // ── Step: NINO ───────────────────────────────────────────────────────
 
-function NinoStep({ onDone }: { onDone: () => void }) {
+function NinoStep({ onDone: _onDone }: { onDone: () => void }) {
   return (
     <View style={styles.stepCard}>
       <Ionicons name="finger-print-outline" size={48} color={AMBER} style={{ alignSelf: "center" }} />
@@ -366,7 +366,7 @@ function NinoStep({ onDone }: { onDone: () => void }) {
 
 function BusinessStep({
   businesses,
-  onDone,
+  onDone: _onDone,
 }: {
   businesses: HmrcBusinessSummary[];
   onDone: () => void;
