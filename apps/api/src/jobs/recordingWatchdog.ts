@@ -37,6 +37,19 @@ import { postFounderAlert } from "../services/discord.js";
 // recordings reliably.
 const STUCK_THRESHOLD_MS = 30 * 60 * 1000;
 
+// A stuck-recording flag this old is definitively dead: no real continuous
+// auto-recording runs 6h without a single driving-speed update. By now the flag
+// is an orphan - the client stopped heartbeating "recording" without ever
+// sending the autoRecordingActive=false that clears it, and there is NO other
+// server-side path that clears it. Pushing a finalize-check forever is futile
+// (the client has nothing to finalize, so the flag never clears -> perpetual
+// gave_up + re-alert about a user who is actually fine and still saving trips).
+// So reap it: clear the flag server-side. Safe - the user's trips are saved
+// separately; this only clears a dead status flag. The proper client-side fix
+// shipped in the ClearTrack engine (build 73+); reaping quells the noise for
+// users still on older builds.
+const REAP_THRESHOLD_MS = 6 * 60 * 60 * 1000; // 6h
+
 // Don't ping the same user more than once per 30 minutes. Prevents the
 // silent-push budget from being burned on a user whose device is just
 // not responding (genuinely offline). Shared across the stuck-recording
@@ -206,11 +219,34 @@ export async function runRecordingWatchdogJob(): Promise<void> {
   let stuckPinged = 0;
   let stuckCooldown = 0;
   let stuckGaveUp = 0;
+  let stuckReaped = 0;
+  const reapedUserIds = new Set<string>();
   for (const user of stuck) {
     const stuckMs =
       user.lastDrivingSpeedAt != null
         ? now - user.lastDrivingSpeedAt.getTime()
         : null;
+
+    // Reap orphaned flags that are definitively dead instead of pushing a
+    // finalize-check the client can never satisfy. Resolves silently - no
+    // ping, no gave_up, no founder alert.
+    if (stuckMs != null && stuckMs > REAP_THRESHOLD_MS) {
+      await prisma.user
+        .update({
+          where: { id: user.id },
+          data: { autoRecordingActive: false, recordingStartedAt: null },
+        })
+        .catch(() => {});
+      logEvent("watchdog.reaped", user.id, {
+        stuckMs,
+        recordingStartedAt: user.recordingStartedAt?.toISOString() ?? null,
+        lastDrivingSpeedAt: user.lastDrivingSpeedAt?.toISOString() ?? null,
+      });
+      stuckReaped++;
+      reapedUserIds.add(user.id);
+      continue;
+    }
+
     const result = await sendSilentPush(user, "finalize_check", {
       stuckMs,
       recordingStartedAt: user.recordingStartedAt?.toISOString() ?? null,
@@ -279,12 +315,13 @@ export async function runRecordingWatchdogJob(): Promise<void> {
     stuckPinged > 0 ||
     stuckCooldown > 0 ||
     stuckGaveUp > 0 ||
+    stuckReaped > 0 ||
     syncPinged > 0 ||
     syncCooldown > 0 ||
     syncGaveUp > 0
   ) {
     console.log(
-      `[watchdog] stuck=${stuck.length} (pinged ${stuckPinged}, cooldown ${stuckCooldown}, gave_up ${stuckGaveUp}); ` +
+      `[watchdog] stuck=${stuck.length} (pinged ${stuckPinged}, cooldown ${stuckCooldown}, gave_up ${stuckGaveUp}, reaped ${stuckReaped}); ` +
         `pendingSync=${pendingSync.length} (pinged ${syncPinged}, cooldown ${syncCooldown}, gave_up ${syncGaveUp})`
     );
   }
@@ -317,7 +354,13 @@ export async function runRecordingWatchdogJob(): Promise<void> {
   // 4 Jun: a re-alert fired when one user's state flipped). Re-alert only when a
   // DIFFERENT user becomes stuck, or after ALERT_REPOST_MS for an unchanged set.
   // Reset only when nobody is stuck, so a genuinely fresh occurrence alerts.
-  const stuckUserIds = [...stuck.map((u) => u.id), ...pendingSync.map((u) => u.id)].sort();
+  // Exclude reaped users — they're resolved this run, so they must not keep the
+  // alert signature alive (otherwise a reaped-every-cycle orphan would look like
+  // an unchanged stuck set forever).
+  const stuckUserIds = [
+    ...stuck.map((u) => u.id).filter((id) => !reapedUserIds.has(id)),
+    ...pendingSync.map((u) => u.id),
+  ].sort();
   if (stuckUserIds.length === 0) {
     lastAlertSignature = "";
   }
