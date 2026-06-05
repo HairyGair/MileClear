@@ -31,6 +31,11 @@ model User {
   appleOriginalTransactionId String? @unique @db.VarChar(255)
   termsAcceptedAt      DateTime?
   pushToken            String?   @db.VarChar(255)
+  // Per-device push-to-start token for Live Activities (iOS 17.2+). Lets the
+  // server start the Dynamic Island / Live Activity on a background-detected
+  // drive via an APNs `liveactivity` push. Separate from pushToken (Expo).
+  liveActivityPushToStartToken String? @db.VarChar(255)
+  laTokenUpdatedAt     DateTime?
   avatarId             String?   @db.VarChar(50)
   userIntent           String?   @db.VarChar(20)
   workType             String    @default("gig") @db.VarChar(20)

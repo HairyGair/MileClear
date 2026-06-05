@@ -24,6 +24,7 @@ import { getNotificationPreferences } from "../notifications/preferences";
 // exports at runtime (inside functions), never at module-eval time, so the
 // live bindings are resolved by the time anything runs.
 import { ensureAnchorGeofenceArmed } from "../geofencing";
+import { signalTripStart } from "../api/trips";
 
 /**
  * Wrapper around startLiveActivity for auto-detected trips. Honors the user
@@ -129,6 +130,15 @@ export async function startNativeAutoTripLiveActivity(): Promise<void> {
       started ? "native_la_started" : "native_la_start_blocked",
       started ? undefined : { error: getLastLiveActivityStartError() ?? "unknown" }
     ).catch(() => {});
+
+    // Background-blocked is the normal case here (iOS won't start a Live
+    // Activity from the background). Ask the server to push-to-start it so the
+    // Dynamic Island appears on its own. Only when the local start failed —
+    // a successful local start already shows the activity, and a push would
+    // spawn a second one. Best-effort; never blocks recording.
+    if (!started) {
+      signalTripStart({ activityType: "trip", isBusinessMode }).catch(() => {});
+    }
   } catch {
     // diagnostics only - never throw
   }

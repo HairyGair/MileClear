@@ -6,6 +6,7 @@
  */
 
 import { NativeModules, Platform } from "react-native";
+import { registerLiveActivityToken } from "../api/notifications";
 
 const LiveActivityModule = NativeModules.LiveActivityModule;
 
@@ -281,5 +282,46 @@ export async function restartLiveActivity(params: {
     return id;
   } catch {
     return null;
+  }
+}
+
+// ── Push-to-start token (iOS 17.2+) ──────────────────────────────────────
+//
+// iOS refuses Activity.request() from the background, so the ONLY way to make
+// the Dynamic Island appear on its own when ClearTrack detects a drive while
+// backgrounded is a remote APNs push-to-start. That push targets a per-device
+// token, which the native module observes (pushToStartTokenUpdates) and we
+// register with the server so /trips/signal-start can use it.
+
+let lastRegisteredLaToken: string | null = null;
+
+/**
+ * The device's current push-to-start token (hex), or null on iOS < 17.2 or
+ * before the system has issued one. The native side caches the latest value
+ * from its observer; this may wait ~2s for the first emission.
+ */
+export async function getPushToStartToken(): Promise<string | null> {
+  if (Platform.OS !== "ios" || !LiveActivityModule?.getPushToStartToken) return null;
+  try {
+    const token = await LiveActivityModule.getPushToStartToken();
+    return typeof token === "string" && token.length > 0 ? token : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Read the push-to-start token and register it with the server. Best-effort,
+ * deduped so repeated foregrounding doesn't re-POST an unchanged token. Call on
+ * launch and on foreground (the token can rotate). Safe no-op off iOS 17.2+.
+ */
+export async function syncPushToStartToken(): Promise<void> {
+  const token = await getPushToStartToken();
+  if (!token || token === lastRegisteredLaToken) return;
+  try {
+    await registerLiveActivityToken(token);
+    lastRegisteredLaToken = token;
+  } catch {
+    // best-effort; retried on next launch / foreground
   }
 }

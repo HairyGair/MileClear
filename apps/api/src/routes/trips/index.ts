@@ -24,6 +24,13 @@ import { looksLikePhantomTrip, hasRealMovementEvidence } from "../../lib/phantom
 import { resolveRouteDistance } from "../../services/routing.js";
 import { matchTripRoute, decodePolyline, isMatchPlausible } from "../../services/mapMatching.js";
 import { computeTripConfidence } from "../../services/tripConfidence.js";
+import { sendLiveActivityStartPush, isApnsConfigured } from "../../services/apns.js";
+
+// In-memory per-user cooldown for /trips/signal-start so a double-signal can't
+// start two Live Activities. Per-process is fine: a duplicate within the window
+// is the case we guard, and a process restart only ever risks one extra push.
+const signalStartCooldown = new Map<string, number>();
+const SIGNAL_START_COOLDOWN_MS = 90 * 1000;
 
 // Server-side geocoding: resolve an address to coordinates via Postcodes.io or Nominatim
 async function geocodeAddress(addr: string): Promise<{ lat: number; lng: number } | null> {
@@ -187,6 +194,95 @@ export async function tripRoutes(app: FastifyInstance) {
     }
 
     return reply.send({ ok: true });
+  });
+
+  // POST /trips/signal-start — fired by the app when ClearTrack starts a
+  // recording in the BACKGROUND. iOS won't let the app start a Live Activity
+  // from the background ("Target is not foreground"), so the server sends an
+  // APNs push-to-start to the device's stored push-to-start token, which makes
+  // the Dynamic Island / Live Activity appear on its own (~2-5s). The app then
+  // self-updates and ends the running activity (both allowed from background).
+  // Best-effort: never blocks recording, swallows all failures.
+  const signalStartSchema = z.object({
+    activityType: z.enum(["trip", "shift"]).default("trip"),
+    vehicleName: z.string().max(60).default(""),
+    isBusinessMode: z.boolean().default(true),
+    tripContextLabel: z.string().max(60).optional(),
+    startedAtMs: z.number().int().positive().optional(),
+    distanceMiles: z.number().min(0).default(0),
+    speedMph: z.number().min(0).default(0),
+    tripCount: z.number().int().min(0).default(0),
+    dailyTotalMiles: z.number().min(0).default(0),
+  });
+  app.post("/signal-start", async (request, reply) => {
+    const userId = request.userId!;
+
+    if (!isApnsConfigured) {
+      return reply.send({ sent: false, reason: "apns_not_configured" });
+    }
+
+    const parsed = signalStartSchema.safeParse(request.body ?? {});
+    if (!parsed.success) {
+      return reply.code(400).send({ error: parsed.error.issues[0].message });
+    }
+    const d = parsed.data;
+
+    // Idempotency / cooldown: a flaky double-signal (retry, dup detection)
+    // must not start two activities. A user can't begin two drives within the
+    // window, so a short per-user cooldown is a safe guard.
+    const now = Date.now();
+    const last = signalStartCooldown.get(userId);
+    if (last && now - last < SIGNAL_START_COOLDOWN_MS) {
+      return reply.send({ sent: false, reason: "cooldown" });
+    }
+
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { liveActivityPushToStartToken: true },
+    });
+    const token = user?.liveActivityPushToStartToken;
+    if (!token) {
+      return reply.send({ sent: false, reason: "no_token" });
+    }
+
+    const startedAtMs = d.startedAtMs ?? now;
+    signalStartCooldown.set(userId, now);
+
+    logEvent("trip.signal_start", userId, { activityType: d.activityType });
+
+    const result = await sendLiveActivityStartPush({
+      pushToStartToken: token,
+      attributes: {
+        activityType: d.activityType,
+        startedAt: startedAtMs,
+        vehicleName: d.vehicleName,
+        isBusinessMode: d.isBusinessMode,
+        tripContextLabel: d.tripContextLabel,
+      },
+      contentState: {
+        distanceMiles: d.distanceMiles,
+        speedMph: d.speedMph,
+        tripCount: d.tripCount,
+        startDate: startedAtMs,
+        dailyTotalMiles: d.dailyTotalMiles,
+      },
+      alert: { title: "Recording your trip", body: "MileClear is tracking your drive." },
+      // Auto-clear after 4h if the app never ends it (failsafe).
+      staleDate: startedAtMs + 4 * 60 * 60 * 1000,
+    });
+
+    // BadDeviceToken / Unregistered => the stored token is dead; clear it so we
+    // don't keep pushing to it. The app re-registers a fresh one on next launch.
+    if (
+      !result.ok &&
+      (result.reason === "BadDeviceToken" || result.reason === "Unregistered")
+    ) {
+      await prisma.user
+        .update({ where: { id: userId }, data: { liveActivityPushToStartToken: null } })
+        .catch(() => {});
+    }
+
+    return reply.send({ sent: result.ok, reason: result.reason });
   });
 
   // GET /trips/route-distance — server-side road-distance calc that

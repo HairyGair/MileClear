@@ -24,6 +24,9 @@ const WIDGET_BUNDLE_ID = "com.mileclear.app.MileClearWidgets";
 function withLiveActivitiesPlist(config) {
   return withInfoPlist(config, (mod) => {
     mod.modResults.NSSupportsLiveActivities = true;
+    // Allow frequent ActivityKit updates (live distance/time during a drive)
+    // and the more responsive push-to-start path added for build 76.
+    mod.modResults.NSSupportsLiveActivitiesFrequentUpdates = true;
     return mod;
   });
 }

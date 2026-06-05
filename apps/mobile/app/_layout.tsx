@@ -273,6 +273,11 @@ function RootNavigator() {
       registerForPushNotifications()
         .then((token) => { if (token) return registerPushToken(token); })
         .catch(() => {});
+      // Register the Live Activity push-to-start token (iOS 17.2+) so the
+      // server can auto-show the Dynamic Island on a background-detected drive.
+      import("../lib/liveActivity")
+        .then((m) => m.syncPushToStartToken())
+        .catch(() => {});
       scheduleWeeklyMileageSummary().catch(() => {});
       scheduleTaxYearDeadlineReminder().catch(() => {});
       checkUnclassifiedTripsNudge().catch(() => {});
@@ -297,6 +302,10 @@ function RootNavigator() {
         finalizeStaleAutoRecordings()
           .catch(() => {})
           .finally(() => startDriveDetection());
+        // Re-sync the push-to-start token (it can rotate between launches).
+        import("../lib/liveActivity")
+          .then((m) => m.syncPushToStartToken())
+          .catch(() => {});
       }
     });
     return () => sub.remove();

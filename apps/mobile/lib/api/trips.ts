@@ -350,3 +350,22 @@ export function reportMissingTrip(note: string) {
     body: JSON.stringify({ note }),
   });
 }
+
+// Tell the server a background drive just started so it can push-to-start the
+// Live Activity (iOS blocks Activity.request() from the background). Best-effort.
+export function signalTripStart(data: {
+  activityType?: "trip" | "shift";
+  vehicleName?: string;
+  isBusinessMode?: boolean;
+  tripContextLabel?: string;
+  startedAtMs?: number;
+  distanceMiles?: number;
+  speedMph?: number;
+  tripCount?: number;
+  dailyTotalMiles?: number;
+}) {
+  return apiRequest<{ sent: boolean; reason?: string }>("/trips/signal-start", {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+}

@@ -284,4 +284,50 @@ class LiveActivityModule: NSObject {
             resolve(nil)
         }
     }
+
+    // MARK: - Push-to-start token (iOS 17.2+)
+    //
+    // iOS refuses Activity.request() from the background ("Target is not
+    // foreground"), so the ONLY way to start a Live Activity on a
+    // background-detected drive is a remote APNs push-to-start. That push
+    // targets a per-device push-to-start token, observed here and surfaced to
+    // JS, which POSTs it to /notifications/la-token. The token can rotate, so
+    // an observer keeps the latest value and JS re-reads it on launch/foreground.
+
+    private static var latestPushToStartToken: String?
+    private static var pushTokenObserverStarted = false
+
+    @available(iOS 17.2, *)
+    private static func startPushToStartObservation() {
+        if pushTokenObserverStarted { return }
+        pushTokenObserverStarted = true
+        Task {
+            for await tokenData in Activity<MileClearAttributes>.pushToStartTokenUpdates {
+                let hex = tokenData.map { String(format: "%02x", $0) }.joined()
+                LiveActivityModule.latestPushToStartToken = hex
+                NSLog("[LiveActivity] push-to-start token updated (%d chars)", hex.count)
+            }
+        }
+    }
+
+    // Returns the device's current push-to-start token (hex), or nil on
+    // iOS < 17.2 or before the system has issued one. Starts the observer on
+    // first call. Waits briefly for the first emission if none cached yet.
+    @objc func getPushToStartToken(
+        _ resolve: @escaping RCTPromiseResolveBlock,
+        reject: @escaping RCTPromiseRejectBlock
+    ) {
+        guard #available(iOS 17.2, *) else {
+            resolve(nil)
+            return
+        }
+        LiveActivityModule.startPushToStartObservation()
+        if let token = LiveActivityModule.latestPushToStartToken {
+            resolve(token)
+            return
+        }
+        DispatchQueue.global().asyncAfter(deadline: .now() + 2.0) {
+            resolve(LiveActivityModule.latestPushToStartToken)
+        }
+    }
 }
