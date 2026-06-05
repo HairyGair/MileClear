@@ -350,11 +350,31 @@ export async function appleBillingRoutes(app: FastifyInstance) {
         errorMessage: `No user with appleOriginalTransactionId ${originalTransactionId}${appAccountToken ? ` (appAccountToken ${appAccountToken} also not matched)` : ""}`,
       });
 
+      // Suppress the act-now alert for transactions already triaged as ghosts
+      // (sandbox / Family Sharing / pre-appAccountToken purchases that carry no
+      // MileClear user id and can never be linked). They still log above for the
+      // audit trail, but a dismissed ghost renewing — Apple sends DID_RENEW every
+      // billing cycle, plus any DID_CHANGE_RENEWAL_PREF — must not re-fire the
+      // "money in, no user linked" alert every month. (5 Jun 2026: txn
+      // 720002519079960, a ghost dismissed 26 May, re-alerted on its monthly
+      // renewal.)
+      const isKnownGhost = await prisma.appleIapGhost
+        .findUnique({
+          where: { originalTransactionId },
+          select: { originalTransactionId: true },
+        })
+        .then((g) => Boolean(g))
+        .catch(() => false);
+
       // Real-time alert when an active-payment notification lands
       // without a user link. This surfaces in the admin Alerts feed
       // immediately so the orphan can be recovered before the user
       // gives up and churns silently.
-      if (notificationType && ACTIVE_PAYMENT_NOTIFICATIONS.has(notificationType)) {
+      if (
+        !isKnownGhost &&
+        notificationType &&
+        ACTIVE_PAYMENT_NOTIFICATIONS.has(notificationType)
+      ) {
         logEvent("alert.subscription_orphan", null, {
           originalTransactionId,
           notificationType,
