@@ -893,7 +893,7 @@ async function runNativeEngineHealthJob(): Promise<void> {
   const cutoff = new Date(Date.now() - WINDOW_MS);
 
   const dumps = await prisma.diagnosticDump.findMany({
-    where: { createdAt: { gte: cutoff }, buildNumber: "73" },
+    where: { createdAt: { gte: cutoff } },
     orderBy: { capturedAt: "desc" },
     select: {
       userId: true,
@@ -939,9 +939,9 @@ async function runNativeEngineHealthJob(): Promise<void> {
   const list = unhealthy.slice(0, 15).map((u) => `• ${u.email}`).join("\n");
   await postFounderAlert({
     severity: unhealthy.length >= 3 ? "critical" : "warning",
-    title: `Native engine: ${unhealthy.length}/${nativeTotal} device(s) reporting detection errors`,
+    title: `ClearTrack: ${unhealthy.length}/${nativeTotal} device(s) reporting detection errors`,
     detail:
-      `Build-73 native-engine devices whose own diagnostics verdict is "error" in the last 12h. ` +
+      `ClearTrack (native-engine) devices - any build - whose own diagnostics verdict is "error" in the last 12h. ` +
       `If this set is growing across runs, consider rolling the native engine flag back.\n\n${list}` +
       (unhealthy.length > 15 ? `\n…and ${unhealthy.length - 15} more` : ""),
   });
@@ -1121,10 +1121,10 @@ export function startNotificationJobs(): void {
     void runJob("recording_watchdog", runRecordingWatchdogJob);
     setInterval(() => void runJob("recording_watchdog", runRecordingWatchdogJob), WATCHDOG_INTERVAL_MS);
 
-    // Native-engine health monitor (founder-facing): every 15 min during the
-    // build-73 rollout. Watches the diagnostics we already collect and pings
-    // #founder only when native devices report errors - deduped, so the frequent
-    // cadence never spams. This is the rollback signal for the native engine.
+    // ClearTrack (native-engine) health monitor (founder-facing): every 15 min
+    // during the rollout. Watches the diagnostics we already collect across ANY
+    // build and pings #founder only when ClearTrack devices report errors -
+    // deduped, so the frequent cadence never spams. The rollback signal.
     const NATIVE_HEALTH_INTERVAL_MS = 15 * 60 * 1000;
     void runJob("native_engine_health", runNativeEngineHealthJob);
     setInterval(() => void runJob("native_engine_health", runNativeEngineHealthJob), NATIVE_HEALTH_INTERVAL_MS);
