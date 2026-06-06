@@ -39,6 +39,7 @@ export type BillingAlertTier = "celebrate" | "act_now" | "aware";
 
 export type BillingAlertKind =
   | "subscription.new"
+  | "subscription.renewed"
   | "subscription.orphan"
   | "subscription.validate_failed"
   | "subscription.payment_failed"

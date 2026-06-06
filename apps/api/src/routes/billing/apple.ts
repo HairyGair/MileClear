@@ -441,24 +441,45 @@ export async function appleBillingRoutes(app: FastifyInstance) {
           app.log.info(
             `Apple ${notificationType}: user ${user.id} premium renewed until ${premiumExpiresAt?.toISOString()}`
           );
-          // Only celebrate the actual new sub, not every renewal — renewals
-          // happen monthly and would spam the alert channel. Subtype
-          // INITIAL_BUY = first-time subscribe.
-          if (notificationType === "SUBSCRIBED" && subtype === "INITIAL_BUY") {
+          // Notify on BOTH new subs and renewals — Anthony wants every
+          // revenue event visible (6 Jun: a real annual sub whose first
+          // charge arrived as DID_RENEW went completely silent, and routine
+          // renewals were suppressed entirely). At current volume that's
+          // signal, not spam; if it ever gets noisy, drop renewals to the
+          // "aware" tier or add throttling.
+          {
             const fullUser = await prisma.user.findUnique({
               where: { id: user.id },
               select: { email: true, displayName: true },
             });
-            notifyBillingEvent({
-              kind: "subscription.new",
-              tier: "celebrate",
-              title: `New Pro subscriber 🎉`,
-              body: `${fullUser?.displayName || fullUser?.email || user.id} just subscribed to MileClear Pro on iOS.`,
-              userId: user.id,
-              userEmail: fullUser?.email ?? null,
-              originalTransactionId,
-              details: { premiumExpiresAt: premiumExpiresAt?.toISOString() ?? null },
-            });
+            const who = fullUser?.displayName || fullUser?.email || user.id;
+            const until = premiumExpiresAt
+              ? premiumExpiresAt.toISOString().slice(0, 10)
+              : "unknown";
+            if (notificationType === "SUBSCRIBED") {
+              notifyBillingEvent({
+                kind: "subscription.new",
+                tier: "celebrate",
+                title: subtype === "INITIAL_BUY" ? `New Pro subscriber 🎉` : `Pro resubscribed 🎉`,
+                body: `${who} ${subtype === "INITIAL_BUY" ? "just subscribed to" : "resubscribed to"} MileClear Pro on iOS (active until ${until}).`,
+                userId: user.id,
+                userEmail: fullUser?.email ?? null,
+                originalTransactionId,
+                details: { premiumExpiresAt: premiumExpiresAt?.toISOString() ?? null, subtype: subtype ?? null },
+              });
+            } else {
+              // DID_RENEW — recurring revenue (or an annual's first charge).
+              notifyBillingEvent({
+                kind: "subscription.renewed",
+                tier: "celebrate",
+                title: `Pro subscription renewed 💚`,
+                body: `${who}'s MileClear Pro just renewed on iOS (active until ${until}).`,
+                userId: user.id,
+                userEmail: fullUser?.email ?? null,
+                originalTransactionId,
+                details: { premiumExpiresAt: premiumExpiresAt?.toISOString() ?? null },
+              });
+            }
           }
           break;
         }
