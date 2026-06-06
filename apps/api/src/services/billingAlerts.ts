@@ -129,15 +129,17 @@ async function notifyAdminByEmail(input: BillingAlertInput): Promise<boolean> {
 
 /**
  * Mirror a billing alert to the relevant Discord channel. Routing:
- *   celebrate → #bot-logs (eventually #wins once the audience is right)
+ *   celebrate → #founder (you want to SEE new subscribers — these were
+ *               landing in #bot-logs, which nobody watched, so signups went
+ *               unnoticed. 6 Jun: moved to #founder alongside act_now.)
  *   act_now   → #founder (oncall — orphans, payment fails). Mods can't
  *               action these, so they route to a founder-only channel.
  *               Falls back to #mod-chat if DISCORD_WEBHOOK_FOUNDER unset.
- *   aware     → #bot-logs (refund logs)
+ *   aware     → #bot-logs (refund logs — informational, no action)
  * Defensive: no-op when DISCORD_WEBHOOK_* env vars aren't set.
  */
 async function notifyAdminByDiscord(input: BillingAlertInput): Promise<boolean> {
-  const channel = input.tier === "act_now" ? "founder" : "botLogs";
+  const channel = input.tier === "aware" ? "botLogs" : "founder";
   const color =
     input.tier === "act_now"
       ? 0xef4444
