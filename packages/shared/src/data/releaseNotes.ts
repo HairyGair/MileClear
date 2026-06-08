@@ -74,9 +74,14 @@ export const RELEASE_NOTES: ReleaseNote[] = [
   {
     version: "1.3.0",
     date: "June 2026",
-    label: "In Testing",
-    ctaUrl: "https://testflight.apple.com/join/SGrmnaaH",
-    ctaLabel: "Join the TestFlight beta",
+    label: "Latest",
+    ctaUrl: "https://apps.apple.com/app/mileclear/id6759671005",
+    ctaLabel: "Update on the App Store",
+    banner: {
+      headline: "ClearTrack is live — never miss a mile",
+      subline:
+        "MileClear 1.3.0 rebuilds trip detection to catch every drive on its own, even the short ones. Update on the App Store.",
+    },
     emailSubject: "MileClear 1.3.0 — meet ClearTrack, trip detection rebuilt",
     emailHero: "Meet ClearTrack",
     emailTagline:
@@ -109,7 +114,7 @@ export const RELEASE_NOTES: ReleaseNote[] = [
   {
     version: "1.2.1",
     date: "26 May 2026",
-    label: "Latest",
+    label: "App Store",
     ctaUrl: "https://apps.apple.com/app/mileclear/id6759671005",
     ctaLabel: "Update on the App Store",
     banner: {
