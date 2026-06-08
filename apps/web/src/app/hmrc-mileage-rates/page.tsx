@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Navbar from "@/components/landing/Navbar";
 import Footer from "@/components/landing/Footer";
 import BreadcrumbsJsonLd from "@/components/seo/BreadcrumbsJsonLd";
+import MileageCalculator from "@/components/MileageCalculator";
 
 export const metadata: Metadata = {
   title: "HMRC Mileage Rates 2026-27 — 55p Per Mile (Updated)",
@@ -235,6 +236,23 @@ export default function HmrcRatesPage() {
                 from day one (it was 45p up to and including tax year 2025-26).
               </p>
             </div>
+          </div>
+        </section>
+
+        {/* Interactive calculator */}
+        <section className="section" style={{ paddingTop: 0 }}>
+          <div className="container" style={{ maxWidth: 820, margin: "0 auto" }}>
+            <div style={{ marginBottom: "1.5rem" }}>
+              <span className="label">Calculator</span>
+              <h2 className="heading" style={{ fontSize: "clamp(1.75rem, 3vw, 2.25rem)", marginBottom: "0.75rem" }}>
+                Work out your mileage claim
+              </h2>
+              <p className="subtext" style={{ maxWidth: 620 }}>
+                Enter your business miles to see your HMRC deduction at the new 55p rate, and how much more
+                that is than the old 45p rate.
+              </p>
+            </div>
+            <MileageCalculator />
           </div>
         </section>
 
