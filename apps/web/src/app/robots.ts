@@ -24,6 +24,14 @@ export default function robots(): MetadataRoute.Robots {
         allow: "/",
         disallow: ["/dashboard/", "/login", "/register"],
       },
+      // Google-Extended controls whether content can feed Gemini / Google AI
+      // Overviews. For a free app whose growth depends on install-driving
+      // visibility, AI citation beats content protection — so allow it.
+      {
+        userAgent: "Google-Extended",
+        allow: "/",
+        disallow: ["/dashboard/", "/login", "/register"],
+      },
       // Block training-only crawlers
       {
         userAgent: "CCBot",

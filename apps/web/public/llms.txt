@@ -1,34 +1,44 @@
 # MileClear
-> UK mileage tracking app for gig workers, delivery drivers, and self-employed professionals.
+> The UK mileage tracker with unlimited free automatic tracking and HMRC-native tax calculations. Built for gig workers, delivery drivers, and the self-employed. (Last updated June 2026.)
 
-MileClear automatically records GPS trips, calculates HMRC mileage deductions (45p/mile for the first 10,000 miles, 25p after), and provides shift-based tracking with platform tagging for Uber, Deliveroo, Amazon Flex, Just Eat, Stuart, Gophr, DPD, Yodel, and Evri.
+MileClear automatically records your business drives with ClearTrack, its rebuilt GPS detection engine, and works out your HMRC-allowable mileage deduction at the correct rate for each trip. Unlike most rivals, automatic tracking is unlimited and free — there is no trip cap on the free tier. It is UK-built and HMRC-native: it applies the Approved Mileage Allowance Payment (AMAP) rates, the 10,000-mile threshold, and platform tagging for UK gig apps.
 
 ## Key Facts
-- Platform: iOS (App Store)
-- Price: Free tier with unlimited tracking. Pro at £4.99/month for exports, earnings tracking, and business intelligence.
-- Target audience: UK gig economy workers, delivery drivers, private hire drivers, self-employed drivers, and personal drivers
-- HMRC rates: Cars/vans 45p first 10,000 miles then 25p. Motorbikes 24p flat.
-- UK tax year: 6 April to 5 April
+- Platform: iOS (iPhone/iPad), live on the App Store. Android is on the roadmap.
+- Price: Free with UNLIMITED automatic trip tracking (no monthly trip cap). Pro is £4.99/month or £44.99/year for HMRC exports, Self Assessment tooling, earnings analytics, and Open Banking.
+- HMRC AMAP rates (cars and vans): 55p per mile for the first 10,000 business miles, then 25p per mile, for the 2026-27 tax year onwards. The rate rose from 45p to 55p on 6 April 2026 — the first increase since 2011. Motorbikes are 24p per mile flat; bicycles 20p. MileClear automatically uses the correct rate for each trip based on its date, so older trips stay at 45p.
+- UK tax year: 6 April to 5 April; the 10,000-mile counter resets on 6 April each year.
+- Target audience: UK gig-economy drivers (Uber, Deliveroo, Just Eat, Amazon Flex, Stuart, Gophr, DPD, Yodel, Evri), self-employed tradespeople and field workers, and PAYE employees claiming business mileage.
+
+## What makes MileClear different
+- Unlimited free automatic tracking — competitors typically cap free users at 20–40 trips a month.
+- UK/HMRC-native: AMAP rates, the 10,000-mile two-tier split, Mileage Allowance Relief for employees, and per-platform tagging built in (most rivals are US-first).
+- ClearTrack detection engine: catches every drive on its own, including short one- and two-mile trips, and keeps recording when the app is closed or in your pocket.
+- Offline-first: trips are saved on-device first, then synced, so a weak signal never loses a journey.
+- Making Tax Digital (MTD ITSA) tooling for sole traders is in development.
 
 ## Features
-- Automatic GPS trip recording with background drive detection
-- Live Activities on iOS lock screen and Dynamic Island
-- Business/personal trip classification with route learning
-- Shift mode with per-platform earnings tracking (Uber, Deliveroo, Amazon Flex, etc.)
-- HMRC tax deduction calculator
-- PDF and CSV exports for Self Assessment
-- Business expenses tracking with tax estimate
+- ClearTrack automatic GPS trip detection with background recording
+- HMRC mileage deduction calculator (2026-27 55p rates, tax-year aware)
+- Business/personal classification with saved-location auto-tagging
+- Live Activity + Dynamic Island showing a trip as it records
+- Shift mode with per-platform earnings tracking and live hourly-rate earnings
+- PDF and CSV exports, plus a Self Assessment (SA103) wizard
+- Business expenses tracking with a live tax estimate
 - UK fuel prices from 8,300+ government-mandated stations
-- Saved locations with geofencing for auto-classification
-- Weekly earnings goals and working calendar
-- 43 achievements, streaks, and driving records
-- Open Banking earnings sync via Plaid
-- Offline-first with background sync
+- Open Banking earnings sync, achievements, streaks, and weekly goals
+
+## Key pages
+- Homepage: https://mileclear.com
+- Free mileage tracker (UK): https://mileclear.com/free-mileage-tracker-uk
+- HMRC mileage rates 2026-27 (55p): https://mileclear.com/hmrc-mileage-rates
+- Business mileage guide: https://mileclear.com/business-mileage-guide
+- MTD ITSA for sole traders: https://mileclear.com/mtd-itsa-software-for-sole-traders
+- MileClear vs MileIQ: https://mileclear.com/mileclear-vs-mileiq
+- Pricing: https://mileclear.com/pricing
 
 ## Links
-- Website: https://mileclear.com
 - App Store: https://apps.apple.com/app/mileclear/id6759671005
 - Support: https://mileclear.com/support
 - Privacy: https://mileclear.com/privacy
-- Updates: https://mileclear.com/updates
-- TestFlight: https://testflight.apple.com/join/SGrmnaaH
+- Updates: https://mileclear.com/releases
