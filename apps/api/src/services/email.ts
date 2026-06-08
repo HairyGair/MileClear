@@ -702,7 +702,7 @@ function renderUpdateEmailHtml(args: {
         <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin: 0 0 26px;">${bulletRows}
         </table>
 ${apologyHtml}
-${ctaButton("See what's new", blogUrl)}
+${ctaButton(release.ctaLabel ?? "See what's new", release.ctaUrl ?? blogUrl)}
 
         <p style="color: #8a94a6; font-size: 13px; line-height: 1.6; margin: 22px 0 24px; text-align: center;">Or read the full release notes: <a href="${blogUrl}" style="color: #f5a623; text-decoration: none; font-weight: 600;">What's new in ${escapeHtml(release.version)}</a></p>
 
