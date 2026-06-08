@@ -882,23 +882,34 @@ export async function adminRoutes(app: FastifyInstance) {
       });
     }
 
-    const users = await prisma.user.findMany({
-      select: { id: true, email: true, displayName: true },
-    });
+    // Only enumerate users who haven't opted out of marketing email — these
+    // are the actual recipients. sendUpdateEmail also gates on the same flag
+    // (belt-and-braces), but filtering here makes the dry-run count honest:
+    // it previously reported the TOTAL user count, which looked like everyone
+    // (incl. unsubscribers) would be emailed. They won't.
+    const [users, totalUsers] = await Promise.all([
+      prisma.user.findMany({
+        where: { marketingEmailsEnabled: { not: false } },
+        select: { id: true, email: true, displayName: true },
+      }),
+      prisma.user.count(),
+    ]);
+    const optedOut = totalUsers - users.length;
 
     let sent = 0;
     const errors: string[] = [];
 
     if (isDryRun) {
-      // Dry run: don't enumerate users, return the resolved content.
-      // The admin UI shows this so the operator can verify subject and
-      // a snippet of the body before hitting the real Send.
+      // Dry run: don't enumerate users, return the resolved content + the
+      // honest deliverable count so the operator can verify before sending.
       return reply.send({
         data: {
           sent: users.length,
+          willReceive: users.length,
+          optedOut,
+          totalUsers,
           errors: 0,
           dryRun: true,
-          totalUsers: users.length,
           preview: {
             subject: preview.subject,
             // First 600 chars of the rendered HTML — enough to see
@@ -928,10 +939,12 @@ export async function adminRoutes(app: FastifyInstance) {
     return reply.send({
       data: {
         sent,
+        willReceive: users.length,
+        optedOut,
+        totalUsers,
         errors: errors.length,
         errorDetails: errors.slice(0, 10),
         dryRun: isDryRun,
-        totalUsers: users.length,
       },
     });
   });
