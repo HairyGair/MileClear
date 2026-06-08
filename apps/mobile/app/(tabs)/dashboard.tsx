@@ -27,7 +27,7 @@ import {
   fetchActiveShift,
   ShiftWithVehicle,
 } from "../../lib/api/shifts";
-import { syncStartShift, syncEndShift } from "../../lib/sync/actions";
+import { syncStartShift, syncEndShift, syncCreateEarning } from "../../lib/sync/actions";
 import { getDatabase } from "../../lib/db/index";
 import {
   fetchGamificationStats,
@@ -140,6 +140,10 @@ export default function DashboardScreen() {
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [selectedVehicleId, setSelectedVehicleId] = useState<string | undefined>();
   const [elapsed, setElapsed] = useState(0);
+  // Live shift earnings (Laura's idea): an optional hourly rate, remembered in
+  // tracking_state, drives a live "£ earned" ticker on the active-shift card and
+  // an offer to log it as earnings (-> invoice tracker) when the shift ends.
+  const [hourlyRatePence, setHourlyRatePence] = useState<number | null>(null);
   const [liveDistance, setLiveDistance] = useState(0);
   const [loading, setLoading] = useState(true);
   const [starting, setStarting] = useState(false);
@@ -795,6 +799,54 @@ export default function DashboardScreen() {
 
   const selectedVehicle = vehicles.find((v) => v.id === selectedVehicleId);
 
+  // Load the remembered hourly rate once on mount.
+  useEffect(() => {
+    (async () => {
+      try {
+        const db = await getDatabase();
+        const row = await db.getFirstAsync<{ value: string }>(
+          "SELECT value FROM tracking_state WHERE key = 'shift_hourly_rate_pence'"
+        );
+        if (row?.value) setHourlyRatePence(Number(row.value) || null);
+      } catch {
+        // tracking_state not ready — rate just stays unset
+      }
+    })();
+  }, []);
+
+  // Set / change the hourly rate for live shift earnings. Persisted so the next
+  // shift remembers it. Alert.prompt is iOS-only; the feature is iOS-first.
+  const promptHourlyRate = useCallback(() => {
+    Alert.prompt(
+      "Hourly rate",
+      "What are you paid per hour? Your earnings will tick up live as you work.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Save",
+          onPress: async (val?: string) => {
+            const pounds = parseFloat((val ?? "").replace(/[^0-9.]/g, ""));
+            if (!isFinite(pounds) || pounds <= 0) return;
+            const pence = Math.round(pounds * 100);
+            setHourlyRatePence(pence);
+            try {
+              const db = await getDatabase();
+              await db.runAsync(
+                "INSERT OR REPLACE INTO tracking_state (key, value) VALUES ('shift_hourly_rate_pence', ?)",
+                [String(pence)]
+              );
+            } catch {
+              // best-effort persistence; the in-memory rate still drives the ticker
+            }
+          },
+        },
+      ],
+      "plain-text",
+      hourlyRatePence != null ? (hourlyRatePence / 100).toFixed(2) : "",
+      "decimal-pad"
+    );
+  }, [hourlyRatePence]);
+
   const handleStartShift = useCallback(async () => {
     setStarting(true);
     try {
@@ -862,6 +914,39 @@ export default function DashboardScreen() {
                 setTimeout(() => maybeRequestReview("scorecard_shown"), 3000);
               }
             }
+
+            // Live earnings: offer to log what this shift earned at the set rate,
+            // feeding earnings totals + the invoice tracker (Laura's ask). Uses
+            // true accrual (rate x time worked); she can round/edit when invoicing.
+            if (hourlyRatePence != null) {
+              const elapsedSecs = Math.max(
+                0,
+                Math.floor((Date.now() - new Date(activeShift.startedAt).getTime()) / 1000)
+              );
+              const earnedPence = Math.round((hourlyRatePence * elapsedSecs) / 3600);
+              if (earnedPence > 0) {
+                Alert.alert(
+                  "Log shift earnings?",
+                  `You worked ${formatElapsed(elapsedSecs)} at £${(hourlyRatePence / 100).toFixed(2)}/hr — that's ${formatPence(earnedPence)}. Add it to your earnings?`,
+                  [
+                    { text: "Not now", style: "cancel" },
+                    {
+                      text: "Add earning",
+                      onPress: () => {
+                        syncCreateEarning({
+                          platform: "freelance",
+                          amountPence: earnedPence,
+                          periodStart: new Date(activeShift.startedAt).toISOString(),
+                          periodEnd: new Date().toISOString(),
+                        })
+                          .then(() => haptic("success"))
+                          .catch(() => {});
+                      },
+                    },
+                  ]
+                );
+              }
+            }
             loadData();
           } catch (err: any) {
             Alert.alert("Couldn't end the shift", err.message || "Try again in a moment.");
@@ -871,7 +956,7 @@ export default function DashboardScreen() {
         },
       },
     ]);
-  }, [activeShift, loadData]);
+  }, [activeShift, loadData, hourlyRatePence]);
 
   const handleShareRecap = useCallback(async () => {
     if (!recapData) return;
@@ -1140,6 +1225,28 @@ export default function DashboardScreen() {
               {activeShift.vehicle.make} {activeShift.vehicle.model}
             </Text>
           )}
+          <TouchableOpacity
+            onPress={promptHourlyRate}
+            activeOpacity={0.7}
+            style={s.shiftEarnRow}
+            accessibilityRole="button"
+            accessibilityLabel={
+              hourlyRatePence != null ? "Change hourly rate" : "Set hourly rate"
+            }
+          >
+            {hourlyRatePence != null ? (
+              <>
+                <Text style={s.shiftEarnAmount}>
+                  {formatPence(Math.round((hourlyRatePence * elapsed) / 3600))}
+                </Text>
+                <Text style={s.shiftEarnRate}>
+                  earned &middot; £{(hourlyRatePence / 100).toFixed(2)}/hr &middot; tap to change
+                </Text>
+              </>
+            ) : (
+              <Text style={s.shiftEarnSet}>+ Set your hourly rate to track earnings live</Text>
+            )}
+          </TouchableOpacity>
         </View>
 
         <LiveMapTracker
@@ -2418,6 +2525,27 @@ const s = StyleSheet.create({
     fontFamily: fonts.regular,
     color: TEXT_2,
     marginTop: 8,
+  },
+  shiftEarnRow: {
+    marginTop: 16,
+    alignItems: "center",
+  },
+  shiftEarnAmount: {
+    fontSize: 30,
+    fontFamily: fonts.semibold,
+    color: "#34d399",
+    fontVariant: ["tabular-nums"],
+  },
+  shiftEarnRate: {
+    fontSize: 12,
+    fontFamily: fonts.regular,
+    color: TEXT_2,
+    marginTop: 3,
+  },
+  shiftEarnSet: {
+    fontSize: 14,
+    fontFamily: fonts.medium,
+    color: "#f5a623",
   },
 
   // Modal
