@@ -41,6 +41,12 @@ type BgGeo = {
   stop: () => Promise<unknown>;
   onLocation: (cb: (loc: NativeLocation) => void, err?: (e: unknown) => void) => void;
   onMotionChange: (cb: (e: NativeMotionEvent) => void) => void;
+  // Fires every heartbeatInterval seconds while the app is kept alive
+  // (preventSuspend). Our backstop for finalizing a parked trip when iOS would
+  // otherwise have delayed the stationary onMotionChange.
+  onHeartbeat: (cb: (e: { location?: NativeLocation }) => void) => void;
+  // Runtime config merge — used to toggle preventSuspend on only while recording.
+  setConfig: (config: Record<string, unknown>) => Promise<unknown>;
   removeAllListeners: () => Promise<unknown>;
   // Native location store (survives JS-runtime suspension). getLocations()
   // returns every fix RNBG persisted natively; destroyLocations() clears them.
@@ -71,6 +77,13 @@ interface NativeMotionEvent {
 // ~2min — and loses the start of short 1-2 mile trips).
 const FORCE_START_SPEED_MS = 12 * 0.44704; // ~12 mph — clearly automotive, above run pace
 const FORCE_START_ACCURACY_M = 30; // require a tight fix to avoid GPS-spike false starts
+
+// onHeartbeat backstop: if a recording is open but no native fix has arrived for
+// this long, the device is parked and the stationary onMotionChange didn't fire
+// — finalize anyway. Generous (beyond stopTimeout: 5) so a long traffic light /
+// drive-through doesn't split a trip; the trip-merge logic re-joins anything
+// that resumes quickly regardless.
+const HEARTBEAT_FINALIZE_STALE_MS = 7 * 60 * 1000;
 
 let bgGeo: BgGeo | null = null;
 let loadAttempted = false;
@@ -103,6 +116,16 @@ function buildConfig(BGGeo: BgGeo): Record<string, unknown> {
     // motion coprocessor, which is what makes wake reliable.
     stopTimeout: 5, // minutes of stillness before it declares the trip stopped
     stationaryRadius: 25,
+    // Heartbeat: fires every 60s, but ONLY while the app is kept alive
+    // (preventSuspend). We turn preventSuspend on for the duration of a
+    // recording (see openNativeRecording) so the app survives the ~5min
+    // stopTimeout window — otherwise iOS suspends RNBG seconds after the last
+    // fix, the stationary onMotionChange can't fire until the next wake
+    // (~1h background-fetch), and the trip "self-confirms an hour later"
+    // (Anthony, 6 Jun). preventSuspend defaults off here and is toggled per
+    // recording so the battery cost is bounded to active drives.
+    heartbeatInterval: 60,
+    preventSuspend: false,
     // Lifecycle — the whole point: survive background + termination.
     stopOnTerminate: false,
     startOnBoot: true,
@@ -168,6 +191,14 @@ export async function startNativeLocationEngine(): Promise<boolean> {
       // active; stationary → finalize the trip through the existing pipeline.
       BGGeo.onMotionChange((event: NativeMotionEvent) => {
         void handleNativeMotionChange(event);
+      });
+
+      // onHeartbeat: backstop for finalizing a parked trip. While recording,
+      // preventSuspend keeps the app alive and this fires every 60s; if fixes
+      // have gone stale (device parked) but the stationary onMotionChange hasn't
+      // fired, finalize here so the trip confirms within minutes, not ~1h.
+      BGGeo.onHeartbeat(() => {
+        void handleNativeHeartbeat();
       });
 
       await BGGeo.ready(buildConfig(BGGeo));
@@ -342,6 +373,11 @@ async function openNativeRecording(
   await db.runAsync(
     "INSERT OR REPLACE INTO tracking_state (key, value) VALUES ('auto_recording_active', '1')"
   );
+  // Keep the app alive for the duration of the drive so the ~5min stop window
+  // survives iOS suspension and the stationary onMotionChange (+ heartbeat
+  // backstop) fire promptly. Released after finalize. Bounds the battery cost
+  // of preventSuspend to active recordings only.
+  await setNativePreventSuspend(true);
   // Recover the lost start: plant the parked departure anchor as the first
   // coord (earlier timestamp) before the seed, so short trips read from where
   // the user actually set off.
@@ -447,10 +483,77 @@ async function handleNativeMotionChange(event: NativeMotionEvent): Promise<void>
         try {
           await BGGeo?.destroyLocations();
         } catch {}
+        // Drive over — release the wake lock until the next recording opens.
+        await setNativePreventSuspend(false);
       }
     }
   } catch (err) {
     logDetectionEvent("native_motionchange_error", {
+      error: err instanceof Error ? err.message.slice(0, 120) : String(err),
+    }).catch(() => {});
+  }
+}
+
+/**
+ * Toggle RNBG's preventSuspend at runtime. On = the app is kept alive (so the
+ * stop window survives and heartbeats fire); off = iOS may suspend as normal.
+ * We hold it on only for the duration of a recording. Best-effort + guarded for
+ * Expo Go / older module versions without setConfig.
+ */
+async function setNativePreventSuspend(on: boolean): Promise<void> {
+  const BGGeo = loadNativeModule();
+  if (!BGGeo?.setConfig) return;
+  try {
+    await BGGeo.setConfig({ preventSuspend: on });
+  } catch {
+    // best effort — a failed toggle just falls back to default suspension
+  }
+}
+
+/**
+ * Heartbeat backstop (fires ~every 60s while recording, because preventSuspend
+ * keeps the app alive). If a recording is open but no native fix has landed for
+ * HEARTBEAT_FINALIZE_STALE_MS, the device is parked and the stationary
+ * onMotionChange hasn't fired — so finalize through the same pipeline. This is
+ * what turns the old ~1h "self-confirm" into a ~5-7min one.
+ */
+async function handleNativeHeartbeat(): Promise<void> {
+  try {
+    if (!(await isDriveDetectionEnabled())) return;
+    const db = await getDatabase();
+    const activeShift = await db.getFirstAsync<{ value: string }>(
+      "SELECT value FROM tracking_state WHERE key = 'active_shift_id'"
+    );
+    if (activeShift) return; // shift mode owns GPS
+    const recording = await db.getFirstAsync<{ value: string }>(
+      "SELECT value FROM tracking_state WHERE key = 'auto_recording_active'"
+    );
+    if (recording?.value !== "1") {
+      // A heartbeat with no active recording means preventSuspend was left on
+      // (e.g. the app was force-quit mid-drive and finalized via another path).
+      // Release the wake lock so the app suspends normally — self-healing.
+      await setNativePreventSuspend(false);
+      return;
+    }
+
+    const lastLoc = await db.getFirstAsync<{ value: string }>(
+      "SELECT value FROM tracking_state WHERE key = 'last_native_location_at'"
+    );
+    const lastMs = lastLoc ? Number(lastLoc.value) : 0;
+    if (!lastMs) return;
+    const idleMs = Date.now() - lastMs;
+    if (idleMs <= HEARTBEAT_FINALIZE_STALE_MS) return; // still moving / recently moved
+
+    const BGGeo = loadNativeModule();
+    if (BGGeo) await reconcileNativeBuffer(BGGeo);
+    logDetectionEvent("native_heartbeat_finalize", { idleMs }).catch(() => {});
+    await finalizeAutoTrip();
+    try {
+      await BGGeo?.destroyLocations();
+    } catch {}
+    await setNativePreventSuspend(false);
+  } catch (err) {
+    logDetectionEvent("native_heartbeat_error", {
       error: err instanceof Error ? err.message.slice(0, 120) : String(err),
     }).catch(() => {});
   }
