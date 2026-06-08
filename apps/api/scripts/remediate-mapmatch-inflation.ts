@@ -33,17 +33,20 @@ const prisma = new PrismaClient();
 
 async function main() {
   // Every map-match recalc whose ratio the new gate would reject, newest first.
+  // CAST the JSON values to DECIMAL: comparing a raw JSON_EXTRACT result against
+  // a bound parameter (?) doesn't coerce types like a literal does, so the
+  // ratio filter silently matched nothing without these casts.
   const rows = await prisma.$queryRaw<
-    Array<{ tripId: string | null; oldMiles: number | null; newMiles: number | null; ratio: number | null }>
+    Array<{ tripId: string | null; oldMiles: string | null; newMiles: string | null; ratio: string | null }>
   >`
-    SELECT JSON_UNQUOTE(JSON_EXTRACT(metadata, '$.tripId'))  AS tripId,
-           JSON_EXTRACT(metadata, '$.oldMiles')             AS oldMiles,
-           JSON_EXTRACT(metadata, '$.newMiles')             AS newMiles,
-           JSON_EXTRACT(metadata, '$.ratio')                AS ratio
+    SELECT JSON_UNQUOTE(JSON_EXTRACT(metadata, '$.tripId'))            AS tripId,
+           CAST(JSON_EXTRACT(metadata, '$.oldMiles') AS DECIMAL(12,4)) AS oldMiles,
+           CAST(JSON_EXTRACT(metadata, '$.newMiles') AS DECIMAL(12,4)) AS newMiles,
+           CAST(JSON_EXTRACT(metadata, '$.ratio')    AS DECIMAL(12,4)) AS ratio
     FROM app_events
     WHERE type = 'trip.distance_recalculated'
       AND JSON_UNQUOTE(JSON_EXTRACT(metadata, '$.source')) = 'map_match'
-      AND JSON_EXTRACT(metadata, '$.ratio') > ${RATIO_THRESHOLD}
+      AND CAST(JSON_EXTRACT(metadata, '$.ratio') AS DECIMAL(12,4)) > ${RATIO_THRESHOLD}
     ORDER BY createdAt DESC
   `;
 
