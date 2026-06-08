@@ -908,14 +908,31 @@ async function runNativeEngineHealthJob(): Promise<void> {
   for (const d of dumps) if (!latest.has(d.userId)) latest.set(d.userId, d);
 
   let nativeTotal = 0;
+  let permissionGated = 0;
   const unhealthy: { email: string; userId: string }[] = [];
   for (const d of latest.values()) {
     const status = (d.statusJson ?? {}) as Record<string, unknown>;
     if (status.nativeEngineEnabled !== true) continue; // native-engine devices only
     nativeTotal++;
     if (d.verdict === "error") {
-      unhealthy.push({ email: d.user.email ?? d.userId, userId: d.userId });
+      // Only a genuine engine error (the rollback signal) when background
+      // permission is GRANTED. An "error" verdict with undetermined/denied
+      // background permission means the user hasn't granted Always-location, so
+      // the engine simply can't run in the background — a permissions problem,
+      // not a ClearTrack bug. Counting those as engine errors would flood the
+      // rollback signal with the foreground-only cohort (handled by the welcome
+      // nudge + dashboard banner, not by rolling the engine back).
+      if (status.backgroundPermission === "granted") {
+        unhealthy.push({ email: d.user.email ?? d.userId, userId: d.userId });
+      } else {
+        permissionGated++;
+      }
     }
+  }
+  if (permissionGated > 0) {
+    console.log(
+      `[native-health] ${permissionGated} native device(s) errored on missing background permission — excluded from the rollback signal`
+    );
   }
 
   if (unhealthy.length === 0) {
