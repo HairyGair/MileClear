@@ -686,13 +686,22 @@ function renderUpdateEmailHtml(args: {
     )
     .join("");
 
+  const apologyHtml = release.emailApology
+    ? `
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin: 0 0 26px;">
+          <tr><td style="background-color: rgba(245,166,35,0.08); border: 1px solid rgba(245,166,35,0.18); border-radius: 12px; padding: 18px 20px;">
+            <p style="color: #d4b87a; font-size: 14px; line-height: 1.65; margin: 0;">${escapeHtml(release.emailApology)}</p>
+          </td></tr>
+        </table>`
+    : "";
+
   const bodyHtml = `
         <p style="color: #c0c8d4; font-size: 15px; line-height: 1.7; margin: 0 0 16px;">${greeting}</p>
         <p style="color: #c0c8d4; font-size: 15px; line-height: 1.7; margin: 0 0 24px;">${escapeHtml(tagline)}</p>
 
         <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin: 0 0 26px;">${bulletRows}
         </table>
-
+${apologyHtml}
 ${ctaButton("See what's new", blogUrl)}
 
         <p style="color: #8a94a6; font-size: 13px; line-height: 1.6; margin: 22px 0 24px; text-align: center;">Or read the full release notes: <a href="${blogUrl}" style="color: #f5a623; text-decoration: none; font-weight: 600;">What's new in ${escapeHtml(release.version)}</a></p>

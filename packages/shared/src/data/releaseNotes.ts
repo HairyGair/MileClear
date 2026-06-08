@@ -25,6 +25,9 @@ export interface ReleaseNote {
   emailHero?: string;
   emailTagline?: string;
   emailHighlights?: string[];
+  // Optional apologetic / recovery note rendered as a callout after the
+  // highlights in the Product Update email. Plain text (escaped on render).
+  emailApology?: string;
   // Site-wide announcement banner shown across mileclear.com. When
   // `banner` is present AND the release's label is "Latest", every
   // page renders a thin top bar with the headline + a "What's new"
@@ -96,6 +99,8 @@ export const RELEASE_NOTES: ReleaseNote[] = [
       "**Loads even on a poor connection.** The app no longer gets stuck on the setup screen when your signal is weak or restricted — it times out gracefully, lets you straight in, and syncs the rest in the background.",
       "**Honest about setup.** If location access isn't granted, the app now says so clearly instead of looking ready while silently recording nothing.",
     ],
+    emailApology:
+      "One honest note. Before this update, some of you had drives that didn't record - the exact problem ClearTrack is built to fix. If that happened to you, I'm genuinely sorry. You won't lose those miles: on the Trips screen, tap Add Trip to enter any journey by hand with its date, route and mileage. And if you'd rather I just sort it out for you, reply to this email with the dates and miles and I'll add them to your account myself. I don't want a bug we've now fixed leaving anyone short come tax time.",
     items: [
       "**Meet ClearTrack — trip detection, rebuilt.** ClearTrack is our new detection engine, built to catch every drive on its own, including the short one-and-two-mile trips that are hardest to detect. It runs at your phone's own location level, so it keeps recording when the app is closed, backgrounded, or in your pocket. Alongside it, this release fixes a long list of long-standing causes of missed and mis-recorded trips.",
       "**Captures the start of your drive.** Auto-detection used to occasionally trim the slow residential leg at the start of a journey, so a trip would appear to begin part-way along. It now keeps the full continuous track from where you set off.",
