@@ -52,10 +52,21 @@ const MIN_POINTS = 10;
 /** Lower / upper bounds on `matched / stored` ratio for trusting the match.
  *  Outside this window the match almost certainly went wrong (GH chose a
  *  shortcut through a junction loop, or breadcrumbs had a mid-trip gap that
- *  threw the matcher). Caller skips persisting the polyline rather than
- *  showing a route that doesn't represent the actual trip. */
+ *  threw the matcher). Caller skips persisting the polyline + distance rather
+ *  than showing a route that doesn't represent the actual trip.
+ *
+ *  The stored distance is already road-corrected (bestTraceDistance =
+ *  max(haversine, OSRM route)), so a correct map-match should land within a
+ *  few percent of it — NOT 1.4x larger. The old 3.0 ceiling let gross
+ *  over-counts straight through (8 Jun: a real 79mi York→home drive that
+ *  map-matched to 111mi, ratio 1.4, was accepted and inflated the trip — and
+ *  over-counting mileage is an HMRC problem, not just a cosmetic one). A 1.3
+ *  ceiling still allows a genuine undercount correction (curvy roads, a short
+ *  GPS gap) but rejects the mis-matches; a rejected match falls back to the
+ *  start->end routing distance (recalc paths) or keeps the stored road
+ *  distance (create hook), both of which are reliable. */
 const MATCH_PLAUSIBLE_MIN_RATIO = 0.7;
-const MATCH_PLAUSIBLE_MAX_RATIO = 3.0;
+const MATCH_PLAUSIBLE_MAX_RATIO = 1.3;
 
 /**
  * Decide whether a match result looks plausible relative to the stored

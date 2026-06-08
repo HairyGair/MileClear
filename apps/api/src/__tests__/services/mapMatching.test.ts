@@ -41,8 +41,8 @@ describe("isMatchPlausible", () => {
     expect(isMatchPlausible(10, 10)).toBe(true);
   });
 
-  it("trusts a 30% uplift (typical road-vs-haversine ratio)", () => {
-    expect(isMatchPlausible(13, 10)).toBe(true);
+  it("trusts a modest uplift (road-vs-haversine correction)", () => {
+    expect(isMatchPlausible(11.5, 10)).toBe(true); // 1.15x — within bounds
   });
 
   it("rejects a match that's <70% of the stored distance", () => {
@@ -51,16 +51,21 @@ describe("isMatchPlausible", () => {
     expect(isMatchPlausible(6.9, 10)).toBe(false);
   });
 
-  it("rejects a match that's >300% of the stored distance", () => {
-    // Detour-pattern failure — engine took a wildly long route
-    expect(isMatchPlausible(31, 10)).toBe(false);
+  it("rejects an inflated match (the 1.4x York over-count)", () => {
+    // The stored distance is already road-corrected, so a match >1.3x almost
+    // always means the matcher mis-snapped. 8 Jun: a real 79mi drive matched to
+    // 111mi (ratio 1.4) and inflated the trip until this gate tightened.
+    expect(isMatchPlausible(14, 10)).toBe(false); // 1.4x — the real bug
+    expect(isMatchPlausible(31, 10)).toBe(false); // grossly long
   });
 
   it("trusts the boundary values exactly", () => {
     // ratio = 0.7 — at the lower edge, still trusted
     expect(isMatchPlausible(7, 10)).toBe(true);
-    // ratio = 3.0 — at the upper edge, still trusted
-    expect(isMatchPlausible(30, 10)).toBe(true);
+    // ratio = 1.3 — at the upper edge, still trusted
+    expect(isMatchPlausible(13, 10)).toBe(true);
+    // just over 1.3 — rejected
+    expect(isMatchPlausible(13.1, 10)).toBe(false);
   });
 
   it("returns true when stored distance is zero (can't sanity-check)", () => {
