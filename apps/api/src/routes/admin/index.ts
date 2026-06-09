@@ -1456,9 +1456,22 @@ export async function adminRoutes(app: FastifyInstance) {
       select: {
         capturedAt: true,
         statusJson: true,
+        appVersion: true,
+        buildNumber: true,
         user: { select: { email: true, displayName: true } },
       },
     });
+
+    // Version reconciliation: appVersion/buildNumber come from the OTA-replaced
+    // app.json, so they LIE about the native binary after an OTA (a 1.3.0/build74
+    // device that pulled the 1.3.1 OTA reports "1.3.1/75"). statusJson.updates
+    // .runtimeVersion is the true binary identity. Group by the real runtime and
+    // show which OTA labels are layered on it — this is the "tie them together"
+    // view that resolves the "why are users on 1.3.1?" confusion.
+    const runtimeMap = new Map<
+      string,
+      { devices: number; embedded: number; otaLabels: Map<string, number> }
+    >();
 
     let nativeOn = 0;
     let jsEngine = 0;
@@ -1476,7 +1489,29 @@ export async function adminRoutes(app: FastifyInstance) {
       const s = (d.statusJson ?? {}) as {
         nativeEngineEnabled?: boolean;
         lastNativeLocationAt?: string | null;
+        updates?: {
+          isEnabled?: boolean;
+          runtimeVersion?: string | null;
+          isEmbeddedLaunch?: boolean | null;
+        };
       };
+
+      // ── Version reconciliation ──
+      // Real binary = runtimeVersion; fall back to "build<N>" for old dumps
+      // (pre-9-Jun-2026) that don't carry updates yet.
+      const runtime =
+        s.updates?.runtimeVersion ??
+        (d.buildNumber ? `build${d.buildNumber} (pre-update-aware)` : "unknown");
+      const otaLabel = `${d.appVersion ?? "?"} / ${d.buildNumber ?? "?"}`;
+      let rt = runtimeMap.get(runtime);
+      if (!rt) {
+        rt = { devices: 0, embedded: 0, otaLabels: new Map() };
+        runtimeMap.set(runtime, rt);
+      }
+      rt.devices++;
+      if (s.updates?.isEmbeddedLaunch === true) rt.embedded++;
+      rt.otaLabels.set(otaLabel, (rt.otaLabels.get(otaLabel) ?? 0) + 1);
+
       if (s.nativeEngineEnabled === true) {
         nativeOn++;
         const last = s.lastNativeLocationAt
@@ -1576,6 +1611,20 @@ export async function adminRoutes(app: FastifyInstance) {
           nativeNever,
           dumpsTotal: dumps.length,
         },
+        // True native binary (runtimeVersion) tied to the OTA labels running on
+        // it. e.g. { runtime: "1.3.0-build74", devices: 11, otaLabels: [
+        // { label: "1.3.1 / 75", count: 11 } ] } means 11 devices on the 1.3.0
+        // binary are all running the 1.3.1-labelled OTA — no real 1.3.1 binary.
+        versionReconciliation: Array.from(runtimeMap.entries())
+          .map(([runtime, v]) => ({
+            runtime,
+            devices: v.devices,
+            embedded: v.embedded,
+            otaLabels: Array.from(v.otaLabels.entries())
+              .map(([label, count]) => ({ label, count }))
+              .sort((a, b) => b.count - a.count),
+          }))
+          .sort((a, b) => b.devices - a.devices),
         nativeNeedsAttention,
         quietDrivers: quietRows.map((r) => ({
           email: r.email,

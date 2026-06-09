@@ -4,6 +4,7 @@
 
 import { Platform } from "react-native";
 import Constants from "expo-constants";
+import * as Updates from "expo-updates";
 import { apiRequest } from "./index";
 import {
   getDriveDetectionDiagnostics,
@@ -18,6 +19,38 @@ const BUILD_NUMBER =
   Constants.expoConfig?.ios?.buildNumber ??
   (Constants as unknown as { nativeBuildVersion?: string }).nativeBuildVersion ??
   "?";
+
+/**
+ * The OTA-vs-native version trap. `APP_VERSION` / `BUILD_NUMBER` above come
+ * from `Constants.expoConfig` — i.e. the app.json baked into the JS bundle,
+ * which an OTA update REPLACES. So a device on the native 1.3.0 (build 74)
+ * binary that pulled an OTA whose app.json said 1.3.1/75 will report
+ * "1.3.1 / 75" here, even though no 1.3.1 binary exists (this caused real
+ * confusion 9 Jun 2026: "why are users on 1.3.1 when I haven't built it?").
+ *
+ * `Updates.runtimeVersion` is embedded in the NATIVE binary and an OTA can
+ * only launch if its runtime matches — so it's the true native-build identity
+ * regardless of which OTA is layered on top. We capture it (plus which update
+ * is actually running) so admin can reconcile the OTA label against the real
+ * binary. expo-updates is disabled in Expo Go / dev, so guard everything.
+ */
+function getUpdatesInfo(): Record<string, unknown> {
+  try {
+    if (!Updates.isEnabled) return { isEnabled: false };
+    return {
+      isEnabled: true,
+      // The real native binary identity (e.g. "1.3.0-build74").
+      runtimeVersion: Updates.runtimeVersion ?? null,
+      channel: Updates.channel ?? null,
+      // null on an embedded launch (no OTA pulled yet).
+      updateId: Updates.updateId ?? null,
+      isEmbeddedLaunch: Updates.isEmbeddedLaunch ?? null,
+      createdAt: Updates.createdAt ? Updates.createdAt.toISOString() : null,
+    };
+  } catch {
+    return { isEnabled: false };
+  }
+}
 
 // Tracking state keys that contain raw GPS coordinates or sensitive
 // device identifiers. Stripped before upload for GDPR compliance.
@@ -186,6 +219,10 @@ export async function uploadDiagnosticDump(): Promise<void> {
           nativeEngineEnabled: diagnostics.nativeEngineEnabled,
           lastNativeLocationAt: diagnostics.lastNativeLocationAt,
           motionPermission: diagnostics.motionPermission,
+          // True native-binary identity + which OTA is running on top of it,
+          // so the reported appVersion/buildNumber (OTA label) can be
+          // reconciled against the real binary. See getUpdatesInfo().
+          updates: getUpdatesInfo(),
           trackingState: safeTrackingState,
           // ── Wave 1 context additions (14 May 2026) ────────────
           recentTrips,

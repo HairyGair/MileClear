@@ -216,11 +216,35 @@ export async function runRecordingWatchdogJob(): Promise<void> {
       AND pushToken IS NOT NULL
   `;
 
+  // Native-engine awareness. The native ClearTrack engine (build 73+) updates
+  // lastNativeLocationAt — NOT lastDrivingSpeedAt — so a native device that's
+  // genuinely mid-drive (or recently parked) looks "stuck" to the
+  // lastDrivingSpeedAt check above. And build 75 finalizes its own stale
+  // recordings on-device via the heartbeat, so a finalize_check silent push is
+  // redundant; sending it just burns the iOS push budget and manufactures
+  // gave_up/founder noise about users who are actually fine. So for native
+  // users we skip the push and let the reaper clear any genuinely-dead flag.
+  // Native-ness is read from each user's latest dump (1:1 per user) — a stable
+  // binary property, so launch-time freshness is sufficient.
+  const nativeUserIds = new Set<string>();
+  if (stuck.length > 0) {
+    const dumps = await prisma.diagnosticDump.findMany({
+      where: { userId: { in: stuck.map((u) => u.id) } },
+      select: { userId: true, statusJson: true },
+    });
+    for (const d of dumps) {
+      const s = (d.statusJson ?? {}) as { nativeEngineEnabled?: boolean };
+      if (s.nativeEngineEnabled === true) nativeUserIds.add(d.userId);
+    }
+  }
+
   let stuckPinged = 0;
   let stuckCooldown = 0;
   let stuckGaveUp = 0;
   let stuckReaped = 0;
+  let stuckNativeSkipped = 0;
   const reapedUserIds = new Set<string>();
+  const nativeSkippedUserIds = new Set<string>();
   for (const user of stuck) {
     const stuckMs =
       user.lastDrivingSpeedAt != null
@@ -244,6 +268,15 @@ export async function runRecordingWatchdogJob(): Promise<void> {
       });
       stuckReaped++;
       reapedUserIds.add(user.id);
+      continue;
+    }
+
+    // Native engine self-finalizes (build 75 heartbeat) — skip the redundant
+    // push. The flag will either clear on the device's next heartbeat or, if
+    // truly dead, be reaped above once it crosses REAP_THRESHOLD_MS.
+    if (nativeUserIds.has(user.id)) {
+      stuckNativeSkipped++;
+      nativeSkippedUserIds.add(user.id);
       continue;
     }
 
@@ -321,7 +354,7 @@ export async function runRecordingWatchdogJob(): Promise<void> {
     syncGaveUp > 0
   ) {
     console.log(
-      `[watchdog] stuck=${stuck.length} (pinged ${stuckPinged}, cooldown ${stuckCooldown}, gave_up ${stuckGaveUp}, reaped ${stuckReaped}); ` +
+      `[watchdog] stuck=${stuck.length} (pinged ${stuckPinged}, cooldown ${stuckCooldown}, gave_up ${stuckGaveUp}, reaped ${stuckReaped}, nativeSkipped ${stuckNativeSkipped}); ` +
         `pendingSync=${pendingSync.length} (pinged ${syncPinged}, cooldown ${syncCooldown}, gave_up ${syncGaveUp})`
     );
   }
@@ -358,7 +391,9 @@ export async function runRecordingWatchdogJob(): Promise<void> {
   // alert signature alive (otherwise a reaped-every-cycle orphan would look like
   // an unchanged stuck set forever).
   const stuckUserIds = [
-    ...stuck.map((u) => u.id).filter((id) => !reapedUserIds.has(id)),
+    ...stuck
+      .map((u) => u.id)
+      .filter((id) => !reapedUserIds.has(id) && !nativeSkippedUserIds.has(id)),
     ...pendingSync.map((u) => u.id),
   ].sort();
   if (stuckUserIds.length === 0) {
