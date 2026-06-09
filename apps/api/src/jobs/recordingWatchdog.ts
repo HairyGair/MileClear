@@ -116,6 +116,15 @@ let lastAlertSignature = "";
 let lastAlertAt = 0;
 const ALERT_REPOST_MS = 6 * 60 * 60 * 1000; // re-surface an unchanged condition at most every 6h
 
+// Separate dedup for gave_up-only alerts. A user over the 4-attempts cap has
+// structurally broken push delivery (uninstalled, dormant, perm-failed item) —
+// re-posting the SAME unreachable cluster every repost window is pure noise
+// (Anthony 9 Jun: "3 user(s) over retry cap" about the same dormant 3). When the
+// only reason to alert is gave_up, post ONLY when the gave_up user SET changes —
+// so a genuinely new casualty still surfaces, but a persistent cluster goes
+// quiet. Reset when nobody is over the cap, so a fresh occurrence alerts.
+let lastGaveUpAlertSignature = "";
+
 interface StuckUser {
   id: string;
   recordingStartedAt: Date | null;
@@ -245,6 +254,9 @@ export async function runRecordingWatchdogJob(): Promise<void> {
   let stuckNativeSkipped = 0;
   const reapedUserIds = new Set<string>();
   const nativeSkippedUserIds = new Set<string>();
+  // Users over the retry cap this run, across both checks — drives gave_up
+  // alert dedup so a persistent unreachable cluster doesn't re-ping #founder.
+  const gaveUpUserIds = new Set<string>();
   for (const user of stuck) {
     const stuckMs =
       user.lastDrivingSpeedAt != null
@@ -287,7 +299,10 @@ export async function runRecordingWatchdogJob(): Promise<void> {
     });
     if (result === "sent") stuckPinged++;
     else if (result === "cooldown") stuckCooldown++;
-    else if (result === "gave_up") stuckGaveUp++;
+    else if (result === "gave_up") {
+      stuckGaveUp++;
+      gaveUpUserIds.add(user.id);
+    }
   }
 
   // ── Check 2: pending sync queue + suspended JS runtime ────────────
@@ -341,7 +356,10 @@ export async function runRecordingWatchdogJob(): Promise<void> {
     });
     if (result === "sent") syncPinged++;
     else if (result === "cooldown") syncCooldown++;
-    else if (result === "gave_up") syncGaveUp++;
+    else if (result === "gave_up") {
+      syncGaveUp++;
+      gaveUpUserIds.add(user.id);
+    }
   }
 
   if (
@@ -400,10 +418,26 @@ export async function runRecordingWatchdogJob(): Promise<void> {
     lastAlertSignature = "";
   }
   const alertSignature = stuckUserIds.join(",");
+
+  // gave_up-only alerts (no fresh pings, no cooldowns — just users over the
+  // retry cap) post only when the gave_up SET changes. Clears when nobody is
+  // over the cap so a fresh occurrence alerts immediately.
+  const gaveUpSignature = [...gaveUpUserIds].sort().join(",");
+  if (gaveUpUserIds.size === 0) lastGaveUpAlertSignature = "";
+  const gaveUpOnly = gaveUpHits > 0 && actualPings < 3 && cooldownHits === 0;
+  const gaveUpClusterUnchanged =
+    gaveUpOnly && gaveUpSignature === lastGaveUpAlertSignature;
+
   const shouldPost =
     worthAlerting &&
+    !gaveUpClusterUnchanged &&
     (alertSignature !== lastAlertSignature || now - lastAlertAt >= ALERT_REPOST_MS);
-  if (worthAlerting && !shouldPost) {
+  if (gaveUpClusterUnchanged) {
+    console.log(
+      `[watchdog] founder alert suppressed - unchanged gave_up cluster (${gaveUpUserIds.size} user(s) over cap)`
+    );
+  }
+  if (worthAlerting && !shouldPost && !gaveUpClusterUnchanged) {
     console.log(
       `[watchdog] founder alert suppressed - unchanged stuck set (${stuckUserIds.length} user(s))`
     );
@@ -411,6 +445,7 @@ export async function runRecordingWatchdogJob(): Promise<void> {
   if (shouldPost) {
     lastAlertSignature = alertSignature;
     lastAlertAt = now;
+    if (gaveUpHits > 0) lastGaveUpAlertSignature = gaveUpSignature;
     const detailLines: string[] = [];
     if (stuck.length > 0) {
       detailLines.push(
