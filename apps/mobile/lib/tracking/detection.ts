@@ -1,3 +1,4 @@
+import { AppState } from "react-native";
 import * as Location from "expo-location";
 import * as TaskManager from "expo-task-manager";
 import * as BackgroundFetch from "expo-background-fetch";
@@ -2401,6 +2402,55 @@ export async function registerBackgroundFinalize(): Promise<void> {
 }
 
 // ── Public API ───────────────────────────────────────────────────────────
+
+/**
+ * Re-attach the native engine on EVERY JS boot, before auth resolves.
+ *
+ * Why this exists: with stopOnTerminate:false, RNBG relaunches a terminated
+ * app in the BACKGROUND when its stationary region exits — but iOS has no
+ * headless mode, so the relaunch boots the full JS app and RNBG needs
+ * .ready() called again to re-attach our listeners. The normal start path
+ * (startDriveDetection via _layout) is gated on isAuthenticated, and auth
+ * reads tokens from SecureStore — whose keychain items are INACCESSIBLE
+ * while the phone is locked, which is exactly the state during a pocket
+ * drive. Net effect: on devices where iOS terminates the app between uses,
+ * every background relaunch booted JS, auth failed closed, the engine never
+ * re-attached, and every drive was silently missed (Norman Boomer,
+ * 5–10 Jun 2026: six days of commutes lost; capture resumed the moment the
+ * app was alive-backgrounded instead).
+ *
+ * Recording is local-first SQLite and needs no tokens, so this boots the
+ * engine gated only on what's readable while locked: the user completed
+ * onboarding, detection is enabled, the native flag is on, and background
+ * location is granted. Idempotent — the auth-gated startDriveDetection that
+ * runs on foreground is a no-op re-entry afterwards. The fresh-install case
+ * is covered by the onboarding + permission gates (no permission prompt can
+ * fire from here).
+ */
+export async function bootNativeEngineOnLaunch(): Promise<void> {
+  try {
+    const db = await getDatabase();
+    const onboarded = await db.getFirstAsync<{ value: string }>(
+      "SELECT value FROM tracking_state WHERE key = 'onboarding_complete'"
+    );
+    if (onboarded?.value !== "true") return;
+    if (!(await isDriveDetectionEnabled())) return;
+
+    const { isNativeLocationEngineEnabled } = await import("./nativeEngineFlag");
+    const { isNativeEngineAvailable, startNativeLocationEngine } = await import("./nativeLocation");
+    if (!isNativeEngineAvailable() || !(await isNativeLocationEngineEnabled())) return;
+
+    const bg = await Location.getBackgroundPermissionsAsync();
+    if (bg.status !== "granted") return;
+
+    await startNativeLocationEngine();
+    logDetectionEvent("native_engine_boot_on_launch", {
+      appState: AppState.currentState,
+    }).catch(() => {});
+  } catch {
+    // The boot path must never crash or block app startup.
+  }
+}
 
 export async function startDriveDetection(): Promise<void> {
   // Guard: don't start if disabled by user

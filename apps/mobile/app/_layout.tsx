@@ -145,7 +145,7 @@ import {
 } from "../lib/notifications/index";
 import { setupNotificationChannels, scheduleWeeklyMileageSummary, scheduleTaxYearDeadlineReminder, checkUnclassifiedTripsNudge, checkStreakAtRisk, checkLongRunningShift } from "../lib/notifications/scheduler";
 import { registerPushToken } from "../lib/api/notifications";
-import { startDriveDetection, finalizeStaleAutoRecordings, registerBackgroundFinalize } from "../lib/tracking/detection";
+import { startDriveDetection, finalizeStaleAutoRecordings, registerBackgroundFinalize, bootNativeEngineOnLaunch } from "../lib/tracking/detection";
 import { registerGeofences, shadeExpiredUnconfirmedTrips, setDepartureAnchor } from "../lib/geofencing/index";
 import { getDatabase } from "../lib/db/index";
 import { hydrateLocalData, isHydrationComplete, reconcileSavedLocations } from "../lib/sync/hydrate";
@@ -159,6 +159,16 @@ import { QuickStartModal } from "../components/QuickStartModal";
 const HEADER_STYLE = { backgroundColor: "#030712" } as const;
 const HEADER_TINT = "#f0f2f5";
 const HEADER_TITLE_STYLE = { fontFamily: "PlusJakartaSans_300Light", color: "#f0f2f5" };
+
+// Re-attach the native engine the moment the JS bundle boots — deliberately
+// at module scope, BEFORE React mounts or auth resolves. When RNBG relaunches
+// a terminated app in the background (stationary-region exit, phone locked in
+// a pocket), the auth-gated startDriveDetection below never runs because
+// SecureStore/keychain is locked — so without this, the engine stayed deaf and
+// every drive on app-terminating devices was lost (Norman Boomer, 5–10 Jun
+// 2026). Internally gated on onboarding + permissions; never prompts; never
+// throws.
+void bootNativeEngineOnLaunch();
 
 function RootNavigator() {
   const { isLoading, isAuthenticated } = useAuth();
