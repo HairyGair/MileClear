@@ -298,6 +298,35 @@ function setupSilentPushHandler(): void {
       }
       return;
     }
+
+    if (action === "set_native_engine") {
+      // Per-user remote engine switch — the rollback lever for the ClearTrack
+      // rollout. Some devices never get a CoreMotion "moving" signal, so the
+      // native engine silently captures nothing (Norman Boomer, 10 Jun 2026:
+      // every native_motionchange isMoving:false, zero recordings in 6 days of
+      // daily commutes). Flipping such a device back to the JS engine restores
+      // capture without user interaction. Same sequence as the diagnostics
+      // screen's manual toggle.
+      try {
+        const enabled = (data as { enabled?: string } | null)?.enabled === "1";
+        const { setNativeLocationEngineEnabled } = await import("../tracking/nativeEngineFlag");
+        const { stopNativeLocationEngine } = await import("../tracking/nativeLocation");
+        const { stopDriveDetection, restartDriveDetection, logDetectionEvent } = await import(
+          "../tracking/detection"
+        );
+        await setNativeLocationEngineEnabled(enabled);
+        if (enabled) {
+          await stopDriveDetection().catch(() => {});
+        } else {
+          await stopNativeLocationEngine();
+        }
+        await restartDriveDetection();
+        await logDetectionEvent("engine_switched_by_server", { enabled });
+      } catch (err) {
+        console.warn("[notifications] silent set_native_engine failed:", err);
+      }
+      return;
+    }
   });
 }
 

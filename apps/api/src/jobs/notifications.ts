@@ -935,32 +935,105 @@ async function runNativeEngineHealthJob(): Promise<void> {
     );
   }
 
-  if (unhealthy.length === 0) {
+  // ── Silent non-capture check (the Norman Boomer class, 10 Jun 2026) ──────
+  // A device can be lethally broken while self-reporting "healthy": on some
+  // devices RNBG never reports motion (every native_motionchange is
+  // isMoving:false at app open), so the engine starts cleanly and never opens
+  // a single recording — and the on-device verdict only degrades after a
+  // 10-day dry spell. Catch it server-side instead: a previously-active
+  // auto-capturing driver, native engine on, background permission granted,
+  // app demonstrably alive (a dump in the window = an app open) — and ZERO
+  // auto-captured trips recently. That combination isn't "stopped driving";
+  // it's the engine missing drives.
+  const RECENT_DAYS = 4;
+  const BASELINE_MIN_AUTO_TRIPS = 4; // ≥4 auto trips in the prior 14 days = an active driver
+  const nowMs = Date.now();
+  const recentCutoff = new Date(nowMs - RECENT_DAYS * 24 * 60 * 60 * 1000);
+  const baselineCutoff = new Date(nowMs - (RECENT_DAYS + 14) * 24 * 60 * 60 * 1000);
+
+  const eligible = [...latest.values()].filter((d) => {
+    const status = (d.statusJson ?? {}) as Record<string, unknown>;
+    return status.nativeEngineEnabled === true && status.backgroundPermission === "granted";
+  });
+  const eligibleIds = eligible.map((d) => d.userId);
+
+  const silent: { email: string; userId: string }[] = [];
+  if (eligibleIds.length > 0) {
+    const [recentCounts, baselineCounts] = await Promise.all([
+      prisma.trip.groupBy({
+        by: ["userId"],
+        where: { userId: { in: eligibleIds }, isManualEntry: false, startedAt: { gte: recentCutoff } },
+        _count: { _all: true },
+      }),
+      prisma.trip.groupBy({
+        by: ["userId"],
+        where: {
+          userId: { in: eligibleIds },
+          isManualEntry: false,
+          startedAt: { gte: baselineCutoff, lt: recentCutoff },
+        },
+        _count: { _all: true },
+      }),
+    ]);
+    const recentBy = new Map(recentCounts.map((r) => [r.userId, r._count._all]));
+    const baselineBy = new Map(baselineCounts.map((r) => [r.userId, r._count._all]));
+    for (const d of eligible) {
+      if ((recentBy.get(d.userId) ?? 0) > 0) continue;
+      if ((baselineBy.get(d.userId) ?? 0) < BASELINE_MIN_AUTO_TRIPS) continue;
+      // Don't double-report a device already in the error list.
+      if (unhealthy.some((u) => u.userId === d.userId)) continue;
+      silent.push({ email: d.user.email ?? d.userId, userId: d.userId });
+    }
+  }
+
+  if (unhealthy.length === 0 && silent.length === 0) {
     lastNativeHealthSig = ""; // reset so a fresh problem alerts immediately
     return;
   }
 
   const now = Date.now();
-  const sig = unhealthy.map((u) => u.userId).sort().join(",");
+  const sig = [
+    ...unhealthy.map((u) => `e:${u.userId}`),
+    ...silent.map((u) => `s:${u.userId}`),
+  ]
+    .sort()
+    .join(",");
   const shouldPost =
     sig !== lastNativeHealthSig || now - lastNativeHealthAt >= NATIVE_HEALTH_REPOST_MS;
   if (!shouldPost) {
     console.log(
-      `[native-health] alert suppressed - unchanged (${unhealthy.length}/${nativeTotal} native devices unhealthy)`
+      `[native-health] alert suppressed - unchanged (${unhealthy.length} error / ${silent.length} silent of ${nativeTotal} native devices)`
     );
     return;
   }
   lastNativeHealthSig = sig;
   lastNativeHealthAt = now;
 
-  const list = unhealthy.slice(0, 15).map((u) => `• ${u.email}`).join("\n");
+  const sections: string[] = [];
+  if (unhealthy.length > 0) {
+    const list = unhealthy.slice(0, 15).map((u) => `• ${u.email}`).join("\n");
+    sections.push(
+      `Verdict "error" in the last 12h (background permission granted):\n${list}` +
+        (unhealthy.length > 15 ? `\n…and ${unhealthy.length - 15} more` : "")
+    );
+  }
+  if (silent.length > 0) {
+    const list = silent.slice(0, 15).map((u) => `• ${u.email}`).join("\n");
+    sections.push(
+      `SILENT non-capture — previously-active drivers (≥${BASELINE_MIN_AUTO_TRIPS} auto trips in the prior 14d), app alive, ` +
+        `zero auto-captured trips in ${RECENT_DAYS} days. The engine is likely missing their drives ` +
+        `(self-reported verdict can still say "healthy"):\n${list}` +
+        (silent.length > 15 ? `\n…and ${silent.length - 15} more` : "")
+    );
+  }
+
+  const total = unhealthy.length + silent.length;
   await postFounderAlert({
-    severity: unhealthy.length >= 3 ? "critical" : "warning",
-    title: `ClearTrack: ${unhealthy.length}/${nativeTotal} device(s) reporting detection errors`,
+    severity: total >= 3 ? "critical" : "warning",
+    title: `ClearTrack: ${total}/${nativeTotal} device(s) need attention (${unhealthy.length} error, ${silent.length} silent non-capture)`,
     detail:
-      `ClearTrack (native-engine) devices - any build - whose own diagnostics verdict is "error" in the last 12h. ` +
-      `If this set is growing across runs, consider rolling the native engine flag back.\n\n${list}` +
-      (unhealthy.length > 15 ? `\n…and ${unhealthy.length - 15} more` : ""),
+      `ClearTrack (native-engine) devices. If this set is growing across runs, consider rolling the native engine flag back.\n\n` +
+      sections.join("\n\n"),
   });
 }
 
