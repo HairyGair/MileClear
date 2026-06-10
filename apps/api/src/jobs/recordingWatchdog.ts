@@ -314,7 +314,18 @@ export async function runRecordingWatchdogJob(): Promise<void> {
   // 2-day-old queue with finalised trips that never reached us.
   //
   // Criteria:
-  //   - lastPendingSyncCount > 0 OR lastSyncQueuePermFailed > 0
+  //   - lastPendingSyncCount > 0 — genuinely drainable work. NOTE: we
+  //     deliberately do NOT target lastSyncQueuePermFailed here. The drain_sync
+  //     silent push runs processSyncQueue(), which only retries 'pending' /
+  //     'failed' rows — it NEVER touches 'permanently_failed'. So pushing a
+  //     permFailed-only user (pendingSyncCount 0) is futile: the runtime wakes,
+  //     finds nothing drainable, and the condition persists — so they hit the
+  //     4-attempt cap every 6h and fire a self-perpetuating "structurally
+  //     broken" gave_up alert forever (mty5mvgk4n + James Taylor, 10 Jun 2026,
+  //     both pendingSyncCount 0). permanently_failed is handled where it can
+  //     actually be fixed: reviveNetworkParkedItems() on cold-start revives
+  //     network-blip rows when the user next opens the app, and the
+  //     SyncStatusBanner surfaces genuinely-dead (4xx) rows for a manual retry.
   //   - heartbeat is stale enough that 30+ periodicTicks should have
   //     drained the queue by now (so the runtime is genuinely dead)
   //   - heartbeat isn't SO stale that the user has clearly moved on
@@ -328,10 +339,8 @@ export async function runRecordingWatchdogJob(): Promise<void> {
     SELECT id, lastPendingSyncCount, lastSyncQueuePermFailed,
            lastDrivingSpeedAt, lastHeartbeatAt, pushToken
     FROM users
-    WHERE (
-        (lastPendingSyncCount IS NOT NULL AND lastPendingSyncCount > 0)
-        OR (lastSyncQueuePermFailed IS NOT NULL AND lastSyncQueuePermFailed > 0)
-      )
+    WHERE lastPendingSyncCount IS NOT NULL
+      AND lastPendingSyncCount > 0
       AND lastHeartbeatAt IS NOT NULL
       AND lastHeartbeatAt < ${minStaleHb}
       AND lastHeartbeatAt > ${maxStaleHb}
