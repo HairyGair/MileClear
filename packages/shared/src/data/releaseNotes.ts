@@ -75,6 +75,21 @@ export const ACTIVE_ANNOUNCEMENT: SiteAnnouncement | null = null;
 
 export const RELEASE_NOTES: ReleaseNote[] = [
   {
+    version: "1.3.1",
+    date: "Expected June 2026",
+    label: "In Development",
+    items: [
+      "**Your trip appears the moment you set off.** The Dynamic Island and Live Activity now start on their own when ClearTrack detects a drive — even with the app closed and your phone in your pocket. Distance and duration on your lock screen from the first mile, no tap needed.",
+      "**Records on iPhones that close apps aggressively.** Some iPhones shut MileClear down between uses, and the engine wasn't always waking back up for the next drive — for a small number of drivers this silently missed days of trips. The wake-up path is rebuilt so detection re-arms the instant your phone relaunches the app, locked or not.",
+      "**Detection that fixes itself.** In rare cases a phone never passes motion signals to ClearTrack at all. The app now notices this on its own — days of missed drives, zero recordings, settings all fine — and switches itself to our proven fallback engine, telling you it's done so. No more waiting for a bug report to catch it.",
+      "**Always know what happened to your trip.** A persistent status line on the dashboard answers the question that matters: Saving… → Saved, 15.4 mi, synced ✓ — or exactly why not (waiting for connection, needs attention). A trip's fate is never a mystery.",
+      "**Error messages that name the real reason.** \"You're offline — your trip is saved on your phone and uploads automatically\" instead of a raw error code. Every alert now says what actually happened and what, if anything, you need to do.",
+      "**Make it automatic, when you're ready.** If you record with the app open, MileClear now offers the switch to fully automatic detection right after a captured trip — when you can see exactly what it does — instead of pushing for permissions up front.",
+      "**Give a month, get a month.** Invite a friend and when they record their first trip you BOTH get a free month of Pro — their welcome bonus is new in this release.",
+      "**Sharper diagnostics under the hood.** The in-app detection report now identifies the true app version after over-the-air updates, drops misleading noise, and self-reports the new wake-up path — so when something does go wrong, we find it in minutes, not days.",
+    ],
+  },
+  {
     version: "1.3.0",
     date: "June 2026",
     label: "Latest",
