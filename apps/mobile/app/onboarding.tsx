@@ -789,6 +789,15 @@ export default function OnboardingScreen() {
                   <Ionicons name="settings-outline" size={16} color="#f59e0b" />
                   <Text style={[s.deniedSettingsBtnText, { color: "#f59e0b" }]}>Open Settings</Text>
                 </TouchableOpacity>
+                {/* Permission-after-value: don't frame While-Using as failure.
+                    ~47% of users stall here when pushed; a working first trip
+                    converts better than a settings lecture — the post-capture
+                    prompt (trip-form) makes the Always offer at that moment. */}
+                <Text style={[s.deniedHelp, { marginTop: 10 }]}>
+                  Or decide later — you're still covered: open MileClear when you
+                  drive and the trip records. After your first captured drive
+                  we'll offer to make it automatic.
+                </Text>
               </View>
             )}
 

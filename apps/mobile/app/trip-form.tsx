@@ -42,6 +42,7 @@ import type { TripClassification, TripCategory, PlatformTag, BusinessPurpose, Ve
 import { getDatabase } from "../lib/db/index";
 import { startQuickTripTracking, stopQuickTripTracking, clearDetectionCooldown, peekBackgroundCoordinates } from "../lib/tracking";
 import { recordLastSavedTrip } from "../lib/events/lastTrip";
+import { maybeOfferAlwaysAfterCapture } from "../lib/permissions/location";
 import { maybeRequestReview } from "../lib/rating/index";
 import { LocationPickerField } from "../components/LocationPickerField";
 import { DateTimePickerField } from "../components/DateTimePickerField";
@@ -1765,8 +1766,20 @@ export default function TripFormScreen() {
         source: "manual",
       }).catch(() => {});
 
-      // Rating prompt (fire-and-forget, 2s delay)
-      setTimeout(() => maybeRequestReview("trip_saved"), 2000);
+      // Permission-after-value: the user just watched a trip get captured —
+      // the strongest possible moment to offer Always-location ("make it
+      // automatic"). When shown it wins over the rating prompt for this save;
+      // the rating system has plenty of other triggers.
+      if (!isEditing) {
+        maybeOfferAlwaysAfterCapture(distanceMiles ?? null)
+          .then((shown) => {
+            if (!shown) setTimeout(() => maybeRequestReview("trip_saved"), 2000);
+          })
+          .catch(() => setTimeout(() => maybeRequestReview("trip_saved"), 2000));
+      } else {
+        // Rating prompt (fire-and-forget, 2s delay)
+        setTimeout(() => maybeRequestReview("trip_saved"), 2000);
+      }
 
       // One-time notification permission nudge for users who skipped onboarding
       askNotificationPermissionOnce().catch(() => {});
