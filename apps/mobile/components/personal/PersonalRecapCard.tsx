@@ -1,9 +1,11 @@
 import { useRef, useState } from "react";
 import { View, Text, StyleSheet, Platform, Pressable } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { useRouter } from "expo-router";
 import { getDistanceEquivalent } from "@mileclear/shared";
 import { RecapShareCard, captureAndShareRecap } from "./ShareableRecap";
 import type { RecapShareCardProps } from "./ShareableRecap";
+import { apiRequest } from "../../lib/api/index";
 import { colors, fonts } from "../../lib/theme";
 
 // Local theme aliases — same pattern as the (tabs) screens.
@@ -162,8 +164,16 @@ export function PersonalRecapCard({
     region,
   };
 
+  const router = useRouter();
   const handleShare = () => {
     captureAndShareRecap(shareCardRef, shareData);
+  };
+  const handleReferCta = () => {
+    apiRequest("/user/event", {
+      method: "POST",
+      body: JSON.stringify({ type: "referral.recap_cta_tapped" }),
+    }).catch(() => {});
+    router.push("/refer");
   };
 
   return (
@@ -364,6 +374,22 @@ export function PersonalRecapCard({
           <Ionicons name="share-outline" size={16} color={AMBER} />
           <Text style={styles.shareText}>Share Recap</Text>
         </Pressable>
+
+        {/* Referral CTA at the moment of demonstrated value — the recap is the
+            user looking at what the app did for them, the natural "know
+            another driver?" beat (11 Jun 2026; the buried invite screen alone
+            converted nobody). */}
+        <Pressable
+          style={({ pressed }) => [styles.referCta, pressed && { opacity: 0.7 }]}
+          onPress={handleReferCta}
+          accessibilityRole="button"
+          accessibilityLabel="Know another driver? Give a month of Pro, get one free"
+        >
+          <Ionicons name="gift-outline" size={13} color={TEXT_3} />
+          <Text style={styles.referCtaText}>
+            Know another driver? Give a month of Pro, get one free →
+          </Text>
+        </Pressable>
       </View>
     </View>
   );
@@ -536,5 +562,18 @@ const styles = StyleSheet.create({
     fontFamily: fonts.semibold,
     color: AMBER,
     letterSpacing: 0.1,
+  },
+  referCta: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    paddingTop: 10,
+    paddingBottom: 2,
+  },
+  referCtaText: {
+    fontSize: 12,
+    fontFamily: fonts.medium,
+    color: TEXT_3,
   },
 });

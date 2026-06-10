@@ -203,10 +203,31 @@ export async function qualifyReferralOnFirstTrip(refereeId: string): Promise<voi
       : new Date();
   const newUntil = addMonths(base, REWARD_MONTHS);
 
+  // Double-sided (11 Jun 2026): the referee gets a month too. The single-sided
+  // version ran two weeks with 75 code-holders and ZERO conversions — the
+  // invitee had no reason to use the code over just installing. Same banked
+  // referralProUntil field, so resolvePremiumStatus needs no change and real
+  // subscriptions are never touched. One month, once: a referee has exactly
+  // one referral row (refereeId unique), and this path only runs on the
+  // pending→qualified transition.
+  const referee = await prisma.user.findUnique({
+    where: { id: refereeId },
+    select: { referralProUntil: true },
+  });
+  const refereeBase =
+    referee?.referralProUntil && referee.referralProUntil.getTime() > Date.now()
+      ? referee.referralProUntil
+      : new Date();
+  const refereeUntil = addMonths(refereeBase, REWARD_MONTHS);
+
   await prisma.$transaction([
     prisma.user.update({
       where: { id: referral.referrerId },
       data: { referralProUntil: newUntil },
+    }),
+    prisma.user.update({
+      where: { id: refereeId },
+      data: { referralProUntil: refereeUntil },
     }),
     prisma.referral.update({
       where: { id: referral.id },
@@ -219,6 +240,7 @@ export async function qualifyReferralOnFirstTrip(refereeId: string): Promise<voi
     code: referral.code,
     rewardNumber: rewarded + 1,
     referralProUntil: newUntil.toISOString(),
+    refereeProUntil: refereeUntil.toISOString(),
   });
 
   // Notify the referrer — money-moment, deep-link to the referrals screen.
@@ -227,6 +249,14 @@ export async function qualifyReferralOnFirstTrip(refereeId: string): Promise<voi
     "You earned a free month of Pro!",
     `A friend you invited just started using MileClear. ${rewarded + 1} of ${MAX_REFERRAL_REWARDS} free months unlocked.`,
     { action: "open_referrals" }
+  ).catch(() => {});
+
+  // And the referee — their welcome month just unlocked.
+  sendPushToUser(
+    refereeId,
+    "Your free month of Pro is live!",
+    "First trip recorded — your invite bonus has unlocked a month of MileClear Pro. HMRC exports, business insights, the lot.",
+    { action: "open_billing" }
   ).catch(() => {});
 }
 

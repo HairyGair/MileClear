@@ -14,6 +14,7 @@ import { useFocusEffect } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { colors, fonts } from "../lib/theme";
 import { fetchReferralSummary, applyReferralCode } from "../lib/api/referrals";
+import { apiRequest } from "../lib/api/index";
 import type { ReferralSummary } from "@mileclear/shared";
 
 const AMBER = colors.amber;
@@ -24,8 +25,19 @@ const TEXT_3 = colors.text3;
 const CARD = colors.surface;
 const BORDER = colors.surfaceBorder;
 
+// The referral funnel ran a fortnight with zero conversions and zero
+// instrumentation — we couldn't tell "nobody shares" from "shares don't
+// convert". Fire-and-forget events at each step so the next iteration is
+// data-driven.
+function trackReferralEvent(type: string, metadata?: Record<string, unknown>): void {
+  apiRequest("/user/event", {
+    method: "POST",
+    body: JSON.stringify({ type, metadata }),
+  }).catch(() => {});
+}
+
 function shareMessage(url: string): string {
-  return `I'm using MileClear to track my miles and claim tax back automatically - it's free. Sign up with my link and you'll help me earn a free month of Pro: ${url}`;
+  return `I'm using MileClear to track my miles and claim tax back automatically - it's free. Sign up with my link and we BOTH get a free month of Pro: ${url}`;
 }
 
 export default function ReferScreen() {
@@ -40,6 +52,7 @@ export default function ReferScreen() {
   const load = useCallback(() => {
     let cancelled = false;
     setLoading(true);
+    trackReferralEvent("referral.screen_viewed");
     fetchReferralSummary()
       .then((s) => {
         if (!cancelled) setSummary(s);
@@ -58,7 +71,12 @@ export default function ReferScreen() {
   const onShare = useCallback(async () => {
     if (!summary) return;
     try {
-      await Share.share({ message: shareMessage(summary.shareUrl) });
+      const result = await Share.share({ message: shareMessage(summary.shareUrl) });
+      // iOS reports whether the sheet ended in an actual share or a dismiss —
+      // the difference between "nobody shares" and "shares don't convert".
+      trackReferralEvent(
+        result.action === Share.sharedAction ? "referral.share_completed" : "referral.share_dismissed"
+      );
     } catch {
       // user cancelled / share unavailable
     }
@@ -73,7 +91,8 @@ export default function ReferScreen() {
     if (result.ok) {
       setApplied(true);
       setCodeInput("");
-      Alert.alert("Code applied", "Thanks! Your friend will earn their free month once you record your first trip.");
+      trackReferralEvent("referral.code_applied_client");
+      Alert.alert("Code applied", "Thanks! Record your first trip and you BOTH get a free month of Pro.");
     } else {
       Alert.alert("Couldn't apply code", result.error ?? "That referral code isn't valid.");
     }
@@ -97,10 +116,11 @@ export default function ReferScreen() {
       <View style={s.heroIconWrap}>
         <Ionicons name="gift" size={32} color={AMBER} />
       </View>
-      <Text style={s.heroTitle}>Give MileClear, get Pro free</Text>
+      <Text style={s.heroTitle}>Give a month of Pro, get one free</Text>
       <Text style={s.heroSub}>
-        Invite up to {max} friends. For every one who signs up and records their first trip, you get a{" "}
-        <Text style={s.bold}>free month of Pro</Text> - HMRC exports, business insights, the lot.
+        Invite up to {max} friends. When one signs up and records their first trip,{" "}
+        <Text style={s.bold}>you BOTH get a free month of Pro</Text> - HMRC exports, business
+        insights, the lot.
       </Text>
 
       {/* Progress */}
@@ -151,7 +171,7 @@ export default function ReferScreen() {
         {[
           { n: "1", t: "Share your link", b: "Send it to friends and colleagues who drive." },
           { n: "2", t: "They sign up + drive", b: "They join free and record their first trip." },
-          { n: "3", t: "You get a free month", b: `Up to ${max} months of Pro, one per friend.` },
+          { n: "3", t: "You BOTH get a free month", b: `They start with a month of Pro; you earn up to ${max} months, one per friend.` },
         ].map((step) => (
           <View key={step.n} style={s.stepRow}>
             <View style={s.stepNum}><Text style={s.stepNumText}>{step.n}</Text></View>
