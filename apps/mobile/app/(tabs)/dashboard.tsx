@@ -20,6 +20,7 @@ import { FadeInStagger } from "../../components/FadeInStagger";
 import { colors, fonts, fontScaleCap, radii, spacing } from "../../lib/theme";
 import { ActiveRecordingBanner } from "../../components/ActiveRecordingBanner";
 import { SyncStatusBanner } from "../../components/SyncStatusBanner";
+import { TripStatusStrip } from "../../components/TripStatusStrip";
 import { describeError } from "../../lib/api/apiError";
 import { useFocusEffect, useRouter } from "expo-router";
 import { fetchVehicles } from "../../lib/api/vehicles";
@@ -1322,6 +1323,10 @@ export default function DashboardScreen() {
           the Live Activity silently failed to present. */}
       <ActiveRecordingBanner />
       <SyncStatusBanner />
+      {/* Persistent trip-status surface — Saving / Saved+sync-state / Ready.
+          Hides itself while recording (banner above owns that state) and when
+          permissions are broken (the red blockers below own those). */}
+      <TripStatusStrip />
 
       {/* Data-quality improvement celebration banner — fires once per user
           when they open the app after a server-side backfill corrected

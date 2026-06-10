@@ -33,6 +33,7 @@ import { HoldToConfirm } from "../components/HoldToConfirm";
 import { WaitTimer } from "../components/business/WaitTimer";
 import { colors, fonts, fontScaleCap, radii, spacing } from "../lib/theme";
 import { haptic } from "../lib/haptics";
+import { describeError } from "../lib/api/apiError";
 import { haversineDistance, formatMiles } from "@mileclear/shared";
 
 // ── Lazy native map import (Expo Go safe) ──────────────────────────
@@ -206,12 +207,10 @@ export default function ActiveRecordingScreen() {
     } catch (err) {
       setEndingTrip(false);
       haptic("error");
-      Alert.alert(
-        "Couldn't end trip",
-        err instanceof Error
-          ? err.message
-          : "Something went wrong. Try again."
-      );
+      // Name the real reason (offline-saved vs server vs session) instead of
+      // a raw error message — reliability Phase 1.
+      const { title, message } = describeError(err, "Couldn't end trip");
+      Alert.alert(title, message);
     }
   }, [router]);
 

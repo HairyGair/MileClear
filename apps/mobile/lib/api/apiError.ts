@@ -131,8 +131,16 @@ export function isApiError(err: unknown): err is ApiError {
  */
 export function describeError(
   err: unknown,
-  fallbackTitle = "Something went wrong"
+  fallbackTitle = "Something went wrong",
+  opts: {
+    // The offline message claims "saved on your phone" — only true for
+    // offline-first writes that go through the sync queue. Direct API
+    // actions (e.g. merge) must pass false so we don't promise a save
+    // that didn't happen.
+    savedLocally?: boolean;
+  } = {}
 ): { title: string; message: string } {
+  const { savedLocally = true } = opts;
   // Sentinel strings thrown by apiRequest for connectivity/session issues.
   if (err instanceof Error) {
     const m = err.message;
@@ -143,8 +151,9 @@ export function describeError(
     ) {
       return {
         title: "You're offline",
-        message:
-          "We couldn't reach the server. Your change is saved on your phone and will upload automatically when you're back online.",
+        message: savedLocally
+          ? "We couldn't reach the server. Your change is saved on your phone and will upload automatically when you're back online."
+          : "We couldn't reach the server, so nothing was changed. Check your connection and try again.",
       };
     }
     if (m === "Session expired") {

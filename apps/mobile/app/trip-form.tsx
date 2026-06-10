@@ -41,7 +41,7 @@ import { describeError } from "../lib/api/apiError";
 import type { TripClassification, TripCategory, PlatformTag, BusinessPurpose, Vehicle } from "@mileclear/shared";
 import { getDatabase } from "../lib/db/index";
 import { startQuickTripTracking, stopQuickTripTracking, clearDetectionCooldown, peekBackgroundCoordinates } from "../lib/tracking";
-import { setLastSavedTrip } from "../lib/events/lastTrip";
+import { recordLastSavedTrip } from "../lib/events/lastTrip";
 import { maybeRequestReview } from "../lib/rating/index";
 import { LocationPickerField } from "../components/LocationPickerField";
 import { DateTimePickerField } from "../components/DateTimePickerField";
@@ -1754,13 +1754,16 @@ export default function TripFormScreen() {
       // Reset detection cooldown so the next drive triggers a notification promptly
       clearDetectionCooldown().catch(() => {});
 
-      // Store trip info for post-trip dashboard card
-      setLastSavedTrip({
+      // Store trip info for the post-trip dashboard card AND the persistent
+      // dashboard status strip (survives restarts via tracking_state).
+      recordLastSavedTrip({
         distanceMiles: distanceMiles ?? 0,
         startAddress: startAddress ?? null,
         endAddress: endAddress ?? null,
         savedAt: Date.now(),
-      });
+        tripId: createdTripId,
+        source: "manual",
+      }).catch(() => {});
 
       // Rating prompt (fire-and-forget, 2s delay)
       setTimeout(() => maybeRequestReview("trip_saved"), 2000);

@@ -19,6 +19,7 @@ import { useRouter, useFocusEffect } from "expo-router";
 import { Button } from "../../components/Button";
 import { DateTimePickerField } from "../../components/DateTimePickerField";
 import { fetchTrips, fetchTripSummary, fetchUnclassifiedCount, fetchClassificationSuggestion, mergeTrips, TripWithVehicle, ClassificationSuggestion, type TripSummary } from "../../lib/api/trips";
+import { describeError } from "../../lib/api/apiError";
 import { syncUpdateTrip, syncDeleteTrip } from "../../lib/sync/actions";
 import { processSyncQueue } from "../../lib/sync";
 import { isNetworkError } from "../../lib/sync/errors";
@@ -589,8 +590,9 @@ export default function TripsScreen() {
               if (filter === "unclassified") {
                 setUnclassifiedCount((prev) => Math.max(0, prev - 1));
               }
-            } catch {
-              Alert.alert("Couldn't delete the trip", "Try again in a moment.");
+            } catch (err) {
+              const { title, message } = describeError(err, "Couldn't delete the trip");
+              Alert.alert(title, message);
             }
           },
         },
@@ -664,8 +666,10 @@ export default function TripsScreen() {
       loadTrips(1);
       loadSummary();
       loadUnclassifiedCount();
-    } catch (err: any) {
-      Alert.alert("Merge Failed", err.message || "Something went wrong merging your trips.");
+    } catch (err: unknown) {
+      // Merge is a direct API call, not an offline-first queued write.
+      const { title, message } = describeError(err, "Couldn't merge the trips", { savedLocally: false });
+      Alert.alert(title, message);
     } finally {
       setMergeLoading(false);
     }
@@ -718,8 +722,9 @@ export default function TripsScreen() {
 
         // Batch classifying a whole route group is a power-user moment
         setTimeout(() => maybeRequestReview("batch_classified"), 2000);
-      } catch {
-        Alert.alert("Couldn't classify the trips", "Try again in a moment.");
+      } catch (err) {
+        const { title, message } = describeError(err, "Couldn't classify the trips");
+        Alert.alert(title, message);
       } finally {
         setBatchClassifyingKey(null);
       }

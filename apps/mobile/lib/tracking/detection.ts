@@ -756,10 +756,23 @@ async function isStillDrivingViaLocation(source: string): Promise<boolean> {
 export async function finalizeAutoTrip(): Promise<void> {
   if (finalizingTrip) return;
   finalizingTrip = true;
+  // Surface "Saving trip…" on the dashboard status strip while finalize runs.
+  // Best-effort both ways; the strip ignores a stale flag after 2 minutes.
+  try {
+    const db = await getDatabase();
+    await db.runAsync(
+      "INSERT OR REPLACE INTO tracking_state (key, value) VALUES ('finalizing_trip_at', ?)",
+      [String(Date.now())]
+    );
+  } catch {}
   try {
     await _finalizeAutoTripInner();
   } finally {
     finalizingTrip = false;
+    try {
+      const db = await getDatabase();
+      await db.runAsync("DELETE FROM tracking_state WHERE key = 'finalizing_trip_at'");
+    } catch {}
   }
 }
 
@@ -1201,6 +1214,24 @@ async function _finalizeAutoTripInner(): Promise<void> {
         merged = true;
         logDetectionEvent("finalize_merged", { intoTripId: recentTrip.id, segmentMiles: totalDistance, mergedTotal: newDistance }).catch(() => {});
 
+        // Feed the dashboard status strip — the merged trip is the user's
+        // "last saved trip" with its new combined total.
+        try {
+          const { recordLastSavedTrip } = await import("../events/lastTrip");
+          const fromRow = await db.getFirstAsync<{ start_address: string | null }>(
+            "SELECT start_address FROM trips WHERE id = ?",
+            [recentTrip.id]
+          );
+          await recordLastSavedTrip({
+            tripId: recentTrip.id,
+            distanceMiles: newDistance,
+            startAddress: fromRow?.start_address ?? null,
+            endAddress: endAddress ?? null,
+            savedAt: Date.now(),
+            source: "merged",
+          });
+        } catch {}
+
         // End Live Activity with the combined distance. Merged trips are
         // already classified (we don't re-classify on merge), so no
         // classification CTA is needed.
@@ -1345,6 +1376,22 @@ async function _finalizeAutoTripInner(): Promise<void> {
         classification,
       }).catch(() => {});
     }
+
+    // Feed the dashboard status strip. Also written on the null path:
+    // null means either offline-enqueued (trip IS saved locally, id unknown
+    // here) or the dedup window (an identical trip was already saved) — in
+    // both cases "your trip is saved" is the truthful status.
+    try {
+      const { recordLastSavedTrip } = await import("../events/lastTrip");
+      await recordLastSavedTrip({
+        tripId: savedTripId ?? null,
+        distanceMiles: roundedDistance,
+        startAddress: startAddress ?? null,
+        endAddress: endAddress ?? null,
+        savedAt: Date.now(),
+        source: "auto",
+      });
+    } catch {}
 
     // For unclassified trips, fire the "classify it" notification NOW that
     // we have the server tripId. The Business/Personal lock-screen buttons
