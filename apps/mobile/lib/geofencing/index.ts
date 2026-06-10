@@ -295,6 +295,20 @@ export async function ensureAnchorGeofenceArmed(): Promise<{
   );
   if (!lat || !lng) return { hasAnchor: false, active: false };
 
+  // On the native engine the JS anchor geofence is deliberately disarmed
+  // (registerGeofences no-ops), so "re-arming" it is meaningless — and the
+  // resulting anchor_geofence_rearm_attempt {active:false} spam pollutes
+  // every native device's diagnostics (10 junk events in Norman Boomer's
+  // dump muddied a real investigation, 10 Jun 2026). Report the anchor
+  // honestly (the native backfill still uses it) but skip the arm + log.
+  try {
+    const { isNativeLocationEngineEnabled } = await import("../tracking/nativeEngineFlag");
+    const { isNativeEngineAvailable } = await import("../tracking/nativeLocation");
+    if (isNativeEngineAvailable() && (await isNativeLocationEngineEnabled())) {
+      return { hasAnchor: true, active: false };
+    }
+  } catch {}
+
   let active = false;
   try {
     active = await Location.hasStartedGeofencingAsync(GEOFENCE_TASK_NAME);
