@@ -2430,6 +2430,12 @@ export async function registerBackgroundFinalize(): Promise<void> {
 export async function bootNativeEngineOnLaunch(): Promise<void> {
   try {
     const db = await getDatabase();
+    // A logged-out device must stay quiet (flag set by logout(), cleared on
+    // the next authenticated session).
+    const loggedOut = await db.getFirstAsync<{ value: string }>(
+      "SELECT value FROM tracking_state WHERE key = 'logged_out'"
+    );
+    if (loggedOut?.value === "1") return;
     const onboarded = await db.getFirstAsync<{ value: string }>(
       "SELECT value FROM tracking_state WHERE key = 'onboarding_complete'"
     );
@@ -2452,6 +2458,153 @@ export async function bootNativeEngineOnLaunch(): Promise<void> {
   }
 }
 
+// ── Native engine self-heal ────────────────────────────────────────────────
+//
+// On a small class of devices RNBG never hears motion: every motionchange is
+// isMoving:false, no recording ever opens, and the device's own verdict stays
+// "healthy" while every drive is silently missed (Norman Boomer + tjdfsr66f9,
+// 10 Jun 2026 — six days of lost commutes before a human noticed). The app
+// KNOWS it's in this state; it should fix itself instead of waiting for a
+// support thread. If the evidence says the native engine can't capture on this
+// device, fall back to the JS engine — which ran the fleet reliably for months
+// — and say so out loud.
+
+const SELF_HEAL_MIN_ENGINE_AGE_MS = 3 * 24 * 60 * 60 * 1000; // evidence window
+const SELF_HEAL_RECENT_TRIP_MS = 3 * 24 * 60 * 60 * 1000;
+
+/**
+ * Decide whether the native engine is demonstrably deaf on this device, and if
+ * so switch back to the JS engine. Returns true when it healed (caller must
+ * fall through to the JS path). All evidence is local SQLite — works offline.
+ *
+ * Heals at most once per native binary: the heal stamps the current
+ * runtimeVersion, and resetSelfHealOnNewBinary() re-tries the native engine
+ * when a new build (which may fix the device class) is installed.
+ */
+async function maybeSelfHealNativeEngine(): Promise<boolean> {
+  try {
+    const db = await getDatabase();
+
+    // Evidence 1: the engine has had a fair chance — its earliest start event
+    // is old enough. (Busy devices roll the 500-row event log faster, but busy
+    // devices are capturing, so they never reach the later checks anyway.)
+    const firstStart = await db.getFirstAsync<{ recorded_at: string }>(
+      "SELECT recorded_at FROM detection_events WHERE event = 'native_engine_started' ORDER BY id ASC LIMIT 1"
+    );
+    if (!firstStart) return false;
+    const engineAge = Date.now() - new Date(firstStart.recorded_at).getTime();
+    if (!Number.isFinite(engineAge) || engineAge < SELF_HEAL_MIN_ENGINE_AGE_MS) return false;
+
+    // Evidence 2: in all that time it has NEVER opened a recording, never
+    // speed-started, and never once heard isMoving:true.
+    const signs = await db.getFirstAsync<{ n: number }>(
+      `SELECT COUNT(*) AS n FROM detection_events
+        WHERE event IN ('native_recording_started', 'native_force_start_from_speed')
+           OR (event = 'native_motionchange' AND data LIKE '%"isMoving":true%')`
+    );
+    if ((signs?.n ?? 0) > 0) return false;
+
+    // Evidence 3: this user genuinely drives — they have auto-captured trips
+    // historically, and none in the recent window (i.e. drives are being
+    // MISSED, not absent).
+    const lifetimeAuto = await db.getFirstAsync<{ n: number }>(
+      "SELECT COUNT(*) AS n FROM trips WHERE is_manual_entry = 0"
+    );
+    if ((lifetimeAuto?.n ?? 0) < 3) return false;
+    const recentCutoff = new Date(Date.now() - SELF_HEAL_RECENT_TRIP_MS).toISOString();
+    const recentAuto = await db.getFirstAsync<{ n: number }>(
+      "SELECT COUNT(*) AS n FROM trips WHERE is_manual_entry = 0 AND started_at > ?",
+      [recentCutoff]
+    );
+    if ((recentAuto?.n ?? 0) > 0) return false;
+
+    // Evidence 4: it's not a permissions problem (that's the nudges' job, and
+    // the JS engine would be equally blind without these).
+    const bg = await Location.getBackgroundPermissionsAsync();
+    if (bg.status !== "granted") return false;
+    const { getMotionPermission } = await import("./motionPermission");
+    const motion = await getMotionPermission();
+    if (motion === "denied") return false;
+
+    // Verdict: deaf engine on a driving user. Heal.
+    let runtime: string | null = null;
+    try {
+      const Updates = require("expo-updates");
+      runtime = Updates?.runtimeVersion ?? null;
+    } catch {}
+
+    const { setNativeLocationEngineEnabled } = await import("./nativeEngineFlag");
+    const { stopNativeLocationEngine } = await import("./nativeLocation");
+    await setNativeLocationEngineEnabled(false);
+    try {
+      await stopNativeLocationEngine();
+    } catch {}
+    await db.runAsync(
+      "INSERT OR REPLACE INTO tracking_state (key, value) VALUES ('native_self_heal_at', ?)",
+      [Date.now().toString()]
+    );
+    await db.runAsync(
+      "INSERT OR REPLACE INTO tracking_state (key, value) VALUES ('native_self_heal_runtime', ?)",
+      [runtime ?? "unknown"]
+    );
+    logDetectionEvent("engine_self_healed", {
+      engineAgeDays: Math.round(engineAge / 86_400_000),
+      lifetimeAutoTrips: lifetimeAuto?.n ?? 0,
+      runtime,
+    }).catch(() => {});
+
+    // Tell the user — silence is what caused this class of bug in the first
+    // place. Framed as an improvement, not a failure.
+    if (!isQuietHours()) {
+      Notifications.scheduleNotificationAsync({
+        content: {
+          title: "Trip detection tuned for your phone",
+          body: "ClearTrack wasn't picking up drives on this device, so we've switched you to our proven detection engine. Trips will record automatically again.",
+          data: { action: "open_diagnostics" },
+        },
+        trigger: null,
+      }).catch(() => {});
+    }
+    return true;
+  } catch {
+    // Self-heal must never break detection startup.
+    return false;
+  }
+}
+
+/**
+ * A new native binary may fix the device class that forced a self-heal, so a
+ * runtime change re-arms the native engine for another try. Without this, a
+ * healed device would stay on the JS engine forever.
+ */
+async function resetSelfHealOnNewBinary(): Promise<void> {
+  try {
+    const db = await getDatabase();
+    const healedRuntime = await db.getFirstAsync<{ value: string }>(
+      "SELECT value FROM tracking_state WHERE key = 'native_self_heal_runtime'"
+    );
+    if (!healedRuntime) return;
+    let runtime: string | null = null;
+    try {
+      const Updates = require("expo-updates");
+      runtime = Updates?.runtimeVersion ?? null;
+    } catch {}
+    if (!runtime || runtime === healedRuntime.value) return;
+
+    const { setNativeLocationEngineEnabled } = await import("./nativeEngineFlag");
+    await setNativeLocationEngineEnabled(true);
+    await db.runAsync(
+      "DELETE FROM tracking_state WHERE key IN ('native_self_heal_at', 'native_self_heal_runtime')"
+    );
+    logDetectionEvent("engine_self_heal_reset", {
+      fromRuntime: healedRuntime.value,
+      toRuntime: runtime,
+    }).catch(() => {});
+  } catch {
+    // best-effort
+  }
+}
+
 export async function startDriveDetection(): Promise<void> {
   // Guard: don't start if disabled by user
   const enabled = await isDriveDetectionEnabled();
@@ -2459,6 +2612,10 @@ export async function startDriveDetection(): Promise<void> {
     logDetectionEvent("detection_skipped", { reason: "disabled" }).catch(() => {});
     return;
   }
+
+  // A previous self-heal parked this device on the JS engine; a new binary
+  // earns the native engine another try.
+  await resetSelfHealOnNewBinary();
 
   // Native engine opt-in. When this device has flipped the flag AND the native
   // binary is present (a dev/production build that bundled it), hand wake +
@@ -2472,26 +2629,35 @@ export async function startDriveDetection(): Promise<void> {
     if (await isNativeLocationEngineEnabled()) {
       const { isNativeEngineAvailable, startNativeLocationEngine } = await import("./nativeLocation");
       if (isNativeEngineAvailable()) {
-        // Tear down the JS layer BEFORE starting native — running both
-        // concurrently makes them fight over CLLocationManager + geofences, and
-        // the JS subscription keeping location active disrupts RNBG's
-        // stationary->moving motion detection so it never starts a recording
-        // (Anthony 3 June: native_engine_started fired, but the JS backstop,
-        // geofence task and background-fetch kept running, RNBG's
-        // __STATIONARY_REGION__ collided with our geofence handler, and the
-        // drive was missed). Native must own location exclusively.
-        try { await stopDriveDetection(); } catch {}
-        try {
-          const { stopGeofencing } = await import("../geofencing/index");
-          await stopGeofencing();
-        } catch {}
-        await startNativeLocationEngine();
-        logDetectionEvent("detection_using_native_engine", {}).catch(() => {});
-        return;
+        // Deaf-engine self-heal: if the evidence says ClearTrack can't hear
+        // motion on this device (days of missed drives, zero recordings,
+        // permissions fine), it flips the flag back to the JS engine — fall
+        // through to the JS path below.
+        if (await maybeSelfHealNativeEngine()) {
+          logDetectionEvent("native_engine_self_heal_fallback_js", {}).catch(() => {});
+        } else {
+          // Tear down the JS layer BEFORE starting native — running both
+          // concurrently makes them fight over CLLocationManager + geofences,
+          // and the JS subscription keeping location active disrupts RNBG's
+          // stationary->moving motion detection so it never starts a recording
+          // (Anthony 3 June: native_engine_started fired, but the JS backstop,
+          // geofence task and background-fetch kept running, RNBG's
+          // __STATIONARY_REGION__ collided with our geofence handler, and the
+          // drive was missed). Native must own location exclusively.
+          try { await stopDriveDetection(); } catch {}
+          try {
+            const { stopGeofencing } = await import("../geofencing/index");
+            await stopGeofencing();
+          } catch {}
+          await startNativeLocationEngine();
+          logDetectionEvent("detection_using_native_engine", {}).catch(() => {});
+          return;
+        }
+      } else {
+        // Flag on but binary missing (e.g. an OTA before the dev build) — fall
+        // through to the JS engine so detection still runs.
+        logDetectionEvent("native_engine_unavailable_fallback_js", {}).catch(() => {});
       }
-      // Flag on but binary missing (e.g. an OTA before the dev build) — fall
-      // through to the JS engine so detection still runs.
-      logDetectionEvent("native_engine_unavailable_fallback_js", {}).catch(() => {});
     }
   } catch {
     // Any flag/adapter error must never break the existing JS path.

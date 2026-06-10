@@ -256,6 +256,11 @@ function RootNavigator() {
 
   useEffect(() => {
     if (isAuthenticated && !isLoading) {
+      // Signed in — clear the logged_out gate so detection (incl. the
+      // module-scope bootNativeEngineOnLaunch on future boots) runs again.
+      getDatabase()
+        .then((db) => db.runAsync("DELETE FROM tracking_state WHERE key = 'logged_out'"))
+        .catch(() => {});
       // Finalize stale recordings BEFORE starting detection - otherwise
       // startDriveDetection() fires a location update that the task buffers
       // with the current timestamp, making the trip end time = app open time.

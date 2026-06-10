@@ -986,7 +986,45 @@ async function runNativeEngineHealthJob(): Promise<void> {
     }
   }
 
-  if (unhealthy.length === 0 && silent.length === 0) {
+  // ── Stranded-OTA check (the build-73 class, 10 Jun 2026) ─────────────────
+  // A device whose dumps stay fresh but whose running OTA never advances is
+  // cut off from every fix we ship: the build-73 stream ran the gap-trim
+  // trip-destroyer with no OTA path out, and we only noticed when its users
+  // stopped capturing. Detect it structurally: `updates` missing entirely =
+  // a pre-9-Jun bundle (definitionally ancient); an updates-enabled device
+  // whose running OTA is >21 days old while it keeps dumping (= keeps being
+  // used) isn't receiving updates. Embedded launches (createdAt null,
+  // isEmbeddedLaunch true) are fresh installs that will OTA shortly — skip.
+  // Dev builds (isEnabled false) — skip.
+  const STRANDED_OTA_MAX_AGE_MS = 21 * 24 * 60 * 60 * 1000;
+  const stranded: { email: string; userId: string; detail: string }[] = [];
+  for (const d of latest.values()) {
+    const status = (d.statusJson ?? {}) as Record<string, unknown>;
+    if (status.nativeEngineEnabled !== true) continue;
+    const updates = status.updates as
+      | { isEnabled?: boolean; createdAt?: string | null; isEmbeddedLaunch?: boolean | null; runtimeVersion?: string | null }
+      | undefined;
+    if (!updates) {
+      stranded.push({
+        email: d.user.email ?? d.userId,
+        userId: d.userId,
+        detail: "pre-update-aware bundle (build-73 stream)",
+      });
+      continue;
+    }
+    if (updates.isEnabled === false) continue;
+    if (updates.isEmbeddedLaunch === true) continue;
+    const created = updates.createdAt ? Date.parse(updates.createdAt) : NaN;
+    if (Number.isFinite(created) && Date.now() - created > STRANDED_OTA_MAX_AGE_MS) {
+      stranded.push({
+        email: d.user.email ?? d.userId,
+        userId: d.userId,
+        detail: `OTA from ${updates.createdAt!.slice(0, 10)} on ${updates.runtimeVersion ?? "?"}`,
+      });
+    }
+  }
+
+  if (unhealthy.length === 0 && silent.length === 0 && stranded.length === 0) {
     lastNativeHealthSig = ""; // reset so a fresh problem alerts immediately
     return;
   }
@@ -995,6 +1033,7 @@ async function runNativeEngineHealthJob(): Promise<void> {
   const sig = [
     ...unhealthy.map((u) => `e:${u.userId}`),
     ...silent.map((u) => `s:${u.userId}`),
+    ...stranded.map((u) => `o:${u.userId}`),
   ]
     .sort()
     .join(",");
@@ -1002,7 +1041,7 @@ async function runNativeEngineHealthJob(): Promise<void> {
     sig !== lastNativeHealthSig || now - lastNativeHealthAt >= NATIVE_HEALTH_REPOST_MS;
   if (!shouldPost) {
     console.log(
-      `[native-health] alert suppressed - unchanged (${unhealthy.length} error / ${silent.length} silent of ${nativeTotal} native devices)`
+      `[native-health] alert suppressed - unchanged (${unhealthy.length} error / ${silent.length} silent / ${stranded.length} stranded of ${nativeTotal} native devices)`
     );
     return;
   }
@@ -1026,13 +1065,22 @@ async function runNativeEngineHealthJob(): Promise<void> {
         (silent.length > 15 ? `\n…and ${silent.length - 15} more` : "")
     );
   }
+  if (stranded.length > 0) {
+    const list = stranded.slice(0, 15).map((u) => `• ${u.email} — ${u.detail}`).join("\n");
+    sections.push(
+      `STRANDED on a dead OTA stream — actively used (fresh dumps) but not receiving updates, ` +
+        `so no fix we ship reaches them. They need a binary update from the App Store/TestFlight ` +
+        `(per-user push via admin user detail; build-label targeting doesn't work — they report the OTA label):\n${list}` +
+        (stranded.length > 15 ? `\n…and ${stranded.length - 15} more` : "")
+    );
+  }
 
-  const total = unhealthy.length + silent.length;
+  const total = unhealthy.length + silent.length + stranded.length;
   await postFounderAlert({
-    severity: total >= 3 ? "critical" : "warning",
-    title: `ClearTrack: ${total}/${nativeTotal} device(s) need attention (${unhealthy.length} error, ${silent.length} silent non-capture)`,
+    severity: unhealthy.length + silent.length >= 3 ? "critical" : "warning",
+    title: `ClearTrack: ${total}/${nativeTotal} device(s) need attention (${unhealthy.length} error, ${silent.length} silent, ${stranded.length} stranded)`,
     detail:
-      `ClearTrack (native-engine) devices. If this set is growing across runs, consider rolling the native engine flag back.\n\n` +
+      `ClearTrack (native-engine) devices. If the error/silent sets are growing across runs, consider rolling the native engine flag back.\n\n` +
       sections.join("\n\n"),
   });
 }

@@ -153,4 +153,29 @@ export async function logout(): Promise<void> {
     // Best-effort: server call failed, still clear locally
   }
   await clearTokens();
+
+  // Tear down trip detection — a logged-out device must not keep tracking
+  // (pre-existing gap found 10 Jun 2026: the engine survived logout). The
+  // logged_out flag also stops bootNativeEngineOnLaunch resurrecting the
+  // engine on the next JS boot; it's cleared on the next authenticated
+  // session (_layout startup effect).
+  try {
+    const { getDatabase } = await import("../db/index");
+    const db = await getDatabase();
+    await db.runAsync(
+      "INSERT OR REPLACE INTO tracking_state (key, value) VALUES ('logged_out', '1')"
+    );
+  } catch {}
+  try {
+    const { stopDriveDetection } = await import("../tracking/detection");
+    await stopDriveDetection();
+  } catch {}
+  try {
+    const { stopNativeLocationEngine } = await import("../tracking/nativeLocation");
+    await stopNativeLocationEngine();
+  } catch {}
+  try {
+    const { stopGeofencing } = await import("../geofencing/index");
+    await stopGeofencing();
+  } catch {}
 }
