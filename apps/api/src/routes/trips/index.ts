@@ -172,7 +172,12 @@ export async function tripRoutes(app: FastifyInstance) {
       ? `Latest diagnostic: verdict "${latestDump.verdict}", build ${latestDump.buildNumber}, ${latestDump.capturedAt.toISOString()}`
       : "No diagnostic dump on file for this user.";
 
-    logEvent("trip.report_missing", userId, { hasNote: note !== "(no details given)" });
+    // Store the note itself (not just hasNote) so the admin missing-trip
+    // inbox can show it without cross-referencing Discord.
+    logEvent("trip.report_missing", userId, {
+      hasNote: note !== "(no details given)",
+      note: note.slice(0, 500),
+    });
 
     // Best-effort Discord post — import locally to avoid widening the route's
     // import surface, and never let a Discord failure fail the user's report.

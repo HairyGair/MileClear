@@ -18,7 +18,7 @@ import {
   type CustomEmailArgs,
 } from "../../services/email.js";
 import { logEvent } from "../../services/appEvents.js";
-import { sendPushNotifications } from "../../lib/push.js";
+import { sendPushNotification, sendPushNotifications } from "../../lib/push.js";
 import { PREMIUM_PRICE_MONTHLY_PENCE, getTaxYear, haversineDistance } from "@mileclear/shared";
 import { upsertMileageSummary } from "../../services/mileage.js";
 import { advanceLastTripAt } from "../../services/userActivity.js";
@@ -93,6 +93,9 @@ const pushSchema = z.object({
   dashboardMode: z.enum(["work", "personal", "both"]).optional(),
   title: z.string().min(1).max(200),
   body: z.string().min(1).max(500),
+  // Deep-link action for the mobile routing switch (lib/notifications).
+  // Every notification must route somewhere — "open_app" is the safe default.
+  action: z.string().max(64).optional().default("open_app"),
   dryRun: z.boolean().optional().default(true),
 });
 
@@ -1478,12 +1481,6 @@ export async function adminRoutes(app: FastifyInstance) {
     let nativeFresh = 0;
     let nativeStale = 0;
     let nativeNever = 0;
-    const nativeNeedsAttention: Array<{
-      email: string;
-      displayName: string | null;
-      lastNativeLocationAt: string | null;
-      dumpAt: string;
-    }> = [];
 
     for (const d of dumps) {
       const s = (d.statusJson ?? {}) as {
@@ -1518,20 +1515,19 @@ export async function adminRoutes(app: FastifyInstance) {
           ? new Date(s.lastNativeLocationAt).getTime()
           : null;
         const capMs = d.capturedAt.getTime();
+        // NOTE: lastNativeLocationAt freshness is a weak signal — it updates
+        // on every app open, so a broken-but-opened device looks "fresh" (it
+        // missed the Norman Boomer silent non-capture, 10 Jun 2026) while a
+        // healthy parked device looks "stale". The per-device list it used to
+        // feed ("native engine needs attention") was removed in favour of
+        // /admin/cleartrack-health, which measures capture OUTCOMES. The
+        // aggregate split below stays as rough context only.
         if (last == null) {
           nativeNever++;
         } else if (capMs - last <= FRESH_MS) {
           nativeFresh++;
         } else {
           nativeStale++;
-        }
-        if (last == null || capMs - last > FRESH_MS) {
-          nativeNeedsAttention.push({
-            email: d.user.email,
-            displayName: d.user.displayName,
-            lastNativeLocationAt: s.lastNativeLocationAt ?? null,
-            dumpAt: d.capturedAt.toISOString(),
-          });
         }
       } else if (s.nativeEngineEnabled === false) {
         jsEngine++;
@@ -1625,7 +1621,6 @@ export async function adminRoutes(app: FastifyInstance) {
               .sort((a, b) => b.count - a.count),
           }))
           .sort((a, b) => b.devices - a.devices),
-        nativeNeedsAttention,
         quietDrivers: quietRows.map((r) => ({
           email: r.email,
           displayName: r.displayName,
@@ -1814,6 +1809,7 @@ export async function adminRoutes(app: FastifyInstance) {
       dashboardMode,
       title,
       body,
+      action,
       dryRun,
     } = parsed.data;
 
@@ -1908,6 +1904,9 @@ export async function adminRoutes(app: FastifyInstance) {
         title,
         body,
         sound: "default" as const,
+        // Deep-link routing — previously admin pushes carried no data at all,
+        // so tapping one did nothing (violated the every-push-routes rule).
+        data: { action },
       }));
 
     const tickets = await sendPushNotifications(messages);
@@ -1920,6 +1919,7 @@ export async function adminRoutes(app: FastifyInstance) {
       sent,
       failed,
       title,
+      action,
       buildNumber: buildNumber ?? null,
       appVersion: appVersion ?? null,
       healthBand: healthBand ?? null,
@@ -1930,6 +1930,258 @@ export async function adminRoutes(app: FastifyInstance) {
     return reply.send({
       data: { sent, failed, totalTargeted, dryRun: false },
     });
+  });
+
+  // POST /admin/users/:userId/engine
+  // Remote per-device engine switch — sends the set_native_engine silent push
+  // (handled in mobile lib/notifications). The rollback lever for the
+  // ClearTrack rollout: a device whose native engine isn't capturing (the
+  // Norman Boomer class) can be flipped back to the JS engine without the
+  // user touching anything. Requires the device to be on an OTA/build that
+  // includes the handler; older bundles ignore the push harmlessly.
+  app.post("/users/:userId/engine", async (request, reply) => {
+    const { userId } = request.params as { userId: string };
+    const parsed = z.object({ enabled: z.boolean() }).safeParse(request.body);
+    if (!parsed.success) {
+      return reply.status(400).send({ error: "enabled (boolean) required" });
+    }
+    const { enabled } = parsed.data;
+
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true, pushToken: true },
+    });
+    if (!user) return reply.status(404).send({ error: "User not found" });
+    if (!user.pushToken) {
+      return reply.status(400).send({ error: "User has no push token — can't reach the device" });
+    }
+
+    const ticket = await sendPushNotification({
+      to: user.pushToken,
+      data: { action: "set_native_engine", enabled: enabled ? "1" : "0" },
+      _contentAvailable: true,
+      priority: "high",
+      sound: null,
+    });
+
+    const ok = ticket?.status === "ok";
+    logEvent("admin.engine_switch_sent", request.userId!, {
+      targetUserId: userId,
+      enabled,
+      ticketStatus: ticket?.status ?? "no_ticket",
+    });
+
+    return reply.send({
+      data: {
+        sent: ok,
+        detail: ok
+          ? `Silent push sent — device switches to the ${enabled ? "ClearTrack (native)" : "JS"} engine on receipt.`
+          : `Push ticket failed: ${ticket?.message ?? "unknown"}`,
+      },
+    });
+  });
+
+  // GET /admin/cleartrack-health
+  // Per-device capture health for the native-engine rollout. The web twin of
+  // the #founder silent-non-capture monitor (jobs/notifications.ts): for every
+  // device whose latest dump says the native engine is on, compare auto-capture
+  // counts in the recent window vs a prior baseline. A previously-active driver
+  // with an alive app, granted background permission and ZERO recent captures
+  // is flagged "silent" — the failure class the on-device verdict misses.
+  app.get("/cleartrack-health", async (_request, reply) => {
+    const RECENT_DAYS = 4;
+    const BASELINE_MIN = 4;
+    const now = Date.now();
+    const dumpCutoff = new Date(now - 7 * 24 * 60 * 60 * 1000);
+    const recentCutoff = new Date(now - RECENT_DAYS * 24 * 60 * 60 * 1000);
+    const baselineCutoff = new Date(now - (RECENT_DAYS + 14) * 24 * 60 * 60 * 1000);
+
+    const dumps = await prisma.diagnosticDump.findMany({
+      where: { createdAt: { gte: dumpCutoff } },
+      orderBy: { capturedAt: "desc" },
+      select: {
+        userId: true,
+        verdict: true,
+        capturedAt: true,
+        statusJson: true,
+        user: { select: { email: true, displayName: true } },
+      },
+    });
+    const latest = new Map<string, (typeof dumps)[number]>();
+    for (const d of dumps) if (!latest.has(d.userId)) latest.set(d.userId, d);
+
+    const native = [...latest.values()].filter((d) => {
+      const s = (d.statusJson ?? {}) as Record<string, unknown>;
+      return s.nativeEngineEnabled === true;
+    });
+    const ids = native.map((d) => d.userId);
+
+    const [recentCounts, baselineCounts, lastAuto] = ids.length
+      ? await Promise.all([
+          prisma.trip.groupBy({
+            by: ["userId"],
+            where: { userId: { in: ids }, isManualEntry: false, startedAt: { gte: recentCutoff } },
+            _count: { _all: true },
+          }),
+          prisma.trip.groupBy({
+            by: ["userId"],
+            where: {
+              userId: { in: ids },
+              isManualEntry: false,
+              startedAt: { gte: baselineCutoff, lt: recentCutoff },
+            },
+            _count: { _all: true },
+          }),
+          prisma.trip.groupBy({
+            by: ["userId"],
+            where: { userId: { in: ids }, isManualEntry: false },
+            _max: { startedAt: true },
+          }),
+        ])
+      : [[], [], []];
+    const recentBy = new Map(recentCounts.map((r) => [r.userId, r._count._all]));
+    const baselineBy = new Map(baselineCounts.map((r) => [r.userId, r._count._all]));
+    const lastAutoBy = new Map(lastAuto.map((r) => [r.userId, r._max.startedAt]));
+
+    const devices = native.map((d) => {
+      const s = (d.statusJson ?? {}) as {
+        backgroundPermission?: string;
+        motionPermission?: string;
+        updates?: { runtimeVersion?: string | null };
+        activitySummary?: Record<string, number>;
+      };
+      const recent = recentBy.get(d.userId) ?? 0;
+      const baseline = baselineBy.get(d.userId) ?? 0;
+      const permissionOk = s.backgroundPermission === "granted";
+      const silent = permissionOk && recent === 0 && baseline >= BASELINE_MIN;
+      const a = s.activitySummary ?? {};
+      return {
+        userId: d.userId,
+        email: d.user.email,
+        displayName: d.user.displayName,
+        verdict: d.verdict,
+        dumpAt: d.capturedAt.toISOString(),
+        runtime: s.updates?.runtimeVersion ?? null,
+        backgroundPermission: s.backgroundPermission ?? "unknown",
+        motionPermission: s.motionPermission ?? "unknown",
+        recentAutoTrips: recent,
+        baselineAutoTrips: baseline,
+        lastAutoTripAt: lastAutoBy.get(d.userId)?.toISOString() ?? null,
+        // The 24h trigger signature from the latest dump: a device whose
+        // motionchanges never escalate to a recording start is the silent
+        // non-capture fingerprint (all isMoving:false = RNBG never hears
+        // motion).
+        motionChanges24h: a.native_motionchange ?? 0,
+        recordingStarts24h: a.native_recording_started ?? 0,
+        speedStarts24h: a.native_force_start_from_speed ?? 0,
+        silent,
+      };
+    });
+
+    // Silent failures first, then errors, then by least recent capture.
+    devices.sort((x, y) => {
+      if (x.silent !== y.silent) return x.silent ? -1 : 1;
+      const xe = x.verdict === "error" ? 0 : 1;
+      const ye = y.verdict === "error" ? 0 : 1;
+      if (xe !== ye) return xe - ye;
+      return x.recentAutoTrips - y.recentAutoTrips;
+    });
+
+    return reply.send({
+      data: {
+        recentWindowDays: RECENT_DAYS,
+        baselineMinTrips: BASELINE_MIN,
+        nativeDevices: devices.length,
+        silentCount: devices.filter((d) => d.silent).length,
+        devices,
+        generatedAt: new Date().toISOString(),
+      },
+    });
+  });
+
+  // GET /admin/missing-trip-reports
+  // Triage inbox for the "Missing a trip?" affordance (trips/report-missing).
+  // Each report is joined with the user's latest dump and capture stats, and
+  // auto-diagnosed using the support-playbook rules: permission gap vs silent
+  // native non-capture vs needs-a-look.
+  app.get("/missing-trip-reports", async (_request, reply) => {
+    const cutoff = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+    const events = await prisma.appEvent.findMany({
+      where: { type: "trip.report_missing", createdAt: { gte: cutoff } },
+      orderBy: { createdAt: "desc" },
+      take: 200,
+      select: {
+        id: true,
+        userId: true,
+        metadata: true,
+        createdAt: true,
+        user: { select: { email: true, displayName: true } },
+      },
+    });
+
+    const ids = [...new Set(events.map((e) => e.userId).filter((v): v is string => !!v))];
+    const [dumps, recentAuto] = ids.length
+      ? await Promise.all([
+          prisma.diagnosticDump.findMany({
+            where: { userId: { in: ids } },
+            select: { userId: true, verdict: true, capturedAt: true, statusJson: true },
+          }),
+          prisma.trip.groupBy({
+            by: ["userId"],
+            where: {
+              userId: { in: ids },
+              isManualEntry: false,
+              startedAt: { gte: new Date(Date.now() - 4 * 24 * 60 * 60 * 1000) },
+            },
+            _count: { _all: true },
+          }),
+        ])
+      : [[], []];
+    const dumpBy = new Map(dumps.map((d) => [d.userId, d]));
+    const recentBy = new Map(recentAuto.map((r) => [r.userId, r._count._all]));
+
+    const reports = events.map((e) => {
+      const dump = e.userId ? dumpBy.get(e.userId) : undefined;
+      const s = (dump?.statusJson ?? {}) as {
+        backgroundPermission?: string;
+        motionPermission?: string;
+        nativeEngineEnabled?: boolean;
+        activitySummary?: Record<string, number>;
+      };
+      const meta = (e.metadata ?? {}) as { note?: string };
+      const recent = e.userId ? (recentBy.get(e.userId) ?? 0) : 0;
+
+      let diagnosis: "permission_gap" | "silent_non_capture" | "needs_look" = "needs_look";
+      if (dump) {
+        if (s.backgroundPermission !== "granted" || s.motionPermission === "denied") {
+          diagnosis = "permission_gap";
+        } else if (
+          s.nativeEngineEnabled === true &&
+          recent === 0 &&
+          (s.activitySummary?.native_recording_started ?? 0) === 0
+        ) {
+          diagnosis = "silent_non_capture";
+        }
+      }
+
+      return {
+        id: e.id,
+        userId: e.userId,
+        email: e.user?.email ?? null,
+        displayName: e.user?.displayName ?? null,
+        note: meta.note ?? null,
+        reportedAt: e.createdAt.toISOString(),
+        dumpVerdict: dump?.verdict ?? null,
+        dumpAt: dump?.capturedAt.toISOString() ?? null,
+        backgroundPermission: s.backgroundPermission ?? null,
+        motionPermission: s.motionPermission ?? null,
+        nativeEngine: s.nativeEngineEnabled === true,
+        recentAutoTrips: recent,
+        diagnosis,
+      };
+    });
+
+    return reply.send({ data: { reports, generatedAt: new Date().toISOString() } });
   });
 
   // POST /admin/users/:userId/reset-classifications

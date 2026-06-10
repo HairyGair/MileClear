@@ -581,8 +581,13 @@ function UserDetailModal({
   // Push notification to specific user
   const [pushTitle, setPushTitle] = useState("");
   const [pushBody, setPushBody] = useState("");
+  const [pushAction, setPushAction] = useState("open_app");
   const [pushSending, setPushSending] = useState(false);
   const [pushResult, setPushResult] = useState<string | null>(null);
+
+  // Remote engine switch (set_native_engine silent push)
+  const [engineSending, setEngineSending] = useState(false);
+  const [engineResult, setEngineResult] = useState<string | null>(null);
 
   // Notes editor
   const [notesDraft, setNotesDraft] = useState("");
@@ -639,7 +644,9 @@ function UserDetailModal({
     setDiag(null);
     setPushTitle("");
     setPushBody("");
+    setPushAction("open_app");
     setPushResult(null);
+    setEngineResult(null);
     setNotesDraft("");
     setNotesMessage(null);
     setTripOpen(false);
@@ -825,6 +832,7 @@ function UserDetailModal({
         userId,
         title: pushTitle.trim(),
         body: pushBody.trim(),
+        action: pushAction,
         dryRun,
       });
       setPushResult(dryRun ? `Dry run: would send to ${res.data.sent} device(s)` : `Sent to ${res.data.sent} device(s)`);
@@ -833,6 +841,23 @@ function UserDetailModal({
       setPushResult(`Error: ${err.message}`);
     } finally {
       setPushSending(false);
+    }
+  };
+
+  const handleEngineSwitch = async (enabled: boolean) => {
+    if (!userId) return;
+    setEngineSending(true);
+    setEngineResult(null);
+    try {
+      const res = await api.post<{ data: { sent: boolean; detail: string } }>(
+        `/admin/users/${userId}/engine`,
+        { enabled }
+      );
+      setEngineResult(res.data.detail);
+    } catch (err: any) {
+      setEngineResult(`Error: ${err.message}`);
+    } finally {
+      setEngineSending(false);
     }
   };
 
@@ -1561,6 +1586,24 @@ function UserDetailModal({
                 onChange={(e) => setPushBody(e.target.value)}
                 maxLength={200}
               />
+              {/* Deep-link action — every push must route somewhere on tap. */}
+              <Select
+                id="pushAction"
+                value={pushAction}
+                onChange={(e) => setPushAction(e.target.value)}
+                options={[
+                  { value: "open_app", label: "Tap opens: app (default)" },
+                  { value: "open_dashboard", label: "Tap opens: Dashboard" },
+                  { value: "open_trips", label: "Tap opens: Trips" },
+                  { value: "open_unclassified_trips", label: "Tap opens: Unclassified trips" },
+                  { value: "open_settings", label: "Tap opens: Settings" },
+                  { value: "open_diagnostics", label: "Tap opens: Drive Detection diagnostics" },
+                  { value: "open_sync_status", label: "Tap opens: Sync status" },
+                  { value: "open_billing", label: "Tap opens: Billing" },
+                  { value: "open_exports", label: "Tap opens: Exports" },
+                  { value: "open_referrals", label: "Tap opens: Referrals" },
+                ]}
+              />
               <div style={{ display: "flex", gap: "0.5rem" }}>
                 <Button
                   variant="ghost"
@@ -1582,6 +1625,52 @@ function UserDetailModal({
               {pushResult && (
                 <p style={{ fontSize: "0.8125rem", color: pushResult.startsWith("Error") ? "var(--dash-red)" : "var(--emerald-400)", margin: 0 }}>
                   {pushResult}
+                </p>
+              )}
+            </div>
+          </div>
+
+          {/* Remote engine switch — set_native_engine silent push. The per-user
+              rollback lever for the ClearTrack rollout: devices where the
+              native engine never opens recordings (silent non-capture) get
+              flipped back to the JS engine without the user doing anything.
+              Needs the device on an OTA that includes the handler (10 Jun
+              2026+); older bundles ignore the push harmlessly. */}
+          <div className="settings-section">
+            <h4 className="settings-section__title">Trip Detection Engine</h4>
+            <div style={{ display: "flex", flexDirection: "column", gap: "0.625rem" }}>
+              <p style={{ fontSize: "0.8125rem", color: "var(--text-tertiary)", margin: 0 }}>
+                Latest dump reports:{" "}
+                <strong style={{ color: "var(--text-primary)" }}>
+                  {diag
+                    ? (diag.statusJson as { nativeEngineEnabled?: boolean }).nativeEngineEnabled === true
+                      ? "ClearTrack (native)"
+                      : "JS engine"
+                    : "unknown (no dump)"}
+                </strong>
+                . Switching sends a silent push; it takes effect when the device receives it.
+              </p>
+              <div style={{ display: "flex", gap: "0.5rem" }}>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => handleEngineSwitch(false)}
+                  disabled={engineSending}
+                >
+                  Switch to JS engine
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => handleEngineSwitch(true)}
+                  disabled={engineSending}
+                >
+                  Switch to ClearTrack
+                </Button>
+              </div>
+              {engineResult && (
+                <p style={{ fontSize: "0.8125rem", color: engineResult.startsWith("Error") ? "var(--dash-red)" : "var(--emerald-400)", margin: 0 }}>
+                  {engineResult}
                 </p>
               )}
             </div>
@@ -2465,12 +2554,6 @@ interface DetectionFleetData {
     nativeNever: number;
     dumpsTotal: number;
   };
-  nativeNeedsAttention: Array<{
-    email: string;
-    displayName: string | null;
-    lastNativeLocationAt: string | null;
-    dumpAt: string;
-  }>;
   quietDrivers: Array<{
     email: string;
     displayName: string | null;
@@ -2612,27 +2695,20 @@ function AutoTripsTab() {
             )}
           </Card>
 
-          {fleet.nativeNeedsAttention.length > 0 && (
-            <Card title={`Native engine needs attention (${fleet.nativeNeedsAttention.length})`}>
-              <p style={{ fontSize: "0.8125rem", color: "var(--text-secondary)", marginBottom: "0.75rem" }}>
-                On the native engine, but their last diagnostic dump showed no recent native fix — native may not be delivering for them.
-              </p>
-              <div className="table-wrap">
-                <table className="table">
-                  <thead><tr><th>Driver</th><th style={{ textAlign: "right" }}>Last native fix</th><th style={{ textAlign: "right" }}>Last dump</th></tr></thead>
-                  <tbody>
-                    {fleet.nativeNeedsAttention.map((n) => (
-                      <tr key={n.email}>
-                        <td>{n.displayName || n.email}</td>
-                        <td style={{ textAlign: "right", color: n.lastNativeLocationAt ? undefined : "var(--dash-red)" }}>{n.lastNativeLocationAt ? new Date(n.lastNativeLocationAt).toLocaleDateString("en-GB") : "never"}</td>
-                        <td style={{ textAlign: "right" }}>{new Date(n.dumpAt).toLocaleDateString("en-GB")}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </Card>
-          )}
+          {/* The old "native engine needs attention" panel (stale
+              lastNativeLocationAt) was removed 10 Jun 2026 — it false-flagged
+              parked devices and missed real silent non-capture (the metric
+              refreshes on every app open). Capture-outcome health lives on
+              the dedicated page: */}
+          <Card title="Per-device capture health">
+            <p style={{ fontSize: "0.8125rem", color: "var(--text-secondary)", margin: 0 }}>
+              Capture counts, trigger signatures and silent non-capture flags for every
+              native-engine device are on{" "}
+              <a href="/dashboard/admin/cleartrack" style={{ color: "var(--amber-400)" }}>
+                ClearTrack Capture Health →
+              </a>
+            </p>
+          </Card>
         </>
       )}
 
@@ -4585,87 +4661,34 @@ export default function AdminPage() {
           title="Admin"
           subtitle="Platform management and analytics"
         />
-        <div style={{ display: "flex", gap: 8, alignSelf: "center" }}>
-          <a
-            href="/dashboard/admin/build-health"
-            style={{
-              background: "rgba(251, 191, 36, 0.12)",
-              border: "1px solid rgba(251, 191, 36, 0.3)",
-              color: "#fbbf24",
-              padding: "8px 14px",
-              borderRadius: 8,
-              fontSize: "0.875rem",
-              fontWeight: 600,
-              textDecoration: "none",
-              whiteSpace: "nowrap",
-            }}
-          >
-            Build Health →
-          </a>
-          <a
-            href="/dashboard/admin/funnel"
-            style={{
-              background: "rgba(251, 191, 36, 0.12)",
-              border: "1px solid rgba(251, 191, 36, 0.3)",
-              color: "#fbbf24",
-              padding: "8px 14px",
-              borderRadius: 8,
-              fontSize: "0.875rem",
-              fontWeight: 600,
-              textDecoration: "none",
-              whiteSpace: "nowrap",
-            }}
-          >
-            Funnel →
-          </a>
-          <a
-            href="/dashboard/admin/issues-by-hour"
-            style={{
-              background: "rgba(251, 191, 36, 0.12)",
-              border: "1px solid rgba(251, 191, 36, 0.3)",
-              color: "#fbbf24",
-              padding: "8px 14px",
-              borderRadius: 8,
-              fontSize: "0.875rem",
-              fontWeight: 600,
-              textDecoration: "none",
-              whiteSpace: "nowrap",
-            }}
-          >
-            Issues/Hour →
-          </a>
-          <a
-            href="/dashboard/admin/geographic-density"
-            style={{
-              background: "rgba(251, 191, 36, 0.12)",
-              border: "1px solid rgba(251, 191, 36, 0.3)",
-              color: "#fbbf24",
-              padding: "8px 14px",
-              borderRadius: 8,
-              fontSize: "0.875rem",
-              fontWeight: 600,
-              textDecoration: "none",
-              whiteSpace: "nowrap",
-            }}
-          >
-            Density →
-          </a>
-          <a
-            href="/dashboard/admin/insights"
-            style={{
-              background: "rgba(251, 191, 36, 0.12)",
-              border: "1px solid rgba(251, 191, 36, 0.3)",
-              color: "#fbbf24",
-              padding: "8px 14px",
-              borderRadius: 8,
-              fontSize: "0.875rem",
-              fontWeight: 600,
-              textDecoration: "none",
-              whiteSpace: "nowrap",
-            }}
-          >
-            Insights →
-          </a>
+        <div style={{ display: "flex", gap: 8, alignSelf: "center", flexWrap: "wrap" }}>
+          {[
+            { href: "/dashboard/admin/cleartrack", label: "ClearTrack" },
+            { href: "/dashboard/admin/missing-trips", label: "Missing Trips" },
+            { href: "/dashboard/admin/build-health", label: "Build Health" },
+            { href: "/dashboard/admin/funnel", label: "Funnel" },
+            { href: "/dashboard/admin/issues-by-hour", label: "Issues/Hour" },
+            { href: "/dashboard/admin/geographic-density", label: "Density" },
+            { href: "/dashboard/admin/insights", label: "Insights" },
+          ].map((link) => (
+            <a
+              key={link.href}
+              href={link.href}
+              style={{
+                background: "rgba(251, 191, 36, 0.12)",
+                border: "1px solid rgba(251, 191, 36, 0.3)",
+                color: "#fbbf24",
+                padding: "8px 14px",
+                borderRadius: 8,
+                fontSize: "0.875rem",
+                fontWeight: 600,
+                textDecoration: "none",
+                whiteSpace: "nowrap",
+              }}
+            >
+              {link.label} →
+            </a>
+          ))}
         </div>
       </div>
 
