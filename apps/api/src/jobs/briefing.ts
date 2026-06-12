@@ -26,6 +26,82 @@ function getCount(countsMap: Map<string, number>, key: string): number {
   return countsMap.get(key) ?? 0;
 }
 
+/**
+ * Compact ClearTrack health counts for the briefing — same criteria as
+ * /admin/cleartrack-health and the #founder monitor (silent non-capture:
+ * previously-active driver, native engine, permissions granted, app alive,
+ * zero recent auto-captures; stranded: fresh dumps but a dead OTA stream).
+ * Counts only; the admin page has the per-device detail.
+ */
+async function getCaptureHealthCounts(): Promise<{
+  silent: number;
+  stranded: number;
+  selfHeals24h: number;
+}> {
+  const now = Date.now();
+  const dumps = await prisma.diagnosticDump.findMany({
+    where: { createdAt: { gte: new Date(now - 7 * 24 * 60 * 60 * 1000) } },
+    orderBy: { capturedAt: "desc" },
+    select: { userId: true, createdAt: true, statusJson: true },
+  });
+  const latest = new Map<string, (typeof dumps)[number]>();
+  for (const d of dumps) if (!latest.has(d.userId)) latest.set(d.userId, d);
+
+  const native = [...latest.values()].filter((d) => {
+    const s = (d.statusJson ?? {}) as Record<string, unknown>;
+    return s.nativeEngineEnabled === true && s.backgroundPermission === "granted";
+  });
+  const ids = native.map((d) => d.userId);
+
+  const recentCutoff = new Date(now - 4 * 24 * 60 * 60 * 1000);
+  const baselineCutoff = new Date(now - 18 * 24 * 60 * 60 * 1000);
+  const [recent, baseline] = ids.length
+    ? await Promise.all([
+        prisma.trip.groupBy({
+          by: ["userId"],
+          where: { userId: { in: ids }, isManualEntry: false, startedAt: { gte: recentCutoff } },
+          _count: { _all: true },
+        }),
+        prisma.trip.groupBy({
+          by: ["userId"],
+          where: {
+            userId: { in: ids },
+            isManualEntry: false,
+            startedAt: { gte: baselineCutoff, lt: recentCutoff },
+          },
+          _count: { _all: true },
+        }),
+      ])
+    : [[], []];
+  const recentBy = new Map(recent.map((r) => [r.userId, r._count._all]));
+  const baselineBy = new Map(baseline.map((r) => [r.userId, r._count._all]));
+
+  let silent = 0;
+  let stranded = 0;
+  let selfHeals24h = 0;
+  const dayAgo = now - 24 * 60 * 60 * 1000;
+  for (const d of latest.values()) {
+    const s = (d.statusJson ?? {}) as Record<string, unknown>;
+    if (s.nativeEngineEnabled === true && s.backgroundPermission === "granted") {
+      if ((recentBy.get(d.userId) ?? 0) === 0 && (baselineBy.get(d.userId) ?? 0) >= 4) silent++;
+    }
+    if (s.nativeEngineEnabled === true) {
+      const updates = s.updates as
+        | { isEnabled?: boolean; createdAt?: string | null; isEmbeddedLaunch?: boolean | null }
+        | undefined;
+      if (!updates) {
+        stranded++;
+      } else if (updates.isEnabled !== false && updates.isEmbeddedLaunch !== true) {
+        const created = updates.createdAt ? Date.parse(updates.createdAt) : NaN;
+        if (Number.isFinite(created) && now - created > 21 * 24 * 60 * 60 * 1000) stranded++;
+      }
+    }
+    const activity = s.activitySummary as Record<string, number> | undefined;
+    if (d.createdAt.getTime() > dayAgo && (activity?.engine_self_healed ?? 0) > 0) selfHeals24h++;
+  }
+  return { silent, stranded, selfHeals24h };
+}
+
 async function runDailyBriefingJob(): Promise<void> {
   try {
     const now = new Date();
@@ -34,91 +110,131 @@ async function runDailyBriefingJob(): Promise<void> {
     if (briefingSentToday) return;
     briefingSentToday = true;
 
-    const twentyFourHoursAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+    const dayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+    const eightDaysAgo = new Date(now.getTime() - 8 * 24 * 60 * 60 * 1000);
 
-    // Query event counts grouped by type
+    // Event counts (24h) for everything event-sourced.
     const eventCounts = await prisma.appEvent.groupBy({
       by: ["type"],
-      where: { createdAt: { gte: twentyFourHoursAgo } },
+      where: { createdAt: { gte: dayAgo } },
       _count: true,
     });
-
     const countsMap = new Map<string, number>(
       eventCounts.map((e: { type: string; _count: number }) => [e.type, e._count])
     );
 
-    // Also get direct DB counts for totals
-    const [totalUsers, newUsers, totalTrips24h, totalErrors] =
-      await Promise.all([
-        prisma.user.count(),
-        prisma.user.count({
-          where: { createdAt: { gte: twentyFourHoursAgo } },
-        }),
-        prisma.trip.count({
-          where: { createdAt: { gte: twentyFourHoursAgo } },
-        }),
-        prisma.appEvent.count({
-          where: {
-            type: "error.500",
-            createdAt: { gte: twentyFourHoursAgo },
-          },
-        }),
-      ]);
+    // The day's driving, with a prior-7-day daily baseline so the numbers
+    // mean something ("is today normal?") instead of floating contextless.
+    const [
+      day,
+      dayAuto,
+      dayDrivers,
+      prior,
+      priorDrivers,
+      totalUsers,
+      premiumUsers,
+      permFailedUsers,
+    ] = await Promise.all([
+      prisma.trip.aggregate({
+        where: { startedAt: { gte: dayAgo } },
+        _count: { _all: true },
+        _sum: { distanceMiles: true },
+      }),
+      prisma.trip.count({ where: { startedAt: { gte: dayAgo }, isManualEntry: false } }),
+      prisma.trip
+        .groupBy({ by: ["userId"], where: { startedAt: { gte: dayAgo } } })
+        .then((r) => r.length),
+      prisma.trip.aggregate({
+        where: { startedAt: { gte: eightDaysAgo, lt: dayAgo } },
+        _count: { _all: true },
+        _sum: { distanceMiles: true },
+      }),
+      prisma.trip
+        .groupBy({ by: ["userId", ], where: { startedAt: { gte: eightDaysAgo, lt: dayAgo } } })
+        .then((r) => new Set(r.map((x) => x.userId)).size),
+      prisma.user.count(),
+      prisma.user.count({
+        where: { OR: [{ isPremium: true }, { referralProUntil: { gt: now } }] },
+      }),
+      prisma.user.count({
+        where: {
+          lastSyncQueuePermFailed: { gt: 0 },
+          lastHeartbeatAt: { gte: new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000) },
+        },
+      }),
+    ]);
 
-    // Get new user details from events
+    const captureHealth = await getCaptureHealthCounts();
+
+    // New user details from events
     const newUserEvents = await prisma.appEvent.findMany({
-      where: {
-        type: "user.registered",
-        createdAt: { gte: twentyFourHoursAgo },
-      },
-      include: {
-        user: { select: { email: true, displayName: true } },
-      },
+      where: { type: "user.registered", createdAt: { gte: dayAgo } },
+      include: { user: { select: { email: true, displayName: true } } },
       orderBy: { createdAt: "desc" },
     });
-
     const newUserList = newUserEvents
-      .filter((e: typeof newUserEvents[number]) => e.user)
-      .map((e: typeof newUserEvents[number]) => ({
+      .filter((e: (typeof newUserEvents)[number]) => e.user)
+      .map((e: (typeof newUserEvents)[number]) => ({
         email: e.user!.email,
         displayName: e.user!.displayName,
-        method: (e.metadata as Record<string, unknown> | null)?.method as string ?? "unknown",
+        method:
+          ((e.metadata as Record<string, unknown> | null)?.method as string) ?? "unknown",
       }));
 
-    // Find admin emails
     const admins = await prisma.user.findMany({
       where: { isAdmin: true },
       select: { email: true },
     });
-
     if (admins.length === 0) return;
 
     const briefing: BriefingData = {
-      period: { from: twentyFourHoursAgo, to: now },
+      period: { from: dayAgo, to: now },
+
+      // The day's driving + baseline
+      drivers: dayDrivers,
+      trips: day._count._all,
+      autoTrips: dayAuto,
+      miles: Math.round(day._sum.distanceMiles ?? 0),
+      avgDriversPerDay: priorDrivers / 7,
+      avgTripsPerDay: prior._count._all / 7,
+      avgMilesPerDay: (prior._sum.distanceMiles ?? 0) / 7,
+
+      // Growth
       registrations: getCount(countsMap, "user.registered"),
-      logins: getCount(countsMap, "user.login"),
-      loginFailures: getCount(countsMap, "auth.login_failed"),
-      verifications: getCount(countsMap, "user.verified"),
-      tripsCreated: getCount(countsMap, "trip.created"),
-      tripsDeleted: getCount(countsMap, "trip.deleted"),
-      shiftsStarted: getCount(countsMap, "shift.started"),
-      shiftsCompleted: getCount(countsMap, "shift.completed"),
-      earningsCreated: getCount(countsMap, "earnings.created"),
-      csvImports: getCount(countsMap, "earnings.csv_imported"),
-      openBankingSyncs: getCount(countsMap, "earnings.open_banking_synced"),
-      exportsCsv: getCount(countsMap, "export.csv"),
-      exportsPdf: getCount(countsMap, "export.pdf"),
-      exportsSelfAssessment: getCount(countsMap, "export.self_assessment"),
-      checkoutsCreated: getCount(countsMap, "billing.checkout_created"),
+      newUserList,
+      totalUsers,
+
+      // Capture health
+      missingTripReports: getCount(countsMap, "trip.report_missing"),
+      silentDevices: captureHealth.silent,
+      strandedDevices: captureHealth.stranded,
+      engineSelfHeals: captureHealth.selfHeals24h,
+      watchdogPushes:
+        getCount(countsMap, "watchdog.silent_push_sent") +
+        getCount(countsMap, "watchdog.drain_sync_push_sent"),
+      watchdogGaveUp: getCount(countsMap, "watchdog.gave_up"),
+
+      // Money
       subscriptionsActivated: getCount(countsMap, "billing.subscription_activated"),
       subscriptionsCancelled: getCount(countsMap, "billing.subscription_cancelled"),
-      appleIapValidated: getCount(countsMap, "billing.apple_iap_validated"),
-      errors500: totalErrors,
+      premiumUsers,
+      referralScreenViews: getCount(countsMap, "referral.screen_viewed"),
+      referralShares: getCount(countsMap, "referral.share_completed"),
+      referralQualified: getCount(countsMap, "referral.qualified"),
+
+      // Needs attention
+      errors500: getCount(countsMap, "error.500"),
       slowRequests: getCount(countsMap, "perf.slow_request"),
-      totalUsers,
-      newUsers,
-      totalTrips24h,
-      newUserList,
+      permFailedUsers,
+
+      // Feature usage (low-volume; rendered only when non-zero)
+      shiftsCompleted: getCount(countsMap, "shift.completed"),
+      earningsCreated: getCount(countsMap, "earnings.created"),
+      tripsDeleted: getCount(countsMap, "trip.deleted"),
+      exports:
+        getCount(countsMap, "export.csv") +
+        getCount(countsMap, "export.pdf") +
+        getCount(countsMap, "export.self_assessment"),
     };
 
     for (const admin of admins) {

@@ -1722,56 +1722,83 @@ ${SIGN_OFF}`;
 
 // ── Admin Briefing & Alert Emails ─────────────────────────────────────
 
+// Redesigned 12 Jun 2026: the old briefing was 20+ raw counters, most
+// permanently zero (CSV imports, checkouts, open-banking syncs) and none
+// answering "was yesterday normal?". The new shape leads with the day's
+// driving vs a 7-day baseline, then capture health (the metric that actually
+// bites), money incl. the referral funnel, and a needs-attention section that
+// only appears when something needs attention.
 export interface BriefingData {
   period: { from: Date; to: Date };
-  // Users
+  // The day's driving + prior-7-day daily baseline
+  drivers: number;
+  trips: number;
+  autoTrips: number;
+  miles: number;
+  avgDriversPerDay: number;
+  avgTripsPerDay: number;
+  avgMilesPerDay: number;
+  // Growth
   registrations: number;
-  logins: number;
-  loginFailures: number;
-  verifications: number;
-  // Activity
-  tripsCreated: number;
-  tripsDeleted: number;
-  shiftsStarted: number;
-  shiftsCompleted: number;
-  // Revenue
-  earningsCreated: number;
-  csvImports: number;
-  openBankingSyncs: number;
-  // Exports
-  exportsCsv: number;
-  exportsPdf: number;
-  exportsSelfAssessment: number;
-  // Billing
-  checkoutsCreated: number;
+  newUserList: { email: string; displayName: string | null; method: string }[];
+  totalUsers: number;
+  // Capture health
+  missingTripReports: number;
+  silentDevices: number;
+  strandedDevices: number;
+  engineSelfHeals: number;
+  watchdogPushes: number;
+  watchdogGaveUp: number;
+  // Money
   subscriptionsActivated: number;
   subscriptionsCancelled: number;
-  appleIapValidated: number;
-  // Health
+  premiumUsers: number;
+  referralScreenViews: number;
+  referralShares: number;
+  referralQualified: number;
+  // Needs attention
   errors500: number;
   slowRequests: number;
-  // Totals
-  totalUsers: number;
-  newUsers: number;
-  totalTrips24h: number;
-  // New user details
-  newUserList: { email: string; displayName: string | null; method: string }[];
+  permFailedUsers: number;
+  // Feature usage (rendered only when non-zero)
+  shiftsCompleted: number;
+  earningsCreated: number;
+  tripsDeleted: number;
+  exports: number;
 }
 
-function briefingRow(label: string, value: number, highlight = false): string {
-  const color = highlight && value > 0 ? "#f5a623" : "#c0c8d4";
+function briefingRow(
+  label: string,
+  value: number | string,
+  color = "#c0c8d4"
+): string {
   return `<tr>
     <td style="padding: 6px 12px; color: #9ca3af; font-size: 14px; border-bottom: 1px solid rgba(255,255,255,0.04);">${label}</td>
     <td style="padding: 6px 12px; color: ${color}; font-size: 14px; font-weight: 600; text-align: right; border-bottom: 1px solid rgba(255,255,255,0.04);">${value}</td>
   </tr>`;
 }
 
-function briefingSection(title: string, rows: string): string {
+/** Section that renders nothing when it has no rows — dead data stays dead. */
+function briefingSection(title: string, rows: string[]): string {
+  if (rows.length === 0) return "";
   return `
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin: 0 0 20px;">
       <tr><td style="padding: 8px 12px; color: #f5a623; font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;">${title}</td><td></td></tr>
-      ${rows}
+      ${rows.join("")}
     </table>`;
+}
+
+/**
+ * "171 trips <span>↑12% vs avg</span>" — the comparison that turns a raw
+ * counter into information. Green up / red down for goodIsUp metrics; muted
+ * when the baseline is too small to compare.
+ */
+function withDelta(value: number, dailyAvg: number): string {
+  if (dailyAvg < 1) return String(value);
+  const pct = Math.round(((value - dailyAvg) / dailyAvg) * 100);
+  const color = pct >= 0 ? "#10b981" : pct <= -25 ? "#ef4444" : "#f59e0b";
+  const arrow = pct >= 0 ? "↑" : "↓";
+  return `${value} <span style="color: ${color}; font-size: 12px;">${arrow}${Math.abs(pct)}% vs 7d avg</span>`;
 }
 
 export async function sendAdminBriefingEmail(
@@ -1806,58 +1833,103 @@ export async function sendAdminBriefingEmail(
   <tr><td style="background-color: #0a1120; border-radius: 16px; border: 1px solid rgba(255,255,255,0.06); padding: 28px 24px;">
 
     <h1 style="margin: 0 0 4px; font-size: 20px; font-weight: 700; color: #f0f2f5;">Daily Briefing</h1>
-    <p style="margin: 0 0 24px; color: #6b7280; font-size: 13px;">${dateStr} - Last 24 hours</p>
+    <p style="margin: 0 0 20px; color: #6b7280; font-size: 13px;">${dateStr} - Last 24 hours</p>
 
-    ${briefingSection("Users", [
-      briefingRow("New registrations", briefing.registrations, true),
-      briefingRow("Logins", briefing.logins),
-      briefingRow("Email verifications", briefing.verifications),
-      briefingRow("Failed logins", briefing.loginFailures, true),
-    ].join(""))}
+    <!-- The day in one line: was yesterday normal? -->
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin: 0 0 20px; background: rgba(245,166,35,0.06); border-radius: 8px;">
+      <tr>
+        <td style="padding: 14px 12px 4px; color: #f0f2f5; font-size: 22px; font-weight: 700; text-align: center;">
+          ${briefing.drivers} drivers · ${briefing.trips} trips · ${briefing.miles.toLocaleString("en-GB")} mi
+        </td>
+      </tr>
+      <tr>
+        <td style="padding: 0 12px 14px; color: #9ca3af; font-size: 13px; text-align: center;">
+          ${withDelta(briefing.trips, briefing.avgTripsPerDay)} trips ·
+          ${withDelta(briefing.drivers, briefing.avgDriversPerDay)} drivers ·
+          ${briefing.trips > 0 ? Math.round((100 * briefing.autoTrips) / briefing.trips) : 0}% auto-captured
+        </td>
+      </tr>
+    </table>
+
+    ${briefingSection("Growth", [
+      briefingRow("New registrations", briefing.registrations, briefing.registrations > 0 ? "#f5a623" : "#c0c8d4"),
+      briefingRow("Total users", briefing.totalUsers),
+    ])}
 
     ${newUsersHtml}
 
-    ${briefingSection("Activity", [
-      briefingRow("Trips created", briefing.tripsCreated, true),
-      briefingRow("Trips deleted", briefing.tripsDeleted),
-      briefingRow("Shifts started", briefing.shiftsStarted),
-      briefingRow("Shifts completed", briefing.shiftsCompleted),
-    ].join(""))}
+    ${briefingSection(
+      "Capture health",
+      [
+        briefing.silentDevices > 0
+          ? briefingRow("Silent non-capture devices", briefing.silentDevices, "#ef4444")
+          : "",
+        briefing.strandedDevices > 0
+          ? briefingRow("Stranded on dead OTA stream", briefing.strandedDevices, "#f59e0b")
+          : "",
+        briefing.missingTripReports > 0
+          ? briefingRow('"Missing a trip?" reports', briefing.missingTripReports, "#f59e0b")
+          : "",
+        briefing.engineSelfHeals > 0
+          ? briefingRow("Engine self-heals (device fixed itself)", briefing.engineSelfHeals, "#f5a623")
+          : "",
+        briefing.watchdogPushes > 0
+          ? briefingRow("Watchdog rescue pushes", briefing.watchdogPushes)
+          : "",
+        briefing.watchdogGaveUp > 0
+          ? briefingRow("Watchdog gave up (unreachable)", briefing.watchdogGaveUp, "#ef4444")
+          : "",
+      ].filter(Boolean)
+    ) || briefingSection("Capture health", [briefingRow("All clear — no silent, stranded or reported capture problems", "✓", "#10b981")])}
 
-    ${briefingSection("Earnings", [
-      briefingRow("Manual entries", briefing.earningsCreated),
-      briefingRow("CSV imports", briefing.csvImports),
-      briefingRow("Open Banking syncs", briefing.openBankingSyncs),
-    ].join(""))}
+    ${briefingSection(
+      "Money",
+      [
+        briefingRow(
+          "Pro subscribers",
+          briefing.premiumUsers,
+          briefing.subscriptionsActivated > 0 ? "#10b981" : "#c0c8d4"
+        ),
+        briefing.subscriptionsActivated > 0
+          ? briefingRow("New subscriptions", briefing.subscriptionsActivated, "#10b981")
+          : "",
+        briefing.subscriptionsCancelled > 0
+          ? briefingRow("Cancellations", briefing.subscriptionsCancelled, "#ef4444")
+          : "",
+        briefing.referralScreenViews > 0
+          ? briefingRow("Referral screen views", briefing.referralScreenViews)
+          : "",
+        briefing.referralShares > 0
+          ? briefingRow("Referral shares sent", briefing.referralShares, "#f5a623")
+          : "",
+        briefing.referralQualified > 0
+          ? briefingRow("Referrals qualified (both got a month)", briefing.referralQualified, "#10b981")
+          : "",
+      ].filter(Boolean)
+    )}
 
-    ${briefingSection("Exports", [
-      briefingRow("CSV downloads", briefing.exportsCsv),
-      briefingRow("PDF reports", briefing.exportsPdf),
-      briefingRow("Self-assessment PDFs", briefing.exportsSelfAssessment),
-    ].join(""))}
+    ${briefingSection(
+      "Needs attention",
+      [
+        briefing.errors500 > 0 ? briefingRow("500 errors", briefing.errors500, "#ef4444") : "",
+        briefing.slowRequests > 0
+          ? briefingRow("Slow requests (>2s)", briefing.slowRequests, "#f59e0b")
+          : "",
+        briefing.permFailedUsers > 0
+          ? briefingRow("Users with permanently-failed sync items", briefing.permFailedUsers, "#f59e0b")
+          : "",
+      ].filter(Boolean)
+    )}
 
-    ${briefingSection("Billing", [
-      briefingRow("Checkout sessions", briefing.checkoutsCreated),
-      briefingRow("New subscriptions", briefing.subscriptionsActivated, true),
-      briefingRow("Cancellations", briefing.subscriptionsCancelled, true),
-      briefingRow("Apple IAP validated", briefing.appleIapValidated),
-    ].join(""))}
-
-    ${briefingSection("Health", [
-      briefingRow("500 errors", briefing.errors500, true),
-      briefingRow("Slow requests (>2s)", briefing.slowRequests, true),
-    ].join(""))}
-
-    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin: 16px 0 0; background: rgba(245,166,35,0.06); border-radius: 8px; padding: 12px;">
-      <tr>
-        <td style="padding: 4px 12px; color: #9ca3af; font-size: 13px;">Total users</td>
-        <td style="padding: 4px 12px; color: #f0f2f5; font-size: 14px; font-weight: 700; text-align: right;">${briefing.totalUsers}</td>
-      </tr>
-      <tr>
-        <td style="padding: 4px 12px; color: #9ca3af; font-size: 13px;">Trips in last 24h</td>
-        <td style="padding: 4px 12px; color: #f0f2f5; font-size: 14px; font-weight: 700; text-align: right;">${briefing.totalTrips24h}</td>
-      </tr>
-    </table>
+    ${briefingSection(
+      "Feature usage",
+      [
+        briefing.shiftsCompleted > 0 ? briefingRow("Shifts completed", briefing.shiftsCompleted) : "",
+        briefing.earningsCreated > 0 ? briefingRow("Earnings logged", briefing.earningsCreated) : "",
+        briefing.exports > 0 ? briefingRow("Exports downloaded", briefing.exports) : "",
+        briefing.tripsDeleted > 0 ? briefingRow("Trips deleted", briefing.tripsDeleted) : "",
+      ].filter(Boolean)
+    )}
 
   </td></tr>
 
