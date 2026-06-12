@@ -766,6 +766,16 @@ export async function finalizeAutoTrip(): Promise<void> {
       [String(Date.now())]
     );
   } catch {}
+  // Drain RNBG's native location store into the JS buffer FIRST, so every
+  // finalize entry path — stationary, heartbeat, stale sweeper, lock-screen
+  // intent, watchdog silent push, app open — judges the FULL route. Only the
+  // stationary/heartbeat paths used to reconcile; the stale sweeper didn't,
+  // and it discarded Sharon Mallinson's real 11 Jun drive as a 5-coord
+  // walking-shape phantom while the native store held the whole journey.
+  try {
+    const { reconcileNativeBufferBeforeFinalize } = await import("./nativeLocation");
+    await reconcileNativeBufferBeforeFinalize();
+  } catch {}
   try {
     await _finalizeAutoTripInner();
   } finally {
@@ -773,6 +783,13 @@ export async function finalizeAutoTrip(): Promise<void> {
     try {
       const db = await getDatabase();
       await db.runAsync("DELETE FROM tracking_state WHERE key = 'finalizing_trip_at'");
+    } catch {}
+    // Clear the native store after EVERY finalize (not just the stationary /
+    // heartbeat paths) so a stale-sweeper or app-open finalize can't leak a
+    // previous trip's fixes into the next recording's reconcile.
+    try {
+      const { isNativeEngineAvailable, destroyNativeLocations } = await import("./nativeLocation");
+      if (isNativeEngineAvailable()) await destroyNativeLocations();
     } catch {}
   }
 }

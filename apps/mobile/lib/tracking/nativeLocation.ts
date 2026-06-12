@@ -475,9 +475,8 @@ async function handleNativeMotionChange(event: NativeMotionEvent): Promise<void>
         "SELECT value FROM tracking_state WHERE key = 'auto_recording_active'"
       );
       if (recording?.value === "1") {
-        // Rebuild the buffer from RNBG's native store if the JS callbacks were
-        // suspended mid-drive and missed fixes, so finalize sees the full route.
-        if (BGGeo) await reconcileNativeBuffer(BGGeo);
+        // finalizeAutoTrip reconciles RNBG's native store itself (12 Jun 2026)
+        // so every finalize path sees the full route — no pre-call needed here.
         logDetectionEvent("native_recording_finalizing", {}).catch(() => {});
         await finalizeAutoTrip();
         try {
@@ -545,7 +544,7 @@ async function handleNativeHeartbeat(): Promise<void> {
     if (idleMs <= HEARTBEAT_FINALIZE_STALE_MS) return; // still moving / recently moved
 
     const BGGeo = loadNativeModule();
-    if (BGGeo) await reconcileNativeBuffer(BGGeo);
+    // finalizeAutoTrip reconciles the native store itself (12 Jun 2026).
     logDetectionEvent("native_heartbeat_finalize", { idleMs }).catch(() => {});
     await finalizeAutoTrip();
     try {
@@ -567,6 +566,38 @@ async function handleNativeHeartbeat(): Promise<void> {
  * the buffer with it so finalize runs on the complete route instead of a
  * 2-point straight line.
  */
+/**
+ * Public, self-gating reconcile for finalizeAutoTrip: drains RNBG's native
+ * location store into detection_coordinates whenever the native engine owns
+ * detection. EVERY finalize path must judge the FULL route — Sharon
+ * Mallinson's 11 Jun drive was captured natively, but the stale-recording
+ * sweeper finalized it without reconciling: 5 starved JS coords, judged a
+ * walking-shape phantom, real trip discarded while RNBG's store held the
+ * whole journey. No-ops on the JS engine or when the module is absent.
+ */
+export async function reconcileNativeBufferBeforeFinalize(): Promise<void> {
+  try {
+    const { isNativeLocationEngineEnabled } = await import("./nativeEngineFlag");
+    if (!(await isNativeLocationEngineEnabled())) return;
+    const BGGeo = loadNativeModule();
+    if (!BGGeo) return;
+    await reconcileNativeBuffer(BGGeo);
+  } catch {
+    // best-effort — finalize proceeds on the JS buffer
+  }
+}
+
+/** Clear RNBG's native location store — post-finalize cleanup so a previous
+ *  trip's fixes can never leak into the next recording's reconcile. */
+export async function destroyNativeLocations(): Promise<void> {
+  try {
+    const BGGeo = loadNativeModule();
+    await BGGeo?.destroyLocations();
+  } catch {
+    // best effort
+  }
+}
+
 async function reconcileNativeBuffer(BGGeo: BgGeo): Promise<void> {
   try {
     const native = await BGGeo.getLocations();
