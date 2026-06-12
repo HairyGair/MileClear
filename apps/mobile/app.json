@@ -109,6 +109,7 @@
       "./plugins/with-live-activities",
       "./plugins/with-vision-ocr",
       "./plugins/with-siri-shortcuts",
+      "./plugins/with-modular-headers",
       [
         "react-native-background-geolocation",
         { "license": "" }
