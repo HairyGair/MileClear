@@ -13,7 +13,16 @@ import {
   MAX_PAGE_SIZE,
   getTaxYear,
 } from "@mileclear/shared";
-import { haversineDistance, computeTripInsights } from "@mileclear/shared";
+import { haversineDistance, computeTripInsights, assessTripCleanAirZoneCharges } from "@mileclear/shared";
+import type { CazVehicleClass } from "@mileclear/shared";
+
+// Map our vehicleType to the CAZ engine's class (car / van / motorcycle).
+function tripVehicleCazClass(vehicleType: string | null | undefined): CazVehicleClass {
+  const t = (vehicleType ?? "").toLowerCase();
+  if (t.includes("van") || t.includes("lgv") || t.includes("truck")) return "van";
+  if (t.includes("motor") || t.includes("bike")) return "motorcycle";
+  return "car";
+}
 import { upsertMileageSummary } from "../../services/mileage.js";
 import { checkAndAwardAchievements } from "../../services/gamification.js";
 import { sendMilestonePush, sendAchievementPush } from "../../jobs/notifications.js";
@@ -1206,8 +1215,32 @@ export async function tripRoutes(app: FastifyInstance) {
       }
     }
 
+    // Clean Air Zone / ULEZ charges this trip likely incurred — vehicle
+    // compliance × route detection. Only surfaces when the vehicle is
+    // non-compliant AND the route crossed a charging zone, so the client only
+    // prompts when there's a real charge to log as a deductible expense.
+    // Approximate boundaries → a prompt to confirm, never an auto-bill.
+    let cleanAirZones: ReturnType<typeof assessTripCleanAirZoneCharges> | null = null;
+    if (trip.vehicle && (trip.coordinates.length > 0 || (trip.endLat != null && trip.endLng != null))) {
+      const coords = trip.coordinates.length > 0
+        ? trip.coordinates.map((c) => ({ lat: c.lat, lng: c.lng }))
+        : [
+            { lat: trip.startLat, lng: trip.startLng },
+            ...(trip.endLat != null && trip.endLng != null ? [{ lat: trip.endLat, lng: trip.endLng }] : []),
+          ];
+      const assessment = assessTripCleanAirZoneCharges({
+        euroStatus: trip.vehicle.euroStatus,
+        fuelType: trip.vehicle.fuelType,
+        firstRegistration: trip.vehicle.firstRegistration,
+        vehicleClass: tripVehicleCazClass(trip.vehicle.vehicleType),
+        coords,
+      });
+      // Only attach when there's something actionable.
+      if (assessment.charges.length > 0) cleanAirZones = assessment;
+    }
+
     return reply.send({
-      data: { ...trip, insights, matchedCoordinates, confidence, mergeSuggestion },
+      data: { ...trip, insights, matchedCoordinates, confidence, mergeSuggestion, cleanAirZones },
     });
   });
 

@@ -96,6 +96,10 @@ export interface TripDetail extends Trip {
     gapMinutes: number;
     gapMeters: number;
   } | null;
+  /** Clean Air Zone / ULEZ charges this trip likely incurred — present only
+   *  when the vehicle is non-compliant AND the route crossed a charging zone.
+   *  Drives the "log the £X charge as an expense" prompt on trip detail. */
+  cleanAirZones?: import("@mileclear/shared").CazTripAssessment | null;
 }
 
 export interface CoordinateInput {

@@ -1,5 +1,10 @@
 import { describe, it, expect } from "vitest";
-import { assessCleanAirZones, CLEAN_AIR_ZONES } from "./cleanAirZone.js";
+import {
+  assessCleanAirZones,
+  CLEAN_AIR_ZONES,
+  detectCleanAirZoneCrossings,
+  assessTripCleanAirZoneCharges,
+} from "./cleanAirZone.js";
 
 describe("assessCleanAirZones", () => {
   it("treats electric vehicles as zero-emission and compliant everywhere", () => {
@@ -83,5 +88,64 @@ describe("assessCleanAirZones", () => {
   it("always returns every known zone", () => {
     const a = assessCleanAirZones({ euroStatus: "EURO 6", fuelType: "PETROL" });
     expect(a.zones).toHaveLength(CLEAN_AIR_ZONES.length);
+  });
+});
+
+describe("detectCleanAirZoneCrossings", () => {
+  it("detects a route through central London (ULEZ)", () => {
+    const crossed = detectCleanAirZoneCrossings([
+      { lat: 51.5074, lng: -0.1278 }, // Trafalgar Square
+    ]);
+    expect(crossed).toContain("london-ulez");
+  });
+
+  it("detects a route through Birmingham city centre", () => {
+    const crossed = detectCleanAirZoneCrossings([{ lat: 52.4778, lng: -1.8925 }]);
+    expect(crossed).toContain("birmingham");
+  });
+
+  it("does not flag a rural route far from any zone", () => {
+    const crossed = detectCleanAirZoneCrossings([
+      { lat: 54.0, lng: -2.8 }, // Lake District
+      { lat: 53.0, lng: -3.5 }, // mid-Wales
+    ]);
+    expect(crossed).toHaveLength(0);
+  });
+
+  it("returns empty for no coordinates", () => {
+    expect(detectCleanAirZoneCrossings([])).toHaveLength(0);
+  });
+});
+
+describe("assessTripCleanAirZoneCharges", () => {
+  it("charges a non-compliant car driving through London ULEZ", () => {
+    const r = assessTripCleanAirZoneCharges({
+      euroStatus: "EURO 3",
+      fuelType: "PETROL",
+      vehicleClass: "car",
+      coords: [{ lat: 51.5074, lng: -0.1278 }],
+    });
+    expect(r.compliant).toBe(false);
+    expect(r.charges.map((c) => c.zoneId)).toContain("london-ulez");
+    expect(r.charges.find((c) => c.zoneId === "london-ulez")?.chargePence).toBe(1250);
+  });
+
+  it("a compliant vehicle is never charged, even through a zone", () => {
+    const r = assessTripCleanAirZoneCharges({
+      euroStatus: "EURO 6",
+      fuelType: "DIESEL",
+      vehicleClass: "car",
+      coords: [{ lat: 51.5074, lng: -0.1278 }],
+    });
+    expect(r.compliant).toBe(true);
+    expect(r.charges).toHaveLength(0);
+  });
+
+  it("a non-compliant CAR is not charged in a Class C zone (Sheffield), but a van is", () => {
+    const coords = [{ lat: 53.3811, lng: -1.4701 }]; // central Sheffield
+    const car = assessTripCleanAirZoneCharges({ euroStatus: "EURO 3", fuelType: "PETROL", vehicleClass: "car", coords });
+    expect(car.charges.find((c) => c.zoneId === "sheffield")).toBeUndefined();
+    const van = assessTripCleanAirZoneCharges({ euroStatus: "EURO 3", fuelType: "PETROL", vehicleClass: "van", coords });
+    expect(van.charges.find((c) => c.zoneId === "sheffield")?.chargePence).toBe(1000);
   });
 });

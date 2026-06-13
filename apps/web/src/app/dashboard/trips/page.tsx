@@ -14,13 +14,14 @@ import { Pagination } from "../../../components/ui/Pagination";
 import { EmptyState } from "../../../components/ui/EmptyState";
 import { LoadingSkeleton } from "../../../components/ui/LoadingSkeleton";
 import type { Trip, TripInsights, TripCoordinate, PaginatedResponse, PlatformTag } from "@mileclear/shared";
-import { GIG_PLATFORMS, BUSINESS_PURPOSES, fetchRouteDistance, getTaxYear, parseTaxYear } from "@mileclear/shared";
+import { GIG_PLATFORMS, BUSINESS_PURPOSES, fetchRouteDistance, getTaxYear, parseTaxYear, formatPence } from "@mileclear/shared";
 import { useAuth } from "../../../lib/auth-context";
 import { useToast } from "../../../components/ui/Toast";
 
 interface DetailTrip extends Trip {
   insights?: TripInsights | null;
   coordinates?: TripCoordinate[];
+  cleanAirZones?: import("@mileclear/shared").CazTripAssessment | null;
 }
 
 const PAGE_SIZE = 20;
@@ -346,6 +347,8 @@ export default function TripsPage() {
   const [detailTrip, setDetailTrip] = useState<DetailTrip | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
   const [showMap, setShowMap] = useState(false);
+  const [loggedCazZones, setLoggedCazZones] = useState<Set<string>>(new Set());
+  const [loggingCaz, setLoggingCaz] = useState<string | null>(null);
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<any>(null);
 
@@ -523,6 +526,29 @@ export default function TripsPage() {
     }
   };
 
+  // Log a Clean Air Zone / ULEZ daily charge as a deductible expense
+  // (category "congestion" = SA103S box 17), dated to the trip.
+  const logCazCharge = async (charge: { zoneId: string; name: string; chargePence: number }) => {
+    if (!detailTrip || loggingCaz) return;
+    setLoggingCaz(charge.zoneId);
+    try {
+      await api.post("/expenses", {
+        category: "congestion",
+        amountPence: charge.chargePence,
+        date: detailTrip.startedAt.slice(0, 10),
+        vehicleId: detailTrip.vehicleId ?? undefined,
+        description: `${charge.name} daily charge`,
+        notes: "Logged from a recorded trip that entered the zone.",
+      });
+      setLoggedCazZones((prev) => new Set(prev).add(charge.zoneId));
+      toast("Charge logged as an expense", "success");
+    } catch (err: any) {
+      toast(err.message || "Couldn't log the charge", "error");
+    } finally {
+      setLoggingCaz(null);
+    }
+  };
+
   // Cleanup map on modal close
   const closeDetail = () => {
     if (mapInstanceRef.current) {
@@ -531,6 +557,7 @@ export default function TripsPage() {
     }
     setShowMap(false);
     setDetailTrip(null);
+    setLoggedCazZones(new Set());
   };
 
   // Load Leaflet and render map
@@ -1206,6 +1233,50 @@ export default function TripsPage() {
                 <div className="trip-detail__stat-label">Type</div>
               </div>
             </div>
+
+            {/* Clean Air Zone / ULEZ charge — route crossed a charging zone in
+                a non-compliant vehicle. Offer to log it as a deductible expense. */}
+            {detailTrip.cleanAirZones && detailTrip.cleanAirZones.charges.length > 0 && (
+              <div
+                style={{
+                  marginTop: "1rem",
+                  padding: "0.875rem 1rem",
+                  borderRadius: 10,
+                  border: "1px solid rgba(245,158,11,0.3)",
+                  background: "rgba(245,158,11,0.08)",
+                }}
+              >
+                <div style={{ color: "#f59e0b", fontWeight: 600, fontSize: "0.875rem", marginBottom: 4 }}>
+                  ⚠ Clean Air Zone charge may apply
+                </div>
+                <div style={{ color: "#94a3b8", fontSize: "0.8125rem", marginBottom: 10, lineHeight: 1.5 }}>
+                  This trip looks like it entered a charging zone in a vehicle that may not be exempt.
+                  If you paid, log it as a deductible expense.
+                </div>
+                {detailTrip.cleanAirZones.charges.map((c) => {
+                  const logged = loggedCazZones.has(c.zoneId);
+                  return (
+                    <div key={c.zoneId} style={{ display: "flex", alignItems: "center", gap: 8, padding: "0.375rem 0" }}>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ color: "#e2e8f0", fontWeight: 600, fontSize: "0.8125rem" }}>{c.name}</div>
+                        <div style={{ color: "#f59e0b", fontSize: "0.75rem" }}>{formatPence(c.chargePence)} daily charge</div>
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        disabled={logged || loggingCaz === c.zoneId}
+                        onClick={() => logCazCharge(c)}
+                      >
+                        {logged ? "✓ Logged" : loggingCaz === c.zoneId ? "Logging…" : "Log charge"}
+                      </Button>
+                    </div>
+                  );
+                })}
+                <div style={{ color: "#64748b", fontSize: "0.6875rem", marginTop: 8, lineHeight: 1.5 }}>
+                  Based on your vehicle&apos;s emissions and an approximate zone map — confirm with the official checker if unsure.
+                </div>
+              </div>
+            )}
 
             {/* Trip Insights */}
             {detailLoading ? (

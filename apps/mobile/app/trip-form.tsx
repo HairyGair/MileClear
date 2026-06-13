@@ -38,7 +38,9 @@ import { fetchVehicles } from "../lib/api/vehicles";
 import { GIG_PLATFORMS, BUSINESS_PURPOSES, TRIP_CATEGORY_META, haversineDistance, calculateHmrcDeduction } from "@mileclear/shared";
 import { fetchServerRouteDistance, type RouteDistanceResult } from "../lib/api/trips";
 import { describeError } from "../lib/api/apiError";
-import type { TripClassification, TripCategory, PlatformTag, BusinessPurpose, Vehicle } from "@mileclear/shared";
+import type { TripClassification, TripCategory, PlatformTag, BusinessPurpose, Vehicle, CazTripAssessment } from "@mileclear/shared";
+import { formatPence } from "@mileclear/shared";
+import { createExpense } from "../lib/api/expenses";
 import { getDatabase } from "../lib/db/index";
 import { startQuickTripTracking, stopQuickTripTracking, clearDetectionCooldown, peekBackgroundCoordinates } from "../lib/tracking";
 import { recordLastSavedTrip } from "../lib/events/lastTrip";
@@ -716,6 +718,10 @@ export default function TripFormScreen() {
     gapMeters: number;
   } | null>(null);
   const [merging, setMerging] = useState(false);
+  // Clean Air Zone charges this trip likely incurred + which we've logged.
+  const [cleanAirZones, setCleanAirZones] = useState<CazTripAssessment | null>(null);
+  const [loggedCazZones, setLoggedCazZones] = useState<Set<string>>(new Set());
+  const [loggingCaz, setLoggingCaz] = useState<string | null>(null);
 
   // Live stats during driving
   const [liveSpeed, setLiveSpeed] = useState(0);
@@ -901,6 +907,7 @@ export default function TripFormScreen() {
         gapMinutes: number;
         gapMeters: number;
       } | null;
+      cleanAirZones?: CazTripAssessment | null;
     }) => {
       setClassification(t.classification as TripClassification);
       setPlatformTag((t.platformTag ?? undefined) as PlatformTag | undefined);
@@ -927,6 +934,7 @@ export default function TripFormScreen() {
       if (t.insights) setInsights(t.insights);
       if (t.confidence) setConfidence(t.confidence);
       if (t.mergeSuggestion) setMergeSuggestion(t.mergeSuggestion);
+      if (t.cleanAirZones) setCleanAirZones(t.cleanAirZones);
     };
 
     fetchTrip(id)
@@ -1574,6 +1582,36 @@ export default function TripFormScreen() {
       ]
     );
   }, [id, merging, classification, platformTag, router]);
+
+  /**
+   * Log a Clean Air Zone / ULEZ daily charge as a deductible expense. Files it
+   * under the existing "congestion" category (SA103S box 17), dated to the
+   * trip, against this vehicle, so it flows into the user's tax tooling.
+   */
+  const handleLogCazCharge = useCallback(
+    async (charge: { zoneId: string; name: string; chargePence: number }) => {
+      if (loggingCaz) return;
+      setLoggingCaz(charge.zoneId);
+      try {
+        await createExpense({
+          category: "congestion",
+          amountPence: charge.chargePence,
+          date: (startedAt ?? new Date()).toISOString().slice(0, 10),
+          vehicleId: vehicleId ?? undefined,
+          description: `${charge.name} daily charge`,
+          notes: "Logged from a recorded trip that entered the zone.",
+        });
+        setLoggedCazZones((prev) => new Set(prev).add(charge.zoneId));
+        haptic("success");
+      } catch (err) {
+        const { title, message } = describeError(err, "Couldn't log the charge");
+        Alert.alert(title, message);
+      } finally {
+        setLoggingCaz(null);
+      }
+    },
+    [loggingCaz, startedAt, vehicleId]
+  );
 
   /**
    * One-tap recalculate. Asks the server to re-run the routing service
@@ -2868,6 +2906,55 @@ export default function TripFormScreen() {
               </View>
             )}
 
+            {/* Clean Air Zone / ULEZ charge — this trip's route crossed a
+                charging zone in a non-compliant vehicle. Offer to log the
+                daily charge as a deductible expense. Guidance, user confirms. */}
+            {isEditing && cleanAirZones && cleanAirZones.charges.length > 0 && (
+              <View style={styles.cazTripCard}>
+                <View style={styles.cazTripHeader}>
+                  <Ionicons name="alert-circle" size={18} color={AMBER} />
+                  <Text style={styles.cazTripTitle}>Clean Air Zone charge may apply</Text>
+                </View>
+                <Text style={styles.cazTripBody}>
+                  This trip looks like it entered a charging zone in a vehicle that may not
+                  be exempt. If you paid, log it as a deductible expense.
+                </Text>
+                {cleanAirZones.charges.map((c) => {
+                  const logged = loggedCazZones.has(c.zoneId);
+                  return (
+                    <View key={c.zoneId} style={styles.cazTripRow}>
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.cazTripZone}>{c.name}</Text>
+                        <Text style={styles.cazTripCharge}>{formatPence(c.chargePence)} daily charge</Text>
+                      </View>
+                      <TouchableOpacity
+                        style={[styles.cazLogBtn, logged && styles.cazLogBtnDone]}
+                        onPress={() => !logged && handleLogCazCharge(c)}
+                        disabled={logged || loggingCaz === c.zoneId}
+                        accessibilityRole="button"
+                        accessibilityLabel={logged ? `${c.name} charge logged` : `Log the ${c.name} charge as an expense`}
+                      >
+                        {loggingCaz === c.zoneId ? (
+                          <ActivityIndicator color={AMBER} size="small" />
+                        ) : logged ? (
+                          <>
+                            <Ionicons name="checkmark" size={14} color="#10b981" />
+                            <Text style={[styles.cazLogBtnText, { color: "#10b981" }]}>Logged</Text>
+                          </>
+                        ) : (
+                          <Text style={styles.cazLogBtnText}>Log charge</Text>
+                        )}
+                      </TouchableOpacity>
+                    </View>
+                  );
+                })}
+                <Text style={styles.cazTripDisclaimer}>
+                  Based on your vehicle&apos;s emissions and an approximate zone map — confirm with
+                  the official checker if unsure.
+                </Text>
+              </View>
+            )}
+
             {/* Trip Insights (from GPS data - editing mode) */}
             {isEditing && insights && (
               <View style={styles.insightsCard}>
@@ -3896,6 +3983,33 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     marginTop: 12,
   },
+  cazTripCard: {
+    backgroundColor: "rgba(245, 166, 35, 0.08)",
+    borderColor: "rgba(245, 166, 35, 0.25)",
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    marginTop: 12,
+  },
+  cazTripHeader: { flexDirection: "row", alignItems: "center", gap: 7, marginBottom: 6 },
+  cazTripTitle: { fontSize: 13.5, fontFamily: fonts.bold, color: colors.text1 },
+  cazTripBody: { fontSize: 12.5, fontFamily: fonts.regular, color: colors.text2, lineHeight: 17, marginBottom: 8 },
+  cazTripRow: { flexDirection: "row", alignItems: "center", paddingVertical: 6 },
+  cazTripZone: { fontSize: 13, fontFamily: fonts.semibold, color: colors.text1 },
+  cazTripCharge: { fontSize: 12, fontFamily: fonts.regular, color: AMBER, marginTop: 1 },
+  cazLogBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: "rgba(245, 166, 35, 0.15)",
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+  },
+  cazLogBtnDone: { backgroundColor: "rgba(16,185,129,0.12)" },
+  cazLogBtnText: { fontSize: 12.5, fontFamily: fonts.semibold, color: AMBER },
+  cazTripDisclaimer: { fontSize: 11, fontFamily: fonts.regular, color: colors.text3, lineHeight: 15, marginTop: 8 },
   mergeSuggestionTitle: {
     fontSize: 13,
     fontFamily: fonts.semibold,

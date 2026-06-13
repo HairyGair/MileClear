@@ -176,3 +176,114 @@ export function assessCleanAirZones(input: CazComplianceInput): CazAssessment {
     false
   );
 }
+
+// ── Phase B: zone-crossing detection ─────────────────────────────────────────
+//
+// Boundary polygons for the charging zones, used to flag when a recorded trip's
+// route passed through one. APPROXIMATE — simplified outlines, not the official
+// boundaries (which are free GeoJSON on data.gov.uk and should replace these
+// before heavy promotion). Because they're approximate, detection is a PROMPT
+// to the user ("did you pay the charge?"), never an automatic bill. Each ring is
+// a closed list of [lng, lat] vertices.
+type Ring = [number, number][];
+
+const ZONE_BOUNDARIES: Record<string, Ring> = {
+  // London ULEZ = all 32 boroughs (Aug 2023 expansion). Coarse polygon roughly
+  // following the Greater London outline.
+  "london-ulez": [
+    [-0.510, 51.46], [-0.40, 51.62], [-0.18, 51.69], [0.06, 51.67],
+    [0.28, 51.60], [0.33, 51.48], [0.20, 51.36], [0.02, 51.29],
+    [-0.20, 51.28], [-0.42, 51.34], [-0.510, 51.46],
+  ],
+  // Compact city-centre CAZs — small central polygons around each ring road.
+  birmingham: [[-1.918, 52.464], [-1.918, 52.494], [-1.868, 52.494], [-1.868, 52.464], [-1.918, 52.464]],
+  bristol: [[-2.625, 51.440], [-2.625, 51.470], [-2.565, 51.470], [-2.565, 51.440], [-2.625, 51.440]],
+  bath: [[-2.375, 51.371], [-2.375, 51.393], [-2.343, 51.393], [-2.343, 51.371], [-2.375, 51.371]],
+  sheffield: [[-1.485, 53.366], [-1.485, 53.396], [-1.448, 53.396], [-1.448, 53.366], [-1.485, 53.366]],
+  // Bradford CAZ covers the wider urban area (outer ring) — a larger box.
+  bradford: [[-1.805, 53.755], [-1.805, 53.825], [-1.715, 53.825], [-1.715, 53.755], [-1.805, 53.755]],
+  tyneside: [[-1.635, 54.948], [-1.635, 54.985], [-1.585, 54.985], [-1.585, 54.948], [-1.635, 54.948]],
+  portsmouth: [[-1.105, 50.778], [-1.105, 50.820], [-1.055, 50.820], [-1.055, 50.778], [-1.105, 50.778]],
+};
+
+/** Ray-casting point-in-polygon. point = [lng, lat]. */
+function pointInRing(lng: number, lat: number, ring: Ring): boolean {
+  let inside = false;
+  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+    const [xi, yi] = ring[i];
+    const [xj, yj] = ring[j];
+    const intersect = yi > lat !== yj > lat && lng < ((xj - xi) * (lat - yi)) / (yj - yi) + xi;
+    if (intersect) inside = !inside;
+  }
+  return inside;
+}
+
+/** Cheap bounding-box pre-check so we only ray-cast against plausible zones. */
+function ringBounds(ring: Ring): [number, number, number, number] {
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  for (const [x, y] of ring) {
+    if (x < minX) minX = x;
+    if (x > maxX) maxX = x;
+    if (y < minY) minY = y;
+    if (y > maxY) maxY = y;
+  }
+  return [minX, minY, maxX, maxY];
+}
+
+/**
+ * Return the ids of charging zones whose boundary a trip's route passed
+ * through. Tests every supplied coordinate (with a bbox fast-path); a single
+ * point inside the zone counts as a crossing.
+ */
+export function detectCleanAirZoneCrossings(coords: { lat: number; lng: number }[]): string[] {
+  if (!coords || coords.length === 0) return [];
+  const hits = new Set<string>();
+  const bounds = Object.entries(ZONE_BOUNDARIES).map(([id, ring]) => ({ id, ring, b: ringBounds(ring) }));
+  for (const { lat, lng } of coords) {
+    if (lat == null || lng == null) continue;
+    for (const z of bounds) {
+      if (hits.has(z.id)) continue;
+      const [minX, minY, maxX, maxY] = z.b;
+      if (lng < minX || lng > maxX || lat < minY || lat > maxY) continue;
+      if (pointInRing(lng, lat, z.ring)) hits.add(z.id);
+    }
+    if (hits.size === bounds.length) break;
+  }
+  return [...hits];
+}
+
+export interface CazTripCharge {
+  zoneId: string;
+  name: string;
+  city: string;
+  chargePence: number;
+  url: string;
+}
+
+export interface CazTripAssessment {
+  /** True when the vehicle wouldn't be charged anywhere (compliant / zero-emission). */
+  compliant: boolean;
+  confidence: CazConfidence;
+  /** Chargeable zones this trip's route crossed (empty when compliant or no crossings). */
+  charges: CazTripCharge[];
+}
+
+/**
+ * Combine vehicle compliance with route detection: which Clean Air Zone charges
+ * a given trip is likely to have incurred. Returns no charges when the vehicle
+ * is compliant — there's nothing to pay — so the client only prompts when money
+ * is genuinely at stake. Pure; safe to run server- or client-side.
+ */
+export function assessTripCleanAirZoneCharges(
+  input: CazComplianceInput & { coords: { lat: number; lng: number }[] }
+): CazTripAssessment {
+  const compliance = assessCleanAirZones(input);
+  if (compliance.verdict === "compliant") {
+    return { compliant: true, confidence: compliance.confidence, charges: [] };
+  }
+  const crossed = new Set(detectCleanAirZoneCrossings(input.coords));
+  const charges: CazTripCharge[] = compliance.zones
+    .filter((z) => crossed.has(z.id) && z.chargesThisVehicle && z.chargePence != null)
+    .map((z) => ({ zoneId: z.id, name: z.name, city: z.city, chargePence: z.chargePence as number, url: z.url }));
+  return { compliant: false, confidence: compliance.confidence, charges };
+}
