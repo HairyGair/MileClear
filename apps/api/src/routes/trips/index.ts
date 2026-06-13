@@ -713,9 +713,24 @@ export async function tripRoutes(app: FastifyInstance) {
   // Count of unclassified trips (for inbox badge)
   // Must be registered before /:id to avoid route conflict
   app.get("/unclassified/count", async (request, reply) => {
-    const count = await prisma.trip.count({
-      where: { userId: request.userId!, classification: "unclassified", isPhantomTrip: false },
-    });
+    // Optional olderThanHours: the unclassified-nudge push only wants trips that
+    // have sat unreviewed for a while, not freshly-finished ones. Counting from
+    // the server (not the device's local SQLite) is what fixes the "push says 7
+    // but the Inbox is empty" drift — local rows go stale because trips hydrate
+    // append-only and a server-side / web / other-device classification never
+    // updates the local copy (Anthony, 13 Jun 2026).
+    const { olderThanHours } = request.query as { olderThanHours?: string };
+    const hours = olderThanHours ? parseInt(olderThanHours, 10) : null;
+    const where: Prisma.TripWhereInput = {
+      userId: request.userId!,
+      classification: "unclassified",
+      isPhantomTrip: false,
+    };
+    if (hours && Number.isFinite(hours) && hours > 0) {
+      where.endedAt = { not: null };
+      where.startedAt = { lt: new Date(Date.now() - hours * 60 * 60 * 1000) };
+    }
+    const count = await prisma.trip.count({ where });
     return reply.send({ count });
   });
 

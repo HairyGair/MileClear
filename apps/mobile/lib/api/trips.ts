@@ -274,8 +274,9 @@ export function deleteTrip(id: string) {
   });
 }
 
-export function fetchUnclassifiedCount() {
-  return apiRequest<{ count: number }>("/trips/unclassified/count");
+export function fetchUnclassifiedCount(olderThanHours?: number) {
+  const qs = olderThanHours ? `?olderThanHours=${olderThanHours}` : "";
+  return apiRequest<{ count: number }>(`/trips/unclassified/count${qs}`);
 }
 
 export interface ClassificationSuggestion {

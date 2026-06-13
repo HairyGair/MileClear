@@ -1,6 +1,8 @@
 import * as Notifications from "expo-notifications";
 import { getDatabase } from "../db/index";
 import { getNotificationPreferences } from "./preferences";
+import { isOnline } from "../network";
+import { fetchUnclassifiedCount } from "../api/trips";
 
 const QUIET_HOURS_START = 22; // 10pm
 const QUIET_HOURS_END = 7;   // 7am
@@ -139,31 +141,34 @@ export async function checkUnclassifiedTripsNudge(): Promise<void> {
 
   const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
 
-  // Match the Inbox exactly: genuinely UNCLASSIFIED trips (business/personal not
-  // yet decided), the same set tapping the notification opens. The old query
-  // targeted business trips missing a platform/note and called them "unreviewed"
-  // - but the app has no review list for those, so the notification pointed at
-  // an empty Inbox (Anthony, 4 Jun). Phantom trips never sync to the local DB
-  // (the server list excludes them), so there's nothing to filter here.
-  const rows = await db.getAllAsync<{ id: string }>(
-    `SELECT id FROM trips
-     WHERE classification = 'unclassified'
-       AND ended_at IS NOT NULL
-       AND started_at < ?
-     LIMIT 1`,
-    [cutoff]
-  );
+  // Count from the SERVER when online — it's the source of truth the Inbox
+  // shows. The local SQLite count drifts high: trips hydrate append-only
+  // (INSERT OR IGNORE) and a classification made server-side, on the web, or on
+  // another device never updates the local row, so it stays "unclassified"
+  // locally forever — firing a push for trips that are already classified
+  // ("push says 7, Inbox empty", Anthony 13 Jun 2026). Fall back to the local
+  // query only when offline.
+  let count = 0;
+  if (isOnline()) {
+    try {
+      const res = await fetchUnclassifiedCount(24); // older than 24h, server truth
+      count = res.count;
+    } catch {
+      // Network blip — skip rather than fire a possibly-stale local count.
+      return;
+    }
+  } else {
+    const countRow = await db.getFirstAsync<{ count: number }>(
+      `SELECT COUNT(*) as count FROM trips
+       WHERE classification = 'unclassified'
+         AND ended_at IS NOT NULL
+         AND started_at < ?`,
+      [cutoff]
+    );
+    count = countRow?.count ?? 0;
+  }
 
-  if (rows.length === 0) return;
-
-  const countRow = await db.getFirstAsync<{ count: number }>(
-    `SELECT COUNT(*) as count FROM trips
-     WHERE classification = 'unclassified'
-       AND ended_at IS NOT NULL
-       AND started_at < ?`,
-    [cutoff]
-  );
-  const count = countRow?.count ?? 1;
+  if (count === 0) return;
 
   await Notifications.scheduleNotificationAsync({
     content: {
