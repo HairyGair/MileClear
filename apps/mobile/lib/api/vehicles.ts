@@ -5,7 +5,13 @@ import type {
   VehicleType,
   VehicleLookupResult,
   MotHistoryResult,
+  CazAssessment,
 } from "@mileclear/shared";
+
+// Vehicle responses now carry the server-computed Clean Air Zone / ULEZ
+// assessment (apps/api withCleanAirZones). The base Vehicle type stays clean;
+// the API rows add this derived field.
+export type VehicleWithCaz = Vehicle & { cleanAirZones?: CazAssessment };
 
 export interface CreateVehicleData {
   make: string;
@@ -17,6 +23,8 @@ export interface CreateVehicleData {
   bluetoothName?: string;
   estimatedMpg?: number;
   isPrimary?: boolean;
+  euroStatus?: string | null;
+  firstRegistration?: string | null;
 }
 
 export interface UpdateVehicleData {
@@ -32,18 +40,18 @@ export interface UpdateVehicleData {
 }
 
 export function fetchVehicles() {
-  return apiRequest<{ data: Vehicle[] }>("/vehicles");
+  return apiRequest<{ data: VehicleWithCaz[] }>("/vehicles");
 }
 
 export function createVehicle(data: CreateVehicleData) {
-  return apiRequest<{ data: Vehicle }>("/vehicles", {
+  return apiRequest<{ data: VehicleWithCaz }>("/vehicles", {
     method: "POST",
     body: JSON.stringify(data),
   });
 }
 
 export function updateVehicle(id: string, data: UpdateVehicleData) {
-  return apiRequest<{ data: Vehicle }>(`/vehicles/${id}`, {
+  return apiRequest<{ data: VehicleWithCaz }>(`/vehicles/${id}`, {
     method: "PATCH",
     body: JSON.stringify(data),
   });

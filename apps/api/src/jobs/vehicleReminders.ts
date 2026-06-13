@@ -84,6 +84,10 @@ export async function runVehicleRemindersJob(): Promise<void> {
           data: {
             motExpiryDate: motExpiry,
             taxDueDate: taxDue,
+            // Backfill emissions data for Clean Air Zone compliance on the
+            // existing fleet (vehicles added before this feature shipped).
+            euroStatus: info.euroStatus,
+            firstRegistration: info.monthOfFirstRegistration,
             lastDvlaCheckAt: new Date(),
           },
         });

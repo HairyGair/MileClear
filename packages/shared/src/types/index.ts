@@ -356,6 +356,9 @@ export interface VehicleLookupResult {
   // expiry warnings 14 days before MOT or tax runs out.
   motExpiryDate: string | null;
   taxDueDate: string | null;
+  // Emissions data for Clean Air Zone / ULEZ compliance (assessCleanAirZones).
+  euroStatus: string | null;
+  firstRegistration: string | null; // "YYYY-MM"
 }
 
 // MOT history from the DVSA MOT History API. Each test includes advisories

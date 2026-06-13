@@ -360,6 +360,14 @@ model Vehicle {
   motReminderSentAt DateTime?
   taxReminderSentAt DateTime?
 
+  // DVLA emissions data for Clean Air Zone / ULEZ compliance (assessed via
+  // shared/assessCleanAirZones). euroStatus is the primary signal;
+  // firstRegistration ("YYYY-MM") is the fallback when euroStatus is blank
+  // (common for pre-2015 vehicles). Backfilled for existing vehicles by the
+  // weekly DVLA refresh cron.
+  euroStatus        String?  @db.VarChar(20)
+  firstRegistration String?  @db.VarChar(7)
+
   user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   shifts   Shift[]
   trips    Trip[]

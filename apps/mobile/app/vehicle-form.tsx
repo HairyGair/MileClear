@@ -20,8 +20,9 @@ import {
   fetchVehicles,
   lookupVehicle,
 } from "../lib/api/vehicles";
-import type { FuelType, VehicleType } from "@mileclear/shared";
+import type { FuelType, VehicleType, CazAssessment } from "@mileclear/shared";
 import { Button } from "../components/Button";
+import { CleanAirZoneCard } from "../components/CleanAirZoneCard";
 import { useUser } from "../lib/user/context";
 import { colors, fonts } from "../lib/theme";
 
@@ -55,6 +56,12 @@ export default function VehicleFormScreen() {
   const [registrationPlate, setRegistrationPlate] = useState("");
   const [lookingUp, setLookingUp] = useState(false);
   const [lookupDone, setLookupDone] = useState(false);
+  // Emissions data from the DVLA lookup, sent through on create so Clean Air
+  // Zone compliance can be computed for the vehicle without a second lookup.
+  const [euroStatus, setEuroStatus] = useState<string | null>(null);
+  const [firstRegistration, setFirstRegistration] = useState<string | null>(null);
+  // Server-computed Clean Air Zone assessment for an existing vehicle.
+  const [cleanAirZones, setCleanAirZones] = useState<CazAssessment | null>(null);
   const [make, setMake] = useState("");
   const [model, setModel] = useState("");
   const [year, setYear] = useState("");
@@ -80,6 +87,7 @@ export default function VehicleFormScreen() {
           setEstimatedMpg(vehicle.estimatedMpg ? String(vehicle.estimatedMpg) : "");
           setIsPrimary(vehicle.isPrimary);
           setRegistrationPlate(vehicle.registrationPlate || "");
+          setCleanAirZones(vehicle.cleanAirZones ?? null);
         }
       })
       .finally(() => setLoadingExisting(false));
@@ -100,6 +108,8 @@ export default function VehicleFormScreen() {
       setMake(data.make);
       if (data.yearOfManufacture) setYear(String(data.yearOfManufacture));
       setFuelType(data.fuelType);
+      setEuroStatus(data.euroStatus ?? null);
+      setFirstRegistration(data.firstRegistration ?? null);
       setLookupDone(true);
 
       const colourText = data.colour ? `, ${data.colour}` : "";
@@ -157,6 +167,8 @@ export default function VehicleFormScreen() {
       if (registrationPlate.trim()) {
         payload.registrationPlate = registrationPlate.trim().toUpperCase().replace(/\s+/g, "");
       }
+      if (euroStatus) payload.euroStatus = euroStatus;
+      if (firstRegistration) payload.firstRegistration = firstRegistration;
 
       if (isEditing) {
         await updateVehicle(id, payload);
@@ -369,6 +381,9 @@ export default function VehicleFormScreen() {
             />
           </View>
         </TouchableOpacity>
+
+        {/* Clean Air Zone / ULEZ compliance — edit mode, when we have data */}
+        {isEditing && cleanAirZones && <CleanAirZoneCard assessment={cleanAirZones} />}
 
         {/* MOT History — edit mode + has plate */}
         {isEditing && registrationPlate.trim() && (

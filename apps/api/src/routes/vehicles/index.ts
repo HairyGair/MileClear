@@ -3,9 +3,34 @@ import { z } from "zod";
 import { authMiddleware } from "../../middleware/auth.js";
 import { prisma } from "../../lib/prisma.js";
 import { cacheGet, cacheSet } from "../../lib/redis.js";
-import { FUEL_TYPES, VEHICLE_TYPES } from "@mileclear/shared";
-import type { FuelType, VehicleLookupResult } from "@mileclear/shared";
+import { FUEL_TYPES, VEHICLE_TYPES, assessCleanAirZones } from "@mileclear/shared";
+import type { FuelType, VehicleLookupResult, CazVehicleClass } from "@mileclear/shared";
 import { fetchMotHistory, DvsaMotError } from "../../services/dvsaMot.js";
+
+// Map our stored vehicleType to the CAZ engine's vehicle class (it only
+// distinguishes car / van / motorcycle for charge + standard purposes).
+function toCazVehicleClass(vehicleType: string): CazVehicleClass {
+  const t = vehicleType.toLowerCase();
+  if (t.includes("van") || t.includes("lgv") || t.includes("truck")) return "van";
+  if (t.includes("motor") || t.includes("bike")) return "motorcycle";
+  return "car";
+}
+
+// Attach the computed Clean Air Zone / ULEZ assessment to a vehicle row, so
+// every vehicle response carries compliance without the client re-deriving it.
+function withCleanAirZones<T extends { fuelType: string; vehicleType: string; euroStatus?: string | null; firstRegistration?: string | null }>(
+  vehicle: T
+) {
+  return {
+    ...vehicle,
+    cleanAirZones: assessCleanAirZones({
+      euroStatus: vehicle.euroStatus,
+      fuelType: vehicle.fuelType,
+      firstRegistration: vehicle.firstRegistration,
+      vehicleClass: toCazVehicleClass(vehicle.vehicleType),
+    }),
+  };
+}
 
 const regPlateField = z
   .string()
@@ -24,6 +49,10 @@ const createVehicleSchema = z.object({
   bluetoothName: z.string().max(100).optional(),
   estimatedMpg: z.number().positive().optional(),
   isPrimary: z.boolean().default(true),
+  // DVLA emissions data, passed straight from the lookup result so Clean Air
+  // Zone compliance can be shown without a second DVLA call.
+  euroStatus: z.string().max(20).optional(),
+  firstRegistration: z.string().max(7).optional(),
 });
 
 const updateVehicleSchema = z.object({
@@ -41,6 +70,8 @@ const updateVehicleSchema = z.object({
   bluetoothName: z.string().max(100).nullable().optional(),
   estimatedMpg: z.number().positive().nullable().optional(),
   isPrimary: z.boolean().optional(),
+  euroStatus: z.string().max(20).nullable().optional(),
+  firstRegistration: z.string().max(7).nullable().optional(),
 });
 
 const lookupSchema = z.object({
@@ -157,6 +188,10 @@ export async function vehicleRoutes(app: FastifyInstance) {
         motStatus: dvla.motStatus ? String(dvla.motStatus) : null,
         motExpiryDate: dvla.motExpiryDate ? String(dvla.motExpiryDate) : null,
         taxDueDate: dvla.taxDueDate ? String(dvla.taxDueDate) : null,
+        euroStatus: dvla.euroStatus ? String(dvla.euroStatus) : null,
+        firstRegistration: dvla.monthOfFirstRegistration
+          ? String(dvla.monthOfFirstRegistration)
+          : null,
       };
 
       // Cache for 24h
@@ -206,7 +241,7 @@ export async function vehicleRoutes(app: FastifyInstance) {
       data: { ...data, userId },
     });
 
-    return reply.status(201).send({ data: vehicle });
+    return reply.status(201).send({ data: withCleanAirZones(vehicle) });
   });
 
   // List user vehicles
@@ -216,7 +251,7 @@ export async function vehicleRoutes(app: FastifyInstance) {
       orderBy: [{ isPrimary: "desc" }, { createdAt: "desc" }],
     });
 
-    return reply.send({ data: vehicles });
+    return reply.send({ data: vehicles.map(withCleanAirZones) });
   });
 
   // Update vehicle
@@ -250,7 +285,7 @@ export async function vehicleRoutes(app: FastifyInstance) {
       data,
     });
 
-    return reply.send({ data: vehicle });
+    return reply.send({ data: withCleanAirZones(vehicle) });
   });
 
   // Delete vehicle

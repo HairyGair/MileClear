@@ -14,6 +14,9 @@ export interface DvlaVehicleInfo {
   motStatus: string | null;
   motExpiryDate: string | null;
   taxDueDate: string | null;
+  // Emissions data for Clean Air Zone / ULEZ compliance.
+  euroStatus: string | null;
+  monthOfFirstRegistration: string | null; // "YYYY-MM"
 }
 
 export class DvlaError extends Error {
@@ -90,5 +93,9 @@ export async function fetchDvlaVehicleInfo(
     motStatus: dvla.motStatus ? String(dvla.motStatus) : null,
     motExpiryDate: dvla.motExpiryDate ? String(dvla.motExpiryDate) : null,
     taxDueDate: dvla.taxDueDate ? String(dvla.taxDueDate) : null,
+    euroStatus: dvla.euroStatus ? String(dvla.euroStatus) : null,
+    monthOfFirstRegistration: dvla.monthOfFirstRegistration
+      ? String(dvla.monthOfFirstRegistration)
+      : null,
   };
 }

@@ -10,8 +10,10 @@ import { Modal } from "../../../components/ui/Modal";
 import { ConfirmModal } from "../../../components/ui/ConfirmModal";
 import { EmptyState } from "../../../components/ui/EmptyState";
 import { LoadingSkeleton } from "../../../components/ui/LoadingSkeleton";
-import type { Vehicle } from "@mileclear/shared";
-import { FUEL_TYPES, VEHICLE_TYPES } from "@mileclear/shared";
+import type { Vehicle, CazAssessment } from "@mileclear/shared";
+import { FUEL_TYPES, VEHICLE_TYPES, formatPence } from "@mileclear/shared";
+
+type VehicleWithCaz = Vehicle & { cleanAirZones?: CazAssessment };
 import { useAuth } from "../../../lib/auth-context";
 import { useToast } from "../../../components/ui/Toast";
 
@@ -29,7 +31,7 @@ export default function VehiclesPage() {
   const { user } = useAuth();
   const { toast } = useToast();
   const isPremium = user?.isPremium ?? false;
-  const [vehicles, setVehicles] = useState<Vehicle[]>([]);
+  const [vehicles, setVehicles] = useState<VehicleWithCaz[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -45,6 +47,8 @@ export default function VehiclesPage() {
     registrationPlate: "",
     estimatedMpg: "",
     isPrimary: true,
+    euroStatus: null as string | null,
+    firstRegistration: null as string | null,
   });
   const [formLoading, setFormLoading] = useState(false);
 
@@ -88,12 +92,14 @@ export default function VehiclesPage() {
       registrationPlate: "",
       estimatedMpg: "",
       isPrimary: vehicles.length === 0,
+      euroStatus: null,
+      firstRegistration: null,
     });
     setRegLookup("");
     setShowModal(true);
   };
 
-  const openEdit = (v: Vehicle) => {
+  const openEdit = (v: VehicleWithCaz) => {
     setEditVehicle(v);
     setForm({
       make: v.make,
@@ -104,6 +110,9 @@ export default function VehiclesPage() {
       registrationPlate: v.registrationPlate || "",
       estimatedMpg: v.estimatedMpg ? String(v.estimatedMpg) : "",
       isPrimary: v.isPrimary,
+      // Preserve stored emissions data through an edit so compliance survives.
+      euroStatus: null,
+      firstRegistration: null,
     });
     setShowModal(true);
   };
@@ -123,6 +132,8 @@ export default function VehiclesPage() {
         year: v.yearOfManufacture ? String(v.yearOfManufacture) : f.year,
         fuelType: v.fuelType?.toLowerCase() || f.fuelType,
         registrationPlate: regLookup.replace(/\s/g, "").toUpperCase(),
+        euroStatus: v.euroStatus ?? null,
+        firstRegistration: v.firstRegistration ?? null,
       }));
     } catch (err: any) {
       setError(err.message || "DVLA lookup failed");
@@ -143,6 +154,8 @@ export default function VehiclesPage() {
         registrationPlate: form.registrationPlate || undefined,
         estimatedMpg: form.estimatedMpg ? parseFloat(form.estimatedMpg) : undefined,
         isPrimary: form.isPrimary,
+        euroStatus: form.euroStatus ?? undefined,
+        firstRegistration: form.firstRegistration ?? undefined,
       };
 
       if (editVehicle) {
@@ -283,6 +296,48 @@ export default function VehiclesPage() {
                   </div>
                 )}
               </div>
+
+              {v.cleanAirZones && v.cleanAirZones.verdict !== "unknown" && (() => {
+                const caz = v.cleanAirZones;
+                const ok = caz.verdict === "compliant";
+                const accent = ok ? "#10b981" : "#f59e0b";
+                const charging = caz.zones.filter((z) => z.chargesThisVehicle && !ok);
+                return (
+                  <div
+                    style={{
+                      marginTop: "0.75rem",
+                      padding: "0.625rem 0.75rem",
+                      borderRadius: 10,
+                      border: `1px solid ${accent}33`,
+                      background: `${accent}14`,
+                    }}
+                  >
+                    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                      <span style={{ color: accent, fontWeight: 600, fontSize: "0.8125rem" }}>
+                        {ok ? "✓ ULEZ / Clean Air Zone ready" : "⚠ May be charged in Clean Air Zones"}
+                      </span>
+                      {caz.confidence === "estimated" && (
+                        <span style={{ color: "#94a3b8", fontSize: "0.6875rem", textTransform: "uppercase", letterSpacing: 0.4 }}>
+                          estimated
+                        </span>
+                      )}
+                    </div>
+                    {!ok && charging.length > 0 && (
+                      <div style={{ color: "#94a3b8", fontSize: "0.75rem", marginTop: 4, lineHeight: 1.5 }}>
+                        {charging.slice(0, 4).map((z) => `${z.city} ${formatPence(z.chargePence ?? 0)}/day`).join(" · ")}
+                      </div>
+                    )}
+                    <a
+                      href="https://www.gov.uk/clean-air-zones"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      style={{ color: "var(--amber-400)", fontSize: "0.75rem", textDecoration: "none", marginTop: 4, display: "inline-block" }}
+                    >
+                      Check official gov.uk status →
+                    </a>
+                  </div>
+                );
+              })()}
 
               <div className="vehicle-card__actions">
                 <Button variant="ghost" size="sm" onClick={() => openEdit(v)}>

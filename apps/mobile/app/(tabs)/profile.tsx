@@ -16,7 +16,7 @@ import { useRouter, useFocusEffect } from "expo-router";
 import * as WebBrowser from "expo-web-browser";
 import { useAuth } from "../../lib/auth/context";
 import { useUser } from "../../lib/user/context";
-import { fetchVehicles } from "../../lib/api/vehicles";
+import { fetchVehicles, type VehicleWithCaz } from "../../lib/api/vehicles";
 import { fetchProfile, updateProfile, deleteAccount } from "../../lib/api/user";
 import {
   fetchBillingStatus,
@@ -68,7 +68,7 @@ export default function ProfileScreen() {
   const profileLayout = useLayoutPrefs("profile");
 
   const [user, setUser] = useState<User | null>(null);
-  const [vehicles, setVehicles] = useState<Vehicle[]>([]);
+  const [vehicles, setVehicles] = useState<VehicleWithCaz[]>([]);
   const [billing, setBilling] = useState<BillingStatus | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -342,6 +342,31 @@ export default function ProfileScreen() {
                       <Text style={styles.metaChip}>{VEHICLE_TYPE_LABELS[v.vehicleType]}</Text>
                       <Text style={styles.metaText}>{FUEL_TYPE_LABELS[v.fuelType]}</Text>
                       {v.year && <Text style={styles.metaText}>{v.year}</Text>}
+                      {v.cleanAirZones && v.cleanAirZones.verdict !== "unknown" && (
+                        <View
+                          style={[
+                            styles.cazChip,
+                            v.cleanAirZones.verdict === "compliant"
+                              ? styles.cazChipOk
+                              : styles.cazChipWarn,
+                          ]}
+                        >
+                          <Ionicons
+                            name={v.cleanAirZones.verdict === "compliant" ? "leaf" : "alert-circle"}
+                            size={10}
+                            color={v.cleanAirZones.verdict === "compliant" ? "#10b981" : "#f59e0b"}
+                            accessible={false}
+                          />
+                          <Text
+                            style={[
+                              styles.cazChipText,
+                              { color: v.cleanAirZones.verdict === "compliant" ? "#10b981" : "#f59e0b" },
+                            ]}
+                          >
+                            {v.cleanAirZones.verdict === "compliant" ? "ULEZ ready" : "May be charged"}
+                          </Text>
+                        </View>
+                      )}
                     </View>
                   </View>
                   <Ionicons name="chevron-forward" size={16} color={colors.text3} accessible={false} />
@@ -751,6 +776,17 @@ const styles = StyleSheet.create({
     fontFamily: fonts.regular,
     color: colors.text3,
   },
+  cazChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 3,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: radii.sm,
+  },
+  cazChipOk: { backgroundColor: "rgba(16,185,129,0.12)" },
+  cazChipWarn: { backgroundColor: "rgba(245,158,11,0.12)" },
+  cazChipText: { fontSize: 11, fontFamily: fonts.semibold },
   primaryBadge: {
     backgroundColor: colors.greenDim,
     paddingHorizontal: 6,
