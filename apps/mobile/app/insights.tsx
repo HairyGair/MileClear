@@ -30,6 +30,7 @@ import { MilestoneTracker } from "../components/personal/MilestoneTracker";
 import { WeeklyActivity, buildWeekDays } from "../components/personal/WeeklyActivity";
 import { DrivingGoals } from "../components/personal/DrivingGoals";
 import { FuelSummaryCard } from "../components/personal/FuelSummaryCard";
+import { ChargingSummaryCard } from "../components/personal/ChargingSummaryCard";
 import { PersonalRecapCard } from "../components/personal/PersonalRecapCard";
 import { JourneyTimeline } from "../components/personal/JourneyTimeline";
 import { Button } from "../components/Button";
@@ -215,6 +216,13 @@ export default function InsightsScreen() {
           <FuelSummaryCard
             monthMiles={monthMiles}
             estimatedMpg={mpg}
+            fuelType={primaryVehicle?.fuelType ?? null}
+          />
+        )}
+        {isPersonal && (
+          <ChargingSummaryCard
+            monthMiles={monthMiles}
+            milesPerKwh={(primaryVehicle as { milesPerKwh?: number | null })?.milesPerKwh ?? null}
             fuelType={primaryVehicle?.fuelType ?? null}
           />
         )}

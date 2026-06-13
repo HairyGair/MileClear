@@ -74,6 +74,9 @@ model User {
   accountantContact         String?   @db.VarChar(255)
   accountantAnnualFeePence  Int?
   dashboardMode        String    @default("both") @db.VarChar(20)
+  // Home electricity unit rate (pence per kWh) for EV cost-per-mile. Null =
+  // use the UK default. Octopus can suggest a current rate; user can override.
+  electricityPencePerKwh Float?
   notes                    String?   @db.Text
   lastLoginAt              DateTime?
   lastTripAt               DateTime?
@@ -348,6 +351,9 @@ model Vehicle {
   bluetoothName     String?  @db.VarChar(100)
   estimatedMpg      Float?
   actualMpg         Float?
+  // EV energy efficiency (miles per kWh) — electric analogue of MPG, powers
+  // cost-per-mile for electric vehicles.
+  milesPerKwh       Float?
   isPrimary         Boolean  @default(true)
   createdAt         DateTime @default(now())
 

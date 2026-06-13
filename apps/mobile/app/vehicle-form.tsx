@@ -68,6 +68,7 @@ export default function VehicleFormScreen() {
   const [vehicleType, setVehicleType] = useState<VehicleType>("car");
   const [fuelType, setFuelType] = useState<FuelType>("petrol");
   const [estimatedMpg, setEstimatedMpg] = useState("");
+  const [milesPerKwh, setMilesPerKwh] = useState("");
   const [isPrimary, setIsPrimary] = useState(true);
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -85,6 +86,11 @@ export default function VehicleFormScreen() {
           setVehicleType(vehicle.vehicleType as VehicleType);
           setFuelType(vehicle.fuelType as FuelType);
           setEstimatedMpg(vehicle.estimatedMpg ? String(vehicle.estimatedMpg) : "");
+          setMilesPerKwh(
+            (vehicle as { milesPerKwh?: number | null }).milesPerKwh != null
+              ? String((vehicle as { milesPerKwh?: number | null }).milesPerKwh)
+              : ""
+          );
           setIsPrimary(vehicle.isPrimary);
           setRegistrationPlate(vehicle.registrationPlate || "");
           setCleanAirZones(vehicle.cleanAirZones ?? null);
@@ -164,6 +170,9 @@ export default function VehicleFormScreen() {
       if (estimatedMpg.trim() && fuelType !== "electric") {
         payload.estimatedMpg = parseFloat(estimatedMpg);
       }
+      if (milesPerKwh.trim() && fuelType === "electric") {
+        payload.milesPerKwh = parseFloat(milesPerKwh);
+      }
       if (registrationPlate.trim()) {
         payload.registrationPlate = registrationPlate.trim().toUpperCase().replace(/\s+/g, "");
       }
@@ -181,7 +190,7 @@ export default function VehicleFormScreen() {
     } finally {
       setSaving(false);
     }
-  }, [make, model, year, vehicleType, fuelType, estimatedMpg, isPrimary, registrationPlate, isEditing, id, router, user?.isPremium]);
+  }, [make, model, year, vehicleType, fuelType, estimatedMpg, milesPerKwh, isPrimary, registrationPlate, euroStatus, firstRegistration, isEditing, id, router, user?.isPremium]);
 
   const handleDelete = useCallback(() => {
     Alert.alert(
@@ -361,6 +370,22 @@ export default function VehicleFormScreen() {
               placeholderTextColor={TEXT_3}
               keyboardType="decimal-pad"
               accessibilityLabel="Estimated miles per gallon"
+            />
+          </>
+        )}
+
+        {/* Efficiency (miles/kWh) — electric only, powers cost-per-mile */}
+        {fuelType === "electric" && (
+          <>
+            <Text style={styles.label}>Efficiency (miles per kWh)</Text>
+            <TextInput
+              style={styles.input}
+              value={milesPerKwh}
+              onChangeText={setMilesPerKwh}
+              placeholder="e.g. 3.5"
+              placeholderTextColor={TEXT_3}
+              keyboardType="decimal-pad"
+              accessibilityLabel="Efficiency in miles per kilowatt hour"
             />
           </>
         )}

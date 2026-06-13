@@ -46,6 +46,7 @@ export default function VehiclesPage() {
     vehicleType: "car",
     registrationPlate: "",
     estimatedMpg: "",
+    milesPerKwh: "",
     isPrimary: true,
     euroStatus: null as string | null,
     firstRegistration: null as string | null,
@@ -91,6 +92,7 @@ export default function VehiclesPage() {
       vehicleType: "car",
       registrationPlate: "",
       estimatedMpg: "",
+      milesPerKwh: "",
       isPrimary: vehicles.length === 0,
       euroStatus: null,
       firstRegistration: null,
@@ -109,6 +111,7 @@ export default function VehiclesPage() {
       vehicleType: v.vehicleType,
       registrationPlate: v.registrationPlate || "",
       estimatedMpg: v.estimatedMpg ? String(v.estimatedMpg) : "",
+      milesPerKwh: v.milesPerKwh != null ? String(v.milesPerKwh) : "",
       isPrimary: v.isPrimary,
       // Preserve stored emissions data through an edit so compliance survives.
       euroStatus: null,
@@ -153,6 +156,7 @@ export default function VehiclesPage() {
         vehicleType: form.vehicleType,
         registrationPlate: form.registrationPlate || undefined,
         estimatedMpg: form.estimatedMpg ? parseFloat(form.estimatedMpg) : undefined,
+        milesPerKwh: form.milesPerKwh ? parseFloat(form.milesPerKwh) : undefined,
         isPrimary: form.isPrimary,
         euroStatus: form.euroStatus ?? undefined,
         firstRegistration: form.firstRegistration ?? undefined,
@@ -454,15 +458,27 @@ export default function VehiclesPage() {
             options={VEHICLE_TYPE_OPTIONS}
           />
         </div>
-        <Input
-          id="mpg"
-          label="Estimated MPG"
-          type="number"
-          step="0.1"
-          value={form.estimatedMpg}
-          onChange={(e) => setForm((f) => ({ ...f, estimatedMpg: e.target.value }))}
-          placeholder="e.g. 45.0"
-        />
+        {form.fuelType !== "electric" ? (
+          <Input
+            id="mpg"
+            label="Estimated MPG"
+            type="number"
+            step="0.1"
+            value={form.estimatedMpg}
+            onChange={(e) => setForm((f) => ({ ...f, estimatedMpg: e.target.value }))}
+            placeholder="e.g. 45.0"
+          />
+        ) : (
+          <Input
+            id="milesPerKwh"
+            label="Efficiency (miles per kWh)"
+            type="number"
+            step="0.1"
+            value={form.milesPerKwh}
+            onChange={(e) => setForm((f) => ({ ...f, milesPerKwh: e.target.value }))}
+            placeholder="e.g. 3.5"
+          />
+        )}
       </Modal>
 
       {/* Delete Confirmation */}

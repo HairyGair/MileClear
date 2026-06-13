@@ -48,6 +48,7 @@ const createVehicleSchema = z.object({
   registrationPlate: regPlateField,
   bluetoothName: z.string().max(100).optional(),
   estimatedMpg: z.number().positive().optional(),
+  milesPerKwh: z.number().positive().max(20).optional(),
   isPrimary: z.boolean().default(true),
   // DVLA emissions data, passed straight from the lookup result so Clean Air
   // Zone compliance can be shown without a second DVLA call.
@@ -69,6 +70,7 @@ const updateVehicleSchema = z.object({
     .optional(),
   bluetoothName: z.string().max(100).nullable().optional(),
   estimatedMpg: z.number().positive().nullable().optional(),
+  milesPerKwh: z.number().positive().max(20).nullable().optional(),
   isPrimary: z.boolean().optional(),
   euroStatus: z.string().max(20).nullable().optional(),
   firstRegistration: z.string().max(7).nullable().optional(),

@@ -22,6 +22,7 @@ export interface CreateVehicleData {
   registrationPlate?: string;
   bluetoothName?: string;
   estimatedMpg?: number;
+  milesPerKwh?: number;
   isPrimary?: boolean;
   euroStatus?: string | null;
   firstRegistration?: string | null;

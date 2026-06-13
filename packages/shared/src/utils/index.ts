@@ -1166,3 +1166,34 @@ export function estimateUkTax(
     class4NiPence: Math.round(class4Ni),
   };
 }
+
+// ── EV charging cost ─────────────────────────────────────────────────────────
+
+/** UK default home-electricity rate (pence per kWh) when none is known —
+ *  roughly the Ofgem price-cap unit rate. User-overridable. */
+export const DEFAULT_ELECTRICITY_PENCE_PER_KWH = 2450 / 100; // 24.5p/kWh
+
+/**
+ * Cost per mile (in pence) to charge an EV at home, from its efficiency and a
+ * unit rate. Mirrors the petrol cost-per-mile model but with no gallons
+ * conversion: cost = (miles / milesPerKwh) × pencePerKwh.
+ * Returns null when efficiency is unknown.
+ */
+export function evCostPerMilePence(
+  milesPerKwh: number | null | undefined,
+  pencePerKwh: number
+): number | null {
+  if (!milesPerKwh || milesPerKwh <= 0) return null;
+  return pencePerKwh / milesPerKwh;
+}
+
+/** Estimated cost (pence) to drive a given distance in an EV at home. */
+export function evChargingCostPence(
+  miles: number,
+  milesPerKwh: number | null | undefined,
+  pencePerKwh: number
+): number | null {
+  const perMile = evCostPerMilePence(milesPerKwh, pencePerKwh);
+  if (perMile == null) return null;
+  return Math.round(perMile * miles);
+}

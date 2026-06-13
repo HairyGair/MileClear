@@ -339,6 +339,9 @@ export interface Vehicle {
   bluetoothName: string | null;
   estimatedMpg: number | null;
   actualMpg: number | null;
+  /** EV energy efficiency, miles per kWh — the electric analogue of MPG, used
+   *  for cost-per-mile on electric vehicles. */
+  milesPerKwh: number | null;
   isPrimary: boolean;
 }
 
@@ -609,6 +612,42 @@ export interface NationalAveragePrices {
   petrolPencePerLitre: number;
   dieselPencePerLitre: number;
   date: string;
+}
+
+// ── EV charging (mirrors the fuel feature for electric drivers) ──────────────
+
+/** A public EV charge point, from Open Charge Map. */
+export interface ChargePoint {
+  id: string;
+  name: string;
+  operator: string | null;
+  address: string;
+  postcode: string | null;
+  latitude: number;
+  longitude: number;
+  distanceMiles: number;
+  /** "public" | "membership" | "pay_at_location" | "restricted" | "unknown". */
+  access: string;
+  /** Distinct connector summaries, e.g. "CCS 50kW", "Type 2 22kW". */
+  connectors: { type: string; powerKw: number | null; count: number }[];
+  /** Max power across connectors (kW), for sorting/labelling. */
+  maxPowerKw: number | null;
+  /** Free-text cost note from OCM (no structured per-kWh price exists). */
+  costNote: string | null;
+}
+
+export interface NearbyChargersResponse {
+  chargers: ChargePoint[];
+  attribution: string; // OCM requires visible attribution
+  lastUpdated: string;
+}
+
+/** Current home-electricity reference rate, optionally Octopus-sourced. */
+export interface ElectricityRate {
+  pencePerKwh: number;
+  source: "octopus_agile" | "default" | "user";
+  region: string | null;
+  asOf: string;
 }
 
 export interface NearbyPricesResponse {

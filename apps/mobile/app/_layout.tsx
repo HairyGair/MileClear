@@ -561,6 +561,7 @@ function RootNavigator() {
         <Stack.Screen name="work-schedule" options={{ headerShown: true, title: "Work Schedule" }} />
         <Stack.Screen name="earning-form" options={{ headerShown: true, title: "Add Earning" }} />
         <Stack.Screen name="fuel-form" options={{ headerShown: true, title: "Log Fuel" }} />
+        <Stack.Screen name="charging-nearby" options={{ headerShown: true, title: "Nearby Chargers" }} />
         <Stack.Screen name="profile-edit" options={{ headerShown: true, title: "Edit Profile" }} />
         <Stack.Screen name="change-password" options={{ headerShown: true, title: "Change Password" }} />
         <Stack.Screen name="active-recording" options={{ headerShown: true, title: "Recording trip" }} />
