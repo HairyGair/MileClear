@@ -36,6 +36,7 @@ export default function Footer() {
                 <li><a href="/hmrc-mileage-rates" className="footer__link">HMRC mileage rates</a></li>
                 <li><a href="/business-mileage-guide" className="footer__link">Business mileage guide</a></li>
                 <li><a href="/what-counts-as-business-mileage" className="footer__link">What counts as business mileage</a></li>
+                <li><a href="/ev-tax-relief" className="footer__link">EV tax relief</a></li>
                 <li><a href="/mtd-itsa-software-for-sole-traders" className="footer__link">MTD ITSA software</a></li>
               </ul>
             </div>

@@ -30,6 +30,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
     { url: `${BASE_URL}/delivery-driver-mileage-tracker`, lastModified: new Date("2026-04-29") },
     { url: `${BASE_URL}/employee-mileage-tracker`, lastModified: new Date("2026-04-29") },
     { url: `${BASE_URL}/hmrc-mileage-rates`, lastModified: new Date("2026-06-08") },
+    { url: `${BASE_URL}/ev-tax-relief`, lastModified: new Date("2026-06-14") },
     { url: `${BASE_URL}/business-mileage-guide`, lastModified: new Date("2026-04-21") },
     { url: `${BASE_URL}/what-counts-as-business-mileage`, lastModified: new Date("2026-04-21") },
     { url: `${BASE_URL}/mtd-itsa-software-for-sole-traders`, lastModified: new Date("2026-05-09") },
