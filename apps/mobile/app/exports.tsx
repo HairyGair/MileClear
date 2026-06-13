@@ -15,6 +15,7 @@ import { getTaxYear } from "@mileclear/shared";
 import { downloadAndShareExport } from "../lib/api/exports";
 import { fetchProfile } from "../lib/api/user";
 import { usePaywall } from "../components/paywall";
+import { DateTimePickerField } from "../components/DateTimePickerField";
 import { colors, fonts } from "../lib/theme";
 
 // Local theme aliases — same pattern as the (tabs) screens.
@@ -42,6 +43,11 @@ export default function ExportsScreen() {
   const [selectedYear, setSelectedYear] = useState(taxYears[0]);
   const [loadingKey, setLoadingKey] = useState<LoadingKey>(null);
   const [isPremium, setIsPremium] = useState<boolean | null>(null);
+  // Tax-year vs custom date-range mode for CSV/PDF (the server supports both;
+  // self-assessment is always tax-year). Defaults to a sensible last-30-days.
+  const [rangeMode, setRangeMode] = useState<"taxYear" | "dateRange">("taxYear");
+  const [fromDate, setFromDate] = useState<Date>(() => new Date(Date.now() - 30 * 24 * 60 * 60 * 1000));
+  const [toDate, setToDate] = useState<Date>(() => new Date());
 
   useFocusEffect(
     useCallback(() => {
@@ -71,14 +77,17 @@ export default function ExportsScreen() {
       try {
         const ext = type === "csv" ? "csv" : "pdf";
         const date = new Date().toISOString().slice(0, 10).replace(/-/g, "");
-        const filename = `mileclear-${type}-${selectedYear}-${date}.${ext}`;
         const mime =
           type === "csv" ? "text/csv" : "application/pdf";
 
-        const param =
-          type === "self-assessment"
-            ? `taxYear=${selectedYear}`
-            : `taxYear=${selectedYear}`;
+        // Self-assessment is always a tax-year report. CSV/PDF honour the
+        // custom date range when selected, else the tax year.
+        const useRange = rangeMode === "dateRange" && type !== "self-assessment";
+        const rangeLabel = `${fromDate.toISOString().slice(0, 10)}_${toDate.toISOString().slice(0, 10)}`;
+        const filename = `mileclear-${type}-${useRange ? rangeLabel : selectedYear}-${date}.${ext}`;
+        const param = useRange
+          ? `from=${fromDate.toISOString()}&to=${toDate.toISOString()}`
+          : `taxYear=${selectedYear}`;
 
         await downloadAndShareExport(
           `/exports/${type}?${param}`,
@@ -97,7 +106,7 @@ export default function ExportsScreen() {
         setLoadingKey(null);
       }
     },
-    [selectedYear, showPaywall]
+    [selectedYear, rangeMode, fromDate, toDate, showPaywall]
   );
 
   return (
@@ -148,17 +157,48 @@ export default function ExportsScreen() {
           Professional HMRC-compliant reports with your mileage data, vehicle breakdown, and tax deduction summary.
         </Text>
 
-        {/* Tax Year Picker */}
-        <TouchableOpacity
-          style={styles.yearPicker}
-          onPress={pickTaxYear}
-          activeOpacity={0.7}
-          accessibilityRole="button"
-          accessibilityLabel={`Tax year: ${selectedYear}. Tap to change`}
-        >
-          <Text style={styles.yearLabel}>Tax Year</Text>
-          <Text style={styles.yearValue}>{selectedYear}</Text>
-        </TouchableOpacity>
+        {/* Period mode toggle: tax year or a custom date range */}
+        <View style={styles.modeToggle}>
+          <TouchableOpacity
+            style={[styles.modeBtn, rangeMode === "taxYear" && styles.modeBtnActive]}
+            onPress={() => setRangeMode("taxYear")}
+            accessibilityRole="button"
+            accessibilityState={{ selected: rangeMode === "taxYear" }}
+            accessibilityLabel="Export by tax year"
+          >
+            <Text style={[styles.modeBtnText, rangeMode === "taxYear" && styles.modeBtnTextActive]}>Tax year</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.modeBtn, rangeMode === "dateRange" && styles.modeBtnActive]}
+            onPress={() => setRangeMode("dateRange")}
+            accessibilityRole="button"
+            accessibilityState={{ selected: rangeMode === "dateRange" }}
+            accessibilityLabel="Export by custom date range"
+          >
+            <Text style={[styles.modeBtnText, rangeMode === "dateRange" && styles.modeBtnTextActive]}>Date range</Text>
+          </TouchableOpacity>
+        </View>
+
+        {rangeMode === "taxYear" ? (
+          <TouchableOpacity
+            style={styles.yearPicker}
+            onPress={pickTaxYear}
+            activeOpacity={0.7}
+            accessibilityRole="button"
+            accessibilityLabel={`Tax year: ${selectedYear}. Tap to change`}
+          >
+            <Text style={styles.yearLabel}>Tax Year</Text>
+            <Text style={styles.yearValue}>{selectedYear}</Text>
+          </TouchableOpacity>
+        ) : (
+          <View style={styles.rangeFields}>
+            <DateTimePickerField label="From" value={fromDate} onChange={setFromDate} maximumDate={toDate} />
+            <DateTimePickerField label="To" value={toDate} onChange={setToDate} maximumDate={new Date()} />
+            <Text style={styles.rangeNote}>
+              CSV and PDF reports cover this range. The Self Assessment report is always a full tax year.
+            </Text>
+          </View>
+        )}
 
         {/* Self Assessment Wizard link */}
         <TouchableOpacity
@@ -301,6 +341,24 @@ const styles = StyleSheet.create({
     color: TEXT_2,
     marginBottom: 24,
   },
+  modeToggle: {
+    flexDirection: "row",
+    backgroundColor: "rgba(255,255,255,0.04)",
+    borderRadius: 10,
+    padding: 3,
+    marginBottom: 14,
+  },
+  modeBtn: {
+    flex: 1,
+    paddingVertical: 9,
+    borderRadius: 8,
+    alignItems: "center",
+  },
+  modeBtnActive: { backgroundColor: AMBER },
+  modeBtnText: { fontFamily: fonts.semibold, fontSize: 13, color: TEXT_2 },
+  modeBtnTextActive: { color: BG },
+  rangeFields: { marginBottom: 28 },
+  rangeNote: { color: TEXT_3, fontFamily: fonts.regular, fontSize: 12, lineHeight: 17, marginTop: 4 },
   yearPicker: {
     backgroundColor: CARD_BG,
     borderRadius: 12,

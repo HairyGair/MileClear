@@ -161,6 +161,8 @@ export interface ListTripsParams {
   classification?: TripClassification;
   platformTag?: PlatformTag;
   shiftId?: string;
+  vehicleId?: string;
+  q?: string;
   from?: string;
   to?: string;
   page?: number;

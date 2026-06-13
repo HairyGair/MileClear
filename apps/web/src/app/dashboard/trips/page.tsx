@@ -224,6 +224,10 @@ export default function TripsPage() {
   // Custom-range pickers - only consulted when dateRange === "custom".
   const [customFrom, setCustomFrom] = useState(qpFrom);
   const [customTo, setCustomTo] = useState(qpTo);
+  const [vehicleFilter, setVehicleFilter] = useState<string>("all");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchDebounced, setSearchDebounced] = useState("");
+  const [filterVehicles, setFilterVehicles] = useState<{ id: string; label: string }[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -365,6 +369,8 @@ export default function TripsPage() {
       });
       if (filter !== "all") params.set("classification", filter);
       if (platformFilter !== "all") params.set("platformTag", platformFilter);
+      if (vehicleFilter !== "all") params.set("vehicleId", vehicleFilter);
+      if (searchDebounced.trim()) params.set("q", searchDebounced.trim());
       const bounds = rangeBounds(dateRange, customFrom, customTo);
       if (bounds.from) params.set("from", bounds.from);
       if (bounds.to) params.set("to", bounds.to);
@@ -377,7 +383,7 @@ export default function TripsPage() {
     } finally {
       setLoading(false);
     }
-  }, [page, filter, platformFilter, dateRange, customFrom, customTo]);
+  }, [page, filter, platformFilter, vehicleFilter, searchDebounced, dateRange, customFrom, customTo]);
 
   // Server-side stats. Re-runs on every filter change but ignores page so
   // the totals stay stable as the user paginates through the list.
@@ -404,6 +410,26 @@ export default function TripsPage() {
   useEffect(() => {
     loadSummary();
   }, [loadSummary]);
+
+  // Load the user's vehicles for the filter dropdown (once).
+  useEffect(() => {
+    api
+      .get<{ data: { id: string; make: string; model: string }[] }>("/vehicles/")
+      .then((res) => {
+        const list = (res.data ?? []).map((v) => ({ id: v.id, label: `${v.make} ${v.model}` }));
+        setFilterVehicles(list);
+      })
+      .catch(() => {});
+  }, []);
+
+  // Debounce the search box so we don't query on every keystroke.
+  useEffect(() => {
+    const t = setTimeout(() => {
+      setSearchDebounced(searchQuery);
+      setPage(1);
+    }, 350);
+    return () => clearTimeout(t);
+  }, [searchQuery]);
 
   const handleFilterChange = (f: "all" | "business" | "personal" | "unclassified") => {
     setFilter(f);
@@ -749,6 +775,29 @@ export default function TripsPage() {
           )}
         </div>
       )}
+
+      {/* Vehicle filter + free-text search over addresses/notes */}
+      <div style={{ display: "flex", gap: "0.75rem", marginBottom: "1.25rem", flexWrap: "wrap", alignItems: "flex-end" }}>
+        <Input
+          id="tripSearch"
+          label="Search"
+          type="search"
+          placeholder="Address or note…"
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          style={{ maxWidth: 260 }}
+        />
+        {filterVehicles.length > 1 && (
+          <Select
+            id="vehicleFilter"
+            label="Vehicle"
+            value={vehicleFilter}
+            onChange={(e) => { setVehicleFilter(e.target.value); setPage(1); }}
+            options={[{ value: "all", label: "All vehicles" }, ...filterVehicles.map((v) => ({ value: v.id, label: v.label }))]}
+            style={{ maxWidth: 200 }}
+          />
+        )}
+      </div>
 
       {/* Stats summary - shown whenever the user has narrowed the list.
           Sourced from /trips/summary so totals stay accurate as the user

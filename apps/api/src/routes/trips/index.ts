@@ -147,6 +147,9 @@ const listTripsQuery = z.object({
   classification: z.enum(TRIP_CLASSIFICATIONS).optional(),
   platformTag: z.enum(PLATFORM_TAGS).optional(),
   shiftId: z.string().uuid().optional(),
+  vehicleId: z.string().uuid().optional(),
+  // Free-text search over start/end addresses + notes.
+  q: z.string().max(100).optional(),
   from: z.coerce.date().optional(),
   to: z.coerce.date().optional(),
   page: z.coerce.number().int().positive().default(1),
@@ -655,13 +658,22 @@ export async function tripRoutes(app: FastifyInstance) {
       return reply.status(400).send({ error: parsed.error.issues[0].message });
     }
 
-    const { classification, platformTag, shiftId, from, to, page, pageSize } = parsed.data;
+    const { classification, platformTag, shiftId, vehicleId, q, from, to, page, pageSize } = parsed.data;
     const userId = request.userId!;
 
     const where: Record<string, unknown> = { userId, isPhantomTrip: false };
     if (classification) where.classification = classification;
     if (platformTag) where.platformTag = platformTag;
     if (shiftId) where.shiftId = shiftId;
+    if (vehicleId) where.vehicleId = vehicleId;
+    if (q && q.trim()) {
+      const term = q.trim();
+      where.OR = [
+        { startAddress: { contains: term } },
+        { endAddress: { contains: term } },
+        { notes: { contains: term } },
+      ];
+    }
     if (from || to) {
       where.startedAt = {
         ...(from && { gte: from }),
