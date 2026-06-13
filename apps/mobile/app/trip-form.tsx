@@ -718,6 +718,12 @@ export default function TripFormScreen() {
     gapMeters: number;
   } | null>(null);
   const [merging, setMerging] = useState(false);
+  // Odometer (optional trust primitive).
+  const [odometerOpen, setOdometerOpen] = useState(false);
+  const [odometerStart, setOdometerStart] = useState("");
+  const [odometerEnd, setOdometerEnd] = useState("");
+  // Edit audit trail — "Edited <date>" when the trip has been changed.
+  const [editedAt, setEditedAt] = useState<string | null>(null);
   // Clean Air Zone charges this trip likely incurred + which we've logged.
   const [cleanAirZones, setCleanAirZones] = useState<CazTripAssessment | null>(null);
   const [loggedCazZones, setLoggedCazZones] = useState<Set<string>>(new Set());
@@ -935,6 +941,13 @@ export default function TripFormScreen() {
       if (t.confidence) setConfidence(t.confidence);
       if (t.mergeSuggestion) setMergeSuggestion(t.mergeSuggestion);
       if (t.cleanAirZones) setCleanAirZones(t.cleanAirZones);
+      const od = t as { odometerStart?: number | null; odometerEnd?: number | null; updatedAt?: string; createdAt?: string };
+      if (od.odometerStart != null) { setOdometerStart(String(od.odometerStart)); setOdometerOpen(true); }
+      if (od.odometerEnd != null) { setOdometerEnd(String(od.odometerEnd)); setOdometerOpen(true); }
+      // Show "edited" only when updatedAt is meaningfully after createdAt.
+      if (od.updatedAt && od.createdAt && new Date(od.updatedAt).getTime() - new Date(od.createdAt).getTime() > 60_000) {
+        setEditedAt(od.updatedAt);
+      }
     };
 
     fetchTrip(id)
@@ -1685,6 +1698,30 @@ export default function TripFormScreen() {
         );
         return;
       }
+      // GPS-vs-odometer mismatch — if both odometer readings are present and
+      // the odometer distance disagrees materially with the recorded distance,
+      // flag it so a typo or a wrong figure doesn't go in unnoticed.
+      const odoStart = parseFloat(odometerStart);
+      const odoEnd = parseFloat(odometerEnd);
+      if (
+        odometerStart.trim() && odometerEnd.trim() &&
+        Number.isFinite(odoStart) && Number.isFinite(odoEnd) && odoEnd > odoStart &&
+        distanceMiles != null && distanceMiles > 0
+      ) {
+        const odoMiles = odoEnd - odoStart;
+        const tolerance = Math.max(2, distanceMiles * 0.2);
+        if (Math.abs(odoMiles - distanceMiles) > tolerance) {
+          Alert.alert(
+            "Odometer doesn't match the distance",
+            `Your odometer shows ${odoMiles.toFixed(1)} miles but the trip distance is ${distanceMiles.toFixed(1)}. Check the readings, or save anyway?`,
+            [
+              { text: "Check", style: "cancel" },
+              { text: "Save anyway", onPress: () => handleSave(true) },
+            ]
+          );
+          return;
+        }
+      }
     }
 
     setSaving(true);
@@ -1707,6 +1744,8 @@ export default function TripFormScreen() {
           // Allow correcting a wrong vehicle — was never sent, so the picker in
           // edit mode did nothing on save (audit point 5).
           vehicleId: vehicleId ?? null,
+          odometerStart: odometerStart.trim() ? parseFloat(odometerStart) : null,
+          odometerEnd: odometerEnd.trim() ? parseFloat(odometerEnd) : null,
         });
         // Clear "Classify Trip" CTA from any running Live Activity
         if (classification !== "unclassified") {
@@ -1742,6 +1781,8 @@ export default function TripFormScreen() {
           ...(projectLabel.trim() && { projectLabel: projectLabel.trim() }),
           ...(vehicleId && { vehicleId }),
           ...(coords && { coordinates: coords }),
+          ...(odometerStart.trim() && { odometerStart: parseFloat(odometerStart) }),
+          ...(odometerEnd.trim() && { odometerEnd: parseFloat(odometerEnd) }),
         };
         const tripResult = await syncCreateTrip(data);
         haptic("success");
@@ -1923,6 +1964,7 @@ export default function TripFormScreen() {
     distanceMiles, startedAt, endedAt, notes, projectLabel, router, showPaywall, routeSource,
     anomalyDef, anomalyResponse, anomalyCustomNote,
     locationQuestions, locationResponses, locationCustomNotes,
+    odometerStart, odometerEnd,
   ]);
 
   const handleCancel = useCallback(() => {
@@ -2870,9 +2912,63 @@ export default function TripFormScreen() {
               )}
             </View>
 
+            {/* Odometer (optional) — a trust primitive: readings corroborate the
+                GPS distance and are auditable for HMRC. Collapsed by default. */}
+            <View style={styles.odometerSection}>
+              {!odometerOpen ? (
+                <TouchableOpacity
+                  onPress={() => setOdometerOpen(true)}
+                  accessibilityRole="button"
+                  accessibilityLabel="Add odometer readings"
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                >
+                  <Text style={[styles.distanceHint, { color: AMBER }]}>
+                    {odometerStart || odometerEnd ? "Edit odometer readings" : "+ Add odometer readings (optional)"}
+                  </Text>
+                </TouchableOpacity>
+              ) : (
+                <>
+                  <Text style={styles.odometerLabel}>Odometer (miles)</Text>
+                  <View style={styles.odometerRow}>
+                    <TextInput
+                      style={[styles.input, styles.odometerInput]}
+                      value={odometerStart}
+                      onChangeText={(t) => setOdometerStart(t.replace(/[^0-9.]/g, ""))}
+                      placeholder="Start"
+                      placeholderTextColor="#64748b"
+                      keyboardType="decimal-pad"
+                      accessibilityLabel="Odometer reading at the start"
+                    />
+                    <Ionicons name="arrow-forward" size={16} color="#64748b" />
+                    <TextInput
+                      style={[styles.input, styles.odometerInput]}
+                      value={odometerEnd}
+                      onChangeText={(t) => setOdometerEnd(t.replace(/[^0-9.]/g, ""))}
+                      placeholder="End"
+                      placeholderTextColor="#64748b"
+                      keyboardType="decimal-pad"
+                      accessibilityLabel="Odometer reading at the end"
+                    />
+                  </View>
+                  {odometerStart && odometerEnd && parseFloat(odometerEnd) > parseFloat(odometerStart) && (
+                    <Text style={styles.odometerHint}>
+                      Odometer shows {(parseFloat(odometerEnd) - parseFloat(odometerStart)).toFixed(1)} miles
+                    </Text>
+                  )}
+                </>
+              )}
+            </View>
+
             {/* Confidence badge — auditable quality signal for HMRC defence */}
             {isEditing && confidence && (
               <ConfidenceBadge level={confidence.level} reasons={confidence.reasons} />
+            )}
+
+            {/* Edit audit trail */}
+            {isEditing && editedAt && (
+              <Text style={styles.editedAt}>
+                Edited {new Date(editedAt).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}
+              </Text>
             )}
 
             {/* Merge suggestion — adjacent trip looks like a fuel-stop continuation */}
@@ -3927,6 +4023,37 @@ const styles = StyleSheet.create({
     color: "#94a3b8",
     fontFamily: fonts.medium,
     fontSize: 14,
+  },
+  odometerSection: {
+    marginTop: 12,
+  },
+  odometerLabel: {
+    color: colors.text2,
+    fontFamily: fonts.semibold,
+    fontSize: 13,
+    marginBottom: 8,
+  },
+  odometerRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  odometerInput: {
+    flex: 1,
+    marginBottom: 0,
+  },
+  odometerHint: {
+    color: colors.text3,
+    fontFamily: fonts.regular,
+    fontSize: 12,
+    marginTop: 6,
+  },
+  editedAt: {
+    color: colors.text3,
+    fontFamily: fonts.regular,
+    fontSize: 11.5,
+    marginTop: 8,
+    textAlign: "center",
   },
   recalcButton: {
     flexDirection: "row",

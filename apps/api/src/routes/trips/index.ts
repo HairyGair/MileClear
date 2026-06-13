@@ -114,6 +114,9 @@ const createTripSchema = z.object({
   // Client-computed GPS quality summary. Free-form so we can iterate the
   // shape without a schema migration; admin queries look for known keys.
   gpsQuality: z.record(z.unknown()).optional(),
+  // Optional odometer readings (miles) corroborating the distance.
+  odometerStart: z.number().min(0).max(2_000_000).nullable().optional(),
+  odometerEnd: z.number().min(0).max(2_000_000).nullable().optional(),
 });
 
 const updateTripSchema = z.object({
@@ -136,6 +139,8 @@ const updateTripSchema = z.object({
   // of an auto-classified trip. Server ignores the value if already set, so
   // later PATCHes never overwrite the original accept/reject signal.
   classificationAutoAccepted: z.boolean().optional(),
+  odometerStart: z.number().min(0).max(2_000_000).nullable().optional(),
+  odometerEnd: z.number().min(0).max(2_000_000).nullable().optional(),
 });
 
 const listTripsQuery = z.object({
@@ -530,6 +535,8 @@ export async function tripRoutes(app: FastifyInstance) {
       notes: tripData.notes ?? null,
       projectLabel: tripData.projectLabel ?? null,
       gpsQuality: (tripData.gpsQuality ?? undefined) as Prisma.InputJsonValue | undefined,
+      odometerStart: tripData.odometerStart ?? null,
+      odometerEnd: tripData.odometerEnd ?? null,
     };
 
     let trip;

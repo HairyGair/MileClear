@@ -533,6 +533,12 @@ export interface Trip {
   businessPurpose: BusinessPurpose | null;
   category: TripCategory | null;
   notes: string | null;
+  /** Odometer readings (miles) corroborating the GPS distance. */
+  odometerStart: number | null;
+  odometerEnd: number | null;
+  /** Edit audit trail — bumped whenever the trip is changed. */
+  updatedAt?: string;
+  createdAt?: string;
   syncedAt: string | null;
 }
 

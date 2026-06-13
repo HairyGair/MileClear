@@ -446,7 +446,16 @@ model Trip {
   // DB for diagnostic review.
   isPhantomTrip  Boolean   @default(false)
 
+  // Odometer readings (miles) — a trust primitive for HMRC defence: an
+  // odometer pair corroborates the GPS distance and is auditable. Both
+  // optional; the user enters them on manual trips or after the fact.
+  odometerStart  Float?
+  odometerEnd    Float?
+
   createdAt      DateTime  @default(now())
+  // Edit audit trail: bumped on every change so the UI can show "edited",
+  // and a wrong figure isn't silently rewritten without a trace.
+  updatedAt      DateTime  @updatedAt @default(now())
   syncedAt       DateTime?
 
   user        User              @relation(fields: [userId], references: [id], onDelete: Cascade)

@@ -1234,6 +1234,22 @@ export default function TripsPage() {
               </div>
             </div>
 
+            {/* Odometer + edit audit — trust primitives for HMRC defence */}
+            {(detailTrip.odometerStart != null || detailTrip.odometerEnd != null || detailTrip.updatedAt) && (
+              <div style={{ marginTop: "0.75rem", display: "flex", gap: "1.25rem", flexWrap: "wrap", color: "#94a3b8", fontSize: "0.8125rem" }}>
+                {detailTrip.odometerStart != null && detailTrip.odometerEnd != null && (
+                  <span>
+                    Odometer: {detailTrip.odometerStart.toLocaleString()} → {detailTrip.odometerEnd.toLocaleString()} mi
+                    {" "}<span style={{ color: "#cbd5e1" }}>({(detailTrip.odometerEnd - detailTrip.odometerStart).toFixed(1)} mi)</span>
+                  </span>
+                )}
+                {detailTrip.updatedAt && detailTrip.createdAt &&
+                  new Date(detailTrip.updatedAt).getTime() - new Date(detailTrip.createdAt).getTime() > 60_000 && (
+                    <span>Edited {new Date(detailTrip.updatedAt).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}</span>
+                  )}
+              </div>
+            )}
+
             {/* Clean Air Zone / ULEZ charge — route crossed a charging zone in
                 a non-compliant vehicle. Offer to log it as a deductible expense. */}
             {detailTrip.cleanAirZones && detailTrip.cleanAirZones.charges.length > 0 && (

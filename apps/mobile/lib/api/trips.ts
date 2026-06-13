@@ -132,6 +132,8 @@ export interface CreateTripData {
   // Per-trip GPS quality summary computed at finalize time. Stored on the
   // server as a JSON column for admin analysis - see TripQuality in shared.
   gpsQuality?: import("@mileclear/shared").TripQuality;
+  odometerStart?: number | null;
+  odometerEnd?: number | null;
 }
 
 export interface UpdateTripData {
@@ -151,6 +153,8 @@ export interface UpdateTripData {
   // Classification feedback: set by syncUpdateTrip on the first user
   // classification of an auto-classified trip. API write-once-protects it.
   classificationAutoAccepted?: boolean;
+  odometerStart?: number | null;
+  odometerEnd?: number | null;
 }
 
 export interface ListTripsParams {
