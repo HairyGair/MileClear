@@ -811,15 +811,11 @@ async function _finalizeAutoTripInner(): Promise<void> {
   // every pair of consecutive coords is only seconds apart. Those must all
   // be kept or long commutes get saved as "half trips".
   let allCoords = rawCoords;
+  // Substantial-leg coords held back to be finalized as their own trips (the
+  // multi-stop-journey case below). Re-buffered after the buffer is cleared.
+  let deferredCoords: BufferedCoordinate[] = [];
   if (rawCoords.length >= 2) {
-    // Split into contiguous segments separated by gaps > BUFFER_MAX_AGE_MS. A
-    // big gap means a stale stuck-state buffer (ancient coords from a crash)
-    // sitting next to a fresh recording. The OLD logic kept the LAST segment -
-    // but that discarded a real drive when it was followed by a couple of
-    // post-arrival GPS stragglers across a gap (Anthony's drive home, 4 Jun:
-    // 221 coords captured, kept 2, dropped 219, then dropped as a phantom).
-    // Keep the LARGEST segment instead - that's the actual drive; a 2-coord
-    // tail can never be the trip. Ties prefer the more recent segment.
+    // Split into contiguous segments separated by gaps > BUFFER_MAX_AGE_MS.
     const segments: BufferedCoordinate[][] = [[rawCoords[0]]];
     for (let i = 1; i < rawCoords.length; i++) {
       const prev = new Date(rawCoords[i - 1].recorded_at).getTime();
@@ -830,15 +826,44 @@ async function _finalizeAutoTripInner(): Promise<void> {
       segments[segments.length - 1].push(rawCoords[i]);
     }
     if (segments.length > 1) {
-      let best = segments[0];
-      for (const seg of segments) if (seg.length >= best.length) best = seg;
-      allCoords = best;
-      logDetectionEvent("finalize_gap_trimmed", {
-        totalCoords: rawCoords.length,
-        keptCoords: allCoords.length,
-        droppedCoords: rawCoords.length - allCoords.length,
-        segments: segments.length,
-      }).catch(() => {});
+      // A gap can mean two very different things, and they need opposite
+      // handling:
+      //   (a) Stale stuck-buffer garbage — a tiny straggler segment (a couple
+      //       of post-arrival GPS fixes) next to the real drive. Drop it.
+      //       (Anthony's drive home, 4 Jun: 221-coord drive + 2-coord tail.)
+      //   (b) A genuine MULTI-STOP JOURNEY the engine couldn't finalise at each
+      //       stop — the device terminates the app between stops and each stop
+      //       was >30 min, so several real legs accumulate in one buffer.
+      //       (Norman Boomer, 14 Jun: 548 coords / 4 legs.) Keeping only the
+      //       largest threw away 3 real legs.
+      // So: a segment is a real LEG if it has enough coords; tiny segments are
+      // stragglers. Finalise the OLDEST real leg now and re-buffer the rest so
+      // each becomes its own trip; if only one real leg remains, just keep it.
+      const MIN_LEG_COORDS = 10;
+      const realLegs = segments.filter((s) => s.length >= MIN_LEG_COORDS);
+      if (realLegs.length >= 2) {
+        allCoords = realLegs[0];
+        deferredCoords = realLegs.slice(1).flat();
+        logDetectionEvent("finalize_multileg_split", {
+          totalCoords: rawCoords.length,
+          segments: segments.length,
+          realLegs: realLegs.length,
+          processingCoords: allCoords.length,
+          deferredCoords: deferredCoords.length,
+        }).catch(() => {});
+      } else {
+        // 0 or 1 real legs: keep the largest segment (drops stragglers). This
+        // is the original, safe single-trip behaviour.
+        let best = segments[0];
+        for (const seg of segments) if (seg.length >= best.length) best = seg;
+        allCoords = best;
+        logDetectionEvent("finalize_gap_trimmed", {
+          totalCoords: rawCoords.length,
+          keptCoords: allCoords.length,
+          droppedCoords: rawCoords.length - allCoords.length,
+          segments: segments.length,
+        }).catch(() => {});
+      }
     }
   }
 
@@ -857,6 +882,34 @@ async function _finalizeAutoTripInner(): Promise<void> {
   await db.runAsync(
     "DELETE FROM tracking_state WHERE key IN ('auto_recording_active', 'last_driving_speed_at', 'driving_detection_count', 'finalization_mode', 'stop_anchor')"
   );
+
+  // Multi-stop journey: re-buffer the remaining real legs and re-arm so they
+  // each finalise as their own trip. We process the oldest leg in THIS pass
+  // (above) and schedule another finalize shortly after this one releases the
+  // re-entrancy guard; that pass re-runs the same split on a smaller buffer,
+  // so it terminates leg by leg. The native store was already drained, and is
+  // cleared again in finalizeAutoTrip's finally, so the next reconcile won't
+  // clobber what we re-buffer here.
+  if (deferredCoords.length > 0) {
+    try {
+      for (const c of deferredCoords) {
+        await db.runAsync(
+          `INSERT INTO detection_coordinates (lat, lng, speed, accuracy, recorded_at)
+           VALUES (?, ?, ?, ?, ?)`,
+          [c.lat, c.lng, c.speed ?? null, c.accuracy ?? null, c.recorded_at]
+        );
+      }
+      await db.runAsync(
+        "INSERT OR REPLACE INTO tracking_state (key, value) VALUES ('auto_recording_active', '1')"
+      );
+      logDetectionEvent("finalize_multileg_deferred", { coords: deferredCoords.length }).catch(() => {});
+      setTimeout(() => {
+        finalizeAutoTrip().catch(() => {});
+      }, 600);
+    } catch {
+      // Best-effort: if re-buffering fails, we still saved the oldest leg.
+    }
+  }
 
   if (allCoords.length < 2) {
     // No meaningful trip - dismiss Live Activity immediately
