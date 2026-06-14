@@ -196,6 +196,10 @@ export default function DashboardScreen() {
   // May audit) while still resurfacing the prompt periodically so a
   // user who genuinely benefits from auto-detection finds it again.
   const [bgLocNudgeDismissedAt, setBgLocNudgeDismissedAt] = useState<number | null>(null);
+  // Motion & Fitness denied → degraded short-trip detection. Soft, dismissable
+  // nudge (engine still works via the speed backstop), 7-day cooldown.
+  const [motionDenied, setMotionDenied] = useState(false);
+  const [motionNudgeDismissedAt, setMotionNudgeDismissedAt] = useState<number | null>(null);
 
   // First-trip nudge dismissal. Mirrors the bg-loc nudge cooldown. The
   // in-app safety net for the activation funnel: a user who has Always
@@ -413,7 +417,7 @@ export default function DashboardScreen() {
     (async () => {
       const db = await getDatabase();
       const rows = await db.getAllAsync<{ key: string; value: string }>(
-        "SELECT key, value FROM tracking_state WHERE key IN ('work_explainer_seen', 'bg_loc_nudge_dismissed_at', 'first_trip_nudge_dismissed_at', 'referral_card_dismissed_at')"
+        "SELECT key, value FROM tracking_state WHERE key IN ('work_explainer_seen', 'bg_loc_nudge_dismissed_at', 'first_trip_nudge_dismissed_at', 'referral_card_dismissed_at', 'motion_nudge_dismissed_at')"
       );
       const map = Object.fromEntries(rows.map((r) => [r.key, r.value]));
       setWorkExplainerSeen(map["work_explainer_seen"] === "1");
@@ -421,6 +425,10 @@ export default function DashboardScreen() {
         ? parseInt(map["bg_loc_nudge_dismissed_at"], 10)
         : null;
       setBgLocNudgeDismissedAt(Number.isFinite(dismissedAt as number) ? dismissedAt : null);
+      const motionDismissedAt = map["motion_nudge_dismissed_at"]
+        ? parseInt(map["motion_nudge_dismissed_at"], 10)
+        : null;
+      setMotionNudgeDismissedAt(Number.isFinite(motionDismissedAt as number) ? motionDismissedAt : null);
       const ftDismissedAt = map["first_trip_nudge_dismissed_at"]
         ? parseInt(map["first_trip_nudge_dismissed_at"], 10)
         : null;
@@ -447,6 +455,19 @@ export default function DashboardScreen() {
   const bgLocNudgeSilenced =
     bgLocNudgeDismissedAt !== null &&
     Date.now() - bgLocNudgeDismissedAt < SEVEN_DAYS_MS;
+
+  const dismissMotionNudge = useCallback(async () => {
+    const now = Date.now();
+    setMotionNudgeDismissedAt(now);
+    const db = await getDatabase();
+    await db.runAsync(
+      "INSERT OR REPLACE INTO tracking_state (key, value) VALUES ('motion_nudge_dismissed_at', ?)",
+      [String(now)]
+    );
+  }, []);
+  const motionNudgeSilenced =
+    motionNudgeDismissedAt !== null &&
+    Date.now() - motionNudgeDismissedAt < SEVEN_DAYS_MS;
 
   const dismissFirstTripNudge = useCallback(async () => {
     const now = Date.now();
@@ -719,6 +740,15 @@ export default function DashboardScreen() {
       import("../../lib/permissions/backgroundRefresh")
         .then(({ getBackgroundRefreshStatus, isBackgroundRefreshBlocked }) =>
           getBackgroundRefreshStatus().then((s) => setBgRefreshOff(isBackgroundRefreshBlocked(s)))
+        )
+        .catch(() => {});
+      // Motion & Fitness: when denied, ClearTrack can't detect a drive STARTING
+      // via the motion chip and leans on the slower GPS speed backstop, which
+      // misses short cold-start legs (balkistomi, recurring). Softer than the
+      // location blocker — the engine still works — so it's a dismissable nudge.
+      import("../../lib/tracking/motionPermission")
+        .then(({ getMotionPermission }) =>
+          getMotionPermission().then((m) => setMotionDenied(m === "denied"))
         )
         .catch(() => {});
       // dashboard_focus rating trigger removed 4 May 2026 — was the
@@ -1481,6 +1511,47 @@ export default function DashboardScreen() {
             </View>
             <TouchableOpacity
               onPress={dismissBgLocNudge}
+              hitSlop={{ top: 12, right: 12, bottom: 12, left: 12 }}
+              accessibilityRole="button"
+              accessibilityLabel="Dismiss for 7 days"
+            >
+              <Ionicons name="close" size={16} color="#6b7280" accessible={false} />
+            </TouchableOpacity>
+          </View>
+        </TouchableOpacity>
+      )}
+
+      {/* Motion & Fitness denied — ClearTrack can't catch the START of short
+          trips via the motion chip and leans on the slower GPS speed backstop,
+          missing cold-start morning legs (balkistomi, recurring 14 Jun 2026).
+          Soft + dismissable: the engine still works, this just makes it
+          reliable. Only when location is otherwise fine, so we don't stack it
+          under the firmer location prompts. */}
+      {motionDenied && locationTier === "always" && !bgRefreshOff && !activeShift && !motionNudgeSilenced && (
+        <TouchableOpacity
+          style={s.bgLocNudge}
+          onPress={async () => {
+            const { requestMotionPermission } = await import("../../lib/tracking/motionPermission");
+            const result = await requestMotionPermission();
+            if (result === "granted") setMotionDenied(false);
+            else Linking.openSettings().catch(() => {});
+          }}
+          activeOpacity={0.7}
+          accessibilityRole="button"
+          accessibilityLabel="Turn on Motion and Fitness so MileClear catches the start of short trips. Tap to fix."
+        >
+          <View style={s.bgLocNudgeRow}>
+            <View style={s.bgLocNudgeIcon}>
+              <Ionicons name="walk-outline" size={20} color="#f59e0b" accessible={false} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={s.bgLocNudgeTitle}>Turn on Motion &amp; Fitness</Text>
+              <Text style={s.bgLocNudgeBody}>
+                It&apos;s how we catch the moment a drive starts. Without it, short trips can be missed. Tap to switch it on in Settings.
+              </Text>
+            </View>
+            <TouchableOpacity
+              onPress={dismissMotionNudge}
               hitSlop={{ top: 12, right: 12, bottom: 12, left: 12 }}
               accessibilityRole="button"
               accessibilityLabel="Dismiss for 7 days"
