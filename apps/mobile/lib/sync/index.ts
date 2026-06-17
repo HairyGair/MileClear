@@ -12,6 +12,7 @@ import {
   isLocalSystemError,
   isSessionExpired,
   isRateLimited,
+  isAuthError,
   isDefiniteClientRejection,
 } from "./errors";
 
@@ -226,6 +227,7 @@ export async function processSyncQueue(): Promise<void> {
           isNetworkError(err) ||
           isLocalSystemError(err) ||
           isSessionExpired(err) ||
+          isAuthError(err) ||
           isRateLimited(err)
         ) {
           break;

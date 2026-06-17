@@ -54,6 +54,19 @@ export function isSessionExpired(err: unknown): boolean {
   return err instanceof Error && /Session expired/.test(err.message);
 }
 
+/** A recoverable auth/authorisation failure (HTTP 401/403) that reached the
+ *  sync engine. A 401 can survive a *successful* token refresh (clock skew, a
+ *  momentary auth hiccup, the locked-keychain background path); a 403 can clear
+ *  once a subscription/permission re-syncs. The bearer token is shared across
+ *  the whole batch, so if one item 401s every item will - preserve-and-STOP
+ *  (like a network/session error), never burn a retry. Routing these through
+ *  the transient retry-count branch would re-create the data-loss bug: an auth
+ *  outage would increment retry_count on every batch item until they all parked
+ *  as permanently_failed (16 Jun 2026). */
+export function isAuthError(err: unknown): boolean {
+  return err instanceof ApiError && (err.statusCode === 401 || err.statusCode === 403);
+}
+
 /** The server is asking us to back off (HTTP 429). Transient - preserve and
  *  retry later, don't treat as a permanent rejection. */
 export function isRateLimited(err: unknown): boolean {
@@ -62,11 +75,20 @@ export function isRateLimited(err: unknown): boolean {
 
 /** The ONLY safe reason to stop retrying an item / discard a captured row:
  *  the server definitively rejected the payload as malformed (a 4xx client
- *  error, excluding 429 which is retryable). Anything else - network blips,
- *  token-refresh failures, 5xx, timeouts, unknown errors - is preserved and
- *  retried. Losing real data is far worse than a duplicate or a stuck item. */
+ *  error, excluding 429 and the auth codes below). Anything else - network
+ *  blips, token-refresh failures, 5xx, timeouts, unknown errors - is preserved
+ *  and retried. Losing real data is far worse than a duplicate or a stuck item.
+ *
+ *  401/403 are explicitly NOT permanent. A 401 can survive a *successful* token
+ *  refresh (clock skew, a momentary auth hiccup, the locked-keychain background
+ *  path) and a 403 can clear once a subscription/permission re-syncs - these are
+ *  recoverable AUTH problems, not malformed data. Parking either as
+ *  permanently_failed destroyed real trips the user could never recover (the
+ *  data-loss bug, 16 Jun 2026). Treat them like a network error: preserve and
+ *  retry. Only genuine payload rejections (400/409/422 etc.) are permanent. */
 export function isDefiniteClientRejection(err: unknown): boolean {
   if (err instanceof ApiError) {
+    if (err.statusCode === 401 || err.statusCode === 403) return false;
     return err.statusCode >= 400 && err.statusCode < 500 && err.statusCode !== 429;
   }
   return false;

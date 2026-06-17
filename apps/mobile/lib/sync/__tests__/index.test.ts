@@ -152,6 +152,26 @@ describe("processSyncQueue error classification (preserve vs park)", () => {
     expect(mutated).toBeUndefined(); // broke out, item preserved as-is
   });
 
+  // The data-loss fix (16 Jun 2026): a 401 that reaches the engine (a 401 that
+  // survived a successful token refresh) must be preserved like a network error
+  // - break the batch, never touch retry_count, never park. The token is shared
+  // across the batch, so burning a retry per item would re-create the
+  // weeks-stuck / never-appears bug it was meant to kill.
+  it("does NOT park or retry a 401 (recoverable auth) — preserves the trip", async () => {
+    const { ApiError } = await import("../../api/apiError");
+    mocks.db.getAllAsync.mockResolvedValueOnce([queueItem()]);
+    mocks.apiRequest.mockRejectedValueOnce(
+      new ApiError({ code: "UNAUTHORIZED", message: "Invalid or expired token", statusCode: 401, retryable: false })
+    );
+
+    await processSyncQueue();
+
+    const mutated = mocks.db.runAsync.mock.calls.find((c: unknown[]) =>
+      /UPDATE sync_queue SET status/.test(String(c[0]))
+    );
+    expect(mutated).toBeUndefined(); // broke out, item preserved untouched
+  });
+
   it("parks a real 4xx as permanently_failed", async () => {
     const { ApiError } = await import("../../api/apiError");
     mocks.db.getAllAsync.mockResolvedValueOnce([queueItem()]);
