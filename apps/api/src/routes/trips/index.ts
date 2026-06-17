@@ -157,7 +157,15 @@ const listTripsQuery = z.object({
 });
 
 export async function tripRoutes(app: FastifyInstance) {
-  app.addHook("preHandler", authMiddleware);
+  // Auth runs at onRequest, BEFORE Fastify parses the request body. POST /trips
+  // carries a big coordinate array; with auth as a preHandler the whole payload
+  // was parsed (and on a 15-min-expired access token, uploaded) before the 401
+  // came back - the client then refreshed and re-uploaded the lot, producing the
+  // up-to-27s slow 401s seen in the daily briefing. Failing auth before body
+  // parse gives a cheap instant 401 and one upload instead of two. authMiddleware
+  // only reads headers + sets request.userId, so it's safe at this stage; it
+  // still runs before the idempotency preHandler that reads request.userId.
+  app.addHook("onRequest", authMiddleware);
   attachIdempotency(app);
 
   // POST /trips/report-missing — user taps "Missing a trip?" on the Trips
