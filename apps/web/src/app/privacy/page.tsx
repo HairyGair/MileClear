@@ -698,10 +698,14 @@ export default function PrivacyPolicy() {
               </div>
 
               <div className="legal__card">
-                <h3 className="legal__card-title">Third-Party Analytics</h3>
-                <p className="legal__card-text">
-                  We do not use Google Analytics, Mixpanel, or similar cookie-based tracking on our website. No analytics cookies present.
-                </p>
+                <h3 className="legal__card-title">Third-Party Analytics (Consent Required)</h3>
+                <ul className="legal__list">
+                  <li className="legal__list-item"><strong>What:</strong> Google Analytics 4 on our website (mileclear.com) to understand how visitors find and use the site so we can improve it</li>
+                  <li className="legal__list-item"><strong>Consent:</strong> Off by default. Google Analytics only loads after you accept via our cookie banner. If you decline, no analytics cookies are set and no data is sent to Google</li>
+                  <li className="legal__list-item"><strong>Withdraw:</strong> Change your choice anytime via &ldquo;Cookie preferences&rdquo; in the footer, or by clearing your browser&apos;s local storage</li>
+                  <li className="legal__list-item"><strong>Data:</strong> IP addresses are anonymised; we don&apos;t use analytics on your account data or in the mobile app</li>
+                  <li className="legal__list-item"><strong>Processor:</strong> Google LLC, under its own privacy policy</li>
+                </ul>
               </div>
 
               <div className="legal__card">

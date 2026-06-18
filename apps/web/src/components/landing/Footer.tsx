@@ -1,3 +1,5 @@
+import CookiePreferencesLink from "@/components/analytics/CookiePreferencesLink";
+
 export default function Footer() {
   return (
     <footer className="footer">
@@ -82,6 +84,7 @@ export default function Footer() {
                 <li><a href="/privacy" className="footer__link">Privacy</a></li>
                 <li><a href="/terms" className="footer__link">Terms</a></li>
                 <li><a href="/accessibility" className="footer__link">Accessibility</a></li>
+                <li><CookiePreferencesLink /></li>
               </ul>
             </div>
           </nav>

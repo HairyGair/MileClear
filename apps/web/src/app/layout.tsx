@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import { Sora, Outfit } from "next/font/google";
 import "./globals.css";
 import ReleaseBanner from "@/components/landing/ReleaseBanner";
+import GoogleAnalytics from "@/components/analytics/GoogleAnalytics";
+import CookieConsent from "@/components/analytics/CookieConsent";
 
 const sora = Sora({
   subsets: ["latin"],
@@ -82,11 +84,21 @@ export default function RootLayout({
 }: {
   children: React.ReactNode;
 }) {
+  // Set NEXT_PUBLIC_GA_ID (a G-XXXXXXXX measurement ID) to enable analytics.
+  // Unset = no GA, no cookie banner — a complete no-op.
+  const gaId = process.env.NEXT_PUBLIC_GA_ID;
+
   return (
     <html lang="en-GB" className={`${sora.variable} ${outfit.variable}`}>
       <body>
         <ReleaseBanner />
         {children}
+        {gaId && (
+          <>
+            <GoogleAnalytics gaId={gaId} />
+            <CookieConsent />
+          </>
+        )}
       </body>
     </html>
   );
