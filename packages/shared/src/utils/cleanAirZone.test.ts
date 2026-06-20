@@ -99,6 +99,36 @@ describe("detectCleanAirZoneCrossings", () => {
     expect(crossed).toContain("london-ulez");
   });
 
+  it("detects an outer London borough (official Greater London boundary, not the old coarse box)", () => {
+    // Croydon — a south-London suburb the previous approximate box missed but
+    // which IS inside the Aug-2023 all-borough ULEZ.
+    const crossed = detectCleanAirZoneCrossings([{ lat: 51.3762, lng: -0.0982 }]);
+    expect(crossed).toContain("london-ulez");
+  });
+
+  it("does NOT flag just outside Greater London (Watford)", () => {
+    const crossed = detectCleanAirZoneCrossings([{ lat: 51.6565, lng: -0.3957 }]);
+    expect(crossed).not.toContain("london-ulez");
+  });
+
+  it("detects a route through the Bristol CAZ (official boundary)", () => {
+    const crossed = detectCleanAirZoneCrossings([{ lat: 51.4555, lng: -2.5895 }]); // Castle Park
+    expect(crossed).toContain("bristol");
+  });
+
+  it("detects the official van-charging CAZs (Bath, Sheffield, Tyneside)", () => {
+    expect(detectCleanAirZoneCrossings([{ lat: 51.381, lng: -2.359 }])).toContain("bath"); // Bath Abbey
+    expect(detectCleanAirZoneCrossings([{ lat: 53.382, lng: -1.468 }])).toContain("sheffield"); // Sheffield centre
+    expect(detectCleanAirZoneCrossings([{ lat: 54.973, lng: -1.6125 }])).toContain("tyneside"); // Newcastle
+  });
+
+  it("uses Birmingham's real zone shape, not a bounding box", () => {
+    // New Street station — inside the A4540 Middleway zone.
+    expect(detectCleanAirZoneCrossings([{ lat: 52.4778, lng: -1.8989 }])).toContain("birmingham");
+    // Edgbaston, just south of the Middleway — outside the zone.
+    expect(detectCleanAirZoneCrossings([{ lat: 52.4558, lng: -1.902 }])).not.toContain("birmingham");
+  });
+
   it("detects a route through Birmingham city centre", () => {
     const crossed = detectCleanAirZoneCrossings([{ lat: 52.4778, lng: -1.8925 }]);
     expect(crossed).toContain("birmingham");

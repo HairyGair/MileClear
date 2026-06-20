@@ -1338,7 +1338,7 @@ export default function TripsPage() {
                   );
                 })}
                 <div style={{ color: "#64748b", fontSize: "0.6875rem", marginTop: 8, lineHeight: 1.5 }}>
-                  Based on your vehicle&apos;s emissions and an approximate zone map — confirm with the official checker if unsure.
+                  Based on your vehicle&apos;s emissions and the zone boundary — confirm with the official checker if unsure. Zone boundaries © OpenStreetMap contributors, Transport for London &amp; local authorities.
                 </div>
               </div>
             )}

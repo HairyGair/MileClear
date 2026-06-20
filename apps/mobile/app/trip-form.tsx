@@ -3045,8 +3045,9 @@ export default function TripFormScreen() {
                   );
                 })}
                 <Text style={styles.cazTripDisclaimer}>
-                  Based on your vehicle&apos;s emissions and an approximate zone map — confirm with
-                  the official checker if unsure.
+                  Based on your vehicle&apos;s emissions and the zone boundary — confirm with the
+                  official checker if unsure. Zone boundaries © OpenStreetMap contributors,
+                  Transport for London &amp; local authorities.
                 </Text>
               </View>
             )}
