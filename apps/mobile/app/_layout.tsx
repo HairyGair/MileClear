@@ -148,7 +148,7 @@ import { registerPushToken } from "../lib/api/notifications";
 import { startDriveDetection, finalizeStaleAutoRecordings, registerBackgroundFinalize, bootNativeEngineOnLaunch } from "../lib/tracking/detection";
 import { registerGeofences, shadeExpiredUnconfirmedTrips, setDepartureAnchor } from "../lib/geofencing/index";
 import { getDatabase } from "../lib/db/index";
-import { hydrateLocalData, isHydrationComplete, reconcileSavedLocations } from "../lib/sync/hydrate";
+import { hydrateLocalData, isHydrationComplete, reconcileSavedLocations, reconcileTrips } from "../lib/sync/hydrate";
 import { uploadDiagnosticDump } from "../lib/api/diagnostics";
 import { mountAppStateTracker } from "../lib/appState";
 import { isIapAvailable, initializeIap, setupPurchaseListeners, endIapConnection } from "../lib/iap/index";
@@ -283,6 +283,11 @@ function RootNavigator() {
         .finally(() => {
           registerGeofences().catch(() => {});
         });
+      // Pull server-authoritative trip fields (classification, platform, etc.)
+      // into local SQLite. Trips hydrate append-only, so a trip classified
+      // server-side / on web / on another device would otherwise stay
+      // "unclassified" in the local list forever (the trip-drift bug).
+      reconcileTrips().catch(() => {});
       setDepartureAnchor().catch(() => {});
       shadeExpiredUnconfirmedTrips().catch(() => {});
       registerForPushNotifications()

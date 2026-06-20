@@ -19,6 +19,17 @@ import Constants from "expo-constants";
 
 const DEVICE_ID_KEY = "mileclear_device_id";
 
+// Background-readable, device-only keychain accessibility — mirrors the auth
+// token storage (lib/api/index.ts). Without this the device ID is stored as
+// WHEN_UNLOCKED (the default), so a background task that runs while the phone
+// is LOCKED (finalize, sync, native-engine boot) can't read it: the read
+// throws, we fall back to a transient per-session ID, and the API call goes
+// out with an unstable device identifier. With AFTER_FIRST_UNLOCK the value is
+// readable in the background once the device has been unlocked since boot.
+const KEYCHAIN_OPTS = {
+  keychainAccessible: SecureStore.AFTER_FIRST_UNLOCK_THIS_DEVICE_ONLY,
+};
+
 let cachedHeaders: Record<string, string> | null = null;
 let cachedDeviceId: string | null = null;
 
@@ -34,6 +45,10 @@ async function getOrCreateDeviceId(): Promise<string> {
     const existing = await SecureStore.getItemAsync(DEVICE_ID_KEY);
     if (existing) {
       cachedDeviceId = existing;
+      // Migrate installs whose ID predates KEYCHAIN_OPTS (stored as the default
+      // WHEN_UNLOCKED). Re-store once this session with background-readable
+      // accessibility so future locked-context reads succeed. Fire-and-forget.
+      SecureStore.setItemAsync(DEVICE_ID_KEY, existing, KEYCHAIN_OPTS).catch(() => {});
       return existing;
     }
   } catch {
@@ -42,7 +57,7 @@ async function getOrCreateDeviceId(): Promise<string> {
   }
   const id = Crypto.randomUUID();
   try {
-    await SecureStore.setItemAsync(DEVICE_ID_KEY, id);
+    await SecureStore.setItemAsync(DEVICE_ID_KEY, id, KEYCHAIN_OPTS);
   } catch {
     // ignore — caller still gets the generated id
   }

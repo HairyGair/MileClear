@@ -272,6 +272,127 @@ export async function reconcileSavedLocations(): Promise<void> {
   }
 }
 
+/**
+ * Reconcile pass for trips. Trips hydrate append-only (INSERT OR IGNORE), so a
+ * trip whose server-authoritative fields changed AFTER it was first stored
+ * locally — classified by the auto-classify rules, on the web dashboard, or on
+ * another device — never updated locally and showed as "unclassified" forever
+ * (Anthony, 13 Jun 2026: "push says 7 to classify, Inbox empty"). This pulls
+ * server truth and updates those fields on the matching local rows.
+ *
+ * Two deliberate differences from reconcileSavedLocations:
+ *  - Trips are WINDOWED (we only fetch the recent 90 days / 100 rows), so we do
+ *    NOT delete local rows missing from the response — they're almost always
+ *    just older than the window, not deleted. We only upsert what's returned.
+ *    (Server-side deletions aren't propagated here; rare, and unsafe to infer
+ *    from a windowed fetch.)
+ *  - We update ONLY server-authoritative columns. Local-only columns
+ *    (classification_source, suggested_classification, suggested_platform,
+ *    classification_auto_accepted_sent) are left untouched.
+ *
+ * Rows with a queued local op (pending/failed create/update/delete) are skipped
+ * so an offline edit isn't clobbered by stale server state — it reconciles on a
+ * later pass once it has synced. No-ops on network failure (keep stale > wipe).
+ */
+const TRIP_RECONCILE_WINDOW_DAYS = 90;
+
+export async function reconcileTrips(): Promise<void> {
+  try {
+    const db = await getDatabase();
+
+    const from = new Date();
+    from.setDate(from.getDate() - TRIP_RECONCILE_WINDOW_DAYS);
+    const fromStr = from.toISOString().split("T")[0]; // YYYY-MM-DD
+
+    const result = (await fetchTrips({
+      from: fromStr,
+      pageSize: 100,
+    })) as PaginatedResponse<TripWithVehicle>;
+    const trips = result.data;
+    if (!trips.length) return;
+
+    // A trip with a queued local op keeps its local state until it syncs —
+    // overwriting it would discard the user's offline edit.
+    const pending = await db.getAllAsync<{ entity_id: string }>(
+      "SELECT entity_id FROM sync_queue WHERE entity_type = 'trip' AND status IN ('pending', 'failed')"
+    );
+    const pendingIds = new Set(pending.map((r) => r.entity_id));
+
+    const now = new Date().toISOString();
+
+    for (const t of trips) {
+      if (pendingIds.has(t.id)) continue;
+
+      const existing = await db.getFirstAsync<{ id: string }>(
+        "SELECT id FROM trips WHERE id = ?",
+        [t.id]
+      );
+
+      if (existing) {
+        // Update only the fields that can drift after creation. Local-only
+        // columns are intentionally absent from this SET.
+        await db.runAsync(
+          `UPDATE trips SET
+             shift_id = ?, vehicle_id = ?, end_lat = ?, end_lng = ?,
+             end_address = ?, distance_miles = ?, ended_at = ?,
+             classification = ?, platform_tag = ?, category = ?,
+             business_purpose = ?, notes = ?, synced_at = ?
+           WHERE id = ?`,
+          [
+            t.shiftId ?? null,
+            t.vehicleId ?? null,
+            t.endLat ?? null,
+            t.endLng ?? null,
+            t.endAddress ?? null,
+            t.distanceMiles,
+            t.endedAt ?? null,
+            t.classification,
+            t.platformTag ?? null,
+            t.category ?? null,
+            t.businessPurpose ?? null,
+            t.notes ?? null,
+            now,
+            t.id,
+          ]
+        );
+      } else {
+        // A trip created on another device / the web — insert it locally.
+        await db.runAsync(
+          `INSERT OR IGNORE INTO trips
+             (id, shift_id, vehicle_id, start_lat, start_lng, end_lat, end_lng,
+              start_address, end_address, distance_miles, started_at, ended_at,
+              is_manual_entry, classification, platform_tag, category,
+              business_purpose, notes, synced_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          [
+            t.id,
+            t.shiftId ?? null,
+            t.vehicleId ?? null,
+            t.startLat,
+            t.startLng,
+            t.endLat ?? null,
+            t.endLng ?? null,
+            t.startAddress ?? null,
+            t.endAddress ?? null,
+            t.distanceMiles,
+            t.startedAt,
+            t.endedAt ?? null,
+            t.isManualEntry ? 1 : 0,
+            t.classification,
+            t.platformTag ?? null,
+            t.category ?? null,
+            t.businessPurpose ?? null,
+            t.notes ?? null,
+            now,
+          ]
+        );
+      }
+    }
+  } catch (err) {
+    console.warn("[hydrate] trips reconcile failed:", err);
+  }
+}
+
 // ── Main hydration entry point ─────────────────────────────────────────────
 
 export async function hydrateLocalData(
