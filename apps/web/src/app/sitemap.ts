@@ -15,6 +15,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
     { url: `${BASE_URL}/pricing`, lastModified: new Date("2026-04-13") },
     { url: `${BASE_URL}/faq`, lastModified: new Date("2026-04-13") },
     { url: `${BASE_URL}/about`, lastModified: new Date("2026-04-13") },
+    { url: `${BASE_URL}/case-study`, lastModified: new Date("2026-06-20") },
     { url: `${BASE_URL}/mileclear-vs-mileiq`, lastModified: new Date("2026-04-13") },
     { url: `${BASE_URL}/mileiq-alternative-uk`, lastModified: new Date("2026-06-08") },
     { url: `${BASE_URL}/driversnote-alternative`, lastModified: new Date("2026-06-08") },
