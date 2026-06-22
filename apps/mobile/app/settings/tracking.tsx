@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { Alert } from "react-native";
 import { useRouter } from "expo-router";
 import { SettingsScreen } from "../../components/settings/SettingsScreen";
 import { SettingsGroup } from "../../components/settings/SettingsGroup";
@@ -29,8 +30,28 @@ export default function TrackingSettings() {
   }, []);
 
   const toggleDriveDetection = useCallback((next: boolean) => {
-    setDriveDetection(next);
-    setDriveDetectionEnabled(next);
+    // Confirm before switching OFF — silently disabling capture is how drives
+    // go missing without the user realising. Turning ON is friction-free.
+    if (!next) {
+      Alert.alert(
+        "Turn off auto-tracking?",
+        "New drives won't be recorded automatically while it's off. You can still add trips by hand with + on the Trips screen.",
+        [
+          { text: "Keep it on", style: "cancel" },
+          {
+            text: "Turn off",
+            style: "destructive",
+            onPress: () => {
+              setDriveDetection(false);
+              setDriveDetectionEnabled(false);
+            },
+          },
+        ]
+      );
+      return;
+    }
+    setDriveDetection(true);
+    setDriveDetectionEnabled(true);
   }, []);
 
   const toggleBatterySaver = useCallback((next: boolean) => {

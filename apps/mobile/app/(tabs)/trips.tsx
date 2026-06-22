@@ -34,6 +34,7 @@ import { colors, fonts, radii, spacing } from "../../lib/theme";
 import { EmptyState } from "../../components/EmptyState";
 import { MissingTripReporter } from "../../components/MissingTripReporter";
 import { MissedJourneys } from "../../components/MissedJourneys";
+import { TrackingOffBanner } from "../../components/TrackingOffBanner";
 import { haptic } from "../../lib/haptics";
 import { AppModal } from "../../components/AppModal";
 import { Swipeable, RectButton } from "react-native-gesture-handler";
@@ -1157,6 +1158,9 @@ export default function TripsScreen() {
         contentContainerStyle={styles.listContent}
         ListHeaderComponent={
           <View>
+            {/* Safety: warn (any filter) if auto-detection is off, so missing
+                trips don't go unexplained. One tap re-enables. */}
+            <TrackingOffBanner />
             {isOffline && (
               <View style={styles.offlineBanner}>
                 <Text style={styles.offlineBannerText}>

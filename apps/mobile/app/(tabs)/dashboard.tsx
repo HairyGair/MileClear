@@ -20,6 +20,7 @@ import { FadeInStagger } from "../../components/FadeInStagger";
 import { colors, fonts, fontScaleCap, radii, spacing } from "../../lib/theme";
 import { ActiveRecordingBanner } from "../../components/ActiveRecordingBanner";
 import { SyncStatusBanner } from "../../components/SyncStatusBanner";
+import { TrackingOffBanner } from "../../components/TrackingOffBanner";
 import { TripStatusStrip } from "../../components/TripStatusStrip";
 import { describeError } from "../../lib/api/apiError";
 import { useFocusEffect, useRouter } from "expo-router";
@@ -1352,6 +1353,8 @@ export default function DashboardScreen() {
           trip in progress, so the user always knows we're tracking even if
           the Live Activity silently failed to present. */}
       <ActiveRecordingBanner />
+      {/* Safety: warn if auto-detection is switched off, with one-tap re-enable. */}
+      <TrackingOffBanner />
       <SyncStatusBanner />
       {/* Persistent trip-status surface — Saving / Saved+sync-state / Ready.
           Hides itself while recording (banner above owns that state) and when
