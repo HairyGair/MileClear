@@ -184,11 +184,24 @@ export async function uploadDiagnosticDump(): Promise<void> {
     const daysSinceAutoTrip = lastAutoTrip
       ? (Date.now() - new Date(lastAutoTrip.started_at).getTime()) / 86_400_000
       : Infinity;
+    // Native-engine devices stamp a fresh lastNativeLocationAt for as long as
+    // the engine is alive and delivering fixes — so "engine alive but no
+    // auto-trip" is the silent-non-capture signature (philfixit, 22 Jun:
+    // verdict "healthy", engine stamping fixes daily, zero trips for 5 days).
+    // Flag those at 4 days instead of waiting for the generic 10-day dry-spell
+    // warning, so the verdict stops reading "healthy" while capture is silently
+    // broken. Permissions are already known-good past the guards above.
+    const NATIVE_FIX_FRESH_MS = 2 * 86_400_000;
+    const nativeEngineAlive =
+      diagnostics.nativeEngineEnabled &&
+      diagnostics.lastNativeLocationAt != null &&
+      Date.now() - new Date(diagnostics.lastNativeLocationAt).getTime() < NATIVE_FIX_FRESH_MS;
     let verdict = "healthy";
     if (!diagnostics.enabled) verdict = "error";
     else if (diagnostics.backgroundPermission !== "granted") verdict = "error";
     else if (diagnostics.autoRecordingActive) verdict = "info";
     else if (diagnostics.quietHours || diagnostics.cooldownRemainingMs > 0) verdict = "info";
+    else if (nativeEngineAlive && daysSinceAutoTrip > 4) verdict = "warning";
     else if (!Number.isFinite(daysSinceAutoTrip) || daysSinceAutoTrip > 10) verdict = "warning";
 
     await apiRequest("/user/diagnostics", {

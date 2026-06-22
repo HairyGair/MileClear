@@ -29,6 +29,7 @@ import {
   finalizeAutoTrip,
   isDriveDetectionEnabled,
   startNativeAutoTripLiveActivity,
+  shiftSuppressesAutoDetection,
 } from "./detection";
 
 // ─── Lazy, crash-safe native module load ────────────────────────────────────
@@ -421,11 +422,10 @@ async function handleNativeLocation(loc: NativeLocation): Promise<void> {
       acc <= FORCE_START_ACCURACY_M
     ) {
       // Respect an active shift and the "not driving" cooldown (a dismissed
-      // detection), so we don't re-open something the user/app turned off.
-      const shift = await db.getFirstAsync<{ value: string }>(
-        "SELECT value FROM tracking_state WHERE key = 'active_shift_id'"
-      );
-      if (shift) return;
+      // detection), so we don't re-open something the user/app turned off. Uses
+      // the shared helper so an ORPHANED quick-trip lock self-heals instead of
+      // muting the native engine forever (philfixit, 22 Jun).
+      if (await shiftSuppressesAutoDetection(db)) return;
       const ndu = await db.getFirstAsync<{ value: string }>(
         "SELECT value FROM tracking_state WHERE key = 'not_driving_until'"
       );
@@ -452,10 +452,9 @@ async function handleNativeMotionChange(event: NativeMotionEvent): Promise<void>
     }).catch(() => {});
 
     const db = await getDatabase();
-    const activeShift = await db.getFirstAsync<{ value: string }>(
-      "SELECT value FROM tracking_state WHERE key = 'active_shift_id'"
-    );
-    if (activeShift) return; // shift mode owns GPS
+    // shift mode owns GPS; the shared helper self-heals an orphaned quick-trip
+    // lock so it can't permanently block native motion-driven recording.
+    if (await shiftSuppressesAutoDetection(db)) return;
 
     const BGGeo = loadNativeModule();
 
@@ -520,10 +519,8 @@ async function handleNativeHeartbeat(): Promise<void> {
   try {
     if (!(await isDriveDetectionEnabled())) return;
     const db = await getDatabase();
-    const activeShift = await db.getFirstAsync<{ value: string }>(
-      "SELECT value FROM tracking_state WHERE key = 'active_shift_id'"
-    );
-    if (activeShift) return; // shift mode owns GPS
+    // shift mode owns GPS; self-heal an orphaned quick-trip lock here too.
+    if (await shiftSuppressesAutoDetection(db)) return;
     const recording = await db.getFirstAsync<{ value: string }>(
       "SELECT value FROM tracking_state WHERE key = 'auto_recording_active'"
     );

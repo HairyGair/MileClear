@@ -438,6 +438,78 @@ export interface DriveDetectionDiagnostics {
 }
 
 /**
+ * Decide whether an active_shift_id should suppress auto-detection — and
+ * self-heal an orphaned quick trip as a side effect.
+ *
+ * Returns true when a genuine shift or a LIVE quick trip owns the GPS, so the
+ * caller must yield. Returns false when there's no shift, OR the only lock was
+ * an ABANDONED __quick_trip__ (app killed mid-trip / save interrupted), which
+ * this CLEARS so detection can proceed this run.
+ *
+ * Shared by the JS detection start path (startDriveDetection) AND the native
+ * engine handlers (handleNativeLocation / handleNativeMotionChange /
+ * handleNativeHeartbeat). The native handlers previously did a bare
+ * `if (active_shift_id) return` with NO orphan detection, so a stuck
+ * __quick_trip__ muted the native engine indefinitely while it still reported
+ * fresh fixes and a "healthy" verdict (the silent-non-capture class, philfixit
+ * 22 Jun). Routing both paths through one helper keeps the self-heal from ever
+ * diverging between them.
+ */
+export async function shiftSuppressesAutoDetection(
+  db: Awaited<ReturnType<typeof getDatabase>>
+): Promise<boolean> {
+  const activeShift = await db.getFirstAsync<{ value: string }>(
+    "SELECT value FROM tracking_state WHERE key = 'active_shift_id'"
+  );
+  if (!activeShift) return false;
+  // Real shifts (UUID ids) always own GPS — yield unconditionally.
+  if (activeShift.value !== QUICK_TRIP_SHIFT_ID) {
+    logDetectionEvent("detection_skipped", { reason: "active_shift" }).catch(() => {});
+    return true;
+  }
+  // __quick_trip__: live or orphan? Ground truth is GPS capture activity, NOT
+  // the quick_trip_start row (which can be absent even mid-trip — Anthony's
+  // 1 June live 6.1mi quick trip had active_shift_id set and fresh breadcrumbs
+  // but no quick_trip_start). Treat as LIVE if a breadcrumb landed within
+  // QUICK_TRIP_LIVE_COORD_MS, OR a quick_trip_start is newer than
+  // QUICK_TRIP_STALE_MS (covers tap-Start → first-fix gap). Only a true orphan
+  // gets cleared, so we can NEVER kill a recording trip.
+  let live = false;
+  const lastCoord = await db.getFirstAsync<{ recorded_at: string }>(
+    "SELECT recorded_at FROM shift_coordinates WHERE shift_id = ? ORDER BY recorded_at DESC LIMIT 1",
+    [QUICK_TRIP_SHIFT_ID]
+  );
+  if (lastCoord) {
+    const ms = new Date(lastCoord.recorded_at).getTime();
+    if (Number.isFinite(ms) && Date.now() - ms < QUICK_TRIP_LIVE_COORD_MS) live = true;
+  }
+  if (!live) {
+    const qts = await db.getFirstAsync<{ value: string }>(
+      "SELECT value FROM tracking_state WHERE key = 'quick_trip_start'"
+    );
+    if (qts) {
+      try {
+        const startedMs = new Date(JSON.parse(qts.value).startedAt).getTime();
+        if (Number.isFinite(startedMs) && Date.now() - startedMs < QUICK_TRIP_STALE_MS) live = true;
+      } catch {
+        // malformed row — not a reason to keep the lock
+      }
+    }
+  }
+  if (live) {
+    logDetectionEvent("detection_skipped", { reason: "active_quick_trip" }).catch(() => {});
+    return true;
+  }
+  // Abandoned lock: clear it so auto-detection / native capture isn't
+  // suppressed forever.
+  await db.runAsync("DELETE FROM tracking_state WHERE key = 'active_shift_id'");
+  await db.runAsync("DELETE FROM tracking_state WHERE key = 'quick_trip_start'");
+  await db.runAsync("DELETE FROM shift_coordinates WHERE shift_id = ?", [QUICK_TRIP_SHIFT_ID]);
+  logDetectionEvent("orphaned_quick_trip_cleared", {}).catch(() => {});
+  return false;
+}
+
+/**
  * Gather everything a diagnostics screen needs in one call: runtime flags,
  * permissions, tracking_state dump, and buffered coordinate count. Never throws.
  */
@@ -2735,68 +2807,11 @@ export async function startDriveDetection(): Promise<void> {
 
   // Guard: don't start if a shift is active — a real shift / live quick trip
   // owns the GPS subscription and detection must yield to it.
+  // Yield to a genuine shift / live quick trip; self-heal an orphaned quick-trip
+  // lock so detection isn't suppressed forever. Shared with the native engine
+  // handlers via shiftSuppressesAutoDetection so the self-heal can't diverge.
   const db = await getDatabase();
-  const activeShift = await db.getFirstAsync<{ value: string }>(
-    "SELECT value FROM tracking_state WHERE key = 'active_shift_id'"
-  );
-  if (activeShift) {
-    // Self-heal an ORPHANED quick trip. A quick trip started then never ended
-    // (app killed mid-trip, or the save was interrupted) leaves
-    // active_shift_id=__quick_trip__ stuck forever, permanently suppressing
-    // auto-detection. Anthony hit this 1 June: active_shift_id=__quick_trip__
-    // with NO quick_trip_start row and taskRunning:false, blocking every
-    // detection attempt for hours. A genuinely live quick trip always has a
-    // recent quick_trip_start row; if it's missing or stale, the lock is an
-    // orphan — clear it and continue detecting. Real shifts (UUID ids) always
-    // yield.
-    if (activeShift.value === QUICK_TRIP_SHIFT_ID) {
-      // Is this quick trip genuinely LIVE, or an abandoned lock blocking
-      // detection? Ground truth is GPS capture activity, NOT the
-      // quick_trip_start row — that row can be absent even mid-trip (Anthony's
-      // 1 June live 6.1mi quick trip had active_shift_id set and fresh
-      // breadcrumbs but NO quick_trip_start). Treat as LIVE if a breadcrumb
-      // landed within QUICK_TRIP_LIVE_COORD_MS, OR a quick_trip_start is newer
-      // than QUICK_TRIP_STALE_MS (covers the gap between tapping Start and the
-      // first fix). Only an orphan (no recent coords AND no fresh start row)
-      // gets cleared — so we can NEVER kill a recording trip.
-      let live = false;
-      const lastCoord = await db.getFirstAsync<{ recorded_at: string }>(
-        "SELECT recorded_at FROM shift_coordinates WHERE shift_id = ? ORDER BY recorded_at DESC LIMIT 1",
-        [QUICK_TRIP_SHIFT_ID]
-      );
-      if (lastCoord) {
-        const ms = new Date(lastCoord.recorded_at).getTime();
-        if (Number.isFinite(ms) && Date.now() - ms < QUICK_TRIP_LIVE_COORD_MS) live = true;
-      }
-      if (!live) {
-        const qts = await db.getFirstAsync<{ value: string }>(
-          "SELECT value FROM tracking_state WHERE key = 'quick_trip_start'"
-        );
-        if (qts) {
-          try {
-            const startedMs = new Date(JSON.parse(qts.value).startedAt).getTime();
-            if (Number.isFinite(startedMs) && Date.now() - startedMs < QUICK_TRIP_STALE_MS) live = true;
-          } catch {
-            // malformed row — not a reason to keep the lock
-          }
-        }
-      }
-      if (live) {
-        logDetectionEvent("detection_skipped", { reason: "active_quick_trip" }).catch(() => {});
-        return;
-      }
-      // Abandoned lock (app killed mid-trip / save interrupted): clear it so
-      // auto-detection isn't suppressed forever.
-      await db.runAsync("DELETE FROM tracking_state WHERE key = 'active_shift_id'");
-      await db.runAsync("DELETE FROM tracking_state WHERE key = 'quick_trip_start'");
-      await db.runAsync("DELETE FROM shift_coordinates WHERE shift_id = ?", [QUICK_TRIP_SHIFT_ID]);
-      logDetectionEvent("orphaned_quick_trip_cleared", {}).catch(() => {});
-      // fall through — detection proceeds this run
-    } else {
-      logDetectionEvent("detection_skipped", { reason: "active_shift" }).catch(() => {});
-      return;
-    }
-  }
+  if (await shiftSuppressesAutoDetection(db)) return;
 
   // Guard: don't restart if auto-recording is active (would downgrade 50m -> 100m)
   const recording = await db.getFirstAsync<{ value: string }>(
