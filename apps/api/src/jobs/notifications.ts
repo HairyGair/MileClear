@@ -967,7 +967,17 @@ async function runNativeEngineHealthJob(): Promise<void> {
 
   const eligible = [...latest.values()].filter((d) => {
     const status = (d.statusJson ?? {}) as Record<string, unknown>;
-    return status.nativeEngineEnabled === true && status.backgroundPermission === "granted";
+    // enabled !== false: a user who switched auto-detection OFF has zero
+    // auto-trips BY CHOICE — that's not "the engine missing drives", so it must
+    // not enter the silent bucket either (kingdomembracer75, 22 Jun: was the
+    // 'error' false-alarm, then the verdict OTA moved them straight into this
+    // bucket because it didn't check enabled). Same root cause as the error
+    // bucket, one level over.
+    return (
+      status.nativeEngineEnabled === true &&
+      status.backgroundPermission === "granted" &&
+      status.enabled !== false
+    );
   });
   const eligibleIds = eligible.map((d) => d.userId);
 
@@ -1015,6 +1025,7 @@ async function runNativeEngineHealthJob(): Promise<void> {
   for (const d of latest.values()) {
     const status = (d.statusJson ?? {}) as Record<string, unknown>;
     if (status.nativeEngineEnabled !== true) continue;
+    if (status.enabled === false) continue; // user turned detection off — not a stranding concern
     const updates = status.updates as
       | { isEnabled?: boolean; createdAt?: string | null; isEmbeddedLaunch?: boolean | null; runtimeVersion?: string | null }
       | undefined;
