@@ -362,6 +362,34 @@ export function reportMissingTrip(note: string) {
   });
 }
 
+// A journey the scanner thinks we missed: a spatial gap between two captured
+// trips (one ended at `from`, the next started at `to`) that has no trip between.
+export interface MissedJourneyProposal {
+  id: string;
+  fromLat: number;
+  fromLng: number;
+  toLat: number;
+  toLng: number;
+  fromAddress: string | null;
+  toAddress: string | null;
+  departedAt: string; // ISO — previous trip's end
+  arrivedAt: string; // ISO — next trip's start
+  estimatedMiles: number; // crow-flies estimate; the form recomputes road distance
+}
+
+export function fetchMissedJourneys() {
+  return apiRequest<{ proposals: MissedJourneyProposal[] }>("/trips/missed-journeys");
+}
+
+// Mark a proposal handled: "accept" once the user has added the trip (the Trip
+// itself is created by the prefilled form via createTrip), "dismiss" to hide it.
+export function resolveMissedJourney(id: string, action: "accept" | "dismiss") {
+  return apiRequest<{ ok: boolean }>(`/trips/missed-journeys/${id}/resolve`, {
+    method: "POST",
+    body: JSON.stringify({ action }),
+  });
+}
+
 // Tell the server a background drive just started so it can push-to-start the
 // Live Activity (iOS blocks Activity.request() from the background). Best-effort.
 export function signalTripStart(data: {

@@ -180,6 +180,7 @@ model User {
   bankTransactions    BankTransaction[]
   merchantMappings    MerchantMapping[]
   referralsMade       Referral[]         @relation("Referrer")
+  missedJourneys      MissedJourneyProposal[]
 
   @@map("users")
 }
@@ -1204,4 +1205,35 @@ model IdempotencyKey {
   @@unique([userId, key])
   @@index([expiresAt])
   @@map("idempotency_keys")
+}
+
+// Proposed "missed journeys" (22 Jun 2026). A retrospective scanner finds gaps
+// between consecutive captured trips where the user clearly drove but no trip
+// was recorded: trip A ended at one place, the next trip B started somewhere
+// else, with a plausible time gap and no trip between. We surface the gap so the
+// user can add the missing drive in one tap. A stable `key` (derived from the
+// bracketing trip ids) dedups proposals across repeated scans; `status` stops us
+// re-nagging once the user accepts (adds it) or dismisses one.
+model MissedJourneyProposal {
+  id             String   @id @default(uuid())
+  userId         String
+  key            String   @db.VarChar(191)
+  status         String   @default("proposed") // proposed | accepted | dismissed
+  fromLat        Float
+  fromLng        Float
+  toLat          Float
+  toLng          Float
+  fromAddress    String?  @db.Text
+  toAddress      String?  @db.Text
+  departedAt     DateTime // previous trip's endedAt
+  arrivedAt      DateTime // next trip's startedAt
+  estimatedMiles Float
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, key])
+  @@index([userId, status])
+  @@map("missed_journey_proposals")
 }

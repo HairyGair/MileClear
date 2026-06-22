@@ -26,6 +26,7 @@ import {
   fetchClassificationSuggestionForPair,
   recalculateTrip,
   mergeTrips,
+  resolveMissedJourney,
   ClassificationSuggestion,
 } from "../lib/api/trips";
 import { getLocalTrip } from "../lib/db/queries";
@@ -624,8 +625,36 @@ const CLASSIFICATIONS: { value: TripClassification; label: string }[] = [
 
 export default function TripFormScreen() {
   const router = useRouter();
-  const { id, mode: modeParam } = useLocalSearchParams<{ id?: string; mode?: string }>();
+  const {
+    id,
+    mode: modeParam,
+    // Prefill from a "missed journey" proposal (the Trips-screen scanner). When
+    // missedId is present we land in manual entry with the gap's endpoints +
+    // times filled in; saving creates the trip and marks the proposal accepted.
+    missedId,
+    prefillFromLat,
+    prefillFromLng,
+    prefillFromAddress,
+    prefillToLat,
+    prefillToLng,
+    prefillToAddress,
+    prefillDepartedAt,
+    prefillArrivedAt,
+  } = useLocalSearchParams<{
+    id?: string;
+    mode?: string;
+    missedId?: string;
+    prefillFromLat?: string;
+    prefillFromLng?: string;
+    prefillFromAddress?: string;
+    prefillToLat?: string;
+    prefillToLng?: string;
+    prefillToAddress?: string;
+    prefillDepartedAt?: string;
+    prefillArrivedAt?: string;
+  }>();
   const isEditing = !!id;
+  const hasMissedPrefill = !!missedId;
   const { user: currentUser } = useUser();
   const { showPaywall } = usePaywall();
 
@@ -634,7 +663,7 @@ export default function TripFormScreen() {
   // than the live "Start Trip" flow. Live-tracking effects are gated on
   // driving/arrived, so starting in manual is inert for them.
   const [mode, setMode] = useState<TripMode>(
-    isEditing ? "editing" : modeParam === "manual" ? "manual" : "ready"
+    isEditing ? "editing" : modeParam === "manual" || hasMissedPrefill ? "manual" : "ready"
   );
   const [loading, setLoading] = useState(true);
 
@@ -783,6 +812,33 @@ export default function TripFormScreen() {
     if (isEditing) return; // Editing loads separately
     (async () => {
       try {
+        // Missed-journey prefill: drop straight into manual entry with the gap's
+        // endpoints + times. No quick-trip resume / current-location lookup —
+        // the start/end come from the proposal, and the start/end-change effect
+        // recomputes the real road distance from the crow-flies endpoints.
+        if (hasMissedPrefill) {
+          const fLat = parseFloat(String(prefillFromLat));
+          const fLng = parseFloat(String(prefillFromLng));
+          const tLat = parseFloat(String(prefillToLat));
+          const tLng = parseFloat(String(prefillToLng));
+          if (Number.isFinite(fLat) && Number.isFinite(fLng)) {
+            setStartLat(fLat);
+            setStartLng(fLng);
+            if (prefillFromAddress) setStartAddress(String(prefillFromAddress));
+          }
+          if (Number.isFinite(tLat) && Number.isFinite(tLng)) {
+            setEndLat(tLat);
+            setEndLng(tLng);
+            if (prefillToAddress) setEndAddress(String(prefillToAddress));
+          }
+          const dep = prefillDepartedAt ? new Date(String(prefillDepartedAt)) : null;
+          const arr = prefillArrivedAt ? new Date(String(prefillArrivedAt)) : null;
+          if (dep && !Number.isNaN(dep.getTime())) setStartedAt(dep);
+          if (arr && !Number.isNaN(arr.getTime())) setEndedAt(arr);
+          setMode("manual");
+          return; // finally sets loading=false
+        }
+
         const db = await getDatabase();
         const row = await db.getFirstAsync<{ value: string }>(
           "SELECT value FROM tracking_state WHERE key = ?",
@@ -893,7 +949,20 @@ export default function TripFormScreen() {
         setLoading(false);
       }
     })();
-  }, [isEditing]);
+    // Prefill params are route params — stable for the screen's lifetime, so
+    // listing them never re-runs this mount-time init.
+  }, [
+    isEditing,
+    hasMissedPrefill,
+    prefillFromLat,
+    prefillFromLng,
+    prefillFromAddress,
+    prefillToLat,
+    prefillToLng,
+    prefillToAddress,
+    prefillDepartedAt,
+    prefillArrivedAt,
+  ]);
 
   // Load existing trip for editing
   useEffect(() => {
@@ -1787,6 +1856,11 @@ export default function TripFormScreen() {
         const tripResult = await syncCreateTrip(data);
         haptic("success");
         createdTripId = tripResult?.data?.id ?? null;
+        // Trip came from a "missed journey" proposal — mark it accepted so the
+        // scanner stops surfacing it. Best-effort; the trip is already saved.
+        if (missedId) {
+          resolveMissedJourney(String(missedId), "accept").catch(() => {});
+        }
         // Server returns the learned suggestion + autoApplied flag in
         // the create response when pattern-learning auto-classified the
         // trip. Used to power the "Auto-classified as Work — based on
@@ -1964,7 +2038,7 @@ export default function TripFormScreen() {
     distanceMiles, startedAt, endedAt, notes, projectLabel, router, showPaywall, routeSource,
     anomalyDef, anomalyResponse, anomalyCustomNote,
     locationQuestions, locationResponses, locationCustomNotes,
-    odometerStart, odometerEnd,
+    odometerStart, odometerEnd, missedId,
   ]);
 
   const handleCancel = useCallback(() => {

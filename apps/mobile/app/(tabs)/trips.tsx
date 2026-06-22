@@ -33,6 +33,7 @@ import { Skeleton } from "../../components/Skeleton";
 import { colors, fonts, radii, spacing } from "../../lib/theme";
 import { EmptyState } from "../../components/EmptyState";
 import { MissingTripReporter } from "../../components/MissingTripReporter";
+import { MissedJourneys } from "../../components/MissedJourneys";
 import { haptic } from "../../lib/haptics";
 import { AppModal } from "../../components/AppModal";
 import { Swipeable, RectButton } from "react-native-gesture-handler";
@@ -1415,6 +1416,11 @@ export default function TripsScreen() {
                 </View>
               </View>
             )}
+
+            {/* Proactive "journeys you might have missed" (gap scanner) above the
+                reactive "Missing a trip?" link. Renders nothing when there are
+                no proposals. */}
+            {filter !== "unclassified" && <MissedJourneys />}
 
             {/* "Missing a trip?" - kept near the top of the list so it's seen
                 without scrolling (the list isn't paginated for the user). */}

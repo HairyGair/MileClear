@@ -761,6 +761,107 @@ export async function tripRoutes(app: FastifyInstance) {
     return reply.send({ count });
   });
 
+  // ── Missed-journey scanner ────────────────────────────────────────────────
+  // A spatial gap between two CONSECUTIVE captured trips implies an uncaptured
+  // drive: trip A ended at one place, the next trip B started somewhere else,
+  // with a plausible time gap and (by consecutive ordering) no trip between. We
+  // propose the A.end -> B.start journey so the user can add it in one tap.
+  // Idempotent: each candidate upserts on a stable (userId, key), so repeat
+  // scans never duplicate, and an accepted/dismissed proposal is never
+  // resurrected. Stale 'proposed' rows (gap since closed) are pruned each scan.
+  const MISSED_SCAN_DAYS = 30;
+  const MISSED_MIN_GAP_MIN = 5; // below this it's GPS jitter at one stop, not a drive
+  const MISSED_MAX_GAP_MIN = 24 * 60; // beyond a day the two trips aren't one journey
+  const MISSED_MIN_MILES = 0.3; // crow-flies; matches the phantom-trip floor
+  const MISSED_MAX_RESULTS = 20;
+
+  app.get("/missed-journeys", async (request, reply) => {
+    const userId = request.userId!;
+    const since = new Date(Date.now() - MISSED_SCAN_DAYS * 24 * 60 * 60 * 1000);
+    const trips = await prisma.trip.findMany({
+      where: { userId, isPhantomTrip: false, startedAt: { gte: since } },
+      orderBy: { startedAt: "asc" },
+      select: {
+        id: true, startLat: true, startLng: true, startAddress: true,
+        endLat: true, endLng: true, endAddress: true,
+        startedAt: true, endedAt: true,
+      },
+    });
+
+    const candidates: {
+      key: string; fromLat: number; fromLng: number; toLat: number; toLng: number;
+      fromAddress: string | null; toAddress: string | null;
+      departedAt: Date; arrivedAt: Date; estimatedMiles: number;
+    }[] = [];
+    for (let i = 0; i < trips.length - 1; i++) {
+      const a = trips[i];
+      const b = trips[i + 1];
+      if (a.endLat == null || a.endLng == null || a.endedAt == null) continue;
+      const gapMin = (b.startedAt.getTime() - a.endedAt.getTime()) / 60000;
+      if (gapMin < MISSED_MIN_GAP_MIN || gapMin > MISSED_MAX_GAP_MIN) continue;
+      const miles = haversineDistance(a.endLat, a.endLng, b.startLat, b.startLng);
+      if (miles < MISSED_MIN_MILES) continue;
+      candidates.push({
+        key: `${a.id}:${b.id}`,
+        fromLat: a.endLat, fromLng: a.endLng,
+        toLat: b.startLat, toLng: b.startLng,
+        fromAddress: a.endAddress, toAddress: b.startAddress,
+        departedAt: a.endedAt, arrivedAt: b.startedAt,
+        estimatedMiles: Math.round(miles * 10) / 10,
+      });
+    }
+
+    // Upsert candidates (no-op update preserves an existing accepted/dismissed
+    // status, so a handled proposal is never resurrected), then prune any
+    // 'proposed' rows whose gap has since closed (key no longer a candidate).
+    const candidateKeys = candidates.map((c) => c.key);
+    for (const c of candidates) {
+      await prisma.missedJourneyProposal.upsert({
+        where: { userId_key: { userId, key: c.key } },
+        create: { userId, status: "proposed", ...c },
+        update: {},
+      });
+    }
+    await prisma.missedJourneyProposal.deleteMany({
+      where: { userId, status: "proposed", key: { notIn: candidateKeys.length ? candidateKeys : ["__none__"] } },
+    });
+
+    const open = await prisma.missedJourneyProposal.findMany({
+      where: { userId, status: "proposed" },
+      orderBy: { arrivedAt: "desc" },
+      take: MISSED_MAX_RESULTS,
+    });
+    return reply.send({
+      proposals: open.map((p) => ({
+        id: p.id,
+        fromLat: p.fromLat, fromLng: p.fromLng,
+        toLat: p.toLat, toLng: p.toLng,
+        fromAddress: p.fromAddress, toAddress: p.toAddress,
+        departedAt: p.departedAt.toISOString(),
+        arrivedAt: p.arrivedAt.toISOString(),
+        estimatedMiles: p.estimatedMiles,
+      })),
+    });
+  });
+
+  // Mark a proposal handled. accept = the user added the trip (the Trip row
+  // itself is created via POST /trips by the prefilled form); dismiss = not a
+  // real drive, don't show again. Scoped to the owner to avoid IDOR.
+  const missedActionSchema = z.object({ action: z.enum(["accept", "dismiss"]) });
+  app.post("/missed-journeys/:id/resolve", async (request, reply) => {
+    const userId = request.userId!;
+    const { id } = request.params as { id: string };
+    const parsed = missedActionSchema.safeParse(request.body ?? {});
+    if (!parsed.success) return reply.code(400).send({ error: "Invalid action" });
+    const status = parsed.data.action === "accept" ? "accepted" : "dismissed";
+    const result = await prisma.missedJourneyProposal.updateMany({
+      where: { id, userId },
+      data: { status },
+    });
+    if (result.count === 0) return reply.code(404).send({ error: "Not found" });
+    return reply.send({ ok: true });
+  });
+
   // Aggregate trip stats over a date range. Lets the dashboard cards
   // get totalTrips + totalMiles in one round trip without paginating
   // through the full trip list. Same filters as GET /trips, just an

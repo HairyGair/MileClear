@@ -1012,6 +1012,30 @@ export default function DriveDetectionDiagnosticsScreen() {
         />
       </View>
 
+      {/* Battery & Power — surface the adaptive low-power behaviour so the user
+          can see MileClear isn't hammering GPS. Live battery % + battery-aware
+          throttling arrive with expo-battery in the next native build. */}
+      <View style={styles.card}>
+        <Text style={styles.cardTitle}>Battery &amp; Power</Text>
+        <Text style={styles.batteryBody}>
+          MileClear is built for low battery use. It doesn&apos;t poll GPS constantly —
+          while you&apos;re parked it idles in a low-power backstop and only wakes when you
+          start driving. High-accuracy tracking runs only while a trip is actually
+          recording, then releases.
+        </Text>
+        <Text style={styles.batteryNow}>
+          {d.detectionProfile === "backstop"
+            ? "Right now: parked — low-power mode, minimal battery."
+            : d.detectionProfile === "standard"
+              ? "Right now: watching for the start of a drive."
+              : "Right now: idle until you next drive."}
+        </Text>
+        <Text style={styles.batteryTip}>
+          Tip: keep iOS Low Power Mode off while driving — it can throttle background
+          location and delay trip capture.
+        </Text>
+      </View>
+
       {/* Actions */}
       <View style={styles.actionsRow}>
         <TouchableOpacity
@@ -1383,6 +1407,25 @@ const styles = StyleSheet.create({
     textTransform: "uppercase",
     letterSpacing: 0.8,
     marginBottom: 12,
+  },
+  batteryBody: {
+    fontFamily: fonts.regular,
+    fontSize: 13.5,
+    color: TEXT_2,
+    lineHeight: 19,
+  },
+  batteryNow: {
+    fontFamily: fonts.medium,
+    fontSize: 13,
+    color: GREEN,
+    marginTop: 10,
+  },
+  batteryTip: {
+    fontFamily: fonts.regular,
+    fontSize: 12.5,
+    color: TEXT_2,
+    marginTop: 8,
+    lineHeight: 18,
   },
   nativeRow: {
     flexDirection: "row",

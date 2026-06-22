@@ -38,6 +38,12 @@ export default function TrackingSettings() {
           onToggle={toggleDriveDetection}
         />
         <SettingsRow
+          icon="battery-charging-outline"
+          label="Battery & low-power"
+          hint="How MileClear keeps tracking light on battery"
+          onPress={() => router.push("/drive-detection-diagnostics" as never)}
+        />
+        <SettingsRow
           icon="pulse-outline"
           label="Diagnostics"
           hint="GPS quality, permissions, sync state"
