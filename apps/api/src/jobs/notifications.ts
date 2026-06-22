@@ -909,20 +909,29 @@ async function runNativeEngineHealthJob(): Promise<void> {
 
   let nativeTotal = 0;
   let permissionGated = 0;
+  let userDisabled = 0;
   const unhealthy: { email: string; userId: string }[] = [];
   for (const d of latest.values()) {
     const status = (d.statusJson ?? {}) as Record<string, unknown>;
     if (status.nativeEngineEnabled !== true) continue; // native-engine devices only
     nativeTotal++;
     if (d.verdict === "error") {
-      // Only a genuine engine error (the rollback signal) when background
-      // permission is GRANTED. An "error" verdict with undetermined/denied
-      // background permission means the user hasn't granted Always-location, so
-      // the engine simply can't run in the background — a permissions problem,
-      // not a ClearTrack bug. Counting those as engine errors would flood the
-      // rollback signal with the foreground-only cohort (handled by the welcome
-      // nudge + dashboard banner, not by rolling the engine back).
-      if (status.backgroundPermission === "granted") {
+      // A user who switched auto-detection OFF (drive_detection_enabled=0, the
+      // settings/tracking toggle) is a CHOICE, not a ClearTrack fault — it must
+      // never enter the rollback signal (kingdomembracer75, 22 Jun: 17 lifetime
+      // auto-trips then toggled detection off, paged #founder as an "error").
+      // The client now reports "info" for this, but check it here too so the
+      // exclusion holds for devices that haven't pulled that OTA yet.
+      if (status.enabled === false) {
+        userDisabled++;
+      } else if (status.backgroundPermission === "granted") {
+        // Only a genuine engine error (the rollback signal) when background
+        // permission is GRANTED. An "error" verdict with undetermined/denied
+        // background permission means the user hasn't granted Always-location,
+        // so the engine simply can't run in the background — a permissions
+        // problem, not a ClearTrack bug. Counting those as engine errors would
+        // flood the rollback signal with the foreground-only cohort (handled by
+        // the welcome nudge + dashboard banner, not by rolling the engine back).
         unhealthy.push({ email: d.user.email ?? d.userId, userId: d.userId });
       } else {
         permissionGated++;
@@ -932,6 +941,11 @@ async function runNativeEngineHealthJob(): Promise<void> {
   if (permissionGated > 0) {
     console.log(
       `[native-health] ${permissionGated} native device(s) errored on missing background permission — excluded from the rollback signal`
+    );
+  }
+  if (userDisabled > 0) {
+    console.log(
+      `[native-health] ${userDisabled} native device(s) reported error with auto-detection user-disabled — excluded from the rollback signal`
     );
   }
 

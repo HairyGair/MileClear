@@ -197,7 +197,12 @@ export async function uploadDiagnosticDump(): Promise<void> {
       diagnostics.lastNativeLocationAt != null &&
       Date.now() - new Date(diagnostics.lastNativeLocationAt).getTime() < NATIVE_FIX_FRESH_MS;
     let verdict = "healthy";
-    if (!diagnostics.enabled) verdict = "error";
+    // Detection switched off is a USER CHOICE (settings/tracking toggle), not a
+    // fault — "info", never "error". A hard error here paged #founder as a fake
+    // rollback signal (kingdomembracer75, 22 Jun: 17 lifetime auto-trips, then
+    // toggled auto-detection off). Missing background permission, by contrast,
+    // IS an actionable error (the user wants tracking but it can't run).
+    if (!diagnostics.enabled) verdict = "info";
     else if (diagnostics.backgroundPermission !== "granted") verdict = "error";
     else if (diagnostics.autoRecordingActive) verdict = "info";
     else if (diagnostics.quietHours || diagnostics.cooldownRemainingMs > 0) verdict = "info";
