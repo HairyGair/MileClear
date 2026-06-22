@@ -28,6 +28,7 @@ import {
   stopDriveDetection,
   type DriveDetectionDiagnostics,
 } from "../lib/tracking/detection";
+import { getBatterySnapshot, type BatterySnapshot } from "../lib/tracking/batteryAware";
 import {
   isNativeLocationEngineEnabled,
   setNativeLocationEngineEnabled,
@@ -539,6 +540,7 @@ export default function DriveDetectionDiagnosticsScreen() {
   // Native location engine (staged rollout). `available` = the native binary
   // is bundled (a dev/production build); false in Expo Go / OTA-only builds.
   const [nativeOn, setNativeOn] = useState(false);
+  const [battery, setBattery] = useState<BatterySnapshot | null>(null);
   const nativeAvailable = useMemo(() => isNativeEngineAvailable(), []);
 
   const load = useCallback(async () => {
@@ -557,6 +559,7 @@ export default function DriveDetectionDiagnosticsScreen() {
         ).catch(() => [] as RecentTripRow[]),
         isNativeLocationEngineEnabled().catch(() => false),
       ]);
+      getBatterySnapshot().then(setBattery).catch(() => {});
       setDiagnostics(diag);
       setEvents(ev);
       const lookup: SavedLocationLookup = {};
@@ -1023,6 +1026,20 @@ export default function DriveDetectionDiagnosticsScreen() {
           start driving. High-accuracy tracking runs only while a trip is actually
           recording, then releases.
         </Text>
+        {battery && battery.level != null && (
+          <StatusRow
+            label="Battery"
+            value={`${Math.round(battery.level * 100)}%${
+              battery.charging ? " · charging" : ""
+            }${battery.lowPowerMode ? " · Low Power Mode" : ""}`}
+            color={battery.lowPowerMode ? AMBER : TEXT_2}
+            hint={
+              battery.lowPowerMode
+                ? "iOS Low Power Mode is on — it can throttle background location."
+                : undefined
+            }
+          />
+        )}
         <Text style={styles.batteryNow}>
           {d.detectionProfile === "backstop"
             ? "Right now: parked — low-power mode, minimal battery."

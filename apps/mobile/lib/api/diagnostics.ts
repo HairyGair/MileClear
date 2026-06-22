@@ -13,6 +13,7 @@ import {
 import { getDatabase } from "../db";
 import { getAppStateInfo } from "../appState";
 import { getRoutingStats } from "../tracking/routingStats";
+import { getBatterySnapshot } from "../tracking/batteryAware";
 
 const APP_VERSION = Constants.expoConfig?.version ?? "unknown";
 const BUILD_NUMBER =
@@ -162,6 +163,11 @@ export async function uploadDiagnosticDump(): Promise<void> {
     ]);
 
     const appState = getAppStateInfo();
+    const battery = await getBatterySnapshot().catch(() => ({
+      level: null,
+      charging: null,
+      lowPowerMode: null,
+    }));
 
     // Strip GDPR-sensitive tracking state entries
     const safeTrackingState = diagnostics.trackingState.filter(
@@ -249,8 +255,12 @@ export async function uploadDiagnosticDump(): Promise<void> {
           activitySummary,
           routingStats,
           device: {
-            // JS-only fields. Battery / charging would need expo-battery
-            // (native rebuild). Add them when we next bump the build.
+            // Battery snapshot (expo-battery). Lets us see, fleet-wide, whether
+            // tracking is actually light on battery and how Low Power Mode
+            // correlates with capture gaps. Nulls on a binary without the dep.
+            batteryLevel: battery.level,
+            batteryCharging: battery.charging,
+            lowPowerMode: battery.lowPowerMode,
             isPad: Platform.OS === "ios" && Platform.isPad,
             isTV: Platform.isTV,
             constants: {

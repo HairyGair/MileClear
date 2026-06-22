@@ -167,6 +167,7 @@ const MERGE_TIME_WINDOW_MS = 15 * 60 * 1000; // 15 minutes - merge trips that en
 const MERGE_DISTANCE_M = 500; // metres - merge trips whose end/start are within this radius
 const ANCHOR_EXIT_VERIFY_M = 130; // metres - device must be this far outside the 100m anchor before a backstop "missed Exit" is trusted (mirrors the geofence handler's verify gate)
 const BACKSTOP_DISTANCE_INTERVAL_M = 500; // metres - displacement filter for the low-power parked backstop subscription (the geofence is the precise fast path; this is the safety net)
+const BACKSTOP_BATTERY_SAVER_INTERVAL_M = 1000; // metres - when the battery is critically low + unplugged, widen the PARKED backstop so iOS wakes us half as often. Only affects the parked safety net (never an active recording), so trips still capture.
 const GPS_ACCURACY_THRESHOLD = 75; // metres - reject readings with worse accuracy (indoor GPS drift). Bumped from 50 to 75 to catch cold-start GPS fixes that are still accurate enough to trust the iOS-reported speed
 const GPS_ACCURACY_STRICT = 30; // metres - stricter threshold for calculated speed (not iOS-reported)
 // Ingest-side accuracy gate. Two-tier so phantom protection doesn't degrade
@@ -3489,9 +3490,25 @@ async function getDetectionProfile(): Promise<string | null> {
  * The anchor geofence remains the precise, termination-surviving fast path.
  */
 async function startDetectionBackstopSubscription(): Promise<void> {
+  // Battery saver: when the device is critically low and unplugged, widen the
+  // PARKED backstop interval so iOS wakes us half as often while stationary. Only
+  // the parked safety net is affected — an active recording uses its own
+  // subscription — so trip capture is never coarsened or dropped. Re-evaluated
+  // on each foreground (startDriveDetection restarts this), so it tracks the
+  // live battery state without a listener.
+  let interval = BACKSTOP_DISTANCE_INTERVAL_M;
+  try {
+    const { isBatterySaverActive } = await import("./batteryAware");
+    if (await isBatterySaverActive()) {
+      interval = BACKSTOP_BATTERY_SAVER_INTERVAL_M;
+      logDetectionEvent("backstop_battery_saver", { intervalM: interval }).catch(() => {});
+    }
+  } catch {
+    // best-effort — fall back to the standard interval
+  }
   await Location.startLocationUpdatesAsync(DETECTION_TASK_NAME, {
     accuracy: Location.Accuracy.Balanced,
-    distanceInterval: BACKSTOP_DISTANCE_INTERVAL_M,
+    distanceInterval: interval,
     deferredUpdatesInterval: 30000,
     activityType: Location.ActivityType.AutomotiveNavigation,
     // Continuous, not auto-paused — iOS doesn't reliably resume a paused

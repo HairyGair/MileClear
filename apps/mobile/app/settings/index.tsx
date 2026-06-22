@@ -94,6 +94,12 @@ export default function SettingsHub() {
           onPress={go("/settings/work-tax")}
         />
         <SettingsRow
+          icon="lock-closed-outline"
+          label="Security"
+          hint="Lock the app with Face ID, Touch ID, or passcode"
+          onPress={go("/settings/security")}
+        />
+        <SettingsRow
           icon="notifications-outline"
           label="Notifications"
           hint={notifSummary}

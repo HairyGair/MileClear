@@ -155,6 +155,8 @@ import { isIapAvailable, initializeIap, setupPurchaseListeners, endIapConnection
 import { validateApplePurchase } from "../lib/api/billing";
 import { PaywallProvider } from "../components/paywall";
 import { QuickStartModal } from "../components/QuickStartModal";
+import { AppLockProvider } from "../lib/appLock/context";
+import { AppLockGate } from "../components/AppLockGate";
 
 const HEADER_STYLE = { backgroundColor: "#030712" } as const;
 const HEADER_TINT = "#f0f2f5";
@@ -624,6 +626,7 @@ function RootNavigator() {
         <Stack.Screen name="settings/community" options={{ headerShown: true, title: "Community" }} />
         <Stack.Screen name="settings/help" options={{ headerShown: true, title: "Help & Feedback" }} />
         <Stack.Screen name="settings/legal" options={{ headerShown: true, title: "Legal" }} />
+        <Stack.Screen name="settings/security" options={{ headerShown: true, title: "Security" }} />
       </Stack>
       <QuickStartModal
         visible={quickStartVisible}
@@ -654,6 +657,10 @@ function RootNavigator() {
         </View>
       )}
       <HydrationOverlay visible={hydrating} step={hydrateStep} done={hydrateDone} total={6} />
+      {/* App-lock overlay — only when signed in + onboarded, so it never stacks
+          over the login/onboarding flow. Covers the UI; the native tracking
+          engine (booted at module scope) keeps running while locked. */}
+      {isAuthenticated && onboardingComplete && <AppLockGate />}
     </>
   );
 }
@@ -684,7 +691,9 @@ export default function RootLayout() {
             <PaywallProvider>
               <ModeProvider>
                 <SyncProvider>
-                  <RootNavigator />
+                  <AppLockProvider>
+                    <RootNavigator />
+                  </AppLockProvider>
                 </SyncProvider>
               </ModeProvider>
             </PaywallProvider>

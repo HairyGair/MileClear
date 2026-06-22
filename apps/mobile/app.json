@@ -23,6 +23,7 @@
         "NSLocationWhenInUseUsageDescription": "MileClear needs location access to track your mileage during shifts and detect when you start driving.",
         "NSLocationAlwaysUsageDescription": "MileClear needs background location access to track your mileage during shifts and detect when you start driving.",
         "NSMotionUsageDescription": "MileClear uses motion activity to detect when you start and stop driving, so your trips record automatically without keeping GPS running and draining your battery.",
+        "NSFaceIDUsageDescription": "MileClear uses Face ID to lock the app, so only you can open your mileage and tax records.",
         "UIBackgroundModes": [
           "location",
           "fetch",

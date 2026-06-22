@@ -8,6 +8,10 @@ import {
   isDriveDetectionEnabled,
   setDriveDetectionEnabled,
 } from "../../lib/tracking/detection";
+import {
+  isBatterySaverEnabled,
+  setBatterySaverEnabled,
+} from "../../lib/tracking/batteryAware";
 
 /**
  * Tracking & Locations settings: drive detection, classification rules,
@@ -17,14 +21,21 @@ import {
 export default function TrackingSettings() {
   const router = useRouter();
   const [driveDetection, setDriveDetection] = useState(true);
+  const [batterySaver, setBatterySaver] = useState(true);
 
   useEffect(() => {
     isDriveDetectionEnabled().then(setDriveDetection).catch(() => {});
+    isBatterySaverEnabled().then(setBatterySaver).catch(() => {});
   }, []);
 
   const toggleDriveDetection = useCallback((next: boolean) => {
     setDriveDetection(next);
     setDriveDetectionEnabled(next);
+  }, []);
+
+  const toggleBatterySaver = useCallback((next: boolean) => {
+    setBatterySaver(next);
+    setBatterySaverEnabled(next);
   }, []);
 
   return (
@@ -36,6 +47,13 @@ export default function TrackingSettings() {
           hint="Auto-detect drives outside shifts and prompt to track"
           value={driveDetection}
           onToggle={toggleDriveDetection}
+        />
+        <ToggleRow
+          icon="battery-half-outline"
+          label="Battery saver"
+          hint="Ease off background tracking when the battery is low and unplugged. Won't drop trips."
+          value={batterySaver}
+          onToggle={toggleBatterySaver}
         />
         <SettingsRow
           icon="battery-charging-outline"
