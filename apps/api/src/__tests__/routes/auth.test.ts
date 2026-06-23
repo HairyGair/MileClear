@@ -21,6 +21,7 @@ vi.mock("../../lib/prisma.js", () => ({
     refreshToken: {
       create: vi.fn(),
       findUnique: vi.fn(),
+      findFirst: vi.fn(),
       delete: vi.fn(),
       deleteMany: vi.fn(),
       update: vi.fn(),
@@ -404,11 +405,12 @@ describe("POST /auth/refresh", () => {
     expect(vi.mocked(prisma.refreshToken.create)).not.toHaveBeenCalled();
   });
 
-  it("401 — revokes the entire family on replay (2+ generation stale token)", async () => {
+  it("401 — revokes the family on replay (2+ generations stale, beyond the reuse leeway)", async () => {
     const staleToken = "stale-token";
 
-    // The presented token has been rotated TWO generations forward:
-    // stale -> mid -> head. Replay detection should fire.
+    // The presented token was rotated TWO generations forward (stale -> mid ->
+    // head) a LONG time ago — a genuinely stale token resurfacing, the real
+    // replay/theft signal. Replay detection should still fire.
     vi.mocked(prisma.refreshToken.findUnique)
       .mockResolvedValueOnce({
         id: "rt-stale",
@@ -424,6 +426,9 @@ describe("POST /auth/refresh", () => {
         id: "rt-mid",
         userId: TEST_USER_ID,
         familyId: "fam-replay",
+        // Rotated well beyond the reuse leeway → genuine replay, not a
+        // concurrent straggler.
+        createdAt: new Date(Date.now() - 5 * 60 * 1000),
         rotatedToTokenId: "rt-head", // successor itself rotated → replay
         revokedAt: null,
       } as any);
@@ -441,6 +446,57 @@ describe("POST /auth/refresh", () => {
     // Family-wide revoke fired
     expect(vi.mocked(prisma.refreshToken.updateMany)).toHaveBeenCalledTimes(1);
     expect(vi.mocked(prisma.refreshToken.create)).not.toHaveBeenCalled();
+  });
+
+  it("200 — recovers (no family revoke) for a recent 2+ generation straggler within the reuse leeway", async () => {
+    const staleToken = "stale-but-recent";
+
+    // Same 2+ generations-behind shape, but the rotation happened JUST NOW —
+    // a concurrent refresh from another app context (native engine / sync /
+    // UI), not a replay. We must recover, not revoke the family.
+    vi.mocked(prisma.refreshToken.findUnique)
+      .mockResolvedValueOnce({
+        id: "rt-stale",
+        userId: TEST_USER_ID,
+        token: staleToken,
+        expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+        createdAt: new Date(),
+        familyId: "fam-conc",
+        rotatedToTokenId: "rt-mid",
+        revokedAt: null,
+      } as any)
+      .mockResolvedValueOnce({
+        id: "rt-mid",
+        userId: TEST_USER_ID,
+        familyId: "fam-conc",
+        createdAt: new Date(), // rotated within the leeway → straggler
+        rotatedToTokenId: "rt-head",
+        revokedAt: null,
+      } as any);
+    // The family's current live head, found for graceful recovery.
+    vi.mocked(prisma.refreshToken.findFirst).mockResolvedValue({
+      id: "rt-head",
+      userId: TEST_USER_ID,
+      familyId: "fam-conc",
+      rotatedToTokenId: null,
+      revokedAt: null,
+    } as any);
+    vi.mocked(prisma.refreshToken.create).mockResolvedValue({ id: "rt-new" } as any);
+    vi.mocked(prisma.refreshToken.update).mockResolvedValue({} as any);
+    vi.mocked(prisma.user.findUnique).mockResolvedValue({ isAdmin: false } as any);
+
+    const res = await app.inject({
+      method: "POST",
+      url: "/auth/refresh",
+      payload: { refreshToken: staleToken },
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.json().data.refreshToken).toBeDefined();
+    // No family-wide revoke — the straggler is recovered, not killed.
+    expect(vi.mocked(prisma.refreshToken.updateMany)).not.toHaveBeenCalled();
+    // Rotation happened (from the live head).
+    expect(vi.mocked(prisma.refreshToken.create)).toHaveBeenCalledTimes(1);
   });
 
   it("400 — rejects missing refreshToken field", async () => {

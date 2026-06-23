@@ -322,6 +322,14 @@ export async function authRoutes(app: FastifyInstance) {
     }
   );
 
+  // Reuse leeway: a rotated refresh token presented within this window of its
+  // rotation is treated as a legitimate concurrent straggler (a single MileClear
+  // binary refreshes from several contexts at once — native engine, sync queue,
+  // UI, push handlers — so a lagging request can be 2+ generations behind head),
+  // NOT a stolen-token replay. Longer than a refresh burst + a network retry,
+  // far shorter than any meaningful theft window.
+  const REUSE_LEEWAY_MS = 60_000;
+
   // POST /refresh
   app.post("/refresh", {
     config: { rateLimit: { max: 10, timeWindow: "1 minute" } },
@@ -360,16 +368,17 @@ export async function authRoutes(app: FastifyInstance) {
       // 4a. Token is the chain head. Normal rotation.
       tokenToRotate = stored;
     } else {
-      // 4b. Token has already been rotated. Two sub-cases:
+      // 4b. Token has already been rotated. Distinguish a legitimate lagging
+      //     client from a genuine replay with a TIME-BASED reuse leeway.
       //
-      //     successor still head → GRACE PATH. The legitimate client
-      //       presented an old token because the rotation response
-      //       was dropped (iOS process suspension, network blip).
-      //       Rotate the successor forward and return the replacement.
-      //     successor itself already rotated → REPLAY. The presenter
-      //       is using a token two-or-more generations behind head,
-      //       which a legitimate client never does. Treat as
-      //       compromise: revoke the whole family.
+      //     A single MileClear binary refreshes from several contexts at once
+      //     (native tracking engine, sync queue, UI, push handlers). When the
+      //     access token expires they refresh in a burst within a second or two,
+      //     so a straggler legitimately presents a token 2+ generations behind
+      //     head. The old strict rule (any token 2+ behind = replay → revoke the
+      //     family) turned that normal concurrency into a mass-logout loop
+      //     (build-75 cohort, 23 Jun: 17 users churning 1,500+ tokens; Katy
+      //     Moore: "every time I try to login it logs me straight out").
       const successor = await prisma.refreshToken.findUnique({
         where: { id: stored.rotatedToTokenId },
       });
@@ -378,17 +387,33 @@ export async function authRoutes(app: FastifyInstance) {
         return reply.status(401).send({ error: "Refresh token revoked" });
       }
 
-      if (successor.rotatedToTokenId != null) {
-        // Successor has also been rotated → presenter is stale by
-        // 2+ generations. Replay detection trigger.
-        await revokeTokenFamily(stored.familyId);
-        return reply
-          .status(401)
-          .send({ error: "Refresh token replay detected — session terminated" });
+      if (successor.rotatedToTokenId == null) {
+        // One generation behind — the rotation response was simply lost
+        // (iOS suspension, network blip). Successor is still head; recover.
+        tokenToRotate = successor;
+      } else {
+        // 2+ generations behind. `successor.createdAt` is when THIS token was
+        // rotated forward; if that was within the leeway it's a concurrent
+        // straggler, not a replay. Beyond the leeway it's a genuinely stale
+        // token resurfacing → assume compromise and revoke the family.
+        const rotatedAgoMs = Date.now() - successor.createdAt.getTime();
+        if (rotatedAgoMs > REUSE_LEEWAY_MS) {
+          await revokeTokenFamily(stored.familyId);
+          return reply
+            .status(401)
+            .send({ error: "Refresh token replay detected — session terminated" });
+        }
+        // Within leeway — recover by rotating the family's current live head so
+        // every concurrent straggler converges on a valid token, no revocation.
+        const head = await prisma.refreshToken.findFirst({
+          where: { familyId: stored.familyId, revokedAt: null, rotatedToTokenId: null },
+          orderBy: { createdAt: "desc" },
+        });
+        if (!head) {
+          return reply.status(401).send({ error: "Refresh token revoked" });
+        }
+        tokenToRotate = head;
       }
-
-      // Successor still head — grace recovery.
-      tokenToRotate = successor;
     }
 
     const user = await prisma.user.findUnique({
