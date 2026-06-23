@@ -1010,18 +1010,26 @@ async function runNativeEngineHealthJob(): Promise<void> {
     }
   }
 
-  // ── Stranded-OTA check (the build-73 class, 10 Jun 2026) ─────────────────
-  // A device whose dumps stay fresh but whose running OTA never advances is
-  // cut off from every fix we ship: the build-73 stream ran the gap-trim
-  // trip-destroyer with no OTA path out, and we only noticed when its users
-  // stopped capturing. Detect it structurally: `updates` missing entirely =
-  // a pre-9-Jun bundle (definitionally ancient); an updates-enabled device
-  // whose running OTA is >21 days old while it keeps dumping (= keeps being
-  // used) isn't receiving updates. Embedded launches (createdAt null,
-  // isEmbeddedLaunch true) are fresh installs that will OTA shortly — skip.
-  // Dev builds (isEnabled false) — skip.
+  // ── Stranded-OTA check ───────────────────────────────────────────────────
+  // A device on a pre-update-aware bundle (no `updates` key) or an OTA >21 days
+  // old isn't pulling the latest fixes. But that population is MIXED: some are
+  // genuinely old binaries that can't OTA, and many are build-74+ devices that
+  // rolled back to their embedded bundle after an OTA failed to launch — those
+  // are FUNCTIONAL (still launching + capturing) and self-heal, yet the old
+  // blanket rule mislabeled them "build-73 stream" and cried wolf (Katy + Emma,
+  // 23 Jun: both flagged here while actually working). So we only escalate to
+  // #founder when the device is ALSO impaired — silent non-capture or an error
+  // verdict — i.e. stranded AND actually broken, which is exactly what this
+  // alert was built for ("we only noticed when its users stopped capturing").
+  // Functional stranded devices are logged quietly, not alerted.
+  // Embedded launches / dev builds (isEnabled false) — skip.
   const STRANDED_OTA_MAX_AGE_MS = 21 * 24 * 60 * 60 * 1000;
+  const impairedIds = new Set<string>([
+    ...unhealthy.map((u) => u.userId),
+    ...silent.map((u) => u.userId),
+  ]);
   const stranded: { email: string; userId: string; detail: string }[] = [];
+  let strandedFunctional = 0;
   for (const d of latest.values()) {
     const status = (d.statusJson ?? {}) as Record<string, unknown>;
     if (status.nativeEngineEnabled !== true) continue;
@@ -1029,24 +1037,33 @@ async function runNativeEngineHealthJob(): Promise<void> {
     const updates = status.updates as
       | { isEnabled?: boolean; createdAt?: string | null; isEmbeddedLaunch?: boolean | null; runtimeVersion?: string | null }
       | undefined;
+    let detail: string | null = null;
     if (!updates) {
-      stranded.push({
-        email: d.user.email ?? d.userId,
-        userId: d.userId,
-        detail: "pre-update-aware bundle (build-73 stream)",
-      });
+      // No `updates` key = a pre-9-Jun bundle: could be a genuinely old binary
+      // OR a build-74+ device rolled back to embedded. We can't tell from the
+      // dump, so don't assert "build-73".
+      detail = "pre-update-aware bundle (old binary or rolled-back OTA)";
+    } else if (updates.isEnabled === false || updates.isEmbeddedLaunch === true) {
       continue;
+    } else {
+      const created = updates.createdAt ? Date.parse(updates.createdAt) : NaN;
+      if (Number.isFinite(created) && Date.now() - created > STRANDED_OTA_MAX_AGE_MS) {
+        detail = `OTA from ${updates.createdAt!.slice(0, 10)} on ${updates.runtimeVersion ?? "?"}`;
+      }
     }
-    if (updates.isEnabled === false) continue;
-    if (updates.isEmbeddedLaunch === true) continue;
-    const created = updates.createdAt ? Date.parse(updates.createdAt) : NaN;
-    if (Number.isFinite(created) && Date.now() - created > STRANDED_OTA_MAX_AGE_MS) {
-      stranded.push({
-        email: d.user.email ?? d.userId,
-        userId: d.userId,
-        detail: `OTA from ${updates.createdAt!.slice(0, 10)} on ${updates.runtimeVersion ?? "?"}`,
-      });
+    if (!detail) continue;
+    // Only escalate stranded devices that are ALSO impaired; a functional one
+    // (launching + capturing fine on an older bundle) is noise.
+    if (impairedIds.has(d.userId)) {
+      stranded.push({ email: d.user.email ?? d.userId, userId: d.userId, detail });
+    } else {
+      strandedFunctional++;
     }
+  }
+  if (strandedFunctional > 0) {
+    console.log(
+      `[native-health] ${strandedFunctional} stranded-but-functional device(s) on pre-update-aware bundles (mostly OTA rollbacks, launching/capturing fine) — not alerting`
+    );
   }
 
   if (unhealthy.length === 0 && silent.length === 0 && stranded.length === 0) {
@@ -1093,9 +1110,9 @@ async function runNativeEngineHealthJob(): Promise<void> {
   if (stranded.length > 0) {
     const list = stranded.slice(0, 15).map((u) => `• ${u.email} — ${u.detail}`).join("\n");
     sections.push(
-      `STRANDED on a dead OTA stream — actively used (fresh dumps) but not receiving updates, ` +
-        `so no fix we ship reaches them. They need a binary update from the App Store/TestFlight ` +
-        `(per-user push via admin user detail; build-label targeting doesn't work — they report the OTA label):\n${list}` +
+      `STRANDED + IMPAIRED — on a pre-update-aware bundle AND showing trouble (silent non-capture ` +
+        `or error verdict), so no OTA we ship reaches them. These need a binary update ` +
+        `(TestFlight/App Store). Functional rolled-back devices are excluded — only genuinely-stuck ones listed:\n${list}` +
         (stranded.length > 15 ? `\n…and ${stranded.length - 15} more` : "")
     );
   }
