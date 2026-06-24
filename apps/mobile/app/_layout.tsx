@@ -354,6 +354,21 @@ function RootNavigator() {
   useEffect(() => {
     const handleUrl = async (event: { url: string }) => {
       const url = event.url;
+      // Referral invite link: mileclear://r/CODE or https://mileclear.com/r/CODE.
+      // Stash the code so the register screen pre-fills it (the friend doesn't
+      // have to type it). Helps users who tap a referral link with the app
+      // installed; brand-new installs paste the code the web page copied for them.
+      const refMatch = url.match(/\/r\/([A-Za-z0-9]{1,16})/i);
+      if (refMatch) {
+        try {
+          const db = await getDatabase();
+          await db.runAsync(
+            "INSERT OR REPLACE INTO tracking_state (key, value) VALUES ('pending_referral_code', ?)",
+            [refMatch[1].toUpperCase()]
+          );
+        } catch {}
+        return;
+      }
       if (url === "mileclear://dashboard") {
         router.navigate("/(tabs)/dashboard");
         return;

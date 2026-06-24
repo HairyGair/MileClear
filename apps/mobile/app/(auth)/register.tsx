@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -14,6 +14,7 @@ import {
 import { Linking } from "react-native";
 import { Link, router } from "expo-router";
 import { useAuth } from "../../lib/auth/context";
+import { getDatabase } from "../../lib/db";
 import { colors, fonts } from "../../lib/theme";
 
 let AppleAuthentication: typeof import("expo-apple-authentication") | null = null;
@@ -38,6 +39,23 @@ export default function RegisterScreen() {
   const [loading, setLoading] = useState(false);
   const [, setSocialLoading] = useState<string | null>(null);
   const [focusedField, setFocusedField] = useState<string | null>(null);
+
+  useEffect(() => {
+    // Pre-fill an invite code captured from a referral deep link
+    // (mileclear://r/CODE → stashed in tracking_state by the root deep-link
+    // handler), so a referred friend doesn't have to type it.
+    (async () => {
+      try {
+        const db = await getDatabase();
+        const row = await db.getFirstAsync<{ value: string }>(
+          "SELECT value FROM tracking_state WHERE key = 'pending_referral_code'"
+        );
+        if (row?.value) setReferralCode(row.value);
+      } catch {
+        // no DB / no pending code — the manual field still works
+      }
+    })();
+  }, []);
 
   const handleSocialLogin = async (provider: "apple" | "google") => {
     setError("");
@@ -81,6 +99,12 @@ export default function RegisterScreen() {
         true,
         referralCode.trim().toUpperCase() || undefined,
       );
+      // Referral attributed server-side — clear the stashed code so it can't
+      // re-apply to a later sign-up on this device.
+      try {
+        const db = await getDatabase();
+        await db.runAsync("DELETE FROM tracking_state WHERE key = 'pending_referral_code'");
+      } catch {}
       router.replace("/(auth)/verify");
     } catch (e: any) {
       setError(e.message || "Registration failed");
@@ -209,14 +233,14 @@ export default function RegisterScreen() {
             accessibilityLabel="Confirm password"
           />
 
-          <Text style={s.label}>Referral code (optional)</Text>
+          <Text style={s.label}>Invite code (optional)</Text>
           <TextInput
             style={inputStyle("referral")}
             value={referralCode}
             onChangeText={(t) => setReferralCode(t.toUpperCase())}
             onFocus={() => setFocusedField("referral")}
             onBlur={() => setFocusedField(null)}
-            placeholder="Got a code from a friend?"
+            placeholder="Invited by a friend? Paste their code"
             placeholderTextColor={TEXT_3}
             autoCapitalize="characters"
             autoCorrect={false}
