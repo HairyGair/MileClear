@@ -56,6 +56,9 @@ coverage/
 CLAUDE.md
 .last-deployed-sha
 
+# Internal planning docs — local only, not for the public repo
+docs/ROADMAP.md
+
 # Local scratch / junk (never commit these)
 mileclear-*-secret.txt
 /app.json
