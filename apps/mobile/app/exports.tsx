@@ -10,6 +10,7 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { Stack, useFocusEffect, router } from "expo-router";
+import { safeBack } from "../lib/nav";
 import * as WebBrowser from "expo-web-browser";
 import { getTaxYear } from "@mileclear/shared";
 import { downloadAndShareExport } from "../lib/api/exports";
@@ -118,7 +119,7 @@ export default function ExportsScreen() {
           headerBackVisible: false,
           headerLeft: () => (
             <TouchableOpacity
-              onPress={() => router.back()}
+              onPress={() => safeBack()}
               accessibilityRole="button"
               accessibilityLabel="Back"
               hitSlop={{ top: 12, right: 12, bottom: 12, left: 12 }}

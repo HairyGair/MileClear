@@ -8,7 +8,8 @@ import {
   ActivityIndicator,
   StyleSheet,
 } from "react-native";
-import { Stack, router } from "expo-router";
+import { Stack } from "expo-router";
+import { safeBack } from "../lib/nav";
 import { Ionicons } from "@expo/vector-icons";
 import { getTaxYear, formatPence, formatMiles, SA103_BOXES, SA103_GUIDANCE } from "@mileclear/shared";
 import { fetchSelfAssessmentSummary, type SelfAssessmentSummary } from "../lib/api/selfAssessment";
@@ -402,7 +403,7 @@ const HEADER_OPTIONS = {
   headerBackVisible: false,
   headerLeft: () => (
     <TouchableOpacity
-      onPress={() => router.back()}
+      onPress={() => safeBack()}
       accessibilityRole="button"
       accessibilityLabel="Back"
       hitSlop={{ top: 12, right: 12, bottom: 12, left: 12 }}

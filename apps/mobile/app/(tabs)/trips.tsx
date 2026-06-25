@@ -3,6 +3,7 @@ import { Ionicons } from "@expo/vector-icons";
 import {
   View,
   Text,
+  TextInput,
   FlatList,
   TouchableOpacity,
   RefreshControl,
@@ -73,6 +74,41 @@ export interface RouteGroup {
   /** Display label: "Start address → End address" using the first trip that has addresses. */
   routeLabel: string;
   totalDistanceMiles: number;
+}
+
+/**
+ * A trip's user-facing note. The `notes` column is overloaded with internal
+ * state markers (e.g. __unconfirmed__, __shaded__) for transient trips, so we
+ * hide anything marker-prefixed and only ever surface genuine user text.
+ */
+function displayNote(notes: string | null | undefined): string {
+  return notes && !notes.startsWith("__") ? notes : "";
+}
+
+/**
+ * Isolated note editor — keeps its draft in local state so typing doesn't
+ * re-render the whole trip list (which would drop focus on every keystroke).
+ * Saves on blur via the parent's onSave.
+ */
+function TripNoteEditor({ initial, onSave }: { initial: string; onSave: (text: string) => void }) {
+  const [text, setText] = useState(initial);
+  return (
+    <View style={styles.noteEditRow}>
+      <Ionicons name="create-outline" size={14} color={AMBER} style={{ marginTop: 3 }} accessible={false} />
+      <TextInput
+        style={styles.noteInput}
+        value={text}
+        onChangeText={setText}
+        placeholder="Add a note for this trip"
+        placeholderTextColor={TEXT_3}
+        autoFocus
+        multiline
+        maxLength={1000}
+        onBlur={() => onSave(text)}
+        accessibilityLabel="Trip note"
+      />
+    </View>
+  );
 }
 
 /**
@@ -320,6 +356,7 @@ export default function TripsScreen() {
   const [isOffline, setIsOffline] = useState(false);
   const [unclassifiedCount, setUnclassifiedCount] = useState(0);
   const [classifyingId, setClassifyingId] = useState<string | null>(null);
+  const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
   const [suggestions, setSuggestions] = useState<Record<string, ClassificationSuggestion>>({});
   // Summary stats backed by /trips/summary (server-side aggregate). Lets the
   // stats card show accurate totals regardless of which page the list is on,
@@ -734,12 +771,35 @@ export default function TripsScreen() {
     []
   );
 
+  const openNoteEditor = useCallback((tripId: string) => setEditingNoteId(tripId), []);
+
+  // Save a trip note. Only writes when the text actually changed, so tapping
+  // a note and away without editing never clobbers an internal marker.
+  const saveNote = useCallback(
+    async (tripId: string, currentNotes: string | null | undefined, text: string) => {
+      setEditingNoteId(null);
+      const draft = text.trim();
+      if (draft === displayNote(currentNotes)) return;
+      const newVal = draft.length ? draft : null;
+      setTrips((prev) => prev.map((t) => (t.id === tripId ? { ...t, notes: newVal } : t)));
+      try {
+        await syncUpdateTrip(tripId, { notes: newVal });
+      } catch {
+        // Kept in local state; the sync queue will retry.
+      }
+    },
+    []
+  );
+
   const renderTrip = ({ item }: { item: TripItem }) => {
     const isUnclassified = item.classification === "unclassified";
     const isBusiness = item.classification === "business";
     const isClassifying = classifyingId === item.id;
     const tripSuggestion = isUnclassified ? suggestions[item.id] : null;
     const isSelected = mergeMode && selectedIds.has(item.id);
+    const note = displayNote(item.notes);
+    const isEditingNote = editingNoteId === item.id;
+    const inInbox = filter === "unclassified";
 
     // iOS Mail-style left bar — single coloured stripe telling the
     // classification at a glance. Replaces the heavier right-aligned
@@ -912,7 +972,57 @@ export default function TripsScreen() {
                 </Text>
               </View>
             )}
+            {!inInbox && (
+              <TouchableOpacity
+                onPress={() => openNoteEditor(item.id)}
+                hitSlop={8}
+                style={styles.noteGlyphBtn}
+                accessibilityRole="button"
+                accessibilityLabel={note ? "Edit note" : "Add note"}
+              >
+                <Ionicons
+                  name={note ? "chatbox-ellipses" : "chatbox-outline"}
+                  size={14}
+                  color={note ? AMBER : TEXT_3}
+                  accessible={false}
+                />
+              </TouchableOpacity>
+            )}
           </View>
+
+          {/* Free-text note — prominent in Inbox, subtle elsewhere */}
+          {isEditingNote ? (
+            <TripNoteEditor initial={note} onSave={(text) => saveNote(item.id, item.notes, text)} />
+          ) : inInbox ? (
+            <TouchableOpacity
+              style={styles.noteRowInbox}
+              onPress={() => openNoteEditor(item.id)}
+              activeOpacity={0.7}
+              accessibilityRole="button"
+              accessibilityLabel={note ? `Note: ${note}. Tap to edit.` : "Add a note"}
+            >
+              <Ionicons
+                name={note ? "create" : "add-circle-outline"}
+                size={15}
+                color={note ? AMBER : TEXT_3}
+                accessible={false}
+              />
+              <Text style={[styles.noteTextInbox, !note && styles.notePlaceholder]} numberOfLines={3}>
+                {note || "Add a note"}
+              </Text>
+            </TouchableOpacity>
+          ) : note ? (
+            <TouchableOpacity
+              style={styles.noteRowSubtle}
+              onPress={() => openNoteEditor(item.id)}
+              activeOpacity={0.7}
+              accessibilityRole="button"
+              accessibilityLabel={`Note: ${note}. Tap to edit.`}
+            >
+              <Ionicons name="chatbox-ellipses-outline" size={12} color={TEXT_3} accessible={false} />
+              <Text style={styles.noteTextSubtle} numberOfLines={1}>{note}</Text>
+            </TouchableOpacity>
+          ) : null}
 
         {/* Quick classify buttons for unclassified trips */}
         {isUnclassified && (
@@ -1901,6 +2011,58 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingVertical: 12,
     paddingHorizontal: 14,
+  },
+  noteGlyphBtn: { paddingHorizontal: 4, paddingVertical: 2 },
+  noteEditRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 6,
+    marginTop: 8,
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: colors.surfaceBorder,
+  },
+  noteInput: {
+    flex: 1,
+    color: TEXT_1,
+    fontSize: 13,
+    fontFamily: fonts.regular,
+    padding: 0,
+    paddingBottom: 2,
+    minHeight: 20,
+    maxHeight: 96,
+  },
+  noteRowInbox: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 6,
+    marginTop: 8,
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: colors.surfaceBorder,
+  },
+  noteTextInbox: {
+    flex: 1,
+    color: TEXT_1,
+    fontSize: 13,
+    fontFamily: fonts.regular,
+    lineHeight: 18,
+  },
+  notePlaceholder: {
+    color: TEXT_3,
+    fontStyle: "italic",
+  },
+  noteRowSubtle: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    marginTop: 5,
+  },
+  noteTextSubtle: {
+    flex: 1,
+    color: TEXT_2,
+    fontSize: 11.5,
+    fontFamily: fonts.regular,
   },
   tripPrimaryRow: {
     flexDirection: "row",

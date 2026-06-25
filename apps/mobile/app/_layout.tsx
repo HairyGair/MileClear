@@ -7,6 +7,7 @@ import { Stack, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import * as Font from "expo-font";
 import { colors } from "../lib/theme";
+import { HeaderBackButton } from "../components/HeaderBackButton";
 import {
   PlusJakartaSans_300Light,
   PlusJakartaSans_400Regular,
@@ -573,6 +574,10 @@ function RootNavigator() {
           headerTitleStyle: HEADER_TITLE_STYLE,
           headerShadowVisible: false,
           headerBackButtonDisplayMode: "minimal",
+          // App-wide back button: a JS-controlled control that routes through
+          // safeBack, so it always works (even on screens reached via replace,
+          // or when the iOS 26 native back button misbehaves) and never dead-ends.
+          headerLeft: () => <HeaderBackButton />,
         }}
       >
         <Stack.Screen name="onboarding" redirect={!isAuthenticated || onboardingComplete} />
