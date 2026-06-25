@@ -14,6 +14,7 @@ import {
   Linking,
 } from "react-native";
 import { AppModal } from "../../components/AppModal";
+import { AutoNoteNudgeCard } from "../../components/AutoNoteNudgeCard";
 import { Button } from "../../components/Button";
 import { Skeleton } from "../../components/Skeleton";
 import { FadeInStagger } from "../../components/FadeInStagger";
@@ -1613,6 +1614,11 @@ export default function DashboardScreen() {
           </View>
         </View>
       )}
+
+      {/* Auto-classified trips skip the Inbox, so they never get the prominent
+          "Add a note" row. Nudge for the most recent one (self-contained:
+          queries on focus, renders nothing when there's no candidate). */}
+      <AutoNoteNudgeCard />
 
       {/* Referral promo — dismissible (30 days), both modes. Links to the
           Invite Friends screen. Suppressed while the first-trip nudge shows. */}

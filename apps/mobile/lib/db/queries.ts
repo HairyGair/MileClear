@@ -91,6 +91,46 @@ export async function getLocalTrip(id: string) {
   return mapTripRow(row, row.synced_at == null);
 }
 
+/**
+ * The most recent auto-classified trip (tagged by a client-side rule, so it
+ * skipped the Inbox) that still has no user note - powers the dashboard
+ * "add a note?" nudge. Returns null when there's nothing recent worth nudging.
+ */
+export async function getRecentAutoClassifiedWithoutNote(): Promise<
+  { id: string; startAddress: string | null; endAddress: string | null; classification: string } | null
+> {
+  const db = await getDatabase();
+  const since = new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString();
+  const rows = await db.getAllAsync<{
+    id: string;
+    start_address: string | null;
+    end_address: string | null;
+    classification: string;
+    notes: string | null;
+  }>(
+    `SELECT id, start_address, end_address, classification, notes FROM trips
+       WHERE classification_source IS NOT NULL
+         AND classification IN ('business', 'personal')
+         AND is_manual_entry = 0
+         AND started_at >= ?
+     ORDER BY started_at DESC
+     LIMIT 10`,
+    [since]
+  );
+  for (const r of rows) {
+    // Treat null / empty / internal-marker notes as "no note".
+    if (!r.notes || r.notes.startsWith("__")) {
+      return {
+        id: r.id,
+        startAddress: r.start_address,
+        endAddress: r.end_address,
+        classification: r.classification,
+      };
+    }
+  }
+  return null;
+}
+
 // ─── Fuel Logs ──────────────────────────────────────────────────────────────
 
 interface LocalFuelLogRow {

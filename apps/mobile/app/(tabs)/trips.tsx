@@ -3,7 +3,6 @@ import { Ionicons } from "@expo/vector-icons";
 import {
   View,
   Text,
-  TextInput,
   FlatList,
   TouchableOpacity,
   RefreshControl,
@@ -32,6 +31,7 @@ import { GIG_PLATFORMS, getTaxYear, parseTaxYear } from "@mileclear/shared";
 import type { TripClassification, PlatformTag } from "@mileclear/shared";
 import { Skeleton } from "../../components/Skeleton";
 import { colors, fonts, radii, spacing } from "../../lib/theme";
+import { TripNoteEditor, displayNote } from "../../components/TripNoteEditor";
 import { EmptyState } from "../../components/EmptyState";
 import { MissingTripReporter } from "../../components/MissingTripReporter";
 import { MissedJourneys } from "../../components/MissedJourneys";
@@ -74,41 +74,6 @@ export interface RouteGroup {
   /** Display label: "Start address → End address" using the first trip that has addresses. */
   routeLabel: string;
   totalDistanceMiles: number;
-}
-
-/**
- * A trip's user-facing note. The `notes` column is overloaded with internal
- * state markers (e.g. __unconfirmed__, __shaded__) for transient trips, so we
- * hide anything marker-prefixed and only ever surface genuine user text.
- */
-function displayNote(notes: string | null | undefined): string {
-  return notes && !notes.startsWith("__") ? notes : "";
-}
-
-/**
- * Isolated note editor — keeps its draft in local state so typing doesn't
- * re-render the whole trip list (which would drop focus on every keystroke).
- * Saves on blur via the parent's onSave.
- */
-function TripNoteEditor({ initial, onSave }: { initial: string; onSave: (text: string) => void }) {
-  const [text, setText] = useState(initial);
-  return (
-    <View style={styles.noteEditRow}>
-      <Ionicons name="create-outline" size={14} color={AMBER} style={{ marginTop: 3 }} accessible={false} />
-      <TextInput
-        style={styles.noteInput}
-        value={text}
-        onChangeText={setText}
-        placeholder="Add a note for this trip"
-        placeholderTextColor={TEXT_3}
-        autoFocus
-        multiline
-        maxLength={1000}
-        onBlur={() => onSave(text)}
-        accessibilityLabel="Trip note"
-      />
-    </View>
-  );
 }
 
 /**
@@ -992,7 +957,9 @@ export default function TripsScreen() {
 
           {/* Free-text note — prominent in Inbox, subtle elsewhere */}
           {isEditingNote ? (
-            <TripNoteEditor initial={note} onSave={(text) => saveNote(item.id, item.notes, text)} />
+            <View style={styles.noteEditWrap}>
+              <TripNoteEditor initial={note} onSave={(text) => saveNote(item.id, item.notes, text)} />
+            </View>
           ) : inInbox ? (
             <TouchableOpacity
               style={styles.noteRowInbox}
@@ -2013,24 +1980,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
   },
   noteGlyphBtn: { paddingHorizontal: 4, paddingVertical: 2 },
-  noteEditRow: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    gap: 6,
+  noteEditWrap: {
     marginTop: 8,
     paddingTop: 8,
     borderTopWidth: 1,
     borderTopColor: colors.surfaceBorder,
-  },
-  noteInput: {
-    flex: 1,
-    color: TEXT_1,
-    fontSize: 13,
-    fontFamily: fonts.regular,
-    padding: 0,
-    paddingBottom: 2,
-    minHeight: 20,
-    maxHeight: 96,
   },
   noteRowInbox: {
     flexDirection: "row",
