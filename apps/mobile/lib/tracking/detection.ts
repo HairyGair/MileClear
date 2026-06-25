@@ -151,6 +151,7 @@ const DETECTION_TASK_NAME = "mileclear-drive-detection";
 const BACKGROUND_FINALIZE_TASK = "mileclear-background-finalize";
 const QUICK_TRIP_SHIFT_ID = "__quick_trip__"; // mirrors lib/tracking/index.ts
 const QUICK_TRIP_STALE_MS = 3 * 60 * 60 * 1000; // 3h - a quick_trip_start older than this with no end was abandoned
+const STALE_ACTIVE_SHIFT_MS = 18 * 60 * 60 * 1000; // 18h - no real gig shift runs this long; an active_shift_id older than this is abandoned and must not keep muting the engine
 const QUICK_TRIP_LIVE_COORD_MS = 20 * 60 * 1000; // 20 min - a breadcrumb this recent means the quick trip is genuinely recording RIGHT NOW; never clear it
 const BACKGROUND_FETCH_INTERVAL_S = 15 * 60; // 15 minutes - iOS treats as a hint, actual cadence varies
 const COOLDOWN_MS = 20 * 60 * 1000; // 20 minutes
@@ -463,10 +464,45 @@ export async function shiftSuppressesAutoDetection(
     "SELECT value FROM tracking_state WHERE key = 'active_shift_id'"
   );
   if (!activeShift) return false;
-  // Real shifts (UUID ids) always own GPS — yield unconditionally.
+  // Real (UUID) shift id. A genuine ongoing shift owns GPS, so yield. But a
+  // GHOST shift mutes the engine forever (silent non-capture): a shift that
+  // already ENDED but whose local active_shift_id never cleared
+  // (muhammadshafipp27 - completed 53 days ago), or one still marked active far
+  // longer than any real gig shift (hamzabutteco - "active" 5 days, 0 trips).
+  // Self-heal both. active_shift_id is only ever set by start-shift, so clearing
+  // it is durable - nothing re-derives it from the shifts table.
   if (activeShift.value !== QUICK_TRIP_SHIFT_ID) {
-    logDetectionEvent("detection_skipped", { reason: "active_shift" }).catch(() => {});
-    return true;
+    const shiftRow = await db.getFirstAsync<{
+      started_at: string | null;
+      ended_at: string | null;
+      status: string | null;
+    }>("SELECT started_at, ended_at, status FROM shifts WHERE id = ?", [activeShift.value]);
+    const alreadyEnded = !!shiftRow && (!!shiftRow.ended_at || shiftRow.status === "completed");
+    let staleActive = false;
+    if (shiftRow && !alreadyEnded && shiftRow.started_at) {
+      const startedMs = new Date(shiftRow.started_at).getTime();
+      staleActive = Number.isFinite(startedMs) && Date.now() - startedMs > STALE_ACTIVE_SHIFT_MS;
+    }
+    // No local row found (shiftRow null) is left to suppress: avoids racing a
+    // just-started shift whose row hasn't landed yet.
+    if (!alreadyEnded && !staleActive) {
+      logDetectionEvent("detection_skipped", { reason: "active_shift" }).catch(() => {});
+      return true;
+    }
+    // Ghost: quietly mark an abandoned-but-still-active shift completed (no
+    // scorecard side effects), then clear the lock so the engine records again.
+    if (staleActive) {
+      await db.runAsync("UPDATE shifts SET status = 'completed', ended_at = ? WHERE id = ?", [
+        new Date().toISOString(),
+        activeShift.value,
+      ]);
+    }
+    await db.runAsync("DELETE FROM tracking_state WHERE key = 'active_shift_id'");
+    logDetectionEvent("stale_active_shift_cleared", {
+      shiftId: activeShift.value,
+      reason: alreadyEnded ? "already_ended" : "active_too_long",
+    }).catch(() => {});
+    return false;
   }
   // __quick_trip__: live or orphan? Ground truth is GPS capture activity, NOT
   // the quick_trip_start row (which can be absent even mid-trip — Anthony's

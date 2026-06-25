@@ -981,7 +981,7 @@ async function runNativeEngineHealthJob(): Promise<void> {
   });
   const eligibleIds = eligible.map((d) => d.userId);
 
-  const silent: { email: string; userId: string }[] = [];
+  const silent: { email: string; userId: string; staleShift?: boolean }[] = [];
   if (eligibleIds.length > 0) {
     const [recentCounts, baselineCounts] = await Promise.all([
       prisma.trip.groupBy({
@@ -1006,7 +1006,14 @@ async function runNativeEngineHealthJob(): Promise<void> {
       if ((baselineBy.get(d.userId) ?? 0) < BASELINE_MIN_AUTO_TRIPS) continue;
       // Don't double-report a device already in the error list.
       if (unhealthy.some((u) => u.userId === d.userId)) continue;
-      silent.push({ email: d.user.email ?? d.userId, userId: d.userId });
+      // A non-null activeShiftId on a silent device is the prime suspect: a
+      // stuck/ghost shift mutes the native engine (auto-detection yields while a
+      // shift is "active"). The client active_shift_id self-heal clears these,
+      // but flag it here so the cause is obvious rather than buried.
+      const sStatus = (d.statusJson ?? {}) as Record<string, unknown>;
+      const asid = sStatus.activeShiftId;
+      const staleShift = typeof asid === "string" && asid.length > 0 && asid !== "null";
+      silent.push({ email: d.user.email ?? d.userId, userId: d.userId, staleShift });
     }
   }
 
@@ -1099,7 +1106,10 @@ async function runNativeEngineHealthJob(): Promise<void> {
     );
   }
   if (silent.length > 0) {
-    const list = silent.slice(0, 15).map((u) => `• ${u.email}`).join("\n");
+    const list = silent
+      .slice(0, 15)
+      .map((u) => `• ${u.email}${u.staleShift ? " — stuck active shift (mutes the engine)" : ""}`)
+      .join("\n");
     sections.push(
       `SILENT non-capture — previously-active drivers (≥${BASELINE_MIN_AUTO_TRIPS} auto trips in the prior 14d), app alive, ` +
         `zero auto-captured trips in ${RECENT_DAYS} days. The engine is likely missing their drives ` +
