@@ -234,7 +234,10 @@ model HmrcConnection {
   // National Insurance Number — required as a path parameter on most MTD
   // endpoints. We collect it post-OAuth via /hmrc/nino. Format validated
   // against the UK NINO regex (^[A-CEGHJ-PR-TW-Z]{2}\d{6}[A-D ]?$).
-  nino           String?  @db.VarChar(13)
+  // Stored ENCRYPTED at rest (~61 chars), so this must be Text — it was
+  // VarChar(13) (plaintext-sized) and every /hmrc/nino write 500'd with
+  // "value too long". Found via the sandbox dry-run, 26 Jun 2026.
+  nino           String?  @db.Text
   // HMRC business ID for the user's self-employment trade. Returned by the
   // Self Employment Business API once the trade is registered with HMRC.
   // Single-business assumption for MileClear (one self-employment trade
