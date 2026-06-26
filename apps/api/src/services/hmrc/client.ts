@@ -242,5 +242,9 @@ export async function hmrcCall<T = unknown>(opts: HmrcCallOptions): Promise<T> {
     apiVersion: opts.apiVersion,
   });
 
-  return (await response.json()) as T;
+  // Some endpoints (e.g. the cumulative period-summary PUT) return 204 or a 200
+  // with an empty body. response.json() throws on empty input, so read text and
+  // only parse when there's something there - otherwise return undefined.
+  const body = await response.text();
+  return (body ? JSON.parse(body) : undefined) as T;
 }
