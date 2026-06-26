@@ -65,6 +65,8 @@ export {
   retrievePeriodSummary,
   submitPeriodSummary,
   amendPeriodSummary,
+  submitCumulativePeriodSummary,
+  retrieveCumulativePeriodSummary,
   isValidHmrcTaxYear,
   type HmrcPeriodSummaryListItem,
   type HmrcPeriodSummaryListResponse,
@@ -74,6 +76,7 @@ export {
   type HmrcPeriodSummaryDetail,
   type HmrcPeriodSummarySubmitBody,
   type HmrcSubmitPeriodResponse,
+  type HmrcCumulativeSubmitBody,
 } from "./selfEmployment.js";
 
 export {

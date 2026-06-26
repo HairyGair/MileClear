@@ -13,7 +13,7 @@
 // Reference: https://developer.service.hmrc.uk/api-documentation/docs/api/service/self-employment-business-api/5.0
 
 import type { ClientContext, ServerContext } from "./fraudPreventionHeaders.js";
-import { hmrcCall } from "./client.js";
+import { hmrcCall, HmrcError } from "./client.js";
 
 const SE_API_VERSION = "5.0";
 
@@ -246,4 +246,92 @@ export async function amendPeriodSummary(args: {
     client: args.client,
     server: args.server,
   });
+}
+
+// ── Cumulative period summary (v5.0, tax year 2025-26 onwards) ─────────────
+//
+// From 2025-26, in-year quarterly updates are CUMULATIVE year-to-date, not
+// per-quarter. They go to a single idempotent PUT keyed by tax year - there is
+// NO periodId. The old POST/PUT /period endpoints above are rejected for these
+// years with RULE_TAX_YEAR_NOT_SUPPORTED, so this is the path that actually
+// works for the MTD-mandated years.
+//
+//   PUT /individuals/business/self-employment/{nino}/{businessId}/cumulative/{taxYear}
+//   GET /individuals/business/self-employment/{nino}/{businessId}/cumulative/{taxYear}
+//
+// periodDates spans the tax-year start (6 April) to the latest period end being
+// reported; the income/expenses are the year-to-date totals.
+
+/** Body for create/amend of a cumulative period summary. periodDates required. */
+export interface HmrcCumulativeSubmitBody {
+  periodDates: {
+    periodStartDate: string;
+    periodEndDate: string;
+  };
+  periodIncome?: HmrcPeriodIncome;
+  periodExpenses?: HmrcPeriodExpenses;
+  periodDisallowableExpenses?: HmrcPeriodDisallowableExpenses;
+}
+
+/**
+ * Create or amend the cumulative period summary for a tax year. Idempotent:
+ * the same PUT both creates the first time and amends thereafter. Returns
+ * nothing (HMRC responds 200/204 with no periodId — the record is keyed by
+ * tax year).
+ */
+export async function submitCumulativePeriodSummary(args: {
+  userId: string;
+  nino: string;
+  businessId: string;
+  taxYear: string;
+  body: HmrcCumulativeSubmitBody;
+  client: ClientContext;
+  server: ServerContext;
+}): Promise<void> {
+  if (!isValidHmrcTaxYear(args.taxYear)) {
+    throw new Error(`Invalid HMRC tax year format: ${args.taxYear} (expected YYYY-YY)`);
+  }
+  if (!args.body.periodDates) {
+    throw new Error("submitCumulativePeriodSummary requires body.periodDates");
+  }
+
+  await hmrcCall<unknown>({
+    userId: args.userId,
+    method: "PUT",
+    path: `/individuals/business/self-employment/${encodeURIComponent(args.nino)}/${encodeURIComponent(args.businessId)}/cumulative/${encodeURIComponent(args.taxYear)}`,
+    apiVersion: SE_API_VERSION,
+    body: args.body,
+    client: args.client,
+    server: args.server,
+  });
+}
+
+/**
+ * Retrieve the cumulative period summary for a tax year. Returns null when
+ * nothing has been submitted yet (HMRC 404s in that case).
+ */
+export async function retrieveCumulativePeriodSummary(args: {
+  userId: string;
+  nino: string;
+  businessId: string;
+  taxYear: string;
+  client: ClientContext;
+  server: ServerContext;
+}): Promise<HmrcPeriodSummaryDetail | null> {
+  if (!isValidHmrcTaxYear(args.taxYear)) {
+    throw new Error(`Invalid HMRC tax year format: ${args.taxYear} (expected YYYY-YY)`);
+  }
+  try {
+    return await hmrcCall<HmrcPeriodSummaryDetail>({
+      userId: args.userId,
+      method: "GET",
+      path: `/individuals/business/self-employment/${encodeURIComponent(args.nino)}/${encodeURIComponent(args.businessId)}/cumulative/${encodeURIComponent(args.taxYear)}`,
+      apiVersion: SE_API_VERSION,
+      client: args.client,
+      server: args.server,
+    });
+  } catch (err) {
+    if (err instanceof HmrcError && err.httpStatus === 404) return null;
+    throw err;
+  }
 }

@@ -30,10 +30,8 @@ import {
   HmrcError,
   listBusinesses,
   retrieveBusiness,
-  listPeriodSummaries,
-  retrievePeriodSummary,
-  submitPeriodSummary,
-  amendPeriodSummary,
+  submitCumulativePeriodSummary,
+  retrieveCumulativePeriodSummary,
   buildPeriodSubmission,
   triggerCalculation,
   listCalculations,
@@ -427,7 +425,10 @@ export async function hmrcRoutes(app: FastifyInstance) {
       if ("error" in ctx) return reply.status(ctx.status).send({ error: ctx.error });
 
       try {
-        const periods = await listPeriodSummaries({
+        // Cumulative model (2025-26+): one cumulative summary per tax year, not
+        // a list of per-quarter periods. Present it as a single year-to-date
+        // item (keyed by tax year) so the existing list UI keeps working.
+        const cumulative = await retrieveCumulativePeriodSummary({
           userId: request.userId!,
           nino: ctx.nino,
           businessId,
@@ -435,6 +436,15 @@ export async function hmrcRoutes(app: FastifyInstance) {
           client: buildClientContext(request),
           server: await buildServerContext(),
         });
+        const periods = cumulative
+          ? [
+              {
+                periodId: queryParsed.data.taxYear,
+                periodStartDate: cumulative.periodDates.periodStartDate,
+                periodEndDate: cumulative.periodDates.periodEndDate,
+              },
+            ]
+          : [];
         return reply.send({ data: { periods } });
       } catch (err) {
         return handleHmrcError(reply, err);
@@ -461,11 +471,12 @@ export async function hmrcRoutes(app: FastifyInstance) {
       if ("error" in ctx) return reply.status(ctx.status).send({ error: ctx.error });
 
       try {
-        const period = await retrievePeriodSummary({
+        // Cumulative model: the periodId IS the tax year. Retrieve the single
+        // cumulative summary for that year (null if nothing submitted yet).
+        const period = await retrieveCumulativePeriodSummary({
           userId: request.userId!,
           nino: ctx.nino,
           businessId,
-          periodId,
           taxYear: queryParsed.data.taxYear,
           client: buildClientContext(request),
           server: await buildServerContext(),
@@ -510,11 +521,15 @@ export async function hmrcRoutes(app: FastifyInstance) {
       }
 
       try {
+        // Cumulative model (2025-26+): the figures reported each quarter are
+        // year-to-date, so the preview aggregates from the tax-year start (6
+        // April) to the selected period end, regardless of the `from` passed.
+        const cumulativeStart = `${parsed.data.taxYear.slice(0, 4)}-04-06`;
         const submission = await buildPeriodSubmission({
           prisma,
           userId: request.userId!,
           taxYear: parsed.data.taxYear,
-          periodStartDate: parsed.data.from,
+          periodStartDate: cumulativeStart,
           periodEndDate: parsed.data.to,
         });
         return reply.send({ data: submission });
@@ -543,13 +558,16 @@ export async function hmrcRoutes(app: FastifyInstance) {
       const ctx = await loadConnectionWithNino(request.userId!);
       if ("error" in ctx) return reply.status(ctx.status).send({ error: ctx.error });
 
+      // Cumulative model (2025-26+): aggregate year-to-date (tax-year start to
+      // the selected period end), then submit via the idempotent cumulative PUT.
+      const cumulativeStart = `${parsed.data.taxYear.slice(0, 4)}-04-06`;
       let submission;
       try {
         submission = await buildPeriodSubmission({
           prisma,
           userId: request.userId!,
           taxYear: parsed.data.taxYear,
-          periodStartDate: parsed.data.periodStartDate,
+          periodStartDate: cumulativeStart,
           periodEndDate: parsed.data.periodEndDate,
         });
       } catch (err) {
@@ -558,7 +576,7 @@ export async function hmrcRoutes(app: FastifyInstance) {
       }
 
       try {
-        const result = await submitPeriodSummary({
+        await submitCumulativePeriodSummary({
           userId: request.userId!,
           nino: ctx.nino,
           businessId,
@@ -575,14 +593,16 @@ export async function hmrcRoutes(app: FastifyInstance) {
         logEvent("hmrc.period_submitted", request.userId!, {
           businessId,
           taxYear: parsed.data.taxYear,
-          periodId: result.periodId,
+          periodId: parsed.data.taxYear,
           turnoverPence: submission.breakdown.income.turnoverPence,
           mileagePence: submission.breakdown.mileage.deductionPence,
         });
 
+        // Cumulative summaries are keyed by tax year (HMRC returns no periodId);
+        // the tax year IS the identifier the client stores + amends against.
         return reply.send({
           data: {
-            periodId: result.periodId,
+            periodId: parsed.data.taxYear,
             breakdown: submission.breakdown,
           },
         });
@@ -612,13 +632,15 @@ export async function hmrcRoutes(app: FastifyInstance) {
       const ctx = await loadConnectionWithNino(request.userId!);
       if ("error" in ctx) return reply.status(ctx.status).send({ error: ctx.error });
 
+      // Cumulative model: amend = re-PUT the cumulative year-to-date summary.
+      const cumulativeStart = `${parsed.data.taxYear.slice(0, 4)}-04-06`;
       let submission;
       try {
         submission = await buildPeriodSubmission({
           prisma,
           userId: request.userId!,
           taxYear: parsed.data.taxYear,
-          periodStartDate: parsed.data.periodStartDate,
+          periodStartDate: cumulativeStart,
           periodEndDate: parsed.data.periodEndDate,
         });
       } catch (err) {
@@ -627,13 +649,13 @@ export async function hmrcRoutes(app: FastifyInstance) {
       }
 
       try {
-        await amendPeriodSummary({
+        await submitCumulativePeriodSummary({
           userId: request.userId!,
           nino: ctx.nino,
           businessId,
           taxYear: parsed.data.taxYear,
-          periodId,
           body: {
+            periodDates: submission.periodDates,
             periodIncome: submission.periodIncome,
             periodExpenses: submission.periodExpenses,
           },
