@@ -15,6 +15,7 @@ import * as WebBrowser from "expo-web-browser";
 import { getTaxYear } from "@mileclear/shared";
 import { PremiumGate } from "../components/PremiumGate";
 import { BetaBanner } from "../components/BetaBanner";
+import { MtdSignpost } from "../components/MtdSignpost";
 import {
   fetchHmrcStatus,
   fetchHmrcBusinesses,
@@ -266,6 +267,14 @@ function TaxMtdContent() {
       {state.step === "nino" && <NinoStep onDone={load} />}
       {state.step === "business" && <BusinessStep businesses={state.businesses} onDone={load} />}
       {state.step === "ready" && <ReadyStep obligations={state.obligations} />}
+
+      {/* HMRC-mandated scope signposts (in-year, self-employment-only product). */}
+      {state.step === "ready" && (
+        <>
+          <MtdSignpost text="MileClear submits self-employment income only. If you also have UK or foreign property, or other untaxed income, you'll need MTD-compatible software for those." />
+          <MtdSignpost text="MileClear submits your in-year quarterly updates. It does not yet handle your end-of-year Final Declaration - you'll finalise that with HMRC or other MTD-compatible software." />
+        </>
+      )}
     </ScrollView>
   );
 }

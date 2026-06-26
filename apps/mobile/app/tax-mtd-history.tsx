@@ -11,6 +11,7 @@ import {
 import { Stack } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { getTaxYear } from "@mileclear/shared";
+import { MtdSignpost } from "../components/MtdSignpost";
 import {
   fetchHmrcStatus,
   fetchHmrcPeriods,
@@ -175,6 +176,10 @@ export default function TaxMtdHistoryScreen() {
                 </View>
               ))
             )}
+            <MtdSignpost
+              text="These figures are only an estimate based on the information HMRC has received so far. They may change as more is reported about you during the tax year."
+              showLink={false}
+            />
           </Section>
         </>
       )}
