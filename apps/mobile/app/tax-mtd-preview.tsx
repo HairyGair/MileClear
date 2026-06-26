@@ -164,6 +164,9 @@ export default function TaxMtdPreviewScreen() {
           {formatPeriodLabel(preview.periodDates.periodStartDate, preview.periodDates.periodEndDate)}
         </Text>
         <Text style={styles.headerTaxYear}>Tax year {taxYear}</Text>
+        <Text style={styles.headerYtdNote}>
+          These are your year-to-date totals. HMRC quarterly updates are cumulative - each one reports the full year so far, not just the quarter.
+        </Text>
 
         <View style={styles.divider} />
 
@@ -385,6 +388,13 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontFamily: fonts.regular,
     marginTop: 2,
+  },
+  headerYtdNote: {
+    color: TEXT_3,
+    fontSize: 12,
+    fontFamily: fonts.regular,
+    lineHeight: 17,
+    marginTop: 8,
   },
   divider: {
     height: 1,
