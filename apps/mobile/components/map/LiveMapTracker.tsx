@@ -2,7 +2,7 @@
 // Works in both active shift (reads shift_coordinates from SQLite) and personal mode.
 // Supports per-trip polyline segments when showTripSegments is enabled.
 
-import { useEffect, useRef, useState, useCallback } from "react";
+import { useEffect, useRef, useState, useCallback, useMemo } from "react";
 import {
   View,
   Text,
@@ -89,7 +89,14 @@ const BG = colors.bg;
 const CARD_BORDER = "rgba(255,255,255,0.05)";
 const TEXT_2 = colors.text2;
 const TRAIL_POLL_MS = 3000; // Poll shift_coordinates every 3s
-const LOCATION_INTERVAL_MS = 2000; // Foreground location watch interval
+const LOCATION_INTERVAL_MS = 3000; // Foreground location watch interval
+// Cap the points actually drawn on the live map. A long drive accumulates
+// thousands of breadcrumbs; re-rendering the full polyline every few seconds
+// (plus re-centring the camera) pegs the main thread hard enough to freeze the
+// whole phone. The SAVED trip keeps every point — this only decimates what's
+// rendered for the live overview.
+const MAX_TRAIL_POINTS = 350;
+const ANIMATE_THROTTLE_MS = 5000; // Re-centre the camera at most this often
 
 const SEGMENT_COLORS = [
   AMBER, GREEN, "#3b82f6", "#8b5cf6", "#ec4899", "#06b6d4",
@@ -118,6 +125,12 @@ export function LiveMapTracker({
   const [selectedSegment, setSelectedSegment] = useState<number | null>(null);
   const lastCoordCountRef = useRef(0);
   const rawCoordsRef = useRef<StoredCoordinate[]>([]);
+  const lastAnimateRef = useRef(0);
+
+  // Distance over the (decimated) trail. Memoised so it recomputes only when the
+  // trail changes, not on every location-driven re-render — and never re-loops
+  // the point list inline during render.
+  const trailMiles = useMemo(() => trailDistance(trail), [trail]);
 
   // ── Foreground location watcher ────────────────────────────────
   useEffect(() => {
@@ -156,19 +169,24 @@ export function LiveMapTracker({
           // In personal mode (no shiftId), build trail in memory
           if (!shiftId && showTrail) {
             personalTrailRef.current = [...personalTrailRef.current, pos];
-            setTrail([...personalTrailRef.current]);
+            setTrail(decimatePoints(personalTrailRef.current, MAX_TRAIL_POINTS));
           }
 
-          // Auto-center map on user
+          // Auto-center map on user — throttled so we don't animate the camera
+          // on every fix (heavy when stacked on a long-trail re-render).
           if (followUser && mapRef.current) {
-            mapRef.current.animateToRegion(
-              {
-                ...pos,
-                latitudeDelta: 0.008,
-                longitudeDelta: 0.008,
-              },
-              500
-            );
+            const now = Date.now();
+            if (now - lastAnimateRef.current > ANIMATE_THROTTLE_MS) {
+              lastAnimateRef.current = now;
+              mapRef.current.animateToRegion(
+                {
+                  ...pos,
+                  latitudeDelta: 0.008,
+                  longitudeDelta: 0.008,
+                },
+                500
+              );
+            }
           }
         }
       );
@@ -199,7 +217,12 @@ export function LiveMapTracker({
         );
         if (!mounted) return;
 
-        setTrail(rows.map((r) => ({ latitude: r.lat, longitude: r.lng })));
+        setTrail(
+          decimatePoints(
+            rows.map((r) => ({ latitude: r.lat, longitude: r.lng })),
+            MAX_TRAIL_POINTS
+          )
+        );
 
         // Build trip segments if enabled and count changed
         if (showTripSegments && rows.length !== lastCoordCountRef.current) {
@@ -215,7 +238,10 @@ export function LiveMapTracker({
           const segments = segmentTrips(storedCoords);
           setTripSegments(
             segments.map((seg, i) => ({
-              coords: seg.map((c) => ({ latitude: c.lat, longitude: c.lng })),
+              coords: decimatePoints(
+                seg.map((c) => ({ latitude: c.lat, longitude: c.lng })),
+                MAX_TRAIL_POINTS
+              ),
               rawCoords: seg,
               color: SEGMENT_COLORS[i % SEGMENT_COLORS.length],
               index: i,
@@ -487,7 +513,7 @@ export function LiveMapTracker({
       {showTrail && trail.length >= 2 && (
         <View style={styles.distanceBadge}>
           <Text style={styles.distanceText}>
-            {trailDistance(trail).toFixed(1)} mi
+            {trailMiles.toFixed(1)} mi
           </Text>
         </View>
       )}
@@ -502,6 +528,20 @@ export function LiveMapTracker({
       )}
     </View>
   );
+}
+
+// ── Polyline decimation ─────────────────────────────────────────────
+// Evenly down-sample a point list to at most `max` points, always keeping the
+// first and last. Cheap stride sample — good enough for a live overview line
+// where the eye can't tell 350 points from 3,500, but the renderer very much can.
+function decimatePoints<T>(points: T[], max: number): T[] {
+  if (points.length <= max) return points;
+  const stride = Math.ceil(points.length / max);
+  const out: T[] = [];
+  for (let i = 0; i < points.length; i += stride) out.push(points[i]);
+  const last = points[points.length - 1];
+  if (out[out.length - 1] !== last) out.push(last);
+  return out;
 }
 
 // ── Trail distance calculator ───────────────────────────────────────
