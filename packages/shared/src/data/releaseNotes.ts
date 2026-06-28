@@ -91,8 +91,8 @@ export const RELEASE_NOTES: ReleaseNote[] = [
   },
   {
     version: "1.3.1",
-    date: "Expected June 2026",
-    label: "In Development",
+    date: "June 2026",
+    label: "Latest",
     items: [
       "**Your trip appears the moment you set off.** The Dynamic Island and Live Activity now start on their own when ClearTrack detects a drive — even with the app closed and your phone in your pocket. Distance and duration on your lock screen from the first mile, no tap needed.",
       "**Records on iPhones that close apps aggressively.** Some iPhones shut MileClear down between uses, and the engine wasn't always waking back up for the next drive — for a small number of drivers this silently missed days of trips. The wake-up path is rebuilt so detection re-arms the instant your phone relaunches the app, locked or not.",
@@ -108,7 +108,7 @@ export const RELEASE_NOTES: ReleaseNote[] = [
   {
     version: "1.3.0",
     date: "June 2026",
-    label: "Latest",
+    label: "App Store",
     ctaUrl: "https://apps.apple.com/app/mileclear/id6759671005",
     ctaLabel: "Update on the App Store",
     banner: {
