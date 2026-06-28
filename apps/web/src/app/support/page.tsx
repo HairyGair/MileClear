@@ -162,12 +162,36 @@ export default function SupportPage() {
   const [email, setEmail] = useState('');
   const [message, setMessage] = useState('');
   const [submitted, setSubmitted] = useState(false);
+  const [sending, setSending] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const mailto = `mailto:support@mileclear.com?subject=Support Request from ${encodeURIComponent(name)}&body=${encodeURIComponent(`From: ${name} (${email})\n\n${message}`)}`;
-    window.location.href = mailto;
-    setSubmitted(true);
+    setSending(true);
+    setError(null);
+    try {
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'https://api.mileclear.com';
+      const res = await fetch(`${apiUrl}/contact`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, email, message }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(
+          data.error || "Something went wrong. Please email support@mileclear.com directly."
+        );
+      }
+      setSubmitted(true);
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Couldn't send your message. Please email support@mileclear.com directly."
+      );
+    } finally {
+      setSending(false);
+    }
   };
 
   const supportFaqSchema = {
@@ -252,9 +276,9 @@ export default function SupportPage() {
               <div className="support__form-card">
                 {submitted ? (
                   <div className="support__success">
-                    <p className="support__success-title">Message ready to send</p>
+                    <p className="support__success-title">Message sent</p>
                     <p className="support__success-desc">
-                      Your email client should have opened with your message. If not, email us directly at support@mileclear.com
+                      Thanks for getting in touch - we&apos;ve got your message and aim to reply within 24 hours.
                     </p>
                   </div>
                 ) : (
@@ -292,8 +316,13 @@ export default function SupportPage() {
                         placeholder="Describe your issue or question..."
                       />
                     </div>
-                    <button type="submit" className="support__submit">
-                      Send Message
+                    {error && (
+                      <p className="support__form-error" role="alert" style={{ color: '#ef4444', fontSize: '0.875rem', margin: '0 0 0.25rem' }}>
+                        {error}
+                      </p>
+                    )}
+                    <button type="submit" className="support__submit" disabled={sending}>
+                      {sending ? 'Sending...' : 'Send Message'}
                     </button>
                   </form>
                 )}

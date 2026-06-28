@@ -27,6 +27,7 @@ const FROM_PERSONAL = "Gair - MileClear <gair@mileclear.com>";
 const API_BASE_URL = process.env.API_BASE_URL || "https://api.mileclear.com";
 const WEB_BASE_URL = process.env.WEB_BASE_URL || "https://mileclear.com";
 const UNSUBSCRIBE_MAILTO = "gair@mileclear.com";
+const SUPPORT_INBOX = process.env.SUPPORT_INBOX || "support@mileclear.com";
 
 function escapeHtml(str: string): string {
   return str
@@ -100,6 +101,45 @@ export async function sendVerificationEmail(
   }
 
   await transporter.sendMail({ from: FROM, to: email, subject, html });
+}
+
+/**
+ * Contact-form message from the public website. Delivered to the support
+ * inbox with the visitor's address as Reply-To, so replying from the inbox
+ * goes straight back to them. The route that calls this is public and
+ * unauthenticated, so it is rate-limited.
+ */
+export async function sendContactEmail(
+  name: string,
+  email: string,
+  message: string
+): Promise<void> {
+  const subject = `Contact form: ${name}`;
+  const safeMsg = escapeHtml(message).replace(/\n/g, "<br/>");
+  const html = `
+    <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 560px; margin: 0 auto; padding: 32px 24px;">
+      <h2 style="color: #1a1a1a; margin-bottom: 8px;">New message from the contact form</h2>
+      <p style="color: #555; font-size: 14px; margin: 0 0 4px;"><strong>From:</strong> ${escapeHtml(name)} &lt;${escapeHtml(email)}&gt;</p>
+      <div style="background: #f4f4f5; border-radius: 8px; padding: 20px; margin: 20px 0; color: #1a1a1a; font-size: 15px; line-height: 1.6;">${safeMsg}</div>
+      <p style="color: #888; font-size: 12px;">Reply to this email to respond directly to ${escapeHtml(name)}.</p>
+    </div>
+  `;
+
+  if (!transporter) {
+    if (process.env.NODE_ENV === "production") {
+      throw new Error("SMTP not configured - cannot send contact email in production");
+    }
+    console.log(`[EMAIL] Contact from ${name} <${email}>: ${message} (dev only)`);
+    return;
+  }
+
+  await transporter.sendMail({
+    from: FROM,
+    to: SUPPORT_INBOX,
+    replyTo: `${name} <${email}>`,
+    subject,
+    html,
+  });
 }
 
 export async function sendPasswordResetEmail(
