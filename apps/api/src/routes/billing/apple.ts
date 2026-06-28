@@ -117,6 +117,12 @@ export async function appleBillingRoutes(app: FastifyInstance) {
           ? new Date(transaction.expiresDate)
           : null;
 
+        // A free-trial intro offer — stamp trialUsedAt for cross-platform
+        // eligibility consistency (see the webhook handler for the rationale).
+        const isAppleTrial =
+          transaction.offerDiscountType === "FREE_TRIAL" ||
+          transaction.offerType === 1;
+
         // Update user with Apple subscription info
         await prisma.user.update({
           where: { id: request.userId! },
@@ -124,6 +130,7 @@ export async function appleBillingRoutes(app: FastifyInstance) {
             isPremium: true,
             premiumExpiresAt,
             appleOriginalTransactionId: originalTransactionId,
+            ...(isAppleTrial ? { trialUsedAt: new Date() } : {}),
           },
         });
 
@@ -425,10 +432,19 @@ export async function appleBillingRoutes(app: FastifyInstance) {
       ? new Date(transactionInfo.expiresDate)
       : null;
 
+    // A free-trial introductory offer. Apple natively enforces one intro offer
+    // per subscription group, but we still stamp trialUsedAt so trialEligible
+    // stays consistent across platforms (an iOS trialer won't get a 2nd trial
+    // if they later subscribe via Stripe web).
+    const isAppleTrial =
+      transactionInfo.offerDiscountType === "FREE_TRIAL" ||
+      transactionInfo.offerType === 1;
+
     let handlerStatus = "success";
 
     try {
       switch (notificationType) {
+        case "OFFER_REDEEMED":
         case "DID_RENEW":
         case "SUBSCRIBED": {
           await prisma.user.update({
@@ -436,6 +452,7 @@ export async function appleBillingRoutes(app: FastifyInstance) {
             data: {
               isPremium: true,
               premiumExpiresAt,
+              ...(isAppleTrial ? { trialUsedAt: new Date() } : {}),
             },
           });
           app.log.info(
@@ -467,6 +484,26 @@ export async function appleBillingRoutes(app: FastifyInstance) {
                 originalTransactionId,
                 details: { premiumExpiresAt: premiumExpiresAt?.toISOString() ?? null, subtype: subtype ?? null },
               });
+              // Customer thank-you/welcome email. Previously ONLY the /validate
+              // path sent this, but production subscriptions are commonly bound
+              // here via the webhook's appAccountToken auto-link, so real
+              // subscribers were silently never getting it. Idempotent on the
+              // welcome.pro_sent guard so a resubscribe or duplicate webhook
+              // can't re-send, and only on SUBSCRIBED (never DID_RENEW).
+              if (fullUser?.email) {
+                try {
+                  const alreadySent = await prisma.appEvent.findFirst({
+                    where: { userId: user.id, type: "welcome.pro_sent" },
+                    select: { id: true },
+                  });
+                  if (!alreadySent) {
+                    await sendProWelcomeEmail(fullUser.email, fullUser.displayName);
+                    await logEvent("welcome.pro_sent", user.id, { method: "email", path: "webhook" });
+                  }
+                } catch (err) {
+                  app.log.error({ err }, "sendProWelcomeEmail failed (Apple webhook path)");
+                }
+              }
             } else {
               // DID_RENEW — recurring revenue (or an annual's first charge).
               notifyBillingEvent({
