@@ -39,6 +39,60 @@ export interface Guide {
 // ----------------------------------------------------------------
 export const BLOG_POSTS: BlogPost[] = [
   {
+    slug: "cleartrack-one-month-on",
+    title: "ClearTrack, one month on: an honest report",
+    excerpt:
+      "A few weeks ago I apologised for missed trips and shipped ClearTrack, MileClear's rebuilt detection engine. Here's a numbers-first look at how the first month actually went - the strong stretch, the rocky first week, and the things I still can't measure.",
+    date: "28 June 2026",
+    author: "Gair",
+    category: "announcement",
+    content: `
+<p>At the start of June I did something I'd been dreading: I wrote an apology. Some of you had drives that MileClear simply didn't record, and for a mileage tracker that's the one thing you can't get wrong. Alongside that apology I shipped <strong>ClearTrack</strong> - a rebuilt trip-detection engine designed to catch every drive on its own, including the short ones, and to keep recording when the app is closed or in your pocket.</p>
+
+<p>I promised I'd be straight with you about whether it actually worked. It's been a few weeks now, so here's an honest look at how the first month went - the good and the not-so-good.</p>
+
+<h2>The rough first week</h2>
+
+<p>I'm not going to pretend the rollout was clean. The first week of June was the worst week of the whole month for trip capture - an over-the-air update didn't land properly on some phones, and a handful of devices got stranded on an old version until I could push a proper fix. If your June started with MileClear behaving worse rather than better, that week is why, and I'm sorry for it. The honest version of this story has to include that part.</p>
+
+<h2>What the month looked like</h2>
+
+<p>Once the dust settled, the picture got a lot better. Across June, the drivers using MileClear recorded:</p>
+
+<ul>
+<li><strong>Over 2,900 trips</strong> and <strong>nearly 41,000 miles</strong> tracked in the month.</li>
+<li><strong>More than 100 active drivers</strong> - up from around 75 the month before.</li>
+<li><strong>Around 94% of those trips captured themselves automatically</strong> - roughly nineteen journeys in every twenty recorded with no taps at all. You only hand-typed about one trip in twenty.</li>
+</ul>
+
+<p>The standout was the middle of the month. In the single busiest week, ClearTrack captured <strong>more than 1,300 trips and over 20,000 miles in seven days</strong> - by far the busiest week of the month, and almost all of it automatic. That was the week ClearTrack stopped feeling like a hopeful experiment and started feeling like the engine I'd wanted to build from the start.</p>
+
+<h2>The bit nobody else counts</h2>
+
+<p>There's a quieter number I'm proud of. Over the same stretch, MileClear's phantom-trip guard threw out <strong>nearly 200 junk recordings</strong> - the 0.1-mile "trips" that appear when a phone gets a bad GPS fix while you're sat still - before they ever reached your trip list. A tracker that invents trips you didn't take is almost as bad as one that misses the ones you did, so keeping those out matters.</p>
+
+<h2>What I can't measure, and won't pretend to</h2>
+
+<p>Here's the honest limitation. I can tell you that around 94% of recorded trips captured automatically. What I genuinely can't measure is the drive that never got recorded at all - because a missed trip leaves no trace in the data. So I'm not going to wave a "we catch 99% of everything" banner around, because I can't prove it and you'd be right not to believe it.</p>
+
+<p>What I can tell you is that the diagnostic reports you send me - the single most useful thing in the app's menu - have shifted from "it recorded nothing for days" towards far smaller, more specific issues. That's the direction I want.</p>
+
+<h2>Still not perfect</h2>
+
+<p>Some things still need work. The very short one and two mile trips remain the hardest to catch. A small number of people on much older versions of the app still need to update before the latest fixes reach them. And the HMRC (Making Tax Digital) submissions are still in beta against HMRC's test system while we finish accreditation - the app now says so clearly on every screen, so nobody mistakes a test submission for a real filing.</p>
+
+<h2>What's next</h2>
+
+<p>The next two updates lean straight into the gaps. The version currently with Apple for review adds a <strong>missed-journey scanner</strong>: if MileClear ever spots a gap, where one trip ended in one place and the next began somewhere else with nothing in between, it offers to add the missing journey for you in a single tap. The build after that smooths out the live map on long drives and tightens the HMRC flow further.</p>
+
+<p>Reliability is still the only thing I'm grading myself on. If MileClear has missed a trip for you, please update, give it another go, and send the diagnostic report if anything is still off. Those reports are the reason this month looked better than last.</p>
+
+<p>Thank you for sticking with a small app that's trying to do right by you.</p>
+
+<p>- Gair</p>
+`,
+  },
+  {
     slug: "an-apology-and-a-reliability-overhaul",
     title: "An apology, and a reliability overhaul",
     excerpt:
