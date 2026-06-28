@@ -173,14 +173,19 @@ export default async function BlogPostPage({
               <Link href="/updates" className="post__footer-back">
                 &larr; Back to updates
               </Link>
-              <a
-                href="https://apps.apple.com/app/mileclear/id6759671005"
-                className="post__cta"
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                Install MileClear free &rarr;
-              </a>
+              <div className="post__footer-actions">
+                <Link href="/support#contact" className="post__footer-feedback">
+                  Got feedback? Get in touch &rarr;
+                </Link>
+                <a
+                  href="https://apps.apple.com/app/mileclear/id6759671005"
+                  className="post__cta"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  Install MileClear free &rarr;
+                </a>
+              </div>
             </footer>
           </article>
         </div>

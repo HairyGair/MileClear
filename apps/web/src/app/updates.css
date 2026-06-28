@@ -637,6 +637,29 @@
   color: var(--text-primary);
 }
 
+.post__footer-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 1.25rem;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.post__footer-feedback {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--amber-400);
+  text-decoration: none;
+  transition: color 0.2s;
+}
+
+.post__footer-feedback:hover {
+  color: var(--amber-300);
+}
+
 .post__cta {
   display: inline-flex;
   align-items: center;

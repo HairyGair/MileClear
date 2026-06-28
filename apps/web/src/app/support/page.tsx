@@ -217,7 +217,7 @@ export default function SupportPage() {
           <div className="divider" />
 
           {/* Contact */}
-          <div style={{ paddingTop: 'clamp(3rem, 6vw, 4.5rem)' }}>
+          <div id="contact" style={{ paddingTop: 'clamp(3rem, 6vw, 4.5rem)' }}>
             <div style={{ textAlign: 'center', marginBottom: 'clamp(2rem, 4vw, 3rem)' }}>
               <span className="label">Get in Touch</span>
               <h2 className="heading">Contact Us</h2>
