@@ -75,6 +75,21 @@ export const ACTIVE_ANNOUNCEMENT: SiteAnnouncement | null = null;
 
 export const RELEASE_NOTES: ReleaseNote[] = [
   {
+    version: "1.3.4",
+    date: "Expected July 2026",
+    label: "In Development",
+    items: [
+      "**Lock your data behind Face ID.** Keep your mileage and tax records behind Face ID, Touch ID, or your passcode - turn it on in Settings > Security. The lock only covers the screen; your trips keep recording in the background either way, so you never lose a drive.",
+      "**MileClear catches the drives you missed.** It now spots gaps - where one trip ended in one place and the next began somewhere else with nothing in between - and offers to add the missing journey for you, pre-filled, in a single tap.",
+      "**The live map no longer freezes your phone on long drives.** On longer journeys the live tracking map could lock the phone up - enough that you couldn't even answer a call mid-drive. It now stays smooth however far you go.",
+      "**Lighter on your battery.** A new battery view shows your live level and how tracking eases off while you're parked. An optional battery saver gently reduces background checks when your battery is low and unplugged - and it will never drop a trip.",
+      "**HMRC (Making Tax Digital) is clearly marked work-in-progress.** Every screen in the HMRC submission flow now makes plain that the integration is in beta and submissions currently go to HMRC's test system while we finish production accreditation - so nothing reads as a live filing by mistake. The quarterly preview also spells out that figures are year-to-date (HMRC updates are cumulative), with the required notes that the tax shown is an estimate, MileClear covers self-employment income only, and the year-end Final Declaration is completed separately.",
+      "**Smoother, more reliable HMRC submissions.** Fixed a handful of issues that could block a quarterly update from going through, so connecting and submitting runs cleanly.",
+      "**Your trips stay correct everywhere.** Classify a trip on the web dashboard, by an auto-classify rule, or on another device, and the app now updates to match instead of showing it as unclassified forever. A behind-the-scenes fix also means a drive recorded with the phone locked is never quietly dropped when it saves.",
+      "**Accurate Clean Air Zone charges.** Zone maps now use the official boundaries for every zone that can charge a car or van - London ULEZ, Birmingham, Bristol, Bath, Bradford, Sheffield, and Newcastle and Gateshead. You always confirm before any charge is logged.",
+    ],
+  },
+  {
     version: "1.3.1",
     date: "Expected June 2026",
     label: "In Development",
