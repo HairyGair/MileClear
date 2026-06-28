@@ -15,6 +15,7 @@ import {
   type HmrcCalculationSummary,
 } from "../lib/api/hmrc";
 import { isApiError } from "../lib/api";
+import { BetaBanner } from "../components/BetaBanner";
 import { colors, fonts } from "../lib/theme";
 
 const AMBER = colors.amber;
@@ -76,14 +77,20 @@ export default function TaxMtdSubmittedScreen() {
         }}
       />
 
+      <BetaBanner
+        label="Beta · Sandbox"
+        title="Sent to HMRC's sandbox"
+        body="You've completed the full submission flow against HMRC's test system. This does not change your real tax record yet - we're finishing production accreditation. There's nothing more you need to do."
+      />
+
       <View style={styles.successCard}>
         <View style={styles.successIconWrap}>
           <Ionicons name="checkmark" size={42} color="#000" />
         </View>
-        <Text style={styles.successTitle}>Submitted to HMRC</Text>
+        <Text style={styles.successTitle}>Submission complete</Text>
         <Text style={styles.successBody}>
-          Your quarterly update is in. We'll keep this submission on file and remind
-          you when the next obligation is due.
+          Your quarterly update went through the full flow. We'll keep it on file and
+          remind you when the next obligation is due.
         </Text>
       </View>
 

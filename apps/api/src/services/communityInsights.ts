@@ -345,6 +345,16 @@ let cachedGlobalStats: Omit<CommunityStats, "driversNearby"> | null = null;
 let cachedAt = 0;
 const CACHE_TTL = 5 * 60 * 1000;
 
+/**
+ * Last-computed global stats, regardless of age. Used by the route's
+ * cold-compute timeout fallback so a never-seen grid cell can return a
+ * valid payload instantly (real headline numbers + empty local aggregates)
+ * instead of blocking the caller while the heavy nearby queries run.
+ */
+export function getLastKnownGlobalStats(): Omit<CommunityStats, "driversNearby"> | null {
+  return cachedGlobalStats;
+}
+
 async function getGlobalStats(): Promise<Omit<CommunityStats, "driversNearby">> {
   if (cachedGlobalStats && Date.now() - cachedAt < CACHE_TTL) {
     return cachedGlobalStats;

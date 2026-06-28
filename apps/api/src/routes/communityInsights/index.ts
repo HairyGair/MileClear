@@ -1,7 +1,7 @@
 import { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { authMiddleware } from "../../middleware/auth.js";
-import { getCommunityInsights } from "../../services/communityInsights.js";
+import { getCommunityInsights, getLastKnownGlobalStats } from "../../services/communityInsights.js";
 import { getNearbyStations } from "../../services/fuel.js";
 
 const querySchema = z.object({
@@ -28,7 +28,14 @@ const querySchema = z.object({
 // promise the card makes anyway.
 const GRID_PRECISION = 0.05; // ~3.5 mi at UK latitudes
 const FRESH_MS = 15 * 60 * 1000; // serve cached payload without refreshing
-const STALE_MS = 6 * 60 * 60 * 1000; // serve stale instantly + refresh in background
+// Hard ceiling on how long a caller will EVER block on a cold (never-seen)
+// grid cell. The per-query MAX_EXECUTION_TIME caps query *execution*, but not
+// the time a request spends waiting for a DB connection when the pool is
+// saturated during peak driving hours — that queueing is what produced the
+// 85s tail (1,800+ slow 200s/day). Past this deadline we return a valid
+// minimal payload and let the compute finish in the background to warm the
+// cache, so the next caller for that cell gets the full data instantly.
+const COLD_WAIT_MS = 4000;
 
 function gridKey(lat: number, lng: number): string {
   const gridLat = Math.round(lat / GRID_PRECISION) * GRID_PRECISION;
@@ -92,6 +99,32 @@ function refresh(key: string, lat: number, lng: number, userId: string): Promise
   return p;
 }
 
+// Valid payload for a cold cell whose compute overran COLD_WAIT_MS. Real
+// headline stats (separately cached, cheap) + empty local aggregates — the
+// same shape sparse areas already return, so the client renders it fine. The
+// background compute keeps running and warms the cache for the next request.
+function coldFallbackPayload(): unknown {
+  const g = getLastKnownGlobalStats();
+  return {
+    data: {
+      stats: {
+        totalDrivers: g?.totalDrivers ?? 0,
+        totalMilesTracked: g?.totalMilesTracked ?? 0,
+        totalTripsLogged: g?.totalTripsLogged ?? 0,
+        totalTaxSavedPence: g?.totalTaxSavedPence ?? 0,
+        driversNearby: 0,
+      },
+      areaEarnings: [],
+      peakHours: [],
+      nearbyAnomalies: [],
+      routeSpeeds: [],
+      bestPlatformNearby: null,
+      bestTimeNearby: null,
+      fuelTipNearby: null,
+    },
+  };
+}
+
 export async function communityInsightRoutes(app: FastifyInstance) {
   app.addHook("preHandler", authMiddleware);
 
@@ -116,21 +149,46 @@ export async function communityInsightRoutes(app: FastifyInstance) {
       return reply.send(entry.payload);
     }
 
-    // Stale but usable — serve instantly, refresh in the background (deduped).
-    if (entry && age < STALE_MS) {
+    // Any cached payload (however old) — serve instantly and refresh in the
+    // background (deduped via single-flight). Serving a directional aggregate
+    // that's a few hours old always beats blocking the caller, and the card
+    // is explicitly "directional, not precise".
+    if (entry) {
       refresh(key, lat, lng, userId).catch((err) =>
         request.log.error(err, "community insights background refresh failed")
       );
       return reply.send(entry.payload);
     }
 
-    // Cold — compute once (single-flight), shared by all concurrent callers.
-    try {
-      const payload = await refresh(key, lat, lng, userId);
-      return reply.send(payload);
-    } catch (err) {
-      request.log.error(err, "Failed to fetch community insights");
-      return reply.status(500).send({ error: "Failed to fetch community insights" });
+    // Truly cold (never computed in this process). Kick off the compute but
+    // never block the caller longer than COLD_WAIT_MS — under peak DB-pool
+    // contention this compute can queue for tens of seconds, so we cap the
+    // wait and return a valid minimal payload, letting it warm the cache.
+    const DEGRADED = Symbol("degraded");
+    // Already logged inside refresh()'s caller chain; resolve (never reject)
+    // so the race below always yields a value we can send.
+    const safeCompute = refresh(key, lat, lng, userId).then(
+      (payload) => payload,
+      (err) => {
+        request.log.error(err, "community insights cold compute failed");
+        return DEGRADED;
+      }
+    );
+
+    let timer: NodeJS.Timeout | undefined;
+    const result = await Promise.race([
+      safeCompute,
+      new Promise<typeof DEGRADED>((resolve) => {
+        timer = setTimeout(() => resolve(DEGRADED), COLD_WAIT_MS);
+      }),
+    ]);
+    if (timer) clearTimeout(timer);
+
+    // Timed out or errored — return a valid minimal payload; the background
+    // compute (still tracked in `inflight`) will warm the cache for next time.
+    if (result === DEGRADED) {
+      return reply.send(coldFallbackPayload());
     }
+    return reply.send(result);
   });
 }

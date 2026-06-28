@@ -15,6 +15,7 @@ import { Stack, router } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { setHmrcNino } from "../lib/api/hmrc";
 import { isApiError } from "../lib/api";
+import { BetaBanner } from "../components/BetaBanner";
 import { colors, fonts } from "../lib/theme";
 
 const AMBER = colors.amber;
@@ -71,6 +72,11 @@ export default function TaxMtdNinoScreen() {
     >
       <Stack.Screen options={{ title: "National Insurance Number", headerStyle: { backgroundColor: BG }, headerTintColor: TEXT_1 }} />
       <ScrollView contentContainerStyle={styles.container}>
+        <BetaBanner
+          label="Beta · Sandbox"
+          title="HMRC integration is in beta"
+          body="MTD submissions currently go to HMRC's test system while we finish production accreditation. Your NINO is stored encrypted either way."
+        />
         <View style={styles.card}>
           <Ionicons name="finger-print-outline" size={48} color={AMBER} style={{ alignSelf: "center" }} />
           <Text style={styles.title}>Your NINO</Text>

@@ -12,6 +12,7 @@ import { Stack } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { getTaxYear } from "@mileclear/shared";
 import { MtdSignpost } from "../components/MtdSignpost";
+import { BetaBanner } from "../components/BetaBanner";
 import {
   fetchHmrcStatus,
   fetchHmrcPeriods,
@@ -102,6 +103,12 @@ export default function TaxMtdHistoryScreen() {
       refreshControl={<RefreshControl tintColor={AMBER} refreshing={refreshing} onRefresh={onRefresh} />}
     >
       <Stack.Screen options={{ title: "Submission history", headerStyle: { backgroundColor: BG }, headerTintColor: TEXT_1 }} />
+
+      <BetaBanner
+        label="Beta · Sandbox"
+        title="Sandbox submissions"
+        body="These submissions were sent to HMRC's test system while we finish production accreditation. They don't yet appear on your real HMRC tax record."
+      />
 
       <View style={styles.tabs}>
         {taxYears.map((y) => (

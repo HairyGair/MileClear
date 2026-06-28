@@ -11,6 +11,7 @@ import {
 import { Stack, router, useLocalSearchParams } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { getTaxYear, formatPence } from "@mileclear/shared";
+import { BetaBanner } from "../components/BetaBanner";
 import {
   fetchHmrcStatus,
   previewPeriodSubmission,
@@ -157,6 +158,12 @@ export default function TaxMtdPreviewScreen() {
   return (
     <ScrollView style={{ flex: 1, backgroundColor: BG }} contentContainerStyle={{ padding: 16, paddingBottom: 96 }}>
       <Stack.Screen options={{ title: "Review submission", headerStyle: { backgroundColor: BG }, headerTintColor: TEXT_1 }} />
+
+      <BetaBanner
+        label="Beta · Sandbox"
+        title="This is a sandbox submission"
+        body="Your figures and HMRC's calculation are real, but while we finish production accreditation the submission goes to HMRC's test system - it does not change your real tax record yet."
+      />
 
       <View style={styles.headerCard}>
         <Text style={styles.headerLabel}>QUARTERLY UPDATE</Text>

@@ -56,16 +56,15 @@ function loadPrivateKeyPem(): string | null {
 
 let cachedKey: CryptoKey | null = null;
 let cachedJwt: { token: string; issuedAtMs: number } | null = null;
+// In-flight mint, shared by all callers (single-flight). Without this, every
+// push that arrives while the cache is stale signs its OWN fresh token, and a
+// burst of new tokens presented together is exactly what trips APNs'
+// 429 TooManyProviderTokenUpdates (it accepts a new token only ~once/20min).
+let signingInFlight: Promise<string | null> | null = null;
 // Refresh well inside APNs' 1h ceiling, and comfortably past the 20min floor.
 const JWT_TTL_MS = 50 * 60 * 1000;
 
-async function getProviderToken(): Promise<string | null> {
-  if (!isApnsConfigured) return null;
-
-  if (cachedJwt && Date.now() - cachedJwt.issuedAtMs < JWT_TTL_MS) {
-    return cachedJwt.token;
-  }
-
+async function signProviderToken(): Promise<string | null> {
   try {
     if (!cachedKey) {
       const pem = loadPrivateKeyPem();
@@ -85,6 +84,23 @@ async function getProviderToken(): Promise<string | null> {
     console.error("[apns] Failed to sign provider token:", err);
     return null;
   }
+}
+
+async function getProviderToken(): Promise<string | null> {
+  if (!isApnsConfigured) return null;
+
+  if (cachedJwt && Date.now() - cachedJwt.issuedAtMs < JWT_TTL_MS) {
+    return cachedJwt.token;
+  }
+
+  // Coalesce concurrent refreshes into a single mint so we never present a
+  // burst of brand-new tokens to APNs at the cache-expiry boundary.
+  if (!signingInFlight) {
+    signingInFlight = signProviderToken().finally(() => {
+      signingInFlight = null;
+    });
+  }
+  return signingInFlight;
 }
 
 // --- HTTP/2 session (reused; reconnect on close/error) -------------------

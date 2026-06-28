@@ -16,6 +16,7 @@ import {
   type HmrcBusinessDetails,
 } from "../lib/api/hmrc";
 import { isApiError } from "../lib/api";
+import { BetaBanner } from "../components/BetaBanner";
 import { colors, fonts } from "../lib/theme";
 
 const AMBER = colors.amber;
@@ -95,6 +96,11 @@ export default function TaxMtdBusinessScreen() {
   return (
     <ScrollView style={{ flex: 1, backgroundColor: BG }} contentContainerStyle={{ padding: 16, paddingBottom: 64 }}>
       <Stack.Screen options={{ title: "Confirm trade", headerStyle: { backgroundColor: BG }, headerTintColor: TEXT_1 }} />
+      <BetaBanner
+        label="Beta · Sandbox"
+        title="HMRC integration is in beta"
+        body="MTD submissions currently go to HMRC's test system while we finish production accreditation."
+      />
       <View style={styles.card}>
         <Ionicons name="briefcase-outline" size={48} color={AMBER} style={{ alignSelf: "center" }} />
         <Text style={styles.title}>{details.tradingName ?? "Self-Employment"}</Text>
