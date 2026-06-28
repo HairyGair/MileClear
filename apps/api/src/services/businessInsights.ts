@@ -14,6 +14,18 @@ import {
 // Industry standard vehicle wear cost (pence per mile) — RAC/AA average
 const WEAR_COST_PENCE_PER_MILE = 8;
 
+// Minimum duration (seconds) for a completed shift to count toward time-based
+// metrics. Anything shorter is an accidental start/stop tap, not a real shift.
+const MIN_SHIFT_SECONDS = 120;
+
+// Minimum total tracked shift time (hours) in the period before we'll report an
+// earnings-per-hour rate. Earnings are logged across the whole period (e.g.
+// freelance invoices) but shift hours only count tracked driving — dividing a
+// year of earnings by a few seconds of tracked time produced absurd rates
+// (an 11-second shift turned £460/yr into £153,632/hr). Below this floor the
+// sample is too small to mean anything, so we suppress the rate (return 0).
+const MIN_SHIFT_HOURS_FOR_RATE = 1;
+
 // ── Shift grading ─────────────────────────────────────────────────
 
 function gradeShift(
@@ -106,21 +118,28 @@ export async function getBusinessInsights(userId: string): Promise<BusinessInsig
   // ── Overall efficiency ──────────────────────────────────────────
   const totalEarningsPence = earnings.reduce((sum, e) => sum + e.amountPence, 0);
   const totalBusinessMiles = mileageSummary?.businessMiles ?? businessTrips.reduce((sum, t) => sum + t.distanceMiles, 0);
-  const totalShiftSeconds = shifts.reduce((sum, s) => {
-    if (!s.endedAt) return sum;
-    return sum + (s.endedAt.getTime() - s.startedAt.getTime()) / 1000;
-  }, 0);
+
+  // Only genuine shifts feed time-based metrics — exclude accidental sub-minute
+  // start/stop taps so they can't become a near-zero denominator.
+  const qualifyingShifts = shifts.filter(
+    (s) => s.endedAt && (s.endedAt.getTime() - s.startedAt.getTime()) / 1000 >= MIN_SHIFT_SECONDS
+  );
+  const qualifyingShiftIds = new Set(qualifyingShifts.map((s) => s.id));
+  const totalShiftSeconds = qualifyingShifts.reduce(
+    (sum, s) => sum + (s.endedAt!.getTime() - s.startedAt.getTime()) / 1000,
+    0
+  );
   const totalShiftHours = totalShiftSeconds / 3600;
-  const totalShiftTrips = businessTrips.filter((t) => t.shiftId).length;
+  const totalShiftTrips = businessTrips.filter((t) => t.shiftId && qualifyingShiftIds.has(t.shiftId)).length;
 
   const earningsPerMilePence = totalBusinessMiles > 0
     ? Math.round(totalEarningsPence / totalBusinessMiles)
     : 0;
-  const earningsPerHourPence = totalShiftHours > 0
+  const earningsPerHourPence = totalShiftHours >= MIN_SHIFT_HOURS_FOR_RATE
     ? Math.round(totalEarningsPence / totalShiftHours)
     : 0;
-  const avgTripsPerShift = shifts.length > 0
-    ? Math.round((totalShiftTrips / shifts.length) * 10) / 10
+  const avgTripsPerShift = qualifyingShifts.length > 0
+    ? Math.round((totalShiftTrips / qualifyingShifts.length) * 10) / 10
     : 0;
 
   // ── Platform comparison ─────────────────────────────────────────
@@ -271,7 +290,7 @@ export async function getBusinessInsights(userId: string): Promise<BusinessInsig
   }
 
   // ── Recent shift performance ────────────────────────────────────
-  const recentShiftsRaw = shifts.slice(0, 10);
+  const recentShiftsRaw = qualifyingShifts.slice(0, 10);
   const recentShifts: ShiftPerformance[] = [];
 
   for (const shift of recentShiftsRaw) {

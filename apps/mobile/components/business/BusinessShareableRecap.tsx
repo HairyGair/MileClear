@@ -97,7 +97,7 @@ export function BusinessRecapShareCard(data: BusinessRecapShareData) {
         </View>
         <View style={s.effDot} />
         <View style={s.effItem}>
-          <Text style={s.effValue}>{formatPence(data.earningsPerHourPence)}</Text>
+          <Text style={s.effValue}>{data.earningsPerHourPence > 0 ? formatPence(data.earningsPerHourPence) : "—"}</Text>
           <Text style={s.effLabel}>per hour</Text>
         </View>
         {data.avgShiftGrade && (
@@ -185,7 +185,7 @@ async function textFallbackShare(data: BusinessRecapShareData): Promise<void> {
     `My ${data.periodLabel} earnings report:`,
     `- ${formatPence(data.grossEarningsPence)} gross across ${data.totalTrips} ${tripWord}`,
     `- ${formatMilesReadable(data.businessMiles)} business miles in ${hours} hours`,
-    `- ${formatPence(data.earningsPerMilePence)}/mi | ${formatPence(data.earningsPerHourPence)}/hr`,
+    `- ${formatPence(data.earningsPerMilePence)}/mi${data.earningsPerHourPence > 0 ? ` | ${formatPence(data.earningsPerHourPence)}/hr` : ""}`,
   ];
   if (data.hmrcDeductionPence > 0) {
     lines.push(`- ${formatPence(data.hmrcDeductionPence)} HMRC deduction claimed`);

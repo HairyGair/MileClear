@@ -117,7 +117,7 @@ export function BusinessInsightsCard() {
           </View>
           <View style={s.divider} />
           <View style={s.metric}>
-            <Text style={s.metricValue}>{formatPence(insights.earningsPerHourPence)}</Text>
+            <Text style={s.metricValue}>{insights.earningsPerHourPence > 0 ? formatPence(insights.earningsPerHourPence) : "—"}</Text>
             <Text style={s.metricLabel}>per hour</Text>
           </View>
           <View style={s.divider} />

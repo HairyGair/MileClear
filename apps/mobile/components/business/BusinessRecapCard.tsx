@@ -164,7 +164,7 @@ export function BusinessRecapCard() {
               <Ionicons name="speedometer" size={12} color={AMBER} />
             </View>
             <Text style={styles.insightText}>
-              {formatPence(insights.earningsPerMilePence)}/mi · {formatPence(insights.earningsPerHourPence)}/hr
+              {formatPence(insights.earningsPerMilePence)}/mi{insights.earningsPerHourPence > 0 ? ` · ${formatPence(insights.earningsPerHourPence)}/hr` : ""}
             </Text>
           </View>
 

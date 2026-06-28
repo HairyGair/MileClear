@@ -363,7 +363,7 @@ export default function BusinessPage() {
             },
             {
               label: "Earnings / Hour",
-              value: formatPence(insights.earningsPerHourPence),
+              value: insights.earningsPerHourPence > 0 ? formatPence(insights.earningsPerHourPence) : "—",
               trend: insights.earningsTrendPercent,
             },
             {
