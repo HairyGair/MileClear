@@ -404,7 +404,7 @@ export async function sendProWelcomeEmail(
 
                   <p style="color: #c0c8d4; font-size: 15px; line-height: 1.7; margin: 0 0 16px;">${greeting}</p>
 
-                  <p style="color: #c0c8d4; font-size: 15px; line-height: 1.7; margin: 0 0 16px;">Anthony here, the founder of MileClear. I wanted to drop you a personal note to say thanks for upgrading to Pro today.</p>
+                  <p style="color: #c0c8d4; font-size: 15px; line-height: 1.7; margin: 0 0 16px;">Anthony here, the founder of MileClear. I wanted to drop you a personal note to say thanks for upgrading to Pro.</p>
 
                   <p style="color: #c0c8d4; font-size: 15px; line-height: 1.7; margin: 0 0 20px;">When you build something like this on your own, every paying customer matters more than I can comfortably explain. You're one of them now, so genuinely &mdash; thank you.</p>
 
