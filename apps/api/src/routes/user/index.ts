@@ -568,7 +568,13 @@ export async function userRoutes(app: FastifyInstance) {
 
     const user = await prisma.user.findUnique({
       where: { id: userId },
-      select: { passwordHash: true, stripeSubscriptionId: true },
+      select: {
+        passwordHash: true,
+        stripeSubscriptionId: true,
+        email: true,
+        isPremium: true,
+        createdAt: true,
+      },
     });
 
     if (!user) {
@@ -601,6 +607,20 @@ export async function userRoutes(app: FastifyInstance) {
       { userId, action: "account.delete" },
       `User deleted their own account: ${userId}`
     );
+
+    // Durable deletion record. Self-deletes otherwise only land in the rolling
+    // server log, which ages out and isn't queryable. The event userId is null
+    // (identity lives in metadata) so it neither hits a FK race against the row
+    // we're about to delete nor gets SetNull-wiped — it survives independently.
+    logEvent("account.deleted", null, {
+      deletedUserId: userId,
+      email: user.email,
+      wasPremium: user.isPremium,
+      hadStripeSub: Boolean(user.stripeSubscriptionId),
+      accountAgeDays: Math.round(
+        (Date.now() - new Date(user.createdAt).getTime()) / 86_400_000
+      ),
+    });
 
     await prisma.user.delete({ where: { id: userId } });
 
