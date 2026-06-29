@@ -92,6 +92,11 @@ export const RELEASE_NOTES: ReleaseNote[] = [
     version: "1.3.3",
     date: "June 2026",
     label: "Latest",
+    ctaUrl: "https://mileclear.com/releases",
+    ctaLabel: "Read the release notes",
+    emailSubject: "What's new in MileClear 1.3.3",
+    emailTagline:
+      "1.3.3 has just landed on the App Store. Here is everything that is new in this release - update in the App Store to get it.",
     items: [
       "**Lock your data behind Face ID.** Keep your mileage and tax records behind Face ID, Touch ID, or your passcode - turn it on in Settings > Security. The lock only covers the screen; your trips keep recording in the background either way, so you never lose a drive.",
       "**MileClear catches the drives you missed.** It now spots gaps - where one trip ended in one place and the next began somewhere else with nothing in between - and offers to add the missing journey for you, pre-filled, in a single tap.",

@@ -744,7 +744,7 @@ function renderUpdateEmailHtml(args: {
 ${apologyHtml}
 ${ctaButton(release.ctaLabel ?? "See what's new", release.ctaUrl ?? blogUrl)}
 
-        <p style="color: #8a94a6; font-size: 13px; line-height: 1.6; margin: 22px 0 24px; text-align: center;">Or read the full release notes: <a href="${blogUrl}" style="color: #f5a623; text-decoration: none; font-weight: 600;">What's new in ${escapeHtml(release.version)}</a></p>
+        <p style="color: #8a94a6; font-size: 13px; line-height: 1.6; margin: 22px 0 24px; text-align: center;">Or read the full release notes: <a href="${release.ctaUrl ?? blogUrl}" style="color: #f5a623; text-decoration: none; font-weight: 600;">What's new in ${escapeHtml(release.version)}</a></p>
 
 ${replyCard("Something not working? Got ideas? Reply to this email - I read every message and I'll get back to you personally. Several of the features above came directly from messages exactly like that.")}
 
