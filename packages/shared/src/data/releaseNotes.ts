@@ -90,8 +90,8 @@ export const RELEASE_NOTES: ReleaseNote[] = [
   },
   {
     version: "1.3.3",
-    date: "Awaiting Apple review",
-    label: "Pending Review",
+    date: "June 2026",
+    label: "Latest",
     items: [
       "**Lock your data behind Face ID.** Keep your mileage and tax records behind Face ID, Touch ID, or your passcode - turn it on in Settings > Security. The lock only covers the screen; your trips keep recording in the background either way, so you never lose a drive.",
       "**MileClear catches the drives you missed.** It now spots gaps - where one trip ended in one place and the next began somewhere else with nothing in between - and offers to add the missing journey for you, pre-filled, in a single tap.",
@@ -103,7 +103,9 @@ export const RELEASE_NOTES: ReleaseNote[] = [
   {
     version: "1.3.1",
     date: "June 2026",
-    label: "Latest",
+    label: "App Store",
+    ctaUrl: "https://apps.apple.com/app/mileclear/id6759671005",
+    ctaLabel: "Update on the App Store",
     items: [
       "**Your trip appears the moment you set off.** The Dynamic Island and Live Activity now start on their own when ClearTrack detects a drive — even with the app closed and your phone in your pocket. Distance and duration on your lock screen from the first mile, no tap needed.",
       "**Records on iPhones that close apps aggressively.** Some iPhones shut MileClear down between uses, and the engine wasn't always waking back up for the next drive — for a small number of drivers this silently missed days of trips. The wake-up path is rebuilt so detection re-arms the instant your phone relaunches the app, locked or not.",
@@ -301,7 +303,6 @@ export const RELEASE_NOTES: ReleaseNote[] = [
   {
     version: "1.1.3",
     date: "3 May 2026",
-    label: "In Testing",
     items: [
       "Auto-trip detection now waits until you're actually driving before showing the Live Activity. No more '0 mi' alerts firing while you're parked in a carpark or walking past your car. The app stays quiet, watches the GPS, and only commits to a recording once it sees real driving speed.",
       "Saved-location trips (Home to Work, depot to home, anything between two of your saved places) now sync to the cloud properly. A handful of users had local-only 'Pending sync' trips that never reached the server; this update auto-recovers them on first launch, and any classifications you'd applied while they were stuck replay automatically once the underlying trip lands.",
