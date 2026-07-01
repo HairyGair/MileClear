@@ -90,6 +90,52 @@ export interface GeocodeSuggestion {
   address: string;
 }
 
+export interface PlacePrediction {
+  placeId: string;
+  primary: string;
+  secondary: string;
+}
+
+// A Google Places session token: reused across keystrokes of one search and
+// passed to the final details lookup, so the session is billed as one unit.
+export function newSessionToken(): string {
+  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 12)}`;
+}
+
+// Type-ahead predictions via the server (Google Places). Returns [] on any
+// failure so the caller can fall back to full-string search.
+export async function placesAutocomplete(
+  input: string,
+  sessionToken: string,
+  near?: { lat: number; lng: number } | null
+): Promise<PlacePrediction[]> {
+  const q = input.trim();
+  if (q.length < 2) return [];
+  try {
+    let path = `/geocode/autocomplete?q=${encodeURIComponent(q)}&session=${encodeURIComponent(sessionToken)}`;
+    if (near) path += `&lat=${near.lat}&lng=${near.lng}`;
+    const res = await apiRequest<{ data: PlacePrediction[] }>(path);
+    return res?.data ?? [];
+  } catch {
+    return [];
+  }
+}
+
+// Resolve a picked prediction to coordinates + a readable address.
+export async function placeDetails(
+  placeId: string,
+  sessionToken: string
+): Promise<GeocodeSuggestion | null> {
+  try {
+    const res = await apiRequest<{ data: GeocodeSuggestion }>(
+      `/geocode/place?placeId=${encodeURIComponent(placeId)}&session=${encodeURIComponent(sessionToken)}`
+    );
+    return res?.data ?? null;
+  } catch {
+    return null;
+  }
+}
+
 export async function forwardGeocodeMultiple(address: string): Promise<GeocodeSuggestion[]> {
   try {
     const query = address.trim();
