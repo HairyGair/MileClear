@@ -24,6 +24,7 @@ import { upsertMileageSummary } from "../../services/mileage.js";
 import { advanceLastTripAt } from "../../services/userActivity.js";
 import { getAppleClient, getSignedDataVerifier, fetchTransactionWithEnvFallback, type AppleIapEnvironment } from "../../services/appleIap.js";
 import { calculateUserHealthScore } from "../../services/userHealthScore.js";
+import { buildGeographicDensity } from "../../services/geographicDensity.js";
 import {
   postToChannel,
   postBuildAnnouncement,
@@ -3737,61 +3738,25 @@ export async function adminRoutes(app: FastifyInstance) {
 
   // ── Geographic density (audit follow-up #4 of 5) ──────────────────
   //
-  // Bucket trip starts onto a 0.1° lat/lng grid (~11km cells in the
-  // UK) and return per-cell counts. We apply a privacy floor so a
-  // cell is only emitted when at least N distinct users have started
-  // a trip there — keeps individuals from being identifiable by their
-  // home / work corner of the map.
-  app.get("/geographic-density", async (_request, reply) => {
-    const WINDOW_DAYS = 30;
-    const MIN_USERS_PER_CELL = 5;
-    const GRID_SIZE = 0.1;
-    const since = new Date(Date.now() - WINDOW_DAYS * 24 * 60 * 60 * 1000);
+  // Bucket trip starts/ends onto a lat/lng grid and enrich each cell
+  // with reach, growth, premium and platform signals. Admin-only, so
+  // the k-anonymity floor defaults to 1 (admin already sees individual
+  // users) but stays configurable. See services/geographicDensity.ts.
+  app.get("/geographic-density", async (request, reply) => {
+    const q = z
+      .object({
+        days: z.coerce.number().int().min(1).max(3650).default(90),
+        minUsers: z.coerce.number().int().min(1).max(50).default(1),
+        grid: z.coerce.number().min(0.02).max(1).default(0.1),
+      })
+      .parse(request.query);
 
-    // MySQL's only_full_group_by mode rejects SELECT expressions that
-    // aren't byte-identical to GROUP BY ones. Group by bucket index
-    // and multiply back to coordinates in JS.
-    const rows = await prisma.$queryRaw<
-      Array<{ latBucket: number; lngBucket: number; tripCount: bigint; userCount: bigint }>
-    >(Prisma.sql`
-      SELECT
-        ROUND(startLat / ${GRID_SIZE}) AS latBucket,
-        ROUND(startLng / ${GRID_SIZE}) AS lngBucket,
-        COUNT(*) AS tripCount,
-        COUNT(DISTINCT userId) AS userCount
-      FROM trips
-      WHERE startedAt >= ${since}
-        AND startLat IS NOT NULL
-        AND startLng IS NOT NULL
-      GROUP BY latBucket, lngBucket
-      HAVING COUNT(DISTINCT userId) >= ${MIN_USERS_PER_CELL}
-      ORDER BY tripCount DESC
-    `);
-
-    const cells = rows.map((r) => ({
-      lat: Math.round(r.latBucket * GRID_SIZE * 100) / 100,
-      lng: Math.round(r.lngBucket * GRID_SIZE * 100) / 100,
-      tripCount: Number(r.tripCount),
-      userCount: Number(r.userCount),
-    }));
-
-    const totalTrips = cells.reduce((acc, c) => acc + c.tripCount, 0);
-    const maxTripsInCell = cells.reduce(
-      (acc, c) => (c.tripCount > acc ? c.tripCount : acc),
-      0
-    );
-
-    return reply.send({
-      data: {
-        windowDays: WINDOW_DAYS,
-        gridSizeDegrees: GRID_SIZE,
-        minUsersPerCell: MIN_USERS_PER_CELL,
-        cells,
-        totalTrips,
-        maxTripsInCell,
-        generatedAt: new Date().toISOString(),
-      },
+    const data = await buildGeographicDensity({
+      windowDays: q.days,
+      minUsers: q.minUsers,
+      grid: q.grid,
     });
+    return reply.send({ data });
   });
 
   // ── Slow requests, broken down by endpoint ────────────────────────

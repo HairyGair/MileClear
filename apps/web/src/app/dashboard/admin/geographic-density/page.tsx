@@ -1,145 +1,87 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
+import type { Map as LeafletMap, LayerGroup } from "leaflet";
+import "leaflet/dist/leaflet.css";
 import { api } from "../../../../lib/api";
 
-// Geographic density heatmap. Audit follow-up #4 of 5 (aggregate
-// health-dashboard upgrades). Where are users actually starting trips?
-// Helps with rollout decisions, regional targeting, and spotting
-// concentration risk (eg "85% of activity is from Greater London").
-//
-// Trip starts are bucketed onto a 0.1° grid (~11km cells in the UK).
-// A privacy floor of 5 distinct users per cell prevents individuals
-// from being identifiable by a single home/work pin.
+// Geographic density — admin map of where trips start and end, enriched
+// with reach, growth, premium and platform signals. Real OSM basemap
+// (Leaflet), configurable window / grid / privacy floor, and a metric
+// selector that recolours cells by trips, users, new signups, premium
+// density, engagement, business share, or growth vs the prior window.
 
 interface Cell {
   lat: number;
   lng: number;
-  tripCount: number;
-  userCount: number;
+  town: string;
+  nation: string;
+  trips: number;
+  users: number;
+  newUsers: number;
+  premiumUsers: number;
+  businessTrips: number;
+  personalTrips: number;
+  topPlatform: string | null;
+  avgTripsPerUser: number;
+  avgDistanceMiles: number;
+  prevTrips: number;
+  growthPct: number | null;
 }
 
 interface Data {
   windowDays: number;
   gridSizeDegrees: number;
   minUsersPerCell: number;
-  cells: Cell[];
+  startCells: Cell[];
+  endCells: Cell[];
   totalTrips: number;
+  totalUsers: number;
   maxTripsInCell: number;
+  suppressedCells: number;
+  suppressedTrips: number;
+  concentration: { top3Share: number; top5Share: number; top10Share: number };
+  nations: Array<{ nation: string; trips: number }>;
+  fastestGrowing: Cell[];
+  newAreas: Cell[];
   generatedAt: string;
 }
 
-// UK bounding box (rough, generous):
-// lat 49.5 (Channel) — 61.0 (Shetland)
-// lng -8.5 (Western Ireland-adjacent waters / outer Hebrides) — 2.0 (Lowestoft)
-const LAT_MIN = 49.5;
-const LAT_MAX = 61.0;
-const LNG_MIN = -8.5;
-const LNG_MAX = 2.0;
+type MetricKey =
+  | "trips"
+  | "users"
+  | "newUsers"
+  | "premiumUsers"
+  | "avgTripsPerUser"
+  | "businessShare"
+  | "growthPct";
 
-// SVG canvas size. Aspect ratio is rough but readable.
-const SVG_WIDTH = 720;
-const SVG_HEIGHT = 900;
-
-function project(lat: number, lng: number): { x: number; y: number } {
-  const x = ((lng - LNG_MIN) / (LNG_MAX - LNG_MIN)) * SVG_WIDTH;
-  // SVG y grows downward, latitude grows upward.
-  const y = ((LAT_MAX - lat) / (LAT_MAX - LAT_MIN)) * SVG_HEIGHT;
-  return { x, y };
-}
-
-// Hand-traced simplified UK outlines. Points are [lat, lng]. Order
-// goes around the coast clockwise from the north for Great Britain,
-// and similarly for Northern Ireland. Detail is intentionally coarse
-// — admin diagnostic tool, not a navigation map.
-const GB_OUTLINE: Array<[number, number]> = [
-  [58.65, -3.05], // John o'Groats
-  [58.45, -2.95], // Wick coast
-  [57.70, -2.05], // Banff / Moray
-  [57.15, -2.10], // Aberdeen
-  [56.55, -2.50], // Arbroath / Dundee
-  [56.05, -2.55], // Berwickshire
-  [55.50, -1.60], // Northumberland
-  [54.95, -1.45], // Newcastle / Tynemouth
-  [54.55, -0.65], // Whitby
-  [54.10, -0.10], // Bridlington
-  [53.55, 0.10],  // Spurn / Humber
-  [53.10, 0.35],  // Skegness
-  [52.95, 1.35],  // Cromer
-  [52.50, 1.75],  // Lowestoft (easternmost)
-  [52.05, 1.35],  // Felixstowe
-  [51.50, 0.80],  // Southend / Thames mouth
-  [51.40, 1.40],  // Margate / North Foreland
-  [51.10, 1.30],  // Dover
-  [50.85, 0.55],  // Hastings
-  [50.75, -0.10], // Brighton
-  [50.75, -1.10], // Portsmouth / Selsey
-  [50.60, -1.95], // Bournemouth / Poole
-  [50.55, -2.45], // Weymouth
-  [50.20, -3.55], // Start Point
-  [50.35, -4.15], // Plymouth
-  [50.05, -5.20], // Lizard
-  [50.10, -5.70], // Land's End
-  [51.00, -4.25], // Bideford / N. Devon
-  [51.20, -4.20], // Ilfracombe
-  [51.40, -3.20], // Cardiff
-  [51.70, -3.05], // Newport / Severn
-  [51.65, -4.20], // Tenby
-  [51.70, -5.30], // Pembrokeshire
-  [52.35, -4.10], // Aberystwyth
-  [52.90, -4.60], // Llyn peninsula
-  [53.30, -4.55], // Anglesey
-  [53.30, -3.10], // North Wales coast
-  [53.40, -3.05], // Liverpool / Wirral
-  [53.85, -3.05], // Blackpool / Fylde
-  [54.05, -2.85], // Morecambe Bay
-  [54.50, -3.55], // Whitehaven / Cumbria
-  [54.95, -3.55], // Solway Firth
-  [54.65, -4.95], // Galloway / Mull of Galloway
-  [55.10, -4.65], // Ayrshire
-  [55.45, -4.85], // Ayr
-  [55.30, -5.65], // Mull of Kintyre
-  [56.05, -5.65], // Knapdale / Lorne
-  [56.45, -5.50], // Oban
-  [56.85, -5.95], // Ardnamurchan
-  [57.30, -5.85], // Kyle of Lochalsh
-  [57.85, -5.50], // Wester Ross
-  [58.30, -5.10], // Ullapool / Assynt
-  [58.60, -5.00], // Cape Wrath
-  [58.55, -4.40], // Tongue / Bettyhill
-  [58.65, -3.05], // John o'Groats (close)
+const METRICS: Array<{ key: MetricKey; label: string; diverging?: boolean; get: (c: Cell) => number | null; fmt: (v: number | null) => string }> = [
+  { key: "trips", label: "Trips", get: (c) => c.trips, fmt: (v) => (v ?? 0).toLocaleString("en-GB") },
+  { key: "users", label: "Distinct users", get: (c) => c.users, fmt: (v) => (v ?? 0).toLocaleString("en-GB") },
+  { key: "newUsers", label: "New signups", get: (c) => c.newUsers, fmt: (v) => (v ?? 0).toLocaleString("en-GB") },
+  { key: "premiumUsers", label: "Premium users", get: (c) => c.premiumUsers, fmt: (v) => (v ?? 0).toLocaleString("en-GB") },
+  { key: "avgTripsPerUser", label: "Trips / user", get: (c) => c.avgTripsPerUser, fmt: (v) => (v ?? 0).toFixed(1) },
+  { key: "businessShare", label: "Business share", get: (c) => (c.trips > 0 ? Math.round((c.businessTrips / c.trips) * 100) : 0), fmt: (v) => `${v ?? 0}%` },
+  { key: "growthPct", label: "Growth vs prev", diverging: true, get: (c) => c.growthPct, fmt: (v) => (v == null ? "new" : `${v > 0 ? "+" : ""}${v}%`) },
 ];
 
-const NI_OUTLINE: Array<[number, number]> = [
-  [55.10, -7.45], // Inishowen / Lough Foyle west
-  [55.15, -6.75], // Coleraine / Antrim coast
-  [55.20, -6.30], // Giant's Causeway
-  [54.85, -5.80], // Larne
-  [54.60, -5.55], // Belfast Lough mouth
-  [54.40, -5.45], // Ards peninsula
-  [54.20, -5.85], // Strangford / Newcastle
-  [54.05, -6.30], // Newry / Carlingford
-  [54.30, -7.65], // Fermanagh
-  [54.55, -7.85], // Donegal border
-  [55.05, -7.45], // back to NI northwest
+const WINDOWS = [
+  { label: "7d", days: 7 },
+  { label: "30d", days: 30 },
+  { label: "90d", days: 90 },
+  { label: "1y", days: 365 },
+  { label: "All", days: 3650 },
 ];
+const GRIDS = [
+  { label: "~5km", grid: 0.05 },
+  { label: "~11km", grid: 0.1 },
+  { label: "~28km", grid: 0.25 },
+];
+const FLOORS = [1, 3, 5];
 
-function polygonPath(coords: Array<[number, number]>): string {
-  return (
-    coords
-      .map(([lat, lng], i) => {
-        const { x, y } = project(lat, lng);
-        return `${i === 0 ? "M" : "L"}${x.toFixed(1)},${y.toFixed(1)}`;
-      })
-      .join(" ") + " Z"
-  );
-}
-
-const UK_PATHS = [polygonPath(GB_OUTLINE), polygonPath(NI_OUTLINE)];
-
-function colorForIntensity(t: number): string {
-  // 0..1 → cool (low) to hot (high). Uses amber accent at the top.
+function seqColor(t: number): string {
   if (t <= 0) return "#1e293b";
   if (t < 0.15) return "#334155";
   if (t < 0.3) return "#475569";
@@ -148,17 +90,51 @@ function colorForIntensity(t: number): string {
   if (t < 0.85) return "#eab308";
   return "#fcd34d";
 }
+function divColor(v: number | null): string {
+  if (v == null) return "#3b82f6"; // brand-new area (no prior activity)
+  if (v <= -50) return "#b91c1c";
+  if (v < 0) return "#ef4444";
+  if (v === 0) return "#64748b";
+  if (v < 25) return "#4d7c0f";
+  if (v < 75) return "#16a34a";
+  return "#22c55e";
+}
+
+const NATION_COLORS: Record<string, string> = {
+  England: "#fcd34d",
+  Scotland: "#60a5fa",
+  Wales: "#34d399",
+  "Northern Ireland": "#f472b6",
+};
 
 export default function GeographicDensityPage() {
   const [data, setData] = useState<Data | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // Server params (trigger refetch)
+  const [days, setDays] = useState(90);
+  const [grid, setGrid] = useState(0.1);
+  const [floor, setFloor] = useState(1);
+  // Client-only view state
+  const [metric, setMetric] = useState<MetricKey>("trips");
+  const [mode, setMode] = useState<"starts" | "ends">("starts");
+
+  const mapRef = useRef<LeafletMap | null>(null);
+  const cellLayerRef = useRef<LayerGroup | null>(null);
+  const mapElRef = useRef<HTMLDivElement | null>(null);
+  const [mapReady, setMapReady] = useState(0);
+
+  const metricDef = useMemo(() => METRICS.find((m) => m.key === metric)!, [metric]);
+  const cells = useMemo(() => (data ? (mode === "starts" ? data.startCells : data.endCells) : []), [data, mode]);
+
+  // ── Fetch ──
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
+    setError(null);
     api
-      .get<{ data: Data }>("/admin/geographic-density")
+      .get<{ data: Data }>(`/admin/geographic-density?days=${days}&grid=${grid}&minUsers=${floor}`)
       .then((res) => {
         if (!cancelled) setData(res.data);
       })
@@ -171,256 +147,344 @@ export default function GeographicDensityPage() {
     return () => {
       cancelled = true;
     };
+  }, [days, grid, floor]);
+
+  // ── Init Leaflet map once ──
+  useEffect(() => {
+    let disposed = false;
+    (async () => {
+      const L = (await import("leaflet")).default;
+      if (disposed || !mapElRef.current || mapRef.current) return;
+      const map = L.map(mapElRef.current, { attributionControl: true, minZoom: 4, maxZoom: 12 }).setView([54.5, -3.2], 6);
+      L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", {
+        attribution: '&copy; OpenStreetMap &copy; CARTO',
+        subdomains: "abcd",
+      }).addTo(map);
+      cellLayerRef.current = L.layerGroup().addTo(map);
+      mapRef.current = map;
+      // Trigger the cell draw now that the map exists.
+      setMapReady((n) => n + 1);
+    })();
+    return () => {
+      disposed = true;
+      mapRef.current?.remove();
+      mapRef.current = null;
+      cellLayerRef.current = null;
+    };
   }, []);
 
-  const topCells = useMemo(() => {
-    if (!data) return [];
-    return [...data.cells]
-      .sort((a, b) => b.tripCount - a.tripCount)
-      .slice(0, 10);
-  }, [data]);
+  // ── Draw cells whenever data / metric / mode / map change ──
+  useEffect(() => {
+    (async () => {
+      const L = (await import("leaflet")).default;
+      const layer = cellLayerRef.current;
+      if (!layer || !data) return;
+      layer.clearLayers();
 
-  const cellPixelSize = useMemo(() => {
-    if (!data) return 0;
-    const w = (data.gridSizeDegrees / (LNG_MAX - LNG_MIN)) * SVG_WIDTH;
-    const h = (data.gridSizeDegrees / (LAT_MAX - LAT_MIN)) * SVG_HEIGHT;
-    return { w, h };
-  }, [data]);
+      const half = data.gridSizeDegrees / 2;
+      const values = cells.map((c) => metricDef.get(c)).filter((v): v is number => v != null);
+      const maxV = values.length ? Math.max(...values) : 1;
+
+      for (const c of cells) {
+        const v = metricDef.get(c);
+        const color = metricDef.diverging ? divColor(v) : seqColor((v ?? 0) / Math.max(maxV, 1));
+        const rect = L.rectangle(
+          [
+            [c.lat - half, c.lng - half],
+            [c.lat + half, c.lng + half],
+          ],
+          { color, weight: 0.5, fillColor: color, fillOpacity: 0.7, opacity: 0.9 }
+        );
+        rect.bindPopup(
+          `<div style="font-family:system-ui;font-size:13px;line-height:1.5;min-width:180px">
+            <div style="font-weight:700;color:#0f172a;margin-bottom:4px">${escapeHtml(c.town)}</div>
+            <div style="color:#475569;font-size:11px;margin-bottom:6px">${c.nation} · ${c.lat.toFixed(2)}, ${c.lng.toFixed(2)}</div>
+            <table style="border-collapse:collapse;color:#334155">
+              <tr><td style="padding:1px 8px 1px 0">Trips</td><td style="text-align:right;font-weight:600">${c.trips.toLocaleString("en-GB")}</td></tr>
+              <tr><td style="padding:1px 8px 1px 0">Users</td><td style="text-align:right;font-weight:600">${c.users}</td></tr>
+              <tr><td style="padding:1px 8px 1px 0">New signups</td><td style="text-align:right;font-weight:600">${c.newUsers}</td></tr>
+              <tr><td style="padding:1px 8px 1px 0">Premium</td><td style="text-align:right;font-weight:600">${c.premiumUsers}</td></tr>
+              <tr><td style="padding:1px 8px 1px 0">Business</td><td style="text-align:right;font-weight:600">${c.trips > 0 ? Math.round((c.businessTrips / c.trips) * 100) : 0}%</td></tr>
+              <tr><td style="padding:1px 8px 1px 0">Trips/user</td><td style="text-align:right;font-weight:600">${c.avgTripsPerUser.toFixed(1)}</td></tr>
+              <tr><td style="padding:1px 8px 1px 0">Avg distance</td><td style="text-align:right;font-weight:600">${c.avgDistanceMiles.toFixed(1)} mi</td></tr>
+              <tr><td style="padding:1px 8px 1px 0">Growth</td><td style="text-align:right;font-weight:600">${c.growthPct == null ? "new" : (c.growthPct > 0 ? "+" : "") + c.growthPct + "%"}</td></tr>
+              ${c.topPlatform ? `<tr><td style="padding:1px 8px 1px 0">Top platform</td><td style="text-align:right;font-weight:600">${escapeHtml(c.topPlatform)}</td></tr>` : ""}
+            </table>
+          </div>`
+        );
+        rect.addTo(layer);
+      }
+    })();
+  }, [data, cells, metricDef, mapReady]);
+
+  const rankedCells = useMemo(() => {
+    return [...cells]
+      .map((c) => ({ c, v: metricDef.get(c) }))
+      .sort((a, b) => (b.v ?? -Infinity) - (a.v ?? -Infinity))
+      .slice(0, 10);
+  }, [cells, metricDef]);
+
+  const exportCsv = useCallback(() => {
+    if (!data) return;
+    const header = "town,nation,lat,lng,trips,users,newUsers,premiumUsers,businessTrips,personalTrips,topPlatform,avgTripsPerUser,avgDistanceMiles,prevTrips,growthPct";
+    const rows = cells.map((c) =>
+      [c.town, c.nation, c.lat, c.lng, c.trips, c.users, c.newUsers, c.premiumUsers, c.businessTrips, c.personalTrips, c.topPlatform ?? "", c.avgTripsPerUser, c.avgDistanceMiles, c.prevTrips, c.growthPct ?? ""]
+        .map((x) => (typeof x === "string" && x.includes(",") ? `"${x}"` : x))
+        .join(",")
+    );
+    const blob = new Blob([[header, ...rows].join("\n")], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `geographic-density-${mode}-${days}d.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }, [data, cells, mode, days]);
+
+  const maxNationTrips = data ? Math.max(1, ...data.nations.map((n) => n.trips)) : 1;
 
   return (
-    <div style={{ padding: "1.5rem 0", maxWidth: 1200 }}>
+    <div style={{ padding: "1.5rem 0", maxWidth: 1280 }}>
       <div style={{ marginBottom: "1rem" }}>
         <Link href="/dashboard/admin" style={{ color: "#94a3b8", fontSize: "0.875rem", textDecoration: "none" }}>
           ← Admin
         </Link>
       </div>
 
-      <h1 style={{ fontFamily: "var(--font-display)", fontSize: "1.75rem", fontWeight: 700, color: "#f9fafb", marginBottom: "0.5rem" }}>
-        Geographic Density
-      </h1>
-      <p style={{ color: "#94a3b8", marginBottom: "2rem", lineHeight: 1.6 }}>
-        Trip starts from the last {data?.windowDays ?? 30} days, bucketed onto a{" "}
-        {data?.gridSizeDegrees ?? 0.1}° grid (~11km cells). Cells are only shown when
-        at least {data?.minUsersPerCell ?? 5} distinct users have started a trip
-        there, so individual users can't be identified from their corner of the map.
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: "1rem", marginBottom: "0.5rem" }}>
+        <h1 style={{ fontFamily: "var(--font-display)", fontSize: "1.75rem", fontWeight: 700, color: "#f9fafb" }}>Geographic Density</h1>
+        <button onClick={exportCsv} disabled={!data} style={btnStyle}>
+          Export CSV
+        </button>
+      </div>
+      <p style={{ color: "#94a3b8", marginBottom: "1.25rem", lineHeight: 1.6, maxWidth: 820 }}>
+        Where trips {mode === "starts" ? "start" : "end"}, on a {data?.gridSizeDegrees ?? grid}° grid. Cells are anonymised to
+        their grid-centre and shown when at least {data?.minUsersPerCell ?? floor} distinct user
+        {(data?.minUsersPerCell ?? floor) === 1 ? "" : "s"} appear. Recolour by any signal below.
       </p>
 
-      {loading && <p style={{ color: "#94a3b8" }}>Loading…</p>}
+      {/* Controls */}
+      <div style={{ display: "flex", flexWrap: "wrap", gap: "1.25rem", marginBottom: "1.25rem", alignItems: "center" }}>
+        <ControlGroup label="Window">
+          {WINDOWS.map((w) => (
+            <Chip key={w.days} active={days === w.days} onClick={() => setDays(w.days)}>{w.label}</Chip>
+          ))}
+        </ControlGroup>
+        <ControlGroup label="Cell size">
+          {GRIDS.map((g) => (
+            <Chip key={g.grid} active={grid === g.grid} onClick={() => setGrid(g.grid)}>{g.label}</Chip>
+          ))}
+        </ControlGroup>
+        <ControlGroup label="Privacy floor">
+          {FLOORS.map((f) => (
+            <Chip key={f} active={floor === f} onClick={() => setFloor(f)}>≥{f}</Chip>
+          ))}
+        </ControlGroup>
+        <ControlGroup label="Points">
+          <Chip active={mode === "starts"} onClick={() => setMode("starts")}>Starts</Chip>
+          <Chip active={mode === "ends"} onClick={() => setMode("ends")}>Ends</Chip>
+        </ControlGroup>
+        <ControlGroup label="Colour by">
+          {METRICS.map((m) => (
+            <Chip key={m.key} active={metric === m.key} onClick={() => setMetric(m.key)}>{m.label}</Chip>
+          ))}
+        </ControlGroup>
+      </div>
+
       {error && <p style={{ color: "#ef4444" }}>Error: {error}</p>}
 
-      {data && cellPixelSize && (
-        <>
-          <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) 320px", gap: "1.5rem" }}>
-            {/* Map */}
-            <div
-              style={{
-                background: "rgba(15,23,42,0.6)",
-                border: "1px solid rgba(255,255,255,0.07)",
-                borderRadius: 12,
-                padding: "0.5rem",
-              }}
-            >
-              <svg
-                viewBox={`0 0 ${SVG_WIDTH} ${SVG_HEIGHT}`}
-                style={{ width: "100%", height: "auto", display: "block" }}
-                role="img"
-                aria-label="UK trip-start density heatmap"
-              >
-                {/* Sea (background) */}
-                <rect
-                  x={0}
-                  y={0}
-                  width={SVG_WIDTH}
-                  height={SVG_HEIGHT}
-                  fill="#0f172a"
-                />
-
-                {/* UK landmass (rough hand-traced outline) */}
-                {UK_PATHS.map((d, i) => (
-                  <path
-                    key={i}
-                    d={d}
-                    fill="#1e293b"
-                    stroke="rgba(148,163,184,0.35)"
-                    strokeWidth={1}
-                    strokeLinejoin="round"
-                  />
-                ))}
-
-                {/* Cells */}
-                {data.cells.map((c) => {
-                  const { x, y } = project(c.lat, c.lng);
-                  const intensity = c.tripCount / Math.max(data.maxTripsInCell, 1);
-                  return (
-                    <rect
-                      key={`${c.lat}_${c.lng}`}
-                      x={x - cellPixelSize.w / 2}
-                      y={y - cellPixelSize.h / 2}
-                      width={cellPixelSize.w}
-                      height={cellPixelSize.h}
-                      fill={colorForIntensity(intensity)}
-                      opacity={0.85}
-                    >
-                      <title>
-                        {c.lat.toFixed(2)}, {c.lng.toFixed(2)} — {c.tripCount} trip
-                        {c.tripCount !== 1 ? "s" : ""} from {c.userCount} user
-                        {c.userCount !== 1 ? "s" : ""}
-                      </title>
-                    </rect>
-                  );
-                })}
-
-                {/* Latitude reference lines (every 2°) */}
-                {Array.from({ length: 7 }, (_, i) => {
-                  const lat = Math.floor(LAT_MIN) + 1 + i * 2;
-                  const { y } = project(lat, 0);
-                  return (
-                    <g key={`lat${lat}`}>
-                      <line
-                        x1={0}
-                        x2={SVG_WIDTH}
-                        y1={y}
-                        y2={y}
-                        stroke="rgba(255,255,255,0.05)"
-                        strokeWidth={1}
-                      />
-                      <text
-                        x={6}
-                        y={y - 2}
-                        fill="rgba(148,163,184,0.6)"
-                        fontSize={10}
-                        fontFamily="monospace"
-                      >
-                        {lat}°
-                      </text>
-                    </g>
-                  );
-                })}
-                {/* Longitude reference lines (every 2°) */}
-                {Array.from({ length: 6 }, (_, i) => {
-                  const lng = Math.floor(LNG_MIN) + 1 + i * 2;
-                  const { x } = project(0, lng);
-                  return (
-                    <g key={`lng${lng}`}>
-                      <line
-                        x1={x}
-                        x2={x}
-                        y1={0}
-                        y2={SVG_HEIGHT}
-                        stroke="rgba(255,255,255,0.05)"
-                        strokeWidth={1}
-                      />
-                      <text
-                        x={x + 2}
-                        y={SVG_HEIGHT - 6}
-                        fill="rgba(148,163,184,0.6)"
-                        fontSize={10}
-                        fontFamily="monospace"
-                      >
-                        {lng}°
-                      </text>
-                    </g>
-                  );
-                })}
-              </svg>
-
-              {/* Legend */}
-              <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", padding: "0.75rem 0.5rem 0.25rem", fontSize: "0.75rem", color: "#94a3b8" }}>
-                <span>Less</span>
-                {[0.05, 0.2, 0.4, 0.6, 0.78, 0.95].map((t) => (
-                  <span
-                    key={t}
-                    style={{
-                      width: 24,
-                      height: 12,
-                      background: colorForIntensity(t),
-                      borderRadius: 2,
-                    }}
-                  />
-                ))}
-                <span>More</span>
-              </div>
+      <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) 340px", gap: "1.5rem", alignItems: "start" }}>
+        {/* Map */}
+        <div style={{ position: "relative", background: "rgba(15,23,42,0.6)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 12, overflow: "hidden" }}>
+          <div ref={mapElRef} style={{ height: 640, width: "100%", background: "#0f172a" }} />
+          {loading && (
+            <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(15,23,42,0.5)", color: "#94a3b8", pointerEvents: "none" }}>
+              Loading…
             </div>
-
-            {/* Top cells panel */}
-            <aside>
-              <div
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "repeat(2, 1fr)",
-                  gap: "0.75rem",
-                  marginBottom: "1.5rem",
-                }}
-              >
-                <Stat label="Cells visible" value={data.cells.length.toLocaleString("en-GB")} />
-                <Stat label="Trips covered" value={data.totalTrips.toLocaleString("en-GB")} />
-                <Stat label="Hottest cell" value={`${data.maxTripsInCell.toLocaleString("en-GB")} trips`} />
-                <Stat label="Window" value={`${data.windowDays} days`} />
-              </div>
-
-              <h2 style={{ fontFamily: "var(--font-display)", fontSize: "1rem", fontWeight: 600, color: "#f9fafb", marginBottom: "0.75rem" }}>
-                Top 10 cells
-              </h2>
-              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                {topCells.map((c, idx) => (
-                  <div
-                    key={`${c.lat}_${c.lng}`}
-                    style={{
-                      display: "grid",
-                      gridTemplateColumns: "24px 1fr auto",
-                      gap: 8,
-                      alignItems: "center",
-                      padding: "0.5rem 0.75rem",
-                      background: "rgba(15,23,42,0.6)",
-                      border: "1px solid rgba(255,255,255,0.06)",
-                      borderRadius: 8,
-                      fontSize: "0.8125rem",
-                    }}
-                  >
-                    <span style={{ color: "#64748b", fontFamily: "monospace" }}>{idx + 1}.</span>
-                    <span style={{ color: "#cbd5e1", fontFamily: "monospace" }}>
-                      {c.lat.toFixed(2)}, {c.lng.toFixed(2)}
-                    </span>
-                    <span style={{ color: "#fcd34d", fontWeight: 600 }}>
-                      {c.tripCount.toLocaleString("en-GB")}
-                    </span>
-                  </div>
+          )}
+          {/* Legend */}
+          <div style={{ position: "absolute", bottom: 10, left: 10, zIndex: 500, background: "rgba(15,23,42,0.85)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, padding: "0.5rem 0.6rem", fontSize: "0.7rem", color: "#cbd5e1" }}>
+            <div style={{ marginBottom: 4, color: "#94a3b8" }}>{metricDef.label}</div>
+            {metricDef.diverging ? (
+              <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                <span>-</span>
+                {[-60, -10, 0, 20, 60, 120].map((v) => (
+                  <span key={v} style={{ width: 18, height: 10, background: divColor(v), borderRadius: 2 }} />
                 ))}
-                {topCells.length === 0 && (
-                  <p style={{ color: "#64748b", fontSize: "0.875rem" }}>
-                    No cells passed the privacy floor in this window.
-                  </p>
-                )}
+                <span style={{ width: 18, height: 10, background: divColor(null), borderRadius: 2 }} title="new area" />
+                <span>+/new</span>
               </div>
-            </aside>
+            ) : (
+              <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                <span>Low</span>
+                {[0.05, 0.2, 0.4, 0.6, 0.78, 0.95].map((t) => (
+                  <span key={t} style={{ width: 18, height: 10, background: seqColor(t), borderRadius: 2 }} />
+                ))}
+                <span>High</span>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Side panel */}
+        <aside style={{ display: "flex", flexDirection: "column", gap: "1.25rem" }}>
+          {/* Headline stats */}
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: "0.75rem" }}>
+            <Stat label="Cells shown" value={(cells.length).toLocaleString("en-GB")} />
+            <Stat label="Trips covered" value={(data?.totalTrips ?? 0).toLocaleString("en-GB")} />
+            <Stat label="Distinct users" value={(data?.totalUsers ?? 0).toLocaleString("en-GB")} />
+            <Stat label="Hottest cell" value={`${(data?.maxTripsInCell ?? 0).toLocaleString("en-GB")}`} />
           </div>
 
-          <p style={{ color: "#64748b", fontSize: "0.75rem", marginTop: "1.5rem" }}>
-            Generated {new Date(data.generatedAt).toLocaleString("en-GB")}. Cells are
-            anonymised — coordinates are bucket centres rounded to 0.1°, never the
-            original GPS coordinate. Cells with fewer than {data.minUsersPerCell} distinct
-            users are suppressed.
-          </p>
-        </>
+          {data && data.suppressedCells > 0 && (
+            <div style={{ background: "rgba(234,179,8,0.08)", border: "1px solid rgba(234,179,8,0.2)", borderRadius: 8, padding: "0.6rem 0.75rem", fontSize: "0.75rem", color: "#d4b87a" }}>
+              {data.suppressedCells.toLocaleString("en-GB")} cell{data.suppressedCells === 1 ? "" : "s"} ({data.suppressedTrips.toLocaleString("en-GB")} trips) hidden by the ≥{data.minUsersPerCell}-user floor. Lower it to reveal them.
+            </div>
+          )}
+
+          {/* Concentration */}
+          {data && (
+            <Panel title="Concentration">
+              <Row label="Top 3 areas" value={`${data.concentration.top3Share}% of trips`} />
+              <Row label="Top 5 areas" value={`${data.concentration.top5Share}%`} />
+              <Row label="Top 10 areas" value={`${data.concentration.top10Share}%`} />
+            </Panel>
+          )}
+
+          {/* Nations */}
+          {data && data.nations.length > 0 && (
+            <Panel title="By nation">
+              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                {data.nations.map((n) => (
+                  <div key={n.nation}>
+                    <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.75rem", color: "#cbd5e1", marginBottom: 2 }}>
+                      <span>{n.nation}</span>
+                      <span>{n.trips.toLocaleString("en-GB")}</span>
+                    </div>
+                    <div style={{ height: 6, background: "rgba(255,255,255,0.06)", borderRadius: 3, overflow: "hidden" }}>
+                      <div style={{ width: `${(n.trips / maxNationTrips) * 100}%`, height: "100%", background: NATION_COLORS[n.nation] ?? "#94a3b8" }} />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </Panel>
+          )}
+
+          {/* Top areas by current metric */}
+          <Panel title={`Top areas · ${metricDef.label}`}>
+            <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+              {rankedCells.map(({ c, v }, i) => (
+                <div key={`${c.lat}_${c.lng}`} style={{ display: "grid", gridTemplateColumns: "18px 1fr auto", gap: 8, alignItems: "center", fontSize: "0.8rem", padding: "0.35rem 0" }}>
+                  <span style={{ color: "#64748b", fontFamily: "monospace" }}>{i + 1}</span>
+                  <span style={{ color: "#cbd5e1", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{c.town}</span>
+                  <span style={{ color: "#fcd34d", fontWeight: 600 }}>{metricDef.fmt(v)}</span>
+                </div>
+              ))}
+              {rankedCells.length === 0 && <p style={{ color: "#64748b", fontSize: "0.8rem" }}>No cells in this view.</p>}
+            </div>
+          </Panel>
+
+          {/* Growth */}
+          {data && mode === "starts" && (data.fastestGrowing.length > 0 || data.newAreas.length > 0) && (
+            <Panel title="Momentum">
+              {data.fastestGrowing.length > 0 && (
+                <>
+                  <div style={{ fontSize: "0.7rem", color: "#64748b", textTransform: "uppercase", letterSpacing: "0.05em", margin: "0 0 4px" }}>Fastest growing</div>
+                  {data.fastestGrowing.map((c) => (
+                    <Row key={`g${c.lat}_${c.lng}`} label={c.town} value={<span style={{ color: "#22c55e" }}>+{c.growthPct}%</span>} />
+                  ))}
+                </>
+              )}
+              {data.newAreas.length > 0 && (
+                <>
+                  <div style={{ fontSize: "0.7rem", color: "#64748b", textTransform: "uppercase", letterSpacing: "0.05em", margin: "8px 0 4px" }}>New areas</div>
+                  {data.newAreas.map((c) => (
+                    <Row key={`n${c.lat}_${c.lng}`} label={c.town} value={<span style={{ color: "#60a5fa" }}>{c.trips} trips</span>} />
+                  ))}
+                </>
+              )}
+            </Panel>
+          )}
+        </aside>
+      </div>
+
+      {data && (
+        <p style={{ color: "#64748b", fontSize: "0.75rem", marginTop: "1.25rem" }}>
+          Generated {new Date(data.generatedAt).toLocaleString("en-GB")}. Coordinates are grid-centres rounded to {data.gridSizeDegrees}°, never raw GPS. Basemap © OpenStreetMap, © CARTO.
+        </p>
       )}
     </div>
   );
 }
 
-function Stat({ label, value }: { label: string; value: string }) {
+function escapeHtml(s: string): string {
+  return s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c] as string));
+}
+
+const btnStyle: React.CSSProperties = {
+  background: "rgba(252,211,77,0.12)",
+  border: "1px solid rgba(252,211,77,0.3)",
+  color: "#fcd34d",
+  borderRadius: 8,
+  padding: "0.5rem 0.9rem",
+  fontSize: "0.8rem",
+  fontWeight: 600,
+  cursor: "pointer",
+};
+
+function ControlGroup({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <div
+    <div>
+      <div style={{ fontSize: "0.65rem", color: "#64748b", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 4 }}>{label}</div>
+      <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>{children}</div>
+    </div>
+  );
+}
+
+function Chip({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
+  return (
+    <button
+      onClick={onClick}
       style={{
-        background: "rgba(15,23,42,0.6)",
-        border: "1px solid rgba(255,255,255,0.06)",
-        borderRadius: 10,
-        padding: "0.75rem",
+        background: active ? "rgba(252,211,77,0.15)" : "rgba(15,23,42,0.6)",
+        border: `1px solid ${active ? "rgba(252,211,77,0.4)" : "rgba(255,255,255,0.08)"}`,
+        color: active ? "#fcd34d" : "#94a3b8",
+        borderRadius: 7,
+        padding: "0.3rem 0.65rem",
+        fontSize: "0.78rem",
+        fontWeight: active ? 600 : 500,
+        cursor: "pointer",
+        whiteSpace: "nowrap",
       }}
     >
-      <div style={{ color: "#64748b", fontSize: "0.7rem", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 4 }}>
-        {label}
-      </div>
-      <div style={{ color: "#f9fafb", fontSize: "1.125rem", fontWeight: 700 }}>{value}</div>
+      {children}
+    </button>
+  );
+}
+
+function Stat({ label, value }: { label: string; value: string }) {
+  return (
+    <div style={{ background: "rgba(15,23,42,0.6)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 10, padding: "0.65rem 0.75rem" }}>
+      <div style={{ color: "#64748b", fontSize: "0.65rem", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 4 }}>{label}</div>
+      <div style={{ color: "#f9fafb", fontSize: "1.1rem", fontWeight: 700 }}>{value}</div>
+    </div>
+  );
+}
+
+function Panel({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div style={{ background: "rgba(15,23,42,0.6)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 10, padding: "0.85rem 1rem" }}>
+      <h2 style={{ fontFamily: "var(--font-display)", fontSize: "0.9rem", fontWeight: 600, color: "#f9fafb", marginBottom: "0.6rem" }}>{title}</h2>
+      {children}
+    </div>
+  );
+}
+
+function Row({ label, value }: { label: string; value: React.ReactNode }) {
+  return (
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: "0.8rem", padding: "0.25rem 0", gap: 8 }}>
+      <span style={{ color: "#94a3b8", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{label}</span>
+      <span style={{ color: "#e2e8f0", fontWeight: 600, whiteSpace: "nowrap" }}>{value}</span>
     </div>
   );
 }
