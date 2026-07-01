@@ -76,8 +76,9 @@ export function LocationPickerField({
       if (results.length === 0) {
         setNoResults(true);
       } else if (results.length === 1) {
-        // Single result — use it directly, keep user's query as the display name
-        onLocationChange(results[0].lat, results[0].lng, query);
+        // Single result — use its RESOLVED address, not the user's raw query,
+        // so a wrong match (right text, wrong place) is visible on the field.
+        onLocationChange(results[0].lat, results[0].lng, results[0].address ?? query);
         setShowSearch(false);
         setSearchText("");
         setSuggestions([]);

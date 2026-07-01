@@ -4,6 +4,7 @@
 
 import * as Location from "expo-location";
 import { reverseGeocodePostcode, lookupPostcode } from "./postcodes";
+import { apiRequest } from "../api";
 
 export interface ResolvedLocation {
   lat: number;
@@ -91,16 +92,31 @@ export interface GeocodeSuggestion {
 
 export async function forwardGeocodeMultiple(address: string): Promise<GeocodeSuggestion[]> {
   try {
+    const query = address.trim();
+
     // If input looks like a UK postcode, use Postcodes.io (faster + more accurate)
-    if (UK_POSTCODE_REGEX.test(address.trim())) {
-      const result = await lookupPostcode(address);
+    if (UK_POSTCODE_REGEX.test(query)) {
+      const result = await lookupPostcode(query);
       if (result) {
         const addr = await reverseGeocode(result.lat, result.lng);
-        return [{ lat: result.lat, lng: result.lng, address: addr ?? address }];
+        return [{ lat: result.lat, lng: result.lng, address: addr ?? query }];
       }
     }
 
-    const results = await Location.geocodeAsync(address);
+    // Free-text place / POI queries go through our UK-biased server geocoder.
+    // Apple's on-device geocoder has no region bias and mis-resolves place
+    // names (e.g. a Watford school landing 4mi from a Bedfordshire home), so
+    // it's the fallback, not the primary. Empty/offline/unauthed → fall back.
+    try {
+      const res = await apiRequest<{ data: GeocodeSuggestion[] }>(
+        `/geocode/search?q=${encodeURIComponent(query)}`
+      );
+      if (res?.data?.length) return res.data.slice(0, 5);
+    } catch {
+      // server geocode unavailable — fall through to the on-device geocoder
+    }
+
+    const results = await Location.geocodeAsync(query);
     if (results.length === 0) return [];
 
     // Reverse-geocode each result in parallel to get readable addresses
