@@ -102,7 +102,7 @@ const faqSchema = {
       name: "Is there a monthly limit on free trip tracking?",
       acceptedAnswer: {
         "@type": "Answer",
-        text: "No. MileClear's trip tracking is unlimited and free forever. A typical Deliveroo dinner shift is 8-15 drops, plus the loops between restaurants - 30 or 40 short trips in an evening is normal. MileIQ's free tier stops at 40 drives a month and Driversnote stops at 20, which a Deliveroo rider would burn through in two or three shifts. MileClear has no cap. Pro (£4.99/month) only adds the HMRC Self Assessment export, the Accountant Portal, and business insights.",
+        text: "No. MileClear's trip tracking is unlimited and free forever. A typical Deliveroo dinner shift is 8-15 drops, plus the loops between restaurants - 30 or 40 short trips in an evening is normal. MileIQ's free tier stops at 40 drives a month and Driversnote stops at 15, which a Deliveroo rider would burn through in two or three shifts. MileClear has no cap. Pro (£4.99/month) only adds the HMRC Self Assessment export, the Accountant Portal, and business insights.",
       },
     },
   ],
@@ -148,7 +148,7 @@ export default function DeliverooMileageTracker() {
               a tax deduction. MileClear automatically records every business mile, applies the correct
               HMRC rate for your vehicle type, and generates an export-ready mileage log. Tracking is
               unlimited and free - no monthly drive cap. A Deliveroo dinner shift can easily be 30-50
-              short drops; MileIQ's free tier (40 drives a month) and Driversnote's (20 a month) would
+              short drops; MileIQ's free tier (40 drives a month) and Driversnote (15 a month) would
               be gone before the weekend. MileClear's tracker has no cap at all, ever.
             </p>
           </header>

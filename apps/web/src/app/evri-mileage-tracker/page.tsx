@@ -118,7 +118,7 @@ const faqSchema = {
       name: "Is the free tracker capped at a number of trips per month?",
       acceptedAnswer: {
         "@type": "Answer",
-        text: "No. MileClear's tracking is unlimited and free forever. That matters more for Evri couriers than for almost any other gig role: an urban round is 150-250 parcels in a single day, and even a quieter suburban round is 100+. MileIQ caps its free tier at 40 drives a month and Driversnote at 20 - either would run out before lunchtime on day one. MileClear has no cap, no time limit, no surprise paywall on the tracker. Pro (£4.99/month) only unlocks the HMRC PDF, CSV export, Accountant Portal, and business insights.",
+        text: "No. MileClear's tracking is unlimited and free forever. That matters more for Evri couriers than for almost any other gig role: an urban round is 150-250 parcels in a single day, and even a quieter suburban round is 100+. MileIQ caps its free tier at 40 drives a month and Driversnote at 15 - either would run out before lunchtime on day one. MileClear has no cap, no time limit, no surprise paywall on the tracker. Pro (£4.99/month) only unlocks the HMRC PDF, CSV export, Accountant Portal, and business insights.",
       },
     },
   ],
@@ -167,7 +167,7 @@ export default function EvriMileageTracker() {
               right rate, and produces a Self Assessment-ready log. Tracking is unlimited and
               free forever - no monthly drive cap. An urban Evri round is 150-250 parcels a
               day; even a quiet suburban round is 100+. MileIQ caps the free tier at 40 drives
-              a month and Driversnote at 20, both of which an Evri courier would burn through
+              a month and Driversnote at 15, both of which an Evri courier would burn through
               in a single morning. Pro from £4.99 per month only adds the exports.
             </p>
           </header>

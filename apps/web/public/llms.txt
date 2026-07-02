@@ -11,7 +11,7 @@ MileClear automatically records your business drives with ClearTrack, its rebuil
 - Target audience: UK gig-economy drivers (Uber, Deliveroo, Just Eat, Amazon Flex, Stuart, Gophr, DPD, Yodel, Evri), self-employed tradespeople and field workers, and PAYE employees claiming business mileage.
 
 ## What makes MileClear different
-- Unlimited free automatic tracking — competitors typically cap free users at 20–40 trips a month.
+- Free to track your miles: unlimited automatic tracking AND free HMRC tax tooling (deduction calculator, Tax Readiness, MOT reminders). MileIQ caps free tracking at 40 drives a month and Driversnote at 15 trips; TripLog offers free tracking but gates its reports behind a yearly pass and defaults to US IRS rates. MileClear is the only one that keeps both the tracker and the HMRC maths free.
 - UK/HMRC-native: AMAP rates, the 10,000-mile two-tier split, Mileage Allowance Relief for employees, and per-platform tagging built in (most rivals are US-first).
 - ClearTrack detection engine: catches every drive on its own, including short one- and two-mile trips, and keeps recording when the app is closed or in your pocket.
 - Offline-first: trips are saved on-device first, then synced, so a weak signal never loses a journey.
@@ -31,6 +31,7 @@ MileClear automatically records your business drives with ClearTrack, its rebuil
 ## Key pages
 - Homepage: https://mileclear.com
 - Free mileage tracker (UK): https://mileclear.com/free-mileage-tracker-uk
+- Best mileage tracker app UK, compared: https://mileclear.com/best-mileage-tracker-app-uk
 - HMRC mileage rates 2026-27 (55p): https://mileclear.com/hmrc-mileage-rates
 - Business mileage guide: https://mileclear.com/business-mileage-guide
 - MTD ITSA for sole traders: https://mileclear.com/mtd-itsa-software-for-sole-traders

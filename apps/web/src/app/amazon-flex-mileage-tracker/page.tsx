@@ -102,7 +102,7 @@ const faqSchema = {
       name: "Will MileClear cap how many drives I can log in a month?",
       acceptedAnswer: {
         "@type": "Answer",
-        text: "No. Trip tracking is unlimited and free forever. That is a real difference for Flex drivers - a single four-hour block can be 40 to 70 individual stops, more than MileIQ's whole free-tier monthly cap (40 drives) or Driversnote's (20 drives) in one shift. MileClear has no cap, no time limit, no per-trip fee. Pro (£4.99/month) only unlocks the HMRC Self Assessment PDF, CSV earnings import, and business insights.",
+        text: "No. Trip tracking is unlimited and free forever. That is a real difference for Flex drivers - a single four-hour block can be 40 to 70 individual stops, more than MileIQ's whole free-tier monthly cap (40 drives) or Driversnote (15 trips) in one shift. MileClear has no cap, no time limit, no per-trip fee. Pro (£4.99/month) only unlocks the HMRC Self Assessment PDF, CSV earnings import, and business insights.",
       },
     },
   ],
@@ -148,7 +148,7 @@ export default function AmazonFlexMileageTracker() {
               can mean 40 to 80 miles of delivery routes and 40-70 individual stops. MileClear tracks
               every mile automatically, groups them into blocks that match how Flex actually works,
               and calculates your HMRC deduction in real time. Tracking is unlimited and free forever
-              - no 40-drive monthly cap like MileIQ, no 20-drive cap like Driversnote. A single Flex
+              - no 40-drive monthly cap like MileIQ, no 15-trip cap like Driversnote. A single Flex
               block can be more stops than either of those competitors lets you log in a whole month.
               Pro features unlock for £4.99 per month.
             </p>

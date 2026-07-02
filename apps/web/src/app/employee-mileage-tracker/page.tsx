@@ -112,7 +112,7 @@ const faqSchema = {
       name: "Is there a monthly limit on free mileage tracking?",
       acceptedAnswer: {
         "@type": "Answer",
-        text: "No. MileClear's tracking is unlimited and free forever. That matters for hybrid employees and field staff who might do 20-50 business miles in a month - none of which you can afford to lose because your employer claim and your Mileage Allowance Relief both depend on every mile being recorded. MileIQ caps the free tier at 40 drives a month; Driversnote at 20. MileClear has no cap. Pro (£4.99/month) only unlocks the CSV and PDF claim exports you'd send to your employer or attach to a Self Assessment.",
+        text: "No. MileClear's tracking is unlimited and free forever. That matters for hybrid employees and field staff who might do 20-50 business miles in a month - none of which you can afford to lose because your employer claim and your Mileage Allowance Relief both depend on every mile being recorded. MileIQ caps the free tier at 40 drives a month; Driversnote at 15 trips a month. MileClear has no cap. Pro (£4.99/month) only unlocks the CSV and PDF claim exports you'd send to your employer or attach to a Self Assessment.",
       },
     },
   ],
@@ -188,7 +188,7 @@ export default function EmployeeMileageTracker() {
               2026). Tracking is unlimited and free forever - no monthly drive cap. Hybrid workers
               might only do 20-50 business miles in a month, but every single one of those miles
               counts toward your employer reimbursement and MAR claim. MileIQ stops tracking at 40
-              drives a month on the free tier and Driversnote at 20, so even a fortnight of site
+              drives a month on the free tier and Driversnote at 15 trips, so even a fortnight of site
               visits could put you up against the wall. MileClear has no cap, ever. Pro features
               unlock for £4.99 per month.
             </p>

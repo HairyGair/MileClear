@@ -118,7 +118,7 @@ const faqSchema = {
       name: "Does MileClear cap how many trips I can track?",
       acceptedAnswer: {
         "@type": "Answer",
-        text: "No. Tracking is unlimited and free forever. That is non-negotiable for a DPD ODF route - 120 stops a day, 5-6 days a week. MileIQ's free tier stops at 40 drives a month; Driversnote stops at 20. An ODF would burn through either of those before mid-morning on the first day. MileClear has no cap, no time limit, no surprise paywall on the tracker. Pro (£4.99/month) is only for the Self Assessment PDF and business insights.",
+        text: "No. Tracking is unlimited and free forever. That is non-negotiable for a DPD ODF route - 120 stops a day, 5-6 days a week. MileIQ's free tier stops at 40 drives a month; Driversnote stops at 15. An ODF would burn through either of those before mid-morning on the first day. MileClear has no cap, no time limit, no surprise paywall on the tracker. Pro (£4.99/month) is only for the Self Assessment PDF and business insights.",
       },
     },
   ],
@@ -165,7 +165,7 @@ export default function DpdMileageTracker() {
               and gives you the contemporaneous mileage record a Self Assessment audit needs.
               Tracking is unlimited and free forever - no monthly drive cap. A typical DPD ODF
               route is 120 stops a day; MileIQ caps its free tier at 40 drives a month and
-              Driversnote at 20, so a full-time ODF would burn through them in a single morning.
+              Driversnote at 15, so a full-time ODF would burn through them in a single morning.
               MileClear has no cap, ever. Pro from £4.99 per month only unlocks the exports and
               business insights.
             </p>

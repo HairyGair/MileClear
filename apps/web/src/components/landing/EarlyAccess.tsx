@@ -76,7 +76,7 @@ export default function EarlyAccess() {
             </h2>
             <p className="subtext ea__subtext">
               Download MileClear free. <strong>Unlimited tracking, forever</strong> &mdash;
-              not 40 drives a month like MileIQ, not 20 like Driversnote. No credit
+              not 40 drives a month like MileIQ, not 15 like Driversnote. No credit
               card, no trial period. Just open it, drive, and watch your HMRC deduction grow.
             </p>
           </div>

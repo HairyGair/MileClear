@@ -94,7 +94,7 @@ const faqSchema = {
       name: "Will I run out of free trip tracking on MileClear?",
       acceptedAnswer: {
         "@type": "Answer",
-        text: "No. MileClear's tracking is unlimited and free forever - there is no monthly drive cap. That matters for Uber drivers specifically: MileIQ's free tier stops after 40 drives a month and Driversnote caps at 20. A full-time Uber driver routinely does 100-200 trips a week and would blow through either of those inside a few days. Pro (£4.99/month) only unlocks the HMRC exports and business insights. The tracker itself stays free no matter how many trips you do.",
+        text: "No. MileClear's tracking is unlimited and free forever - there is no monthly drive cap. That matters for Uber drivers specifically: MileIQ's free tier stops after 40 drives a month and Driversnote caps at 15. A full-time Uber driver routinely does 100-200 trips a week and would blow through either of those inside a few days. Pro (£4.99/month) only unlocks the HMRC exports and business insights. The tracker itself stays free no matter how many trips you do.",
       },
     },
   ],

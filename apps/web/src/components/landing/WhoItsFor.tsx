@@ -4,8 +4,8 @@ const audiences = [
   { icon: "\uD83D\uDE97", title: "Uber and ride-hail drivers", desc: "Uber, Bolt, FREE NOW, Ola", href: "/uber-mileage-tracker" },
   { icon: "\uD83D\uDCE6", title: "Delivery drivers", desc: "Deliveroo, Just Eat, Uber Eats, Amazon Flex", href: "/deliveroo-mileage-tracker" },
   { icon: "\uD83D\uDE9A", title: "Couriers and logistics", desc: "DPD, Evri, Yodel, Stuart, Gophr, Royal Mail", href: "/amazon-flex-mileage-tracker" },
-  { icon: "\uD83D\uDCBC", title: "Sales reps and field workers", desc: "Anyone logging client visits or site trips", href: "/features" },
-  { icon: "\uD83D\uDD27", title: "Self-employed drivers", desc: "Tradespeople, estate agents, mobile services", href: "/features" },
+  { icon: "\uD83D\uDCBC", title: "Sales reps and field workers", desc: "Anyone logging client visits or site trips", href: "/employee-mileage-tracker" },
+  { icon: "\uD83D\uDD27", title: "Self-employed drivers", desc: "Tradespeople, estate agents, mobile services", href: "/self-employed-mileage-tracker" },
   { icon: "\uD83D\uDE97", title: "Personal drivers", desc: "Track your driving for fun, set goals, and earn achievements", href: "/features" },
 ];
 

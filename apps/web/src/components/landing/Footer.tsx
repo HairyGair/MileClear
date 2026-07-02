@@ -59,6 +59,18 @@ export default function Footer() {
             </div>
 
             <div className="footer__col">
+              <h3 className="footer__col-title">Compare</h3>
+              <ul className="footer__col-list">
+                <li><a href="/best-mileage-tracker-app-uk" className="footer__link">Best mileage tracker UK</a></li>
+                <li><a href="/free-mileage-tracker-uk" className="footer__link">Free mileage tracker UK</a></li>
+                <li><a href="/mileage-tracker-uk" className="footer__link">Mileage tracker UK</a></li>
+                <li><a href="/self-employed-mileage-tracker" className="footer__link">Self-employed drivers</a></li>
+                <li><a href="/mileiq-alternative-uk" className="footer__link">MileIQ alternative</a></li>
+                <li><a href="/driversnote-alternative" className="footer__link">Driversnote alternative</a></li>
+              </ul>
+            </div>
+
+            <div className="footer__col">
               <h3 className="footer__col-title">Company</h3>
               <ul className="footer__col-list">
                 <li><a href="/about" className="footer__link">About</a></li>

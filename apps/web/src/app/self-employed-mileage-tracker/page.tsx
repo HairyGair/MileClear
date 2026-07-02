@@ -114,7 +114,7 @@ const faqSchema = {
       name: "Does MileClear cap how many trips I can log on the free tier?",
       acceptedAnswer: {
         "@type": "Answer",
-        text: "No. Trip tracking is unlimited and free forever. MileIQ stops tracking at 40 drives a month on the free tier and then asks £5.99/month to continue; Driversnote caps at 20. MileClear doesn't cap the tracker at all - whether you do five trips a month or five hundred, every mile is captured. Pro (£4.99/month) only unlocks the Self Assessment PDF export, CSV, Accountant Portal, and business insights.",
+        text: "No. Trip tracking is unlimited and free forever. MileIQ stops tracking at 40 drives a month on the free tier and then asks you to pay to continue; Driversnote caps at 15 trips a month. MileClear doesn't cap the tracker at all - whether you do five trips a month or five hundred, every mile is captured. Pro (£4.99/month) only unlocks the Self Assessment PDF export, CSV, Accountant Portal, and business insights.",
       },
     },
   ],
@@ -161,7 +161,7 @@ export default function SelfEmployedMileageTracker() {
               rose from 45p to 55p on 6 April 2026. MileClear records every business mile
               automatically, applies the right rate per vehicle, and produces a Self Assessment-ready
               PDF when tax season comes. Tracking is unlimited and free forever - no 40-drive
-              monthly cap like MileIQ, no 20-drive cap like Driversnote. Whether you're a
+              monthly cap like MileIQ, no 15-trip cap like Driversnote. Whether you're a
               tradesperson on 10 jobs a day or a consultant doing two client visits a week, every
               mile is captured. MTD ITSA quarterly submission is in development and
               coming soon.

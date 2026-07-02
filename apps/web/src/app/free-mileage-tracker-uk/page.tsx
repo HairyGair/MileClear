@@ -7,7 +7,7 @@ export const metadata: Metadata = {
     absolute: "Free Mileage Tracker UK - Unlimited Trips, No Drive Cap | MileClear",
   },
   description:
-    "The only UK mileage tracker with no monthly drive cap. MileIQ stops you at 40 drives, Driversnote at 20 - MileClear tracks unlimited trips, free forever. HMRC 55p/25p rates built in. Pro is only for accountant-ready exports.",
+    "The only UK mileage tracker with no monthly drive cap. MileIQ stops you at 40 drives, Driversnote at 15 - MileClear tracks unlimited trips, free forever. HMRC 55p/25p rates built in. Pro is only for accountant-ready exports.",
   keywords: [
     "free mileage tracker uk",
     "free mileage tracker",
@@ -66,7 +66,7 @@ const faqSchema = {
       name: "Is MileClear really a free mileage tracker?",
       acceptedAnswer: {
         "@type": "Answer",
-        text: "Yes - and unlike the big-name competition, the tracker is unlimited. MileIQ caps free users at 40 drives a month, TripLog caps at 40, Driversnote caps at 20; once you hit the cap you stop tracking or you pay. MileClear has no monthly drive cap at all - track as many trips as you like, forever, without paying. Pro (£4.99/month) unlocks HMRC-ready PDF exports, business insights, CSV imports, and open-banking earnings sync - but the tracking, classification, HMRC rate calculation and vehicle records stay free forever.",
+        text: "Yes - and unlike the big-name competition, the tracker is unlimited. MileIQ caps free users at 40 drives a month, Driversnote caps at 15; once you hit the cap you stop tracking or you pay. MileClear has no monthly drive cap at all - track as many trips as you like, forever, without paying. Pro (£4.99/month) unlocks HMRC-ready PDF exports, business insights, CSV imports, and open-banking earnings sync - but the tracking, classification, HMRC rate calculation and vehicle records stay free forever.",
       },
     },
     {
@@ -148,8 +148,8 @@ export default function FreeMileageTrackerUk() {
               Unlimited Mileage Tracking. Free Forever. No Drive Cap.
             </h1>
             <p style={{ fontSize: "1.125rem", color: "#94a3b8", lineHeight: 1.75, maxWidth: 680 }}>
-              Every other big-name mileage app rations you. MileIQ stops you at 40 drives a month
-              unless you pay £5.99. TripLog caps at 40. Driversnote caps at 20. MileClear has
+              Big-name mileage apps ration your free tracking. MileIQ stops you at 40 drives a month
+              unless you pay, and Driversnote caps you at 15 trips. MileClear has
               <strong> no monthly drive cap at all</strong> - track every business mile you drive,
               forever, without paying a penny. HMRC 55p/25p rates built in (rate rose from 45p on
               6 April 2026), fuel prices from 8,300+ UK stations, all 18 achievements, vehicle

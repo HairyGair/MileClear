@@ -370,7 +370,7 @@ export default function BusinessMileageGuidePage() {
                 MileClear is built for this specifically, for UK drivers -
                 the free tier covers the tracking and the calculation with
                 no monthly drive cap (MileIQ caps its free tier at 40 drives
-                a month, Driversnote at 20), and the £4.99/month Pro tier
+                a month, Driversnote at 15), and the £4.99/month Pro tier
                 adds the PDF and CSV exports you need for Self Assessment
                 or to send to your accountant.
               </p>

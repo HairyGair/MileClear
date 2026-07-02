@@ -118,7 +118,7 @@ const faqSchema = {
       name: "Does MileClear cap how many trips I can track per month?",
       acceptedAnswer: {
         "@type": "Answer",
-        text: "No. Trip tracking is unlimited and free forever. That matters for Just Eat couriers because Multi-Collect Offers and rapid-fire single drops add up fast - a busy 4-hour Run can easily be 15-25 deliveries before you count the inter-restaurant legs. MileIQ caps the free tier at 40 drives a month and Driversnote at 20. MileClear has no cap, no time limit, no surprise paywall on the tracker. Pro (£4.99/month) is only for the Self Assessment PDF export and business insights.",
+        text: "No. Trip tracking is unlimited and free forever. That matters for Just Eat couriers because Multi-Collect Offers and rapid-fire single drops add up fast - a busy 4-hour Run can easily be 15-25 deliveries before you count the inter-restaurant legs. MileIQ caps the free tier at 40 drives a month and Driversnote at 15. MileClear has no cap, no time limit, no surprise paywall on the tracker. Pro (£4.99/month) is only for the Self Assessment PDF export and business insights.",
       },
     },
   ],
@@ -166,7 +166,7 @@ export default function JustEatMileageTracker() {
               full-time year is several thousand pounds of overstated deduction. MileClear records every
               run, applies the right rate for your vehicle, and produces a Self Assessment-ready
               log. Tracking is unlimited and free forever - no monthly drive cap, where MileIQ
-              stops at 40 drives a month and Driversnote at 20. A Just Eat courier doing two
+              stops at 40 drives a month and Driversnote at 15. A Just Eat courier doing two
               4-hour Runs a day would burn through those caps in three or four shifts. Pro from
               £4.99 per month only adds the exports.
             </p>
