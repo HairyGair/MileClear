@@ -34,7 +34,9 @@ export default function WhoItsFor() {
 
         <Reveal delay="reveal-d2">
           <p className="who__note">
-            Whether you drive 50 miles a week or 500, MileClear helps you track it all and claim what you&apos;re owed.
+            Whether you drive 50 miles a week or 500, MileClear is the{" "}
+            <a href="/free-mileage-tracker-uk" style={{ color: "var(--amber-400)", textDecoration: "underline" }}>free mileage tracker app</a>{" "}
+            that helps you track it all and claim what you&apos;re owed.
           </p>
         </Reveal>
       </div>

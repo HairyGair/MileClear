@@ -21,7 +21,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
     { url: `${BASE_URL}/mileiq-alternative-uk`, lastModified: new Date("2026-06-08") },
     { url: `${BASE_URL}/driversnote-alternative`, lastModified: new Date("2026-06-08") },
     { url: `${BASE_URL}/mileage-tracker-uk`, lastModified: new Date("2026-05-19") },
-    { url: `${BASE_URL}/free-mileage-tracker-uk`, lastModified: new Date("2026-05-19") },
+    { url: `${BASE_URL}/free-mileage-tracker-uk`, lastModified: new Date("2026-07-02") },
     { url: `${BASE_URL}/self-employed-mileage-tracker`, lastModified: new Date("2026-05-19") },
     { url: `${BASE_URL}/uber-mileage-tracker`, lastModified: new Date("2026-04-25") },
     { url: `${BASE_URL}/deliveroo-mileage-tracker`, lastModified: new Date("2026-04-25") },

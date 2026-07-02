@@ -4,15 +4,16 @@ import Footer from "@/components/landing/Footer";
 
 export const metadata: Metadata = {
   title: {
-    absolute: "Free Mileage Tracker UK - Unlimited Trips, No Drive Cap | MileClear",
+    absolute: "Free Mileage Tracker App UK - Unlimited, No Drive Cap | MileClear",
   },
   description:
-    "The only UK mileage tracker with no monthly drive cap. MileIQ stops you at 40 drives, Driversnote at 15 - MileClear tracks unlimited trips, free forever. HMRC 55p/25p rates built in. Pro is only for accountant-ready exports.",
+    "MileClear is the free mileage tracker app for UK drivers - unlimited trips, no monthly drive cap. MileIQ stops you at 40 drives, Driversnote at 15. HMRC 55p/25p rates built in. Pro is only for accountant-ready exports.",
   keywords: [
+    "free mileage tracker app uk",
     "free mileage tracker uk",
+    "best free mileage tracker app uk",
     "free mileage tracker",
     "free uk mileage app",
-    "best free mileage tracker uk",
     "free business mileage tracker",
     "free hmrc mileage app",
     "mileage tracker no subscription",
@@ -21,7 +22,7 @@ export const metadata: Metadata = {
     canonical: "https://mileclear.com/free-mileage-tracker-uk",
   },
   openGraph: {
-    title: "Free Mileage Tracker UK - No Card, No Trial | MileClear",
+    title: "Free Mileage Tracker App UK - No Card, No Trial | MileClear",
     description:
       "Auto-track every business mile, HMRC rates built in, unlimited trips. Free forever.",
     url: "https://mileclear.com/free-mileage-tracker-uk",
@@ -29,20 +30,37 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    title: "Free Mileage Tracker UK - No Card, No Trial",
+    title: "Free Mileage Tracker App UK - No Card, No Trial",
     description:
       "Auto-track every business mile, HMRC rates built in, unlimited trips. Free forever.",
     images: ["/branding/og-image.png"],
   },
 };
 
+const softwareSchema = {
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  name: "MileClear - Free Mileage Tracker App (UK)",
+  applicationCategory: "FinanceApplication",
+  operatingSystem: "iOS",
+  downloadUrl: "https://apps.apple.com/app/mileclear/id6759671005",
+  description:
+    "Free mileage tracker app for UK drivers. Unlimited automatic GPS trip tracking with no monthly drive cap, HMRC 55p/25p AMAP rates built in, and gig-platform tagging. Free forever.",
+  offers: {
+    "@type": "Offer",
+    price: "0",
+    priceCurrency: "GBP",
+    description: "Free forever: unlimited trip tracking, HMRC deduction calculator, Tax Readiness card, fuel prices and MOT reminders. No card, no trial, no drive cap.",
+  },
+};
+
 const pageSchema = {
   "@context": "https://schema.org",
   "@type": "WebPage",
-  name: "Free Mileage Tracker UK - MileClear",
+  name: "Free Mileage Tracker App UK - MileClear",
   url: "https://mileclear.com/free-mileage-tracker-uk",
   description:
-    "MileClear is a free UK mileage tracker - unlimited trips, HMRC rates, vehicle tracking, fuel logging. Pro tier only for tax-export PDFs.",
+    "MileClear is a free mileage tracker app for the UK - unlimited trips with no drive cap, HMRC rates, vehicle tracking, fuel logging. Pro tier only for tax-export PDFs.",
   breadcrumb: {
     "@type": "BreadcrumbList",
     itemListElement: [
@@ -61,6 +79,14 @@ const faqSchema = {
   "@context": "https://schema.org",
   "@type": "FAQPage",
   mainEntity: [
+    {
+      "@type": "Question",
+      name: "What is the best free mileage tracker app in the UK?",
+      acceptedAnswer: {
+        "@type": "Answer",
+        text: "MileClear - because it tracks unlimited miles for free and applies HMRC's 55p/25p AMAP rates automatically, so you see your correct deduction without paying or configuring anything. MileIQ caps free tracking at 40 drives a month and Driversnote at 15 trips; MileClear has no monthly drive cap. For a side-by-side of the main UK options, see the MileClear best mileage tracker app UK comparison.",
+      },
+    },
     {
       "@type": "Question",
       name: "Is MileClear really a free mileage tracker?",
@@ -117,6 +143,10 @@ export default function FreeMileageTrackerUk() {
     <>
       <script
         type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(softwareSchema) }}
+      />
+      <script
+        type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(pageSchema) }}
       />
       <script
@@ -132,7 +162,7 @@ export default function FreeMileageTrackerUk() {
           {/* Hero */}
           <header style={{ maxWidth: 780, marginBottom: "3.5rem" }}>
             <span className="label" style={{ display: "inline-block", marginBottom: "1rem" }}>
-              Free Mileage Tracker UK
+              Free Mileage Tracker App · UK
             </span>
             <h1
               style={{
@@ -145,10 +175,11 @@ export default function FreeMileageTrackerUk() {
                 marginBottom: "1.25rem",
               }}
             >
-              Unlimited Mileage Tracking. Free Forever. No Drive Cap.
+              Free Mileage Tracker App - Unlimited Miles, No Drive Cap
             </h1>
             <p style={{ fontSize: "1.125rem", color: "#94a3b8", lineHeight: 1.75, maxWidth: 680 }}>
-              Big-name mileage apps ration your free tracking. MileIQ stops you at 40 drives a month
+              MileClear is the free mileage tracker app UK drivers actually keep, because it never caps
+              you. Big-name apps ration your free tracking: MileIQ stops you at 40 drives a month
               unless you pay, and Driversnote caps you at 15 trips. MileClear has
               <strong> no monthly drive cap at all</strong> - track every business mile you drive,
               forever, without paying a penny. HMRC 55p/25p rates built in (rate rose from 45p on
@@ -324,6 +355,10 @@ export default function FreeMileageTrackerUk() {
             </h2>
             {[
               {
+                q: "What is the best free mileage tracker app in the UK?",
+                a: "MileClear tracks unlimited miles for free and applies HMRC's 55p/25p rates automatically, so you see your correct deduction without paying. MileIQ caps free tracking at 40 drives a month and Driversnote at 15 trips; MileClear has no cap. See the best mileage tracker app UK comparison for a side-by-side of every option.",
+              },
+              {
                 q: "Is MileClear really a free mileage tracker?",
                 a: "Yes. Free to download, free to use, no card, no trial, no trip limit. Pro is optional and only unlocks tax-export PDF + power-user extras.",
               },
@@ -379,6 +414,7 @@ export default function FreeMileageTrackerUk() {
             </h2>
             <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap" }}>
               {[
+                { href: "/best-mileage-tracker-app-uk", label: "Best Mileage Tracker Apps Compared" },
                 { href: "/mileage-tracker-uk", label: "Mileage Tracker UK" },
                 { href: "/self-employed-mileage-tracker", label: "Self-Employed" },
                 { href: "/hmrc-mileage-rates", label: "HMRC Rates" },
