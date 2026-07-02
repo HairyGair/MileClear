@@ -67,6 +67,47 @@ const METRICS: Array<{ key: MetricKey; label: string; diverging?: boolean; get: 
   { key: "growthPct", label: "Growth vs prev", diverging: true, get: (c) => c.growthPct, fmt: (v) => (v == null ? "new" : `${v > 0 ? "+" : ""}${v}%`) },
 ];
 
+// Grid cells are ~5-28km squares, so one town can span several cells that all
+// carry the same nearest place-name. For the ranked lists we merge cells that
+// share a town into a single row (the map + CSV deliberately stay per-cell).
+// Trip counts are exact; distinct-user counts are summed across a town's cells,
+// so a driver who crosses a cell boundary can be counted in more than one.
+function aggregateByTown(cells: Cell[]): Cell[] {
+  const groups = new Map<string, Cell & { _sumDist: number; _anchorTrips: number }>();
+  for (const c of cells) {
+    const g = groups.get(c.town);
+    if (!g) {
+      groups.set(c.town, { ...c, _sumDist: c.avgDistanceMiles * c.trips, _anchorTrips: c.trips });
+      continue;
+    }
+    g.trips += c.trips;
+    g.users += c.users;
+    g.newUsers += c.newUsers;
+    g.premiumUsers += c.premiumUsers;
+    g.businessTrips += c.businessTrips;
+    g.personalTrips += c.personalTrips;
+    g.prevTrips += c.prevTrips;
+    g._sumDist += c.avgDistanceMiles * c.trips;
+    // Anchor the town's coordinates + top platform to its busiest cell.
+    if (c.trips > g._anchorTrips) {
+      g._anchorTrips = c.trips;
+      g.lat = c.lat;
+      g.lng = c.lng;
+      g.topPlatform = c.topPlatform;
+    }
+  }
+  return [...groups.values()].map((g) => {
+    const { _sumDist, _anchorTrips, ...rest } = g;
+    void _anchorTrips;
+    return {
+      ...rest,
+      avgDistanceMiles: g.trips > 0 ? Math.round((_sumDist / g.trips) * 10) / 10 : 0,
+      avgTripsPerUser: g.users > 0 ? Math.round((g.trips / g.users) * 10) / 10 : 0,
+      growthPct: g.prevTrips > 0 ? Math.round(((g.trips - g.prevTrips) / g.prevTrips) * 100) : null,
+    } as Cell;
+  });
+}
+
 const WINDOWS = [
   { label: "7d", days: 7 },
   { label: "30d", days: 30 },
@@ -217,12 +258,30 @@ export default function GeographicDensityPage() {
     })();
   }, [data, cells, metricDef, mapReady]);
 
+  // Ranked lists merge cells by town so one place shows once. The map keeps
+  // per-cell `cells`.
+  const townCells = useMemo(() => aggregateByTown(cells), [cells]);
   const rankedCells = useMemo(() => {
-    return [...cells]
+    return [...townCells]
       .map((c) => ({ c, v: metricDef.get(c) }))
       .sort((a, b) => (b.v ?? -Infinity) - (a.v ?? -Infinity))
       .slice(0, 10);
-  }, [cells, metricDef]);
+  }, [townCells, metricDef]);
+
+  // Momentum, town-aggregated (start cells only — growth is start-based).
+  const momentum = useMemo(() => {
+    if (!data) return { fastestGrowing: [] as Cell[], newAreas: [] as Cell[] };
+    const towns = aggregateByTown(data.startCells);
+    const fastestGrowing = towns
+      .filter((c) => c.growthPct != null && c.prevTrips >= 3)
+      .sort((a, b) => (b.growthPct ?? 0) - (a.growthPct ?? 0))
+      .slice(0, 5);
+    const newAreas = towns
+      .filter((c) => c.prevTrips === 0 && c.trips >= 3)
+      .sort((a, b) => b.trips - a.trips)
+      .slice(0, 5);
+    return { fastestGrowing, newAreas };
+  }, [data]);
 
   const exportCsv = useCallback(() => {
     if (!data) return;
@@ -374,7 +433,7 @@ export default function GeographicDensityPage() {
           <Panel title={`Top areas · ${metricDef.label}`}>
             <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
               {rankedCells.map(({ c, v }, i) => (
-                <div key={`${c.lat}_${c.lng}`} style={{ display: "grid", gridTemplateColumns: "18px 1fr auto", gap: 8, alignItems: "center", fontSize: "0.8rem", padding: "0.35rem 0" }}>
+                <div key={c.town} style={{ display: "grid", gridTemplateColumns: "18px 1fr auto", gap: 8, alignItems: "center", fontSize: "0.8rem", padding: "0.35rem 0" }}>
                   <span style={{ color: "#64748b", fontFamily: "monospace" }}>{i + 1}</span>
                   <span style={{ color: "#cbd5e1", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{c.town}</span>
                   <span style={{ color: "#fcd34d", fontWeight: 600 }}>{metricDef.fmt(v)}</span>
@@ -385,21 +444,21 @@ export default function GeographicDensityPage() {
           </Panel>
 
           {/* Growth */}
-          {data && mode === "starts" && (data.fastestGrowing.length > 0 || data.newAreas.length > 0) && (
+          {data && mode === "starts" && (momentum.fastestGrowing.length > 0 || momentum.newAreas.length > 0) && (
             <Panel title="Momentum">
-              {data.fastestGrowing.length > 0 && (
+              {momentum.fastestGrowing.length > 0 && (
                 <>
                   <div style={{ fontSize: "0.7rem", color: "#64748b", textTransform: "uppercase", letterSpacing: "0.05em", margin: "0 0 4px" }}>Fastest growing</div>
-                  {data.fastestGrowing.map((c) => (
-                    <Row key={`g${c.lat}_${c.lng}`} label={c.town} value={<span style={{ color: "#22c55e" }}>+{c.growthPct}%</span>} />
+                  {momentum.fastestGrowing.map((c) => (
+                    <Row key={`g${c.town}`} label={c.town} value={<span style={{ color: "#22c55e" }}>+{c.growthPct}%</span>} />
                   ))}
                 </>
               )}
-              {data.newAreas.length > 0 && (
+              {momentum.newAreas.length > 0 && (
                 <>
                   <div style={{ fontSize: "0.7rem", color: "#64748b", textTransform: "uppercase", letterSpacing: "0.05em", margin: "8px 0 4px" }}>New areas</div>
-                  {data.newAreas.map((c) => (
-                    <Row key={`n${c.lat}_${c.lng}`} label={c.town} value={<span style={{ color: "#60a5fa" }}>{c.trips} trips</span>} />
+                  {momentum.newAreas.map((c) => (
+                    <Row key={`n${c.town}`} label={c.town} value={<span style={{ color: "#60a5fa" }}>{c.trips} trips</span>} />
                   ))}
                 </>
               )}
