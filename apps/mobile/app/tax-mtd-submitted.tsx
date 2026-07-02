@@ -47,7 +47,7 @@ export default function TaxMtdSubmittedScreen() {
         if (cancelled) return;
         setCalc({ status: "polling", calculationId: trigger.data.calculationId });
 
-        const result = await pollCalculation(trigger.data.calculationId, { signal: ac.signal });
+        const result = await pollCalculation(trigger.data.calculationId, taxYear, { signal: ac.signal });
         if (cancelled) return;
         setCalc({ status: "ready", result });
       } catch (err) {

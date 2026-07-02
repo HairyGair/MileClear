@@ -779,6 +779,12 @@ export async function hmrcRoutes(app: FastifyInstance) {
       if (!calculationId) {
         return reply.status(400).send({ error: "calculationId is required." });
       }
+      // v8.0 retrieve needs the tax year in the path, so the client passes it
+      // as a query param alongside the calculationId.
+      const taxYear = (request.query as { taxYear?: string }).taxYear?.trim();
+      if (!taxYear || !isValidHmrcTaxYear(taxYear)) {
+        return reply.status(400).send({ error: "taxYear query param (YYYY-YY) is required." });
+      }
       const ctx = await loadConnectionWithNino(request.userId!);
       if ("error" in ctx) return reply.status(ctx.status).send({ error: ctx.error });
 
@@ -786,6 +792,7 @@ export async function hmrcRoutes(app: FastifyInstance) {
         const summary = await retrieveCalculation({
           userId: request.userId!,
           nino: ctx.nino,
+          taxYear,
           calculationId,
           client: buildClientContext(request),
           server: await buildServerContext(),

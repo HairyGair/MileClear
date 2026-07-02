@@ -67,7 +67,7 @@ export function getHmrcConfig(): HmrcConfig | null {
     environment,
     redirectUri,
     vendorProductName: process.env.HMRC_VENDOR_PRODUCT_NAME?.trim() || "MileClear",
-    vendorVersion: process.env.HMRC_VENDOR_VERSION?.trim() || "1.2.0",
+    vendorVersion: process.env.HMRC_VENDOR_VERSION?.trim() || "1.3.4",
     vendorLicenseIds: process.env.HMRC_VENDOR_LICENSE_IDS?.trim() || "",
     apiBaseUrl,
     authorizeUrl: `${apiBaseUrl}/oauth/authorize`,

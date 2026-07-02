@@ -35,7 +35,7 @@ export interface HmrcBusinessDetails {
   accountingType?: "CASH" | "ACCRUALS";
   commencementDate?: string;
   cessationDate?: string;
-  businessAddressDetails?: {
+  businessAddress?: {
     line1?: string;
     line2?: string;
     line3?: string;
@@ -43,8 +43,7 @@ export interface HmrcBusinessDetails {
     postalCode?: string;
     countryCode?: string;
   };
-  firstAccountingPeriodStartDate?: string;
-  firstAccountingPeriodEndDate?: string;
+  accountingPeriods?: Array<{ start: string; end: string }>;
 }
 
 export interface HmrcObligation {
@@ -289,9 +288,11 @@ export function fetchCalculations(taxYear: string) {
   );
 }
 
-export function fetchCalculation(calculationId: string) {
+export function fetchCalculation(calculationId: string, taxYear: string) {
+  // v8.0 requires the tax year to retrieve a calculation; the server takes
+  // it as a query param alongside the calculationId.
   return apiRequest<{ data: HmrcCalculationSummary }>(
-    `/hmrc/calculations/${encodeURIComponent(calculationId)}`
+    `/hmrc/calculations/${encodeURIComponent(calculationId)}?taxYear=${encodeURIComponent(taxYear)}`
   );
 }
 
@@ -306,6 +307,7 @@ export function fetchCalculation(calculationId: string) {
  */
 export async function pollCalculation(
   calculationId: string,
+  taxYear: string,
   options: { maxAttempts?: number; signal?: AbortSignal } = {}
 ): Promise<HmrcCalculationSummary> {
   const maxAttempts = options.maxAttempts ?? 12;
@@ -319,7 +321,7 @@ export async function pollCalculation(
       delay = Math.min(delay * 2, 30000);
     }
 
-    const { data } = await fetchCalculation(calculationId);
+    const { data } = await fetchCalculation(calculationId, taxYear);
     if (data.ready) return data;
   }
 

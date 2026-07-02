@@ -118,8 +118,8 @@ export default function TaxMtdBusinessScreen() {
         {details.cessationDate && (
           <DetailRow label="Ceased" value={formatDate(details.cessationDate)} />
         )}
-        {details.businessAddressDetails && (
-          <DetailRow label="Address" value={formatAddress(details.businessAddressDetails)} />
+        {details.businessAddress && (
+          <DetailRow label="Address" value={formatAddress(details.businessAddress)} />
         )}
 
         <View style={styles.divider} />
@@ -175,7 +175,7 @@ function formatDate(iso: string): string {
   return d.toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" });
 }
 
-function formatAddress(addr: HmrcBusinessDetails["businessAddressDetails"]): string {
+function formatAddress(addr: HmrcBusinessDetails["businessAddress"]): string {
   if (!addr) return "—";
   return [addr.line1, addr.line2, addr.line3, addr.line4, addr.postalCode]
     .filter(Boolean)

@@ -5,11 +5,11 @@
 // downstream API is keyed on a businessId — without one we can't tell
 // HMRC what trade we're submitting against.
 //
-// Endpoints:
+// Endpoints (Business Details API v2.0 — v1.0 was retired):
 //   GET /individuals/business/details/{nino}/list
 //   GET /individuals/business/details/{nino}/{businessId}
 //
-// Reference: https://developer.service.hmrc.uk/api-documentation/docs/api/service/business-details-api/1.0
+// Reference: https://developer.service.hmrc.gov.uk/api-documentation/docs/api/service/business-details-api/2.0
 
 import type { ClientContext, ServerContext } from "./fraudPreventionHeaders.js";
 import { hmrcCall } from "./client.js";
@@ -43,10 +43,10 @@ export interface HmrcBusinessDetails {
   accountingType?: "CASH" | "ACCRUALS";
   commencementDate?: string; // ISO date
   cessationDate?: string;    // ISO date — set when the trade has ended
-  businessAddressDetails?: HmrcBusinessAddress;
-  // Tax year accounting period (only for self-employment when set)
-  firstAccountingPeriodStartDate?: string;
-  firstAccountingPeriodEndDate?: string;
+  businessAddress?: HmrcBusinessAddress;
+  // v2.0: accounting periods are a list of { start, end }.
+  accountingPeriods?: Array<{ start: string; end: string }>;
+  quarterlyTypeChoice?: { quarterlyPeriodType?: string; taxYearOfChoice?: string };
   latencyDetails?: {
     latencyEndDate?: string;
     taxYear1?: string;
@@ -66,9 +66,9 @@ export interface HmrcBusinessDetailsResponse {
   accountingType?: "CASH" | "ACCRUALS";
   commencementDate?: string;
   cessationDate?: string;
-  businessAddressDetails?: HmrcBusinessAddress;
-  firstAccountingPeriodStartDate?: string;
-  firstAccountingPeriodEndDate?: string;
+  businessAddress?: HmrcBusinessAddress;
+  accountingPeriods?: Array<{ start: string; end: string }>;
+  quarterlyTypeChoice?: { quarterlyPeriodType?: string; taxYearOfChoice?: string };
   latencyDetails?: HmrcBusinessDetails["latencyDetails"];
   yearOfMigration?: string;
 }
@@ -89,7 +89,7 @@ export async function listBusinesses(args: {
     userId: args.userId,
     method: "GET",
     path: `/individuals/business/details/${encodeURIComponent(args.nino)}/list`,
-    apiVersion: "1.0",
+    apiVersion: "2.0",
     client: args.client,
     server: args.server,
   });
@@ -113,7 +113,7 @@ export async function retrieveBusiness(args: {
     userId: args.userId,
     method: "GET",
     path: `/individuals/business/details/${encodeURIComponent(args.nino)}/${encodeURIComponent(args.businessId)}`,
-    apiVersion: "1.0",
+    apiVersion: "2.0",
     client: args.client,
     server: args.server,
   });

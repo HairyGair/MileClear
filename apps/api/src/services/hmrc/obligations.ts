@@ -3,8 +3,9 @@
 // "What's due when" for a given user. Drives the "Q3 due in 14 days"
 // countdown on the dashboard once we surface this in mobile UI (Phase 3).
 //
-// Endpoint: GET /individuals/business/obligations/{nino}/{businessId}
-//   Optional query: from, to, status (Open|Fulfilled), type (CRYSTALLISATION|EOPS|ITSP)
+// Endpoint (Obligations API v3.0): GET /obligations/details/{nino}/income-and-expenditure
+//   Optional query: fromDate, toDate, status (Open|Fulfilled), typeOfBusiness, businessId
+//   (The old /individuals/business/obligations/{nino} path was retired.)
 //
 // The shape we care about for self-employment quarterly submissions:
 //   - status="Open" + type="ITSP" → unsubmitted quarterly periods
@@ -25,14 +26,24 @@ export interface HmrcObligation {
   received?: string;    // ISO date (when HMRC received the submission), only on Fulfilled
 }
 
+// Raw obligation detail as returned by Obligations API v3.0. The field
+// names (periodStartDate/periodEndDate/dueDate/receivedDate) and the
+// lowercase status differ from our normalised HmrcObligation, so we map
+// before normalising.
+interface RawObligationDetail {
+  periodStartDate: string;
+  periodEndDate: string;
+  dueDate: string;
+  status: string; // "open" | "fulfilled" (lowercase in v3.0)
+  periodKey?: string;
+  receivedDate?: string;
+}
+
 export interface HmrcObligationsResponse {
   obligations: Array<{
-    identification?: {
-      incomeSourceType?: string;
-      referenceType?: string;
-      referenceNumber?: string;
-    };
-    obligationDetails: HmrcObligation[];
+    typeOfBusiness?: string;
+    businessId?: string;
+    obligationDetails: RawObligationDetail[];
   }>;
 }
 
@@ -70,11 +81,12 @@ export async function fetchObligations(args: {
   client: ClientContext;
   server: ServerContext;
 }): Promise<NormalisedObligation[]> {
-  // Path differs slightly when a businessId is supplied — without it, we
-  // get all of the user's obligations across every income source.
-  const path = args.businessId
-    ? `/individuals/business/obligations/${encodeURIComponent(args.nino)}/${encodeURIComponent(args.businessId)}`
-    : `/individuals/business/obligations/${encodeURIComponent(args.nino)}`;
+  // Obligations API v3.0: periodic (quarterly) update obligations live under
+  // the income-and-expenditure endpoint. Optional query narrows by
+  // businessId / date range / status. (HMRC's response groups by
+  // typeOfBusiness + businessId; each detail uses periodStartDate/etc. and a
+  // lowercase status, which we map to our normalised shape below.)
+  const path = `/obligations/details/${encodeURIComponent(args.nino)}/income-and-expenditure`;
 
   const data = await hmrcCall<HmrcObligationsResponse>({
     userId: args.userId,
@@ -82,9 +94,10 @@ export async function fetchObligations(args: {
     path,
     apiVersion: "3.0",
     query: {
-      from: args.from,
-      to: args.to,
+      fromDate: args.from,
+      toDate: args.to,
       status: args.status,
+      businessId: args.businessId,
     },
     client: args.client,
     server: args.server,
@@ -93,7 +106,16 @@ export async function fetchObligations(args: {
   const flat: NormalisedObligation[] = [];
   for (const group of data.obligations ?? []) {
     for (const detail of group.obligationDetails ?? []) {
-      flat.push(normaliseObligation(detail));
+      flat.push(
+        normaliseObligation({
+          start: detail.periodStartDate,
+          end: detail.periodEndDate,
+          due: detail.dueDate,
+          periodKey: detail.periodKey ?? "",
+          status: /fulfilled/i.test(detail.status) ? "Fulfilled" : "Open",
+          received: detail.receivedDate,
+        })
+      );
     }
   }
   // Newest first — drives the "next due" UI naturally.

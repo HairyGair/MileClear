@@ -23,18 +23,18 @@
 // Callers should poll. We don't add server-side polling here — mobile/web
 // can poll directly with backoff.
 //
-// Endpoints (v7.0):
-//   POST /individuals/calculations/{nino}/self-assessment
-//   GET  /individuals/calculations/{nino}/self-assessment?taxYear=YYYY-YY
-//   GET  /individuals/calculations/{nino}/self-assessment/{calculationId}
+// Endpoints (v8.0 — taxYear and calculationType moved into the path):
+//   POST /individuals/calculations/{nino}/self-assessment/{taxYear}/trigger/{calculationType}
+//   GET  /individuals/calculations/{nino}/self-assessment/{taxYear}
+//   GET  /individuals/calculations/{nino}/self-assessment/{taxYear}/{calculationId}
 //
-// Reference: https://developer.service.hmrc.uk/api-documentation/docs/api/service/individual-calculations-api/7.0
+// Reference: https://developer.service.hmrc.gov.uk/api-documentation/docs/api/service/individual-calculations-api/8.0
 
 import type { ClientContext, ServerContext } from "./fraudPreventionHeaders.js";
 import { hmrcCall } from "./client.js";
 import { isValidHmrcTaxYear } from "./selfEmployment.js";
 
-const CALC_API_VERSION = "7.0";
+const CALC_API_VERSION = "8.0";
 
 /**
  * Calculation type — what this calculation represents.
@@ -58,17 +58,20 @@ export function isValidCalculationType(t: string): t is CalculationType {
   return (VALID_CALC_TYPES as string[]).includes(t);
 }
 
-/** Response from POST trigger — calculation kicked off, but not yet ready. */
+/** Response from POST trigger — calculation kicked off, but not yet ready.
+ * v8.0 returns only the calculationId; we echo back the type we requested. */
 export interface HmrcTriggerCalculationResponse {
   calculationId: string;
-  calculationType: CalculationType;
+  calculationType?: CalculationType;
 }
 
-/** Item in the list-calculations response. */
+/** Item in the list-calculations response (v8.0). */
 export interface HmrcCalculationListItem {
   calculationId: string;
   calculationTimestamp: string;        // ISO datetime
   calculationType: CalculationType;
+  calculationTrigger?: string;         // e.g. "customer-request" | "unattended"
+  calculationOutcome?: string;         // e.g. "PROCESSED" | "ERROR"
   requestedBy?: "customer" | "agent" | "hmrc";
   fromDate?: string;                   // ISO date
   toDate?: string;                     // ISO date
@@ -133,16 +136,16 @@ export async function triggerCalculation(args: {
     throw new Error(`Invalid calculationType: ${args.calculationType}`);
   }
 
-  return hmrcCall<HmrcTriggerCalculationResponse>({
+  const res = await hmrcCall<{ calculationId: string }>({
     userId: args.userId,
     method: "POST",
-    path: `/individuals/calculations/${encodeURIComponent(args.nino)}/self-assessment`,
+    // v8.0: taxYear + calculationType are path segments; no query/body.
+    path: `/individuals/calculations/${encodeURIComponent(args.nino)}/self-assessment/${encodeURIComponent(args.taxYear)}/trigger/${encodeURIComponent(args.calculationType)}`,
     apiVersion: CALC_API_VERSION,
-    query: { taxYear: args.taxYear },
-    body: { calculationType: args.calculationType },
     client: args.client,
     server: args.server,
   });
+  return { calculationId: res.calculationId, calculationType: args.calculationType };
 }
 
 /**
@@ -164,9 +167,9 @@ export async function listCalculations(args: {
   const data = await hmrcCall<HmrcCalculationListResponse>({
     userId: args.userId,
     method: "GET",
-    path: `/individuals/calculations/${encodeURIComponent(args.nino)}/self-assessment`,
+    // v8.0: taxYear is a path segment, not a query param.
+    path: `/individuals/calculations/${encodeURIComponent(args.nino)}/self-assessment/${encodeURIComponent(args.taxYear)}`,
     apiVersion: CALC_API_VERSION,
-    query: { taxYear: args.taxYear },
     client: args.client,
     server: args.server,
   });
@@ -189,14 +192,19 @@ export async function listCalculations(args: {
 export async function retrieveCalculation(args: {
   userId: string;
   nino: string;
+  taxYear: string;
   calculationId: string;
   client: ClientContext;
   server: ServerContext;
 }): Promise<HmrcCalculationSummary> {
+  if (!isValidHmrcTaxYear(args.taxYear)) {
+    throw new Error(`Invalid HMRC tax year format: ${args.taxYear} (expected YYYY-YY)`);
+  }
   const raw = await hmrcCall<HmrcCalculationRaw>({
     userId: args.userId,
     method: "GET",
-    path: `/individuals/calculations/${encodeURIComponent(args.nino)}/self-assessment/${encodeURIComponent(args.calculationId)}`,
+    // v8.0: taxYear is a path segment between self-assessment and the id.
+    path: `/individuals/calculations/${encodeURIComponent(args.nino)}/self-assessment/${encodeURIComponent(args.taxYear)}/${encodeURIComponent(args.calculationId)}`,
     apiVersion: CALC_API_VERSION,
     client: args.client,
     server: args.server,
@@ -219,6 +227,21 @@ interface HmrcCalculationRaw {
     crystallised?: boolean;
   };
   calculation?: {
+    // v8.0 headline location: calculation.taxCalculation.*
+    taxCalculation?: {
+      totalIncomeTaxAndNicsDue?: number;
+      incomeTax?: {
+        totalIncomeReceivedFromAllSources?: number;
+        totalAllowancesAndDeductions?: number;
+        totalTaxableIncome?: number;
+        incomeTaxDueAfterReliefs?: number;
+        incomeTaxCharged?: number;
+      };
+      nics?: {
+        class2Nics?: { amount?: number };
+        class4Nics?: { totalClass4Charge?: number };
+      };
+    };
     endOfYearEstimate?: {
       totalEstimatedIncome?: number;
       totalAllowancesAndDeductions?: number;
@@ -260,34 +283,49 @@ export function summariseCalculation(
 ): HmrcCalculationSummary {
   const meta = raw.metadata ?? {};
   const calc = raw.calculation ?? {};
+  const tc = calc.taxCalculation ?? {};          // v8.0 headline location
+  const tci = tc.incomeTax ?? {};
+  const tcn = tc.nics ?? {};
   const eoy = calc.endOfYearEstimate ?? {};
   const income = calc.incomeSummary ?? {};
   const taxable = calc.taxableIncome ?? {};
-  const itnic = calc.incomeTaxNicsCalculated ?? {};
+  const itnic = calc.incomeTaxNicsCalculated ?? {};   // v7.0 fallback
   const adr = calc.allowancesAndDeductions ?? {};
 
-  // Totals — prefer endOfYearEstimate (the user-facing figure), fall back
-  // to incomeTaxNicsCalculated (the detailed-calc figure) when EOY isn't
-  // present yet (mid-year intent-to-finalise calcs sometimes lack EOY).
+  // Totals — prefer the v8.0 taxCalculation figures, fall back to the
+  // v8.0 endOfYearEstimate (in-year calcs) and finally the v7.0 shape.
   const totalIncomeTaxAndNicsDue =
+    tc.totalIncomeTaxAndNicsDue ??
     eoy.incomeTaxNicAmount ??
     itnic.totalIncomeTaxAndNicsDue ??
     undefined;
 
   const incomeTaxAmount =
-    eoy.incomeTaxAmount ?? itnic.incomeTax?.incomeTaxAmount ?? undefined;
+    tci.incomeTaxDueAfterReliefs ??
+    tci.incomeTaxCharged ??
+    eoy.incomeTaxAmount ??
+    itnic.incomeTax?.incomeTaxAmount ??
+    undefined;
 
-  const nic2 = eoy.nic2 ?? itnic.nics?.nic2NetOfDeductions ?? undefined;
-  const nic4 = eoy.nic4 ?? itnic.nics?.nic4NetOfDeductions ?? undefined;
+  const nic2 =
+    eoy.nic2 ?? tcn.class2Nics?.amount ?? itnic.nics?.nic2NetOfDeductions ?? undefined;
+  const nic4 =
+    eoy.nic4 ?? tcn.class4Nics?.totalClass4Charge ?? itnic.nics?.nic4NetOfDeductions ?? undefined;
 
   const totalIncomeReceived =
-    eoy.totalEstimatedIncome ?? income.totalIncomeReceived ?? undefined;
+    tci.totalIncomeReceivedFromAllSources ??
+    eoy.totalEstimatedIncome ??
+    income.totalIncomeReceived ??
+    undefined;
 
   const totalTaxableIncome =
-    eoy.totalTaxableIncome ?? taxable.totalTaxableIncome ?? undefined;
+    tci.totalTaxableIncome ?? eoy.totalTaxableIncome ?? taxable.totalTaxableIncome ?? undefined;
 
   const totalAllowancesAndDeductions =
-    eoy.totalAllowancesAndDeductions ?? adr.totalAllowancesAndDeductions ?? undefined;
+    tci.totalAllowancesAndDeductions ??
+    eoy.totalAllowancesAndDeductions ??
+    adr.totalAllowancesAndDeductions ??
+    undefined;
 
   // "Ready" = HMRC has produced at least the headline number. Mid-flight
   // responses can have metadata + empty calculation — we treat those as
