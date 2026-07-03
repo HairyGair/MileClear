@@ -29,6 +29,10 @@ model User {
   stripeCustomerId     String?   @unique @db.VarChar(255)
   stripeSubscriptionId String?   @unique @db.VarChar(255)
   appleOriginalTransactionId String? @unique @db.VarChar(255)
+  // When the user's first free trial began. Stamped once, never cleared on
+  // cancellation, so a user cannot serial-trial by cancel-and-resubscribe.
+  // null = trial-eligible (Stripe gates on this; Apple enforces natively).
+  trialUsedAt          DateTime?
   termsAcceptedAt      DateTime?
   pushToken            String?   @db.VarChar(255)
   // Per-device push-to-start token for Live Activities (iOS 17.2+). Lets the

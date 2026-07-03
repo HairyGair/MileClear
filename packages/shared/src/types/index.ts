@@ -1206,9 +1206,44 @@ export interface AdminUserSummary {
     verdict: string;
     capturedAt: string;
   } | null;
+  healthScore?: number;
+  healthBand?: "good" | "warning" | "critical" | "unknown";
+  buildNumber?: string | null;
+  appVersion?: string | null;
+  trialUsedAt?: string | null;
+  referralProUntil?: string | null;
+  marketingEmailsEnabled?: boolean;
+  /** True when the user has a registered Expo push token. */
+  hasPushToken?: boolean;
+  /** Placeholder Apple Sign-In email + no push token: no channel can reach them. */
+  unreachable?: boolean;
 }
 
+export type AdminUsersPlanFilter = "free" | "premium" | "trial" | "referral";
+export type AdminUsersProviderFilter = "email" | "apple" | "google";
+export type AdminUsersLifecycleFilter =
+  | "active"
+  | "dormant14"
+  | "dormant90"
+  | "dormant2y"
+  | "never";
+
 export interface AdminUserDetail extends AdminUserSummary {
+  _count: {
+    trips: number;
+    vehicles: number;
+    earnings: number;
+    shifts: number;
+    fuelLogs: number;
+    expenses: number;
+    invoices: number;
+    savedLocations: number;
+    achievements: number;
+    feedback: number;
+    plaidConnections: number;
+    accountantAccess: number;
+    referralsMade: number;
+  };
   stripeCustomerId: string | null;
   stripeSubscriptionId: string | null;
   premiumExpiresAt: string | null;
@@ -1231,6 +1266,41 @@ export interface AdminUserDetail extends AdminUserSummary {
   }>;
   totalMiles: number;
   totalEarningsPence: number;
+  // Monetisation
+  subscriptionPlatform?: "apple" | "stripe" | "none";
+  referralCode?: string | null;
+  referredByCode?: string | null;
+  // Reachability
+  marketingEmailsDisabledAt?: string | null;
+  marketingEmailsDisabledSource?: string | null;
+  // Profile / segmentation
+  fullName?: string | null;
+  workType?: string;
+  dashboardMode?: string;
+  userIntent?: string | null;
+  termsAcceptedAt?: string | null;
+  // Feature adoption (presence booleans for one-to-one integrations)
+  integrations?: {
+    hmrc: boolean;
+    quickbooks: boolean;
+    discord: boolean;
+    openBanking: boolean;
+    accountantSharing: boolean;
+  };
+  lifecycle?: {
+    firstTripAt: string | null;
+    /** Trips per week for the last 8 weeks, oldest first. */
+    weeklyTrips: number[];
+    churnRisk: boolean;
+  };
+}
+
+export interface AdminUserEvent {
+  id: string;
+  type: string;
+  metadata: Record<string, unknown> | null;
+  buildNumber: string | null;
+  createdAt: string;
 }
 
 export type AdminUserSortBy = "createdAt" | "lastTripAt" | "lastLoginAt";

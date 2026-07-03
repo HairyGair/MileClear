@@ -100,6 +100,81 @@ const pushSchema = z.object({
   dryRun: z.boolean().optional().default(true),
 });
 
+// Placeholder domain the auth routes stamp on Apple Sign-In accounts that
+// withheld their real email. These addresses are not real mailboxes — a user
+// with one AND no push token cannot be contacted through any channel.
+const PLACEHOLDER_EMAIL_SUFFIX = "@private.mileclear.com";
+
+// GET /admin/users + /admin/users/export share this filter set. Everything
+// here maps to columns we already collect — the filters just expose them.
+const usersListFilterSchema = z.object({
+  q: z.string().max(200).optional(),
+  plan: z.enum(["free", "premium", "trial", "referral"]).optional(),
+  provider: z.enum(["email", "apple", "google"]).optional(),
+  lifecycle: z.enum(["active", "dormant14", "dormant90", "dormant2y", "never"]).optional(),
+  healthBand: z.enum(["good", "warning", "critical", "unknown"]).optional(),
+  verdict: z.string().max(32).optional(),
+  build: z.string().max(32).optional(),
+  unreachable: z.literal("1").optional(),
+  syncBroken: z.literal("1").optional(),
+  marketing: z.enum(["on", "off"]).optional(),
+  workType: z.enum(["gig", "employee", "both"]).optional(),
+  mode: z.enum(["work", "personal", "both"]).optional(),
+});
+
+type UsersListFilters = z.infer<typeof usersListFilterSchema>;
+
+function buildUsersWhere(f: UsersListFilters): Prisma.UserWhereInput {
+  const and: Prisma.UserWhereInput[] = [];
+  const daysAgo = (d: number) => new Date(Date.now() - d * 86_400_000);
+
+  if (f.q) {
+    and.push({ OR: [{ email: { contains: f.q } }, { displayName: { contains: f.q } }] });
+  }
+  if (f.plan === "premium") and.push({ isPremium: true });
+  if (f.plan === "free") and.push({ isPremium: false });
+  if (f.plan === "trial") and.push({ trialUsedAt: { not: null } });
+  if (f.plan === "referral") and.push({ referralProUntil: { gt: new Date() } });
+
+  if (f.provider === "apple") and.push({ appleId: { not: null } });
+  if (f.provider === "google") and.push({ googleId: { not: null } });
+  if (f.provider === "email") and.push({ appleId: null, googleId: null });
+
+  if (f.lifecycle === "active") and.push({ lastTripAt: { gte: daysAgo(14) } });
+  if (f.lifecycle === "dormant14") and.push({ lastTripAt: { lt: daysAgo(14) } });
+  if (f.lifecycle === "dormant90") and.push({ lastTripAt: { lt: daysAgo(90) } });
+  if (f.lifecycle === "never") and.push({ lastTripAt: null });
+  // Storage-limitation candidates: account 2y+ old with no trip AND no login
+  // in 2 years. Surfaced so dormant data can be reviewed for anonymisation.
+  if (f.lifecycle === "dormant2y") {
+    and.push({ createdAt: { lt: daysAgo(730) } });
+    and.push({ OR: [{ lastTripAt: null }, { lastTripAt: { lt: daysAgo(730) } }] });
+    and.push({ OR: [{ lastLoginAt: null }, { lastLoginAt: { lt: daysAgo(730) } }] });
+  }
+
+  if (f.verdict) and.push({ diagnosticDump: { is: { verdict: f.verdict } } });
+  if (f.build) and.push({ buildNumber: f.build });
+  if (f.unreachable) {
+    and.push({ email: { endsWith: PLACEHOLDER_EMAIL_SUFFIX }, pushToken: null });
+  }
+  if (f.syncBroken) and.push({ lastSyncQueuePermFailed: { gt: 0 } });
+  if (f.marketing === "on") and.push({ marketingEmailsEnabled: true });
+  if (f.marketing === "off") and.push({ marketingEmailsEnabled: false });
+  if (f.workType) and.push({ workType: f.workType });
+  if (f.mode) and.push({ dashboardMode: f.mode });
+
+  return and.length ? { AND: and } : {};
+}
+
+// Excel/Sheets treat leading = + - @ as formulas — neutralise them so an
+// adversarial displayName can't become a formula in an exported sheet.
+function csvCell(value: string | number | boolean | null | undefined): string {
+  if (value === null || value === undefined) return "";
+  let s = String(value);
+  if (/^[=+\-@\t]/.test(s)) s = `'${s}`;
+  return `"${s.replace(/"/g, '""')}"`;
+}
+
 export async function adminRoutes(app: FastifyInstance) {
   app.addHook("preHandler", authMiddleware);
   app.addHook("preHandler", adminMiddleware);
@@ -184,25 +259,22 @@ export async function adminRoutes(app: FastifyInstance) {
 
   // GET /admin/users
   app.get("/users", async (request, reply) => {
-    const { q, page, pageSize, sortBy } = request.query as {
-      q?: string;
+    const { page, pageSize, sortBy } = request.query as {
       page?: string;
       pageSize?: string;
       sortBy?: string;
     };
+    const parsedFilters = usersListFilterSchema.safeParse(request.query);
+    if (!parsedFilters.success) {
+      return reply.status(400).send({ error: parsedFilters.error.errors[0].message });
+    }
+    const filters = parsedFilters.data;
 
     const pageNum = Math.max(1, parseInt(page || "1", 10) || 1);
     const size = Math.min(50, Math.max(1, parseInt(pageSize || "20", 10) || 20));
     const skip = (pageNum - 1) * size;
 
-    const where = q
-      ? {
-          OR: [
-            { email: { contains: q } },
-            { displayName: { contains: q } },
-          ],
-        }
-      : {};
+    const where = buildUsersWhere(filters);
 
     let orderBy:
       | { createdAt: "desc" }
@@ -216,44 +288,42 @@ export async function adminRoutes(app: FastifyInstance) {
       orderBy = { createdAt: "desc" };
     }
 
-    const [users, total] = await Promise.all([
-      prisma.user.findMany({
-        where,
-        select: {
-          id: true,
-          email: true,
-          displayName: true,
-          emailVerified: true,
-          isPremium: true,
-          isAdmin: true,
-          createdAt: true,
-          lastLoginAt: true,
-          lastTripAt: true,
-          // Heartbeat fields used to compute the per-user health score.
-          // Audit follow-up #2 (4 May 2026).
-          bgLocationPermission: true,
-          trackingTaskActive: true,
-          backgroundFetchStatus: true,
-          lastHeartbeatAt: true,
-          lastPendingSyncCount: true,
-          lastSyncQueuePermFailed: true,
-          lastDrivingSpeedAt: true,
-          secondsSinceLastTripPost: true,
-          _count: { select: { trips: true, vehicles: true, earnings: true } },
-          diagnosticDump: { select: { verdict: true, capturedAt: true } },
-        },
-        orderBy,
-        skip,
-        take: size,
-      }),
-      prisma.user.count({ where }),
-    ]);
+    const select = {
+      id: true,
+      email: true,
+      displayName: true,
+      emailVerified: true,
+      isPremium: true,
+      isAdmin: true,
+      createdAt: true,
+      lastLoginAt: true,
+      lastTripAt: true,
+      buildNumber: true,
+      appVersion: true,
+      trialUsedAt: true,
+      referralProUntil: true,
+      marketingEmailsEnabled: true,
+      pushToken: true,
+      // Heartbeat fields used to compute the per-user health score.
+      // Audit follow-up #2 (4 May 2026).
+      bgLocationPermission: true,
+      trackingTaskActive: true,
+      backgroundFetchStatus: true,
+      lastHeartbeatAt: true,
+      lastPendingSyncCount: true,
+      lastSyncQueuePermFailed: true,
+      lastDrivingSpeedAt: true,
+      secondsSinceLastTripPost: true,
+      _count: { select: { trips: true, vehicles: true, earnings: true } },
+      diagnosticDump: { select: { verdict: true, capturedAt: true } },
+    } satisfies Prisma.UserSelect;
 
     // Decorate with the health-score band on the way out. The full
     // factor breakdown is included on the user-detail endpoint, not here
     // (keep the list response light). Score + band is enough for the
-    // sortable/filterable list column.
-    const decorated = users.map((u) => {
+    // sortable/filterable list column. pushToken is consumed into a
+    // boolean — the raw device token never leaves the API.
+    const decorate = (u: Prisma.UserGetPayload<{ select: typeof select }>) => {
       const { score, band } = calculateUserHealthScore({
         bgLocationPermission: u.bgLocationPermission,
         trackingTaskActive: u.trackingTaskActive,
@@ -264,8 +334,34 @@ export async function adminRoutes(app: FastifyInstance) {
         lastDrivingSpeedAt: u.lastDrivingSpeedAt,
         secondsSinceLastTripPost: u.secondsSinceLastTripPost,
       });
-      return { ...u, healthScore: score, healthBand: band };
-    });
+      const { pushToken, ...rest } = u;
+      return {
+        ...rest,
+        healthScore: score,
+        healthBand: band,
+        hasPushToken: !!pushToken,
+        unreachable: u.email.endsWith(PLACEHOLDER_EMAIL_SUFFIX) && !pushToken,
+      };
+    };
+
+    let decorated: ReturnType<typeof decorate>[];
+    let total: number;
+    if (filters.healthBand) {
+      // Health band is computed in JS, not stored, so band filtering can't
+      // be a WHERE clause. User count is small (hundreds) — fetch all rows
+      // matching the other filters, score, filter, paginate in memory.
+      const all = await prisma.user.findMany({ where, select, orderBy });
+      const matching = all.map(decorate).filter((u) => u.healthBand === filters.healthBand);
+      total = matching.length;
+      decorated = matching.slice(skip, skip + size);
+    } else {
+      const [users, count] = await Promise.all([
+        prisma.user.findMany({ where, select, orderBy, skip, take: size }),
+        prisma.user.count({ where }),
+      ]);
+      decorated = users.map(decorate);
+      total = count;
+    }
 
     return reply.send({
       data: decorated,
@@ -274,6 +370,97 @@ export async function adminRoutes(app: FastifyInstance) {
       pageSize: size,
       totalPages: Math.ceil(total / size),
     });
+  });
+
+  // GET /admin/users/export
+  // CSV of the filtered user list (same filters as GET /users). Deliberately
+  // minimal columns — this is for segment analysis, not a data dump. Every
+  // export is written to the admin audit log with the filters used.
+  app.get("/users/export", async (request, reply) => {
+    const parsedFilters = usersListFilterSchema.safeParse(request.query);
+    if (!parsedFilters.success) {
+      return reply.status(400).send({ error: parsedFilters.error.errors[0].message });
+    }
+    const filters = parsedFilters.data;
+    const where = buildUsersWhere(filters);
+
+    const users = await prisma.user.findMany({
+      where,
+      select: {
+        id: true,
+        email: true,
+        displayName: true,
+        isPremium: true,
+        trialUsedAt: true,
+        buildNumber: true,
+        appVersion: true,
+        marketingEmailsEnabled: true,
+        pushToken: true,
+        createdAt: true,
+        lastLoginAt: true,
+        lastTripAt: true,
+        bgLocationPermission: true,
+        trackingTaskActive: true,
+        backgroundFetchStatus: true,
+        lastHeartbeatAt: true,
+        lastPendingSyncCount: true,
+        lastSyncQueuePermFailed: true,
+        lastDrivingSpeedAt: true,
+        secondsSinceLastTripPost: true,
+        _count: { select: { trips: true } },
+      },
+      orderBy: { createdAt: "desc" },
+      take: 5000,
+    });
+
+    const activeFilters = Object.fromEntries(
+      Object.entries(filters).filter(([, v]) => v !== undefined)
+    );
+    logEvent("admin.users_exported", request.userId!, {
+      count: users.length,
+      filters: activeFilters,
+    });
+
+    const header = [
+      "id", "email", "displayName", "plan", "trialUsedAt", "healthScore", "healthBand",
+      "trips", "build", "appVersion", "marketingEmails", "hasPushToken", "unreachable",
+      "lastTripAt", "lastLoginAt", "createdAt",
+    ].join(",");
+    const rows = users.map((u) => {
+      const { score, band } = calculateUserHealthScore({
+        bgLocationPermission: u.bgLocationPermission,
+        trackingTaskActive: u.trackingTaskActive,
+        backgroundFetchStatus: u.backgroundFetchStatus,
+        lastHeartbeatAt: u.lastHeartbeatAt,
+        lastPendingSyncCount: u.lastPendingSyncCount,
+        lastSyncQueuePermFailed: u.lastSyncQueuePermFailed,
+        lastDrivingSpeedAt: u.lastDrivingSpeedAt,
+        secondsSinceLastTripPost: u.secondsSinceLastTripPost,
+      });
+      return [
+        csvCell(u.id),
+        csvCell(u.email),
+        csvCell(u.displayName),
+        csvCell(u.isPremium ? "premium" : "free"),
+        csvCell(u.trialUsedAt?.toISOString() ?? null),
+        csvCell(score),
+        csvCell(band),
+        csvCell(u._count.trips),
+        csvCell(u.buildNumber),
+        csvCell(u.appVersion),
+        csvCell(u.marketingEmailsEnabled),
+        csvCell(!!u.pushToken),
+        csvCell(u.email.endsWith(PLACEHOLDER_EMAIL_SUFFIX) && !u.pushToken),
+        csvCell(u.lastTripAt?.toISOString() ?? null),
+        csvCell(u.lastLoginAt?.toISOString() ?? null),
+        csvCell(u.createdAt.toISOString()),
+      ].join(",");
+    });
+
+    const filename = `mileclear-users-${new Date().toISOString().slice(0, 10)}.csv`;
+    reply.header("Content-Type", "text/csv; charset=utf-8");
+    reply.header("Content-Disposition", `attachment; filename="${filename}"`);
+    return reply.send([header, ...rows].join("\n"));
   });
 
   // GET /admin/users/:userId
@@ -316,7 +503,44 @@ export async function adminRoutes(app: FastifyInstance) {
         autoRecordingActive: true,
         recordingStartedAt: true,
         lastDrivingSpeedAt: true,
-        _count: { select: { trips: true, vehicles: true, earnings: true } },
+        // Monetisation
+        trialUsedAt: true,
+        appleOriginalTransactionId: true,
+        referralCode: true,
+        referralProUntil: true,
+        referredByCode: true,
+        // Reachability
+        pushToken: true,
+        marketingEmailsEnabled: true,
+        marketingEmailsDisabledAt: true,
+        marketingEmailsDisabledSource: true,
+        // Profile / segmentation
+        fullName: true,
+        workType: true,
+        dashboardMode: true,
+        userIntent: true,
+        termsAcceptedAt: true,
+        discordUserId: true,
+        // One-to-one integrations (presence only)
+        hmrcConnection: { select: { id: true } },
+        quickBooksConnection: { select: { id: true } },
+        _count: {
+          select: {
+            trips: true,
+            vehicles: true,
+            earnings: true,
+            shifts: true,
+            fuelLogs: true,
+            expenses: true,
+            invoices: true,
+            savedLocations: true,
+            achievements: true,
+            feedback: true,
+            plaidConnections: true,
+            accountantAccess: true,
+            referralsMade: true,
+          },
+        },
         trips: {
           select: {
             id: true,
@@ -344,7 +568,8 @@ export async function adminRoutes(app: FastifyInstance) {
       return reply.status(404).send({ error: "User not found" });
     }
 
-    const [mileageAgg, earningsAgg] = await Promise.all([
+    const eightWeeksAgo = new Date(Date.now() - 56 * 86_400_000);
+    const [mileageAgg, earningsAgg, firstTrip, recentTrips] = await Promise.all([
       prisma.trip.aggregate({
         where: { userId },
         _sum: { distanceMiles: true },
@@ -353,7 +578,31 @@ export async function adminRoutes(app: FastifyInstance) {
         where: { userId },
         _sum: { amountPence: true },
       }),
+      prisma.trip.findFirst({
+        where: { userId },
+        orderBy: { startedAt: "asc" },
+        select: { startedAt: true },
+      }),
+      prisma.trip.findMany({
+        where: { userId, startedAt: { gte: eightWeeksAgo } },
+        select: { startedAt: true },
+      }),
     ]);
+
+    // Weekly trip counts, oldest → newest (index 7 = the current week).
+    const weeklyTrips = new Array<number>(8).fill(0);
+    for (const t of recentTrips) {
+      const weeksBack = Math.min(
+        7,
+        Math.floor((Date.now() - t.startedAt.getTime()) / (7 * 86_400_000))
+      );
+      weeklyTrips[7 - weeksBack]++;
+    }
+    // Churn-risk heuristic: user had a habit (≥2 trips/week over the prior
+    // six weeks) but the last fortnight fell below one prior week's average.
+    const priorAvg = weeklyTrips.slice(0, 6).reduce((a, b) => a + b, 0) / 6;
+    const recentFortnight = weeklyTrips[6] + weeklyTrips[7];
+    const churnRisk = priorAvg >= 2 && recentFortnight < priorAvg;
 
     // Per-user health score (audit follow-up #2). The detail view gets
     // the full factor breakdown so admin can see WHY a user scored low,
@@ -369,14 +618,88 @@ export async function adminRoutes(app: FastifyInstance) {
       secondsSinceLastTripPost: user.secondsSinceLastTripPost,
     });
 
+    // The raw push token and integration row ids never leave the API —
+    // presence booleans are all the admin UI needs.
+    const {
+      pushToken,
+      hmrcConnection,
+      quickBooksConnection,
+      discordUserId,
+      ...safeUser
+    } = user;
+
     return reply.send({
       data: {
-        ...user,
+        ...safeUser,
         totalMiles: Math.round((mileageAgg._sum.distanceMiles ?? 0) * 10) / 10,
         totalEarningsPence: earningsAgg._sum.amountPence ?? 0,
         health,
+        subscriptionPlatform: user.appleOriginalTransactionId
+          ? "apple"
+          : user.stripeSubscriptionId
+            ? "stripe"
+            : "none",
+        hasPushToken: !!pushToken,
+        unreachable: user.email.endsWith(PLACEHOLDER_EMAIL_SUFFIX) && !pushToken,
+        integrations: {
+          hmrc: !!hmrcConnection,
+          quickbooks: !!quickBooksConnection,
+          discord: !!discordUserId,
+          openBanking: user._count.plaidConnections > 0,
+          accountantSharing: user._count.accountantAccess > 0,
+        },
+        lifecycle: {
+          firstTripAt: firstTrip?.startedAt ?? null,
+          weeklyTrips,
+          churnRisk,
+        },
       },
     });
+  });
+
+  // GET /admin/users/:userId/events
+  // Recent AppEvents for one user: their own activity (logins, exports,
+  // billing, notifications sent to them) plus admin actions that targeted
+  // them (metadata.targetUserId). Powers the per-user comms/activity
+  // history in the user detail modal.
+  app.get("/users/:userId/events", async (request, reply) => {
+    const { userId } = request.params as { userId: string };
+
+    const select = {
+      id: true,
+      type: true,
+      metadata: true,
+      buildNumber: true,
+      createdAt: true,
+    } satisfies Prisma.AppEventSelect;
+
+    // Two queries instead of one OR: each branch has an index it can use
+    // (userId; type prefix), and admin.* is a small set to JSON-filter.
+    const [own, adminTargeted] = await Promise.all([
+      prisma.appEvent.findMany({
+        where: { userId },
+        orderBy: { createdAt: "desc" },
+        take: 100,
+        select,
+      }),
+      prisma.appEvent.findMany({
+        where: {
+          type: { startsWith: "admin." },
+          metadata: { path: "$.targetUserId", equals: userId },
+        },
+        orderBy: { createdAt: "desc" },
+        take: 50,
+        select,
+      }),
+    ]);
+
+    const seen = new Set<string>();
+    const merged = [...own, ...adminTargeted]
+      .filter((e) => (seen.has(e.id) ? false : (seen.add(e.id), true)))
+      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
+      .slice(0, 100);
+
+    return reply.send({ data: merged });
   });
 
   // GET /admin/users/:userId/diagnostics

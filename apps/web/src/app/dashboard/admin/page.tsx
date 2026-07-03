@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback, useRef } from "react";
-import { api } from "../../../lib/api";
+import { api, fetchWithAuth } from "../../../lib/api";
 import { PageHeader } from "../../../components/dashboard/PageHeader";
 import { Card } from "../../../components/ui/Card";
 import { Button } from "../../../components/ui/Button";
@@ -65,6 +65,14 @@ interface AdminUser {
   // Per-user health score (audit follow-up #2). 0-100 + coarse band.
   healthScore?: number;
   healthBand?: "good" | "warning" | "critical" | "unknown";
+  buildNumber?: string | null;
+  appVersion?: string | null;
+  trialUsedAt?: string | null;
+  referralProUntil?: string | null;
+  marketingEmailsEnabled?: boolean;
+  hasPushToken?: boolean;
+  // Placeholder Apple Sign-In email + no push token: no channel reaches them.
+  unreachable?: boolean;
 }
 
 interface AdminUserDetail extends AdminUser {
@@ -103,9 +111,90 @@ interface AdminUserDetail extends AdminUser {
     startedAt: string;
     platformTag: string | null;
   }[];
+  // Monetisation
+  subscriptionPlatform?: "apple" | "stripe" | "none";
+  referralCode?: string | null;
+  referralProUntil?: string | null;
+  referredByCode?: string | null;
+  // Reachability
+  marketingEmailsDisabledAt?: string | null;
+  marketingEmailsDisabledSource?: string | null;
+  // Profile / segmentation
+  fullName?: string | null;
+  workType?: string;
+  dashboardMode?: string;
+  userIntent?: string | null;
+  // Feature adoption counts (superset of the list _count)
+  _count: {
+    trips: number;
+    vehicles: number;
+    earnings: number;
+    shifts: number;
+    fuelLogs: number;
+    expenses: number;
+    invoices: number;
+    savedLocations: number;
+    achievements: number;
+    feedback: number;
+    plaidConnections: number;
+    accountantAccess: number;
+    referralsMade: number;
+  };
+  integrations?: {
+    hmrc: boolean;
+    quickbooks: boolean;
+    discord: boolean;
+    openBanking: boolean;
+    accountantSharing: boolean;
+  };
+  lifecycle?: {
+    firstTripAt: string | null;
+    weeklyTrips: number[]; // last 8 weeks, oldest first
+    churnRisk: boolean;
+  };
+}
+
+interface AdminUserEvent {
+  id: string;
+  type: string;
+  metadata: Record<string, unknown> | null;
+  buildNumber: string | null;
+  createdAt: string;
 }
 
 type UsersSortBy = "createdAt" | "lastTripAt" | "lastLoginAt";
+
+interface UsersFilters {
+  plan: string;
+  provider: string;
+  lifecycle: string;
+  healthBand: string;
+  unreachable: boolean;
+  syncBroken: boolean;
+  marketingOff: boolean;
+}
+
+const EMPTY_USERS_FILTERS: UsersFilters = {
+  plan: "",
+  provider: "",
+  lifecycle: "",
+  healthBand: "",
+  unreachable: false,
+  syncBroken: false,
+  marketingOff: false,
+};
+
+function usersFilterParams(filters: UsersFilters): URLSearchParams {
+  const params = new URLSearchParams();
+  if (filters.plan) params.set("plan", filters.plan);
+  if (filters.provider) params.set("provider", filters.provider);
+  if (filters.lifecycle) params.set("lifecycle", filters.lifecycle);
+  if (filters.healthBand) params.set("healthBand", filters.healthBand);
+  if (filters.unreachable) params.set("unreachable", "1");
+  if (filters.syncBroken) params.set("syncBroken", "1");
+  if (filters.marketingOff) params.set("marketing", "off");
+  return params;
+}
 
 interface AdminTripPath {
   id: string;
@@ -569,6 +658,8 @@ function UserDetailModal({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [diag, setDiag] = useState<DiagnosticDump | null>(null);
+  const [events, setEvents] = useState<AdminUserEvent[] | null>(null);
+  const [showAllEvents, setShowAllEvents] = useState(false);
   // Trip filter for the diagnostic events panel — when set, the events
   // list is scoped to that trip's time window (±60s). Mirrors the
   // mobile Drive Detection screen pattern.
@@ -652,13 +743,17 @@ function UserDetailModal({
     setTripOpen(false);
     setTripPaths(null);
     resetTripForm();
+    setEvents(null);
+    setShowAllEvents(false);
     Promise.all([
       api.get<{ data: AdminUserDetail }>(`/admin/users/${userId}`),
       api.get<{ data: DiagnosticDump | null }>(`/admin/users/${userId}/diagnostics`).catch(() => ({ data: null })),
+      api.get<{ data: AdminUserEvent[] }>(`/admin/users/${userId}/events`).catch(() => ({ data: [] as AdminUserEvent[] })),
     ])
-      .then(([userRes, diagRes]) => {
+      .then(([userRes, diagRes, eventsRes]) => {
         setUser(userRes.data);
         setDiag(diagRes.data);
+        setEvents(eventsRes.data);
         setNotesDraft(userRes.data.notes ?? "");
       })
       .catch((err: Error) => setError(err.message))
@@ -914,7 +1009,44 @@ function UserDetailModal({
                   {!user.isPremium && !user.isAdmin && <Badge variant="source">Free</Badge>}
                   {user.emailVerified && <Badge variant="success">Verified</Badge>}
                   {!user.emailVerified && <Badge variant="danger">Unverified</Badge>}
+                  {user.unreachable && (
+                    <span title="Placeholder Apple email + no push token — cannot be contacted by any channel">
+                      <Badge variant="danger">Unreachable</Badge>
+                    </span>
+                  )}
+                  {user.lifecycle?.churnRisk && (
+                    <span title="Had a trip habit (2+/week) but the last fortnight dropped below one prior week's average">
+                      <Badge variant="danger">Churn risk</Badge>
+                    </span>
+                  )}
                 </div>
+              </div>
+              <div>
+                <span style={{ color: "var(--text-secondary)" }}>Reachability</span>
+                <div style={{ marginTop: 4, display: "flex", gap: "0.375rem", flexWrap: "wrap" }}>
+                  <Badge variant={user.hasPushToken ? "success" : "source"}>
+                    {user.hasPushToken ? "Push ✓" : "No push"}
+                  </Badge>
+                  <span
+                    title={
+                      user.marketingEmailsEnabled === false
+                        ? `Opted out ${user.marketingEmailsDisabledAt ? new Date(user.marketingEmailsDisabledAt).toLocaleDateString("en-GB") : ""}${user.marketingEmailsDisabledSource ? ` via ${user.marketingEmailsDisabledSource}` : ""}`
+                        : "Receives marketing emails (PECR soft opt-in)"
+                    }
+                  >
+                    <Badge variant={user.marketingEmailsEnabled === false ? "danger" : "success"}>
+                      {user.marketingEmailsEnabled === false ? "Marketing off" : "Marketing ✓"}
+                    </Badge>
+                  </span>
+                </div>
+              </div>
+              <div>
+                <span style={{ color: "var(--text-secondary)" }}>Segment</span>
+                <p style={{ marginTop: 2, fontSize: "0.8125rem" }}>
+                  {[user.workType, user.dashboardMode && `${user.dashboardMode} mode`, user.userIntent]
+                    .filter(Boolean)
+                    .join(" · ") || "—"}
+                </p>
               </div>
             </div>
           </div>
@@ -930,10 +1062,61 @@ function UserDetailModal({
             </div>
           )}
 
-          {/* Stripe */}
-          {(user.stripeCustomerId || user.stripeSubscriptionId) && (
-            <div className="settings-section">
-              <h4 className="settings-section__title">Stripe</h4>
+          {/* Monetisation */}
+          <div className="settings-section">
+            <h4 className="settings-section__title">Monetisation</h4>
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "1fr 1fr",
+                gap: "0.5rem 1.5rem",
+                fontSize: "0.875rem",
+              }}
+            >
+              <div>
+                <span style={{ color: "var(--text-secondary)" }}>Subscription</span>
+                <div style={{ marginTop: 4, display: "flex", gap: "0.375rem", flexWrap: "wrap" }}>
+                  {user.subscriptionPlatform === "apple" && <Badge variant="source">Apple IAP</Badge>}
+                  {user.subscriptionPlatform === "stripe" && <Badge variant="source">Stripe</Badge>}
+                  {(!user.subscriptionPlatform || user.subscriptionPlatform === "none") && (
+                    <Badge variant="source">{user.isPremium ? "Manual grant" : "None"}</Badge>
+                  )}
+                </div>
+              </div>
+              <div>
+                <span style={{ color: "var(--text-secondary)" }}>Premium expires</span>
+                <p style={{ marginTop: 2 }}>
+                  {user.premiumExpiresAt
+                    ? new Date(user.premiumExpiresAt).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })
+                    : "—"}
+                </p>
+              </div>
+              <div>
+                <span style={{ color: "var(--text-secondary)" }}>Trial used</span>
+                <p style={{ marginTop: 2 }}>
+                  {user.trialUsedAt
+                    ? new Date(user.trialUsedAt).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })
+                    : "No (trial-eligible)"}
+                </p>
+              </div>
+              <div>
+                <span style={{ color: "var(--text-secondary)" }}>Referral Pro until</span>
+                <p style={{ marginTop: 2 }}>
+                  {user.referralProUntil
+                    ? new Date(user.referralProUntil).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })
+                    : "—"}
+                </p>
+              </div>
+              <div>
+                <span style={{ color: "var(--text-secondary)" }}>Referrals</span>
+                <p style={{ marginTop: 2 }}>
+                  {user._count.referralsMade ?? 0} made
+                  {user.referralCode ? ` · code ${user.referralCode}` : ""}
+                  {user.referredByCode ? ` · joined via ${user.referredByCode}` : ""}
+                </p>
+              </div>
+            </div>
+            {(user.stripeCustomerId || user.stripeSubscriptionId) && (
               <div
                 style={{
                   display: "flex",
@@ -942,6 +1125,7 @@ function UserDetailModal({
                   fontSize: "0.8125rem",
                   fontFamily: "monospace",
                   color: "var(--text-secondary)",
+                  marginTop: "0.5rem",
                 }}
               >
                 {user.stripeCustomerId && <span>Customer: {user.stripeCustomerId}</span>}
@@ -949,8 +1133,8 @@ function UserDetailModal({
                   <span>Subscription: {user.stripeSubscriptionId}</span>
                 )}
               </div>
-            </div>
-          )}
+            )}
+          </div>
 
           {/* Activity */}
           <div className="settings-section">
@@ -1011,6 +1195,144 @@ function UserDetailModal({
               </div>
             </div>
           </div>
+
+          {/* Feature Adoption */}
+          <div className="settings-section">
+            <h4 className="settings-section__title">Feature Adoption</h4>
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(auto-fill, minmax(130px, 1fr))",
+                gap: "0.375rem",
+              }}
+            >
+              {([
+                { label: "Shifts", count: user._count.shifts },
+                { label: "Fuel logs", count: user._count.fuelLogs },
+                { label: "Earnings", count: user._count.earnings },
+                { label: "Expenses", count: user._count.expenses },
+                { label: "Invoices", count: user._count.invoices },
+                { label: "Saved locations", count: user._count.savedLocations },
+                { label: "Achievements", count: user._count.achievements },
+                { label: "Feedback", count: user._count.feedback },
+                { label: "Open Banking", on: user.integrations?.openBanking },
+                { label: "HMRC MTD", on: user.integrations?.hmrc },
+                { label: "QuickBooks", on: user.integrations?.quickbooks },
+                { label: "Discord", on: user.integrations?.discord },
+                { label: "Accountant share", on: user.integrations?.accountantSharing },
+              ] as Array<{ label: string; count?: number; on?: boolean }>).map((f) => {
+                const used = f.count !== undefined ? f.count > 0 : !!f.on;
+                return (
+                  <div
+                    key={f.label}
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                      gap: "0.375rem",
+                      padding: "0.375rem 0.5rem",
+                      borderRadius: 6,
+                      fontSize: "0.75rem",
+                      border: "1px solid var(--border-subtle, rgba(255,255,255,0.08))",
+                      background: used ? "rgba(16,185,129,0.08)" : "transparent",
+                      color: used ? "var(--text-primary)" : "var(--text-tertiary)",
+                    }}
+                  >
+                    <span>{f.label}</span>
+                    <span style={{ fontWeight: 600 }}>
+                      {f.count !== undefined ? (f.count > 0 ? f.count : "—") : f.on ? "✓" : "—"}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Lifecycle */}
+          {user.lifecycle && (
+            <div className="settings-section">
+              <h4 className="settings-section__title">Lifecycle</h4>
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "1fr 1fr",
+                  gap: "0.5rem 1.5rem",
+                  fontSize: "0.875rem",
+                  marginBottom: "0.75rem",
+                }}
+              >
+                <div>
+                  <span style={{ color: "var(--text-secondary)" }}>First trip</span>
+                  <p style={{ marginTop: 2 }}>
+                    {user.lifecycle.firstTripAt
+                      ? `${new Date(user.lifecycle.firstTripAt).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })} (${Math.max(0, Math.round((new Date(user.lifecycle.firstTripAt).getTime() - new Date(user.createdAt).getTime()) / 86_400_000))}d after signup)`
+                      : "Never"}
+                  </p>
+                </div>
+                <div>
+                  <span style={{ color: "var(--text-secondary)" }}>Last 8 weeks</span>
+                  <p style={{ marginTop: 2 }}>
+                    {user.lifecycle.weeklyTrips.reduce((a, b) => a + b, 0)} trips
+                    {user.lifecycle.churnRisk ? " · declining" : ""}
+                  </p>
+                </div>
+              </div>
+              {/* Weekly trips sparkline: single series, oldest week → current */}
+              {(() => {
+                const weeks = user.lifecycle!.weeklyTrips;
+                const max = Math.max(1, ...weeks);
+                const barW = 28;
+                const gap = 2;
+                const h = 56;
+                const w = weeks.length * (barW + gap) - gap;
+                return (
+                  <div>
+                    <svg
+                      width={w}
+                      height={h}
+                      viewBox={`0 0 ${w} ${h}`}
+                      role="img"
+                      aria-label={`Trips per week over the last 8 weeks: ${weeks.join(", ")}`}
+                      style={{ display: "block" }}
+                    >
+                      {weeks.map((count, i) => {
+                        const barH = count === 0 ? 2 : Math.max(3, (count / max) * (h - 14));
+                        return (
+                          <g key={i}>
+                            <rect
+                              x={i * (barW + gap)}
+                              y={h - barH}
+                              width={barW}
+                              height={barH}
+                              rx={2}
+                              fill={count === 0 ? "rgba(255,255,255,0.12)" : "var(--amber-500, #f59e0b)"}
+                            >
+                              <title>{`${count} trip${count === 1 ? "" : "s"}, ${i === 7 ? "this week" : `${7 - i} week${7 - i === 1 ? "" : "s"} ago`}`}</title>
+                            </rect>
+                            {i === 7 && count > 0 && (
+                              <text
+                                x={i * (barW + gap) + barW / 2}
+                                y={h - barH - 3}
+                                textAnchor="middle"
+                                fontSize={10}
+                                fill="var(--text-secondary, #8494a7)"
+                              >
+                                {count}
+                              </text>
+                            )}
+                          </g>
+                        );
+                      })}
+                    </svg>
+                    <div style={{ display: "flex", justifyContent: "space-between", width: w, fontSize: "0.6875rem", color: "var(--text-tertiary)", marginTop: 2 }}>
+                      <span>8 wks ago</span>
+                      <span>this week</span>
+                    </div>
+                  </div>
+                );
+              })()}
+            </div>
+          )}
 
           {/* Trip Map */}
           <div className="settings-section">
@@ -1315,6 +1637,84 @@ function UserDetailModal({
               </div>
             </div>
           )}
+
+          {/* Recent Events (comms + activity history) */}
+          {events && events.length > 0 && (() => {
+            const isComms = (t: string) =>
+              t.startsWith("notification.") || t.startsWith("email.") || t === "admin.push_sent";
+            const visible = showAllEvents ? events : events.filter((e) => isComms(e.type));
+            return (
+              <div className="settings-section">
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "0.5rem", marginBottom: "0.5rem" }}>
+                  <h4 className="settings-section__title" style={{ margin: 0 }}>
+                    {showAllEvents ? "Recent Events" : "Comms History"}
+                  </h4>
+                  <div style={{ display: "flex", gap: "0.25rem" }}>
+                    <button
+                      type="button"
+                      className={`filter-chip ${!showAllEvents ? "filter-chip--active" : ""}`}
+                      onClick={() => setShowAllEvents(false)}
+                    >
+                      Comms
+                    </button>
+                    <button
+                      type="button"
+                      className={`filter-chip ${showAllEvents ? "filter-chip--active" : ""}`}
+                      onClick={() => setShowAllEvents(true)}
+                    >
+                      All events
+                    </button>
+                  </div>
+                </div>
+                {visible.length === 0 ? (
+                  <p style={{ fontSize: "0.8125rem", color: "var(--text-tertiary)", margin: 0 }}>
+                    No {showAllEvents ? "events" : "notifications or emails"} recorded for this user.
+                  </p>
+                ) : (
+                  <div style={{ maxHeight: 260, overflowY: "auto" }}>
+                    <table className="table">
+                      <thead>
+                        <tr>
+                          <th>When</th>
+                          <th>Event</th>
+                          <th>Detail</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {visible.slice(0, 40).map((e) => {
+                          const meta = e.metadata ?? {};
+                          const detail = [
+                            typeof meta.title === "string" ? meta.title : null,
+                            typeof meta.reason === "string" ? meta.reason : null,
+                            typeof meta.action === "string" ? meta.action : null,
+                          ]
+                            .filter(Boolean)
+                            .join(" · ");
+                          return (
+                            <tr key={e.id}>
+                              <td
+                                style={{ whiteSpace: "nowrap", fontSize: "0.75rem", color: "var(--text-secondary)" }}
+                                title={new Date(e.createdAt).toLocaleString()}
+                              >
+                                {timeAgo(e.createdAt)}
+                              </td>
+                              <td style={{ fontSize: "0.75rem", fontFamily: "monospace" }}>{e.type}</td>
+                              <td
+                                style={{ fontSize: "0.75rem", color: "var(--text-secondary)", maxWidth: 280, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
+                                title={Object.keys(meta).length ? JSON.stringify(meta) : ""}
+                              >
+                                {detail || (Object.keys(meta).length ? JSON.stringify(meta).slice(0, 80) : "—")}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            );
+          })()}
 
           {/* Drive Detection Diagnostics */}
           <div className="settings-section">
@@ -1700,6 +2100,15 @@ function UsersTab() {
   // Sort
   const [sortBy, setSortBy] = useState<UsersSortBy>("createdAt");
 
+  // Segment filters
+  const [filters, setFilters] = useState<UsersFilters>(EMPTY_USERS_FILTERS);
+  const filtersActive =
+    filters.plan || filters.provider || filters.lifecycle || filters.healthBand ||
+    filters.unreachable || filters.syncBroken || filters.marketingOff;
+
+  // CSV export
+  const [exporting, setExporting] = useState(false);
+
   // User detail modal
   const [viewUserId, setViewUserId] = useState<string | null>(null);
   const [showDetail, setShowDetail] = useState(false);
@@ -1714,20 +2123,19 @@ function UsersTab() {
     return () => clearTimeout(t);
   }, [searchInput]);
 
-  // Reset to page 1 when search or sort changes
+  // Reset to page 1 when search, sort or filters change
   useEffect(() => {
     setPage(1);
-  }, [search, sortBy]);
+  }, [search, sortBy, filters]);
 
   const loadUsers = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const params = new URLSearchParams({
-        page: String(page),
-        pageSize: "20",
-        sortBy,
-      });
+      const params = usersFilterParams(filters);
+      params.set("page", String(page));
+      params.set("pageSize", "20");
+      params.set("sortBy", sortBy);
       if (search.trim()) {
         params.set("q", search.trim());
       }
@@ -1740,7 +2148,24 @@ function UsersTab() {
     } finally {
       setLoading(false);
     }
-  }, [page, search, sortBy]);
+  }, [page, search, sortBy, filters]);
+
+  const handleExportCsv = async () => {
+    setExporting(true);
+    setError(null);
+    try {
+      const params = usersFilterParams(filters);
+      if (search.trim()) params.set("q", search.trim());
+      const res = await fetchWithAuth(`/admin/users/export?${params}`);
+      if (!res.ok) throw new Error(`Export failed (${res.status})`);
+      const csv = await res.text();
+      downloadTextFile(`mileclear-users-${new Date().toISOString().slice(0, 10)}.csv`, csv);
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setExporting(false);
+    }
+  };
 
   useEffect(() => {
     loadUsers();
@@ -1769,8 +2194,8 @@ function UsersTab() {
 
   return (
     <>
-      {/* Search + Sort */}
-      <div style={{ display: "flex", gap: "0.75rem", marginBottom: "1rem", flexWrap: "wrap", alignItems: "center" }}>
+      {/* Search + Sort + Export */}
+      <div style={{ display: "flex", gap: "0.75rem", marginBottom: "0.75rem", flexWrap: "wrap", alignItems: "center" }}>
         <div style={{ flex: "1 1 260px", maxWidth: 400 }}>
           <Input
             id="user-search"
@@ -1793,6 +2218,104 @@ function UsersTab() {
             ]}
           />
         </div>
+        <Button
+          variant="secondary"
+          onClick={handleExportCsv}
+          disabled={exporting}
+          aria-label="Export the filtered user list as CSV"
+          title="Download the current filtered list as CSV (export is audit-logged)"
+        >
+          {exporting ? "Exporting…" : "Export CSV"}
+        </Button>
+      </div>
+
+      {/* Segment filters */}
+      <div style={{ display: "flex", gap: "0.5rem", marginBottom: "1rem", flexWrap: "wrap", alignItems: "center" }}>
+        <Select
+          id="filter-plan"
+          value={filters.plan}
+          onChange={(e) => setFilters((f) => ({ ...f, plan: e.target.value }))}
+          aria-label="Filter by plan"
+          options={[
+            { value: "", label: "Plan: all" },
+            { value: "free", label: "Free" },
+            { value: "premium", label: "Premium" },
+            { value: "trial", label: "Trial used" },
+            { value: "referral", label: "Referral Pro" },
+          ]}
+        />
+        <Select
+          id="filter-provider"
+          value={filters.provider}
+          onChange={(e) => setFilters((f) => ({ ...f, provider: e.target.value }))}
+          aria-label="Filter by sign-in provider"
+          options={[
+            { value: "", label: "Sign-in: all" },
+            { value: "email", label: "Email" },
+            { value: "apple", label: "Apple" },
+            { value: "google", label: "Google" },
+          ]}
+        />
+        <Select
+          id="filter-lifecycle"
+          value={filters.lifecycle}
+          onChange={(e) => setFilters((f) => ({ ...f, lifecycle: e.target.value }))}
+          aria-label="Filter by lifecycle"
+          options={[
+            { value: "", label: "Lifecycle: all" },
+            { value: "active", label: "Active (trip <14d)" },
+            { value: "dormant14", label: "Dormant 14d+" },
+            { value: "dormant90", label: "Dormant 90d+" },
+            { value: "dormant2y", label: "Dormant 2y+ (retention review)" },
+            { value: "never", label: "Never tripped" },
+          ]}
+        />
+        <Select
+          id="filter-health"
+          value={filters.healthBand}
+          onChange={(e) => setFilters((f) => ({ ...f, healthBand: e.target.value }))}
+          aria-label="Filter by health band"
+          options={[
+            { value: "", label: "Health: all" },
+            { value: "good", label: "Good" },
+            { value: "warning", label: "Warning" },
+            { value: "critical", label: "Critical" },
+            { value: "unknown", label: "Unknown" },
+          ]}
+        />
+        <button
+          type="button"
+          className={`filter-chip ${filters.unreachable ? "filter-chip--active" : ""}`}
+          onClick={() => setFilters((f) => ({ ...f, unreachable: !f.unreachable }))}
+          title="Placeholder Apple Sign-In email and no push token — no channel can reach these users"
+        >
+          Unreachable
+        </button>
+        <button
+          type="button"
+          className={`filter-chip ${filters.syncBroken ? "filter-chip--active" : ""}`}
+          onClick={() => setFilters((f) => ({ ...f, syncBroken: !f.syncBroken }))}
+          title="Users whose last heartbeat reported permanently-failed sync queue items"
+        >
+          Sync broken
+        </button>
+        <button
+          type="button"
+          className={`filter-chip ${filters.marketingOff ? "filter-chip--active" : ""}`}
+          onClick={() => setFilters((f) => ({ ...f, marketingOff: !f.marketingOff }))}
+          title="Users who opted out of marketing emails"
+        >
+          Marketing off
+        </button>
+        {filtersActive && (
+          <button
+            type="button"
+            className="filter-chip"
+            onClick={() => setFilters(EMPTY_USERS_FILTERS)}
+          >
+            Clear filters
+          </button>
+        )}
       </div>
 
       {error && (
@@ -1875,6 +2398,11 @@ function UsersTab() {
                         {user.isAdmin && <Badge variant="primary">Admin</Badge>}
                         {!user.isPremium && !user.isAdmin && (
                           <Badge variant="source">Free</Badge>
+                        )}
+                        {user.unreachable && (
+                          <span title="Placeholder Apple email + no push token — cannot be contacted by any channel">
+                            <Badge variant="danger">Unreachable</Badge>
+                          </span>
                         )}
                       </div>
                     </td>
