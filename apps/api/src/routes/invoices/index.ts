@@ -1,10 +1,13 @@
 // Sole-trader invoice tracker — Laura Joyce request, shipped 10 May 2026.
 //
 // Deliberate scope: simple list + paid/unpaid status. NOT a collections
-// workflow. Late-payment-act interest, formal letters, and statutory
-// compensation calculations were considered but rejected after user
-// feedback ("no idea what that is"). Users hand the list off to their
-// accountant; the app keeps it tidy.
+// workflow. Late-payment-act interest calculations were originally
+// rejected after user feedback ("no idea what that is") — then Laura
+// herself asked for a chase email in Jul 2026, so a scoped version
+// exists: the CLIENT composes a pre-filled draft in their own mail app
+// (mobile-side template, statutory-interest line included). The server
+// only stores the optional clientEmail to pre-address that draft; it
+// never emails clients directly.
 //
 // Tax basis interaction:
 //   - cash basis (default, most gig drivers): Tax Readiness counts
@@ -136,8 +139,22 @@ function computeStatus(args: {
 
 const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Date must be YYYY-MM-DD");
 
+// Client email: full RFC validation is overkill for a pre-addressed
+// draft — accept anything that looks like an address, treat "" as null.
+const clientEmailField = z
+  .string()
+  .max(255)
+  .email("Client email doesn't look like an email address")
+  .or(z.literal(""))
+  .nullable()
+  .optional()
+  // "" → null (clear), but ABSENT stays undefined so PATCHes that don't
+  // touch the field don't wipe it.
+  .transform((v) => (v === undefined ? undefined : v || null));
+
 const createSchema = z.object({
   company: z.string().min(1).max(200),
+  clientEmail: clientEmailField,
   reference: z.string().max(80).optional().nullable(),
   amountPence: z.number().int().min(1).max(1_000_000_000),
   sentAt: isoDate,
@@ -149,6 +166,7 @@ const createSchema = z.object({
 
 const updateSchema = z.object({
   company: z.string().min(1).max(200).optional(),
+  clientEmail: clientEmailField,
   reference: z.string().max(80).nullable().optional(),
   amountPence: z.number().int().min(1).max(1_000_000_000).optional(),
   sentAt: isoDate.optional(),
@@ -230,6 +248,7 @@ export async function invoiceRoutes(app: FastifyInstance) {
       data: {
         userId,
         company: data.company,
+        clientEmail: data.clientEmail ?? null,
         reference: data.reference ?? null,
         amountPence: data.amountPence,
         sentAt,
@@ -368,6 +387,7 @@ export async function invoiceRoutes(app: FastifyInstance) {
       where: { id },
       data: {
         ...(updates.company !== undefined && { company: updates.company }),
+        ...(updates.clientEmail !== undefined && { clientEmail: updates.clientEmail }),
         ...(updates.reference !== undefined && { reference: updates.reference }),
         ...(updates.amountPence !== undefined && { amountPence: updates.amountPence }),
         sentAt: newSentAt,

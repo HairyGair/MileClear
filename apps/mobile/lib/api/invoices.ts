@@ -12,6 +12,8 @@ export interface Invoice {
   id: string;
   userId: string;
   company: string;
+  /** Optional — pre-addresses the late-payment chase email draft. */
+  clientEmail: string | null;
   reference: string | null;
   amountPence: number;
   /** ISO date (YYYY-MM-DD) */
@@ -51,6 +53,7 @@ export interface InvoiceListResponse {
 
 export interface CreateInvoiceInput {
   company: string;
+  clientEmail?: string | null;
   reference?: string | null;
   amountPence: number;
   sentAt: string; // YYYY-MM-DD
@@ -61,6 +64,7 @@ export interface CreateInvoiceInput {
 
 export interface UpdateInvoiceInput {
   company?: string;
+  clientEmail?: string | null;
   reference?: string | null;
   amountPence?: number;
   sentAt?: string;

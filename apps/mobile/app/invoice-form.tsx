@@ -45,6 +45,7 @@ export default function InvoiceFormScreen() {
   const { showPaywall } = usePaywall();
 
   const [company, setCompany] = useState("");
+  const [clientEmail, setClientEmail] = useState("");
   const [reference, setReference] = useState("");
   const [amountInput, setAmountInput] = useState(""); // pounds.pence string
   const [sentDate, setSentDate] = useState<Date>(new Date());
@@ -83,6 +84,7 @@ export default function InvoiceFormScreen() {
         const res = await fetchInvoice(id);
         const inv = res.data;
         setCompany(inv.company);
+        setClientEmail(inv.clientEmail ?? "");
         setReference(inv.reference ?? "");
         setAmountInput((inv.amountPence / 100).toFixed(2));
         setSentDate(new Date(inv.sentAt));
@@ -116,6 +118,7 @@ export default function InvoiceFormScreen() {
     try {
       const payload = {
         company: company.trim(),
+        clientEmail: clientEmail.trim() || null,
         reference: reference.trim() || null,
         amountPence,
         sentAt: dateOnly(sentDate),
@@ -168,7 +171,7 @@ export default function InvoiceFormScreen() {
       Alert.alert("Couldn't save", err instanceof Error ? err.message : "Try again.");
       setSaving(false);
     }
-  }, [company, reference, amountInput, sentDate, dueDate, paidDate, notes, isEditing, id, initialPaidAt, showPaywall]);
+  }, [company, clientEmail, reference, amountInput, sentDate, dueDate, paidDate, notes, isEditing, id, initialPaidAt, showPaywall]);
 
   const onDelete = useCallback(() => {
     if (!id) return;
@@ -237,6 +240,20 @@ export default function InvoiceFormScreen() {
             autoCapitalize="words"
             autoCorrect={false}
             accessibilityLabel="Company or client"
+          />
+        </Field>
+
+        <Field label="CLIENT EMAIL (optional)">
+          <TextInput
+            style={styles.input}
+            value={clientEmail}
+            onChangeText={setClientEmail}
+            placeholder="Pre-fills the chase email if they pay late"
+            placeholderTextColor={TEXT_3}
+            keyboardType="email-address"
+            autoCapitalize="none"
+            autoCorrect={false}
+            accessibilityLabel="Client email, optional"
           />
         </Field>
 

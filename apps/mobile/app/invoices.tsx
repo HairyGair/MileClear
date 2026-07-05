@@ -22,6 +22,7 @@ import { useUser } from "../lib/user/context";
 import { usePaywall } from "../components/paywall";
 import { EmptyState } from "../components/EmptyState";
 import { LinkEarningSheet } from "../components/invoices/LinkEarningSheet";
+import { openChaseDraft } from "../lib/invoices/chase";
 import { colors, fonts } from "../lib/theme";
 
 const AMBER = colors.amber;
@@ -120,6 +121,21 @@ export default function InvoicesScreen() {
       ]
     );
   }, [load]);
+
+  // Chase payment: opens a pre-filled late-payment email in the user's
+  // own mail app. Draft only — nothing sends without them hitting send.
+  const onChase = useCallback(
+    (invoice: Invoice) => {
+      const senderName = user?.fullName || user?.displayName || null;
+      openChaseDraft(invoice, senderName).catch(() => {
+        Alert.alert(
+          "Couldn't open a draft",
+          "No mail app is set up on this phone. You can copy the invoice details from the edit screen instead."
+        );
+      });
+    },
+    [user]
+  );
 
   const unpaidTotal =
     (summary?.sent.totalPence ?? 0) + (summary?.overdue.totalPence ?? 0);
@@ -237,7 +253,7 @@ export default function InvoicesScreen() {
             />
           }
           renderItem={({ item }) => (
-            <InvoiceRow invoice={item} onMarkPaid={onMarkPaid} />
+            <InvoiceRow invoice={item} onMarkPaid={onMarkPaid} onChase={onChase} />
           )}
           ItemSeparatorComponent={() => <View style={{ height: 10 }} />}
         />
@@ -263,9 +279,11 @@ export default function InvoicesScreen() {
 function InvoiceRow({
   invoice,
   onMarkPaid,
+  onChase,
 }: {
   invoice: Invoice;
   onMarkPaid: (i: Invoice) => void;
+  onChase: (i: Invoice) => void;
 }) {
   const statusConfig = {
     sent: { color: AMBER, label: "Awaiting", icon: "time-outline" as const },
@@ -302,15 +320,28 @@ function InvoiceRow({
         </Text>
       </View>
       {invoice.status !== "paid" && invoice.status !== "written_off" && (
-        <TouchableOpacity
-          style={styles.markPaidButton}
-          onPress={() => onMarkPaid(invoice)}
-          accessibilityRole="button"
-          accessibilityLabel="Mark as paid"
-        >
-          <Ionicons name="checkmark" size={14} color={GREEN} />
-          <Text style={styles.markPaidText}>Mark paid</Text>
-        </TouchableOpacity>
+        <View style={styles.rowActions}>
+          <TouchableOpacity
+            style={styles.markPaidButton}
+            onPress={() => onMarkPaid(invoice)}
+            accessibilityRole="button"
+            accessibilityLabel="Mark as paid"
+          >
+            <Ionicons name="checkmark" size={14} color={GREEN} />
+            <Text style={styles.markPaidText}>Mark paid</Text>
+          </TouchableOpacity>
+          {invoice.status === "overdue" && (
+            <TouchableOpacity
+              style={styles.chaseButton}
+              onPress={() => onChase(invoice)}
+              accessibilityRole="button"
+              accessibilityLabel="Chase payment by email"
+            >
+              <Ionicons name="mail-outline" size={14} color={AMBER} />
+              <Text style={styles.chaseText}>Chase payment</Text>
+            </TouchableOpacity>
+          )}
+        </View>
       )}
     </TouchableOpacity>
   );
@@ -422,16 +453,30 @@ const styles = StyleSheet.create({
   rowDetails: { flexDirection: "row", alignItems: "baseline", justifyContent: "space-between", gap: 8 },
   rowAmount: { color: TEXT_1, fontSize: 18, fontFamily: fonts.bold, fontVariant: ["tabular-nums"] },
   rowDate: { color: TEXT_3, fontSize: 12, fontFamily: fonts.regular },
+  rowActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginTop: 4,
+  },
   markPaidButton: {
     flexDirection: "row",
     alignItems: "center",
     gap: 4,
-    alignSelf: "flex-start",
     backgroundColor: "rgba(16, 185, 129, 0.12)",
     paddingHorizontal: 10,
     paddingVertical: 5,
     borderRadius: 8,
-    marginTop: 4,
   },
   markPaidText: { color: GREEN, fontSize: 12, fontFamily: fonts.semibold },
+  chaseButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: "rgba(245, 166, 35, 0.12)",
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 8,
+  },
+  chaseText: { color: AMBER, fontSize: 12, fontFamily: fonts.semibold },
 });

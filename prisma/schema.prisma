@@ -1157,6 +1157,11 @@ model Invoice {
   userId      String
   /** Free-text company / client name. */
   company     String   @db.VarChar(200)
+  /** Optional client email — pre-addresses the late-payment chase draft
+   *  (Laura Joyce request 4 Jul 2026). The draft opens in the user's own
+   *  mail app; MileClear never emails the client directly (that's the
+   *  possible Phase 2). */
+  clientEmail String?  @db.VarChar(255)
   /** Optional reference for the user's own bookkeeping (PO numbers,
    *  job numbers, etc). */
   reference   String?  @db.VarChar(80)

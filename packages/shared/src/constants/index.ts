@@ -91,6 +91,11 @@ export const EXPENSE_CATEGORIES = [
   { value: "parking", label: "Parking", deductibleWithMileage: true, sa103sBox: 17 },
   { value: "tolls", label: "Tolls & Bridges", deductibleWithMileage: true, sa103sBox: 17 },
   { value: "congestion", label: "Congestion / ULEZ", deductibleWithMileage: true, sa103sBox: 17 },
+  // Train, bus, tube, tram fares for business journeys. Same SA103S box as
+  // motoring ("car, van and travel expenses") and claimable alongside AMAP
+  // mileage — the mileage rate only covers the vehicle. Laura Joyce request
+  // 4 Jul 2026 (tube travel had to go in "Other Allowable").
+  { value: "public_transport", label: "Public Transport", deductibleWithMileage: true, sa103sBox: 17 },
   { value: "maintenance", label: "Maintenance & Repairs", deductibleWithMileage: false, sa103sBox: 17 },
   { value: "insurance", label: "Vehicle Insurance", deductibleWithMileage: false, sa103sBox: 17 },
   { value: "road_tax", label: "Road Tax (VED)", deductibleWithMileage: false, sa103sBox: 17 },

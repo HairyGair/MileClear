@@ -35,6 +35,7 @@ const CATEGORY_ICON: Record<string, keyof typeof Ionicons.glyphMap> = {
   parking: "car-outline",
   tolls: "trail-sign-outline",
   congestion: "warning-outline",
+  public_transport: "train-outline",
   maintenance: "construct-outline",
   insurance: "shield-checkmark-outline",
   road_tax: "document-text-outline",
