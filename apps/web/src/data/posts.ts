@@ -39,6 +39,84 @@ export interface Guide {
 // ----------------------------------------------------------------
 export const BLOG_POSTS: BlogPost[] = [
   {
+    slug: "how-to-chase-an-unpaid-invoice-uk",
+    title: "How to chase an unpaid invoice: a UK sole trader's guide (with the exact email to send)",
+    excerpt:
+      "An invoice goes overdue and suddenly you're stuck between needing the money and not wanting to sound rude. Here's how late payment actually works in the UK - the 30-day rule, statutory interest at 8% plus base rate, the fixed compensation most sole traders never claim - plus a copy-and-paste chase email, and the one-tap version we just built into MileClear.",
+    date: "5 July 2026",
+    author: "Gair",
+    category: "guide",
+    content: `
+<p>Every self-employed person knows the feeling. You did the work, you sent the invoice, the due date slid past - and now you're composing a message in your head that somehow has to say "pay me" without sounding like you're starting a fight. So you put it off. And the invoice gets another week older.</p>
+
+<p>One of our users put it perfectly when she suggested this feature: chasing an unpaid invoice is <em>awkward</em>. The awkwardness is the reason sole traders in the UK wait so long to chase - and the longer you wait, the harder it gets. So this guide covers two things: what UK law actually says about late payment (it's far more on your side than most people realise), and the exact email to send, including the version MileClear will now write for you in one tap.</p>
+
+<h2>The 30-day rule: when is an invoice actually "late"?</h2>
+
+<p>If you and your client haven't agreed payment terms, UK law fills in the blank for you: for business-to-business transactions, payment is due <strong>30 days</strong> after your invoice (or after delivery of the goods or service, if later). That default comes from the <strong>Late Payment of Commercial Debts (Interest) Act 1998</strong> - the single most useful piece of legislation most sole traders have never heard of.</p>
+
+<p>If you agreed different terms - 14 days, 60 days, whatever was in your quote or contract - those apply instead. But in the absence of anything agreed, day 31 is the day an invoice becomes legally overdue. Not "cheeky to mention" overdue. Legally overdue.</p>
+
+<h2>Statutory interest: 8% plus the Bank of England base rate</h2>
+
+<p>Here's the part that changes the conversation. Once a business-to-business invoice is overdue, the Late Payment Act entitles you to <strong>statutory interest at 8% plus the Bank of England base rate</strong> on the debt. You don't need a clause in your contract. You don't need to have warned the client in advance. The entitlement exists automatically, by law.</p>
+
+<p>The maths is simple: annual interest is the debt multiplied by (8% + the current base rate), and the daily rate is that figure divided by 365. On a £1,500 invoice with a base rate of, say, 4%, that would be £180 a year - about 49p for every day the invoice sits unpaid. Check the current base rate before you quote a figure.</p>
+
+<h2>Fixed compensation: the £40 nobody claims</h2>
+
+<p>On top of interest, the same Act gives you a <strong>fixed compensation sum per late invoice</strong>, purely for the hassle of recovering the debt:</p>
+
+<ul>
+<li><strong>£40</strong> for debts under £1,000</li>
+<li><strong>£70</strong> for debts from £1,000 to £9,999.99</li>
+<li><strong>£100</strong> for debts of £10,000 or more</li>
+</ul>
+
+<p>That's per invoice, not per client. A sole trader with three late £500 invoices in a year is entitled to £120 in compensation before interest even enters the picture. Almost nobody claims it - mostly because almost nobody knows it exists.</p>
+
+<h2>The important caveat: business clients only</h2>
+
+<p>All of the above applies to <strong>business-to-business</strong> debts. If your client is a consumer - a household you cleaned for, a family you photographed - the Late Payment Act doesn't apply, and you're back to whatever your terms said plus the ordinary courts. If you invoice consumers, drop the statutory-interest line from the template below and keep the rest.</p>
+
+<h2>How to chase without burning the relationship</h2>
+
+<p>The trick to a good chase email is that it isn't a threat - it's an update between two businesses. The tone you want is the tone of someone who assumes it's an oversight, because it usually is. A good chaser does four things:</p>
+
+<ul>
+<li><strong>States the facts flatly</strong> - invoice number, amount, date sent, date due, days overdue. No editorialising.</li>
+<li><strong>Asks for a specific action</strong> - "could you arrange payment", not "just checking in".</li>
+<li><strong>Mentions statutory interest as information, not a threat.</strong> "May attract statutory interest under the Late Payment Act" reads as a fact of law, because it is one. It moves your invoice up their pile without a single harsh word.</li>
+<li><strong>Gives them a graceful exit</strong> - "if payment is already on its way, please disregard this". Everyone keeps their dignity.</li>
+</ul>
+
+<h2>The email to send (copy and paste)</h2>
+
+<p>Here's the template. Fill in the bracketed bits and delete the interest line if your client is a consumer:</p>
+
+<blockquote>
+<p><strong>Subject:</strong> Payment reminder - invoice [reference] for [amount], now [X] days overdue</p>
+<p>Hi,</p>
+<p>A friendly reminder that invoice [reference] for [amount], sent on [date sent], was due for payment on [due date] and is now [X] days overdue.</p>
+<p>Could you arrange payment at your earliest convenience? Please note that overdue business invoices may attract statutory interest at 8% plus the Bank of England base rate, together with fixed compensation, under the Late Payment of Commercial Debts (Interest) Act 1998.</p>
+<p>If payment is already on its way, please disregard this message - and thank you.</p>
+<p>Many thanks,<br />[Your name]</p>
+</blockquote>
+
+<p>Send the first chase the week the invoice goes overdue. If it's ignored, follow up every 7-14 days, keeping the same tone but adding that interest is now accruing. Most invoices get paid at the first or second nudge - debt-recovery letters and the small claims court are a topic for another day, and genuinely rare.</p>
+
+<h2>Or let the app write it for you</h2>
+
+<p>This week we built exactly this into MileClear, because that same user asked us to take the awkwardness out of it. MileClear already tracks your invoices alongside your mileage, expenses and earnings (that's the whole point - HMRC's self-assessment form needs your income <em>and</em> your deductions, and a mileage number on its own can't be filed). Now, when an invoice goes overdue, a <strong>Chase payment</strong> button appears next to it - in the app and on the web dashboard.</p>
+
+<p>One tap opens a pre-written chase email in your own mail app: your invoice reference, amount, dates and days overdue already filled in, the statutory-interest wording already correct, signed with your name. You read it, you press send from your own email address, and the reply comes back to you. MileClear never emails your clients - you stay in control of every word.</p>
+
+<p>Invoice tracking is free for up to three invoices a month (unlimited on Pro), and the chase button is free for everyone. If you're a sole trader who drives for work - and if you're reading this, you probably are - <a href="https://mileclear.com">MileClear</a> tracks the miles automatically too, at 55p per mile of tax deduction for 2026-27. <a href="https://apps.apple.com/gb/app/id6759671005">It's on the App Store</a>.</p>
+
+<p><em>This article is general information, not legal or financial advice. For a specific dispute, especially a large one, speak to a professional.</em></p>
+`,
+  },
+  {
     slug: "cleartrack-one-month-on",
     title: "ClearTrack, one month on: an honest report",
     excerpt:
