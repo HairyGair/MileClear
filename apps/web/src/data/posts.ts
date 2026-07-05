@@ -111,7 +111,7 @@ export const BLOG_POSTS: BlogPost[] = [
 
 <p>One tap opens a pre-written chase email in your own mail app: your invoice reference, amount, dates and days overdue already filled in, the statutory-interest wording already correct, signed with your name. You read it, you press send from your own email address, and the reply comes back to you. MileClear never emails your clients - you stay in control of every word.</p>
 
-<p>Invoice tracking is free for up to three invoices a month (unlimited on Pro), and the chase button is free for everyone. If you're a sole trader who drives for work - and if you're reading this, you probably are - <a href="https://mileclear.com">MileClear</a> tracks the miles automatically too, at 55p per mile of tax deduction for 2026-27. <a href="https://apps.apple.com/gb/app/id6759671005">It's on the App Store</a>.</p>
+<p>Invoice tracking is free for up to three invoices a month (unlimited on Pro), and the one-tap Chase button is part of MileClear Pro - though the template above is free to copy forever. If you're a sole trader who drives for work - and if you're reading this, you probably are - <a href="https://mileclear.com">MileClear</a> tracks the miles automatically too, at 55p per mile of tax deduction for 2026-27. <a href="https://apps.apple.com/gb/app/id6759671005">It's on the App Store</a>.</p>
 
 <p><em>This article is general information, not legal or financial advice. For a specific dispute, especially a large one, speak to a professional.</em></p>
 `,

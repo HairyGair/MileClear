@@ -84,6 +84,9 @@ function shortDate(iso: string): string {
 export default function InvoicesPage() {
   const { user } = useAuth();
   const senderName = user?.fullName || user?.displayName || null;
+  const isPremium = user?.isPremium === true;
+  // One-tap chase is Pro (5 Jul 2026) — tracking stays free at 3/month.
+  const [showChaseUpsell, setShowChaseUpsell] = useState(false);
 
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [summary, setSummary] = useState<InvoiceListResponse["summary"] | null>(null);
@@ -304,6 +307,14 @@ export default function InvoicesPage() {
 
       {error && <div className="alert alert--error" style={{ marginBottom: "1rem" }}>{error}</div>}
 
+      {showChaseUpsell && (
+        <div className="alert" style={{ marginBottom: "1rem" }}>
+          One-tap payment chasing is a MileClear Pro feature — the email is pre-written
+          with the correct statutory-interest wording and your invoice details filled in.{" "}
+          <a href="/pricing" style={{ fontWeight: 600 }}>Upgrade to Pro</a>
+        </div>
+      )}
+
       {loading ? (
         <LoadingSkeleton variant="row" count={6} />
       ) : invoices.length === 0 ? (
@@ -354,13 +365,23 @@ export default function InvoicesPage() {
                           </button>
                         )}
                         {inv.status === "overdue" && (
-                          <a
-                            className="table__action-btn"
-                            href={buildInvoiceChaseMailto(inv, senderName)}
-                            title={inv.clientEmail ? `Opens a pre-filled email to ${inv.clientEmail}` : "Opens a pre-filled email draft — add a client email to pre-address it"}
-                          >
-                            Chase
-                          </a>
+                          isPremium ? (
+                            <a
+                              className="table__action-btn"
+                              href={buildInvoiceChaseMailto(inv, senderName)}
+                              title={inv.clientEmail ? `Opens a pre-filled email to ${inv.clientEmail}` : "Opens a pre-filled email draft — add a client email to pre-address it"}
+                            >
+                              Chase
+                            </a>
+                          ) : (
+                            <button
+                              className="table__action-btn"
+                              onClick={() => setShowChaseUpsell(true)}
+                              title="One-tap payment chasing is a Pro feature"
+                            >
+                              Chase
+                            </button>
+                          )
                         )}
                         <button className="table__action-btn" onClick={() => openEdit(inv)}>Edit</button>
                         <button className="table__action-btn" onClick={() => setDeleteId(inv.id)}>Delete</button>

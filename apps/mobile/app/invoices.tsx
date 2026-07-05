@@ -124,8 +124,14 @@ export default function InvoicesScreen() {
 
   // Chase payment: opens a pre-filled late-payment email in the user's
   // own mail app. Draft only — nothing sends without them hitting send.
+  // Pro feature (5 Jul 2026): the tracked list stays free at 3/month,
+  // the one-tap chase is the upgrade moment.
   const onChase = useCallback(
     (invoice: Invoice) => {
+      if (!isPremium) {
+        showPaywall("invoice_chase");
+        return;
+      }
       const senderName = user?.fullName || user?.displayName || null;
       openChaseDraft(invoice, senderName).catch(() => {
         Alert.alert(
@@ -134,7 +140,7 @@ export default function InvoicesScreen() {
         );
       });
     },
-    [user]
+    [user, isPremium, showPaywall]
   );
 
   const unpaidTotal =
