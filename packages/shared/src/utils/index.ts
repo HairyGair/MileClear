@@ -1197,3 +1197,76 @@ export function evChargingCostPence(
   if (perMile == null) return null;
   return Math.round(perMile * miles);
 }
+
+// ── Invoice late-payment chase email ─────────────────────────────────────────
+
+export interface InvoiceChaseArgs {
+  company: string;
+  reference: string | null;
+  amountPence: number;
+  /** ISO date (YYYY-MM-DD) the invoice was sent. */
+  sentAt: string;
+  /** ISO date (YYYY-MM-DD) the invoice was due. */
+  dueAt: string;
+}
+
+/** Whole days past dueAt (0 if not yet due). */
+export function invoiceDaysOverdue(dueAt: string, now: Date = new Date()): number {
+  return Math.max(0, Math.floor((now.getTime() - new Date(dueAt).getTime()) / 86_400_000));
+}
+
+/**
+ * Late-payment chase email template (Laura Joyce request, Jul 2026).
+ * Single source for mobile + web so the legal wording can't drift: there
+ * is NO flat "8% late charge" — the accurate hook is the Late Payment of
+ * Commercial Debts (Interest) Act 1998 (statutory interest at 8% + Bank
+ * of England base rate plus fixed compensation, B2B debts only), stated
+ * as "may apply" so the sender can delete the line for consumer clients.
+ * Always opened as a DRAFT in the sender's own mail client — never sent
+ * by MileClear's servers (that would be the separate Phase 2).
+ */
+export function buildInvoiceChaseEmail(
+  invoice: InvoiceChaseArgs,
+  senderName: string | null
+): { subject: string; body: string } {
+  const longDate = (iso: string): string => {
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return iso;
+    return d.toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" });
+  };
+  const amount = `£${(invoice.amountPence / 100).toFixed(2)}`;
+  const ref = invoice.reference ? ` ${invoice.reference}` : "";
+  const overdue = invoiceDaysOverdue(invoice.dueAt);
+  const overdueText = overdue === 1 ? "1 day" : `${overdue} days`;
+
+  const subject = `Payment reminder — invoice${ref} for ${amount}, now ${overdueText} overdue`;
+
+  const body = [
+    "Hi,",
+    "",
+    `A friendly reminder that invoice${ref} for ${amount}, sent on ${longDate(invoice.sentAt)}, was due for payment on ${longDate(invoice.dueAt)} and is now ${overdueText} overdue.`,
+    "",
+    "Could you arrange payment at your earliest convenience? Please note that overdue business invoices may attract statutory interest at 8% plus the Bank of England base rate, together with fixed compensation, under the Late Payment of Commercial Debts (Interest) Act 1998.",
+    "",
+    "If payment is already on its way, please disregard this message — and thank you.",
+    "",
+    "Many thanks,",
+    senderName || "",
+    "",
+    "--",
+    "Sent with MileClear — mileage, invoices & tax for the self-employed",
+    "https://mileclear.com",
+  ].join("\n");
+
+  return { subject, body };
+}
+
+/** mailto: URL for the chase draft — shared by web (anchor href) and mobile (Linking). */
+export function buildInvoiceChaseMailto(
+  invoice: InvoiceChaseArgs & { clientEmail?: string | null },
+  senderName: string | null
+): string {
+  const { subject, body } = buildInvoiceChaseEmail(invoice, senderName);
+  const to = invoice.clientEmail ?? "";
+  return `mailto:${encodeURIComponent(to)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+}

@@ -62,6 +62,12 @@ const icons = {
       <circle cx="9" cy="6.5" r="1.75" stroke="currentColor" strokeWidth="1.5" />
     </svg>
   ),
+  invoices: (
+    <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+      <path d="M4 2h7l3 3v11a1 1 0 01-1 1H4a1 1 0 01-1-1V3a1 1 0 011-1z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
+      <path d="M6 9h6M6 12h4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+    </svg>
+  ),
   exports: (
     <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
       <path d="M9 2v9m0 0l3-3m-3 3L6 8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
@@ -135,6 +141,7 @@ const BUSINESS_ITEMS: NavItem[] = [
   { href: "/dashboard/business", label: "Business", icon: icons.business },
   { href: "/dashboard/shifts", label: "Shifts", icon: icons.shifts },
   { href: "/dashboard/earnings", label: "Earnings", icon: icons.earnings },
+  { href: "/dashboard/invoices", label: "Invoices", icon: icons.invoices },
   { href: "/dashboard/expenses", label: "Expenses", icon: icons.fuel },
   { href: "/dashboard/inbox", label: "Inbox", icon: icons.feedback },
   { href: "/dashboard/exports", label: "Exports", icon: icons.exports },
