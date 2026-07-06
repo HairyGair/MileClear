@@ -1,5 +1,6 @@
 import PDFDocument from "pdfkit";
 import crypto from "crypto";
+import { inflateSync, crc32 as zlibCrc32 } from "zlib";
 import {
   formatPence,
   formatInvoiceNumber,
@@ -1164,21 +1165,71 @@ export async function formatQuickBooksExpense(
 // ── Invoice PDF (Get Paid, Jul 2026) ─────────────────────────────────────────
 
 /**
- * PDFKit decodes images lazily at doc.end(), so a structurally-corrupt
- * PNG/JPEG (valid magic bytes, garbage data) would explode the WHOLE
- * invoice render far from any doc.image() try/catch. This test-renders
- * the image into a throwaway document where the failure IS catchable.
- * Used at upload time (reject bad files) and as a pre-flight before
- * placing a stored logo (skip, never crash the invoice).
+ * Validate that PDFKit can safely embed this image. This CANNOT be done
+ * by test-rendering: PDFKit's PNG path decompresses IDAT with ASYNC zlib,
+ * and a corrupt stream surfaces as an uncatchable 'error' in a zlib
+ * callback that takes the whole process down (verified in prod, 6 Jul
+ * 2026 — 8 pm2 restarts). So we validate the structure ourselves with
+ * SYNCHRONOUS, catchable primitives:
+ *   - PNG: walk chunks, verify every CRC32, require non-interlaced with
+ *     a mainstream bit depth, then zlib.inflateSync the joined IDAT and
+ *     check the pixel-buffer length matches the header dimensions.
+ *   - JPEG: PDFKit embeds JPEGs as-is after a synchronous header parse
+ *     (no zlib), so any failure there throws inside doc.image() where a
+ *     try/catch works. Magic bytes are enough here.
  */
-export async function canPdfkitRenderImage(image: Buffer): Promise<boolean> {
+export function canSafelyEmbedImage(image: Buffer, mime: string): boolean {
+  if (mime === "image/jpeg") {
+    return image.length > 3 && image[0] === 0xff && image[1] === 0xd8 && image[2] === 0xff;
+  }
+  if (mime !== "image/png") return false;
   try {
-    const probe = new PDFDocument({ size: "A6", margin: 0 });
-    const done = collectPdfBuffer(probe);
-    probe.image(image, 0, 0, { fit: [50, 50] });
-    probe.end();
-    await done;
-    return true;
+    const SIG = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+    if (image.length < 8 + 25 || !image.subarray(0, 8).equals(SIG)) return false;
+
+    let pos = 8;
+    let width = 0;
+    let height = 0;
+    let bitDepth = 0;
+    let colorType = -1;
+    let interlace = 0;
+    const idat: Buffer[] = [];
+    let sawEnd = false;
+
+    while (pos + 12 <= image.length) {
+      const len = image.readUInt32BE(pos);
+      if (len > 0x7fffffff || pos + 12 + len > image.length) return false;
+      const type = image.toString("latin1", pos + 4, pos + 8);
+      const data = image.subarray(pos + 8, pos + 8 + len);
+      const crc = image.readUInt32BE(pos + 8 + len);
+      if (zlibCrc32(image.subarray(pos + 4, pos + 8 + len)) !== crc) return false;
+
+      if (type === "IHDR") {
+        width = data.readUInt32BE(0);
+        height = data.readUInt32BE(4);
+        bitDepth = data[8];
+        colorType = data[9];
+        interlace = data[12];
+      } else if (type === "IDAT") {
+        idat.push(data);
+      } else if (type === "IEND") {
+        sawEnd = true;
+        break;
+      }
+      pos += 12 + len;
+    }
+
+    if (!sawEnd || !width || !height || idat.length === 0) return false;
+    if (width > 4096 || height > 4096) return false;
+    // Interlaced PNGs are exactly PDFKit's async-decode path — reject.
+    if (interlace !== 0) return false;
+    // channels by color type: 0 grey, 2 rgb, 3 palette, 4 grey+a, 6 rgba
+    const channels = { 0: 1, 2: 3, 3: 1, 4: 2, 6: 4 }[colorType as 0 | 2 | 3 | 4 | 6];
+    if (!channels || ![1, 2, 4, 8, 16].includes(bitDepth)) return false;
+
+    const raw = inflateSync(Buffer.concat(idat));
+    const bytesPerRow = Math.ceil((width * channels * bitDepth) / 8);
+    return raw.length === height * (bytesPerRow + 1);
   } catch {
     return false;
   }
@@ -1248,10 +1299,15 @@ export async function generateInvoicePdf(
     // doc.end(), which would kill the whole render if we only try/catch
     // the placement call here.
     const logoBuf = Buffer.from(logo.data);
-    if (await canPdfkitRenderImage(logoBuf)) {
-      doc.image(logoBuf, margin, margin, { fit: [150, 56] });
-      drewLogo = true;
-      headerBottom = margin + 56;
+    if (canSafelyEmbedImage(logoBuf, logo.mime)) {
+      try {
+        doc.image(logoBuf, margin, margin, { fit: [150, 56] });
+        drewLogo = true;
+        headerBottom = margin + 56;
+      } catch {
+        // JPEG header parse failures throw synchronously here — fall
+        // through to the text wordmark.
+      }
     }
   }
   if (!drewLogo) {
