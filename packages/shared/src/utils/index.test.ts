@@ -9,6 +9,8 @@ import {
   getTaxYear,
   parseTaxYear,
   estimateUkTax,
+  formatInvoiceNumber,
+  computeInvoiceTotals,
 } from "./index.js";
 
 // ---------------------------------------------------------------------------
@@ -546,5 +548,78 @@ describe("estimateUkTax", () => {
     const b = estimateUkTax(profit, { otherIncomePence: 8_000_000 });
     expect(a.class2NiPence).toBe(b.class2NiPence);
     expect(a.class4NiPence).toBe(b.class4NiPence);
+  });
+});
+
+describe("formatInvoiceNumber", () => {
+  it("pads to four digits", () => {
+    expect(formatInvoiceNumber(1)).toBe("INV-0001");
+    expect(formatInvoiceNumber(42)).toBe("INV-0042");
+    expect(formatInvoiceNumber(9999)).toBe("INV-9999");
+  });
+
+  it("grows past four digits without truncation", () => {
+    expect(formatInvoiceNumber(12345)).toBe("INV-12345");
+  });
+});
+
+describe("computeInvoiceTotals", () => {
+  it("sums whole-quantity lines with no VAT", () => {
+    const t = computeInvoiceTotals(
+      [
+        { description: "Day rate", quantity: 2, unitPricePence: 20_000 },
+        { description: "Mileage", quantity: 1, unitPricePence: 1_550 },
+      ],
+      null
+    );
+    expect(t.subtotalPence).toBe(41_550);
+    expect(t.vatPence).toBe(0);
+    expect(t.amountPence).toBe(41_550);
+  });
+
+  it("rounds fractional quantities per line (half up)", () => {
+    // 2.5h x £30.01 = 7502.5p -> 7503p (rounded at the line, not the total)
+    const t = computeInvoiceTotals(
+      [{ description: "Hours", quantity: 2.5, unitPricePence: 3_001 }],
+      null
+    );
+    expect(t.lines[0].totalPence).toBe(7_503);
+    expect(t.subtotalPence).toBe(7_503);
+  });
+
+  it("applies 20% VAT rounded half-up on the subtotal", () => {
+    // Subtotal 1001p -> VAT 200.2p -> 200p
+    const t = computeInvoiceTotals(
+      [{ description: "x", quantity: 1, unitPricePence: 1_001 }],
+      20
+    );
+    expect(t.vatPence).toBe(200);
+    expect(t.amountPence).toBe(1_201);
+  });
+
+  it("handles the 1p VAT rounding boundary", () => {
+    // Subtotal 3p at 20% -> 0.6p -> rounds to 1p
+    const t = computeInvoiceTotals(
+      [{ description: "x", quantity: 1, unitPricePence: 3 }],
+      20
+    );
+    expect(t.vatPence).toBe(1);
+    expect(t.amountPence).toBe(4);
+  });
+
+  it("treats vatRate 0 as VAT-registered zero-rated (no VAT added)", () => {
+    const t = computeInvoiceTotals(
+      [{ description: "x", quantity: 1, unitPricePence: 500 }],
+      0
+    );
+    expect(t.vatPence).toBe(0);
+    expect(t.amountPence).toBe(500);
+  });
+
+  it("returns zeros for an empty line list", () => {
+    const t = computeInvoiceTotals([], 20);
+    expect(t.subtotalPence).toBe(0);
+    expect(t.vatPence).toBe(0);
+    expect(t.amountPence).toBe(0);
   });
 });

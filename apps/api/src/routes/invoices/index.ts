@@ -18,124 +18,18 @@
 
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
+import { Prisma } from "@prisma/client";
 import { authMiddleware } from "../../middleware/auth.js";
 import { prisma } from "../../lib/prisma.js";
 import { logEvent } from "../../services/appEvents.js";
-
-const INVOICE_STATUSES = ["sent", "paid", "overdue", "written_off"] as const;
-type InvoiceStatus = (typeof INVOICE_STATUSES)[number];
-
-// Duplicate-detection window for the "you might have already logged this
-// as a manual earning" prompt that fires when an invoice flips to paid.
-// 50p tolerance handles VAT / rounding fuzz on small invoices; 14 days
-// either side of paidAt covers "I logged the earning when the work
-// happened, but the invoice took two weeks to pay". Wider windows turned
-// up too many false positives on Laura's data.
-const DUPLICATE_AMOUNT_TOLERANCE_PENCE = 50;
-const DUPLICATE_DAYS_WINDOW = 14;
-
-/**
- * Find manual earnings that look like they might already represent the
- * money on this invoice — within ±50p and ±14 days of the invoice's
- * paid (or sent, if not yet paid) date.
- *
- * Excludes earnings already linked to another invoice. Also excludes
- * earnings already linked to THIS invoice (they're already counted
- * once and we don't want to surface them as a "match" the user could
- * re-link).
- *
- * Returns up to 10 matches so a sole trader who tracks daily can roll
- * up a week of entries into one invoice (Laura's case). Sort: closest
- * date first since multi-day rollups are date-clustered rather than
- * amount-clustered.
- */
-async function findPotentialEarningMatches(args: {
-  userId: string;
-  invoiceId: string;
-  amountPence: number;
-  anchorDate: Date;
-}): Promise<
-  Array<{
-    id: string;
-    platform: string;
-    amountPence: number;
-    periodStart: string;
-    notes: string | null;
-    daysFromAnchor: number;
-  }>
-> {
-  const { userId, invoiceId, amountPence, anchorDate } = args;
-  const windowMs = DUPLICATE_DAYS_WINDOW * 24 * 60 * 60 * 1000;
-  const windowStart = new Date(anchorDate.getTime() - windowMs);
-  const windowEnd = new Date(anchorDate.getTime() + windowMs);
-
-  const candidates = await prisma.earning.findMany({
-    where: {
-      userId,
-      periodStart: { gte: windowStart, lte: windowEnd },
-      amountPence: {
-        gte: amountPence - DUPLICATE_AMOUNT_TOLERANCE_PENCE,
-        lte: amountPence + DUPLICATE_AMOUNT_TOLERANCE_PENCE,
-      },
-      // Exclude anything already linked to any invoice — once linked
-      // we don't re-surface it.
-      replacedByInvoiceId: null,
-    },
-    select: {
-      id: true,
-      platform: true,
-      amountPence: true,
-      periodStart: true,
-      notes: true,
-    },
-  });
-  // invoiceId arg is reserved for symmetry with the link/unlink flow;
-  // candidates are already filtered to unlinked rows so we never need
-  // to exclude rows pointing at the current invoice.
-  void invoiceId;
-
-  return candidates
-    .map((c) => ({
-      id: c.id,
-      platform: c.platform,
-      amountPence: c.amountPence,
-      periodStart: c.periodStart.toISOString().slice(0, 10),
-      notes: c.notes,
-      daysFromAnchor: Math.round(
-        (c.periodStart.getTime() - anchorDate.getTime()) / 86_400_000
-      ),
-    }))
-    .sort(
-      // Closest date first — multi-day rollups cluster on date, not
-      // amount. Tie-break by amount proximity.
-      (a, b) => {
-        const dateDelta = Math.abs(a.daysFromAnchor) - Math.abs(b.daysFromAnchor);
-        if (dateDelta !== 0) return dateDelta;
-        return (
-          Math.abs(a.amountPence - amountPence) -
-          Math.abs(b.amountPence - amountPence)
-        );
-      }
-    )
-    .slice(0, 10);
-}
-
-/**
- * Compute the canonical status of an invoice from its date fields.
- * Server-of-truth — clients never set status directly, only paidAt /
- * dueAt. Keeps a tri-state UI (sent / overdue / paid) without the user
- * having to maintain it manually.
- */
-function computeStatus(args: {
-  paidAt: Date | null;
-  dueAt: Date;
-  writtenOff?: boolean;
-}): InvoiceStatus {
-  if (args.writtenOff) return "written_off";
-  if (args.paidAt) return "paid";
-  if (args.dueAt < new Date()) return "overdue";
-  return "sent";
-}
+import { resolvePremiumStatus } from "../../services/referral.js";
+import {
+  INVOICE_STATUSES,
+  computeStatus,
+  findPotentialEarningMatches,
+  allocateInvoiceNumber,
+} from "../../services/invoices.js";
+import { computeInvoiceTotals } from "@mileclear/shared";
 
 const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Date must be YYYY-MM-DD");
 
@@ -152,29 +46,93 @@ const clientEmailField = z
   // touch the field don't wipe it.
   .transform((v) => (v === undefined ? undefined : v || null));
 
-const createSchema = z.object({
-  company: z.string().min(1).max(200),
-  clientEmail: clientEmailField,
-  reference: z.string().max(80).optional().nullable(),
-  amountPence: z.number().int().min(1).max(1_000_000_000),
-  sentAt: isoDate,
-  /** Optional — defaults to sentAt + 30 days. */
-  dueAt: isoDate.optional(),
-  paidAt: isoDate.nullable().optional(),
-  notes: z.string().max(2000).optional().nullable(),
+// Invoice builder (Get Paid, Jul 2026): optional line items + optional VAT.
+// Totals contract — the server recomputes, never trusts client totals:
+//   - lineItems present:     subtotal = Σ round(qty × unitPrice); any client
+//                            amountPence is ignored.
+//   - no lines, vatRate set: amountPence is treated as the NET subtotal and
+//                            VAT is added on top.
+//   - no lines, no vatRate:  legacy — amountPence stored as-is (gross).
+const lineItemSchema = z.object({
+  description: z.string().min(1).max(300),
+  quantity: z.number().positive().max(100_000),
+  unitPricePence: z.number().int().min(0).max(1_000_000_000),
 });
+
+const vatRateField = z
+  .union([z.literal(20), z.literal(5), z.literal(0)])
+  .nullable()
+  .optional();
+
+const createSchema = z
+  .object({
+    company: z.string().min(1).max(200).optional(),
+    clientId: z.string().uuid().nullable().optional(),
+    clientEmail: clientEmailField,
+    reference: z.string().max(80).optional().nullable(),
+    amountPence: z.number().int().min(1).max(1_000_000_000).optional(),
+    lineItems: z.array(lineItemSchema).max(50).optional(),
+    vatRate: vatRateField,
+    sentAt: isoDate,
+    /** Optional — defaults to sentAt + 30 days. */
+    dueAt: isoDate.optional(),
+    paidAt: isoDate.nullable().optional(),
+    notes: z.string().max(2000).optional().nullable(),
+  })
+  .refine((v) => v.company || v.clientId, {
+    message: "Who is the invoice to? Provide a company name or pick a client.",
+  })
+  .refine((v) => (v.lineItems && v.lineItems.length > 0) || v.amountPence, {
+    message: "Enter an amount or add at least one line item.",
+  });
 
 const updateSchema = z.object({
   company: z.string().min(1).max(200).optional(),
+  clientId: z.string().uuid().nullable().optional(),
   clientEmail: clientEmailField,
   reference: z.string().max(80).nullable().optional(),
   amountPence: z.number().int().min(1).max(1_000_000_000).optional(),
+  /** Replace-all semantics: send the full array. Empty array clears the
+   *  builder data and reverts to direct-amount entry. */
+  lineItems: z.array(lineItemSchema).max(50).optional(),
+  vatRate: vatRateField,
   sentAt: isoDate.optional(),
   dueAt: isoDate.optional(),
   paidAt: isoDate.nullable().optional(),
   notes: z.string().max(2000).nullable().optional(),
   writeOff: z.boolean().optional(),
 });
+
+/** Verify a clientId belongs to the caller; returns the client row. */
+async function requireOwnedClient(userId: string, clientId: string) {
+  return prisma.client.findFirst({
+    where: { id: clientId, userId },
+    select: { id: true, name: true, email: true },
+  });
+}
+
+/** Resolve the stored totals triple from the contract above. */
+function resolveTotals(args: {
+  lineItems?: Array<z.infer<typeof lineItemSchema>>;
+  vatRate: number | null;
+  amountPence?: number;
+}): {
+  subtotalPence: number | null;
+  vatPence: number | null;
+  amountPence: number;
+  lines: Array<z.infer<typeof lineItemSchema> & { totalPence: number }>;
+} {
+  const { lineItems, vatRate, amountPence } = args;
+  if (lineItems && lineItems.length > 0) {
+    const t = computeInvoiceTotals(lineItems, vatRate);
+    return { subtotalPence: t.subtotalPence, vatPence: t.vatPence, amountPence: t.amountPence, lines: t.lines };
+  }
+  if (vatRate != null && amountPence != null) {
+    const vatPence = Math.round((amountPence * vatRate) / 100);
+    return { subtotalPence: amountPence, vatPence, amountPence: amountPence + vatPence, lines: [] };
+  }
+  return { subtotalPence: null, vatPence: null, amountPence: amountPence ?? 0, lines: [] };
+}
 
 const listQuery = z.object({
   status: z.enum(INVOICE_STATUSES).optional(),
@@ -201,15 +159,18 @@ export async function invoiceRoutes(app: FastifyInstance) {
     // dating doesn't sneak past the cap — and so a user who genuinely
     // sends 3 invoices in May can't be blocked in June just because
     // they entered them all on the same day.
+    // Canonical premium check (resolvePremiumStatus) — the previous inline
+    // isPremium/premiumExpiresAt test ignored referralProUntil, so users on
+    // banked referral Pro months were wrongly capped (fixed Jul 2026).
     const user = await prisma.user.findUnique({
       where: { id: userId },
       select: {
         isPremium: true,
         premiumExpiresAt: true,
+        referralProUntil: true,
       },
     });
-    const premiumActive =
-      user?.isPremium && (!user.premiumExpiresAt || user.premiumExpiresAt > new Date());
+    const premiumActive = user ? resolvePremiumStatus(user).active : false;
 
     if (!premiumActive) {
       const monthStart = new Date(Date.UTC(sentAt.getUTCFullYear(), sentAt.getUTCMonth(), 1));
@@ -234,6 +195,20 @@ export async function invoiceRoutes(app: FastifyInstance) {
       }
     }
 
+    // Client-book link: verify ownership and snapshot the name into
+    // `company` (the snapshot survives client edits/archival, so old
+    // invoices keep saying who they were for).
+    let clientId: string | null = null;
+    let company = data.company ?? "";
+    if (data.clientId) {
+      const client = await requireOwnedClient(userId, data.clientId);
+      if (!client) {
+        return reply.status(400).send({ error: "Client not found" });
+      }
+      clientId = client.id;
+      company = data.company || client.name;
+    }
+
     // Default due-by: 30 days after sent. Matches the Late Payment of
     // Commercial Debts Act default — even though we don't surface the
     // legal helper, the date is the same default UK accounting uses.
@@ -243,21 +218,65 @@ export async function invoiceRoutes(app: FastifyInstance) {
     const paidAt = data.paidAt ? new Date(`${data.paidAt}T00:00:00.000Z`) : null;
 
     const status = computeStatus({ paidAt, dueAt });
-
-    const invoice = await prisma.invoice.create({
-      data: {
-        userId,
-        company: data.company,
-        clientEmail: data.clientEmail ?? null,
-        reference: data.reference ?? null,
-        amountPence: data.amountPence,
-        sentAt,
-        dueAt,
-        paidAt,
-        status,
-        notes: data.notes ?? null,
-      },
+    const totals = resolveTotals({
+      lineItems: data.lineItems,
+      vatRate: data.vatRate ?? null,
+      amountPence: data.amountPence,
     });
+
+    // Create in a transaction with the per-user number allocation. The
+    // atomic counter is concurrency-safe; the unique(userId, invoiceNumber)
+    // constraint is the backstop — retry once if two creates ever race.
+    const createOnce = () =>
+      prisma.$transaction(async (tx) => {
+        const invoiceNumber = await allocateInvoiceNumber(tx, userId);
+        const created = await tx.invoice.create({
+          data: {
+            userId,
+            company,
+            clientId,
+            clientEmail: data.clientEmail ?? null,
+            reference: data.reference ?? null,
+            invoiceNumber,
+            amountPence: totals.amountPence,
+            subtotalPence: totals.subtotalPence,
+            vatRate: totals.subtotalPence != null ? data.vatRate ?? null : null,
+            vatPence: totals.vatPence,
+            sentAt,
+            dueAt,
+            paidAt,
+            status,
+            notes: data.notes ?? null,
+          },
+        });
+        if (totals.lines.length > 0) {
+          await tx.invoiceLineItem.createMany({
+            data: totals.lines.map((l, i) => ({
+              invoiceId: created.id,
+              position: i,
+              description: l.description,
+              quantity: l.quantity,
+              unitPricePence: l.unitPricePence,
+              totalPence: l.totalPence,
+            })),
+          });
+        }
+        return created;
+      });
+
+    let invoice;
+    try {
+      invoice = await createOnce();
+    } catch (err) {
+      if (
+        err instanceof Prisma.PrismaClientKnownRequestError &&
+        err.code === "P2002"
+      ) {
+        invoice = await createOnce();
+      } else {
+        throw err;
+      }
+    }
 
     logEvent("invoice.created", userId, {
       invoiceId: invoice.id,
@@ -351,6 +370,20 @@ export async function invoiceRoutes(app: FastifyInstance) {
     const { id } = z.object({ id: z.string().uuid() }).parse(request.params);
     const invoice = await prisma.invoice.findFirst({
       where: { id, userId: request.userId! },
+      include: {
+        lineItems: { orderBy: { position: "asc" } },
+        client: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            addressLine1: true,
+            addressLine2: true,
+            city: true,
+            postcode: true,
+          },
+        },
+      },
     });
     if (!invoice) return reply.status(404).send({ error: "Invoice not found" });
     return reply.send({ data: invoice });
@@ -377,25 +410,105 @@ export async function invoiceRoutes(app: FastifyInstance) {
     if (updates.paidAt === null) newPaidAt = null;
     else if (typeof updates.paidAt === "string") newPaidAt = new Date(`${updates.paidAt}T00:00:00.000Z`);
 
+    // Client-book link change: verify ownership; snapshot name into
+    // company unless the caller sent an explicit company override.
+    let clientPatch: { clientId?: string | null; company?: string } = {};
+    if (updates.clientId === null) {
+      clientPatch = { clientId: null };
+    } else if (typeof updates.clientId === "string") {
+      const client = await requireOwnedClient(request.userId!, updates.clientId);
+      if (!client) return reply.status(400).send({ error: "Client not found" });
+      clientPatch = {
+        clientId: client.id,
+        ...(updates.company === undefined && { company: client.name }),
+      };
+    }
+
     const status = computeStatus({
       paidAt: newPaidAt,
       dueAt: newDueAt,
       writtenOff: updates.writeOff ?? existing.status === "written_off",
     });
 
-    const updated = await prisma.invoice.update({
-      where: { id },
-      data: {
-        ...(updates.company !== undefined && { company: updates.company }),
-        ...(updates.clientEmail !== undefined && { clientEmail: updates.clientEmail }),
-        ...(updates.reference !== undefined && { reference: updates.reference }),
-        ...(updates.amountPence !== undefined && { amountPence: updates.amountPence }),
-        sentAt: newSentAt,
-        dueAt: newDueAt,
-        paidAt: newPaidAt,
-        status,
-        ...(updates.notes !== undefined && { notes: updates.notes }),
-      },
+    // Totals recompute — only when a totals input actually changed, so
+    // date-only or notes-only PATCHes never disturb stored amounts.
+    const totalsTouched =
+      updates.lineItems !== undefined ||
+      updates.vatRate !== undefined ||
+      updates.amountPence !== undefined;
+
+    let totalsPatch: Prisma.InvoiceUncheckedUpdateInput = {};
+    let newLines: ReturnType<typeof resolveTotals>["lines"] | null = null;
+    if (totalsTouched) {
+      const effectiveLines =
+        updates.lineItems !== undefined
+          ? updates.lineItems
+          : (
+              await prisma.invoiceLineItem.findMany({
+                where: { invoiceId: id },
+                orderBy: { position: "asc" },
+              })
+            ).map((l) => ({
+              description: l.description,
+              quantity: Number(l.quantity),
+              unitPricePence: l.unitPricePence,
+            }));
+      const effectiveVatRate =
+        updates.vatRate !== undefined ? updates.vatRate : existing.vatRate;
+      // Direct-entry base: an explicit new amount, else the stored net
+      // subtotal, else the legacy gross amount.
+      const baseAmount =
+        updates.amountPence ?? existing.subtotalPence ?? existing.amountPence;
+      const totals = resolveTotals({
+        lineItems: effectiveLines,
+        vatRate: effectiveVatRate,
+        amountPence: baseAmount,
+      });
+      totalsPatch = {
+        amountPence: totals.amountPence,
+        subtotalPence: totals.subtotalPence,
+        vatRate: totals.subtotalPence != null ? effectiveVatRate : null,
+        vatPence: totals.vatPence,
+      };
+      if (updates.lineItems !== undefined) newLines = totals.lines;
+    }
+
+    const updated = await prisma.$transaction(async (tx) => {
+      if (newLines !== null) {
+        await tx.invoiceLineItem.deleteMany({ where: { invoiceId: id } });
+        if (newLines.length > 0) {
+          await tx.invoiceLineItem.createMany({
+            data: newLines.map((l, i) => ({
+              invoiceId: id,
+              position: i,
+              description: l.description,
+              quantity: l.quantity,
+              unitPricePence: l.unitPricePence,
+              totalPence: l.totalPence,
+            })),
+          });
+        }
+      }
+      return tx.invoice.update({
+        where: { id },
+        data: {
+          ...(updates.company !== undefined && { company: updates.company }),
+          ...clientPatch,
+          ...(updates.clientEmail !== undefined && { clientEmail: updates.clientEmail }),
+          ...(updates.reference !== undefined && { reference: updates.reference }),
+          ...totalsPatch,
+          sentAt: newSentAt,
+          dueAt: newDueAt,
+          paidAt: newPaidAt,
+          status,
+          // Paid or written-off invoices never auto-chase.
+          ...((newPaidAt || status === "written_off") && {
+            nextChaseAt: null,
+            chaseWarnedAt: null,
+          }),
+          ...(updates.notes !== undefined && { notes: updates.notes }),
+        },
+      });
     });
 
     // Telemetry: payment events get their own type so we can spot the

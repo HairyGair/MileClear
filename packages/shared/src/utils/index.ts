@@ -1270,3 +1270,51 @@ export function buildInvoiceChaseMailto(
   const to = invoice.clientEmail ?? "";
   return `mailto:${encodeURIComponent(to)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
 }
+
+// ── Invoice builder: numbering + totals (Get Paid, Jul 2026) ─────────────────
+
+/** Display format for a per-user sequential invoice number: 42 → "INV-0042".
+ *  Single source for the PDF, emails, the bank-reconcile matcher, and both
+ *  UIs — the reconciler regex-matches this exact shape in bank references. */
+export function formatInvoiceNumber(n: number): string {
+  return `INV-${String(n).padStart(4, "0")}`;
+}
+
+export interface InvoiceLineInput {
+  description: string;
+  /** Fractional quantities allowed (hours, part-days). */
+  quantity: number;
+  unitPricePence: number;
+}
+
+export interface InvoiceTotals {
+  lines: Array<InvoiceLineInput & { totalPence: number }>;
+  subtotalPence: number;
+  vatPence: number;
+  /** Gross total — what Invoice.amountPence stores. */
+  amountPence: number;
+}
+
+/**
+ * Compute invoice totals from line items + an optional VAT rate (whole
+ * percent: 20 | 5 | 0; null = no VAT). Line totals round half-up per line
+ * (matches how invoices are conventionally presented); VAT rounds half-up
+ * on the subtotal. Server recomputes this and never trusts client totals.
+ */
+export function computeInvoiceTotals(
+  lines: InvoiceLineInput[],
+  vatRate: number | null
+): InvoiceTotals {
+  const computed = lines.map((l) => ({
+    ...l,
+    totalPence: Math.round(l.quantity * l.unitPricePence),
+  }));
+  const subtotalPence = computed.reduce((sum, l) => sum + l.totalPence, 0);
+  const vatPence = vatRate ? Math.round((subtotalPence * vatRate) / 100) : 0;
+  return {
+    lines: computed,
+    subtotalPence,
+    vatPence,
+    amountPence: subtotalPence + vatPence,
+  };
+}

@@ -77,6 +77,24 @@ model User {
   accountantName            String?   @db.VarChar(120)
   accountantContact         String?   @db.VarChar(255)
   accountantAnnualFeePence  Int?
+  // ── Business profile for the invoice builder (Get Paid, Jul 2026).
+  // Bank sort code + account number are AES-256-GCM encrypted at rest
+  // (lib/encryption.ts) — printed on the user's own invoice PDFs, but a
+  // DB dump must not leak every user's account details in cleartext.
+  tradingName             String?  @db.VarChar(120)
+  businessAddress         String?  @db.Text
+  vatRegistered           Boolean  @default(false)
+  vatNumber               String?  @db.VarChar(20)
+  /** Validated "#RRGGBB"; null = MileClear amber default. */
+  invoiceAccentColor      String?  @db.VarChar(7)
+  invoicePaymentTermsDays Int      @default(30)
+  bankAccountName         String?  @db.VarChar(120)
+  bankSortCode            String?  @db.VarChar(200)
+  bankAccountNumber       String?  @db.VarChar(200)
+  /** Atomic per-user invoice-number sequence (incremented in the create
+   *  transaction; @@unique(userId, invoiceNumber) is the backstop). */
+  invoiceCounter          Int      @default(0)
+
   dashboardMode        String    @default("both") @db.VarChar(20)
   // Home electricity unit rate (pence per kWh) for EV cost-per-mile. Null =
   // use the UK default. Octopus can suggest a current rate; user can override.
@@ -181,6 +199,8 @@ model User {
   pickupWaits         PickupWait[]
   hmrcConnection      HmrcConnection?
   invoices            Invoice[]
+  clients             Client[]
+  logo                UserLogo?
   bankTransactions    BankTransaction[]
   merchantMappings    MerchantMapping[]
   referralsMade       Referral[]         @relation("Referrer")
@@ -677,6 +697,10 @@ model BankTransaction {
    *  so the inbox can show "already added" + offer undo. */
   resolvedEarningId   String?
   resolvedExpenseId   String?
+  /** Set when this credit was matched to an invoice payment (Get Paid
+   *  Phase 4 reconciliation). Plain column, no FK - the invoice may be
+   *  deleted later and the txn record should survive. */
+  resolvedInvoiceId   String?
   reviewedAt          DateTime?
 
   createdAt           DateTime  @default(now())
@@ -1152,10 +1176,90 @@ model RouteCache {
 //  - cash basis (default): Tax Readiness counts only paidAt-set invoices
 //  - accruals: Tax Readiness counts every status != "written_off"
 // The toggle lives on User.taxBasis.
+/** Client book for the invoice builder (Get Paid, Jul 2026). One row per
+ *  client the user invoices. Soft-archived (archivedAt) once referenced by
+ *  invoices so history stays intact; hard-deleted only when never invoiced. */
+model Client {
+  id           String    @id @default(uuid())
+  userId       String
+  name         String    @db.VarChar(200)
+  email        String?   @db.VarChar(255)
+  phone        String?   @db.VarChar(40)
+  addressLine1 String?   @db.VarChar(200)
+  addressLine2 String?   @db.VarChar(200)
+  city         String?   @db.VarChar(100)
+  postcode     String?   @db.VarChar(20)
+  notes        String?   @db.Text
+  archivedAt   DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  invoices Invoice[]
+
+  @@index([userId, archivedAt])
+  @@map("clients")
+}
+
+/** Optional line items for generated invoices. An invoice with no lines
+ *  behaves exactly like the legacy tracker (direct amountPence entry).
+ *  totalPence is server-computed: round(quantity * unitPricePence). */
+model InvoiceLineItem {
+  id             String  @id @default(uuid())
+  invoiceId      String
+  position       Int
+  description    String  @db.VarChar(300)
+  quantity       Decimal @db.Decimal(10, 2)
+  unitPricePence Int
+  totalPence     Int
+
+  invoice Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  @@index([invoiceId, position])
+  @@map("invoice_line_items")
+}
+
+/** Uploaded business logo for branded invoice PDFs. Separate 1:1 table so
+ *  the blob never rides ordinary User queries (auth path stays light).
+ *  PNG/JPEG only (exactly what PDFKit doc.image renders), <=1MB stored. */
+model UserLogo {
+  userId    String   @id
+  data      Bytes    @db.MediumBlob
+  mime      String   @db.VarChar(40)
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("user_logos")
+}
+
+/** Unified send + auto-chase email history for invoices. Also the counter
+ *  the Brevo daily-cap safety check reads (userId+createdAt index). userId
+ *  is a denormalised plain column - cascade rides Invoice -> User. */
+model InvoiceEmail {
+  id        String   @id @default(uuid())
+  invoiceId String
+  userId    String
+  /** send | chase_pre_due | chase_1 | chase_2 | chase_final */
+  kind      String   @db.VarChar(20)
+  toEmail   String   @db.VarChar(255)
+  subject   String   @db.VarChar(255)
+  status    String   @default("sent") @db.VarChar(16)
+  error     String?  @db.VarChar(500)
+  createdAt DateTime @default(now())
+
+  invoice Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  @@index([invoiceId, createdAt])
+  @@index([userId, createdAt])
+  @@map("invoice_emails")
+}
+
 model Invoice {
   id          String   @id @default(uuid())
   userId      String
-  /** Free-text company / client name. */
+  /** Free-text company / client name. Kept as a denormalised snapshot of
+   *  client.name when clientId is set - survives client edits/archival. */
   company     String   @db.VarChar(200)
   /** Optional client email — pre-addresses the late-payment chase draft
    *  (Laura Joyce request 4 Jul 2026). The draft opens in the user's own
@@ -1181,18 +1285,46 @@ model Invoice {
    *  from paidAt + dueAt; cached here so list filters are cheap. */
   status      String    @default("sent") @db.VarChar(16)
   notes       String?   @db.Text
+
+  // ── Get Paid (Jul 2026) — invoice builder fields. All nullable so
+  //    legacy tracker rows are untouched. amountPence above STAYS the
+  //    gross total (Tax Readiness aggregations unchanged).
+  clientId      String?
+  /** Per-user sequence (INV-0042 display format). Null on legacy rows;
+   *  lazily backfilled on first PDF/send via the atomic allocator. */
+  invoiceNumber Int?
+  /** Net total (sum of line items or direct entry). Null = legacy
+   *  gross-only invoice with no VAT breakdown. */
+  subtotalPence Int?
+  /** Whole percent: 20 | 5 | 0. Null = no VAT applied. */
+  vatRate       Int?
+  vatPence      Int?
+  /** Last successful kind="send" email. */
+  emailedAt     DateTime?
+  // Auto-chase state (Phase 3). nextChaseAt precomputed for an indexed
+  // range scan; nulled instantly on paid/write-off (suppression).
+  autoChaseEnabled Boolean   @default(false)
+  chaseCount       Int       @default(0)
+  nextChaseAt      DateTime?
+  chaseWarnedAt    DateTime?
+
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user   User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  client Client? @relation(fields: [clientId], references: [id], onDelete: SetNull)
   // Earnings whose money this invoice represents. Many-to-one: the
   // user can link an unlimited number of manual earnings to a single
   // invoice (Laura's case — 7 daily entries linked to one £400
   // invoice). Anti-double-count (21 May 2026).
   replacedEarnings Earning[] @relation("InvoiceReplacements")
+  lineItems        InvoiceLineItem[]
+  emails           InvoiceEmail[]
 
+  @@unique([userId, invoiceNumber])
   @@index([userId, status])
   @@index([userId, sentAt])
+  @@index([nextChaseAt])
   @@map("invoices")
 }
 
