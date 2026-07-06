@@ -8,6 +8,7 @@ import { sendPushToUser } from "../../lib/push.js";
 import { logEvent } from "../../services/appEvents.js";
 import { resolvePremiumStatus } from "../../services/referral.js";
 import { encrypt, decryptIfEncrypted } from "../../lib/encryption.js";
+import { canPdfkitRenderImage } from "../../services/export.js";
 
 const updateProfileSchema = z.object({
   displayName: z.string().max(100).nullable().optional(),
@@ -263,6 +264,13 @@ export async function userRoutes(app: FastifyInstance) {
     if (buf.length > LOGO_MAX_STORED_BYTES) {
       return reply.status(413).send({
         error: "Image too large — use one under 1MB (a 600px-wide logo is plenty)",
+      });
+    }
+    // Magic bytes aren't enough: PDFKit must actually be able to decode
+    // this file, or invoice rendering would fail later. Test-render now.
+    if (!(await canPdfkitRenderImage(buf))) {
+      return reply.status(400).send({
+        error: "That image couldn't be read — please export it as a standard PNG or JPEG and try again",
       });
     }
     const bytes = new Uint8Array(buf);

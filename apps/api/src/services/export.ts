@@ -1164,6 +1164,27 @@ export async function formatQuickBooksExpense(
 // ── Invoice PDF (Get Paid, Jul 2026) ─────────────────────────────────────────
 
 /**
+ * PDFKit decodes images lazily at doc.end(), so a structurally-corrupt
+ * PNG/JPEG (valid magic bytes, garbage data) would explode the WHOLE
+ * invoice render far from any doc.image() try/catch. This test-renders
+ * the image into a throwaway document where the failure IS catchable.
+ * Used at upload time (reject bad files) and as a pre-flight before
+ * placing a stored logo (skip, never crash the invoice).
+ */
+export async function canPdfkitRenderImage(image: Buffer): Promise<boolean> {
+  try {
+    const probe = new PDFDocument({ size: "A6", margin: 0 });
+    const done = collectPdfBuffer(probe);
+    probe.image(image, 0, 0, { fit: [50, 50] });
+    probe.end();
+    await done;
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Branded A4 portrait invoice. Reuses the buffer pattern above. Branding
  * comes from the user's business profile: uploaded logo (PNG/JPEG via
  * doc.image, with a trading-name text fallback), accent colour (validated
@@ -1223,12 +1244,14 @@ export async function generateInvoicePdf(
   let headerBottom = margin;
   let drewLogo = false;
   if (logo) {
-    try {
-      doc.image(Buffer.from(logo.data), margin, margin, { fit: [150, 56] });
+    // Pre-flight in a throwaway doc — doc.image() failures surface at
+    // doc.end(), which would kill the whole render if we only try/catch
+    // the placement call here.
+    const logoBuf = Buffer.from(logo.data);
+    if (await canPdfkitRenderImage(logoBuf)) {
+      doc.image(logoBuf, margin, margin, { fit: [150, 56] });
       drewLogo = true;
       headerBottom = margin + 56;
-    } catch {
-      // Corrupt/unsupported image: fall through to the text wordmark.
     }
   }
   if (!drewLogo) {
