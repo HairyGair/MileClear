@@ -12,8 +12,8 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { buildApp } from "../helpers/build-app.js";
 import { makeAccessToken } from "../helpers/tokens.js";
 
-vi.mock("../../lib/prisma.js", () => ({
-  prisma: {
+vi.mock("../../lib/prisma.js", () => {
+  const mockPrisma: Record<string, any> = {
     invoice: {
       create: vi.fn(),
       findFirst: vi.fn(),
@@ -25,6 +25,14 @@ vi.mock("../../lib/prisma.js", () => ({
       aggregate: vi.fn(),
       groupBy: vi.fn(),
     },
+    invoiceLineItem: {
+      findMany: vi.fn().mockResolvedValue([]),
+      deleteMany: vi.fn().mockResolvedValue({ count: 0 }),
+      createMany: vi.fn().mockResolvedValue({ count: 0 }),
+    },
+    client: {
+      findFirst: vi.fn(),
+    },
     earning: {
       findFirst: vi.fn(),
       findMany: vi.fn(),
@@ -32,12 +40,19 @@ vi.mock("../../lib/prisma.js", () => ({
     },
     user: {
       findUnique: vi.fn(),
+      update: vi.fn(),
     },
     appEvent: {
       create: vi.fn().mockResolvedValue({}),
     },
-  },
-}));
+  };
+  // Interactive $transaction: hand the callback the same mock client so
+  // route code using tx.invoice.update etc. hits the per-test mocks.
+  mockPrisma.$transaction = vi.fn(async (arg: unknown) =>
+    typeof arg === "function" ? (arg as (tx: unknown) => unknown)(mockPrisma) : Promise.all(arg as Promise<unknown>[])
+  );
+  return { prisma: mockPrisma };
+});
 
 import { invoiceRoutes } from "../../routes/invoices/index.js";
 import { prisma } from "../../lib/prisma.js";
