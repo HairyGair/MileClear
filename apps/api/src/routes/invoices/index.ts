@@ -30,6 +30,7 @@ import {
   allocateInvoiceNumber,
 } from "../../services/invoices.js";
 import { computeInvoiceTotals } from "@mileclear/shared";
+import { generateInvoicePdf } from "../../services/export.js";
 
 const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Date must be YYYY-MM-DD");
 
@@ -387,6 +388,43 @@ export async function invoiceRoutes(app: FastifyInstance) {
     });
     if (!invoice) return reply.status(404).send({ error: "Invoice not found" });
     return reply.send({ data: invoice });
+  });
+
+  // GET /invoices/:id/pdf — branded invoice PDF (Pro).
+  // The invoices plugin can't be premium-gated wholesale (tracking is
+  // free), so the check is per-route via the canonical helper.
+  app.get("/:id/pdf", async (request, reply) => {
+    const { id } = z.object({ id: z.string().uuid() }).parse(request.params);
+    const userId = request.userId!;
+
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { isPremium: true, premiumExpiresAt: true, referralProUntil: true },
+    });
+    if (!user || !resolvePremiumStatus(user).active) {
+      return reply.status(402).send({
+        error: {
+          code: "PREMIUM_REQUIRED",
+          message: "Branded invoice PDFs are a Pro feature.",
+          hint: "Generate professional invoices with your logo — £4.99/month.",
+          feature: "invoice_pdf",
+          retryable: false,
+        },
+      });
+    }
+
+    const invoice = await prisma.invoice.findFirst({
+      where: { id, userId },
+      select: { id: true },
+    });
+    if (!invoice) return reply.status(404).send({ error: "Invoice not found" });
+
+    const { buffer, filename } = await generateInvoicePdf(userId, id);
+    logEvent("invoice.pdf_generated", userId, { invoiceId: id });
+    return reply
+      .header("Content-Type", "application/pdf")
+      .header("Content-Disposition", `attachment; filename="${filename}"`)
+      .send(buffer);
   });
 
   // PATCH /invoices/:id — edit or mark paid

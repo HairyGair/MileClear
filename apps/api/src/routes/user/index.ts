@@ -7,6 +7,7 @@ import { verifyPassword } from "../../services/auth.js";
 import { sendPushToUser } from "../../lib/push.js";
 import { logEvent } from "../../services/appEvents.js";
 import { resolvePremiumStatus } from "../../services/referral.js";
+import { encrypt, decryptIfEncrypted } from "../../lib/encryption.js";
 
 const updateProfileSchema = z.object({
   displayName: z.string().max(100).nullable().optional(),
@@ -38,6 +39,32 @@ const updateProfileSchema = z.object({
   dashboardMode: z.enum(["both", "work", "personal"]).optional(),
   weeklyEarningsGoalPence: z.number().int().min(0).max(1000000).nullable().optional(),
   marketingEmailsEnabled: z.boolean().optional(),
+  // Business profile for the invoice builder (Get Paid, Jul 2026). Bank
+  // sort code + account number are encrypted at rest — they appear on the
+  // user's own invoice PDFs, but a DB dump must not leak them in bulk.
+  tradingName: z.string().max(120).nullable().optional(),
+  businessAddress: z.string().max(600).nullable().optional(),
+  vatRegistered: z.boolean().optional(),
+  vatNumber: z.string().max(20).nullable().optional(),
+  invoiceAccentColor: z
+    .string()
+    .regex(/^#[0-9a-fA-F]{6}$/, "Accent colour must be #RRGGBB")
+    .nullable()
+    .optional(),
+  invoicePaymentTermsDays: z.number().int().min(1).max(90).optional(),
+  bankAccountName: z.string().max(120).nullable().optional(),
+  bankSortCode: z
+    .string()
+    .transform((v) => v.replace(/[\s-]/g, ""))
+    .pipe(z.string().regex(/^\d{6}$/, "Sort code must be 6 digits"))
+    .nullable()
+    .optional(),
+  bankAccountNumber: z
+    .string()
+    .transform((v) => v.replace(/\s/g, ""))
+    .pipe(z.string().regex(/^\d{8}$/, "Account number must be 8 digits"))
+    .nullable()
+    .optional(),
   email: z.string().email().optional(),
   currentPassword: z.string().optional(),
 });
@@ -65,6 +92,15 @@ const USER_SELECT = {
   dashboardMode: true,
   weeklyEarningsGoalPence: true,
   marketingEmailsEnabled: true,
+  tradingName: true,
+  businessAddress: true,
+  vatRegistered: true,
+  vatNumber: true,
+  invoiceAccentColor: true,
+  invoicePaymentTermsDays: true,
+  bankAccountName: true,
+  bankSortCode: true,
+  bankAccountNumber: true,
   emailVerified: true,
   isPremium: true,
   isAdmin: true,
@@ -84,6 +120,16 @@ const USER_SELECT = {
 function withEffectivePremium<T extends { isPremium: boolean; premiumExpiresAt: Date | null; referralProUntil: Date | null }>(user: T) {
   const status = resolvePremiumStatus(user);
   return { ...user, isPremium: status.active, premiumSource: status.source };
+}
+
+/** Decrypt the at-rest-encrypted bank fields for the owner's own eyes.
+ *  Every profile response path goes through this. */
+function withDecryptedBankDetails<T extends { bankSortCode?: string | null; bankAccountNumber?: string | null }>(user: T): T {
+  return {
+    ...user,
+    bankSortCode: decryptIfEncrypted(user.bankSortCode ?? null),
+    bankAccountNumber: decryptIfEncrypted(user.bankAccountNumber ?? null),
+  };
 }
 
 const ALERT_COOLDOWN_DAYS = 7;
@@ -170,8 +216,79 @@ async function analyzeDiagnosticAndAlert(
   }
 }
 
+/** PNG (89 50 4E 47) or JPEG (FF D8 FF) magic bytes — the only formats
+ *  PDFKit's doc.image renders, so accepting exactly these means the logo
+ *  never needs transcoding. */
+function sniffImageMime(buf: Buffer): "image/png" | "image/jpeg" | null {
+  if (buf.length > 8 && buf[0] === 0x89 && buf[1] === 0x50 && buf[2] === 0x4e && buf[3] === 0x47) {
+    return "image/png";
+  }
+  if (buf.length > 3 && buf[0] === 0xff && buf[1] === 0xd8 && buf[2] === 0xff) {
+    return "image/jpeg";
+  }
+  return null;
+}
+
+const LOGO_MAX_STORED_BYTES = 1024 * 1024; // 1MB
+
 export async function userRoutes(app: FastifyInstance) {
   app.addHook("preHandler", authMiddleware);
+
+  // Multipart scoped to this plugin — only the logo upload uses it.
+  // 2MB transport cap; the stored cap below is stricter.
+  const { default: multipart } = await import("@fastify/multipart");
+  await app.register(multipart, {
+    limits: { fileSize: 2 * 1024 * 1024, files: 1 },
+  });
+
+  // POST /user/logo — upload/replace the business logo (invoice branding).
+  // Not premium-gated: free users can prep branding; the paywall bites at
+  // PDF generation.
+  app.post("/logo", async (request, reply) => {
+    const file = await request.file();
+    if (!file) {
+      return reply.status(400).send({ error: "Attach an image file" });
+    }
+    let buf: Buffer;
+    try {
+      buf = await file.toBuffer();
+    } catch {
+      // @fastify/multipart throws when the transport cap is exceeded.
+      return reply.status(413).send({ error: "Image too large — use one under 2MB" });
+    }
+    const mime = sniffImageMime(buf);
+    if (!mime) {
+      return reply.status(400).send({ error: "Logo must be a PNG or JPEG image" });
+    }
+    if (buf.length > LOGO_MAX_STORED_BYTES) {
+      return reply.status(413).send({
+        error: "Image too large — use one under 1MB (a 600px-wide logo is plenty)",
+      });
+    }
+    const bytes = new Uint8Array(buf);
+    await prisma.userLogo.upsert({
+      where: { userId: request.userId! },
+      create: { userId: request.userId!, data: bytes, mime },
+      update: { data: bytes, mime },
+    });
+    logEvent("user.logo_uploaded", request.userId!, { bytes: buf.length, mime });
+    return reply.send({ data: { ok: true, bytes: buf.length, mime } });
+  });
+
+  // GET /user/logo — the owner's logo bytes (settings preview).
+  app.get("/logo", async (request, reply) => {
+    const logo = await prisma.userLogo.findUnique({
+      where: { userId: request.userId! },
+    });
+    if (!logo) return reply.status(404).send({ error: "No logo uploaded" });
+    return reply.header("Content-Type", logo.mime).send(Buffer.from(logo.data));
+  });
+
+  // DELETE /user/logo
+  app.delete("/logo", async (request, reply) => {
+    await prisma.userLogo.deleteMany({ where: { userId: request.userId! } });
+    return reply.send({ data: { deleted: true } });
+  });
 
   // Get current user profile
   app.get("/profile", async (request, reply) => {
@@ -184,7 +301,7 @@ export async function userRoutes(app: FastifyInstance) {
       return reply.status(404).send({ error: "User not found" });
     }
 
-    return reply.send({ data: withEffectivePremium(user) });
+    return reply.send({ data: withDecryptedBankDetails(withEffectivePremium(user)) });
   });
 
   // Update profile
@@ -284,6 +401,22 @@ export async function userRoutes(app: FastifyInstance) {
       updateData.weeklyEarningsGoalPence = parsed.data.weeklyEarningsGoalPence;
     }
 
+    // Business profile (invoice builder). Bank details encrypted on write.
+    const bp = parsed.data;
+    if (bp.tradingName !== undefined) updateData.tradingName = bp.tradingName;
+    if (bp.businessAddress !== undefined) updateData.businessAddress = bp.businessAddress;
+    if (bp.vatRegistered !== undefined) updateData.vatRegistered = bp.vatRegistered;
+    if (bp.vatNumber !== undefined) updateData.vatNumber = bp.vatNumber;
+    if (bp.invoiceAccentColor !== undefined) updateData.invoiceAccentColor = bp.invoiceAccentColor;
+    if (bp.invoicePaymentTermsDays !== undefined) updateData.invoicePaymentTermsDays = bp.invoicePaymentTermsDays;
+    if (bp.bankAccountName !== undefined) updateData.bankAccountName = bp.bankAccountName;
+    if (bp.bankSortCode !== undefined) {
+      updateData.bankSortCode = bp.bankSortCode ? encrypt(bp.bankSortCode) : null;
+    }
+    if (bp.bankAccountNumber !== undefined) {
+      updateData.bankAccountNumber = bp.bankAccountNumber ? encrypt(bp.bankAccountNumber) : null;
+    }
+
     // Marketing email preference
     if (parsed.data.marketingEmailsEnabled !== undefined) {
       updateData.marketingEmailsEnabled = parsed.data.marketingEmailsEnabled;
@@ -335,7 +468,7 @@ export async function userRoutes(app: FastifyInstance) {
       select: USER_SELECT,
     });
 
-    return reply.send({ data: withEffectivePremium(user) });
+    return reply.send({ data: withDecryptedBankDetails(withEffectivePremium(user)) });
   });
 
   // GET /user/weekly-progress
@@ -525,7 +658,7 @@ export async function userRoutes(app: FastifyInstance) {
   app.get("/export", async (request, reply) => {
     const userId = request.userId!;
 
-    const [user, vehicles, shifts, trips, fuelLogs, earnings, achievements, mileageSummaries, tripAnomalies] =
+    const [user, vehicles, shifts, trips, fuelLogs, earnings, achievements, mileageSummaries, tripAnomalies, clients, invoices, logo] =
       await Promise.all([
         prisma.user.findUnique({
           where: { id: userId },
@@ -543,11 +676,19 @@ export async function userRoutes(app: FastifyInstance) {
         prisma.achievement.findMany({ where: { userId } }),
         prisma.mileageSummary.findMany({ where: { userId } }),
         prisma.tripAnomaly.findMany({ where: { userId } }),
+        prisma.client.findMany({ where: { userId } }),
+        prisma.invoice.findMany({
+          where: { userId },
+          include: { lineItems: true, emails: true },
+        }),
+        prisma.userLogo.findUnique({ where: { userId } }),
       ]);
 
     const exportData = {
       exportedAt: new Date().toISOString(),
-      user,
+      // Bank details decrypted — it's the owner's own data (GDPR access
+      // right covers the plaintext, not our storage encoding).
+      user: user ? withDecryptedBankDetails(user) : null,
       vehicles,
       shifts,
       trips,
@@ -556,6 +697,11 @@ export async function userRoutes(app: FastifyInstance) {
       achievements,
       mileageSummaries,
       tripAnomalies,
+      clients,
+      invoices,
+      logo: logo
+        ? { mime: logo.mime, dataBase64: Buffer.from(logo.data).toString("base64") }
+        : null,
     };
 
     reply.header("Content-Disposition", "attachment; filename=mileclear-data-export.json");

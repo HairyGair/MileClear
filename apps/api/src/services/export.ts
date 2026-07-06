@@ -2,12 +2,16 @@ import PDFDocument from "pdfkit";
 import crypto from "crypto";
 import {
   formatPence,
+  formatInvoiceNumber,
   HMRC_RATES,
   HMRC_THRESHOLD_MILES,
   parseTaxYear,
 } from "@mileclear/shared";
 import type { ExportTripRow } from "@mileclear/shared";
 import { fetchExportTrips, fetchExportSummary } from "./export-data.js";
+import { prisma } from "../lib/prisma.js";
+import { decryptIfEncrypted } from "../lib/encryption.js";
+import { ensureInvoiceNumber } from "./invoices.js";
 
 interface ExportOpts {
   taxYear?: string;
@@ -1155,4 +1159,277 @@ export async function formatQuickBooksExpense(
     })),
     PrivateNote: `MileClear export ${taxYear}`,
   };
+}
+
+// ── Invoice PDF (Get Paid, Jul 2026) ─────────────────────────────────────────
+
+/**
+ * Branded A4 portrait invoice. Reuses the buffer pattern above. Branding
+ * comes from the user's business profile: uploaded logo (PNG/JPEG via
+ * doc.image, with a trading-name text fallback), accent colour (validated
+ * hex, default MileClear amber), address, VAT number, and bank details
+ * (decrypted here, printed only on the owner's own document). The
+ * "Payment reference: INV-NNNN" line is the exact string the Phase-4
+ * bank reconciler matches on.
+ */
+export async function generateInvoicePdf(
+  userId: string,
+  invoiceId: string
+): Promise<{ buffer: Buffer; filename: string }> {
+  const [invoice, user, logo] = await Promise.all([
+    prisma.invoice.findFirst({
+      where: { id: invoiceId, userId },
+      include: {
+        lineItems: { orderBy: { position: "asc" } },
+        client: true,
+      },
+    }),
+    prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        displayName: true,
+        fullName: true,
+        email: true,
+        tradingName: true,
+        businessAddress: true,
+        vatRegistered: true,
+        vatNumber: true,
+        invoiceAccentColor: true,
+        bankAccountName: true,
+        bankSortCode: true,
+        bankAccountNumber: true,
+      },
+    }),
+    prisma.userLogo.findUnique({ where: { userId } }),
+  ]);
+  if (!invoice) throw new Error("Invoice not found");
+  if (!user) throw new Error("User not found");
+
+  const invoiceNumber = await ensureInvoiceNumber(invoice);
+  const ref = formatInvoiceNumber(invoiceNumber);
+  const accent = /^#[0-9a-fA-F]{6}$/.test(user.invoiceAccentColor ?? "")
+    ? user.invoiceAccentColor!
+    : AMBER;
+  const businessName =
+    user.tradingName || user.fullName || user.displayName || "Sole trader";
+
+  const doc = new PDFDocument({ size: "A4", margin: 48, bufferPages: true });
+  const done = collectPdfBuffer(doc);
+  const pageWidth = 595.28;
+  const margin = 48;
+  const contentWidth = pageWidth - margin * 2;
+
+  // ── Header: logo/name left, INVOICE + meta right
+  let headerBottom = margin;
+  let drewLogo = false;
+  if (logo) {
+    try {
+      doc.image(Buffer.from(logo.data), margin, margin, { fit: [150, 56] });
+      drewLogo = true;
+      headerBottom = margin + 56;
+    } catch {
+      // Corrupt/unsupported image: fall through to the text wordmark.
+    }
+  }
+  if (!drewLogo) {
+    doc.font("Helvetica-Bold").fontSize(20).fillColor(NAVY);
+    doc.text(businessName, margin, margin, { width: contentWidth - 200 });
+    headerBottom = doc.y;
+  }
+
+  doc.font("Helvetica-Bold").fontSize(24).fillColor(accent);
+  doc.text("INVOICE", margin, margin, { width: contentWidth, align: "right" });
+  doc.font("Helvetica").fontSize(10).fillColor(GREY_600);
+  doc.text(ref, { width: contentWidth, align: "right" });
+  doc.text(`Issued: ${invoice.sentAt.toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" })}`, {
+    width: contentWidth,
+    align: "right",
+  });
+  doc.text(`Due: ${invoice.dueAt.toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" })}`, {
+    width: contentWidth,
+    align: "right",
+  });
+  const headerRight = doc.y;
+
+  // From block (business identity under the logo)
+  let y = Math.max(headerBottom, headerRight) + 8;
+  doc.font("Helvetica").fontSize(9).fillColor(GREY_600);
+  if (drewLogo) {
+    doc.font("Helvetica-Bold").fontSize(11).fillColor(NAVY);
+    doc.text(businessName, margin, y, { width: contentWidth / 2 });
+    doc.font("Helvetica").fontSize(9).fillColor(GREY_600);
+    y = doc.y;
+  }
+  if (user.businessAddress) {
+    doc.text(user.businessAddress, margin, y, { width: contentWidth / 2 });
+    y = doc.y;
+  }
+  if (user.email) {
+    doc.text(user.email, margin, y, { width: contentWidth / 2 });
+    y = doc.y;
+  }
+
+  // Accent rule
+  y += 14;
+  doc.moveTo(margin, y).lineTo(pageWidth - margin, y).lineWidth(2).strokeColor(accent).stroke();
+  y += 18;
+
+  // ── Bill To
+  doc.font("Helvetica-Bold").fontSize(9).fillColor(accent);
+  doc.text("BILL TO", margin, y);
+  doc.font("Helvetica-Bold").fontSize(12).fillColor(NAVY);
+  doc.text(invoice.company, margin, doc.y + 2);
+  doc.font("Helvetica").fontSize(9).fillColor(GREY_600);
+  const client = invoice.client;
+  if (client) {
+    const addr = [client.addressLine1, client.addressLine2, client.city, client.postcode]
+      .filter(Boolean)
+      .join("\n");
+    if (addr) doc.text(addr);
+    if (client.email) doc.text(client.email);
+  } else if (invoice.clientEmail) {
+    doc.text(invoice.clientEmail);
+  }
+  if (invoice.reference) {
+    doc.text(`Your reference: ${invoice.reference}`);
+  }
+  y = doc.y + 24;
+
+  // ── Line items table
+  const colDesc = margin;
+  const colQty = margin + contentWidth - 200;
+  const colUnit = margin + contentWidth - 140;
+  const colTotal = margin + contentWidth - 70;
+
+  doc.font("Helvetica-Bold").fontSize(9).fillColor(WHITE);
+  doc.rect(margin, y, contentWidth, 22).fill(NAVY);
+  doc.fillColor(WHITE);
+  doc.text("DESCRIPTION", colDesc + 8, y + 7, { width: colQty - colDesc - 16 });
+  doc.text("QTY", colQty, y + 7, { width: 50, align: "right" });
+  doc.text("UNIT", colUnit, y + 7, { width: 60, align: "right" });
+  doc.text("TOTAL", colTotal, y + 7, { width: 70 - 8, align: "right" });
+  y += 22;
+
+  const lines =
+    invoice.lineItems.length > 0
+      ? invoice.lineItems.map((l) => ({
+          description: l.description,
+          quantity: Number(l.quantity),
+          unitPricePence: l.unitPricePence,
+          totalPence: l.totalPence,
+        }))
+      : [
+          {
+            description: invoice.reference
+              ? `Services — ${invoice.reference}`
+              : "Services",
+            quantity: 1,
+            unitPricePence: invoice.subtotalPence ?? invoice.amountPence,
+            totalPence: invoice.subtotalPence ?? invoice.amountPence,
+          },
+        ];
+
+  doc.font("Helvetica").fontSize(9);
+  for (const [i, line] of lines.entries()) {
+    const rowH = 22;
+    if (i % 2 === 1) {
+      doc.rect(margin, y, contentWidth, rowH).fill(GREY_100);
+    }
+    doc.fillColor(NAVY);
+    doc.text(line.description, colDesc + 8, y + 7, {
+      width: colQty - colDesc - 16,
+      ellipsis: true,
+      height: rowH - 8,
+    });
+    doc.fillColor(GREY_600);
+    doc.text(
+      Number.isInteger(line.quantity) ? String(line.quantity) : line.quantity.toFixed(2),
+      colQty,
+      y + 7,
+      { width: 50, align: "right" }
+    );
+    doc.text(formatPence(line.unitPricePence), colUnit, y + 7, { width: 60, align: "right" });
+    doc.fillColor(NAVY);
+    doc.text(formatPence(line.totalPence), colTotal, y + 7, { width: 70 - 8, align: "right" });
+    y += rowH;
+  }
+  doc.moveTo(margin, y).lineTo(pageWidth - margin, y).lineWidth(0.5).strokeColor(GREY_200).stroke();
+  y += 12;
+
+  // ── Totals block (right-aligned)
+  const totalsLabelX = colUnit - 60;
+  const totalsValueX = colTotal;
+  const totalRow = (label: string, value: string, opts?: { bold?: boolean; accentBand?: boolean }) => {
+    if (opts?.accentBand) {
+      doc.rect(totalsLabelX - 8, y - 4, pageWidth - margin - totalsLabelX + 8, 24).fill(accent);
+      doc.font("Helvetica-Bold").fontSize(11).fillColor(NAVY);
+      doc.text(label, totalsLabelX, y + 2, { width: totalsValueX - totalsLabelX + 20 });
+      doc.text(value, totalsValueX - 20, y + 2, { width: 70 + 12, align: "right" });
+      y += 26;
+      return;
+    }
+    doc.font(opts?.bold ? "Helvetica-Bold" : "Helvetica").fontSize(9).fillColor(GREY_600);
+    doc.text(label, totalsLabelX, y, { width: totalsValueX - totalsLabelX + 20 });
+    doc.fillColor(NAVY);
+    doc.text(value, totalsValueX - 20, y, { width: 70 + 12, align: "right" });
+    y += 16;
+  };
+
+  if (invoice.subtotalPence != null && invoice.vatRate != null) {
+    totalRow("Subtotal", formatPence(invoice.subtotalPence));
+    totalRow(`VAT @ ${invoice.vatRate}%`, formatPence(invoice.vatPence ?? 0));
+  }
+  totalRow("Total due", formatPence(invoice.amountPence), { accentBand: true });
+
+  if (user.vatRegistered && user.vatNumber) {
+    doc.font("Helvetica").fontSize(8).fillColor(GREY_600);
+    doc.text(`VAT number: ${user.vatNumber}`, totalsLabelX - 8, y + 2);
+    y = doc.y;
+  }
+  y += 24;
+
+  // ── Payment details card
+  const sortCode = decryptIfEncrypted(user.bankSortCode);
+  const accountNumber = decryptIfEncrypted(user.bankAccountNumber);
+  const hasBank = user.bankAccountName || sortCode || accountNumber;
+  doc.rect(margin, y, contentWidth, hasBank ? 96 : 56).fill(GREY_100);
+  doc.font("Helvetica-Bold").fontSize(9).fillColor(accent === AMBER ? AMBER_DARK : accent);
+  doc.text("PAYMENT DETAILS", margin + 12, y + 10);
+  doc.font("Helvetica").fontSize(9).fillColor(NAVY);
+  let py = y + 26;
+  if (user.bankAccountName) {
+    doc.text(`Account name: ${user.bankAccountName}`, margin + 12, py);
+    py = doc.y;
+  }
+  if (sortCode) {
+    doc.text(
+      `Sort code: ${sortCode.slice(0, 2)}-${sortCode.slice(2, 4)}-${sortCode.slice(4, 6)}` +
+        (accountNumber ? `    Account number: ${accountNumber}` : ""),
+      margin + 12,
+      py
+    );
+    py = doc.y;
+  } else if (accountNumber) {
+    doc.text(`Account number: ${accountNumber}`, margin + 12, py);
+    py = doc.y;
+  }
+  doc.font("Helvetica-Bold");
+  doc.text(`Payment reference: ${ref}`, margin + 12, py + 2);
+  y += (hasBank ? 96 : 56) + 16;
+
+  // ── Notes + footer
+  if (invoice.notes) {
+    doc.font("Helvetica").fontSize(8).fillColor(GREY_600);
+    doc.text(invoice.notes, margin, y, { width: contentWidth });
+    y = doc.y + 12;
+  }
+  doc.font("Helvetica").fontSize(7).fillColor(GREY_400);
+  doc.text("Created with MileClear — mileage, invoices & tax for the self-employed — mileclear.com", margin, 780, {
+    width: contentWidth,
+    align: "center",
+  });
+
+  doc.end();
+  const buffer = await done;
+  return { buffer, filename: `${ref}.pdf` };
 }

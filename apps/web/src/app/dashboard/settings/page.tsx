@@ -13,6 +13,7 @@ import { Modal } from "../../../components/ui/Modal";
 import type { BillingStatus, WorkType } from "@mileclear/shared";
 import { Select } from "../../../components/ui/Select";
 import { AVATARS, resolveAvatarFile } from "../../../lib/avatars";
+import { BusinessProfileSection } from "../../../components/dashboard/BusinessProfileSection";
 
 export default function SettingsPage() {
   const { user, refreshUser } = useAuth();
@@ -562,6 +563,9 @@ export default function SettingsPage() {
           </div>
         </div>
       )}
+
+      {/* Business Profile (invoice builder branding + bank details) */}
+      <BusinessProfileSection />
 
       {/* Password */}
       <div className="settings-section">

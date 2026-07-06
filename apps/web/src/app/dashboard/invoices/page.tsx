@@ -8,7 +8,7 @@
 // wording can't drift from mobile).
 
 import { useEffect, useState, useCallback } from "react";
-import { api, isApiError } from "../../../lib/api";
+import { api, isApiError, fetchWithAuth } from "../../../lib/api";
 import { useAuth } from "../../../lib/auth-context";
 import { PageHeader } from "../../../components/dashboard/PageHeader";
 import { Card } from "../../../components/ui/Card";
@@ -19,21 +19,61 @@ import { Select } from "../../../components/ui/Select";
 import { Modal } from "../../../components/ui/Modal";
 import { ConfirmModal } from "../../../components/ui/ConfirmModal";
 import { LoadingSkeleton } from "../../../components/ui/LoadingSkeleton";
-import { formatPence, buildInvoiceChaseMailto, invoiceDaysOverdue } from "@mileclear/shared";
+import {
+  formatPence,
+  buildInvoiceChaseMailto,
+  invoiceDaysOverdue,
+  computeInvoiceTotals,
+  formatInvoiceNumber,
+} from "@mileclear/shared";
 
 type InvoiceStatus = "sent" | "paid" | "overdue" | "written_off";
 
 interface Invoice {
   id: string;
   company: string;
+  clientId: string | null;
   clientEmail: string | null;
   reference: string | null;
+  invoiceNumber: number | null;
   amountPence: number;
+  subtotalPence: number | null;
+  vatRate: number | null;
+  vatPence: number | null;
   sentAt: string;
   dueAt: string;
   paidAt: string | null;
   status: InvoiceStatus;
   notes: string | null;
+}
+
+interface Client {
+  id: string;
+  name: string;
+  email: string | null;
+  phone: string | null;
+  addressLine1: string | null;
+  addressLine2: string | null;
+  city: string | null;
+  postcode: string | null;
+  archivedAt: string | null;
+  _count?: { invoices: number };
+}
+
+interface LineItemDraft {
+  description: string;
+  quantity: string; // input strings; parsed on save/preview
+  unitPrice: string; // pounds
+}
+
+function parseLineDrafts(drafts: LineItemDraft[]) {
+  return drafts
+    .filter((d) => d.description.trim() && parseFloat(d.quantity) > 0 && parseFloat(d.unitPrice) >= 0)
+    .map((d) => ({
+      description: d.description.trim(),
+      quantity: parseFloat(d.quantity),
+      unitPricePence: Math.round(parseFloat(d.unitPrice) * 100),
+    }));
 }
 
 interface PotentialEarningMatch {
@@ -93,14 +133,20 @@ export default function InvoicesPage() {
   const [filter, setFilter] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [tab, setTab] = useState<"invoices" | "clients">("invoices");
+  const [clients, setClients] = useState<Client[]>([]);
+  const vatRegistered = (user as any)?.vatRegistered === true;
 
   // Form modal
   const [showForm, setShowForm] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
   const [formCompany, setFormCompany] = useState("");
+  const [formClientId, setFormClientId] = useState("");
   const [formClientEmail, setFormClientEmail] = useState("");
   const [formReference, setFormReference] = useState("");
   const [formAmount, setFormAmount] = useState("");
+  const [formLines, setFormLines] = useState<LineItemDraft[]>([]);
+  const [formVatRate, setFormVatRate] = useState("");
   const [formSentAt, setFormSentAt] = useState("");
   const [formDueAt, setFormDueAt] = useState("");
   const [dueTouched, setDueTouched] = useState(false);
@@ -121,9 +167,12 @@ export default function InvoicesPage() {
     const today = new Date().toISOString().slice(0, 10);
     setEditId(null);
     setFormCompany("");
+    setFormClientId("");
     setFormClientEmail("");
     setFormReference("");
     setFormAmount("");
+    setFormLines([]);
+    setFormVatRate("");
     setFormSentAt(today);
     setFormDueAt(isoDatePlusDays(today, 30));
     setDueTouched(false);
@@ -132,6 +181,19 @@ export default function InvoicesPage() {
     setFormWriteOff(false);
     setFormError(null);
   };
+
+  const loadClients = useCallback(async () => {
+    try {
+      const res = await api.get<{ data: Client[] }>("/clients");
+      setClients(res.data);
+    } catch {
+      setClients([]);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadClients();
+  }, [loadClients]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -157,12 +219,16 @@ export default function InvoicesPage() {
     if (!dueTouched && formSentAt) setFormDueAt(isoDatePlusDays(formSentAt, 30));
   }, [formSentAt, dueTouched]);
 
-  const openEdit = (inv: Invoice) => {
+  const openEdit = async (inv: Invoice) => {
     setEditId(inv.id);
     setFormCompany(inv.company);
+    setFormClientId(inv.clientId ?? "");
     setFormClientEmail(inv.clientEmail ?? "");
     setFormReference(inv.reference ?? "");
-    setFormAmount((inv.amountPence / 100).toFixed(2));
+    // Show the NET amount for direct-entry VAT invoices (the API treats
+    // amountPence input as net when vatRate is set and there are no lines).
+    setFormAmount(((inv.subtotalPence ?? inv.amountPence) / 100).toFixed(2));
+    setFormVatRate(inv.vatRate != null ? String(inv.vatRate) : "");
     setFormSentAt(inv.sentAt.slice(0, 10));
     setFormDueAt(inv.dueAt.slice(0, 10));
     setDueTouched(true);
@@ -170,27 +236,46 @@ export default function InvoicesPage() {
     setFormNotes(inv.notes ?? "");
     setFormWriteOff(inv.status === "written_off");
     setFormError(null);
+    setFormLines([]);
     setShowForm(true);
+    // Line items ride the detail endpoint, not the list — fetch after open.
+    try {
+      const res = await api.get<{ data: Invoice & { lineItems: Array<{ description: string; quantity: string | number; unitPricePence: number }> } }>(`/invoices/${inv.id}`);
+      setFormLines(
+        (res.data.lineItems ?? []).map((l) => ({
+          description: l.description,
+          quantity: String(Number(l.quantity)),
+          unitPrice: (l.unitPricePence / 100).toFixed(2),
+        }))
+      );
+    } catch {
+      /* line editor stays empty; totals remain as stored */
+    }
   };
 
   const handleSave = async () => {
-    if (!formCompany.trim()) {
-      setFormError("Who is the invoice to?");
+    if (!formCompany.trim() && !formClientId) {
+      setFormError("Who is the invoice to? Pick a client or enter a name.");
       return;
     }
+    const lines = parseLineDrafts(formLines);
     const pounds = parseFloat(formAmount);
-    if (!Number.isFinite(pounds) || pounds <= 0) {
-      setFormError("Enter the invoice amount in pounds");
+    if (lines.length === 0 && (!Number.isFinite(pounds) || pounds <= 0)) {
+      setFormError("Enter an amount or add at least one line item");
       return;
     }
     setFormSaving(true);
     setFormError(null);
     try {
       const body = {
-        company: formCompany.trim(),
+        company: formCompany.trim() || undefined,
+        clientId: formClientId || null,
         clientEmail: formClientEmail.trim() || null,
         reference: formReference.trim() || null,
-        amountPence: Math.round(pounds * 100),
+        ...(lines.length > 0
+          ? { lineItems: lines }
+          : { amountPence: Math.round(pounds * 100), lineItems: editId ? [] : undefined }),
+        vatRate: formVatRate === "" ? null : (parseInt(formVatRate, 10) as 0 | 5 | 20),
         sentAt: formSentAt,
         dueAt: formDueAt,
         paidAt: formPaidAt || null,
@@ -263,6 +348,49 @@ export default function InvoicesPage() {
     }
   };
 
+  // Branded PDF download (Pro). Free users get the upsell banner.
+  const [pdfBusy, setPdfBusy] = useState<string | null>(null);
+  const handlePdf = async (inv: Invoice) => {
+    if (!isPremium) {
+      setShowChaseUpsell(true);
+      return;
+    }
+    setPdfBusy(inv.id);
+    try {
+      const res = await fetchWithAuth(`/invoices/${inv.id}/pdf`);
+      if (!res.ok) {
+        const body = await res.json().catch(() => null);
+        throw new Error(body?.error?.message ?? body?.error ?? `Download failed (${res.status})`);
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = inv.invoiceNumber != null ? `${formatInvoiceNumber(inv.invoiceNumber)}.pdf` : "invoice.pdf";
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      load(); // number may have been lazily allocated
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setPdfBusy(null);
+    }
+  };
+
+  // Live totals preview for the form modal.
+  const previewLines = parseLineDrafts(formLines);
+  const previewVat = formVatRate === "" ? null : parseInt(formVatRate, 10);
+  const preview =
+    previewLines.length > 0
+      ? computeInvoiceTotals(previewLines, previewVat)
+      : (() => {
+          const net = Math.round((parseFloat(formAmount) || 0) * 100);
+          const vat = previewVat ? Math.round((net * previewVat) / 100) : 0;
+          return { subtotalPence: net, vatPence: vat, amountPence: net + vat, lines: [] };
+        })();
+
   const outstanding = (summary?.sent.totalPence ?? 0) + (summary?.overdue.totalPence ?? 0);
 
   return (
@@ -290,6 +418,26 @@ export default function InvoicesPage() {
         </div>
       )}
 
+      {/* Invoices | Clients tabs */}
+      <div style={{ display: "flex", gap: "0.5rem", marginBottom: "1rem" }}>
+        {(["invoices", "clients"] as const).map((t) => (
+          <button
+            key={t}
+            type="button"
+            className={`filter-chip ${tab === t ? "filter-chip--active" : ""}`}
+            onClick={() => setTab(t)}
+          >
+            {t === "invoices" ? "Invoices" : `Clients${clients.length ? ` (${clients.length})` : ""}`}
+          </button>
+        ))}
+      </div>
+
+      {error && <div className="alert alert--error" style={{ marginBottom: "1rem" }}>{error}</div>}
+
+      {tab === "clients" ? (
+        <ClientsPanel clients={clients} reload={loadClients} onError={setError} />
+      ) : (
+        <>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem", flexWrap: "wrap", gap: "0.75rem" }}>
         <div style={{ minWidth: 200 }}>
           <Select
@@ -305,12 +453,11 @@ export default function InvoicesPage() {
         </Button>
       </div>
 
-      {error && <div className="alert alert--error" style={{ marginBottom: "1rem" }}>{error}</div>}
-
       {showChaseUpsell && (
         <div className="alert" style={{ marginBottom: "1rem" }}>
-          One-tap payment chasing is a MileClear Pro feature — the email is pre-written
-          with the correct statutory-interest wording and your invoice details filled in.{" "}
+          Branded invoice PDFs and one-tap payment chasing are MileClear Pro features —
+          your logo and colours on the invoice, and the chase email pre-written with the
+          correct statutory-interest wording.{" "}
           <a href="/pricing" style={{ fontWeight: 600 }}>Upgrade to Pro</a>
         </div>
       )}
@@ -346,7 +493,9 @@ export default function InvoicesPage() {
                 return (
                   <tr key={inv.id}>
                     <td style={{ fontSize: "0.875rem", fontWeight: 500 }}>{inv.company}</td>
-                    <td style={{ fontSize: "0.8125rem", color: "var(--text-secondary)" }}>{inv.reference || "-"}</td>
+                    <td style={{ fontSize: "0.8125rem", color: "var(--text-secondary)", whiteSpace: "nowrap" }}>
+                      {inv.invoiceNumber != null ? formatInvoiceNumber(inv.invoiceNumber) : inv.reference || "-"}
+                    </td>
                     <td style={{ fontSize: "0.8125rem", whiteSpace: "nowrap" }}>{shortDate(inv.sentAt)}</td>
                     <td style={{ fontSize: "0.8125rem", whiteSpace: "nowrap" }}>
                       {inv.status === "paid" && inv.paidAt ? `Paid ${shortDate(inv.paidAt)}` : shortDate(inv.dueAt)}
@@ -383,6 +532,14 @@ export default function InvoicesPage() {
                             </button>
                           )
                         )}
+                        <button
+                          className="table__action-btn"
+                          onClick={() => handlePdf(inv)}
+                          disabled={pdfBusy === inv.id}
+                          title={isPremium ? "Download the branded invoice PDF" : "Branded invoice PDFs are a Pro feature"}
+                        >
+                          {pdfBusy === inv.id ? "PDF…" : "PDF"}
+                        </button>
                         <button className="table__action-btn" onClick={() => openEdit(inv)}>Edit</button>
                         <button className="table__action-btn" onClick={() => setDeleteId(inv.id)}>Delete</button>
                       </div>
@@ -394,6 +551,8 @@ export default function InvoicesPage() {
           </table>
         </div>
       )}
+        </>
+      )}
 
       {/* Add / Edit modal */}
       <Modal
@@ -402,6 +561,26 @@ export default function InvoicesPage() {
         title={editId ? "Edit Invoice" : "Add Invoice"}
       >
         <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+          {clients.length > 0 && (
+            <Select
+              id="inv-client"
+              label="Client"
+              value={formClientId}
+              onChange={(e) => {
+                const id = e.target.value;
+                setFormClientId(id);
+                const c = clients.find((x) => x.id === id);
+                if (c) {
+                  setFormCompany(c.name);
+                  if (!formClientEmail && c.email) setFormClientEmail(c.email);
+                }
+              }}
+              options={[
+                { value: "", label: "No saved client — type a name below" },
+                ...clients.map((c) => ({ value: c.id, label: c.name })),
+              ]}
+            />
+          )}
           <Input
             id="inv-company"
             label="Company / client"
@@ -417,15 +596,78 @@ export default function InvoicesPage() {
             value={formClientEmail}
             onChange={(e) => setFormClientEmail(e.target.value)}
           />
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.5rem" }}>
-            <Input
-              id="inv-amount"
-              label="Amount (£)"
-              type="number"
-              placeholder="e.g. 400.00"
-              value={formAmount}
-              onChange={(e) => setFormAmount(e.target.value)}
-            />
+
+          {/* Line items (optional — leave empty for a simple amount) */}
+          <div>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.375rem" }}>
+              <span style={{ fontSize: "0.8125rem", fontWeight: 600 }}>Line items (optional)</span>
+              <button
+                type="button"
+                className="filter-chip"
+                onClick={() => setFormLines((ls) => [...ls, { description: "", quantity: "1", unitPrice: "" }])}
+              >
+                + Add line
+              </button>
+            </div>
+            {formLines.map((line, i) => (
+              <div key={i} style={{ display: "grid", gridTemplateColumns: "3fr 1fr 1fr auto", gap: "0.375rem", marginBottom: "0.375rem", alignItems: "center" }}>
+                <Input
+                  id={`inv-line-desc-${i}`}
+                  placeholder="Description"
+                  value={line.description}
+                  onChange={(e) => setFormLines((ls) => ls.map((l, j) => (j === i ? { ...l, description: e.target.value } : l)))}
+                />
+                <Input
+                  id={`inv-line-qty-${i}`}
+                  type="number"
+                  placeholder="Qty"
+                  value={line.quantity}
+                  onChange={(e) => setFormLines((ls) => ls.map((l, j) => (j === i ? { ...l, quantity: e.target.value } : l)))}
+                />
+                <Input
+                  id={`inv-line-price-${i}`}
+                  type="number"
+                  placeholder="Unit £"
+                  value={line.unitPrice}
+                  onChange={(e) => setFormLines((ls) => ls.map((l, j) => (j === i ? { ...l, unitPrice: e.target.value } : l)))}
+                />
+                <button
+                  type="button"
+                  className="table__action-btn"
+                  onClick={() => setFormLines((ls) => ls.filter((_, j) => j !== i))}
+                  aria-label="Remove line"
+                >
+                  ✕
+                </button>
+              </div>
+            ))}
+          </div>
+
+          <div style={{ display: "grid", gridTemplateColumns: vatRegistered ? "1fr 1fr 1fr" : "1fr 1fr", gap: "0.5rem" }}>
+            {previewLines.length === 0 && (
+              <Input
+                id="inv-amount"
+                label={formVatRate !== "" ? "Amount before VAT (£)" : "Amount (£)"}
+                type="number"
+                placeholder="e.g. 400.00"
+                value={formAmount}
+                onChange={(e) => setFormAmount(e.target.value)}
+              />
+            )}
+            {vatRegistered && (
+              <Select
+                id="inv-vat"
+                label="VAT"
+                value={formVatRate}
+                onChange={(e) => setFormVatRate(e.target.value)}
+                options={[
+                  { value: "", label: "No VAT" },
+                  { value: "20", label: "20% standard" },
+                  { value: "5", label: "5% reduced" },
+                  { value: "0", label: "0% zero-rated" },
+                ]}
+              />
+            )}
             <Input
               id="inv-reference"
               label="Reference (optional)"
@@ -434,6 +676,17 @@ export default function InvoicesPage() {
               onChange={(e) => setFormReference(e.target.value)}
             />
           </div>
+
+          {/* Live totals preview */}
+          {(previewLines.length > 0 || formVatRate !== "") && preview.amountPence > 0 && (
+            <div style={{ fontSize: "0.8125rem", color: "var(--text-secondary)", display: "flex", gap: "1rem", justifyContent: "flex-end" }}>
+              <span>Subtotal {formatPence(preview.subtotalPence)}</span>
+              {formVatRate !== "" && <span>VAT {formatPence(preview.vatPence)}</span>}
+              <span style={{ fontWeight: 700, color: "var(--text-primary)" }}>
+                Total {formatPence(preview.amountPence)}
+              </span>
+            </div>
+          )}
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.5rem" }}>
             <Input
               id="inv-sent"
@@ -538,6 +791,188 @@ export default function InvoicesPage() {
         onConfirm={handleDelete}
         title="Delete Invoice"
         message="This will permanently delete this invoice. Any linked earnings are unlinked, not deleted. This can't be undone."
+        confirmLabel="Delete"
+      />
+    </>
+  );
+}
+
+// ── Clients tab ──────────────────────────────────────────────────────────────
+
+function ClientsPanel({
+  clients,
+  reload,
+  onError,
+}: {
+  clients: Client[];
+  reload: () => void;
+  onError: (msg: string) => void;
+}) {
+  const [showForm, setShowForm] = useState(false);
+  const [editId, setEditId] = useState<string | null>(null);
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState("");
+  const [addressLine1, setAddressLine1] = useState("");
+  const [addressLine2, setAddressLine2] = useState("");
+  const [city, setCity] = useState("");
+  const [postcode, setPostcode] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<Client | null>(null);
+
+  const reset = () => {
+    setEditId(null);
+    setName("");
+    setEmail("");
+    setPhone("");
+    setAddressLine1("");
+    setAddressLine2("");
+    setCity("");
+    setPostcode("");
+    setFormError(null);
+  };
+
+  const openEdit = (c: Client) => {
+    setEditId(c.id);
+    setName(c.name);
+    setEmail(c.email ?? "");
+    setPhone(c.phone ?? "");
+    setAddressLine1(c.addressLine1 ?? "");
+    setAddressLine2(c.addressLine2 ?? "");
+    setCity(c.city ?? "");
+    setPostcode(c.postcode ?? "");
+    setFormError(null);
+    setShowForm(true);
+  };
+
+  const save = async () => {
+    if (!name.trim()) {
+      setFormError("Client name is required");
+      return;
+    }
+    setSaving(true);
+    setFormError(null);
+    try {
+      const body = {
+        name: name.trim(),
+        email: email.trim() || null,
+        phone: phone.trim() || null,
+        addressLine1: addressLine1.trim() || null,
+        addressLine2: addressLine2.trim() || null,
+        city: city.trim() || null,
+        postcode: postcode.trim() || null,
+      };
+      if (editId) await api.patch(`/clients/${editId}`, body);
+      else await api.post("/clients", body);
+      setShowForm(false);
+      reset();
+      reload();
+    } catch (err: any) {
+      setFormError(err.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const remove = async () => {
+    if (!deleteTarget) return;
+    try {
+      await api.delete(`/clients/${deleteTarget.id}`);
+      setDeleteTarget(null);
+      reload();
+    } catch (err: any) {
+      onError(err.message);
+      setDeleteTarget(null);
+    }
+  };
+
+  return (
+    <>
+      <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: "1rem" }}>
+        <Button variant="primary" onClick={() => { reset(); setShowForm(true); }}>
+          Add Client
+        </Button>
+      </div>
+
+      {clients.length === 0 ? (
+        <Card>
+          <p style={{ textAlign: "center", color: "var(--text-secondary)", padding: "2rem" }}>
+            No clients yet. Save the people and businesses you invoice — their details
+            pre-fill new invoices and the Bill-To block on the PDF.
+          </p>
+        </Card>
+      ) : (
+        <div className="table-wrap">
+          <table className="table">
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Email</th>
+                <th>Address</th>
+                <th>Invoices</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              {clients.map((c) => (
+                <tr key={c.id}>
+                  <td style={{ fontSize: "0.875rem", fontWeight: 500 }}>{c.name}</td>
+                  <td style={{ fontSize: "0.8125rem", color: "var(--text-secondary)" }}>{c.email || "-"}</td>
+                  <td style={{ fontSize: "0.8125rem", color: "var(--text-secondary)" }}>
+                    {[c.city, c.postcode].filter(Boolean).join(", ") || "-"}
+                  </td>
+                  <td style={{ fontSize: "0.8125rem" }}>{c._count?.invoices ?? 0}</td>
+                  <td>
+                    <div className="table__actions">
+                      <button className="table__action-btn" onClick={() => openEdit(c)}>Edit</button>
+                      <button className="table__action-btn" onClick={() => setDeleteTarget(c)}>Delete</button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      <Modal
+        open={showForm}
+        onClose={() => { setShowForm(false); reset(); }}
+        title={editId ? "Edit Client" : "Add Client"}
+      >
+        <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+          <Input id="cl-name" label="Name" placeholder="Acme Ltd" value={name} onChange={(e) => setName(e.target.value)} />
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.5rem" }}>
+            <Input id="cl-email" label="Email (for invoices + chasing)" type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
+            <Input id="cl-phone" label="Phone (optional)" value={phone} onChange={(e) => setPhone(e.target.value)} />
+          </div>
+          <Input id="cl-addr1" label="Address line 1 (optional)" value={addressLine1} onChange={(e) => setAddressLine1(e.target.value)} />
+          <Input id="cl-addr2" label="Address line 2 (optional)" value={addressLine2} onChange={(e) => setAddressLine2(e.target.value)} />
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.5rem" }}>
+            <Input id="cl-city" label="Town / city (optional)" value={city} onChange={(e) => setCity(e.target.value)} />
+            <Input id="cl-postcode" label="Postcode (optional)" value={postcode} onChange={(e) => setPostcode(e.target.value)} />
+          </div>
+          {formError && <div className="alert alert--error">{formError}</div>}
+          <div style={{ display: "flex", gap: "0.5rem", justifyContent: "flex-end" }}>
+            <Button variant="ghost" onClick={() => { setShowForm(false); reset(); }}>Cancel</Button>
+            <Button variant="primary" onClick={save} disabled={saving}>
+              {saving ? "Saving..." : editId ? "Update" : "Add"}
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      <ConfirmModal
+        open={!!deleteTarget}
+        onClose={() => setDeleteTarget(null)}
+        onConfirm={remove}
+        title="Delete Client"
+        message={
+          (deleteTarget?._count?.invoices ?? 0) > 0
+            ? "This client has invoices, so they'll be archived (hidden from pickers) rather than deleted — invoice history keeps their details."
+            : "This will permanently delete this client."
+        }
         confirmLabel="Delete"
       />
     </>
