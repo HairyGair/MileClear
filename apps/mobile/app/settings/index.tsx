@@ -94,6 +94,12 @@ export default function SettingsHub() {
           onPress={go("/settings/work-tax")}
         />
         <SettingsRow
+          icon="business-outline"
+          label="Business Profile"
+          hint="Invoice branding: logo, VAT, bank details"
+          onPress={go("/settings/business")}
+        />
+        <SettingsRow
           icon="lock-closed-outline"
           label="Security"
           hint="Lock the app with Face ID, Touch ID, or passcode"

@@ -10,23 +10,47 @@ import {
   ActivityIndicator,
   Alert,
   StyleSheet,
+  Modal,
+  FlatList,
 } from "react-native";
 import { Stack, router, useLocalSearchParams } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import {
-  fetchInvoice,
+  fetchInvoiceWithLines,
   createInvoice,
   updateInvoice,
   deleteInvoice,
   type Invoice,
   type PotentialEarningMatch,
+  type LineItemInput,
 } from "../lib/api/invoices";
+import { fetchClients, type Client } from "../lib/api/clients";
+import { fetchProfile } from "../lib/api/user";
+import { downloadAndShareExport } from "../lib/api/exports";
 import { isApiError } from "../lib/api";
 import { usePaywall } from "../components/paywall";
+import { useUser } from "../lib/user/context";
 import { LinkEarningSheet } from "../components/invoices/LinkEarningSheet";
+import { computeInvoiceTotals, formatInvoiceNumber, formatPence } from "@mileclear/shared";
 import { colors, fonts } from "../lib/theme";
 import { haptic } from "../lib/haptics";
+
+interface LineDraft {
+  description: string;
+  quantity: string;
+  unitPrice: string; // pounds
+}
+
+function parseLineDrafts(drafts: LineDraft[]): LineItemInput[] {
+  return drafts
+    .filter((d) => d.description.trim() && parseFloat(d.quantity) > 0 && parseFloat(d.unitPrice) >= 0)
+    .map((d) => ({
+      description: d.description.trim(),
+      quantity: parseFloat(d.quantity),
+      unitPricePence: Math.round(parseFloat(d.unitPrice) * 100),
+    }));
+}
 
 const AMBER = colors.amber;
 const CARD_BG = colors.surface;
@@ -43,11 +67,32 @@ export default function InvoiceFormScreen() {
   const { id } = useLocalSearchParams<{ id?: string }>();
   const isEditing = !!id;
   const { showPaywall } = usePaywall();
+  const { user } = useUser();
+  const isPremium = user?.isPremium === true;
 
   const [company, setCompany] = useState("");
   const [clientEmail, setClientEmail] = useState("");
   const [reference, setReference] = useState("");
   const [amountInput, setAmountInput] = useState(""); // pounds.pence string
+
+  // Builder state (Get Paid, Jul 2026)
+  const [clients, setClients] = useState<Client[]>([]);
+  const [clientId, setClientId] = useState<string | null>(null);
+  const [showClientPicker, setShowClientPicker] = useState(false);
+  const [lines, setLines] = useState<LineDraft[]>([]);
+  const [vatRate, setVatRate] = useState<20 | 5 | 0 | null>(null);
+  const [vatRegistered, setVatRegistered] = useState(false);
+  const [invoiceNumber, setInvoiceNumber] = useState<number | null>(null);
+  const [pdfBusy, setPdfBusy] = useState(false);
+
+  useEffect(() => {
+    fetchClients()
+      .then((res) => setClients(res.data))
+      .catch(() => {});
+    fetchProfile()
+      .then((res) => setVatRegistered(res.data.vatRegistered === true))
+      .catch(() => {});
+  }, []);
   const [sentDate, setSentDate] = useState<Date>(new Date());
   const [dueDate, setDueDate] = useState<Date>(() => {
     const d = new Date();
@@ -81,12 +126,24 @@ export default function InvoiceFormScreen() {
     if (!id) return;
     (async () => {
       try {
-        const res = await fetchInvoice(id);
+        const res = await fetchInvoiceWithLines(id);
         const inv = res.data;
         setCompany(inv.company);
+        setClientId(inv.clientId ?? null);
         setClientEmail(inv.clientEmail ?? "");
         setReference(inv.reference ?? "");
-        setAmountInput((inv.amountPence / 100).toFixed(2));
+        // Show the NET amount for direct-entry VAT invoices — the API
+        // treats amountPence input as net when vatRate is set with no lines.
+        setAmountInput(((inv.subtotalPence ?? inv.amountPence) / 100).toFixed(2));
+        setVatRate((inv.vatRate as 20 | 5 | 0 | null) ?? null);
+        setInvoiceNumber(inv.invoiceNumber ?? null);
+        setLines(
+          (inv.lineItems ?? []).map((l) => ({
+            description: l.description,
+            quantity: String(Number(l.quantity)),
+            unitPrice: (l.unitPricePence / 100).toFixed(2),
+          }))
+        );
         setSentDate(new Date(inv.sentAt));
         setDueDate(new Date(inv.dueAt));
         setPaidDate(inv.paidAt ? new Date(inv.paidAt) : null);
@@ -103,24 +160,32 @@ export default function InvoiceFormScreen() {
   }, [id]);
 
   const onSave = useCallback(async () => {
-    if (!company.trim()) {
-      Alert.alert("Missing company", "Who is this invoice for?");
+    if (!company.trim() && !clientId) {
+      Alert.alert("Missing client", "Pick a client or enter a company name.");
       return;
     }
+    const parsedLines = parseLineDrafts(lines);
     const pounds = parseFloat(amountInput);
-    if (!Number.isFinite(pounds) || pounds <= 0) {
-      Alert.alert("Missing amount", "Enter the invoice amount in pounds.");
+    if (parsedLines.length === 0 && (!Number.isFinite(pounds) || pounds <= 0)) {
+      Alert.alert("Missing amount", "Enter an amount or add at least one line item.");
       return;
     }
-    const amountPence = Math.round(pounds * 100);
 
     setSaving(true);
     try {
       const payload = {
-        company: company.trim(),
+        company: company.trim() || undefined,
+        clientId,
         clientEmail: clientEmail.trim() || null,
         reference: reference.trim() || null,
-        amountPence,
+        ...(parsedLines.length > 0
+          ? { lineItems: parsedLines }
+          : {
+              amountPence: Math.round(pounds * 100),
+              // Editing an invoice that HAD lines down to none: clear them.
+              ...(isEditing ? { lineItems: [] as LineItemInput[] } : {}),
+            }),
+        vatRate,
         sentAt: dateOnly(sentDate),
         dueAt: dateOnly(dueDate),
         paidAt: paidDate ? dateOnly(paidDate) : null,
@@ -171,7 +236,36 @@ export default function InvoiceFormScreen() {
       Alert.alert("Couldn't save", err instanceof Error ? err.message : "Try again.");
       setSaving(false);
     }
-  }, [company, clientEmail, reference, amountInput, sentDate, dueDate, paidDate, notes, isEditing, id, initialPaidAt, showPaywall]);
+  }, [company, clientId, clientEmail, reference, amountInput, lines, vatRate, sentDate, dueDate, paidDate, notes, isEditing, id, initialPaidAt, showPaywall]);
+
+  // Branded PDF share (Pro). Uses the exports download+share pipeline.
+  const onSharePdf = useCallback(async () => {
+    if (!id) return;
+    if (!isPremium) {
+      showPaywall("invoice_pdf");
+      return;
+    }
+    setPdfBusy(true);
+    try {
+      const filename = invoiceNumber != null ? `${formatInvoiceNumber(invoiceNumber)}.pdf` : "invoice.pdf";
+      await downloadAndShareExport(`/invoices/${id}/pdf`, filename, "application/pdf");
+    } catch (err) {
+      Alert.alert("Couldn't create PDF", err instanceof Error ? err.message : "Try again.");
+    } finally {
+      setPdfBusy(false);
+    }
+  }, [id, isPremium, invoiceNumber, showPaywall]);
+
+  // Live totals preview
+  const parsedPreviewLines = parseLineDrafts(lines);
+  const preview =
+    parsedPreviewLines.length > 0
+      ? computeInvoiceTotals(parsedPreviewLines, vatRate)
+      : (() => {
+          const net = Math.round((parseFloat(amountInput) || 0) * 100);
+          const vat = vatRate ? Math.round((net * vatRate) / 100) : 0;
+          return { subtotalPence: net, vatPence: vat, amountPence: net + vat, lines: [] };
+        })();
 
   const onDelete = useCallback(() => {
     if (!id) return;
@@ -230,6 +324,26 @@ export default function InvoiceFormScreen() {
         }}
       />
       <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 64 }}>
+        {clients.length > 0 && (
+          <Field label="SAVED CLIENT">
+            <TouchableOpacity
+              style={styles.input}
+              onPress={() => setShowClientPicker(true)}
+              accessibilityRole="button"
+              accessibilityLabel="Pick a saved client"
+            >
+              <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+                <Text style={clientId ? styles.dateText : styles.placeholderText}>
+                  {clientId
+                    ? clients.find((c) => c.id === clientId)?.name ?? "Saved client"
+                    : "Pick a client (optional)"}
+                </Text>
+                <Ionicons name="chevron-down" size={16} color={TEXT_3} />
+              </View>
+            </TouchableOpacity>
+          </Field>
+        )}
+
         <Field label="COMPANY / CLIENT">
           <TextInput
             style={styles.input}
@@ -257,18 +371,106 @@ export default function InvoiceFormScreen() {
           />
         </Field>
 
-        <Field label="AMOUNT (£)">
-          <TextInput
-            style={styles.input}
-            value={amountInput}
-            onChangeText={setAmountInput}
-            placeholder="0.00"
-            placeholderTextColor={TEXT_3}
-            keyboardType="decimal-pad"
-            inputMode="decimal"
-            accessibilityLabel="Amount in pounds"
-          />
-        </Field>
+        {/* Line items (optional) — when present, totals come from these */}
+        <View style={styles.field}>
+          <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+            <Text style={styles.fieldLabel}>LINE ITEMS (optional)</Text>
+            <TouchableOpacity
+              onPress={() => setLines((ls) => [...ls, { description: "", quantity: "1", unitPrice: "" }])}
+              hitSlop={8}
+              accessibilityRole="button"
+              accessibilityLabel="Add line item"
+            >
+              <Text style={styles.addLineText}>+ Add line</Text>
+            </TouchableOpacity>
+          </View>
+          {lines.map((line, i) => (
+            <View key={i} style={styles.lineRow}>
+              <TextInput
+                style={[styles.input, styles.lineDesc]}
+                value={line.description}
+                onChangeText={(v) => setLines((ls) => ls.map((l, j) => (j === i ? { ...l, description: v } : l)))}
+                placeholder="Description"
+                placeholderTextColor={TEXT_3}
+                accessibilityLabel={`Line ${i + 1} description`}
+              />
+              <TextInput
+                style={[styles.input, styles.lineSmall]}
+                value={line.quantity}
+                onChangeText={(v) => setLines((ls) => ls.map((l, j) => (j === i ? { ...l, quantity: v } : l)))}
+                placeholder="Qty"
+                placeholderTextColor={TEXT_3}
+                keyboardType="decimal-pad"
+                accessibilityLabel={`Line ${i + 1} quantity`}
+              />
+              <TextInput
+                style={[styles.input, styles.lineSmall]}
+                value={line.unitPrice}
+                onChangeText={(v) => setLines((ls) => ls.map((l, j) => (j === i ? { ...l, unitPrice: v } : l)))}
+                placeholder="Unit £"
+                placeholderTextColor={TEXT_3}
+                keyboardType="decimal-pad"
+                accessibilityLabel={`Line ${i + 1} unit price in pounds`}
+              />
+              <TouchableOpacity
+                onPress={() => setLines((ls) => ls.filter((_, j) => j !== i))}
+                hitSlop={8}
+                accessibilityRole="button"
+                accessibilityLabel={`Remove line ${i + 1}`}
+              >
+                <Ionicons name="close-circle-outline" size={20} color={TEXT_3} />
+              </TouchableOpacity>
+            </View>
+          ))}
+        </View>
+
+        {parsedPreviewLines.length === 0 && (
+          <Field label={vatRate != null ? "AMOUNT BEFORE VAT (£)" : "AMOUNT (£)"}>
+            <TextInput
+              style={styles.input}
+              value={amountInput}
+              onChangeText={setAmountInput}
+              placeholder="0.00"
+              placeholderTextColor={TEXT_3}
+              keyboardType="decimal-pad"
+              inputMode="decimal"
+              accessibilityLabel="Amount in pounds"
+            />
+          </Field>
+        )}
+
+        {vatRegistered && (
+          <Field label="VAT">
+            <View style={styles.vatRow}>
+              {([
+                { v: null, label: "None" },
+                { v: 20, label: "20%" },
+                { v: 5, label: "5%" },
+                { v: 0, label: "0%" },
+              ] as Array<{ v: 20 | 5 | 0 | null; label: string }>).map((opt) => (
+                <TouchableOpacity
+                  key={opt.label}
+                  style={[styles.vatChip, vatRate === opt.v && styles.vatChipActive]}
+                  onPress={() => setVatRate(opt.v)}
+                  accessibilityRole="button"
+                  accessibilityLabel={`VAT ${opt.label}`}
+                >
+                  <Text style={[styles.vatChipText, vatRate === opt.v && styles.vatChipTextActive]}>
+                    {opt.label}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </Field>
+        )}
+
+        {(parsedPreviewLines.length > 0 || vatRate != null) && preview.amountPence > 0 && (
+          <View style={styles.totalsPreview}>
+            <Text style={styles.totalsText}>Subtotal {formatPence(preview.subtotalPence)}</Text>
+            {vatRate != null && <Text style={styles.totalsText}>VAT {formatPence(preview.vatPence)}</Text>}
+            <Text style={styles.totalsStrong}>Total {formatPence(preview.amountPence)}</Text>
+          </View>
+        )}
 
         <Field label="REFERENCE (optional)">
           <TextInput
@@ -353,6 +555,27 @@ export default function InvoiceFormScreen() {
           />
         </Field>
 
+        {isEditing && (
+          <TouchableOpacity
+            style={[styles.pdfButton, pdfBusy && styles.saveButtonDisabled]}
+            onPress={onSharePdf}
+            disabled={pdfBusy}
+            accessibilityRole="button"
+            accessibilityLabel="Download or share the branded invoice PDF"
+          >
+            {pdfBusy ? (
+              <ActivityIndicator color={AMBER} />
+            ) : (
+              <>
+                <Ionicons name="document-attach-outline" size={18} color={AMBER} />
+                <Text style={styles.pdfButtonText}>
+                  {isPremium ? "Share invoice PDF" : "Share invoice PDF (Pro)"}
+                </Text>
+              </>
+            )}
+          </TouchableOpacity>
+        )}
+
         <TouchableOpacity
           style={[styles.saveButton, saving && styles.saveButtonDisabled]}
           onPress={onSave}
@@ -405,6 +628,71 @@ export default function InvoiceFormScreen() {
           router.back();
         }}
       />
+
+      {/* Saved-client picker. overFullScreen + statusBarTranslucent per the
+          iPad modal hit-testing rules (build 60 rejection). */}
+      <Modal
+        visible={showClientPicker}
+        transparent
+        animationType="fade"
+        presentationStyle="overFullScreen"
+        statusBarTranslucent
+        onRequestClose={() => setShowClientPicker(false)}
+      >
+        <TouchableOpacity
+          style={styles.pickerBackdrop}
+          activeOpacity={1}
+          onPress={() => setShowClientPicker(false)}
+        >
+          <View style={styles.pickerSheet}>
+            <Text style={styles.pickerTitle}>Pick a client</Text>
+            <FlatList
+              data={clients}
+              keyExtractor={(c) => c.id}
+              style={{ maxHeight: 320 }}
+              renderItem={({ item }) => (
+                <TouchableOpacity
+                  style={styles.pickerRow}
+                  onPress={() => {
+                    setClientId(item.id);
+                    setCompany(item.name);
+                    if (!clientEmail && item.email) setClientEmail(item.email);
+                    setShowClientPicker(false);
+                  }}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Use client ${item.name}`}
+                >
+                  <Text style={styles.pickerRowText}>{item.name}</Text>
+                  {clientId === item.id && <Ionicons name="checkmark" size={18} color={AMBER} />}
+                </TouchableOpacity>
+              )}
+            />
+            <TouchableOpacity
+              style={styles.pickerRow}
+              onPress={() => {
+                setClientId(null);
+                setShowClientPicker(false);
+              }}
+              accessibilityRole="button"
+              accessibilityLabel="No saved client"
+            >
+              <Text style={[styles.pickerRowText, { color: TEXT_3 }]}>No saved client — type a name</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.pickerManage}
+              onPress={() => {
+                setShowClientPicker(false);
+                router.push("/clients");
+              }}
+              accessibilityRole="button"
+              accessibilityLabel="Manage clients"
+            >
+              <Ionicons name="people-outline" size={16} color={AMBER} />
+              <Text style={styles.pickerManageText}>Manage clients</Text>
+            </TouchableOpacity>
+          </View>
+        </TouchableOpacity>
+      </Modal>
     </KeyboardAvoidingView>
   );
 }
@@ -485,4 +773,70 @@ const styles = StyleSheet.create({
   },
   saveButtonDisabled: { opacity: 0.5 },
   saveButtonText: { color: "#000", fontFamily: fonts.semibold, fontSize: 16 },
+  placeholderText: { color: TEXT_3, fontSize: 16, fontFamily: fonts.regular },
+  addLineText: { color: AMBER, fontSize: 13, fontFamily: fonts.semibold },
+  lineRow: { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 8 },
+  lineDesc: { flex: 3, minHeight: 42, paddingVertical: 10 },
+  lineSmall: { flex: 1, minHeight: 42, paddingVertical: 10 },
+  vatRow: { flexDirection: "row", gap: 8 },
+  vatChip: {
+    paddingHorizontal: 16,
+    paddingVertical: 9,
+    borderRadius: 999,
+    backgroundColor: CARD_BG,
+  },
+  vatChipActive: { backgroundColor: AMBER },
+  vatChipText: { color: TEXT_3, fontSize: 13, fontFamily: fonts.semibold },
+  vatChipTextActive: { color: "#000" },
+  totalsPreview: {
+    flexDirection: "row",
+    justifyContent: "flex-end",
+    gap: 14,
+    marginBottom: 14,
+  },
+  totalsText: { color: TEXT_3, fontSize: 13, fontFamily: fonts.regular },
+  totalsStrong: { color: TEXT_1, fontSize: 13, fontFamily: fonts.bold },
+  pdfButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    backgroundColor: "rgba(245, 166, 35, 0.12)",
+    borderWidth: 1,
+    borderColor: "rgba(245, 166, 35, 0.35)",
+    paddingVertical: 13,
+    borderRadius: 12,
+    marginTop: 8,
+    marginBottom: 4,
+  },
+  pdfButtonText: { color: AMBER, fontFamily: fonts.semibold, fontSize: 15 },
+  pickerBackdrop: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.6)",
+    justifyContent: "center",
+    padding: 24,
+  },
+  pickerSheet: {
+    backgroundColor: CARD_BG,
+    borderRadius: 16,
+    padding: 16,
+  },
+  pickerTitle: { color: TEXT_1, fontSize: 16, fontFamily: fonts.bold, marginBottom: 10 },
+  pickerRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingVertical: 12,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: "rgba(255,255,255,0.08)",
+  },
+  pickerRowText: { color: TEXT_1, fontSize: 15, fontFamily: fonts.regular },
+  pickerManage: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    paddingTop: 14,
+  },
+  pickerManageText: { color: AMBER, fontSize: 14, fontFamily: fonts.semibold },
 });

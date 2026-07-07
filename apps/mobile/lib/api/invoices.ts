@@ -8,14 +8,31 @@ import { apiRequest } from "./index";
 
 export type InvoiceStatus = "sent" | "paid" | "overdue" | "written_off";
 
+export interface InvoiceLineItem {
+  id: string;
+  position: number;
+  description: string;
+  /** Prisma Decimal serialises as a string over JSON. */
+  quantity: string | number;
+  unitPricePence: number;
+  totalPence: number;
+}
+
 export interface Invoice {
   id: string;
   userId: string;
   company: string;
+  clientId: string | null;
   /** Optional — pre-addresses the late-payment chase email draft. */
   clientEmail: string | null;
   reference: string | null;
+  /** Per-user sequence (format with formatInvoiceNumber). Null on legacy rows. */
+  invoiceNumber: number | null;
   amountPence: number;
+  /** Net total when the invoice was built with lines or VAT; null = legacy. */
+  subtotalPence: number | null;
+  vatRate: number | null;
+  vatPence: number | null;
   /** ISO date (YYYY-MM-DD) */
   sentAt: string;
   /** ISO date (YYYY-MM-DD). Defaults to sentAt + 30 days. */
@@ -51,11 +68,23 @@ export interface InvoiceListResponse {
   summary: Record<InvoiceStatus, { count: number; totalPence: number }>;
 }
 
+export interface LineItemInput {
+  description: string;
+  quantity: number;
+  unitPricePence: number;
+}
+
+/** Totals contract (server recomputes, never trusts the client):
+ *  lineItems present → totals from lines; no lines + vatRate → amountPence
+ *  is the NET subtotal and VAT is added; neither → legacy gross amount. */
 export interface CreateInvoiceInput {
-  company: string;
+  company?: string;
+  clientId?: string | null;
   clientEmail?: string | null;
   reference?: string | null;
-  amountPence: number;
+  amountPence?: number;
+  lineItems?: LineItemInput[];
+  vatRate?: 20 | 5 | 0 | null;
   sentAt: string; // YYYY-MM-DD
   dueAt?: string;
   paidAt?: string | null;
@@ -64,14 +93,25 @@ export interface CreateInvoiceInput {
 
 export interface UpdateInvoiceInput {
   company?: string;
+  clientId?: string | null;
   clientEmail?: string | null;
   reference?: string | null;
   amountPence?: number;
+  /** Replace-all: send the full array. Empty array clears builder data. */
+  lineItems?: LineItemInput[];
+  vatRate?: 20 | 5 | 0 | null;
   sentAt?: string;
   dueAt?: string;
   paidAt?: string | null;
   notes?: string | null;
   writeOff?: boolean;
+}
+
+/** Detail response includes ordered line items. */
+export function fetchInvoiceWithLines(id: string) {
+  return apiRequest<{ data: Invoice & { lineItems: InvoiceLineItem[] } }>(
+    `/invoices/${id}`
+  );
 }
 
 /** Response shape for create + update — matches may be empty. */

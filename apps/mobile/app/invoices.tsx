@@ -155,14 +155,24 @@ export default function InvoicesScreen() {
           headerStyle: { backgroundColor: BG },
           headerTintColor: TEXT_1,
           headerRight: () => (
-            <TouchableOpacity
-              onPress={() => router.push("/invoice-form")}
-              hitSlop={8}
-              accessibilityRole="button"
-              accessibilityLabel="Add invoice"
-            >
-              <Ionicons name="add" size={26} color={AMBER} />
-            </TouchableOpacity>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 18 }}>
+              <TouchableOpacity
+                onPress={() => router.push("/clients")}
+                hitSlop={8}
+                accessibilityRole="button"
+                accessibilityLabel="Clients"
+              >
+                <Ionicons name="people-outline" size={22} color={AMBER} />
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={() => router.push("/invoice-form")}
+                hitSlop={8}
+                accessibilityRole="button"
+                accessibilityLabel="Add invoice"
+              >
+                <Ionicons name="add" size={26} color={AMBER} />
+              </TouchableOpacity>
+            </View>
           ),
         }}
       />

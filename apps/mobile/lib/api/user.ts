@@ -29,10 +29,88 @@ export interface UpdateProfileData {
   accountantAnnualFeePence?: number | null;
   dashboardMode?: "both" | "work" | "personal";
   weeklyEarningsGoalPence?: number | null;
+  // Business profile for the invoice builder (Get Paid, Jul 2026).
+  // Bank details are encrypted at rest server-side; the profile GET
+  // returns them decrypted for the owner.
+  tradingName?: string | null;
+  businessAddress?: string | null;
+  vatRegistered?: boolean;
+  vatNumber?: string | null;
+  invoiceAccentColor?: string | null;
+  invoicePaymentTermsDays?: number;
+  bankAccountName?: string | null;
+  bankSortCode?: string | null;
+  bankAccountNumber?: string | null;
+}
+
+/** Business-profile fields returned by /user/profile alongside the shared
+ *  User shape (the shared type doesn't carry them yet). */
+export interface BusinessProfileFields {
+  tradingName: string | null;
+  businessAddress: string | null;
+  vatRegistered: boolean;
+  vatNumber: string | null;
+  invoiceAccentColor: string | null;
+  invoicePaymentTermsDays: number;
+  bankAccountName: string | null;
+  bankSortCode: string | null;
+  bankAccountNumber: string | null;
 }
 
 export function fetchProfile() {
-  return apiRequest<{ data: User }>("/user/profile");
+  return apiRequest<{ data: User & Partial<BusinessProfileFields> }>("/user/profile");
+}
+
+// ── Business logo (invoice branding) ─────────────────────────────────
+// Multipart upload can't go through apiRequest (it forces a JSON
+// Content-Type on any body) — raw fetch with the stored token, matching
+// the exports.ts pattern.
+
+import * as SecureStore from "expo-secure-store";
+
+const RAW_API_URL = process.env.EXPO_PUBLIC_API_URL || "https://api.mileclear.com";
+const LOGO_TOKEN_KEY = "mileclear_access_token";
+
+export async function uploadLogo(fileUri: string, mime: "image/png" | "image/jpeg"): Promise<void> {
+  const token = await SecureStore.getItemAsync(LOGO_TOKEN_KEY);
+  if (!token) throw new Error("Not authenticated");
+  const form = new FormData();
+  // React Native FormData file part: { uri, name, type }
+  form.append("file", {
+    uri: fileUri,
+    name: mime === "image/png" ? "logo.png" : "logo.jpg",
+    type: mime,
+  } as unknown as Blob);
+  const res = await fetch(`${RAW_API_URL}/user/logo`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}` },
+    body: form,
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => null);
+    throw new Error(body?.error ?? `Upload failed (${res.status})`);
+  }
+}
+
+/** Returns a data URI for previewing the stored logo, or null when none. */
+export async function fetchLogoDataUri(): Promise<string | null> {
+  const token = await SecureStore.getItemAsync(LOGO_TOKEN_KEY);
+  if (!token) return null;
+  const res = await fetch(`${RAW_API_URL}/user/logo`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) return null;
+  const blob = await res.blob();
+  return new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.onloadend = () => resolve(typeof reader.result === "string" ? reader.result : null);
+    reader.onerror = () => resolve(null);
+    reader.readAsDataURL(blob);
+  });
+}
+
+export function deleteLogo() {
+  return apiRequest<{ data: { deleted: boolean } }>("/user/logo", { method: "DELETE" });
 }
 
 export function updateProfile(data: UpdateProfileData) {
