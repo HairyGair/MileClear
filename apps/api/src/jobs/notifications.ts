@@ -677,6 +677,15 @@ async function runMorningBriefingJob(): Promise<void> {
 }
 
 async function runFuelPriceAlertJob(): Promise<void> {
+  // Window-gate to 07:00-09:00 UTC (morning, pre-commute — when a cheap
+  // fuel tip is actually useful). Before 8 Jul 2026 this job had NO time
+  // gate: wasNotifiedToday resets at midnight UTC, so the first 6-hourly
+  // tick after midnight — the ~02:00-04:00 one — delivered every fuel
+  // alert in the small hours. JRD Electrical (a paying subscriber)
+  // received a ~3am push every night for weeks before cancelling.
+  const now = new Date();
+  if (now.getUTCHours() < 7 || now.getUTCHours() >= 9) return;
+
   // Get users with push tokens + saved locations
   const users = await prisma.user.findMany({
     where: {
