@@ -193,3 +193,26 @@ export function unlinkInvoiceFromEarning(invoiceId: string, earningId?: string) 
     }
   );
 }
+
+// ── Send + email history (Get Paid Milestone D) ──────────────────────
+
+export interface InvoiceEmailRecord {
+  id: string;
+  kind: string;
+  toEmail: string;
+  subject: string;
+  status: "sent" | "failed";
+  createdAt: string;
+}
+
+/** Emails the branded PDF to the client (Pro). 409 = cooldown. */
+export function sendInvoiceToClient(id: string) {
+  return apiRequest<{ data: { sent: boolean; toEmail: string; emailedAt: string } }>(
+    `/invoices/${id}/send`,
+    { method: "POST", body: JSON.stringify({}) }
+  );
+}
+
+export function fetchInvoiceEmails(id: string) {
+  return apiRequest<{ data: InvoiceEmailRecord[] }>(`/invoices/${id}/emails`);
+}

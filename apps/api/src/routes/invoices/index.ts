@@ -1,13 +1,14 @@
 // Sole-trader invoice tracker — Laura Joyce request, shipped 10 May 2026.
 //
-// Deliberate scope: simple list + paid/unpaid status. NOT a collections
-// workflow. Late-payment-act interest calculations were originally
-// rejected after user feedback ("no idea what that is") — then Laura
-// herself asked for a chase email in Jul 2026, so a scoped version
-// exists: the CLIENT composes a pre-filled draft in their own mail app
-// (mobile-side template, statutory-interest line included). The server
-// only stores the optional clientEmail to pre-address that draft; it
-// never emails clients directly.
+// Scope has grown deliberately in stages (Get Paid, Jul 2026):
+//   - Tracker (May 2026): simple list + paid/unpaid status.
+//   - Chase draft (5 Jul): pre-filled mailto in the user's own mail app,
+//     statutory-interest wording from the shared template.
+//   - Builder (6 Jul): clients, line items, VAT, numbering, branded PDF.
+//   - Send (7 Jul): POST /:id/send emails the PDF to the client at the
+//     user's explicit request — transactional one-to-one correspondence,
+//     Reply-To the user, never marketing-gated. Auto-chase is the
+//     scheduled version (jobs/invoices.ts).
 //
 // Tax basis interaction:
 //   - cash basis (default, most gig drivers): Tax Readiness counts
@@ -28,9 +29,11 @@ import {
   computeStatus,
   findPotentialEarningMatches,
   allocateInvoiceNumber,
+  ensureInvoiceNumber,
 } from "../../services/invoices.js";
 import { computeInvoiceTotals } from "@mileclear/shared";
 import { generateInvoicePdf } from "../../services/export.js";
+import { sendInvoiceEmail } from "../../services/email.js";
 
 const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Date must be YYYY-MM-DD");
 
@@ -425,6 +428,141 @@ export async function invoiceRoutes(app: FastifyInstance) {
       .header("Content-Type", "application/pdf")
       .header("Content-Disposition", `attachment; filename="${filename}"`)
       .send(buffer);
+  });
+
+  // POST /invoices/:id/send — email the branded PDF to the client (Pro).
+  // Transactional one-to-one correspondence at the user's request: never
+  // gated on marketing consent, Reply-To is the user.
+  app.post("/:id/send", async (request, reply) => {
+    const { id } = z.object({ id: z.string().uuid() }).parse(request.params);
+    const userId = request.userId!;
+
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        email: true,
+        displayName: true,
+        fullName: true,
+        tradingName: true,
+        isPremium: true,
+        premiumExpiresAt: true,
+        referralProUntil: true,
+      },
+    });
+    if (!user || !resolvePremiumStatus(user).active) {
+      return reply.status(402).send({
+        error: {
+          code: "PREMIUM_REQUIRED",
+          message: "Sending invoices by email is a Pro feature.",
+          hint: "Send branded invoices straight to your clients — £4.99/month.",
+          feature: "invoice_send",
+          retryable: false,
+        },
+      });
+    }
+
+    // A dead Reply-To silently eats every client reply — worse than
+    // blocking. Placeholder addresses can't receive mail.
+    if (user.email.endsWith("@private.mileclear.com")) {
+      return reply.status(400).send({
+        error:
+          "Add a real email address to your account first — your client's replies would go nowhere. You can change it in Settings → Profile.",
+      });
+    }
+
+    const invoice = await prisma.invoice.findFirst({
+      where: { id, userId },
+      include: { client: { select: { email: true } } },
+    });
+    if (!invoice) return reply.status(404).send({ error: "Invoice not found" });
+
+    const toEmail = invoice.clientEmail ?? invoice.client?.email ?? null;
+    if (!toEmail) {
+      return reply.status(400).send({
+        error: "Add a client email first — edit the invoice or the saved client.",
+      });
+    }
+
+    // Resend cooldown: 10 minutes between successful sends per invoice.
+    const recent = await prisma.invoiceEmail.findFirst({
+      where: {
+        invoiceId: id,
+        kind: "send",
+        status: "sent",
+        createdAt: { gte: new Date(Date.now() - 10 * 60 * 1000) },
+      },
+      orderBy: { createdAt: "desc" },
+    });
+    if (recent) {
+      return reply.status(409).send({
+        error: "This invoice was emailed in the last few minutes — give it a moment before resending.",
+        lastSentAt: recent.createdAt,
+      });
+    }
+
+    const invoiceNumber = await ensureInvoiceNumber(invoice);
+    const { buffer } = await generateInvoicePdf(userId, id);
+
+    try {
+      const { subject } = await sendInvoiceEmail({
+        user,
+        invoice: {
+          company: invoice.company,
+          invoiceNumber,
+          amountPence: invoice.amountPence,
+          sentAt: invoice.sentAt,
+          dueAt: invoice.dueAt,
+          reference: invoice.reference,
+        },
+        toEmail,
+        pdf: buffer,
+        kind: "send",
+      });
+      const emailedAt = new Date();
+      await prisma.$transaction([
+        prisma.invoiceEmail.create({
+          data: { invoiceId: id, userId, kind: "send", toEmail, subject, status: "sent" },
+        }),
+        prisma.invoice.update({ where: { id }, data: { emailedAt } }),
+      ]);
+      logEvent("invoice.emailed", userId, { invoiceId: id, toEmail });
+      return reply.send({ data: { sent: true, toEmail, emailedAt } });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Send failed";
+      await prisma.invoiceEmail.create({
+        data: {
+          invoiceId: id,
+          userId,
+          kind: "send",
+          toEmail,
+          subject: `Invoice send failed`,
+          status: "failed",
+          error: message.slice(0, 500),
+        },
+      });
+      request.log.error({ err, invoiceId: id }, "invoice send failed");
+      return reply.status(502).send({
+        error: "The email couldn't be sent — try again in a few minutes.",
+      });
+    }
+  });
+
+  // GET /invoices/:id/emails — send + chase history for the detail UI.
+  app.get("/:id/emails", async (request, reply) => {
+    const { id } = z.object({ id: z.string().uuid() }).parse(request.params);
+    const invoice = await prisma.invoice.findFirst({
+      where: { id, userId: request.userId! },
+      select: { id: true },
+    });
+    if (!invoice) return reply.status(404).send({ error: "Invoice not found" });
+    const emails = await prisma.invoiceEmail.findMany({
+      where: { invoiceId: id },
+      orderBy: { createdAt: "desc" },
+      take: 50,
+      select: { id: true, kind: true, toEmail: true, subject: true, status: true, createdAt: true },
+    });
+    return reply.send({ data: emails });
   });
 
   // PATCH /invoices/:id — edit or mark paid

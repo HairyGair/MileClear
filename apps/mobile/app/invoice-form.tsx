@@ -21,6 +21,7 @@ import {
   createInvoice,
   updateInvoice,
   deleteInvoice,
+  sendInvoiceToClient,
   type Invoice,
   type PotentialEarningMatch,
   type LineItemInput,
@@ -255,6 +256,43 @@ export default function InvoiceFormScreen() {
       setPdfBusy(false);
     }
   }, [id, isPremium, invoiceNumber, showPaywall]);
+
+  // Email the branded PDF to the client (Pro).
+  const [sendBusy, setSendBusy] = useState(false);
+  const onSendToClient = useCallback(() => {
+    if (!id) return;
+    if (!isPremium) {
+      showPaywall("invoice_send");
+      return;
+    }
+    const to = clientEmail.trim() || clients.find((c) => c.id === clientId)?.email || null;
+    if (!to) {
+      Alert.alert("No client email", "Add a client email to this invoice first.");
+      return;
+    }
+    Alert.alert(
+      "Email this invoice?",
+      `Send the branded PDF to ${to}? Replies come straight back to your email.`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Send",
+          onPress: async () => {
+            setSendBusy(true);
+            try {
+              const res = await sendInvoiceToClient(id);
+              haptic("success");
+              Alert.alert("Sent", `Invoice emailed to ${res.data.toEmail}.`);
+            } catch (err) {
+              Alert.alert("Couldn't send", err instanceof Error ? err.message : "Try again.");
+            } finally {
+              setSendBusy(false);
+            }
+          },
+        },
+      ]
+    );
+  }, [id, isPremium, clientEmail, clientId, clients, showPaywall]);
 
   // Live totals preview
   const parsedPreviewLines = parseLineDrafts(lines);
@@ -554,6 +592,27 @@ export default function InvoiceFormScreen() {
             accessibilityLabel="Notes, optional"
           />
         </Field>
+
+        {isEditing && (
+          <TouchableOpacity
+            style={[styles.pdfButton, sendBusy && styles.saveButtonDisabled]}
+            onPress={onSendToClient}
+            disabled={sendBusy}
+            accessibilityRole="button"
+            accessibilityLabel="Email this invoice to the client"
+          >
+            {sendBusy ? (
+              <ActivityIndicator color={AMBER} />
+            ) : (
+              <>
+                <Ionicons name="paper-plane-outline" size={18} color={AMBER} />
+                <Text style={styles.pdfButtonText}>
+                  {isPremium ? "Email to client" : "Email to client (Pro)"}
+                </Text>
+              </>
+            )}
+          </TouchableOpacity>
+        )}
 
         {isEditing && (
           <TouchableOpacity

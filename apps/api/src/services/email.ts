@@ -1017,7 +1017,11 @@ function bulletList(items: string[], accent = "#f5a623"): string {
         </table>`;
 }
 
-/** Shared delivery: gate marketing, log when no transporter. */
+/** Shared delivery: gate marketing, log when no transporter.
+ *  Optional overrides (Get Paid, Jul 2026): replyTo routes client replies
+ *  to the USER for invoice sends; fromName shows "‹Trading Name› via
+ *  MileClear" while the address stays on our SPF/DKIM-aligned domain;
+ *  attachments carry the invoice PDF. Existing callers are unaffected. */
 async function deliver(opts: {
   email: string;
   subject: string;
@@ -1025,6 +1029,9 @@ async function deliver(opts: {
   userId: string;
   label: string;
   gated: boolean;
+  replyTo?: string;
+  fromName?: string;
+  attachments?: { filename: string; content: Buffer; contentType: string }[];
 }): Promise<void> {
   if (opts.gated && !(await isMarketingAllowed(opts.userId))) return;
   if (!transporter) {
@@ -1032,12 +1039,15 @@ async function deliver(opts: {
     return;
   }
   await transporter.sendMail({
-    from: FROM_PERSONAL,
+    from: opts.fromName
+      ? `${opts.fromName.replace(/["<>]/g, "")} <gair@mileclear.com>`
+      : FROM_PERSONAL,
     to: opts.email,
-    replyTo: "gair@mileclear.com",
+    replyTo: opts.replyTo ?? "gair@mileclear.com",
     subject: opts.subject,
     html: opts.html,
     headers: opts.gated ? unsubscribeHeaders(opts.userId) : undefined,
+    attachments: opts.attachments,
   });
 }
 
@@ -2300,4 +2310,106 @@ export async function sendAccountantInviteEmail(
   }
 
   await transporter.sendMail({ from: FROM, to: email, subject, html });
+}
+
+// ── Invoice send + chase emails (Get Paid, Jul 2026) ─────────────────────────
+// Sent TO THE USER'S CLIENT at the user's explicit request — one-to-one
+// business correspondence, not marketing, so never gated and never
+// carrying unsubscribe headers. Reply-To is the user; From keeps our
+// aligned domain with their trading name as the display name. The PDF
+// rides as an attachment on every kind.
+
+export type InvoiceEmailKind =
+  | "send"
+  | "chase_pre_due"
+  | "chase_1"
+  | "chase_2"
+  | "chase_final";
+
+export interface InvoiceEmailArgs {
+  /** The sender (MileClear user). */
+  user: { id: string; email: string; displayName: string | null; fullName: string | null; tradingName: string | null };
+  invoice: {
+    company: string;
+    invoiceNumber: number;
+    amountPence: number;
+    sentAt: Date;
+    dueAt: Date;
+    reference: string | null;
+  };
+  toEmail: string;
+  pdf: Buffer;
+  kind: InvoiceEmailKind;
+  /** Pre-built body text for chase kinds (from the shared template) —
+   *  plain text, escaped + paragraphed here. Ignored for kind="send". */
+  chaseBodyText?: string;
+}
+
+export async function sendInvoiceEmail(args: InvoiceEmailArgs): Promise<{ subject: string }> {
+  const { user, invoice, toEmail, pdf, kind } = args;
+  const senderName = user.tradingName || user.fullName || user.displayName || "A MileClear user";
+  const ref = `INV-${String(invoice.invoiceNumber).padStart(4, "0")}`;
+  const amount = gbp(invoice.amountPence);
+  const dueText = invoice.dueAt.toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" });
+
+  let subject: string;
+  let bodyHtml: string;
+
+  if (kind === "send") {
+    subject = `Invoice ${ref} from ${senderName} — ${amount}`;
+    bodyHtml = [
+      para(`Hi,`),
+      para(
+        `Please find attached invoice <strong style="color:#f0f2f5;">${ref}</strong> from <strong style="color:#f0f2f5;">${escapeHtml(senderName)}</strong> for <strong style="color:#f0f2f5;">${amount}</strong>${invoice.reference ? ` (your reference: ${escapeHtml(invoice.reference)})` : ""}.`
+      ),
+      statGrid([
+        { value: amount, label: "Amount due" },
+        { value: dueText, label: "Payment due" },
+      ]),
+      para(
+        `Payment details are on the attached PDF — please use the payment reference <strong style="color:#f0f2f5;">${ref}</strong> so the payment can be matched automatically.`
+      ),
+      para(`Any questions, just reply to this email and it will reach ${escapeHtml(senderName)} directly.`),
+    ].join("\n");
+  } else {
+    // Chase kinds: the wording comes from the shared statutory-interest
+    // template (single source with the mobile/web drafts). Escaped and
+    // paragraphed; subject escalates by kind.
+    const prefix =
+      kind === "chase_pre_due"
+        ? "Payment due soon — "
+        : kind === "chase_2"
+          ? "Second reminder — "
+          : kind === "chase_final"
+            ? "Final reminder — "
+            : "";
+    subject = `${prefix}invoice ${ref} from ${senderName} — ${amount}`;
+    const text = args.chaseBodyText ?? "";
+    bodyHtml = text
+      .split(/\n\s*\n/)
+      .map((block) => para(escapeHtml(block.trim()).replace(/\n/g, "<br />")))
+      .join("\n");
+  }
+
+  const html = emailShell({
+    preheader: `Invoice ${ref} — ${amount}, due ${dueText}`,
+    eyebrow: kind === "send" ? "Invoice" : "Payment reminder",
+    title: `Invoice ${ref}`,
+    bodyHtml,
+    footerHtml: `Sent via MileClear on behalf of ${escapeHtml(senderName)} &middot; <a href="https://mileclear.com" style="color:#5a6678;text-decoration:underline;">mileclear.com</a>`,
+  });
+
+  await deliver({
+    email: toEmail,
+    subject,
+    html,
+    userId: user.id,
+    label: `invoice-${kind}`,
+    gated: false,
+    replyTo: user.email,
+    fromName: `${senderName} via MileClear`,
+    attachments: [{ filename: `${ref}.pdf`, content: pdf, contentType: "application/pdf" }],
+  });
+
+  return { subject };
 }

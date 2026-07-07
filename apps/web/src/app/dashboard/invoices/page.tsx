@@ -45,6 +45,7 @@ interface Invoice {
   paidAt: string | null;
   status: InvoiceStatus;
   notes: string | null;
+  emailedAt: string | null;
 }
 
 interface Client {
@@ -348,6 +349,29 @@ export default function InvoicesPage() {
     }
   };
 
+  // Email the branded PDF to the client (Pro).
+  const [sendBusy, setSendBusy] = useState<string | null>(null);
+  const handleSend = async (inv: Invoice) => {
+    if (!isPremium) {
+      setShowChaseUpsell(true);
+      return;
+    }
+    if (!window.confirm(`Email invoice ${inv.invoiceNumber != null ? formatInvoiceNumber(inv.invoiceNumber) : ""} to the client? Replies come straight to your email.`)) {
+      return;
+    }
+    setSendBusy(inv.id);
+    try {
+      const res = await api.post<{ data: { toEmail: string } }>(`/invoices/${inv.id}/send`, {});
+      setError(null);
+      window.alert(`Sent to ${res.data.toEmail}`);
+      load();
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setSendBusy(null);
+    }
+  };
+
   // Branded PDF download (Pro). Free users get the upsell banner.
   const [pdfBusy, setPdfBusy] = useState<string | null>(null);
   const handlePdf = async (inv: Invoice) => {
@@ -531,6 +555,22 @@ export default function InvoicesPage() {
                               Chase
                             </button>
                           )
+                        )}
+                        {inv.status !== "paid" && inv.status !== "written_off" && (
+                          <button
+                            className="table__action-btn"
+                            onClick={() => handleSend(inv)}
+                            disabled={sendBusy === inv.id}
+                            title={
+                              inv.emailedAt
+                                ? `Emailed ${shortDate(inv.emailedAt)} — send again`
+                                : isPremium
+                                  ? "Email the branded PDF to the client"
+                                  : "Emailing invoices is a Pro feature"
+                            }
+                          >
+                            {sendBusy === inv.id ? "Sending…" : inv.emailedAt ? "Resend" : "Send"}
+                          </button>
                         )}
                         <button
                           className="table__action-btn"
