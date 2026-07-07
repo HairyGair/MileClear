@@ -17,6 +17,7 @@ import { logEvent } from "../services/appEvents.js";
 import { runJob } from "../services/jobRun.js";
 import { getNearbyStations, prewarmStationCache } from "../services/fuel.js";
 import { runVehicleRemindersJob } from "./vehicleReminders.js";
+import { runActivationDay7Job, runPayingInactiveAlarmJob } from "./activation.js";
 import { runDiscordProSyncJob } from "./discordProSync.js";
 import { runTaxTipOfTheDayJob } from "./taxTipOfTheDay.js";
 import { runWeeklyDigestJob } from "./weeklyDigest.js";
@@ -1298,6 +1299,8 @@ export function startNotificationJobs(): void {
     void runJob("weekly_recap", runWeeklyRecapJob);
     void runJob("monthly_recap", runMonthlyRecapJob);
     void runJob("welcome_nudge", runWelcomeNudgeJob);
+    void runJob("activation_d7", runActivationDay7Job);
+    void runJob("pro_inactive_alarm", runPayingInactiveAlarmJob);
     void runJob("checkin_email", runCheckinEmailJob);
     void runJob("vehicle_reminders", runVehicleRemindersJob);
   };
