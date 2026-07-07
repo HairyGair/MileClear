@@ -1076,6 +1076,13 @@ async function deliver(opts: {
   gated: boolean;
   replyTo?: string;
   fromName?: string;
+  /** Override the From mailbox. Invoice sends use invoices@mileclear.com —
+   *  a machine mailbox — so bounces, out-of-office auto-replies and
+   *  manual replies-to-From (all of which ignore Reply-To) land in a
+   *  segregated inbox nobody reads day-to-day, NOT in gair@. Users'
+   *  clients' financial correspondence must never pool in a personal
+   *  inbox. */
+  fromAddress?: string;
   attachments?: { filename: string; content: Buffer; contentType: string }[];
 }): Promise<void> {
   if (opts.gated && !(await isMarketingAllowed(opts.userId))) return;
@@ -1085,7 +1092,7 @@ async function deliver(opts: {
   }
   await transporter.sendMail({
     from: opts.fromName
-      ? `${opts.fromName.replace(/["<>]/g, "")} <gair@mileclear.com>`
+      ? `${opts.fromName.replace(/["<>]/g, "")} <${opts.fromAddress ?? "gair@mileclear.com"}>`
       : FROM_PERSONAL,
     to: opts.email,
     replyTo: opts.replyTo ?? "gair@mileclear.com",
@@ -2453,6 +2460,9 @@ export async function sendInvoiceEmail(args: InvoiceEmailArgs): Promise<{ subjec
     gated: false,
     replyTo: user.email,
     fromName: `${senderName} via MileClear`,
+    // Machine mailbox: bounces / auto-replies / manual replies-to-From
+    // stay out of any human's personal inbox.
+    fromAddress: "invoices@mileclear.com",
     attachments: [{ filename: `${ref}.pdf`, content: pdf, contentType: "application/pdf" }],
   });
 
