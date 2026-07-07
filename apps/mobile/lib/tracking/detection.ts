@@ -153,6 +153,7 @@ const QUICK_TRIP_SHIFT_ID = "__quick_trip__"; // mirrors lib/tracking/index.ts
 const QUICK_TRIP_STALE_MS = 3 * 60 * 60 * 1000; // 3h - a quick_trip_start older than this with no end was abandoned
 const STALE_ACTIVE_SHIFT_MS = 18 * 60 * 60 * 1000; // 18h - no real gig shift runs this long; an active_shift_id older than this is abandoned and must not keep muting the engine
 const QUICK_TRIP_LIVE_COORD_MS = 20 * 60 * 1000; // 20 min - a breadcrumb this recent means the quick trip is genuinely recording RIGHT NOW; never clear it
+const QUICK_TRIP_MAX_SPAN_MS = STALE_ACTIVE_SHIFT_MS; // 18h - a quick trip whose recording has spanned longer than any real single journey is a stuck lock (app killed mid-trip / Arrive never tapped) muting auto-detection; recover its route into trips and release it, mirroring the real-shift backstop
 const BACKGROUND_FETCH_INTERVAL_S = 15 * 60; // 15 minutes - iOS treats as a hint, actual cadence varies
 const COOLDOWN_MS = 20 * 60 * 1000; // 20 minutes
 const BUFFER_MAX_AGE_MS = 30 * 60 * 1000; // 30 minutes
@@ -504,13 +505,67 @@ export async function shiftSuppressesAutoDetection(
     }).catch(() => {});
     return false;
   }
-  // __quick_trip__: live or orphan? Ground truth is GPS capture activity, NOT
-  // the quick_trip_start row (which can be absent even mid-trip — Anthony's
-  // 1 June live 6.1mi quick trip had active_shift_id set and fresh breadcrumbs
-  // but no quick_trip_start). Treat as LIVE if a breadcrumb landed within
-  // QUICK_TRIP_LIVE_COORD_MS, OR a quick_trip_start is newer than
-  // QUICK_TRIP_STALE_MS (covers tap-Start → first-fix gap). Only a true orphan
-  // gets cleared, so we can NEVER kill a recording trip.
+  // __quick_trip__: live, stale, or orphan? Ground truth is GPS capture
+  // activity, NOT the quick_trip_start row (which can be absent even mid-trip —
+  // Anthony's 1 June live 6.1mi quick trip had active_shift_id set and fresh
+  // breadcrumbs but no quick_trip_start). Read both time anchors up front: the
+  // earliest breadcrumb (how long the recording has spanned) and
+  // quick_trip_start (tap-Start time). Either can be absent.
+  const firstCoord = await db.getFirstAsync<{ recorded_at: string }>(
+    "SELECT recorded_at FROM shift_coordinates WHERE shift_id = ? ORDER BY recorded_at ASC LIMIT 1",
+    [QUICK_TRIP_SHIFT_ID]
+  );
+  const qts = await db.getFirstAsync<{ value: string }>(
+    "SELECT value FROM tracking_state WHERE key = 'quick_trip_start'"
+  );
+  let quickTripStartMs = NaN;
+  if (qts) {
+    try {
+      quickTripStartMs = new Date(JSON.parse(qts.value).startedAt).getTime();
+    } catch {
+      // malformed row — not a usable anchor
+    }
+  }
+
+  // Duration cap: no genuine single quick trip runs for QUICK_TRIP_MAX_SPAN_MS.
+  // A trip still "live" (fresh breadcrumbs) whose recording has spanned longer
+  // than the cap is a stuck lock — the app was killed mid-trip or the user
+  // never tapped Arrive — silently absorbing a whole day of driving and muting
+  // auto-detection (Anish Topiwala, 7 Jul 2026: 488 detection_skipped /
+  // active_quick_trip, an entire day of trips never created). Recover the
+  // accumulated route into properly-segmented trips (split on >2min stops) via
+  // the same processor a completed shift uses, rather than deleting it, then
+  // release the lock. Real shifts already had this backstop; quick trips had none.
+  const anchorMs = Math.min(
+    firstCoord ? new Date(firstCoord.recorded_at).getTime() : Infinity,
+    Number.isFinite(quickTripStartMs) ? quickTripStartMs : Infinity
+  );
+  if (Number.isFinite(anchorMs) && Date.now() - anchorMs > QUICK_TRIP_MAX_SPAN_MS) {
+    // Release the lock FIRST so detection is no longer muted and a concurrent
+    // location fix can't re-enter this recovery.
+    await db.runAsync("DELETE FROM tracking_state WHERE key = 'active_shift_id'");
+    await db.runAsync("DELETE FROM tracking_state WHERE key = 'quick_trip_start'");
+    let recovered = 0;
+    try {
+      // Dynamic import: tracking/index.ts imports from this module, so a static
+      // import would be a cycle. processShiftTrips keeps its coords on failure.
+      const { processShiftTrips } = await import("./index");
+      recovered = await processShiftTrips(QUICK_TRIP_SHIFT_ID);
+    } catch {
+      // Best-effort: the lock is already released, so detection resumes even if
+      // recovery fails.
+    }
+    logDetectionEvent("stale_quick_trip_recovered", {
+      spanHours: Math.round((Date.now() - anchorMs) / 3_600_000),
+      tripsRecovered: recovered,
+    }).catch(() => {});
+    return false;
+  }
+
+  // Live? Treat as LIVE if a breadcrumb landed within QUICK_TRIP_LIVE_COORD_MS,
+  // OR quick_trip_start is newer than QUICK_TRIP_STALE_MS (covers tap-Start →
+  // first-fix gap). Only a true orphan gets cleared, so we NEVER kill a
+  // recording trip.
   let live = false;
   const lastCoord = await db.getFirstAsync<{ recorded_at: string }>(
     "SELECT recorded_at FROM shift_coordinates WHERE shift_id = ? ORDER BY recorded_at DESC LIMIT 1",
@@ -520,25 +575,20 @@ export async function shiftSuppressesAutoDetection(
     const ms = new Date(lastCoord.recorded_at).getTime();
     if (Number.isFinite(ms) && Date.now() - ms < QUICK_TRIP_LIVE_COORD_MS) live = true;
   }
-  if (!live) {
-    const qts = await db.getFirstAsync<{ value: string }>(
-      "SELECT value FROM tracking_state WHERE key = 'quick_trip_start'"
-    );
-    if (qts) {
-      try {
-        const startedMs = new Date(JSON.parse(qts.value).startedAt).getTime();
-        if (Number.isFinite(startedMs) && Date.now() - startedMs < QUICK_TRIP_STALE_MS) live = true;
-      } catch {
-        // malformed row — not a reason to keep the lock
-      }
-    }
+  if (
+    !live &&
+    Number.isFinite(quickTripStartMs) &&
+    Date.now() - quickTripStartMs < QUICK_TRIP_STALE_MS
+  ) {
+    live = true;
   }
   if (live) {
     logDetectionEvent("detection_skipped", { reason: "active_quick_trip" }).catch(() => {});
     return true;
   }
-  // Abandoned lock: clear it so auto-detection / native capture isn't
-  // suppressed forever.
+  // Abandoned lock (no recent breadcrumb, no fresh quick_trip_start, span under
+  // the cap): clear it so auto-detection / native capture isn't suppressed
+  // forever. Too little data here to be worth recovering.
   await db.runAsync("DELETE FROM tracking_state WHERE key = 'active_shift_id'");
   await db.runAsync("DELETE FROM tracking_state WHERE key = 'quick_trip_start'");
   await db.runAsync("DELETE FROM shift_coordinates WHERE shift_id = ?", [QUICK_TRIP_SHIFT_ID]);
