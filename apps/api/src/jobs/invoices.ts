@@ -262,13 +262,97 @@ export async function runInvoiceChaseJob(): Promise<{
   return result;
 }
 
+// ── Daily background bank sync (Get Paid Phase 4) ────────────────────
+// Pulls the last 7 days of transactions for premium users who have an
+// active bank connection AND at least one open invoice, so overnight
+// payments reconcile BEFORE the chase window — a client who paid at
+// 11pm never gets chased at 9am. Window-gated 06:00–08:00 UTC (07:00–
+// 09:00 UK in summer), i.e. strictly before the 08:00–10:00 fire pass.
+
+function inBankSyncWindow(now: Date): boolean {
+  if (process.env.INVOICE_CHASE_FORCE_WINDOW === "1") return true;
+  const h = now.getUTCHours();
+  return h >= 6 && h < 8;
+}
+
+export async function runInvoiceBankSyncJob(): Promise<{
+  synced: number;
+  failed: number;
+  autoMatched: number;
+  suggested: number;
+}> {
+  const result = { synced: 0, failed: 0, autoMatched: 0, suggested: 0 };
+  const now = new Date();
+  if (!inBankSyncWindow(now)) return result;
+
+  // Once per day: skip if a run already synced in the last 20h. The
+  // hourly tick would otherwise sync twice inside the 2h window.
+  const twentyHoursAgo = new Date(now.getTime() - 20 * 60 * 60 * 1000);
+  const recentRun = await prisma.jobRun.findFirst({
+    where: {
+      jobName: "invoice_bank_sync",
+      status: "success",
+      startedAt: { gte: twentyHoursAgo },
+      // Only count runs that actually did work (metadata records synced>0
+      // or there was nothing to do — either way the day is covered).
+    },
+    orderBy: { startedAt: "desc" },
+  });
+  if (recentRun) return result;
+
+  const users = await prisma.user.findMany({
+    where: {
+      plaidConnections: { some: { status: "active" } },
+      invoices: { some: { paidAt: null, status: { in: ["sent", "overdue"] } } },
+    },
+    select: {
+      id: true,
+      isPremium: true,
+      premiumExpiresAt: true,
+      referralProUntil: true,
+      plaidConnections: {
+        where: { status: "active" },
+        select: { id: true },
+      },
+    },
+    take: 200,
+  });
+
+  const { syncTransactions } = await import("../services/openBanking.js");
+  const from = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
+    .toISOString()
+    .split("T")[0];
+
+  for (const user of users) {
+    if (!resolvePremiumStatus(user).active) continue;
+    for (const conn of user.plaidConnections) {
+      try {
+        const res = await syncTransactions(user.id, conn.id, from);
+        result.synced++;
+        result.autoMatched += res.invoiceMatches?.autoMatched ?? 0;
+        result.suggested += res.invoiceMatches?.suggested ?? 0;
+      } catch (err) {
+        result.failed++;
+        console.error(`[invoice-bank-sync] sync failed for user ${user.id}:`, err);
+      }
+      // Gentle pacing against the TrueLayer API.
+      await new Promise((r) => setTimeout(r, 300));
+    }
+  }
+
+  return result;
+}
+
 export function startInvoiceJobs(): void {
   const INITIAL_DELAY_MS = 90 * 1000;
-  const INTERVAL_MS = 60 * 60 * 1000; // hourly tick; job self-gates by window
+  const INTERVAL_MS = 60 * 60 * 1000; // hourly tick; jobs self-gate by window
 
   setTimeout(() => {
+    void runJob("invoice_bank_sync", runInvoiceBankSyncJob);
     void runJob("invoice_chase", runInvoiceChaseJob);
     setInterval(() => {
+      // Bank sync first so a fresh payment suppresses today's chase.
+      void runJob("invoice_bank_sync", runInvoiceBankSyncJob);
       void runJob("invoice_chase", runInvoiceChaseJob);
     }, INTERVAL_MS);
   }, INITIAL_DELAY_MS);

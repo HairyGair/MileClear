@@ -20,6 +20,7 @@ import { premiumMiddleware } from "../../middleware/premium.js";
 import { EXPENSE_CATEGORIES, GIG_PLATFORMS } from "@mileclear/shared";
 import { logEvent } from "../../services/appEvents.js";
 import { trainMerchantMapping } from "../../services/merchantCategoriser.js";
+import { markInvoicePaid } from "../../services/invoices.js";
 
 const expenseCategoryValues = EXPENSE_CATEGORIES.map((c) => c.value) as [
   string,
@@ -35,6 +36,13 @@ const acceptSchema = z.discriminatedUnion("kind", [
      *  to the bank_transaction amount. */
     amountPenceOverride: z.number().int().positive().optional(),
     notes: z.string().max(500).optional(),
+  }),
+  z.object({
+    /** Confirm a suggested invoice payment (Get Paid Phase 4). Marks the
+     *  invoice paid and consumes the transaction — creates NO Earning
+     *  (the paid invoice IS the income record; both would double-count). */
+    kind: z.literal("invoice_payment"),
+    invoiceId: z.string().uuid(),
   }),
   z.object({
     kind: z.literal("expense"),
@@ -105,6 +113,35 @@ export async function inboxRoutes(app: FastifyInstance) {
     });
     if (!txn) {
       return reply.status(404).send({ error: "Transaction not found or already resolved" });
+    }
+
+    if (parsed.data.kind === "invoice_payment") {
+      const invoice = await prisma.invoice.findFirst({
+        where: { id: parsed.data.invoiceId, userId, paidAt: null },
+        select: { id: true },
+      });
+      if (!invoice) {
+        return reply.status(404).send({ error: "Invoice not found or already paid" });
+      }
+      const { potentialEarningMatches } = await markInvoicePaid({
+        userId,
+        invoiceId: invoice.id,
+        paidAt: txn.transactionDate,
+        source: "bank_match",
+      });
+      await prisma.bankTransaction.update({
+        where: { id: txn.id },
+        data: {
+          status: "accepted",
+          resolvedInvoiceId: invoice.id,
+          reviewedAt: new Date(),
+        },
+      });
+      logEvent("inbox.accepted_invoice_payment", userId, {
+        bankTransactionId: txn.id,
+        invoiceId: invoice.id,
+      });
+      return reply.send({ data: { ok: true, invoiceId: invoice.id, potentialEarningMatches } });
     }
 
     // Absolute amount in pence — bank_transaction stores signed, but

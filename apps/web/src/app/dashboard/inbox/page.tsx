@@ -27,7 +27,7 @@ interface BankTransaction {
   currency: string;
   transactionDate: string;
   status: "pending" | "accepted" | "ignored" | "consumed";
-  suggestedKind: "earning" | "expense" | "unknown" | null;
+  suggestedKind: "earning" | "expense" | "invoice_payment" | "unknown" | null;
   suggestedCategory: string | null;
   suggestedConfidence: number | null;
   resolvedEarningId: string | null;
@@ -103,11 +103,48 @@ export default function InboxPage() {
     load();
   }, [load]);
 
+  // Suggested invoice payment (Get Paid Phase 4): suggestedCategory holds
+  // the invoice id; fetch its display details when the panel opens.
+  const [suggestedInvoice, setSuggestedInvoice] = useState<{
+    id: string;
+    company: string;
+    invoiceNumber: number | null;
+    amountPence: number;
+  } | null>(null);
+
   const openTransaction = (txn: BankTransaction) => {
     setActive(txn);
     const isCredit = txn.amountPence > 0;
     setActionKind(isCredit ? "earning" : "expense");
-    setActionCategory(txn.suggestedCategory ?? "");
+    setSuggestedInvoice(null);
+    if (txn.suggestedKind === "invoice_payment" && txn.suggestedCategory) {
+      setActionCategory("");
+      api
+        .get<{ data: { id: string; company: string; invoiceNumber: number | null; amountPence: number } }>(`/invoices/${txn.suggestedCategory}`)
+        .then((res) => setSuggestedInvoice(res.data))
+        .catch(() => setSuggestedInvoice(null));
+    } else {
+      setActionCategory(txn.suggestedCategory ?? "");
+    }
+  };
+
+  const handleAcceptInvoicePayment = async () => {
+    if (!active || !suggestedInvoice) return;
+    setBusy(true);
+    try {
+      await api.post(`/inbox/${active.id}/accept`, {
+        kind: "invoice_payment",
+        invoiceId: suggestedInvoice.id,
+      });
+      setItems((prev) => prev.filter((x) => x.id !== active.id));
+      setActive(null);
+      setSuggestedInvoice(null);
+      setError(null);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setBusy(false);
+    }
   };
 
   const handleAccept = async () => {
@@ -311,6 +348,31 @@ export default function InboxPage() {
               {active.amountPence > 0 ? "+" : "-"}
               {formatPence(Math.abs(active.amountPence))} · {formatDate(active.transactionDate)}
             </div>
+            {suggestedInvoice && (
+              <div
+                style={{
+                  border: "1px solid rgba(16,185,129,0.35)",
+                  background: "rgba(16,185,129,0.08)",
+                  borderRadius: 8,
+                  padding: "0.75rem",
+                  fontSize: "0.8125rem",
+                }}
+              >
+                <p style={{ margin: "0 0 0.5rem" }}>
+                  This looks like payment for{" "}
+                  <strong>
+                    {suggestedInvoice.invoiceNumber != null
+                      ? `INV-${String(suggestedInvoice.invoiceNumber).padStart(4, "0")}`
+                      : "an invoice"}
+                  </strong>{" "}
+                  from <strong>{suggestedInvoice.company}</strong> (
+                  {formatPence(suggestedInvoice.amountPence)}).
+                </p>
+                <Button variant="primary" size="sm" onClick={handleAcceptInvoicePayment} disabled={busy}>
+                  {busy ? "Saving..." : "Mark invoice paid"}
+                </Button>
+              </div>
+            )}
             <Select
               id="kind"
               label="Treat as"

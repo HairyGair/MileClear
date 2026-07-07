@@ -12,7 +12,7 @@ export interface BankTransaction {
   currency: string;
   transactionDate: string;
   status: "pending" | "accepted" | "ignored" | "consumed" | "duplicate";
-  suggestedKind: "earning" | "expense" | "unknown" | null;
+  suggestedKind: "earning" | "expense" | "invoice_payment" | "unknown" | null;
   suggestedCategory: string | null;
   suggestedConfidence: number | null;
   resolvedEarningId: string | null;
@@ -45,7 +45,15 @@ export interface AcceptAsExpensePayload {
   vehicleId?: string;
 }
 
-export type AcceptPayload = AcceptAsEarningPayload | AcceptAsExpensePayload;
+export interface AcceptAsInvoicePaymentPayload {
+  kind: "invoice_payment";
+  invoiceId: string;
+}
+
+export type AcceptPayload =
+  | AcceptAsEarningPayload
+  | AcceptAsExpensePayload
+  | AcceptAsInvoicePaymentPayload;
 
 export function fetchInbox(page = 1, pageSize = 30) {
   return apiRequest<InboxListResponse>(

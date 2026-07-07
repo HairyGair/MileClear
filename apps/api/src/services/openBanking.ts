@@ -9,6 +9,7 @@ import {
 import { prisma } from "../lib/prisma.js";
 import { MERCHANT_PLATFORM_MAP } from "@mileclear/shared";
 import { resolveMerchantSuggestion } from "./merchantCategoriser.js";
+import { reconcileInvoicePayments } from "./invoiceReconcile.js";
 
 // ── Encryption (AES-256-GCM for tokens at rest) ──────────────────────
 
@@ -425,6 +426,10 @@ export async function syncTransactions(
   let imported = 0;
   let skipped = 0;
   let queued = 0;
+  // Newly-created PENDING credits from THIS sync — fed to the invoice
+  // reconciler below. Auto-consumed platform payouts are excluded (a
+  // known gig-platform payout is never an invoice payment).
+  const newPendingCreditIds: string[] = [];
 
   // Fetch transactions for each account
   for (const account of accounts) {
@@ -504,7 +509,7 @@ export async function syncTransactions(
       // Mirror everything (auto-promoted + pending) into bank_transactions.
       // Idempotent on (userId, externalId) — re-syncing is safe.
       try {
-        await prisma.bankTransaction.create({
+        const created = await prisma.bankTransaction.create({
           data: {
             userId,
             plaidConnectionId: connection.id,
@@ -521,8 +526,12 @@ export async function syncTransactions(
             resolvedEarningId,
             reviewedAt: status === "consumed" ? new Date() : null,
           },
+          select: { id: true },
         });
-        if (status === "pending") queued++;
+        if (status === "pending") {
+          queued++;
+          if (isCredit) newPendingCreditIds.push(created.id);
+        }
       } catch (err: any) {
         if (err?.code === "P2002") {
           // bank_transactions row already exists from an earlier sync —
@@ -535,6 +544,15 @@ export async function syncTransactions(
     }
   }
 
+  // Invoice reconciliation (Get Paid Phase 4): match this sync's new
+  // credits against open invoices. Never fatal to the sync itself.
+  let invoiceMatches = { autoMatched: 0, suggested: 0 };
+  try {
+    invoiceMatches = await reconcileInvoicePayments(userId, newPendingCreditIds);
+  } catch (err) {
+    console.error("[openBanking] invoice reconcile failed:", err);
+  }
+
   await prisma.plaidConnection.update({
     where: { id: connectionId },
     data: { lastSynced: new Date() },
@@ -544,7 +562,7 @@ export async function syncTransactions(
   // mobile UI that surfaces "X unmatched transactions". From Phase 1 on
   // those go to the inbox under `queued`; we alias for now and the mobile
   // copy can shift to "X to review" in the same release.
-  return { imported, skipped, queued, unmatched: queued };
+  return { imported, skipped, queued, unmatched: queued, invoiceMatches };
 }
 
 export async function disconnectConnection(

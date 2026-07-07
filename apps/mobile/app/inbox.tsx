@@ -236,6 +236,27 @@ export default function InboxScreen() {
     [active]
   );
 
+  // Confirm a suggested invoice payment (Get Paid Phase 4). The invoice
+  // id rides in suggestedCategory; accepting marks it paid and creates
+  // no Earning (the paid invoice IS the income record).
+  const handleAcceptInvoicePayment = useCallback(async () => {
+    if (!active || !active.suggestedCategory) return;
+    setBusy(true);
+    try {
+      await acceptInboxTransaction(active.id, {
+        kind: "invoice_payment",
+        invoiceId: active.suggestedCategory,
+      });
+      haptic("success");
+      setItems((prev) => prev.filter((x) => x.id !== active.id));
+      setActive(null);
+    } catch (e) {
+      Alert.alert("Couldn't mark paid", e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  }, [active]);
+
   const handleIgnore = useCallback(async () => {
     if (!active) return;
     setBusy(true);
@@ -338,6 +359,21 @@ export default function InboxScreen() {
                 {active.amountPence > 0 ? "+" : "-"}
                 {formatPence(Math.abs(active.amountPence))} · {formatDate(active.transactionDate)}
               </Text>
+              {active.suggestedKind === "invoice_payment" && active.suggestedCategory ? (
+                <TouchableOpacity
+                  style={styles.invoiceMatchButton}
+                  onPress={handleAcceptInvoicePayment}
+                  disabled={busy}
+                  accessibilityRole="button"
+                  accessibilityLabel="Mark the matching invoice as paid"
+                >
+                  <Text style={styles.invoiceMatchTitle}>Looks like an invoice payment</Text>
+                  <Text style={styles.invoiceMatchHint}>
+                    This credit matches one of your open invoices — tap to mark it paid.
+                    No duplicate earning is created.
+                  </Text>
+                </TouchableOpacity>
+              ) : null}
 
               <TouchableOpacity
                 style={styles.actionPrimary}
@@ -383,6 +419,17 @@ export default function InboxScreen() {
 }
 
 const styles = StyleSheet.create({
+  invoiceMatchButton: {
+    backgroundColor: "rgba(16, 185, 129, 0.10)",
+    borderWidth: 1,
+    borderColor: "rgba(16, 185, 129, 0.35)",
+    borderRadius: 12,
+    padding: 14,
+    marginTop: 10,
+    marginBottom: 4,
+  },
+  invoiceMatchTitle: { color: GREEN, fontSize: 14, fontFamily: fonts.semibold },
+  invoiceMatchHint: { color: TEXT_3, fontSize: 12, fontFamily: fonts.regular, marginTop: 4, lineHeight: 17 },
   container: { flex: 1, backgroundColor: BG },
 
   summary: {
