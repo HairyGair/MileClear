@@ -21,6 +21,8 @@ const DEFAULTS: NotificationPreferences = {
   shiftSummary: true,
   monthlyRecap: true,
   autoTripLiveActivity: true,
+  fuelAlert: true,
+  morningBriefing: true,
 };
 
 export default function NotificationsSettings() {
@@ -75,6 +77,20 @@ export default function NotificationsSettings() {
           hint="Nudge to keep your driving streak alive"
           value={prefs.streakReminder}
           onToggle={(v) => toggle("streakReminder", v)}
+        />
+        <ToggleRow
+          icon="water-outline"
+          label="Fuel price alerts"
+          hint="Cheapest fuel near your saved locations, each morning"
+          value={prefs.fuelAlert}
+          onToggle={(v) => toggle("fuelAlert", v)}
+        />
+        <ToggleRow
+          icon="sunny-outline"
+          label="Morning briefing"
+          hint="Yesterday's miles and today's outlook, around 8am"
+          value={prefs.morningBriefing}
+          onToggle={(v) => toggle("morningBriefing", v)}
         />
       </SettingsGroup>
 

@@ -41,31 +41,103 @@ const eximFallbackTransporter = nodemailer.createTransport({
  *  help (interception, refusal, timeouts) — NOT for recipient errors. */
 function isTransportFailure(err: unknown): boolean {
   const msg = err instanceof Error ? err.message : String(err);
-  return /altnames|self.signed|ECONNREFUSED|ECONNRESET|ETIMEDOUT|EHOSTUNREACH|greeting never received/i.test(
+  return /altnames|self.signed|ECONNREFUSED|ECONNRESET|ETIMEDOUT|EHOSTUNREACH|greeting never received|fetch failed/i.test(
     msg
   );
 }
 
-/** Drop-in facade over the Brevo transporter that fails over to local
- *  Exim on transport-level errors, logging loudly each time. */
-const transporter = brevoTransporter
-  ? {
-      sendMail: async (
-        opts: Parameters<typeof brevoTransporter.sendMail>[0]
-      ) => {
-        try {
-          return await brevoTransporter.sendMail(opts);
-        } catch (err) {
-          if (!isTransportFailure(err)) throw err;
-          console.error(
-            "[email] Brevo transport failed (%s) — falling back to local Exim. FIX THE SMTP BLOCK.",
-            err instanceof Error ? err.message.slice(0, 120) : String(err)
-          );
+// ── Brevo HTTP API transport (preferred when BREVO_API_KEY is set) ────
+// Rides HTTPS/443, so the host's SMTP port block can't touch it, and it
+// keeps Brevo's DKIM signing. Activates the moment BREVO_API_KEY
+// (an xkeysib-… key from the Brevo dashboard) lands in .env — no code
+// change needed. Translate nodemailer-style options to Brevo v3.
+
+type MailOpts = {
+  from?: string;
+  to?: string;
+  replyTo?: string;
+  subject?: string;
+  html?: string;
+  headers?: Record<string, string>;
+  attachments?: { filename: string; content: Buffer; contentType: string }[];
+};
+
+function parseAddress(addr: string): { name?: string; email: string } {
+  const m = addr.match(/^\s*(?:"?([^"<]*)"?\s*)?<([^>]+)>\s*$/);
+  if (m) return { name: m[1]?.trim() || undefined, email: m[2].trim() };
+  return { email: addr.trim() };
+}
+
+async function sendViaBrevoApi(opts: MailOpts): Promise<void> {
+  const payload: Record<string, unknown> = {
+    sender: parseAddress(opts.from ?? FROM),
+    to: [{ email: opts.to ?? "" }],
+    subject: opts.subject ?? "",
+    htmlContent: opts.html ?? "",
+  };
+  if (opts.replyTo) payload.replyTo = parseAddress(opts.replyTo);
+  if (opts.headers && Object.keys(opts.headers).length > 0) {
+    payload.headers = opts.headers;
+  }
+  if (opts.attachments && opts.attachments.length > 0) {
+    payload.attachment = opts.attachments.map((a) => ({
+      name: a.filename,
+      content: a.content.toString("base64"),
+    }));
+  }
+  const res = await fetch("https://api.brevo.com/v3/smtp/email", {
+    method: "POST",
+    headers: {
+      "api-key": process.env.BREVO_API_KEY!,
+      "Content-Type": "application/json",
+      Accept: "application/json",
+    },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) {
+    const body = await res.text().catch(() => "");
+    throw new Error(`Brevo API ${res.status}: ${body.slice(0, 200)}`);
+  }
+}
+
+/** Facade with a three-step transport chain, tried in order:
+ *    1. Brevo HTTP API   (when BREVO_API_KEY set — immune to SMTP blocks)
+ *    2. Brevo SMTP :587  (when SMTP creds set)
+ *    3. Local Exim       (life support; SPF passes, no Brevo DKIM)
+ *  Falls through only on transport-level failures, never on recipient
+ *  errors, and logs loudly on every degradation. */
+const transporter =
+  brevoTransporter || process.env.BREVO_API_KEY
+    ? {
+        sendMail: async (opts: MailOpts) => {
+          if (process.env.BREVO_API_KEY) {
+            try {
+              return await sendViaBrevoApi(opts);
+            } catch (err) {
+              if (!isTransportFailure(err) && !(err instanceof Error && /^Brevo API 5/.test(err.message))) {
+                throw err; // 4xx = our payload's fault; surface it
+              }
+              console.error(
+                "[email] Brevo HTTP API failed (%s) — trying SMTP.",
+                err instanceof Error ? err.message.slice(0, 120) : String(err)
+              );
+            }
+          }
+          if (brevoTransporter) {
+            try {
+              return await brevoTransporter.sendMail(opts);
+            } catch (err) {
+              if (!isTransportFailure(err)) throw err;
+              console.error(
+                "[email] Brevo SMTP failed (%s) — falling back to local Exim. FIX THE SMTP BLOCK.",
+                err instanceof Error ? err.message.slice(0, 120) : String(err)
+              );
+            }
+          }
           return eximFallbackTransporter.sendMail(opts);
-        }
-      },
-    }
-  : null;
+        },
+      }
+    : null;
 
 const FROM = process.env.EMAIL_FROM || "MileClear <noreply@mileclear.com>";
 const FROM_PERSONAL = "Gair - MileClear <gair@mileclear.com>";

@@ -95,6 +95,13 @@ model User {
    *  transaction; @@unique(userId, invoiceNumber) is the backstop). */
   invoiceCounter          Int      @default(0)
 
+  /** Server-enforced push notification preferences, synced from the
+   *  mobile settings screen (which previously kept them ONLY in local
+   *  SQLite — server jobs couldn't honour opt-outs; the 3am fuel-alert
+   *  victim had no way to disable them). Null = all categories on.
+   *  Keys mirror mobile NotificationPreferences + fuelAlert. */
+  pushPrefs               Json?
+
   dashboardMode        String    @default("both") @db.VarChar(20)
   // Home electricity unit rate (pence per kWh) for EV cost-per-mile. Null =
   // use the UK default. Octopus can suggest a current rate; user can override.

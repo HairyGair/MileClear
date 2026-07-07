@@ -2,6 +2,7 @@ import { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { authMiddleware } from "../../middleware/auth.js";
 import { prisma } from "../../lib/prisma.js";
+import { PUSH_PREF_KEYS } from "../../services/pushPrefs.js";
 
 const registerTokenSchema = z.object({
   pushToken: z
@@ -23,7 +24,32 @@ const laTokenSchema = z.object({
     .regex(/^[0-9a-fA-F]+$/, { message: "Invalid push-to-start token format" }),
 });
 
+const prefsSchema = z
+  .object(
+    Object.fromEntries(PUSH_PREF_KEYS.map((k) => [k, z.boolean().optional()]))
+  )
+  .strict();
+
 export async function notificationRoutes(app: FastifyInstance) {
+  // PUT /notifications/preferences — sync the mobile notification
+  // preference toggles so SERVER-sent pushes can honour them (they were
+  // client-side only before 8 Jul 2026; see services/pushPrefs.ts).
+  app.put(
+    "/preferences",
+    { preHandler: authMiddleware },
+    async (request, reply) => {
+      const parsed = prefsSchema.safeParse(request.body);
+      if (!parsed.success) {
+        return reply.status(400).send({ error: parsed.error.issues[0].message });
+      }
+      await prisma.user.update({
+        where: { id: request.userId! },
+        data: { pushPrefs: parsed.data },
+      });
+      return reply.send({ data: { ok: true } });
+    }
+  );
+
   // POST /notifications/push-token — register or update push token
   app.post(
     "/push-token",

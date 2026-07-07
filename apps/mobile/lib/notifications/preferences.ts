@@ -15,6 +15,11 @@ export interface NotificationPreferences {
    * Start Trip or Start Shift. Manual-start LA always shows regardless.
    */
   autoTripLiveActivity: boolean;
+  /** Daily cheapest-fuel-nearby push (server-sent). Added 8 Jul 2026 —
+   *  previously there was NO off switch for these at all. */
+  fuelAlert: boolean;
+  /** Daily morning briefing push (server-sent). */
+  morningBriefing: boolean;
 }
 
 const PREFS_KEY = "notification_prefs";
@@ -29,6 +34,8 @@ const DEFAULT_PREFERENCES: NotificationPreferences = {
   shiftSummary: true,
   monthlyRecap: true,
   autoTripLiveActivity: true,
+  fuelAlert: true,
+  morningBriefing: true,
 };
 
 export async function getNotificationPreferences(): Promise<NotificationPreferences> {
@@ -57,4 +64,21 @@ export async function setNotificationPreferences(
     "INSERT OR REPLACE INTO tracking_state (key, value) VALUES (?, ?)",
     [PREFS_KEY, JSON.stringify(updated)]
   );
+  // Sync to the server so SERVER-sent pushes (fuel alerts, recaps,
+  // streaks, briefings) honour these too. Fire-and-forget: a failed
+  // sync self-heals on the next toggle.
+  syncPreferencesToServer(updated);
+}
+
+function syncPreferencesToServer(prefs: NotificationPreferences): void {
+  import("../api/index")
+    .then(({ apiRequest }) =>
+      apiRequest("/notifications/preferences", {
+        method: "PUT",
+        body: JSON.stringify(prefs),
+      })
+    )
+    .catch(() => {
+      /* offline or transient — next toggle re-syncs */
+    });
 }

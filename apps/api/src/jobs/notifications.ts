@@ -1,5 +1,6 @@
 import { prisma } from "../lib/prisma.js";
 import { sendPushNotifications, sendPushToUser, ExpoPushMessage } from "../lib/push.js";
+import { pushPrefEnabled } from "../services/pushPrefs.js";
 import { runRecordingWatchdogJob } from "./recordingWatchdog.js";
 import { runIdempotencyPurgeJob } from "./idempotencyPurge.js";
 import { runReconciliationJob } from "./reconciliation.js";
@@ -98,11 +99,12 @@ async function runStreakAtRiskJob(): Promise<void> {
         id: { in: atRiskIds },
         pushToken: { not: null },
       },
-      select: { id: true, pushToken: true },
+      select: { id: true, pushToken: true, pushPrefs: true },
     });
 
     const messages: ExpoPushMessage[] = [];
     for (const user of candidates) {
+      if (!pushPrefEnabled(user.pushPrefs, "streakReminder")) continue;
       if (await wasNotifiedToday(user.id, "notification.streak_at_risk")) continue;
 
       logEvent("notification.streak_at_risk", user.id);
@@ -187,11 +189,12 @@ async function runWeeklyRecapJob(): Promise<void> {
 
     const users = await prisma.user.findMany({
       where: { pushToken: { not: null } },
-      select: { id: true, pushToken: true },
+      select: { id: true, pushToken: true, pushPrefs: true },
     });
 
     const messages: ExpoPushMessage[] = [];
     for (const user of users) {
+      if (!pushPrefEnabled(user.pushPrefs, "weeklySummary")) continue;
       if (await wasNotifiedToday(user.id, "notification.weekly_recap")) continue;
 
       try {
@@ -246,11 +249,12 @@ async function runMonthlyRecapJob(): Promise<void> {
 
     const users = await prisma.user.findMany({
       where: { pushToken: { not: null } },
-      select: { id: true, pushToken: true },
+      select: { id: true, pushToken: true, pushPrefs: true },
     });
 
     const messages: ExpoPushMessage[] = [];
     for (const user of users) {
+      if (!pushPrefEnabled(user.pushPrefs, "monthlyRecap")) continue;
       if (await wasNotifiedToday(user.id, "notification.monthly_recap")) continue;
 
       try {
@@ -552,6 +556,7 @@ async function runMorningBriefingJob(): Promise<void> {
     select: {
       id: true,
       pushToken: true,
+      pushPrefs: true,
       dashboardMode: true,
       weeklyEarningsGoalPence: true,
       lastDrivingSpeedAt: true,
@@ -564,6 +569,7 @@ async function runMorningBriefingJob(): Promise<void> {
   let sent = 0;
   for (const user of users) {
     if (!user.pushToken) continue;
+    if (!pushPrefEnabled(user.pushPrefs, "morningBriefing")) continue;
 
     // Dedup: check if we already sent today
     if (await wasNotifiedToday(user.id, "notification.morning_briefing")) continue;
@@ -695,6 +701,7 @@ async function runFuelPriceAlertJob(): Promise<void> {
     select: {
       id: true,
       pushToken: true,
+      pushPrefs: true,
       savedLocations: {
         select: { latitude: true, longitude: true, name: true },
         take: 5,
@@ -705,6 +712,7 @@ async function runFuelPriceAlertJob(): Promise<void> {
   let sent = 0;
   for (const user of users) {
     if (!user.pushToken) continue;
+    if (!pushPrefEnabled(user.pushPrefs, "fuelAlert")) continue;
     if (await wasNotifiedToday(user.id, "notification.fuel_alert")) continue;
 
     // Find cheapest station across all saved locations
