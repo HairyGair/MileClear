@@ -84,6 +84,8 @@ export default function InvoiceFormScreen() {
   const [vatRate, setVatRate] = useState<20 | 5 | 0 | null>(null);
   const [vatRegistered, setVatRegistered] = useState(false);
   const [invoiceNumber, setInvoiceNumber] = useState<number | null>(null);
+  const [autoChase, setAutoChase] = useState(false);
+  const [nextChaseAt, setNextChaseAt] = useState<string | null>(null);
   const [pdfBusy, setPdfBusy] = useState(false);
 
   useEffect(() => {
@@ -138,6 +140,8 @@ export default function InvoiceFormScreen() {
         setAmountInput(((inv.subtotalPence ?? inv.amountPence) / 100).toFixed(2));
         setVatRate((inv.vatRate as 20 | 5 | 0 | null) ?? null);
         setInvoiceNumber(inv.invoiceNumber ?? null);
+        setAutoChase(inv.autoChaseEnabled === true);
+        setNextChaseAt(inv.nextChaseAt ?? null);
         setLines(
           (inv.lineItems ?? []).map((l) => ({
             description: l.description,
@@ -187,6 +191,7 @@ export default function InvoiceFormScreen() {
               ...(isEditing ? { lineItems: [] as LineItemInput[] } : {}),
             }),
         vatRate,
+        ...(isEditing ? { autoChaseEnabled: autoChase } : {}),
         sentAt: dateOnly(sentDate),
         dueAt: dateOnly(dueDate),
         paidAt: paidDate ? dateOnly(paidDate) : null,
@@ -237,7 +242,7 @@ export default function InvoiceFormScreen() {
       Alert.alert("Couldn't save", err instanceof Error ? err.message : "Try again.");
       setSaving(false);
     }
-  }, [company, clientId, clientEmail, reference, amountInput, lines, vatRate, sentDate, dueDate, paidDate, notes, isEditing, id, initialPaidAt, showPaywall]);
+  }, [company, clientId, clientEmail, reference, amountInput, lines, vatRate, autoChase, sentDate, dueDate, paidDate, notes, isEditing, id, initialPaidAt, showPaywall]);
 
   // Branded PDF share (Pro). Uses the exports download+share pipeline.
   const onSharePdf = useCallback(async () => {
@@ -580,6 +585,43 @@ export default function InvoiceFormScreen() {
           )}
         </View>
 
+        {isEditing && !paidDate && (
+          <View style={styles.field}>
+            <TouchableOpacity
+              style={styles.chaseToggle}
+              onPress={() => {
+                if (!isPremium && !autoChase) {
+                  showPaywall("invoice_chase");
+                  return;
+                }
+                setAutoChase((v) => !v);
+              }}
+              accessibilityRole="switch"
+              accessibilityState={{ checked: autoChase }}
+              accessibilityLabel="Auto-chase late payment"
+            >
+              <Ionicons
+                name={autoChase ? "checkbox" : "square-outline"}
+                size={20}
+                color={autoChase ? AMBER : TEXT_3}
+              />
+              <View style={{ flex: 1 }}>
+                <Text style={styles.chaseToggleTitle}>
+                  Auto-chase late payment{isPremium ? "" : " (Pro)"}
+                </Text>
+                <Text style={styles.chaseToggleHint}>
+                  Polite email reminders: 3 days before the due date, then 3, 10 and 21 days
+                  after. You get a push the day before each one, and payment stops the
+                  sequence instantly.
+                  {autoChase && nextChaseAt
+                    ? `\nNext reminder: ${new Date(nextChaseAt).toLocaleDateString("en-GB", { day: "numeric", month: "long" })}`
+                    : ""}
+                </Text>
+              </View>
+            </TouchableOpacity>
+          </View>
+        )}
+
         <Field label="NOTES (optional)">
           <TextInput
             style={[styles.input, styles.notesInput]}
@@ -898,4 +940,14 @@ const styles = StyleSheet.create({
     paddingTop: 14,
   },
   pickerManageText: { color: AMBER, fontSize: 14, fontFamily: fonts.semibold },
+  chaseToggle: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 10,
+    backgroundColor: CARD_BG,
+    borderRadius: 10,
+    padding: 14,
+  },
+  chaseToggleTitle: { color: TEXT_1, fontSize: 14, fontFamily: fonts.semibold },
+  chaseToggleHint: { color: TEXT_3, fontSize: 12, fontFamily: fonts.regular, marginTop: 4, lineHeight: 17 },
 });

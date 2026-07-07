@@ -31,7 +31,7 @@ import {
   allocateInvoiceNumber,
   ensureInvoiceNumber,
 } from "../../services/invoices.js";
-import { computeInvoiceTotals } from "@mileclear/shared";
+import { computeInvoiceTotals, invoiceChaseStages } from "@mileclear/shared";
 import { generateInvoicePdf } from "../../services/export.js";
 import { sendInvoiceEmail } from "../../services/email.js";
 
@@ -105,6 +105,9 @@ const updateSchema = z.object({
   paidAt: isoDate.nullable().optional(),
   notes: z.string().max(2000).nullable().optional(),
   writeOff: z.boolean().optional(),
+  /** Auto-chase opt-in (Pro). Enabling schedules the next reminder from
+   *  the fixed stage list; disabling clears the schedule instantly. */
+  autoChaseEnabled: z.boolean().optional(),
 });
 
 /** Verify a clientId belongs to the caller; returns the client row. */
@@ -606,6 +609,45 @@ export async function invoiceRoutes(app: FastifyInstance) {
       writtenOff: updates.writeOff ?? existing.status === "written_off",
     });
 
+    // Auto-chase toggle (Pro). Enabling picks the first FUTURE stage of
+    // the fixed schedule; an invoice past every stage gets the final
+    // reminder queued for the next send window. Disabling clears state.
+    let chasePatch: Prisma.InvoiceUncheckedUpdateInput = {};
+    if (updates.autoChaseEnabled === true && !existing.autoChaseEnabled) {
+      const chaseUser = await prisma.user.findUnique({
+        where: { id: request.userId! },
+        select: { isPremium: true, premiumExpiresAt: true, referralProUntil: true },
+      });
+      if (!chaseUser || !resolvePremiumStatus(chaseUser).active) {
+        return reply.status(402).send({
+          error: {
+            code: "PREMIUM_REQUIRED",
+            message: "Automatic payment chasing is a Pro feature.",
+            hint: "MileClear chases late payers for you — £4.99/month.",
+            feature: "invoice_chase",
+            retryable: false,
+          },
+        });
+      }
+      const clientRow = existing.clientId
+        ? await prisma.client.findUnique({ where: { id: existing.clientId }, select: { email: true } })
+        : null;
+      if (!(updates.clientEmail ?? existing.clientEmail ?? clientRow?.email)) {
+        return reply.status(400).send({
+          error: "Add a client email before turning on auto-chase.",
+        });
+      }
+      const stages = invoiceChaseStages(newDueAt);
+      const nextStage = stages.find((s) => s.at.getTime() > Date.now());
+      chasePatch = {
+        autoChaseEnabled: true,
+        nextChaseAt: nextStage?.at ?? new Date(),
+        chaseWarnedAt: null,
+      };
+    } else if (updates.autoChaseEnabled === false && existing.autoChaseEnabled) {
+      chasePatch = { autoChaseEnabled: false, nextChaseAt: null, chaseWarnedAt: null };
+    }
+
     // Totals recompute — only when a totals input actually changed, so
     // date-only or notes-only PATCHes never disturb stored amounts.
     const totalsTouched =
@@ -670,6 +712,7 @@ export async function invoiceRoutes(app: FastifyInstance) {
         data: {
           ...(updates.company !== undefined && { company: updates.company }),
           ...clientPatch,
+          ...chasePatch,
           ...(updates.clientEmail !== undefined && { clientEmail: updates.clientEmail }),
           ...(updates.reference !== undefined && { reference: updates.reference }),
           ...totalsPatch,

@@ -11,6 +11,8 @@ import {
   estimateUkTax,
   formatInvoiceNumber,
   computeInvoiceTotals,
+  invoiceChaseStages,
+  buildInvoicePreDueEmail,
 } from "./index.js";
 
 // ---------------------------------------------------------------------------
@@ -621,5 +623,40 @@ describe("computeInvoiceTotals", () => {
     expect(t.subtotalPence).toBe(0);
     expect(t.vatPence).toBe(0);
     expect(t.amountPence).toBe(0);
+  });
+});
+
+describe("invoiceChaseStages", () => {
+  it("produces the fixed four-stage schedule around the due date", () => {
+    const stages = invoiceChaseStages("2026-07-31");
+    expect(stages.map((s) => s.kind)).toEqual([
+      "chase_pre_due",
+      "chase_1",
+      "chase_2",
+      "chase_final",
+    ]);
+    expect(stages[0].at.toISOString()).toBe("2026-07-28T09:00:00.000Z");
+    expect(stages[1].at.toISOString()).toBe("2026-08-03T09:00:00.000Z");
+    expect(stages[2].at.toISOString()).toBe("2026-08-10T09:00:00.000Z");
+    expect(stages[3].at.toISOString()).toBe("2026-08-21T09:00:00.000Z");
+  });
+});
+
+describe("buildInvoicePreDueEmail", () => {
+  it("mentions the amount and due date but never statutory interest", () => {
+    const { subject, body } = buildInvoicePreDueEmail(
+      {
+        company: "Acme",
+        reference: "PO-9",
+        amountPence: 40000,
+        sentAt: "2026-07-01",
+        dueAt: "2026-07-31",
+      },
+      "Laura"
+    );
+    expect(subject).toContain("£400.00");
+    expect(body).toContain("31 July 2026");
+    expect(body).not.toMatch(/interest|overdue|1998/i);
+    expect(body).toContain("Laura");
   });
 });

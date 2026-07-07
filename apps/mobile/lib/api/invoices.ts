@@ -41,6 +41,10 @@ export interface Invoice {
   paidAt: string | null;
   status: InvoiceStatus;
   notes: string | null;
+  emailedAt: string | null;
+  autoChaseEnabled: boolean;
+  chaseCount: number;
+  nextChaseAt: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -105,6 +109,7 @@ export interface UpdateInvoiceInput {
   paidAt?: string | null;
   notes?: string | null;
   writeOff?: boolean;
+  autoChaseEnabled?: boolean;
 }
 
 /** Detail response includes ordered line items. */

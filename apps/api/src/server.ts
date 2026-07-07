@@ -42,6 +42,7 @@ import { hmrcRoutes } from "./routes/hmrc/index.js";
 import { invoiceRoutes } from "./routes/invoices/index.js";
 import { clientRoutes } from "./routes/clients/index.js";
 import { donationRoutes } from "./routes/donations/index.js";
+import { startInvoiceJobs } from "./jobs/invoices.js";
 import { startNotificationJobs } from "./jobs/notifications.js";
 import { startBriefingJobs } from "./jobs/briefing.js";
 import { logEvent, trackErrorForAlert } from "./services/appEvents.js";
@@ -215,6 +216,7 @@ try {
   await app.listen({ port: PORT, host: HOST });
   console.log(`MileClear API running on http://${HOST}:${PORT}`);
   startNotificationJobs();
+startInvoiceJobs();
   startBriefingJobs();
 } catch (err) {
   app.log.error(err);

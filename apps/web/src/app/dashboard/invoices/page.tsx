@@ -46,6 +46,8 @@ interface Invoice {
   status: InvoiceStatus;
   notes: string | null;
   emailedAt: string | null;
+  autoChaseEnabled: boolean;
+  nextChaseAt: string | null;
 }
 
 interface Client {
@@ -154,6 +156,7 @@ export default function InvoicesPage() {
   const [formPaidAt, setFormPaidAt] = useState("");
   const [formNotes, setFormNotes] = useState("");
   const [formWriteOff, setFormWriteOff] = useState(false);
+  const [formAutoChase, setFormAutoChase] = useState(false);
   const [formSaving, setFormSaving] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
 
@@ -180,6 +183,7 @@ export default function InvoicesPage() {
     setFormPaidAt("");
     setFormNotes("");
     setFormWriteOff(false);
+    setFormAutoChase(false);
     setFormError(null);
   };
 
@@ -236,6 +240,7 @@ export default function InvoicesPage() {
     setFormPaidAt(inv.paidAt ? inv.paidAt.slice(0, 10) : "");
     setFormNotes(inv.notes ?? "");
     setFormWriteOff(inv.status === "written_off");
+    setFormAutoChase(inv.autoChaseEnabled);
     setFormError(null);
     setFormLines([]);
     setShowForm(true);
@@ -281,7 +286,7 @@ export default function InvoicesPage() {
         dueAt: formDueAt,
         paidAt: formPaidAt || null,
         notes: formNotes.trim() || null,
-        ...(editId ? { writeOff: formWriteOff } : {}),
+        ...(editId ? { writeOff: formWriteOff, autoChaseEnabled: formAutoChase } : {}),
       };
       const res = editId
         ? await api.patch<MutationResponse>(`/invoices/${editId}`, body)
@@ -757,6 +762,21 @@ export default function InvoicesPage() {
             value={formNotes}
             onChange={(e) => setFormNotes(e.target.value)}
           />
+          {editId && !formPaidAt && (
+            <label style={{ display: "flex", alignItems: "flex-start", gap: "0.5rem", fontSize: "0.8125rem", color: "var(--text-secondary)", cursor: "pointer" }}>
+              <input
+                type="checkbox"
+                checked={formAutoChase}
+                onChange={(e) => setFormAutoChase(e.target.checked)}
+                style={{ marginTop: 2 }}
+              />
+              <span>
+                <strong style={{ color: "var(--text-primary)" }}>Auto-chase late payment</strong> (Pro) — MileClear
+                emails polite reminders: 3 days before the due date, then 3, 10 and 21 days after.
+                You get a push the day before each one goes out, and payment stops the sequence instantly.
+              </span>
+            </label>
+          )}
           {editId && (
             <label style={{ display: "flex", alignItems: "center", gap: "0.5rem", fontSize: "0.8125rem", color: "var(--text-secondary)", cursor: "pointer" }}>
               <input

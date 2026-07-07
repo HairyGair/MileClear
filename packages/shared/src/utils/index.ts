@@ -1318,3 +1318,66 @@ export function computeInvoiceTotals(
     amountPence: subtotalPence + vatPence,
   };
 }
+
+// ── Auto-chase schedule + pre-due template (Get Paid Milestone E) ────────────
+
+export type InvoiceChaseKind = "chase_pre_due" | "chase_1" | "chase_2" | "chase_final";
+
+export interface InvoiceChaseStage {
+  kind: InvoiceChaseKind;
+  at: Date;
+}
+
+/**
+ * The fixed v1 auto-chase schedule for an invoice: a friendly nudge 3 days
+ * BEFORE the due date, then escalating reminders 3, 10 and 21 days after
+ * it. Max four sends, then the sequence ends. Times are pinned to 09:00
+ * UTC — the job window (09:00–10:00 UK) picks them up the same morning.
+ */
+export function invoiceChaseStages(dueAt: Date | string): InvoiceChaseStage[] {
+  const due = new Date(dueAt);
+  const at = (offsetDays: number): Date => {
+    const d = new Date(due);
+    d.setUTCDate(d.getUTCDate() + offsetDays);
+    d.setUTCHours(9, 0, 0, 0);
+    return d;
+  };
+  return [
+    { kind: "chase_pre_due", at: at(-3) },
+    { kind: "chase_1", at: at(3) },
+    { kind: "chase_2", at: at(10) },
+    { kind: "chase_final", at: at(21) },
+  ];
+}
+
+/**
+ * Friendly PRE-DUE reminder — sent before the due date, so no talk of
+ * "overdue" and absolutely no statutory-interest wording. Single source
+ * with the chase templates above it so tone/wording can't drift.
+ */
+export function buildInvoicePreDueEmail(
+  invoice: InvoiceChaseArgs,
+  senderName: string | null
+): { subject: string; body: string } {
+  const amount = `£${(invoice.amountPence / 100).toFixed(2)}`;
+  const ref = invoice.reference ? ` ${invoice.reference}` : "";
+  const dueDate = new Date(invoice.dueAt).toLocaleDateString("en-GB", {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  });
+
+  const subject = `Payment due soon — invoice${ref} for ${amount}`;
+  const body = [
+    "Hi,",
+    "",
+    `A quick, friendly note that invoice${ref} for ${amount} is due for payment on ${dueDate}.`,
+    "",
+    "If it's already scheduled, brilliant — please ignore this. The payment details and reference are on the attached invoice.",
+    "",
+    "Many thanks,",
+    senderName || "",
+  ].join("\n");
+
+  return { subject, body };
+}
