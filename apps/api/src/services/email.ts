@@ -10,7 +10,7 @@ import {
   type ReleaseNote,
 } from "@mileclear/shared";
 
-const transporter =
+const brevoTransporter =
   process.env.BREVO_SMTP_USER && process.env.BREVO_SMTP_KEY
     ? nodemailer.createTransport({
         host: "smtp-relay.brevo.com",
@@ -21,6 +21,51 @@ const transporter =
         },
       })
     : null;
+
+// Fallback: the server's own Exim on localhost. On 7 Jul 2026 the host
+// enabled SMTP restrictions that intercept ALL outbound :587/:465/:2525 —
+// Brevo connections were answered by the local cPanel cert and every app
+// email died with a TLS altnames error. mileclear.com's SPF explicitly
+// includes ip4:85.234.151.224, so mail relayed through local Exim still
+// passes SPF-aligned DMARC. Deliverability is worse than Brevo (no Brevo
+// DKIM) — this is a life-support path, not the plan. Remove once the
+// host exempts us or we move to Brevo's HTTP API.
+const eximFallbackTransporter = nodemailer.createTransport({
+  host: "127.0.0.1",
+  port: 25,
+  secure: false,
+  tls: { rejectUnauthorized: false }, // localhost; cert is the host's own
+});
+
+/** True for connection-level failures where a different transport can
+ *  help (interception, refusal, timeouts) — NOT for recipient errors. */
+function isTransportFailure(err: unknown): boolean {
+  const msg = err instanceof Error ? err.message : String(err);
+  return /altnames|self.signed|ECONNREFUSED|ECONNRESET|ETIMEDOUT|EHOSTUNREACH|greeting never received/i.test(
+    msg
+  );
+}
+
+/** Drop-in facade over the Brevo transporter that fails over to local
+ *  Exim on transport-level errors, logging loudly each time. */
+const transporter = brevoTransporter
+  ? {
+      sendMail: async (
+        opts: Parameters<typeof brevoTransporter.sendMail>[0]
+      ) => {
+        try {
+          return await brevoTransporter.sendMail(opts);
+        } catch (err) {
+          if (!isTransportFailure(err)) throw err;
+          console.error(
+            "[email] Brevo transport failed (%s) — falling back to local Exim. FIX THE SMTP BLOCK.",
+            err instanceof Error ? err.message.slice(0, 120) : String(err)
+          );
+          return eximFallbackTransporter.sendMail(opts);
+        }
+      },
+    }
+  : null;
 
 const FROM = process.env.EMAIL_FROM || "MileClear <noreply@mileclear.com>";
 const FROM_PERSONAL = "Gair - MileClear <gair@mileclear.com>";
