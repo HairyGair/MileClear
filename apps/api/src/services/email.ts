@@ -2419,7 +2419,7 @@ export async function sendInvoiceEmail(args: InvoiceEmailArgs): Promise<{ subjec
         { value: dueText, label: "Payment due" },
       ]),
       para(
-        `Payment details are on the attached PDF — please use the payment reference <strong style="color:#f0f2f5;">${ref}</strong> so the payment can be matched automatically.`
+        `Payment details are on the attached PDF — please use the payment reference <strong style="color:#f0f2f5;">${ref}</strong> so your payment is easy to identify.`
       ),
       para(`Any questions, just reply to this email and it will reach ${escapeHtml(senderName)} directly.`),
     ].join("\n");

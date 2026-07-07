@@ -40,11 +40,21 @@ function referencesInvoiceNumber(haystack: string, n: number): boolean {
   return new RegExp(`inv(?:oice)?0*${n}(?!\\d)`).test(haystack);
 }
 
+/** Kill-switch (8 Jul 2026): reconciliation stays OFF until the
+ *  TrueLayer commercial/agency arrangement is settled. Everything else
+ *  in Get Paid works without it — users mark invoices paid manually.
+ *  Enable by setting INVOICE_RECONCILE_ENABLED=1 in prod .env and
+ *  restarting; the daily bank-sync job honours the same flag. */
+export function invoiceReconcileEnabled(): boolean {
+  return process.env.INVOICE_RECONCILE_ENABLED === "1";
+}
+
 export async function reconcileInvoicePayments(
   userId: string,
   bankTransactionIds: string[]
 ): Promise<{ autoMatched: number; suggested: number }> {
   const result = { autoMatched: 0, suggested: 0 };
+  if (!invoiceReconcileEnabled()) return result;
   if (bankTransactionIds.length === 0) return result;
 
   const openInvoices = await prisma.invoice.findMany({

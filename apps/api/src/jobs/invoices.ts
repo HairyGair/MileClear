@@ -282,6 +282,10 @@ export async function runInvoiceBankSyncJob(): Promise<{
   suggested: number;
 }> {
   const result = { synced: 0, failed: 0, autoMatched: 0, suggested: 0 };
+  // Reconcile kill-switch: no background bank syncing while the
+  // TrueLayer arrangement is unsettled (see invoiceReconcile.ts).
+  const { invoiceReconcileEnabled } = await import("../services/invoiceReconcile.js");
+  if (!invoiceReconcileEnabled()) return result;
   const now = new Date();
   if (!inBankSyncWindow(now)) return result;
 
