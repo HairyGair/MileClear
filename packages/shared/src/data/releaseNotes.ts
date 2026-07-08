@@ -76,9 +76,19 @@ export const ACTIVE_ANNOUNCEMENT: SiteAnnouncement | null = null;
 export const RELEASE_NOTES: ReleaseNote[] = [
   {
     version: "1.3.4",
-    date: "Next in TestFlight",
-    label: "In Testing",
+    date: "July 2026",
+    label: "Pending Review",
+    ctaUrl: "https://mileclear.com/releases",
+    ctaLabel: "Read the release notes",
+    emailSubject: "What's new in MileClear 1.3.4",
+    emailTagline:
+      "1.3.4 introduces Get Paid - professional invoicing built for self-employed drivers - plus a fresh look and a stack of reliability fixes.",
     items: [
+      "**Send professional invoices from your phone.** Get Paid is a full invoicing suite built for the self-employed: save your clients, build invoices with line items and optional VAT, generate a branded PDF with your own logo and colours, and email it to your client without leaving the app. Invoice tracking stays free (3 a month); generating and sending is part of Pro.",
+      "**Late payments now chase themselves.** Turn on auto-chase and MileClear sends polite, escalating reminders - a friendly nudge before the due date, firmer ones after - with the UK late-payment interest wording handled for you. You get a heads-up the day before anything sends, and a payment stops the sequence instantly. Or chase manually with a one-tap pre-written email.",
+      "**A new expense category for public transport.** Train, tube and bus fares for business travel now have their own category and flow straight into your tax records.",
+      "**More control over notifications.** Fuel price alerts and the morning briefing can now be switched off in Settings > Notifications - and your choices are respected everywhere.",
+      "**A fresh app icon.**",
       "**The live map no longer freezes your phone on long drives.** On longer journeys the live tracking map could lock the phone up - enough that you couldn't even answer a call mid-drive. It now stays smooth however far you go.",
       "**HMRC (Making Tax Digital) is clearly marked work-in-progress.** Every screen in the HMRC submission flow now makes plain that the integration is in beta and submissions currently go to HMRC's test system while we finish production accreditation - so nothing reads as a live filing by mistake. The quarterly preview also spells out that figures are year-to-date (HMRC updates are cumulative), with the required notes that the tax shown is an estimate, MileClear covers self-employment income only, and the year-end Final Declaration is completed separately.",
       "**Smoother, more reliable HMRC submissions.** Fixed a handful of issues that could block a quarterly update from going through, so connecting and submitting runs cleanly.",
