@@ -86,6 +86,18 @@ const FORCE_START_ACCURACY_M = 30; // require a tight fix to avoid GPS-spike fal
 // that resumes quickly regardless.
 const HEARTBEAT_FINALIZE_STALE_MS = 7 * 60 * 1000;
 
+// Post-trip keep-alive window. When iOS terminates the app between quick stops,
+// a short next hop is too brief to cold-relaunch RNBG before it ends and is
+// missed (short-hop business users - Beth, 8 Jul 2026). After a trip finalizes
+// we hold preventSuspend on for this long instead of releasing immediately, so
+// the app stays alive and a back-to-back hop is caught WARM (its motionchange /
+// speed force-start fire on a live runtime). Expired by the heartbeat itself
+// (which keeps firing every 60s while preventSuspend is on - a suspension-proof
+// timer, unlike a JS setTimeout iOS would freeze). Battery cost is bounded to
+// this window after the LAST trip before a long park; back-to-back hops consume
+// the window rather than waste it. Tunable on-device.
+const POST_TRIP_KEEPALIVE_MS = 12 * 60 * 1000; // 12 min
+
 let bgGeo: BgGeo | null = null;
 let loadAttempted = false;
 
@@ -374,6 +386,8 @@ async function openNativeRecording(
   await db.runAsync(
     "INSERT OR REPLACE INTO tracking_state (key, value) VALUES ('auto_recording_active', '1')"
   );
+  // A drive is starting — any post-trip keep-alive window is now consumed.
+  await db.runAsync("DELETE FROM tracking_state WHERE key = 'keepalive_until'");
   // Keep the app alive for the duration of the drive so the ~5min stop window
   // survives iOS suspension and the stationary onMotionChange (+ heartbeat
   // backstop) fire promptly. Released after finalize. Bounds the battery cost
@@ -481,8 +495,9 @@ async function handleNativeMotionChange(event: NativeMotionEvent): Promise<void>
         try {
           await BGGeo?.destroyLocations();
         } catch {}
-        // Drive over — release the wake lock until the next recording opens.
-        await setNativePreventSuspend(false);
+        // Drive over — hold the wake lock through a short keep-alive window so a
+        // quick next hop is caught warm; the heartbeat releases it on expiry.
+        await enterPostTripKeepAlive(db);
       }
     }
   } catch (err) {
@@ -509,6 +524,29 @@ async function setNativePreventSuspend(on: boolean): Promise<void> {
 }
 
 /**
+ * Enter the post-trip keep-alive window: a drive just finalized, but instead of
+ * releasing the wake lock immediately we HOLD preventSuspend on (it is already
+ * on from openNativeRecording) and stamp an expiry. The heartbeat, which keeps
+ * firing every 60s while preventSuspend is on, releases the lock once the window
+ * passes (see handleNativeHeartbeat). This keeps the app alive across a short
+ * gap between quick stops so a back-to-back hop is caught warm instead of
+ * needing a cold terminated-state relaunch RNBG can't do for very short drives.
+ */
+async function enterPostTripKeepAlive(
+  db: Awaited<ReturnType<typeof getDatabase>>
+): Promise<void> {
+  const until = Date.now() + POST_TRIP_KEEPALIVE_MS;
+  await db.runAsync(
+    "INSERT OR REPLACE INTO tracking_state (key, value) VALUES ('keepalive_until', ?)",
+    [until.toString()]
+  );
+  // preventSuspend stays on (was set at openNativeRecording); do NOT release it.
+  logDetectionEvent("native_keepalive_started", { windowMs: POST_TRIP_KEEPALIVE_MS }).catch(
+    () => {}
+  );
+}
+
+/**
  * Heartbeat backstop (fires ~every 60s while recording, because preventSuspend
  * keeps the app alive). If a recording is open but no native fix has landed for
  * HEARTBEAT_FINALIZE_STALE_MS, the device is parked and the stationary
@@ -525,9 +563,20 @@ async function handleNativeHeartbeat(): Promise<void> {
       "SELECT value FROM tracking_state WHERE key = 'auto_recording_active'"
     );
     if (recording?.value !== "1") {
-      // A heartbeat with no active recording means preventSuspend was left on
-      // (e.g. the app was force-quit mid-drive and finalized via another path).
-      // Release the wake lock so the app suspends normally — self-healing.
+      // Not recording. Either a post-trip keep-alive window is running (hold the
+      // wake lock so a quick next hop is caught warm), or the window has expired
+      // / never existed (release the lock so the app suspends normally — also
+      // self-heals a preventSuspend left on after a force-quit-mid-drive
+      // finalize elsewhere).
+      const ka = await db.getFirstAsync<{ value: string }>(
+        "SELECT value FROM tracking_state WHERE key = 'keepalive_until'"
+      );
+      const kaUntil = ka ? Number(ka.value) : 0;
+      if (kaUntil && Date.now() < kaUntil) return; // still in the window — stay alive
+      if (kaUntil) {
+        await db.runAsync("DELETE FROM tracking_state WHERE key = 'keepalive_until'");
+        logDetectionEvent("native_keepalive_expired", {}).catch(() => {});
+      }
       await setNativePreventSuspend(false);
       return;
     }
@@ -547,7 +596,9 @@ async function handleNativeHeartbeat(): Promise<void> {
     try {
       await BGGeo?.destroyLocations();
     } catch {}
-    await setNativePreventSuspend(false);
+    // Hold the wake lock through a short keep-alive window (released by a later
+    // heartbeat once it expires) so a quick next hop is caught warm.
+    await enterPostTripKeepAlive(db);
   } catch (err) {
     logDetectionEvent("native_heartbeat_error", {
       error: err instanceof Error ? err.message.slice(0, 120) : String(err),
