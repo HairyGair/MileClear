@@ -456,6 +456,14 @@ export async function sendMilestonePush(userId: string): Promise<void> {
     const sixtySecondsAgo = new Date(Date.now() - 60_000);
     if (existing.achievedAt < sixtySecondsAgo) return;
 
+    // Respect the user's "Milestone alerts" preference — this send predates the
+    // pref system and was one of two bypassing it (8 Jul 2026 review).
+    const prefUser = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { pushPrefs: true },
+    });
+    if (!pushPrefEnabled(prefUser?.pushPrefs, "milestoneAlerts")) return;
+
     const formatted = milestone >= 1000
       ? `${(milestone / 1000).toFixed(0)}k`
       : String(milestone);
@@ -506,6 +514,14 @@ export async function sendShiftSummaryPush(
 ): Promise<void> {
   try {
     if (stats.tripsCompleted === 0 && stats.totalMiles === 0) return;
+
+    // Respect the user's "Shift summary" preference — this send predates the
+    // pref system and was one of two bypassing it (8 Jul 2026 review).
+    const prefUser = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { pushPrefs: true },
+    });
+    if (!pushPrefEnabled(prefUser?.pushPrefs, "shiftSummary")) return;
 
     const hours = Math.floor(stats.durationSeconds / 3600);
     const mins = Math.floor((stats.durationSeconds % 3600) / 60);
@@ -1299,21 +1315,32 @@ export function startNotificationJobs(): void {
     void runJob("weekly_recap", runWeeklyRecapJob);
     void runJob("monthly_recap", runMonthlyRecapJob);
     void runJob("welcome_nudge", runWelcomeNudgeJob);
-    void runJob("activation_d7", runActivationDay7Job);
-    void runJob("pro_inactive_alarm", runPayingInactiveAlarmJob);
     void runJob("checkin_email", runCheckinEmailJob);
     void runJob("vehicle_reminders", runVehicleRemindersJob);
+  };
+
+  // Jobs gated to a NARROW time window must tick faster than the window is
+  // wide, like the morning briefing always has. On the 6h boot-anchored
+  // interval a window-gated job only fires if the boot phase happens to land
+  // a tick inside its window — and the nightly ~4am pm2 restart phase-locks
+  // the 6h ticks to ~04/10/16/22h, which NEVER hits the fuel job's 07-09 UTC
+  // window (fuel alerts silently died when the window gate landed, 8 Jul
+  // 2026) and only coincidentally hits activation's 16-18h. All of these
+  // return immediately outside their window and are per-user deduped inside
+  // it, so the 30-min cadence is cheap.
+  const runWindowed = () => {
+    void runJob("morning_briefing", runMorningBriefingJob);
+    void runJob("fuel_price_alert", runFuelPriceAlertJob);
+    void runJob("activation_d7", runActivationDay7Job);
+    void runJob("pro_inactive_alarm", runPayingInactiveAlarmJob);
   };
 
   setTimeout(() => {
     runAll();
     setInterval(runAll, INTERVAL_MS);
 
-    void runJob("morning_briefing", runMorningBriefingJob);
-    setInterval(() => void runJob("morning_briefing", runMorningBriefingJob), BRIEFING_INTERVAL_MS);
-
-    void runJob("fuel_price_alert", runFuelPriceAlertJob);
-    setInterval(() => void runJob("fuel_price_alert", runFuelPriceAlertJob), INTERVAL_MS);
+    runWindowed();
+    setInterval(runWindowed, BRIEFING_INTERVAL_MS);
 
     void runJob("diagnostic_scan", runDiagnosticScanJob);
     setInterval(() => void runJob("diagnostic_scan", runDiagnosticScanJob), INTERVAL_MS);
