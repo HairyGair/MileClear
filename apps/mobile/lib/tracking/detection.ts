@@ -541,9 +541,19 @@ export async function shiftSuppressesAutoDetection(
     Number.isFinite(quickTripStartMs) ? quickTripStartMs : Infinity
   );
   if (Number.isFinite(anchorMs) && Date.now() - anchorMs > QUICK_TRIP_MAX_SPAN_MS) {
-    // Release the lock FIRST so detection is no longer muted and a concurrent
-    // location fix can't re-enter this recovery.
-    await db.runAsync("DELETE FROM tracking_state WHERE key = 'active_shift_id'");
+    // Atomically CLAIM the lock: onLocation / onMotionChange / onHeartbeat can
+    // all reach this branch in the same event-loop window, and processShiftTrips
+    // is not idempotent (it reads shift_coordinates up front and deletes them
+    // only after slow network-bound work) — two entrants would create every
+    // recovered trip twice. The conditional DELETE serialises on SQLite: only
+    // the caller whose DELETE actually removed the row proceeds to recovery;
+    // losers see changes === 0 and report "not suppressed" without touching
+    // the coords the winner is processing.
+    const claimed = await db.runAsync(
+      "DELETE FROM tracking_state WHERE key = 'active_shift_id' AND value = ?",
+      [QUICK_TRIP_SHIFT_ID]
+    );
+    if (claimed.changes === 0) return false; // another caller won the claim
     await db.runAsync("DELETE FROM tracking_state WHERE key = 'quick_trip_start'");
     let recovered = 0;
     try {

@@ -555,10 +555,28 @@ async function enterPostTripKeepAlive(
  */
 async function handleNativeHeartbeat(): Promise<void> {
   try {
-    if (!(await isDriveDetectionEnabled())) return;
+    if (!(await isDriveDetectionEnabled())) {
+      // Detection was switched off while preventSuspend held the app alive
+      // (e.g. mid keep-alive window). The settings toggle doesn't stop RNBG on
+      // native-engine devices, so without this release the heartbeat would keep
+      // firing forever with the wake lock pinned ON — the opposite of what
+      // "turn off auto-tracking" means. Release and let iOS suspend normally.
+      const db = await getDatabase();
+      await db.runAsync("DELETE FROM tracking_state WHERE key = 'keepalive_until'");
+      await setNativePreventSuspend(false);
+      return;
+    }
     const db = await getDatabase();
-    // shift mode owns GPS; self-heal an orphaned quick-trip lock here too.
-    if (await shiftSuppressesAutoDetection(db)) return;
+    // shift mode owns GPS; self-heal an orphaned quick-trip lock here too. A
+    // real shift also makes the wake lock pointless (the shift's own location
+    // task records everything; no native recording can be active during one —
+    // start-shift cancels auto-recording), so release it rather than holding
+    // preventSuspend for the whole shift.
+    if (await shiftSuppressesAutoDetection(db)) {
+      await db.runAsync("DELETE FROM tracking_state WHERE key = 'keepalive_until'");
+      await setNativePreventSuspend(false);
+      return;
+    }
     const recording = await db.getFirstAsync<{ value: string }>(
       "SELECT value FROM tracking_state WHERE key = 'auto_recording_active'"
     );
