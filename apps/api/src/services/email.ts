@@ -100,16 +100,70 @@ async function sendViaBrevoApi(opts: MailOpts): Promise<void> {
   }
 }
 
-/** Facade with a three-step transport chain, tried in order:
- *    1. Brevo HTTP API   (when BREVO_API_KEY set — immune to SMTP blocks)
- *    2. Brevo SMTP :587  (when SMTP creds set)
- *    3. Local Exim       (life support; SPF passes, no Brevo DKIM)
- *  Falls through only on transport-level failures, never on recipient
- *  errors, and logs loudly on every degradation. */
+// ── Resend HTTP API transport (preferred when RESEND_API_KEY is set) ──
+// Rides HTTPS/443 (immune to the host's SMTP port block) and signs with
+// the domain's Resend DKIM. Activates the moment RESEND_API_KEY (an
+// re_… key) lands in .env — no code change needed. The From address must
+// be on a domain verified in the Resend dashboard.
+async function sendViaResend(opts: MailOpts): Promise<void> {
+  const payload: Record<string, unknown> = {
+    from: opts.from ?? FROM,
+    to: [opts.to ?? ""],
+    subject: opts.subject ?? "",
+    html: opts.html ?? "",
+  };
+  if (opts.replyTo) payload.reply_to = opts.replyTo;
+  if (opts.headers && Object.keys(opts.headers).length > 0) {
+    payload.headers = opts.headers;
+  }
+  if (opts.attachments && opts.attachments.length > 0) {
+    payload.attachments = opts.attachments.map((a) => ({
+      filename: a.filename,
+      content: a.content.toString("base64"),
+    }));
+  }
+  const res = await fetch("https://api.resend.com/emails", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${process.env.RESEND_API_KEY!}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) {
+    const body = await res.text().catch(() => "");
+    throw new Error(`Resend API ${res.status}: ${body.slice(0, 200)}`);
+  }
+}
+
+/** Facade with a transport chain, tried in order:
+ *    1. Resend HTTP API  (when RESEND_API_KEY set - primary, HTTPS/443)
+ *    2. Brevo HTTP API   (when BREVO_API_KEY set - legacy fallback)
+ *    3. Brevo SMTP :587  (when SMTP creds set - legacy, blocked on prod)
+ *    4. Local Exim       (life support; SPF passes, no provider DKIM)
+ *  Falls through only on transport-level failures (or a provider 5xx),
+ *  never on recipient/payload errors, and logs loudly on every
+ *  degradation. */
 const transporter =
-  brevoTransporter || process.env.BREVO_API_KEY
+  process.env.RESEND_API_KEY || brevoTransporter || process.env.BREVO_API_KEY
     ? {
         sendMail: async (opts: MailOpts) => {
+          if (process.env.RESEND_API_KEY) {
+            try {
+              return await sendViaResend(opts);
+            } catch (err) {
+              if (
+                !isTransportFailure(err) &&
+                !(err instanceof Error && /^Resend API 5/.test(err.message))
+              ) {
+                throw err; // 4xx = our payload's fault; surface it
+              }
+              console.error(
+                "[email] Resend API failed (%s) - trying next transport.",
+                err instanceof Error ? err.message.slice(0, 120) : String(err)
+              );
+            }
+          }
           if (process.env.BREVO_API_KEY) {
             try {
               return await sendViaBrevoApi(opts);
