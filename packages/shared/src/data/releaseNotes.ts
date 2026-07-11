@@ -77,9 +77,14 @@ export const RELEASE_NOTES: ReleaseNote[] = [
   {
     version: "1.3.4",
     date: "July 2026",
-    label: "Pending Review",
+    label: "Latest",
     ctaUrl: "https://mileclear.com/releases",
     ctaLabel: "Read the release notes",
+    banner: {
+      headline: "Get Paid is here - invoicing built for drivers",
+      subline:
+        "MileClear 1.3.4 lets you build, send and chase professional invoices from your phone. Update on the App Store.",
+    },
     emailSubject: "What's new in MileClear 1.3.4",
     emailTagline:
       "1.3.4 introduces Get Paid - professional invoicing built for self-employed drivers - plus a fresh look and a stack of reliability fixes.",
@@ -101,7 +106,7 @@ export const RELEASE_NOTES: ReleaseNote[] = [
   {
     version: "1.3.3",
     date: "June 2026",
-    label: "Latest",
+    label: "App Store",
     ctaUrl: "https://mileclear.com/releases",
     ctaLabel: "Read the release notes",
     emailSubject: "What's new in MileClear 1.3.3",
