@@ -628,6 +628,8 @@ function RootNavigator() {
         <Stack.Screen name="tax-mtd-history" options={{ headerShown: true, title: "Submission history" }} />
         <Stack.Screen name="invoices" options={{ headerShown: true, title: "Invoices" }} />
         <Stack.Screen name="invoice-form" options={{ headerShown: true, title: "Add invoice" }} />
+        <Stack.Screen name="clients" options={{ headerShown: true, title: "Clients" }} />
+        <Stack.Screen name="client-form" options={{ headerShown: true, title: "Add client" }} />
         <Stack.Screen name="expenses" options={{ headerShown: true, title: "Expenses" }} />
         <Stack.Screen name="expense-form" options={{ headerShown: true, title: "Add Expense" }} />
         <Stack.Screen name="inbox" options={{ headerShown: true, title: "Inbox" }} />
@@ -647,6 +649,7 @@ function RootNavigator() {
         <Stack.Screen name="settings/help" options={{ headerShown: true, title: "Help & Feedback" }} />
         <Stack.Screen name="settings/legal" options={{ headerShown: true, title: "Legal" }} />
         <Stack.Screen name="settings/security" options={{ headerShown: true, title: "Security" }} />
+        <Stack.Screen name="settings/business" options={{ headerShown: true, title: "Business Profile" }} />
       </Stack>
       <QuickStartModal
         visible={quickStartVisible}
