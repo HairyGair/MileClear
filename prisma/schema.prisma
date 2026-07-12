@@ -192,6 +192,7 @@ model User {
   passwordResetTokens PasswordResetToken[]
   plaidConnections    PlaidConnection[]
   quickBooksConnection QuickBooksConnection?
+  xeroConnection      XeroConnection?
   feedback            Feedback[]
   feedbackVotes       FeedbackVote[]
   feedbackReplies     FeedbackReply[]
@@ -869,6 +870,57 @@ model QuickBooksSyncedExpense {
   @@unique([userId, expenseId])
   @@index([connectionId])
   @@map("quickbooks_synced_expenses")
+}
+
+// Xero connection — one org ("tenant") per user, mirroring QuickBooks'
+// one realm. Tokens AES-256-GCM-encrypted at rest; Xero access tokens
+// live 30 min and refresh tokens are single-use (rotated every refresh).
+model XeroConnection {
+  id                    String    @id @default(uuid())
+  userId                String    @unique
+  /** Xero org ("tenant") ID — discovered via GET /connections after
+   *  the OAuth exchange (the redirect itself carries no org). */
+  tenantId              String    @db.VarChar(64)
+  tenantName            String?   @db.VarChar(200)
+  accessTokenEncrypted  String    @db.Text
+  refreshTokenEncrypted String    @db.Text
+  tokenExpiresAt        DateTime
+  /** Xero line items post against an account CODE (e.g. "449"), while
+   *  the SPEND transaction's BankAccount is referenced by AccountID —
+   *  hence the two differently-shaped mapping fields. Auto-picked on
+   *  first sync if unset; user-overridable via the account picker. */
+  expenseAccountCode    String?   @db.VarChar(20)
+  payFromAccountId      String?   @db.VarChar(64)
+  lastSyncedAt          DateTime?
+  status                String    @default("active") @db.VarChar(20)
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  user        User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  syncedItems XeroSyncedItem[]
+
+  @@index([userId])
+  @@map("xero_connections")
+}
+
+// One row per sync item pushed to Xero as a SPEND BankTransaction.
+// itemKey carries the shared accountingItems key (expense row ID or
+// `mileage:{taxYear}:{month}:{vehicleType}`), so (userId, itemKey)
+// uniqueness makes re-syncs idempotent.
+model XeroSyncedItem {
+  id             String   @id @default(uuid())
+  connectionId   String
+  userId         String
+  itemKey        String   @db.VarChar(120)
+  xeroEntityId   String   @db.VarChar(64)
+  xeroEntityType String   @default("BankTransaction") @db.VarChar(40)
+  syncedAt       DateTime @default(now())
+
+  connection XeroConnection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, itemKey])
+  @@index([connectionId])
+  @@map("xero_synced_items")
 }
 
 model Feedback {

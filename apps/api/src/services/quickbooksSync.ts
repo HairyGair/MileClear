@@ -2,39 +2,24 @@
 //
 // Replaces the old VehicleMileage approach, which is broken in UK QBO
 // (the Vehicle/VehicleMileage entities are US/Canada-only). Instead we
-// push a tax year's deductible motoring costs as QBO `Purchase` (cash
-// expense) transactions into user-mapped accounts:
+// push a tax year's deductible motoring costs — built by the shared
+// accountingItems module (AMAP mileage months + alongside-allowable
+// expenses) — as QBO `Purchase` (cash expense) transactions:
 //
-//   - MILEAGE: the AMAP simplified-expenses claim, aggregated to one
-//     Purchase per (vehicle type, calendar month). The 10,000-mile tier
-//     boundary is honoured by walking each vehicle type's trips in date
-//     order and posting the MARGINAL deduction, so a month that straddles
-//     the boundary is split at the right rate. Completed months are
-//     stable across re-syncs; the current month self-corrects next push.
-//
-//   - EXPENSES: one Purchase per logged expense — but ONLY the categories
-//     that are deductible ALONGSIDE the mileage allowance
-//     (`deductibleWithMileage`). Pushing fuel/running costs next to an
-//     AMAP claim would double-count, so those are excluded.
-//
-// Every Purchase is: PaymentType "Cash", top-level AccountRef = the
-// user's mapped Bank/Cash account (source of funds), a single
-// AccountBasedExpenseLineDetail line against the mapped expense account.
+//   PaymentType "Cash", top-level AccountRef = the user's mapped
+//   Bank/Cash account (source of funds), a single
+//   AccountBasedExpenseLineDetail line against the mapped expense
+//   account.
 //
 // WRITE-ONLY, create-only, idempotent. Idempotency reuses
-// quickbooks_synced_expenses keyed by (userId, expenseId); mileage months
-// use a synthetic key `mileage:{taxYear}:{YYYY-MM}:{vehicleType}`.
+// quickbooks_synced_expenses keyed by (userId, expenseId) with the
+// shared SyncItem key.
 
 import { prisma } from "../lib/prisma.js";
 import type { QuickBooksConnection } from "@prisma/client";
 import { qboApi } from "./quickbooks.js";
 import { logEvent } from "./appEvents.js";
-import {
-  calculateMileageDeduction,
-  resolveMileageRates,
-  parseTaxYear,
-  EXPENSE_CATEGORIES,
-} from "@mileclear/shared";
+import { buildSyncItems, type SyncItem } from "./accountingItems.js";
 
 // ── QBO shapes (the subset we touch) ────────────────────────────────
 
@@ -175,17 +160,7 @@ async function resolveAccounts(
   return { expenseAccountId: preferExpense.id, payFromAccountId: preferPayFrom.id };
 }
 
-// ── Item building ───────────────────────────────────────────────────
-
-interface SyncItem {
-  /** Idempotency key stored as quickbooks_synced_expenses.expenseId. */
-  key: string;
-  amountPence: number;
-  txnDate: string; // YYYY-MM-DD
-  privateNote: string;
-  description: string;
-  kind: "mileage" | "expense";
-}
+// ── Push + preview ──────────────────────────────────────────────────
 
 function buildPurchase(
   item: SyncItem,
@@ -207,136 +182,6 @@ function buildPurchase(
   };
 }
 
-function ym(date: Date): string {
-  return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, "0")}`;
-}
-
-/** Normalise a stored vehicleType to an AMAP rate class. */
-function normVehicleType(v: string): "car" | "van" | "motorbike" {
-  return v === "van" || v === "motorbike" ? v : "car";
-}
-
-/** Build the mileage-month sync items for a tax year, honouring the
- *  10k tier boundary per vehicle type via marginal deductions. */
-async function buildMileageItems(userId: string, taxYear: string): Promise<SyncItem[]> {
-  const { start, end } = parseTaxYear(taxYear);
-  const user = await prisma.user.findUnique({
-    where: { id: userId },
-    select: {
-      workType: true,
-      employerMileageRatePence: true,
-      employerMileageRatePenceAfter10k: true,
-    },
-  });
-  const rateOpts = { ...(user ? resolveMileageRates(user) : {}), taxYear };
-
-  const trips = await prisma.trip.findMany({
-    where: {
-      userId,
-      classification: "business",
-      isPhantomTrip: false,
-      vehicleId: { not: null },
-      startedAt: { gte: start, lte: end },
-    },
-    select: { startedAt: true, distanceMiles: true, vehicleId: true },
-    orderBy: { startedAt: "asc" },
-  });
-  if (trips.length === 0) return [];
-
-  const vehIds = [...new Set(trips.map((t) => t.vehicleId).filter((v): v is string => !!v))];
-  const vehicles = await prisma.vehicle.findMany({
-    where: { id: { in: vehIds } },
-    select: { id: true, vehicleType: true },
-  });
-  const vehicleType = new Map(vehicles.map((v) => [v.id, v.vehicleType || "car"]));
-
-  // Group by vehicle type, walk in date order, accumulate marginal
-  // deduction into (type, month) buckets.
-  const byType = new Map<"car" | "van" | "motorbike", typeof trips>();
-  for (const t of trips) {
-    const vt = normVehicleType((t.vehicleId && vehicleType.get(t.vehicleId)) || "car");
-    const arr = byType.get(vt) ?? [];
-    arr.push(t);
-    byType.set(vt, arr);
-  }
-
-  interface Bucket {
-    vt: string;
-    month: string;
-    miles: number;
-    deductionPence: number;
-    count: number;
-    lastDate: Date;
-  }
-  const buckets = new Map<string, Bucket>();
-  for (const [vt, arr] of byType) {
-    let cumMiles = 0;
-    for (const t of arr) {
-      const before = calculateMileageDeduction(vt, cumMiles, rateOpts).deductionPence;
-      const after = calculateMileageDeduction(vt, cumMiles + t.distanceMiles, rateOpts).deductionPence;
-      cumMiles += t.distanceMiles;
-      const month = ym(t.startedAt);
-      const key = `${vt}:${month}`;
-      const b = buckets.get(key) ?? { vt, month, miles: 0, deductionPence: 0, count: 0, lastDate: t.startedAt };
-      b.miles += t.distanceMiles;
-      b.deductionPence += Math.max(0, after - before);
-      b.count += 1;
-      b.lastDate = t.startedAt;
-      buckets.set(key, b);
-    }
-  }
-
-  return [...buckets.values()]
-    .filter((b) => b.deductionPence > 0)
-    .map((b) => ({
-      key: `mileage:${taxYear}:${b.month}:${b.vt}`,
-      amountPence: b.deductionPence,
-      // Post-date to the last day of that month's activity so it lands
-      // in the right period even if synced later.
-      txnDate: b.lastDate.toISOString().slice(0, 10),
-      privateNote: `MileClear mileage allowance (AMAP) — ${b.miles.toFixed(1)} business miles by ${b.vt} in ${b.month}, ${b.count} trip(s). Tax year ${taxYear}.`,
-      description: `Business mileage — ${b.miles.toFixed(1)} mi (${b.month})`,
-      kind: "mileage" as const,
-    }));
-}
-
-/** Logged expenses in the tax year that are deductible ALONGSIDE the
- *  mileage allowance (excludes fuel/running costs, which AMAP replaces). */
-async function buildExpenseItems(userId: string, taxYear: string): Promise<SyncItem[]> {
-  const { start, end } = parseTaxYear(taxYear);
-  const allowedCategories = new Set<string>(
-    EXPENSE_CATEGORIES.filter((c) => c.deductibleWithMileage).map((c) => c.value)
-  );
-  const labelFor = new Map<string, string>(
-    EXPENSE_CATEGORIES.map((c) => [c.value, c.label])
-  );
-
-  const expenses = await prisma.expense.findMany({
-    where: {
-      userId,
-      date: { gte: start, lte: end },
-      category: { in: [...allowedCategories] },
-    },
-    select: { id: true, category: true, amountPence: true, date: true, vendor: true, description: true },
-    orderBy: { date: "asc" },
-  });
-
-  return expenses.map((e) => {
-    const label = labelFor.get(e.category) ?? e.category;
-    const detail = [e.vendor, e.description].filter(Boolean).join(" — ");
-    return {
-      key: e.id,
-      amountPence: e.amountPence,
-      txnDate: e.date.toISOString().slice(0, 10),
-      privateNote: `MileClear expense — ${label}${detail ? `: ${detail}` : ""}. Tax year ${taxYear}.`,
-      description: detail ? `${label}: ${detail}` : label,
-      kind: "expense" as const,
-    };
-  });
-}
-
-// ── Push + preview ──────────────────────────────────────────────────
-
 async function loadActiveConnection(userId: string): Promise<QuickBooksConnection> {
   const connection = await prisma.quickBooksConnection.findUnique({ where: { userId } });
   if (!connection || connection.status !== "active") {
@@ -355,10 +200,7 @@ export async function pushTaxYear(args: {
   const connection = await loadActiveConnection(userId);
   const accounts = await resolveAccounts(connection);
 
-  const items = [
-    ...(await buildMileageItems(userId, taxYear)),
-    ...(await buildExpenseItems(userId, taxYear)),
-  ];
+  const items = await buildSyncItems(userId, taxYear);
 
   const keys = items.map((i) => i.key);
   const already = await prisma.quickBooksSyncedExpense.findMany({
@@ -441,10 +283,7 @@ export async function previewTaxYear(args: {
 }): Promise<QboSyncPreview> {
   const { userId, taxYear } = args;
   const connection = await loadActiveConnection(userId);
-  const items = [
-    ...(await buildMileageItems(userId, taxYear)),
-    ...(await buildExpenseItems(userId, taxYear)),
-  ];
+  const items = await buildSyncItems(userId, taxYear);
   const keys = items.map((i) => i.key);
   const alreadySynced = await prisma.quickBooksSyncedExpense.count({
     where: { userId, expenseId: { in: keys } },
