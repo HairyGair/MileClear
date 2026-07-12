@@ -771,6 +771,13 @@ model QuickBooksConnection {
   /** Company name pulled from QBO at connect time so the UI can
    *  show "Connected to Acme Ltd" without a round-trip. */
   companyName           String?  @db.VarChar(200)
+  /** QBO Account IDs the user maps MileClear data to. expenseAccountId =
+   *  the P&L expense account each Purchase line posts against (e.g.
+   *  "Motor Expenses"); payFromAccountId = the Bank/Cash account the
+   *  cash Purchase draws its funds from. Auto-picked on first sync if
+   *  unset; the user can override via the account picker. */
+  expenseAccountId      String?  @db.VarChar(64)
+  payFromAccountId      String?  @db.VarChar(64)
   /** Last successful sync of any entity. Surface on the settings
    *  screen as "Last synced 3h ago". */
   lastSyncedAt          DateTime?

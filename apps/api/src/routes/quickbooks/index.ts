@@ -33,9 +33,11 @@ import {
   fetchCompanyName,
 } from "../../services/quickbooks.js";
 import {
-  pushTripsForDateRange,
-  countEligibleTripsInRange,
-} from "../../services/quickbooksMileage.js";
+  pushTaxYear,
+  previewTaxYear,
+  listQboAccounts,
+  setAccountMapping,
+} from "../../services/quickbooksSync.js";
 
 const STATE_TTL_SECONDS = 600; // 10 minutes
 const stateSecret = () =>
@@ -231,57 +233,86 @@ export async function quickbooksRoutes(app: FastifyInstance) {
     }
   );
 
-  // ── POST /quickbooks/sync/mileage ──────────────────────────────
-  // Auth-required + premium-gated. Pushes every classified business
-  // trip in the given date range to QBO as a VehicleMileage entry,
-  // creating QBO Vehicle entities on demand. Idempotent: trips
-  // already synced are skipped.
-  //
-  // Body: { from: ISO date, to: ISO date }
-  // Returns: { pushed, skipped, failed, vehiclesCreated, failures[] }
+  // ── GET /quickbooks/accounts ───────────────────────────────────
+  // Active QBO accounts, split into expense-line candidates and
+  // pay-from (Bank/Cash) candidates, plus the user's current mapping.
+  app.get(
+    "/accounts",
+    { preHandler: [authMiddleware, premiumMiddleware] },
+    async (request, reply) => {
+      const connection = await prisma.quickBooksConnection.findUnique({
+        where: { userId: request.userId! },
+      });
+      if (!connection || connection.status !== "active") {
+        return reply.status(409).send({ error: "QuickBooks is not connected." });
+      }
+      try {
+        const accounts = await listQboAccounts(connection);
+        return reply.send({
+          data: {
+            ...accounts,
+            expenseAccountId: connection.expenseAccountId,
+            payFromAccountId: connection.payFromAccountId,
+          },
+        });
+      } catch (err) {
+        const reason = err instanceof Error ? err.message : String(err);
+        app.log.error({ err }, "QBO account list failed");
+        return reply.status(502).send({ error: reason });
+      }
+    }
+  );
+
+  // ── POST /quickbooks/account-mapping ───────────────────────────
+  // Persist which QBO expense + pay-from accounts sync posts into.
   app.post(
-    "/sync/mileage",
+    "/account-mapping",
     { preHandler: [authMiddleware, premiumMiddleware] },
     async (request, reply) => {
       const parsed = z
         .object({
-          from: z.string().datetime().or(z.string().min(8)),
-          to: z.string().datetime().or(z.string().min(8)),
+          expenseAccountId: z.string().min(1).max(64),
+          payFromAccountId: z.string().min(1).max(64),
         })
         .safeParse(request.body);
       if (!parsed.success) {
-        return reply
-          .status(400)
-          .send({ error: "Invalid date range", details: parsed.error.issues });
+        return reply.status(400).send({ error: "Invalid account mapping" });
       }
-      const from = new Date(parsed.data.from);
-      const to = new Date(parsed.data.to);
-      if (Number.isNaN(from.getTime()) || Number.isNaN(to.getTime())) {
-        return reply.status(400).send({ error: "Invalid date range" });
+      const connection = await prisma.quickBooksConnection.findUnique({
+        where: { userId: request.userId! },
+      });
+      if (!connection || connection.status !== "active") {
+        return reply.status(409).send({ error: "QuickBooks is not connected." });
       }
-      if (from > to) {
-        return reply.status(400).send({ error: "`from` must be <= `to`" });
-      }
-      // Hard cap to one tax year per request — prevents runaway batch
-      // jobs and matches the realistic user workflow.
-      const MAX_DAYS = 400;
-      const daysSpan = (to.getTime() - from.getTime()) / 86_400_000;
-      if (daysSpan > MAX_DAYS) {
-        return reply
-          .status(400)
-          .send({ error: `Date range too large (max ${MAX_DAYS} days)` });
-      }
+      await setAccountMapping({ userId: request.userId!, ...parsed.data });
+      return reply.send({ data: { ok: true } });
+    }
+  );
 
+  const taxYearSchema = z.object({ taxYear: z.string().regex(/^\d{4}-\d{2}$/) });
+
+  // ── POST /quickbooks/sync ──────────────────────────────────────
+  // Push a tax year's AMAP mileage claim (aggregated per vehicle-type
+  // month, tier-correct) + alongside-allowable expenses to QBO as
+  // Purchase transactions. Idempotent + create-only.
+  // Body: { taxYear: "2025-26" }
+  app.post(
+    "/sync",
+    { preHandler: [authMiddleware, premiumMiddleware] },
+    async (request, reply) => {
+      const parsed = taxYearSchema.safeParse(request.body);
+      if (!parsed.success) {
+        return reply.status(400).send({ error: "Invalid tax year (expected e.g. 2025-26)" });
+      }
       try {
-        const result = await pushTripsForDateRange({
+        const result = await pushTaxYear({
           userId: request.userId!,
-          from,
-          to,
+          taxYear: parsed.data.taxYear,
         });
         return reply.send({ data: result });
       } catch (err) {
         const reason = err instanceof Error ? err.message : String(err);
-        app.log.error({ err }, "QBO mileage sync failed");
+        app.log.error({ err }, "QBO sync failed");
         return reply
           .status(reason.includes("not connected") ? 409 : 500)
           .send({ error: reason });
@@ -289,34 +320,28 @@ export async function quickbooksRoutes(app: FastifyInstance) {
     }
   );
 
-  // ── GET /quickbooks/sync/mileage/preview ───────────────────────
-  // Auth-required + premium-gated. Returns the number of eligible
-  // trips in the given range without actually pushing — drives the
-  // pre-sync UI: "Push 23 trips · 5 already synced".
+  // ── GET /quickbooks/sync/preview?taxYear= ──────────────────────
+  // Counts for the pre-sync UI, no QBO write.
   app.get(
-    "/sync/mileage/preview",
+    "/sync/preview",
     { preHandler: [authMiddleware, premiumMiddleware] },
     async (request, reply) => {
-      const parsed = z
-        .object({
-          from: z.string(),
-          to: z.string(),
-        })
-        .safeParse(request.query);
+      const parsed = taxYearSchema.safeParse(request.query);
       if (!parsed.success) {
-        return reply.status(400).send({ error: "Invalid date range" });
+        return reply.status(400).send({ error: "Invalid tax year" });
       }
-      const from = new Date(parsed.data.from);
-      const to = new Date(parsed.data.to);
-      if (Number.isNaN(from.getTime()) || Number.isNaN(to.getTime())) {
-        return reply.status(400).send({ error: "Invalid date range" });
+      try {
+        const preview = await previewTaxYear({
+          userId: request.userId!,
+          taxYear: parsed.data.taxYear,
+        });
+        return reply.send({ data: preview });
+      } catch (err) {
+        const reason = err instanceof Error ? err.message : String(err);
+        return reply
+          .status(reason.includes("not connected") ? 409 : 500)
+          .send({ error: reason });
       }
-      const counts = await countEligibleTripsInRange({
-        userId: request.userId!,
-        from,
-        to,
-      });
-      return reply.send({ data: counts });
     }
   );
 }
