@@ -30,12 +30,20 @@ interface Cell {
   growthPct: number | null;
 }
 
+interface TownUserCount {
+  users: number;
+  newUsers: number;
+  premiumUsers: number;
+}
+
 interface Data {
   windowDays: number;
   gridSizeDegrees: number;
   minUsersPerCell: number;
   startCells: Cell[];
   endCells: Cell[];
+  startTownUserCounts: Record<string, TownUserCount>;
+  endTownUserCounts: Record<string, TownUserCount>;
   totalTrips: number;
   totalUsers: number;
   maxTripsInCell: number;
@@ -72,7 +80,10 @@ const METRICS: Array<{ key: MetricKey; label: string; diverging?: boolean; get: 
 // share a town into a single row (the map + CSV deliberately stay per-cell).
 // Trip counts are exact; distinct-user counts are summed across a town's cells,
 // so a driver who crosses a cell boundary can be counted in more than one.
-function aggregateByTown(cells: Cell[]): Cell[] {
+function aggregateByTown(
+  cells: Cell[],
+  townUserCounts: Record<string, TownUserCount>
+): Cell[] {
   const groups = new Map<string, Cell & { _sumDist: number; _anchorTrips: number }>();
   for (const c of cells) {
     const g = groups.get(c.town);
@@ -81,9 +92,6 @@ function aggregateByTown(cells: Cell[]): Cell[] {
       continue;
     }
     g.trips += c.trips;
-    g.users += c.users;
-    g.newUsers += c.newUsers;
-    g.premiumUsers += c.premiumUsers;
     g.businessTrips += c.businessTrips;
     g.personalTrips += c.personalTrips;
     g.prevTrips += c.prevTrips;
@@ -99,10 +107,18 @@ function aggregateByTown(cells: Cell[]): Cell[] {
   return [...groups.values()].map((g) => {
     const { _sumDist, _anchorTrips, ...rest } = g;
     void _anchorTrips;
+    // Distinct users deduped across the town's cells. Summing the per-cell
+    // counts double-counts a driver who spans several cells (that's how a
+    // town could show more "premium users" than exist on the whole platform).
+    const tc = townUserCounts[g.town];
+    const users = tc ? tc.users : g.users;
     return {
       ...rest,
+      users,
+      newUsers: tc ? tc.newUsers : g.newUsers,
+      premiumUsers: tc ? tc.premiumUsers : g.premiumUsers,
       avgDistanceMiles: g.trips > 0 ? Math.round((_sumDist / g.trips) * 10) / 10 : 0,
-      avgTripsPerUser: g.users > 0 ? Math.round((g.trips / g.users) * 10) / 10 : 0,
+      avgTripsPerUser: users > 0 ? Math.round((g.trips / users) * 10) / 10 : 0,
       growthPct: g.prevTrips > 0 ? Math.round(((g.trips - g.prevTrips) / g.prevTrips) * 100) : null,
     } as Cell;
   });
@@ -260,7 +276,14 @@ export default function GeographicDensityPage() {
 
   // Ranked lists merge cells by town so one place shows once. The map keeps
   // per-cell `cells`.
-  const townCells = useMemo(() => aggregateByTown(cells), [cells]);
+  const townCells = useMemo(
+    () =>
+      aggregateByTown(
+        cells,
+        data ? (mode === "starts" ? data.startTownUserCounts : data.endTownUserCounts) : {}
+      ),
+    [cells, data, mode]
+  );
   const rankedCells = useMemo(() => {
     return [...townCells]
       .map((c) => ({ c, v: metricDef.get(c) }))
@@ -271,7 +294,7 @@ export default function GeographicDensityPage() {
   // Momentum, town-aggregated (start cells only — growth is start-based).
   const momentum = useMemo(() => {
     if (!data) return { fastestGrowing: [] as Cell[], newAreas: [] as Cell[] };
-    const towns = aggregateByTown(data.startCells);
+    const towns = aggregateByTown(data.startCells, data.startTownUserCounts);
     const fastestGrowing = towns
       .filter((c) => c.growthPct != null && c.prevTrips >= 3)
       .sort((a, b) => (b.growthPct ?? 0) - (a.growthPct ?? 0))

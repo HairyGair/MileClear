@@ -25,12 +25,23 @@ export interface DensityCell {
   growthPct: number | null; // null = no prior-window activity (brand-new area)
 }
 
+/** True distinct user counts per town, unioned across the town's grid cells,
+ *  so a driver who crosses several cells is counted once. The per-cell counts
+ *  in DensityCell are distinct-PER-CELL and must NOT be summed for a town. */
+export interface TownUserCount {
+  users: number;
+  newUsers: number;
+  premiumUsers: number;
+}
+
 export interface DensityResult {
   windowDays: number;
   gridSizeDegrees: number;
   minUsersPerCell: number;
   startCells: DensityCell[];
   endCells: DensityCell[];
+  startTownUserCounts: Record<string, TownUserCount>;
+  endTownUserCounts: Record<string, TownUserCount>;
   totalTrips: number;
   totalUsers: number;
   maxTripsInCell: number;
@@ -171,7 +182,12 @@ function buildCells(
   grid: number,
   minUsers: number,
   prevCounts: Map<string, number>
-): { cells: DensityCell[]; suppressedCells: number; suppressedTrips: number } {
+): {
+  cells: DensityCell[];
+  suppressedCells: number;
+  suppressedTrips: number;
+  townUserCounts: Record<string, TownUserCount>;
+} {
   const buckets = new Map<string, Bucket>();
   for (const p of points) {
     const key = bucketKey(p.lat, p.lng, grid);
@@ -200,6 +216,10 @@ function buildCells(
   }
 
   const cells: DensityCell[] = [];
+  const townBuckets = new Map<
+    string,
+    { users: Set<string>; newUsers: Set<string>; premiumUsers: Set<string> }
+  >();
   let suppressedCells = 0;
   let suppressedTrips = 0;
   for (const [key, b] of buckets) {
@@ -222,6 +242,16 @@ function buildCells(
     }
     const prevTrips = prevCounts.get(key) ?? 0;
     const { town, nation } = nearestPlace(lat, lng);
+    // Union this cell's distinct users into its town, so a driver spanning
+    // several cells is counted once at town level (per-cell stays distinct).
+    let tb = townBuckets.get(town);
+    if (!tb) {
+      tb = { users: new Set(), newUsers: new Set(), premiumUsers: new Set() };
+      townBuckets.set(town, tb);
+    }
+    for (const u of b.users) tb.users.add(u);
+    for (const u of b.newUsers) tb.newUsers.add(u);
+    for (const u of b.premiumUsers) tb.premiumUsers.add(u);
     cells.push({
       lat,
       lng,
@@ -241,7 +271,15 @@ function buildCells(
     });
   }
   cells.sort((a, b) => b.trips - a.trips);
-  return { cells, suppressedCells, suppressedTrips };
+  const townUserCounts: Record<string, TownUserCount> = {};
+  for (const [town, tb] of townBuckets) {
+    townUserCounts[town] = {
+      users: tb.users.size,
+      newUsers: tb.newUsers.size,
+      premiumUsers: tb.premiumUsers.size,
+    };
+  }
+  return { cells, suppressedCells, suppressedTrips, townUserCounts };
 }
 
 export async function buildGeographicDensity(opts: {
@@ -358,6 +396,8 @@ export async function buildGeographicDensity(opts: {
     minUsersPerCell: minUsers,
     startCells,
     endCells: endBuild.cells,
+    startTownUserCounts: startBuild.townUserCounts,
+    endTownUserCounts: endBuild.townUserCounts,
     totalTrips,
     totalUsers: allUsers.size,
     maxTripsInCell,
