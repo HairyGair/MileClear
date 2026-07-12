@@ -246,18 +246,20 @@ async function getValidAccessToken(
   }
   const refreshToken = decrypt(connection.refreshTokenEncrypted);
   const fresh = await refreshAccessToken({ config, refreshToken });
-  const updated = await prisma.quickBooksConnection.update({
+  const accessTokenEncrypted = encrypt(fresh.access_token);
+  const refreshTokenEncrypted = encrypt(fresh.refresh_token);
+  const tokenExpiresAt = new Date(Date.now() + fresh.expires_in * 1000);
+  await prisma.quickBooksConnection.update({
     where: { id: connection.id },
-    data: {
-      accessTokenEncrypted: encrypt(fresh.access_token),
-      refreshTokenEncrypted: encrypt(fresh.refresh_token),
-      tokenExpiresAt: new Date(Date.now() + fresh.expires_in * 1000),
-    },
+    data: { accessTokenEncrypted, refreshTokenEncrypted, tokenExpiresAt },
   });
-  return {
-    accessToken: fresh.access_token,
-    expiresAt: updated.tokenExpiresAt,
-  };
+  // Keep the in-memory connection in sync. Intuit rotates the refresh
+  // token on every refresh (single-use), so a later qboApi() call reusing
+  // the same object must not re-refresh the now-consumed token.
+  connection.accessTokenEncrypted = accessTokenEncrypted;
+  connection.refreshTokenEncrypted = refreshTokenEncrypted;
+  connection.tokenExpiresAt = tokenExpiresAt;
+  return { accessToken: fresh.access_token, expiresAt: tokenExpiresAt };
 }
 
 /**
@@ -310,14 +312,17 @@ export async function qboApi<T>(
       );
       const refreshToken = decrypt(connection.refreshTokenEncrypted);
       const fresh = await refreshAccessToken({ config, refreshToken });
+      const accessTokenEncrypted = encrypt(fresh.access_token);
+      const refreshTokenEncrypted = encrypt(fresh.refresh_token);
+      const tokenExpiresAt = new Date(Date.now() + fresh.expires_in * 1000);
       await prisma.quickBooksConnection.update({
         where: { id: connection.id },
-        data: {
-          accessTokenEncrypted: encrypt(fresh.access_token),
-          refreshTokenEncrypted: encrypt(fresh.refresh_token),
-          tokenExpiresAt: new Date(Date.now() + fresh.expires_in * 1000),
-        },
+        data: { accessTokenEncrypted, refreshTokenEncrypted, tokenExpiresAt },
       });
+      // Keep the in-memory connection in sync (see getValidAccessToken).
+      connection.accessTokenEncrypted = accessTokenEncrypted;
+      connection.refreshTokenEncrypted = refreshTokenEncrypted;
+      connection.tokenExpiresAt = tokenExpiresAt;
       res = await attempt(fresh.access_token);
     }
   }
