@@ -1,4 +1,4 @@
-// Discord community section — sits between FAQ and the footer on the
+// Discord community section - sits between FAQ and the footer on the
 // landing page. Primary CTA: "Join the community". Secondary: a small
 // reassurance line that the community is UK driver-focused.
 //
@@ -12,12 +12,12 @@ const perks = [
   {
     icon: "🧾",
     title: "Tax help from real drivers",
-    desc: "Uber, Deliveroo, Just Eat, sole-trader, PAYE — the answers come from people doing the same work.",
+    desc: "Uber, Deliveroo, Just Eat, sole-trader, PAYE - the answers come from people doing the same work.",
   },
   {
     icon: "📅",
     title: "Daily tax tips",
-    desc: "Hand-picked tips on allowable expenses, HMRC deadlines, and Self Assessment — one a day, every day.",
+    desc: "Hand-picked tips on allowable expenses, HMRC deadlines, and Self Assessment - one a day, every day.",
   },
   {
     icon: "💎",
@@ -51,7 +51,7 @@ export default function Community() {
           <p className="community__subtitle">
             A friendly server for self-employed drivers, gig workers, and PAYE
             employees who claim mileage. Tax tips, peer help, deadline
-            countdowns — and the bot does some of the work for you.
+            countdowns - and the bot does some of the work for you.
           </p>
         </Reveal>
 

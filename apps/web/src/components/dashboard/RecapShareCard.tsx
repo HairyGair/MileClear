@@ -76,7 +76,7 @@ export function RecapShareModal({
         files: [file],
       });
     } catch {
-      // Share dismissed or unsupported — try download
+      // Share dismissed or unsupported - try download
       await handleDownload();
     } finally {
       setCapturing(false);

@@ -33,7 +33,7 @@ const features = [
       </svg>
     ),
     title: "HMRC tax deductions",
-    desc: "Your running tax deduction total updates with every trip. 55p/25p for cars in 2026-27 (45p/25p for earlier years), 24p for motorbikes — applied automatically by trip date.",
+    desc: "Your running tax deduction total updates with every trip. 55p/25p for cars in 2026-27 (45p/25p for earlier years), 24p for motorbikes - applied automatically by trip date.",
     screenshot: "iphone-03-mtd-itsa.png",
   },
   {
@@ -199,7 +199,7 @@ export default function Features() {
           </div>
         </Reveal>
 
-        {/* Editorial showcase rows — six pillar features paired with their
+        {/* Editorial showcase rows - six pillar features paired with their
             screenshot. Alternates text-left / text-right by index. */}
         <Reveal delay="reveal-d2">
           <div className="showcase">
@@ -233,7 +233,7 @@ export default function Features() {
           </div>
         </Reveal>
 
-        {/* Remaining features — icon-only uniform grid. */}
+        {/* Remaining features - icon-only uniform grid. */}
         <Reveal delay="reveal-d3">
           <div className="features__grid features__grid--secondary">
             {iconOnly.map((f) => {

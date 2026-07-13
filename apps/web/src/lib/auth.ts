@@ -61,7 +61,7 @@ export async function logout(): Promise<void> {
       await api.post("/auth/logout", { refreshToken });
     }
   } catch {
-    // Ignore errors — we're clearing tokens regardless
+    // Ignore errors - we're clearing tokens regardless
   }
   clearTokens();
 }

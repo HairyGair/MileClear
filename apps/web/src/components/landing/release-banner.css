@@ -33,7 +33,7 @@
 }
 
 /* When the banner is present, shift the fixed navbar down by the
- * banner's height. globals.css sets the navbar to top: 0 — this
+ * banner's height. globals.css sets the navbar to top: 0 - this
  * override stacks them properly. */
 html[data-release-banner="1"] .nav {
   top: var(--banner-h, 44px);

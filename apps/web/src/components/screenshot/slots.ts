@@ -4,7 +4,7 @@
 //
 // Order matters: App Store Connect uploads slot 1 → 10 in this exact
 // sequence and Apple's gallery shows them left-to-right. 60-70% of
-// viewers see only slots 1-3 — those carry the conversion weight, so
+// viewers see only slots 1-3 - those carry the conversion weight, so
 // the order is benefit-first (saving, tax) then feature-detail.
 //
 // Add a new slot by extending the array. The composer route renders any
@@ -41,15 +41,15 @@ export interface ScreenshotSlot {
   // Annotations pointing at features
   callouts?: Callout[];
   // Layout variants:
-  //   "centered"      — device dead-centre with copy above (default)
-  //   "tilted"        — small left rotation (-1.5°) for editorial slots
-  //   "tilted-right"  — small right rotation (+1.5°) — alternate the
+  //   "centered"      - device dead-centre with copy above (default)
+  //   "tilted"        - small left rotation (-1.5°) for editorial slots
+  //   "tilted-right"  - small right rotation (+1.5°) - alternate the
   //                     direction across the carousel to create rhythm
-  //   "split"         — iPad: copy left, device right
-  //   "stack"         — hero composition: glow + tilt + secondary
+  //   "split"         - iPad: copy left, device right
+  //   "stack"         - hero composition: glow + tilt + secondary
   //                     accent shapes. Reserved for slot 1 by convention.
   layout?: "centered" | "tilted" | "tilted-right" | "split" | "stack";
-  // Optional flag — TRUE if the captured device screen still needs a
+  // Optional flag - TRUE if the captured device screen still needs a
   // refreshed grab from a current build. Render still happens, this is
   // only a hint for whoever's iterating.
   needsRecapture?: boolean;
@@ -90,7 +90,7 @@ export const SLOTS: ScreenshotSlot[] = [
     slug: "first-tax-return",
     eyebrow: "First Self Assessment?",
     headline: "Plain English,\nstep by step.",
-    subline: "UTR, tax year, deadlines — the bits HMRC won't explain. We walk you through your first return.",
+    subline: "UTR, tax year, deadlines - the bits HMRC won't explain. We walk you through your first return.",
     iphoneSrc: "/screenshot-source/iphone/04-tax-readiness.png",
     ipadSrc: "/screenshot-source/ipad/04-tax-readiness.png",
     accent: "amber",
@@ -109,7 +109,7 @@ export const SLOTS: ScreenshotSlot[] = [
     layout: "centered",
     needsRecapture: true,
     recaptureNote:
-      "Current capture shows the Connect step with a beta strip — replace with a capture of a SUBMITTED quarter (status pill: Submitted ✓) once production accreditation is granted. Beta language risks an App Store reviewer flag.",
+      "Current capture shows the Connect step with a beta strip - replace with a capture of a SUBMITTED quarter (status pill: Submitted ✓) once production accreditation is granted. Beta language risks an App Store reviewer flag.",
   },
   {
     slot: 4,
@@ -141,7 +141,7 @@ export const SLOTS: ScreenshotSlot[] = [
     slug: "road-accurate",
     eyebrow: "Filter your fleet",
     headline: "Business\nor personal.\nFilter the rest.",
-    subline: "Tag by platform — Uber, Deliveroo, Just Eat, Amazon Flex. Filter by month, tax year, or mode.",
+    subline: "Tag by platform - Uber, Deliveroo, Just Eat, Amazon Flex. Filter by month, tax year, or mode.",
     iphoneSrc: "/screenshot-source/iphone/06-route.png",
     ipadSrc: "/screenshot-source/ipad/06-route.png",
     accent: "sky",
@@ -195,7 +195,7 @@ export const SLOTS: ScreenshotSlot[] = [
     slug: "your-data",
     eyebrow: "Privacy by default",
     headline: "Your data.\nAlways yours.",
-    subline: "On-device tracking, UK servers, no third-party analytics on your routes. Export everything any time — GDPR Article 20 built in.",
+    subline: "On-device tracking, UK servers, no third-party analytics on your routes. Export everything any time - GDPR Article 20 built in.",
     iphoneSrc: "/screenshot-source/iphone/09-privacy.png",
     ipadSrc: "/screenshot-source/ipad/09-privacy.png",
     accent: "sky",

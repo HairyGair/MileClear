@@ -389,7 +389,7 @@ function HourMiniChart({ byHour }: { byHour: CommuteTiming["byHour"] }) {
         return (
           <div
             key={idx}
-            title={`${h.hour}:00 — ${Math.round(h.avgMinutes)}m avg (${h.tripCount} trip${h.tripCount !== 1 ? "s" : ""})`}
+            title={`${h.hour}:00 - ${Math.round(h.avgMinutes)}m avg (${h.tripCount} trip${h.tripCount !== 1 ? "s" : ""})`}
             style={{
               flex: 1,
               height: `${heightPct}%`,
@@ -587,7 +587,7 @@ function WeeklyReportSection({
               value={
                 report.business.avgShiftHours > 0
                   ? `${report.business.avgShiftHours.toFixed(1)}h`
-                  : "—"
+                  : "-"
               }
             />
             {report.business.topPlatform && (
@@ -957,13 +957,13 @@ function FuelCostSection({ fuel }: { fuel: FuelCostBreakdown }) {
           <div className="stat-card__value stat-card__value--amber">
             {fuel.fuelCostPerMilePence !== null
               ? `${fuel.fuelCostPerMilePence.toFixed(1)}p`
-              : "—"}
+              : "-"}
           </div>
           <div className="stat-card__label">Cost per mile</div>
         </div>
         <div className="stat-card">
           <div className="stat-card__value">
-            {mpg !== null ? `${mpg.toFixed(1)} MPG` : "—"}
+            {mpg !== null ? `${mpg.toFixed(1)} MPG` : "-"}
           </div>
           <div className="stat-card__label">
             {fuel.actualMpg !== null ? "Actual MPG" : "Estimated MPG"}
@@ -1022,11 +1022,11 @@ function FuelCostSection({ fuel }: { fuel: FuelCostBreakdown }) {
                         {v.fuelType}
                       </span>
                     </td>
-                    <td>{v.mpg !== null ? v.mpg.toFixed(1) : "—"}</td>
+                    <td>{v.mpg !== null ? v.mpg.toFixed(1) : "-"}</td>
                     <td>
                       {v.costPerMilePence !== null
                         ? `${v.costPerMilePence.toFixed(1)}p`
-                        : "—"}
+                        : "-"}
                     </td>
                     <td style={{ color: "var(--emerald-500)", fontWeight: 600 }}>
                       {formatPence(v.totalCostPence)}
@@ -1191,7 +1191,7 @@ function EarningsByDaySection({ patterns }: { patterns: EarningsDayPattern[] }) 
           </span>
           <span style={{ fontSize: "0.8125rem", color: "var(--text-muted, #8494a7)" }}>
             {" "}
-            — {formatPence(bestDay.avgEarningsPence)} avg
+            - {formatPence(bestDay.avgEarningsPence)} avg
           </span>
         </div>
         <div style={{ fontSize: "0.8125rem", color: "var(--text-muted, #8494a7)" }}>
@@ -1522,7 +1522,7 @@ export default function DrivingAnalyticsPage() {
         subtitle="Patterns, routes, and performance insights"
       />
 
-      {/* 1. Weekly Report — always shown */}
+      {/* 1. Weekly Report - always shown */}
       {weeklyReport && (
         <WeeklyReportSection
           report={weeklyReport}
@@ -1533,31 +1533,31 @@ export default function DrivingAnalyticsPage() {
         />
       )}
 
-      {/* 2. Frequent Routes — always shown */}
+      {/* 2. Frequent Routes - always shown */}
       <div style={{ marginBottom: "var(--dash-gap, 1.5rem)" }}>
         <FrequentRoutesSection routes={analytics.frequentRoutes} />
       </div>
 
-      {/* 3. Shift Sweet Spots — business/both mode only */}
+      {/* 3. Shift Sweet Spots - business/both mode only */}
       {isWorkMode && analytics.shiftSweetSpots.length > 0 && (
         <div style={{ marginBottom: "var(--dash-gap, 1.5rem)" }}>
           <ShiftSweetSpotsSection sweetSpots={analytics.shiftSweetSpots} />
         </div>
       )}
 
-      {/* 4. Fuel Cost Breakdown — always shown */}
+      {/* 4. Fuel Cost Breakdown - always shown */}
       <div style={{ marginBottom: "var(--dash-gap, 1.5rem)" }}>
         <FuelCostSection fuel={analytics.fuelCost} />
       </div>
 
-      {/* 5. Earnings by Day — business/both mode only */}
+      {/* 5. Earnings by Day - business/both mode only */}
       {isWorkMode && (
         <div style={{ marginBottom: "var(--dash-gap, 1.5rem)" }}>
           <EarningsByDaySection patterns={analytics.earningsByDay} />
         </div>
       )}
 
-      {/* 6. Commute Timing — always shown */}
+      {/* 6. Commute Timing - always shown */}
       <div style={{ marginBottom: "var(--dash-gap, 1.5rem)" }}>
         <CommuteTimingSection routes={analytics.commuteTiming} />
       </div>

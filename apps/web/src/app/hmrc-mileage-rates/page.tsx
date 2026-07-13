@@ -5,7 +5,7 @@ import BreadcrumbsJsonLd from "@/components/seo/BreadcrumbsJsonLd";
 import MileageCalculator from "@/components/MileageCalculator";
 
 export const metadata: Metadata = {
-  title: "HMRC Mileage Rates 2026-27 — 55p Per Mile (Updated)",
+  title: "HMRC Mileage Rates 2026-27 - 55p Per Mile (Updated)",
   description:
     "HMRC raised the AMAP rate for cars and vans from 45p to 55p per mile for the first 10,000 business miles, effective tax year 2026-27. Worked examples for both tax years and a clear explanation of who can claim.",
   alternates: {
@@ -62,7 +62,7 @@ export default function HmrcRatesPage() {
   const article = {
     "@context": "https://schema.org",
     "@type": "Article",
-    headline: "HMRC Mileage Rates 2026-27 — Now 55p Per Mile",
+    headline: "HMRC Mileage Rates 2026-27 - Now 55p Per Mile",
     description:
       "HMRC raised the AMAP rate from 45p to 55p per mile for the first 10,000 business miles from 6 April 2026. Worked examples for both 2025-26 (45p) and 2026-27 (55p).",
     author: { "@type": "Person", name: "Anthony Gair" },
@@ -338,7 +338,7 @@ export default function HmrcRatesPage() {
                   their tax bill by <strong style={{ color: "var(--text-white)" }}>£1,540</strong>. At
                   40% (higher rate), it is worth <strong style={{ color: "var(--text-white)" }}>£3,080</strong>.
                   Under the old 45p rate (tax year 2025-26 and earlier), the
-                  same mileage produced a £6,700 deduction — so the rate change
+                  same mileage produced a £6,700 deduction - so the rate change
                   is worth roughly £200-£400 more in tax saved per year for a
                   driver on this mileage.
                 </p>

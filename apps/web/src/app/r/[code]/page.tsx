@@ -12,12 +12,12 @@ const APP_STORE_URL = "https://apps.apple.com/app/mileclear/id6759671005";
  *  - WEB sign-up: the code is stashed in localStorage + passed as ?ref=, and the
  *    web /register page reads both and applies it automatically. Seamless.
  *  - APP STORE install: there's no automatic way to carry the code through an
- *    App Store install on iOS (that needs deferred deep linking — a follow-up).
+ *    App Store install on iOS (that needs deferred deep linking - a follow-up).
  *    So we COPY the code to the clipboard and tell the friend to paste it into
  *    the "invite code" box at sign-up. iOS shares the clipboard between Safari
- *    and the app, so the code is right there waiting — one paste.
+ *    and the app, so the code is right there waiting - one paste.
  *
- * The previous version claimed the App Store path applied "automatically" — it
+ * The previous version claimed the App Store path applied "automatically" - it
  * didn't, which is why the referral funnel had zero conversions.
  */
 export default function ReferralLandingPage({
@@ -33,7 +33,7 @@ export default function ReferralLandingPage({
     try {
       if (code) window.localStorage.setItem("mc_referral_code", code);
     } catch {
-      // private mode — the ?ref= param still carries it to the web register
+      // private mode - the ?ref= param still carries it to the web register
     }
     // Best-effort auto-copy so the code is already on the clipboard when they
     // reach the app sign-up. The button below is the reliable fallback.
@@ -47,7 +47,7 @@ export default function ReferralLandingPage({
       await navigator.clipboard.writeText(code);
       setCopied(true);
     } catch {
-      // ignore — the code is shown on screen to type manually
+      // ignore - the code is shown on screen to type manually
     }
   };
 
@@ -81,7 +81,7 @@ export default function ReferralLandingPage({
             YOUR INVITE CODE
           </div>
           <div style={{ fontSize: 28, fontWeight: 700, letterSpacing: 4, color: "#f0f2f5" }}>
-            {code || "—"}
+            {code || "-"}
           </div>
           <button
             type="button"

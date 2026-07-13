@@ -249,7 +249,7 @@ export default function FuelPage() {
           <div className="stat-card__label">Total Litres</div>
         </div>
         <div className="stat-card">
-          <div className="stat-card__value">{avgPencePerLitre > 0 ? `${(avgPencePerLitre / 100).toFixed(1)}p` : "—"}</div>
+          <div className="stat-card__value">{avgPencePerLitre > 0 ? `${(avgPencePerLitre / 100).toFixed(1)}p` : "-"}</div>
           <div className="stat-card__label">Avg Cost/Litre</div>
         </div>
         <div className="stat-card">
@@ -309,7 +309,7 @@ export default function FuelPage() {
                       })}
                     </td>
                     <td style={{ maxWidth: 200, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                      {log.stationName || <span style={{ color: "var(--text-faint)" }}>—</span>}
+                      {log.stationName || <span style={{ color: "var(--text-faint)" }}>-</span>}
                     </td>
                     <td>{log.litres.toFixed(1)}L</td>
                     <td style={{ fontWeight: 600 }}>{formatPence(log.costPence)}</td>
@@ -317,13 +317,13 @@ export default function FuelPage() {
                       {(log.costPence / log.litres / 100).toFixed(1)}p/L
                     </td>
                     <td className="hide-mobile">
-                      {log.odometerReading ? `${log.odometerReading.toLocaleString()} mi` : <span style={{ color: "var(--text-faint)" }}>—</span>}
+                      {log.odometerReading ? `${log.odometerReading.toLocaleString()} mi` : <span style={{ color: "var(--text-faint)" }}>-</span>}
                     </td>
                     <td className="hide-mobile">
                       {log.vehicle ? (
                         `${log.vehicle.make} ${log.vehicle.model}`
                       ) : (
-                        <span style={{ color: "var(--text-faint)" }}>—</span>
+                        <span style={{ color: "var(--text-faint)" }}>-</span>
                       )}
                     </td>
                     <td>

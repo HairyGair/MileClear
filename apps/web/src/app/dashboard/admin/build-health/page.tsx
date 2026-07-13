@@ -124,7 +124,7 @@ export default function BuildHealthPage() {
         Per-build regression detection. Active builds in the last{" "}
         {data?.windowDays ?? 7} days, with incident rates per active user.
         A build is highlighted red when its rate is ≥ {REGRESSION_MULTIPLIER}× the
-        previous build&apos;s — that&apos;s the &quot;we shipped a bug&quot;
+        previous build&apos;s - that&apos;s the &quot;we shipped a bug&quot;
         signal.
       </p>
 

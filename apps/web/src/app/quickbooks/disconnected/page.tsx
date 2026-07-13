@@ -9,7 +9,7 @@ import "../quickbooks.css";
 // (Apps → Connected apps → MileClear → Disconnect). We acknowledge
 // the disconnect + tell them how to reconnect.
 //
-// Server-side cleanup happens lazily — the next time MileClear tries
+// Server-side cleanup happens lazily - the next time MileClear tries
 // to use the QBO connection and gets a 401, we mark it inactive.
 // We don't try to identify the user from this page because Intuit
 // doesn't carry MileClear auth in the redirect.
@@ -36,7 +36,7 @@ export default function QuickBooksDisconnected() {
           <h1 className="qb-disconnected__title">QuickBooks disconnected</h1>
           <p className="qb-disconnected__body">
             MileClear no longer has access to your QuickBooks Online account.
-            Nothing in QuickBooks was deleted — only the live link between the
+            Nothing in QuickBooks was deleted - only the live link between the
             two services was removed.
           </p>
           <p className="qb-disconnected__body">

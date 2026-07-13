@@ -575,7 +575,7 @@ export default function EarningsPage() {
                       <tr
                         key={i}
                         style={row.isDuplicate ? { opacity: 0.4 } : undefined}
-                        title={row.isDuplicate ? "Duplicate — already imported" : undefined}
+                        title={row.isDuplicate ? "Duplicate - already imported" : undefined}
                       >
                         <td>{row.platform}</td>
                         <td>{formatPence(row.amountPence)}</td>

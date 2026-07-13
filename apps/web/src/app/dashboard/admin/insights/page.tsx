@@ -647,7 +647,7 @@ function OnboardingFunnelCard() {
                     {hasDrop
                       ? `↓ ${s.dropFromPrev} (-${s.dropPctOfPrev!.toFixed(1)}%)`
                       : s.dropFromPrev === 0
-                        ? "—"
+                        ? "-"
                         : ""}
                   </span>
                   <span style={{ color: "#fbbf24", fontWeight: 700, minWidth: 48, textAlign: "right" }}>
@@ -661,7 +661,7 @@ function OnboardingFunnelCard() {
             })}
           </div>
 
-          {/* Activation: composite signal — the standard product-led metric.
+          {/* Activation: composite signal - the standard product-led metric.
               Shown separately from the funnel because its denominator is
               not "total signups" but "users who had time to activate". */}
           <div
@@ -1064,7 +1064,7 @@ function BenchmarkObserverCard() {
                   {b.label}
                 </div>
                 <div style={{ fontSize: "1rem", color: "#fbbf24", fontWeight: 700 }}>
-                  {b.value !== null ? `${b.value} mi` : "—"}
+                  {b.value !== null ? `${b.value} mi` : "-"}
                 </div>
               </div>
             ))}

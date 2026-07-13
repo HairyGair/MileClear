@@ -6,9 +6,9 @@ const APP_STORE_URL = "https://apps.apple.com/app/mileclear/id6759671005";
 const URL = "https://mileclear.com/mileiq-alternative-uk";
 
 export const metadata: Metadata = {
-  title: "The Best MileIQ Alternative for UK Drivers (Free) — MileClear",
+  title: "The Best MileIQ Alternative for UK Drivers (Free) - MileClear",
   description:
-    "Looking for a MileIQ alternative in the UK? MileClear tracks unlimited drives free, uses HMRC's 55p rate natively, tags Uber and Deliveroo trips, and works offline — no 40-drive cap, no price hike.",
+    "Looking for a MileIQ alternative in the UK? MileClear tracks unlimited drives free, uses HMRC's 55p rate natively, tags Uber and Deliveroo trips, and works offline - no 40-drive cap, no price hike.",
   keywords: [
     "mileiq alternative uk",
     "mileiq alternative",
@@ -36,7 +36,7 @@ export const metadata: Metadata = {
 const faqs = [
   {
     q: "What is the best free alternative to MileIQ in the UK?",
-    a: "MileClear is built specifically for UK drivers and tracks unlimited business drives for free — there is no 40-drive monthly cap like MileIQ's free tier. It applies HMRC's Approved Mileage Allowance Payment rates by default (55p per mile for the first 10,000 business miles from 6 April 2026, then 25p), tags gig platforms like Uber, Deliveroo and Amazon Flex, and records trips offline. Pro is £4.99/month only if you want HMRC-ready exports and Self Assessment tooling.",
+    a: "MileClear is built specifically for UK drivers and tracks unlimited business drives for free - there is no 40-drive monthly cap like MileIQ's free tier. It applies HMRC's Approved Mileage Allowance Payment rates by default (55p per mile for the first 10,000 business miles from 6 April 2026, then 25p), tags gig platforms like Uber, Deliveroo and Amazon Flex, and records trips offline. Pro is £4.99/month only if you want HMRC-ready exports and Self Assessment tooling.",
   },
   {
     q: "Why are people switching from MileIQ?",
@@ -44,7 +44,7 @@ const faqs = [
   },
   {
     q: "Does MileClear calculate HMRC mileage for me?",
-    a: "Yes. MileClear applies the correct AMAP rate to every trip automatically by its date — 55p per mile for the first 10,000 business miles in 2026-27, 25p after that, and 24p flat for motorbikes. It keeps a running deduction total you can export for Self Assessment.",
+    a: "Yes. MileClear applies the correct AMAP rate to every trip automatically by its date - 55p per mile for the first 10,000 business miles in 2026-27, 25p after that, and 24p flat for motorbikes. It keeps a running deduction total you can export for Self Assessment.",
   },
   {
     q: "Can I import my MileIQ history into MileClear?",
@@ -59,9 +59,9 @@ const faqs = [
 const rows: [string, string, string][] = [
   ["Free tier", "Unlimited drives, forever", "40 drives / month, then paid"],
   ["Headline price", "Free · Pro £4.99/mo or £44.99/yr", "~$8.99/mo (raised in 2026)"],
-  ["HMRC-native (55p, 10k split)", "Yes — built in, tax-year aware", "No — US flat-rate logic"],
+  ["HMRC-native (55p, 10k split)", "Yes - built in, tax-year aware", "No - US flat-rate logic"],
   ["Gig-platform tagging", "Uber, Deliveroo, Just Eat, Amazon Flex, DPD, Evri…", "No"],
-  ["Works offline", "Yes — offline-first", "Limited"],
+  ["Works offline", "Yes - offline-first", "Limited"],
   ["Self Assessment export", "PDF + CSV (SA103 wizard)", "Reports (US-oriented)"],
   ["Built for", "UK gig & self-employed drivers", "US market"],
 ];
@@ -123,10 +123,10 @@ export default function MileIqAlternativeUk() {
                 marginBottom: "1.25rem",
               }}
             >
-              The best MileIQ alternative for UK drivers — and it&rsquo;s free
+              The best MileIQ alternative for UK drivers - and it&rsquo;s free
             </h1>
             <p style={{ fontSize: "1.125rem", color: "#94a3b8", lineHeight: 1.75, maxWidth: 680 }}>
-              MileIQ is the name everyone knows, but it was built for the US — and in 2026 it raised its price
+              MileIQ is the name everyone knows, but it was built for the US - and in 2026 it raised its price
               while still capping the free tier at 40 drives a month. MileClear is the UK-native alternative:
               it tracks <strong style={{ color: "#e2e8f0" }}>unlimited drives for free</strong>, applies HMRC&rsquo;s
               new <strong style={{ color: "#e2e8f0" }}>55p</strong> rate automatically, tags your Uber and
@@ -187,11 +187,11 @@ export default function MileIqAlternativeUk() {
             <h2 style={h2Style}>Why UK drivers switch from MileIQ to MileClear</h2>
             <ul style={{ listStyle: "none", padding: 0, margin: 0, display: "grid", gap: "1.25rem" }}>
               {[
-                ["No 40-drive cap.", "Track every business drive, unlimited, on the free tier — you never hit a wall mid-month."],
-                ["HMRC rates, done for you.", "The 55p first-10,000-mile rate, the 25p tier, the 24p motorbike rate — applied per trip by date, with a running deduction total for Self Assessment."],
+                ["No 40-drive cap.", "Track every business drive, unlimited, on the free tier - you never hit a wall mid-month."],
+                ["HMRC rates, done for you.", "The 55p first-10,000-mile rate, the 25p tier, the 24p motorbike rate - applied per trip by date, with a running deduction total for Self Assessment."],
                 ["Knows your platforms.", "Tag trips to Uber, Deliveroo, Just Eat, Amazon Flex, DPD or Evri so your business mileage maps to how you actually earn."],
-                ["Records offline.", "Trips save to your phone first, so a dead spot or a closed app never loses a journey — then they sync when you&rsquo;re back online."],
-                ["UK-priced.", "Free to track. Pro is £4.99/month (or £44.99/year) only if you want HMRC-ready PDF exports and the Self Assessment wizard — not a US subscription to do the basics."],
+                ["Records offline.", "Trips save to your phone first, so a dead spot or a closed app never loses a journey - then they sync when you&rsquo;re back online."],
+                ["UK-priced.", "Free to track. Pro is £4.99/month (or £44.99/year) only if you want HMRC-ready PDF exports and the Self Assessment wizard - not a US subscription to do the basics."],
               ].map(([t, d]) => (
                 <li key={t}>
                   <span style={{ color: "#f9fafb", fontWeight: 700, fontFamily: "var(--font-display)" }}>{t}</span>{" "}
@@ -203,7 +203,7 @@ export default function MileIqAlternativeUk() {
 
           {/* FAQ */}
           <section style={{ marginBottom: "3.5rem", maxWidth: 720 }}>
-            <h2 style={h2Style}>MileIQ alternative — FAQ</h2>
+            <h2 style={h2Style}>MileIQ alternative - FAQ</h2>
             <div style={{ display: "grid", gap: "1.5rem" }}>
               {faqs.map((f) => (
                 <div key={f.q}>
@@ -218,7 +218,7 @@ export default function MileIqAlternativeUk() {
           <section style={{ textAlign: "center", padding: "2.5rem 1.5rem", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 16, maxWidth: 720, margin: "0 auto" }}>
             <h2 style={{ ...h2Style, marginBottom: "0.75rem" }}>Make the switch in minutes</h2>
             <p style={{ color: "#94a3b8", lineHeight: 1.7, marginBottom: "1.5rem" }}>
-              Install MileClear, grant location access, and it starts tracking your business miles automatically —
+              Install MileClear, grant location access, and it starts tracking your business miles automatically -
               free, unlimited, HMRC-ready.
             </p>
             <a

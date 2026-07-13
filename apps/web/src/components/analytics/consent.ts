@@ -32,7 +32,7 @@ export function setConsent(choice: ConsentChoice): void {
   try {
     window.localStorage.setItem(CONSENT_KEY, choice);
   } catch {
-    /* private mode / storage blocked — fall through, GA just won't load */
+    /* private mode / storage blocked - fall through, GA just won't load */
   }
   window.dispatchEvent(new Event(CONSENT_EVENT));
 }

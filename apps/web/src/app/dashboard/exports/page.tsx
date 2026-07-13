@@ -159,7 +159,7 @@ export default function ExportsPage() {
       {/* Downloads */}
       <h2 className="section-title">Downloads</h2>
       <div className="grid-auto" style={{ marginBottom: "2.5rem" }}>
-        {/* Self-Assessment — featured */}
+        {/* Self-Assessment - featured */}
         <div className="export-card" style={{ borderColor: "rgba(16, 185, 129, 0.3)" }}>
           <div className="export-card__title">
             HMRC Self-Assessment

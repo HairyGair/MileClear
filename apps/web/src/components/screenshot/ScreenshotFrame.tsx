@@ -62,7 +62,7 @@ export default function ScreenshotFrame({ slot, device }: FrameProps) {
 
   // iPad uses a horizontal split layout. The device shown in the split
   // is an iPhone (since iPad app on iOS runs the iPhone-sized UI for
-  // most users — and our marketing story is mobile-first). Fall back
+  // most users - and our marketing story is mobile-first). Fall back
   // to iphoneSrc when ipadSrc isn't supplied.
   if (isIpad) {
     return (
@@ -134,7 +134,7 @@ export default function ScreenshotFrame({ slot, device }: FrameProps) {
         <rect width="100%" height="100%" filter="url(#noise)" />
       </svg>
 
-      {/* Top eyebrow + badge — centred */}
+      {/* Top eyebrow + badge - centred */}
       <div
         style={{
           position: "absolute",
@@ -456,7 +456,7 @@ function IpadSplitFrame({
         </div>
       </div>
 
-      {/* Bottom brand mark — same band as iPhone but spans the full canvas */}
+      {/* Bottom brand mark - same band as iPhone but spans the full canvas */}
       <BrandMark theme={theme} isIpad={true} />
     </div>
   );
@@ -531,7 +531,7 @@ function DeviceMockup({
   device: "iphone" | "ipad";
   accent: { primary: string; glow: string };
   height: number;
-  /** Hero stack layout — doubles the halo radius and adds an inner
+  /** Hero stack layout - doubles the halo radius and adds an inner
    *  contour ring so the device reads as the centrepiece. */
   extraGlow?: boolean;
   callouts?: Callout[];
@@ -555,7 +555,7 @@ function DeviceMockup({
         height,
       }}
     >
-      {/* Outer halo (hero only) — bigger, brighter, more pronounced */}
+      {/* Outer halo (hero only) - bigger, brighter, more pronounced */}
       {extraGlow ? (
         <div
           style={{
@@ -651,7 +651,7 @@ function CalloutOverlay({
   const labelGap = 22;
 
   // Position the label relative to the dot's centre. We deliberately
-  // overshoot the device bezel — readable copy outweighs being inside
+  // overshoot the device bezel - readable copy outweighs being inside
   // the rectangle. The pill background carries enough contrast that it
   // reads against any underlying capture.
   let labelStyle: React.CSSProperties;
@@ -689,7 +689,7 @@ function CalloutOverlay({
 
   return (
     <>
-      {/* Dot — accent-coloured with a halo so it reads on any capture */}
+      {/* Dot - accent-coloured with a halo so it reads on any capture */}
       <div
         style={{
           position: "absolute",

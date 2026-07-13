@@ -27,9 +27,9 @@ type BannerContent =
  * Site-wide banner. Renders across every page on mileclear.com.
  *
  * Priority order:
- *   1. ACTIVE_ANNOUNCEMENT — standalone news (regulatory changes,
+ *   1. ACTIVE_ANNOUNCEMENT - standalone news (regulatory changes,
  *      outage notices) that isn't tied to a MileClear release.
- *   2. The current "Latest" release's `banner` field — used for
+ *   2. The current "Latest" release's `banner` field - used for
  *      shipping news, App Store launches, feature highlights.
  *
  * Either renders if the visitor hasn't dismissed this exact item

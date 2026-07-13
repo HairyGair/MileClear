@@ -161,7 +161,7 @@ export default function FeaturesPage() {
           <div className="divider" style={{ marginBottom: "clamp(3rem, 6vw, 5rem)" }} />
         </div>
 
-        {/* Section 1 — Automatic Trip Recording */}
+        {/* Section 1 - Automatic Trip Recording */}
         <section
           id="gps-tracking"
           style={{
@@ -300,7 +300,7 @@ export default function FeaturesPage() {
           <div className="divider" />
         </div>
 
-        {/* Section 2 — HMRC Tax Deductions */}
+        {/* Section 2 - HMRC Tax Deductions */}
         <section
           id="hmrc"
           style={{
@@ -442,7 +442,7 @@ export default function FeaturesPage() {
           </div>
         </section>
 
-        {/* Section 3 — Shift & Earnings Tracking */}
+        {/* Section 3 - Shift & Earnings Tracking */}
         <section
           id="shifts"
           style={{
@@ -583,7 +583,7 @@ export default function FeaturesPage() {
           <div className="divider" />
         </div>
 
-        {/* Section 4 — Business Intelligence */}
+        {/* Section 4 - Business Intelligence */}
         <section
           id="intelligence"
           style={{
@@ -722,7 +722,7 @@ export default function FeaturesPage() {
           </div>
         </section>
 
-        {/* Section 5 — UK Fuel Prices */}
+        {/* Section 5 - UK Fuel Prices */}
         <section
           id="fuel"
           style={{
@@ -858,7 +858,7 @@ export default function FeaturesPage() {
           <div className="divider" />
         </div>
 
-        {/* Section 6 — Expenses & Tax Estimate */}
+        {/* Section 6 - Expenses & Tax Estimate */}
         <section
           id="expenses"
           style={{
@@ -998,7 +998,7 @@ export default function FeaturesPage() {
           </div>
         </section>
 
-        {/* Section 7 — Gamification */}
+        {/* Section 7 - Gamification */}
         <section
           id="gamification"
           style={{
@@ -1132,7 +1132,7 @@ export default function FeaturesPage() {
           <div className="divider" />
         </div>
 
-        {/* Section 8 — Free vs Pro comparison table */}
+        {/* Section 8 - Free vs Pro comparison table */}
         <section
           id="free-vs-pro"
           style={{
@@ -1353,7 +1353,7 @@ export default function FeaturesPage() {
           </div>
         </section>
 
-        {/* CTA — Download */}
+        {/* CTA - Download */}
         <section
           style={{
             paddingTop: "clamp(3rem, 6vw, 5rem)",

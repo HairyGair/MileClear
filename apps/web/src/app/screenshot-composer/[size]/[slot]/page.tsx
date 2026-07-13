@@ -7,7 +7,7 @@ import { getSlot } from "@/components/screenshot/slots";
 // Renders a single App Store screenshot composition at the exact pixel
 // dimensions Apple requires. Open the URL in Chrome at 100% zoom, then
 // use DevTools "Capture full size screenshot" to export a pixel-perfect
-// PNG. No download/export endpoint — the browser is the renderer.
+// PNG. No download/export endpoint - the browser is the renderer.
 //
 // /screenshot-composer/iphone/1   → 1320×2868
 // /screenshot-composer/ipad/3     → 2064×2752
@@ -56,7 +56,7 @@ export default async function SlotPage({
   );
 }
 
-// Override the default layout's chrome — screenshots should be the
+// Override the default layout's chrome - screenshots should be the
 // only thing visible. Next.js renders the root layout above this, so
 // we rely on the parent screenshot-composer/layout.tsx to strip global
 // nav.

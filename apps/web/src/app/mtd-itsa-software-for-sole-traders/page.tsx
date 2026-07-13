@@ -42,19 +42,19 @@ const faqs = [
   },
   {
     q: "What does MTD-compliant software actually have to do?",
-    a: "Three things. First, integrate with HMRC's MTD APIs over OAuth — your software talks to HMRC on your behalf, you don't type figures into a portal. Second, transmit nine to fifteen mandatory fraud-prevention headers on every API call (device, location, software identification). Third, submit a digital quarterly summary that maps your business income and expenses to HMRC's schema. A spreadsheet, even a digital one, is not compliant on its own. You either need MTD-compliant accounting software or 'bridging software' that links your spreadsheet to HMRC.",
+    a: "Three things. First, integrate with HMRC's MTD APIs over OAuth - your software talks to HMRC on your behalf, you don't type figures into a portal. Second, transmit nine to fifteen mandatory fraud-prevention headers on every API call (device, location, software identification). Third, submit a digital quarterly summary that maps your business income and expenses to HMRC's schema. A spreadsheet, even a digital one, is not compliant on its own. You either need MTD-compliant accounting software or 'bridging software' that links your spreadsheet to HMRC.",
   },
   {
     q: "Why don't most mileage trackers do MTD ITSA submissions?",
-    a: "Mileage tracking is a different problem from tax submission. Most apps in this category — including the well-known international ones — focus on producing a CSV or PDF of your business mileage and stopping there. Submitting that data to HMRC requires an entirely separate workstream: HMRC Developer Hub registration, OAuth implementation, fraud-prevention header generation, sandbox testing, and a 3-8 week production accreditation review. Few mileage trackers have built this infrastructure because their core product is the tracker, not the filer.",
+    a: "Mileage tracking is a different problem from tax submission. Most apps in this category - including the well-known international ones - focus on producing a CSV or PDF of your business mileage and stopping there. Submitting that data to HMRC requires an entirely separate workstream: HMRC Developer Hub registration, OAuth implementation, fraud-prevention header generation, sandbox testing, and a 3-8 week production accreditation review. Few mileage trackers have built this infrastructure because their core product is the tracker, not the filer.",
   },
   {
     q: "Can I keep using my existing mileage tracker and submit elsewhere?",
-    a: "Yes, but you will be juggling at least two pieces of software. Your tracker generates a mileage figure (or an export); a separate piece of MTD-compliant accounting software submits to HMRC. Most accountancy packages — Xero, FreeAgent, QuickBooks, Sage — support MTD ITSA submissions but do not track mileage natively. The disjointed workflow is exactly what UK gig drivers tell us they want to avoid. MileClear is being built so the mileage and the submission live in the same place.",
+    a: "Yes, but you will be juggling at least two pieces of software. Your tracker generates a mileage figure (or an export); a separate piece of MTD-compliant accounting software submits to HMRC. Most accountancy packages - Xero, FreeAgent, QuickBooks, Sage - support MTD ITSA submissions but do not track mileage natively. The disjointed workflow is exactly what UK gig drivers tell us they want to avoid. MileClear is being built so the mileage and the submission live in the same place.",
   },
   {
     q: "What if I miss the 7 August 2026 deadline?",
-    a: "HMRC has confirmed a points-based late submission penalty. You accumulate one point per missed quarterly submission. At four points (sole trader on quarterly cadence) HMRC issues a £200 fine, with further £200 fines for each subsequent late submission until you reset by submitting on time for a defined period. There is also a separate late payment regime if you owe tax. The simpler answer is: file on time. The first deadline is the one most people will miss because the regime is brand new — set up your software early.",
+    a: "HMRC has confirmed a points-based late submission penalty. You accumulate one point per missed quarterly submission. At four points (sole trader on quarterly cadence) HMRC issues a £200 fine, with further £200 fines for each subsequent late submission until you reset by submitting on time for a defined period. There is also a separate late payment regime if you owe tax. The simpler answer is: file on time. The first deadline is the one most people will miss because the regime is brand new - set up your software early.",
   },
   {
     q: "Do I still need to do a Self Assessment return?",

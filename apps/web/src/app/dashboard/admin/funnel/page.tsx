@@ -111,7 +111,7 @@ export default function FunnelCohortsPage() {
         Activation funnel split by registration month. Each step is measured within{" "}
         {data?.activationWindowDays ?? 30} days of registration (except Pro conversion,
         which is any time). A cohort&apos;s rate is highlighted red when it&apos;s
-        below 70% of the median rate across visible cohorts — the &quot;something
+        below 70% of the median rate across visible cohorts - the &quot;something
         broke for new users this month&quot; signal.
       </p>
 

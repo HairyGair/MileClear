@@ -6,7 +6,7 @@ import type { Map as LeafletMap, LayerGroup } from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { api } from "../../../../lib/api";
 
-// Geographic density — admin map of where trips start and end, enriched
+// Geographic density - admin map of where trips start and end, enriched
 // with reach, growth, premium and platform signals. Real OSM basemap
 // (Leaflet), configurable window / grid / privacy floor, and a metric
 // selector that recolours cells by trips, users, new signups, premium
@@ -291,7 +291,7 @@ export default function GeographicDensityPage() {
       .slice(0, 10);
   }, [townCells, metricDef]);
 
-  // Momentum, town-aggregated (start cells only — growth is start-based).
+  // Momentum, town-aggregated (start cells only - growth is start-based).
   const momentum = useMemo(() => {
     if (!data) return { fastestGrowing: [] as Cell[], newAreas: [] as Cell[] };
     const towns = aggregateByTown(data.startCells, data.startTownUserCounts);

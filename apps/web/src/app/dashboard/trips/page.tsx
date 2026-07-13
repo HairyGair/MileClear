@@ -160,7 +160,7 @@ function extractPostcode(addr: string): { code: string; partial: boolean } | nul
 }
 
 // UK-first geocoder: try postcodes.io for partial/full postcodes, fall
-// back to Nominatim with countrycodes=gb. Stable function — no closure.
+// back to Nominatim with countrycodes=gb. Stable function - no closure.
 async function geocodeAddress(addr: string): Promise<{ lat: number; lng: number } | null> {
   const pc = extractPostcode(addr);
   if (pc) {
@@ -984,7 +984,7 @@ export default function TripsPage() {
                       {trip.platformTag ? (
                         <Badge variant="source">{trip.platformTag}</Badge>
                       ) : (
-                        <span style={{ color: "var(--text-faint)" }}>—</span>
+                        <span style={{ color: "var(--text-faint)" }}>-</span>
                       )}
                     </td>
                     <td>
@@ -1124,12 +1124,12 @@ export default function TripsPage() {
             />
             {routeCalcStatus === "done" && (
               <span style={{ fontSize: "0.75rem", color: "var(--text-tertiary)", marginTop: "0.25rem", display: "block" }}>
-                Auto-calculated via road — you can override
+                Auto-calculated via road - you can override
               </span>
             )}
             {routeCalcStatus === "error" && (
               <span style={{ fontSize: "0.75rem", color: "var(--amber-400)", marginTop: "0.25rem", display: "block" }}>
-                Could not calculate route — enter distance manually
+                Could not calculate route - enter distance manually
               </span>
             )}
           </div>
@@ -1210,7 +1210,7 @@ export default function TripsPage() {
       >
         {detailTrip && (
           <div className="trip-detail">
-            {/* Route visualization — clickable to show map */}
+            {/* Route visualization - clickable to show map */}
             <button
               className={`trip-detail__route trip-detail__route--clickable${showMap ? " trip-detail__route--active" : ""}`}
               onClick={() => {
@@ -1283,7 +1283,7 @@ export default function TripsPage() {
               </div>
             </div>
 
-            {/* Odometer + edit audit — trust primitives for HMRC defence */}
+            {/* Odometer + edit audit - trust primitives for HMRC defence */}
             {(detailTrip.odometerStart != null || detailTrip.odometerEnd != null || detailTrip.updatedAt) && (
               <div style={{ marginTop: "0.75rem", display: "flex", gap: "1.25rem", flexWrap: "wrap", color: "#94a3b8", fontSize: "0.8125rem" }}>
                 {detailTrip.odometerStart != null && detailTrip.odometerEnd != null && (
@@ -1299,7 +1299,7 @@ export default function TripsPage() {
               </div>
             )}
 
-            {/* Clean Air Zone / ULEZ charge — route crossed a charging zone in
+            {/* Clean Air Zone / ULEZ charge - route crossed a charging zone in
                 a non-compliant vehicle. Offer to log it as a deductible expense. */}
             {detailTrip.cleanAirZones && detailTrip.cleanAirZones.charges.length > 0 && (
               <div
@@ -1338,7 +1338,7 @@ export default function TripsPage() {
                   );
                 })}
                 <div style={{ color: "#64748b", fontSize: "0.6875rem", marginTop: 8, lineHeight: 1.5 }}>
-                  Based on your vehicle&apos;s emissions and the zone boundary — confirm with the official checker if unsure. Zone boundaries © OpenStreetMap contributors, Transport for London &amp; local authorities.
+                  Based on your vehicle&apos;s emissions and the zone boundary - confirm with the official checker if unsure. Zone boundaries © OpenStreetMap contributors, Transport for London &amp; local authorities.
                 </div>
               </div>
             )}
@@ -1409,7 +1409,7 @@ export default function TripsPage() {
               </div>
             ) : (
               <div className="trip-detail__no-insights">
-                No GPS data recorded — insights are available for tracked trips
+                No GPS data recorded - insights are available for tracked trips
               </div>
             )}
 
@@ -1492,7 +1492,7 @@ export default function TripsPage() {
                 <span><strong>{totalMiles.toFixed(1)}</strong> mi total</span>
                 <span>
                   {new Date(first.startedAt).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}
-                  {" — "}
+                  {" - "}
                   {last.endedAt ? new Date(last.endedAt).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" }) : "ongoing"}
                 </span>
               </div>

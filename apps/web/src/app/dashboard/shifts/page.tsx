@@ -106,7 +106,7 @@ export default function ShiftsPage() {
           <div className="stat-card__label">Total Shifts</div>
         </div>
         <div className="stat-card">
-          <div className="stat-card__value">{avgHours > 0 ? `${avgHours}h ${avgMins}m` : avgMins > 0 ? `${avgMins}m` : "—"}</div>
+          <div className="stat-card__value">{avgHours > 0 ? `${avgHours}h ${avgMins}m` : avgMins > 0 ? `${avgMins}m` : "-"}</div>
           <div className="stat-card__label">Avg Duration</div>
         </div>
         <div className="stat-card">
@@ -198,7 +198,7 @@ export default function ShiftsPage() {
                       {shift.vehicle ? (
                         `${shift.vehicle.make} ${shift.vehicle.model}`
                       ) : (
-                        <span style={{ color: "var(--text-faint)" }}>—</span>
+                        <span style={{ color: "var(--text-faint)" }}>-</span>
                       )}
                     </td>
                     <td>

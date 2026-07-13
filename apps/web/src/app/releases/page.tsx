@@ -9,20 +9,20 @@ import "../updates.css";
 export const metadata: Metadata = {
   title: "Release notes",
   description:
-    "Every MileClear release — what changed, when, and why. Full changelog for the UK mileage and tax tracker.",
+    "Every MileClear release - what changed, when, and why. Full changelog for the UK mileage and tax tracker.",
   alternates: {
     canonical: "https://mileclear.com/releases",
   },
   openGraph: {
     title: "Release notes | MileClear",
-    description: "Every MileClear release — full changelog for the UK mileage and tax tracker.",
+    description: "Every MileClear release - full changelog for the UK mileage and tax tracker.",
     url: "https://mileclear.com/releases",
     images: [{ url: "/branding/og-image.png", width: 1200, height: 628 }],
   },
   twitter: {
     card: "summary_large_image",
     title: "Release notes | MileClear",
-    description: "Every MileClear release — full changelog.",
+    description: "Every MileClear release - full changelog.",
     images: ["/branding/og-image.png"],
   },
 };

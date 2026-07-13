@@ -2,7 +2,7 @@
 // MileClear  - Posts data: Release Notes + Blog
 // Add new blog posts to the BLOG_POSTS array below.
 // Add new release notes to RELEASE_NOTES in
-// `packages/shared/src/data/releaseNotes.ts` — that file is the
+// `packages/shared/src/data/releaseNotes.ts` - that file is the
 // single source of truth used by both the website (this file
 // re-exports it) and the Product Update email campaign sent from
 // the admin panel.

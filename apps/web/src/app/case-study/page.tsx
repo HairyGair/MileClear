@@ -7,14 +7,14 @@ const APP_STORE_URL =
   "https://apps.apple.com/us/app/mileclear-mileage-tracker-uk/id6759671005";
 
 export const metadata: Metadata = {
-  title: "MileClear Case Study — Reliable Mileage Tracking Built for UK Drivers",
+  title: "MileClear Case Study - Reliable Mileage Tracking Built for UK Drivers",
   description:
     "How MileClear became a mileage tracker UK drivers actually trust: offline-first capture, HMRC-ready exports, and a relentless focus on never losing a trip. 249 drivers have tracked 82,924 miles to date.",
   alternates: { canonical: "https://mileclear.com/case-study" },
   openGraph: {
     title: "MileClear Case Study | Reliable mileage tracking for UK drivers",
     description:
-      "Built from what drivers said was broken. Offline-first trip capture, HMRC-ready tax exports, and a never-lose-a-trip guarantee — 249 drivers, 82,924 miles tracked.",
+      "Built from what drivers said was broken. Offline-first trip capture, HMRC-ready tax exports, and a never-lose-a-trip guarantee - 249 drivers, 82,924 miles tracked.",
     url: "https://mileclear.com/case-study",
     type: "article",
     images: [{ url: "/branding/og-image.png", width: 1200, height: 628 }],
@@ -36,7 +36,7 @@ const STATS = [
   { value: "462", label: "shifts recorded" },
 ];
 
-// Presentational helpers — mirror the long-form guide pages (ev-tax-relief).
+// Presentational helpers - mirror the long-form guide pages (ev-tax-relief).
 function Card({
   children,
   accent = "default",
@@ -95,7 +95,7 @@ export default function CaseStudyPage() {
   const article = {
     "@context": "https://schema.org",
     "@type": "Article",
-    headline: "MileClear Case Study — Reliable mileage tracking built for UK drivers",
+    headline: "MileClear Case Study - Reliable mileage tracking built for UK drivers",
     description:
       "How MileClear became a mileage tracker UK drivers trust: offline-first capture, HMRC-ready exports, and a never-lose-a-trip focus. 249 drivers have tracked 82,924 miles.",
     author: { "@type": "Person", name: "Anthony Gair" },
@@ -173,7 +173,7 @@ export default function CaseStudyPage() {
             <SectionHead
               label="The problem"
               title="Drivers couldn't find a mileage tracker they trusted"
-              intro="MileClear didn't start with a product idea. It started by reading complaints. Across the gig-driver communities — Uber, Deliveroo, Amazon Flex, Just Eat — the same frustration came up again and again."
+              intro="MileClear didn't start with a product idea. It started by reading complaints. Across the gig-driver communities - Uber, Deliveroo, Amazon Flex, Just Eat - the same frustration came up again and again."
             />
             <Card>
               <P>
@@ -182,7 +182,7 @@ export default function CaseStudyPage() {
                 wants</strong> behind a wall of charts.
               </P>
               <P style={{ marginBottom: 0 }}>
-                For a self-employed driver that is not an annoyance — it is money. Every business mile you
+                For a self-employed driver that is not an annoyance - it is money. Every business mile you
                 can&apos;t prove is tax relief you don&apos;t get back. At 45–55p per mile, the untracked
                 drives add up to real cash by the time the January deadline arrives.
               </P>
@@ -196,7 +196,7 @@ export default function CaseStudyPage() {
             <SectionHead
               label="The approach"
               title="Offline-first, and built to never lose a trip"
-              intro="Reliability wasn't a feature to bolt on — it was the whole point. So the architecture started there."
+              intro="Reliability wasn't a feature to bolt on - it was the whole point. So the architecture started there."
             />
             <Card accent="amber">
               <H3>Every trip is saved before it's sent</H3>
@@ -211,7 +211,7 @@ export default function CaseStudyPage() {
               <H3>It records while your phone is in your pocket</H3>
               <P style={{ marginBottom: 0 }}>
                 Trip capture runs on a native location engine that keeps going when the screen is locked
-                and the app is in the background — and re-attaches itself if iOS shuts the app down. A
+                and the app is in the background - and re-attaches itself if iOS shuts the app down. A
                 push-to-start Live Activity now makes the Dynamic Island appear on its own when a drive
                 is detected, so you can see it&apos;s working without opening the app.
               </P>
@@ -225,12 +225,12 @@ export default function CaseStudyPage() {
             <SectionHead
               label="What it does"
               title="A driver's whole tax year, in one app"
-              intro="Tracking is free. A Pro tier unlocks the tax exports and deeper analytics, so the part that matters most — capturing your miles — stays open to everyone."
+              intro="Tracking is free. A Pro tier unlocks the tax exports and deeper analytics, so the part that matters most - capturing your miles - stays open to everyone."
             />
             <Card>
               <ul style={{ color: "var(--text-secondary)", fontSize: "0.95rem", lineHeight: 1.85, paddingLeft: "1.2rem", margin: 0 }}>
-                <li><strong style={{ color: "var(--text-white)" }}>Automatic GPS trip tracking</strong> — business or personal, tagged by platform.</li>
-                <li><strong style={{ color: "var(--text-white)" }}>One-tap HMRC self-assessment export</strong> — a year of driving becomes a tax-ready figure.</li>
+                <li><strong style={{ color: "var(--text-white)" }}>Automatic GPS trip tracking</strong> - business or personal, tagged by platform.</li>
+                <li><strong style={{ color: "var(--text-white)" }}>One-tap HMRC self-assessment export</strong> - a year of driving becomes a tax-ready figure.</li>
                 <li><strong style={{ color: "var(--text-white)" }}>Shift tracking with A–F scorecards</strong> that factor in cost and wear.</li>
                 <li><strong style={{ color: "var(--text-white)" }}>Earnings</strong> by CSV import or open banking, plus expense logging.</li>
                 <li><strong style={{ color: "var(--text-white)" }}>Live fuel prices</strong> from 8,300+ UK forecourts.</li>
@@ -249,7 +249,7 @@ export default function CaseStudyPage() {
             />
             <P>
               As of June 2026, <strong style={{ color: "var(--text-white)" }}>249 drivers have logged
-              6,121 trips and 82,924 miles across 462 shifts</strong> — 46,673 of those miles tagged as
+              6,121 trips and 82,924 miles across 462 shifts</strong> - 46,673 of those miles tagged as
               business, the ones that turn into tax relief. The app is live on the App Store and keeps
               improving, with reliability fixes shipped straight from driver reports.
             </P>

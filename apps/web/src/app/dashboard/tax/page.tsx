@@ -199,7 +199,7 @@ export default function TaxPage() {
   const platformBreakdown = Array.from(platformMap.entries())
     .sort((a, b) => b[1].miles - a[1].miles);
 
-  // HMRC rate info (per the selected tax year — rate rose from 45p to 55p
+  // HMRC rate info (per the selected tax year - rate rose from 45p to 55p
   // from 2026-27 onwards).
   const yearRates = getHmrcRatesForTaxYear(taxYear);
   const firstTierLabel = `${yearRates.car.first10000}p`;
@@ -286,7 +286,7 @@ export default function TaxPage() {
                       <td>{formatMiles(m.businessMiles)} mi</td>
                       <td className="hide-mobile">{formatMiles(m.personalMiles)} mi</td>
                       <td style={{ fontWeight: 600, color: m.deductionPence > 0 ? "var(--amber-400)" : undefined }}>
-                        {m.deductionPence > 0 ? formatPence(m.deductionPence) : "—"}
+                        {m.deductionPence > 0 ? formatPence(m.deductionPence) : "-"}
                       </td>
                     </tr>
                   ))}

@@ -550,7 +550,7 @@ function OverviewTab() {
         </div>
       )}
 
-      {/* Rating diagnostics — by build + per-user repeat tally. Helps
+      {/* Rating diagnostics - by build + per-user repeat tally. Helps
           explain the gap between "Love it!" intent and ratings actually
           showing up in App Store Connect. */}
       {ratingDiag && ratingDiag.totalLoveItEvents > 0 && (
@@ -660,7 +660,7 @@ function UserDetailModal({
   const [diag, setDiag] = useState<DiagnosticDump | null>(null);
   const [events, setEvents] = useState<AdminUserEvent[] | null>(null);
   const [showAllEvents, setShowAllEvents] = useState(false);
-  // Trip filter for the diagnostic events panel — when set, the events
+  // Trip filter for the diagnostic events panel - when set, the events
   // list is scoped to that trip's time window (±60s). Mirrors the
   // mobile Drive Detection screen pattern.
   const [tripFilter, setTripFilter] = useState<{
@@ -989,7 +989,7 @@ function UserDetailModal({
               </div>
               <div>
                 <span style={{ color: "var(--text-secondary)" }}>Name</span>
-                <p style={{ marginTop: 2 }}>{user.displayName || "—"}</p>
+                <p style={{ marginTop: 2 }}>{user.displayName || "-"}</p>
               </div>
               <div>
                 <span style={{ color: "var(--text-secondary)" }}>Joined</span>
@@ -1010,7 +1010,7 @@ function UserDetailModal({
                   {user.emailVerified && <Badge variant="success">Verified</Badge>}
                   {!user.emailVerified && <Badge variant="danger">Unverified</Badge>}
                   {user.unreachable && (
-                    <span title="Placeholder Apple email + no push token — cannot be contacted by any channel">
+                    <span title="Placeholder Apple email + no push token - cannot be contacted by any channel">
                       <Badge variant="danger">Unreachable</Badge>
                     </span>
                   )}
@@ -1045,7 +1045,7 @@ function UserDetailModal({
                 <p style={{ marginTop: 2, fontSize: "0.8125rem" }}>
                   {[user.workType, user.dashboardMode && `${user.dashboardMode} mode`, user.userIntent]
                     .filter(Boolean)
-                    .join(" · ") || "—"}
+                    .join(" · ") || "-"}
                 </p>
               </div>
             </div>
@@ -1088,7 +1088,7 @@ function UserDetailModal({
                 <p style={{ marginTop: 2 }}>
                   {user.premiumExpiresAt
                     ? new Date(user.premiumExpiresAt).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })
-                    : "—"}
+                    : "-"}
                 </p>
               </div>
               <div>
@@ -1104,7 +1104,7 @@ function UserDetailModal({
                 <p style={{ marginTop: 2 }}>
                   {user.referralProUntil
                     ? new Date(user.referralProUntil).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })
-                    : "—"}
+                    : "-"}
                 </p>
               </div>
               <div>
@@ -1150,13 +1150,13 @@ function UserDetailModal({
               <div>
                 <span style={{ color: "var(--text-secondary)" }}>Last trip</span>
                 <p style={{ marginTop: 2 }} title={user.lastTripAt ? new Date(user.lastTripAt).toLocaleString() : ""}>
-                  {user.lastTripAt ? `${timeAgo(user.lastTripAt)} (${new Date(user.lastTripAt).toLocaleDateString("en-GB")})` : "—"}
+                  {user.lastTripAt ? `${timeAgo(user.lastTripAt)} (${new Date(user.lastTripAt).toLocaleDateString("en-GB")})` : "-"}
                 </p>
               </div>
               <div>
                 <span style={{ color: "var(--text-secondary)" }}>Last login</span>
                 <p style={{ marginTop: 2 }} title={user.lastLoginAt ? new Date(user.lastLoginAt).toLocaleString() : ""}>
-                  {user.lastLoginAt ? `${timeAgo(user.lastLoginAt)} (${new Date(user.lastLoginAt).toLocaleDateString("en-GB")})` : "—"}
+                  {user.lastLoginAt ? `${timeAgo(user.lastLoginAt)} (${new Date(user.lastLoginAt).toLocaleDateString("en-GB")})` : "-"}
                 </p>
               </div>
             </div>
@@ -1240,7 +1240,7 @@ function UserDetailModal({
                   >
                     <span>{f.label}</span>
                     <span style={{ fontWeight: 600 }}>
-                      {f.count !== undefined ? (f.count > 0 ? f.count : "—") : f.on ? "✓" : "—"}
+                      {f.count !== undefined ? (f.count > 0 ? f.count : "-") : f.on ? "✓" : "-"}
                     </span>
                   </div>
                 );
@@ -1703,7 +1703,7 @@ function UserDetailModal({
                                 style={{ fontSize: "0.75rem", color: "var(--text-secondary)", maxWidth: 280, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
                                 title={Object.keys(meta).length ? JSON.stringify(meta) : ""}
                               >
-                                {detail || (Object.keys(meta).length ? JSON.stringify(meta).slice(0, 80) : "—")}
+                                {detail || (Object.keys(meta).length ? JSON.stringify(meta).slice(0, 80) : "-")}
                               </td>
                             </tr>
                           );
@@ -1784,7 +1784,7 @@ function UserDetailModal({
                     ))}
                   </div>
 
-                  {/* App state — current foreground/background + seconds since last
+                  {/* App state - current foreground/background + seconds since last
                       transition. Lets a reviewer spot 'iOS suspended the app for
                       14 minutes here' at a glance. */}
                   {(() => {
@@ -1803,7 +1803,7 @@ function UserDetailModal({
                     );
                   })()}
 
-                  {/* Activity summary (24h event counts) — matches the mobile
+                  {/* Activity summary (24h event counts) - matches the mobile
                       Drive Detection screen layout. */}
                   {(() => {
                     const summary = st.activitySummary as Record<string, number> | undefined;
@@ -1826,7 +1826,7 @@ function UserDetailModal({
                     );
                   })()}
 
-                  {/* Recent trips (last 10) — gives the reviewer a quick view of
+                  {/* Recent trips (last 10) - gives the reviewer a quick view of
                       what the device thinks it's been recording. Tap to filter
                       the events list below to that trip's time window. */}
                   {(() => {
@@ -1986,7 +1986,7 @@ function UserDetailModal({
                 onChange={(e) => setPushBody(e.target.value)}
                 maxLength={200}
               />
-              {/* Deep-link action — every push must route somewhere on tap. */}
+              {/* Deep-link action - every push must route somewhere on tap. */}
               <Select
                 id="pushAction"
                 value={pushAction}
@@ -2030,7 +2030,7 @@ function UserDetailModal({
             </div>
           </div>
 
-          {/* Remote engine switch — set_native_engine silent push. The per-user
+          {/* Remote engine switch - set_native_engine silent push. The per-user
               rollback lever for the ClearTrack rollout: devices where the
               native engine never opens recordings (silent non-capture) get
               flipped back to the JS engine without the user doing anything.
@@ -2287,7 +2287,7 @@ function UsersTab() {
           type="button"
           className={`filter-chip ${filters.unreachable ? "filter-chip--active" : ""}`}
           onClick={() => setFilters((f) => ({ ...f, unreachable: !f.unreachable }))}
-          title="Placeholder Apple Sign-In email and no push token — no channel can reach these users"
+          title="Placeholder Apple Sign-In email and no push token - no channel can reach these users"
         >
           Unreachable
         </button>
@@ -2390,7 +2390,7 @@ function UsersTab() {
                       </span>
                     </td>
                     <td style={{ fontSize: "0.875rem", color: "var(--text-secondary)" }}>
-                      {user.displayName || "—"}
+                      {user.displayName || "-"}
                     </td>
                     <td>
                       <div style={{ display: "flex", gap: "0.3rem", flexWrap: "wrap" }}>
@@ -2400,7 +2400,7 @@ function UsersTab() {
                           <Badge variant="source">Free</Badge>
                         )}
                         {user.unreachable && (
-                          <span title="Placeholder Apple email + no push token — cannot be contacted by any channel">
+                          <span title="Placeholder Apple email + no push token - cannot be contacted by any channel">
                             <Badge variant="danger">Unreachable</Badge>
                           </span>
                         )}
@@ -2422,10 +2422,10 @@ function UsersTab() {
                           }}
                           title={`${user.healthBand} (${user.healthScore}/100)`}
                         >
-                          {user.healthBand === "unknown" ? "—" : user.healthScore}
+                          {user.healthBand === "unknown" ? "-" : user.healthScore}
                         </span>
                       ) : (
-                        "—"
+                        "-"
                       )}
                     </td>
                     <td style={{ fontSize: "0.875rem" }}>{user._count.trips}</td>
@@ -2433,13 +2433,13 @@ function UsersTab() {
                       style={{ fontSize: "0.8125rem", whiteSpace: "nowrap", color: "var(--text-secondary)" }}
                       title={user.lastTripAt ? new Date(user.lastTripAt).toLocaleString() : ""}
                     >
-                      {user.lastTripAt ? timeAgo(user.lastTripAt) : "—"}
+                      {user.lastTripAt ? timeAgo(user.lastTripAt) : "-"}
                     </td>
                     <td
                       style={{ fontSize: "0.8125rem", whiteSpace: "nowrap", color: "var(--text-secondary)" }}
                       title={user.lastLoginAt ? new Date(user.lastLoginAt).toLocaleString() : ""}
                     >
-                      {user.lastLoginAt ? timeAgo(user.lastLoginAt) : "—"}
+                      {user.lastLoginAt ? timeAgo(user.lastLoginAt) : "-"}
                     </td>
                     <td style={{ fontSize: "0.875rem", whiteSpace: "nowrap" }}>
                       {new Date(user.createdAt).toLocaleDateString("en-GB", {
@@ -2793,7 +2793,7 @@ function HealthTab() {
                   Cache by source:{" "}
                   {Object.entries(routingHealth.cache.bySource)
                     .map(([k, v]) => `${k} ${v}`)
-                    .join(" · ") || "—"}
+                    .join(" · ") || "-"}
                 </p>
               </div>
             </Card>
@@ -3200,10 +3200,10 @@ function AutoTripsTab() {
 
           <Card title={`Drivers gone quiet (${fleet.quietDrivers.length})`}>
             <p style={{ fontSize: "0.8125rem", color: "var(--text-secondary)", marginBottom: "0.75rem" }}>
-              Were capturing (≥3 auto-trips in the prior 30→7 days) but have recorded nothing in the last 7 days — the silent-capture-failure / churn signal.
+              Were capturing (≥3 auto-trips in the prior 30→7 days) but have recorded nothing in the last 7 days - the silent-capture-failure / churn signal.
             </p>
             {fleet.quietDrivers.length === 0 ? (
-              <p style={{ fontSize: "0.875rem", color: "var(--emerald-400)" }}>None — every recently-active driver is still capturing.</p>
+              <p style={{ fontSize: "0.875rem", color: "var(--emerald-400)" }}>None - every recently-active driver is still capturing.</p>
             ) : (
               <div className="table-wrap">
                 <table className="table">
@@ -3224,7 +3224,7 @@ function AutoTripsTab() {
           </Card>
 
           {/* The old "native engine needs attention" panel (stale
-              lastNativeLocationAt) was removed 10 Jun 2026 — it false-flagged
+              lastNativeLocationAt) was removed 10 Jun 2026 - it false-flagged
               parked devices and missed real silent non-capture (the metric
               refreshes on every app open). Capture-outcome health lives on
               the dedicated page: */}
@@ -3397,7 +3397,7 @@ function PushTab() {
             <Input id="push-inactive-days" label="Inactive for (days)" value={inactiveDays} onChange={(e) => setInactiveDays(e.target.value)} type="number" />
           )}
 
-          {/* Optional filters — compose with the audience cut */}
+          {/* Optional filters - compose with the audience cut */}
           <div
             style={{
               padding: "0.75rem 0.875rem",
@@ -3411,7 +3411,7 @@ function PushTab() {
                 Filters
               </span>
               <span style={{ fontSize: "0.7rem", color: "var(--text-tertiary, #64748b)" }}>
-                {activeFilterCount === 0 ? "none — applies to whole audience" : `${activeFilterCount} active — AND'd with audience`}
+                {activeFilterCount === 0 ? "none - applies to whole audience" : `${activeFilterCount} active - AND'd with audience`}
               </span>
             </div>
 
@@ -3606,7 +3606,7 @@ function EmailTab() {
     { id: "re-engagement", title: "Re-engagement", desc: "Personalised email to bring users back, with their trip stats.", cohort: false },
     { id: "update", title: "Product Update", desc: "Send the latest changelog/update email (reads the 'Latest' release notes).", cohort: false },
     { id: "service-status", title: "Service Status", desc: "Quick 'we're back up' notification to all users.", cohort: false },
-    { id: "permission-nudge", title: "Permission nudge (can't-record cohort)", desc: "Email + push to users active in 30d whose latest diagnostic shows background location is OFF — they physically can't auto-record. Dry-run shows the cohort size.", cohort: true },
+    { id: "permission-nudge", title: "Permission nudge (can't-record cohort)", desc: "Email + push to users active in 30d whose latest diagnostic shows background location is OFF - they physically can't auto-record. Dry-run shows the cohort size.", cohort: true },
     { id: "update-nudge", title: "Update nudge (old builds)", desc: "Push to users active in 30d on an old build (<62) telling them to update for the reliability fixes. Dry-run shows the cohort size.", cohort: true },
   ];
 
@@ -3667,7 +3667,7 @@ function EmailTab() {
       setComposerResult(
         d.test
           ? dryRun
-            ? `Dry run OK — would send a test to ${testEmail}`
+            ? `Dry run OK - would send a test to ${testEmail}`
             : `Test sent to ${testEmail}`
           : dryRun
             ? `Dry run: would send to ${d.sent} of ${d.totalUsers} users`
@@ -3816,7 +3816,7 @@ function EmailTab() {
       </Card>
 
       {/* Campaign preview modal */}
-      <Modal open={!!preview} onClose={() => setPreview(null)} title={preview ? `Preview — ${preview.title}` : ""} large>
+      <Modal open={!!preview} onClose={() => setPreview(null)} title={preview ? `Preview - ${preview.title}` : ""} large>
         <iframe
           title="Campaign preview"
           srcDoc={preview?.html ?? ""}
@@ -4327,7 +4327,7 @@ function ActivityTab() {
 // ---------------------------------------------------------------------------
 
 // ---------------------------------------------------------------------------
-// Ops Tab — Apple IAP webhook log + Job run log
+// Ops Tab - Apple IAP webhook log + Job run log
 // ---------------------------------------------------------------------------
 
 interface AppleWebhookLog {
@@ -4457,7 +4457,7 @@ function OpsTab() {
       await api.post(`/admin/apple/ghosts/${encodeURIComponent(txnId)}`, {});
       setReprocessNotice({
         kind: "ok",
-        text: `${txnId.slice(0, 12)}…  Marked as ghost — silenced from chip + default view.`,
+        text: `${txnId.slice(0, 12)}…  Marked as ghost - silenced from chip + default view.`,
       });
       await load();
     } catch (err: any) {
@@ -4474,7 +4474,7 @@ function OpsTab() {
       await api.delete(`/admin/apple/ghosts/${encodeURIComponent(txnId)}`);
       setReprocessNotice({
         kind: "ok",
-        text: `${txnId.slice(0, 12)}…  Unmarked — back in the default view.`,
+        text: `${txnId.slice(0, 12)}…  Unmarked - back in the default view.`,
       });
       await load();
     } catch (err: any) {
@@ -4758,7 +4758,7 @@ function OpsTab() {
                           <span style={{ color: statusColor(w.status), fontWeight: 600 }}>{w.status}</span>
                           {w.isGhost && (
                             <span
-                              title="Marked as ghost — excluded from chip + default view"
+                              title="Marked as ghost - excluded from chip + default view"
                               style={{
                                 marginLeft: "0.4rem",
                                 padding: "0 0.35rem",
@@ -4837,7 +4837,7 @@ function OpsTab() {
                                   size="sm"
                                   onClick={() => markGhost(w.originalTransactionId!)}
                                   disabled={ghostMarking !== null || reprocessing !== null}
-                                  title="Mark this transaction as a known ghost — silence it from the chip + default view"
+                                  title="Mark this transaction as a known ghost - silence it from the chip + default view"
                                 >
                                   {ghostMarking === w.originalTransactionId ? "…" : "Ghost"}
                                 </Button>
@@ -4962,7 +4962,7 @@ function OpsTab() {
         )}
       </Card>
 
-      {/* Manual-link modal — used when an Apple IAP orphan has no
+      {/* Manual-link modal - used when an Apple IAP orphan has no
           appAccountToken on the canonical transaction (pre-1.1.0
           purchase) and a user has reached out to support to claim it. */}
       <Modal
@@ -5059,13 +5059,13 @@ function AlertsTab() {
   };
 
   const alertColor = (type: string) => {
-    // Red — actively breaking the user's tracking pipeline
+    // Red - actively breaking the user's tracking pipeline
     if (type === "alert.heartbeat_bg_location_lost") return "var(--dash-red)";
     if (type === "alert.heartbeat_bg_fetch_denied") return "var(--dash-red)";
     if (type === "alert.heartbeat_sync_perm_failed") return "var(--dash-red)";
     if (type.includes("permission")) return "var(--dash-red)";
     if (type.includes("task_not")) return "var(--dash-red)";
-    // Amber — degraded but recoverable
+    // Amber - degraded but recoverable
     if (type === "alert.heartbeat_low_disk") return "var(--amber-500)";
     if (type.includes("stuck")) return "var(--amber-500)";
     if (type.includes("subscription_orphan")) return "var(--amber-500)";

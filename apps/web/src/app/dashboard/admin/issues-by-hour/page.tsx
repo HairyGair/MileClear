@@ -152,7 +152,7 @@ export default function IssuesByHourPage() {
                 <div
                   key={hour}
                   style={{ display: "flex", flexDirection: "column", alignItems: "stretch", height: "100%" }}
-                  title={`${String(hour).padStart(2, "0")}:00 UTC — ${total} event${total !== 1 ? "s" : ""}`}
+                  title={`${String(hour).padStart(2, "0")}:00 UTC - ${total} event${total !== 1 ? "s" : ""}`}
                 >
                   <div style={{ flex: 1, display: "flex", flexDirection: "column-reverse", justifyContent: "flex-start" }}>
                     {sortedTypes.map((type) => {
@@ -352,7 +352,7 @@ export default function IssuesByHourPage() {
 
           <p style={{ color: "#64748b", fontSize: "0.75rem", marginTop: "2rem" }}>
             Generated {new Date(data.generatedAt).toLocaleString("en-GB")}. Hours are UTC,
-            not BST/GMT — convert mentally for UK rush-hour analysis.
+            not BST/GMT - convert mentally for UK rush-hour analysis.
           </p>
         </>
       )}

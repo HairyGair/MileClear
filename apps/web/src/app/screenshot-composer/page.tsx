@@ -104,7 +104,7 @@ export default function ComposerIndex() {
           <li><strong>iPad:</strong> Top button + Volume Up on an iPad Pro 13" (M4). 2064×2752 natively.</li>
           <li>Open the screen specified by each slot (dashboard, HMRC submit, Live Activity, etc).</li>
           <li>Save the PNGs into the matching subfolder under <code>/apps/web/public/screenshot-source/</code> using the filenames from <code>slots.ts</code>.</li>
-          <li>Reload this page — the composer pulls them automatically.</li>
+          <li>Reload this page - the composer pulls them automatically.</li>
         </ol>
       </div>
 

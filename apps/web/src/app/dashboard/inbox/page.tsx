@@ -69,7 +69,7 @@ function confidenceColor(conf: number | null): string {
 }
 
 function confidenceLabel(conf: number | null): string {
-  if (conf === null) return "—";
+  if (conf === null) return "-";
   if (conf >= 80) return "High confidence";
   if (conf >= 50) return "Medium confidence";
   return "Low confidence";
@@ -406,7 +406,7 @@ export default function InboxPage() {
                 lineHeight: 1.4,
               }}
             >
-              Pick a different category than the suggestion and the categoriser learns —
+              Pick a different category than the suggestion and the categoriser learns -
               next time the same merchant arrives, your choice becomes the default.
             </p>
           </div>

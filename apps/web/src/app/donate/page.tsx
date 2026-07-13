@@ -6,7 +6,7 @@ import Footer from "@/components/landing/Footer";
 import "../donate.css";
 
 // Client Component because of the form + Stripe redirect. SEO is light
-// — marketing surface is in the body copy, not OG tags.
+// - marketing surface is in the body copy, not OG tags.
 
 const PRESETS: { pence: number; label: string }[] = [
   { pence: 300, label: "£3" },

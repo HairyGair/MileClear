@@ -4,7 +4,7 @@ import Footer from "@/components/landing/Footer";
 import BreadcrumbsJsonLd from "@/components/seo/BreadcrumbsJsonLd";
 
 export const metadata: Metadata = {
-  title: "Electric Vehicle Tax Relief UK 2026-27 — What EV Drivers Can Claim",
+  title: "Electric Vehicle Tax Relief UK 2026-27 - What EV Drivers Can Claim",
   description:
     "A clear guide to what UK electric vehicle drivers can claim back from HMRC: mileage relief (EVs use the same 55p/25p rate), home and public charging, the 100% first-year allowance on a new EV, company-car benefit-in-kind, VAT, grants and the new road tax. For the self-employed, employees and company-car drivers.",
   alternates: {
@@ -128,7 +128,7 @@ export default function EvTaxReliefPage() {
   const article = {
     "@context": "https://schema.org",
     "@type": "Article",
-    headline: "Electric Vehicle Tax Relief UK — What EV Drivers Can Claim from HMRC",
+    headline: "Electric Vehicle Tax Relief UK - What EV Drivers Can Claim from HMRC",
     description:
       "A plain-English guide to EV tax relief for UK drivers in 2026-27: mileage, home and public charging, the 100% first-year allowance, company-car benefit-in-kind, VAT, grants and road tax. For the self-employed, employees and company-car drivers.",
     author: { "@type": "Person", name: "Anthony Gair" },
@@ -232,8 +232,8 @@ export default function EvTaxReliefPage() {
                 include:
               </P>
               <ul style={{ color: "var(--text-secondary)", fontSize: "0.95rem", lineHeight: 1.8, paddingLeft: "1.2rem", marginBottom: "0.75rem" }}>
-                <li><strong style={{ color: "var(--text-white)" }}>Home charging</strong> — the business share of your actual home electricity cost used to charge the car. The cleanest evidence is a smart charger or app that logs the kWh, priced at your real unit rate.</li>
-                <li><strong style={{ color: "var(--text-white)" }}>Public charging</strong> — the business share of your charge-point receipts.</li>
+                <li><strong style={{ color: "var(--text-white)" }}>Home charging</strong> - the business share of your actual home electricity cost used to charge the car. The cleanest evidence is a smart charger or app that logs the kWh, priced at your real unit rate.</li>
+                <li><strong style={{ color: "var(--text-white)" }}>Public charging</strong> - the business share of your charge-point receipts.</li>
                 <li>Insurance, servicing, repairs, breakdown cover, road tax, all apportioned by business-use percentage (business miles ÷ total miles).</li>
               </ul>
               <P>

@@ -24,7 +24,7 @@ export default function VerifyPage() {
         await api.post("/auth/send-verification");
         if (!cancelled) setSent(true);
       } catch {
-        // User may not be authenticated — they'll need to log in first
+        // User may not be authenticated - they'll need to log in first
         if (!cancelled) setError("Please log in first to verify your email.");
       } finally {
         if (!cancelled) setSending(false);

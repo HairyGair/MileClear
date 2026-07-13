@@ -85,7 +85,7 @@ function ThankYouContent() {
           £{(session.amountPence / 100).toFixed(2)} received.
         </p>
         <p className="thank-you__body">
-          Genuinely — it makes a difference. MileClear gets a few hours more
+          Genuinely - it makes a difference. MileClear gets a few hours more
           of development per donation. The next feature you wish existed has
           a slightly better chance of existing.
         </p>

@@ -162,7 +162,7 @@ export default async function BlogPostPage({
 
             <div className="post__divider" />
 
-            {/* Body — content is trusted, developer-authored HTML */}
+            {/* Body - content is trusted, developer-authored HTML */}
             <div
               className="post__body"
               dangerouslySetInnerHTML={{ __html: post.content }}

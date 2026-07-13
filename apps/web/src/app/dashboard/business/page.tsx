@@ -46,7 +46,7 @@ function trendArrow(percent: number | null): string {
   if (percent === null) return "";
   if (percent > 0) return `\u2191 ${percent}%`;
   if (percent < 0) return `\u2193 ${Math.abs(percent)}%`;
-  return "— 0%";
+  return "- 0%";
 }
 
 function platformLabel(tag: string): string {
@@ -87,12 +87,12 @@ function WorkModeInfo({ dismissed, onDismiss }: { dismissed: boolean; onDismiss:
           </h3>
           <p style={{ fontSize: "0.875rem", color: "var(--text-muted)", lineHeight: 1.6, margin: 0 }}>
             Work mode is for <strong style={{ color: "var(--text-secondary)" }}>self-employed drivers</strong> who
-            use their own vehicle for business — gig and delivery drivers (Uber, Deliveroo, Just Eat, Amazon Flex),
+            use their own vehicle for business - gig and delivery drivers (Uber, Deliveroo, Just Eat, Amazon Flex),
             couriers, self-employed tradespeople, and anyone who drives for their own business.
           </p>
           <p style={{ fontSize: "0.875rem", color: "var(--text-muted)", lineHeight: 1.6, margin: "0.5rem 0 0" }}>
             Business trips are tracked separately and used to calculate your <strong style={{ color: "var(--text-secondary)" }}>HMRC
-            mileage deduction</strong> — 55p/mile for the first 10,000 miles in 2026-27 (was 45p in 2025-26), then 25p after that.
+            mileage deduction</strong> - 55p/mile for the first 10,000 miles in 2026-27 (was 45p in 2025-26), then 25p after that.
             Regular commuting to a fixed office is not claimable. If you just want to track personal driving,
             switch to the Personal dashboard instead.
           </p>
@@ -120,7 +120,7 @@ export default function BusinessPage() {
   const [stats, setStats] = useState<GamificationStats | null>(null);
   const [insights, setInsights] = useState<BusinessInsights | null>(null);
   const [pnl, setPnl] = useState<WeeklyPnL | null>(null);
-  // Phase 3 of the Money Picture stack — per-platform gross/costs/net P&L
+  // Phase 3 of the Money Picture stack - per-platform gross/costs/net P&L
   // for the last 30 days. Loaded alongside the rest on mount.
   const [platformPnL, setPlatformPnL] = useState<
     Array<{
@@ -363,7 +363,7 @@ export default function BusinessPage() {
             },
             {
               label: "Earnings / Hour",
-              value: insights.earningsPerHourPence > 0 ? formatPence(insights.earningsPerHourPence) : "—",
+              value: insights.earningsPerHourPence > 0 ? formatPence(insights.earningsPerHourPence) : "-",
               trend: insights.earningsTrendPercent,
             },
             {
@@ -450,7 +450,7 @@ export default function BusinessPage() {
         </div>
       )}
 
-      {/* Profit by Platform — Phase 3 of the Money Picture stack.
+      {/* Profit by Platform - Phase 3 of the Money Picture stack.
           Where Platform Performance above shows earnings-per-mile (productivity),
           this view subtracts a proportional share of fuel + allowable expenses
           to show the REAL net £ each platform delivered over the last 30 days. */}
@@ -510,7 +510,7 @@ export default function BusinessPage() {
             }}
           >
             Fuel + expenses split by each platform&apos;s share of total earnings.
-            Mileage allowance not subtracted — that&apos;s a tax-line item, not a
+            Mileage allowance not subtracted - that&apos;s a tax-line item, not a
             real cash cost. Last 30 days.
           </p>
         </div>
@@ -569,7 +569,7 @@ export default function BusinessPage() {
         </div>
       )}
 
-      {/* Peak Performance — Golden Hours */}
+      {/* Peak Performance - Golden Hours */}
       {insights && insights.goldenHours.length > 0 && (
         <div className="biz-insights-row" style={{ marginBottom: "var(--dash-gap)" }}>
           <Card title="Golden Hours" subtitle="Your most profitable time slots" style={{ flex: 1 }}>
@@ -845,7 +845,7 @@ export default function BusinessPage() {
             const isToday = dateStr === new Date().toISOString().slice(0, 10);
 
             const cellTitle = data
-              ? `${formatPence(data.earningsPence)} earned, ${data.tripCount} trips, ${data.miles} mi${data.shiftMinutes > 0 ? `, ${Math.round(data.shiftMinutes / 60)}h worked` : ""}${hasActivity ? " — tap to view trips" : ""}`
+              ? `${formatPence(data.earningsPence)} earned, ${data.tripCount} trips, ${data.miles} mi${data.shiftMinutes > 0 ? `, ${Math.round(data.shiftMinutes / 60)}h worked` : ""}${hasActivity ? " - tap to view trips" : ""}`
               : "No activity";
 
             const cellStyle: React.CSSProperties = {

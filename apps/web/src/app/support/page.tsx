@@ -23,11 +23,11 @@ const faqSections = [
       },
       {
         q: 'What’s the difference between Work and Personal mode?',
-        a: 'Top of the dashboard — toggle between Work and Personal whenever your day changes. Work mode shows your tax deduction, business insights, and HMRC tooling. Personal mode shows journey timeline, milestones, and fuel costs. If you do both, set your dashboard mode to "Both" in Settings to see everything at once.',
+        a: 'Top of the dashboard - toggle between Work and Personal whenever your day changes. Work mode shows your tax deduction, business insights, and HMRC tooling. Personal mode shows journey timeline, milestones, and fuel costs. If you do both, set your dashboard mode to "Both" in Settings to see everything at once.',
       },
       {
-        q: 'I just installed MileClear — what should I do first?',
-        a: 'Three things, in order. (1) Add your vehicle in Settings → Vehicles — we need fuel type and MPG to calculate fuel costs. (2) Add Home and Work as saved locations under Settings → Saved Locations. The app will then auto-detect trips between them. (3) Take your first drive. You should see a "Trip Active" Live Activity on the Lock Screen.',
+        q: 'I just installed MileClear - what should I do first?',
+        a: 'Three things, in order. (1) Add your vehicle in Settings → Vehicles - we need fuel type and MPG to calculate fuel costs. (2) Add Home and Work as saved locations under Settings → Saved Locations. The app will then auto-detect trips between them. (3) Take your first drive. You should see a "Trip Active" Live Activity on the Lock Screen.',
       },
     ],
   },
@@ -43,16 +43,16 @@ const faqSections = [
         a: 'For cars and vans you can claim 55p per mile for the first 10,000 business miles in a tax year, and 25p per mile after that (the first-tier rate rose from 45p to 55p on 6 April 2026 for the 2026-27 tax year onwards). Motorbikes are 24p per mile flat rate. MileClear applies the correct rate to every business trip automatically and tracks exactly where you sit on the 10,000-mile threshold.',
       },
       {
-        q: 'What is MTD ITSA — do I need to worry about it?',
-        a: 'Making Tax Digital for Income Tax Self Assessment. From April 2026, sole traders earning over £50,000 a year must submit four quarterly returns to HMRC plus a year-end statement — no more single January 31 Self Assessment. MileClear Pro handles all four quarters automatically. Avatar menu → Work & Tax → MTD ITSA. Currently in sandbox mode while HMRC reviews our production accreditation.',
+        q: 'What is MTD ITSA - do I need to worry about it?',
+        a: 'Making Tax Digital for Income Tax Self Assessment. From April 2026, sole traders earning over £50,000 a year must submit four quarterly returns to HMRC plus a year-end statement - no more single January 31 Self Assessment. MileClear Pro handles all four quarters automatically. Avatar menu → Work & Tax → MTD ITSA. Currently in sandbox mode while HMRC reviews our production accreditation.',
       },
       {
-        q: 'I have a salaried job alongside my gig work — does MileClear handle that?',
+        q: 'I have a salaried job alongside my gig work - does MileClear handle that?',
         a: 'Yes. Settings → Work & Tax → enter what your employer has already deducted in PAYE this year (it’s on your most recent payslip, year-to-date tax line). Tax Readiness then shows what you still owe on top of PAYE, rather than the full gross liability. NI is still calculated separately on your gig profits because Class 4 NI is per-source.',
       },
       {
         q: 'Cash or accruals basis?',
-        a: 'Cash basis (the UK default since April 2024 for most sole traders) counts invoice income when the money actually arrives in your account. Accruals counts it when you sent the invoice, regardless of payment. Unless your accountant has told you otherwise, leave it on cash — it matches how the money actually flows.',
+        a: 'Cash basis (the UK default since April 2024 for most sole traders) counts invoice income when the money actually arrives in your account. Accruals counts it when you sent the invoice, regardless of payment. Unless your accountant has told you otherwise, leave it on cash - it matches how the money actually flows.',
       },
       {
         q: 'I pay an accountant. Can I factor that into my set-aside?',
@@ -69,7 +69,7 @@ const faqSections = [
     faqs: [
       {
         q: 'How do I add a trip manually?',
-        a: 'Dashboard → Start Trip → Manual. Enter the start and end address (or pick on the map), set the date, classify as Work or Personal, save. Manual trips use our routing engine for accurate distance — the same address pair always returns the same mileage, every time.',
+        a: 'Dashboard → Start Trip → Manual. Enter the start and end address (or pick on the map), set the date, classify as Work or Personal, save. Manual trips use our routing engine for accurate distance - the same address pair always returns the same mileage, every time.',
       },
       {
         q: 'How does auto-classification work?',
@@ -77,7 +77,7 @@ const faqSections = [
       },
       {
         q: 'A trip’s distance looks wrong. Can I fix it?',
-        a: 'Open the trip → Recalculate distance. The button hits our routing engine on demand. For sparse-GPS trips, try Settings → Data Quality → Recheck suspicious trips — we’ll re-route any trip with low confidence in bulk.',
+        a: 'Open the trip → Recalculate distance. The button hits our routing engine on demand. For sparse-GPS trips, try Settings → Data Quality → Recheck suspicious trips - we’ll re-route any trip with low confidence in bulk.',
       },
       {
         q: 'What does the High / Medium / Low confidence badge mean?',
@@ -85,7 +85,7 @@ const faqSections = [
       },
       {
         q: 'What is trip merging?',
-        a: 'If your journey gets split into multiple trips (for example, when you stop at a petrol station), you can merge them back together. Long-press a trip to enter selection mode, pick 2 to 20 trips, choose the classification, and merge. Merging is permanent — it can’t be undone.',
+        a: 'If your journey gets split into multiple trips (for example, when you stop at a petrol station), you can merge them back together. Long-press a trip to enter selection mode, pick 2 to 20 trips, choose the classification, and merge. Merging is permanent - it can’t be undone.',
       },
       {
         q: 'How do saved locations and geofencing work?',
@@ -98,14 +98,14 @@ const faqSections = [
     faqs: [
       {
         q: 'What’s included in the free plan?',
-        a: 'Unlimited trip tracking with automatic drive detection, Work / Personal classification, the Tax Readiness card with real-time tax estimate, HMRC AMAP calculation, manual earnings + expenses, MOT and tax expiry reminders, all 18 milestone achievements, 1 vehicle, 2 saved locations, 3 invoices per calendar month. Free really is free — you keep your mileage data forever.',
+        a: 'Unlimited trip tracking with automatic drive detection, Work / Personal classification, the Tax Readiness card with real-time tax estimate, HMRC AMAP calculation, manual earnings + expenses, MOT and tax expiry reminders, all 18 milestone achievements, 1 vehicle, 2 saved locations, 3 invoices per calendar month. Free really is free - you keep your mileage data forever.',
       },
       {
         q: 'What does Pro add?',
         a: 'MileClear Pro is £4.99 a month or £44.99 a year. You get: HMRC quarterly Self Assessment submissions (MTD ITSA), HMRC SA103 PDF + CSV exports, CSV earnings import, Open Banking auto-import via TrueLayer, auto-classify rules driven by your Work Schedule, business insights (platform comparison, golden hours, P&L), Driving Analytics, accountant sharing (read-only dashboard for your accountant), Journey Map, Pickup Wait community insights, unlimited invoices, unlimited saved locations, unlimited vehicles.',
       },
       {
-        q: 'Earnings vs invoices — what’s the difference?',
+        q: 'Earnings vs invoices - what’s the difference?',
         a: 'Earnings are gig platform income (Uber, Deliveroo, Just Eat). They can be typed in manually, imported from a platform CSV (Pro), or auto-imported via Open Banking (Pro). Invoices are freelance or consultancy work you’ve billed clients for. Free tier covers 3 invoices per calendar month; Pro is unlimited.',
       },
       {
@@ -127,7 +127,7 @@ const faqSections = [
       },
       {
         q: 'How do I delete my account?',
-        a: 'Avatar menu → Settings → Account → Delete Account. Enter your password to confirm. Deletion is immediate and permanent — it removes every trip, every earning, every invoice, and every other piece of data we hold about you, and cancels any active subscription. Cannot be undone.',
+        a: 'Avatar menu → Settings → Account → Delete Account. Enter your password to confirm. Deletion is immediate and permanent - it removes every trip, every earning, every invoice, and every other piece of data we hold about you, and cancels any active subscription. Cannot be undone.',
       },
     ],
   },
@@ -136,19 +136,19 @@ const faqSections = [
     faqs: [
       {
         q: 'The Live Activity isn’t showing on my Lock Screen.',
-        a: 'Two things to check. (1) iOS Settings → Notifications → MileClear → Live Activities — must be ON. (2) iOS Settings → MileClear → Live Activities — also ON. If both are on and you still don’t see one, restart the app once.',
+        a: 'Two things to check. (1) iOS Settings → Notifications → MileClear → Live Activities - must be ON. (2) iOS Settings → MileClear → Live Activities - also ON. If both are on and you still don’t see one, restart the app once.',
       },
       {
         q: 'My trips aren’t appearing on the web dashboard.',
-        a: 'Open Avatar menu → Sync Status. Pending trips upload as soon as you’re back online. If you see "failed" items, tap Retry. Trips are always saved locally first — they don’t get lost if sync is delayed.',
+        a: 'Open Avatar menu → Sync Status. Pending trips upload as soon as you’re back online. If you see "failed" items, tap Retry. Trips are always saved locally first - they don’t get lost if sync is delayed.',
       },
       {
         q: 'I got logged out and ended up in a blank profile.',
-        a: 'Known issue we fixed in 1.2.0. If it happens, log out of the blank profile and sign in again using the method you originally signed up with (email + password OR Apple ID — whichever you used first). You’ll be back in your real account with all your data intact.',
+        a: 'Known issue we fixed in 1.2.0. If it happens, log out of the blank profile and sign in again using the method you originally signed up with (email + password OR Apple ID - whichever you used first). You’ll be back in your real account with all your data intact.',
       },
       {
         q: 'Is GPS tracking going to kill my battery?',
-        a: 'MileClear uses iOS’s significant-location-change API while you’re stationary, and only escalates to active GPS during a recording. Typical impact is 2-4% per 8-hour shift. If you notice more than that, check the Data Quality screen — your tracking permissions might be sub-optimal and we’ll show you the fix.',
+        a: 'MileClear uses iOS’s significant-location-change API while you’re stationary, and only escalates to active GPS during a recording. Typical impact is 2-4% per 8-hour shift. If you notice more than that, check the Data Quality screen - your tracking permissions might be sub-optimal and we’ll show you the fix.',
       },
     ],
   },
@@ -223,7 +223,7 @@ export default function SupportPage() {
             </p>
           </div>
 
-          {/* FAQ — grouped by section */}
+          {/* FAQ - grouped by section */}
           {faqSections.map((section) => (
             <section key={section.title} className="support__faq-section">
               <h2 className="support__faq-section-title">{section.title}</h2>

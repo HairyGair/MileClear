@@ -170,7 +170,7 @@ export default function PersonalPage() {
         );
       })()}
 
-      {/* Driving Recap — daily is free, weekly/monthly/yearly are premium */}
+      {/* Driving Recap - daily is free, weekly/monthly/yearly are premium */}
       {(dailyRecap || (isPremium && (weeklyRecap || monthlyRecap || stats))) && (
         <div className="driving-recap" style={{ marginBottom: "var(--dash-gap)" }}>
           <div className="driving-recap__header">
@@ -404,7 +404,7 @@ export default function PersonalPage() {
         </div>
       </Card>
 
-      {/* Personal Records — premium */}
+      {/* Personal Records - premium */}
       {isPremium && stats && stats.personalRecords && stats.personalRecords.mostMilesInDay > 0 && (
         <Card title="Personal Records" style={{ marginBottom: "var(--dash-gap)" }}>
           <div className="stats-grid">

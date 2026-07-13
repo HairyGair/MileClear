@@ -1,10 +1,10 @@
 "use client";
 
-// Sole-trader invoice tracker — web parity with the mobile screens
+// Sole-trader invoice tracker - web parity with the mobile screens
 // (invoices.tsx / invoice-form.tsx), 5 Jul 2026. Same deliberate scope:
 // a tidy list with paid/unpaid status, the anti-double-count link flow,
 // and the Phase-1 late-payment chase (a mailto draft in the user's own
-// mail client — the template lives in @mileclear/shared so the legal
+// mail client - the template lives in @mileclear/shared so the legal
 // wording can't drift from mobile).
 
 import { useEffect, useState, useCallback } from "react";
@@ -128,7 +128,7 @@ export default function InvoicesPage() {
   const { user } = useAuth();
   const senderName = user?.fullName || user?.displayName || null;
   const isPremium = user?.isPremium === true;
-  // One-tap chase is Pro (5 Jul 2026) — tracking stays free at 3/month.
+  // One-tap chase is Pro (5 Jul 2026) - tracking stays free at 3/month.
   const [showChaseUpsell, setShowChaseUpsell] = useState(false);
 
   const [invoices, setInvoices] = useState<Invoice[]>([]);
@@ -162,7 +162,7 @@ export default function InvoicesPage() {
 
   const [deleteId, setDeleteId] = useState<string | null>(null);
 
-  // Link-or-keep flow after marking paid (anti-double-count — mirrors
+  // Link-or-keep flow after marking paid (anti-double-count - mirrors
   // the mobile LinkEarningSheet).
   const [linkState, setLinkState] = useState<{ invoice: Invoice; matches: PotentialEarningMatch[] } | null>(null);
   const [linking, setLinking] = useState<string | null>(null);
@@ -244,7 +244,7 @@ export default function InvoicesPage() {
     setFormError(null);
     setFormLines([]);
     setShowForm(true);
-    // Line items ride the detail endpoint, not the list — fetch after open.
+    // Line items ride the detail endpoint, not the list - fetch after open.
     try {
       const res = await api.get<{ data: Invoice & { lineItems: Array<{ description: string; quantity: string | number; unitPricePence: number }> } }>(`/invoices/${inv.id}`);
       setFormLines(
@@ -300,7 +300,7 @@ export default function InvoicesPage() {
       load();
     } catch (err: any) {
       if (isApiError(err) && err.code === "PREMIUM_REQUIRED") {
-        setFormError("Free plan tracks 3 invoices per month — upgrade to Pro for unlimited.");
+        setFormError("Free plan tracks 3 invoices per month - upgrade to Pro for unlimited.");
       } else {
         setFormError(err.message);
       }
@@ -424,7 +424,7 @@ export default function InvoicesPage() {
 
   return (
     <>
-      <PageHeader title="Invoices" subtitle="Track who owes you — and chase the ones who are late" />
+      <PageHeader title="Invoices" subtitle="Track who owes you - and chase the ones who are late" />
 
       {summary && (
         <div className="stats-grid" style={{ marginBottom: "var(--dash-gap)" }}>
@@ -484,7 +484,7 @@ export default function InvoicesPage() {
 
       {showChaseUpsell && (
         <div className="alert" style={{ marginBottom: "1rem" }}>
-          Branded invoice PDFs and one-tap payment chasing are MileClear Pro features —
+          Branded invoice PDFs and one-tap payment chasing are MileClear Pro features -
           your logo and colours on the invoice, and the chase email pre-written with the
           correct statutory-interest wording.{" "}
           <a href="/pricing" style={{ fontWeight: 600 }}>Upgrade to Pro</a>
@@ -498,7 +498,7 @@ export default function InvoicesPage() {
           <p style={{ textAlign: "center", color: "var(--text-secondary)", padding: "2rem" }}>
             {filter
               ? "No invoices with this status."
-              : "No invoices yet. Track who owes you for freelance work — we'll keep the list tidy for your accountant."}
+              : "No invoices yet. Track who owes you for freelance work - we'll keep the list tidy for your accountant."}
           </p>
         </Card>
       ) : (
@@ -547,7 +547,7 @@ export default function InvoicesPage() {
                             <a
                               className="table__action-btn"
                               href={buildInvoiceChaseMailto(inv, senderName)}
-                              title={inv.clientEmail ? `Opens a pre-filled email to ${inv.clientEmail}` : "Opens a pre-filled email draft — add a client email to pre-address it"}
+                              title={inv.clientEmail ? `Opens a pre-filled email to ${inv.clientEmail}` : "Opens a pre-filled email draft - add a client email to pre-address it"}
                             >
                               Chase
                             </a>
@@ -568,7 +568,7 @@ export default function InvoicesPage() {
                             disabled={sendBusy === inv.id}
                             title={
                               inv.emailedAt
-                                ? `Emailed ${shortDate(inv.emailedAt)} — send again`
+                                ? `Emailed ${shortDate(inv.emailedAt)} - send again`
                                 : isPremium
                                   ? "Email the branded PDF to the client"
                                   : "Emailing invoices is a Pro feature"
@@ -621,7 +621,7 @@ export default function InvoicesPage() {
                 }
               }}
               options={[
-                { value: "", label: "No saved client — type a name below" },
+                { value: "", label: "No saved client - type a name below" },
                 ...clients.map((c) => ({ value: c.id, label: c.name })),
               ]}
             />
@@ -642,7 +642,7 @@ export default function InvoicesPage() {
             onChange={(e) => setFormClientEmail(e.target.value)}
           />
 
-          {/* Line items (optional — leave empty for a simple amount) */}
+          {/* Line items (optional - leave empty for a simple amount) */}
           <div>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.375rem" }}>
               <span style={{ fontSize: "0.8125rem", fontWeight: 600 }}>Line items (optional)</span>
@@ -771,7 +771,7 @@ export default function InvoicesPage() {
                 style={{ marginTop: 2 }}
               />
               <span>
-                <strong style={{ color: "var(--text-primary)" }}>Auto-chase late payment</strong> (Pro) — MileClear
+                <strong style={{ color: "var(--text-primary)" }}>Auto-chase late payment</strong> (Pro) - MileClear
                 emails polite reminders: 3 days before the due date, then 3, 10 and 21 days after.
                 You get a push the day before each one goes out, and payment stops the sequence instantly.
               </span>
@@ -784,7 +784,7 @@ export default function InvoicesPage() {
                 checked={formWriteOff}
                 onChange={(e) => setFormWriteOff(e.target.checked)}
               />
-              Write off (won't be paid — excluded from outstanding totals)
+              Write off (won't be paid - excluded from outstanding totals)
             </label>
           )}
           {formError && <div className="alert alert--error">{formError}</div>}
@@ -958,7 +958,7 @@ function ClientsPanel({
       {clients.length === 0 ? (
         <Card>
           <p style={{ textAlign: "center", color: "var(--text-secondary)", padding: "2rem" }}>
-            No clients yet. Save the people and businesses you invoice — their details
+            No clients yet. Save the people and businesses you invoice - their details
             pre-fill new invoices and the Bill-To block on the PDF.
           </p>
         </Card>
@@ -1030,7 +1030,7 @@ function ClientsPanel({
         title="Delete Client"
         message={
           (deleteTarget?._count?.invoices ?? 0) > 0
-            ? "This client has invoices, so they'll be archived (hidden from pickers) rather than deleted — invoice history keeps their details."
+            ? "This client has invoices, so they'll be archived (hidden from pickers) rather than deleted - invoice history keeps their details."
             : "This will permanently delete this client."
         }
         confirmLabel="Delete"

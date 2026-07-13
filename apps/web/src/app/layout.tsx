@@ -50,7 +50,7 @@ export const metadata: Metadata = {
         url: "/branding/og-image.png",
         width: 1200,
         height: 628,
-        alt: "MileClear — Mileage Tracker UK. Download on the App Store.",
+        alt: "MileClear - Mileage Tracker UK. Download on the App Store.",
       },
     ],
   },
@@ -85,7 +85,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   // Set NEXT_PUBLIC_GA_ID (a G-XXXXXXXX measurement ID) to enable analytics.
-  // Unset = no GA, no cookie banner — a complete no-op.
+  // Unset = no GA, no cookie banner - a complete no-op.
   const gaId = process.env.NEXT_PUBLIC_GA_ID;
 
   return (

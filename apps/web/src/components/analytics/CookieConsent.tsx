@@ -12,7 +12,7 @@ import {
  * Cookie consent banner. Shows on first visit (no stored choice) and whenever
  * the footer "Cookie preferences" link re-opens it. Reject is as prominent as
  * Accept (GDPR: withdrawing must be as easy as giving). Google Analytics only
- * loads after Accept — see GoogleAnalytics.tsx.
+ * loads after Accept - see GoogleAnalytics.tsx.
  */
 export default function CookieConsent() {
   const [visible, setVisible] = useState(false);

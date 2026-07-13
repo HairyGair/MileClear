@@ -188,7 +188,7 @@ export function Sidebar({ open, onClose }: SidebarProps) {
       await api.patch("/user/profile", { dashboardMode: newMode });
       await refreshUser();
     } catch {
-      // silently fail — mode will stay the same
+      // silently fail - mode will stay the same
     } finally {
       setModeLoading(false);
     }
@@ -293,7 +293,7 @@ export function Sidebar({ open, onClose }: SidebarProps) {
         </div>
 
         <nav className="sidebar__nav">
-          {/* Overview — always visible */}
+          {/* Overview - always visible */}
           {renderLink({ href: "/dashboard", label: "Overview", icon: icons.overview })}
 
           {/* Business section */}

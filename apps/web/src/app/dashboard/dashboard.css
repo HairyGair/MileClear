@@ -1,5 +1,5 @@
 /* ================================================================
-   MileClear — Dashboard Design System
+   MileClear - Dashboard Design System
    Premium SaaS aesthetic · Dark utility with amber warmth
    ================================================================ */
 
@@ -25,7 +25,7 @@
 }
 
 /* ================================================================
-   LAYOUT — CSS Grid shell
+   LAYOUT - CSS Grid shell
    ================================================================ */
 .dash {
   display: grid;
@@ -682,7 +682,7 @@
   padding: 0.6875rem 1.5rem;
 }
 
-/* Primary — amber */
+/* Primary - amber */
 .btn--primary {
   color: var(--bg-deep);
   background: linear-gradient(135deg, var(--amber-300), var(--amber-500));
@@ -694,7 +694,7 @@
   transform: translateY(-1px);
 }
 
-/* Secondary — outline */
+/* Secondary - outline */
 .btn--secondary {
   color: var(--text-primary);
   background: rgba(255, 255, 255, 0.04);
@@ -706,7 +706,7 @@
   border-color: rgba(255, 255, 255, 0.18);
 }
 
-/* Ghost — text only */
+/* Ghost - text only */
 .btn--ghost {
   color: var(--text-secondary);
   background: transparent;
@@ -3318,7 +3318,7 @@
   gap: 1.25rem;
 }
 
-/* Route visualization — dot/line pattern */
+/* Route visualization - dot/line pattern */
 .trip-detail__route {
   display: flex;
   align-items: stretch;
@@ -3465,7 +3465,7 @@
   margin-top: 0.25rem;
 }
 
-/* Insights card — amber glow treatment */
+/* Insights card - amber glow treatment */
 .trip-detail__insights {
   background: linear-gradient(
     165deg,
@@ -3844,7 +3844,7 @@
 }
 
 /* ================================================================
-   Premium Gate — full-page upgrade prompt
+   Premium Gate - full-page upgrade prompt
    ================================================================ */
 
 .premium-gate {
@@ -4559,7 +4559,7 @@
   outline-offset: 2px;
 }
 
-/* Admin email composer — stack form + preview on narrow screens */
+/* Admin email composer - stack form + preview on narrow screens */
 @media (max-width: 900px) {
   .email-composer-grid {
     grid-template-columns: 1fr !important;

@@ -100,7 +100,7 @@ export default function ClearTrackHealthPage() {
         counts and the trigger signature from its last 24h of detection events. A{" "}
         <strong style={{ color: "#ef4444" }}>SILENT</strong> row is a previously-active driver
         ({data?.baselineMinTrips ?? 4}+ auto trips in the prior 14 days), permissions granted,
-        app alive — and zero auto-captures in {data?.recentWindowDays ?? 4} days. Their own
+        app alive - and zero auto-captures in {data?.recentWindowDays ?? 4} days. Their own
         verdict can still say &quot;healthy&quot;: the giveaway is motion changes that never
         become recording starts (RNBG never hears motion). Fix lever: User detail → Switch
         engine.
@@ -186,7 +186,7 @@ export default function ClearTrackHealthPage() {
                       motion: {d.motionPermission}
                     </span>
                   </Td>
-                  <Td>{d.runtime ?? "—"}</Td>
+                  <Td>{d.runtime ?? "-"}</Td>
                   <Td>{ago(d.dumpAt)}</Td>
                 </tr>
               ))}

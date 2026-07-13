@@ -354,9 +354,9 @@ function StepTaxEstimate({ summary }: Pick<StepProps, "summary">) {
                 {incomeTax.map((b) => (
                   <tr key={b.band}>
                     <td>{b.band}</td>
-                    <td>{b.ratePct !== null ? `${Math.round(b.ratePct * 100)}%` : "—"}</td>
+                    <td>{b.ratePct !== null ? `${Math.round(b.ratePct * 100)}%` : "-"}</td>
                     <td style={{ textAlign: "right", fontWeight: b.amountPence > 0 ? 600 : 400 }}>
-                      {b.amountPence > 0 ? formatPence(b.amountPence) : "—"}
+                      {b.amountPence > 0 ? formatPence(b.amountPence) : "-"}
                     </td>
                   </tr>
                 ))}
@@ -385,7 +385,7 @@ function StepTaxEstimate({ summary }: Pick<StepProps, "summary">) {
                     <td>{taxTypeBadge(b.type)}</td>
                     <td>{b.ratePct !== null ? `${Math.round(b.ratePct * 100)}%` : "Fixed"}</td>
                     <td style={{ textAlign: "right", fontWeight: b.amountPence > 0 ? 600 : 400 }}>
-                      {b.amountPence > 0 ? formatPence(b.amountPence) : "—"}
+                      {b.amountPence > 0 ? formatPence(b.amountPence) : "-"}
                     </td>
                   </tr>
                 ))}

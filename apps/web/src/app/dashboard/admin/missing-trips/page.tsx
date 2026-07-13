@@ -34,7 +34,7 @@ const DIAGNOSIS_META: Record<Report["diagnosis"], { label: string; color: string
   permission_gap: {
     label: "Permission gap",
     color: "#f59e0b",
-    hint: "Background location / Motion not granted — the engine can't run with the app closed. Advise Always-location + Motion & Fitness, and manual entry for the missed trip.",
+    hint: "Background location / Motion not granted - the engine can't run with the app closed. Advise Always-location + Motion & Fitness, and manual entry for the missed trip.",
   },
   silent_non_capture: {
     label: "Silent non-capture",
@@ -44,12 +44,12 @@ const DIAGNOSIS_META: Record<Report["diagnosis"], { label: string; color: string
   needs_look: {
     label: "Needs a look",
     color: "#94a3b8",
-    hint: "Neither playbook rule matched — open the user's diagnostics and read the event timeline.",
+    hint: "Neither playbook rule matched - open the user's diagnostics and read the event timeline.",
   },
 };
 
 function ago(iso: string | null): string {
-  if (!iso) return "—";
+  if (!iso) return "-";
   const mins = Math.floor((Date.now() - new Date(iso).getTime()) / 60000);
   if (mins < 60) return `${mins}m ago`;
   const hours = Math.floor(mins / 60);
@@ -102,7 +102,7 @@ export default function MissingTripReportsPage() {
       <p style={{ color: "#94a3b8", marginBottom: "2rem", lineHeight: 1.6, maxWidth: 800 }}>
         &quot;Missing a trip?&quot; taps from the Trips screen, last 30 days, newest first. Each
         report is auto-diagnosed from the user&apos;s latest diagnostic dump and recent capture
-        stats — hover a diagnosis chip for the recommended fix.
+        stats - hover a diagnosis chip for the recommended fix.
       </p>
 
       {loading && <p style={{ color: "#94a3b8" }}>Loading…</p>}

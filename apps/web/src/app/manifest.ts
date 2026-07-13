@@ -2,7 +2,7 @@ import type { MetadataRoute } from "next";
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "MileClear — Mileage Tracker for UK Drivers",
+    name: "MileClear - Mileage Tracker for UK Drivers",
     short_name: "MileClear",
     description:
       "Track every mile. Keep every penny. The mileage tracker built for gig drivers, delivery riders, and self-employed drivers in the UK.",

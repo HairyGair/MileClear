@@ -47,7 +47,7 @@ const shots: Shot[] = [
   {
     file: "iphone-08-free-tier.png",
     caption: "Free does the heavy lifting",
-    sub: "Tracking, tax tooling, HMRC compliance — all free",
+    sub: "Tracking, tax tooling, HMRC compliance - all free",
   },
   {
     file: "iphone-09-pro.png",
@@ -70,7 +70,7 @@ export default function Screenshots() {
             <p className="label">See it in action</p>
             <h2 className="heading">A quick tour of what you&apos;re downloading</h2>
             <p className="subtext">
-              Nine screens that cover the loop: track, classify, claim. Swipe through them — every screen is what you&apos;d see on day one.
+              Nine screens that cover the loop: track, classify, claim. Swipe through them - every screen is what you&apos;d see on day one.
             </p>
           </div>
         </Reveal>

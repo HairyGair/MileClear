@@ -187,7 +187,7 @@ export default function SettingsPage() {
         }
         otherIncomePencePayload = Math.round(pounds * 100);
       }
-      // The first-10k tier is the master switch — clearing it must clear
+      // The first-10k tier is the master switch - clearing it must clear
       // the second tier too, otherwise the API leaves a dangling after-rate.
       await api.patch("/user/profile", {
         workType,
@@ -486,7 +486,7 @@ export default function SettingsPage() {
         </div>
       </div>
 
-      {/* Work Settings — only for work/both */}
+      {/* Work Settings - only for work/both */}
       {(dashboardMode === "work" || dashboardMode === "both") && (
         <div className="settings-section">
           <h2 className="settings-section__title">Work Settings</h2>
@@ -556,8 +556,8 @@ export default function SettingsPage() {
             {(workType === "employee" || workType === "both") && employerRate && (
               <p style={{ fontSize: "0.8125rem", color: "var(--text-muted)", margin: 0 }}>
                 {employerRateAfter10k
-                  ? `Your employer pays ${employerRate}p for the first 10,000 business miles, then ${employerRateAfter10k}p. HMRC's AMAP is 55p / 25p from 2026-27 (was 45p / 25p before) — the gap can be claimed via Mileage Allowance Relief.`
-                  : `Your employer pays ${employerRate}p/mi flat. HMRC's AMAP is 55p / 25p from 2026-27 (was 45p / 25p before) — you can claim the gap via Mileage Allowance Relief.`}
+                  ? `Your employer pays ${employerRate}p for the first 10,000 business miles, then ${employerRateAfter10k}p. HMRC's AMAP is 55p / 25p from 2026-27 (was 45p / 25p before) - the gap can be claimed via Mileage Allowance Relief.`
+                  : `Your employer pays ${employerRate}p/mi flat. HMRC's AMAP is 55p / 25p from 2026-27 (was 45p / 25p before) - you can claim the gap via Mileage Allowance Relief.`}
               </p>
             )}
           </div>

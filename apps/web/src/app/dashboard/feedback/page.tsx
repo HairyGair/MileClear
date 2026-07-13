@@ -280,7 +280,7 @@ export default function FeedbackPage() {
     <>
       <PageHeader
         title="Roadmap & Feedback"
-        subtitle="Help shape MileClear — every suggestion is read and considered"
+        subtitle="Help shape MileClear - every suggestion is read and considered"
         action={
           <Button variant="primary" size="sm" onClick={() => setShowSubmit(true)}>
             + Share your idea
@@ -294,7 +294,7 @@ export default function FeedbackPage() {
           <p className="feedback-banner__heading">Your voice builds this app</p>
           <p className="feedback-banner__text">
             MileClear is built for drivers, by listening to drivers. Every feature request, bug report, and suggestion
-            is personally reviewed. Vote on ideas you want to see next, or share your own — the most popular
+            is personally reviewed. Vote on ideas you want to see next, or share your own - the most popular
             ideas get prioritised on our roadmap.
           </p>
         </div>
@@ -505,7 +505,7 @@ export default function FeedbackPage() {
         }
       >
         <p style={{ fontSize: "0.875rem", color: "var(--text-secondary)", lineHeight: 1.6, margin: "0 0 1.25rem" }}>
-          Whether it&apos;s a feature you&apos;d love, a bug you&apos;ve hit, or something that could work better — we genuinely want to hear it. Every submission is personally reviewed.
+          Whether it&apos;s a feature you&apos;d love, a bug you&apos;ve hit, or something that could work better - we genuinely want to hear it. Every submission is personally reviewed.
         </p>
 
         {submitError && (
@@ -551,7 +551,7 @@ export default function FeedbackPage() {
 }
 
 // ---------------------------------------------------------------------------
-// FeedbackCard — extracted for readability
+// FeedbackCard - extracted for readability
 // ---------------------------------------------------------------------------
 
 interface FeedbackCardProps {
