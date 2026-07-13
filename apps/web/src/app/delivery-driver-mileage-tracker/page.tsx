@@ -3,9 +3,9 @@ import Navbar from "@/components/landing/Navbar";
 import Footer from "@/components/landing/Footer";
 
 export const metadata: Metadata = {
-  title: "Delivery Driver Mileage Tracker UK - HMRC-Ready Tax Records",
+  title: "Delivery Driver Mileage Tracker UK - Free, Every Platform",
   description:
-    "UK delivery drivers can claim 55p/mile in HMRC mileage relief (raised from 45p on 6 April 2026). MileClear tracks every business mile across Uber Eats, Deliveroo, Just Eat, Amazon Flex, DPD, Evri, Stuart and Gophr - one app, every platform, Self Assessment-ready PDF.",
+    "Free mileage tracker for UK delivery drivers. One app for Uber Eats, Deliveroo, Just Eat, Amazon Flex, DPD, Evri and more. HMRC rates built in, Self Assessment PDF.",
   keywords: [
     "delivery driver mileage tracker",
     "delivery driver mileage tracker uk",
@@ -18,17 +18,17 @@ export const metadata: Metadata = {
     canonical: "https://mileclear.com/delivery-driver-mileage-tracker",
   },
   openGraph: {
-    title: "Delivery Driver Mileage Tracker UK - HMRC-Ready Tax Records",
+    title: "Delivery Driver Mileage Tracker UK - Free, Every Platform",
     description:
-      "One mileage tracker for every UK delivery platform - Uber Eats, Deliveroo, Just Eat, Amazon Flex, DPD, Evri, Stuart, Gophr. HMRC rates built in, Self Assessment PDF export.",
+      "One free mileage tracker for every UK delivery platform - Uber Eats, Deliveroo, Just Eat, Amazon Flex, DPD, Evri, Stuart, Gophr. HMRC rates built in, tax-ready PDF.",
     url: "https://mileclear.com/delivery-driver-mileage-tracker",
     images: [{ url: "/branding/og-image.png", width: 1200, height: 628 }],
   },
   twitter: {
     card: "summary_large_image",
-    title: "Delivery Driver Mileage Tracker UK - HMRC-Ready Tax Records",
+    title: "Delivery Driver Mileage Tracker UK - Free, Every Platform",
     description:
-      "One mileage tracker for every UK delivery platform - Uber Eats, Deliveroo, Just Eat, Amazon Flex, DPD, Evri, Stuart, Gophr. HMRC rates built in, Self Assessment PDF export.",
+      "One free mileage tracker for every UK delivery platform - Uber Eats, Deliveroo, Just Eat, Amazon Flex, DPD, Evri, Stuart, Gophr. HMRC rates built in, tax-ready PDF.",
     images: ["/branding/og-image.png"],
   },
 };

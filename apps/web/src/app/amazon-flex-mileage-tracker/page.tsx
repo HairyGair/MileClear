@@ -3,9 +3,9 @@ import Navbar from "@/components/landing/Navbar";
 import Footer from "@/components/landing/Footer";
 
 export const metadata: Metadata = {
-  title: "Amazon Flex Mileage Tracker UK - Save Up To £3,700 in Tax (2026-27)",
+  title: "Amazon Flex Mileage Tracker UK - Free & Automatic",
   description:
-    "25,000 Flex miles/year = £9,250 off your tax bill at HMRC's 55p/25p rates (raised from 45p on 6 April 2026). MileClear records every block automatically and exports a Self Assessment-ready PDF. See the full breakdown.",
+    "Free mileage tracker for UK Amazon Flex drivers. Auto-logs every block and return-to-depot mile, then exports an HMRC-ready Self Assessment PDF. Unlimited trips, free.",
   keywords: [
     "amazon flex mileage tracker",
     "amazon flex tax deduction uk",
@@ -17,17 +17,17 @@ export const metadata: Metadata = {
     canonical: "https://mileclear.com/amazon-flex-mileage-tracker",
   },
   openGraph: {
-    title: "Amazon Flex Mileage Tracker UK - Save Up To £3,700 in Tax (2026-27)",
+    title: "Amazon Flex Mileage Tracker UK - Free & Automatic",
     description:
-      "Track every Amazon Flex block automatically. HMRC 55p/25p rates built in (raised from 45p on 6 April 2026), return-to-depot miles captured, PDF export to drop straight onto your Self Assessment.",
+      "Track every Amazon Flex block automatically - free. Return-to-depot miles captured, HMRC 55p/25p rates built in, Self Assessment PDF export. Unlimited trips, no cap.",
     url: "https://mileclear.com/amazon-flex-mileage-tracker",
     images: [{ url: "/branding/og-image.png", width: 1200, height: 628 }],
   },
   twitter: {
     card: "summary_large_image",
-    title: "Amazon Flex Mileage Tracker UK - Save Up To £3,700 in Tax (2026-27)",
+    title: "Amazon Flex Mileage Tracker UK - Free & Automatic",
     description:
-      "Track every Amazon Flex block automatically. HMRC 55p/25p rates built in (raised from 45p on 6 April 2026), return-to-depot miles captured, PDF export to drop straight onto your Self Assessment.",
+      "Track every Amazon Flex block automatically - free. Return-to-depot miles captured, HMRC 55p/25p rates built in, Self Assessment PDF export. Unlimited trips, no cap.",
     images: ["/branding/og-image.png"],
   },
 };

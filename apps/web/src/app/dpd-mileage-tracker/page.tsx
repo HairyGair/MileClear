@@ -3,9 +3,9 @@ import Navbar from "@/components/landing/Navbar";
 import Footer from "@/components/landing/Footer";
 
 export const metadata: Metadata = {
-  title: "DPD Mileage Tracker UK - For ODFs Doing 40,000+ Miles a Year",
+  title: "DPD Mileage Tracker UK - Free & Automatic for ODFs",
   description:
-    "Your DPD scanner tracks parcels, not miles. As an Owner Driver Franchisee you can claim 55p/25p per mile (raised from 45p on 6 April 2026) - £13,000+ off tax on a typical year. MileClear logs every route automatically. See the breakdown.",
+    "Free mileage tracker for UK DPD owner drivers. Your scanner logs parcels, not miles - MileClear GPS-logs every route and exports an HMRC-ready Self Assessment PDF.",
   keywords: [
     "dpd mileage tracker",
     "dpd owner driver franchisee tax",
@@ -17,17 +17,17 @@ export const metadata: Metadata = {
     canonical: "https://mileclear.com/dpd-mileage-tracker",
   },
   openGraph: {
-    title: "DPD Mileage Tracker UK - For ODFs Doing 40,000+ Miles a Year",
+    title: "DPD Mileage Tracker UK - Free & Automatic for ODFs",
     description:
-      "MileClear records every DPD route via GPS, applies HMRC AMAP rates (or shows you whether actual costs claim more), and exports a Self Assessment-ready PDF.",
+      "Your DPD scanner tracks parcels, not miles. MileClear GPS-logs every route free, applies HMRC AMAP rates, and exports a Self Assessment-ready PDF. Unlimited, no cap.",
     url: "https://mileclear.com/dpd-mileage-tracker",
     images: [{ url: "/branding/og-image.png", width: 1200, height: 628 }],
   },
   twitter: {
     card: "summary_large_image",
-    title: "DPD Mileage Tracker UK - For ODFs Doing 40,000+ Miles a Year",
+    title: "DPD Mileage Tracker UK - Free & Automatic for ODFs",
     description:
-      "MileClear records every DPD route via GPS, applies HMRC AMAP rates (or shows you whether actual costs claim more), and exports a Self Assessment-ready PDF.",
+      "Your DPD scanner tracks parcels, not miles. MileClear GPS-logs every route free, applies HMRC AMAP rates, and exports a Self Assessment-ready PDF. Unlimited, no cap.",
     images: ["/branding/og-image.png"],
   },
 };

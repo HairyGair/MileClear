@@ -3,9 +3,9 @@ import Navbar from "@/components/landing/Navbar";
 import Footer from "@/components/landing/Footer";
 
 export const metadata: Metadata = {
-  title: "Just Eat Mileage Tracker UK - HMRC Sees Your Earnings From 2026",
+  title: "Just Eat Mileage Tracker UK - Free & Automatic",
   description:
-    "Just Eat now reports your earnings to HMRC under the Digital Platform Reporting rules. If you're on a moped, you claim 24p/mile - not 55p. MileClear logs every run, every Multi-Collect, every dead mile. See how.",
+    "Free mileage tracker for UK Just Eat couriers. GPS-logs every run log-on to log-off and applies the right HMRC rate for moped or car. Unlimited trips, tax-ready PDF.",
   keywords: [
     "just eat mileage tracker",
     "just eat courier tax uk",
@@ -17,17 +17,17 @@ export const metadata: Metadata = {
     canonical: "https://mileclear.com/just-eat-mileage-tracker",
   },
   openGraph: {
-    title: "Just Eat Mileage Tracker UK - HMRC Sees Your Earnings From 2026",
+    title: "Just Eat Mileage Tracker UK - Free & Automatic",
     description:
-      "MileClear records every Just Eat run from log-on to log-off via GPS, applies the right HMRC rate for your vehicle (24p moped, 55p car for 2026-27), and exports a Self Assessment-ready PDF.",
+      "Track every Just Eat run automatically - free. GPS from log-on to log-off, the right HMRC rate for moped or car (24p/55p), Self Assessment PDF export. No trip cap.",
     url: "https://mileclear.com/just-eat-mileage-tracker",
     images: [{ url: "/branding/og-image.png", width: 1200, height: 628 }],
   },
   twitter: {
     card: "summary_large_image",
-    title: "Just Eat Mileage Tracker UK - HMRC Sees Your Earnings From 2026",
+    title: "Just Eat Mileage Tracker UK - Free & Automatic",
     description:
-      "MileClear records every Just Eat run from log-on to log-off via GPS, applies the right HMRC rate for your vehicle (24p moped, 55p car for 2026-27), and exports a Self Assessment-ready PDF.",
+      "Track every Just Eat run automatically - free. GPS from log-on to log-off, the right HMRC rate for moped or car (24p/55p), Self Assessment PDF export. No trip cap.",
     images: ["/branding/og-image.png"],
   },
 };
