@@ -29,11 +29,17 @@ const OAUTH_REVOKE = "https://identity.xero.com/connect/revocation";
 const CONNECTIONS_URL = "https://api.xero.com/connections";
 const API_BASE = "https://api.xero.com/api.xro/2.0";
 
-// offline_access → refresh token; transactions → bank transactions;
-// settings → chart of accounts; contacts → the payee contact each
-// SPEND transaction names (created implicitly by Name).
+// Granular scopes only: Xero removed the broad `accounting.transactions`
+// (and `accounting.reports.read`) scope for all apps created on/after
+// 2 March 2026, so a new app must request the granular equivalents from
+// day one or the authorize call 500s with `invalid_scope`.
+//   offline_access            → refresh token
+//   accounting.banktransactions → write the SPEND bank transactions
+//   accounting.settings.read  → read the chart of accounts
+//   accounting.contacts       → the payee contact each SPEND names
+//                               (created implicitly by Name)
 const SCOPES =
-  "offline_access accounting.transactions accounting.settings accounting.contacts";
+  "offline_access accounting.banktransactions accounting.settings.read accounting.contacts";
 
 // ── Config ───────────────────────────────────────────────────────────
 
