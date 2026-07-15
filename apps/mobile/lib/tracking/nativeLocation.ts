@@ -96,7 +96,12 @@ const HEARTBEAT_FINALIZE_STALE_MS = 7 * 60 * 1000;
 // timer, unlike a JS setTimeout iOS would freeze). Battery cost is bounded to
 // this window after the LAST trip before a long park; back-to-back hops consume
 // the window rather than waste it. Tunable on-device.
-const POST_TRIP_KEEPALIVE_MS = 12 * 60 * 1000; // 12 min
+// 18 min (raised from 12 on 15 Jul 2026). Field data: a build-78 user's
+// ~5mi hop ~15 min after a stop was missed because the 12-min window had
+// just closed (~3 min short). 18 min covers the common "park ~15 min then
+// hop again" pattern; battery cost stays bounded to the window after the
+// last trip before a long park.
+const POST_TRIP_KEEPALIVE_MS = 18 * 60 * 1000; // 18 min
 
 let bgGeo: BgGeo | null = null;
 let loadAttempted = false;
