@@ -579,6 +579,25 @@ export async function tripRoutes(app: FastifyInstance) {
         data: tripPayload,
         include: { vehicle: true, shift: true },
       });
+
+      // Manual entry: fetch + store the road-route geometry so maps draw
+      // the actual road path instead of a dashed straight line. Fire-and-
+      // forget; geometry only, never touches the saved distance.
+      if (
+        resolvedEndLat != null &&
+        resolvedEndLng != null &&
+        hasValidCoords(resolvedStartLat, resolvedStartLng) &&
+        hasValidCoords(resolvedEndLat, resolvedEndLng)
+      ) {
+        attachManualRoutePolyline({
+          tripId: trip.id,
+          startLat: resolvedStartLat,
+          startLng: resolvedStartLng,
+          endLat: resolvedEndLat,
+          endLng: resolvedEndLng,
+          userId,
+        }).catch(() => {});
+      }
     }
 
     if (isPhantomTrip) {
@@ -1479,6 +1498,7 @@ export async function tripRoutes(app: FastifyInstance) {
       if (t.endLat == null || t.endLng == null) continue;
       let polyline: string | null = null;
       let newMiles: number | null = null;
+      let viaMapMatch = false;
 
       // Tracked trip with breadcrumbs → map-match
       if (t._count.coordinates >= 10) {
@@ -1490,6 +1510,7 @@ export async function tripRoutes(app: FastifyInstance) {
         const result = await matchTripRoute(coords);
         if (result && isMatchPlausible(result.distanceMiles, t.distanceMiles)) {
           polyline = result.encodedPolyline;
+          viaMapMatch = true;
           if (result.distanceMiles > t.distanceMiles * 1.05) {
             newMiles = result.distanceMiles;
           }
@@ -1507,6 +1528,12 @@ export async function tripRoutes(app: FastifyInstance) {
         });
         if (route && route.distanceMiles > t.distanceMiles * 1.05) {
           newMiles = route.distanceMiles;
+        }
+        // Manual entries only: adopt the route geometry so the map draws
+        // the road path. Tracked trips keep their breadcrumbs — an A→B
+        // road route could misrepresent the actual driven route.
+        if (route?.encodedPolyline && t.isManualEntry && t.routePolyline == null) {
+          polyline = route.encodedPolyline;
         }
       }
 
@@ -1528,7 +1555,7 @@ export async function tripRoutes(app: FastifyInstance) {
           oldMiles: t.distanceMiles,
           newMiles,
           ratio: Math.round((newMiles / t.distanceMiles) * 100) / 100,
-          source: polyline ? "map_match" : "routing",
+          source: viaMapMatch ? "map_match" : "routing",
           triggeredBy: "user_bulk_scan",
         });
       }
@@ -1615,6 +1642,12 @@ export async function tripRoutes(app: FastifyInstance) {
       });
       if (route && route.distanceMiles > oldMiles * 1.05) {
         newMiles = route.distanceMiles;
+        source = source ?? "routing";
+      }
+      // Manual entries only: adopt the route geometry so maps draw the
+      // road path. Tracked trips keep their breadcrumb/matched geometry.
+      if (route?.encodedPolyline && trip.isManualEntry && newPolyline === null) {
+        newPolyline = route.encodedPolyline;
         source = source ?? "routing";
       }
     }
@@ -1759,15 +1792,35 @@ export async function tripRoutes(app: FastifyInstance) {
       incomingAutoAccepted !== undefined &&
       existing.classificationAutoAccepted === null;
 
+    // A manual trip whose end point moved has stale route geometry — clear
+    // it in the same write, then refresh fire-and-forget below.
+    const endMoved =
+      existing.isManualEntry &&
+      newEndLat != null &&
+      newEndLng != null &&
+      (newEndLat !== existing.endLat || newEndLng !== existing.endLng);
+
     const trip = await prisma.trip.update({
       where: { id },
       data: {
         ...restUpdates,
         ...(distanceMiles !== undefined && { distanceMiles }),
         ...(shouldWriteAutoAccepted && { classificationAutoAccepted: incomingAutoAccepted }),
+        ...(endMoved ? { routePolyline: null } : {}),
       },
       include: { vehicle: true, shift: true },
     });
+
+    if (endMoved) {
+      attachManualRoutePolyline({
+        tripId: id,
+        startLat: existing.startLat,
+        startLng: existing.startLng,
+        endLat: newEndLat!,
+        endLng: newEndLng!,
+        userId,
+      }).catch(() => {});
+    }
 
     // Fire-and-forget: update mileage summary + check achievements
     const taxYear = getTaxYear(existing.startedAt);
@@ -2096,6 +2149,43 @@ async function runMapMatchingForTrip(args: {
       currentDistanceMiles: args.currentDistanceMiles,
     });
   }
+}
+
+/**
+ * Resolve the road-route geometry for a manual trip and store it as
+ * routePolyline. Manual entries have no GPS breadcrumbs, so without
+ * this every map draws them as a straight dashed line (Sarjit's Trip
+ * Map, 16 Jul 2026 — 17 manual trips, all crow-flies). The routing
+ * cache is usually warm here (the manual-trip form resolved the same
+ * pair for its distance moments earlier), so this is typically a
+ * single cache read.
+ *
+ * Geometry only — NEVER touches distanceMiles. The user saw and
+ * accepted a specific figure when they saved the trip; a background
+ * hook silently changing a tax-relevant number is not acceptable.
+ * Called fire-and-forget; failures leave routePolyline null and the
+ * map falls back to the dashed straight line, same as before.
+ */
+async function attachManualRoutePolyline(args: {
+  tripId: string;
+  startLat: number;
+  startLng: number;
+  endLat: number;
+  endLng: number;
+  userId: string;
+}): Promise<void> {
+  const route = await resolveRouteDistance({
+    startLat: args.startLat,
+    startLng: args.startLng,
+    endLat: args.endLat,
+    endLng: args.endLng,
+    userId: args.userId,
+  });
+  if (!route?.encodedPolyline) return;
+  await prisma.trip.update({
+    where: { id: args.tripId },
+    data: { routePolyline: route.encodedPolyline },
+  });
 }
 
 /**

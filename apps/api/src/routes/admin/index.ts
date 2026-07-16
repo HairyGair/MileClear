@@ -31,7 +31,7 @@ import {
   type DiscordChannel,
 } from "../../services/discord.js";
 import { resolveRouteDistance } from "../../services/routing.js";
-import { matchTripRoute, isMatchPlausible } from "../../services/mapMatching.js";
+import { matchTripRoute, isMatchPlausible, decodePolyline } from "../../services/mapMatching.js";
 
 const premiumToggleSchema = z.object({
   isPremium: z.boolean(),
@@ -742,6 +742,7 @@ export async function adminRoutes(app: FastifyInstance) {
         endLat: true,
         endLng: true,
         isManualEntry: true,
+        routePolyline: true,
         coordinates: {
           orderBy: { recordedAt: "asc" },
           select: { lat: true, lng: true },
@@ -749,7 +750,21 @@ export async function adminRoutes(app: FastifyInstance) {
       },
     });
 
-    return reply.send({ data: trips });
+    // Breadcrumb-less trips (manual entries) with stored route geometry:
+    // decode the polyline into the coordinates array so the Trip Map
+    // draws the road path instead of a dashed straight line.
+    const data = trips.map(({ routePolyline, ...t }) => {
+      if (t.coordinates.length < 2 && routePolyline) {
+        try {
+          return { ...t, coordinates: decodePolyline(routePolyline) };
+        } catch {
+          return t;
+        }
+      }
+      return t;
+    });
+
+    return reply.send({ data });
   });
 
   // GET /admin/apple-webhooks

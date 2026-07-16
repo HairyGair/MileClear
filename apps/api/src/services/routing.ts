@@ -42,6 +42,10 @@ export interface RouteResult {
   /** Sanity-check: ratio of road distance to crow-flies. Real routes
    *  are typically 1.1-1.6×; <0.95 or >5 is suspicious. */
   routeToHaversineRatio: number;
+  /** Google-encoded route geometry (precision 5), or null when the
+   *  engine didn't return one. Stored on manual trips as routePolyline
+   *  so maps draw the road path instead of a straight dashed line. */
+  encodedPolyline: string | null;
 }
 
 /** Cache key precision: 4 decimal places ≈ 11 m at UK latitudes. */
@@ -98,7 +102,7 @@ export async function resolveRouteDistance(args: {
     })
     .catch(() => null);
 
-  if (cached) {
+  if (cached && cached.encodedPolyline !== null) {
     // Bump hit counter — best-effort; if it fails the read result is
     // still good. Don't block the response on the write.
     prisma.routeCache
@@ -113,8 +117,14 @@ export async function resolveRouteDistance(args: {
       durationSecs: cached.durationSecs,
       source: "cache",
       routeToHaversineRatio: haversine > 0 ? cached.distanceMiles / haversine : 1,
+      encodedPolyline: cached.encodedPolyline,
     };
   }
+  // A cached row WITHOUT geometry (pre-16-Jul-2026 rows, cached before
+  // engines returned polylines) falls through to the engines once so the
+  // row self-heals with geometry; if every engine is down we still return
+  // the cached distance below rather than failing a request that would
+  // previously have succeeded.
 
   // 2. GraphHopper.
   const ghResult = await tryGraphHopper(startLat, startLng, endLat, endLng).catch(() => null);
@@ -126,6 +136,7 @@ export async function resolveRouteDistance(args: {
       endLngR,
       distanceMiles: ghResult.distanceMiles,
       durationSecs: ghResult.durationSecs,
+      encodedPolyline: ghResult.encodedPolyline,
       source: "graphhopper",
     });
     if (userId) {
@@ -152,6 +163,7 @@ export async function resolveRouteDistance(args: {
       endLngR,
       distanceMiles: googleResult.distanceMiles,
       durationSecs: googleResult.durationSecs,
+      encodedPolyline: googleResult.encodedPolyline,
       source: "google",
     });
     if (userId) {
@@ -165,6 +177,24 @@ export async function resolveRouteDistance(args: {
       ...googleResult,
       source: "google",
       routeToHaversineRatio: haversine > 0 ? googleResult.distanceMiles / haversine : 1,
+    };
+  }
+
+  // 3b. Engines down but we hold a legacy geometry-less cache entry:
+  // serve the cached distance (previous behaviour) instead of failing.
+  if (cached) {
+    prisma.routeCache
+      .update({
+        where: { id: cached.id },
+        data: { hitCount: { increment: 1 }, lastHitAt: new Date() },
+      })
+      .catch(() => {});
+    return {
+      distanceMiles: cached.distanceMiles,
+      durationSecs: cached.durationSecs,
+      source: "cache",
+      routeToHaversineRatio: haversine > 0 ? cached.distanceMiles / haversine : 1,
+      encodedPolyline: null,
     };
   }
 
@@ -188,6 +218,7 @@ async function persistRoute(args: {
   endLngR: number;
   distanceMiles: number;
   durationSecs: number;
+  encodedPolyline: string | null;
   source: "graphhopper" | "google";
 }): Promise<void> {
   // Use upsert so concurrent computes for the same pair don't race into
@@ -209,6 +240,7 @@ async function persistRoute(args: {
         endLngRounded: args.endLngR,
         distanceMiles: args.distanceMiles,
         durationSecs: args.durationSecs,
+        encodedPolyline: args.encodedPolyline,
         source: args.source,
       },
       update: {
@@ -217,6 +249,7 @@ async function persistRoute(args: {
         // older GraphHopper values only if a manual op clears the cache.
         distanceMiles: args.distanceMiles,
         durationSecs: args.durationSecs,
+        encodedPolyline: args.encodedPolyline,
         source: args.source,
         computedAt: new Date(),
       },
@@ -231,6 +264,7 @@ async function persistRoute(args: {
 interface GraphHopperRoute {
   distanceMiles: number;
   durationSecs: number;
+  encodedPolyline: string | null;
 }
 
 async function tryGraphHopper(
@@ -243,14 +277,17 @@ async function tryGraphHopper(
   if (!baseUrl) return null;
 
   // GraphHopper's HTTP API:
-  //   /route?point=lat,lng&point=lat,lng&profile=car&calc_points=false
-  // calc_points=false skips polyline geometry — we only need distance.
+  //   /route?point=lat,lng&point=lat,lng&profile=car&calc_points=true
+  // points_encoded=true returns the geometry as a Google-encoded
+  // polyline (precision 5, same as decodePolyline expects) — stored on
+  // manual trips so maps draw the road path, not a straight line.
   const url =
     `${baseUrl.replace(/\/$/, "")}/route` +
     `?point=${startLat},${startLng}` +
     `&point=${endLat},${endLng}` +
     `&profile=car` +
-    `&calc_points=false` +
+    `&calc_points=true` +
+    `&points_encoded=true` +
     `&instructions=false`;
 
   const res = await fetch(url, {
@@ -258,7 +295,7 @@ async function tryGraphHopper(
   });
   if (!res.ok) return null;
   const data = await res.json() as {
-    paths?: { distance?: number; time?: number }[];
+    paths?: { distance?: number; time?: number; points?: string }[];
   };
   const path = data.paths?.[0];
   if (!path || typeof path.distance !== "number" || typeof path.time !== "number") {
@@ -267,6 +304,7 @@ async function tryGraphHopper(
   return {
     distanceMiles: Math.round((path.distance / 1609.344) * 100) / 100,
     durationSecs: Math.round(path.time / 1000),
+    encodedPolyline: typeof path.points === "string" && path.points.length > 0 ? path.points : null,
   };
 }
 
@@ -275,6 +313,7 @@ async function tryGraphHopper(
 interface GoogleRoute {
   distanceMiles: number;
   durationSecs: number;
+  encodedPolyline: string | null;
 }
 
 async function tryGoogleMaps(
@@ -296,7 +335,7 @@ async function tryGoogleMaps(
       headers: {
         "Content-Type": "application/json",
         "X-Goog-Api-Key": apiKey,
-        "X-Goog-FieldMask": "routes.distanceMeters,routes.duration",
+        "X-Goog-FieldMask": "routes.distanceMeters,routes.duration,routes.polyline.encodedPolyline",
       },
       body: JSON.stringify({
         origin: { location: { latLng: { latitude: startLat, longitude: startLng } } },
@@ -317,7 +356,11 @@ async function tryGoogleMaps(
   if (!res.ok) return null;
 
   const data = (await res.json()) as {
-    routes?: { distanceMeters?: number; duration?: string }[];
+    routes?: {
+      distanceMeters?: number;
+      duration?: string;
+      polyline?: { encodedPolyline?: string };
+    }[];
   };
   const route = data.routes?.[0];
   if (!route || typeof route.distanceMeters !== "number") return null;
@@ -326,8 +369,10 @@ async function tryGoogleMaps(
   // letter and parse as integer seconds.
   const durationSecs = parseInt((route.duration ?? "0s").replace(/[^0-9]/g, ""), 10) || 0;
 
+  const encoded = route.polyline?.encodedPolyline;
   return {
     distanceMiles: Math.round((route.distanceMeters / 1609.344) * 100) / 100,
     durationSecs,
+    encodedPolyline: typeof encoded === "string" && encoded.length > 0 ? encoded : null,
   };
 }

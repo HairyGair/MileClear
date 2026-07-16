@@ -1219,6 +1219,9 @@ model RouteCache {
   endLngRounded       Float
   distanceMiles       Float
   durationSecs        Int
+  /** Google-encoded route geometry (precision 5). Null on rows cached
+   *  before 16 Jul 2026 — self-healed on next lookup (routing.ts). */
+  encodedPolyline     String?  @db.Text
   source              String   @db.VarChar(20)  // "graphhopper" | "google"
   computedAt          DateTime @default(now())
   hitCount            Int      @default(0)     // bumped on each cache hit
