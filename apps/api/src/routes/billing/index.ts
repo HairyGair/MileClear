@@ -149,14 +149,19 @@ export async function billingRoutes(app: FastifyInstance) {
             where: { id: userId },
             select: { email: true, displayName: true },
           });
+          // Tag test-mode events loudly - a sandbox checkout once fired the
+          // celebration alert while the server still ran an sk_test key
+          // (sarjitadhikari, 16 Jul 2026) and read as real revenue.
           notifyBillingEvent({
             kind: "subscription.new",
             tier: "celebrate",
-            title: `New Pro subscriber via web 🎉`,
+            title: event.livemode
+              ? `New Pro subscriber via web 🎉`
+              : `[TEST MODE - not real money] Stripe test subscription`,
             body: `${fullUser?.displayName || fullUser?.email || userId} just subscribed via Stripe Checkout.`,
             userId,
             userEmail: fullUser?.email ?? null,
-            details: { platform: "stripe", subscriptionId },
+            details: { platform: "stripe", subscriptionId, livemode: event.livemode },
           });
           await sendProWelcomeEmailOnce(userId, fullUser?.email ?? null, fullUser?.displayName ?? null);
         }
