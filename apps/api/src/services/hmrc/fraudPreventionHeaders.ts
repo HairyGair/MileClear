@@ -194,7 +194,11 @@ export function buildFraudPreventionHeaders(args: {
     ]);
 
     if (client.localIps && client.localIps.length > 0) {
-      headers["Gov-Client-Local-IPs"] = client.localIps.join(",");
+      // Spec: comma-separated list of percent-encoded IPs (encoding matters
+      // for IPv6 colons; harmless for IPv4).
+      headers["Gov-Client-Local-IPs"] = client.localIps
+        .map((ip) => encodeURIComponent(ip))
+        .join(",");
       if (client.localIpsTimestamp) {
         headers["Gov-Client-Local-IPs-Timestamp"] = client.localIpsTimestamp;
       }

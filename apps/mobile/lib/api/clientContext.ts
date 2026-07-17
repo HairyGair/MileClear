@@ -32,6 +32,36 @@ const KEYCHAIN_OPTS = {
 
 let cachedHeaders: Record<string, string> | null = null;
 let cachedDeviceId: string | null = null;
+let cachedLocalIp: { ip: string; at: string } | null = null;
+let localIpFetchedAtMs = 0;
+
+/**
+ * Device local (LAN) IP via expo-network, required for HMRC's
+ * Gov-Client-Local-IPs fraud header (validator treats it as required for
+ * MOBILE_APP_VIA_SERVER since Jul 2026). Lazy require with try/catch —
+ * binaries built before expo-network was added (≤ build 78) lack the
+ * native module, so an OTA carrying this code must not crash them; they
+ * simply omit the header. Cached for 5 minutes (Wi-Fi↔cellular flips
+ * change it, but per-request native calls would be wasteful).
+ */
+async function getLocalIp(): Promise<{ ip: string; at: string } | null> {
+  const FIVE_MIN = 5 * 60 * 1000;
+  if (cachedLocalIp && Date.now() - localIpFetchedAtMs < FIVE_MIN) return cachedLocalIp;
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const Network = require("expo-network") as { getIpAddressAsync?: () => Promise<string> };
+    const ip = await Network.getIpAddressAsync?.();
+    // expo-network returns "0.0.0.0" when unavailable — omit rather than lie.
+    if (ip && ip !== "0.0.0.0") {
+      cachedLocalIp = { ip, at: new Date().toISOString() };
+      localIpFetchedAtMs = Date.now();
+      return cachedLocalIp;
+    }
+  } catch {
+    // Module missing (older binary / Expo Go without it) — omit the header.
+  }
+  return null;
+}
 
 /**
  * Get-or-create a UUID device identifier persisted in SecureStore. Acts
@@ -149,14 +179,22 @@ async function buildBaseHeaders(): Promise<Record<string, string>> {
  */
 export async function getClientContextHeaders(): Promise<Record<string, string>> {
   const base = await buildBaseHeaders();
-  return {
+  const headers: Record<string, string> = {
     ...base,
     "X-MileClear-Public-IP-Timestamp": new Date().toISOString(),
   };
+  const localIp = await getLocalIp();
+  if (localIp) {
+    headers["X-MileClear-Local-Ips"] = localIp.ip;
+    headers["X-MileClear-Local-Ips-Timestamp"] = localIp.at;
+  }
+  return headers;
 }
 
 /** Test-only: clear caches between tests. */
 export function resetClientContextCache(): void {
   cachedHeaders = null;
   cachedDeviceId = null;
+  cachedLocalIp = null;
+  localIpFetchedAtMs = 0;
 }

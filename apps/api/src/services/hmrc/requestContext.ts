@@ -108,6 +108,17 @@ export function buildClientContext(request: FastifyRequest): ClientContext {
     "56789";
   const tzOffset = normaliseTimezoneOffset(get("x-mileclear-timezone-offset"));
 
+  // Device local IPs (private LAN addresses), collected client-side.
+  // HMRC's validator treats Gov-Client-Local-IPs (+ timestamp) as required
+  // for MOBILE_APP_VIA_SERVER (observed 17 Jul 2026 — previously only a
+  // warning). Mobile sends them via expo-network from build 79; older
+  // binaries omit the header and the builder skips it.
+  const localIpsRaw = get("x-mileclear-local-ips");
+  const localIps = localIpsRaw
+    ? localIpsRaw.split(",").map((s) => s.trim()).filter(Boolean)
+    : undefined;
+  const localIpsTimestamp = get("x-mileclear-local-ips-timestamp") ?? publicIpTimestamp;
+
   if (platform === "ios" || platform === "android") {
     return {
       connectionMethod: "MOBILE_APP_VIA_SERVER",
@@ -115,6 +126,8 @@ export function buildClientContext(request: FastifyRequest): ClientContext {
       publicIp: ip,
       publicIpTimestamp,
       publicPort,
+      localIps,
+      localIpsTimestamp,
       osFamily: platform === "ios" ? "iOS" : "Android",
       osVersion: get("x-mileclear-os-version") ?? "0.0",
       deviceManufacturer:
