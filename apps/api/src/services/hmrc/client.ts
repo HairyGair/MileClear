@@ -72,6 +72,7 @@ export class HmrcReauthRequiredError extends Error {
 
 interface ConnectionTokens {
   id: string;
+  userId: string;
   accessToken: string;
   refreshToken: string;
   expiresAt: Date;
@@ -97,11 +98,29 @@ async function loadActiveConnection(userId: string): Promise<ConnectionTokens> {
   const refreshToken = decryptIfEncrypted(conn.refreshToken) ?? "";
   return {
     id: conn.id,
+    userId: conn.userId,
     accessToken,
     refreshToken,
     expiresAt: conn.expiresAt,
     environment: conn.environment,
   };
+}
+
+// Single-flight token refresh per connection. Two parallel hmrcCalls (the
+// mobile screens fire Promise.all) both seeing an expiring token used to
+// both hit HMRC's /oauth/token; HMRC rejects the second with HTTP 400
+// "Refresh operation is already in progress", which the old code treated
+// as a revoked refresh token and KILLED the connection (observed 17 Jul
+// 2026 — the demo account's connection was disconnected mid-session).
+// With rotation, a duplicate refresh can also orphan the stored token.
+const refreshInFlight = new Map<string, Promise<ConnectionTokens>>();
+
+function refreshSingleFlight(conn: ConnectionTokens): Promise<ConnectionTokens> {
+  const existing = refreshInFlight.get(conn.id);
+  if (existing) return existing;
+  const flight = refreshAndPersist(conn).finally(() => refreshInFlight.delete(conn.id));
+  refreshInFlight.set(conn.id, flight);
+  return flight;
 }
 
 async function refreshAndPersist(
@@ -117,6 +136,18 @@ async function refreshAndPersist(
       refreshToken: conn.refreshToken,
     });
   } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+
+    // "Refresh operation is already in progress" = another process (or a
+    // race the in-process map couldn't see) is mid-refresh. NOT a revoked
+    // token — wait for the winner to persist, then reload its tokens.
+    if (/already in progress/i.test(message)) {
+      await new Promise((r) => setTimeout(r, 1500));
+      const reloaded = await loadActiveConnection(conn.userId);
+      logEvent("hmrc.refresh_coalesced", conn.userId, { connectionId: conn.id });
+      return reloaded;
+    }
+
     // Refresh failed — most likely invalid_grant (refresh token revoked).
     // Mark the connection disconnected so the user is prompted to re-OAuth.
     await prisma.hmrcConnection.update({
@@ -124,7 +155,7 @@ async function refreshAndPersist(
       data: { disconnectedAt: new Date() },
     });
     logEvent("hmrc.refresh_rejected", null, {
-      error: err instanceof Error ? err.message : String(err),
+      error: message,
     });
     throw new HmrcReauthRequiredError(conn.id);
   }
@@ -143,6 +174,7 @@ async function refreshAndPersist(
 
   return {
     id: updated.id,
+    userId: conn.userId,
     accessToken: tokens.access_token,
     refreshToken: tokens.refresh_token,
     expiresAt: updated.expiresAt,
@@ -198,14 +230,14 @@ export async function hmrcCall<T = unknown>(opts: HmrcCallOptions): Promise<T> {
 
   // Pre-emptive refresh if the cached token expires within 60s.
   if (isTokenExpiringSoon(conn.expiresAt)) {
-    conn = await refreshAndPersist(conn);
+    conn = await refreshSingleFlight(conn);
   }
 
   let response = await performRequest({ conn, options: opts });
 
   // Reactive refresh on 401 — token may have been revoked early.
   if (response.status === 401) {
-    conn = await refreshAndPersist(conn);
+    conn = await refreshSingleFlight(conn);
     response = await performRequest({ conn, options: opts });
   }
 
