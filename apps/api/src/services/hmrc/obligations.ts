@@ -98,6 +98,10 @@ export async function fetchObligations(args: {
       toDate: args.to,
       status: args.status,
       businessId: args.businessId,
+      // HMRC rejects businessId without typeOfBusiness (MISSING_TYPE_OF_BUSINESS).
+      // MileClear is self-employment-only, so the type is constant whenever a
+      // business has been selected.
+      typeOfBusiness: args.businessId ? "self-employment" : undefined,
     },
     client: args.client,
     server: args.server,
