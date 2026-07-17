@@ -11,7 +11,7 @@ import {
 import { Stack } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { getTaxYear } from "@mileclear/shared";
-import { MtdSignpost } from "../components/MtdSignpost";
+import { MtdSignpost, GOVUK_PERSONAL_TAX_ACCOUNT } from "../components/MtdSignpost";
 import { BetaBanner } from "../components/BetaBanner";
 import {
   fetchHmrcStatus,
@@ -186,6 +186,11 @@ export default function TaxMtdHistoryScreen() {
             <MtdSignpost
               text="These figures are only an estimate based on the information HMRC has received so far. They may change as more is reported about you during the tax year."
               showLink={false}
+            />
+            <MtdSignpost
+              text="You can also view your tax calculation in your HMRC Personal Tax Account on GOV.UK."
+              linkUrl={GOVUK_PERSONAL_TAX_ACCOUNT}
+              linkLabel="View your HMRC Personal Tax Account ›"
             />
           </Section>
         </>

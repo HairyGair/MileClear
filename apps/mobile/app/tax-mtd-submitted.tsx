@@ -16,6 +16,7 @@ import {
 } from "../lib/api/hmrc";
 import { isApiError } from "../lib/api";
 import { BetaBanner } from "../components/BetaBanner";
+import { MtdSignpost, GOVUK_PERSONAL_TAX_ACCOUNT } from "../components/MtdSignpost";
 import { colors, fonts } from "../lib/theme";
 
 const AMBER = colors.amber;
@@ -123,6 +124,12 @@ export default function TaxMtdSubmittedScreen() {
         )}
 
         {calc.status === "ready" && <CalcSummary summary={calc.result} />}
+
+        <MtdSignpost
+          text="You can also view your tax calculation in your HMRC Personal Tax Account on GOV.UK."
+          linkUrl={GOVUK_PERSONAL_TAX_ACCOUNT}
+          linkLabel="View your HMRC Personal Tax Account ›"
+        />
       </View>
 
       <TouchableOpacity
