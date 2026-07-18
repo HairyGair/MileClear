@@ -120,7 +120,10 @@ export interface TaxSnapshot {
     taxBasis?: "cash" | "accruals";
 
     mileageDeductionPence: number;
-    taxableProfitPence: number;             // earnings - mileage (no expenses, dashboard-light)
+    /** Allowable (non-motor) expenses netted into the estimate, matching the
+     *  Self Assessment wizard. Motor costs covered by AMAP are excluded. */
+    allowableExpensesPence?: number;
+    taxableProfitPence: number;             // earnings - mileage - allowable expenses
     /** Gross income tax + NIC liability BEFORE PAYE offset. Useful for
      *  the "you owe £X total, your employer's already paid £Y" breakdown. */
     grossTaxLiabilityPence?: number;

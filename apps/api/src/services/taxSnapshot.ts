@@ -1,4 +1,5 @@
 import { prisma } from "../lib/prisma.js";
+import { fetchExpenseSummary } from "./export-data.js";
 import {
   estimateUkTax,
   calculateMileageDeduction,
@@ -63,6 +64,7 @@ export async function buildTaxSnapshot(userId: string): Promise<TaxSnapshot> {
     unclassifiedCount,
     recentBusinessTripCount,
     recentEarningsCount,
+    expenseSummary,
   ] = await Promise.all([
       prisma.user.findUnique({
         where: { id: userId },
@@ -152,6 +154,12 @@ export async function buildTaxSnapshot(userId: string): Promise<TaxSnapshot> {
           periodStart: { gte: thirtyDaysAgo },
         },
       }),
+      // Allowable (non-motor) expenses for the tax year. Same source the
+      // Self Assessment wizard uses, so the dashboard estimate matches it.
+      // deductibleWithMileage=false categories (fuel/insurance/road tax etc.)
+      // are excluded — AMAP already covers those, so netting them would
+      // double-count against the mileage deduction.
+      fetchExpenseSummary(userId, taxYear),
     ]);
 
     // Nudge: actively tracking trips but not logging earnings.
@@ -221,10 +229,18 @@ export async function buildTaxSnapshot(userId: string): Promise<TaxSnapshot> {
   const grossEarningsPence = earningsBasePence + invoiceIncomePence;
   const earningsLast7DaysPence = earningsLast7d._sum.amountPence ?? 0;
 
-  // Profit = earnings - mileage deduction. Snapshot is intentionally simple
-  // and does NOT subtract allowable expenses (parking, tolls, etc.) - that
-  // calculation lives in the premium Self Assessment wizard.
-  const taxableProfitPence = Math.max(0, grossEarningsPence - mileageDeductionPence);
+  // Profit = earnings - mileage deduction - allowable (non-motor) expenses.
+  // Netting allowable expenses keeps the dashboard estimate consistent with
+  // the Self Assessment wizard. Before this, users who diligently logged
+  // expenses saw an overstated "tax" figure (income taxed with no expense
+  // relief) which read as a bug and alarmed people (Laura Joyce, 18 Jul 2026:
+  // a £1,020 invoice showed ~£125 tax while £945 of genuine equipment/travel
+  // expenses were ignored, so her real liability was £0).
+  const allowableExpensesPence = expenseSummary.totalAllowablePence;
+  const taxableProfitPence = Math.max(
+    0,
+    grossEarningsPence - mileageDeductionPence - allowableExpensesPence
+  );
 
   // Marginal-rate aware: if the user has declared other income (main job
   // salary, pension etc.) the income-tax portion is calculated as the tax
@@ -361,6 +377,7 @@ export async function buildTaxSnapshot(userId: string): Promise<TaxSnapshot> {
       invoiceIncomePence,
       taxBasis: userTaxBasis,
       mileageDeductionPence,
+      allowableExpensesPence,
       taxableProfitPence,
       grossTaxLiabilityPence,
       payeAlreadyPaidPence,
