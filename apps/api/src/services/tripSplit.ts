@@ -63,34 +63,45 @@ export interface DwellSuggestion {
   dwellSec: number;
 }
 
-/** Speed at coord i in mph: stored speed when present, else haversine/Δt
- *  from the previous coord (older rows predate the speed column). */
-function speedMphAt(coords: SplitCoord[], i: number): number {
-  const c = coords[i];
-  if (c.speed != null && Number.isFinite(c.speed)) return c.speed * MS_TO_MPH;
-  if (i === 0) return 0;
-  const prev = coords[i - 1];
-  const dtHours = (c.recordedAt.getTime() - prev.recordedAt.getTime()) / 3_600_000;
-  if (dtHours <= 0) return 0;
-  return haversineDistance(prev.lat, prev.lng, c.lat, c.lng) / dtHours;
+/**
+ * Is the interval between coords i and i+1 a "stopped" interval?
+ *
+ * Judged on IMPLIED speed — displacement over elapsed time — not on the
+ * stored per-sample speed. RNBG records with distanceFilter: 20m, so a
+ * parked phone emits NO fixes: on real trails a delivery stop shows up as a
+ * time GAP with tiny displacement (Will's trail: 102s/34m, 177s/17m,
+ * 1114s/652m), which a slow-sample-run scan misses entirely. Implied speed
+ * also cleanly rejects signal loss while driving (292s/3549m = 27mph) and
+ * subsumes the dense case — a run of slow samples has low implied speed too.
+ */
+function isStoppedInterval(a: SplitCoord, b: SplitCoord): boolean {
+  const dtHours = (b.recordedAt.getTime() - a.recordedAt.getTime()) / 3_600_000;
+  if (dtHours <= 0) {
+    // Same-instant duplicates: fall back to the stored sample speed.
+    const mps = b.speed ?? a.speed;
+    return mps != null && Number.isFinite(mps) ? mps * MS_TO_MPH < DWELL_MAX_MPH : false;
+  }
+  const impliedMph = haversineDistance(a.lat, a.lng, b.lat, b.lng) / dtHours;
+  return impliedMph < DWELL_MAX_MPH;
 }
 
 /**
  * Scan an ordered coordinate trail for dwell windows — maximal runs of
- * below-threshold speed lasting >= MIN_DWELL_SEC. Returns one suggested cut
- * per dwell (at the middle of the stationary run, so both legs end/start at
- * the stop itself), chronological, capped at MAX_SUGGESTIONS longest-first.
+ * consecutive stopped INTERVALS spanning >= MIN_DWELL_SEC of wall clock
+ * (gaps included, so a stop the recorder slept through measures its true
+ * length). Returns one suggested cut per dwell at the middle of the window,
+ * chronological, capped at MAX_SUGGESTIONS longest-first.
  */
 export function detectDwells(coords: SplitCoord[]): DwellSuggestion[] {
   if (coords.length < MIN_LEG_COORDS * 2) return [];
 
   const dwells: DwellSuggestion[] = [];
-  let runStart: number | null = null;
+  let windowStart: number | null = null; // index of first coord of the stopped window
 
-  const closeRun = (endIdx: number) => {
-    if (runStart == null) return;
-    const startIdx = runStart;
-    runStart = null;
+  const closeWindow = (endIdx: number) => {
+    if (windowStart == null) return;
+    const startIdx = windowStart;
+    windowStart = null;
     // Leading/trailing stillness isn't a cut — it's just parking at the ends.
     if (startIdx === 0 || endIdx === coords.length - 1) return;
     const dwellSec =
@@ -106,14 +117,14 @@ export function detectDwells(coords: SplitCoord[]): DwellSuggestion[] {
     });
   };
 
-  for (let i = 0; i < coords.length; i++) {
-    if (speedMphAt(coords, i) < DWELL_MAX_MPH) {
-      if (runStart == null) runStart = i;
-    } else {
-      closeRun(i - 1);
+  for (let i = 0; i < coords.length - 1; i++) {
+    if (isStoppedInterval(coords[i], coords[i + 1])) {
+      if (windowStart == null) windowStart = i;
+    } else if (windowStart != null) {
+      closeWindow(i); // window spans [windowStart .. i]
     }
   }
-  closeRun(coords.length - 1);
+  closeWindow(coords.length - 1);
 
   if (dwells.length > MAX_SUGGESTIONS) {
     // Keep the longest stops (most likely real drops), restore chronology.

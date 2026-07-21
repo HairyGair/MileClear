@@ -103,6 +103,61 @@ describe("detectDwells", () => {
   });
 });
 
+// ---------------------------------------------------------------------------
+// Sparse trails — the real RNBG shape. distanceFilter: 20m means a parked
+// phone emits NO fixes: stops appear as time GAPS with tiny displacement,
+// not runs of slow samples. Cases modelled on Will Holland's 27mi trail
+// (21 Jul 2026): 102s/34m and 177s/17m stops, a 469s+175s+432s multi-part
+// stop, and 292s/3549m signal loss while driving.
+// ---------------------------------------------------------------------------
+describe("detectDwells on sparse trails", () => {
+  /** Build a coord `sec` seconds after T0, `meters` north of a base point. */
+  const at = (sec: number, meters: number): SplitCoord => ({
+    lat: 50.85 + meters / 111_320, // ~1 deg lat = 111.32 km
+    lng: 0.57,
+    speed: null,
+    recordedAt: new Date(T0 + sec * 1000),
+  });
+  /** n driving coords, 10s apart, ~66m per tick, starting at (sec, meters). */
+  const drive = (sec: number, meters: number, n: number): SplitCoord[] =>
+    Array.from({ length: n }, (_, k) => at(sec + k * 10, meters + k * 66));
+
+  it("detects a stop that is a pure time gap with tiny displacement", () => {
+    // Will's 18:10 stop: 102s gap, 34m displacement, zero slow samples.
+    const before = drive(0, 0, 15); // ends at t=140s, 924m
+    const stopDeparture = at(140 + 102, 924 + 34);
+    const after = drive(252, 958 + 66, 15);
+    const dwells = detectDwells([...before, stopDeparture, ...after]);
+    expect(dwells).toHaveLength(1);
+    expect(dwells[0].dwellSec).toBeGreaterThanOrEqual(100);
+  });
+
+  it("coalesces gap + samples + gap into ONE dwell measuring the full stop", () => {
+    // Will's 19:24-19:42 stop: 469s/21m gap, two near-still samples, 175s/4m
+    // gap, then 432s/203m gap — one ~18min stop the old scan measured as 180s.
+    const before = drive(0, 0, 15); // ends t=140s, 924m
+    const stop = [
+      at(140 + 469, 924 + 21),
+      at(140 + 479, 924 + 22),
+      at(140 + 479 + 175, 924 + 26),
+      at(140 + 479 + 175 + 432, 924 + 229),
+    ];
+    const lastT = 140 + 479 + 175 + 432;
+    const after = drive(lastT + 10, 924 + 229 + 66, 15);
+    const dwells = detectDwells([...before, ...stop, ...after]);
+    expect(dwells).toHaveLength(1);
+    expect(dwells[0].dwellSec).toBeGreaterThan(1000); // full span, not one fragment
+  });
+
+  it("does NOT flag signal loss while driving (large gap, large displacement)", () => {
+    // Will's 18:02 gap: 292s / 3549m = ~27mph implied — driving, not a stop.
+    const before = drive(0, 0, 15); // ends t=140s, 924m
+    const reacquired = at(140 + 292, 924 + 3549);
+    const after = drive(140 + 292 + 10, 924 + 3549 + 66, 15);
+    expect(detectDwells([...before, reacquired, ...after])).toHaveLength(0);
+  });
+});
+
 describe("partitionAtCuts", () => {
   const coords = route([{ n: 40, speed: DRIVING }]);
 
