@@ -33,6 +33,11 @@ import { looksLikePhantomTrip, hasRealMovementEvidence } from "../../lib/phantom
 import { resolveRouteDistance } from "../../services/routing.js";
 import { matchTripRoute, decodePolyline, isMatchPlausible } from "../../services/mapMatching.js";
 import { computeTripConfidence } from "../../services/tripConfidence.js";
+import {
+  getSplitSuggestions,
+  executeTripSplit,
+  SplitValidationError,
+} from "../../services/tripSplit.js";
 import { sendLiveActivityStartPush, isApnsConfigured } from "../../services/apns.js";
 
 // In-memory per-user cooldown for /trips/signal-start so a double-signal can't
@@ -1233,6 +1238,53 @@ export async function tripRoutes(app: FastifyInstance) {
     );
 
     return reply.status(201).send({ data: mergedTrip });
+  });
+
+  // ── Trip Split (inverse of /merge) ────────────────────────────────────
+  //
+  // Multi-drop delivery runs record as ONE trip because quick drops sit
+  // below the stop-detection window. These endpoints un-merge after the
+  // fact: suggest scans the stored breadcrumbs for low-speed dwell windows,
+  // split partitions the trip at the user-confirmed stops. Free tier —
+  // capture accuracy, not an analytic (Will Holland, 21 Jul 2026).
+
+  // GET /trips/:id/split-suggestions — proposed cut points for the UI.
+  app.get("/:id/split-suggestions", async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const result = await getSplitSuggestions({ userId: request.userId!, tripId: id });
+    if (!result) return reply.status(404).send({ error: "Trip not found" });
+    return reply.send({ data: result });
+  });
+
+  // POST /trips/:id/split — execute the split at the accepted cut points.
+  // Response carries deletedTripId + the new legs so the client can refetch
+  // (same server-authoritative direct-call pattern as /merge).
+  const splitTripSchema = z.object({
+    cutTimestamps: z
+      .array(z.string().datetime({ offset: true }))
+      .min(1, "Choose at least one split point.")
+      .max(12, "Too many split points."),
+  });
+  app.post("/:id/split", async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const parsed = splitTripSchema.safeParse(request.body);
+    if (!parsed.success) {
+      return reply.status(400).send({ error: parsed.error.issues[0].message });
+    }
+    try {
+      const result = await executeTripSplit({
+        userId: request.userId!,
+        tripId: id,
+        cutTimestamps: parsed.data.cutTimestamps.map((t) => new Date(t)),
+      });
+      return reply.status(201).send({ data: result });
+    } catch (err) {
+      if (err instanceof SplitValidationError) {
+        const notFound = /not found/i.test(err.message);
+        return reply.status(notFound ? 404 : 400).send({ error: err.message });
+      }
+      throw err;
+    }
   });
 
   // Get single trip
