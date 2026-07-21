@@ -350,6 +350,38 @@ export function mergeTrips(data: MergeTripsData) {
   });
 }
 
+// ── Trip Split (inverse of merge) ─────────────────────────────────────────
+// Multi-drop delivery runs record as ONE trip because quick drops sit below
+// the stop-detection window. The server re-scans the stored breadcrumbs for
+// dwell windows and proposes cut points; the user confirms which to apply.
+
+export interface SplitSuggestion {
+  /** Index into the trip's coordinate trail (informational). */
+  cutIndex: number;
+  /** ISO timestamp of the cut coord — echo back to splitTrip to apply it. */
+  timestamp: string;
+  lat: number;
+  lng: number;
+  /** How long the vehicle sat stopped here, seconds. */
+  dwellSec: number;
+}
+
+export function fetchSplitSuggestions(tripId: string) {
+  return apiRequest<{ data: { suggestions: SplitSuggestion[]; coordCount: number } }>(
+    `/trips/${tripId}/split-suggestions`
+  );
+}
+
+export function splitTrip(tripId: string, cutTimestamps: string[]) {
+  return apiRequest<{ data: { deletedTripId: string; trips: TripWithVehicle[] } }>(
+    `/trips/${tripId}/split`,
+    {
+      method: "POST",
+      body: JSON.stringify({ cutTimestamps }),
+    }
+  );
+}
+
 /**
  * "Missing a trip?" report from the Trips screen. The server already has the
  * user's diagnostic dumps, so we only send one line of context; the API

@@ -35,6 +35,9 @@ interface TripMapWidgetProps {
    *  When present, takes priority over `coordinates` because it's a
    *  cleaner visual route — no GPS jitter, follows actual roads. */
   matchedCoordinates?: Coordinate[] | null;
+  /** Extra amber pins along the route — the Split Trip screen uses these
+   *  to show proposed cut points at detected stops. */
+  cutMarkers?: Coordinate[];
   height?: number;
   interactive?: boolean;
 }
@@ -42,6 +45,7 @@ interface TripMapWidgetProps {
 export function TripMapWidget({
   coordinates,
   matchedCoordinates,
+  cutMarkers,
   height = 200,
   interactive = false,
 }: TripMapWidgetProps) {
@@ -126,6 +130,14 @@ export function TripMapWidget({
           coordinate={{ latitude: end.lat, longitude: end.lng }}
           pinColor="#dc2626"
         />
+        {cutMarkers?.map((c, i) => (
+          <MarkerComponent
+            key={`cut-${i}`}
+            coordinate={{ latitude: c.lat, longitude: c.lng }}
+            pinColor={AMBER}
+            anchor={{ x: 0.5, y: 0.5 }}
+          />
+        ))}
       </MapViewComponent>
     </View>
   );

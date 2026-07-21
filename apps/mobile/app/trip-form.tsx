@@ -747,6 +747,9 @@ export default function TripFormScreen() {
     gapMeters: number;
   } | null>(null);
   const [merging, setMerging] = useState(false);
+  // Split (inverse of merge): offered on tracked trips with enough
+  // breadcrumbs for the server's dwell scan to work with.
+  const [canSplit, setCanSplit] = useState(false);
   // Odometer (optional trust primitive).
   const [odometerOpen, setOdometerOpen] = useState(false);
   const [odometerStart, setOdometerStart] = useState("");
@@ -983,6 +986,8 @@ export default function TripFormScreen() {
         gapMeters: number;
       } | null;
       cleanAirZones?: CazTripAssessment | null;
+      isManualEntry?: boolean;
+      coordinates?: unknown[];
     }) => {
       setClassification(t.classification as TripClassification);
       setPlatformTag((t.platformTag ?? undefined) as PlatformTag | undefined);
@@ -1010,6 +1015,9 @@ export default function TripFormScreen() {
       if (t.confidence) setConfidence(t.confidence);
       if (t.mergeSuggestion) setMergeSuggestion(t.mergeSuggestion);
       if (t.cleanAirZones) setCleanAirZones(t.cleanAirZones);
+      // Only the server payload carries these; the local-SQLite fallback
+      // doesn't, so canSplit stays false offline (split needs the API anyway).
+      setCanSplit(t.isManualEntry === false && (t.coordinates?.length ?? 0) >= 10);
       const od = t as { odometerStart?: number | null; odometerEnd?: number | null; updatedAt?: string; createdAt?: string };
       if (od.odometerStart != null) { setOdometerStart(String(od.odometerStart)); setOdometerOpen(true); }
       if (od.odometerEnd != null) { setOdometerEnd(String(od.odometerEnd)); setOdometerOpen(true); }
@@ -3468,6 +3476,20 @@ export default function TripFormScreen() {
               disabled={deleting}
               style={{ marginTop: 28 }}
             />
+
+            {/* Split - tracked trips with a GPS trail only. Was this "one
+                trip" really several delivery drops? The split screen scans
+                the trail for stops and lets the user cut it up. */}
+            {isEditing && canSplit && (
+              <Button
+                variant="ghost"
+                title="Split into multiple trips"
+                icon="git-branch-outline"
+                onPress={() => router.push(`/trip-split?id=${id}`)}
+                disabled={saving || deleting}
+                style={{ marginTop: 12 }}
+              />
+            )}
 
             {/* Delete - edit mode only */}
             {isEditing && (
