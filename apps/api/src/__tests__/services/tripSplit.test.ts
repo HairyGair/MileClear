@@ -170,6 +170,27 @@ describe("detectDwells on sparse trails", () => {
     expect(dwells[0].dwellSec).toBeGreaterThanOrEqual(140);
   });
 
+  it("coalesces two windows shattered by an invalid-speed junk interval", () => {
+    // Will's 19:46-20:01 stop: a speed=-1 sample between two stopped windows
+    // at the same spot fragmented one 15-min stop into 337s + 554s pieces.
+    const junk = (sec: number, meters: number): SplitCoord => ({
+      ...at(sec, meters),
+      speed: -1,
+    });
+    const before = drive(0, 0, 15); // ends t=140s, 924m
+    const stop = [
+      at(140 + 132, 924 + 27), // gap-stop piece 1
+      at(140 + 337, 924 + 33),
+      junk(140 + 338, 924 + 40), // 1s later, invalid speed, small jitter
+      at(140 + 338 + 554, 924 + 60), // gap-stop piece 2
+    ];
+    const lastT = 140 + 338 + 554;
+    const after = drive(lastT + 10, 924 + 60 + 66, 15);
+    const dwells = detectDwells([...before, ...stop, ...after]);
+    expect(dwells).toHaveLength(1);
+    expect(dwells[0].dwellSec).toBeGreaterThan(800); // one full-span stop
+  });
+
   it("does NOT flag signal loss while driving (large gap, large displacement)", () => {
     // Will's 18:02 gap: 292s / 3549m = ~27mph implied — driving, not a stop.
     const before = drive(0, 0, 15); // ends t=140s, 924m

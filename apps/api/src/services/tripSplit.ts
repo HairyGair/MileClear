@@ -39,6 +39,10 @@ const MIN_LEG_COORDS = 5;
 /** A submitted cut timestamp must land within this window of a stored
  *  coord — beyond it the client is talking about a different route. */
 const CUT_MATCH_TOLERANCE_MS = 120 * 1000;
+/** Adjacent dwell windows this close in time AND space are one physical
+ *  stop shattered by a junk interval — coalesce them. */
+const WINDOW_MERGE_MAX_GAP_SEC = 90;
+const WINDOW_MERGE_MAX_METERS = 120;
 
 const MS_TO_MPH = 2.23694;
 
@@ -106,19 +110,53 @@ function isStoppedInterval(a: SplitCoord, b: SplitCoord): boolean {
 export function detectDwells(coords: SplitCoord[]): DwellSuggestion[] {
   if (coords.length < MIN_LEG_COORDS * 2) return [];
 
-  const dwells: DwellSuggestion[] = [];
-  let windowStart: number | null = null; // index of first coord of the stopped window
+  // Pass 1: maximal runs of stopped intervals → candidate windows.
+  const windows: Array<{ startIdx: number; endIdx: number }> = [];
+  let windowStart: number | null = null;
+  for (let i = 0; i < coords.length - 1; i++) {
+    if (isStoppedInterval(coords[i], coords[i + 1])) {
+      if (windowStart == null) windowStart = i;
+    } else if (windowStart != null) {
+      windows.push({ startIdx: windowStart, endIdx: i });
+      windowStart = null;
+    }
+  }
+  if (windowStart != null) windows.push({ startIdx: windowStart, endIdx: coords.length - 1 });
 
-  const closeWindow = (endIdx: number) => {
-    if (windowStart == null) return;
-    const startIdx = windowStart;
-    windowStart = null;
+  // Pass 2: coalesce windows that are really one stop. A single junk
+  // interval (RNBG's -1 invalid-speed marker, a jitter spike neither check
+  // can vouch for) shatters one physical stop into fragments seconds apart
+  // at the same spot — and two cuts at one stop would trap the user into a
+  // too-thin middle leg the split endpoint rejects.
+  const merged: typeof windows = [];
+  for (const w of windows) {
+    const prev = merged[merged.length - 1];
+    if (prev) {
+      const gapSec =
+        (coords[w.startIdx].recordedAt.getTime() - coords[prev.endIdx].recordedAt.getTime()) / 1000;
+      const gapMiles = haversineDistance(
+        coords[prev.endIdx].lat,
+        coords[prev.endIdx].lng,
+        coords[w.startIdx].lat,
+        coords[w.startIdx].lng
+      );
+      if (gapSec <= WINDOW_MERGE_MAX_GAP_SEC && gapMiles * 1609 < WINDOW_MERGE_MAX_METERS) {
+        prev.endIdx = w.endIdx;
+        continue;
+      }
+    }
+    merged.push({ ...w });
+  }
+
+  // Pass 3: windows → suggestions.
+  const dwells: DwellSuggestion[] = [];
+  for (const w of merged) {
     // Leading/trailing stillness isn't a cut — it's just parking at the ends.
-    if (startIdx === 0 || endIdx === coords.length - 1) return;
+    if (w.startIdx === 0 || w.endIdx === coords.length - 1) continue;
     const dwellSec =
-      (coords[endIdx].recordedAt.getTime() - coords[startIdx].recordedAt.getTime()) / 1000;
-    if (dwellSec < MIN_DWELL_SEC) return;
-    const cutIndex = Math.floor((startIdx + endIdx) / 2);
+      (coords[w.endIdx].recordedAt.getTime() - coords[w.startIdx].recordedAt.getTime()) / 1000;
+    if (dwellSec < MIN_DWELL_SEC) continue;
+    const cutIndex = Math.floor((w.startIdx + w.endIdx) / 2);
     dwells.push({
       cutIndex,
       timestamp: coords[cutIndex].recordedAt,
@@ -126,16 +164,7 @@ export function detectDwells(coords: SplitCoord[]): DwellSuggestion[] {
       lng: coords[cutIndex].lng,
       dwellSec: Math.round(dwellSec),
     });
-  };
-
-  for (let i = 0; i < coords.length - 1; i++) {
-    if (isStoppedInterval(coords[i], coords[i + 1])) {
-      if (windowStart == null) windowStart = i;
-    } else if (windowStart != null) {
-      closeWindow(i); // window spans [windowStart .. i]
-    }
   }
-  closeWindow(coords.length - 1);
 
   if (dwells.length > MAX_SUGGESTIONS) {
     // Keep the longest stops (most likely real drops), restore chronology.
