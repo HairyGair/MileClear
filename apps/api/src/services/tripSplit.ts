@@ -75,11 +75,22 @@ export interface DwellSuggestion {
  * subsumes the dense case — a run of slow samples has low implied speed too.
  */
 function isStoppedInterval(a: SplitCoord, b: SplitCoord): boolean {
+  // Doppler sample speeds are reliable at low speed and immune to position
+  // jitter: a parked phone can jump metres between close-together fixes,
+  // which reads as a high implied speed over a 1-2s interval and used to
+  // shatter one 18-min stop into several windows (Will's 19:24-19:42 stop).
+  // If both ends report a valid slow speed, the interval is stopped. (-1 is
+  // RNBG's invalid-speed marker; require >= 0.)
+  const aMph = a.speed != null && Number.isFinite(a.speed) && a.speed >= 0 ? a.speed * MS_TO_MPH : null;
+  const bMph = b.speed != null && Number.isFinite(b.speed) && b.speed >= 0 ? b.speed * MS_TO_MPH : null;
+  if (aMph != null && bMph != null && aMph < DWELL_MAX_MPH && bMph < DWELL_MAX_MPH) {
+    return true;
+  }
+
   const dtHours = (b.recordedAt.getTime() - a.recordedAt.getTime()) / 3_600_000;
   if (dtHours <= 0) {
-    // Same-instant duplicates: fall back to the stored sample speed.
-    const mps = b.speed ?? a.speed;
-    return mps != null && Number.isFinite(mps) ? mps * MS_TO_MPH < DWELL_MAX_MPH : false;
+    // Same-instant duplicates with no usable sample speed: not evidence of a stop.
+    return aMph != null ? aMph < DWELL_MAX_MPH : false;
   }
   const impliedMph = haversineDistance(a.lat, a.lng, b.lat, b.lng) / dtHours;
   return impliedMph < DWELL_MAX_MPH;

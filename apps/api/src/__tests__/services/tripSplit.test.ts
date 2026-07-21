@@ -149,6 +149,27 @@ describe("detectDwells on sparse trails", () => {
     expect(dwells[0].dwellSec).toBeGreaterThan(1000); // full span, not one fragment
   });
 
+  it("survives GPS position jitter while parked (slow doppler speeds win)", () => {
+    // Parked phone jumping metres between close fixes: implied speed across
+    // a 2s/10m interval is ~11mph, but both samples report ~0.2 m/s. The
+    // whole cluster must stay ONE window, not shatter into fragments.
+    const slow = (sec: number, meters: number): SplitCoord => ({
+      ...at(sec, meters),
+      speed: 0.2,
+    });
+    const before = drive(0, 0, 15); // ends t=140s, 924m
+    const stop = [
+      slow(140 + 100, 924 + 2),
+      slow(140 + 102, 924 + 12), // 10m jitter jump in 2s
+      slow(140 + 104, 924 + 3),
+      slow(140 + 240, 924 + 5),
+    ];
+    const after = drive(140 + 250, 924 + 5 + 66, 15);
+    const dwells = detectDwells([...before, ...stop, ...after]);
+    expect(dwells).toHaveLength(1);
+    expect(dwells[0].dwellSec).toBeGreaterThanOrEqual(140);
+  });
+
   it("does NOT flag signal loss while driving (large gap, large displacement)", () => {
     // Will's 18:02 gap: 292s / 3549m = ~27mph implied — driving, not a stop.
     const before = drive(0, 0, 15); // ends t=140s, 924m
