@@ -552,36 +552,6 @@ async function enterPostTripKeepAlive(
 }
 
 /**
- * Arm the keep-alive window on a cold BACKGROUND relaunch (no trip just
- * finalized). iOS relaunches the terminated app exactly as the user departs
- * (stationary-geofence exit), but without a wake lock it re-suspends the JS
- * runtime within seconds — before GPS delivers a driving-speed fix — so the
- * first leg of the day is silently missed (Laura Joyce, 17 Jul 2026: the
- * 05:13 and 06:20 background boots both went deaf and her school-run legs
- * were lost, while the 10:24 boot that happened 14 min BEFORE departure
- * captured fine). Holding preventSuspend through the same keep-alive window
- * gives the speed backstop time to see the departure; the heartbeat releases
- * the lock on expiry exactly as it does after a trip.
- */
-export async function armBootKeepAlive(): Promise<void> {
-  const db = await getDatabase();
-  // If a recording is already open it owns the wake lock — don't interfere.
-  const recording = await db.getFirstAsync<{ value: string }>(
-    "SELECT value FROM tracking_state WHERE key = 'auto_recording_active'"
-  );
-  if (recording?.value === "1") return;
-  await setNativePreventSuspend(true);
-  const until = Date.now() + POST_TRIP_KEEPALIVE_MS;
-  await db.runAsync(
-    "INSERT OR REPLACE INTO tracking_state (key, value) VALUES ('keepalive_until', ?)",
-    [until.toString()]
-  );
-  logDetectionEvent("native_boot_keepalive_armed", {
-    windowMs: POST_TRIP_KEEPALIVE_MS,
-  }).catch(() => {});
-}
-
-/**
  * Heartbeat backstop (fires ~every 60s while recording, because preventSuspend
  * keeps the app alive). If a recording is open but no native fix has landed for
  * HEARTBEAT_FINALIZE_STALE_MS, the device is parked and the stationary

@@ -48,6 +48,7 @@ async function getLocalIp(): Promise<{ ip: string; at: string } | null> {
   const FIVE_MIN = 5 * 60 * 1000;
   if (cachedLocalIp && Date.now() - localIpFetchedAtMs < FIVE_MIN) return cachedLocalIp;
   try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
     const Network = require("expo-network") as { getIpAddressAsync?: () => Promise<string> };
     const ip = await Network.getIpAddressAsync?.();
     // expo-network returns "0.0.0.0" when unavailable — omit rather than lie.

@@ -2689,19 +2689,8 @@ export async function bootNativeEngineOnLaunch(): Promise<void> {
     if (bg.status !== "granted") return;
 
     await startNativeLocationEngine();
-    const appState = AppState.currentState;
-    // A background relaunch means iOS woke us because something is happening —
-    // usually the user departing (the stationary-geofence exit fires as they
-    // pull away). Hold the wake lock through a keep-alive window so the speed
-    // backstop gets GPS samples before iOS re-suspends; without it the JS
-    // runtime dies within seconds and the first leg of the day is missed
-    // (Laura Joyce's 05:13/06:20 school-run boots, 17 Jul 2026).
-    if (appState === "background") {
-      const { armBootKeepAlive } = await import("./nativeLocation");
-      await armBootKeepAlive();
-    }
     logDetectionEvent("native_engine_boot_on_launch", {
-      appState,
+      appState: AppState.currentState,
     }).catch(() => {});
   } catch {
     // The boot path must never crash or block app startup.
