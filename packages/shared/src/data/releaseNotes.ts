@@ -75,6 +75,37 @@ export const ACTIVE_ANNOUNCEMENT: SiteAnnouncement | null = null;
 
 export const RELEASE_NOTES: ReleaseNote[] = [
   {
+    // ⏳ ON APPROVAL: flip this label to "Latest" and 1.3.4's to
+    // "App Store" — the banner + Product Update email key off "Latest".
+    version: "1.3.5",
+    date: "July 2026",
+    label: "Pending Review",
+    ctaUrl: "https://mileclear.com/releases",
+    ctaLabel: "Read the release notes",
+    banner: {
+      headline: "Split one recorded trip into the real trips it was",
+      subline:
+        "MileClear 1.3.5 lets multi-stop drivers split a merged journey at every detected stop. Update on the App Store.",
+    },
+    emailSubject: "What's new in MileClear 1.3.5",
+    emailTagline:
+      "1.3.5 is for multi-stop drivers: split one recorded journey into the separate trips it really was - plus a truer tax estimate and real road routes on manual trips.",
+    emailHighlights: [
+      "**Split a trip into the trips it really was** - open any tracked trip, tap Split, and MileClear shows every stop it detected along the route. Tick the real ones and your journey becomes separate trips, each editable on its own, with your total mileage unchanged.",
+      "**Your tax estimate now counts your expenses** - the dashboard figure subtracts your allowable expenses as well as your mileage, so it sits much closer to what you would really owe.",
+      "**Manual trips now show the real route** - trips you add by hand draw the actual road route on the map instead of a straight dashed line.",
+      "**Making Tax Digital keeps moving** - HMRC calculation screens now link to your HMRC Personal Tax Account, and the app sends the extra device information HMRC requires.",
+      "**Reliability** - fixes a rare issue where the app could fail to open after an update.",
+    ],
+    items: [
+      "**Split a trip into the trips it really was.** Quick delivery drops can end up recorded as one long trip - the stops are too short for the app to see the joins. Open any tracked trip, tap \"Split into multiple trips\", and MileClear shows every stop it detected along the route. Tick the real stops and your journey becomes separate trips - each keeping its classification, each editable on its own, with your total mileage unchanged. Came straight from a driver's report.",
+      "**Your tax estimate now counts your expenses.** The dashboard's estimated tax figure now subtracts your allowable expenses (equipment, fares, and so on) as well as your mileage, matching the Self Assessment section - so if you log expenses, the number you see sits much closer to what you would really owe. Motor costs stay out: your mileage rate already covers them.",
+      "**Manual trips now show the real route.** Trips you add by hand now draw the actual road route on the map instead of a straight dashed line.",
+      "**Making Tax Digital keeps moving.** HMRC calculation screens now link to your HMRC Personal Tax Account on GOV.UK, and the app sends the extra device information HMRC requires for Making Tax Digital.",
+      "**Reliability.** Fixes a rare issue where the app could fail to open after an update - if that caught you in mid July, this build puts it permanently to rest.",
+    ],
+  },
+  {
     version: "1.3.4",
     date: "July 2026",
     label: "Latest",
