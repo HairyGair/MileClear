@@ -1,4 +1,5 @@
 import { Stack, useRouter } from "expo-router";
+import { colors } from "../../lib/theme";
 import { View, Text, Image, TouchableOpacity, StyleSheet } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import AvatarMenuButton from "../../components/AvatarMenuButton";
@@ -79,7 +80,7 @@ const brandStyles = StyleSheet.create({
   nameWhite: {
     fontSize: 18,
     fontFamily: "PlusJakartaSans_600SemiBold",
-    color: "#f8fafc",
+    color: colors.text1,
   },
   nameAmber: {
     fontSize: 18,
@@ -88,7 +89,7 @@ const brandStyles = StyleSheet.create({
   },
 });
 
-const HEADER_BG = { backgroundColor: "#030712" } as const;
+const HEADER_BG = { backgroundColor: colors.bg } as const;
 
 function HeaderRightWithAdd({ route }: { route: string }) {
   return (

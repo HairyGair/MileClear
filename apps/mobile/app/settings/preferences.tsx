@@ -5,10 +5,30 @@ import { SettingsScreen } from "../../components/settings/SettingsScreen";
 import { SettingsGroup } from "../../components/settings/SettingsGroup";
 import { fetchProfile, updateProfile } from "../../lib/api/user";
 import { useUser } from "../../lib/user/context";
-import { colors, fonts, radii, spacing } from "../../lib/theme";
+import { colors, fonts, radii, spacing, themeName, setThemePref } from "../../lib/theme";
+import * as Updates from "expo-updates";
 import type { User } from "@mileclear/shared";
 
 type DashboardMode = "both" | "work" | "personal";
+
+const THEME_OPTIONS: { value: "midnight" | "daylight"; label: string; hint: string }[] = [
+  { value: "midnight", label: "Midnight", hint: "Dark, the classic" },
+  { value: "daylight", label: "Daylight", hint: "Light and bright" },
+];
+
+function applyTheme(name: "midnight" | "daylight") {
+  if (name === themeName) return;
+  try {
+    setThemePref(name);
+  } catch {
+    Alert.alert("Couldn't save theme", "Try again in a moment.");
+    return;
+  }
+  // Palette is frozen into styles at JS load - reload to apply.
+  Updates.reloadAsync().catch(() => {
+    Alert.alert("Theme saved", "Close and reopen MileClear to apply it.");
+  });
+}
 
 const MODE_OPTIONS: { value: DashboardMode; label: string; hint: string }[] = [
   { value: "both", label: "Both", hint: "Work + personal" },
@@ -80,6 +100,38 @@ export default function PreferencesSettings() {
               accessibilityState={{ selected: currentMode === opt.value }}
             >
               <Text style={[styles.pillText, currentMode === opt.value && styles.pillTextActive]}>
+                {opt.label}
+              </Text>
+              <Text style={styles.pillHint}>{opt.hint}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+      </SettingsGroup>
+
+      <SettingsGroup title="APPEARANCE">
+        <View style={styles.modeRow}>
+          <View style={styles.iconCircle}>
+            <Ionicons name="contrast-outline" size={18} color={colors.amber} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.label}>Theme</Text>
+            <Text style={styles.hint}>
+              MileClear restarts to apply the new look.
+            </Text>
+          </View>
+        </View>
+        <View style={styles.pillRow}>
+          {THEME_OPTIONS.map((opt) => (
+            <TouchableOpacity
+              key={opt.value}
+              style={[styles.pill, themeName === opt.value && styles.pillActive]}
+              onPress={() => applyTheme(opt.value)}
+              activeOpacity={0.7}
+              accessibilityRole="button"
+              accessibilityLabel={`${opt.label} theme, ${opt.hint}`}
+              accessibilityState={{ selected: themeName === opt.value }}
+            >
+              <Text style={[styles.pillText, themeName === opt.value && styles.pillTextActive]}>
                 {opt.label}
               </Text>
               <Text style={styles.pillHint}>{opt.hint}</Text>

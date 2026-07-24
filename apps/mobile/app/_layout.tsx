@@ -6,7 +6,8 @@ import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { Stack, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import * as Font from "expo-font";
-import { colors } from "../lib/theme";
+import { StatusBar } from "expo-status-bar";
+import { colors, themeName } from "../lib/theme";
 import { HeaderBackButton } from "../components/HeaderBackButton";
 import {
   PlusJakartaSans_300Light,
@@ -164,7 +165,7 @@ import { QuickStartModal } from "../components/QuickStartModal";
 import { AppLockProvider } from "../lib/appLock/context";
 import { AppLockGate } from "../components/AppLockGate";
 
-const HEADER_STYLE = { backgroundColor: "#030712" } as const;
+const HEADER_STYLE = { backgroundColor: colors.bg } as const;
 const HEADER_TINT = "#f8fafc";
 const HEADER_TITLE_STYLE = { fontFamily: "PlusJakartaSans_300Light", color: "#f8fafc" };
 
@@ -718,6 +719,7 @@ export default function RootLayout() {
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
+      <StatusBar style={themeName === "daylight" ? "dark" : "light"} />
       <ErrorBoundary>
         <AuthProvider>
           <UserProvider>

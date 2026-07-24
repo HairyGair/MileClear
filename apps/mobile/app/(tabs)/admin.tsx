@@ -1,4 +1,5 @@
 import { useCallback, useState } from "react";
+import { colors } from "../../lib/theme";
 import {
   View,
   Text,
@@ -219,7 +220,7 @@ const CARD_BG = "#0d1526";
 const CARD_BORDER = "rgba(255,255,255,0.05)";
 
 const s = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#030712" },
+  container: { flex: 1, backgroundColor: colors.bg },
   centered: { justifyContent: "center", alignItems: "center" },
   content: { paddingHorizontal: 20, paddingTop: 16, paddingBottom: 20 },
   headerRow: {

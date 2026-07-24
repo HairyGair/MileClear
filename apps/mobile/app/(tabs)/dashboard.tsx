@@ -1220,7 +1220,7 @@ export default function DashboardScreen() {
             accessibilityLabel="Got it"
             hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
           >
-            <Ionicons name="checkmark" size={20} color="#030712" />
+            <Ionicons name="checkmark" size={20} color={colors.amberInk} />
             <Text style={s.explainerCtaText}>Got it</Text>
           </TouchableOpacity>
         </View>
@@ -1968,7 +1968,7 @@ export default function DashboardScreen() {
                   accessibilityRole="button"
                   accessibilityLabel="Start Trip"
                 >
-                  <Ionicons name="navigate" size={18} color="#030712" accessible={false} />
+                  <Ionicons name="navigate" size={18} color={colors.amberInk} accessible={false} />
                   <Text style={s.ctaPrimaryText}>Start Trip</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
@@ -2217,7 +2217,7 @@ const TEXT_2 = colors.text2;
 const TEXT_3 = colors.text3;
 
 const s = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#030712" },
+  container: { flex: 1, backgroundColor: colors.bg },
   centered: { justifyContent: "center", alignItems: "center" },
   content: { paddingHorizontal: 20, paddingBottom: 20 },
 
@@ -2380,7 +2380,7 @@ const s = StyleSheet.create({
   ctaPrimaryText: {
     fontSize: 15,
     fontFamily: fonts.bold,
-    color: "#030712",
+    color: colors.amberInk,
   },
   ctaShift: {
     flex: 1,
@@ -3257,7 +3257,7 @@ const s = StyleSheet.create({
     marginTop: 16,
   },
   explainerCtaText: {
-    color: "#030712",
+    color: colors.amberInk,
     fontSize: 17,
     fontFamily: fonts.bold,
     letterSpacing: 0.3,
