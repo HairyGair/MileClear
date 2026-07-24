@@ -1,6 +1,7 @@
 import { TouchableOpacity, StyleSheet } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { safeBack } from "../lib/nav";
+import { colors } from "../lib/theme";
 
 /**
  * The app-wide header back button. Used as the global `headerLeft` so every
@@ -13,7 +14,7 @@ import { safeBack } from "../lib/nav";
  */
 export function HeaderBackButton({
   fallback,
-  tint = "#f8fafc",
+  tint = colors.text1,
 }: {
   fallback?: string;
   tint?: string;

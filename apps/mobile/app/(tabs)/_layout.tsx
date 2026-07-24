@@ -106,7 +106,7 @@ export default function TabLayout() {
       screenOptions={{
         headerStyle: HEADER_BG,
         headerTintColor: "#f8fafc",
-        headerTitleStyle: { fontFamily: "PlusJakartaSans_300Light", color: "#f8fafc" },
+        headerTitleStyle: { fontFamily: "PlusJakartaSans_300Light", color: colors.text1 },
         headerShadowVisible: false,
         headerBackButtonDisplayMode: "minimal",
         headerTitle: () => <BrandHeader />,

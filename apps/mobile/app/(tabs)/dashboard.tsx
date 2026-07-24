@@ -3166,7 +3166,7 @@ const s = StyleSheet.create({
   referralCardTitle: {
     fontSize: 14,
     fontFamily: fonts.semibold,
-    color: "#f8fafc",
+    color: colors.text1,
     marginBottom: 2,
   },
   referralCardBody: {
