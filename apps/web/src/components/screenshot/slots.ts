@@ -77,12 +77,12 @@ export const SLOTS: ScreenshotSlot[] = [
     iphoneSrc: "/screenshot-source/iphone/01-dashboard.png",
     ipadSrc: "/screenshot-source/ipad/01-dashboard.png",
     accent: "amber",
-    badge: "1.2.0",
+    badge: "1.3.5",
     layout: "stack",
     callouts: [
       // Anchors on the £46.92 tax-saved figure mid-screen. xPct/yPct
       // are percentages of the captured screen (not the full canvas).
-      { xPct: 32, yPct: 45, label: "Live HMRC estimate", align: "right" },
+      { xPct: 46, yPct: 41, label: "Live HMRC estimate", align: "right" },
     ],
   },
   {
@@ -90,7 +90,7 @@ export const SLOTS: ScreenshotSlot[] = [
     slug: "first-tax-return",
     eyebrow: "First Self Assessment?",
     headline: "Plain English,\nstep by step.",
-    subline: "UTR, tax year, deadlines - the bits HMRC won't explain. We walk you through your first return.",
+    subline: "Six steps from trips to a filled-in SA103. Your income lands in the right HMRC boxes without a spreadsheet.",
     iphoneSrc: "/screenshot-source/iphone/04-tax-readiness.png",
     ipadSrc: "/screenshot-source/ipad/04-tax-readiness.png",
     accent: "amber",
@@ -116,7 +116,7 @@ export const SLOTS: ScreenshotSlot[] = [
     slug: "live-activity",
     eyebrow: "Track on autopilot",
     headline: "One tap.\nThe road does\nthe rest.",
-    subline: "Start a shift, drive, end it. Road-accurate GPS, no taps mid-journey.",
+    subline: "One tap to start. Road-accurate GPS - plus busiest times and cheapest fuel from drivers near you.",
     iphoneSrc: "/screenshot-source/iphone/03-live-activity.png",
     ipadSrc: "/screenshot-source/ipad/03-live-activity.png",
     accent: "sky",
@@ -124,6 +124,17 @@ export const SLOTS: ScreenshotSlot[] = [
   },
   {
     slot: 5,
+    slug: "split-trip",
+    eyebrow: "Multi-drop days",
+    headline: "One run.\nEvery drop\ncounted.",
+    subline: "Delivery block recorded as one long trip? MileClear finds the stops and splits it - miles intact, every leg classified.",
+    iphoneSrc: "/screenshot-source/iphone/11-split-trip.png",
+    accent: "rose",
+    badge: "NEW",
+    layout: "tilted-right",
+  },
+  {
+    slot: 6,
     slug: "auto-classify",
     eyebrow: "Saved locations",
     headline: "Home and work.\nTrips classify\nthemselves.",
@@ -137,7 +148,7 @@ export const SLOTS: ScreenshotSlot[] = [
       "Current capture only has Home + Work and leaves 60% of the screen empty. Re-shoot with at least 3 saved locations (Home, Work, Depot) so the device frame doesn't look unfinished.",
   },
   {
-    slot: 6,
+    slot: 7,
     slug: "road-accurate",
     eyebrow: "Filter your fleet",
     headline: "Business\nor personal.\nFilter the rest.",
@@ -148,7 +159,7 @@ export const SLOTS: ScreenshotSlot[] = [
     layout: "tilted-right",
   },
   {
-    slot: 7,
+    slot: 8,
     slug: "invoices",
     eyebrow: "Sole traders",
     headline: "Invoices in.\nTax sorted.",
@@ -158,13 +169,9 @@ export const SLOTS: ScreenshotSlot[] = [
     accent: "amber",
     badge: "PRO",
     layout: "tilted-right",
-    callouts: [
-      // £915 OUTSTANDING in the top-left of the summary row.
-      { xPct: 22, yPct: 13, label: "Outstanding total", align: "below" },
-    ],
   },
   {
-    slot: 8,
+    slot: 9,
     slug: "free-tier",
     eyebrow: "Free, forever",
     headline: "Make the tax\nstuff feel\nless taxing.",
@@ -175,7 +182,18 @@ export const SLOTS: ScreenshotSlot[] = [
     layout: "tilted",
   },
   {
-    slot: 9,
+    slot: 10,
+    slug: "benchmarking",
+    eyebrow: "How you compare",
+    headline: "See how you\nstack up.",
+    subline: "Anonymous benchmarks from real UK MileClear drivers - weekly miles, trips, per-platform. Nothing shown below 5 contributors.",
+    iphoneSrc: "/screenshot-source/iphone/12-benchmarking.png",
+    accent: "violet",
+    badge: "FREE",
+    layout: "centered",
+  },
+  {
+    slot: 11,
     slug: "pro",
     eyebrow: "Upgrade when ready",
     headline: "£4.99/month.\nThe whole\ntax engine.",
@@ -185,13 +203,9 @@ export const SLOTS: ScreenshotSlot[] = [
     accent: "emerald",
     badge: "PRO",
     layout: "tilted-right",
-    callouts: [
-      // £6.47 per mile in the BUSINESS INTELLIGENCE card.
-      { xPct: 25, yPct: 19, label: "Live earnings rate", align: "below" },
-    ],
   },
   {
-    slot: 10,
+    slot: 12,
     slug: "your-data",
     eyebrow: "Privacy by default",
     headline: "Your data.\nAlways yours.",

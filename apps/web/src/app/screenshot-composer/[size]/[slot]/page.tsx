@@ -25,19 +25,16 @@ export default async function SlotPage({
   if (!slot) notFound();
 
   // Strip any iphoneSrc / ipadSrc that point at files which don't actually
-  // exist yet. Without this the renderer outputs a broken <img> tag and
-  // the device frame looks empty instead of showing the helpful "Capture
-  // needed" placeholder.
+  // exist yet. The renderer falls back to iphoneSrc on iPad if ipadSrc
+  // is missing, so we keep iphoneSrc populated as the universal fallback.
   const publicDir = join(process.cwd(), "public");
-  const resolvedSlot = {
-    ...slot,
-    iphoneSrc: slot.iphoneSrc && existsSync(join(publicDir, slot.iphoneSrc))
-      ? slot.iphoneSrc
-      : undefined,
-    ipadSrc: slot.ipadSrc && existsSync(join(publicDir, slot.ipadSrc))
-      ? slot.ipadSrc
-      : undefined,
-  };
+  const iphoneSrc = slot.iphoneSrc && existsSync(join(publicDir, slot.iphoneSrc))
+    ? slot.iphoneSrc
+    : undefined;
+  const ipadSrc = slot.ipadSrc && existsSync(join(publicDir, slot.ipadSrc))
+    ? slot.ipadSrc
+    : undefined;
+  const resolvedSlot = { ...slot, iphoneSrc, ipadSrc };
 
   return (
     <main

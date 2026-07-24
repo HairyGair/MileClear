@@ -26,8 +26,13 @@ const shots: Shot[] = [
   },
   {
     file: "iphone-04-live-activity.png",
-    caption: "Live on the Lock Screen",
-    sub: "Miles + earnings ticking up as you drive",
+    caption: "One tap to track",
+    sub: "Start a trip with live fuel prices and busy times nearby",
+  },
+  {
+    file: "iphone-11-split-trip.png",
+    caption: "Split multi-drop runs",
+    sub: "Finds the stops, splits one long trip into every drop",
   },
   {
     file: "iphone-05-auto-classify.png",
@@ -50,6 +55,11 @@ const shots: Shot[] = [
     sub: "Tracking, tax tooling, HMRC compliance - all free",
   },
   {
+    file: "iphone-12-benchmarking.png",
+    caption: "See how you compare",
+    sub: "Anonymous benchmarks against UK MileClear drivers",
+  },
+  {
     file: "iphone-09-pro.png",
     caption: "Pro unlocks the analytics",
     sub: "Platform comparison, weekly P&L, golden hours",
@@ -70,7 +80,7 @@ export default function Screenshots() {
             <p className="label">See it in action</p>
             <h2 className="heading">A quick tour of what you&apos;re downloading</h2>
             <p className="subtext">
-              Nine screens that cover the loop: track, classify, claim. Swipe through them - every screen is what you&apos;d see on day one.
+              Eleven screens that cover the loop: track, classify, claim. Swipe through them - every screen is what you&apos;d see on day one.
             </p>
           </div>
         </Reveal>
