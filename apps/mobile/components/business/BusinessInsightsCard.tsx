@@ -11,7 +11,7 @@ import { fetchBusinessInsights, fetchWeeklyPnL } from "../../lib/api/businessIns
 import { formatPence, BUSINESS_PURPOSES } from "@mileclear/shared";
 import type { BusinessInsights, WeeklyPnL } from "@mileclear/shared";
 import { useUser } from "../../lib/user/context";
-import { colors, fonts } from "../../lib/theme";
+import { colors, fonts, fontsDisplay } from "../../lib/theme";
 
 // Local theme aliases — same pattern as the (tabs) screens.
 const BG = colors.bg;
@@ -417,10 +417,10 @@ const s = StyleSheet.create({
   },
   metric: { alignItems: "center" },
   metricValue: {
-    fontSize: 20,
-    fontFamily: fonts.semibold,
+    fontSize: 21,
+    fontFamily: fontsDisplay.bold,
     color: AMBER,
-    letterSpacing: -0.5,
+    letterSpacing: -0.7,
   },
   metricLabel: {
     fontSize: 11,
