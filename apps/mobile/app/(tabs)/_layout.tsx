@@ -79,7 +79,7 @@ const brandStyles = StyleSheet.create({
   nameWhite: {
     fontSize: 18,
     fontFamily: "PlusJakartaSans_600SemiBold",
-    color: "#f0f2f5",
+    color: "#f8fafc",
   },
   nameAmber: {
     fontSize: 18,
@@ -104,8 +104,8 @@ export default function TabLayout() {
     <Stack
       screenOptions={{
         headerStyle: HEADER_BG,
-        headerTintColor: "#f0f2f5",
-        headerTitleStyle: { fontFamily: "PlusJakartaSans_300Light", color: "#f0f2f5" },
+        headerTintColor: "#f8fafc",
+        headerTitleStyle: { fontFamily: "PlusJakartaSans_300Light", color: "#f8fafc" },
         headerShadowVisible: false,
         headerBackButtonDisplayMode: "minimal",
         headerTitle: () => <BrandHeader />,

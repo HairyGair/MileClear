@@ -552,7 +552,7 @@ function ConfidenceBadge({
   const [expanded, setExpanded] = useState(false);
   const config = (
     {
-      high: { color: "#10b981", icon: "shield-checkmark", label: "High confidence" },
+      high: { color: "#34d399", icon: "shield-checkmark", label: "High confidence" },
       medium: { color: "#f5a623", icon: "shield-half", label: "Medium confidence" },
       low: { color: "#ef4444", icon: "alert-circle", label: "Low confidence" },
     } as const
@@ -2952,7 +2952,7 @@ export default function TripFormScreen() {
                     }}
                     keyboardType="decimal-pad"
                     placeholder="0.0"
-                    placeholderTextColor="#64748b"
+                    placeholderTextColor="#8494a7"
                     accessibilityLabel="Enter the trip distance in miles"
                   />
                   <Text style={styles.manualDistanceUnit}>miles</Text>
@@ -3017,17 +3017,17 @@ export default function TripFormScreen() {
                       value={odometerStart}
                       onChangeText={(t) => setOdometerStart(t.replace(/[^0-9.]/g, ""))}
                       placeholder="Start"
-                      placeholderTextColor="#64748b"
+                      placeholderTextColor="#8494a7"
                       keyboardType="decimal-pad"
                       accessibilityLabel="Odometer reading at the start"
                     />
-                    <Ionicons name="arrow-forward" size={16} color="#64748b" />
+                    <Ionicons name="arrow-forward" size={16} color="#8494a7" />
                     <TextInput
                       style={[styles.input, styles.odometerInput]}
                       value={odometerEnd}
                       onChangeText={(t) => setOdometerEnd(t.replace(/[^0-9.]/g, ""))}
                       placeholder="End"
-                      placeholderTextColor="#64748b"
+                      placeholderTextColor="#8494a7"
                       keyboardType="decimal-pad"
                       accessibilityLabel="Odometer reading at the end"
                     />
@@ -3116,8 +3116,8 @@ export default function TripFormScreen() {
                           <ActivityIndicator color={AMBER} size="small" />
                         ) : logged ? (
                           <>
-                            <Ionicons name="checkmark" size={14} color="#10b981" />
-                            <Text style={[styles.cazLogBtnText, { color: "#10b981" }]}>Logged</Text>
+                            <Ionicons name="checkmark" size={14} color="#34d399" />
+                            <Text style={[styles.cazLogBtnText, { color: "#34d399" }]}>Logged</Text>
                           </>
                         ) : (
                           <Text style={styles.cazLogBtnText}>Log charge</Text>

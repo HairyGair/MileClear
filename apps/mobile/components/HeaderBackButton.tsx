@@ -13,7 +13,7 @@ import { safeBack } from "../lib/nav";
  */
 export function HeaderBackButton({
   fallback,
-  tint = "#f0f2f5",
+  tint = "#f8fafc",
 }: {
   fallback?: string;
   tint?: string;

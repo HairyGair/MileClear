@@ -354,13 +354,13 @@ export default function ProfileScreen() {
                           <Ionicons
                             name={v.cleanAirZones.verdict === "compliant" ? "leaf" : "alert-circle"}
                             size={10}
-                            color={v.cleanAirZones.verdict === "compliant" ? "#10b981" : "#f59e0b"}
+                            color={v.cleanAirZones.verdict === "compliant" ? "#34d399" : "#f59e0b"}
                             accessible={false}
                           />
                           <Text
                             style={[
                               styles.cazChipText,
-                              { color: v.cleanAirZones.verdict === "compliant" ? "#10b981" : "#f59e0b" },
+                              { color: v.cleanAirZones.verdict === "compliant" ? "#34d399" : "#f59e0b" },
                             ]}
                           >
                             {v.cleanAirZones.verdict === "compliant" ? "ULEZ ready" : "May be charged"}

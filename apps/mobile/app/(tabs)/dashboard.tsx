@@ -1934,7 +1934,7 @@ export default function DashboardScreen() {
                 <View style={s.dailyRecapHeader}>
                   <Ionicons name="today-outline" size={16} color="#f5a623" accessible={false} />
                   <Text style={s.dailyRecapTitle}>Today</Text>
-                  <Ionicons name="share-outline" size={14} color="#64748b" style={{ marginLeft: "auto" }} accessible={false} />
+                  <Ionicons name="share-outline" size={14} color="#8494a7" style={{ marginLeft: "auto" }} accessible={false} />
                 </View>
                 <View style={s.dailyRecapStats}>
                   <View style={s.dailyRecapStat}>
@@ -2137,7 +2137,7 @@ export default function DashboardScreen() {
         accessibilityRole="button"
         accessibilityLabel="Customize this dashboard. Reorder cards, hide ones you don't want."
       >
-        <Ionicons name="options-outline" size={14} color="#64748b" accessible={false} />
+        <Ionicons name="options-outline" size={14} color="#8494a7" accessible={false} />
         <Text style={s.customizeFooterText}>Customize this dashboard</Text>
       </TouchableOpacity>
 
@@ -2161,7 +2161,7 @@ export default function DashboardScreen() {
             <View style={s.tripSheetHandle} />
           </TouchableOpacity>
           <View style={s.tripSheetHeader}>
-            <View style={[s.tripSheetDot, { backgroundColor: ["#f5a623", "#10b981", "#3b82f6", "#8b5cf6", "#ec4899", "#06b6d4"][tripTapInfo.index % 6] }]} />
+            <View style={[s.tripSheetDot, { backgroundColor: ["#f5a623", "#34d399", "#3b82f6", "#8b5cf6", "#ec4899", "#06b6d4"][tripTapInfo.index % 6] }]} />
             <Text style={s.tripSheetTitle}>Trip {tripTapInfo.index + 1}</Text>
           </View>
           <View style={s.tripSheetStats}>
@@ -2339,7 +2339,7 @@ const s = StyleSheet.create({
     flex: 1,
     fontSize: 12,
     fontFamily: fonts.medium,
-    color: "#fcd34d",
+    color: "#fbbf24",
     lineHeight: 16,
   },
 
@@ -2640,7 +2640,7 @@ const s = StyleSheet.create({
     justifyContent: "flex-end",
   },
   modalSheet: {
-    backgroundColor: "#0a1120",
+    backgroundColor: "#0d1526",
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     paddingHorizontal: 24,
@@ -2799,7 +2799,7 @@ const s = StyleSheet.create({
     bottom: 0,
     left: 0,
     right: 0,
-    backgroundColor: "#0a1120",
+    backgroundColor: "#0d1526",
     borderTopLeftRadius: 16,
     borderTopRightRadius: 16,
     borderWidth: 1,
@@ -3166,7 +3166,7 @@ const s = StyleSheet.create({
   referralCardTitle: {
     fontSize: 14,
     fontFamily: fonts.semibold,
-    color: "#f0f2f5",
+    color: "#f8fafc",
     marginBottom: 2,
   },
   referralCardBody: {
@@ -3191,7 +3191,7 @@ const s = StyleSheet.create({
     padding: 24,
   },
   explainerCard: {
-    backgroundColor: "#0a1120",
+    backgroundColor: "#0d1526",
     borderRadius: 20,
     padding: 24,
     maxHeight: "85%",
@@ -3273,6 +3273,6 @@ const s = StyleSheet.create({
   customizeFooterText: {
     fontSize: 13,
     fontFamily: fonts.medium,
-    color: "#64748b",
+    color: "#8494a7",
   },
 });

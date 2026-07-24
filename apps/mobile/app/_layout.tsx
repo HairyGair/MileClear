@@ -160,8 +160,8 @@ import { AppLockProvider } from "../lib/appLock/context";
 import { AppLockGate } from "../components/AppLockGate";
 
 const HEADER_STYLE = { backgroundColor: "#030712" } as const;
-const HEADER_TINT = "#f0f2f5";
-const HEADER_TITLE_STYLE = { fontFamily: "PlusJakartaSans_300Light", color: "#f0f2f5" };
+const HEADER_TINT = "#f8fafc";
+const HEADER_TITLE_STYLE = { fontFamily: "PlusJakartaSans_300Light", color: "#f8fafc" };
 
 // Re-attach the native engine the moment the JS bundle boots — deliberately
 // at module scope, BEFORE React mounts or auth resolves. When RNBG relaunches

@@ -30,7 +30,7 @@ const QUICK_TRIP_SHIFT_ID = "__quick_trip__";
 const SAVED_WINDOW_MS = 12 * 60 * 60 * 1000; // show "last trip" for 12h
 const FINALIZING_STALE_MS = 2 * 60 * 1000; // ignore a finalizing flag older than 2min
 
-const EMERALD = "#10b981";
+const EMERALD = "#34d399";
 const RED = "#ef4444";
 const AMBER = colors.amber;
 

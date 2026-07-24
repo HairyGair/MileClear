@@ -37,7 +37,7 @@ const BG = colors.bg;
 
 const ACCENTS: Array<{ value: string | null; label: string; swatch: string }> = [
   { value: null, label: "Amber", swatch: "#f5a623" },
-  { value: "#10b981", label: "Emerald", swatch: "#10b981" },
+  { value: "#34d399", label: "Emerald", swatch: "#34d399" },
   { value: "#3b82f6", label: "Blue", swatch: "#3b82f6" },
   { value: "#8b5cf6", label: "Violet", swatch: "#8b5cf6" },
   { value: "#ef4444", label: "Red", swatch: "#ef4444" },

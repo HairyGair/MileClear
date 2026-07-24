@@ -11,7 +11,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { formatPence, type CazAssessment } from "@mileclear/shared";
 import { colors, fonts, radii } from "../lib/theme";
 
-const EMERALD = "#10b981";
+const EMERALD = "#34d399";
 const AMBER = "#f59e0b";
 
 export function CleanAirZoneCard({ assessment }: { assessment: CazAssessment }) {

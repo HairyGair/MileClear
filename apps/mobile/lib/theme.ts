@@ -2,39 +2,54 @@ import { StyleSheet } from "react-native";
 
 // ── Colors ──────────────────────────────────────────────────────────
 
+// UI System 2.0 (docs/design/ui-2.0/, adopted 24 Jul 2026). Key NAMES are
+// stable — every consumer picks the new palette up from here. New tiers
+// (bg1/surface2/surface3/borderStrong/faint) are additive.
 export const colors = {
-  // Backgrounds
+  // Backgrounds — three surface tiers replace the old flat surface
   bg: "#030712",
-  surface: "#0a1120",
-  surfaceElevated: "#0a1120",
-  surfaceBorder: "rgba(255,255,255,0.06)",
+  bg1: "#080d19",
+  surface: "#0d1526",
+  surfaceElevated: "#131d31",
+  surface3: "#1a2540",
+  surfaceBorder: "rgba(255,255,255,0.08)",
+  borderStrong: "rgba(255,255,255,0.15)",
 
-  // Brand
-  amber: "#f5a623",
-  amberDim: "rgba(245, 166, 35, 0.12)",
-  amberGlow: "rgba(245, 166, 35, 0.35)",
+  // Brand — amber is the bright accent (#fbbf24) for text/icons/lines;
+  // amberSolid is the fill for primary buttons; amberInk is text ON amber.
+  amber: "#fbbf24",
+  amberSolid: "#f5a623",
+  amberInk: "#1a1204",
+  amberDim: "rgba(251, 191, 36, 0.12)",
+  amberLine: "rgba(251, 191, 36, 0.34)",
+  amberGlow: "rgba(234, 179, 8, 0.16)",
 
-  // Text — contrast-audited 12 May 2026 against bg (#030712) and
-  // surface (#0a1120). All three pass WCAG AA at body-text weight:
-  //   text1  #f0f2f5  → 15.4:1 / 14.4:1   (display + primary copy)
-  //   text2  #8494a7  → 6.1:1  / 5.7:1    (secondary copy + labels)
-  //   text3  #94a3b8  → 8.3:1  / 7.8:1    (tertiary copy + hints)
-  // The previous text3 (#64748b) measured 4.23:1 on bg, sub-AA. Used
-  // in 276 sites — bumped to #94a3b8 for a single-line fix.
-  text1: "#f0f2f5",
-  text2: "#8494a7",
-  text3: "#94a3b8",
+  // Text — UI 2.0 ramp, re-audited against bg (#030712) and surface
+  // (#0d1526); all pass WCAG AA at body weight:
+  //   text1  #f8fafc  → 15.8:1        (display + primary copy)
+  //   text2  #96a2b6  → 7.2:1         (secondary copy + labels)
+  //   text3  #8494a7  → 6.1:1         (tertiary copy + hints)
+  // DELIBERATE DEVIATION from the canvas: its text-3 (#5f6b80) is
+  // sub-AA on our backgrounds (~4.3:1) — same trap we fixed 12 May.
+  // text3 stays AA; the canvas tone lives on as `faint` for DECORATIVE
+  // non-text elements only (dividers, inactive glyphs).
+  text1: "#f8fafc",
+  text2: "#96a2b6",
+  text3: "#8494a7",
+  faint: "#5f6b80",
 
-  // Semantic
-  green: "#10b981",
-  greenDim: "rgba(16, 185, 129, 0.12)",
-  red: "#ef4444",
+  // Semantic — emerald brightened per UI 2.0; red split into text
+  // accent (red) vs solid destructive fill (redSolid).
+  green: "#34d399",
+  greenDim: "rgba(52, 211, 153, 0.13)",
+  red: "#f87171",
+  redSolid: "#ef4444",
   redDim: "rgba(239, 68, 68, 0.12)",
   live: "#34c759",
 
   // Overlays
   overlay: "rgba(0, 0, 0, 0.6)",
-  subtleBorder: "rgba(255, 255, 255, 0.06)",
+  subtleBorder: "rgba(255,255,255,0.07)",
 } as const;
 
 // ── Spacing ─────────────────────────────────────────────────────────
