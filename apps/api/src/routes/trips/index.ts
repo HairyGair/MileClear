@@ -368,23 +368,35 @@ export async function tripRoutes(app: FastifyInstance) {
     const userId = request.userId!;
     const data = parsed.data;
 
-    // Verify vehicle ownership if provided
+    // Verify vehicle/shift ownership if provided. An unknown id gets STRIPPED,
+    // not rejected: offline-first clients can hold a vehicle/shift that only
+    // ever existed locally (its own create sync failed), and a 4xx here parks
+    // every trip referencing it as permanently_failed - losing real trips over
+    // a broken decoration (Meir Kaufman, 137 trips wedged, 24 Jul 2026). A
+    // trip without its vehicle link beats no trip at all.
     if (data.vehicleId) {
       const vehicle = await prisma.vehicle.findFirst({
         where: { id: data.vehicleId, userId },
       });
       if (!vehicle) {
-        return reply.status(404).send({ error: "Vehicle not found" });
+        logEvent("trip.dangling_ref_stripped", userId, {
+          field: "vehicleId",
+          value: data.vehicleId,
+        });
+        data.vehicleId = undefined;
       }
     }
 
-    // Verify shift ownership if provided
     if (data.shiftId) {
       const shift = await prisma.shift.findFirst({
         where: { id: data.shiftId, userId },
       });
       if (!shift) {
-        return reply.status(404).send({ error: "Shift not found" });
+        logEvent("trip.dangling_ref_stripped", userId, {
+          field: "shiftId",
+          value: data.shiftId,
+        });
+        data.shiftId = undefined;
       }
     }
 
@@ -1779,14 +1791,21 @@ export async function tripRoutes(app: FastifyInstance) {
     }
 
     // Vehicle correction: if reassigning to a vehicle, it must belong to this
-    // user (never let a trip be tagged with someone else's vehicle).
+    // user (never let a trip be tagged with someone else's vehicle). Unknown
+    // ids are STRIPPED rather than rejected so an offline-queued update
+    // carrying a local-only vehicle doesn't permanently fail the whole edit
+    // (same rationale as the create path).
     if (updates.vehicleId) {
       const vehicle = await prisma.vehicle.findFirst({
         where: { id: updates.vehicleId, userId },
         select: { id: true },
       });
       if (!vehicle) {
-        return reply.status(400).send({ error: "Vehicle not found" });
+        logEvent("trip.dangling_ref_stripped", userId, {
+          field: "vehicleId",
+          value: updates.vehicleId,
+        });
+        updates.vehicleId = undefined;
       }
     }
 
