@@ -211,7 +211,8 @@ await app.register(pickupWaitRoutes, { prefix: "/pickup-waits" });
 await app.register(unsubscribeRoutes, { prefix: "/unsubscribe" });
 await app.register(hmrcRoutes, { prefix: "/hmrc" });
 // Health check
-app.get("/health", async () => ({ status: "ok" }));
+// Uptime monitors poll this every few seconds — don't let it fill the PM2 logs
+app.get("/health", { logLevel: "silent" }, async () => ({ status: "ok" }));
 
 // Start server
 try {
