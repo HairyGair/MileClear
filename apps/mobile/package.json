@@ -15,6 +15,7 @@
   },
   "dependencies": {
     "@expo-google-fonts/plus-jakarta-sans": "^0.4.2",
+    "@expo-google-fonts/sora": "^0.4.2",
     "@expo/metro-runtime": "~6.1.2",
     "@mileclear/shared": "workspace:*",
     "@react-native-community/datetimepicker": "8.4.4",

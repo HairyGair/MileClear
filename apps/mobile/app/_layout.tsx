@@ -15,6 +15,11 @@ import {
   PlusJakartaSans_600SemiBold,
   PlusJakartaSans_700Bold,
 } from "@expo-google-fonts/plus-jakarta-sans";
+import {
+  Sora_600SemiBold,
+  Sora_700Bold,
+  Sora_800ExtraBold,
+} from "@expo-google-fonts/sora";
 
 LogBox.ignoreLogs(["Not Found"]);
 
@@ -698,6 +703,10 @@ export default function RootLayout() {
       PlusJakartaSans_500Medium,
       PlusJakartaSans_600SemiBold,
       PlusJakartaSans_700Bold,
+      // UI 2.0: Sora carries display numbers + hero stats only
+      Sora_600SemiBold,
+      Sora_700Bold,
+      Sora_800ExtraBold,
     }).catch(() => {});
   }, []);
 

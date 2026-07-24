@@ -18,7 +18,7 @@ import { AutoNoteNudgeCard } from "../../components/AutoNoteNudgeCard";
 import { Button } from "../../components/Button";
 import { Skeleton } from "../../components/Skeleton";
 import { FadeInStagger } from "../../components/FadeInStagger";
-import { colors, fonts, fontScaleCap, radii, spacing } from "../../lib/theme";
+import { colors, fonts, fontsDisplay, fontScaleCap, radii, spacing } from "../../lib/theme";
 import { ActiveRecordingBanner } from "../../components/ActiveRecordingBanner";
 import { SyncStatusBanner } from "../../components/SyncStatusBanner";
 import { TrackingOffBanner } from "../../components/TrackingOffBanner";
@@ -2275,16 +2275,16 @@ const s = StyleSheet.create({
     marginBottom: 8,
   },
   heroValue: {
-    fontSize: 38,
-    fontFamily: fonts.light,
+    fontSize: 42,
+    fontFamily: fontsDisplay.bold,
     color: AMBER,
-    letterSpacing: -1,
+    letterSpacing: -1.5,
     marginBottom: 10,
   },
   heroValueGettingStarted: {
     fontSize: 28,
     color: TEXT_1, // dim white instead of bright amber when the number is small
-    fontFamily: fonts.regular,
+    fontFamily: fontsDisplay.semibold,
   },
   heroSavedLabel: {
     fontSize: 13,

@@ -86,6 +86,14 @@ export const fonts = {
   bold: "PlusJakartaSans_700Bold",
 } as const;
 
+/** UI 2.0 display face — Sora, for hero stats and big numbers ONLY.
+ *  Body copy stays Plus Jakarta Sans. Loaded in app/_layout.tsx. */
+export const fontsDisplay = {
+  semibold: "Sora_600SemiBold",
+  bold: "Sora_700Bold",
+  extrabold: "Sora_800ExtraBold",
+} as const;
+
 /**
  * 6-step type scale. Existing screens use 15 distinct font sizes —
  * any new code should pick from this scale. Migration of existing
