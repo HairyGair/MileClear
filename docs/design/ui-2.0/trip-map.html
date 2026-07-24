@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Trip route</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha384-sHL9NAb7lN7rfvG5lfHpm643Xkcjzp4jFvuavGOndn6pjVqS6ny56CAt3nsEVT4H" crossorigin="anonymous">
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha384-cxOPjt7s7Iz04uaHJceBmS+qpjv2JkIHNVcuOrM+YHwZOmJGBXI00mdUXEq65HTH" crossorigin="anonymous"></script>
+<style>
+  html,body{margin:0;height:100%;background:#131d31;}
+  #map{position:absolute;inset:0;background:#131d31;}
+  /* Tone map tiles toward the Midnight palette so it sits in the app */
+  .leaflet-tile-pane{filter:saturate(.72) brightness(.82) contrast(1.02);}
+  .leaflet-control-attribution{font:400 9px system-ui,sans-serif;background:rgba(8,13,25,.7);color:#96a2b6;}
+  .leaflet-control-attribution a{color:#f5a623;}
+  .mc-pin{width:13px;height:13px;border-radius:50%;border:2.5px solid #080d19;box-shadow:0 0 0 1.5px rgba(255,255,255,.25);}
+  .mc-start{background:#f8fafc;}
+  .mc-end{background:#34d399;}
+</style>
+</head>
+<body>
+<div id="map"></div>
+<script>
+  const start = [51.3762, -0.0982];   // Croydon (CR0)
+  const end   = [51.3986, -0.1018];   // Thornton Heath (CR7)
+  // Approximate driven path following the London Rd / High St corridor
+  const route = [
+    [51.3762, -0.0982],[51.3785, -0.1002],[51.3818, -0.1009],
+    [51.3852, -0.1006],[51.3889, -0.1014],[51.3925, -0.1010],
+    [51.3958, -0.1015],[51.3986, -0.1018]
+  ];
+
+  const map = L.map('map', {
+    zoomControl: false, attributionControl: true,
+    dragging: false, scrollWheelZoom: false, doubleClickZoom: false,
+    boxZoom: false, keyboard: false, touchZoom: false, tap: false
+  });
+
+  L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '© OpenStreetMap contributors', maxZoom: 19
+  }).addTo(map);
+
+  L.polyline(route, { color: '#f5a623', weight: 4, opacity: 1, lineCap: 'round', lineJoin: 'round' }).addTo(map);
+
+  L.marker(start, { icon: L.divIcon({ className: '', html: '<div class="mc-pin mc-start"></div>', iconSize: [13,13], iconAnchor: [6,6] }) }).addTo(map);
+  L.marker(end,   { icon: L.divIcon({ className: '', html: '<div class="mc-pin mc-end"></div>',   iconSize: [13,13], iconAnchor: [6,6] }) }).addTo(map);
+
+  map.fitBounds(L.latLngBounds(route), { padding: [34, 30] });
+</script>
+</body>
+</html>
