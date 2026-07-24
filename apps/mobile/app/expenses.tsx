@@ -452,7 +452,7 @@ const styles = StyleSheet.create({
     gap: 12,
     backgroundColor: CARD_BG,
     padding: 14,
-    borderRadius: 12,
+    borderRadius: 11,
     borderWidth: 1,
     borderColor: BORDER,
   },

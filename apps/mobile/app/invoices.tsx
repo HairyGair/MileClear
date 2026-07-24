@@ -446,7 +446,7 @@ const styles = StyleSheet.create({
 
   row: {
     backgroundColor: CARD_BG,
-    borderRadius: 12,
+    borderRadius: 11,
     padding: 14,
     gap: 6,
   },

@@ -322,7 +322,7 @@ const styles = StyleSheet.create({
   // Summary card
   summaryCard: {
     backgroundColor: CARD_BG,
-    borderRadius: 12,
+    borderRadius: 18,
     padding: 16,
     marginBottom: 16,
     alignItems: "center",
@@ -368,7 +368,7 @@ const styles = StyleSheet.create({
   // Earning cards
   card: {
     backgroundColor: CARD_BG,
-    borderRadius: 12,
+    borderRadius: 11,
     padding: 16,
     marginBottom: 10,
     borderWidth: 1,
@@ -450,7 +450,7 @@ const styles = StyleSheet.create({
   },
   skeletonCard: {
     backgroundColor: CARD_BG,
-    borderRadius: 12,
+    borderRadius: 11,
     padding: 16,
     borderWidth: 1,
     borderColor: CARD_BORDER,

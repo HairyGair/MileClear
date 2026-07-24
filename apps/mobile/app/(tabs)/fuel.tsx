@@ -344,7 +344,7 @@ const styles = StyleSheet.create({
   // Summary card
   summaryCard: {
     backgroundColor: CARD_BG,
-    borderRadius: 12,
+    borderRadius: 18,
     padding: 16,
     marginBottom: 16,
   },
@@ -401,7 +401,7 @@ const styles = StyleSheet.create({
   // Log cards
   card: {
     backgroundColor: CARD_BG,
-    borderRadius: 12,
+    borderRadius: 11,
     padding: 16,
     marginBottom: 10,
     borderWidth: 1,
