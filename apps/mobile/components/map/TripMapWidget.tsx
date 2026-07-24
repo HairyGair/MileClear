@@ -119,17 +119,23 @@ export function TripMapWidget({
       >
         <PolylineComponent
           coordinates={polylineCoords}
-          strokeColor={AMBER}
-          strokeWidth={3}
+          strokeColor={colors.amberSolid}
+          strokeWidth={4}
+          lineCap="round"
+          lineJoin="round"
         />
         <MarkerComponent
           coordinate={{ latitude: start.lat, longitude: start.lng }}
-          pinColor="#34c759"
-        />
+          anchor={{ x: 0.5, y: 0.5 }}
+        >
+          <View style={s2.pinStart} />
+        </MarkerComponent>
         <MarkerComponent
           coordinate={{ latitude: end.lat, longitude: end.lng }}
-          pinColor="#dc2626"
-        />
+          anchor={{ x: 0.5, y: 0.5 }}
+        >
+          <View style={s2.pinEnd} />
+        </MarkerComponent>
         {cutMarkers?.map((c, i) => (
           <MarkerComponent
             key={`cut-${i}`}
@@ -147,5 +153,26 @@ const styles = StyleSheet.create({
   container: {
     borderRadius: 12,
     overflow: "hidden",
+  },
+});
+
+// UI 2.0 route pins (docs/design/ui-2.0/trip-map.html): 13px dots, dark
+// ring, white start / emerald end. Flat - no stock Apple pins.
+const s2 = StyleSheet.create({
+  pinStart: {
+    width: 13,
+    height: 13,
+    borderRadius: 7,
+    backgroundColor: colors.text1,
+    borderWidth: 2.5,
+    borderColor: colors.bg1,
+  },
+  pinEnd: {
+    width: 13,
+    height: 13,
+    borderRadius: 7,
+    backgroundColor: colors.green,
+    borderWidth: 2.5,
+    borderColor: colors.bg1,
   },
 });

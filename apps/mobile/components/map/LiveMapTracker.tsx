@@ -435,8 +435,10 @@ export function LiveMapTracker({
         {!useSegments && showTrail && trail.length >= 2 && PolylineComponent && (
           <PolylineComponent
             coordinates={trail}
-            strokeColor={AMBER}
-            strokeWidth={3}
+            strokeColor={colors.amberSolid}
+            strokeWidth={4}
+            lineCap="round"
+            lineJoin="round"
             lineDashPattern={undefined}
           />
         )}
@@ -668,12 +670,12 @@ const styles = StyleSheet.create({
   },
   // Start dot (green)
   startDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    backgroundColor: "#34c759",
-    borderWidth: 2,
-    borderColor: "#fff",
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    backgroundColor: colors.text1,
+    borderWidth: 2.5,
+    borderColor: colors.bg1,
   },
   // End dot (red)
   endDot: {
