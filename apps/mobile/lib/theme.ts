@@ -69,7 +69,9 @@ export const spacing = {
 export const radii = {
   sm: 8,
   md: 12,
+  control: 13,
   lg: 16,
+  card: 18,
   pill: 20,
   sheet: 20,
 } as const;
@@ -138,34 +140,35 @@ export const shared = StyleSheet.create({
   },
 
   // Cards
+  // UI 2.0 card: 18px radius, 20px padding, hairline border
   card: {
     backgroundColor: colors.surface,
-    borderRadius: radii.md,
+    borderRadius: radii.card,
     borderWidth: 1,
     borderColor: colors.surfaceBorder,
-    padding: spacing.lg,
+    padding: spacing.xl,
     marginBottom: spacing.sm,
   },
   cardElevated: {
     backgroundColor: colors.surfaceElevated,
-    borderRadius: radii.md,
+    borderRadius: radii.card,
     borderWidth: 1,
     borderColor: colors.subtleBorder,
-    padding: spacing.lg,
+    padding: spacing.xl,
     marginBottom: spacing.sm,
   },
 
   // Buttons
   buttonPrimary: {
-    backgroundColor: colors.amber,
-    borderRadius: radii.md,
+    backgroundColor: colors.amberSolid,
+    borderRadius: radii.control,
     paddingVertical: 16,
     alignItems: "center" as const,
   },
   buttonPrimaryText: {
     fontSize: 16,
     fontFamily: fonts.bold,
-    color: colors.bg,
+    color: colors.amberInk,
   },
   buttonSecondary: {
     backgroundColor: colors.surface,
@@ -224,8 +227,8 @@ export const shared = StyleSheet.create({
     borderColor: colors.surfaceBorder,
   },
   chipActive: {
-    backgroundColor: colors.amber,
-    borderColor: colors.amber,
+    backgroundColor: colors.amberSolid,
+    borderColor: colors.amberSolid,
   },
   chipText: {
     fontSize: 13,
@@ -233,7 +236,7 @@ export const shared = StyleSheet.create({
     color: colors.text2,
   },
   chipTextActive: {
-    color: colors.bg,
+    color: colors.amberInk,
   },
 
   // Section headings
@@ -246,7 +249,7 @@ export const shared = StyleSheet.create({
 
   // Badges
   proBadge: {
-    backgroundColor: colors.amber,
+    backgroundColor: colors.amberSolid,
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: 6,
@@ -254,7 +257,7 @@ export const shared = StyleSheet.create({
   proBadgeText: {
     fontSize: 11,
     fontFamily: fonts.bold,
-    color: colors.bg,
+    color: colors.amberInk,
   },
 
   // Loading overlay
