@@ -148,6 +148,16 @@ export const shared = StyleSheet.create({
   },
 
   // Cards
+  // UI 2.0 compact row card: 11px radius, tight padding - list rows
+  cardCompact: {
+    backgroundColor: colors.surface,
+    borderRadius: 11,
+    borderWidth: 1,
+    borderColor: colors.surfaceBorder,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    marginBottom: 8,
+  },
   // UI 2.0 card: 18px radius, 20px padding, hairline border
   card: {
     backgroundColor: colors.surface,

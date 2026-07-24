@@ -1959,10 +1959,10 @@ const styles = StyleSheet.create({
   // Trip cards — compact layout (Anthony 16 May audit)
   tripCard: {
     backgroundColor: CARD_BG,
-    borderRadius: 12,
+    borderRadius: 11,
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.06)",
-    marginBottom: 10,
+    borderColor: colors.surfaceBorder,
+    marginBottom: 8,
     flexDirection: "row",
     overflow: "hidden",
   },
