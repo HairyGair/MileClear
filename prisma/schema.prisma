@@ -29,6 +29,13 @@ model User {
   stripeCustomerId     String?   @unique @db.VarChar(255)
   stripeSubscriptionId String?   @unique @db.VarChar(255)
   appleOriginalTransactionId String? @unique @db.VarChar(255)
+  // Google Play Billing purchase token — the Android analogue of
+  // appleOriginalTransactionId. Play identifies a subscription by the token
+  // issued at purchase, which survives renewals but is replaced on
+  // resubscribe, so this is updated on every validate.
+  googlePlayPurchaseToken String? @unique @db.VarChar(512)
+  // Latest Play order ID, kept for support lookups against the Play Console.
+  googlePlayOrderId       String?  @db.VarChar(255)
   // When the user's first free trial began. Stamped once, never cleared on
   // cancellation, so a user cannot serial-trial by cancel-and-resubscribe.
   // null = trial-eligible (Stripe gates on this; Apple enforces natively).

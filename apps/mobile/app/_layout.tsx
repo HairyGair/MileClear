@@ -152,7 +152,8 @@ import { getDatabase } from "../lib/db/index";
 import { hydrateLocalData, isHydrationComplete, reconcileSavedLocations, reconcileTrips } from "../lib/sync/hydrate";
 import { uploadDiagnosticDump } from "../lib/api/diagnostics";
 import { mountAppStateTracker } from "../lib/appState";
-import { isIapAvailable, initializeIap, setupPurchaseListeners, endIapConnection } from "../lib/iap/index";
+import { isIapAvailable, initializeIap, setupPurchaseListeners, endIapConnection, iapStore } from "../lib/iap/index";
+import { validateGooglePurchase } from "../lib/api/billingGoogle";
 import { validateApplePurchase } from "../lib/api/billing";
 import { PaywallProvider } from "../components/paywall";
 import { QuickStartModal } from "../components/QuickStartModal";
@@ -538,8 +539,14 @@ function RootNavigator() {
     initializeIap().then((ok) => {
       if (!ok) return;
       cleanup = setupPurchaseListeners({
-        onPurchaseSuccess: async (transactionId) => {
-          await validateApplePurchase(transactionId);
+        onPurchaseSuccess: async (token) => {
+          // token is a StoreKit transaction ID on iOS, a Play purchase token
+          // on Android — each store has its own validate endpoint.
+          if (iapStore() === "google") {
+            await validateGooglePurchase(token);
+          } else {
+            await validateApplePurchase(token);
+          }
           refreshUser();
         },
         onPurchaseError: (error) => {

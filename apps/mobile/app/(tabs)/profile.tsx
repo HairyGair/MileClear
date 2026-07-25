@@ -30,7 +30,9 @@ import {
   isIapAvailable,
   getSubscriptionProduct,
   restorePurchases,
+  iapStore,
 } from "../../lib/iap/index";
+import { validateGooglePurchase } from "../../lib/api/billingGoogle";
 import { AvatarPicker } from "../../components/avatars/AvatarPicker";
 import { useLayoutPrefs, resetAllLayouts } from "../../lib/layout/index";
 import { usePaywall } from "../../components/paywall";
@@ -131,13 +133,23 @@ export default function ProfileScreen() {
   const handleRestorePurchases = useCallback(async () => {
     setRestoring(true);
     try {
-      const transactionIds = await restorePurchases();
-      if (transactionIds.length === 0) {
-        Alert.alert("Nothing to restore", "No previous subscription was found for this Apple ID.");
+      const tokens = await restorePurchases();
+      if (tokens.length === 0) {
+        Alert.alert(
+          "Nothing to restore",
+          iapStore() === "google"
+            ? "No previous subscription was found for this Google account."
+            : "No previous subscription was found for this Apple ID."
+        );
         return;
       }
-      for (const txId of transactionIds) {
-        await validateApplePurchase(txId);
+      const isGoogle = iapStore() === "google";
+      for (const token of tokens) {
+        if (isGoogle) {
+          await validateGooglePurchase(token);
+        } else {
+          await validateApplePurchase(token);
+        }
       }
       loadData();
       Alert.alert("Subscription restored", "Pro is back on this device.");
