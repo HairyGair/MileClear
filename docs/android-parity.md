@@ -38,17 +38,23 @@ measurement.
 | Permission + biometric guidance | Told Android users to find "Always Allow" in "iOS Settings" | Platform-correct wording (`5c2e849`) |
 | Receipt OCR | iOS only | ML Kit on Android (`d17493c`) |
 
-## 3. Degraded on Android — works, but worse
+## 3. Degraded on Android — CLOSED (`964a2af`)
 
-| Feature | Why | Impact |
-|---|---|---|
-| Employer mileage rate, other annual income, PAYE paid (`settings/work-tax.tsx`) | `Alert.prompt` is iOS-only; Android falls back to **preset buttons** (40p flat, 55p/25p) | An Android user cannot type an arbitrary rate such as 42p in the app. Existing fallback, pre-dating this port; the code points them at the web dashboard |
-| Weekly miles goal (`DrivingGoals`) | Same reason; Android uses a confirm flow | Coarser goal setting |
-| Account deletion | Already handled — Android uses an inline `AppModal` for the password | None |
+Every one of these was a workaround for `Alert.prompt` being iOS-only. All now
+use `components/prompt` (`usePrompt`), which keeps `Alert.prompt` on iOS and
+gives Android a real input modal.
 
-The work-tax presets are the weakest spot: those values feed tax
-calculations, so "close enough" is not really close enough. Worth converting
-to the same input-modal pattern now used for the hourly rate.
+| Was | Severity |
+|---|---|
+| **PAYE tax already paid** — Android had only Cancel and Clear, so the figure could **not be set at all** | Worst of the set. It reduces the Tax Readiness liability, so Android users with a PAYE job saw an inflated tax-owed figure — the same trap as the expenses-ignored bug in July |
+| **Employer mileage rate** — presets "40p flat" / "55p/25p" only | A driver reimbursed 42p couldn't say so, and that rate drives Mileage Allowance Relief |
+| **Other annual income** — £25k/£50k/£75k presets | Selects the wrong marginal tax band for anyone in between |
+| **Weekly miles goal** — 25/50/100 only, and the Android copy said "enter your target in the box below" when there was no box | Cosmetic by comparison |
+| Account deletion | Was already handled with an inline `AppModal` |
+
+`usePrompt` supports a neutral third action, so "Skip" and "Remove" stay
+distinct from Cancel, and chained prompts (the two-tier employer rate) are
+sequential awaits rather than nested callbacks.
 
 ## 4. iOS-only, no Android equivalent built
 
