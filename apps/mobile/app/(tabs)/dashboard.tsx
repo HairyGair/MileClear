@@ -12,7 +12,6 @@ import {
   Platform,
   Animated,
   Linking,
-  TextInput,
 } from "react-native";
 import { AppModal } from "../../components/AppModal";
 import { AutoNoteNudgeCard } from "../../components/AutoNoteNudgeCard";
@@ -78,6 +77,7 @@ import { useLayoutPrefs } from "../../lib/layout/index";
 import { PremiumGate, useIsPremium } from "../../components/PremiumGate";
 import { SmartInsightCard } from "../../components/SmartInsightCard";
 import { usePaywall } from "../../components/paywall";
+import { usePrompt } from "../../components/prompt";
 import { requestOrFixBackgroundLocation, getLocationPermissionStatus, type LocationPermissionTier } from "../../lib/permissions/location";
 import { haptic } from "../../lib/haptics";
 
@@ -148,9 +148,6 @@ export default function DashboardScreen() {
   // tracking_state, drives a live "£ earned" ticker on the active-shift card and
   // an offer to log it as earnings (-> invoice tracker) when the shift ends.
   const [hourlyRatePence, setHourlyRatePence] = useState<number | null>(null);
-  // Android-only: Alert.prompt is a no-op there, so the rate is entered in a modal.
-  const [showHourlyRateModal, setShowHourlyRateModal] = useState(false);
-  const [hourlyRateInput, setHourlyRateInput] = useState("");
   const [liveDistance, setLiveDistance] = useState(0);
   const [loading, setLoading] = useState(true);
   const [starting, setStarting] = useState(false);
@@ -233,6 +230,7 @@ export default function DashboardScreen() {
 
   // Pro nudge card — dismissible, for free users with 5+ trips
   const { showPaywall } = usePaywall();
+  const { prompt } = usePrompt();
   const [proNudgeDismissedUntil, setProNudgeDismissedUntil] = useState<number>(Date.now() + 999999999);
   const showProNudge = !isPremium && !loading && (stats?.totalTrips ?? 0) >= 5 && Date.now() >= proNudgeDismissedUntil;
 
@@ -870,31 +868,18 @@ export default function DashboardScreen() {
   }, []);
 
   // Set / change the hourly rate for live shift earnings. Persisted so the next
-  // shift remembers it.
-  //
-  // Alert.prompt's entire body is wrapped in `if (Platform.OS === 'ios')` in
-  // React Native, so on Android it is a SILENT no-op - the button did nothing
-  // at all, with no error. Android gets a real input modal instead.
-  const promptHourlyRate = useCallback(() => {
-    if (Platform.OS !== "ios") {
-      setHourlyRateInput(
-        hourlyRatePence != null ? (hourlyRatePence / 100).toFixed(2) : ""
-      );
-      setShowHourlyRateModal(true);
-      return;
-    }
-    Alert.prompt(
-      "Hourly rate",
-      "What are you paid per hour? Your earnings will tick up live as you work.",
-      [
-        { text: "Cancel", style: "cancel" },
-        { text: "Save", onPress: (val?: string) => void saveHourlyRate(val) },
-      ],
-      "plain-text",
-      hourlyRatePence != null ? (hourlyRatePence / 100).toFixed(2) : "",
-      "decimal-pad"
-    );
-  }, [hourlyRatePence, saveHourlyRate]);
+  // shift remembers it. usePrompt keeps Alert.prompt on iOS and gives Android a
+  // real input modal - Alert.prompt is a silent no-op there.
+  const promptHourlyRate = useCallback(async () => {
+    const res = await prompt({
+      title: "Hourly rate",
+      message: "What are you paid per hour? Your earnings will tick up live as you work.",
+      defaultValue: hourlyRatePence != null ? (hourlyRatePence / 100).toFixed(2) : "",
+      keyboardType: "decimal-pad",
+    });
+    if (res.action !== "submit") return;
+    await saveHourlyRate(res.value);
+  }, [hourlyRatePence, saveHourlyRate, prompt]);
 
   const handleStartShift = useCallback(async () => {
     setStarting(true);
@@ -1181,53 +1166,6 @@ export default function DashboardScreen() {
     </AppModal>
   );
 
-  // ── Hourly Rate Modal (Android) ───────────────────────────────
-  // iOS uses Alert.prompt for this. React Native wraps that entire API in an
-  // iOS check, so on Android it silently does nothing - the rate button was
-  // dead. Same sheet styling as the other modals here.
-  const hourlyRateModal = (
-    <AppModal
-      visible={showHourlyRateModal}
-      animationType="slide"
-      onRequestClose={() => setShowHourlyRateModal(false)}
-    >
-      <View style={s.modalOverlay}>
-        <View style={s.modalSheet} accessibilityViewIsModal={true}>
-          <View style={s.modalHandle} />
-          <Text style={s.modalTitle}>Hourly rate</Text>
-          <Text style={s.hourlyRateHint}>
-            What are you paid per hour? Your earnings will tick up live as you work.
-          </Text>
-          <TextInput
-            style={s.hourlyRateInput}
-            value={hourlyRateInput}
-            onChangeText={setHourlyRateInput}
-            keyboardType="decimal-pad"
-            placeholder="0.00"
-            placeholderTextColor="rgba(255,255,255,0.3)"
-            autoFocus
-            accessibilityLabel="Hourly rate in pounds"
-          />
-          <View style={s.recapBtnRow}>
-            <Button
-              variant="secondary"
-              title="Cancel"
-              onPress={() => setShowHourlyRateModal(false)}
-            />
-            <Button
-              title="Save"
-              icon="checkmark"
-              onPress={async () => {
-                await saveHourlyRate(hourlyRateInput);
-                setShowHourlyRateModal(false);
-              }}
-            />
-          </View>
-        </View>
-      </View>
-    </AppModal>
-  );
-
   // ── Work Mode Explainer Modal ─────────────────────────────────
   // Plain TouchableOpacity instead of <Button>: the Button variant wraps its
   // Pressable in two animated Views (glow + scale) which on iPad iPadOS 26
@@ -1296,7 +1234,6 @@ export default function DashboardScreen() {
     return (
       <>
         {scorecardModal}
-        {hourlyRateModal}
         <ScrollView
           style={s.container}
           contentContainerStyle={[s.content, { paddingTop: 16 }]}
@@ -2857,28 +2794,6 @@ const s = StyleSheet.create({
     marginBottom: 6,
   },
   recapBtnRow: { gap: 10, marginTop: 8 },
-  // Hourly-rate modal (Android input fallback for Alert.prompt)
-  hourlyRateHint: {
-    fontSize: 14,
-    fontFamily: fonts.regular,
-    color: TEXT_2,
-    textAlign: "center",
-    lineHeight: 20,
-    marginBottom: 18,
-  },
-  hourlyRateInput: {
-    backgroundColor: "rgba(255,255,255,0.05)",
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.1)",
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    fontSize: 20,
-    fontFamily: fonts.semibold,
-    color: TEXT_1,
-    textAlign: "center",
-    marginBottom: 20,
-  },
   // Trip segment bottom sheet
   tripSheet: {
     position: "absolute",

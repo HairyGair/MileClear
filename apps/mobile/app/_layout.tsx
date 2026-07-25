@@ -156,6 +156,7 @@ import { isIapAvailable, initializeIap, setupPurchaseListeners, endIapConnection
 import { validateGooglePurchase } from "../lib/api/billingGoogle";
 import { validateApplePurchase } from "../lib/api/billing";
 import { PaywallProvider } from "../components/paywall";
+import { PromptProvider } from "../components/prompt";
 import { QuickStartModal } from "../components/QuickStartModal";
 import { AppLockProvider } from "../lib/appLock/context";
 import { AppLockGate } from "../components/AppLockGate";
@@ -720,13 +721,15 @@ export default function RootLayout() {
         <AuthProvider>
           <UserProvider>
             <PaywallProvider>
-              <ModeProvider>
-                <SyncProvider>
-                  <AppLockProvider>
-                    <RootNavigator />
-                  </AppLockProvider>
-                </SyncProvider>
-              </ModeProvider>
+              <PromptProvider>
+                <ModeProvider>
+                  <SyncProvider>
+                    <AppLockProvider>
+                      <RootNavigator />
+                    </AppLockProvider>
+                  </SyncProvider>
+                </ModeProvider>
+              </PromptProvider>
             </PaywallProvider>
           </UserProvider>
         </AuthProvider>
