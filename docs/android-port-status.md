@@ -92,13 +92,14 @@ Both were checked in the green build's log:
    on preview and conclude Android tracking is broken.
 3. **First build**: `eas build -p android --profile development`. Needs a
    keystore, which EAS generates interactively on first run.
-4. **ML Kit OCR**: Apple Vision is iOS-only. `parseReceiptText` is reusable, so
-   this is the smaller half of the work.
-5. **Android permission flows**: Android 13+ POST_NOTIFICATIONS runtime
-   request, ACTIVITY_RECOGNITION, and the two-step background location grant.
-6. **Play Console submission**: Data Safety form and the background-location
+4. **Play Console submission**: Data Safety form and the background-location
    declaration with demo video — the most common rejection reason for
    tracking apps.
+
+ML Kit OCR is **done** (`d17493c`) and Android-only via `react-native.config.js`,
+so the iOS build is unaffected. Platform-correct permission and biometric
+guidance is **done** (`5c2e849`). Both are compile-verified only; neither has
+run on a device.
 
 ## Deliberately deferred
 
