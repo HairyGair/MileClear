@@ -154,9 +154,15 @@ function computeHealth(
       severity: "error",
       title: isDenied ? "Background location is denied" : "Background location not granted",
       cause: isDenied
-        ? "iOS Settings has location set to Never or While Using. MileClear can't detect trips when the app is in the background."
-        : "Location permission hasn't been granted yet. iOS won't send background location updates.",
-      action: "Open Settings → MileClear → Location → Always, then come back.",
+        ? Platform.OS === "ios"
+          ? "iOS Settings has location set to Never or While Using. MileClear can't detect trips when the app is in the background."
+          : "Android has location set to Deny or Allow only while using the app. MileClear can't detect trips when the app is in the background."
+        : Platform.OS === "ios"
+          ? "Location permission hasn't been granted yet. iOS won't send background location updates."
+          : "Location permission hasn't been granted yet. Android won't send background location updates.",
+      action: Platform.OS === "ios"
+        ? "Open Settings → MileClear → Location → Always, then come back."
+        : "Open Settings → Permissions → Location → Allow all the time, then come back.",
       onAction: () => {
         Linking.openSettings().catch(() => {});
       },

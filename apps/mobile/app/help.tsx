@@ -12,7 +12,7 @@ import { Ionicons } from "@expo/vector-icons";
 import * as WebBrowser from "expo-web-browser";
 import { colors, fonts, radii, spacing } from "../lib/theme";
 import { getDatabase } from "../lib/db";
-import { HELP_SECTIONS, type HelpTopic } from "../lib/help/topics";
+import { getVisibleHelpSections, type HelpTopic } from "../lib/help/topics";
 
 /**
  * Help & Tutorials — in-app guide for first-time users + anyone who
@@ -86,7 +86,7 @@ export default function HelpScreen() {
           </TouchableOpacity>
         </View>
 
-        {HELP_SECTIONS.map((section) => (
+        {getVisibleHelpSections().map((section) => (
           <View key={section.title} style={styles.section}>
             <View style={styles.sectionHeader}>
               <Ionicons name={section.icon} size={18} color={colors.amber} accessible={false} />

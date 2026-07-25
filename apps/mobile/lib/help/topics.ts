@@ -8,6 +8,7 @@
 // might be referenced from ContextualHelp call sites across screens.
 
 import type { Ionicons } from "@expo/vector-icons";
+import { Platform } from "react-native";
 
 export interface HelpTopic {
   id: string;
@@ -18,6 +19,10 @@ export interface HelpTopic {
   goTo?: string;
   /** Optional external article. */
   externalUrl?: string;
+  /** Topic describes an iOS-only feature (Siri Shortcuts, Live Activities,
+   *  CarPlay). Filtered out on Android by getVisibleHelpSections() rather
+   *  than showing a driver instructions for hardware they don't have. */
+  iosOnly?: boolean;
 }
 
 export interface HelpSection {
@@ -65,6 +70,7 @@ export const HELP_SECTIONS: HelpSection[] = [
       },
       {
         id: "siri-shortcuts",
+        iosOnly: true,
         q: "What Siri Shortcuts does MileClear support?",
         a: "Hands-free commands (set up once in iOS Settings → Siri & Search → MileClear):\n\n• \"Hey Siri, start my shift\" - kicks off a new shift\n• \"Hey Siri, end my shift\" - ends the active shift + shows scorecard\n• \"Hey Siri, how many miles today?\" - speaks your today's total\n• \"Hey Siri, log expense\" - opens the expense form\n• \"Hey Siri, what's my tax estimate?\" - speaks current Tax Readiness figure\n\nGreat for CarPlay - you can use them while driving without picking up the phone. Customise the trigger phrase to whatever you want (e.g. \"start work\", \"end work\") in the Shortcuts app.",
       },
@@ -457,4 +463,17 @@ for (const section of HELP_SECTIONS) {
  */
 export function getHelpTopic(id: string): HelpTopic | null {
   return TOPIC_INDEX.get(id) ?? null;
+}
+
+/**
+ * HELP_SECTIONS with iOS-only topics removed on Android, and any section that
+ * empties out as a result dropped entirely. Use this for rendering; the raw
+ * registry stays the single source of content.
+ */
+export function getVisibleHelpSections(): HelpSection[] {
+  if (Platform.OS === "ios") return HELP_SECTIONS;
+  return HELP_SECTIONS.map((section) => ({
+    ...section,
+    topics: section.topics.filter((t) => !t.iosOnly),
+  })).filter((section) => section.topics.length > 0);
 }

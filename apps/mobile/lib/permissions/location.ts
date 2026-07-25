@@ -1,5 +1,5 @@
 import * as Location from "expo-location";
-import { Alert, Linking } from "react-native";
+import { Alert, Linking, Platform } from "react-native";
 
 export type LocationPermissionTier = "none" | "foreground" | "always";
 
@@ -186,9 +186,16 @@ function showSettingsExplainer(status: LocationPermissionStatus) {
     ? "One more step for auto-detection"
     : "Tracking needs location access";
 
-  const message = fgGranted
-    ? 'iOS hides "Always Allow" one tap deeper than it should.\n\nIn Settings:\n  1. Tap Location\n  2. Tap Always\n  3. Make sure Precise Location is on'
-    : 'MileClear needs location access to record your trips.\n\nIn Settings:\n  1. Tap Location\n  2. Tap "Always" (or "While Using App" first if Always is not offered)\n  3. Make sure Precise Location is on';
+  // Both platforms bury the always-on option, but behind different wording and
+  // a different number of taps, so the instructions can't be shared. Android
+  // calls it "Allow all the time" and puts it under Permissions > Location.
+  const message = Platform.OS === "ios"
+    ? fgGranted
+      ? 'iOS hides "Always Allow" one tap deeper than it should.\n\nIn Settings:\n  1. Tap Location\n  2. Tap Always\n  3. Make sure Precise Location is on'
+      : 'MileClear needs location access to record your trips.\n\nIn Settings:\n  1. Tap Location\n  2. Tap "Always" (or "While Using App" first if Always is not offered)\n  3. Make sure Precise Location is on'
+    : fgGranted
+      ? 'Android keeps "Allow all the time" on a separate screen.\n\nIn Settings:\n  1. Tap Permissions\n  2. Tap Location\n  3. Tap "Allow all the time"\n  4. Make sure Precise location is on'
+      : 'MileClear needs location access to record your trips.\n\nIn Settings:\n  1. Tap Permissions\n  2. Tap Location\n  3. Tap "Allow all the time" (you may need to allow it while using the app first)\n  4. Make sure Precise location is on';
 
   Alert.alert(title, message, [
     { text: "Not now", style: "cancel" },

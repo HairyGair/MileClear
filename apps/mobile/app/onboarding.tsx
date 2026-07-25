@@ -775,10 +775,12 @@ export default function OnboardingScreen() {
                   <Text style={[s.deniedTitle, { color: "#f59e0b" }]}>One more tap for auto-tracking</Text>
                 </View>
                 <Text style={s.deniedBody}>
-                  You allowed location <Text style={{ fontFamily: fonts.semibold }}>While Using the App</Text>. Automatic trip detection needs <Text style={{ fontFamily: fonts.semibold }}>Always</Text> — otherwise trips only record while MileClear is open on screen.
+                  You allowed location <Text style={{ fontFamily: fonts.semibold }}>{Platform.OS === "ios" ? "While Using the App" : "only while using the app"}</Text>. Automatic trip detection needs <Text style={{ fontFamily: fonts.semibold }}>{Platform.OS === "ios" ? "Always" : "Allow all the time"}</Text> — otherwise trips only record while MileClear is open on screen.
                 </Text>
                 <Text style={s.deniedHelp}>
-                  In Settings: Location {"->"} Always, and turn Precise Location on.
+                  {Platform.OS === "ios"
+                    ? `In Settings: Location ${"->"} Always, and turn Precise Location on.`
+                    : `In Settings: Permissions ${"->"} Location ${"->"} Allow all the time, and turn Precise location on.`}
                 </Text>
                 <TouchableOpacity
                   style={[s.deniedSettingsBtn, { backgroundColor: "rgba(245,166,35,0.15)", borderColor: "rgba(245,166,35,0.3)" }]}
