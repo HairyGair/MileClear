@@ -67,6 +67,11 @@
       },
       "package": "com.mileclear.app",
       "versionCode": 1,
+      "config": {
+        "googleMaps": {
+          "apiKey": "AIzaSyBJ5Gha6pd088kciMi9XB-YD4ZOh8R-TPw"
+        }
+      },
       "permissions": [
         "ACCESS_FINE_LOCATION",
         "ACCESS_COARSE_LOCATION",
