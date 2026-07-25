@@ -6,6 +6,7 @@ const audiences = [
   { icon: "\uD83D\uDE9A", title: "Couriers and logistics", desc: "DPD, Evri, Yodel, Stuart, Gophr, Royal Mail", href: "/amazon-flex-mileage-tracker" },
   { icon: "\uD83D\uDCBC", title: "Sales reps and field workers", desc: "Anyone logging client visits or site trips", href: "/employee-mileage-tracker" },
   { icon: "\uD83D\uDD27", title: "Self-employed drivers", desc: "Tradespeople, estate agents, mobile services", href: "/self-employed-mileage-tracker" },
+  { icon: "\u26A1", title: "Electric car drivers", desc: "Claim the same 55p a mile as petrol, while charging for pennies", href: "/ev-mileage-tracker" },
   { icon: "\uD83D\uDE97", title: "Personal drivers", desc: "Track your driving for fun, set goals, and earn achievements", href: "/features" },
 ];
 

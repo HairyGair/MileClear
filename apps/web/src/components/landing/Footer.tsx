@@ -65,6 +65,7 @@ export default function Footer() {
                 <li><a href="/free-mileage-tracker-uk" className="footer__link">Free mileage tracker UK</a></li>
                 <li><a href="/mileage-tracker-uk" className="footer__link">Mileage tracker UK</a></li>
                 <li><a href="/self-employed-mileage-tracker" className="footer__link">Self-employed drivers</a></li>
+                <li><a href="/ev-mileage-tracker" className="footer__link">Electric car drivers</a></li>
                 <li><a href="/mileiq-alternative-uk" className="footer__link">MileIQ alternative</a></li>
                 <li><a href="/driversnote-alternative" className="footer__link">Driversnote alternative</a></li>
               </ul>
