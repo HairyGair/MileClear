@@ -262,7 +262,9 @@ export const HELP_SECTIONS: HelpSection[] = [
       {
         id: "receipt-scanning",
         q: "How does receipt scanning work?",
-        a: "Avatar → Expenses → Scan Receipt. Snap a photo or pick one from your library. Apple's on-device Vision OCR reads the amount, date and vendor straight off the paper and pre-fills the expense form for one-tap save.\n\nNothing leaves your phone - the OCR runs locally on the iPhone's Neural Engine, so receipts for sensitive stuff (medical, hotel) stay private. Apple Vision is the same engine that powers Live Text and Translate, so it handles thermal-print fuel receipts, faded parking stubs and crumpled hotel bills better than most cloud OCR services.\n\nWorks on Pro. The earnings receipt scanner uses the same pipeline.",
+        a: Platform.OS === "android"
+          ? "Avatar → Expenses → Scan Receipt. Snap a photo or pick one from your library. Google's on-device ML Kit OCR reads the amount, date and vendor straight off the paper and pre-fills the expense form for one-tap save.\n\nNothing leaves your phone - the OCR model runs locally on your device, so receipts for sensitive stuff (medical, hotel) stay private. ML Kit is the same text-recognition engine behind Google Lens, so it handles thermal-print fuel receipts, faded parking stubs and crumpled hotel bills better than most cloud OCR services.\n\nWorks on Pro. The earnings receipt scanner uses the same pipeline."
+          : "Avatar → Expenses → Scan Receipt. Snap a photo or pick one from your library. Apple's on-device Vision OCR reads the amount, date and vendor straight off the paper and pre-fills the expense form for one-tap save.\n\nNothing leaves your phone - the OCR runs locally on the iPhone's Neural Engine, so receipts for sensitive stuff (medical, hotel) stay private. Apple Vision is the same engine that powers Live Text and Translate, so it handles thermal-print fuel receipts, faded parking stubs and crumpled hotel bills better than most cloud OCR services.\n\nWorks on Pro. The earnings receipt scanner uses the same pipeline.",
       },
       {
         id: "inbox",

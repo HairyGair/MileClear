@@ -9,6 +9,7 @@ import {
   ActivityIndicator,
   StyleSheet,
   Alert,
+  Platform,
 } from "react-native";
 import { useRouter, useLocalSearchParams, Stack } from "expo-router";
 import * as ImagePicker from "expo-image-picker";
@@ -45,7 +46,9 @@ export default function ReceiptScanScreen() {
   const [amount, setAmount] = useState("");
   const [date, setDate] = useState("");
   const [vendor, setVendor] = useState("");
-  const [ocrConfidence, setOcrConfidence] = useState(0);
+  // null = the OCR engine reports no confidence (ML Kit on Android). The
+  // label is hidden rather than showing an invented number.
+  const [ocrConfidence, setOcrConfidence] = useState<number | null>(0);
 
   const ocrAvailable = isOcrAvailable();
 
@@ -147,8 +150,9 @@ export default function ReceiptScanScreen() {
             Receipt scanning requires a development build
           </Text>
           <Text style={styles.unavailableBody}>
-            This feature uses Apple Vision for on-device text recognition and
-            is not available in Expo Go. Build the app via EAS to use it.
+            {Platform.OS === "android"
+              ? "This feature uses Google ML Kit for on-device text recognition and is not available in Expo Go. Build the app via EAS to use it."
+              : "This feature uses Apple Vision for on-device text recognition and is not available in Expo Go. Build the app via EAS to use it."}
           </Text>
           <TouchableOpacity
             style={styles.secondaryButton}
@@ -227,7 +231,7 @@ export default function ReceiptScanScreen() {
               />
             )}
 
-            {ocrConfidence > 0 && (
+            {ocrConfidence !== null && ocrConfidence > 0 && (
               <Text style={styles.confidenceLabel}>
                 Confidence: {Math.round(ocrConfidence * 100)}%
               </Text>

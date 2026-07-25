@@ -47,7 +47,7 @@ export default function SecuritySettings() {
         );
       }
     },
-    [setEnabled, available]
+    [setEnabled, available, setupHint]
   );
 
   const pickRelock = useCallback(() => {
