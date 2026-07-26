@@ -11,6 +11,7 @@ import {
   ScrollView,
   Image,
 } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 import { Link } from "expo-router";
 import { useAuth } from "../../lib/auth/context";
 import { colors, fonts } from "../../lib/theme";
@@ -32,8 +33,14 @@ export default function LoginScreen() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
-  const [, setSocialLoading] = useState<string | null>(null);
+  const [socialLoading, setSocialLoading] = useState<string | null>(null);
   const [focusedField, setFocusedField] = useState<string | null>(null);
+
+  // Whether ANY social button renders above the divider. Apple on iOS,
+  // Google on Android. Drives the "or" divider so it can never separate
+  // nothing, which is what Android showed before.
+  const socialAvailable =
+    (Platform.OS === "ios" && !!AppleAuthentication) || Platform.OS === "android";
 
   const handleSocialLogin = async (provider: "apple" | "google") => {
     setError("");
@@ -112,7 +119,8 @@ export default function LoginScreen() {
             </View>
           ) : null}
 
-          {/* Social sign-in buttons */}
+          {/* Social sign-in buttons.
+              iOS: Apple only. Android: Google only (no Apple Sign-In there). */}
           {Platform.OS === "ios" && AppleAuthentication && (
             <AppleAuthentication.AppleAuthenticationButton
               buttonType={AppleAuthentication.AppleAuthenticationButtonType.SIGN_IN}
@@ -123,14 +131,41 @@ export default function LoginScreen() {
             />
           )}
 
-          {/* Google Sign-In temporarily disabled — iOS-only clearance */}
+          {/* Google Sign-In: ANDROID ONLY.
+              Still disabled on iOS (iOS-only clearance) - this does not change
+              that. But Android has no Apple Sign-In, so without this the only
+              way in is email and password, which costs signups on the platform
+              where one-tap Google is the norm. */}
+          {Platform.OS === "android" && (
+            <TouchableOpacity
+              style={s.googleButton}
+              onPress={() => handleSocialLogin("google")}
+              disabled={socialLoading !== null}
+              accessibilityRole="button"
+              accessibilityLabel="Sign in with Google"
+            >
+              {socialLoading === "google" ? (
+                <ActivityIndicator color={TEXT_1} />
+              ) : (
+                <View style={s.googleButtonInner}>
+                  <Ionicons name="logo-google" size={18} color={TEXT_1} />
+                  <Text style={s.googleButtonText}>Sign in with Google</Text>
+                </View>
+              )}
+            </TouchableOpacity>
+          )}
 
-          {/* Divider */}
-          <View style={s.divider}>
-            <View style={s.dividerLine} />
-            <Text style={s.dividerText}>or</Text>
-            <View style={s.dividerLine} />
-          </View>
+          {/* Divider — only when there is actually a social button above it to
+              divide from. It used to render unconditionally, so Android showed
+              an "or" separating the heading from the email field with nothing
+              in between. */}
+          {socialAvailable && (
+            <View style={s.divider}>
+              <View style={s.dividerLine} />
+              <Text style={s.dividerText}>or</Text>
+              <View style={s.dividerLine} />
+            </View>
+          )}
 
           <Text style={s.label}>Email</Text>
           <TextInput
@@ -362,6 +397,11 @@ const s = StyleSheet.create({
     justifyContent: "center",
     backgroundColor: "transparent",
     marginBottom: 4,
+  },
+  googleButtonInner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
   },
   googleButtonText: {
     color: TEXT_1,
