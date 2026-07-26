@@ -23,7 +23,6 @@ import { getDatabase } from "../lib/db/index";
 import { readPersistedLastSavedTrip, type LastSavedTrip } from "../lib/events/lastTrip";
 import { getLocationPermissionStatus } from "../lib/permissions/location";
 import { isOnline } from "../lib/network";
-import { isNativeEngineTracking } from "../lib/tracking/nativeLocation";
 import { formatMiles } from "@mileclear/shared";
 import { colors, fonts } from "../lib/theme";
 
@@ -55,6 +54,29 @@ export function TripStatusStrip() {
   const router = useRouter();
   const [state, setState] = useState<StripState>({ kind: "hidden" });
   const [detectionArmed, setDetectionArmed] = useState(false);
+  // Whether the native engine can actually record. Optimistic default so the
+  // copy is unchanged on iOS and on any healthy build; only an Android licence
+  // rejection flips it false.
+  //
+  // Resolved via a DYNAMIC import: nativeLocation reaches ./detection, which is
+  // already in require cycles, and importing it statically from a component
+  // rendered under AuthProvider crashed the app on launch with "useAuth must be
+  // used within an AuthProvider".
+  const [engineTracking, setEngineTracking] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    import("../lib/tracking/nativeLocation")
+      .then((m) => {
+        if (!cancelled) setEngineTracking(m.isNativeEngineTracking());
+      })
+      .catch(() => {
+        // module unavailable (Expo Go) - leave the optimistic default
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
   const mountedRef = useRef(true);
 
   // Permission tier + detection toggle change rarely — read once on mount,
@@ -222,7 +244,7 @@ export function TripStatusStrip() {
   // LICENSE_VALIDATION_FAILURE, so the old unconditional copy would have told
   // the driver their drives were being recorded automatically while nothing
   // was captured at all.
-  if (!isNativeEngineTracking()) {
+  if (!engineTracking) {
     return (
       <View style={[styles.strip, styles.stripQuiet]}>
         <View style={styles.readyDot} />

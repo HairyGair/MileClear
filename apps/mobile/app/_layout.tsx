@@ -154,7 +154,6 @@ import { uploadDiagnosticDump } from "../lib/api/diagnostics";
 import { mountAppStateTracker } from "../lib/appState";
 import { isIapAvailable, initializeIap, setupPurchaseListeners, endIapConnection, iapStore } from "../lib/iap/index";
 import { validateGooglePurchase } from "../lib/api/billingGoogle";
-import { loadLicenceState } from "../lib/tracking/nativeLocation";
 import { validateApplePurchase } from "../lib/api/billing";
 import { PaywallProvider } from "../components/paywall";
 import { PromptProvider } from "../components/prompt";
@@ -180,7 +179,15 @@ void bootNativeEngineOnLaunch();
 // this, every cold launch optimistically shows "ClearTrack is on" until the
 // first start() attempt rejects again - so an unlicensed release build would
 // flash a false promise on every single launch.
-void loadLicenceState();
+//
+// DYNAMIC import, deliberately. nativeLocation pulls in ./detection, which is
+// already in require cycles with geofencing and notifications. Importing it
+// statically here reordered module evaluation enough that lib/auth/context was
+// only half-initialised when useAuth ran, and the app died on launch with
+// "useAuth must be used within an AuthProvider". Every other consumer
+// (lib/auth, lib/geofencing) imports this module dynamically for the same
+// reason - follow that.
+void import("../lib/tracking/nativeLocation").then((m) => m.loadLicenceState());
 
 function RootNavigator() {
   const { isLoading, isAuthenticated } = useAuth();
