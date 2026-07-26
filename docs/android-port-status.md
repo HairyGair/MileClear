@@ -66,6 +66,23 @@ This differs from the App Store, which uses a separate product per duration
 differently, the constants at the top of `lib/iap/index.ts` and
 `services/googlePlayBilling.ts` are the only places to change.
 
+## ⚠️ API key restriction will block push notifications
+
+The Android API key (`AIzaSy...P5sQuY`) is restricted to **Maps SDK for
+Android only**. Firebase reused that same key in `google-services.json`, so
+push registration will be refused: Android FCM registration also calls
+
+- `firebaseinstallations.googleapis.com` (Firebase Installations API)
+- `fcmregistrations.googleapis.com` (FCM Registration API)
+
+Both are outside the allowed list. Evidence: probing the key against Identity
+Toolkit returns `403 Requests to this API ... are blocked`, which is the API
+restriction rejecting it, not an app restriction.
+
+**Fix:** Google Cloud → Credentials → open the key → API restrictions → add
+those two APIs alongside Maps SDK for Android. Symptom if skipped is silent:
+no push token, no error the user ever sees.
+
 ## Confirmed runtime gaps (build passes, these fail at runtime)
 
 Both were checked in the green build's log:
