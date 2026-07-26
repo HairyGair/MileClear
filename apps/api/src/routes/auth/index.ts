@@ -796,8 +796,20 @@ export async function authRoutes(app: FastifyInstance) {
       return reply.status(500).send({ error: "Google Sign-In is not configured" });
     }
 
-    // Accept both web and iOS client IDs as valid audiences
-    const googleAudiences = [googleClientId, googleIosClientId].filter(Boolean) as string[];
+    // Accept web, iOS and Android web client IDs as valid audiences.
+    //
+    // Android signs in through its own Google Cloud project (the original
+    // 194042004 project is no longer reachable, and Google requires the
+    // Android OAuth client and the webClientId to share a project). An
+    // Android ID token therefore carries a DIFFERENT audience from an iOS one
+    // - its own project's web client ID - so it has to be listed here or
+    // every Android Google sign-in fails audience verification.
+    const googleAndroidClientId = process.env.GOOGLE_ANDROID_CLIENT_ID;
+    const googleAudiences = [
+      googleClientId,
+      googleIosClientId,
+      googleAndroidClientId,
+    ].filter(Boolean) as string[];
 
     // Verify Google ID token via JWKS (cryptographic verification)
     let payload: { sub?: string; email?: string; name?: string; email_verified?: boolean };
