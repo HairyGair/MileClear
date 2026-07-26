@@ -244,12 +244,25 @@ export function TripStatusStrip() {
   // LICENSE_VALIDATION_FAILURE, so the old unconditional copy would have told
   // the driver their drives were being recorded automatically while nothing
   // was captured at all.
+  // Fallback engine (Android without an RNBG licence). Something IS tracking -
+  // the expo-location engine restarts automatically - so "unavailable" would be
+  // wrong. But it is demonstrably less reliable at spotting a drive by itself
+  // than the native engine, so the copy must not promise drives record
+  // automatically. Tell the driver plainly and give them the action that always
+  // works.
   if (!engineTracking) {
     return (
-      <View style={[styles.strip, styles.stripQuiet]}>
+      <TouchableOpacity
+        style={[styles.strip, styles.stripQuiet]}
+        onPress={() => router.push("/trip-form")}
+        accessibilityRole="button"
+        accessibilityLabel="Basic tracking is on. Some drives may be missed. Tap to start a trip manually."
+      >
         <View style={styles.readyDot} />
-        <Text style={styles.readyText}>Automatic tracking is unavailable — start a trip manually</Text>
-      </View>
+        <Text style={styles.readyText}>
+          Basic tracking — some drives may be missed. Tap to start a trip
+        </Text>
+      </TouchableOpacity>
     );
   }
 
