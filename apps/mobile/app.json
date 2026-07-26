@@ -115,9 +115,12 @@
       "./plugins/with-vision-ocr",
       "./plugins/with-siri-shortcuts",
       "./plugins/with-modular-headers",
+      "./plugins/with-play-services-location-version",
       [
         "react-native-background-geolocation",
-        { "license": "" }
+        {
+          "license": ""
+        }
       ]
     ],
     "extra": {

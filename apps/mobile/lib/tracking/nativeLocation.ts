@@ -127,6 +127,23 @@ export function isNativeEngineAvailable(): boolean {
 // ─── Configuration (tune on-device) ─────────────────────────────────────────
 function buildConfig(BGGeo: BgGeo): Record<string, unknown> {
   return {
+    // ANDROID ONLY. Ignored on iOS, which takes this copy from the Info.plist
+    // usage descriptions instead.
+    //
+    // Without this, RNBG shows its own default: "[CHANGEME] This app collects
+    // location data for FEATURE X and FEATURE Y." That placeholder was being
+    // displayed on the background-location prompt - the single most important
+    // permission in the app - until it was caught on the emulator, 26 Jul.
+    // Two reasons it matters: a driver being asked for always-on location is
+    // at their most suspicious, and Google Play requires an accurate
+    // disclosure of background location use, which placeholder text is not.
+    backgroundPermissionRationale: {
+      title: "Allow MileClear to record trips in the background?",
+      message:
+        "MileClear needs location access all the time so it can record your business mileage automatically, including when your phone is locked or the app is closed. Without it, trips only record while the app is open on screen.",
+      positiveAction: 'Change to "Allow all the time"',
+      negativeAction: "Cancel",
+    },
     // Capture
     desiredAccuracy: BGGeo.DESIRED_ACCURACY_NAVIGATION,
     distanceFilter: 20, // metres between recorded fixes while moving
