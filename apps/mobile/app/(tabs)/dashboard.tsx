@@ -54,7 +54,7 @@ import type {
   ShiftScorecard,
   PeriodRecap,
 } from "@mileclear/shared";
-import { formatPence } from "@mileclear/shared";
+import { formatPence, filterTraceOutliers } from "@mileclear/shared";
 import { maybeRequestReview } from "../../lib/rating/index";
 import { useMode } from "../../lib/mode/context";
 import { ModeToggle } from "../../components/ModeToggle";
@@ -816,7 +816,15 @@ export default function DashboardScreen() {
       try {
         const coords = await peekBackgroundCoordinates(activeShiftId);
         if (!mounted) return;
-        const dist = coords.length >= 2 ? calcDistance(coords) : 0;
+        // Filter before summing, with the SAME filter the save path uses
+        // (processShiftTrips -> filterTraceOutliers). Without this the live
+        // figure was a raw haversine sum over every stored fix while the saved
+        // figure dropped >50m-accuracy points and >120mph teleports, so the two
+        // were guaranteed to disagree whenever a bad fix arrived - the number
+        // appeared to drop when the shift ended. Same reason the Live Activity
+        // end-card was inflated: it reads liveDistRef.
+        const filtered = filterTraceOutliers(coords);
+        const dist = filtered.length >= 2 ? calcDistance(filtered) : 0;
         setLiveDistance(dist);
         liveDistRef.current = dist;
       } catch {

@@ -66,6 +66,63 @@ This differs from the App Store, which uses a separate product per duration
 differently, the constants at the top of `lib/iap/index.ts` and
 `services/googlePlayBilling.ts` are the only places to change.
 
+## Emulator session, 26 Jul — what running it actually proved
+
+Rig: Pixel 8 emulator (API 34, Play Store image), Metro on 8081 via `adb
+reverse`, production API reached through an `ssh -L 3002` tunnel because
+Anthony's home IP is WAF-blocked from api.mileclear.com. Logged in as
+demo@mileclear.com.
+
+**Proven working on Android:**
+
+| Area | Evidence |
+|---|---|
+| Login against production | Real address suggestions, real dashboard data |
+| All 4 runtime permissions | notifications, precise location, activity recognition, background location ("Allow all the time") |
+| Google Maps rendering | Live map tiles + route polyline drawn on the shift screen |
+| Native engine (RNBG) | Foreground service on channel `com.mileclear.appTSLocationManager`, flags ONGOING_EVENT / NO_CLEAR / FOREGROUND_SERVICE, notification "MileClear is tracking your shift" |
+| Trip capture during a shift | 2.5 mi trip recorded, synced to prod, dashboard 19 → 20 trips, classify nudge fired |
+| Dashboard with live data | Benchmarking vs 147 UK drivers, working calendar £562.85 / 12 days |
+
+**NOT proven, and the emulator cannot prove it:**
+
+- **Auto-detection (ClearTrack).** `adb emu geo fix <lon> <lat>` sets position
+  but not speed, so detection - which gates on
+  DRIVING_SPEED_THRESHOLD_MPH (15) read from the fix - correctly declined to
+  start a trip for a phone that kept teleporting while stationary. `geo fix`
+  does accept a 5th `<velocity>` argument in knots; retry with that.
+- **OEM battery killers.** Samsung/Xiaomi/Huawei Doze behaviour. Needs real
+  hardware. This remains the single largest unknown in the port.
+
+## 🔴 LAUNCH BLOCKER: "ClearTrack is on" can lie in a release build
+
+Found while reasoning about the licence, not yet fixed.
+
+RNBG is free in DEBUG builds and licensed for RELEASE. But
+`isNativeEngineAvailable()` (nativeLocation.ts:123) only checks
+`loadNativeModule() !== null` - i.e. "is the native code present", not "will it
+track". In an unlicensed release build the module still loads, so:
+
+- `isNativeEngineAvailable()` returns true
+- the engine flag defaults on (nativeEngineFlag.ts: missing flag = on)
+- the dashboard says **"ClearTrack is on — drives record automatically"**
+- RNBG records nothing
+
+Silent failure, the same shape as the stranded-cohort incident. And the
+self-heal won't rescue it quickly: `SELF_HEAL_MIN_ENGINE_AGE_MS` is **3 days**
+of no recordings before it falls back to JS, so a new Android user would lose
+their first three days.
+
+Options, in preference order:
+1. Detect the licence failure on `ready()` and fall back immediately. Robust,
+   and also protects against a lapsed or misconfigured licence later.
+2. Default Android to the JS engine (one line in nativeEngineFlag.ts) until
+   the licence is bought. Ships free today.
+3. Buy the licence.
+
+Whichever is chosen, the UI must not be able to claim ClearTrack is on when
+tracking cannot happen.
+
 ## ⚠️ API key restriction will block push notifications
 
 The Android API key (`AIzaSy...P5sQuY`) is restricted to **Maps SDK for

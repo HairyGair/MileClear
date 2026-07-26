@@ -23,6 +23,7 @@ import { getDatabase } from "../lib/db/index";
 import { readPersistedLastSavedTrip, type LastSavedTrip } from "../lib/events/lastTrip";
 import { getLocationPermissionStatus } from "../lib/permissions/location";
 import { isOnline } from "../lib/network";
+import { isNativeEngineTracking } from "../lib/tracking/nativeLocation";
 import { formatMiles } from "@mileclear/shared";
 import { colors, fonts } from "../lib/theme";
 
@@ -215,6 +216,21 @@ export function TripStatusStrip() {
   }
 
   // Ready — slim, quiet, single line.
+  //
+  // Never claim ClearTrack is on when the engine cannot record. On an
+  // unlicensed Android release build RNBG loads but start() rejects with
+  // LICENSE_VALIDATION_FAILURE, so the old unconditional copy would have told
+  // the driver their drives were being recorded automatically while nothing
+  // was captured at all.
+  if (!isNativeEngineTracking()) {
+    return (
+      <View style={[styles.strip, styles.stripQuiet]}>
+        <View style={styles.readyDot} />
+        <Text style={styles.readyText}>Automatic tracking is unavailable — start a trip manually</Text>
+      </View>
+    );
+  }
+
   return (
     <View style={[styles.strip, styles.stripQuiet]}>
       <View style={styles.readyDot} />

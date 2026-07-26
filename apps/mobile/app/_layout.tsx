@@ -154,6 +154,7 @@ import { uploadDiagnosticDump } from "../lib/api/diagnostics";
 import { mountAppStateTracker } from "../lib/appState";
 import { isIapAvailable, initializeIap, setupPurchaseListeners, endIapConnection, iapStore } from "../lib/iap/index";
 import { validateGooglePurchase } from "../lib/api/billingGoogle";
+import { loadLicenceState } from "../lib/tracking/nativeLocation";
 import { validateApplePurchase } from "../lib/api/billing";
 import { PaywallProvider } from "../components/paywall";
 import { PromptProvider } from "../components/prompt";
@@ -174,6 +175,12 @@ const HEADER_TITLE_STYLE = { fontFamily: "PlusJakartaSans_300Light", color: "#f0
 // 2026). Internally gated on onboarding + permissions; never prompts; never
 // throws.
 void bootNativeEngineOnLaunch();
+
+// Load the persisted Android licence verdict before React renders. Without
+// this, every cold launch optimistically shows "ClearTrack is on" until the
+// first start() attempt rejects again - so an unlicensed release build would
+// flash a false promise on every single launch.
+void loadLicenceState();
 
 function RootNavigator() {
   const { isLoading, isAuthenticated } = useAuth();
