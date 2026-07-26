@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "548565204067",
+    "project_id": "mileclear-495918",
+    "storage_bucket": "mileclear-495918.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:548565204067:android:f29c5f15f6c3dcca07cc56",
+        "android_client_info": {
+          "package_name": "com.mileclear.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBhnxYi07zEptGYagah2ObjHugPHP5sQuY"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
