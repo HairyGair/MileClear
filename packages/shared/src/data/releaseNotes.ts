@@ -75,12 +75,13 @@ export const ACTIVE_ANNOUNCEMENT: SiteAnnouncement | null = null;
 
 export const RELEASE_NOTES: ReleaseNote[] = [
   {
-    // TestFlight build 80, uploaded 28 Jul - NOT yet submitted for App
-    // Review (1.3.5 still holds Apple's review slot; if that stays stuck
-    // this build supersedes it). ⏳ ON REVIEW SUBMISSION: relabel
-    // "Pending Review". ON APPROVAL: "Latest" here, "App Store" on the
-    // previous public release - banner + Product Update email key off
-    // "Latest".
+    // TestFlight build 80, uploaded 28 Jul. 1.3.5 was approved later the
+    // same day, so the review slot is free - submit this once the
+    // on-device smoke test passes (+ upload the new screenshot set
+    // first; the slots unlocked with 1.3.5's approval).
+    // ⏳ ON REVIEW SUBMISSION: relabel "Pending Review". ON APPROVAL:
+    // "Latest" here, "App Store" on 1.3.5 - banner + Product Update
+    // email key off "Latest".
     version: "1.3.6",
     date: "July 2026",
     label: "In Testing",
@@ -92,11 +93,10 @@ export const RELEASE_NOTES: ReleaseNote[] = [
     ],
   },
   {
-    // ⏳ ON APPROVAL: flip this label to "Latest" and 1.3.4's to
-    // "App Store" — the banner + Product Update email key off "Latest".
+    // Approved + released 28 Jul 2026.
     version: "1.3.5",
     date: "July 2026",
-    label: "Pending Review",
+    label: "Latest",
     ctaUrl: "https://mileclear.com/releases",
     ctaLabel: "Read the release notes",
     banner: {
@@ -125,7 +125,7 @@ export const RELEASE_NOTES: ReleaseNote[] = [
   {
     version: "1.3.4",
     date: "July 2026",
-    label: "Latest",
+    label: "App Store",
     ctaUrl: "https://mileclear.com/releases",
     ctaLabel: "Read the release notes",
     banner: {
