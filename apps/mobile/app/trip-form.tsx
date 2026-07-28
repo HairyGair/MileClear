@@ -1924,22 +1924,33 @@ export default function TripFormScreen() {
         // the lock held with detection_skipped/active_quick_trip on repeat.
         // Idempotent, so it is safe when handleArrived already did the work.
         //
-        // The value guard matters: this branch is the generic create path, so
-        // it also runs for a plain manual entry typed while a real shift is
-        // recording. The background location task is SHARED with shift
-        // tracking, so it may only be stopped when the lock we just released
-        // was actually the quick trip — hence keying off the delete's own
-        // changes count rather than stopping unconditionally.
-        const db = await getDatabase();
-        await db.runAsync("DELETE FROM tracking_state WHERE key = ?", [QUICK_TRIP_KEY]);
-        const releasedQuickTrip = await db.runAsync(
-          "DELETE FROM tracking_state WHERE key = 'active_shift_id' AND value = '__quick_trip__'"
-        );
-        if (releasedQuickTrip.changes > 0) {
-          await db.runAsync(
-            "DELETE FROM shift_coordinates WHERE shift_id = '__quick_trip__'"
-          ).catch(() => {});
-          await stopQuickTripLocationTask().catch(() => {});
+        // Two guards bound the cleanup:
+        //
+        // 1. Mode. This branch is the generic create path, so it also runs for
+        //    a MANUAL entry — and the missed-journey prefill drops straight
+        //    into manual mode without ever checking for a live quick trip, so
+        //    a quick trip CAN be recording in the background while a manual
+        //    save happens. Touching its state from here would kill the live
+        //    recording; even the old unconditional QUICK_TRIP_KEY delete
+        //    orphaned its lock into exactly the stranded state described
+        //    above. A stray lock a manual save leaves alone is still healed
+        //    by the span caps in shiftSuppressesAutoDetection.
+        //
+        // 2. The conditional delete's changes count. The background location
+        //    task is SHARED with shift tracking, so it may only be stopped
+        //    when the lock we just released was actually the quick trip.
+        if (mode !== "manual") {
+          const db = await getDatabase();
+          await db.runAsync("DELETE FROM tracking_state WHERE key = ?", [QUICK_TRIP_KEY]);
+          const releasedQuickTrip = await db.runAsync(
+            "DELETE FROM tracking_state WHERE key = 'active_shift_id' AND value = '__quick_trip__'"
+          );
+          if (releasedQuickTrip.changes > 0) {
+            await db.runAsync(
+              "DELETE FROM shift_coordinates WHERE shift_id = '__quick_trip__'"
+            ).catch(() => {});
+            await stopQuickTripLocationTask().catch(() => {});
+          }
         }
       }
 
@@ -2076,7 +2087,7 @@ export default function TripFormScreen() {
     distanceMiles, startedAt, endedAt, notes, projectLabel, router, showPaywall, routeSource,
     anomalyDef, anomalyResponse, anomalyCustomNote,
     locationQuestions, locationResponses, locationCustomNotes,
-    odometerStart, odometerEnd, missedId,
+    odometerStart, odometerEnd, missedId, mode,
   ]);
 
   const handleCancel = useCallback(() => {
