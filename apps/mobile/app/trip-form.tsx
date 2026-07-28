@@ -43,7 +43,7 @@ import type { TripClassification, TripCategory, PlatformTag, BusinessPurpose, Ve
 import { formatPence } from "@mileclear/shared";
 import { createExpense } from "../lib/api/expenses";
 import { getDatabase } from "../lib/db/index";
-import { startQuickTripTracking, stopQuickTripTracking, clearDetectionCooldown, peekBackgroundCoordinates } from "../lib/tracking";
+import { startQuickTripTracking, stopQuickTripTracking, stopQuickTripLocationTask, clearDetectionCooldown, peekBackgroundCoordinates } from "../lib/tracking";
 import { recordLastSavedTrip } from "../lib/events/lastTrip";
 import { maybeOfferAlwaysAfterCapture } from "../lib/permissions/location";
 import { maybeRequestReview } from "../lib/rating/index";
@@ -1908,9 +1908,39 @@ export default function TripFormScreen() {
           }
         }
 
-        // Clear persisted quick trip state
+        // Clear persisted quick trip state.
+        //
+        // The lock and the task go too, not just the start row. handleArrived
+        // normally tears both down via stopQuickTripTracking(), but a save can
+        // reach here without that having run — most obviously when the auto
+        // recorder finalized the same journey first and the form saved on top
+        // of it. Clearing only QUICK_TRIP_KEY then leaves active_shift_id on
+        // __quick_trip__ with no start row, which is the worst combination:
+        // the background location task keeps writing breadcrumbs under the
+        // stale id, and shiftSuppressesAutoDetection reads any breadcrumb
+        // under 20 minutes old as proof the trip is still live, so the lock
+        // sustains its own liveness check and auto-detection never runs again.
+        // Freja Bounds, 27 Jul 2026: stranded on her first drive, dump showed
+        // the lock held with detection_skipped/active_quick_trip on repeat.
+        // Idempotent, so it is safe when handleArrived already did the work.
+        //
+        // The value guard matters: this branch is the generic create path, so
+        // it also runs for a plain manual entry typed while a real shift is
+        // recording. The background location task is SHARED with shift
+        // tracking, so it may only be stopped when the lock we just released
+        // was actually the quick trip — hence keying off the delete's own
+        // changes count rather than stopping unconditionally.
         const db = await getDatabase();
         await db.runAsync("DELETE FROM tracking_state WHERE key = ?", [QUICK_TRIP_KEY]);
+        const releasedQuickTrip = await db.runAsync(
+          "DELETE FROM tracking_state WHERE key = 'active_shift_id' AND value = '__quick_trip__'"
+        );
+        if (releasedQuickTrip.changes > 0) {
+          await db.runAsync(
+            "DELETE FROM shift_coordinates WHERE shift_id = '__quick_trip__'"
+          ).catch(() => {});
+          await stopQuickTripLocationTask().catch(() => {});
+        }
       }
 
       // Reset detection cooldown so the next drive triggers a notification promptly

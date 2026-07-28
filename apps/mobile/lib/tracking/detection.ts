@@ -154,6 +154,7 @@ const QUICK_TRIP_STALE_MS = 3 * 60 * 60 * 1000; // 3h - a quick_trip_start older
 const STALE_ACTIVE_SHIFT_MS = 18 * 60 * 60 * 1000; // 18h - no real gig shift runs this long; an active_shift_id older than this is abandoned and must not keep muting the engine
 const QUICK_TRIP_LIVE_COORD_MS = 20 * 60 * 1000; // 20 min - a breadcrumb this recent means the quick trip is genuinely recording RIGHT NOW; never clear it
 const QUICK_TRIP_MAX_SPAN_MS = STALE_ACTIVE_SHIFT_MS; // 18h - a quick trip whose recording has spanned longer than any real single journey is a stuck lock (app killed mid-trip / Arrive never tapped) muting auto-detection; recover its route into trips and release it, mirroring the real-shift backstop
+const QUICK_TRIP_NO_START_MAX_SPAN_MS = 3 * 60 * 60 * 1000; // 3h - same backstop, but for a lock with NO quick_trip_start row. That combination means no trip-form session owns the recording, so the only thing keeping the lock "live" is the background location task feeding its own liveness check (Freja Bounds, 27 Jul 2026). A genuine quick trip missing its start row is possible (Anthony, 1 Jun) but cannot plausibly run this long
 const BACKGROUND_FETCH_INTERVAL_S = 15 * 60; // 15 minutes - iOS treats as a hint, actual cadence varies
 const COOLDOWN_MS = 20 * 60 * 1000; // 20 minutes
 const BUFFER_MAX_AGE_MS = 30 * 60 * 1000; // 30 minutes
@@ -540,7 +541,16 @@ export async function shiftSuppressesAutoDetection(
     firstCoord ? new Date(firstCoord.recorded_at).getTime() : Infinity,
     Number.isFinite(quickTripStartMs) ? quickTripStartMs : Infinity
   );
-  if (Number.isFinite(anchorMs) && Date.now() - anchorMs > QUICK_TRIP_MAX_SPAN_MS) {
+  // A lock with no quick_trip_start row gets a much tighter cap. Without that
+  // row no trip-form session owns the recording, yet the background location
+  // task started by startQuickTripTracking keeps writing breadcrumbs under
+  // __quick_trip__ — which is exactly what the liveness check below reads. The
+  // lock therefore feeds its own "live" verdict and the 18h cap becomes the
+  // only escape. Freja Bounds (27 Jul 2026) was stranded that way from her
+  // first drive: an auto finalize saved the journey and left the lock behind,
+  // and every detection tick after it logged detection_skipped/active_quick_trip.
+  const spanCapMs = qts ? QUICK_TRIP_MAX_SPAN_MS : QUICK_TRIP_NO_START_MAX_SPAN_MS;
+  if (Number.isFinite(anchorMs) && Date.now() - anchorMs > spanCapMs) {
     // Atomically CLAIM the lock: onLocation / onMotionChange / onHeartbeat can
     // all reach this branch in the same event-loop window, and processShiftTrips
     // is not idempotent (it reads shift_coordinates up front and deletes them
@@ -559,8 +569,11 @@ export async function shiftSuppressesAutoDetection(
     try {
       // Dynamic import: tracking/index.ts imports from this module, so a static
       // import would be a cycle. processShiftTrips keeps its coords on failure.
-      const { processShiftTrips } = await import("./index");
+      const { processShiftTrips, stopQuickTripLocationTask } = await import("./index");
       recovered = await processShiftTrips(QUICK_TRIP_SHIFT_ID);
+      // Stop the task that has been feeding this lock, or it keeps delivering
+      // fixes for a trip nobody is driving.
+      await stopQuickTripLocationTask();
     } catch {
       // Best-effort: the lock is already released, so detection resumes even if
       // recovery fails.
@@ -568,6 +581,7 @@ export async function shiftSuppressesAutoDetection(
     logDetectionEvent("stale_quick_trip_recovered", {
       spanHours: Math.round((Date.now() - anchorMs) / 3_600_000),
       tripsRecovered: recovered,
+      hadStartRow: !!qts,
     }).catch(() => {});
     return false;
   }
@@ -602,6 +616,10 @@ export async function shiftSuppressesAutoDetection(
   await db.runAsync("DELETE FROM tracking_state WHERE key = 'active_shift_id'");
   await db.runAsync("DELETE FROM tracking_state WHERE key = 'quick_trip_start'");
   await db.runAsync("DELETE FROM shift_coordinates WHERE shift_id = ?", [QUICK_TRIP_SHIFT_ID]);
+  try {
+    const { stopQuickTripLocationTask } = await import("./index");
+    await stopQuickTripLocationTask();
+  } catch {}
   logDetectionEvent("orphaned_quick_trip_cleared", {}).catch(() => {});
   return false;
 }
@@ -960,6 +978,69 @@ export async function finalizeAutoTrip(): Promise<void> {
       const { isNativeEngineAvailable, destroyNativeLocations } = await import("./nativeLocation");
       if (isNativeEngineAvailable()) await destroyNativeLocations();
     } catch {}
+    await releaseStrandedQuickTripLock();
+  }
+}
+
+/**
+ * Release a __quick_trip__ lock that an auto finalize has just orphaned.
+ *
+ * The auto recorder and a quick trip can both be armed for the same journey:
+ * the user taps Start Trip while detection already has a recording open, and
+ * cancelAutoRecording() inside startQuickTripTracking() races the fix that
+ * re-arms it. Whichever way it happens, the auto path then finalizes the drive
+ * on its own — the stale sweeper does this up to 40 minutes later — and saves a
+ * trip WITHOUT ever going through stopQuickTripTracking(). So active_shift_id
+ * stays on __quick_trip__ and the background location task keeps running.
+ *
+ * That is not a cosmetic leak. The task goes on writing breadcrumbs under the
+ * stale id, shiftSuppressesAutoDetection reads any breadcrumb under 20 minutes
+ * old as proof the trip is live, and the lock therefore sustains its own
+ * liveness check indefinitely. Freja Bounds (day-one user, 27 Jul 2026) was
+ * stranded from her very first drive: every detection tick afterwards logged
+ * detection_skipped/active_quick_trip and nothing was ever captured again.
+ *
+ * Deliberately conservative, because getting this wrong kills a recording trip:
+ * release ONLY when there is no quick_trip_start row AND no breadcrumb has
+ * landed recently. A start row means the trip form owns the recording. Fresh
+ * breadcrumbs mean something is still feeding it, and a quick trip CAN run
+ * without its start row (Anthony, 1 Jun) — that combination is left to the
+ * tightened no-start-row span cap in shiftSuppressesAutoDetection, which waits
+ * for evidence rather than acting on one ambiguous moment. The decisive fix for
+ * the common case is in the trip form, which releases the lock on save.
+ */
+async function releaseStrandedQuickTripLock(): Promise<void> {
+  try {
+    const db = await getDatabase();
+    const activeShift = await db.getFirstAsync<{ value: string }>(
+      "SELECT value FROM tracking_state WHERE key = 'active_shift_id'"
+    );
+    if (activeShift?.value !== QUICK_TRIP_SHIFT_ID) return;
+    const qts = await db.getFirstAsync<{ value: string }>(
+      "SELECT value FROM tracking_state WHERE key = 'quick_trip_start'"
+    );
+    if (qts) return; // a real trip-form session owns this recording
+
+    const lastCoord = await db.getFirstAsync<{ recorded_at: string }>(
+      "SELECT recorded_at FROM shift_coordinates WHERE shift_id = ? ORDER BY recorded_at DESC LIMIT 1",
+      [QUICK_TRIP_SHIFT_ID]
+    );
+    if (lastCoord) {
+      const ms = new Date(lastCoord.recorded_at).getTime();
+      if (Number.isFinite(ms) && Date.now() - ms < QUICK_TRIP_LIVE_COORD_MS) return;
+    }
+
+    await db.runAsync("DELETE FROM tracking_state WHERE key = 'active_shift_id'");
+    try {
+      const { stopQuickTripLocationTask } = await import("./index");
+      await stopQuickTripLocationTask();
+    } catch {}
+    // Coords are left in place rather than deleted: the next Start Trip clears
+    // them anyway (trip-form), and if this call was wrong about the trip being
+    // over, the form can still recover the trail via peekBackgroundCoordinates.
+    logDetectionEvent("stranded_quick_trip_lock_released", {}).catch(() => {});
+  } catch {
+    // never let cleanup break a finalize
   }
 }
 
