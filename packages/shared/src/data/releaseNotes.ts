@@ -75,6 +75,23 @@ export const ACTIVE_ANNOUNCEMENT: SiteAnnouncement | null = null;
 
 export const RELEASE_NOTES: ReleaseNote[] = [
   {
+    // TestFlight build 80, uploaded 28 Jul - NOT yet submitted for App
+    // Review (1.3.5 still holds Apple's review slot; if that stays stuck
+    // this build supersedes it). ⏳ ON REVIEW SUBMISSION: relabel
+    // "Pending Review". ON APPROVAL: "Latest" here, "App Store" on the
+    // previous public release - banner + Product Update email key off
+    // "Latest".
+    version: "1.3.6",
+    date: "July 2026",
+    label: "In Testing",
+    ctaUrl: "https://mileclear.com/releases",
+    ctaLabel: "Read the release notes",
+    items: [
+      "**Automatic detection can no longer get stuck after Start Trip.** In rare circumstances a trip started from the map could leave a tracking flag behind when it saved, and automatic drive detection would quietly stand down until the app was reopened from scratch. The flag is now released on every save path, and if one does get stuck the app clears it itself within a few hours instead of staying silent. Found and fixed the same day a driver reported it.",
+      "**Everything from 1.3.5 is in this build too** - trip splitting, the truer tax estimate, real road routes on manual trips, and the Making Tax Digital groundwork.",
+    ],
+  },
+  {
     // ⏳ ON APPROVAL: flip this label to "Latest" and 1.3.4's to
     // "App Store" — the banner + Product Update email key off "Latest".
     version: "1.3.5",
