@@ -16,6 +16,7 @@ import { Platform, Dimensions, PixelRatio, NativeModules } from "react-native";
 import * as SecureStore from "expo-secure-store";
 import * as Crypto from "expo-crypto";
 import Constants from "expo-constants";
+import { requireOptionalNativeModule } from "expo-modules-core";
 
 const DEVICE_ID_KEY = "mileclear_device_id";
 
@@ -33,18 +34,56 @@ const KEYCHAIN_OPTS = {
 let cachedHeaders: Record<string, string> | null = null;
 let cachedDeviceId: string | null = null;
 
-// ⛔ expo-network is BANNED from this file (and from any OTA-served code)
-// until the fleet's oldest supported runtime ships its native module.
-// A `require("expo-network")` here — even lazy, even inside try/catch —
-// puts the module's JS in every OTA bundle, and RELEASE bundles crash the
-// app AT LAUNCH on binaries without the native module (builds ≤ 78).
-// That single line took the fleet down TWICE: the 18 Jul "boot-keepalive"
+// ⛔ `require("expo-network")` is BANNED from this file (and from any
+// OTA-served code) until the fleet's oldest supported runtime ships its
+// native module. That require — even lazy, even inside try/catch — puts
+// the module's JS in every OTA bundle, and RELEASE bundles crash the app
+// AT LAUNCH on binaries without the native module (builds ≤ 78). That
+// single line took the fleet down TWICE: the 18 Jul "boot-keepalive"
 // incident (the keep-alive was wrongly blamed) and again on 22 Jul when
 // the split-trip OTA carried it minus the keep-alive. Dev-mode Metro
 // tolerates it, so a Metro/simulator check does NOT clear it — only a
-// release-built binary test does. The HMRC Gov-Client-Local-IPs header
-// (the reason it was added) ships via the build-79+ BINARY path instead;
-// reintroduce OTA-side only when runtimes ≤ 78 are retired.
+// release-built binary test does.
+//
+// The sanctioned pattern below (restored 28 Jul for the 1.3.6/build-80
+// binary) is different in kind, not just degree:
+// requireOptionalNativeModule("ExpoNetwork") never references the
+// expo-network package, so Metro has nothing of it to bundle — it asks
+// the native registry for the module by name via expo-modules-core,
+// which every runtime already ships, and returns null when the module
+// is absent. Binaries ≤ 78 simply omit the header; build 79+ send it.
+// Validation for any bundle touching this file: grep the exported bundle
+// for "NetworkStateType" (a string unique to expo-network's JS) — it
+// must be ABSENT.
+
+let cachedLocalIp: { ip: string; at: string } | null = null;
+let localIpFetchedAtMs = 0;
+
+/**
+ * Device local (LAN) IP, required for HMRC's Gov-Client-Local-IPs fraud
+ * header (validator treats it as required for MOBILE_APP_VIA_SERVER since
+ * Jul 2026). Cached for 5 minutes (Wi-Fi↔cellular flips change it, but
+ * per-request native calls would be wasteful).
+ */
+async function getLocalIp(): Promise<{ ip: string; at: string } | null> {
+  const FIVE_MIN = 5 * 60 * 1000;
+  if (cachedLocalIp && Date.now() - localIpFetchedAtMs < FIVE_MIN) return cachedLocalIp;
+  try {
+    const ExpoNetwork = requireOptionalNativeModule<{
+      getIpAddressAsync?: () => Promise<string>;
+    }>("ExpoNetwork");
+    const ip = await ExpoNetwork?.getIpAddressAsync?.();
+    // expo-network returns "0.0.0.0" when unavailable — omit rather than lie.
+    if (ip && ip !== "0.0.0.0") {
+      cachedLocalIp = { ip, at: new Date().toISOString() };
+      localIpFetchedAtMs = Date.now();
+      return cachedLocalIp;
+    }
+  } catch {
+    // Native module missing (older binary / Expo Go) — omit the header.
+  }
+  return null;
+}
 
 /**
  * Get-or-create a UUID device identifier persisted in SecureStore. Acts
@@ -162,14 +201,22 @@ async function buildBaseHeaders(): Promise<Record<string, string>> {
  */
 export async function getClientContextHeaders(): Promise<Record<string, string>> {
   const base = await buildBaseHeaders();
-  return {
+  const headers: Record<string, string> = {
     ...base,
     "X-MileClear-Public-IP-Timestamp": new Date().toISOString(),
   };
+  const localIp = await getLocalIp();
+  if (localIp) {
+    headers["X-MileClear-Local-Ips"] = localIp.ip;
+    headers["X-MileClear-Local-Ips-Timestamp"] = localIp.at;
+  }
+  return headers;
 }
 
 /** Test-only: clear caches between tests. */
 export function resetClientContextCache(): void {
   cachedHeaders = null;
   cachedDeviceId = null;
+  cachedLocalIp = null;
+  localIpFetchedAtMs = 0;
 }
