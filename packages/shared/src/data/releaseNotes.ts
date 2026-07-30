@@ -75,16 +75,13 @@ export const ACTIVE_ANNOUNCEMENT: SiteAnnouncement | null = null;
 
 export const RELEASE_NOTES: ReleaseNote[] = [
   {
-    // TestFlight build 81 (supersedes the unsubmitted build 80; 1.3.6 was
-    // never released anywhere public, so the version folds forward).
-    // Submit for review once the on-device smoke test passes (+ upload the
-    // new screenshot set first; the slots unlocked with 1.3.5's approval).
-    // ⏳ ON REVIEW SUBMISSION: relabel "Pending Review". ON APPROVAL:
-    // "Latest" here, "App Store" on 1.3.5 - banner + Product Update
-    // email key off "Latest".
+    // Build 81. SUBMITTED for review 30 Jul 2026 (~14:30) with the new
+    // screenshot set (price-free first slots) and the 500-drivers promo text.
+    // ⏳ ON APPROVAL: "Latest" here, "App Store" on 1.3.5 - banner + Product
+    // Update email key off "Latest".
     version: "1.3.7",
     date: "July 2026",
-    label: "In Testing",
+    label: "Pending Review",
     ctaUrl: "https://mileclear.com/releases",
     ctaLabel: "Read the release notes",
     items: [
