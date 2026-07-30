@@ -119,6 +119,12 @@ async function initializeSchema(database: SQLite.SQLiteDatabase): Promise<void> 
       recorded_at TEXT NOT NULL
     );
 
+    -- Finalize reads ORDER BY recorded_at and the delete-after-save consume
+    -- deletes WHERE recorded_at <= ?; without this, both full-scan a table
+    -- that a stuck recording can grow into the thousands (30 Jul 2026).
+    CREATE INDEX IF NOT EXISTS idx_detection_coords_recorded_at
+      ON detection_coordinates (recorded_at);
+
     CREATE TABLE IF NOT EXISTS detection_events (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       recorded_at TEXT NOT NULL,

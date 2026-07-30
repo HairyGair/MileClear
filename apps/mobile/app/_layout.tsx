@@ -186,11 +186,25 @@ function RootNavigator() {
       setOnboardingChecked(true);
       return;
     }
+    // Watchdog (30 Jul 2026): getDatabase() shares ONE connection app-wide,
+    // and a boot-path write burst (native-store reconcile on a swollen
+    // buffer) can queue this gate's query for minutes. A HANG is not a
+    // rejection, so the .catch below never fires and showLoading pins its
+    // black touch-blocking overlay over the whole app - indistinguishable
+    // from a dead screen. The hydration gate next door has had a 30s timeout
+    // since day one; this gate gets one too. Onboarding has auto-marked
+    // itself complete since 21 May (both branches write 'true'), so
+    // proceeding as complete matches what the query would conclude anyway.
+    const fallback = setTimeout(() => {
+      setOnboardingComplete(true);
+      setOnboardingChecked(true);
+    }, 15_000);
     getDatabase()
       .then(async (db) => {
         const row = await db.getFirstAsync<{ value: string }>(
           "SELECT value FROM tracking_state WHERE key = 'onboarding_complete'"
         );
+        clearTimeout(fallback);
         if (row?.value === "true") {
           setOnboardingComplete(true);
         } else {
@@ -223,9 +237,11 @@ function RootNavigator() {
           });
       })
       .catch(() => {
+        clearTimeout(fallback);
         setOnboardingComplete(false);
         setOnboardingChecked(true);
       });
+    return () => clearTimeout(fallback);
   }, [isAuthenticated]);
 
   const [hydrating, setHydrating] = useState(false);

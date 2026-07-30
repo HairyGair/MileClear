@@ -161,6 +161,16 @@ function buildConfig(BGGeo: BgGeo): Record<string, unknown> {
     // stays off — we upload through our own offline sync queue, not RNBG's HTTP.
     persistMode: BGGeo.PERSIST_MODE_LOCATION ?? 1,
     autoSync: false,
+    // Bound the native store. With autoSync off NOTHING prunes it except our
+    // destroyLocations() after finalize — and a finalize that dies mid-flight
+    // (Eddie Doyle, 29 Jul 2026: iOS suspended the app 1s into a 2,053-coord
+    // finalize) leaves the store to grow without limit. Every later launch
+    // then drags the whole store across the bridge in reconcile, which is how
+    // a device bricks itself into a blank screen. 10k records ≈ 750mi at the
+    // 20m distanceFilter — far beyond any real journey; 3 days covers the
+    // longest observed deferral spans (Keir's overnight multileg).
+    maxRecordsToPersist: 10000,
+    maxDaysToPersist: 3,
     // Quieter logs in production.
     debug: false,
     logLevel: 0,
@@ -709,6 +719,13 @@ export async function destroyNativeLocations(): Promise<void> {
   }
 }
 
+// Hard ceiling on how many native fixes one reconcile will rebuild into the
+// JS buffer. 6,000 covers Eddie Doyle's 26-hour runaway store (2,054 coords)
+// three times over; anything bigger is pathological accumulation, and the
+// most RECENT fixes are the ones that belong to real recent driving. Keeping
+// the tail (not the head) matches how the multileg split consumes legs.
+const MAX_RECONCILE_COORDS = 6000;
+
 async function reconcileNativeBuffer(BGGeo: BgGeo): Promise<void> {
   try {
     const native = await BGGeo.getLocations();
@@ -719,19 +736,40 @@ async function reconcileNativeBuffer(BGGeo: BgGeo): Promise<void> {
         "SELECT COUNT(*) AS c FROM detection_coordinates"
       ))?.c ?? 0;
     if (native.length <= jsCount) return; // JS buffer already has everything
-    await db.runAsync("DELETE FROM detection_coordinates");
-    for (const loc of native) {
-      const c = loc.coords;
-      if (!c) continue;
-      await db.runAsync(
-        `INSERT INTO detection_coordinates (lat, lng, speed, accuracy, recorded_at)
-         VALUES (?, ?, ?, ?, ?)`,
-        [c.latitude, c.longitude, c.speed ?? null, c.accuracy ?? null, loc.timestamp]
-      );
+    const kept = native.length > MAX_RECONCILE_COORDS ? native.slice(-MAX_RECONCILE_COORDS) : native;
+    // One transaction + multi-row inserts. The old shape — one awaited
+    // runAsync per fix, no transaction — meant a big store produced thousands
+    // of serialized writes (each its own journal commit) on the app's single
+    // shared SQLite connection, starving every boot-path query behind it:
+    // the launch never finished, destroyLocations() never ran, and the store
+    // was even bigger next launch. ~40 statements now instead of ~6,000.
+    await db.execAsync("BEGIN IMMEDIATE");
+    try {
+      await db.runAsync("DELETE FROM detection_coordinates");
+      const CHUNK = 150; // 5 params/row, safely under SQLite's 999-variable cap
+      for (let i = 0; i < kept.length; i += CHUNK) {
+        const rows = kept.slice(i, i + CHUNK).filter((l) => l.coords);
+        if (rows.length === 0) continue;
+        const placeholders = rows.map(() => "(?, ?, ?, ?, ?)").join(", ");
+        const params: (number | string | null)[] = [];
+        for (const loc of rows) {
+          const c = loc.coords!;
+          params.push(c.latitude, c.longitude, c.speed ?? null, c.accuracy ?? null, loc.timestamp);
+        }
+        await db.runAsync(
+          `INSERT INTO detection_coordinates (lat, lng, speed, accuracy, recorded_at) VALUES ${placeholders}`,
+          params
+        );
+      }
+      await db.execAsync("COMMIT");
+    } catch (txErr) {
+      await db.execAsync("ROLLBACK").catch(() => {});
+      throw txErr;
     }
     logDetectionEvent("native_buffer_reconciled", {
       jsCount,
       nativeCount: native.length,
+      dropped: native.length - kept.length,
     }).catch(() => {});
   } catch (err) {
     logDetectionEvent("native_reconcile_error", {

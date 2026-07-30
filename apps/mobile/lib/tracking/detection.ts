@@ -1159,39 +1159,47 @@ async function _finalizeAutoTripInner(): Promise<void> {
   // below; this is the single notification cleanup point.
   dismissRecordingActiveNotification().catch(() => {});
 
-  // Clear state regardless of outcome
-  await db.runAsync("DELETE FROM detection_coordinates");
-  await db.runAsync(
-    "DELETE FROM tracking_state WHERE key IN ('auto_recording_active', 'last_driving_speed_at', 'driving_detection_count', 'finalization_mode', 'stop_anchor')"
-  );
-
-  // Multi-stop journey: re-buffer the remaining real legs and re-arm so they
-  // each finalise as their own trip. We process the oldest leg in THIS pass
-  // (above); finalizeAutoTrip's drain loop sees deferredFinalizePending and
-  // runs the next pass immediately, inside the re-entrancy guard, re-running
-  // the same split on a smaller buffer until it terminates leg by leg. The
-  // native store was already drained, and is cleared again in
-  // finalizeAutoTrip's finally, so the next reconcile won't clobber what we
-  // re-buffer here.
-  if (deferredCoords.length > 0) {
-    try {
-      for (const c of deferredCoords) {
-        await db.runAsync(
-          `INSERT INTO detection_coordinates (lat, lng, speed, accuracy, recorded_at)
-           VALUES (?, ?, ?, ?, ?)`,
-          [c.lat, c.lng, c.speed ?? null, c.accuracy ?? null, c.recorded_at]
-        );
-      }
+  // ── Delete-AFTER-save (30 Jul 2026, Eddie Doyle's 153-mile Carmarthen →
+  // Witney drive). The buffer used to be cleared HERE, "regardless of
+  // outcome" — seconds of network work (map-match, geocode, classify) then
+  // stood between the irreversible delete and the actual save. iOS suspended
+  // Eddie's app 1s into that window and 2,053 coords ceased to exist with no
+  // recovery path. Now NOTHING is deleted until the outcome is known: every
+  // exit path calls consumeProcessedBuffer() at its end, and a finalize that
+  // dies mid-flight leaves buffer + armed state intact, so the next boot's
+  // checkStaleAutoRecording simply runs the whole finalize again. Idempotency
+  // for the crash-after-save-before-consume window (now milliseconds, and
+  // local-only) is handled by the started_at / ended_at dedup guards before
+  // the save calls below.
+  //
+  // Multileg deferral folds in here too: deferred legs are simply NEVER
+  // deleted (targeted delete up to the processed leg's last coord) instead of
+  // the old delete-all + re-insert loop, and the re-arm + timestamp re-plant
+  // (the Keir Fawcus boot-rescue fix) happens at consume time.
+  const consumeProcessedBuffer = async (): Promise<void> => {
+    if (deferredCoords.length > 0 && allCoords.length > 0) {
+      const processedMax = allCoords[allCoords.length - 1].recorded_at;
+      await db.runAsync(
+        "DELETE FROM detection_coordinates WHERE recorded_at <= ?",
+        [processedMax]
+      );
+    } else {
+      await db.runAsync("DELETE FROM detection_coordinates");
+    }
+    await db.runAsync(
+      "DELETE FROM tracking_state WHERE key IN ('auto_recording_active', 'last_driving_speed_at', 'driving_detection_count', 'finalization_mode', 'stop_anchor')"
+    );
+    if (deferredCoords.length > 0) {
       await db.runAsync(
         "INSERT OR REPLACE INTO tracking_state (key, value) VALUES ('auto_recording_active', '1')"
       );
       // Re-plant last_driving_speed_at from the newest deferred coordinate.
-      // The "Clear state" block above deleted it, and an ARMED flag with NO
-      // timestamp reads as corrupt to checkStaleAutoRecording, which then
-      // DISARMS instead of finalizing - killing the boot-time rescue for a
-      // deferred payload that outlives this JS session (app suspended or
-      // killed before the drain loop finishes). With a real, old timestamp
-      // the next startup finalizes it into trips instead.
+      // An ARMED flag with NO timestamp reads as corrupt to
+      // checkStaleAutoRecording, which then DISARMS instead of finalizing -
+      // killing the boot-time rescue for a deferred payload that outlives
+      // this JS session (app suspended or killed before the drain loop
+      // finishes). With a real, old timestamp the next startup finalizes it
+      // into trips instead.
       const newest = deferredCoords[deferredCoords.length - 1];
       const newestMs = new Date(newest.recorded_at).getTime();
       await db.runAsync(
@@ -1200,14 +1208,13 @@ async function _finalizeAutoTripInner(): Promise<void> {
       );
       logDetectionEvent("finalize_multileg_deferred", { coords: deferredCoords.length }).catch(() => {});
       deferredFinalizePending = true;
-    } catch {
-      // Best-effort: if re-buffering fails, we still saved the oldest leg.
     }
-  }
+  };
 
   if (allCoords.length < 2) {
     // No meaningful trip - dismiss Live Activity immediately
     logDetectionEvent("finalize_no_coords").catch(() => {});
+    await consumeProcessedBuffer();
     endLiveActivity().catch(() => {});
     // Re-arm the departure anchor at the current position. Critical for
     // phantom anchor_exit recovery: indoor GPS drift fires a false exit,
@@ -1250,6 +1257,7 @@ async function _finalizeAutoTripInner(): Promise<void> {
       spanMs,
       distanceMiles: earlyDistMiles,
     }).catch(() => {});
+    await consumeProcessedBuffer();
     endLiveActivity().catch(() => {});
     try {
       const { setDepartureAnchor } = await import("../geofencing/index");
@@ -1302,6 +1310,7 @@ async function _finalizeAutoTripInner(): Promise<void> {
       keptCoords: coords.length,
       endIdx,
     }).catch(() => {});
+    await consumeProcessedBuffer();
     return;
   }
 
@@ -1333,6 +1342,29 @@ async function _finalizeAutoTripInner(): Promise<void> {
   }
   const first = filteredCoords[0];
   const last = filteredCoords[filteredCoords.length - 1];
+
+  // Idempotency guard for the delete-after-save ordering: a process death
+  // between a successful save and consumeProcessedBuffer() re-runs this
+  // finalize with identical coords at the next boot. started_at is copied
+  // verbatim from the first buffered coord (deterministic through the split,
+  // trim and outlier filter), so an exact local match means this exact leg is
+  // already saved — consume the buffer and stop instead of duplicating.
+  try {
+    const already = await db.getFirstAsync<{ id: string }>(
+      "SELECT id FROM trips WHERE started_at = ? LIMIT 1",
+      [first.recorded_at]
+    );
+    if (already) {
+      logDetectionEvent("finalize_dedup_local_skip", { tripId: already.id }).catch(() => {});
+      await consumeProcessedBuffer();
+      endLiveActivity().catch(() => {});
+      return;
+    }
+  } catch {
+    // Guard is best-effort; the 2-minute dedup window in syncCreateTrip still
+    // covers the common case.
+  }
+
   const distanceResult = await bestTraceDistance(filteredCoords, gpsSumDistance);
   const totalDistance = distanceResult.distanceMiles;
   const tripQuality = computeTripQuality(allCoords, filteredCoords, {
@@ -1343,6 +1375,7 @@ async function _finalizeAutoTripInner(): Promise<void> {
   if (totalDistance < MIN_AUTO_TRIP_DISTANCE_MILES) {
     // Too short to save - dismiss Live Activity immediately
     logDetectionEvent("finalize_too_short", { distance: totalDistance, gpsSumDistance }).catch(() => {});
+    await consumeProcessedBuffer();
     endLiveActivity().catch(() => {});
     // Re-arm the departure anchor at the end of the brief movement so the
     // next real trip gets a fresh exit event. Without this, a short walk
@@ -1375,6 +1408,7 @@ async function _finalizeAutoTripInner(): Promise<void> {
       durationSec: Math.round(durationSec),
       avgMph: Math.round(avgMph * 10) / 10,
     }).catch(() => {});
+    await consumeProcessedBuffer();
     endLiveActivity().catch(() => {});
     try {
       const { setDepartureAnchor } = await import("../geofencing/index");
@@ -1418,6 +1452,7 @@ async function _finalizeAutoTripInner(): Promise<void> {
         coords: filteredCoords.length,
         reason: "implausible_distance",
       }).catch(() => {});
+      await consumeProcessedBuffer();
       endLiveActivity().catch(() => {});
       try {
         const { setDepartureAnchor } = await import("../geofencing/index");
@@ -1532,6 +1567,19 @@ async function _finalizeAutoTripInner(): Promise<void> {
 
     let merged = false;
     if (recentTrip?.ended_at && recentTrip.end_lat != null && recentTrip.end_lng != null) {
+      // Idempotency (delete-after-save): the previous trip ending at EXACTLY
+      // this segment's last coord timestamp means a prior pass already merged
+      // this very segment and died before consuming the buffer. Re-merging
+      // would double-count its distance onto the same trip.
+      if (recentTrip.ended_at === last.recorded_at) {
+        logDetectionEvent("finalize_dedup_local_skip", {
+          tripId: recentTrip.id,
+          kind: "merged",
+        }).catch(() => {});
+        await consumeProcessedBuffer();
+        endLiveActivity().catch(() => {});
+        return;
+      }
       const timeSinceLastTrip = new Date(first.recorded_at).getTime() - new Date(recentTrip.ended_at).getTime();
       const distFromLastEnd = haversineMeters(
         recentTrip.end_lat, recentTrip.end_lng,
@@ -1798,6 +1846,13 @@ async function _finalizeAutoTripInner(): Promise<void> {
     }
 
     } // end if (!merged)
+
+    // The trip (merged, created, or dedup-skipped — all three mean "the data
+    // is durably saved locally") is safe: NOW consume the processed coords
+    // and clear the recording state. A throw anywhere above skips this, the
+    // outer catch logs it, and the intact buffer + armed state retry the
+    // whole finalize at the next boot instead of losing the drive.
+    await consumeProcessedBuffer();
 
     // Set departure anchor at the user's CURRENT position — not the trimmed
     // "last coord" from the trip buffer. Using the last buffered coord is
