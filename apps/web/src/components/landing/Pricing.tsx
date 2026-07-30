@@ -13,6 +13,7 @@ const free = [
   "HMRC Reconciliation - compare what HMRC sees to what you tracked",
   "MOT and tax expiry reminders + full DVSA MOT history",
   "Activity Heatmap (when you drive and earn most)",
+  "Self Assessment wizard - mapped to HMRC SA103 form boxes",
   "Shift mode with platform tagging",
   "Fuel prices from 8,300+ UK stations",
   "Pickup wait timer (community insights are Pro)",
@@ -22,7 +23,7 @@ const free = [
 
 const pro = [
   "Everything in Free, plus:",
-  "Self Assessment wizard - mapped to HMRC SA103 form boxes",
+  "Print-ready Self Assessment PDF - the wizard's figures, ready to file",
   "PDF mileage log with signed HMRC attestation cover sheet",
   "CSV and accounting-software exports",
   "Accountant Portal (read-only dashboard you can invite by email)",

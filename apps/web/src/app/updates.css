@@ -207,6 +207,11 @@
   line-height: 1.6;
 }
 
+.release-card__item-text {
+  flex: 1;
+  min-width: 0; /* let long content wrap instead of overflowing on mobile */
+}
+
 .release-card__item::before {
   content: "";
   flex-shrink: 0;
