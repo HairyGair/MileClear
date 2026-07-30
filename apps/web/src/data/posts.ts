@@ -39,6 +39,51 @@ export interface Guide {
 // ----------------------------------------------------------------
 export const BLOG_POSTS: BlogPost[] = [
   {
+    slug: "500-drivers",
+    title: "500 drivers",
+    excerpt:
+      "Yesterday afternoon, driver number 500 signed up for MileClear. Five months after launch, here's where the numbers stand, what 500 people means for an app built by one person, and a thank you to the drivers whose bug reports have quietly shaped almost everything.",
+    date: "30 July 2026",
+    author: "Gair",
+    category: "announcement",
+    content: `
+<p>Yesterday afternoon, at about quarter past two, driver number 500 signed up for MileClear.</p>
+
+<p>The first version went live in late February. Five months later, here is where the numbers actually stand - taken straight from the database, because if you've read anything else on this site you'll know we don't do inflated figures:</p>
+
+<ul>
+<li><strong>500+ drivers</strong> with MileClear accounts</li>
+<li><strong>17,500+ trips</strong> recorded</li>
+<li><strong>244,000+ miles</strong> tracked - roughly ten times around the Earth</li>
+<li><strong>240 drivers</strong> drove with MileClear in the last month alone</li>
+</ul>
+
+<p>At 45-55p a mile, that's a serious amount of tax relief that would otherwise have been scribbled on the backs of envelopes, or more likely never claimed at all.</p>
+
+<h2>What 500 means when one person builds the app</h2>
+
+<p>MileClear isn't a venture-backed startup with a support department. It's one person, building an app for drivers, reading every single message that comes in. That has a consequence most bigger apps can't match: when you report a problem, the person reading it is the person who wrote the code.</p>
+
+<p>This week alone, three drivers reported trips that didn't record. One turned out to be a permissions setting. The other two were real bugs - subtle ones, the kind that only show up in real driving, on real phones, on real multi-stop days. Both were found from the diagnostic reports, fixed the same day they were reported, and are in the next update. That's what your reports do. Please keep sending them.</p>
+
+<h2>The promise stays the same</h2>
+
+<p>Trip tracking in MileClear is free. Not free-for-40-trips, not free-until-we-change-our-minds. Automatic drive detection, unlimited trips, shift tracking, your full history - free, because a mileage log you can't afford to keep isn't a mileage log.</p>
+
+<p>Pro exists for the people who want the extras - HMRC-ready exports, earnings imports, business insights - and the people who buy it keep the lights on for everyone else. To the Pro subscribers among the 500: thank you, genuinely.</p>
+
+<h2>What's next</h2>
+
+<p>More of the same, honestly: capture reliability above everything, because an automatic mileage tracker is only worth having if it catches the drives. The Making Tax Digital work with HMRC keeps moving. And there are a couple of bigger things in the workshop that we'll talk about when they're real.</p>
+
+<p>If MileClear is saving you money, the single best thing you can do is tell another driver - there's a referral code in the app that gets you both a month of Pro. And if something's not working, tell me directly: the reply really does come from the person who can fix it.</p>
+
+<p>Here's to the next 500.</p>
+
+<p>Gair</p>
+`,
+  },
+  {
     slug: "how-to-chase-an-unpaid-invoice-uk",
     title: "How to chase an unpaid invoice: a UK sole trader's guide (with the exact email to send)",
     excerpt:
