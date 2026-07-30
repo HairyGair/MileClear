@@ -27,6 +27,7 @@ import { getDatabase } from "../db/index";
 import {
   logDetectionEvent,
   finalizeAutoTrip,
+  isFinalizeInFlight,
   isDriveDetectionEnabled,
   startNativeAutoTripLiveActivity,
   shiftSuppressesAutoDetection,
@@ -368,17 +369,56 @@ async function openNativeRecording(
 ): Promise<void> {
   const db = await getDatabase();
   const BGGeo = loadNativeModule();
-  // Start with a clean buffer. A native recording open is always a fresh start
-  // (the engine doesn't pre-buffer before recording), so any coords already in
-  // the table are stale leftovers from a prior recording that never finalized
-  // (app killed mid-drive). Clearing them stops stale coords mixing with this
-  // drive and being (mis)gap-trimmed — the buffer hygiene problem affecting
-  // ~1 in 5 users in the fleet diagnostics.
-  const cleared = await db.runAsync("DELETE FROM detection_coordinates");
-  if (cleared.changes > 0) {
-    logDetectionEvent("native_buffer_cleared_on_open", {
-      droppedCoords: cleared.changes,
-    }).catch(() => {});
+  // An ARMED buffer is not stale garbage - it is a deferred multileg payload
+  // still waiting to be turned into trips (finalize_multileg_deferred re-arms
+  // auto_recording_active around exactly this state). The unconditional clear
+  // below used to destroy it: Keir Fawcus, 29 Jul 2026, lost his entire
+  // multi-stop afternoon (818 coords) when the next morning's recording open
+  // wiped the queue his 11pm app-open had deferred. Finalize it into trips
+  // FIRST, then open clean. finalizeAutoTrip's re-entrancy guard makes the
+  // await safe, and a few seconds' delay opening the new recording costs
+  // nothing - RNBG's native store accumulates the new drive independently
+  // and reconcile drains it into the next finalize.
+  if (isFinalizeInFlight()) {
+    // A finalize owns the buffer right now (e.g. the boot stale-check racing
+    // this open). Awaiting it here could stall the open behind network work,
+    // and clearing under it is a data race - its own "Clear state" block and
+    // deferral logic manage the buffer. Skip both the rescue and the hygiene
+    // clear this once.
+    logDetectionEvent("native_open_skipped_clear_finalize_inflight", {}).catch(() => {});
+  } else {
+    const armed = await db.getFirstAsync<{ value: string }>(
+      "SELECT value FROM tracking_state WHERE key = 'auto_recording_active'"
+    );
+    if (armed?.value === "1") {
+      const pending = await db.getFirstAsync<{ n: number }>(
+        "SELECT COUNT(*) AS n FROM detection_coordinates"
+      );
+      if ((pending?.n ?? 0) > 0) {
+        logDetectionEvent("deferred_buffer_rescued_on_open", {
+          coords: pending?.n ?? 0,
+        }).catch(() => {});
+        try {
+          await finalizeAutoTrip();
+        } catch {
+          // Best-effort: even a failed rescue falls through to the clear,
+          // which is no worse than the old behaviour.
+        }
+      }
+    }
+    // Start with a clean buffer. A native recording open is always a fresh
+    // start (the engine doesn't pre-buffer before recording), so any coords
+    // still in the table now ARE stale leftovers from a prior recording that
+    // never finalized (app killed mid-drive) - the armed/deferred case was
+    // rescued above. Clearing them stops stale coords mixing with this drive
+    // and being (mis)gap-trimmed — the buffer hygiene problem affecting
+    // ~1 in 5 users in the fleet diagnostics.
+    const cleared = await db.runAsync("DELETE FROM detection_coordinates");
+    if (cleared.changes > 0) {
+      logDetectionEvent("native_buffer_cleared_on_open", {
+        droppedCoords: cleared.changes,
+      }).catch(() => {});
+    }
   }
   if (reason === "speed") {
     try {

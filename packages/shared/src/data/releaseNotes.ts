@@ -75,20 +75,21 @@ export const ACTIVE_ANNOUNCEMENT: SiteAnnouncement | null = null;
 
 export const RELEASE_NOTES: ReleaseNote[] = [
   {
-    // TestFlight build 80, uploaded 28 Jul. 1.3.5 was approved later the
-    // same day, so the review slot is free - submit this once the
-    // on-device smoke test passes (+ upload the new screenshot set
-    // first; the slots unlocked with 1.3.5's approval).
+    // TestFlight build 81 (supersedes the unsubmitted build 80; 1.3.6 was
+    // never released anywhere public, so the version folds forward).
+    // Submit for review once the on-device smoke test passes (+ upload the
+    // new screenshot set first; the slots unlocked with 1.3.5's approval).
     // ⏳ ON REVIEW SUBMISSION: relabel "Pending Review". ON APPROVAL:
     // "Latest" here, "App Store" on 1.3.5 - banner + Product Update
     // email key off "Latest".
-    version: "1.3.6",
+    version: "1.3.7",
     date: "July 2026",
     label: "In Testing",
     ctaUrl: "https://mileclear.com/releases",
     ctaLabel: "Read the release notes",
     items: [
-      "**Automatic detection can no longer get stuck after Start Trip.** In rare circumstances a trip started from the map could leave a tracking flag behind when it saved, and automatic drive detection would quietly stand down until the app was reopened from scratch. The flag is now released on every save path, and if one does get stuck the app clears it itself within a few hours instead of staying silent. Found and fixed the same day a driver reported it.",
+      "**A suspended day of multi-stop driving can no longer be lost.** If your phone kept MileClear asleep through a day of stops, the queued journeys were processed when you next opened the app - but a bug could leave most of the queue waiting, and the next morning's drive would clear it. The queue is now worked through in full the moment the app wakes, a restart finishes the job if the phone interrupts it, and a new drive rescues any waiting journeys instead of discarding them. Found from a driver's report the day it happened.",
+      "**Automatic detection can no longer get stuck after Start Trip.** In rare circumstances a trip started from the map could leave a tracking flag behind when it saved, and automatic drive detection would quietly stand down until the app was reopened from scratch. The flag is now released on every save path, and if one does get stuck the app clears it itself within a few hours instead of staying silent. Also found from a driver's report, also fixed the same day.",
       "**Everything from 1.3.5 is in this build too** - trip splitting, the truer tax estimate, real road routes on manual trips, and the Making Tax Digital groundwork.",
     ],
   },

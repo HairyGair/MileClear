@@ -824,6 +824,25 @@ async function getAutoTripRunningDistance(): Promise<{ miles: number; speedMph: 
 // foreground handler) can interleave at await points, both reading the same
 // coordinates before either deletes them.
 let finalizingTrip = false;
+/**
+ * Whether a finalize pass currently owns the detection buffer. For callers
+ * (openNativeRecording) that would otherwise clear or rescue the buffer while
+ * a finalize is mid-flight - awaiting it is not an option there (it can be
+ * network-slow) and clearing under it is a data race.
+ */
+export function isFinalizeInFlight(): boolean {
+  return finalizingTrip;
+}
+
+// Set by the multileg-deferral block in _finalizeAutoTripInner when real legs
+// remain in the buffer after a pass. Read by finalizeAutoTrip's drain loop.
+// This REPLACED a fire-and-forget setTimeout(finalizeAutoTrip, 600): the first
+// pass's network-bound trip save routinely takes longer than 600ms, so the
+// scheduled call hit the finalizingTrip re-entrancy guard and was silently
+// swallowed - no retry, no log. Keir Fawcus, 29 Jul 2026: 818 deferred coords
+// (a full afternoon of multi-stop driving) sat unprocessed overnight and were
+// then destroyed by the next morning's recording open.
+let deferredFinalizePending = false;
 
 // Lock prevents concurrent "confirmed driving" blocks from each sending
 // a notification. Multiple background location callbacks can fire at once,
@@ -964,7 +983,20 @@ export async function finalizeAutoTrip(): Promise<void> {
     await reconcileNativeBufferBeforeFinalize();
   } catch {}
   try {
-    await _finalizeAutoTripInner();
+    // Drain loop: a multileg buffer defers its remaining real legs and sets
+    // deferredFinalizePending; each pass consumes the oldest leg, so the loop
+    // shrinks the buffer monotonically. Run the passes HERE, inside the
+    // re-entrancy guard we already hold - the old setTimeout(600) follow-up
+    // raced this very guard and lost whenever the first pass's save took
+    // longer than 600ms (it usually does; it's network-bound). The cap is a
+    // backstop only: a real journey has single-digit legs.
+    const MAX_FINALIZE_PASSES = 8;
+    let passes = 0;
+    do {
+      deferredFinalizePending = false;
+      await _finalizeAutoTripInner();
+      passes++;
+    } while (deferredFinalizePending && passes < MAX_FINALIZE_PASSES);
   } finally {
     finalizingTrip = false;
     try {
@@ -1135,11 +1167,12 @@ async function _finalizeAutoTripInner(): Promise<void> {
 
   // Multi-stop journey: re-buffer the remaining real legs and re-arm so they
   // each finalise as their own trip. We process the oldest leg in THIS pass
-  // (above) and schedule another finalize shortly after this one releases the
-  // re-entrancy guard; that pass re-runs the same split on a smaller buffer,
-  // so it terminates leg by leg. The native store was already drained, and is
-  // cleared again in finalizeAutoTrip's finally, so the next reconcile won't
-  // clobber what we re-buffer here.
+  // (above); finalizeAutoTrip's drain loop sees deferredFinalizePending and
+  // runs the next pass immediately, inside the re-entrancy guard, re-running
+  // the same split on a smaller buffer until it terminates leg by leg. The
+  // native store was already drained, and is cleared again in
+  // finalizeAutoTrip's finally, so the next reconcile won't clobber what we
+  // re-buffer here.
   if (deferredCoords.length > 0) {
     try {
       for (const c of deferredCoords) {
@@ -1152,10 +1185,21 @@ async function _finalizeAutoTripInner(): Promise<void> {
       await db.runAsync(
         "INSERT OR REPLACE INTO tracking_state (key, value) VALUES ('auto_recording_active', '1')"
       );
+      // Re-plant last_driving_speed_at from the newest deferred coordinate.
+      // The "Clear state" block above deleted it, and an ARMED flag with NO
+      // timestamp reads as corrupt to checkStaleAutoRecording, which then
+      // DISARMS instead of finalizing - killing the boot-time rescue for a
+      // deferred payload that outlives this JS session (app suspended or
+      // killed before the drain loop finishes). With a real, old timestamp
+      // the next startup finalizes it into trips instead.
+      const newest = deferredCoords[deferredCoords.length - 1];
+      const newestMs = new Date(newest.recorded_at).getTime();
+      await db.runAsync(
+        "INSERT OR REPLACE INTO tracking_state (key, value) VALUES ('last_driving_speed_at', ?)",
+        [String(Number.isFinite(newestMs) ? newestMs : Date.now())]
+      );
       logDetectionEvent("finalize_multileg_deferred", { coords: deferredCoords.length }).catch(() => {});
-      setTimeout(() => {
-        finalizeAutoTrip().catch(() => {});
-      }, 600);
+      deferredFinalizePending = true;
     } catch {
       // Best-effort: if re-buffering fails, we still saved the oldest leg.
     }
