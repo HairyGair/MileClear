@@ -75,16 +75,20 @@ export const ACTIVE_ANNOUNCEMENT: SiteAnnouncement | null = null;
 
 export const RELEASE_NOTES: ReleaseNote[] = [
   {
-    // Build 81. SUBMITTED for review 30 Jul 2026 (~14:30) with the new
-    // screenshot set (price-free first slots) and the 500-drivers promo text.
-    // ⏳ ON APPROVAL: "Latest" here, "App Store" on 1.3.5 - banner + Product
-    // Update email key off "Latest".
+    // Build 82. Build 81 was submitted 30 Jul (~14:30) then REMOVED from
+    // review the same evening to fold in two more driver-report fixes; the
+    // screenshot set (price-free first slots) + 500-drivers promo text
+    // persist on the version. Label: "In Testing" until the build-82
+    // submission, then "Pending Review", then on approval "Latest" here +
+    // "App Store" on 1.3.5 - banner + Product Update email key off "Latest".
     version: "1.3.7",
     date: "July 2026",
-    label: "Pending Review",
+    label: "In Testing",
     ctaUrl: "https://mileclear.com/releases",
     ctaLabel: "Read the release notes",
     items: [
+      "**A finished drive can no longer be lost while it saves.** When a trip ended, there was a short window while the app worked out the route, addresses and distance where the phone going to sleep at exactly the wrong moment could throw the recorded route away before it was stored. The route is now kept safe until the save is confirmed, and if anything interrupts it, the app finishes the job the next time it opens instead of losing the drive. Found from a driver's report of a lost 153-mile drive - fixed the same day.",
+      "**Faster, sturdier startup.** The app now opens promptly even after weeks of heavy background tracking, and a loading screen can no longer sit indefinitely over the app if something slow is happening underneath.",
       "**A suspended day of multi-stop driving can no longer be lost.** If your phone kept MileClear asleep through a day of stops, the queued journeys were processed when you next opened the app - but a bug could leave most of the queue waiting, and the next morning's drive would clear it. The queue is now worked through in full the moment the app wakes, a restart finishes the job if the phone interrupts it, and a new drive rescues any waiting journeys instead of discarding them. Found from a driver's report the day it happened.",
       "**Automatic detection can no longer get stuck after Start Trip.** In rare circumstances a trip started from the map could leave a tracking flag behind when it saved, and automatic drive detection would quietly stand down until the app was reopened from scratch. The flag is now released on every save path, and if one does get stuck the app clears it itself within a few hours instead of staying silent. Also found from a driver's report, also fixed the same day.",
       "**Everything from 1.3.5 is in this build too** - trip splitting, the truer tax estimate, real road routes on manual trips, and the Making Tax Digital groundwork.",
