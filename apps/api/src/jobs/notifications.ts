@@ -1229,10 +1229,25 @@ async function runHeartbeatAlertScanJob(): Promise<void> {
       title: string;
       body: string;
       data: Record<string, unknown>;
+      // Per-check cooldown override. Defaults to ALERT_COOLDOWN_MS (7 days).
+      cooldownMs?: number;
+      // With a short cooldown, cap how many sends can land inside one
+      // 7-day window before falling back to silence — repeat-nagging a
+      // user who CAN'T change the setting (MDM, parental controls) is
+      // worse than under-alerting.
+      maxSendsPerWindow?: number;
     }> = [];
 
     // 1. Background location permission lost mid-flight. Without this
     //    iOS won't wake the app to track, so trips silently stop.
+    //
+    //    Repeats DAILY (capped at 3 per week), not the generic 7-day
+    //    cooldown: for an active driver this is total capture loss, and
+    //    one missable evening push wasn't enough — Rynelle De Souza
+    //    (31 Jul 2026) was pushed once on the Wednesday, didn't act, and
+    //    lost a full 5-hour Amazon Flex block on the Thursday with the
+    //    cooldown still holding. A next-morning repeat would have landed
+    //    before her block started.
     if (user.bgLocationPermission && !["always", "granted"].includes(user.bgLocationPermission)) {
       checks.push({
         condition: true,
@@ -1240,6 +1255,8 @@ async function runHeartbeatAlertScanJob(): Promise<void> {
         title: "Trips aren't being tracked",
         body: "Background location was turned off. Open Settings → MileClear → Location → Always to keep tracking working.",
         data: { action: "open_settings" },
+        cooldownMs: 24 * 60 * 60 * 1000,
+        maxSendsPerWindow: 3,
       });
     }
 
@@ -1283,11 +1300,19 @@ async function runHeartbeatAlertScanJob(): Promise<void> {
 
     for (const check of checks) {
       if (!check.condition) continue;
-      const cutoff = new Date(Date.now() - ALERT_COOLDOWN_MS);
+      const cutoff = new Date(Date.now() - (check.cooldownMs ?? ALERT_COOLDOWN_MS));
       const already = await prisma.appEvent.findFirst({
         where: { userId: user.id, type: check.alertType, createdAt: { gte: cutoff } },
       });
       if (already) continue;
+      // Short-cooldown checks: stop repeating once the weekly cap is hit.
+      if (check.maxSendsPerWindow) {
+        const windowCutoff = new Date(Date.now() - ALERT_COOLDOWN_MS);
+        const recentSends = await prisma.appEvent.count({
+          where: { userId: user.id, type: check.alertType, createdAt: { gte: windowCutoff } },
+        });
+        if (recentSends >= check.maxSendsPerWindow) continue;
+      }
 
       try {
         await sendPushToUser(user.id, check.title, check.body, check.data);
