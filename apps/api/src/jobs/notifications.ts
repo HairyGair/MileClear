@@ -1217,8 +1217,45 @@ async function runHeartbeatAlertScanJob(): Promise<void> {
       freeDiskBytes: true,
       autoRecordingActive: true,
       lastDrivingSpeedAt: true,
+      lastHeartbeatAt: true,
+      createdAt: true,
     },
   });
+
+  // Freshness corroboration for the permission-derived checks (2 Aug 2026).
+  //
+  // bgLocationPermission on the user row comes from the HEARTBEAT, which only
+  // fires every 24h (HEARTBEAT_INTERVAL_MS in apps/mobile/lib/heartbeat) and is
+  // accepted here up to 7 days old. Two ways that goes wrong, both producing a
+  // "Trips aren't being tracked" push to someone whose permission is fine:
+  //   1. The user granted Always AFTER their last heartbeat - the row still
+  //      says denied/undetermined for up to a day.
+  //   2. A brand-new account's ONLY heartbeat is the one sent milliseconds
+  //      after registration, BEFORE the iOS permission prompts are answered,
+  //      so it is permanently "undetermined" until the next daily beat.
+  //      (Scott Lough, 2 Aug: registered 11:42, heartbeat at 11:42:29 with
+  //      bg "undetermined", alerted 17:07 - while his dump said granted.)
+  //
+  // Measured 2 Aug: 20 of 41 users alerted since 1 Aug had a diagnostic dump
+  // saying backgroundPermission was GRANTED. Half the alerts were false, and
+  // the 24h repeat cadence added the day before turned each of those into a
+  // recurring nag. Diagnostic dumps are uploaded on app open, so they are
+  // usually FRESHER than the heartbeat - prefer them when they are.
+  const dumps = await prisma.diagnosticDump.findMany({
+    where: { userId: { in: users.map((u) => u.id) } },
+    select: { userId: true, capturedAt: true, statusJson: true },
+  });
+  const dumpByUser = new Map(dumps.map((d) => [d.userId, d]));
+  const permissionLooksGrantedNewer = (userId: string, heartbeatAt: Date | null): boolean => {
+    const d = dumpByUser.get(userId);
+    if (!d || !heartbeatAt) return false;
+    if (d.capturedAt <= heartbeatAt) return false; // heartbeat is the fresher source
+    const bg = (d.statusJson as { backgroundPermission?: string } | null)?.backgroundPermission;
+    return bg === "granted" || bg === "always";
+  };
+  // A heartbeat sent within this window of registration is the first-launch
+  // one, captured before the permission prompts - it says nothing useful.
+  const FIRST_LAUNCH_GRACE_MS = 10 * 60 * 1000;
 
   let sent = 0;
 
@@ -1248,7 +1285,18 @@ async function runHeartbeatAlertScanJob(): Promise<void> {
     //    lost a full 5-hour Amazon Flex block on the Thursday with the
     //    cooldown still holding. A next-morning repeat would have landed
     //    before her block started.
-    if (user.bgLocationPermission && !["always", "granted"].includes(user.bgLocationPermission)) {
+    //    Guarded by the freshness checks above: skip when a NEWER diagnostic
+    //    dump says the permission is granted, and skip when the only heartbeat
+    //    we have was the first-launch one sent before the prompts.
+    const heartbeatIsFirstLaunch =
+      !!user.lastHeartbeatAt &&
+      user.lastHeartbeatAt.getTime() - user.createdAt.getTime() < FIRST_LAUNCH_GRACE_MS;
+    if (
+      user.bgLocationPermission &&
+      !["always", "granted"].includes(user.bgLocationPermission) &&
+      !permissionLooksGrantedNewer(user.id, user.lastHeartbeatAt) &&
+      !heartbeatIsFirstLaunch
+    ) {
       checks.push({
         condition: true,
         alertType: "alert.heartbeat_bg_location_lost",
