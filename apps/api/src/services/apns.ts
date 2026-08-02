@@ -107,16 +107,75 @@ async function getProviderToken(): Promise<string | null> {
 
 let session: http2.ClientHttp2Session | null = null;
 
+// Request timeout. APNs normally answers well inside a second; 10s only ever
+// elapses when the connection is broken, not when Apple is slow.
+const REQUEST_TIMEOUT_MS = 10_000;
+// HTTP/2 PING keepalive. APNs drops idle connections, and a connection that
+// dies at the network layer (NAT expiry, path change, Apple closing without a
+// GOAWAY reaching us) leaves `session` looking perfectly healthy — neither
+// `closed` nor `destroyed`. Without a ping we only discover it when a real
+// push hangs for the full timeout and the user loses their Live Activity.
+const PING_INTERVAL_MS = 60_000;
+
+/**
+ * Drop the cached session so the next push reconnects.
+ *
+ * 2 Aug 2026: `/trips/signal-start` was logging 10,002-10,008ms responses in
+ * clusters (three inside 90s) with `reason=timeout` and — decisively — ZERO
+ * "HTTP/2 session error" lines. That combination means the socket was silently
+ * dead: the old code only reconnected when the session reported itself
+ * `closed`/`destroyed`, so a zombie session was reused indefinitely and every
+ * subsequent push burned 10s and failed. A timeout is now treated as evidence
+ * about the CONNECTION, not just the request.
+ */
+function destroySession(reason: string): void {
+  const dying = session;
+  if (!dying) return;
+  session = null;
+  console.warn(`[apns] tearing down HTTP/2 session: ${reason}`);
+  try {
+    dying.destroy();
+  } catch {
+    // already gone
+  }
+}
+
 function getSession(): http2.ClientHttp2Session {
   if (session && !session.closed && !session.destroyed) return session;
-  session = http2.connect(`https://${APNS_HOST}:${APNS_PORT}`);
-  session.on("error", (err) => {
+  const sess = http2.connect(`https://${APNS_HOST}:${APNS_PORT}`);
+  session = sess;
+
+  sess.on("error", (err) => {
     console.error("[apns] HTTP/2 session error:", err.message);
+    if (session === sess) destroySession("session error");
   });
-  session.on("close", () => {
-    if (session && (session.closed || session.destroyed)) session = null;
+  // APNs sends GOAWAY before a graceful close. Honour it immediately rather
+  // than letting in-flight pushes race the shutdown.
+  sess.on("goaway", () => {
+    if (session === sess) destroySession("GOAWAY from APNs");
   });
-  return session;
+
+  const keepAlive = setInterval(() => {
+    if (session !== sess || sess.closed || sess.destroyed) return;
+    try {
+      sess.ping((err) => {
+        if (err && session === sess) destroySession(`ping failed: ${err.message}`);
+      });
+    } catch (err) {
+      if (session === sess) {
+        destroySession(`ping threw: ${err instanceof Error ? err.message : String(err)}`);
+      }
+    }
+  }, PING_INTERVAL_MS);
+  // Never hold the process open for the sake of a keepalive.
+  keepAlive.unref?.();
+
+  sess.on("close", () => {
+    clearInterval(keepAlive);
+    if (session === sess) session = null;
+  });
+
+  return sess;
 }
 
 export interface ApnsResult {
@@ -186,11 +245,18 @@ async function postToApns(
     });
     req.on("error", (err) => {
       console.error("[apns] request error:", err.message);
+      // A stream-level error usually means the session underneath is unusable.
+      destroySession(`request error: ${err.message}`);
       resolve({ ok: false, status: 0, reason: "request_error" });
     });
 
-    req.setTimeout(10_000, () => {
+    req.setTimeout(REQUEST_TIMEOUT_MS, () => {
       req.close(http2.constants.NGHTTP2_CANCEL);
+      // The connection, not just this push, is the problem — see
+      // destroySession's note. Without this the next push reuses the same dead
+      // session and also waits the full timeout, which is exactly how the
+      // failures arrived in clusters.
+      destroySession("request timeout");
       resolve({ ok: false, status: 0, reason: "timeout" });
     });
 
