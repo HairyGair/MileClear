@@ -1,4 +1,4 @@
-# What to test — 1.3.7 (build 83)
+# What to test - 1.3.7 (build 83)
 
 Build 83 exists for one reason: HMRC's Fraud Headers team rejected our
 submissions because `Gov-Client-User-Agent` carried `device-model=Unknown`.
