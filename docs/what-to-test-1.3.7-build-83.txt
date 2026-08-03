@@ -1,0 +1,38 @@
+WHAT TO TEST - 1.3.7 build 83
+
+Nearly everything here is the same as build 82. The one change is behind the scenes, so the most useful thing you can do is re-run the tracking checks on a fresh install. This build adds a new piece of device plumbing, and a clean start is the best way to catch anything it disturbed.
+
+Please update, then force-quit the app once so it starts fresh.
+
+
+0. OPEN IT COLD (the most important ten seconds)
+
+Force-quit the app completely, then open it again. Do that two or three times across the day. It should start normally every single time. This is the check that matters most in this build: a new system component was added, and if it were going to cause trouble, failing to open is how it would show. If the app ever does not open, tell me straight away.
+
+
+1. PERMISSIONS - STILL STEP ONE
+
+Two settings make or break auto-tracking: Location set to Always (Precise on) and Motion and Fitness On, both under iPhone Settings > MileClear.
+
+
+2. MULTI-STOP DAYS (still the big one)
+
+Drive several legs across a few hours WITHOUT opening the app between stops. Then open it: every leg should appear as its own trip within a minute, not just the first one. Better still, leave the app closed until after the next day's first drive - all of yesterday's legs must still be there.
+
+
+3. SAVE INTERRUPTION
+
+At the end of a drive, lock the phone or swipe the app away the moment you park. The trip must still appear, either immediately or on the next app open. Then check your trip list: every drive should appear exactly ONCE. If any trip shows up twice, report it straight away.
+
+
+4. START TRIP
+
+Start a trip from the dashboard map, drive, tap Arrived and save. Then background the app and drive again without starting a trip - that second drive should be detected and recorded on its own.
+
+
+5. NOTHING TO DO HERE (Making Tax Digital)
+
+This build corrects a piece of device information we send to HMRC for Making Tax Digital. Nothing changes on screen, and MTD is still in testing, so please skip the Making Tax Digital section this round.
+
+
+If anything does not record, use Report a missing trip in the app. The diagnostic it attaches is exactly what we fix from.
