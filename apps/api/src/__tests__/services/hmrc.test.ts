@@ -201,6 +201,36 @@ describe("buildFraudPreventionHeaders", () => {
     );
   });
 
+  // HMRC's Fraud Headers team rejected our July 2026 submissions because
+  // device-model arrived as the literal "Unknown". An absent field is a
+  // gap; a placeholder reads as a header we never implemented.
+  it("omits device fields it cannot determine rather than sending a placeholder", () => {
+    const headers = buildFraudPreventionHeaders({
+      config,
+      server,
+      client: {
+        connectionMethod: "MOBILE_APP_VIA_SERVER",
+        deviceId: "d1",
+        publicIp: "5.6.7.8",
+        publicIpTimestamp: "2026-05-08T19:30:00.000Z",
+        publicPort: "443",
+        osFamily: "iOS",
+        osVersion: "17.4.1",
+        deviceManufacturer: "Apple",
+        deviceModel: undefined,
+        screenWidth: 100,
+        screenHeight: 200,
+        language: "en-GB",
+        timezone: "Europe/London",
+        timezoneOffset: "UTC+01:00",
+      },
+    });
+    expect(headers["Gov-Client-User-Agent"]).toBe(
+      "os-family=iOS&os-version=17.4.1&device-manufacturer=Apple"
+    );
+    expect(headers["Gov-Client-User-Agent"]).not.toContain("Unknown");
+  });
+
   it("emits web-shaped headers when connection method is web", () => {
     const headers = buildFraudPreventionHeaders({
       config,

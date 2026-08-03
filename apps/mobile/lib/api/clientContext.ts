@@ -163,6 +163,51 @@ function appVersion(): string {
 }
 
 /**
+ * Real hardware identity for HMRC's Gov-Client-User-Agent. HMRC's Fraud
+ * Headers team rejected our July 2026 submissions because both fields
+ * were the literal "Unknown" — a placeholder reads as a fraud signal, so
+ * send nothing rather than a stand-in and let the caller omit the key.
+ *
+ * iOS has no model in React Native core, so it comes from expo-device's
+ * native module, read by name through expo-modules-core — the same
+ * sanctioned indirection as ExpoNetwork above, for the same reason: it
+ * references no part of the expo-device package, so Metro puts none of
+ * its JS in an OTA bundle and binaries without the native module get
+ * null instead of a launch crash. Android needs no native module at all;
+ * RN core already carries Model/Manufacturer.
+ *
+ * Simulators report their host architecture ("arm64", "x86_64") rather
+ * than a device, so HMRC's "different hardware" evidence has to come
+ * from real phones.
+ */
+function getHardware(): { manufacturer?: string; model?: string } {
+  try {
+    if (Platform.OS === "ios") {
+      const ExpoDevice = requireOptionalNativeModule<{
+        modelId?: string;
+        manufacturer?: string;
+      }>("ExpoDevice");
+      return {
+        manufacturer: ExpoDevice?.manufacturer || "Apple",
+        model: ExpoDevice?.modelId || undefined,
+      };
+    }
+    if (Platform.OS === "android") {
+      const constants = Platform.constants as
+        | { Manufacturer?: string; Model?: string }
+        | undefined;
+      return {
+        manufacturer: constants?.Manufacturer || undefined,
+        model: constants?.Model || undefined,
+      };
+    }
+  } catch {
+    // Fall through — omitting beats inventing a value.
+  }
+  return {};
+}
+
+/**
  * Build the fraud-prevention headers once and cache. Headers that change
  * per-request (publicIpTimestamp) are added at attach time.
  */
@@ -174,12 +219,16 @@ async function buildBaseHeaders(): Promise<Record<string, string>> {
   const scale = PixelRatio.get();
   const platformOs = Platform.OS === "ios" ? "ios" : Platform.OS === "android" ? "android" : "web";
 
+  const hardware = getHardware();
+
   const headers: Record<string, string> = {
     "X-MileClear-Platform": platformOs,
     "X-MileClear-Device-Id": deviceId,
     "X-MileClear-OS-Version": String(Platform.Version),
-    "X-MileClear-Device-Manufacturer": Platform.OS === "ios" ? "Apple" : "Unknown",
-    "X-MileClear-Device-Model": "Unknown", // expo-device would give the exact model; not installed
+    ...(hardware.manufacturer
+      ? { "X-MileClear-Device-Manufacturer": hardware.manufacturer }
+      : {}),
+    ...(hardware.model ? { "X-MileClear-Device-Model": hardware.model } : {}),
     "X-MileClear-Screen-Width": String(Math.round(screen.width)),
     "X-MileClear-Screen-Height": String(Math.round(screen.height)),
     "X-MileClear-Scaling-Factor": String(Math.round(scale)),

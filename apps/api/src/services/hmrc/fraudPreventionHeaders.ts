@@ -43,10 +43,14 @@ export interface MobileClientContext {
   osFamily: "iOS" | "Android";
   /** OS version, e.g. "17.4.1". */
   osVersion: string;
-  /** Device manufacturer, e.g. "Apple". */
-  deviceManufacturer: string;
-  /** Device model, e.g. "iPhone15,3". */
-  deviceModel: string;
+  /**
+   * Device manufacturer, e.g. "Apple". Omitted when the client cannot
+   * report it — kv() drops the pair rather than sending a stand-in, since
+   * HMRC's Fraud Headers team reads placeholder values as unimplemented.
+   */
+  deviceManufacturer?: string;
+  /** Device model, e.g. "iPhone15,3". Omitted when unreportable — see above. */
+  deviceModel?: string;
   /** Width and height in physical pixels. */
   screenWidth: number;
   screenHeight: number;

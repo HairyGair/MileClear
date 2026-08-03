@@ -130,9 +130,13 @@ export function buildClientContext(request: FastifyRequest): ClientContext {
       localIpsTimestamp,
       osFamily: platform === "ios" ? "iOS" : "Android",
       osVersion: get("x-mileclear-os-version") ?? "0.0",
+      // No "Unknown" fallback: HMRC's Fraud Headers team rejected our July
+      // 2026 submissions precisely because these arrived as that literal.
+      // Clients that cannot report hardware (iOS binaries before the
+      // expo-device build) send nothing and the pair is dropped downstream.
       deviceManufacturer:
-        get("x-mileclear-device-manufacturer") ?? (platform === "ios" ? "Apple" : "Unknown"),
-      deviceModel: get("x-mileclear-device-model") ?? "Unknown",
+        get("x-mileclear-device-manufacturer") ?? (platform === "ios" ? "Apple" : undefined),
+      deviceModel: get("x-mileclear-device-model"),
       screenWidth: parseInt(get("x-mileclear-screen-width") ?? "1170", 10),
       screenHeight: parseInt(get("x-mileclear-screen-height") ?? "2532", 10),
       scalingFactor: parseInt(get("x-mileclear-scaling-factor") ?? "3", 10),
