@@ -267,11 +267,21 @@ export async function hmrcCall<T = unknown>(opts: HmrcCallOptions): Promise<T> {
     throw new HmrcError(message, response.status, code, parsed);
   }
 
+  // deviceModel is recorded so we can prove, from our own data, what went
+  // out in Gov-Client-User-Agent. HMRC rejected our July 2026 submissions
+  // over a placeholder model and we had no way to check the corrected
+  // header short of asking them to review again. A null here means the
+  // client could not report its hardware, which is the case worth catching
+  // before requesting a re-review.
   logEvent("hmrc.api_call", opts.userId, {
     path: opts.path,
     method: opts.method,
     httpStatus: response.status,
     apiVersion: opts.apiVersion,
+    connectionMethod: opts.client.connectionMethod,
+    deviceModel: opts.client.connectionMethod === "MOBILE_APP_VIA_SERVER"
+      ? opts.client.deviceModel ?? null
+      : null,
   });
 
   // Some endpoints (e.g. the cumulative period-summary PUT) return 204 or a 200
