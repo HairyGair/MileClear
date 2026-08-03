@@ -258,10 +258,23 @@ export async function hmrcCall<T = unknown>(opts: HmrcCallOptions): Promise<T> {
         ? String((parsed as { message: unknown }).message)
         : `HMRC API error: HTTP ${response.status}`;
 
+    // A rejected call still carried fraud-prevention headers to HMRC, and
+    // their review covers every request we make, not just the successful
+    // ones. Record the same device identity here as on the success path or
+    // a failed test run leaves no evidence of what we actually sent.
     logEvent("hmrc.api_error", opts.userId, {
       path: opts.path,
       httpStatus: response.status,
       hmrcCode: code,
+      connectionMethod: opts.client.connectionMethod,
+      deviceId:
+        opts.client.connectionMethod === "MOBILE_APP_VIA_SERVER"
+          ? opts.client.deviceId
+          : null,
+      deviceModel:
+        opts.client.connectionMethod === "MOBILE_APP_VIA_SERVER"
+          ? opts.client.deviceModel ?? null
+          : null,
     });
 
     throw new HmrcError(message, response.status, code, parsed);
@@ -279,6 +292,10 @@ export async function hmrcCall<T = unknown>(opts: HmrcCallOptions): Promise<T> {
     httpStatus: response.status,
     apiVersion: opts.apiVersion,
     connectionMethod: opts.client.connectionMethod,
+    deviceId:
+      opts.client.connectionMethod === "MOBILE_APP_VIA_SERVER"
+        ? opts.client.deviceId
+        : null,
     deviceModel: opts.client.connectionMethod === "MOBILE_APP_VIA_SERVER"
       ? opts.client.deviceModel ?? null
       : null,
