@@ -271,6 +271,16 @@ export async function tripRoutes(app: FastifyInstance) {
       return reply.send({ sent: false, reason: "cooldown" });
     }
 
+    // Log BEFORE the token short-circuit. trip.signal_start doubles as the
+    // recording watchdog's "a recording just opened" marker (Check 1b,
+    // 4 Aug 2026) — a user without a Live Activity token still needs the
+    // marker, or their silent mid-recording death is invisible to the
+    // server. Placed after the cooldown gate so a flaky double-signal
+    // doesn't double-log.
+    const startedAtMs = d.startedAtMs ?? now;
+    signalStartCooldown.set(userId, now);
+    logEvent("trip.signal_start", userId, { activityType: d.activityType });
+
     const user = await prisma.user.findUnique({
       where: { id: userId },
       select: { liveActivityPushToStartToken: true },
@@ -279,11 +289,6 @@ export async function tripRoutes(app: FastifyInstance) {
     if (!token) {
       return reply.send({ sent: false, reason: "no_token" });
     }
-
-    const startedAtMs = d.startedAtMs ?? now;
-    signalStartCooldown.set(userId, now);
-
-    logEvent("trip.signal_start", userId, { activityType: d.activityType });
 
     const result = await sendLiveActivityStartPush({
       pushToStartToken: token,

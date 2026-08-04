@@ -82,6 +82,14 @@ const lastGaveUpLoggedAt = new Map<string, number>();
 // finalised the trip and just hasn't sent a fresh heartbeat yet.
 const HEARTBEAT_FRESHNESS_MS = 26 * 60 * 60 * 1000; // 26h, slightly more than the 24h heartbeat cadence
 
+// Check 1b threshold: a trip.signal_start with no trip.created after it and no
+// fresh heartbeat since is a recording that opened and then went dark. 45 min
+// is beyond any healthy drive-plus-finalize latency for the signal's cohort
+// (signals fire on BACKGROUND recording opens, where finalize lag is minutes,
+// not hours) while catching the app-open sweeper cases (17min/34min/3h40m
+// lags observed on one device, 2 Aug) long before the user notices.
+const SIGNAL_STUCK_THRESHOLD_MS = 45 * 60 * 1000;
+
 // Pending-sync check thresholds. Discovered 4 May 2026 via James Taylor:
 // trips finalise via the native background task, get queued in SQLite,
 // but the JS runtime dies before the 60s periodicTick can drain. Users
@@ -305,6 +313,88 @@ export async function runRecordingWatchdogJob(): Promise<void> {
     }
   }
 
+  // ── Check 1b: signal-opened recordings that went silent ───────────
+  //
+  // Liam Myhill, 3 Aug 2026: a background relaunch opened a recording at
+  // 09:34:20 and POSTed /trips/signal-start at 09:34:23 - then the device
+  // went COMPLETELY silent for 21.5 hours. Check 1 never saw him because
+  // his heartbeat (same second, built during boot) raced the recording
+  // flags and reported "not recording"; his return drive fell inside the
+  // silence and was never captured. The server held a positive
+  // "a recording just opened" marker the whole time and ignored it.
+  //
+  // So: any user whose latest trip.signal_start is older than
+  // SIGNAL_STUCK_THRESHOLD_MS with NO trip.created after it and NO fresh
+  // heartbeat since (a fresh heartbeat means the device is talking - its
+  // state is authoritative and Check 1 owns it) gets the same
+  // finalize_check silent push. Deliberately NO native-engine skip here:
+  // Check 1 skips native users because build 75+ self-finalizes via its
+  // own heartbeat, but this check's trigger condition IS "the device has
+  // gone silent", which is precisely when self-healing cannot run.
+  //
+  // The silence test is "no DEVICE-ORIGINATED event after the signal" - not
+  // "no trip.created". A merged segment emits trip.updated, a dropped
+  // too-short hop emits nothing while the user drives on, and both are
+  // healthy; requiring only no-trip.created matched 52 users on the 4 Aug
+  // dry run. Server-generated families (notification.*, alert.*,
+  // watchdog.*, billing.*) are ignored because they log against the userId
+  // while the device is dead - Liam received two streak nudges during his
+  // 21.5h silence. Tightened condition matched 13, all genuinely dark.
+  // The push payload reuses action "finalize_check" so every deployed
+  // build handles it; server-side metadata carries source: "signal_start".
+  const signalLookback = new Date(now - HEARTBEAT_FRESHNESS_MS);
+  const signalStuckCutoff = new Date(now - SIGNAL_STUCK_THRESHOLD_MS);
+  const handledInCheck1 = new Set(stuck.map((u) => u.id));
+
+  const signalStuck = await prisma.$queryRaw<
+    Array<{ id: string; pushToken: string | null; lastSignalAt: Date }>
+  >`
+    SELECT u.id, u.pushToken, s.lastSignalAt
+    FROM users u
+    JOIN (
+      SELECT userId, MAX(createdAt) AS lastSignalAt
+      FROM app_events
+      WHERE type = 'trip.signal_start' AND createdAt > ${signalLookback}
+      GROUP BY userId
+    ) s ON s.userId = u.id
+    WHERE s.lastSignalAt < ${signalStuckCutoff}
+      AND u.pushToken IS NOT NULL
+      AND (u.lastHeartbeatAt IS NULL OR u.lastHeartbeatAt < TIMESTAMPADD(MINUTE, 2, s.lastSignalAt))
+      AND NOT EXISTS (
+        SELECT 1 FROM app_events e2
+        WHERE e2.userId = u.id
+          AND e2.createdAt > TIMESTAMPADD(MINUTE, 2, s.lastSignalAt)
+          AND e2.type NOT LIKE 'notification.%'
+          AND e2.type NOT LIKE 'alert.%'
+          AND e2.type NOT LIKE 'watchdog.%'
+          AND e2.type NOT LIKE 'billing.%'
+      )
+  `;
+
+  let signalPinged = 0;
+  let signalCooldown = 0;
+  let signalGaveUp = 0;
+  const signalPingedUserIds = new Set<string>();
+  for (const user of signalStuck) {
+    // Check 1 already actioned this user this run (ping/reap/skip) - don't
+    // stack a second decision, and especially don't manufacture "cooldown"
+    // founder-alert noise by re-pushing inside the cooldown window.
+    if (handledInCheck1.has(user.id)) continue;
+    const result = await sendSilentPush(user, "finalize_check", {
+      source: "signal_start",
+      lastSignalAt: user.lastSignalAt.toISOString(),
+      signalAgeMs: now - user.lastSignalAt.getTime(),
+    });
+    if (result === "sent") {
+      signalPinged++;
+      signalPingedUserIds.add(user.id);
+    } else if (result === "cooldown") signalCooldown++;
+    else if (result === "gave_up") {
+      signalGaveUp++;
+      gaveUpUserIds.add(user.id);
+    }
+  }
+
   // ── Check 2: pending sync queue + suspended JS runtime ────────────
   //
   // The sister failure mode to stuck recordings: trips/earnings/etc were
@@ -376,12 +466,16 @@ export async function runRecordingWatchdogJob(): Promise<void> {
     stuckCooldown > 0 ||
     stuckGaveUp > 0 ||
     stuckReaped > 0 ||
+    signalPinged > 0 ||
+    signalCooldown > 0 ||
+    signalGaveUp > 0 ||
     syncPinged > 0 ||
     syncCooldown > 0 ||
     syncGaveUp > 0
   ) {
     console.log(
       `[watchdog] stuck=${stuck.length} (pinged ${stuckPinged}, cooldown ${stuckCooldown}, gave_up ${stuckGaveUp}, reaped ${stuckReaped}, nativeSkipped ${stuckNativeSkipped}); ` +
+        `signalStuck=${signalStuck.length} (pinged ${signalPinged}, cooldown ${signalCooldown}, gave_up ${signalGaveUp}); ` +
         `pendingSync=${pendingSync.length} (pinged ${syncPinged}, cooldown ${syncCooldown}, gave_up ${syncGaveUp})`
     );
   }
@@ -403,9 +497,9 @@ export async function runRecordingWatchdogJob(): Promise<void> {
   //
   // Single-ping routine cases stay in the server log but not Discord.
   // Silent skip when DISCORD_WEBHOOK_FOUNDER isn't set.
-  const actualPings = stuckPinged + syncPinged;
-  const cooldownHits = stuckCooldown + syncCooldown;
-  const gaveUpHits = stuckGaveUp + syncGaveUp;
+  const actualPings = stuckPinged + signalPinged + syncPinged;
+  const cooldownHits = stuckCooldown + signalCooldown + syncCooldown;
+  const gaveUpHits = stuckGaveUp + signalGaveUp + syncGaveUp;
   const worthAlerting = actualPings >= 3 || cooldownHits > 0 || gaveUpHits > 0;
 
   // Dedup the founder alert. The signature is the SET OF STUCK USERS this run,
@@ -421,6 +515,7 @@ export async function runRecordingWatchdogJob(): Promise<void> {
     ...stuck
       .map((u) => u.id)
       .filter((id) => !reapedUserIds.has(id) && !nativeSkippedUserIds.has(id)),
+    ...signalPingedUserIds,
     ...pendingSync.map((u) => u.id),
   ].sort();
   if (stuckUserIds.length === 0) {
@@ -459,6 +554,11 @@ export async function runRecordingWatchdogJob(): Promise<void> {
     if (stuck.length > 0) {
       detailLines.push(
         `Stuck recordings: ${stuck.length} (pinged ${stuckPinged}, cooldown ${stuckCooldown}, gave_up ${stuckGaveUp})`
+      );
+    }
+    if (signalPinged + signalCooldown + signalGaveUp > 0) {
+      detailLines.push(
+        `Signal-opened recordings gone silent: ${signalStuck.length} (pinged ${signalPinged}, cooldown ${signalCooldown}, gave_up ${signalGaveUp})`
       );
     }
     if (pendingSync.length > 0) {
