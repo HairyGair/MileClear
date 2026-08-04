@@ -339,7 +339,9 @@ export async function runRecordingWatchdogJob(): Promise<void> {
   // dry run. Server-generated families (notification.*, alert.*,
   // watchdog.*, billing.*) are ignored because they log against the userId
   // while the device is dead - Liam received two streak nudges during his
-  // 21.5h silence. Tightened condition matched 13, all genuinely dark.
+  // 21.5h silence. First live sweep (4 Aug): 64 dark devices from the 26h
+  // backlog; 13 of them woke on the silent push and saved 14 overdue trips
+  // inside 15 minutes. Steady state is far smaller once the backlog drains.
   // The push payload reuses action "finalize_check" so every deployed
   // build handles it; server-side metadata carries source: "signal_start".
   const signalLookback = new Date(now - HEARTBEAT_FRESHNESS_MS);
