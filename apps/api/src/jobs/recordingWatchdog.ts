@@ -132,6 +132,12 @@ const ALERT_REPOST_MS = 6 * 60 * 60 * 1000; // re-surface an unchanged condition
 // so a genuinely new casualty still surfaces, but a persistent cluster goes
 // quiet. Reset when nobody is over the cap, so a fresh occurrence alerts.
 let lastGaveUpAlertSignature = "";
+// Time floor for gave_up-only re-posts. Set-change dedup alone floods when a
+// backlog of dark devices hits the 4-attempt cap one at a time (4 Aug: a new
+// cap-hit every 5-10 min, each "changing the set" and re-posting). New
+// casualties still surface - at most one post per hour instead of per tick.
+let lastGaveUpAlertAt = 0;
+const GAVE_UP_ALERT_MIN_INTERVAL_MS = 60 * 60 * 1000;
 
 interface StuckUser {
   id: string;
@@ -499,8 +505,15 @@ export async function runRecordingWatchdogJob(): Promise<void> {
   //
   // Single-ping routine cases stay in the server log but not Discord.
   // Silent skip when DISCORD_WEBHOOK_FOUNDER isn't set.
+  // Check 1b cooldowns are deliberately EXCLUDED from cooldownHits. For
+  // Checks 1/2 a cooldown hit means "pinged <30min ago and STILL stuck" -
+  // rare and anomalous. For 1b, cooldown is the NORMAL state of a queue
+  // working through its capped retries: during the 4 Aug backlog drain ~50
+  // users sat in cooldown on every tick, making every 5-minute run
+  // "worth alerting" and flooding #founder. 1b contributes to alerts via
+  // pings and gave_ups only.
   const actualPings = stuckPinged + signalPinged + syncPinged;
-  const cooldownHits = stuckCooldown + signalCooldown + syncCooldown;
+  const cooldownHits = stuckCooldown + syncCooldown;
   const gaveUpHits = stuckGaveUp + signalGaveUp + syncGaveUp;
   const worthAlerting = actualPings >= 3 || cooldownHits > 0 || gaveUpHits > 0;
 
@@ -513,11 +526,15 @@ export async function runRecordingWatchdogJob(): Promise<void> {
   // Exclude reaped users — they're resolved this run, so they must not keep the
   // alert signature alive (otherwise a reaped-every-cycle orphan would look like
   // an unchanged stuck set forever).
+  // The signature must be the STABLE set of users in trouble, not the
+  // per-tick pinged subset. Feeding it only signalPingedUserIds (which
+  // rotates as users come off cooldown) changed the signature every tick
+  // and re-posted every 5 minutes (4 Aug flood). Use the full 1b cohort.
   const stuckUserIds = [
     ...stuck
       .map((u) => u.id)
       .filter((id) => !reapedUserIds.has(id) && !nativeSkippedUserIds.has(id)),
-    ...signalPingedUserIds,
+    ...signalStuck.map((u) => u.id).filter((id) => !handledInCheck1.has(id)),
     ...pendingSync.map((u) => u.id),
   ].sort();
   if (stuckUserIds.length === 0) {
@@ -532,7 +549,9 @@ export async function runRecordingWatchdogJob(): Promise<void> {
   if (gaveUpUserIds.size === 0) lastGaveUpAlertSignature = "";
   const gaveUpOnly = gaveUpHits > 0 && actualPings < 3 && cooldownHits === 0;
   const gaveUpClusterUnchanged =
-    gaveUpOnly && gaveUpSignature === lastGaveUpAlertSignature;
+    gaveUpOnly &&
+    (gaveUpSignature === lastGaveUpAlertSignature ||
+      now - lastGaveUpAlertAt < GAVE_UP_ALERT_MIN_INTERVAL_MS);
 
   const shouldPost =
     worthAlerting &&
@@ -551,7 +570,10 @@ export async function runRecordingWatchdogJob(): Promise<void> {
   if (shouldPost) {
     lastAlertSignature = alertSignature;
     lastAlertAt = now;
-    if (gaveUpHits > 0) lastGaveUpAlertSignature = gaveUpSignature;
+    if (gaveUpHits > 0) {
+      lastGaveUpAlertSignature = gaveUpSignature;
+      lastGaveUpAlertAt = now;
+    }
     const detailLines: string[] = [];
     if (stuck.length > 0) {
       detailLines.push(
@@ -570,7 +592,10 @@ export async function runRecordingWatchdogJob(): Promise<void> {
     }
     if (gaveUpHits > 0) {
       detailLines.push(
-        `🚨 ${gaveUpHits} user(s) hit the 4-attempts-in-6h cap — push delivery is structurally broken for them. Check /admin/build-health for the watchdog.gave_up event list.`
+        `🚨 ${gaveUpHits} user(s) hit the 4-attempts-in-6h cap. Check /admin/build-health for the watchdog.gave_up event list.` +
+          (signalGaveUp > 0
+            ? ` (${signalGaveUp} from the silent-recording check — usually an iOS-terminated app that silent pushes cannot relaunch; these self-resolve when the user next opens the app.)`
+            : ` Push delivery is structurally broken for them.`)
       );
     } else if (cooldownHits > 0) {
       detailLines.push(
