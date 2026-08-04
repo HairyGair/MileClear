@@ -505,14 +505,18 @@ export async function runRecordingWatchdogJob(): Promise<void> {
   //
   // Single-ping routine cases stay in the server log but not Discord.
   // Silent skip when DISCORD_WEBHOOK_FOUNDER isn't set.
-  // Check 1b cooldowns are deliberately EXCLUDED from cooldownHits. For
-  // Checks 1/2 a cooldown hit means "pinged <30min ago and STILL stuck" -
-  // rare and anomalous. For 1b, cooldown is the NORMAL state of a queue
-  // working through its capped retries: during the 4 Aug backlog drain ~50
-  // users sat in cooldown on every tick, making every 5-minute run
-  // "worth alerting" and flooding #founder. 1b contributes to alerts via
-  // pings and gave_ups only.
-  const actualPings = stuckPinged + signalPinged + syncPinged;
+  // Check 1b's cooldowns AND pings are deliberately EXCLUDED here. For
+  // Checks 1/2 both are anomalous: a cooldown means "pinged <30min ago and
+  // STILL stuck", and 3+ pings in one tick means something fleet-wide. For
+  // 1b both are the NORMAL state of a large capped retry queue draining -
+  // it pings whichever handful came off cooldown this tick, every tick.
+  // The 4 Aug flood was fixed for cooldowns but not pings, so a routine
+  // "pinged 3-8" kept every 5-minute run worth alerting; worse, it forced
+  // actualPings >= 3, which is exactly the condition that switches OFF the
+  // gaveUpOnly path and its 1h floor, so the rate limit never engaged.
+  // 1b now reaches #founder through gave_ups alone (set-change dedup plus
+  // that floor), which is the only 1b signal worth waking someone for.
+  const actualPings = stuckPinged + syncPinged;
   const cooldownHits = stuckCooldown + syncCooldown;
   const gaveUpHits = stuckGaveUp + signalGaveUp + syncGaveUp;
   const worthAlerting = actualPings >= 3 || cooldownHits > 0 || gaveUpHits > 0;
