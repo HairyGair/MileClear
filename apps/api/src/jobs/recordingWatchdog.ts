@@ -398,8 +398,9 @@ export async function runRecordingWatchdogJob(): Promise<void> {
       signalPingedUserIds.add(user.id);
     } else if (result === "cooldown") signalCooldown++;
     else if (result === "gave_up") {
+      // Deliberately NOT added to gaveUpUserIds: 1b gave_ups are the normal
+      // resting state of ~50 iOS-terminated devices, not an incident set.
       signalGaveUp++;
-      gaveUpUserIds.add(user.id);
     }
   }
 
@@ -514,11 +515,22 @@ export async function runRecordingWatchdogJob(): Promise<void> {
   // "pinged 3-8" kept every 5-minute run worth alerting; worse, it forced
   // actualPings >= 3, which is exactly the condition that switches OFF the
   // gaveUpOnly path and its 1h floor, so the rate limit never engaged.
-  // 1b now reaches #founder through gave_ups alone (set-change dedup plus
-  // that floor), which is the only 1b signal worth waking someone for.
+  // 7 Aug: 1b now reaches #founder through NOTHING. Excluding its pings and
+  // cooldowns still left gaveUpHits (21-30 every tick) forcing worthAlerting,
+  // a single pending-sync cooldown switching OFF the gaveUpOnly 1h floor, and
+  // a 47-61-user cohort whose churning membership changed the dedup signature
+  // every run - so it posted every 5 minutes again.
+  //
+  // The deciding argument is the alert's own wording: "these self-resolve when
+  // the user next opens the app". A permanent ~50-device population of
+  // iOS-terminated apps that silent pushes cannot relaunch is a BACKGROUND
+  // CONDITION, not an incident, and #founder is for things needing a human
+  // glance. 1b keeps its pushes (they do recover trips) and stays fully
+  // visible in the server log line and in watchdog.* app_events for
+  // /admin/build-health - it just never pages anyone.
   const actualPings = stuckPinged + syncPinged;
   const cooldownHits = stuckCooldown + syncCooldown;
-  const gaveUpHits = stuckGaveUp + signalGaveUp + syncGaveUp;
+  const gaveUpHits = stuckGaveUp + syncGaveUp;
   const worthAlerting = actualPings >= 3 || cooldownHits > 0 || gaveUpHits > 0;
 
   // Dedup the founder alert. The signature is the SET OF STUCK USERS this run,
@@ -538,7 +550,6 @@ export async function runRecordingWatchdogJob(): Promise<void> {
     ...stuck
       .map((u) => u.id)
       .filter((id) => !reapedUserIds.has(id) && !nativeSkippedUserIds.has(id)),
-    ...signalStuck.map((u) => u.id).filter((id) => !handledInCheck1.has(id)),
     ...pendingSync.map((u) => u.id),
   ].sort();
   if (stuckUserIds.length === 0) {
@@ -595,11 +606,11 @@ export async function runRecordingWatchdogJob(): Promise<void> {
       );
     }
     if (gaveUpHits > 0) {
+      // 1b gave_ups are excluded from gaveUpHits, so this line is now only
+      // ever about Checks 1/2 - where hitting the cap really does mean push
+      // delivery is broken for that user.
       detailLines.push(
-        `🚨 ${gaveUpHits} user(s) hit the 4-attempts-in-6h cap. Check /admin/build-health for the watchdog.gave_up event list.` +
-          (signalGaveUp > 0
-            ? ` (${signalGaveUp} from the silent-recording check — usually an iOS-terminated app that silent pushes cannot relaunch; these self-resolve when the user next opens the app.)`
-            : ` Push delivery is structurally broken for them.`)
+        `🚨 ${gaveUpHits} user(s) hit the 4-attempts-in-6h cap — push delivery is structurally broken for them. Check /admin/build-health for the watchdog.gave_up event list.`
       );
     } else if (cooldownHits > 0) {
       detailLines.push(
