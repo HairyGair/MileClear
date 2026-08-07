@@ -1308,6 +1308,32 @@ async function runHeartbeatAlertScanJob(): Promise<void> {
       });
     }
 
+    // 1b. Drive detection switched OFF in the app's own settings. Distinct
+    //     from every permission case: nothing iOS shows will ever surface it,
+    //     and the user often does not know - two hit it on 6 Aug 2026, one a
+    //     premium subscriber whose engine had never run once since install,
+    //     the other a shift-only driver who did not realise drives outside a
+    //     shift vanish. Only the diagnostic dump reports the in-app toggle
+    //     (the heartbeat does not carry it), and dumps upload on app open.
+    //
+    //     Deliberately gentle and rare: disabling detection is a legitimate
+    //     choice (battery, privacy, a shift-only workflow), so this is worded
+    //     as information rather than a fault and repeats only every 30 days.
+    const detectionDump = dumpByUser.get(user.id);
+    const detectionOff =
+      (detectionDump?.statusJson as { enabled?: boolean } | null)?.enabled === false;
+    if (detectionOff) {
+      checks.push({
+        condition: true,
+        alertType: "alert.detection_disabled",
+        title: "Drives aren't being recorded automatically",
+        body:
+          "Drive detection is switched off, so MileClear only records during a shift. If that's deliberate, ignore this. To turn it on: Profile > Settings > Drive detection.",
+        data: { action: "open_settings" },
+        cooldownMs: 30 * 24 * 60 * 60 * 1000,
+      });
+    }
+
     // 2. Background App Refresh denied/restricted. Without it the
     //    BACKGROUND_FINALIZE_TASK can't fire, so trips stay stuck.
     if (user.backgroundFetchStatus && ["denied", "restricted"].includes(user.backgroundFetchStatus)) {

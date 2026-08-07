@@ -122,7 +122,17 @@ const createTripSchema = z.object({
   // Optional odometer readings (miles) corroborating the distance.
   odometerStart: z.number().min(0).max(2_000_000).nullable().optional(),
   odometerEnd: z.number().min(0).max(2_000_000).nullable().optional(),
-});
+})
+  // A trip cannot end before it starts. The server accepted this until 7 Aug
+  // 2026: Lisa Purchase's backdated manual entries produced a trip whose
+  // endedAt preceded its startedAt, which then reports a negative duration
+  // everywhere it is displayed or averaged. Manual entry now carries a lot of
+  // this app's tax data (it is the resolution path for most missing-trip
+  // reports), so the invariant is enforced where every client meets it.
+  .refine((d) => !d.endedAt || d.endedAt.getTime() >= d.startedAt.getTime(), {
+    message: "End time cannot be before the start time",
+    path: ["endedAt"],
+  });
 
 const updateTripSchema = z.object({
   classification: z.enum(TRIP_CLASSIFICATIONS).optional(),
@@ -1793,6 +1803,13 @@ export async function tripRoutes(app: FastifyInstance) {
     });
     if (!existing) {
       return reply.status(404).send({ error: "Trip not found" });
+    }
+
+    // Same end-before-start invariant as the create path, but resolved against
+    // the STORED startedAt since a PATCH usually sends endedAt alone (this is
+    // the path a user takes when correcting times on a trip we added for them).
+    if (updates.endedAt && updates.endedAt.getTime() < existing.startedAt.getTime()) {
+      return reply.status(400).send({ error: "End time cannot be before the start time" });
     }
 
     // Vehicle correction: if reassigning to a vehicle, it must belong to this
