@@ -39,6 +39,92 @@ export interface Guide {
 // ----------------------------------------------------------------
 export const BLOG_POSTS: BlogPost[] = [
   {
+    slug: "making-tax-digital-self-employed-drivers",
+    title: "Making Tax Digital: what it actually means if you drive for a living",
+    excerpt:
+      "Making Tax Digital for Income Tax started in April 2026. If you are self-employed and earning over £50,000, your single January tax return has become five deadlines a year. Here is who it applies to, what a quarterly update actually is, and where your mileage fits in.",
+    date: "8 August 2026",
+    author: "Gair",
+    category: "guide",
+    content: `
+<p>Making Tax Digital for Income Tax landed in April 2026, and a lot of self-employed drivers still have not been told clearly what it means for them. The short version: if it applies to you, the single Self Assessment return you file every January has been replaced by five separate touchpoints with HMRC a year.</p>
+
+<p>That sounds worse than it is. A quarterly update is not a tax return, and you do not pay tax four times a year. But it does mean the shoebox-of-receipts approach has run out of road, because the records now have to be digital.</p>
+
+<h2>Does it apply to you yet?</h2>
+
+<p>It depends on your qualifying income, and it is being phased in:</p>
+
+<ul>
+<li><strong>Over £50,000</strong> - you are already in, from 6 April 2026</li>
+<li><strong>Over £30,000</strong> - you join from April 2027</li>
+<li><strong>Over £20,000</strong> - you join from April 2028</li>
+</ul>
+
+<p>The word that catches people out is <strong>qualifying income</strong>. It means your gross income from self-employment and property, added together, before you take a single expense off. Not your profit. So a driver turning over £58,000 who takes home £24,000 after fuel, insurance and everything else is in from April 2026, even though the money they actually live on is nowhere near £50,000.</p>
+
+<p>If you drive for more than one platform, it is the total that counts, not each one separately.</p>
+
+<h2>A quarterly update is not four tax returns</h2>
+
+<p>This is the bit worth understanding properly, because it is where most of the panic comes from.</p>
+
+<p>Four times a year you send HMRC a summary of your income and expenses so far. That is it. No tax calculation, no payment, no declaration that everything is final. It is a running total, and if you got something slightly wrong in quarter one you simply correct it in quarter two.</p>
+
+<p>The standard quarters end on 5 July, 5 October, 5 January and 5 April, and each update is due about a month later:</p>
+
+<ul>
+<li>Quarter ending 5 July - due <strong>7 August</strong></li>
+<li>Quarter ending 5 October - due <strong>7 November</strong></li>
+<li>Quarter ending 5 January - due <strong>7 February</strong></li>
+<li>Quarter ending 5 April - due <strong>7 May</strong></li>
+</ul>
+
+<p>You can also elect to use calendar quarters instead, ending 30 June, 30 September, 31 December and 31 March, which is easier if your bookkeeping already runs on month ends.</p>
+
+<p>Then, after the tax year finishes, you make a <strong>Final Declaration</strong> by 31 January. That is the one that replaces your old Self Assessment return, where you confirm everything, add anything else HMRC needs to know about, and settle up. Your payment deadline has not moved.</p>
+
+<h2>What a digital record actually has to be</h2>
+
+<p>The rule is that your income and expenses have to be recorded and kept digitally, and the quarterly updates have to reach HMRC from software rather than by typing figures into a website.</p>
+
+<p>A photo of a receipt is not a digital record on its own. Nor is a shoebox you tip out in January. A spreadsheet can count, provided it can talk to HMRC through bridging software. Most people will find it easier to use an app that keeps the records and does the submitting in one place.</p>
+
+<h2>Where your mileage fits</h2>
+
+<p>For most drivers, mileage is the single largest deduction, and it is worth more than it used to be. From 6 April 2026 the approved mileage rate rose to <strong>55p a mile for your first 10,000 business miles</strong>, then 25p after that. Motorbikes stay at 24p.</p>
+
+<p>On 12,000 business miles that is £6,000 of deduction. At a basic rate of 20% plus Class 4 National Insurance, that is well over a thousand pounds that stays in your pocket, and it only works if you can show the miles.</p>
+
+<p>Two things matter more under MTD than they did before:</p>
+
+<ul>
+<li><strong>Your mileage needs to be there every quarter</strong>, not reconstructed the following January. A quarterly update with your mileage missing understates your expenses and overstates your position.</li>
+<li><strong>You need a dated record per journey</strong>, not a round number at year end. Date, purpose, and distance, kept as you go.</li>
+</ul>
+
+<p>One important catch: if you claim the mileage rate, you cannot also claim fuel, insurance, servicing, MOT or depreciation for that vehicle. The rate already covers them. You can still claim things it does not cover, like parking, tolls and the business share of your phone bill.</p>
+
+<h2>Where MileClear is with this</h2>
+
+<p>We will be straight with you, because there is a lot of marketing about MTD readiness that does not survive contact with the detail.</p>
+
+<p>MileClear has the full Making Tax Digital journey built. You can connect a HMRC account, see your obligations, preview the figures and walk through a submission. It currently runs against HMRC's test service, and it is labelled as beta on every screen inside the app, because we are still going through HMRC's production accreditation. Until that finishes, submissions do not reach your real tax record, and your live tax position is unaffected.</p>
+
+<p>Two limits worth knowing even once it is live. MileClear submits <strong>self-employment income only</strong>, so if you also have UK or foreign property income you will need MTD-compatible software for that as well. And it handles your in-year quarterly updates, not the year-end Final Declaration, which you will finish with HMRC or other compatible software.</p>
+
+<p>We will say plainly when that changes. No dates promised until they are real.</p>
+
+<h2>What to do now</h2>
+
+<p>If you are over the threshold, or close to it, the useful work is not choosing software. It is making sure that from today your mileage and expenses are being captured as you go, so that when a quarterly deadline arrives the figures already exist.</p>
+
+<p>That part MileClear does today, free: automatic drive detection, unlimited trips, your full history, and expense logging. Whatever you eventually use to file, the records will be ready.</p>
+
+<p>If you are not over the threshold yet, you have until April 2027 or April 2028 - but the habit is the hard part, not the filing. Starting now costs nothing.</p>
+`,
+  },
+  {
     slug: "500-drivers",
     title: "500 drivers",
     excerpt:

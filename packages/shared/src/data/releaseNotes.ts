@@ -75,22 +75,34 @@ export const ACTIVE_ANNOUNCEMENT: SiteAnnouncement | null = null;
 
 export const RELEASE_NOTES: ReleaseNote[] = [
   {
-    // Build 82. Build 81 was submitted 30 Jul (~14:30) then REMOVED from
-    // review the same evening to fold in two more driver-report fixes; the
-    // screenshot set (price-free first slots) + 500-drivers promo text
-    // persist on the version. Label: "In Testing" until the build-82
-    // submission, then "Pending Review", then on approval "Latest" here +
-    // "App Store" on 1.3.5 - banner + Product Update email key off "Latest".
+    // Build 83, in App Store review since 7 Aug. History: build 81 was
+    // submitted 30 Jul then pulled the same evening to fold in two more
+    // driver-report fixes; build 82 replaced it; build 83 added the HMRC
+    // device-model fix and was resubmitted 7 Aug after a build-expiry
+    // gotcha stalled the version for four days. On approval: flip this to
+    // "Latest" and 1.3.5 to "App Store" - the banner and the Product
+    // Update email both key off "Latest".
     version: "1.3.7",
-    date: "July 2026",
-    label: "In Testing",
+    date: "August 2026",
+    label: "Pending Review",
     ctaUrl: "https://mileclear.com/releases",
     ctaLabel: "Read the release notes",
+    emailSubject: "What's new in MileClear 1.3.7",
+    emailTagline:
+      "1.3.7 is a reliability release. Every fix in it came from a driver telling us a drive went missing - and most were fixed the same day.",
+    emailHighlights: [
+      "**A finished drive can no longer be lost while it saves** - the recorded route is now kept safe until the save is confirmed, and the app finishes the job next time it opens if anything interrupts it.",
+      "**A suspended day of multi-stop driving can no longer be lost** - the queue of waiting journeys is worked through in full, and a new drive rescues any still waiting instead of discarding them.",
+      "**Automatic detection can no longer get stuck after Start Trip** - the tracking flag is released on every save path, and clears itself if it ever does stick.",
+      "**Faster, sturdier startup** - the app opens promptly even after weeks of heavy background tracking.",
+      "**Everything from 1.3.5 is here too** - trip splitting, the truer tax estimate, and real road routes on manual trips.",
+    ],
     items: [
       "**A finished drive can no longer be lost while it saves.** When a trip ended, there was a short window while the app worked out the route, addresses and distance where the phone going to sleep at exactly the wrong moment could throw the recorded route away before it was stored. The route is now kept safe until the save is confirmed, and if anything interrupts it, the app finishes the job the next time it opens instead of losing the drive. Found from a driver's report of a lost 153-mile drive - fixed the same day.",
       "**Faster, sturdier startup.** The app now opens promptly even after weeks of heavy background tracking, and a loading screen can no longer sit indefinitely over the app if something slow is happening underneath.",
       "**A suspended day of multi-stop driving can no longer be lost.** If your phone kept MileClear asleep through a day of stops, the queued journeys were processed when you next opened the app - but a bug could leave most of the queue waiting, and the next morning's drive would clear it. The queue is now worked through in full the moment the app wakes, a restart finishes the job if the phone interrupts it, and a new drive rescues any waiting journeys instead of discarding them. Found from a driver's report the day it happened.",
       "**Automatic detection can no longer get stuck after Start Trip.** In rare circumstances a trip started from the map could leave a tracking flag behind when it saved, and automatic drive detection would quietly stand down until the app was reopened from scratch. The flag is now released on every save path, and if one does get stuck the app clears it itself within a few hours instead of staying silent. Also found from a driver's report, also fixed the same day.",
+      "**Making Tax Digital groundwork continues.** The app now reports the exact device details HMRC's fraud-prevention rules require. That is part of the accreditation work still to be completed before Making Tax Digital submissions can reach HMRC for real - the feature stays in beta against HMRC's test service until then.",
       "**Everything from 1.3.5 is in this build too** - trip splitting, the truer tax estimate, real road routes on manual trips, and the Making Tax Digital groundwork.",
     ],
   },
