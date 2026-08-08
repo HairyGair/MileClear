@@ -134,6 +134,22 @@ export default async function BlogPostPage({
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
       />
+      {post.faqs && post.faqs.length > 0 && (
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{
+            __html: JSON.stringify({
+              "@context": "https://schema.org",
+              "@type": "FAQPage",
+              mainEntity: post.faqs.map((faq) => ({
+                "@type": "Question",
+                name: faq.question,
+                acceptedAnswer: { "@type": "Answer", text: faq.answer },
+              })),
+            }),
+          }}
+        />
+      )}
       <Navbar />
 
       <main className="post">
@@ -167,6 +183,21 @@ export default async function BlogPostPage({
               className="post__body"
               dangerouslySetInnerHTML={{ __html: post.content }}
             />
+
+            {/* Common questions - rendered inside post__body so it inherits
+                the article typography, and mirrored into FAQPage structured
+                data above. */}
+            {post.faqs && post.faqs.length > 0 && (
+              <div className="post__body">
+                <h2>Common questions</h2>
+                {post.faqs.map((faq) => (
+                  <div key={faq.question}>
+                    <h3>{faq.question}</h3>
+                    <p>{faq.answer}</p>
+                  </div>
+                ))}
+              </div>
+            )}
 
             {/* Footer */}
             <footer className="post__footer">

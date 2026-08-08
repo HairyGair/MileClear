@@ -24,6 +24,18 @@ export interface BlogPost {
   author: string;
   category: "engineering" | "guide" | "announcement";
   content: string; // full HTML string  - trusted, developer-authored
+  /**
+   * Optional FAQ block. When present the post page renders it as a
+   * "Common questions" section AND emits FAQPage structured data, the
+   * same treatment the SEO landing pages get. Worth populating on any
+   * guide covering a question-driven topic, where the search results
+   * are dominated by People Also Ask boxes.
+   *
+   * Answers are plain text (escaped on render) so they can be lifted
+   * verbatim into the schema. Keep each one self-contained: Google may
+   * surface it with no surrounding context.
+   */
+  faqs?: { question: string; answer: string }[];
 }
 
 export interface Guide {
@@ -41,8 +53,11 @@ export const BLOG_POSTS: BlogPost[] = [
   {
     slug: "making-tax-digital-self-employed-drivers",
     title: "Making Tax Digital: what it actually means if you drive for a living",
+    // First ~155 characters double as the meta description, so they are
+    // written to stand alone in a search result: primary term first, the
+    // threshold that decides whether it applies, and the consequence.
     excerpt:
-      "Making Tax Digital for Income Tax started in April 2026. If you are self-employed and earning over £50,000, your single January tax return has become five deadlines a year. Here is who it applies to, what a quarterly update actually is, and where your mileage fits in.",
+      "Making Tax Digital for Income Tax applies to self-employed drivers earning over £50,000 from April 2026. Here is who it affects, what a quarterly update is, and how mileage fits. Plus the £30,000 and £20,000 dates, the deadlines, and the 55p rate.",
     date: "8 August 2026",
     author: "Gair",
     category: "guide",
@@ -51,7 +66,7 @@ export const BLOG_POSTS: BlogPost[] = [
 
 <p>That sounds worse than it is. A quarterly update is not a tax return, and you do not pay tax four times a year. But it does mean the shoebox-of-receipts approach has run out of road, because the records now have to be digital.</p>
 
-<h2>Does it apply to you yet?</h2>
+<h2>Who does Making Tax Digital apply to, and when?</h2>
 
 <p>It depends on your qualifying income, and it is being phased in:</p>
 
@@ -65,7 +80,7 @@ export const BLOG_POSTS: BlogPost[] = [
 
 <p>If you drive for more than one platform, it is the total that counts, not each one separately.</p>
 
-<h2>A quarterly update is not four tax returns</h2>
+<h2>What is an MTD quarterly update? (It is not four tax returns)</h2>
 
 <p>This is the bit worth understanding properly, because it is where most of the panic comes from.</p>
 
@@ -84,15 +99,15 @@ export const BLOG_POSTS: BlogPost[] = [
 
 <p>Then, after the tax year finishes, you make a <strong>Final Declaration</strong> by 31 January. That is the one that replaces your old Self Assessment return, where you confirm everything, add anything else HMRC needs to know about, and settle up. Your payment deadline has not moved.</p>
 
-<h2>What a digital record actually has to be</h2>
+<h2>What counts as a digital record under MTD</h2>
 
 <p>The rule is that your income and expenses have to be recorded and kept digitally, and the quarterly updates have to reach HMRC from software rather than by typing figures into a website.</p>
 
 <p>A photo of a receipt is not a digital record on its own. Nor is a shoebox you tip out in January. A spreadsheet can count, provided it can talk to HMRC through bridging software. Most people will find it easier to use an app that keeps the records and does the submitting in one place.</p>
 
-<h2>Where your mileage fits</h2>
+<h2>Where mileage fits into Making Tax Digital</h2>
 
-<p>For most drivers, mileage is the single largest deduction, and it is worth more than it used to be. From 6 April 2026 the approved mileage rate rose to <strong>55p a mile for your first 10,000 business miles</strong>, then 25p after that. Motorbikes stay at 24p.</p>
+<p>For most drivers, mileage is the single largest deduction, and it is worth more than it used to be. From 6 April 2026 the approved mileage rate rose to <strong>55p a mile for your first 10,000 business miles</strong>, then 25p after that. Motorbikes stay at 24p. The full breakdown is in our <a href="/hmrc-mileage-rates">HMRC mileage rates guide</a>.</p>
 
 <p>On 12,000 business miles that is £6,000 of deduction. At a basic rate of 20% plus Class 4 National Insurance, that is well over a thousand pounds that stays in your pocket, and it only works if you can show the miles.</p>
 
@@ -100,12 +115,12 @@ export const BLOG_POSTS: BlogPost[] = [
 
 <ul>
 <li><strong>Your mileage needs to be there every quarter</strong>, not reconstructed the following January. A quarterly update with your mileage missing understates your expenses and overstates your position.</li>
-<li><strong>You need a dated record per journey</strong>, not a round number at year end. Date, purpose, and distance, kept as you go.</li>
+<li><strong>You need a dated record per journey</strong>, not a round number at year end. Date, purpose, and distance, kept as you go. If you are unsure which journeys qualify, see <a href="/what-counts-as-business-mileage">what counts as business mileage</a>.</li>
 </ul>
 
-<p>One important catch: if you claim the mileage rate, you cannot also claim fuel, insurance, servicing, MOT or depreciation for that vehicle. The rate already covers them. You can still claim things it does not cover, like parking, tolls and the business share of your phone bill.</p>
+<p>One important catch: if you claim the mileage rate, you cannot also claim fuel, insurance, servicing, MOT or depreciation for that vehicle. The rate already covers them. You can still claim things it does not cover, like parking, tolls and the business share of your phone bill. Our <a href="/business-mileage-guide">business mileage guide</a> walks through the choice in more detail.</p>
 
-<h2>Where MileClear is with this</h2>
+<h2>Is MileClear MTD compatible yet?</h2>
 
 <p>We will be straight with you, because there is a lot of marketing about MTD readiness that does not survive contact with the detail.</p>
 
@@ -115,14 +130,46 @@ export const BLOG_POSTS: BlogPost[] = [
 
 <p>We will say plainly when that changes. No dates promised until they are real.</p>
 
-<h2>What to do now</h2>
+<h2>What self-employed drivers should do now</h2>
 
 <p>If you are over the threshold, or close to it, the useful work is not choosing software. It is making sure that from today your mileage and expenses are being captured as you go, so that when a quarterly deadline arrives the figures already exist.</p>
 
-<p>That part MileClear does today, free: automatic drive detection, unlimited trips, your full history, and expense logging. Whatever you eventually use to file, the records will be ready.</p>
+<p>That part MileClear does today, free: automatic drive detection, unlimited trips, your full history, and expense logging. Whatever you eventually use to file, the records will be ready. If you are still choosing an app, we compared the options in our <a href="/updates/free-mileage-tracker-uk-buyers-guide">free mileage tracker buyer's guide</a>.</p>
 
 <p>If you are not over the threshold yet, you have until April 2027 or April 2028 - but the habit is the hard part, not the filing. Starting now costs nothing.</p>
 `,
+    faqs: [
+      {
+        question: "Does Making Tax Digital apply to me if I am self-employed?",
+        answer:
+          "It depends on your qualifying income and when you cross the threshold. From 6 April 2026 it applies to sole traders and landlords with qualifying income over £50,000. From April 2027 it extends to those over £30,000, and from April 2028 to those over £20,000. Qualifying income means your gross income from self-employment and property added together, before any expenses are deducted, so it is based on turnover rather than profit.",
+      },
+      {
+        question: "Is a quarterly update the same as a tax return?",
+        answer:
+          "No. A quarterly update is a summary of your income and expenses so far in the tax year, sent to HMRC from compatible software. There is no tax calculation and nothing to pay at that point, and figures are cumulative, so a mistake in one quarter is simply corrected in the next. Your tax is settled once a year through the Final Declaration, which replaces the old Self Assessment return and is due by 31 January as before.",
+      },
+      {
+        question: "What are the MTD quarterly update deadlines?",
+        answer:
+          "Using the standard quarters, the periods end on 5 July, 5 October, 5 January and 5 April, and each update is due on the 7th of the following month: 7 August, 7 November, 7 February and 7 May. You can instead elect to use calendar quarters ending 30 June, 30 September, 31 December and 31 March, which suits you better if your bookkeeping already runs to month ends.",
+      },
+      {
+        question: "Can I still claim mileage under Making Tax Digital?",
+        answer:
+          "Yes. The approved mileage rates are unchanged by MTD itself, and from 6 April 2026 the rate is 55p per mile for the first 10,000 business miles and 25p after that, or 24p for motorbikes. What changes is that your mileage needs to be captured digitally as you go, so it can be included in each quarterly update rather than reconstructed at the end of the year. If you claim the mileage rate you cannot also claim fuel, insurance, servicing or repairs for the same vehicle, because the rate already covers them.",
+      },
+      {
+        question: "Do I need an app for Making Tax Digital, or will a spreadsheet do?",
+        answer:
+          "A spreadsheet can be acceptable, because the requirement is that records are kept digitally and that updates reach HMRC from software rather than being typed into a website. A spreadsheet therefore needs bridging software to submit. Many self-employed people find it simpler to use one app that keeps the records and submits them, particularly where mileage is the largest deduction and needs capturing throughout the quarter.",
+      },
+      {
+        question: "Is MileClear MTD compatible?",
+        answer:
+          "The full Making Tax Digital journey is built into MileClear, but it currently runs against HMRC's test service while we complete HMRC's production accreditation, and it is labelled as beta on every screen in the app. Until that finishes, submissions do not reach your real tax record. MileClear covers self-employment income only, so property income needs separate MTD-compatible software, and it handles in-year quarterly updates rather than the year-end Final Declaration. Mileage and expense tracking are free and available today, so your records will be ready whichever software you eventually file with.",
+      },
+    ],
   },
   {
     slug: "500-drivers",
