@@ -197,6 +197,24 @@ async function performRequest(args: {
   const config = getHmrcConfig();
   if (!config) throw new Error("HMRC integration not configured");
 
+  // Refuse to call HMRC at all from a client that cannot report real
+  // hardware. requestContext strips placeholder models ("Unknown" from
+  // pre-83 binaries, "arm64"/"x86_64" from simulators), so an absent model
+  // here means the device is one of those. HMRC review a rolling 30 days of
+  // our traffic and rejected us in July for exactly this value, so a single
+  // such request sets the clean window back a month. Fail loudly instead.
+  if (
+    args.options.client.connectionMethod === "MOBILE_APP_VIA_SERVER" &&
+    !args.options.client.deviceModel
+  ) {
+    throw new HmrcError(
+      "This version of the app can't report your device details, which HMRC requires. Please update MileClear to the latest version and try again.",
+      400,
+      "DEVICE_MODEL_UNAVAILABLE",
+      null
+    );
+  }
+
   const headers: Record<string, string> = {
     Authorization: `Bearer ${args.conn.accessToken}`,
     Accept: `application/vnd.hmrc.${args.options.apiVersion}+json`,

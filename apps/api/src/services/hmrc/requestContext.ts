@@ -9,6 +9,37 @@ import type { FastifyRequest } from "fastify";
 import os from "node:os";
 import type { ClientContext, ServerContext } from "./fraudPreventionHeaders.js";
 
+/**
+ * Placeholder hardware identifiers that must never reach HMRC. Their Fraud
+ * Headers team rejected our July 2026 submissions over `device-model=Unknown`,
+ * and a value that is not a real device reads to them as a header we never
+ * implemented.
+ *
+ * Two sources produce these. App binaries before build 83 hardcoded the
+ * literal "Unknown" and still transmit it (7 Aug 2026: a device on an older
+ * build put three such requests into the rolling 30-day review window).
+ * Simulators report the host architecture from uname(), so "arm64" and
+ * "x86_64" are equally fake.
+ *
+ * Treating them as absent is not enough on its own - see the guard in
+ * client.ts, which refuses the call outright rather than sending a request
+ * with a hole in it while accreditation is in progress.
+ */
+const PLACEHOLDER_DEVICE_MODELS = new Set([
+  "unknown",
+  "arm64",
+  "x86_64",
+  "i386",
+  "simulator",
+]);
+
+export function realDeviceModel(raw: string | undefined): string | undefined {
+  if (!raw) return undefined;
+  const trimmed = raw.trim();
+  if (!trimmed) return undefined;
+  return PLACEHOLDER_DEVICE_MODELS.has(trimmed.toLowerCase()) ? undefined : trimmed;
+}
+
 let cachedServerLocalIp: string | null = null;
 
 function getServerLocalIp(): string {
@@ -136,7 +167,7 @@ export function buildClientContext(request: FastifyRequest): ClientContext {
       // expo-device build) send nothing and the pair is dropped downstream.
       deviceManufacturer:
         get("x-mileclear-device-manufacturer") ?? (platform === "ios" ? "Apple" : undefined),
-      deviceModel: get("x-mileclear-device-model"),
+      deviceModel: realDeviceModel(get("x-mileclear-device-model")),
       screenWidth: parseInt(get("x-mileclear-screen-width") ?? "1170", 10),
       screenHeight: parseInt(get("x-mileclear-screen-height") ?? "2532", 10),
       scalingFactor: parseInt(get("x-mileclear-scaling-factor") ?? "3", 10),
