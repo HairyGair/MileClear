@@ -51,6 +51,14 @@ export interface MobileClientContext {
   deviceManufacturer?: string;
   /** Device model, e.g. "iPhone15,3". Omitted when unreportable — see above. */
   deviceModel?: string;
+  /**
+   * What the client actually sent, before placeholders were stripped.
+   * Diagnostic only — never used to build a header. Without it a blocked
+   * request cannot tell us WHY it was blocked ("Unknown" from an old
+   * binary vs "arm64" from a simulator), which is the first thing worth
+   * knowing when a device is refused.
+   */
+  rawDeviceModel?: string;
   /** Width and height in physical pixels. */
   screenWidth: number;
   screenHeight: number;

@@ -207,6 +207,16 @@ async function performRequest(args: {
     args.options.client.connectionMethod === "MOBILE_APP_VIA_SERVER" &&
     !args.options.client.deviceModel
   ) {
+    // Log the block. This guard runs BEFORE any HMRC request, so it emits no
+    // api_call/api_error and was invisible in telemetry on the first cut -
+    // a blocked attempt looked identical to no attempt at all, which cost
+    // real time working out whether a test run had even happened.
+    logEvent("hmrc.blocked_placeholder_device", args.options.userId, {
+      path: args.options.path,
+      deviceId: args.options.client.deviceId,
+      rawDeviceModel: args.options.client.rawDeviceModel ?? null,
+      connectionMethod: args.options.client.connectionMethod,
+    });
     throw new HmrcError(
       "This version of the app can't report your device details, which HMRC requires. Please update MileClear to the latest version and try again.",
       400,

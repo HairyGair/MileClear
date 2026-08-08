@@ -168,6 +168,7 @@ export function buildClientContext(request: FastifyRequest): ClientContext {
       deviceManufacturer:
         get("x-mileclear-device-manufacturer") ?? (platform === "ios" ? "Apple" : undefined),
       deviceModel: realDeviceModel(get("x-mileclear-device-model")),
+      rawDeviceModel: get("x-mileclear-device-model"),
       screenWidth: parseInt(get("x-mileclear-screen-width") ?? "1170", 10),
       screenHeight: parseInt(get("x-mileclear-screen-height") ?? "2532", 10),
       scalingFactor: parseInt(get("x-mileclear-scaling-factor") ?? "3", 10),
