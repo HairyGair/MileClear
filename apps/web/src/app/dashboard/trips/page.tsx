@@ -17,6 +17,7 @@ import type { Trip, TripInsights, TripCoordinate, PaginatedResponse, PlatformTag
 import { GIG_PLATFORMS, BUSINESS_PURPOSES, fetchRouteDistance, getTaxYear, parseTaxYear, formatPence } from "@mileclear/shared";
 import { useAuth } from "../../../lib/auth-context";
 import { useToast } from "../../../components/ui/Toast";
+import { ImportTripsModal } from "../../../components/dashboard/ImportTripsModal";
 
 interface DetailTrip extends Trip {
   insights?: TripInsights | null;
@@ -282,6 +283,7 @@ export default function TripsPage() {
 
   // Add manual trip modal
   const [showAdd, setShowAdd] = useState(false);
+  const [showImport, setShowImport] = useState(false);
   const [addForm, setAddForm] = useState({
     startAddress: "",
     endAddress: "",
@@ -691,9 +693,14 @@ export default function TripsPage() {
         title="Trips"
         subtitle={`${total} trip${total !== 1 ? "s" : ""} recorded`}
         action={
-          <Button variant="primary" size="sm" onClick={() => setShowAdd(true)}>
-            + Add trip
-          </Button>
+          <div style={{ display: "flex", gap: "0.5rem" }}>
+            <Button variant="ghost" size="sm" onClick={() => setShowImport(true)}>
+              Import CSV
+            </Button>
+            <Button variant="primary" size="sm" onClick={() => setShowAdd(true)}>
+              + Add trip
+            </Button>
+          </div>
         }
       />
 
@@ -1017,6 +1024,22 @@ export default function TripsPage() {
           <Pagination page={page} totalPages={totalPages} onPageChange={setPage} />
         </>
       )}
+
+      <ImportTripsModal
+        open={showImport}
+        onClose={() => setShowImport(false)}
+        onImported={(result) => {
+          const skipped = result.skippedDuplicates
+            ? `, ${result.skippedDuplicates} already on your account`
+            : "";
+          toast(
+            `Imported ${result.imported} trip${result.imported === 1 ? "" : "s"} (${result.totalMiles} miles)${skipped}`,
+            "success"
+          );
+          loadTrips();
+          loadSummary();
+        }}
+      />
 
       {/* Edit Modal */}
       <Modal
