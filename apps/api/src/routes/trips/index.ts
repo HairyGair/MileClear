@@ -24,6 +24,10 @@ function tripVehicleCazClass(vehicleType: string | null | undefined): CazVehicle
   return "car";
 }
 import { upsertMileageSummary } from "../../services/mileage.js";
+import {
+  parseTripCsvPreview,
+  confirmTripCsvImport,
+} from "../../services/tripCsvParser.js";
 import { checkAndAwardAchievements } from "../../services/gamification.js";
 import { sendMilestonePush, sendAchievementPush } from "../../jobs/notifications.js";
 import { logEvent } from "../../services/appEvents.js";
@@ -2066,6 +2070,93 @@ export async function tripRoutes(app: FastifyInstance) {
     });
 
     return reply.status(201).send({ data: anomaly });
+  });
+
+  // ── CSV import ──────────────────────────────────────────────────
+  //
+  // Deliberately NOT premium-gated, unlike the earnings CSV import.
+  // This is a switching tool: the person with a year of history to
+  // bring across is, by definition, someone who has not paid yet.
+  // Charging at that moment removes the main reason to move at all.
+
+  // POST /trips/import/preview — parse and report, write nothing.
+  app.post("/import/preview", async (request, reply) => {
+    const schema = z.object({
+      csvContent: z
+        .string()
+        .min(1, "CSV content is required")
+        .max(1_000_000, "That file is too large (max 1MB). Split it and import in parts."),
+    });
+    const parsed = schema.safeParse(request.body);
+    if (!parsed.success) {
+      return reply.status(400).send({ error: parsed.error.issues[0].message });
+    }
+
+    try {
+      const preview = await parseTripCsvPreview(request.userId!, parsed.data.csvContent);
+      return reply.send({ data: preview });
+    } catch (err) {
+      // Parser errors are written for the user ("we could not find a date
+      // column"), so surface them rather than a generic 500.
+      return reply
+        .status(400)
+        .send({ error: err instanceof Error ? err.message : "Could not read that file." });
+    }
+  });
+
+  // POST /trips/import/confirm — create the trips the user accepted.
+  app.post("/import/confirm", async (request, reply) => {
+    const schema = z.object({
+      rows: z
+        .array(
+          z.object({
+            date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Invalid date"),
+            startTime: z.string().nullable().optional(),
+            endTime: z.string().nullable().optional(),
+            from: z.string().max(500).nullable().optional(),
+            to: z.string().max(500).nullable().optional(),
+            distanceMiles: z.number().positive().max(10_000),
+            classification: z.enum(TRIP_CLASSIFICATIONS),
+            purpose: z.string().max(500).nullable().optional(),
+            isDuplicate: z.boolean(),
+          })
+        )
+        .min(1, "No trips to import")
+        .max(2000, "Too many trips in one import"),
+    });
+    const parsed = schema.safeParse(request.body);
+    if (!parsed.success) {
+      return reply.status(400).send({ error: parsed.error.issues[0].message });
+    }
+
+    const rows = parsed.data.rows.map((r) => ({
+      date: r.date,
+      startTime: r.startTime ?? null,
+      endTime: r.endTime ?? null,
+      from: r.from ?? null,
+      to: r.to ?? null,
+      distanceMiles: r.distanceMiles,
+      classification: r.classification,
+      purpose: r.purpose ?? null,
+      isDuplicate: r.isDuplicate,
+    }));
+
+    const result = await confirmTripCsvImport(request.userId!, rows, geocodeAddress);
+
+    // Imported trips are tax-relevant, so the per-tax-year summary has to
+    // be rebuilt or the dashboard deduction silently ignores them.
+    const years = new Set(rows.map((r) => getTaxYear(new Date(`${r.date}T12:00`))));
+    for (const taxYear of years) {
+      await upsertMileageSummary(request.userId!, taxYear).catch(() => {});
+    }
+
+    logEvent("trips.csv_imported", request.userId!, {
+      imported: result.imported,
+      skippedDuplicates: result.skippedDuplicates,
+      totalMiles: result.totalMiles,
+    });
+
+    return reply.send({ data: result });
   });
 }
 

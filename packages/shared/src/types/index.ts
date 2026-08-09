@@ -719,6 +719,67 @@ export interface CsvImportResult {
   skipped: number;
 }
 
+// ── Trip CSV import (bringing history over from another app) ───────
+//
+// Deliberately format-agnostic. Rather than templating each rival's
+// export (which breaks the moment they change a column), the parser
+// maps columns by header synonyms and, where a header is ambiguous,
+// by sniffing the values. "Start" means a time in one app and a place
+// in another, so the data decides.
+
+/** Which CSV column was matched to each field, for the preview UI. */
+export interface TripCsvColumnMap {
+  date: string | null;
+  startTime: string | null;
+  endTime: string | null;
+  from: string | null;
+  to: string | null;
+  distance: string | null;
+  classification: string | null;
+  purpose: string | null;
+}
+
+export interface CsvTripRow {
+  /** ISO date (yyyy-mm-dd) of the journey. */
+  date: string;
+  startTime: string | null;
+  endTime: string | null;
+  from: string | null;
+  to: string | null;
+  distanceMiles: number;
+  classification: TripClassification;
+  purpose: string | null;
+  /** Already on the account: same day, same distance. Skipped on import. */
+  isDuplicate: boolean;
+}
+
+/** A row we could not use, kept so the user sees what was left behind. */
+export interface CsvTripRowError {
+  /** 1-based line number in the uploaded file. */
+  line: number;
+  reason: string;
+}
+
+export interface CsvTripParsePreview {
+  /** Best guess at the source app, purely for the confirmation copy. */
+  detectedSource: string | null;
+  columns: TripCsvColumnMap;
+  /** True when distances were converted from kilometres. */
+  convertedFromKm: boolean;
+  rows: CsvTripRow[];
+  totalRows: number;
+  totalMiles: number;
+  duplicateCount: number;
+  errors: CsvTripRowError[];
+}
+
+export interface CsvTripImportResult {
+  imported: number;
+  skippedDuplicates: number;
+  skippedErrors: number;
+  totalMiles: number;
+}
+
 // Achievement types
 export interface Achievement {
   id: string;
