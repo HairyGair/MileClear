@@ -1121,8 +1121,36 @@ async function _finalizeAutoTripInner(): Promise<void> {
       // So: a segment is a real LEG if it has enough coords; tiny segments are
       // stragglers. Finalise the OLDEST real leg now and re-buffer the rest so
       // each becomes its own trip; if only one real leg remains, just keep it.
+      // Coordinate count alone cannot tell a straggler from a short leg.
+      // It is a proxy for how far the segment went, and a poor one: a
+      // half-mile hop at the 50m distance filter, after the accuracy gate
+      // has rejected a few fixes, can land at 5 or 6 coords and be thrown
+      // away as a straggler. Chris Saunders, 10 Aug 2026: a day of sub-mile
+      // calls around High Wycombe, finalize_gap_trimmed showed 11 coords in
+      // 2 segments (6 and 5), BOTH under the bar, so the real second leg was
+      // dropped. Three trips reported missing in three minutes, all short.
+      //
+      // So qualify on distance OR coords. A genuine straggler is a couple of
+      // post-arrival fixes sitting within metres of each other, which spans
+      // ~0 miles and is still excluded; a real short leg spans a real
+      // distance no matter how few fixes it produced.
       const MIN_LEG_COORDS = 10;
-      const realLegs = segments.filter((s) => s.length >= MIN_LEG_COORDS);
+      const segmentSpanMiles = (seg: typeof rawCoords): number => {
+        if (seg.length < 2) return 0;
+        let miles = 0;
+        for (let i = 1; i < seg.length; i++) {
+          miles += haversineMiles(
+            seg[i - 1].lat, seg[i - 1].lng,
+            seg[i].lat, seg[i].lng
+          );
+        }
+        return miles;
+      };
+      const realLegs = segments.filter(
+        (s) =>
+          s.length >= MIN_LEG_COORDS ||
+          segmentSpanMiles(s) >= MIN_AUTO_TRIP_DISTANCE_MILES
+      );
       if (realLegs.length >= 2) {
         allCoords = realLegs[0];
         deferredCoords = realLegs.slice(1).flat();
