@@ -111,6 +111,15 @@ export async function startShiftTracking(shiftId: string): Promise<void> {
     "INSERT OR REPLACE INTO tracking_state (key, value) VALUES ('active_shift_id', ?)",
     [shiftId]
   );
+  // Stamp when the lock was taken. The staleness check reads the local
+  // shifts row for started_at, but that row can be absent (a reinstall, a
+  // create that never landed), and a lock with no age can never be judged
+  // stale — it then suppresses auto-detection forever. One user sat in
+  // exactly that state for six weeks. See shiftSuppressesAutoDetection.
+  await db.runAsync(
+    "INSERT OR REPLACE INTO tracking_state (key, value) VALUES ('active_shift_started_at', ?)",
+    [String(Date.now())]
+  );
 
   try {
     await Location.startLocationUpdatesAsync(LOCATION_TASK_NAME, {
@@ -142,7 +151,7 @@ export async function stopShiftTracking(): Promise<void> {
   }
 
   const db = await getDatabase();
-  await db.runAsync("DELETE FROM tracking_state WHERE key = 'active_shift_id'");
+  await db.runAsync("DELETE FROM tracking_state WHERE key IN ('active_shift_id', 'active_shift_started_at')");
 
   // Clear any leftover detection coordinates and auto-recording state so the
   // detection system cannot finalize a duplicate trip for the same journey.
@@ -167,6 +176,10 @@ export async function startQuickTripTracking(): Promise<void> {
   await db.runAsync(
     "INSERT OR REPLACE INTO tracking_state (key, value) VALUES ('active_shift_id', ?)",
     [QUICK_TRIP_SHIFT_ID]
+  );
+  await db.runAsync(
+    "INSERT OR REPLACE INTO tracking_state (key, value) VALUES ('active_shift_started_at', ?)",
+    [String(Date.now())]
   );
 
   // Cancel again AFTER the lock is set. The cancelAutoRecording() above runs
@@ -217,7 +230,7 @@ export async function stopQuickTripTracking(): Promise<StoredCoordinate[]> {
 
   // Clean up
   await db.runAsync("DELETE FROM shift_coordinates WHERE shift_id = ?", [QUICK_TRIP_SHIFT_ID]);
-  await db.runAsync("DELETE FROM tracking_state WHERE key = 'active_shift_id'");
+  await db.runAsync("DELETE FROM tracking_state WHERE key IN ('active_shift_id', 'active_shift_started_at')");
 
   // Clear detection coordinates to prevent duplicate trip finalization
   await cancelAutoRecording(true);

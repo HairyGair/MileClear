@@ -485,8 +485,27 @@ export async function shiftSuppressesAutoDetection(
       const startedMs = new Date(shiftRow.started_at).getTime();
       staleActive = Number.isFinite(startedMs) && Date.now() - startedMs > STALE_ACTIVE_SHIFT_MS;
     }
-    // No local row found (shiftRow null) is left to suppress: avoids racing a
-    // just-started shift whose row hasn't landed yet.
+
+    // A missing local shifts row used to be left suppressing indefinitely,
+    // to avoid racing a just-started shift whose row had not landed yet.
+    // That race lasts seconds; one user sat in it for six weeks, silently
+    // capturing nothing, with no way out through the UI because the app
+    // showed no shift to end. Age the lock by its own timestamp instead:
+    // it is written in the same breath as the lock, so a fresh shift is
+    // still protected, while an old orphan finally times out.
+    if (!shiftRow && !alreadyEnded && !staleActive) {
+      const stamp = await db.getFirstAsync<{ value: string }>(
+        "SELECT value FROM tracking_state WHERE key = 'active_shift_started_at'"
+      );
+      const stampedMs = stamp ? Number(stamp.value) : NaN;
+      staleActive = Number.isFinite(stampedMs)
+        ? Date.now() - stampedMs > STALE_ACTIVE_SHIFT_MS
+        : // No row AND no timestamp means the lock predates this stamping
+          // (or its shift was never recorded locally). Either way nothing is
+          // tracking under it, so there is nothing left to protect.
+          true;
+    }
+
     if (!alreadyEnded && !staleActive) {
       logDetectionEvent("detection_skipped", { reason: "active_shift" }).catch(() => {});
       return true;
@@ -499,10 +518,12 @@ export async function shiftSuppressesAutoDetection(
         activeShift.value,
       ]);
     }
-    await db.runAsync("DELETE FROM tracking_state WHERE key = 'active_shift_id'");
+    await db.runAsync(
+      "DELETE FROM tracking_state WHERE key IN ('active_shift_id', 'active_shift_started_at')"
+    );
     logDetectionEvent("stale_active_shift_cleared", {
       shiftId: activeShift.value,
-      reason: alreadyEnded ? "already_ended" : "active_too_long",
+      reason: alreadyEnded ? "already_ended" : !shiftRow ? "no_local_row" : "active_too_long",
     }).catch(() => {});
     return false;
   }

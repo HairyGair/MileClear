@@ -61,6 +61,13 @@ interface ScreenState {
   /** From /user/profile — same as above for businessId. */
   hasBusinessId: boolean;
   obligations: HmrcObligation[];
+  /**
+   * True when the obligations call itself failed, as opposed to HMRC
+   * legitimately returning none. Without this the screen showed the
+   * reassuring "All caught up" for both, so a failed call read as
+   * "nothing to file" — the worst possible way for a tax app to fail.
+   */
+  obligationsUnavailable: boolean;
   businesses: HmrcBusinessSummary[];
   loading: boolean;
   error: string | null;
@@ -72,6 +79,7 @@ const INITIAL_STATE: ScreenState = {
   hasNino: false,
   hasBusinessId: false,
   obligations: [],
+  obligationsUnavailable: false,
   businesses: [],
   loading: true,
   error: null,
@@ -105,6 +113,7 @@ function TaxMtdContent() {
           hasNino: false,
           hasBusinessId: false,
           obligations: [],
+          obligationsUnavailable: false,
           businesses: [],
           loading: false,
           error: null,
@@ -116,6 +125,7 @@ function TaxMtdContent() {
       // Saves a round-trip when the user is mid-setup.
       let businesses: HmrcBusinessSummary[] = [];
       let obligations: HmrcObligation[] = [];
+      let obligationsUnavailable = false;
 
       if (status.hasNino && !status.hasBusinessId) {
         // NINO set, business not — load the business list so the picker
@@ -134,6 +144,9 @@ function TaxMtdContent() {
           obligations = oblig.data.obligations;
         } catch (err) {
           if (!(isApiError(err) && err.statusCode === 400)) throw err;
+          // A 400 here means we could not ask HMRC, not that there is
+          // nothing due. Say so rather than implying the user is clear.
+          obligationsUnavailable = true;
         }
       }
 
@@ -149,6 +162,7 @@ function TaxMtdContent() {
         hasNino: status.hasNino,
         hasBusinessId: status.hasBusinessId,
         obligations,
+        obligationsUnavailable,
         businesses,
         loading: false,
         error: null,
@@ -164,6 +178,7 @@ function TaxMtdContent() {
           hasNino: false,
           hasBusinessId: false,
           obligations: [],
+          obligationsUnavailable: false,
           businesses: [],
           loading: false,
           error: "Your HMRC connection expired. Reconnect to continue.",
@@ -195,7 +210,19 @@ function TaxMtdContent() {
       // openAuthSessionAsync handles the OAuth dance properly — closes
       // the browser when the deep-link redirect (mileclear://hmrc-connected)
       // fires after the server completes token exchange.
-      const result = await WebBrowser.openAuthSessionAsync(url, "mileclear://hmrc-connected");
+      // preferEphemeralSession keeps this out of Safari's shared cookie
+      // jar. Without it HMRC sees whichever Government Gateway session is
+      // already cached and silently re-authorises as that user, never
+      // showing a sign-in form (7 Aug 2026: five reconnects in a row all
+      // came back as the previous test user, each in under 15 seconds).
+      // That is not just a testing nuisance — on a shared or family
+      // device it can link somebody else's tax account with no visible
+      // sign-in step at all.
+      const result = await WebBrowser.openAuthSessionAsync(
+        url,
+        "mileclear://hmrc-connected",
+        { preferEphemeralSession: true }
+      );
       if (result.type === "success") {
         await load();
       } else if (result.type === "cancel") {
@@ -266,7 +293,12 @@ function TaxMtdContent() {
       {state.step === "connect" && <ConnectStep onConnect={onConnect} />}
       {state.step === "nino" && <NinoStep onDone={load} />}
       {state.step === "business" && <BusinessStep businesses={state.businesses} onDone={load} />}
-      {state.step === "ready" && <ReadyStep obligations={state.obligations} />}
+      {state.step === "ready" && (
+        <ReadyStep
+          obligations={state.obligations}
+          unavailable={state.obligationsUnavailable}
+        />
+      )}
 
       {/* HMRC-mandated scope signposts (in-year, self-employment-only product). */}
       {state.step === "ready" && (
@@ -429,12 +461,39 @@ function BusinessStep({
 
 // ── Step: Ready (obligations list) ───────────────────────────────────
 
-function ReadyStep({ obligations }: { obligations: HmrcObligation[] }) {
+function ReadyStep({
+  obligations,
+  unavailable,
+}: {
+  obligations: HmrcObligation[];
+  unavailable: boolean;
+}) {
   const sorted = useMemo(
     () => [...obligations].sort((a, b) => a.due.localeCompare(b.due)),
     [obligations]
   );
   const taxYear = getTaxYear(new Date());
+
+  // An empty list means one of two very different things. Saying "all
+  // caught up" when the call actually failed tells someone they have
+  // nothing to file when we simply could not ask, which in a tax app is
+  // the one mistake worth going out of our way to avoid.
+  if (sorted.length === 0 && unavailable) {
+    return (
+      <View style={styles.stepCard}>
+        <Ionicons name="alert-circle-outline" size={48} color={AMBER} style={{ alignSelf: "center" }} />
+        <Text style={styles.stepTitle}>Could not check with HMRC</Text>
+        <Text style={styles.stepBody}>
+          We could not load your quarterly obligations just now, so we cannot
+          tell you whether anything is due. Pull down to try again. This does
+          not mean you have nothing to file.
+        </Text>
+        <Text style={styles.helperLink} onPress={() => router.push("/tax-mtd-history" as never)} accessibilityRole="button" accessibilityLabel="View submission history">
+          View submission history →
+        </Text>
+      </View>
+    );
+  }
 
   if (sorted.length === 0) {
     return (
