@@ -43,8 +43,22 @@ export interface MobileClientContext {
   publicIp: string;
   /** ISO timestamp when the public IP was determined by the client. */
   publicIpTimestamp: string;
-  /** TCP port the device used to call our server (typically 443). */
-  publicPort: string;
+  /**
+   * The device's source port as measured at our edge. Optional because it
+   * genuinely may be unmeasurable — and per HMRC's missing-header-data
+   * guidance an absent value beats an invented one. The old code fell back
+   * to a fixed "56789", which is the placeholder defect wearing a number.
+   */
+  publicPort?: string;
+  /**
+   * The identifier the user signs into MileClear with (their email) —
+   * what the spec says Gov-Client-User-IDs must hold. Set by hmrcCall
+   * from the user row, never by the transport layer. The old code sent
+   * the device UUID here, duplicating Gov-Client-Device-ID.
+   */
+  signInIdentifier?: string;
+  /** The app's real version (X-MileClear-App-Version), per device. */
+  appVersion?: string;
   /** "iOS" or "Android". */
   osFamily: "iOS" | "Android";
   /** OS version, e.g. "17.4.1". */
@@ -151,14 +165,35 @@ export function buildFraudPreventionHeaders(args: {
 
   // ── Vendor headers (us) — same on every call ──────────────────────────
 
+  // Both of these are required for headers HMRC mandates, and both must be
+  // real. Refusing here (not defaulting) keeps the placeholder class of
+  // defect — the one HMRC has flagged three times — unrepresentable.
+  if (!client.appVersion) {
+    throw new Error(
+      "Gov-Vendor-Version requires the app's real version; requestContext must pass X-MileClear-App-Version through"
+    );
+  }
+  if (!client.signInIdentifier) {
+    throw new Error(
+      "Gov-Client-User-IDs requires the user's sign-in identifier; hmrcCall must set it from the user row"
+    );
+  }
+
   const headers: Record<string, string> = {
     // Vendor product name as a single token (HMRC accepts a plain string).
     "Gov-Vendor-Product-Name": config.vendorProductName,
-    // Vendor version as a key-value structure: client/server architecture
-    // means we must declare both versions.
+    // Vendor version: one pair per software component, named per spec
+    // (`<software-name>=<version>`). The client pair is the app's REAL
+    // per-device version from X-MileClear-App-Version — the old code sent
+    // the same server-side constant for both, so every device on every
+    // build reported an identical value, which is the "generic or
+    // placeholder" pattern HMRC's review flags.
     "Gov-Vendor-Version": kv([
-      ["client", config.vendorVersion],
-      ["server", config.vendorVersion],
+      [
+        client.osFamily === "iOS" ? "mileclear-ios" : "mileclear-android",
+        client.appVersion,
+      ],
+      ["mileclear-api", config.vendorVersion],
     ]),
     "Gov-Vendor-Public-IP": server.serverPublicIp,
     // Spec v3.3 requires Gov-Vendor-Forwarded for proxied flows; format is
@@ -182,7 +217,10 @@ export function buildFraudPreventionHeaders(args: {
   headers["Gov-Client-Device-ID"] = client.vendorIdentifier ?? client.deviceId;
   headers["Gov-Client-Public-IP"] = client.publicIp;
   headers["Gov-Client-Public-IP-Timestamp"] = client.publicIpTimestamp;
-  headers["Gov-Client-Public-Port"] = client.publicPort;
+  // Omitted when unmeasured — never a made-up constant.
+  if (client.publicPort) {
+    headers["Gov-Client-Public-Port"] = client.publicPort;
+  }
   // User-Agent must be a key-value structure with os family + version,
   // device manufacturer, device model. Plain UA strings are rejected
   // with "Value must be a list of key-value data structures".
@@ -204,8 +242,12 @@ export function buildFraudPreventionHeaders(args: {
   ]);
   // Timezone: IANA name (rejected as "must be UTC format"), so use offset.
   headers["Gov-Client-Timezone"] = client.timezoneOffset;
+  // Spec: "the identifier that the user signs into the application with,
+  // for example username, email or phone number". The old code sent the
+  // device UUID here — the same value as Gov-Client-Device-ID, which to a
+  // human reviewer reads as two headers copy-pasted rather than measured.
   headers["Gov-Client-User-IDs"] = kv([
-    ["mileclear", client.deviceId],
+    ["mileclear", client.signInIdentifier],
   ]);
 
   if (client.localIps && client.localIps.length > 0) {

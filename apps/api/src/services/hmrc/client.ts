@@ -278,6 +278,21 @@ async function performRequest(args: {
 export async function hmrcCall<T = unknown>(opts: HmrcCallOptions): Promise<T> {
   let conn = await loadActiveConnection(opts.userId);
 
+  // Gov-Client-User-IDs must carry the identifier the user signs in with
+  // (per spec: username / email / phone) — not the device UUID, which
+  // already fills Gov-Client-Device-ID and made the two headers identical.
+  // The transport layer can't know it, so it's attached here from the
+  // user row, where the sign-in identifier actually lives.
+  if (opts.client.connectionMethod === "MOBILE_APP_VIA_SERVER" && !opts.client.signInIdentifier) {
+    const user = await prisma.user.findUnique({
+      where: { id: opts.userId },
+      select: { email: true },
+    });
+    if (user?.email) {
+      opts = { ...opts, client: { ...opts.client, signInIdentifier: user.email } };
+    }
+  }
+
   // Pre-emptive refresh if the cached token expires within 60s.
   if (isTokenExpiringSoon(conn.expiresAt)) {
     conn = await refreshSingleFlight(conn);
