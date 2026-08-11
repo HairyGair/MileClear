@@ -142,6 +142,13 @@ export function buildClientContext(request: FastifyRequest): ClientContext {
     get("x-client-source-port") ??
     get("x-mileclear-public-port") ??
     (request.socket?.remotePort ? String(request.socket.remotePort) : undefined);
+  const portSource = get("x-client-source-port")
+    ? "apache"
+    : get("x-mileclear-public-port")
+      ? "client"
+      : request.socket?.remotePort
+        ? "socket"
+        : "absent";
   const rawTzOffset = get("x-mileclear-timezone-offset");
   const tzOffset = normaliseTimezoneOffset(rawTzOffset);
 
@@ -183,6 +190,8 @@ export function buildClientContext(request: FastifyRequest): ClientContext {
       return {
         connectionMethod: "UNSUPPORTED_CLIENT",
         rawPlatform: platform,
+        publicPort,
+        portSource,
       };
     }
 
@@ -192,6 +201,7 @@ export function buildClientContext(request: FastifyRequest): ClientContext {
       publicIp: ip,
       publicIpTimestamp,
       publicPort,
+      portSource,
       localIps,
       localIpsTimestamp,
       osFamily: platform === "ios" ? "iOS" : "Android",
@@ -231,5 +241,7 @@ export function buildClientContext(request: FastifyRequest): ClientContext {
   return {
     connectionMethod: "UNSUPPORTED_CLIENT",
     rawPlatform: get("x-mileclear-platform") ?? undefined,
+    publicPort,
+    portSource,
   };
 }

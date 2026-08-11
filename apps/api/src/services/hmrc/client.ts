@@ -210,6 +210,11 @@ async function performRequest(args: {
       path: args.options.path,
       rawPlatform: args.options.client.rawPlatform ?? null,
       connectionMethod: args.options.client.connectionMethod,
+      // Port diagnostics: a deliberate blocked probe through the public
+      // domain verifies end-to-end that Apache stamps the real source
+      // port (portSource "apache") without any HMRC traffic.
+      publicPort: args.options.client.publicPort ?? null,
+      portSource: args.options.client.portSource ?? null,
     });
     throw new HmrcError(
       "HMRC submissions are only available from the MileClear mobile app.",
@@ -363,6 +368,18 @@ export async function hmrcCall<T = unknown>(opts: HmrcCallOptions): Promise<T> {
         : null,
     deviceModel: opts.client.connectionMethod === "MOBILE_APP_VIA_SERVER"
       ? opts.client.deviceModel ?? null
+      : null,
+    // Self-verification for the 11 Aug header audit: prove from our own
+    // data that the port was measured (portSource) and that the vendor
+    // version headers carried the app's real per-device version.
+    publicPort: opts.client.connectionMethod === "MOBILE_APP_VIA_SERVER"
+      ? opts.client.publicPort ?? null
+      : null,
+    portSource: opts.client.connectionMethod === "MOBILE_APP_VIA_SERVER"
+      ? opts.client.portSource ?? null
+      : null,
+    appVersion: opts.client.connectionMethod === "MOBILE_APP_VIA_SERVER"
+      ? opts.client.appVersion ?? null
       : null,
   });
 

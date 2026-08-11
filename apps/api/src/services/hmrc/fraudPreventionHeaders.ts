@@ -51,6 +51,13 @@ export interface MobileClientContext {
    */
   publicPort?: string;
   /**
+   * Where publicPort came from ("apache" = stamped by our edge from the
+   * real TCP connection, "client", "socket", "absent"). Telemetry only —
+   * never a header. Lets hmrc.api_call events prove, from our own data,
+   * that the port pipeline is measuring rather than inventing.
+   */
+  portSource?: string;
+  /**
    * The identifier the user signs into MileClear with (their email) —
    * what the spec says Gov-Client-User-IDs must hold. Set by hmrcCall
    * from the user row, never by the transport layer. The old code sent
@@ -115,6 +122,14 @@ export interface UnsupportedClientContext {
   connectionMethod: "UNSUPPORTED_CLIENT";
   /** What the caller claimed to be, for diagnostics only. */
   rawPlatform?: string;
+  /**
+   * Source port as measured at our edge, diagnostics only — lets a
+   * blocked request double as an end-to-end check that Apache is
+   * stamping X-Client-Source-Port.
+   */
+  publicPort?: string;
+  /** Where publicPort came from ("apache" | "client" | "socket" | "absent"). */
+  portSource?: string;
 }
 
 export type ClientContext = MobileClientContext | UnsupportedClientContext;
