@@ -659,10 +659,20 @@ export async function tripRoutes(app: FastifyInstance) {
       advanceLastTripAt(userId, data.startedAt).catch(() => {});
 
       // Referral qualification: if this user was invited and this is their
-      // first real trip, the referrer earns a free month. Idempotent + only
-      // acts on a pending referral, so it's safe to call on every non-phantom
+      // first real trip, both sides earn a free month. Idempotent + only
+      // acts on a pending referral, so it's safe to call on every eligible
       // trip (the helper no-ops after the first qualification).
-      qualifyReferralOnFirstTrip(userId).catch(() => {});
+      //
+      // TRACKED trips only (11 Aug 2026): a manual entry is typed into a
+      // form, so it costs nothing to manufacture — the same morning a user
+      // qualified his own second account with one manual trip. The phantom
+      // guard was meant to keep no-driving accounts from paying out;
+      // requiring a GPS-tracked trip is what actually enforces that. A
+      // referee who only ever logs manual trips stays "pending", which is
+      // the intended answer, not an oversight.
+      if (!isManualEntry) {
+        qualifyReferralOnFirstTrip(userId).catch(() => {});
+      }
       checkAndAwardAchievements(userId)
         .then((newAchievements) => {
           sendAchievementPush(userId, newAchievements).catch(() => {});
