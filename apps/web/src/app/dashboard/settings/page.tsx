@@ -689,7 +689,7 @@ export default function SettingsPage() {
               onClick={handleUpgrade}
               disabled={upgradeLoading}
             >
-              {upgradeLoading ? "Redirecting..." : "Upgrade to Pro — \u00A34.99/mo"}
+              {upgradeLoading ? "Redirecting..." : "Upgrade to Pro - \u00A34.99/mo"}
             </Button>
           </div>
         )}

@@ -90,7 +90,7 @@ const features = [
       </svg>
     ),
     title: "18 achievements and streaks",
-    desc: "Unlock badges for milestones, keep your driving streak alive, and get weekly recaps with shareable stats.",
+    desc: "Earn badges for milestones, keep your driving streak alive, and get weekly recaps with shareable stats.",
     alt: true,
   },
   {
@@ -137,7 +137,7 @@ const features = [
       </svg>
     ),
     title: "CSV import and Open Banking",
-    desc: "Bulk import earnings from platform CSVs or sync automatically via Open Banking with TrueLayer. No more manual data entry.",
+    desc: "Bulk import earnings from platform CSVs, or connect your bank through Open Banking with TrueLayer, so you're not typing figures in by hand.",
     alt: true,
     pro: "Pro",
   },
@@ -148,8 +148,8 @@ const features = [
         <circle cx="12" cy="10" r="3" />
       </svg>
     ),
-    title: "Quick and easy setup",
-    desc: "Sign in with Apple or email. Add your vehicle (or look it up by registration). You can be tracking in under a minute.",
+    title: "Set up in under a minute",
+    desc: "Sign in with Apple or email, add your vehicle (or look it up by registration), and you're tracking.",
   },
 ];
 

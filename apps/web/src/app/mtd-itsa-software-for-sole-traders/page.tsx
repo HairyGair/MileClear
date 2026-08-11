@@ -191,7 +191,7 @@ export default function MtdItsaSoftwarePage() {
         <section className="section" style={{ paddingTop: 0 }}>
           <div className="container" style={{ maxWidth: 820, margin: "0 auto" }}>
             <h2 className="heading" style={{ fontSize: "1.75rem", marginBottom: "1.25rem" }}>
-              Who has to comply &mdash; and when
+              Who has to comply, and when
             </h2>
             <p style={{ color: "var(--text-secondary)", marginBottom: "1.5rem" }}>
               MTD ITSA is being phased in by income threshold. The threshold
@@ -226,7 +226,7 @@ export default function MtdItsaSoftwarePage() {
                     marginBottom: "0.4rem",
                   }}
                 >
-                  Phase 1 &mdash; 6 April 2026
+                  Phase 1: 6 April 2026
                 </div>
                 <div
                   style={{
@@ -263,7 +263,7 @@ export default function MtdItsaSoftwarePage() {
                     marginBottom: "0.4rem",
                   }}
                 >
-                  Phase 2 &mdash; 6 April 2027
+                  Phase 2: 6 April 2027
                 </div>
                 <div
                   style={{
@@ -300,7 +300,7 @@ export default function MtdItsaSoftwarePage() {
                     marginBottom: "0.4rem",
                   }}
                 >
-                  Phase 3 &mdash; 6 April 2028
+                  Phase 3: 6 April 2028
                 </div>
                 <div
                   style={{
@@ -366,8 +366,8 @@ export default function MtdItsaSoftwarePage() {
               </li>
               <li style={{ marginBottom: "0.75rem" }}>
                 <strong style={{ color: "var(--text-white)" }}>Quarterly submission against HMRC&apos;s schema.</strong>{" "}
-                Your software has to map your real business data &mdash;
-                turnover, expenses by category, mileage deduction &mdash; to
+                Your software has to map your real business data (turnover,
+                expenses by category, mileage deduction) to
                 the exact JSON shape HMRC&apos;s Self Employment Business API
                 expects. Get the mapping wrong and you submit incorrect tax
                 figures, with personal liability if HMRC investigates.
@@ -398,16 +398,16 @@ export default function MtdItsaSoftwarePage() {
               Why most mileage trackers won&apos;t file your MTD ITSA return
             </h2>
             <p style={{ color: "var(--text-secondary)", marginBottom: "1rem" }}>
-              The well-known international mileage trackers &mdash; the
-              ones that come up first when you search &quot;UK mileage
-              tracker&quot; &mdash; were built around a simpler product
+              The well-known international mileage trackers, the ones
+              that come up first when you search &quot;UK mileage
+              tracker&quot;, were built around a simpler product
               shape: track miles, generate a CSV or PDF, hand it to your
               accountant. That&apos;s the entire workflow.
             </p>
             <p style={{ color: "var(--text-secondary)", marginBottom: "1rem" }}>
               MTD ITSA changes the shape of the workflow. The submission
               <em> is</em> the product. A mileage figure on a CSV is no
-              longer the end-state &mdash; it has to flow into a quarterly
+              longer the end-state: it has to flow into a quarterly
               filing that lives inside MTD-compliant software.
             </p>
             <p style={{ color: "var(--text-secondary)", marginBottom: "1rem" }}>
@@ -435,8 +435,8 @@ export default function MtdItsaSoftwarePage() {
                 if you want a coherent product.
               </li>
               <li style={{ marginBottom: "0.5rem" }}>
-                <strong style={{ color: "var(--text-white)" }}>Mileage-first apps with MTD bolted on</strong>{" "}
-                &mdash; a small but growing category. MileClear is in this
+                <strong style={{ color: "var(--text-white)" }}>Mileage-first apps with MTD bolted on</strong>.
+                A small but growing category. MileClear is in this
                 bucket, built UK-first with HMRC integration as a native
                 workflow rather than an export.
               </li>
@@ -536,7 +536,7 @@ export default function MtdItsaSoftwarePage() {
                 release notes
               </Link>
               {" "}because the deadline is real and you deserve to know
-              what state the software is actually in &mdash; not just
+              what state the software is actually in, not just
               what the marketing claims.
             </p>
           </div>
@@ -756,7 +756,7 @@ export default function MtdItsaSoftwarePage() {
                 >
                   HMRC mileage rates 2025-26 and 2026-27
                 </Link>
-                {" "}&mdash; the AMAP figures MileClear uses to calculate
+                {" "}- the AMAP figures MileClear uses to calculate
                 your deduction.
               </li>
               <li>
@@ -766,7 +766,7 @@ export default function MtdItsaSoftwarePage() {
                 >
                   Business mileage guide
                 </Link>
-                {" "}&mdash; what counts as a business trip for tax purposes.
+                {" "}- what counts as a business trip for tax purposes.
               </li>
               <li>
                 <Link
@@ -775,7 +775,7 @@ export default function MtdItsaSoftwarePage() {
                 >
                   What counts as business mileage
                 </Link>
-                {" "}&mdash; the trickier edge cases (commuting, mixed-use
+                {" "}- the trickier edge cases (commuting, mixed-use
                 trips, charity volunteering).
               </li>
               <li>
@@ -785,7 +785,7 @@ export default function MtdItsaSoftwarePage() {
                 >
                   MileClear vs MileIQ
                 </Link>
-                {" "}&mdash; honest UK-tax-tooling comparison with the
+                {" "}- honest UK-tax-tooling comparison with the
                 most-known alternative.
               </li>
             </ul>

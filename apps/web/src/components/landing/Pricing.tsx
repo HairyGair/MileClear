@@ -44,10 +44,10 @@ export default function Pricing() {
           <p className="subtext">
             No drive caps, no time limits, no surprise paywalls on basic features.
             MileIQ stops you at 40 drives a month unless you pay &pound;5.99.
-            TripLog limits you to 40. Driversnote limits you to 20. We don&apos;t
-            limit any of it &mdash; track as many miles as you like, on us. Pro
-            (&pound;4.99/month or &pound;44.99/year) adds the tax-export and
-            analyst toolkit; it never gates the tracker itself.
+            TripLog limits you to 40. Driversnote limits you to 15. We don&apos;t
+            limit any of it. Track as many miles as you like, on us. Pro
+            (&pound;4.99/month or &pound;44.99/year) adds the tax exports and
+            earnings analytics; it never gates the tracker itself.
           </p>
         </Reveal>
 
