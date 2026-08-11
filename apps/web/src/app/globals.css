@@ -804,14 +804,17 @@ body::after {
   line-height: 1.4;
 }
 
+/* Desktop keeps the same scroll rail as mobile. An earlier desktop
+   override (overflow visible + flex-shrink) was written when the gallery
+   held 3-4 shots; with eleven it crushed every card into one row at
+   whatever width its caption's longest word forced. Fixed-width cards +
+   overflow scroll behave the same at every count. */
 @media (min-width: 1100px) {
   .screenshots__rail {
-    overflow-x: visible;
-    flex-wrap: nowrap;
-    justify-content: center;
-    padding-bottom: 1rem;
+    padding-bottom: 1.5rem;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(245, 166, 35, 0.3) transparent;
   }
-  .screenshots__card { flex: 0 1 260px; }
 }
 
 /* ================================================================

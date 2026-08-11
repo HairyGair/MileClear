@@ -2,10 +2,12 @@ import Image from "next/image";
 import Reveal from "./Reveal";
 
 // Horizontal screenshot gallery. Sits between Features and WhoItsFor.
-// On mobile, scrolls horizontally with snap-to-card. On desktop, lays
-// out as a flex row that fits 3-4 phones visible at once. Each card
-// gets a short caption underneath so visitors can scan the gallery
-// without reading paragraphs.
+// Scrolls horizontally with snap-to-card at every width — fixed-width
+// cards, so the layout is indifferent to how many shots are in the
+// array (a desktop "fit them all" override crushed the row when the
+// gallery grew from 4 shots to 11). Each card gets a short caption
+// underneath so visitors can scan the gallery without reading
+// paragraphs.
 
 interface Shot {
   file: string;
