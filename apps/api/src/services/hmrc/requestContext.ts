@@ -180,21 +180,17 @@ export function buildClientContext(request: FastifyRequest): ClientContext {
     };
   }
 
+  // Anything else is a caller we cannot describe truthfully. This used to
+  // return a WEB_APP_VIA_SERVER context built from hardcoded defaults —
+  // browser "Unknown" 0.0, a 1440x900 window, a 1920x1080 screen — none of
+  // which came from a real browser, and missing four headers HMRC requires
+  // for that method. HMRC's Fraud Headers team flagged exactly those calls
+  // on 7 Aug 2026 (our own test tooling hitting the API directly; no user
+  // ever produced one). MileClear ships MTD from the mobile app only, so
+  // the honest answer is to refuse rather than to describe ourselves as a
+  // web app we do not have.
   return {
-    connectionMethod: "WEB_APP_VIA_SERVER",
-    publicIp: ip,
-    publicIpTimestamp,
-    publicPort,
-    browserName: get("x-mileclear-browser-name") ?? "Unknown",
-    browserVersion: get("x-mileclear-browser-version") ?? "0.0",
-    windowWidth: parseInt(get("x-mileclear-window-width") ?? "1440", 10),
-    windowHeight: parseInt(get("x-mileclear-window-height") ?? "900", 10),
-    screenWidth: parseInt(get("x-mileclear-screen-width") ?? "1920", 10),
-    screenHeight: parseInt(get("x-mileclear-screen-height") ?? "1080", 10),
-    scalingFactor: parseInt(get("x-mileclear-scaling-factor") ?? "1", 10),
-    colourDepth: parseInt(get("x-mileclear-colour-depth") ?? "24", 10),
-    language: get("accept-language")?.split(",")[0] ?? "en-GB",
-    timezone: get("x-mileclear-timezone") ?? "Europe/London",
-    timezoneOffset: tzOffset,
+    connectionMethod: "UNSUPPORTED_CLIENT",
+    rawPlatform: get("x-mileclear-platform") ?? undefined,
   };
 }

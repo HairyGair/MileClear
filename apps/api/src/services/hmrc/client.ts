@@ -197,6 +197,28 @@ async function performRequest(args: {
   const config = getHmrcConfig();
   if (!config) throw new Error("HMRC integration not configured");
 
+  // Refuse callers we cannot describe truthfully in the fraud-prevention
+  // headers. MileClear ships MTD from the mobile app only; a request
+  // without its X-MileClear-* context is our own tooling, a script, or a
+  // browser poking the API. The old code answered that case by declaring
+  // WEB_APP_VIA_SERVER and filling a browser identity from hardcoded
+  // defaults, which HMRC's Fraud Headers team flagged on 7 Aug 2026 —
+  // the same placeholder objection as device-model, one branch over.
+  // Declaring one connection method and meaning it is the whole fix.
+  if (args.options.client.connectionMethod !== "MOBILE_APP_VIA_SERVER") {
+    logEvent("hmrc.blocked_unsupported_connection", args.options.userId, {
+      path: args.options.path,
+      rawPlatform: args.options.client.rawPlatform ?? null,
+      connectionMethod: args.options.client.connectionMethod,
+    });
+    throw new HmrcError(
+      "HMRC submissions are only available from the MileClear mobile app.",
+      400,
+      "CONNECTION_METHOD_UNSUPPORTED",
+      null
+    );
+  }
+
   // Refuse to call HMRC at all from a client that cannot report real
   // hardware. requestContext strips placeholder models ("Unknown" from
   // pre-83 binaries, "arm64"/"x86_64" from simulators), so an absent model

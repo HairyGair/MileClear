@@ -4,6 +4,7 @@ import {
   generateStateToken,
   buildAuthorizationUrl,
   buildFraudPreventionHeaders,
+  buildClientContext,
   getHmrcConfig,
   resetHmrcConfig,
   normaliseObligation,
@@ -231,29 +232,19 @@ describe("buildFraudPreventionHeaders", () => {
     expect(headers["Gov-Client-User-Agent"]).not.toContain("Unknown");
   });
 
-  it("emits web-shaped headers when connection method is web", () => {
-    const headers = buildFraudPreventionHeaders({
-      config,
-      server,
-      client: {
-        connectionMethod: "WEB_APP_VIA_SERVER",
-        publicIp: "5.6.7.8",
-        publicIpTimestamp: "2026-05-08T19:30:00.000Z",
-        publicPort: "443",
-        browserName: "Safari",
-        browserVersion: "17.4",
-        windowWidth: 1440,
-        windowHeight: 900,
-        language: "en-GB",
-        timezone: "Europe/London",
-        timezoneOffset: "UTC+01:00",
-      },
-    });
-    expect(headers["Gov-Client-Connection-Method"]).toBe("WEB_APP_VIA_SERVER");
-    expect(headers["Gov-Client-Window-Size"]).toBe("width=1440&height=900");
-    expect(headers["Gov-Client-Timezone"]).toBe("UTC+01:00");
-    expect(headers["Gov-Client-Device-ID"]).toBeUndefined();
-    expect(headers["Gov-Client-User-Agent"]).toBe("browser-name=Safari&browser-version=17.4");
+  // MileClear ships MTD from the mobile app only. Until 7 Aug 2026 a caller
+  // without mobile context was declared WEB_APP_VIA_SERVER and given a
+  // browser identity invented from hardcoded defaults; HMRC's Fraud Headers
+  // team flagged those calls. Refusing is now the contract, so that a
+  // connection method we cannot evidence can never be sent again.
+  it("refuses to build headers for a client it cannot describe", () => {
+    expect(() =>
+      buildFraudPreventionHeaders({
+        config,
+        server,
+        client: { connectionMethod: "UNSUPPORTED_CLIENT", rawPlatform: "" },
+      })
+    ).toThrow(/MOBILE_APP_VIA_SERVER only/);
   });
 
   it("throws when a required header would be empty", () => {
@@ -333,6 +324,30 @@ describe("buildFraudPreventionHeaders", () => {
     });
     expect(withMfa["Gov-Client-Multi-Factor"]).toContain("type=TOTP");
     expect(withMfa["Gov-Client-Multi-Factor"]).toContain("unique-reference=user-totp-method-1");
+  });
+});
+
+describe("buildClientContext", () => {
+  // The layer that actually produced the calls HMRC flagged on 7 Aug 2026.
+  // The bug was not in a header value but in the classifier: a two-way
+  // branch whose `else` treated "no mobile headers" as "must be a browser".
+  const asRequest = (headers: Record<string, string>) =>
+    ({ headers, ip: "5.6.7.8", socket: { remotePort: 54321 } }) as never;
+
+  it("classifies a request carrying mobile context as mobile", () => {
+    const ctx = buildClientContext(
+      asRequest({
+        "x-mileclear-platform": "ios",
+        "x-mileclear-device-id": "device-uuid-1",
+        "x-mileclear-device-model": "iPhone17,2",
+      })
+    );
+    expect(ctx.connectionMethod).toBe("MOBILE_APP_VIA_SERVER");
+  });
+
+  it("refuses to invent a browser for a request with no mobile context", () => {
+    const ctx = buildClientContext(asRequest({ "user-agent": "Mozilla/5.0" }));
+    expect(ctx.connectionMethod).toBe("UNSUPPORTED_CLIENT");
   });
 });
 
