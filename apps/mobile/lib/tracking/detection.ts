@@ -1672,6 +1672,17 @@ async function _finalizeAutoTripInner(): Promise<void> {
           endAddress: endAddress ?? null,
           endedAt: last.recorded_at,
           distanceMiles: newDistance,
+          // Carry this segment's breadcrumbs into the trip we are extending.
+          // Without them the merge moved endedAt and distance over a stretch
+          // with no path behind it: the Journey Map drew half the drive and
+          // Split Trip could not find the stop (Dempsey Chimwara, 12 Aug 2026).
+          coordinates: filteredCoords.map((c) => ({
+            lat: c.lat,
+            lng: c.lng,
+            speed: c.speed,
+            accuracy: c.accuracy,
+            recordedAt: c.recorded_at,
+          })),
         });
         merged = true;
         logDetectionEvent("finalize_merged", { intoTripId: recentTrip.id, segmentMiles: totalDistance, mergedTotal: newDistance }).catch(() => {});

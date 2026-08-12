@@ -160,6 +160,13 @@ const updateTripSchema = z.object({
   classificationAutoAccepted: z.boolean().optional(),
   odometerStart: z.number().min(0).max(2_000_000).nullable().optional(),
   odometerEnd: z.number().min(0).max(2_000_000).nullable().optional(),
+  // Breadcrumbs for a segment being merged into this trip (multi-stop merge,
+  // mobile detection.ts). APPEND-ONLY: stored coordinates are never deleted,
+  // and an incoming point whose recordedAt already exists on the trip is
+  // skipped, so a retried PATCH from the sync queue cannot duplicate the
+  // route. Before 12 Aug 2026 the merge sent only endedAt/distance, which
+  // extended the trip over a stretch with no path behind it.
+  coordinates: z.array(coordinateInputSchema).max(20000).optional(),
 });
 
 const listTripsQuery = z.object({
@@ -1894,10 +1901,17 @@ export async function tripRoutes(app: FastifyInstance) {
     // classificationAutoAccepted is write-once. Mobile sends it on the first
     // user classification of an auto-classified trip; we never overwrite the
     // original accept/reject signal if the user later changes their mind.
-    const { classificationAutoAccepted: incomingAutoAccepted, ...restUpdates } = updates;
+    const {
+      classificationAutoAccepted: incomingAutoAccepted,
+      coordinates: incomingCoordinates,
+      ...restUpdates
+    } = updates;
     const shouldWriteAutoAccepted =
       incomingAutoAccepted !== undefined &&
       existing.classificationAutoAccepted === null;
+
+    const appendCoordinates = incomingCoordinates ?? [];
+    const hasAppendCoordinates = appendCoordinates.length > 0;
 
     // A manual trip whose end point moved has stale route geometry — clear
     // it in the same write, then refresh fire-and-forget below.
@@ -1907,16 +1921,75 @@ export async function tripRoutes(app: FastifyInstance) {
       newEndLng != null &&
       (newEndLat !== existing.endLat || newEndLng !== existing.endLng);
 
-    const trip = await prisma.trip.update({
-      where: { id },
-      data: {
-        ...restUpdates,
-        ...(distanceMiles !== undefined && { distanceMiles }),
-        ...(shouldWriteAutoAccepted && { classificationAutoAccepted: incomingAutoAccepted }),
-        ...(endMoved ? { routePolyline: null } : {}),
-      },
-      include: { vehicle: true, shift: true },
-    });
+    const tripUpdateData = {
+      ...restUpdates,
+      ...(distanceMiles !== undefined && { distanceMiles }),
+      ...(shouldWriteAutoAccepted && { classificationAutoAccepted: incomingAutoAccepted }),
+      ...(endMoved ? { routePolyline: null } : {}),
+      // New breadcrumbs extend the route, so a polyline matched against the
+      // old, shorter coordinate set no longer describes this trip. Drop it;
+      // POST /trips/:id/recalc rebuilds it from the full set.
+      ...(hasAppendCoordinates ? { routePolyline: null } : {}),
+    };
+
+    let trip;
+    let appendedCoordinates = 0;
+
+    if (hasAppendCoordinates) {
+      // Update and append together: a merge that extended endedAt/distance but
+      // lost its coordinates is exactly the failure being fixed here, so the
+      // two must not be able to come apart.
+      trip = await prisma.$transaction(async (tx) => {
+        const updated = await tx.trip.update({
+          where: { id },
+          data: tripUpdateData,
+          include: { vehicle: true, shift: true },
+        });
+
+        const stored = await tx.tripCoordinate.findMany({
+          where: { tripId: id },
+          select: { recordedAt: true },
+        });
+        // Dedupe against what is already stored AND within the incoming batch,
+        // keyed on the exact timestamp. Makes a replayed PATCH a no-op.
+        const seen = new Set(stored.map((c) => c.recordedAt.getTime()));
+        const fresh = appendCoordinates.filter((c) => {
+          const key = c.recordedAt.getTime();
+          if (seen.has(key)) return false;
+          seen.add(key);
+          return true;
+        });
+
+        if (fresh.length > 0) {
+          await tx.tripCoordinate.createMany({
+            data: fresh.map((c) => ({
+              tripId: id,
+              lat: c.lat,
+              lng: c.lng,
+              speed: c.speed ?? null,
+              accuracy: c.accuracy ?? null,
+              recordedAt: c.recordedAt,
+            })),
+          });
+        }
+        appendedCoordinates = fresh.length;
+
+        return updated;
+      });
+
+      logEvent("trip.coordinates_appended", userId, {
+        tripId: id,
+        received: appendCoordinates.length,
+        appended: appendedCoordinates,
+        duplicatesSkipped: appendCoordinates.length - appendedCoordinates,
+      });
+    } else {
+      trip = await prisma.trip.update({
+        where: { id },
+        data: tripUpdateData,
+        include: { vehicle: true, shift: true },
+      });
+    }
 
     if (endMoved) {
       attachManualRoutePolyline({
