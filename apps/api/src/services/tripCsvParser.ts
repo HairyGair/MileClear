@@ -366,9 +366,13 @@ export async function confirmTripCsvImport(
     // into the wrong year once stored as UTC.
     const startedAt = new Date(`${row.date}T${row.startTime ?? "12:00"}`);
     if (isNaN(startedAt.getTime())) continue;
-    const endedAt = row.endTime
-      ? new Date(`${row.date}T${row.endTime}`)
-      : null;
+    // The end time is stamped onto the start's calendar date, so a shift that
+    // runs past midnight (23:40 to 00:20, common for delivery drivers) would
+    // otherwise land its arrival before its departure. Roll it forward a day.
+    let endedAt = row.endTime ? new Date(`${row.date}T${row.endTime}`) : null;
+    if (endedAt && !isNaN(endedAt.getTime()) && endedAt < startedAt) {
+      endedAt = new Date(endedAt.getTime() + 24 * 60 * 60 * 1000);
+    }
 
     await prisma.trip.create({
       data: {

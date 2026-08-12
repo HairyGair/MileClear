@@ -294,6 +294,9 @@ export default function TripsPage() {
     notes: "",
     projectLabel: "",
     startedAt: new Date().toISOString().slice(0, 16),
+    // Optional. Left blank, the server estimates it from the road route so the
+    // trip still counts toward duration-based figures instead of being skipped.
+    endedAt: "",
   });
   const [addLoading, setAddLoading] = useState(false);
   const [addCoords, setAddCoords] = useState<{
@@ -482,6 +485,10 @@ export default function TripsPage() {
       setError("Please enter a valid distance");
       return;
     }
+    if (addForm.endedAt && new Date(addForm.endedAt) < new Date(addForm.startedAt)) {
+      setError("Arrival time cannot be before the departure time");
+      return;
+    }
     setAddLoading(true);
     setError(null);
     try {
@@ -495,6 +502,7 @@ export default function TripsPage() {
         notes: addForm.notes || undefined,
         projectLabel: addForm.projectLabel.trim() || undefined,
         startedAt: new Date(addForm.startedAt).toISOString(),
+        endedAt: addForm.endedAt ? new Date(addForm.endedAt).toISOString() : undefined,
         startLat: addCoords?.startLat ?? 0,
         startLng: addCoords?.startLng ?? 0,
         endLat: addCoords?.endLat,
@@ -513,6 +521,7 @@ export default function TripsPage() {
         notes: "",
         projectLabel: "",
         startedAt: new Date().toISOString().slice(0, 16),
+        endedAt: "",
       });
       toast("Trip added");
       loadTrips();
@@ -1163,6 +1172,21 @@ export default function TripsPage() {
             value={addForm.startedAt}
             onChange={(e) => setAddForm((f) => ({ ...f, startedAt: e.target.value }))}
           />
+        </div>
+        <div className="form-row">
+          <div>
+            <Input
+              id="addEnd"
+              label="Arrived (optional)"
+              type="datetime-local"
+              value={addForm.endedAt}
+              min={addForm.startedAt}
+              onChange={(e) => setAddForm((f) => ({ ...f, endedAt: e.target.value }))}
+            />
+            <span style={{ fontSize: "0.75rem", color: "var(--text-muted)", marginTop: "0.25rem", display: "block" }}>
+              Leave blank and we will estimate the drive time from the route.
+            </span>
+          </div>
         </div>
         <div className="form-row">
           <Select

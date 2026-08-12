@@ -158,4 +158,32 @@ describe("confirmTripCsvImport", () => {
     expect(data.startedAt.getHours()).toBe(12);
     expect(data.startedAt.getDate()).toBe(6);
   });
+
+  it("rolls an after-midnight arrival onto the next day", async () => {
+    // A late shift: leaves 23:40, arrives 00:20. The end time is stamped onto
+    // the start's date, so without the roll-forward the arrival lands 23h20m
+    // BEFORE the departure.
+    const geocode = vi.fn().mockResolvedValue(null);
+    await confirmTripCsvImport(
+      USER,
+      [{ ...row, startTime: "23:40", endTime: "00:20" }],
+      geocode
+    );
+    const data = (prisma.trip.create as ReturnType<typeof vi.fn>).mock.calls[0][0].data;
+    expect(data.endedAt.getTime()).toBeGreaterThan(data.startedAt.getTime());
+    expect(data.endedAt.getDate()).toBe(9); // start 8 Aug, arrival 9 Aug
+    expect((data.endedAt.getTime() - data.startedAt.getTime()) / 60000).toBe(40);
+  });
+
+  it("leaves a same-day arrival alone", async () => {
+    const geocode = vi.fn().mockResolvedValue(null);
+    await confirmTripCsvImport(
+      USER,
+      [{ ...row, startTime: "09:15", endTime: "09:45" }],
+      geocode
+    );
+    const data = (prisma.trip.create as ReturnType<typeof vi.fn>).mock.calls[0][0].data;
+    expect(data.endedAt.getDate()).toBe(8);
+    expect((data.endedAt.getTime() - data.startedAt.getTime()) / 60000).toBe(30);
+  });
 });

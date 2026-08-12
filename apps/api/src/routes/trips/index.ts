@@ -34,7 +34,7 @@ import { logEvent } from "../../services/appEvents.js";
 import { advanceLastTripAt } from "../../services/userActivity.js";
 import { qualifyReferralOnFirstTrip } from "../../services/referral.js";
 import { looksLikePhantomTrip, hasRealMovementEvidence } from "../../lib/phantomTrip.js";
-import { resolveRouteDistance } from "../../services/routing.js";
+import { resolveRouteDistance, routedDurationUsable } from "../../services/routing.js";
 import { matchTripRoute, decodePolyline, isMatchPlausible } from "../../services/mapMatching.js";
 import { computeTripConfidence } from "../../services/tripConfidence.js";
 import {
@@ -2448,11 +2448,58 @@ async function attachManualRoutePolyline(args: {
     endLng: args.endLng,
     userId: args.userId,
   });
-  if (!route?.encodedPolyline) return;
+  if (!route) return;
+
+  // The same lookup answers "how long does this drive take?", which is the
+  // only end time a manually-entered trip can have when the user did not
+  // give one. The web form has no end-time field at all and mobile's is
+  // optional, so ~11% of manual trips were stored with endedAt NULL and
+  // dropped out of every duration-derived figure (shift grades, earnings
+  // per hour, golden hours, the weekly P&L). An estimate beats absence
+  // there, but it must be labelled, so gpsQuality carries its provenance
+  // and the trip is only touched when the user left the field empty.
+  const current = await prisma.trip.findUnique({
+    where: { id: args.tripId },
+    select: { startedAt: true, endedAt: true, distanceMiles: true, gpsQuality: true },
+  });
+  if (!current) return;
+
+  const inferEndedAt =
+    current.endedAt === null &&
+    routedDurationUsable({
+      routedMiles: route.distanceMiles,
+      routedSecs: route.durationSecs,
+      storedMiles: current.distanceMiles,
+    });
+
+  if (!route.encodedPolyline && !inferEndedAt) return;
+
   await prisma.trip.update({
     where: { id: args.tripId },
-    data: { routePolyline: route.encodedPolyline },
+    data: {
+      ...(route.encodedPolyline ? { routePolyline: route.encodedPolyline } : {}),
+      ...(inferEndedAt
+        ? {
+            endedAt: new Date(current.startedAt.getTime() + route.durationSecs * 1000),
+            gpsQuality: {
+              ...(current.gpsQuality && typeof current.gpsQuality === "object" && !Array.isArray(current.gpsQuality)
+                ? (current.gpsQuality as Prisma.JsonObject)
+                : {}),
+              endedAtSource: "routed_duration",
+              endedAtDurationSecs: route.durationSecs,
+            },
+          }
+        : {}),
+    },
   });
+
+  if (inferEndedAt) {
+    logEvent("trip.ended_at_inferred", args.userId, {
+      tripId: args.tripId,
+      durationSecs: route.durationSecs,
+      source: route.source,
+    });
+  }
 }
 
 /**
