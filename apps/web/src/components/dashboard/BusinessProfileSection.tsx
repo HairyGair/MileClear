@@ -19,6 +19,7 @@ interface BusinessProfile {
   vatNumber: string | null;
   invoiceAccentColor: string | null;
   invoicePaymentTermsDays: number;
+  nextInvoiceNumber: number;
   bankAccountName: string | null;
   bankSortCode: string | null;
   bankAccountNumber: string | null;
@@ -58,6 +59,7 @@ export function BusinessProfileSection() {
   const [vatNumber, setVatNumber] = useState("");
   const [accentColor, setAccentColor] = useState("");
   const [termsDays, setTermsDays] = useState("30");
+  const [nextInvoiceNumber, setNextInvoiceNumber] = useState("1");
   const [bankAccountName, setBankAccountName] = useState("");
   const [bankSortCode, setBankSortCode] = useState("");
   const [bankAccountNumber, setBankAccountNumber] = useState("");
@@ -77,6 +79,7 @@ export function BusinessProfileSection() {
         setVatNumber(data.vatNumber ?? "");
         setAccentColor(data.invoiceAccentColor ?? "");
         setTermsDays(String(data.invoicePaymentTermsDays ?? 30));
+        setNextInvoiceNumber(String(data.nextInvoiceNumber ?? 1));
         setBankAccountName(data.bankAccountName ?? "");
         setBankSortCode(data.bankSortCode ?? "");
         setBankAccountNumber(data.bankAccountNumber ?? "");
@@ -112,6 +115,7 @@ export function BusinessProfileSection() {
         vatNumber: vatRegistered ? vatNumber.trim() || null : null,
         invoiceAccentColor: accentColor || null,
         invoicePaymentTermsDays: Math.min(90, Math.max(1, parseInt(termsDays, 10) || 30)),
+        ...(parseInt(nextInvoiceNumber, 10) > 0 && { nextInvoiceNumber: parseInt(nextInvoiceNumber, 10) }),
         bankAccountName: bankAccountName.trim() || null,
         bankSortCode: bankSortCode.trim() || null,
         bankAccountNumber: bankAccountNumber.trim() || null,
@@ -278,7 +282,7 @@ export function BusinessProfileSection() {
         />
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.75rem", alignItems: "end", marginBottom: "1rem" }}>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.75rem", marginBottom: "0.75rem" }}>
         <Input
           id="bp-terms"
           label="Default payment terms (days)"
@@ -286,6 +290,23 @@ export function BusinessProfileSection() {
           value={termsDays}
           onChange={(e) => setTermsDays(e.target.value)}
         />
+        <div>
+          <Input
+            id="bp-next-invoice"
+            label="Next invoice number"
+            type="number"
+            min={1}
+            value={nextInvoiceNumber}
+            onChange={(e) => setNextInvoiceNumber(e.target.value)}
+          />
+          <span style={{ fontSize: "0.75rem", color: "var(--text-muted)", marginTop: "0.25rem", display: "block" }}>
+            Coming from another system? Set this to carry on your existing numbering.
+          </span>
+        </div>
+      </div>
+
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.75rem", alignItems: "end", marginBottom: "1rem" }}>
+        <div />
         <div>
           <Button variant="primary" onClick={handleSave} disabled={saving}>
             {saving ? "Saving…" : "Save business profile"}

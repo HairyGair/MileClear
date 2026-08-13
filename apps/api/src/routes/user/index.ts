@@ -9,6 +9,7 @@ import { logEvent } from "../../services/appEvents.js";
 import { resolvePremiumStatus } from "../../services/referral.js";
 import { encrypt, decryptIfEncrypted } from "../../lib/encryption.js";
 import { canSafelyEmbedImage } from "../../services/export.js";
+import { formatInvoiceNumber } from "@mileclear/shared";
 
 const updateProfileSchema = z.object({
   displayName: z.string().max(100).nullable().optional(),
@@ -53,6 +54,12 @@ const updateProfileSchema = z.object({
     .nullable()
     .optional(),
   invoicePaymentTermsDays: z.number().int().min(1).max(90).optional(),
+  // The number the NEXT invoice should carry. Users arrive mid-sequence from a
+  // spreadsheet or another system and expect their numbering to continue, not
+  // restart at 1 (Rachel Thorndyke, 13 Aug 2026, migrating at 485). Exposed as
+  // "next" because that is how people think about it; the stored counter holds
+  // the last number ALLOCATED, so the handler converts.
+  nextInvoiceNumber: z.number().int().min(1).max(1_000_000).optional(),
   bankAccountName: z.string().max(120).nullable().optional(),
   bankSortCode: z
     .string()
@@ -99,6 +106,7 @@ const USER_SELECT = {
   vatNumber: true,
   invoiceAccentColor: true,
   invoicePaymentTermsDays: true,
+  invoiceCounter: true,
   bankAccountName: true,
   bankSortCode: true,
   bankAccountNumber: true,
@@ -131,6 +139,13 @@ function withDecryptedBankDetails<T extends { bankSortCode?: string | null; bank
     bankSortCode: decryptIfEncrypted(user.bankSortCode ?? null),
     bankAccountNumber: decryptIfEncrypted(user.bankAccountNumber ?? null),
   };
+}
+
+/** Surface the sequence as the number the next invoice will carry, which is
+ *  what the user set and what the settings screen shows back to them. The
+ *  stored counter is the last number allocated. */
+function withNextInvoiceNumber<T extends { invoiceCounter?: number }>(user: T): T & { nextInvoiceNumber: number } {
+  return { ...user, nextInvoiceNumber: (user.invoiceCounter ?? 0) + 1 };
 }
 
 const ALERT_COOLDOWN_DAYS = 7;
@@ -310,7 +325,7 @@ export async function userRoutes(app: FastifyInstance) {
       return reply.status(404).send({ error: "User not found" });
     }
 
-    return reply.send({ data: withDecryptedBankDetails(withEffectivePremium(user)) });
+    return reply.send({ data: withNextInvoiceNumber(withDecryptedBankDetails(withEffectivePremium(user))) });
   });
 
   // Update profile
@@ -426,6 +441,27 @@ export async function userRoutes(app: FastifyInstance) {
       updateData.bankAccountNumber = bp.bankAccountNumber ? encrypt(bp.bankAccountNumber) : null;
     }
 
+    // Continue an existing invoice sequence. Refuse to move the counter back
+    // onto ground already used: @@unique([userId, invoiceNumber]) would fail
+    // the NEXT create, and a duplicate invoice number is worse than the error
+    // (two documents claiming the same reference, with the payment reconciler
+    // matching on that reference). Numbers already issued are the floor.
+    if (bp.nextInvoiceNumber !== undefined) {
+      const highest = await prisma.invoice.aggregate({
+        where: { userId },
+        _max: { invoiceNumber: true },
+      });
+      const used = highest._max.invoiceNumber ?? 0;
+      if (bp.nextInvoiceNumber <= used) {
+        return reply.status(400).send({
+          error:
+            `You have already issued invoice ${formatInvoiceNumber(used)}, so numbering must continue from ` +
+            `${formatInvoiceNumber(used + 1)} or later.`,
+        });
+      }
+      updateData.invoiceCounter = bp.nextInvoiceNumber - 1;
+    }
+
     // Marketing email preference
     if (parsed.data.marketingEmailsEnabled !== undefined) {
       updateData.marketingEmailsEnabled = parsed.data.marketingEmailsEnabled;
@@ -477,7 +513,7 @@ export async function userRoutes(app: FastifyInstance) {
       select: USER_SELECT,
     });
 
-    return reply.send({ data: withDecryptedBankDetails(withEffectivePremium(user)) });
+    return reply.send({ data: withNextInvoiceNumber(withDecryptedBankDetails(withEffectivePremium(user))) });
   });
 
   // GET /user/weekly-progress
