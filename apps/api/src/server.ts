@@ -98,6 +98,12 @@ const HOST = process.env.API_HOST || "0.0.0.0";
 const app = Fastify({
   trustProxy: true,
   bodyLimit: 10_485_760, // 10MB (trips with up to 20k coords can be ~3MB)
+  // Fastify's default is 100, and accountant tokens are 128 hex chars, so
+  // every real accountant link 404'd at the router before reaching its
+  // handler - the portal has never worked in production, which is why the
+  // access table is empty. Found 14 Aug 2026 while verifying the token
+  // hardening. 200 leaves headroom without inviting silly URLs.
+  maxParamLength: 200,
   logger: {
     level: process.env.NODE_ENV === "production" ? "info" : "debug",
     redact: ["req.headers.authorization"],
