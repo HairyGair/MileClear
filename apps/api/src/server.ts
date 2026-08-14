@@ -2,6 +2,7 @@ import "dotenv/config";
 import Fastify from "fastify";
 import { ZodError } from "zod";
 import { ApiError } from "./lib/apiError.js";
+import { redactUrlSecrets } from "./lib/redactUrl.js";
 import cors from "@fastify/cors";
 import cookie from "@fastify/cookie";
 import helmet from "@fastify/helmet";
@@ -100,6 +101,14 @@ const app = Fastify({
   logger: {
     level: process.env.NODE_ENV === "production" ? "info" : "debug",
     redact: ["req.headers.authorization"],
+    serializers: {
+      req(request: { method: string; url: string; headers: Record<string, unknown> }) {
+        return {
+          method: request.method,
+          url: redactUrlSecrets(request.url),
+        };
+      },
+    },
   },
 });
 
@@ -148,7 +157,7 @@ app.setErrorHandler((error: Error & { statusCode?: number; validation?: unknown 
   const statusCode = error.statusCode && error.statusCode < 500 ? error.statusCode : 500;
   if (statusCode >= 500) {
     logEvent("error.500", (request as any).userId ?? null, {
-      path: request.url,
+      path: redactUrlSecrets(request.url),
       method: request.method,
       message: error.message,
     });
@@ -163,7 +172,7 @@ app.addHook("onResponse", (request, reply, done) => {
   const duration = reply.elapsedTime;
   if (duration > 2000) {
     logEvent("perf.slow_request", (request as any).userId ?? null, {
-      path: request.url,
+      path: redactUrlSecrets(request.url),
       method: request.method,
       statusCode: reply.statusCode,
       durationMs: Math.round(duration),
