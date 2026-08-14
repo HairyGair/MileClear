@@ -305,3 +305,118 @@ async function initializeSchema(database: SQLite.SQLiteDatabase): Promise<void> 
     [String(CURRENT_SCHEMA_VERSION)]
   );
 }
+
+// ── Local data ownership (GDPR, 14 Aug 2026) ────────────────────────────
+//
+// Until now `logout()` cleared the keychain and stopped the engines but
+// never touched SQLite, and nothing cleared it on login either. So a
+// second person signing in on the same handset inherited the first
+// person's entire local history: every trip, every breadcrumb, and the
+// home/work pins in `saved_locations`. Shared households, resold phones
+// and support-loaner devices all hit it.
+//
+// The wipe is deliberately keyed on "a DIFFERENT user signed in", not on
+// logout. Logging out is routine (a 401 during a drive does it), and this
+// database is the only copy of anything still sitting in `sync_queue` —
+// wiping on logout would turn a transient auth failure into permanent
+// data loss, which is the exact class of bug this app has spent months
+// fixing. A different user arriving is the point at which keeping the
+// data becomes a confidentiality problem rather than a safety net.
+
+const LOCAL_DATA_OWNER_KEY = "local_data_owner_user_id";
+
+/**
+ * Every table holding a user's own data. Children first so the intent is
+ * readable; SQLite has no FK enforcement here, so the order is cosmetic.
+ * `tracking_state` is included because it carries raw GPS anchors
+ * (`departure_anchor_lat/lng`, `stop_anchor`, `quick_trip_start`).
+ */
+const USER_DATA_TABLES = [
+  "coordinates",
+  "shift_coordinates",
+  "detection_coordinates",
+  "detection_events",
+  "trips",
+  "shifts",
+  "fuel_logs",
+  "earnings",
+  "saved_locations",
+  "learned_routes",
+  "classification_rules",
+  "work_schedule",
+  "notification_prefs",
+  "layout_prefs",
+  "sync_queue",
+  "tracking_state",
+];
+
+/**
+ * Delete every row of user data from the local database. DELETE rather
+ * than DROP so the schema and its version survive: the next user gets a
+ * ready database instead of a migration on first launch.
+ *
+ * Each table is cleared independently — a table missing on an older
+ * install must not abort the wipe half-done.
+ */
+export async function resetLocalData(): Promise<void> {
+  const db = await getDatabase();
+  for (const table of USER_DATA_TABLES) {
+    try {
+      await db.runAsync(`DELETE FROM ${table}`);
+    } catch {
+      // Table absent on this schema version; nothing to clear.
+    }
+  }
+  // Re-stamp the schema version, which lived in the table we just cleared.
+  await db.runAsync(
+    "INSERT OR REPLACE INTO tracking_state (key, value) VALUES ('schema_version', ?)",
+    [String(CURRENT_SCHEMA_VERSION)]
+  );
+}
+
+export async function getLocalDataOwner(): Promise<string | null> {
+  try {
+    const db = await getDatabase();
+    const row = await db.getFirstAsync<{ value: string }>(
+      "SELECT value FROM tracking_state WHERE key = ?",
+      [LOCAL_DATA_OWNER_KEY]
+    );
+    return row?.value ?? null;
+  } catch {
+    return null;
+  }
+}
+
+export async function setLocalDataOwner(userId: string): Promise<void> {
+  const db = await getDatabase();
+  await db.runAsync(
+    "INSERT OR REPLACE INTO tracking_state (key, value) VALUES (?, ?)",
+    [LOCAL_DATA_OWNER_KEY, userId]
+  );
+}
+
+/**
+ * Called on every authenticated sign-in. Wipes local data only when we
+ * can positively prove a different user is taking over the device.
+ *
+ * Fail-safe by construction: an unreadable token, an unreadable database
+ * or a first-run install with no recorded owner all fall through to
+ * "adopt, don't wipe". Existing installs upgrading to this build are
+ * therefore adopted by whoever is already signed in, and keep their data.
+ *
+ * Returns true if a wipe happened, for the caller's logging.
+ */
+export async function claimLocalDataFor(userId: string | null): Promise<boolean> {
+  if (!userId) return false;
+  const previous = await getLocalDataOwner();
+  const differentUser = previous !== null && previous !== userId;
+  if (differentUser) {
+    await resetLocalData();
+  }
+  try {
+    await setLocalDataOwner(userId);
+  } catch {
+    // Owner not recorded; next sign-in adopts rather than wipes. Safe.
+  }
+  return differentUser;
+}
