@@ -75,16 +75,18 @@ export const ACTIVE_ANNOUNCEMENT: SiteAnnouncement | null = null;
 
 export const RELEASE_NOTES: ReleaseNote[] = [
   {
-    // Build 83, in App Store review since 7 Aug. History: build 81 was
-    // submitted 30 Jul then pulled the same evening to fold in two more
-    // driver-report fixes; build 82 replaced it; build 83 added the HMRC
-    // device-model fix and was resubmitted 7 Aug after a build-expiry
-    // gotcha stalled the version for four days. On approval: flip this to
-    // "Latest" and 1.3.5 to "App Store" - the banner and the Product
-    // Update email both key off "Latest".
+    // Build 83. LIVE on the App Store 14 Aug 2026 (READY_FOR_SALE, released
+    // automatically on approval). History: build 81 was submitted 30 Jul then
+    // pulled the same evening to fold in two more driver-report fixes; build 82
+    // replaced it; build 83 added the HMRC device-model fix and was resubmitted
+    // 7 Aug after a build-expiry gotcha stalled the version for four days; a
+    // 2.3.7 metadata rejection on 11 Aug (screenshots said "free") sent it back
+    // for a same-build resubmission. On approval the next release flips this to
+    // "App Store" - the banner and the Product Update email both key off
+    // "Latest".
     version: "1.3.7",
     date: "August 2026",
-    label: "Pending Review",
+    label: "Latest",
     ctaUrl: "https://mileclear.com/releases",
     ctaLabel: "Read the release notes",
     emailSubject: "What's new in MileClear 1.3.7",
@@ -107,10 +109,11 @@ export const RELEASE_NOTES: ReleaseNote[] = [
     ],
   },
   {
-    // Approved + released 28 Jul 2026.
+    // Approved + released 28 Jul 2026; superseded by 1.3.7 on 14 Aug. Its
+    // banner retires automatically with the label change.
     version: "1.3.5",
     date: "July 2026",
-    label: "Latest",
+    label: "App Store",
     ctaUrl: "https://mileclear.com/releases",
     ctaLabel: "Read the release notes",
     banner: {
