@@ -146,6 +146,7 @@ export async function startNativeAutoTripLiveActivity(): Promise<void> {
 }
 
 import type { TripClassification, PlatformTag } from "@mileclear/shared";
+import { resolveJourneyEndMinutes, journeyBoundaryMs } from "./journeyBoundary";
 
 const DETECTION_TASK_NAME = "mileclear-drive-detection";
 const BACKGROUND_FINALIZE_TASK = "mileclear-background-finalize";
@@ -166,7 +167,13 @@ const WATCH_MODE_MAX_AGE_MS = 20 * 60 * 1000; // 20 minutes - silently clean up 
 const CONTINUE_SPEED_MS = 1.0; // ~2.2 mph - any movement keeps an active recording alive
 const RESUME_DISPLACEMENT_M = 80; // metres - must move this far from stop anchor to resume trip (GPS drift stays within ~30m)
 const MIN_AUTO_TRIP_DISTANCE_MILES = 0.3; // Filter noise / parking lot shuffles / GPS drift mini-trips
-const MERGE_TIME_WINDOW_MS = 15 * 60 * 1000; // 15 minutes - merge trips that ended within this window
+// MERGE_TIME_WINDOW_MS now lives in journeyBoundary.ts, alongside the rule
+// that caps it, so the two halves of the merge/split decision stay together.
+
+// Journey boundary (how long stopped before a journey is over) lives in its own
+// module so the rule is unit-testable - this file pulls in the native tracking
+// stack and cannot be imported by the test runner. See journeyBoundary.ts for
+// why it is deliberately not BUFFER_MAX_AGE_MS.
 const MERGE_DISTANCE_M = 500; // metres - merge trips whose end/start are within this radius
 const ANCHOR_EXIT_VERIFY_M = 130; // metres - device must be this far outside the 100m anchor before a backstop "missed Exit" is trusted (mirrors the geofence handler's verify gate)
 const BACKSTOP_DISTANCE_INTERVAL_M = 500; // metres - displacement filter for the low-power parked backstop subscription (the geofence is the precise fast path; this is the safety net)
@@ -1118,12 +1125,14 @@ async function _finalizeAutoTripInner(): Promise<void> {
   // multi-stop-journey case below). Re-buffered after the buffer is cleared.
   let deferredCoords: BufferedCoordinate[] = [];
   if (rawCoords.length >= 2) {
-    // Split into contiguous segments separated by gaps > BUFFER_MAX_AGE_MS.
+    // Split into contiguous segments separated by gaps longer than the user's
+    // journey boundary (default 30 min, i.e. the previous fixed behaviour).
+    const { splitMs } = journeyBoundaryMs(await getJourneyEndMinutes());
     const segments: BufferedCoordinate[][] = [[rawCoords[0]]];
     for (let i = 1; i < rawCoords.length; i++) {
       const prev = new Date(rawCoords[i - 1].recorded_at).getTime();
       const curr = new Date(rawCoords[i].recorded_at).getTime();
-      if (curr - prev > BUFFER_MAX_AGE_MS) {
+      if (curr - prev > splitMs) {
         segments.push([]);
       }
       segments[segments.length - 1].push(rawCoords[i]);
@@ -1639,10 +1648,13 @@ async function _finalizeAutoTripInner(): Promise<void> {
       // silent. The Raven 13 May 2026 case (108-mile drive split into
       // 5.7 + 103 trips at a petrol station) was invisible in the
       // diagnostic dump until we queried the DB directly.
+      // Capped by the user's journey boundary: gluing a segment back on across
+      // a gap they call the end of a journey would undo the split immediately.
+      const { mergeMs } = journeyBoundaryMs(await getJourneyEndMinutes());
       const decision: string =
-        Math.abs(timeSinceLastTrip) < MERGE_TIME_WINDOW_MS && distFromLastEnd < MERGE_DISTANCE_M
+        Math.abs(timeSinceLastTrip) < mergeMs && distFromLastEnd < MERGE_DISTANCE_M
           ? "merged"
-          : Math.abs(timeSinceLastTrip) >= MERGE_TIME_WINDOW_MS
+          : Math.abs(timeSinceLastTrip) >= mergeMs
           ? "rejected_too_old"
           : "rejected_too_far";
       logDetectionEvent("merge_attempted", {
@@ -1662,7 +1674,7 @@ async function _finalizeAutoTripInner(): Promise<void> {
       // continuous drive. (Raven 13 May 2026: 5.7 mi trip + 103 mi
       // trip split at Spicewood, 18m apart, 1-second overlap.)
       // Math.abs() so the 15-minute window is symmetric.
-      if (Math.abs(timeSinceLastTrip) < MERGE_TIME_WINDOW_MS && distFromLastEnd < MERGE_DISTANCE_M) {
+      if (Math.abs(timeSinceLastTrip) < mergeMs && distFromLastEnd < MERGE_DISTANCE_M) {
         // Merge: extend the previous trip's end point, distance, and time
         const { syncUpdateTrip } = await import("../sync/actions");
         const newDistance = Math.round((recentTrip.distance_miles + totalDistance) * 100) / 100;
@@ -3599,6 +3611,24 @@ export async function isDriveDetectionEnabled(): Promise<boolean> {
     "SELECT value FROM tracking_state WHERE key = 'drive_detection_enabled'"
   );
   return row ? row.value === "1" : true;
+}
+
+export async function getJourneyEndMinutes(): Promise<number> {
+  const db = await getDatabase();
+  const row = await db.getFirstAsync<{ value: string }>(
+    "SELECT value FROM tracking_state WHERE key = 'journey_end_minutes'"
+  );
+  return resolveJourneyEndMinutes(row?.value);
+}
+
+export async function setJourneyEndMinutes(minutes: number): Promise<void> {
+  const db = await getDatabase();
+  const clamped = resolveJourneyEndMinutes(minutes);
+  await db.runAsync(
+    "INSERT OR REPLACE INTO tracking_state (key, value) VALUES ('journey_end_minutes', ?)",
+    [String(clamped)]
+  );
+  logDetectionEvent("journey_end_minutes_set", { minutes: clamped }).catch(() => {});
 }
 
 export async function setDriveDetectionEnabled(enabled: boolean): Promise<void> {
