@@ -50,6 +50,76 @@ function conciseAddress(r: NominatimResult): string {
   return (r.display_name ?? "").replace(/,?\s*United Kingdom$/i, "").trim();
 }
 
+// ── Reverse geocoding (coordinates → a name a driver recognises) ──
+//
+// Addresses are normally reverse-geocoded on the device and sent up with the
+// trip. When that fails the client sends null, and a trip with BOTH addresses
+// null renders in the trips list with no route line at all (trips.tsx:878 only
+// draws it when at least one is present) — so a perfectly captured drive shows
+// as a bare distance and time. Users read that as a missing trip and report it:
+// 96 such trips in the week to 15 Aug 2026 across 33 users, including six of
+// the people who filed missing-trip reports that week (Hanson reported his
+// twice, then tried to re-enter it by hand while it was already saved).
+//
+// Nominatim rather than Google: it is already this file's provider, it is free
+// and keyless, and its UK coverage is good — it resolves a bare coordinate to
+// "McDonald's, Tyldesley Road, Atherton, M46 9AT". Its usage policy asks for
+// an identifying User-Agent, at most one request a second, and that results be
+// cached; the volume here is roughly 56 lookups a day, well inside that.
+//
+// Cached on coordinates rounded to 4dp (~11 m, the same precision RouteCache
+// uses) because drivers return to the same places constantly — a depot, a
+// customer, home — so the same handful of points recur for weeks.
+const REVERSE_CACHE_TTL_SECONDS = 30 * 24 * 60 * 60; // addresses do not move
+
+function roundCoord(value: number): number {
+  return Math.round(value * 10_000) / 10_000;
+}
+
+export async function reverseGeocode(lat: number, lng: number): Promise<string | null> {
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+  // 0,0 is the established "no coordinates" sentinel — reverse-geocoding it
+  // returns a point in the Atlantic, which is worse than showing nothing.
+  if (Math.abs(lat) < 0.001 && Math.abs(lng) < 0.001) return null;
+
+  const key = `revgeo:v1:${roundCoord(lat)},${roundCoord(lng)}`;
+  const cached = await cacheGet(key);
+  if (cached !== null && cached !== undefined) return cached === "" ? null : cached;
+
+  const url = new URL("/reverse", NOMINATIM_URL);
+  url.searchParams.set("lat", String(lat));
+  url.searchParams.set("lon", String(lng));
+  url.searchParams.set("format", "jsonv2");
+  url.searchParams.set("addressdetails", "1");
+  url.searchParams.set("zoom", "18"); // building / street level
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
+  try {
+    const res = await fetch(url.toString(), {
+      headers: { "User-Agent": USER_AGENT, Accept: "application/json" },
+      signal: controller.signal,
+    });
+    if (!res.ok) return null;
+    const row = (await res.json()) as NominatimResult & { error?: string };
+    if (row.error) {
+      // Cache the miss briefly so a point in the sea is not retried forever.
+      await cacheSet(key, "", CACHE_TTL_SECONDS);
+      return null;
+    }
+    const address = conciseAddress(row);
+    if (!address) return null;
+    await cacheSet(key, address, REVERSE_CACHE_TTL_SECONDS);
+    return address;
+  } catch {
+    // Timeout or network failure: return null and leave the trip as it was.
+    // A missing label is a nuisance; a failed trip save is not acceptable.
+    return null;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 // ── Google Places Autocomplete (primary path) ─────────────────────
 //
 // Type-ahead: the user picks a real, disambiguated place instead of us

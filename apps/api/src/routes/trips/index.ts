@@ -35,6 +35,7 @@ import { advanceLastTripAt } from "../../services/userActivity.js";
 import { qualifyReferralOnFirstTrip } from "../../services/referral.js";
 import { looksLikePhantomTrip, hasRealMovementEvidence } from "../../lib/phantomTrip.js";
 import { resolveRouteDistance, routedDurationUsable } from "../../services/routing.js";
+import { reverseGeocode } from "../../services/geocoding.js";
 import { matchTripRoute, decodePolyline, isMatchPlausible } from "../../services/mapMatching.js";
 import { computeTripConfidence } from "../../services/tripConfidence.js";
 import {
@@ -181,6 +182,60 @@ const listTripsQuery = z.object({
   page: z.coerce.number().int().positive().default(1),
   pageSize: z.coerce.number().int().positive().max(MAX_PAGE_SIZE).default(DEFAULT_PAGE_SIZE),
 });
+
+/**
+ * Give a trip a name the driver recognises, when the device could not.
+ *
+ * Addresses normally arrive from the client. When its reverse geocode fails it
+ * sends null, and a trip with BOTH addresses null draws no route line at all in
+ * the trips list — a captured drive that reads as a missing one. Six of the
+ * people who filed missing-trip reports in the week to 15 Aug had trips in this
+ * state; Hanson reported his twice and then tried to re-enter it by hand while
+ * it was already saved.
+ *
+ * Fire-and-forget, after the row is written, exactly like the manual route
+ * polyline: trip capture is Priority 1 and must not take on a new external
+ * dependency in its critical path. Only ever FILLS a null — whatever the client
+ * sent always wins, because the device was there and we were not.
+ */
+async function backfillTripAddresses(args: {
+  tripId: string;
+  userId: string;
+  startLat: number;
+  startLng: number;
+  endLat: number | null;
+  endLng: number | null;
+  hasStart: boolean;
+  hasEnd: boolean;
+}): Promise<void> {
+  const wantStart = !args.hasStart && hasValidCoords(args.startLat, args.startLng);
+  const wantEnd =
+    !args.hasEnd &&
+    args.endLat != null &&
+    args.endLng != null &&
+    hasValidCoords(args.endLat, args.endLng);
+  if (!wantStart && !wantEnd) return;
+
+  const [start, end] = await Promise.all([
+    wantStart ? reverseGeocode(args.startLat, args.startLng) : Promise.resolve(null),
+    wantEnd ? reverseGeocode(args.endLat!, args.endLng!) : Promise.resolve(null),
+  ]);
+  if (!start && !end) return;
+
+  await prisma.trip.update({
+    where: { id: args.tripId },
+    data: {
+      ...(start ? { startAddress: start } : {}),
+      ...(end ? { endAddress: end } : {}),
+    },
+  });
+
+  logEvent("trip.address_backfilled", args.userId, {
+    tripId: args.tripId,
+    filledStart: Boolean(start),
+    filledEnd: Boolean(end),
+  });
+}
 
 export async function tripRoutes(app: FastifyInstance) {
   // Auth runs at onRequest, BEFORE Fastify parses the request body. POST /trips
@@ -716,6 +771,19 @@ export async function tripRoutes(app: FastifyInstance) {
         learnedSuggestionMatchCount: learnedSuggestion?.matchCount ?? null,
       });
     }
+
+    // Name the trip if the device could not. Fire-and-forget: the response is
+    // already correct without it, and a slow geocoder must never hold up a save.
+    backfillTripAddresses({
+      tripId: trip.id,
+      userId,
+      startLat: resolvedStartLat,
+      startLng: resolvedStartLng,
+      endLat: resolvedEndLat ?? null,
+      endLng: resolvedEndLng ?? null,
+      hasStart: Boolean(tripData.startAddress),
+      hasEnd: Boolean(tripData.endAddress),
+    }).catch(() => {});
 
     return reply.status(201).send({
       data: trip,
