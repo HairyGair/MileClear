@@ -14,6 +14,7 @@
 
 import { prisma } from "../../lib/prisma.js";
 import { logEvent } from "../appEvents.js";
+import { redactNinoInPath } from "../../lib/redactUrl.js";
 import { encrypt, decryptIfEncrypted } from "../../lib/encryption.js";
 import { getHmrcConfig, type HmrcEnvironment } from "./config.js";
 import {
@@ -207,7 +208,7 @@ async function performRequest(args: {
   // Declaring one connection method and meaning it is the whole fix.
   if (args.options.client.connectionMethod !== "MOBILE_APP_VIA_SERVER") {
     logEvent("hmrc.blocked_unsupported_connection", args.options.userId, {
-      path: args.options.path,
+      path: redactNinoInPath(args.options.path),
       rawPlatform: args.options.client.rawPlatform ?? null,
       connectionMethod: args.options.client.connectionMethod,
       // Port diagnostics: a deliberate blocked probe through the public
@@ -239,7 +240,7 @@ async function performRequest(args: {
     // a blocked attempt looked identical to no attempt at all, which cost
     // real time working out whether a test run had even happened.
     logEvent("hmrc.blocked_placeholder_device", args.options.userId, {
-      path: args.options.path,
+      path: redactNinoInPath(args.options.path),
       deviceId: args.options.client.deviceId,
       rawDeviceModel: args.options.client.rawDeviceModel ?? null,
       connectionMethod: args.options.client.connectionMethod,
@@ -333,7 +334,7 @@ export async function hmrcCall<T = unknown>(opts: HmrcCallOptions): Promise<T> {
     // ones. Record the same device identity here as on the success path or
     // a failed test run leaves no evidence of what we actually sent.
     logEvent("hmrc.api_error", opts.userId, {
-      path: opts.path,
+      path: redactNinoInPath(opts.path),
       httpStatus: response.status,
       hmrcCode: code,
       connectionMethod: opts.client.connectionMethod,
@@ -357,7 +358,7 @@ export async function hmrcCall<T = unknown>(opts: HmrcCallOptions): Promise<T> {
   // client could not report its hardware, which is the case worth catching
   // before requesting a re-review.
   logEvent("hmrc.api_call", opts.userId, {
-    path: opts.path,
+    path: redactNinoInPath(opts.path),
     method: opts.method,
     httpStatus: response.status,
     apiVersion: opts.apiVersion,
