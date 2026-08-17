@@ -75,15 +75,17 @@ export const ACTIVE_ANNOUNCEMENT: SiteAnnouncement | null = null;
 
 export const RELEASE_NOTES: ReleaseNote[] = [
   {
-    // Build 84, cut 17 Aug 2026. Nine commits, none of them in build 83's
-    // binary: six are capture or data-loss fixes and every one came from a
-    // named driver's report. Label flow from here: "In Testing" while on
-    // TestFlight, "Pending Review" at review submission, "Latest" on approval
-    // (and 1.3.7 flips to "App Store" then, which retires nothing since it has
-    // no banner).
+    // Build 84, cut 17 Aug 2026, SUBMITTED FOR REVIEW the same evening. Nine
+    // commits, none of them in build 83's binary: six are capture or data-loss
+    // fixes and every one came from a named driver's report. Label flow: was
+    // "In Testing" on TestFlight, now "Pending Review". On approval this
+    // becomes "Latest" AND 1.3.7 drops to "App Store" - both in the same edit,
+    // never before, because the Product Update email and the site banner both
+    // key off "Latest" and 1.3.7 is what the public can actually download
+    // until Apple says otherwise.
     version: "1.3.8",
     date: "August 2026",
-    label: "In Testing",
+    label: "Pending Review",
     ctaUrl: "https://mileclear.com/releases",
     ctaLabel: "Read the release notes",
     emailSubject: "What's new in MileClear 1.3.8",
