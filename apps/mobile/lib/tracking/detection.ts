@@ -449,6 +449,53 @@ export interface DriveDetectionDiagnostics {
 }
 
 /**
+ * Release a __quick_trip__ lock and turn whatever it accumulated into trips.
+ *
+ * Atomically CLAIMS the lock first: onLocation / onMotionChange / onHeartbeat
+ * can all reach a release branch in the same event-loop window, and
+ * processShiftTrips is not idempotent (it reads shift_coordinates up front and
+ * deletes them only after slow network-bound work) — two entrants would create
+ * every recovered trip twice. The conditional DELETE serialises on SQLite: only
+ * the caller whose DELETE actually removed the row proceeds, and losers get
+ * false so they report "not suppressed" without touching the coords the winner
+ * is processing.
+ *
+ * Recovery is processShiftTrips, the same processor a completed shift uses: it
+ * segments on >2min stops, skips anything under MIN_TRIP_DISTANCE_MILES,
+ * deletes the breadcrumbs itself once there is nothing left worth keeping, and
+ * KEEPS them for a later retry if trip creation fails. So it is safe to run
+ * even when the buffer holds nothing — which is why both release branches use
+ * it rather than one of them deleting outright.
+ */
+async function releaseQuickTripLock(
+  db: Awaited<ReturnType<typeof getDatabase>>,
+  event: string,
+  detail: Record<string, unknown>
+): Promise<boolean> {
+  const claimed = await db.runAsync(
+    "DELETE FROM tracking_state WHERE key = 'active_shift_id' AND value = ?",
+    [QUICK_TRIP_SHIFT_ID]
+  );
+  if (claimed.changes === 0) return false; // another caller won the claim
+  await db.runAsync("DELETE FROM tracking_state WHERE key = 'quick_trip_start'");
+  let recovered = 0;
+  try {
+    // Dynamic import: tracking/index.ts imports from this module, so a static
+    // import would be a cycle.
+    const { processShiftTrips, stopQuickTripLocationTask } = await import("./index");
+    recovered = await processShiftTrips(QUICK_TRIP_SHIFT_ID);
+    // Stop the task that has been feeding this lock, or it keeps delivering
+    // fixes for a trip nobody is driving.
+    await stopQuickTripLocationTask();
+  } catch {
+    // Best-effort: the lock is already released, so detection resumes even if
+    // recovery fails.
+  }
+  logDetectionEvent(event, { ...detail, tripsRecovered: recovered }).catch(() => {});
+  return true;
+}
+
+/**
  * Decide whether an active_shift_id should suppress auto-detection — and
  * self-heal an orphaned quick trip as a side effect.
  *
@@ -579,38 +626,10 @@ export async function shiftSuppressesAutoDetection(
   // and every detection tick after it logged detection_skipped/active_quick_trip.
   const spanCapMs = qts ? QUICK_TRIP_MAX_SPAN_MS : QUICK_TRIP_NO_START_MAX_SPAN_MS;
   if (Number.isFinite(anchorMs) && Date.now() - anchorMs > spanCapMs) {
-    // Atomically CLAIM the lock: onLocation / onMotionChange / onHeartbeat can
-    // all reach this branch in the same event-loop window, and processShiftTrips
-    // is not idempotent (it reads shift_coordinates up front and deletes them
-    // only after slow network-bound work) — two entrants would create every
-    // recovered trip twice. The conditional DELETE serialises on SQLite: only
-    // the caller whose DELETE actually removed the row proceeds to recovery;
-    // losers see changes === 0 and report "not suppressed" without touching
-    // the coords the winner is processing.
-    const claimed = await db.runAsync(
-      "DELETE FROM tracking_state WHERE key = 'active_shift_id' AND value = ?",
-      [QUICK_TRIP_SHIFT_ID]
-    );
-    if (claimed.changes === 0) return false; // another caller won the claim
-    await db.runAsync("DELETE FROM tracking_state WHERE key = 'quick_trip_start'");
-    let recovered = 0;
-    try {
-      // Dynamic import: tracking/index.ts imports from this module, so a static
-      // import would be a cycle. processShiftTrips keeps its coords on failure.
-      const { processShiftTrips, stopQuickTripLocationTask } = await import("./index");
-      recovered = await processShiftTrips(QUICK_TRIP_SHIFT_ID);
-      // Stop the task that has been feeding this lock, or it keeps delivering
-      // fixes for a trip nobody is driving.
-      await stopQuickTripLocationTask();
-    } catch {
-      // Best-effort: the lock is already released, so detection resumes even if
-      // recovery fails.
-    }
-    logDetectionEvent("stale_quick_trip_recovered", {
+    await releaseQuickTripLock(db, "stale_quick_trip_recovered", {
       spanHours: Math.round((Date.now() - anchorMs) / 3_600_000),
-      tripsRecovered: recovered,
       hadStartRow: !!qts,
-    }).catch(() => {});
+    });
     return false;
   }
 
@@ -639,16 +658,40 @@ export async function shiftSuppressesAutoDetection(
     return true;
   }
   // Abandoned lock (no recent breadcrumb, no fresh quick_trip_start, span under
-  // the cap): clear it so auto-detection / native capture isn't suppressed
-  // forever. Too little data here to be worth recovering.
-  await db.runAsync("DELETE FROM tracking_state WHERE key = 'active_shift_id'");
-  await db.runAsync("DELETE FROM tracking_state WHERE key = 'quick_trip_start'");
-  await db.runAsync("DELETE FROM shift_coordinates WHERE shift_id = ?", [QUICK_TRIP_SHIFT_ID]);
-  try {
-    const { stopQuickTripLocationTask } = await import("./index");
-    await stopQuickTripLocationTask();
-  } catch {}
-  logDetectionEvent("orphaned_quick_trip_cleared", {}).catch(() => {});
+  // the cap): release it so auto-detection / native capture isn't suppressed
+  // forever.
+  //
+  // ⚠️ This used to DELETE the breadcrumbs outright, on the reasoning that an
+  // orphan holds "too little data to be worth recovering". An orphan can hold a
+  // whole journey. These breadcrumbs are the ONLY record of a Start Trip
+  // session: the trip form reads them at Arrive and they are all that survives
+  // if iOS terminates the app mid-drive, taking the form's in-memory trail with
+  // it (andrew.hitchen, 17 Aug 2026 — a 36-mile leg whose trail was the only
+  // evidence it happened). Once the app dies the lock outlives the form,
+  // liveness stops protecting it QUICK_TRIP_STALE_MS (3h) after the tap, and
+  // the next native fix reached this branch and erased what survived, 15 hours
+  // before the 18h span cap would have recovered it properly. Recover instead:
+  // processShiftTrips keeps only what clears MIN_TRIP_DISTANCE_MILES and
+  // deletes the rest itself, so a genuinely empty orphan still ends up cleared.
+  //
+  // One case is deliberately left alone: a FOREGROUND app that still has a
+  // quick_trip_start row. There the trip form owns the recording and holds its
+  // own in-memory foreground breadcrumbs, so recovering behind its back would
+  // produce a duplicate the moment the user tapped Arrive. They are looking at
+  // the screen and can finish it themselves; the span cap remains the backstop.
+  const formOwnsRecording = !!qts && AppState.currentState === "active";
+  if (formOwnsRecording) {
+    logDetectionEvent("detection_skipped", { reason: "active_quick_trip_foreground" }).catch(
+      () => {}
+    );
+    return true;
+  }
+  await releaseQuickTripLock(db, "orphaned_quick_trip_cleared", {
+    hadStartRow: !!qts,
+    quietMinutes: lastCoord
+      ? Math.round((Date.now() - new Date(lastCoord.recorded_at).getTime()) / 60_000)
+      : null,
+  });
   return false;
 }
 
