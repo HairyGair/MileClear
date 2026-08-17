@@ -75,6 +75,41 @@ export const ACTIVE_ANNOUNCEMENT: SiteAnnouncement | null = null;
 
 export const RELEASE_NOTES: ReleaseNote[] = [
   {
+    // Build 84, cut 17 Aug 2026. Nine commits, none of them in build 83's
+    // binary: six are capture or data-loss fixes and every one came from a
+    // named driver's report. Label flow from here: "In Testing" while on
+    // TestFlight, "Pending Review" at review submission, "Latest" on approval
+    // (and 1.3.7 flips to "App Store" then, which retires nothing since it has
+    // no banner).
+    version: "1.3.8",
+    date: "August 2026",
+    label: "In Testing",
+    ctaUrl: "https://mileclear.com/releases",
+    ctaLabel: "Read the release notes",
+    emailSubject: "What's new in MileClear 1.3.8",
+    emailTagline:
+      "1.3.8 is another reliability release, and it is all about the miles that were quietly going missing: short hops, half-measured journeys, and routes that vanished before they could be saved.",
+    emailHighlights: [
+      "**Short hops are no longer dropped from a busy day** - a half-mile leg between two stops counts as a real journey now, instead of being discarded as stray GPS.",
+      "**A journey that starts recording late no longer loses its opening miles** - the app fills the gap with the real road distance and tells you it has done so, rather than quietly saving a short trip.",
+      "**A merged journey keeps its whole route on the map** - when two drives were joined, the second half's path used to be missing behind the mileage.",
+      "**An unfinished Start Trip is recovered instead of thrown away** - if the app was closed mid-drive, the route is turned into a trip rather than discarded.",
+      "**You choose when a stop ends a journey** - Settings, then Tracking: anything from 5 minutes to an hour, so long waits at a depot no longer split one job into several.",
+      "**A brief server problem can no longer cost you something you just saved.**",
+    ],
+    items: [
+      "**Short hops are no longer dropped from a busy day.** On a day of multi-stop driving, a leg under about half a mile could produce so few GPS points that the app treated it as stray data and discarded it, while keeping the longer legs either side. Short legs are now judged on the distance they actually covered, so a real journey survives however few points it produced. Found from three reports filed within three minutes by the same driver, all of them sub-mile.",
+      "**A journey that starts recording late no longer loses its opening miles.** If the phone shut MileClear down as you set off, recording could pick up well into the drive - and because the trip still showed the right start place and time, the shortfall was invisible. The app now fills that opening gap with the real road distance between where you set off and where recording began, and says on the trip that it has done so. Found from a driver whose 75-mile round trip had been saved as 39.",
+      "**A merged journey now keeps its whole route.** When a new drive was joined onto the one before it, the mileage was added but the second half's route was not stored, so the map drew half the journey and splitting it at a stop could not find the stop. The full path is now carried across.",
+      "**An unfinished Start Trip is recovered rather than discarded.** If you tapped Start Trip and the phone closed the app before you finished, the recorded route was eventually deleted. It is now turned into a trip instead, using the same stop-detection that a completed journey uses.",
+      "**You decide how long a stop means the journey ended.** In Settings, then Tracking, choose anything from 5 minutes to an hour. Long waits at a depot or a site no longer split one job into several trips, and sitting in traffic still keeps the journey whole.",
+      "**A brief server problem can no longer cost you data.** If the server was briefly unavailable at the moment something saved - during an update, for instance - the app could give up on that earning, fuel entry or shift and remove it locally. It now keeps it and retries.",
+      "**Reporting a missing trip now checks for one still saving.** Some drives finish saving a minute or two after you look, so the report form now finishes the job and drains anything waiting first, and shows you the trip if one appears.",
+      "**Signing in as someone else on the same phone starts clean.** A second person signing in on a shared handset could see the first person's trips and saved places until the app resynced. The local data is now cleared when the account changes.",
+      "**Two Making Tax Digital screens tell the truth about themselves.** The obligations screen now distinguishes \"HMRC says nothing is due\" from \"we could not reach HMRC\", instead of showing All caught up for both, and signing in to HMRC no longer reuses a stale browser session.",
+    ],
+  },
+  {
     // Build 83. LIVE on the App Store 14 Aug 2026 (READY_FOR_SALE, released
     // automatically on approval). History: build 81 was submitted 30 Jul then
     // pulled the same evening to fold in two more driver-report fixes; build 82
