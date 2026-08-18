@@ -77,6 +77,128 @@ export async function runActivationDay7Job(): Promise<void> {
   }
 }
 
+// ── Capture-lapsed nudge (18 Aug 2026) ───────────────────────────────────
+//
+// The hole this fills, found by auditing why Rakesh Patel sat for 17 days with
+// one trip to his name: 25% of the active fleet cannot capture in the
+// background, and 45 users were running the app with NOTHING recorded in 14
+// days — 33 of whom had never recorded anything at all. Every existing safety
+// net missed them:
+//
+//   - the in-app "Always" prompt only fires AFTER a trip is saved through the
+//     form, so it is gated on the very thing it exists to fix;
+//   - the dashboard's persistent blocker only appears at permission tier
+//     "none", while a "foreground" user who never drives with the app open
+//     records exactly as much as a "none" user, and gets a dismissible nudge;
+//   - runActivationDay7Job below fires once, in a 6-9 day window, and skips
+//     anyone with tripCount > 0 — so a single day-one trip grants lifetime
+//     immunity from the only server-side prompt there was.
+//
+// None of it showed up in the numbers, because fleet trip volume rose the whole
+// time (roughly 400/day in late July to 700/day by mid-August). Total
+// individual failures are invisible inside a growing total.
+//
+// THE QUALIFIER THAT MAKES THIS SAFE TO SEND: background permission is not
+// granted. Without it this job would push everyone who happened not to drive
+// for a fortnight, which is most of a holiday season. With it, we are only
+// telling people something true and specific: the app cannot see your drives,
+// and here is the switch.
+const LAPSED_TRIP_SILENCE_DAYS = 14;
+const LAPSED_COOLDOWN_DAYS = 30;
+const LAPSED_MAX_SENDS = 3;
+
+export async function runCaptureLapsedJob(): Promise<void> {
+  const now = new Date();
+  // ACTIVATION_LAPSED_DRY_RUN=1 logs who WOULD be pushed and sends nothing,
+  // and skips the time window so it can be run on demand. Mirrors
+  // INVOICE_CHASE_DRY_RUN. Use it before letting this loose on real people.
+  const dryRun = process.env.ACTIVATION_LAPSED_DRY_RUN === "1";
+  if (!dryRun && !inNudgeWindow(now)) return;
+
+  const tripCutoff = new Date(now.getTime() - LAPSED_TRIP_SILENCE_DAYS * 86_400_000);
+  const aliveCutoff = new Date(now.getTime() - 14 * 86_400_000);
+  const cooldownCutoff = new Date(now.getTime() - LAPSED_COOLDOWN_DAYS * 86_400_000);
+
+  const candidates = await prisma.user.findMany({
+    where: {
+      // Still using the app — a dead install is a churn problem, not this one.
+      lastHeartbeatAt: { gte: aliveCutoff },
+      pushToken: { not: null },
+      // The app cannot record in the background for them. This is the whole
+      // basis of the message, so it is a hard filter, not a ranking signal.
+      OR: [{ bgLocationPermission: null }, { bgLocationPermission: { not: "granted" } }],
+      // Nothing captured in the silence window.
+      trips: { none: { startedAt: { gte: tripCutoff } } },
+      // Give the day-7 job its own run at brand-new accounts first.
+      createdAt: { lte: new Date(now.getTime() - 9 * 86_400_000) },
+    },
+    select: {
+      id: true,
+      pushToken: true,
+      _count: { select: { trips: true } },
+    },
+    take: 300,
+  });
+  if (candidates.length === 0) return;
+
+  // One query for the send history of every candidate, rather than two per
+  // user: this job runs every 30 minutes inside its window.
+  const history = await prisma.appEvent.findMany({
+    where: { type: "notification.capture_lapsed", userId: { in: candidates.map((c) => c.id) } },
+    select: { userId: true, createdAt: true },
+  });
+  const sends = new Map<string, { count: number; last: Date }>();
+  for (const h of history) {
+    if (!h.userId) continue;
+    const prev = sends.get(h.userId);
+    if (!prev) sends.set(h.userId, { count: 1, last: h.createdAt });
+    else sends.set(h.userId, { count: prev.count + 1, last: h.createdAt > prev.last ? h.createdAt : prev.last });
+  }
+
+  const messages: ExpoPushMessage[] = [];
+  for (const user of candidates) {
+    const seen = sends.get(user.id);
+    if (seen && seen.count >= LAPSED_MAX_SENDS) continue;
+    if (seen && seen.last > cooldownCutoff) continue;
+
+    // Two populations, two truths. Someone who has recorded before knows what
+    // they are missing; someone who never has needs telling what it is for.
+    const everCaptured = user._count.trips > 0;
+    const body = everCaptured
+      ? "MileClear hasn't recorded a drive in a fortnight because it can't see your location in the background. Tap to open Settings, then Location, and choose Always."
+      : "MileClear can't record your drives yet because it can't see your location in the background. Tap to open Settings, then Location, and choose Always. It takes a moment and then it runs by itself.";
+
+    if (dryRun) {
+      console.log(
+        `[jobs/activation] DRY RUN would push ${user.id} (everCaptured=${everCaptured}, trips=${user._count.trips}, sendNumber=${(seen?.count ?? 0) + 1})`
+      );
+      continue;
+    }
+    logEvent("notification.capture_lapsed", user.id, {
+      everCaptured,
+      sendNumber: (seen?.count ?? 0) + 1,
+    });
+    messages.push({
+      to: user.pushToken!,
+      title: everCaptured ? "Your drives aren't being recorded" : "One switch and MileClear starts working",
+      body,
+      sound: "default",
+      // open_settings routes to Linking.openSettings(), which lands them on
+      // MileClear's own iOS settings page where the Location row lives.
+      data: { type: "capture_lapsed", action: "open_settings" },
+    });
+  }
+
+  if (dryRun) {
+    console.log(`[jobs/activation] DRY RUN complete: ${candidates.length} candidates examined, 0 sent`);
+    return;
+  }
+  if (messages.length > 0) {
+    await sendPushNotifications(messages);
+    console.log(`[jobs/activation] Capture-lapsed nudge: sent ${messages.length} push(es)`);
+  }
+}
+
 export async function runPayingInactiveAlarmJob(): Promise<void> {
   const now = new Date();
   if (!inNudgeWindow(now)) return;
