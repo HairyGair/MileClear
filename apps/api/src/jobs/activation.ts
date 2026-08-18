@@ -135,11 +135,34 @@ export async function runCaptureLapsedJob(): Promise<void> {
     select: {
       id: true,
       pushToken: true,
+      lastHeartbeatAt: true,
       _count: { select: { trips: true } },
     },
     take: 300,
   });
   if (candidates.length === 0) return;
+
+  const heartbeatById = new Map(candidates.map((c) => [c.id, c.lastHeartbeatAt]));
+
+  // The permission reading above comes from the last HEARTBEAT, which can be
+  // stale by hours - and the gap is exactly when someone has just fixed it.
+  // Rakesh Patel granted Always at 10:04 on 18 Aug after 17 dark days; his
+  // heartbeat still said "undetermined", so the first dry run of this job had
+  // it telling him to go and do the thing he had done two hours earlier. The
+  // diagnostic dump carries its own, often fresher, permission snapshot (the
+  // same disagreement that made Isla Hignett's case readable the day before),
+  // so where the dump is newer than the heartbeat, believe the dump.
+  const dumps = await prisma.diagnosticDump.findMany({
+    where: { userId: { in: candidates.map((c) => c.id) } },
+    select: { userId: true, capturedAt: true, statusJson: true },
+  });
+  const fixedSinceHeartbeat = new Set<string>();
+  for (const d of dumps) {
+    const status = d.statusJson as { backgroundPermission?: unknown } | null;
+    if (status?.backgroundPermission !== "granted") continue;
+    const hb = heartbeatById.get(d.userId);
+    if (hb && d.capturedAt > hb) fixedSinceHeartbeat.add(d.userId);
+  }
 
   // One query for the send history of every candidate, rather than two per
   // user: this job runs every 30 minutes inside its window.
@@ -157,6 +180,7 @@ export async function runCaptureLapsedJob(): Promise<void> {
 
   const messages: ExpoPushMessage[] = [];
   for (const user of candidates) {
+    if (fixedSinceHeartbeat.has(user.id)) continue;
     const seen = sends.get(user.id);
     if (seen && seen.count >= LAPSED_MAX_SENDS) continue;
     if (seen && seen.last > cooldownCutoff) continue;
