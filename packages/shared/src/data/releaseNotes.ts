@@ -75,17 +75,16 @@ export const ACTIVE_ANNOUNCEMENT: SiteAnnouncement | null = null;
 
 export const RELEASE_NOTES: ReleaseNote[] = [
   {
-    // Build 84, cut 17 Aug 2026, SUBMITTED FOR REVIEW the same evening. Nine
-    // commits, none of them in build 83's binary: six are capture or data-loss
-    // fixes and every one came from a named driver's report. Label flow: was
-    // "In Testing" on TestFlight, now "Pending Review". On approval this
-    // becomes "Latest" AND 1.3.7 drops to "App Store" - both in the same edit,
-    // never before, because the Product Update email and the site banner both
-    // key off "Latest" and 1.3.7 is what the public can actually download
-    // until Apple says otherwise.
+    // Build 84, cut 17 Aug 2026, submitted the same evening, APPROVED 20 Aug
+    // 2026. Nine commits, none of them in build 83's binary: six are capture or
+    // data-loss fixes and every one came from a named driver's report. Label
+    // flow ran to plan - "In Testing" on TestFlight, "Pending Review" while
+    // with Apple, and on approval this became "Latest" in the same edit that
+    // dropped 1.3.7 to "App Store", because the Product Update email and the
+    // site banner both key off "Latest".
     version: "1.3.8",
     date: "August 2026",
-    label: "Pending Review",
+    label: "Latest",
     ctaUrl: "https://mileclear.com/releases",
     ctaLabel: "Read the release notes",
     emailSubject: "What's new in MileClear 1.3.8",
@@ -118,12 +117,12 @@ export const RELEASE_NOTES: ReleaseNote[] = [
     // replaced it; build 83 added the HMRC device-model fix and was resubmitted
     // 7 Aug after a build-expiry gotcha stalled the version for four days; a
     // 2.3.7 metadata rejection on 11 Aug (screenshots said "free") sent it back
-    // for a same-build resubmission. On approval the next release flips this to
-    // "App Store" - the banner and the Product Update email both key off
-    // "Latest".
+    // for a same-build resubmission. Superseded by 1.3.8 on 20 Aug, which is
+    // when this dropped to "App Store" - the banner and the Product Update
+    // email both key off "Latest".
     version: "1.3.7",
     date: "August 2026",
-    label: "Latest",
+    label: "App Store",
     ctaUrl: "https://mileclear.com/releases",
     ctaLabel: "Read the release notes",
     emailSubject: "What's new in MileClear 1.3.7",
