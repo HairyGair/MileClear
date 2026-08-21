@@ -313,6 +313,60 @@ export async function sendContactEmail(
   });
 }
 
+/**
+ * "MileClear for teams" interest register - one email per submission so
+ * a company asking for a manager view is seen the day it asks. The row is
+ * already saved before this is called; the email is a notification, not
+ * the record.
+ */
+export async function sendTeamInterestEmail(d: {
+  email: string;
+  company: string | null;
+  drivers: string;
+  approval: string;
+  destination: string;
+  destinationDetail: string | null;
+  notes: string | null;
+  source: string | null;
+}): Promise<void> {
+  const subject = `Teams interest: ${d.company || d.email.split("@")[1]} (${d.drivers} drivers)`;
+  const row = (k: string, v: string | null) =>
+    v
+      ? `<tr><td style="padding:4px 12px 4px 0;color:#555;white-space:nowrap;">${escapeHtml(k)}</td><td style="padding:4px 0;color:#1a1a1a;">${escapeHtml(v)}</td></tr>`
+      : "";
+  const html = `
+    <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 560px; margin: 0 auto; padding: 32px 24px;">
+      <h2 style="color: #1a1a1a; margin-bottom: 8px;">Someone wants MileClear for a team</h2>
+      <table style="border-collapse:collapse;font-size:14px;margin:16px 0;">
+        ${row("Email", d.email)}
+        ${row("Company", d.company)}
+        ${row("Drivers", d.drivers)}
+        ${row("Approval", d.approval)}
+        ${row("Figures go to", d.destinationDetail ? `${d.destination} (${d.destinationDetail})` : d.destination)}
+        ${row("From page", d.source)}
+      </table>
+      ${d.notes ? `<div style="background: #f4f4f5; border-radius: 8px; padding: 16px; color: #1a1a1a; font-size: 14px; line-height: 1.6;">${escapeHtml(d.notes).replace(/\n/g, "<br/>")}</div>` : ""}
+      <p style="color: #888; font-size: 12px; margin-top: 20px;">Reply to this email to respond directly. The full register is in Admin &gt; Activity.</p>
+    </div>
+  `;
+
+  if (!transporter) {
+    if (process.env.NODE_ENV === "production") {
+      throw new Error("SMTP not configured - cannot send team interest email in production");
+    }
+    console.log(`[EMAIL] Team interest from ${d.email} (${d.drivers}) (dev only)`);
+    return;
+  }
+
+  await transporter.sendMail({
+    from: FROM,
+    to: SUPPORT_INBOX,
+    replyTo: d.email,
+    subject,
+    html,
+  });
+}
+
 export async function sendPasswordResetEmail(
   email: string,
   code: string

@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Navbar from "@/components/landing/Navbar";
 import Footer from "@/components/landing/Footer";
+import TeamInterestForm from "@/components/landing/TeamInterestForm";
 
 export const metadata: Metadata = {
   title: "Employee Mileage Tracker UK - Claim Every Work Mile from Your Employer",
@@ -582,6 +583,41 @@ export default function EmployeeMileageTracker() {
                 </a>
               ))}
             </div>
+          </section>
+
+          {/* Teams interest probe - see /teams */}
+          <section
+            id="teams"
+            aria-labelledby="teams-heading"
+            style={{
+              marginBottom: "4rem",
+              background: "rgba(255,255,255,0.03)",
+              border: "1px solid rgba(255,255,255,0.08)",
+              borderRadius: 18,
+              padding: "clamp(1.25rem, 4vw, 2.25rem)",
+            }}
+          >
+            <span className="label" style={{ display: "inline-block", marginBottom: "0.75rem" }}>
+              Managing a team?
+            </span>
+            <h2
+              id="teams-heading"
+              style={{
+                fontFamily: "var(--font-display)",
+                fontSize: "1.5rem",
+                fontWeight: 700,
+                color: "#f9fafb",
+                marginBottom: "0.75rem",
+              }}
+            >
+              Tell us what a manager view would need to do
+            </h2>
+            <p style={{ color: "#94a3b8", fontSize: "1rem", lineHeight: 1.7, marginBottom: "1.5rem", maxWidth: 640 }}>
+              Today each driver exports their own claim. We are weighing a version where a manager sees the whole
+              team in one place and signs it off. A minute of your time decides what it should do.{" "}
+              <a href="/teams" style={{ color: "#fbbf24" }}>Read more about it</a>.
+            </p>
+            <TeamInterestForm source="employee-mileage-tracker" />
           </section>
 
           {/* CTA */}

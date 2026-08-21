@@ -4303,10 +4303,36 @@ function FeedbackTab() {
 // Activity Tab
 // ---------------------------------------------------------------------------
 
+interface TeamInterestRow {
+  id: string;
+  email: string;
+  company: string | null;
+  drivers: string;
+  approval: string;
+  destination: string;
+  destinationDetail: string | null;
+  notes: string | null;
+  source: string | null;
+  createdAt: string;
+}
+interface TeamInterestResponse {
+  data: TeamInterestRow[];
+  totals: {
+    submissions: number;
+    companies: number;
+    estimatedDrivers: number;
+    tenPlusCompanies: number;
+    byDrivers: Record<string, number>;
+    byApproval: Record<string, number>;
+    byDestination: Record<string, number>;
+  };
+}
+
 function ActivityTab() {
   const [recentUsers, setRecentUsers] = useState<AdminUser[]>([]);
   const [premiumUsers, setPremiumUsers] = useState<AdminUser[]>([]);
   const [recentFeedback, setRecentFeedback] = useState<FbItem[]>([]);
+  const [teamInterest, setTeamInterest] = useState<TeamInterestResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [detailUserId, setDetailUserId] = useState<string | null>(null);
@@ -4315,12 +4341,14 @@ function ActivityTab() {
     Promise.all([
       api.get<{ data: AdminUser[] }>("/admin/users?page=1&pageSize=15"),
       api.get<{ data: FbItem[] }>("/feedback/?page=1&pageSize=10&sort=newest"),
+      api.get<TeamInterestResponse>("/admin/team-interest").catch(() => null),
     ])
-      .then(([usersRes, fbRes]) => {
+      .then(([usersRes, fbRes, teamRes]) => {
         const allUsers = usersRes.data;
         setRecentUsers(allUsers.slice(0, 10));
         setPremiumUsers(allUsers.filter((u) => u.isPremium).slice(0, 10));
         setRecentFeedback(fbRes.data);
+        setTeamInterest(teamRes);
       })
       .catch((err: Error) => setError(err.message))
       .finally(() => setLoading(false));
@@ -4329,8 +4357,57 @@ function ActivityTab() {
   if (loading) return <LoadingSkeleton variant="card" count={3} style={{ height: 120 }} />;
   if (error) return <div className="alert alert--error">{error}</div>;
 
+  const APPROVAL_LABEL: Record<string, string> = {
+    monthly_signoff: "Monthly sign-off",
+    line_by_line: "Line by line",
+    view_only: "View only",
+  };
+
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "1.25rem" }}>
+      {/* Teams interest register - the bar is 5 companies with 10+ drivers */}
+      {teamInterest && (
+        <Card title={`Teams interest (${teamInterest.totals.submissions})`}>
+          <div style={{ display: "flex", gap: "1.5rem", flexWrap: "wrap", fontSize: "0.9375rem", marginBottom: teamInterest.data.length ? "1rem" : 0 }}>
+            <div><span style={{ color: "var(--text-secondary)" }}>Companies </span><strong>{teamInterest.totals.companies}</strong></div>
+            <div title="Band midpoints: 3 / 13 / 35 / 75. Indicative, not a count."><span style={{ color: "var(--text-secondary)" }}>Drivers (est.) </span><strong>{teamInterest.totals.estimatedDrivers}</strong></div>
+            <div title="The trigger set on 21 Aug 2026: five companies with ten or more drivers each."><span style={{ color: "var(--text-secondary)" }}>10+ driver companies </span><strong style={{ color: teamInterest.totals.tenPlusCompanies >= 5 ? "var(--emerald-400)" : undefined }}>{teamInterest.totals.tenPlusCompanies} / 5</strong></div>
+          </div>
+          {teamInterest.data.length === 0 ? (
+            <p style={{ color: "var(--text-secondary)", fontSize: "0.875rem", margin: 0 }}>Nobody has registered yet. The form is on /teams and /employee-mileage-tracker.</p>
+          ) : (
+            <div className="table-wrap">
+              <table className="table">
+                <thead>
+                  <tr>
+                    <th>When</th>
+                    <th>Who</th>
+                    <th>Drivers</th>
+                    <th>Approval</th>
+                    <th>Figures go to</th>
+                    <th>Notes</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {teamInterest.data.slice(0, 25).map((r) => (
+                    <tr key={r.id}>
+                      <td style={{ whiteSpace: "nowrap", fontSize: "0.8125rem" }}>{new Date(r.createdAt).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}</td>
+                      <td>
+                        <div>{r.company || r.email.split("@")[1]}</div>
+                        <div style={{ fontSize: "0.75rem", color: "var(--text-secondary)" }}>{r.email}{r.source ? ` · via /${r.source}` : ""}</div>
+                      </td>
+                      <td style={{ fontVariantNumeric: "tabular-nums" }}>{r.drivers}</td>
+                      <td>{APPROVAL_LABEL[r.approval] ?? r.approval}</td>
+                      <td>{r.destination.replace("_", " ")}{r.destinationDetail ? ` (${r.destinationDetail})` : ""}</td>
+                      <td style={{ fontSize: "0.8125rem", color: "var(--text-secondary)", maxWidth: 320 }}>{r.notes || "-"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </Card>
+      )}
       {/* Recent Signups */}
       <Card title={`Recent Signups (${recentUsers.length})`}>
         <div className="table-wrap">

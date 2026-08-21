@@ -989,6 +989,31 @@ model WaitlistEntry {
   @@map("waitlist")
 }
 
+// "MileClear for teams" interest register (21 Aug 2026). A probe, not a
+// product: companies asking for a manager view / approval workflow leave
+// their size and shape here so the decision to build an employer tier is
+// made from a list with driver counts on it, not from memory of who
+// emailed. Public form on /teams and /employee-mileage-tracker.
+model TeamInterest {
+  id                String   @id @default(uuid())
+  email             String   @db.VarChar(254)
+  company           String?  @db.VarChar(160)
+  // "1-5" | "6-20" | "21-50" | "50+"
+  drivers           String   @db.VarChar(8)
+  // "monthly_signoff" | "line_by_line" | "view_only"
+  approval          String   @db.VarChar(24)
+  // "payroll" | "expenses_system" | "spreadsheet" | "accountant" | "other"
+  destination       String   @db.VarChar(24)
+  destinationDetail String?  @db.VarChar(160)
+  notes             String?  @db.Text
+  // Which page the form was on.
+  source            String?  @db.VarChar(64)
+  createdAt         DateTime @default(now())
+
+  @@index([createdAt])
+  @@map("team_interest")
+}
+
 model SavedLocation {
   id               String   @id @default(uuid())
   userId           String

@@ -918,6 +918,44 @@ export async function adminRoutes(app: FastifyInstance) {
     });
   });
 
+  // GET /admin/team-interest
+  // The "MileClear for teams" register. Rows newest first plus the totals
+  // that decide whether an employer tier gets built: how many companies,
+  // and roughly how many drivers they represent (band midpoints, so the
+  // figure is indicative, not a count).
+  app.get("/team-interest", async (_request, reply) => {
+    const rows = await prisma.teamInterest.findMany({
+      orderBy: { createdAt: "desc" },
+      take: 200,
+    });
+    const MIDPOINT: Record<string, number> = { "1-5": 3, "6-20": 13, "21-50": 35, "50+": 75 };
+    const byDrivers: Record<string, number> = {};
+    const byApproval: Record<string, number> = {};
+    const byDestination: Record<string, number> = {};
+    const domains = new Set<string>();
+    let estimatedDrivers = 0;
+    for (const r of rows) {
+      byDrivers[r.drivers] = (byDrivers[r.drivers] ?? 0) + 1;
+      byApproval[r.approval] = (byApproval[r.approval] ?? 0) + 1;
+      byDestination[r.destination] = (byDestination[r.destination] ?? 0) + 1;
+      domains.add(r.email.split("@")[1]?.toLowerCase() ?? r.email);
+      estimatedDrivers += MIDPOINT[r.drivers] ?? 0;
+    }
+    return reply.send({
+      data: rows,
+      totals: {
+        submissions: rows.length,
+        companies: domains.size,
+        estimatedDrivers,
+        // The bar set on 21 Aug 2026: five companies with 10+ drivers each.
+        tenPlusCompanies: rows.filter((r) => r.drivers !== "1-5").length,
+        byDrivers,
+        byApproval,
+        byDestination,
+      },
+    });
+  });
+
   // GET /admin/job-runs
   app.get("/job-runs", async (request, reply) => {
     const { page, pageSize, jobName, status } = request.query as {
