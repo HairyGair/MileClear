@@ -18,6 +18,7 @@ import { sendPushToUser } from "../lib/push.js";
 import { logEvent } from "./appEvents.js";
 import { postToChannel } from "./discord.js";
 import { syncProMemberRole } from "./discordBot.js";
+import { applyEnvironmentPolicy } from "./billingAlertPolicy.js";
 
 const transporter =
   process.env.BREVO_SMTP_USER && process.env.BREVO_SMTP_KEY
@@ -35,7 +36,8 @@ const FROM = process.env.EMAIL_FROM || "MileClear <noreply@mileclear.com>";
 // Override via env if the recipient changes (handover, second admin, etc).
 const ADMIN_EMAIL = process.env.BILLING_ALERT_EMAIL || "anthonygair@icloud.com";
 
-export type BillingAlertTier = "celebrate" | "act_now" | "aware";
+export type { BillingAlertTier } from "./billingAlertPolicy.js";
+import type { BillingAlertTier } from "./billingAlertPolicy.js";
 
 export type BillingAlertKind =
   | "subscription.new"
@@ -55,6 +57,10 @@ export interface BillingAlertInput {
   userId?: string | null;
   userEmail?: string | null;
   originalTransactionId?: string | null;
+  /** Apple environment ("sandbox" | "production") when the event came
+   *  from Apple. Sandbox events are demoted or suppressed - see
+   *  billingAlertPolicy.ts. Omit for Stripe, which is live-mode only. */
+  environment?: string | null;
   details?: Record<string, unknown>;
 }
 
@@ -208,8 +214,19 @@ async function syncUserDiscordRole(userId: string | null | undefined): Promise<"
   });
 }
 
-export function notifyBillingEvent(input: BillingAlertInput): void {
+export function notifyBillingEvent(rawInput: BillingAlertInput): void {
   void (async () => {
+    const policy = applyEnvironmentPolicy(rawInput);
+    if (policy.action === "suppress") {
+      logEvent("billing.alert_suppressed", rawInput.userId ?? null, {
+        kind: rawInput.kind,
+        reason: policy.reason,
+        environment: rawInput.environment ?? null,
+        originalTransactionId: rawInput.originalTransactionId ?? null,
+      });
+      return;
+    }
+    const input = policy.input;
     const [pushSent, emailOk, discordOk, roleSync] = await Promise.all([
       notifyAdminsByPush(input).catch(() => 0),
       notifyAdminByEmail(input).catch(() => false),
@@ -224,6 +241,7 @@ export function notifyBillingEvent(input: BillingAlertInput): void {
       emailOk,
       discordOk,
       roleSync,
+      environment: input.environment ?? null,
       originalTransactionId: input.originalTransactionId ?? null,
     });
   })();

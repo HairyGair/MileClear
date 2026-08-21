@@ -156,6 +156,7 @@ export async function appleBillingRoutes(app: FastifyInstance) {
             userId: request.userId!,
             userEmail: fullUser?.email ?? null,
             originalTransactionId,
+            environment: fetched.environment,
             details: { premiumExpiresAt: premiumExpiresAt?.toISOString() ?? null },
           });
           // One-shot founder welcome email. Idempotent — checks
@@ -482,6 +483,7 @@ export async function appleBillingRoutes(app: FastifyInstance) {
                 userId: user.id,
                 userEmail: fullUser?.email ?? null,
                 originalTransactionId,
+                environment,
                 details: { premiumExpiresAt: premiumExpiresAt?.toISOString() ?? null, subtype: subtype ?? null },
               });
               // Customer thank-you/welcome email. Previously ONLY the /validate
@@ -506,6 +508,9 @@ export async function appleBillingRoutes(app: FastifyInstance) {
               }
             } else {
               // DID_RENEW — recurring revenue (or an annual's first charge).
+              // Sandbox renewals are suppressed by the alert policy: a
+              // TestFlight or App Review subscription renews on an
+              // accelerated clock and is not money.
               notifyBillingEvent({
                 kind: "subscription.renewed",
                 tier: "celebrate",
@@ -514,6 +519,7 @@ export async function appleBillingRoutes(app: FastifyInstance) {
                 userId: user.id,
                 userEmail: fullUser?.email ?? null,
                 originalTransactionId,
+                environment,
                 details: { premiumExpiresAt: premiumExpiresAt?.toISOString() ?? null },
               });
             }
