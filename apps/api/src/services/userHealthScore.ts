@@ -163,8 +163,19 @@ export function calculateUserHealthScore(input: HealthScoreInput): HealthScoreRe
     total += Math.round(FACTORS.recentTripPost / 2);
   }
 
+  // Every factor above is read from the LAST heartbeat. A heartbeat more
+  // than a week old says nothing about the phone today - the permission
+  // may have been revoked since, or granted since (Rakesh Patel, 18 Aug
+  // 2026, would have scored "good" on a 17-day-old "granted"). So a stale
+  // heartbeat caps the band at "unknown" however the points add up; the
+  // score is still returned so the list can sort on it.
+  const heartbeatAgeMs = input.lastHeartbeatAt
+    ? Date.now() - input.lastHeartbeatAt.getTime()
+    : null;
+  const heartbeatTooOld = heartbeatAgeMs !== null && heartbeatAgeMs >= 7 * DAY_MS;
+
   let band: HealthScoreResult["band"];
-  if (input.lastHeartbeatAt === null) {
+  if (input.lastHeartbeatAt === null || heartbeatTooOld) {
     band = "unknown";
   } else if (total >= 75) {
     band = "good";

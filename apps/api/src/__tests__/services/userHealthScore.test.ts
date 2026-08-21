@@ -132,6 +132,22 @@ describe("calculateUserHealthScore", () => {
     expect(bgFactor?.detail).toBe("denied");
   });
 
+  it("caps the band at unknown when the heartbeat is a week old, whatever the points say", () => {
+    const eightDaysAgo = new Date(Date.now() - 8 * 24 * 60 * 60 * 1000);
+    const r = calculateUserHealthScore({
+      bgLocationPermission: "granted",
+      trackingTaskActive: true,
+      backgroundFetchStatus: "available",
+      lastHeartbeatAt: eightDaysAgo,
+      lastPendingSyncCount: 0,
+      lastSyncQueuePermFailed: 0,
+      lastDrivingSpeedAt: new Date(),
+      secondsSinceLastTripPost: 60,
+    });
+    expect(r.band).toBe("unknown");
+    expect(r.score).toBeGreaterThan(0); // still sortable
+  });
+
   it("never produces a negative score", () => {
     // Worst case: every signal red.
     const result = calculateUserHealthScore({
@@ -145,6 +161,6 @@ describe("calculateUserHealthScore", () => {
       secondsSinceLastTripPost: 30 * DAY * 60, // not seconds, but very old
     });
     expect(result.score).toBeGreaterThanOrEqual(0);
-    expect(result.band).toBe("critical");
+    expect(result.band).toBe("unknown");
   });
 });

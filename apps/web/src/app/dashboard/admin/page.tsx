@@ -3207,6 +3207,8 @@ interface DetectionFleetData {
     nativeStale: number;
     nativeNever: number;
     dumpsTotal: number;
+      dumpWindowDays?: number;
+    staleDumpsExcluded?: number;
   };
   quietDrivers: Array<{
     email: string;
@@ -3310,7 +3312,7 @@ function AutoTripsTab() {
             <div className="stat-card">
               <p className="stat-card__label">Native Engine</p>
               <p className="stat-card__value">{fleet.engineSplit.nativeOn}</p>
-              <p style={{ fontSize: "0.75rem", color: "var(--text-secondary)", marginTop: 2 }}>vs {fleet.engineSplit.jsEngine} JS · {fleet.engineSplit.dumpsTotal} dumps</p>
+              <p style={{ fontSize: "0.75rem", color: "var(--text-secondary)", marginTop: 2 }}>vs {fleet.engineSplit.jsEngine} JS · {fleet.engineSplit.dumpsTotal} dumps in {fleet.engineSplit.dumpWindowDays ?? 14}d{fleet.engineSplit.staleDumpsExcluded ? ` (${fleet.engineSplit.staleDumpsExcluded} older excluded)` : ""}</p>
             </div>
             <div className="stat-card">
               <p className="stat-card__label">Native Healthy</p>

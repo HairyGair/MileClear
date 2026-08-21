@@ -14,10 +14,13 @@ interface BuildRow {
   appVersion: string;
   buildNumber: string;
   activeUsers: number;
-  watchdogPingsPerUser: number;
-  reconciliationDriftPerUser: number;
-  slowRequestsPerUser: number;
-  loginFailuresPerUser: number;
+  userDays: number;
+  firstSeenAt: string | null;
+  daysObserved: number;
+  watchdogPingsPerUserWeek: number;
+  reconciliationDriftPerUserWeek: number;
+  slowRequestsPerUserWeek: number;
+  loginFailuresPerUserWeek: number;
   watchdogPings: number;
   reconciliationDrift: number;
   slowRequests: number;
@@ -162,10 +165,11 @@ export default function BuildHealthPage() {
               <tr style={{ background: "rgba(255,255,255,0.03)" }}>
                 <Th>Build</Th>
                 <Th>Active users</Th>
-                <Th>Watchdog<br/>pings/user</Th>
-                <Th>Reconciliation<br/>drift/user</Th>
-                <Th>Slow reqs<br/>/user</Th>
-                <Th>Login fails<br/>/user</Th>
+                <Th>Exposure<br/>user-days</Th>
+                <Th>Watchdog pings<br/>/user-week</Th>
+                <Th>Reconciliation<br/>drift /user-week</Th>
+                <Th>Slow reqs<br/>/user-week</Th>
+                <Th>Login fails<br/>/user-week</Th>
                 <Th>Trips<br/>created</Th>
                 <Th>Trips<br/>deleted</Th>
                 <Th>Trip-delete %</Th>
@@ -210,25 +214,33 @@ export default function BuildHealthPage() {
                       </div>
                     </Td>
                     <Td>{build.activeUsers}</Td>
+                    <Td>
+                      <span title={`Distinct (user, day) pairs with events on this build in the window. First seen ${build.firstSeenAt ? new Date(build.firstSeenAt).toLocaleString("en-GB") : "n/a"}; observed ${build.daysObserved} of ${data.windowDays} days.`}>
+                        {build.userDays.toLocaleString("en-GB")}
+                        {build.daysObserved < data.windowDays && (
+                          <span style={{ marginLeft: 6, fontSize: "0.7rem", color: "#fbbf24" }}>{build.daysObserved}d</span>
+                        )}
+                      </span>
+                    </Td>
                     <Rate
-                      value={build.watchdogPingsPerUser}
+                      value={build.watchdogPingsPerUserWeek}
                       absolute={build.watchdogPings}
-                      previous={prev?.watchdogPingsPerUser ?? null}
+                      previous={prev?.watchdogPingsPerUserWeek ?? null}
                     />
                     <Rate
-                      value={build.reconciliationDriftPerUser}
+                      value={build.reconciliationDriftPerUserWeek}
                       absolute={build.reconciliationDrift}
-                      previous={prev?.reconciliationDriftPerUser ?? null}
+                      previous={prev?.reconciliationDriftPerUserWeek ?? null}
                     />
                     <Rate
-                      value={build.slowRequestsPerUser}
+                      value={build.slowRequestsPerUserWeek}
                       absolute={build.slowRequests}
-                      previous={prev?.slowRequestsPerUser ?? null}
+                      previous={prev?.slowRequestsPerUserWeek ?? null}
                     />
                     <Rate
-                      value={build.loginFailuresPerUser}
+                      value={build.loginFailuresPerUserWeek}
                       absolute={build.loginFailures}
-                      previous={prev?.loginFailuresPerUser ?? null}
+                      previous={prev?.loginFailuresPerUserWeek ?? null}
                     />
                     <Td>{build.tripCreated.toLocaleString("en-GB")}</Td>
                     <Td>{build.tripDeleted.toLocaleString("en-GB")}</Td>
@@ -323,7 +335,7 @@ function Rate({
         fontWeight: tone === "regress" ? 700 : 400,
         verticalAlign: "top",
       }}
-      title={`Absolute: ${absolute} · Previous build per-user: ${previous ?? "n/a"}`}
+      title={`Absolute: ${absolute} · Previous build per user-week: ${previous ?? "n/a"}`}
     >
       {fmtRate(value)}
     </td>

@@ -1864,7 +1864,16 @@ export async function adminRoutes(app: FastifyInstance) {
     const FRESH_MS = 48 * 60 * 60 * 1000;
 
     // Engine split + native heartbeat health from the latest dump per user.
+    // Dumps are one-per-user and never deleted, so without a date filter
+    // the split counts every device that ever reported - on 21 Aug 2026
+    // 300 of 673 dumps were older than a fortnight. Fourteen days matches
+    // the "active fleet" window used elsewhere.
+    const fourteenDaysAgo = new Date(now - 14 * 24 * 60 * 60 * 1000);
+    const staleDumpsExcluded = await prisma.diagnosticDump.count({
+      where: { capturedAt: { lt: fourteenDaysAgo } },
+    });
     const dumps = await prisma.diagnosticDump.findMany({
+      where: { capturedAt: { gte: fourteenDaysAgo } },
       select: {
         capturedAt: true,
         statusJson: true,
@@ -2015,6 +2024,8 @@ export async function adminRoutes(app: FastifyInstance) {
           nativeStale,
           nativeNever,
           dumpsTotal: dumps.length,
+          dumpWindowDays: 14,
+          staleDumpsExcluded,
         },
         // True native binary (runtimeVersion) tied to the OTA labels running on
         // it. e.g. { runtime: "1.3.0-build74", devices: 11, otaLabels: [
@@ -2751,53 +2762,61 @@ export async function adminRoutes(app: FastifyInstance) {
   });
 
   // GET /admin/retention
-  // D1/D7/D30 retention - of users who signed up in the last 90 days, what
-  // fraction logged a trip on or after day 1/7/30 from their signup date.
+  // D1/D7/D30 retention over signups in the last 90 days. Each metric is
+  // measured only over users who are OLD ENOUGH to have reached that day:
+  // someone who signed up five days ago cannot have a D7 yet, and counting
+  // them in the denominator halves the real figure (21 Aug 2026: 574 in the
+  // cohort, 274 eligible for D30, D30 shown at under half its value).
   app.get("/retention", async (_request, reply) => {
     const now = new Date();
     const ninetyDaysAgo = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
+    const cut = (d: number) => new Date(now.getTime() - d * 24 * 60 * 60 * 1000);
+    const cut1 = cut(1);
+    const cut7 = cut(7);
+    const cut30 = cut(30);
 
     const rows = await prisma.$queryRaw<
       Array<{
         cohort: bigint;
-        d1: bigint;
-        d7: bigint;
-        d30: bigint;
+        e1: bigint; d1: bigint;
+        e7: bigint; d7: bigint;
+        e30: bigint; d30: bigint;
       }>
     >`
       SELECT
         COUNT(DISTINCT u.id) AS cohort,
-        SUM(CASE WHEN EXISTS (
-          SELECT 1 FROM trips t
-          WHERE t.userId = u.id AND t.startedAt >= DATE_ADD(u.createdAt, INTERVAL 1 DAY)
+        SUM(u.createdAt <= ${cut1}) AS e1,
+        SUM(CASE WHEN u.createdAt <= ${cut1} AND EXISTS (
+          SELECT 1 FROM trips t WHERE t.userId = u.id AND t.startedAt >= DATE_ADD(u.createdAt, INTERVAL 1 DAY)
         ) THEN 1 ELSE 0 END) AS d1,
-        SUM(CASE WHEN EXISTS (
-          SELECT 1 FROM trips t
-          WHERE t.userId = u.id AND t.startedAt >= DATE_ADD(u.createdAt, INTERVAL 7 DAY)
+        SUM(u.createdAt <= ${cut7}) AS e7,
+        SUM(CASE WHEN u.createdAt <= ${cut7} AND EXISTS (
+          SELECT 1 FROM trips t WHERE t.userId = u.id AND t.startedAt >= DATE_ADD(u.createdAt, INTERVAL 7 DAY)
         ) THEN 1 ELSE 0 END) AS d7,
-        SUM(CASE WHEN EXISTS (
-          SELECT 1 FROM trips t
-          WHERE t.userId = u.id AND t.startedAt >= DATE_ADD(u.createdAt, INTERVAL 30 DAY)
+        SUM(u.createdAt <= ${cut30}) AS e30,
+        SUM(CASE WHEN u.createdAt <= ${cut30} AND EXISTS (
+          SELECT 1 FROM trips t WHERE t.userId = u.id AND t.startedAt >= DATE_ADD(u.createdAt, INTERVAL 30 DAY)
         ) THEN 1 ELSE 0 END) AS d30
       FROM users u
       WHERE u.createdAt >= ${ninetyDaysAgo}
     `;
 
     const r = rows[0];
-    const cohort = Number(r?.cohort ?? 0);
-    const d1 = Number(r?.d1 ?? 0);
-    const d7 = Number(r?.d7 ?? 0);
-    const d30 = Number(r?.d30 ?? 0);
-    const pct = (n: number) =>
-      cohort > 0 ? Math.round((n / cohort) * 1000) / 10 : 0;
+    const n = (v: bigint | number | null | undefined) => Number(v ?? 0);
+    const metric = (count: bigint | number | null | undefined, eligible: bigint | number | null | undefined) => {
+      const c = n(count);
+      const e = n(eligible);
+      return { count: c, eligible: e, pct: e > 0 ? Math.round((c / e) * 1000) / 10 : 0 };
+    };
 
     return reply.send({
       data: {
-        cohortSize: cohort,
+        cohortSize: n(r?.cohort),
         cohortWindow: "Signups in last 90 days",
-        d1: { count: d1, pct: pct(d1) },
-        d7: { count: d7, pct: pct(d7) },
-        d30: { count: d30, pct: pct(d30) },
+        d1: metric(r?.d1, r?.e1),
+        d7: metric(r?.d7, r?.e7),
+        d30: metric(r?.d30, r?.e30),
+        note: "Each day is measured over users old enough to have reached it.",
       },
     });
   });
@@ -3366,6 +3385,25 @@ export async function adminRoutes(app: FastifyInstance) {
       _count: { id: true },
     });
 
+    // Step 3b: exposure. Dividing by users CURRENTLY on a build is
+    // confounded the moment a build is new: its users have only been on it
+    // for part of the window, so every rate looks low, and the build they
+    // left looks worse (20 Aug 2026: build 84, one day old, read 10x
+    // healthier than 83 on every metric). Normalise by active user-days on
+    // the build instead - distinct (user, day) pairs among that build's
+    // events in the window - and report rates per user-week.
+    const exposureRows = await prisma.$queryRaw<
+      Array<{ buildNumber: string; userDays: bigint; firstSeen: Date }>
+    >`
+      SELECT buildNumber, COUNT(DISTINCT userId, DATE(createdAt)) AS userDays, MIN(createdAt) AS firstSeen
+      FROM app_events
+      WHERE createdAt >= ${since} AND userId IS NOT NULL AND buildNumber IN (${Prisma.join(buildNumbers)})
+      GROUP BY buildNumber
+    `;
+    const exposureByBuild = new Map(
+      exposureRows.map((r) => [r.buildNumber, { userDays: Number(r.userDays), firstSeen: r.firstSeen }])
+    );
+
     // Step 4: Pivot — for each build, build a { eventType: count } map.
     const eventsByBuild = new Map<string, Record<string, number>>();
     for (const row of eventCounts) {
@@ -3392,19 +3430,28 @@ export async function adminRoutes(app: FastifyInstance) {
       const tripDeletionRatePct =
         tripCreated > 0 ? Math.round((tripDeleted / tripCreated) * 1000) / 10 : 0;
 
+      const exposure = exposureByBuild.get(b.buildNumber!);
+      const userDays = exposure?.userDays ?? 0;
+      const firstSeenAt = exposure?.firstSeen ?? null;
+      const daysObserved = firstSeenAt
+        ? Math.min(WINDOW_DAYS, Math.max(1, Math.ceil((Date.now() - firstSeenAt.getTime()) / 86_400_000)))
+        : WINDOW_DAYS;
+      // Rate per active user-week: events / user-days * 7. Comparable across
+      // builds of any age and any audience size.
+      const perUserWeek = (count: number) =>
+        userDays > 0 ? Math.round((count / userDays) * 7 * 100) / 100 : 0;
+
       return {
         appVersion: b.appVersion ?? "unknown",
         buildNumber: b.buildNumber!,
         activeUsers,
-        // Per-user rates — comparable across builds with different audience sizes.
-        watchdogPingsPerUser:
-          activeUsers > 0 ? Math.round((watchdogPings / activeUsers) * 100) / 100 : 0,
-        reconciliationDriftPerUser:
-          activeUsers > 0 ? Math.round((reconciliationDrift / activeUsers) * 100) / 100 : 0,
-        slowRequestsPerUser:
-          activeUsers > 0 ? Math.round((slowRequests / activeUsers) * 100) / 100 : 0,
-        loginFailuresPerUser:
-          activeUsers > 0 ? Math.round((loginFailures / activeUsers) * 100) / 100 : 0,
+        userDays,
+        firstSeenAt: firstSeenAt ? firstSeenAt.toISOString() : null,
+        daysObserved,
+        watchdogPingsPerUserWeek: perUserWeek(watchdogPings),
+        reconciliationDriftPerUserWeek: perUserWeek(reconciliationDrift),
+        slowRequestsPerUserWeek: perUserWeek(slowRequests),
+        loginFailuresPerUserWeek: perUserWeek(loginFailures),
         // Absolute counts kept for raw inspection.
         watchdogPings,
         reconciliationDrift,
