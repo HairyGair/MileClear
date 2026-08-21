@@ -19,7 +19,7 @@ import {
 } from "../../services/email.js";
 import { logEvent } from "../../services/appEvents.js";
 import { sendPushNotification, sendPushNotifications } from "../../lib/push.js";
-import { PREMIUM_PRICE_MONTHLY_PENCE, getTaxYear, haversineDistance } from "@mileclear/shared";
+import { getTaxYear, haversineDistance } from "@mileclear/shared";
 import { upsertMileageSummary } from "../../services/mileage.js";
 import { advanceLastTripAt } from "../../services/userActivity.js";
 import { getAppleClient, getSignedDataVerifier, fetchTransactionWithEnvFallback, type AppleIapEnvironment } from "../../services/appleIap.js";
@@ -32,6 +32,14 @@ import {
 } from "../../services/discord.js";
 import { resolveRouteDistance } from "../../services/routing.js";
 import { matchTripRoute, isMatchPlausible, decodePolyline } from "../../services/mapMatching.js";
+import {
+  getSubscriptionTruth,
+  getPaidTrend,
+  churnLast30d,
+  classifyProSource,
+  loadSandboxTxnIds,
+  inferPeriod,
+} from "../../services/subscriptionTruth.js";
 
 const premiumToggleSchema = z.object({
   isPremium: z.boolean(),
@@ -109,7 +117,7 @@ const PLACEHOLDER_EMAIL_SUFFIX = "@private.mileclear.com";
 // here maps to columns we already collect — the filters just expose them.
 const usersListFilterSchema = z.object({
   q: z.string().max(200).optional(),
-  plan: z.enum(["free", "premium", "trial", "referral"]).optional(),
+  plan: z.enum(["free", "premium", "paying", "comp", "trial", "referral"]).optional(),
   provider: z.enum(["email", "apple", "google"]).optional(),
   lifecycle: z.enum(["active", "dormant14", "dormant90", "dormant2y", "never"]).optional(),
   healthBand: z.enum(["good", "warning", "critical", "unknown"]).optional(),
@@ -124,15 +132,38 @@ const usersListFilterSchema = z.object({
 
 type UsersListFilters = z.infer<typeof usersListFilterSchema>;
 
-function buildUsersWhere(f: UsersListFilters): Prisma.UserWhereInput {
+function buildUsersWhere(f: UsersListFilters, sandboxTxns: string[]): Prisma.UserWhereInput {
   const and: Prisma.UserWhereInput[] = [];
   const daysAgo = (d: number) => new Date(Date.now() - d * 86_400_000);
+  const now = new Date();
 
   if (f.q) {
     and.push({ OR: [{ email: { contains: f.q } }, { displayName: { contains: f.q } }] });
   }
   if (f.plan === "premium") and.push({ isPremium: true });
   if (f.plan === "free") and.push({ isPremium: false });
+  // Paying = an active Stripe or production-Apple subscription. Sandbox
+  // transactions (TestFlight / App Review) are excluded by id; comp grants
+  // have neither subscription id.
+  if (f.plan === "paying") {
+    and.push({
+      isPremium: true,
+      OR: [{ premiumExpiresAt: null }, { premiumExpiresAt: { gt: now } }],
+    });
+    and.push({
+      OR: [
+        { stripeSubscriptionId: { not: null } },
+        {
+          appleOriginalTransactionId: sandboxTxns.length
+            ? { not: null, notIn: sandboxTxns }
+            : { not: null },
+        },
+      ],
+    });
+  }
+  if (f.plan === "comp") {
+    and.push({ isPremium: true, stripeSubscriptionId: null, appleOriginalTransactionId: null });
+  }
   if (f.plan === "trial") and.push({ trialUsedAt: { not: null } });
   if (f.plan === "referral") and.push({ referralProUntil: { gt: new Date() } });
 
@@ -203,6 +234,7 @@ export async function adminRoutes(app: FastifyInstance) {
       referralsAttached,
       referralsQualified,
       referralActiveUsers,
+      subscriptionTruth,
     ] = await Promise.all([
       prisma.user.count(),
       prisma.user.count({ where: { isPremium: true } }),
@@ -225,6 +257,7 @@ export async function adminRoutes(app: FastifyInstance) {
       prisma.referral.count(),
       prisma.referral.count({ where: { status: "qualified" } }),
       prisma.user.count({ where: { referralProUntil: { gt: now } } }),
+      getSubscriptionTruth(now),
     ]);
 
     return reply.send({
@@ -232,6 +265,12 @@ export async function adminRoutes(app: FastifyInstance) {
         totalUsers,
         activeUsers30d: activeUserRows.length,
         premiumUsers,
+        // Who is actually paying, and why the rest have Pro. See
+        // services/subscriptionTruth.ts - this is what the Overview card shows.
+        payingSubscribers: subscriptionTruth.payingSubscribers,
+        compPro: subscriptionTruth.breakdown.comp,
+        referralPro: subscriptionTruth.breakdown.referral,
+        sandboxPro: subscriptionTruth.breakdown.appleSandbox,
         totalTrips,
         totalMiles: Math.round((tripAggregates._sum.distanceMiles ?? 0) * 10) / 10,
         totalEarningsPence: earningAggregates._sum.amountPence ?? 0,
@@ -274,7 +313,8 @@ export async function adminRoutes(app: FastifyInstance) {
     const size = Math.min(50, Math.max(1, parseInt(pageSize || "20", 10) || 20));
     const skip = (pageNum - 1) * size;
 
-    const where = buildUsersWhere(filters);
+    const sandboxSet = await loadSandboxTxnIds();
+    const where = buildUsersWhere(filters, [...sandboxSet]);
 
     let orderBy:
       | { createdAt: "desc" }
@@ -302,6 +342,10 @@ export async function adminRoutes(app: FastifyInstance) {
       appVersion: true,
       trialUsedAt: true,
       referralProUntil: true,
+      // For proSource (paying / comp / referral / sandbox) on the list row.
+      premiumExpiresAt: true,
+      stripeSubscriptionId: true,
+      appleOriginalTransactionId: true,
       marketingEmailsEnabled: true,
       pushToken: true,
       // Heartbeat fields used to compute the per-user health score.
@@ -339,6 +383,7 @@ export async function adminRoutes(app: FastifyInstance) {
         ...rest,
         healthScore: score,
         healthBand: band,
+        proSource: classifyProSource(u, sandboxSet),
         hasPushToken: !!pushToken,
         unreachable: u.email.endsWith(PLACEHOLDER_EMAIL_SUFFIX) && !pushToken,
       };
@@ -382,7 +427,8 @@ export async function adminRoutes(app: FastifyInstance) {
       return reply.status(400).send({ error: parsedFilters.error.errors[0].message });
     }
     const filters = parsedFilters.data;
-    const where = buildUsersWhere(filters);
+    const sandboxSet = await loadSandboxTxnIds();
+    const where = buildUsersWhere(filters, [...sandboxSet]);
 
     const users = await prisma.user.findMany({
       where,
@@ -480,6 +526,7 @@ export async function adminRoutes(app: FastifyInstance) {
         stripeCustomerId: true,
         stripeSubscriptionId: true,
         premiumExpiresAt: true,
+        subscriptionProductId: true,
         appleId: true,
         googleId: true,
         notes: true,
@@ -639,6 +686,28 @@ export async function adminRoutes(app: FastifyInstance) {
           : user.stripeSubscriptionId
             ? "stripe"
             : "none",
+        ...(await (async () => {
+          const sandbox = await loadSandboxTxnIds();
+          const proSource = classifyProSource(user, sandbox);
+          const isApple = !!user.appleOriginalTransactionId;
+          const isStripe = !!user.stripeSubscriptionId;
+          const period =
+            proSource === "paying"
+              ? isStripe && !user.subscriptionProductId
+                ? { period: "monthly" as const, inferred: false }
+                : inferPeriod(user.subscriptionProductId, user.premiumExpiresAt)
+              : null;
+          return {
+            proSource,
+            subscriptionEnvironment: isApple
+              ? sandbox.has(user.appleOriginalTransactionId!)
+                ? ("sandbox" as const)
+                : ("production" as const)
+              : null,
+            subscriptionPeriod: period?.period ?? null,
+            subscriptionPeriodInferred: period?.inferred ?? false,
+          };
+        })()),
         hasPushToken: !!pushToken,
         unreachable: user.email.endsWith(PLACEHOLDER_EMAIL_SUFFIX) && !pushToken,
         integrations: {
@@ -1503,84 +1572,47 @@ export async function adminRoutes(app: FastifyInstance) {
   });
 
   // GET /admin/revenue
+  // Revenue truth (21 Aug 2026). MRR is the sum of monthly-equivalent prices
+  // across PAYING subscribers only - Stripe plus production Apple, monthly at
+  // £4.99 and annual at £44.99/12. Comp grants, referral credit and sandbox
+  // subscriptions are reported but never priced. The trend is reconstructed
+  // from the production webhook + Stripe event trail, not the users table,
+  // so it reflects what was true each month rather than today's flags.
   app.get("/revenue", async (_request, reply) => {
     const now = new Date();
-    const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+    const [truth, trend, churned, totalUsers] = await Promise.all([
+      getSubscriptionTruth(now),
+      getPaidTrend(6, now),
+      churnLast30d(now),
+      prisma.user.count(),
+    ]);
 
-    const [stripeSubscribers, appleSubscribers, adminGranted, totalUsers, churned] =
-      await Promise.all([
-        prisma.user.count({
-          where: { isPremium: true, stripeSubscriptionId: { not: null } },
-        }),
-        prisma.user.count({
-          where: { isPremium: true, appleOriginalTransactionId: { not: null } },
-        }),
-        prisma.user.count({
-          where: {
-            isPremium: true,
-            stripeSubscriptionId: null,
-            appleOriginalTransactionId: null,
-          },
-        }),
-        prisma.user.count(),
-        prisma.user.count({
-          where: {
-            isPremium: false,
-            premiumExpiresAt: { gte: thirtyDaysAgo, lt: now },
-          },
-        }),
-      ]);
-
-    const currentPremiumCount = stripeSubscribers + appleSubscribers + adminGranted;
-    const mrrPence = currentPremiumCount * PREMIUM_PRICE_MONTHLY_PENCE;
-    const churnBase = churned + currentPremiumCount;
-    const churnRatePercent = churnBase > 0
-      ? Math.round((churned / churnBase) * 1000) / 10
-      : 0;
-    const arpuPence = totalUsers > 0
-      ? Math.round(mrrPence / totalUsers)
-      : 0;
-
-    // Monthly premium trend (last 6 months)
-    const sixMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 5, 1);
-    const trendRows = await prisma.$queryRaw<
-      Array<{ month: string; premiumCount: bigint; newPremium: bigint; churned: bigint }>
-    >`
-      SELECT
-        DATE_FORMAT(months.m, '%Y-%m') AS month,
-        (SELECT COUNT(*) FROM users
-         WHERE isPremium = true
-         AND createdAt <= LAST_DAY(months.m)) AS premiumCount,
-        (SELECT COUNT(*) FROM users
-         WHERE isPremium = true
-         AND DATE_FORMAT(createdAt, '%Y-%m') = DATE_FORMAT(months.m, '%Y-%m')) AS newPremium,
-        (SELECT COUNT(*) FROM users
-         WHERE isPremium = false
-         AND premiumExpiresAt IS NOT NULL
-         AND DATE_FORMAT(premiumExpiresAt, '%Y-%m') = DATE_FORMAT(months.m, '%Y-%m')) AS churned
-      FROM (
-        SELECT DATE_ADD(${sixMonthsAgo}, INTERVAL n MONTH) AS m
-        FROM (SELECT 0 AS n UNION SELECT 1 UNION SELECT 2 UNION SELECT 3 UNION SELECT 4 UNION SELECT 5) nums
-      ) months
-      ORDER BY months.m
-    `;
+    const churnBase = churned + truth.payingSubscribers;
+    const churnRatePercent = churnBase > 0 ? Math.round((churned / churnBase) * 1000) / 10 : 0;
 
     return reply.send({
       data: {
-        currentPremiumCount,
-        mrrPence,
-        stripeSubscribers,
-        appleSubscribers,
-        adminGranted,
+        mrrPence: truth.mrrPence,
+        payingSubscribers: truth.payingSubscribers,
+        proTotal: truth.proTotal,
+        breakdown: truth.breakdown,
+        inferredPeriods: truth.inferredPeriods,
         churnedLast30d: churned,
         churnRatePercent,
-        arpuPence,
-        monthlyTrend: trendRows.map((r) => ({
-          month: r.month,
-          premiumCount: Number(r.premiumCount),
-          newPremium: Number(r.newPremium),
-          churned: Number(r.churned),
+        arpuPence: totalUsers > 0 ? Math.round(truth.mrrPence / totalUsers) : 0,
+        arppuPence:
+          truth.payingSubscribers > 0 ? Math.round(truth.mrrPence / truth.payingSubscribers) : 0,
+        trailStartMonth: trend.trailStartMonth,
+        monthlyTrend: trend.rows.map((r) => ({
+          ...r,
+          premiumCount: r.payingAtMonthEnd,
+          newPremium: r.newPaid,
         })),
+        // Deprecated aliases for the mobile admin screen in builds <= 84.
+        currentPremiumCount: truth.payingSubscribers,
+        stripeSubscribers: truth.breakdown.stripeMonthly + truth.breakdown.stripeAnnual,
+        appleSubscribers: truth.breakdown.appleMonthly + truth.breakdown.appleAnnual,
+        adminGranted: truth.breakdown.comp,
       },
     });
   });
@@ -2661,7 +2693,7 @@ export async function adminRoutes(app: FastifyInstance) {
       prisma.$queryRaw<Array<{ c: bigint }>>`
         SELECT COUNT(DISTINCT userId) AS c FROM earnings
       `.then((r) => Number(r[0]?.c ?? 0)),
-      prisma.user.count({ where: { isPremium: true } }),
+      getSubscriptionTruth().then((t) => t.payingSubscribers),
     ]);
 
     const pct = (n: number, denom: number) =>
@@ -2674,7 +2706,7 @@ export async function adminRoutes(app: FastifyInstance) {
           { key: "first_trip", label: "Logged first trip", count: usersWithTrip, pctOfPrev: pct(usersWithTrip, totalUsers), pctOfTotal: pct(usersWithTrip, totalUsers) },
           { key: "five_trips", label: "5+ trips (active)", count: usersWith5Trips, pctOfPrev: pct(usersWith5Trips, usersWithTrip), pctOfTotal: pct(usersWith5Trips, totalUsers) },
           { key: "earnings", label: "Logged earnings", count: usersWithEarnings, pctOfPrev: pct(usersWithEarnings, usersWith5Trips), pctOfTotal: pct(usersWithEarnings, totalUsers) },
-          { key: "premium", label: "Upgraded to Pro", count: premiumUsers, pctOfPrev: pct(premiumUsers, usersWith5Trips), pctOfTotal: pct(premiumUsers, totalUsers) },
+          { key: "premium", label: "Paying subscriber", count: premiumUsers, pctOfPrev: pct(premiumUsers, usersWith5Trips), pctOfTotal: pct(premiumUsers, totalUsers) },
         ],
       },
     });
@@ -2950,7 +2982,7 @@ export async function adminRoutes(app: FastifyInstance) {
       prisma.$queryRaw<Array<{ c: bigint }>>`
         SELECT COUNT(DISTINCT userId) AS c FROM earnings
       `.then((r) => Number(r[0]?.c ?? 0)),
-      prisma.user.count({ where: { isPremium: true } }),
+      getSubscriptionTruth().then((t) => t.payingSubscribers),
       prisma.user.count({ where: { createdAt: { lt: sevenDaysAgo } } }),
       prisma.$queryRaw<Array<{ c: bigint }>>`
         SELECT COUNT(DISTINCT t.userId) AS c
@@ -2989,7 +3021,7 @@ export async function adminRoutes(app: FastifyInstance) {
       { label: "Logged first trip", count: withFirstTrip, pct: pct(withFirstTrip) },
       { label: "Classified at least one trip", count: withClassifiedTrip, pct: pct(withClassifiedTrip) },
       { label: "Logged earnings", count: withEarning, pct: pct(withEarning) },
-      { label: "Upgraded to Pro", count: premium, pct: pct(premium) },
+      { label: "Paying subscriber", count: premium, pct: pct(premium) },
     ];
 
     // Annotate each step with drop-from-previous metrics. The first

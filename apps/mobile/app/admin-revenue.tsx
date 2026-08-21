@@ -61,17 +61,24 @@ export default function AdminRevenueScreen() {
     );
   }
 
+  // Paying only. Comp, referral and sandbox Pro are listed but never priced -
+  // see services/subscriptionTruth.ts on the API.
+  const b = revenue.breakdown;
   const stats = [
-    { label: "MRR", value: formatPence(revenue.mrrPence), color: EMERALD },
-    { label: "Subscribers", value: revenue.currentPremiumCount.toLocaleString(), color: AMBER },
-    { label: "Churn Rate", value: `${revenue.churnRatePercent.toFixed(1)}%`, color: TEXT_1 },
-    { label: "ARPU", value: formatPence(revenue.arpuPence), color: TEXT_1 },
+    { label: "MRR (paying)", value: formatPence(revenue.mrrPence), color: EMERALD },
+    { label: "Paying subscribers", value: revenue.payingSubscribers.toLocaleString(), color: AMBER },
+    { label: "Churn (30d)", value: `${revenue.churnRatePercent.toFixed(1)}%`, color: TEXT_1 },
+    { label: "ARPPU", value: formatPence(revenue.arppuPence), color: TEXT_1 },
   ];
 
   const platformRows = [
-    { label: "Stripe", count: revenue.stripeSubscribers },
-    { label: "Apple IAP", count: revenue.appleSubscribers },
-    { label: "Admin-granted", count: revenue.adminGranted },
+    { label: "Apple monthly", count: b.appleMonthly },
+    { label: "Apple annual (£3.75/mo)", count: b.appleAnnual },
+    { label: "Stripe monthly", count: b.stripeMonthly },
+    ...(b.stripeAnnual > 0 ? [{ label: "Stripe annual", count: b.stripeAnnual }] : []),
+    { label: "Comp (not revenue)", count: b.comp },
+    { label: "Referral Pro (not revenue)", count: b.referral },
+    { label: "Sandbox (not revenue)", count: b.appleSandbox },
   ];
 
   return (
@@ -94,7 +101,7 @@ export default function AdminRevenueScreen() {
 
       {/* Platform Split */}
       <View style={s.card}>
-        <Text style={s.cardTitle}>Platform Split</Text>
+        <Text style={s.cardTitle}>Who has Pro</Text>
         {platformRows.map((row, index) => (
           <View
             key={row.label}
@@ -108,7 +115,7 @@ export default function AdminRevenueScreen() {
 
       {/* Monthly Trend */}
       <View style={s.card}>
-        <Text style={s.cardTitle}>Monthly Trend</Text>
+        <Text style={s.cardTitle}>Paying by month</Text>
         {revenue.monthlyTrend.length === 0 ? (
           <Text style={s.emptyText}>No trend data yet</Text>
         ) : (
@@ -119,9 +126,9 @@ export default function AdminRevenueScreen() {
             >
               <Text style={s.trendMonth}>{item.month}</Text>
               <View style={s.trendRight}>
-                <Text style={s.trendCount}>{item.premiumCount.toLocaleString()}</Text>
-                {item.newPremium > 0 && (
-                  <Text style={s.trendNew}>+{item.newPremium}</Text>
+                <Text style={s.trendCount}>{item.payingAtMonthEnd.toLocaleString()}</Text>
+                {item.newPaid > 0 && (
+                  <Text style={s.trendNew}>+{item.newPaid}</Text>
                 )}
                 {item.churned > 0 && (
                   <Text style={s.trendChurned}>-{item.churned}</Text>

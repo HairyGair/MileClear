@@ -29,6 +29,10 @@ model User {
   stripeCustomerId     String?   @unique @db.VarChar(255)
   stripeSubscriptionId String?   @unique @db.VarChar(255)
   appleOriginalTransactionId String? @unique @db.VarChar(255)
+  // Which product the live subscription is on (Apple product id or Stripe
+  // price id). Stamped by the billing webhooks from 21 Aug 2026; null for
+  // older rows, where the admin revenue view infers period from expiry.
+  subscriptionProductId String? @db.VarChar(64)
   // When the user's first free trial began. Stamped once, never cleared on
   // cancellation, so a user cannot serial-trial by cancel-and-resubscribe.
   // null = trial-eligible (Stripe gates on this; Apple enforces natively).

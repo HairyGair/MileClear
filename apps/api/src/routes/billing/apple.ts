@@ -130,6 +130,7 @@ export async function appleBillingRoutes(app: FastifyInstance) {
             isPremium: true,
             premiumExpiresAt,
             appleOriginalTransactionId: originalTransactionId,
+            subscriptionProductId: transaction.productId,
             ...(isAppleTrial ? { trialUsedAt: new Date() } : {}),
           },
         });
@@ -453,6 +454,9 @@ export async function appleBillingRoutes(app: FastifyInstance) {
             data: {
               isPremium: true,
               premiumExpiresAt,
+              // Which product they are on - the admin revenue view prices
+              // monthly and annual differently and must not guess.
+              ...(transactionInfo.productId ? { subscriptionProductId: transactionInfo.productId } : {}),
               ...(isAppleTrial ? { trialUsedAt: new Date() } : {}),
             },
           });

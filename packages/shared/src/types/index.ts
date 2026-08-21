@@ -1244,10 +1244,19 @@ export interface FeedbackWithVoted extends FeedbackItem {
 }
 
 // Admin types
+/** Why a user has Pro. Paying = Stripe or a production Apple subscription. */
+export type AdminProSource = "paying" | "comp" | "referral" | "sandbox";
+
 export interface AdminAnalytics {
   totalUsers: number;
   activeUsers30d: number;
+  /** Every isPremium row, including comp grants and sandbox. Kept for
+   *  compatibility; the card shows payingSubscribers. */
   premiumUsers: number;
+  payingSubscribers: number;
+  compPro: number;
+  referralPro: number;
+  sandboxPro: number;
   totalTrips: number;
   totalMiles: number;
   totalEarningsPence: number;
@@ -1261,6 +1270,8 @@ export interface AdminUserSummary {
   displayName: string | null;
   emailVerified: boolean;
   isPremium: boolean;
+  /** Why they have Pro; null when they do not. */
+  proSource?: AdminProSource | null;
   isAdmin: boolean;
   createdAt: string;
   lastLoginAt?: string | null;
@@ -1283,7 +1294,7 @@ export interface AdminUserSummary {
   unreachable?: boolean;
 }
 
-export type AdminUsersPlanFilter = "free" | "premium" | "trial" | "referral";
+export type AdminUsersPlanFilter = "free" | "premium" | "paying" | "comp" | "trial" | "referral";
 export type AdminUsersProviderFilter = "email" | "apple" | "google";
 export type AdminUsersLifecycleFilter =
   | "active"
@@ -1332,6 +1343,10 @@ export interface AdminUserDetail extends AdminUserSummary {
   totalEarningsPence: number;
   // Monetisation
   subscriptionPlatform?: "apple" | "stripe" | "none";
+  /** "sandbox" when the Apple transaction was seen on a sandbox webhook. */
+  subscriptionEnvironment?: "production" | "sandbox" | null;
+  subscriptionPeriod?: "monthly" | "annual" | null;
+  subscriptionPeriodInferred?: boolean;
   referralCode?: string | null;
   referredByCode?: string | null;
   // Reachability
@@ -1453,20 +1468,52 @@ export interface AdminHealthStatus {
 
 // Revenue Dashboard
 export interface AdminRevenue {
-  currentPremiumCount: number;
+  /** Sum of monthly-equivalent prices across paying subscribers only. */
   mrrPence: number;
-  stripeSubscribers: number;
-  appleSubscribers: number;
-  adminGranted: number;
+  payingSubscribers: number;
+  /** Every active Pro user, whatever the reason. */
+  proTotal: number;
+  breakdown: {
+    stripeMonthly: number;
+    stripeAnnual: number;
+    appleMonthly: number;
+    appleAnnual: number;
+    appleSandbox: number;
+    comp: number;
+    referral: number;
+    expiredFlag: number;
+  };
+  /** Paying rows whose period was inferred from expiry, not a stamped product id. */
+  inferredPeriods: number;
   churnedLast30d: number;
   churnRatePercent: number;
+  /** MRR / all registered users. */
   arpuPence: number;
+  /** MRR / paying subscribers. */
+  arppuPence: number;
+  /** First month the production webhook trail exists; rows before it are omitted. */
+  trailStartMonth: string | null;
   monthlyTrend: Array<{
     month: string;
-    premiumCount: number;
-    newPremium: number;
+    payingAtMonthEnd: number;
+    newPaid: number;
     churned: number;
+    /** @deprecated alias of payingAtMonthEnd for mobile builds <= 84. */
+    premiumCount: number;
+    /** @deprecated alias of newPaid for mobile builds <= 84. */
+    newPremium: number;
   }>;
+  // Aliases kept so the admin revenue screen in mobile builds <= 84 (which
+  // read the old shape) keeps rendering until build 85 ships. Remove once
+  // the fleet is past 84.
+  /** @deprecated use payingSubscribers */
+  currentPremiumCount: number;
+  /** @deprecated use breakdown.stripeMonthly + stripeAnnual */
+  stripeSubscribers: number;
+  /** @deprecated use breakdown.appleMonthly + appleAnnual (sandbox excluded) */
+  appleSubscribers: number;
+  /** @deprecated use breakdown.comp */
+  adminGranted: number;
 }
 
 // User Engagement
