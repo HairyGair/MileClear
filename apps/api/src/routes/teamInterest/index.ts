@@ -19,8 +19,10 @@ const teamInterestSchema = z.object({
   destinationDetail: z.string().trim().max(160).optional().or(z.literal("")),
   notes: z.string().trim().max(2000).optional().or(z.literal("")),
   source: z.string().trim().max(64).optional().or(z.literal("")),
-  // Honeypot: real visitors never see it, bots fill it.
-  website: z.string().max(0).optional().or(z.literal("")),
+  // Honeypot: real visitors never see it, bots fill it. Any length is
+  // accepted at validation so a filled field reaches the silent-200 branch
+  // below rather than a 400 that tells the bot it was caught.
+  website: z.string().max(500).optional(),
 });
 
 export async function teamInterestRoutes(app: FastifyInstance) {
