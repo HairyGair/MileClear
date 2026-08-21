@@ -956,6 +956,254 @@ export async function adminRoutes(app: FastifyInstance) {
     });
   });
 
+  // GET /admin/activation-health
+  // The activation hole (18 Aug 2026): a quarter of the active fleet could
+  // not capture in the background and 45 users were running the app while
+  // recording nothing, and no view showed it because fleet trip volume kept
+  // rising. This answers "who is running MileClear and getting nothing from
+  // it, and why" from heartbeats, dumps, trips and the watchdog trail.
+  //
+  // Permission is read from the heartbeat, overridden by the diagnostic
+  // dump when the dump is NEWER - the two go stale at different moments and
+  // the newer one is the truth (Rakesh Patel's fix was in his dump two hours
+  // before his heartbeat caught up).
+  app.get("/activation-health", async (_request, reply) => {
+    const now = Date.now();
+    const d14 = new Date(now - 14 * 86_400_000);
+    const d24h = new Date(now - 24 * 3_600_000);
+    const d60 = new Date(now - 60 * 86_400_000);
+
+    const fleet = await prisma.user.findMany({
+      where: { lastHeartbeatAt: { gte: d14 } },
+      select: {
+        id: true,
+        email: true,
+        displayName: true,
+        createdAt: true,
+        lastHeartbeatAt: true,
+        bgLocationPermission: true,
+        lastTripAt: true,
+        pushToken: true,
+        buildNumber: true,
+        appVersion: true,
+        _count: { select: { trips: true } },
+      },
+    });
+    const fleetIds = fleet.map((u) => u.id);
+
+    // Dumps only for the users whose heartbeat says "not granted" - that is
+    // where a newer dump can change the answer, and it keeps the JSON load
+    // to ~100 rows rather than the whole fleet.
+    const notGrantedIds = fleet.filter((u) => u.bgLocationPermission !== "granted").map((u) => u.id);
+    const [dumps, trips14, nudges, dailyMissing] = await Promise.all([
+      notGrantedIds.length
+        ? prisma.diagnosticDump.findMany({
+            where: { userId: { in: notGrantedIds } },
+            select: { userId: true, capturedAt: true, statusJson: true },
+          })
+        : Promise.resolve([]),
+      fleetIds.length
+        ? prisma.trip.groupBy({
+            by: ["userId"],
+            where: { userId: { in: fleetIds }, startedAt: { gte: d14 } },
+            _count: { _all: true },
+          })
+        : Promise.resolve([]),
+      fleetIds.length
+        ? prisma.appEvent.groupBy({
+            by: ["userId", "type"],
+            where: {
+              userId: { in: fleetIds },
+              type: { in: ["notification.capture_lapsed", "notification.activation_d7"] },
+              createdAt: { gte: d60 },
+            },
+            _max: { createdAt: true },
+          })
+        : Promise.resolve([]),
+      prisma.$queryRaw<Array<{ d: Date; users: bigint }>>`
+        SELECT DATE(createdAt) AS d, COUNT(DISTINCT userId) AS users
+        FROM app_events
+        WHERE type = 'alert.permission_missing' AND createdAt >= ${d14}
+        GROUP BY DATE(createdAt) ORDER BY d
+      `,
+    ]);
+
+    const dumpBy = new Map(dumps.map((d) => [d.userId, d]));
+    const trips14By = new Map(trips14.map((t) => [t.userId, t._count._all]));
+    const nudgeBy = new Map<string, Date>();
+    for (const n of nudges) {
+      if (!n._max.createdAt) continue;
+      const prev = nudgeBy.get(n.userId!);
+      if (!prev || n._max.createdAt > prev) nudgeBy.set(n.userId!, n._max.createdAt);
+    }
+
+    const permissionCounts: Record<string, number> = { granted: 0, undetermined: 0, denied: 0, unknown: 0 };
+    let cannotCapture = 0;
+    let dumpOverrides = 0;
+    const silentNever: typeof rows = [];
+    const silentLapsed: typeof rows = [];
+    const needsPermission: typeof rows = [];
+    const rows: Array<{
+      userId: string;
+      email: string;
+      displayName: string | null;
+      createdAt: string;
+      lastHeartbeatAt: string | null;
+      heartbeatPermission: string | null;
+      effectivePermission: string;
+      permissionSource: "heartbeat" | "dump";
+      lastTripAt: string | null;
+      trips14d: number;
+      tripsLifetime: number;
+      hasPushToken: boolean;
+      build: string | null;
+      lastNudgedAt: string | null;
+    }> = [];
+
+    for (const u of fleet) {
+      let effective = u.bgLocationPermission ?? "unknown";
+      let source: "heartbeat" | "dump" = "heartbeat";
+      const dump = dumpBy.get(u.id);
+      if (dump && u.lastHeartbeatAt && dump.capturedAt > u.lastHeartbeatAt) {
+        const s = (dump.statusJson ?? {}) as { backgroundPermission?: string };
+        if (s.backgroundPermission) {
+          if (s.backgroundPermission !== effective) dumpOverrides += 1;
+          effective = s.backgroundPermission;
+          source = "dump";
+        }
+      }
+      const key = effective === "granted" || effective === "undetermined" || effective === "denied" ? effective : "unknown";
+      permissionCounts[key] += 1;
+      const t14 = trips14By.get(u.id) ?? 0;
+      const row = {
+        userId: u.id,
+        email: u.email,
+        displayName: u.displayName,
+        createdAt: u.createdAt.toISOString(),
+        lastHeartbeatAt: u.lastHeartbeatAt?.toISOString() ?? null,
+        heartbeatPermission: u.bgLocationPermission,
+        effectivePermission: effective,
+        permissionSource: source,
+        lastTripAt: u.lastTripAt?.toISOString() ?? null,
+        trips14d: t14,
+        tripsLifetime: u._count.trips,
+        hasPushToken: !!u.pushToken,
+        build: u.buildNumber,
+        lastNudgedAt: nudgeBy.get(u.id)?.toISOString() ?? null,
+      };
+      rows.push(row);
+      if (effective !== "granted") {
+        cannotCapture += 1;
+        needsPermission.push(row);
+      }
+      if (t14 === 0) {
+        if (u._count.trips === 0) silentNever.push(row);
+        else silentLapsed.push(row);
+      }
+    }
+
+    // Most valuable first: lapsed users who used to record a lot, then
+    // never-recorded users by how long they have been waiting.
+    silentLapsed.sort((a, b) => b.tripsLifetime - a.tripsLifetime);
+    silentNever.sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+    needsPermission.sort((a, b) => b.tripsLifetime - a.tripsLifetime);
+
+    // Watchdog gave_up, last 24h: phone asleep vs alive-and-silent. The raw
+    // count is almost all sleeping phones (18 Aug: 85 gave up, ~6 were
+    // alive and had not saved a trip). Only the second group is a casualty.
+    const gaveUpEvents = await prisma.appEvent.findMany({
+      where: { type: "watchdog.gave_up", createdAt: { gte: d24h }, userId: { not: null } },
+      select: { userId: true, createdAt: true },
+      orderBy: { createdAt: "desc" },
+    });
+    const lastGaveUp = new Map<string, Date>();
+    for (const e of gaveUpEvents) if (!lastGaveUp.has(e.userId!)) lastGaveUp.set(e.userId!, e.createdAt);
+    const gaveUpIds = [...lastGaveUp.keys()];
+    const [gaveUpUsers, tripsSince] = gaveUpIds.length
+      ? await Promise.all([
+          prisma.user.findMany({
+            where: { id: { in: gaveUpIds } },
+            select: { id: true, email: true, displayName: true, lastHeartbeatAt: true, pushToken: true, buildNumber: true },
+          }),
+          prisma.trip.findMany({
+            where: { userId: { in: gaveUpIds }, createdAt: { gte: d24h } },
+            select: { userId: true, createdAt: true },
+          }),
+        ])
+      : [[], []];
+    const gaveUp = { total: gaveUpIds.length, recovered: 0, asleep: 0, aliveAndSilentCount: 0 };
+    const aliveAndSilent: Array<{
+      userId: string; email: string; displayName: string | null; gaveUpAt: string;
+      lastHeartbeatAt: string | null; hasPushToken: boolean; build: string | null;
+    }> = [];
+    for (const u of gaveUpUsers) {
+      const at = lastGaveUp.get(u.id)!;
+      const saved = tripsSince.some((t) => t.userId === u.id && t.createdAt >= at);
+      if (saved) { gaveUp.recovered += 1; continue; }
+      // Alive = the phone has reported since the give-up (or within the hour before it).
+      const alive = !!u.lastHeartbeatAt && u.lastHeartbeatAt.getTime() >= at.getTime() - 3_600_000;
+      if (!alive) { gaveUp.asleep += 1; continue; }
+      gaveUp.aliveAndSilentCount += 1;
+      aliveAndSilent.push({
+        userId: u.id, email: u.email, displayName: u.displayName, gaveUpAt: at.toISOString(),
+        lastHeartbeatAt: u.lastHeartbeatAt?.toISOString() ?? null, hasPushToken: !!u.pushToken, build: u.buildNumber,
+      });
+    }
+
+    // OTA adoption from the same 14-day dump window: what each binary is
+    // actually running. updateId identifies the published group; createdAt
+    // is the update's own publish time.
+    const recentDumps = await prisma.diagnosticDump.findMany({
+      where: { capturedAt: { gte: d14 } },
+      select: { statusJson: true },
+    });
+    const ota = new Map<string, { devices: number; embedded: number; updates: Map<string, { devices: number; publishedAt: string | null }> }>();
+    for (const d of recentDumps) {
+      const u = ((d.statusJson ?? {}) as { updates?: { runtimeVersion?: string | null; updateId?: string | null; isEmbeddedLaunch?: boolean | null; createdAt?: string | null } }).updates;
+      const rt = u?.runtimeVersion ?? "unknown";
+      let e = ota.get(rt);
+      if (!e) { e = { devices: 0, embedded: 0, updates: new Map() }; ota.set(rt, e); }
+      e.devices += 1;
+      if (u?.isEmbeddedLaunch !== false) { e.embedded += 1; continue; }
+      const id = u?.updateId ?? "unknown";
+      const cur = e.updates.get(id) ?? { devices: 0, publishedAt: u?.createdAt ?? null };
+      cur.devices += 1;
+      e.updates.set(id, cur);
+    }
+
+    return reply.send({
+      data: {
+        windowDays: 14,
+        fleet: fleet.length,
+        permission: permissionCounts,
+        cannotCapture,
+        cannotCapturePct: fleet.length ? Math.round((cannotCapture / fleet.length) * 1000) / 10 : 0,
+        dumpOverrides,
+        silent: {
+          total: silentNever.length + silentLapsed.length,
+          never: silentNever.length,
+          lapsed: silentLapsed.length,
+          neverRows: silentNever.slice(0, 60),
+          lapsedRows: silentLapsed.slice(0, 60),
+        },
+        needsPermission: needsPermission.slice(0, 80),
+        dailyPermissionMissing: dailyMissing.map((r) => ({ date: new Date(r.d).toISOString().slice(0, 10), users: Number(r.users) })),
+        gaveUp24h: { ...gaveUp, aliveAndSilent },
+        ota: [...ota.entries()]
+          .map(([runtime, e]) => ({
+            runtime,
+            devices: e.devices,
+            embedded: e.embedded,
+            updates: [...e.updates.entries()]
+              .map(([updateId, v]) => ({ updateId, devices: v.devices, publishedAt: v.publishedAt }))
+              .sort((a, b) => b.devices - a.devices),
+          }))
+          .sort((a, b) => b.devices - a.devices),
+        generatedAt: new Date().toISOString(),
+      },
+    });
+  });
+
   // GET /admin/job-runs
   app.get("/job-runs", async (request, reply) => {
     const { page, pageSize, jobName, status } = request.query as {

@@ -5406,6 +5406,7 @@ export default function AdminPage() {
         <div style={{ display: "flex", gap: 8, alignSelf: "center", flexWrap: "wrap" }}>
           {[
             { href: "/dashboard/admin/cleartrack", label: "ClearTrack" },
+            { href: "/dashboard/admin/activation", label: "Activation" },
             { href: "/dashboard/admin/missing-trips", label: "Missing Trips" },
             { href: "/dashboard/admin/build-health", label: "Build Health" },
             { href: "/dashboard/admin/funnel", label: "Funnel" },
