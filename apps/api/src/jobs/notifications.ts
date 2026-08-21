@@ -837,6 +837,20 @@ async function runDiagnosticScanJob(): Promise<void> {
         }),
       ]);
       captureStalled = lifetimeAuto >= 3 && recentAuto === 0;
+
+      // On the native (ClearTrack) engine taskRunning is ALWAYS false - it is
+      // what RNBG reports, on every runtime (21 Aug 2026: 100% of native
+      // dumps) - so the gate above is permanently open there and the alert
+      // degraded to "no trip for four days", which pushes "tracking may have
+      // stopped" at people who are simply away. The dump's own 24h trigger
+      // signature tells the two apart: a phone that MOVED (motion changes)
+      // and still never opened a recording is a deaf engine; a phone that
+      // did not move is parked or on holiday. Require the movement.
+      if (captureStalled && status.nativeEngineEnabled === true) {
+        const activity = (status.activitySummary ?? {}) as Record<string, number>;
+        const moved = (activity.native_motionchange ?? 0) > 0;
+        if (!moved) captureStalled = false;
+      }
     }
 
     // Check each alert type with cooldown
