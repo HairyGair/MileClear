@@ -2769,11 +2769,23 @@ export async function adminRoutes(app: FastifyInstance) {
 
   // GET /admin/missing-trip-reports
   // Triage inbox for the "Missing a trip?" affordance (trips/report-missing).
-  // Each report is joined with the user's latest dump and capture stats, and
-  // auto-diagnosed using the support-playbook rules: permission gap vs silent
-  // native non-capture vs needs-a-look.
+  // Each report is joined with the user's latest dump, their trips and events
+  // around the report, and auto-diagnosed with the support-playbook classes
+  // in the order a support read actually goes (first match wins):
+  //   landed_after_report  Class 11: trip.created shortly AFTER the report.
+  //   open_recording       Class 15: trip.signal_start with no trip.created
+  //                        since - the route is alive on the phone.
+  //   no_addresses         Class 14: the trip is there with both addresses
+  //                        null, so the list shows no route line.
+  //   head_gap             Class 16: a trip whose first coordinate is well
+  //                        after startedAt - the leading miles are absent.
+  //   permission_gap / silent_non_capture / needs_look  as before.
+  // selfAdded flags a manual trip the user entered after reporting.
   app.get("/missing-trip-reports", async (_request, reply) => {
-    const cutoff = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+    const HOUR = 60 * 60 * 1000;
+    const DAY = 24 * HOUR;
+    const now = Date.now();
+    const cutoff = new Date(now - 30 * DAY);
     const events = await prisma.appEvent.findMany({
       where: { type: "trip.report_missing", createdAt: { gte: cutoff } },
       orderBy: { createdAt: "desc" },
@@ -2783,12 +2795,14 @@ export async function adminRoutes(app: FastifyInstance) {
         userId: true,
         metadata: true,
         createdAt: true,
-        user: { select: { email: true, displayName: true } },
+        user: { select: { email: true, displayName: true, lastHeartbeatAt: true } },
       },
     });
 
     const ids = [...new Set(events.map((e) => e.userId).filter((v): v is string => !!v))];
-    const [dumps, recentAuto] = ids.length
+    const earliest = events.length ? events[events.length - 1].createdAt.getTime() : now;
+    const windowStart = new Date(earliest - DAY);
+    const [dumps, recentAuto, tripEvents, nearbyTrips] = ids.length
       ? await Promise.all([
           prisma.diagnosticDump.findMany({
             where: { userId: { in: ids } },
@@ -2799,14 +2813,77 @@ export async function adminRoutes(app: FastifyInstance) {
             where: {
               userId: { in: ids },
               isManualEntry: false,
-              startedAt: { gte: new Date(Date.now() - 4 * 24 * 60 * 60 * 1000) },
+              startedAt: { gte: new Date(now - 4 * DAY) },
             },
             _count: { _all: true },
           }),
+          prisma.appEvent.findMany({
+            where: {
+              userId: { in: ids },
+              type: "trip.signal_start",
+              createdAt: { gte: windowStart },
+            },
+            select: { userId: true, type: true, createdAt: true },
+            orderBy: { createdAt: "asc" },
+          }),
+          prisma.trip.findMany({
+            where: {
+              userId: { in: ids },
+              OR: [{ createdAt: { gte: windowStart } }, { startedAt: { gte: windowStart } }],
+            },
+            select: {
+              id: true,
+              userId: true,
+              startedAt: true,
+              endedAt: true,
+              createdAt: true,
+              isManualEntry: true,
+              startAddress: true,
+              endAddress: true,
+              distanceMiles: true,
+              classification: true,
+            },
+          }),
         ])
-      : [[], []];
+      : [[], [], [], []];
+
+    // First stored coordinate per non-manual nearby trip, for the head-gap tell.
+    const autoTripIds = nearbyTrips.filter((t) => !t.isManualEntry).map((t) => t.id);
+    const firstCoord = autoTripIds.length
+      ? await prisma.tripCoordinate.groupBy({
+          by: ["tripId"],
+          where: { tripId: { in: autoTripIds } },
+          _min: { recordedAt: true },
+        })
+      : [];
+    const firstCoordBy = new Map(firstCoord.map((c) => [c.tripId, c._min.recordedAt]));
+
     const dumpBy = new Map(dumps.map((d) => [d.userId, d]));
     const recentBy = new Map(recentAuto.map((r) => [r.userId, r._count._all]));
+    const eventsBy = new Map<string, typeof tripEvents>();
+    for (const ev of tripEvents) {
+      if (!ev.userId) continue;
+      const arr = eventsBy.get(ev.userId) ?? [];
+      arr.push(ev);
+      eventsBy.set(ev.userId, arr);
+    }
+    const tripsBy = new Map<string, typeof nearbyTrips>();
+    for (const t of nearbyTrips) {
+      const arr = tripsBy.get(t.userId) ?? [];
+      arr.push(t);
+      tripsBy.set(t.userId, arr);
+    }
+
+    type Diagnosis =
+      | "landed_after_report"
+      | "open_recording"
+      | "no_addresses"
+      | "head_gap"
+      | "permission_gap"
+      | "silent_non_capture"
+      | "needs_look";
+
+    const mins = (ms: number) => Math.round(ms / 60000);
 
     const reports = events.map((e) => {
       const dump = e.userId ? dumpBy.get(e.userId) : undefined;
@@ -2818,9 +2895,98 @@ export async function adminRoutes(app: FastifyInstance) {
       };
       const meta = (e.metadata ?? {}) as { note?: string };
       const recent = e.userId ? (recentBy.get(e.userId) ?? 0) : 0;
+      const at = e.createdAt.getTime();
+      const userEvents = e.userId ? (eventsBy.get(e.userId) ?? []) : [];
+      const userTrips = e.userId ? (tripsBy.get(e.userId) ?? []) : [];
 
-      let diagnosis: "permission_gap" | "silent_non_capture" | "needs_look" = "needs_look";
-      if (dump) {
+      let diagnosis: Diagnosis = "needs_look";
+      let evidence: string | null = null;
+      let tripId: string | null = null;
+
+      // Class 11: the trip landed after the report (finalize / sync lag).
+      // Captured trips only - a manual entry the user typed in afterwards
+      // also creates a trip, and that is them working around the problem,
+      // not the problem resolving (first dry run mis-filed 20 reports that
+      // way).
+      // The reported drive STARTED before the report and was CREATED after
+      // it. A captured trip that started after the report is their next
+      // drive, not this one (Andrew Hitchen, 17 Aug: the real answer was a
+      // head gap on the trip he already had).
+      const landed = userTrips.find(
+        (t) =>
+          !t.isManualEntry &&
+          t.startedAt.getTime() <= at + 5 * 60000 &&
+          t.createdAt.getTime() >= at &&
+          t.createdAt.getTime() <= at + 6 * HOUR
+      );
+      if (landed) {
+        diagnosis = "landed_after_report";
+        tripId = landed.id;
+        evidence = `captured trip ${landed.id.slice(0, 8)} (${landed.distanceMiles?.toFixed(2) ?? "?"} mi) was created ${mins(landed.createdAt.getTime() - at)} min after the report.`;
+      }
+
+      // Class 15: a recording opened and never closed.
+      if (diagnosis === "needs_look") {
+        const signals = userEvents.filter(
+          (ev) => ev.type === "trip.signal_start" && ev.createdAt.getTime() >= at - DAY && ev.createdAt.getTime() <= at + HOUR
+        );
+        const lastSignal = signals[signals.length - 1];
+        if (lastSignal) {
+          // The recording that opened at the signal would finalise into a
+          // captured trip starting near the signal. A manual entry, or an
+          // admin reconstruction days later, does not close it.
+          const sig = lastSignal.createdAt.getTime();
+          const closed = userTrips.some(
+            (t) =>
+              !t.isManualEntry &&
+              t.startedAt.getTime() >= sig - 10 * 60000 &&
+              t.startedAt.getTime() <= sig + 12 * HOUR &&
+              // A genuine finalize lands within the day; a reconstruction
+              // added by support days later does not count as closing it.
+              t.createdAt.getTime() <= sig + DAY
+          );
+          if (!closed) {
+            diagnosis = "open_recording";
+            const hb = e.user?.lastHeartbeatAt?.getTime() ?? null;
+            const frozen = hb !== null && Math.abs(hb - lastSignal.createdAt.getTime()) <= 2 * 60000;
+            evidence = `trip.signal_start ${mins(at - lastSignal.createdAt.getTime())} min before the report, no trip.created since. Route is on the phone until their next drive.${frozen ? " Heartbeat frozen at the signal: device unreachable, only opening the app will finalise it." : ""}`;
+          }
+        }
+      }
+
+      // Class 14: the trip is there, it just has no addresses.
+      if (diagnosis === "needs_look") {
+        const blank = userTrips.find(
+          (t) =>
+            !t.isManualEntry &&
+            t.startAddress === null &&
+            t.endAddress === null &&
+            Math.abs(t.startedAt.getTime() - at) <= DAY
+        );
+        if (blank) {
+          diagnosis = "no_addresses";
+          tripId = blank.id;
+          evidence = `trip ${blank.id.slice(0, 8)} (${blank.distanceMiles?.toFixed(2) ?? "?"} mi, ${blank.classification}) has no start or end address, so the list draws no route line.`;
+        }
+      }
+
+      // Class 16: the trip looks whole but its first coordinate is late.
+      if (diagnosis === "needs_look") {
+        for (const t of userTrips) {
+          if (t.isManualEntry || Math.abs(t.startedAt.getTime() - at) > DAY) continue;
+          const first = firstCoordBy.get(t.id);
+          if (!first) continue;
+          const gapMin = mins(first.getTime() - t.startedAt.getTime());
+          if (gapMin >= 10) {
+            diagnosis = "head_gap";
+            tripId = t.id;
+            evidence = `trip ${t.id.slice(0, 8)} starts at ${t.startedAt.toISOString().slice(11, 16)}Z but its first coordinate is ${gapMin} min later - the leading leg has no trail and its miles are missing from ${t.distanceMiles?.toFixed(2) ?? "?"} mi.`;
+            break;
+          }
+        }
+      }
+
+      if (diagnosis === "needs_look" && dump) {
         if (s.backgroundPermission !== "granted" || s.motionPermission === "denied") {
           diagnosis = "permission_gap";
         } else if (
@@ -2831,6 +2997,10 @@ export async function adminRoutes(app: FastifyInstance) {
           diagnosis = "silent_non_capture";
         }
       }
+
+      const selfAdded = userTrips.some(
+        (t) => t.isManualEntry && t.createdAt.getTime() >= at && t.createdAt.getTime() <= at + DAY
+      );
 
       return {
         id: e.id,
@@ -2846,6 +3016,9 @@ export async function adminRoutes(app: FastifyInstance) {
         nativeEngine: s.nativeEngineEnabled === true,
         recentAutoTrips: recent,
         diagnosis,
+        evidence,
+        tripId,
+        selfAdded,
       };
     });
 
