@@ -36,7 +36,7 @@ import { qualifyReferralOnFirstTrip } from "../../services/referral.js";
 import { looksLikePhantomTrip, hasRealMovementEvidence } from "../../lib/phantomTrip.js";
 import { resolveRouteDistance, routedDurationUsable } from "../../services/routing.js";
 import { reverseGeocode } from "../../services/geocoding.js";
-import { matchTripRoute, decodePolyline, isMatchPlausible } from "../../services/mapMatching.js";
+import { matchTripRoute, decodePolyline, isMatchPlausible, trimEdgePhantoms } from "../../services/mapMatching.js";
 import { computeTripConfidence } from "../../services/tripConfidence.js";
 import {
   getSplitSuggestions,
@@ -560,7 +560,35 @@ export async function tripRoutes(app: FastifyInstance) {
       }
     }
 
-    const { coordinates, ...tripData } = data;
+    const { coordinates: rawCoordinates, ...tripData } = data;
+
+    // Edge phantom trim: a cell-tower first or last fix (accuracy in the
+    // thousands of metres, a mile or more from the real edge) makes the trip
+    // start somewhere the driver never was and inflates the distance by the
+    // phantom jump - and the map-match guard then protects the bad number.
+    // Drop such points, move the edge to the first real fix, and take the
+    // phantom miles back off the stored distance; map-matching below then
+    // lands on the road figure. See trimEdgePhantoms for the numbers.
+    const trimAttempt =
+      rawCoordinates && rawCoordinates.length >= 3 ? trimEdgePhantoms(rawCoordinates) : null;
+    const edgeTrim =
+      trimAttempt && (trimAttempt.droppedLeading > 0 || trimAttempt.droppedTrailing > 0)
+        ? trimAttempt
+        : null;
+    const coordinates = edgeTrim ? edgeTrim.breadcrumbs : rawCoordinates;
+    if (edgeTrim && coordinates) {
+      if (edgeTrim.droppedLeading > 0) {
+        resolvedStartLat = coordinates[0].lat;
+        resolvedStartLng = coordinates[0].lng;
+        tripData.startAddress = undefined; // reverse-geocoded from the real start below
+      }
+      if (edgeTrim.droppedTrailing > 0) {
+        resolvedEndLat = coordinates[coordinates.length - 1].lat;
+        resolvedEndLng = coordinates[coordinates.length - 1].lng;
+        tripData.endAddress = undefined;
+      }
+      distanceMiles = Math.max(0, Math.round((distanceMiles - edgeTrim.removedMiles) * 100) / 100);
+    }
     const hasCoordinates = coordinates && coordinates.length > 0;
 
     // Classification is now handled by the mobile classification engine
@@ -755,6 +783,18 @@ export async function tripRoutes(app: FastifyInstance) {
           currentDistanceMiles: distanceMiles,
           userId,
         }).catch(() => {});
+      }
+
+      if (edgeTrim) {
+        logEvent("trip.edge_phantom_trimmed", userId, {
+          tripId: trip.id,
+          droppedLeading: edgeTrim.droppedLeading,
+          droppedTrailing: edgeTrim.droppedTrailing,
+          removedMiles: Math.round(edgeTrim.removedMiles * 100) / 100,
+          worstAccuracyM: edgeTrim.worstAccuracyM,
+          distanceMiles,
+          clientDistanceMiles: data.distanceMiles ?? null,
+        });
       }
 
       logEvent("trip.created", userId, {

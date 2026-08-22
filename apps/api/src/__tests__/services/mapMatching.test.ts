@@ -1,4 +1,5 @@
 import { describe, it, expect } from "vitest";
+import { trimEdgePhantoms } from "../../services/mapMatching.js";
 import {
   decodePolyline,
   isMatchPlausible,
@@ -133,5 +134,57 @@ describe("shouldAutoApplySuggestion", () => {
         confidence: 80,
       })
     ).toBe(true);
+  });
+});
+
+describe("trimEdgePhantoms", () => {
+  // Rachel Thorndyke, 21 Aug 2026: first fix at accuracy 2,724 m, 2.3 mi
+  // from the real start; everything after at 2-20 m.
+  const real = [
+    { lat: 53.6687, lng: -0.3067, accuracy: 20 },
+    { lat: 53.6687, lng: -0.3067, accuracy: 20 },
+    { lat: 53.6763, lng: -0.3087, accuracy: 2 },
+    { lat: 53.6887, lng: -0.3102, accuracy: 5 },
+  ];
+  const phantomStart = { lat: 53.6363, lng: -0.2941, accuracy: 2724 };
+
+  it("drops a grossly inaccurate far-away first fix and reports the miles", () => {
+    const r = trimEdgePhantoms([phantomStart, ...real]);
+    expect(r.droppedLeading).toBe(1);
+    expect(r.droppedTrailing).toBe(0);
+    expect(r.breadcrumbs[0]).toBe(real[0]);
+    expect(r.removedMiles).toBeGreaterThan(2);
+    expect(r.removedMiles).toBeLessThan(3);
+    expect(r.worstAccuracyM).toBe(2724);
+  });
+
+  it("drops a phantom last fix the same way", () => {
+    const r = trimEdgePhantoms([...real, { lat: 53.70, lng: -0.20, accuracy: 1500 }]);
+    expect(r.droppedTrailing).toBe(1);
+    expect(r.breadcrumbs[r.breadcrumbs.length - 1]).toBe(real[real.length - 1]);
+  });
+
+  it("keeps an accurate first fix even when the first step is long", () => {
+    const r = trimEdgePhantoms([{ lat: 53.6363, lng: -0.2941, accuracy: 8 }, ...real]);
+    expect(r.droppedLeading).toBe(0);
+    expect(r.removedMiles).toBe(0);
+  });
+
+  it("keeps an inaccurate first fix that is where the trail actually starts", () => {
+    const r = trimEdgePhantoms([{ lat: 53.6688, lng: -0.3068, accuracy: 900 }, ...real]);
+    expect(r.droppedLeading).toBe(0);
+  });
+
+  it("never touches interior points or accuracy-less points", () => {
+    const r = trimEdgePhantoms([real[0], { lat: 53.60, lng: -0.20, accuracy: 3000 }, real[2], real[3]]);
+    expect(r.breadcrumbs.length).toBe(4);
+    const r2 = trimEdgePhantoms([{ lat: 53.6363, lng: -0.2941, accuracy: null }, ...real]);
+    expect(r2.droppedLeading).toBe(0);
+  });
+
+  it("leaves at least three points", () => {
+    const r = trimEdgePhantoms([phantomStart, real[0], { lat: 53.70, lng: -0.20, accuracy: 1500 }]);
+    expect(r.breadcrumbs.length).toBe(3);
+    expect(r.droppedLeading + r.droppedTrailing).toBe(0);
   });
 });

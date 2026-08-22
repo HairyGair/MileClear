@@ -85,6 +85,81 @@ export function isMatchPlausible(
 }
 
 /**
+ * Edge phantom trim (22 Aug 2026, Rachel Thorndyke's "random point in
+ * Immingham"). A recording's first or last fix is sometimes a cell-tower
+ * position a mile or more from where the phone actually was - Rachel's
+ * opened with accuracy 2,724 m, 2.3 mi south-east of the real start;
+ * others in the same fortnight read 1,130 / 1,422 / 149,000 / 3,356 m
+ * against 2-28 m for every point after. The JS engine's ingest filter
+ * drops such fixes; the native engine's buffer does not. The phone then
+ * sums its distance across the phantom jump, the trip starts in a place
+ * the driver never was, and the map-match plausibility guard - seeing a
+ * road route much shorter than the raw one - keeps the inflated figure.
+ * Eleven trips in fourteen days, all over-claims on HMRC records.
+ *
+ * This drops up to MAX_EDGE_TRIM points from each end that are both
+ * grossly inaccurate AND far from their neighbour, and reports how many
+ * raw miles went with them so the caller can correct the stored distance.
+ * Interior points are never touched; a mid-trip glitch is the matcher's
+ * job. Pure, so it is unit-tested.
+ */
+export const EDGE_PHANTOM_ACCURACY_M = 500;
+export const EDGE_PHANTOM_MIN_JUMP_MILES = 0.5;
+const MAX_EDGE_TRIM = 3;
+const MIN_POINTS_AFTER_TRIM = 3;
+
+export interface EdgeTrimResult<T extends BreadcrumbInput> {
+  breadcrumbs: T[];
+  droppedLeading: number;
+  droppedTrailing: number;
+  /** Raw haversine miles the dropped edge segments contributed. */
+  removedMiles: number;
+  /** Worst accuracy among the dropped points, for the audit event. */
+  worstAccuracyM: number | null;
+}
+
+function milesBetween(a: BreadcrumbInput, b: BreadcrumbInput): number {
+  const R = 3958.8;
+  const k = Math.PI / 180;
+  const x =
+    Math.sin(((b.lat - a.lat) * k) / 2) ** 2 +
+    Math.cos(a.lat * k) * Math.cos(b.lat * k) * Math.sin(((b.lng - a.lng) * k) / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(x));
+}
+
+export function trimEdgePhantoms<T extends BreadcrumbInput>(input: T[]): EdgeTrimResult<T> {
+  const pts = [...input];
+  let droppedLeading = 0;
+  let droppedTrailing = 0;
+  let removedMiles = 0;
+  let worst: number | null = null;
+
+  const isPhantomEdge = (edge: T, neighbour: T): boolean =>
+    typeof edge.accuracy === "number" &&
+    edge.accuracy > EDGE_PHANTOM_ACCURACY_M &&
+    milesBetween(edge, neighbour) >= EDGE_PHANTOM_MIN_JUMP_MILES;
+
+  while (droppedLeading < MAX_EDGE_TRIM && pts.length > MIN_POINTS_AFTER_TRIM && isPhantomEdge(pts[0], pts[1])) {
+    removedMiles += milesBetween(pts[0], pts[1]);
+    worst = Math.max(worst ?? 0, pts[0].accuracy as number);
+    pts.shift();
+    droppedLeading += 1;
+  }
+  while (
+    droppedTrailing < MAX_EDGE_TRIM &&
+    pts.length > MIN_POINTS_AFTER_TRIM &&
+    isPhantomEdge(pts[pts.length - 1], pts[pts.length - 2])
+  ) {
+    removedMiles += milesBetween(pts[pts.length - 1], pts[pts.length - 2]);
+    worst = Math.max(worst ?? 0, pts[pts.length - 1].accuracy as number);
+    pts.pop();
+    droppedTrailing += 1;
+  }
+
+  return { breadcrumbs: pts, droppedLeading, droppedTrailing, removedMiles, worstAccuracyM: worst };
+}
+
+/**
  * Snap GPS breadcrumbs to the nearest road network. Returns null on
  * any failure — caller MUST handle that without breaking trip save.
  */
