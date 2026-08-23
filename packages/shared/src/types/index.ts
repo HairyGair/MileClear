@@ -1245,7 +1245,7 @@ export interface FeedbackWithVoted extends FeedbackItem {
 
 // Admin types
 /** Why a user has Pro. Paying = Stripe or a production Apple subscription. */
-export type AdminProSource = "paying" | "comp" | "referral" | "sandbox";
+export type AdminProSource = "paying" | "comp" | "referral" | "sandbox" | "team";
 
 export interface AdminAnalytics {
   totalUsers: number;
@@ -1481,6 +1481,8 @@ export interface AdminRevenue {
     appleSandbox: number;
     comp: number;
     referral: number;
+    /** Active MileClear Teams drivers (pilot orgs pay nothing). */
+    team: number;
     expiredFlag: number;
   };
   /** Paying rows whose period was inferred from expiry, not a stamped product id. */

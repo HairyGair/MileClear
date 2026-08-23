@@ -206,6 +206,8 @@ model User {
   diagnosticDump      DiagnosticDump?
   expenses            Expense[]
   accountantInvites   AccountantInvite[]
+  orgMemberships     OrgMembership[]
+  organisationsOwned Organisation[]
   accountantAccess    AccountantAccess[]
   hmrcReconciliations HmrcReconciliation[]
   pickupWaits         PickupWait[]
@@ -1012,6 +1014,54 @@ model TeamInterest {
 
   @@index([createdAt])
   @@map("team_interest")
+}
+
+// MileClear Teams (P1, 23 Aug 2026). An organisation owns memberships;
+// an ACTIVE membership grants the driver Pro (proSource "team") without
+// touching their personal billing state, and disabling the membership takes
+// only the org visibility and the team entitlement away. Invites follow the
+// accountant-share token discipline: sha256 at rest, expiring.
+model Organisation {
+  id              String   @id @default(uuid())
+  name            String   @db.VarChar(160)
+  // Pilot orgs (TPS360) pay nothing; the flag keeps revenue views honest
+  // and lets Phase 3 billing skip them explicitly.
+  pilotFree       Boolean  @default(true)
+  // Org-wide default employer rate; a member's own employerMileageRatePence
+  // still wins when set.
+  defaultRatePence Int?
+  createdByUserId String
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  createdBy   User            @relation(fields: [createdByUserId], references: [id], onDelete: Restrict)
+  memberships OrgMembership[]
+
+  @@map("organisations")
+}
+
+model OrgMembership {
+  id              String    @id @default(uuid())
+  orgId           String
+  // Null until the invite is accepted by a logged-in user.
+  userId          String?
+  role            String    @default("driver") @db.VarChar(10) // admin | driver
+  status          String    @default("invited") @db.VarChar(10) // invited | active | disabled
+  invitedEmail    String    @db.VarChar(255)
+  /// sha256 of the invite token; the raw token exists only in the email.
+  inviteTokenHash String?   @unique @db.VarChar(64)
+  inviteExpiresAt DateTime?
+  invitedAt       DateTime  @default(now())
+  acceptedAt      DateTime?
+  disabledAt      DateTime?
+
+  org  Organisation @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  user User?        @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([orgId, invitedEmail])
+  @@index([userId, status])
+  @@index([orgId, status])
+  @@map("org_memberships")
 }
 
 model SavedLocation {

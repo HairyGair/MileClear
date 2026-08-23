@@ -52,6 +52,12 @@ describe("classifyProSource", () => {
   it("a flagged row whose expiry has passed is not Pro", () => {
     expect(classifyProSource({ ...base, premiumExpiresAt: days(-1), stripeSubscriptionId: "sub_1" }, sandbox, NOW)).toBeNull();
   });
+  it("an active team membership grants Pro as 'team' when nothing personal does", () => {
+    expect(classifyProSource({ ...base, isPremium: false, hasTeamMembership: true }, sandbox, NOW)).toBe("team");
+    // A paying subscription outranks the team badge.
+    expect(classifyProSource({ ...base, stripeSubscriptionId: "sub_1", hasTeamMembership: true }, sandbox, NOW)).toBe("paying");
+  });
+
   it("referral credit counts even with isPremium false", () => {
     expect(classifyProSource({ ...base, isPremium: false, referralProUntil: days(10) }, sandbox, NOW)).toBe("referral");
     expect(classifyProSource({ ...base, isPremium: false, referralProUntil: days(-10) }, sandbox, NOW)).toBeNull();

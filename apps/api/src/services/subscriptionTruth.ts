@@ -25,7 +25,7 @@ import {
 
 export type BillingPeriod = "monthly" | "annual";
 /** Why a user has Pro. `null` = not Pro. */
-export type ProSource = "paying" | "comp" | "referral" | "sandbox";
+export type ProSource = "paying" | "comp" | "referral" | "sandbox" | "team";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const ANNUAL_HORIZON_DAYS = 45;
@@ -60,6 +60,8 @@ export interface ProUserRow {
   appleOriginalTransactionId: string | null;
   subscriptionProductId?: string | null;
   referralProUntil: Date | null;
+  /** Active MileClear Teams membership (set by callers that joined it). */
+  hasTeamMembership?: boolean;
 }
 
 /**
@@ -82,6 +84,7 @@ export function classifyProSource(
     return "comp";
   }
   if (u.referralProUntil && u.referralProUntil.getTime() > now.getTime()) return "referral";
+  if (u.hasTeamMembership) return "team";
   return null;
 }
 
@@ -107,6 +110,9 @@ export interface SubscriptionTruth {
     appleSandbox: number;
     comp: number;
     referral: number;
+    /** Active team-membership drivers. Pilot orgs pay nothing, so this is
+     *  visibility, not revenue. */
+    team: number;
     /** isPremium=true rows whose expiry has passed - flagged but not active. */
     expiredFlag: number;
   };
@@ -117,7 +123,7 @@ export interface SubscriptionTruth {
 }
 
 export async function getSubscriptionTruth(now: Date = new Date()): Promise<SubscriptionTruth> {
-  const [premiumRows, referral, sandboxTxns] = await Promise.all([
+  const [premiumRows, referral, sandboxTxns, team] = await Promise.all([
     prisma.user.findMany({
       where: { isPremium: true },
       select: {
@@ -131,6 +137,7 @@ export async function getSubscriptionTruth(now: Date = new Date()): Promise<Subs
     }),
     prisma.user.count({ where: { isPremium: false, referralProUntil: { gt: now } } }),
     loadSandboxTxnIds(),
+    prisma.orgMembership.count({ where: { status: "active", userId: { not: null } } }),
   ]);
 
   const b = {
@@ -141,6 +148,7 @@ export async function getSubscriptionTruth(now: Date = new Date()): Promise<Subs
     appleSandbox: 0,
     comp: 0,
     referral,
+    team,
     expiredFlag: 0,
   };
   let mrrPence = 0;
@@ -184,7 +192,7 @@ export async function getSubscriptionTruth(now: Date = new Date()): Promise<Subs
     payingSubscribers,
     breakdown: b,
     inferredPeriods,
-    proTotal: payingSubscribers + b.appleSandbox + b.comp + b.referral,
+    proTotal: payingSubscribers + b.appleSandbox + b.comp + b.referral + b.team,
   };
 }
 

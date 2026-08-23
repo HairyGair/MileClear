@@ -22,7 +22,19 @@ export async function premiumMiddleware(
   // referralProUntil so earned free months unlock Pro without corrupting
   // Stripe/Apple tracking. It also handles the expired-subscription case
   // (isPremium true but premiumExpiresAt in the past -> not active).
+  // MileClear Teams: an active membership grants Pro without touching the
+  // user's own billing state - a disabled membership takes it away again.
+  // Checked only when nothing personal grants Pro, so paying users cost no
+  // extra query.
+  let teamActive = false;
   if (!user || !resolvePremiumStatus(user).active) {
+    teamActive = !!(await prisma.orgMembership.findFirst({
+      where: { userId: request.userId, status: "active" },
+      select: { id: true },
+    }));
+  }
+
+  if (!user || (!resolvePremiumStatus(user).active && !teamActive)) {
     const err = premiumRequired(
       "MileClear Pro is required for this feature.",
       "Upgrade in Settings - or invite friends to earn free months."

@@ -2856,6 +2856,7 @@ interface RevenueData {
     appleSandbox: number;
     comp: number;
     referral: number;
+    team: number;
     expiredFlag: number;
   };
   inferredPeriods: number;
@@ -2990,6 +2991,14 @@ function RevenueTab() {
                 <td style={cell}>£0.00</td>
                 <td style={{ fontSize: "0.8125rem", color: "var(--text-secondary)" }}>Earned free months; isPremium is false on these rows</td>
               </tr>
+              {b.team > 0 && (
+                <tr>
+                  <td>Team (pilot)</td>
+                  <td style={cell}>{b.team}</td>
+                  <td style={cell}>£0.00</td>
+                  <td style={{ fontSize: "0.8125rem", color: "var(--text-secondary)" }}>MileClear Teams drivers; pilot orgs are free until proven</td>
+                </tr>
+              )}
               <tr>
                 <td>Apple sandbox</td>
                 <td style={cell}>{b.appleSandbox}</td>
