@@ -224,6 +224,117 @@ export async function runCaptureLapsedJob(): Promise<void> {
   }
 }
 
+// Short-hop drivers without saved locations (23 Aug 2026).
+//
+// The engine records plenty of short trips - 497 auto-captured at 0.3-0.5 mi
+// in the month to 23 Aug - but it cannot ARM in time for a sixty-second
+// drive when it has to wait for CoreMotion's "automotive" verdict, so the
+// manual share climbs as trips shorten: 3% of 2+ mile trips are typed in,
+// 34% of 0.3-0.5 mile ones. A saved location's geofence fires the instant
+// the phone leaves it, which is exactly what a short hop needs, and the
+// people who need it do not have any: of 148 users doing five or more
+// sub-mile trips a month, 29 had a saved location. This tells the other
+// 119 what to do, with their own number in it so it reads as specific.
+const SHORT_HOP_WINDOW_DAYS = 30;
+const SHORT_HOP_MIN_TRIPS = 5;
+const SHORT_HOP_MAX_MILES = 1;
+const SHORT_HOP_COOLDOWN_DAYS = 60;
+const SHORT_HOP_MAX_SENDS = 2;
+
+export async function runShortHopSavedLocationsJob(): Promise<void> {
+  const now = new Date();
+  // SHORT_HOP_NUDGE_DRY_RUN=1 prints who would be pushed, sends nothing, and
+  // ignores the window so it can be run on demand.
+  const dryRun = process.env.SHORT_HOP_NUDGE_DRY_RUN === "1";
+  if (!dryRun && !inNudgeWindow(now)) return;
+
+  const since = new Date(now.getTime() - SHORT_HOP_WINDOW_DAYS * 86_400_000);
+  const aliveCutoff = new Date(now.getTime() - 14 * 86_400_000);
+  const cooldownCutoff = new Date(now.getTime() - SHORT_HOP_COOLDOWN_DAYS * 86_400_000);
+
+  const counts = await prisma.trip.groupBy({
+    by: ["userId"],
+    where: { startedAt: { gte: since }, distanceMiles: { lt: SHORT_HOP_MAX_MILES } },
+    _count: { _all: true },
+    _sum: { distanceMiles: true },
+    having: { userId: { _count: { gte: SHORT_HOP_MIN_TRIPS } } },
+  });
+  if (counts.length === 0) return;
+  const shortTripsBy = new Map(counts.map((c) => [c.userId, c._count._all]));
+
+  const candidates = await prisma.user.findMany({
+    where: {
+      id: { in: [...shortTripsBy.keys()] },
+      lastHeartbeatAt: { gte: aliveCutoff },
+      pushToken: { not: null },
+      // The whole point: they have nothing for the geofence to fire from.
+      savedLocations: { none: {} },
+    },
+    select: { id: true, pushToken: true },
+    take: 300,
+  });
+  if (candidates.length === 0) return;
+
+  const history = await prisma.appEvent.findMany({
+    where: {
+      type: "notification.short_hop_saved_locations",
+      userId: { in: candidates.map((c) => c.id) },
+    },
+    select: { userId: true, createdAt: true },
+  });
+  const sends = new Map<string, { count: number; last: Date }>();
+  for (const h of history) {
+    if (!h.userId) continue;
+    const prev = sends.get(h.userId);
+    if (!prev) sends.set(h.userId, { count: 1, last: h.createdAt });
+    else sends.set(h.userId, { count: prev.count + 1, last: h.createdAt > prev.last ? h.createdAt : prev.last });
+  }
+
+  const messages: ExpoPushMessage[] = [];
+  let examined = 0;
+  for (const user of candidates) {
+    examined += 1;
+    const seen = sends.get(user.id);
+    if (seen && seen.count >= SHORT_HOP_MAX_SENDS) continue;
+    if (seen && seen.last > cooldownCutoff) continue;
+    const n = shortTripsBy.get(user.id) ?? 0;
+
+    const body = `You made ${n} short trips last month. Save home and your regular stops in MileClear (Settings, then Tracking, then Saved locations) and the app catches short hops the moment you leave, instead of waiting to notice you are driving.`;
+
+    if (dryRun) {
+      console.log(
+        `[jobs/activation] DRY RUN short-hop nudge would push ${user.id} (shortTrips=${n}, sendNumber=${(seen?.count ?? 0) + 1})`
+      );
+      continue;
+    }
+    logEvent("notification.short_hop_saved_locations", user.id, {
+      shortTrips: n,
+      sendNumber: (seen?.count ?? 0) + 1,
+    });
+    messages.push({
+      to: user.pushToken!,
+      title: "Your short trips can record themselves",
+      body,
+      sound: "default",
+      // open_saved_locations lands on the Saved Locations screen from build
+      // 85; earlier builds fall through to opening the app, and the body
+      // spells out the path.
+      data: { type: "short_hop_saved_locations", action: "open_saved_locations" },
+    });
+  }
+
+  if (dryRun) {
+    console.log(
+      `[jobs/activation] DRY RUN complete: ${counts.length} short-hop drivers, ${candidates.length} reachable with no saved location, ${examined} examined, 0 sent`
+    );
+    return;
+  }
+  if (messages.length > 0) {
+    await sendPushNotifications(messages);
+    console.log(`[jobs/activation] Short-hop saved-locations nudge: sent ${messages.length} push(es)`);
+  }
+}
+
 export async function runPayingInactiveAlarmJob(): Promise<void> {
   const now = new Date();
   if (!inNudgeWindow(now)) return;

@@ -1014,7 +1014,7 @@ export async function adminRoutes(app: FastifyInstance) {
             by: ["userId", "type"],
             where: {
               userId: { in: fleetIds },
-              type: { in: ["notification.capture_lapsed", "notification.activation_d7"] },
+              type: { in: ["notification.capture_lapsed", "notification.activation_d7", "notification.short_hop_saved_locations"] },
               createdAt: { gte: d60 },
             },
             _max: { createdAt: true },
