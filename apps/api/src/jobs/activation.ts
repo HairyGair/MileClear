@@ -22,6 +22,7 @@ import { sendPushNotifications, type ExpoPushMessage } from "../lib/push.js";
 import { logEvent } from "../services/appEvents.js";
 import { postFounderAlert } from "../services/discord.js";
 import { resolvePremiumStatus } from "../services/referral.js";
+import { classifyProSource, loadSandboxTxnIds } from "../services/subscriptionTruth.js";
 
 async function wasEverNotified(userId: string, eventType: string): Promise<boolean> {
   const existing = await prisma.appEvent.findFirst({
@@ -246,13 +247,22 @@ export async function runPayingInactiveAlarmJob(): Promise<void> {
       isPremium: true,
       premiumExpiresAt: true,
       referralProUntil: true,
+      stripeSubscriptionId: true,
+      appleOriginalTransactionId: true,
       _count: { select: { trips: true, invoices: true, earnings: true } },
     },
     take: 500,
   });
 
+  // "Paying user" means paying. The alarm fired on 21 Aug 2026 for App
+  // Review's sandbox subscription (a reviewer account that will never
+  // drive), and would fire for comp grants and referral credit too. Only a
+  // Stripe or production-Apple subscriber is worth a personal email.
+  const sandboxTxns = await loadSandboxTxnIds();
+
   for (const user of candidates) {
     if (!resolvePremiumStatus(user).active) continue;
+    if (classifyProSource(user, sandboxTxns, now) !== "paying") continue;
     // "Inactive" = paying and using NOTHING. Any trips, invoices or
     // earnings mean they've found their value path — leave them alone.
     if (user._count.trips > 0 || user._count.invoices > 0 || user._count.earnings > 0) continue;
