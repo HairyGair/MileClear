@@ -1474,10 +1474,26 @@ async function _finalizeAutoTripInner(): Promise<void> {
   });
 
   if (totalDistance < MIN_AUTO_TRIP_DISTANCE_MILES) {
-    // Too short to save - dismiss Live Activity immediately
-    logDetectionEvent("finalize_too_short", { distance: totalDistance, gpsSumDistance }).catch(() => {});
+    // Too short to save. Whether to SAY so depends on what it was: a genuine
+    // short hop deserves an explanation and a one-tap alternative, but this
+    // same branch catches GPS drift and parking-lot shuffles, and inviting
+    // someone to add a drive that never happened is worse than saying nothing.
+    // Driving speed is the discriminator - the same evidence test the phantom
+    // guard uses below. Denise Sweeney's Cove Bay hops (22 Aug, 0.2-0.5 mi at
+    // ~28 mph) are the case this is for.
+    const wasRealDriving = (tripQuality.maxSpeedMph ?? 0) >= DRIVING_EVIDENCE_SPEED_MPH;
+    logDetectionEvent("finalize_too_short", {
+      distance: totalDistance,
+      gpsSumDistance,
+      wasRealDriving,
+    }).catch(() => {});
     await consumeProcessedBuffer();
-    endLiveActivity().catch(() => {});
+    if (wasRealDriving) {
+      const { markLiveActivityTooShort } = await import("../liveActivity");
+      markLiveActivityTooShort(totalDistance).catch(() => {});
+    } else {
+      endLiveActivity().catch(() => {});
+    }
     // Re-arm the departure anchor at the end of the brief movement so the
     // next real trip gets a fresh exit event. Without this, a short walk
     // or parking-lot shuffle consumes the anchor exit and leaves iOS with
@@ -2194,6 +2210,19 @@ try {
         try {
           const { getLiveActivityPhase } = await import("../liveActivity");
           const phase = await getLiveActivityPhase();
+          // Kerbside decisions (Business / Personal) are applied here too -
+          // this callback keeps firing for minutes after the user parks, so
+          // the tap usually lands before they pick the phone up.
+          if (phase === "classified_business" || phase === "classified_personal") {
+            const { applyPendingLiveActivityAction } = await import("../liveActivity/pending");
+            const applied = await applyPendingLiveActivityAction();
+            if (applied?.kind === "classified") {
+              logDetectionEvent("la_classified_at_kerb", {
+                classification: applied.classification,
+                source: "background_task",
+              }).catch(() => {});
+            }
+          }
           if (phase === "saving") {
             logDetectionEvent("pending_finalize_via_task", { source: "app_intent" }).catch(() => {});
             await finalizeAutoTrip();
