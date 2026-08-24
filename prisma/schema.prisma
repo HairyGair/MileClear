@@ -208,6 +208,7 @@ model User {
   accountantInvites   AccountantInvite[]
   orgMemberships     OrgMembership[]
   organisationsOwned Organisation[]
+  teamApprovals      TeamApproval[]
   accountantAccess    AccountantAccess[]
   hmrcReconciliations HmrcReconciliation[]
   pickupWaits         PickupWait[]
@@ -1031,13 +1032,51 @@ model Organisation {
   // still wins when set.
   defaultRatePence Int?
   createdByUserId String
+  // Per-seat billing (Phase 3). Null while the org is a free pilot; seats are
+  // the count of ACTIVE driver memberships, pushed to Stripe as the
+  // subscription quantity so adding a driver bills automatically.
+  stripeCustomerId     String? @unique @db.VarChar(255)
+  stripeSubscriptionId String? @unique @db.VarChar(255)
+  billingEmail         String? @db.VarChar(255)
+  /// Quantity last synced to Stripe, so we only call out when it changes.
+  seatsBilled          Int?
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
   createdBy   User            @relation(fields: [createdByUserId], references: [id], onDelete: Restrict)
   memberships OrgMembership[]
+  approvals   TeamApproval[]
 
   @@map("organisations")
+}
+
+// One row per driver per month: the manager's sign-off on that person's
+// business mileage. Charlotte's "automatically submit expenses say each
+// month" is this plus the consolidated export it unlocks.
+model TeamApproval {
+  id         String   @id @default(uuid())
+  orgId      String
+  userId     String
+  /// "YYYY-MM" of the month being signed off, in UK local terms.
+  month      String   @db.VarChar(7)
+  /// pending | approved | queried
+  status     String   @default("pending") @db.VarChar(10)
+  /// Snapshot at approval time so a later trip edit cannot silently change
+  /// what a manager signed off. Null until approved.
+  milesAtApproval    Float?
+  amountPenceAtApproval Int?
+  note       String?  @db.Text
+  approvedByUserId String?
+  approvedAt DateTime?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  org  Organisation @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  user User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([orgId, userId, month])
+  @@index([orgId, month])
+  @@map("team_approvals")
 }
 
 model OrgMembership {

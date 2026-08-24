@@ -5,16 +5,19 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { api } from "../../../../lib/api";
 
-// MileClear Teams invite landing (P1). If the visitor is logged in, accept
-// immediately; if not, send them to log in or register and ask them to open
-// the email link again afterwards - pilot users are hand-held, so the flow
-// stays simple rather than clever.
+// MileClear Teams invite landing (P1, redirect fix P3 24 Aug 2026). If the
+// visitor is logged in, accept immediately; if not, send them to log in or
+// register with a `next` return path pointing straight back at this page,
+// so acceptance completes automatically on return - no re-opening the
+// email link required.
 
 export default function TeamInvitePage() {
   const params = useParams<{ token: string }>();
   const token = typeof params?.token === "string" ? params.token : "";
   const [state, setState] = useState<"checking" | "accepted" | "needs_login" | "error">("checking");
   const [detail, setDetail] = useState<string>("");
+
+  const returnPath = token ? `/team/invite/${encodeURIComponent(token)}` : "/team";
 
   useEffect(() => {
     if (!token) { setState("error"); setDetail("This link is incomplete."); return; }
@@ -51,11 +54,15 @@ export default function TeamInvitePage() {
         )}
         {state === "needs_login" && (
           <>
-            <p>To accept this invitation, log in to MileClear first — or create a free account if you
-              don&apos;t have one — then open the link in your email again.</p>
+            <p>To accept this invitation, log in to MileClear first, or create a free account if you
+              don&apos;t have one. You&apos;ll be brought straight back here afterwards.</p>
             <p style={{ marginTop: "1.25rem", display: "flex", gap: "1.5rem" }}>
-              <Link href="/login" style={{ color: "#fbbf24" }}>Log in</Link>
-              <Link href="/register" style={{ color: "#fbbf24" }}>Create an account</Link>
+              <Link href={`/login?next=${encodeURIComponent(returnPath)}`} style={{ color: "#fbbf24" }}>
+                Log in
+              </Link>
+              <Link href={`/register?next=${encodeURIComponent(returnPath)}`} style={{ color: "#fbbf24" }}>
+                Create an account
+              </Link>
             </p>
           </>
         )}

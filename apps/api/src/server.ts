@@ -28,6 +28,7 @@ import { waitlistRoutes } from "./routes/waitlist/index.js";
 import { contactRoutes } from "./routes/contact/index.js";
 import { teamInterestRoutes } from "./routes/teamInterest/index.js";
 import { teamRoutes } from "./routes/team/index.js";
+import { teamSelfServeRoutes } from "./routes/team/selfServe.js";
 import { adminRoutes } from "./routes/admin/index.js";
 import { feedbackRoutes } from "./routes/feedback/index.js";
 import { notificationRoutes } from "./routes/notifications/index.js";
@@ -130,6 +131,11 @@ await app.register(cors, {
     ? process.env.CORS_ORIGIN.split(",").map((o) => o.trim()).filter(Boolean)
     : ["http://localhost:3003"],
   credentials: true,
+  // The web app and the API are on different origins, so a browser cannot
+  // read Content-Disposition from a fetch()ed download unless we say so.
+  // Without this every blob download falls back to a generic filename and
+  // the server's careful naming is thrown away, silently.
+  exposedHeaders: ["Content-Disposition"],
 });
 
 await app.register(cookie);
@@ -214,6 +220,9 @@ await app.register(waitlistRoutes, { prefix: "/waitlist" });
 await app.register(contactRoutes, { prefix: "/contact" });
 await app.register(teamInterestRoutes, { prefix: "/team-interest" });
 await app.register(teamRoutes, { prefix: "/team" });
+// Same prefix, disjoint paths (/self-serve, /billing*): Phase 3 lives in its
+// own file so billing changes cannot disturb the Phase 1 membership routes.
+await app.register(teamSelfServeRoutes, { prefix: "/team" });
 await app.register(adminRoutes, { prefix: "/admin" });
 await app.register(feedbackRoutes, { prefix: "/feedback" });
 await app.register(notificationRoutes, { prefix: "/notifications" });

@@ -1,3 +1,4 @@
+import { runTeamMonthReadyJob } from "./teamApprovals.js";
 import { prisma } from "../lib/prisma.js";
 import { sendPushNotifications, sendPushToUser, ExpoPushMessage } from "../lib/push.js";
 import { pushPrefEnabled } from "../services/pushPrefs.js";
@@ -1453,6 +1454,10 @@ export function startNotificationJobs(): void {
     void runJob("capture_lapsed", runCaptureLapsedJob);
     void runJob("pro_inactive_alarm", runPayingInactiveAlarmJob);
     void runJob("short_hop_saved_locations", runShortHopSavedLocationsJob);
+    // Teams "last month is ready to approve". Windowed rather than on the 6h
+    // loop for the reason above: it only fires in the first days of the
+    // month, and self-gates to near-zero cost once its emails have gone.
+    void runJob("team_month_ready", runTeamMonthReadyJob);
   };
 
   setTimeout(() => {

@@ -2691,3 +2691,36 @@ export async function sendInvoiceEmail(args: InvoiceEmailArgs): Promise<{ subjec
 
   return { subject };
 }
+
+/**
+ * MileClear Teams (Phase 2, 24 Aug 2026): "last month is ready to
+ * approve" nudge to an org admin, early in the following month. Points
+ * at the team portal rather than embedding numbers, since figures can
+ * still shift for unapproved drivers right up until the admin looks.
+ */
+export async function sendTeamMonthReadyEmail(
+  email: string,
+  orgName: string,
+  monthLabel: string
+): Promise<void> {
+  const url = `${process.env.API_BASE_URL || "https://mileclear.com"}/team`;
+  const safeOrg = escapeHtml(orgName);
+  const safeMonth = escapeHtml(monthLabel);
+  const subject = `${monthLabel} is ready to approve for ${orgName}`;
+  const html = `
+    <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 560px; margin: 0 auto; padding: 32px 24px;">
+      <h2 style="color: #1a1a1a; margin-bottom: 8px;">${safeMonth} is ready to approve</h2>
+      <p style="color: #333; font-size: 15px; line-height: 1.6;">${safeOrg}'s drivers have logged their mileage for ${safeMonth}. Open the team portal to review each driver's month, approve or query, and download the consolidated report when you are ready.</p>
+      <p style="margin: 24px 0;">
+        <a href="${url}" style="background: #f5a623; color: #030712; font-weight: 700; padding: 12px 28px; border-radius: 9999px; text-decoration: none; display: inline-block;">Open team portal</a>
+      </p>
+      <p style="color: #888; font-size: 12px;">You are getting this because you are an admin for ${safeOrg} on MileClear.</p>
+    </div>
+  `;
+
+  if (!transporter) {
+    console.log(`[EMAIL] Team month ready (${monthLabel}) for ${orgName} -> ${email} (dev only)`);
+    return;
+  }
+  await transporter.sendMail({ from: FROM, to: email, replyTo: "gair@mileclear.com", subject, html });
+}

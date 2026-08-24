@@ -6,6 +6,17 @@ import { authMiddleware } from "../../middleware/auth.js";
 import { adminMiddleware } from "../../middleware/admin.js";
 import { logEvent } from "../../services/appEvents.js";
 import { sendTeamInviteEmail } from "../../services/email.js";
+import { syncSeats } from "../../services/teamBilling.js";
+import { sendPushToUser } from "../../lib/push.js";
+import {
+  MONTH_RE,
+  currentLondonMonth,
+  computeTeamMonthSummary,
+  loadTeamMonthExportData,
+  generateTeamMonthCsv,
+  generateTeamMonthPdf,
+  buildTeamExportFilename,
+} from "../../services/teamExport.js";
 
 // MileClear Teams Phase 1 (23 Aug 2026, TPS360 design-partner pilot).
 //
@@ -175,6 +186,9 @@ export async function teamRoutes(app: FastifyInstance) {
         where: { id: membership.id },
         data: { userId: request.userId!, status: "active", acceptedAt: new Date(), inviteTokenHash: null },
       });
+      // Seat count just changed. Fire-and-forget by design: syncSeats never
+      // throws, and a Stripe hiccup must not fail the driver's acceptance.
+      void syncSeats(membership.orgId);
       logEvent("team.invite_accepted", request.userId!, { orgId: membership.orgId });
       return reply.send({ data: { orgId: membership.orgId, orgName: membership.org.name } });
     }
@@ -263,6 +277,7 @@ export async function teamRoutes(app: FastifyInstance) {
           ? { status: "disabled", disabledAt: new Date() }
           : { status: "active", disabledAt: null },
     });
+    void syncSeats(admin.orgId);
     logEvent("team.member_status_changed", request.userId!, {
       orgId: admin.orgId,
       membershipId: m.id,
@@ -270,5 +285,148 @@ export async function teamRoutes(app: FastifyInstance) {
       to: parsed.data.status,
     });
     return reply.send({ data: { ok: true } });
+  });
+
+  // ── Org admin: one driver's month, with approval status + drift ────────
+  // Phase 2 (24 Aug 2026). The number the manager approves and the export
+  // hands to payroll both come from computeTeamMonthSummary, so this
+  // endpoint and POST /approvals below can never disagree with each other.
+  app.get("/month", { preHandler: [authMiddleware] }, async (request, reply) => {
+    const admin = await requireOrgAdmin(request.userId!);
+    if (!admin) return reply.status(403).send({ error: "You are not a team admin." });
+
+    const parsed = z
+      .object({ month: z.string().regex(MONTH_RE, "month must be in YYYY-MM format").optional() })
+      .safeParse(request.query);
+    if (!parsed.success) return reply.status(400).send({ error: parsed.error.issues[0].message });
+
+    const month = parsed.data.month ?? currentLondonMonth();
+    const summary = await computeTeamMonthSummary(admin.orgId, month);
+    return reply.send({ data: summary });
+  });
+
+  // ── Org admin: approve or query a driver's month ────────────────────────
+  app.post("/approvals", { preHandler: [authMiddleware] }, async (request, reply) => {
+    const admin = await requireOrgAdmin(request.userId!);
+    if (!admin) return reply.status(403).send({ error: "You are not a team admin." });
+
+    const parsed = z
+      .object({
+        userId: z.string().min(1),
+        month: z.string().regex(MONTH_RE, "month must be in YYYY-MM format"),
+        status: z.enum(["approved", "queried"]),
+        note: z.string().trim().min(1).max(1000).optional(),
+      })
+      .safeParse(request.body);
+    if (!parsed.success) return reply.status(400).send({ error: parsed.error.issues[0].message });
+    const { userId, month, status, note } = parsed.data;
+
+    if (status === "queried" && !note) {
+      return reply.status(400).send({ error: "A note is required when querying a driver's month." });
+    }
+
+    // Never trust a userId from the body - confirm it is an ACTIVE driver
+    // in the caller's own org before touching anything. This is the one
+    // check standing between "approve my team" and reading someone else's.
+    const membership = await prisma.orgMembership.findFirst({
+      where: { orgId: admin.orgId, userId, role: "driver", status: "active" },
+      select: { id: true },
+    });
+    if (!membership) return reply.status(404).send({ error: "Driver not found in your team." });
+
+    // Reuse the exact same maths GET /month uses, so what gets snapshotted
+    // is what the manager was just looking at - no separate calculation
+    // that could silently disagree.
+    let milesAtApproval: number | null = null;
+    let amountPenceAtApproval: number | null = null;
+    if (status === "approved") {
+      const summary = await computeTeamMonthSummary(admin.orgId, month);
+      const driverRow = summary.drivers.find((d) => d.userId === userId);
+      milesAtApproval = driverRow?.businessMiles ?? 0;
+      amountPenceAtApproval = driverRow?.amountPence ?? 0;
+    }
+
+    const approval = await prisma.teamApproval.upsert({
+      where: { orgId_userId_month: { orgId: admin.orgId, userId, month } },
+      create: {
+        orgId: admin.orgId,
+        userId,
+        month,
+        status,
+        note: note ?? null,
+        milesAtApproval,
+        amountPenceAtApproval,
+        approvedByUserId: status === "approved" ? request.userId! : null,
+        approvedAt: status === "approved" ? new Date() : null,
+      },
+      update: {
+        status,
+        note: note ?? null,
+        milesAtApproval,
+        amountPenceAtApproval,
+        approvedByUserId: status === "approved" ? request.userId! : null,
+        approvedAt: status === "approved" ? new Date() : null,
+      },
+      select: { id: true, status: true },
+    });
+
+    logEvent(status === "approved" ? "team.month_approved" : "team.month_queried", request.userId!, {
+      orgId: admin.orgId,
+      driverUserId: userId,
+      month,
+      note: note ?? null,
+    });
+
+    if (status === "queried") {
+      const body = note!.length > 300 ? `${note!.slice(0, 297)}...` : note!;
+      // Skips silently if the driver has no push token - a user with no
+      // token cannot be pinged, and that is not this endpoint's problem.
+      await sendPushToUser(userId, "Your manager queried this month's mileage", body, {
+        type: "team_month_queried",
+        action: "open_trips",
+      });
+    }
+
+    return reply.status(201).send({ data: approval });
+  });
+
+  // ── Org admin: consolidated export for payroll (approved drivers only) ─
+  app.get("/export", { preHandler: [authMiddleware] }, async (request, reply) => {
+    const admin = await requireOrgAdmin(request.userId!);
+    if (!admin) return reply.status(403).send({ error: "You are not a team admin." });
+
+    const parsed = z
+      .object({
+        month: z.string().regex(MONTH_RE, "month must be in YYYY-MM format"),
+        format: z.enum(["csv", "pdf"]),
+      })
+      .safeParse(request.query);
+    if (!parsed.success) return reply.status(400).send({ error: parsed.error.issues[0].message });
+    const { month, format } = parsed.data;
+
+    const data = await loadTeamMonthExportData(admin.orgId, month);
+    if (data.rows.length === 0) {
+      // Precedent: an empty export shipped once and cost a refund (65bc16a)
+      // - refuse explicitly rather than hand payroll a blank document.
+      return reply.status(400).send({
+        error: `No drivers are approved for ${month} yet. Approve at least one driver's month before exporting.`,
+      });
+    }
+
+    logEvent("team.export", request.userId!, { orgId: admin.orgId, month, format, driverCount: data.rows.length });
+    const filename = buildTeamExportFilename(data.orgName, month);
+
+    if (format === "csv") {
+      return reply
+        .header("Content-Type", "text/csv")
+        .header("Content-Disposition", `attachment; filename="${filename}.csv"`)
+        .send(generateTeamMonthCsv(data));
+    }
+
+    const pdf = await generateTeamMonthPdf(data);
+    return reply
+      .header("Content-Type", "application/pdf")
+      .header("Content-Disposition", `attachment; filename="${filename}.pdf"`)
+      .send(pdf);
   });
 }

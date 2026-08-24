@@ -4,6 +4,7 @@ import { useState, useEffect, type FormEvent } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { api } from "../../../lib/api";
+import { safeRedirectPath } from "../../../lib/safeRedirect";
 import { Input } from "../../../components/ui/Input";
 import { Button } from "../../../components/ui/Button";
 
@@ -14,6 +15,14 @@ export default function VerifyPage() {
   const [loading, setLoading] = useState(false);
   const [sending, setSending] = useState(false);
   const [sent, setSent] = useState(false);
+  // Carried from /register?next=... (e.g. a Teams invite) so verifying
+  // lands the user back where they were headed instead of always /dashboard.
+  const [next, setNext] = useState("/dashboard");
+
+  useEffect(() => {
+    const fromUrl = new URLSearchParams(window.location.search).get("next");
+    setNext(safeRedirectPath(fromUrl) || "/dashboard");
+  }, []);
 
   // Send verification code on mount
   useEffect(() => {
@@ -59,7 +68,7 @@ export default function VerifyPage() {
     setLoading(true);
     try {
       await api.post("/auth/verify", { code });
-      router.push("/dashboard");
+      router.push(next);
     } catch (err: any) {
       setError(err.message || "Invalid or expired code");
     } finally {
@@ -130,7 +139,7 @@ export default function VerifyPage() {
         </p>
 
         <p className="auth-card__footer">
-          <Link href="/dashboard">Skip for now</Link>
+          <Link href={next}>Skip for now</Link>
         </p>
       </div>
     </div>

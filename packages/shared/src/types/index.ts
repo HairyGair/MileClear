@@ -1587,3 +1587,56 @@ export interface AdminEmailResult {
   dryRun: boolean;
   totalUsers: number;
 }
+
+// ─── MileClear Teams: approval + billing (phases 2 and 3) ────────────────
+
+export type TeamApprovalStatus = "pending" | "approved" | "queried";
+
+/** One driver's month as the manager sees it in the portal. */
+export interface TeamMonthDriver {
+  membershipId: string;
+  userId: string;
+  displayName: string | null;
+  email: string;
+  businessTrips: number;
+  businessMiles: number;
+  /** Reimbursable at the rate that applies to this driver, in pence. */
+  amountPence: number;
+  /** Pence per mile actually used, so the portal can show its working. */
+  ratePence: number;
+  /** True when the driver's own employer rate overrode the org default. */
+  usesOwnRate: boolean;
+  status: TeamApprovalStatus;
+  note: string | null;
+  approvedAt: string | null;
+  approvedByName: string | null;
+  /**
+   * Set when a trip changed after approval, so the figure signed off no
+   * longer matches the figure now. The portal surfaces it rather than
+   * silently reapproving.
+   */
+  driftMiles: number | null;
+  unclassifiedTrips: number;
+}
+
+export interface TeamMonthSummary {
+  orgId: string;
+  orgName: string;
+  month: string;
+  drivers: TeamMonthDriver[];
+  totalMiles: number;
+  totalAmountPence: number;
+  approvedCount: number;
+  pendingCount: number;
+  queriedCount: number;
+}
+
+export interface TeamSeatBilling {
+  pilotFree: boolean;
+  activeSeats: number;
+  seatsBilled: number | null;
+  pricePerSeatPence: number;
+  status: "pilot" | "none" | "active" | "past_due" | "canceled";
+  currentPeriodEnd: string | null;
+  billingEmail: string | null;
+}

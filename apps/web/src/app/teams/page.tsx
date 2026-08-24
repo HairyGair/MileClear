@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Navbar from "@/components/landing/Navbar";
 import Footer from "@/components/landing/Footer";
 import TeamInterestForm from "@/components/landing/TeamInterestForm";
+import TeamSelfServeGate from "@/components/team/TeamSelfServeGate";
 
 export const metadata: Metadata = {
   title: "MileClear for Teams - Register Interest",
@@ -88,6 +89,8 @@ export default function TeamsPage() {
               asking and how big their teams are. That is what the form below is for. It takes about a minute.
             </p>
           </section>
+
+          <TeamSelfServeGate />
 
           <section
             aria-labelledby="form-heading"

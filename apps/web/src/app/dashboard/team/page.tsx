@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { api } from "../../../lib/api";
+import { MonthView } from "./MonthView";
+import SeatBillingCard from "../../../components/team/SeatBillingCard";
 
 // MileClear Teams portal (P1, TPS360 pilot). Admin-only: members with
 // month-to-date business mileage, invites, disable/re-enable. Drivers see
@@ -77,8 +79,8 @@ export default function TeamPage() {
       <div className="glass-card" style={{ padding: "1.5rem", maxWidth: 640 }}>
         <h1 style={{ fontSize: "1.25rem", marginBottom: "0.5rem" }}>MileClear Teams</h1>
         <p style={{ color: "var(--text-secondary)", lineHeight: 1.6 }}>
-          You are not part of a team. If your company uses MileClear Teams, ask your admin to invite you —
-          the invitation arrives by email.
+          You are not part of a team. If your company uses MileClear Teams, ask your admin to invite you.
+          The invitation arrives by email.
         </p>
       </div>
     );
@@ -87,7 +89,7 @@ export default function TeamPage() {
       <div className="glass-card" style={{ padding: "1.5rem", maxWidth: 640 }}>
         <h1 style={{ fontSize: "1.25rem", marginBottom: "0.5rem" }}>{me.orgName}</h1>
         <p style={{ color: "var(--text-secondary)", lineHeight: 1.6 }}>
-          You are part of <strong>{me.orgName}</strong> on MileClear Teams. Just drive — your business
+          You are part of <strong>{me.orgName}</strong> on MileClear Teams. Just drive. Your business
           mileage records automatically and your admin handles the monthly report. Your personal trips
           stay private to you.
         </p>
@@ -108,7 +110,7 @@ export default function TeamPage() {
         </p>
       </div>
 
-      <form onSubmit={invite} className="glass-card" style={{ padding: "1.25rem" }}>
+      <form onSubmit={invite} id="invite-drivers" className="glass-card" style={{ padding: "1.25rem" }}>
         <h2 style={{ fontSize: "1rem", margin: "0 0 0.5rem" }}>Invite drivers</h2>
         <p style={{ color: "var(--text-secondary)", fontSize: "0.875rem", margin: "0 0 0.75rem" }}>
           Email addresses, separated by commas or new lines. Each person gets a link; accepting connects
@@ -169,9 +171,13 @@ export default function TeamPage() {
         </div>
         <p style={{ color: "var(--text-secondary)", fontSize: "0.8125rem", marginTop: "0.75rem" }}>
           Disabling someone removes their team access and Pro cover immediately; their personal account and
-          data stay theirs. Monthly approval and the combined payroll report arrive in the next update.
+          data stay theirs.
         </p>
       </div>
+
+      <MonthView />
+
+      <SeatBillingCard />
     </div>
   );
 }

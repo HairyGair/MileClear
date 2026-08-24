@@ -2,6 +2,7 @@ import Stripe from "stripe";
 import { FastifyInstance } from "fastify";
 import { authMiddleware } from "../../middleware/auth.js";
 import { prisma } from "../../lib/prisma.js";
+import { handleTeamSubscriptionEvent } from "../../services/teamBilling.js";
 import { stripe } from "../../lib/stripe.js";
 import { sendPushNotification } from "../../lib/push.js";
 import { appleBillingRoutes } from "./apple.js";
@@ -110,6 +111,18 @@ export async function billingRoutes(app: FastifyInstance) {
     } catch (err) {
       app.log.error({ err }, "Webhook signature verification failed");
       return reply.status(400).send({ error: "Invalid signature" });
+    }
+
+    // Team/org subscriptions live on Organisation rows, not on users. This
+    // only matches an Organisation (by subscription metadata.orgId or a known
+    // org customer id), so it is a no-op for individual subscriptions and
+    // runs ALONGSIDE the per-user handling below rather than replacing it.
+    // Deliberately additive: a bug here must not be able to stop a paying
+    // individual's premium being applied.
+    try {
+      await handleTeamSubscriptionEvent(event);
+    } catch (err) {
+      app.log.error({ err }, "Team subscription event handling failed");
     }
 
     switch (event.type) {
