@@ -181,6 +181,8 @@ export interface HeartbeatData {
   /** iOS BackgroundFetch.BackgroundFetchStatus. If "denied" or "restricted",
    *  the user has Background App Refresh disabled and tracking is unreliable. */
   backgroundFetchStatus?: "available" | "denied" | "restricted";
+  /** Live Activity push-to-start token, so a server-side clear self-heals. */
+  liveActivityPushToStartToken?: string;
   // Watchdog state. These let the server-side recording-watchdog cron spot
   // stuck recordings even when the device's setInterval watchdog is
   // suspended by iOS. The cron sends a silent push to wake the JS runtime

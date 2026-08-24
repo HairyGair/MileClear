@@ -910,6 +910,14 @@ export async function userRoutes(app: FastifyInstance) {
     daysSinceLastTrip: z.number().int().min(0).max(10000).optional(),
     freeDiskBytes: z.number().int().min(0).optional(),
     backgroundFetchStatus: z.enum(["available", "denied", "restricted"]).optional(),
+    // Live Activity push-to-start token, carried on the heartbeat so it
+    // self-heals. The server clears this token when APNs answers 410
+    // Unregistered, and nothing tells the device that happened - the client
+    // only re-POSTs when the token CHANGES, and iOS keeps handing it the same
+    // one, so the device and server disagree forever and the user silently
+    // loses their Dynamic Island. 17 users were in that state on 24 Aug 2026,
+    // Anthony among them (cleared some time after 26 Jul, never recovered).
+    liveActivityPushToStartToken: z.string().min(32).max(256).optional(),
     // Watchdog state - lets the server-side recording-watchdog cron spot
     // stuck recordings even when the device's own setInterval watchdog is
     // suspended by iOS. ISO timestamps from the mobile.
@@ -944,6 +952,15 @@ export async function userRoutes(app: FastifyInstance) {
         autoRecordingActive: d.autoRecordingActive ?? null,
         recordingStartedAt: d.recordingStartedAt ? new Date(d.recordingStartedAt) : null,
         lastDrivingSpeedAt: d.lastDrivingSpeedAt ? new Date(d.lastDrivingSpeedAt) : null,
+        // Only ever set from the heartbeat, never cleared by it: a client that
+        // cannot read its token (older build, iOS < 17.2) must not wipe a good
+        // one.
+        ...(d.liveActivityPushToStartToken
+          ? {
+              liveActivityPushToStartToken: d.liveActivityPushToStartToken,
+              laTokenUpdatedAt: new Date(),
+            }
+          : {}),
       },
     });
     return reply.send({ success: true });

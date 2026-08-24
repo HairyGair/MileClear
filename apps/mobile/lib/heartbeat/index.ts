@@ -65,6 +65,14 @@ export async function maybeSendHeartbeat(): Promise<void> {
       collectRecordingState(db).catch(() => ({ autoRecordingActive: false, recordingStartedAt: undefined, lastDrivingSpeedAt: undefined })),
     ]);
 
+    // Carry the Live Activity push-to-start token every time. registerLive-
+    // ActivityToken only fires when the token CHANGES, so once the server
+    // clears one (APNs 410) the device never re-sends it and push-started
+    // Dynamic Islands stop for that user, permanently and silently.
+    const liveActivityPushToStartToken = await import("../liveActivity")
+      .then((m) => m.getPushToStartToken())
+      .catch(() => null);
+
     // Unused foreground permission kept in scope to avoid dead-code warnings
     // in case we add a fg-permission field later.
     void fg;
@@ -89,6 +97,7 @@ export async function maybeSendHeartbeat(): Promise<void> {
       autoRecordingActive: recordingState.autoRecordingActive,
       recordingStartedAt: recordingState.recordingStartedAt,
       lastDrivingSpeedAt: recordingState.lastDrivingSpeedAt,
+      liveActivityPushToStartToken: liveActivityPushToStartToken ?? undefined,
     };
 
     await sendHeartbeat(data);
