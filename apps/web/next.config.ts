@@ -22,6 +22,13 @@ const nextConfig: NextConfig = {
         destination: "/updates/whats-new-in-version-1-0-10",
         permanent: true,
       },
+      // The company product became Milesheet and moved out of the sole trader
+      // dashboard. Done here rather than with a redirect() page so it is a
+      // real server redirect for bookmarks and crawlers, and so /dashboard/team
+      // cannot briefly render the sole trader shell on the way past.
+      { source: "/teams", destination: "/milesheet", permanent: true },
+      { source: "/dashboard/team", destination: "/milesheet/portal", permanent: true },
+      { source: "/team/invite/:token", destination: "/milesheet/invite/:token", permanent: true },
     ];
   },
   async headers() {
