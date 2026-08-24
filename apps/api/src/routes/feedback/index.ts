@@ -5,6 +5,8 @@ import { authMiddleware, optionalAuthMiddleware } from "../../middleware/auth.js
 import { adminMiddleware } from "../../middleware/admin.js";
 import { sendFeedbackAcknowledgement, sendFeedbackReplyNotification } from "../../services/email.js";
 import { logEvent } from "../../services/appEvents.js";
+import { postFounderAlert } from "../../services/discord.js";
+import { sendPushToUser } from "../../lib/push.js";
 
 function sanitizeText(input: string): string {
   return input
@@ -88,6 +90,47 @@ export async function feedbackRoutes(app: FastifyInstance) {
         category,
         title: sanitizeText(title),
       });
+
+      // Tell someone. Until 24 Aug 2026 a submission logged an app event and
+      // nothing else - no Discord post, no push - so Jimbo's feature request
+      // sat unseen for two hours and was only found because he mentioned it.
+      // Feedback is rare (two items ever) and comes from the most engaged
+      // users, which is exactly why it should never be discovered by accident.
+      void (async () => {
+        try {
+          const author = request.userId
+            ? await prisma.user.findUnique({
+                where: { id: request.userId },
+                select: { email: true, displayName: true, isPremium: true, _count: { select: { trips: true } } },
+              })
+            : null;
+          const who = author
+            ? `${author.displayName || author.email} (${author.isPremium ? "Pro" : "free"}, ${author._count.trips} trips)`
+            : "anonymous";
+          await postFounderAlert({
+            severity: "info",
+            title: `New feedback: ${sanitizeText(title)}`,
+            detail: `${sanitizeText(body).slice(0, 400)}\n\nfrom ${who} · ${category.replace("_", " ")}`,
+            userId: request.userId ?? undefined,
+            link: "https://mileclear.com/dashboard/feedback",
+          });
+          // Push to admins too - the Discord channel is not always watched.
+          const admins = await prisma.user.findMany({
+            where: { isAdmin: true, pushToken: { not: null } },
+            select: { id: true },
+          });
+          for (const a of admins) {
+            await sendPushToUser(
+              a.id,
+              "New feedback",
+              `${sanitizeText(title)} - from ${who}`,
+              { action: "open_feedback" }
+            ).catch(() => {});
+          }
+        } catch (err) {
+          console.error("[feedback] founder notification failed:", err);
+        }
+      })();
 
       // Send acknowledgement email (fire-and-forget) if user is authenticated
       if (request.userId) {

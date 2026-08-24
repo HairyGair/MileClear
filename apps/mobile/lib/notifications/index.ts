@@ -515,6 +515,12 @@ export function setupNotificationResponseHandler(): void {
         Linking.openSettings();
         return;
 
+      case "open_feedback":
+        // Admin push when a user submits feedback (24 Aug 2026). Older
+        // bundles fall through to the dashboard, which is harmless.
+        router.push("/feedback" as never);
+        return;
+
       case "open_saved_locations":
         // Short-hop nudge (jobs/activation.ts, 23 Aug 2026): the fix for
         // hops the engine cannot arm for in time is a saved location whose
