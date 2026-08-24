@@ -79,7 +79,7 @@ export default function MilesheetPage() {
             <p className="ms-lede">Three things happen, and only one of them is your job.</p>
             <div className="ms-steps">
               {steps.map((s) => (
-                <div key={s.n} className="glass-card" style={{ padding: "1.5rem" }}>
+                <div key={s.n} className="card" style={{ padding: "1.5rem" }}>
                   <div className="ms-step__n">{s.n}</div>
                   <h3 style={{ fontSize: "1.0625rem", marginBottom: "0.5rem", color: "var(--text-white)" }}>
                     {s.title}
@@ -114,7 +114,7 @@ export default function MilesheetPage() {
             <h2 className="ms-section__title">Questions people actually ask</h2>
             <div style={{ display: "grid", gap: "1rem" }}>
               {answers.map((a) => (
-                <div key={a.q} className="glass-card" style={{ padding: "1.25rem 1.5rem" }}>
+                <div key={a.q} className="card" style={{ padding: "1.25rem 1.5rem" }}>
                   <h3 style={{ fontSize: "1rem", marginBottom: "0.5rem", color: "var(--text-white)" }}>{a.q}</h3>
                   <p style={{ color: "var(--text-secondary)", lineHeight: 1.7, fontSize: "0.9375rem", margin: 0 }}>
                     {a.a}
@@ -125,7 +125,7 @@ export default function MilesheetPage() {
           </section>
 
           <section className="ms-section" style={{ paddingBottom: "3rem" }}>
-            <div className="glass-card" style={{ padding: "2rem", textAlign: "center" }}>
+            <div className="card" style={{ padding: "2rem", textAlign: "center" }}>
               <h2 className="ms-section__title" style={{ marginBottom: "0.5rem" }}>
                 Set your company up
               </h2>

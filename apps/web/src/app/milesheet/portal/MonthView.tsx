@@ -172,7 +172,7 @@ export function MonthView() {
   const nothingApproved = (summary?.approvedCount ?? 0) === 0;
 
   return (
-    <div className="glass-card" style={{ padding: "1.25rem" }}>
+    <div className="card" style={{ padding: "1.25rem" }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "0.75rem", marginBottom: "1rem" }}>
         <div>
           <h2 style={{ fontSize: "1rem", margin: 0 }}>Monthly approval</h2>

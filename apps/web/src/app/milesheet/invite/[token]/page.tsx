@@ -35,7 +35,7 @@ export default function MilesheetInvitePage() {
     <>
       <MilesheetHeader />
       <main className="ms-main">
-        <div className="glass-card" style={{ maxWidth: 580, margin: "3rem auto", padding: "2rem", lineHeight: 1.65 }}>
+        <div className="card" style={{ maxWidth: 580, margin: "3rem auto", padding: "2rem", lineHeight: 1.65 }}>
           {state === "checking" && <p>Checking your invitation…</p>}
 
           {state === "accepted" && (

@@ -107,7 +107,7 @@ export default function MilesheetPortalPage() {
   // A driver who lands here does not need a portal. Their product is the app.
   if (me.role !== "admin") {
     return frame(
-      <div className="glass-card" style={{ padding: "1.5rem", maxWidth: 640 }}>
+      <div className="card" style={{ padding: "1.5rem", maxWidth: 640 }}>
         <h1 style={{ fontSize: "1.25rem", marginBottom: "0.5rem" }}>{me.orgName}</h1>
         <p style={{ color: "var(--text-secondary)", lineHeight: 1.6 }}>
           You are set up with <strong>{me.orgName}</strong>. There is nothing for you to do here.
@@ -135,7 +135,7 @@ export default function MilesheetPortalPage() {
 
       <MonthView />
 
-      <form onSubmit={invite} id="invite-drivers" className="glass-card" style={{ padding: "1.25rem" }}>
+      <form onSubmit={invite} id="invite-drivers" className="card" style={{ padding: "1.25rem" }}>
         <h2 style={{ fontSize: "1rem", margin: "0 0 0.5rem" }}>Invite drivers</h2>
         <p style={{ color: "var(--text-secondary)", fontSize: "0.875rem", margin: "0 0 0.75rem" }}>
           Email addresses, separated by commas or new lines. Each person gets a link that connects
@@ -164,7 +164,7 @@ export default function MilesheetPortalPage() {
         </div>
       </form>
 
-      <div className="glass-card" style={{ padding: "1.25rem" }}>
+      <div className="card" style={{ padding: "1.25rem" }}>
         <h2 style={{ fontSize: "1rem", margin: "0 0 0.75rem" }}>People</h2>
         <div className="table-wrap">
           <table className="table">
