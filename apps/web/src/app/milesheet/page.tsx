@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import MilesheetHeader from "../../components/milesheet/MilesheetHeader";
+import MilesheetFooter from "../../components/milesheet/MilesheetFooter";
 
 export const metadata: Metadata = {
   title: "Staff mileage claims, ready for payroll",
@@ -140,6 +141,7 @@ export default function MilesheetPage() {
           </section>
         </div>
       </main>
+      <MilesheetFooter />
     </>
   );
 }
