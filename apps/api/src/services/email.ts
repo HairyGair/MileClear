@@ -2488,7 +2488,7 @@ export async function sendTeamInviteEmail(
     : `${orgName} has set you up for mileage claims`;
   const html = `
     <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 560px; margin: 0 auto; padding: 32px 24px;">
-      <h2 style="color: #1a1a1a; margin-bottom: 8px;">${isAdmin ? `Manage ${safeOrg}'s mileage claims on Milesheet` : `${safeOrg} uses Milesheet for mileage claims`}</h2>
+      <h2 style="color: #1a1a1a; margin-bottom: 8px;">${isAdmin ? `Manage ${safeOrg}'s mileage claims on Milesheet` : `${safeOrg} uses Milesheet, from MileClear`}</h2>
       <p style="color: #333; font-size: 15px; line-height: 1.6;">${
         isAdmin
           ? `You have been set up as the Milesheet admin for <strong>${safeOrg}</strong>. Accept below to open the portal: invite your drivers, see everyone's month in one place, approve it, and download a single file for payroll.`
@@ -2500,7 +2500,7 @@ export async function sendTeamInviteEmail(
       ${
         isAdmin
           ? ""
-          : `<p style="color: #333; font-size: 14px; line-height: 1.6;">One thing worth knowing: the app that does the recording is called <strong>MileClear</strong>, which is the system Milesheet runs on. Install that one and sign in with this email address. The different name is expected, not a mistake.</p>`
+          : `<p style="color: #333; font-size: 14px; line-height: 1.6;">Milesheet is the company side of <strong>MileClear</strong>. Install the MileClear app on your phone and sign in with this email address, and your journeys start recording.</p>`
       }
       <p style="color: #888; font-size: 12px;">The link is valid for 7 days. If you don't have an account yet you can create one on the same page.</p>
     </div>

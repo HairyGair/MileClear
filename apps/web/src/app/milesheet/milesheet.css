@@ -26,10 +26,13 @@
   min-height: 100vh;
 }
 
-/* Wordmark: "Mile" plain, "sheet" in the accent. Deliberately the same
-   construction as the MileClear wordmark so they read as siblings, in a
-   different colour so they are never mistaken for each other. */
+/* Wordmark. Milesheet is a SECTION of MileClear, not a rival to it, so the
+   parent mark leads and Milesheet follows as a chip. Anyone landing here
+   should be able to see at a glance whose product this is. */
 .ms-wordmark {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
   font-family: var(--font-display);
   font-weight: 700;
   letter-spacing: -0.02em;
@@ -37,7 +40,17 @@
   text-decoration: none;
   font-size: 1.25rem;
 }
-.ms-wordmark span { color: var(--amber-400); }
+.ms-wordmark__parent { color: var(--text-white); }
+.ms-wordmark__section {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  padding: 0.2rem 0.55rem;
+  border-radius: 999px;
+  color: var(--amber-300);
+  background: var(--amber-glow-md);
+  border: 1px solid var(--amber-glow-strong);
+}
 
 .ms-header {
   position: sticky;

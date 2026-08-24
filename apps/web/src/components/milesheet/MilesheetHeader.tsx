@@ -4,9 +4,10 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 /**
- * Milesheet's own header. Deliberately NOT the MileClear Navbar: that one
- * carries links to gig driver landing pages, which is the exact context a
- * company evaluating this must never be shown.
+ * Milesheet is a section of MileClear, not a separate company, so the header
+ * leads with the MileClear mark and carries Milesheet as the section you are
+ * in. It is deliberately NOT the main landing Navbar, which links out to gig
+ * driver pages a company evaluating this should never be shown.
  */
 export default function MilesheetHeader({ authed }: { authed?: boolean }) {
   const pathname = usePathname();
@@ -21,8 +22,17 @@ export default function MilesheetHeader({ authed }: { authed?: boolean }) {
 
   return (
     <header className="ms-header">
-      <Link href="/milesheet" className="ms-wordmark">
-        Mile<span>sheet</span>
+      <Link href="/milesheet" className="ms-wordmark" aria-label="Milesheet, part of MileClear">
+        <img
+          src="/branding/logo-120x120.png"
+          alt=""
+          className="logo-mark"
+          aria-hidden="true"
+          width={28}
+          height={28}
+        />
+        <span className="ms-wordmark__parent">MileClear</span>
+        <span className="ms-wordmark__section">Milesheet</span>
       </Link>
       <nav className="ms-header__nav">
         {authed ? (
@@ -33,6 +43,9 @@ export default function MilesheetHeader({ authed }: { authed?: boolean }) {
         ) : (
           <>
             {link("/milesheet", "Overview")}
+            <Link href="/" className="ms-header__link">
+              MileClear
+            </Link>
             <Link href="/milesheet/portal" className="ms-header__link">
               Sign in
             </Link>

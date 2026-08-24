@@ -5,7 +5,7 @@ import MilesheetHeader from "../../components/milesheet/MilesheetHeader";
 export const metadata: Metadata = {
   title: "Staff mileage claims, ready for payroll",
   description:
-    "Your staff drive. Milesheet records the miles automatically, you approve the month, and payroll gets one file at HMRC approved rates.",
+    "The company side of MileClear. Your staff drive, Milesheet records the miles automatically, you approve the month, and payroll gets one file at HMRC approved rates.",
   alternates: { canonical: "https://mileclear.com/milesheet" },
 };
 
@@ -13,7 +13,7 @@ const steps = [
   {
     n: 1,
     title: "Your staff just drive",
-    body: "Each person installs the app once and grants location access. Business journeys are recorded automatically in the background. Nobody has to remember to press start, and nobody has to keep a paper log.",
+    body: "Each person installs the MileClear app once and grants location access. Business journeys are recorded automatically in the background. Nobody has to remember to press start, and nobody has to keep a paper log.",
   },
   {
     n: 2,
@@ -53,16 +53,16 @@ export default function MilesheetPage() {
       <main className="ms-main">
         <div className="ms-container">
           <section>
-            <span className="ms-eyebrow">For employers</span>
+            <span className="ms-eyebrow">Part of MileClear &middot; for employers</span>
             <h1 className="ms-hero__title">
               Your staff&rsquo;s mileage,
               <br />
               ready for payroll.
             </h1>
             <p className="ms-hero__sub">
-              Milesheet records your team&rsquo;s business journeys automatically, lets you
-              approve the month in a couple of minutes, and hands payroll a single file at
-              HMRC approved rates.
+              Milesheet is the company side of MileClear. It records your team&rsquo;s business
+              journeys automatically, lets you approve the month in a couple of minutes, and
+              hands payroll a single file at HMRC approved rates.
             </p>
             <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap", marginTop: "2rem" }}>
               <Link href="/milesheet/portal" className="btn btn--primary">

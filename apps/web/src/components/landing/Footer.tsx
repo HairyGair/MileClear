@@ -47,7 +47,7 @@ export default function Footer() {
               <h3 className="footer__col-title">For drivers</h3>
               <ul className="footer__col-list">
                 <li><a href="/employee-mileage-tracker" className="footer__link">Employees with work car</a></li>
-                <li><a href="/milesheet" className="footer__link">Milesheet, for employers</a></li>
+                <li><a href="/milesheet" className="footer__link">Milesheet for employers</a></li>
                 <li><a href="/delivery-driver-mileage-tracker" className="footer__link">Delivery drivers</a></li>
                 <li><a href="/uber-mileage-tracker" className="footer__link">Uber drivers</a></li>
                 <li><a href="/deliveroo-mileage-tracker" className="footer__link">Deliveroo riders</a></li>

@@ -49,9 +49,9 @@ export default function MilesheetInvitePage() {
                 to you and never appear in the company&rsquo;s figures.
               </p>
               <p style={{ color: "var(--text-secondary)", marginTop: "1rem" }}>
-                The recording is done by an app called <strong>MileClear</strong>, which is the system
-                Milesheet runs on. Install it on your phone and sign in with this same email address.
-                The different name on the App Store is expected.
+                Milesheet is the company side of <strong>MileClear</strong>. Install the MileClear app
+                on your phone and sign in with this same email address, and your journeys start
+                recording.
               </p>
               <p style={{ marginTop: "1.25rem" }}>
                 <Link href="/milesheet/portal" style={link}>Open Milesheet</Link>
