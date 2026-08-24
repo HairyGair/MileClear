@@ -363,6 +363,7 @@ export async function tripRoutes(app: FastifyInstance) {
     });
     const token = user?.liveActivityPushToStartToken;
     if (!token) {
+      logEvent("la.push_start", userId, { ok: false, reason: "no_token" });
       return reply.send({ sent: false, reason: "no_token" });
     }
 
@@ -385,6 +386,20 @@ export async function tripRoutes(app: FastifyInstance) {
       alert: { title: "Recording your trip", body: "MileClear is tracking your drive." },
       // Auto-clear after 4h if the app never ends it (failsafe).
       staleDate: startedAtMs + 4 * 60 * 60 * 1000,
+    });
+
+    // Record the OUTCOME, not just the request (24 Aug 2026). trip.signal_start
+    // says only that a device ASKED for a Live Activity - 12,964 of them in the
+    // fortnight to 24 Aug - and whether any of those actually lit a Dynamic
+    // Island was invisible. The failures existed (TooManyProviderTokenUpdates,
+    // Unregistered, timeouts) but only in pm2's logs, which carry no timestamps
+    // and rotate, so they could not even be dated. This makes the success rate
+    // a number anyone can query.
+    logEvent("la.push_start", userId, {
+      ok: result.ok,
+      status: result.status,
+      reason: result.reason ?? null,
+      activityType: d.activityType,
     });
 
     // BadDeviceToken / Unregistered => the stored token is dead; clear it so we
