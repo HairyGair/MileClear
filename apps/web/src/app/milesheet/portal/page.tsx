@@ -153,7 +153,7 @@ export default function MilesheetPortalPage() {
           style={{ width: "100%", background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: 10, color: "inherit", padding: "0.6rem 0.8rem", fontFamily: "inherit", fontSize: "0.9375rem" }}
         />
         <div style={{ marginTop: "0.75rem", display: "flex", gap: "1rem", alignItems: "center" }}>
-          <button type="submit" className="btn btn--primary" disabled={inviting}>
+          <button type="submit" className="btn btn--md btn--primary" disabled={inviting}>
             {inviting ? "Inviting…" : "Send invites"}
           </button>
           {notice && (
@@ -191,10 +191,10 @@ export default function MilesheetPortalPage() {
                   <td style={{ textAlign: "right", fontVariantNumeric: "tabular-nums" }}>{m.monthBusinessMiles.toFixed(1)}</td>
                   <td style={{ textAlign: "right" }}>
                     {m.status === "active" && m.role !== "admin" && (
-                      <button className="btn btn--ghost" onClick={() => setStatus(m.id, "disabled")}>Disable</button>
+                      <button className="btn btn--sm btn--ghost" onClick={() => setStatus(m.id, "disabled")}>Disable</button>
                     )}
                     {m.status === "disabled" && (
-                      <button className="btn btn--ghost" onClick={() => setStatus(m.id, "active")}>Re-enable</button>
+                      <button className="btn btn--sm btn--ghost" onClick={() => setStatus(m.id, "active")}>Re-enable</button>
                     )}
                   </td>
                 </tr>

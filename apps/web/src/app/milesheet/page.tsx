@@ -65,10 +65,10 @@ export default function MilesheetPage() {
               hands payroll a single file at HMRC approved rates.
             </p>
             <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap", marginTop: "2rem" }}>
-              <Link href="/milesheet/portal" className="btn btn--primary">
+              <Link href="/milesheet/portal" className="btn btn--lg btn--primary">
                 Open the portal
               </Link>
-              <a href="mailto:gair@mileclear.com?subject=Milesheet" className="btn btn--secondary">
+              <a href="mailto:gair@mileclear.com?subject=Milesheet" className="btn btn--lg btn--secondary">
                 Talk to us
               </a>
             </div>
@@ -133,7 +133,7 @@ export default function MilesheetPage() {
                 Create your company, invite your drivers by email, and approve your first month.
                 It takes about five minutes.
               </p>
-              <Link href="/milesheet/portal" className="btn btn--primary">
+              <Link href="/milesheet/portal" className="btn btn--lg btn--primary">
                 Get started
               </Link>
             </div>

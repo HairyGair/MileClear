@@ -183,7 +183,7 @@ export function MonthView() {
         <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
           <button
             type="button"
-            className="btn btn--ghost"
+            className="btn btn--sm btn--ghost"
             aria-label="Previous month"
             onClick={() => setMonth((m) => shiftMonth(m, -1))}
           >
@@ -192,7 +192,7 @@ export function MonthView() {
           <span style={{ minWidth: 150, textAlign: "center", fontWeight: 600 }}>{monthLabel(month)}</span>
           <button
             type="button"
-            className="btn btn--ghost"
+            className="btn btn--sm btn--ghost"
             aria-label="Next month"
             disabled={isCurrentMonth}
             onClick={() => setMonth((m) => shiftMonth(m, 1))}
@@ -216,7 +216,7 @@ export function MonthView() {
           title="No drivers yet"
           description="Invite your drivers above. Once they accept and record some business trips, their month will appear here for approval."
           action={
-            <a href="#invite-drivers" className="btn btn--ghost">
+            <a href="#invite-drivers" className="btn btn--sm btn--ghost">
               Go to invite drivers
             </a>
           }
