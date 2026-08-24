@@ -135,10 +135,18 @@ function ExplainerItem({ icon, text }: { icon: keyof typeof Ionicons.glyphMap; t
   );
 }
 
+/** Work-dashboard cards that only make sense for a gig worker. */
+const GIG_ONLY_DASHBOARD_KEYS = new Set([
+  "weekly_goal",
+  "activity_heatmap",
+  "benchmark",
+  "community",
+]);
+
 export default function DashboardScreen() {
   const router = useRouter();
   const { isPersonal, isWork } = useMode();
-  const { user: currentUser } = useUser();
+  const { user: currentUser, isCompanyDriver } = useUser();
   const [activeShift, setActiveShift] = useState<ShiftWithVehicle | null>(null);
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [selectedVehicleId, setSelectedVehicleId] = useState<string | undefined>();
@@ -1779,7 +1787,13 @@ export default function DashboardScreen() {
           FadeInStagger. The IIFE around the switch captures the rendered
           card so we can wrap it in the animation; the original returns
           are preserved verbatim, only the outer wrapper changed. */}
-      {isWork && workLayout.visibleKeys.map((key, index) => {
+      {isWork && workLayout.visibleKeys
+        // Company mode: an employee claiming mileage from their employer is
+        // not competing with other UK drivers, has no earnings target, and
+        // does not care which platform pays best by hour. These four cards
+        // are all built on that assumption.
+        .filter((key) => !(isCompanyDriver && GIG_ONLY_DASHBOARD_KEYS.has(key)))
+        .map((key, index) => {
         // Trip-count gates: cards that only make sense once a few trips are
         // logged are hidden in the empty / early state.
         //

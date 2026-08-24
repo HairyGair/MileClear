@@ -7,7 +7,7 @@ import { api } from "../../lib/api";
 import { Button } from "../ui/Button";
 import { Badge } from "../ui/Badge";
 
-// MileClear Teams Phase 3 (24 Aug 2026). Self-fetching, no props - rendered
+// Milesheet Phase 3 (24 Aug 2026). Self-fetching, no props - rendered
 // directly on the team portal (apps/web/src/app/dashboard/team/page.tsx).
 // Mirrors the 20-seat self-serve checkout cap enforced server-side in
 // routes/team/selfServe.ts - keep this in sync if that changes.
@@ -103,7 +103,7 @@ export default function SeatBillingCard() {
           <Badge variant="pro">Free pilot</Badge>
         </div>
         <p style={{ color: "var(--text-secondary)", fontSize: "0.875rem", lineHeight: 1.6 }}>
-          This team is on a free MileClear Teams pilot. There is nothing to pay and no billing to set up.
+          This team is on a free Milesheet pilot. There is nothing to pay and no billing to set up.
         </p>
       </div>
     );

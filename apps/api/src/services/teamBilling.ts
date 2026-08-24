@@ -5,7 +5,7 @@ import { logEvent } from "./appEvents.js";
 import { notifyBillingEvent } from "./billingAlerts.js";
 import type { TeamSeatBilling } from "@mileclear/shared";
 
-// MileClear Teams Phase 3 (24 Aug 2026) - per-seat billing.
+// Milesheet Phase 3 (24 Aug 2026) - per-seat billing.
 //
 // SEATS: only active, accepted DRIVER memberships are billed. An org admin
 // who manages a team but never drives is not a paid seat - the Phase 3 spec

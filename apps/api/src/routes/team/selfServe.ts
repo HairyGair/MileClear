@@ -10,7 +10,7 @@ import {
   getSeatBilling,
 } from "../../services/teamBilling.js";
 
-// MileClear Teams Phase 3 (24 Aug 2026) - self-serve org creation + per-seat
+// Milesheet Phase 3 (24 Aug 2026) - self-serve org creation + per-seat
 // billing. Sits alongside routes/team/index.ts (Phase 1/2, MileClear-admin
 // org creation + invites/members) under the same /team prefix; route paths
 // here (self-serve, billing, billing/checkout, billing/portal) don't
@@ -147,8 +147,8 @@ export async function teamSelfServeRoutes(app: FastifyInstance) {
         line_items: [{ price: priceId, quantity: seats }],
         subscription_data: { metadata: { orgId: org.id } },
         metadata: { orgId: org.id },
-        success_url: `${WEB_BASE_URL}/dashboard/team?checkout=success`,
-        cancel_url: `${WEB_BASE_URL}/dashboard/team?checkout=cancelled`,
+        success_url: `${WEB_BASE_URL}/milesheet/portal?checkout=success`,
+        cancel_url: `${WEB_BASE_URL}/milesheet/portal?checkout=cancelled`,
       });
 
       logEvent("team.checkout_created", request.userId!, { orgId: org.id, seats });
@@ -178,7 +178,7 @@ export async function teamSelfServeRoutes(app: FastifyInstance) {
 
       const session = await stripe.billingPortal.sessions.create({
         customer: org.stripeCustomerId,
-        return_url: `${WEB_BASE_URL}/dashboard/team`,
+        return_url: `${WEB_BASE_URL}/milesheet/portal`,
       });
 
       logEvent("team.billing_portal_opened", request.userId!, { orgId: admin.orgId });

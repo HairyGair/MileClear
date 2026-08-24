@@ -615,7 +615,7 @@ export default function EmployeeMileageTracker() {
             <p style={{ color: "#94a3b8", fontSize: "1rem", lineHeight: 1.7, marginBottom: "1.5rem", maxWidth: 640 }}>
               Today each driver exports their own claim. We are weighing a version where a manager sees the whole
               team in one place and signs it off. A minute of your time decides what it should do.{" "}
-              <a href="/teams" style={{ color: "#fbbf24" }}>Read more about it</a>.
+              <a href="/milesheet" style={{ color: "#fbbf24" }}>Read more about Milesheet</a>.
             </p>
             <TeamInterestForm source="employee-mileage-tracker" />
           </section>

@@ -4,7 +4,7 @@
 //
 // Used by /login, /register, /verify and anything else that wants to send
 // a user back to where they came from after auth (introduced for the
-// Teams invite flow, 24 Aug 2026 - see /team/invite/[token]).
+// Milesheet invite flow, 24 Aug 2026 - see /milesheet/invite/[token]).
 
 export function safeRedirectPath(raw: string | null | undefined): string | null {
   if (!raw) return null;

@@ -664,7 +664,7 @@ export default function TripFormScreen() {
   }>();
   const isEditing = !!id;
   const hasMissedPrefill = !!missedId;
-  const { user: currentUser } = useUser();
+  const { user: currentUser, isCompanyDriver } = useUser();
   const { showPaywall } = usePaywall();
 
   // Honor a `mode=manual` deep link (e.g. the dashboard first-trip nudge's
@@ -2275,8 +2275,12 @@ export default function TripFormScreen() {
       : null;
   const selectedVehicle = vehicles.find((v) => v.id === vehicleId);
   const workType = currentUser?.workType ?? "gig";
-  const isGigDriver = workType === "gig" || workType === "both";
-  const isEmployeeDriver = workType === "employee" || workType === "both";
+  // Company mode: a Milesheet driver is claiming mileage back from their
+  // employer, so a Deliveroo or Uber tag on the journey is meaningless to
+  // them and to the manager approving it. Suppressing it here covers both
+  // places the picker renders.
+  const isGigDriver = (workType === "gig" || workType === "both") && !isCompanyDriver;
+  const isEmployeeDriver = workType === "employee" || workType === "both" || isCompanyDriver;
   const isQuickMode = mode === "ready" || mode === "driving" || mode === "arrived" || mode === "saving";
   const showMap = isQuickMode && !isEditing;
 

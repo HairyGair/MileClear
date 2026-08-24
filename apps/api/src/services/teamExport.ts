@@ -7,7 +7,7 @@ import {
 import type { TeamApprovalStatus, TeamMonthDriver, TeamMonthSummary } from "@mileclear/shared";
 import { prisma } from "../lib/prisma.js";
 
-// MileClear Teams Phase 2 (24 Aug 2026).
+// Milesheet Phase 2 (24 Aug 2026).
 //
 // This file holds two things that both need to agree on the same numbers:
 //   1. The LIVE month computation (computeTeamMonthSummary) - what the
@@ -499,7 +499,7 @@ export async function generateTeamMonthPdf(data: TeamExportData): Promise<Buffer
   doc.font("Helvetica").fontSize(11).fillColor(AMBER);
   doc.text(`Mileage report, ${monthLabel(data.month)}`, margin, 50, { width: contentWidth });
   doc.font("Helvetica").fontSize(8).fillColor("#c0c8d4");
-  doc.text("Consolidated from approved driver months - MileClear Teams", margin, 68, { width: contentWidth });
+  doc.text("Consolidated from approved driver months - Milesheet", margin, 68, { width: contentWidth });
 
   doc.y = 112;
 
@@ -584,7 +584,7 @@ export async function generateTeamMonthPdf(data: TeamExportData): Promise<Buffer
   doc.moveTo(startX, y).lineTo(startX + tableWidth, y).lineWidth(0.5).strokeColor(GREY_200).stroke();
 
   doc.font("Helvetica").fontSize(7).fillColor(GREY_600);
-  doc.text(`Generated ${formatDateUk(new Date())} - MileClear Teams`, margin, pageHeight - 40, { width: contentWidth });
+  doc.text(`Generated ${formatDateUk(new Date())} - Milesheet`, margin, pageHeight - 40, { width: contentWidth });
 
   doc.end();
   return bufferPromise;

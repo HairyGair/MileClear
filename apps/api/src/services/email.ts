@@ -2469,7 +2469,7 @@ export async function sendWaitlistConfirmation(
 }
 
 /**
- * MileClear Teams invite (P1 pilot). The link lands on the web accept page;
+ * Milesheet invite (P1 pilot). The link lands on the web accept page;
  * a driver without an account registers first and the token survives the
  * round trip. The raw token exists only in this email.
  */
@@ -2480,24 +2480,29 @@ export async function sendTeamInviteEmail(
   role: "admin" | "driver"
 ): Promise<void> {
   const base = process.env.API_BASE_URL || "https://mileclear.com";
-  const url = `${base}/team/invite/${token}`;
+  const url = `${base}/milesheet/invite/${token}`;
   const safeOrg = escapeHtml(orgName);
   const isAdmin = role === "admin";
   const subject = isAdmin
-    ? `You're the MileClear Teams admin for ${orgName}`
-    : `${orgName} invited you to MileClear`;
+    ? `You're the Milesheet admin for ${orgName}`
+    : `${orgName} has set you up for mileage claims`;
   const html = `
     <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 560px; margin: 0 auto; padding: 32px 24px;">
-      <h2 style="color: #1a1a1a; margin-bottom: 8px;">${isAdmin ? `Manage ${safeOrg}'s mileage on MileClear` : `${safeOrg} uses MileClear for business mileage`}</h2>
+      <h2 style="color: #1a1a1a; margin-bottom: 8px;">${isAdmin ? `Manage ${safeOrg}'s mileage claims on Milesheet` : `${safeOrg} uses Milesheet for mileage claims`}</h2>
       <p style="color: #333; font-size: 15px; line-height: 1.6;">${
         isAdmin
-          ? `You have been set up as the team admin for <strong>${safeOrg}</strong>. Accept below to open the team portal: invite drivers, see everyone's month in one place, and download the combined report.`
-          : `Accept below and MileClear records your business drives automatically - nothing to fill in on the road. ${safeOrg} covers the cost; your personal trips stay yours.`
+          ? `You have been set up as the Milesheet admin for <strong>${safeOrg}</strong>. Accept below to open the portal: invite your drivers, see everyone's month in one place, approve it, and download a single file for payroll.`
+          : `Accept below and your business journeys are recorded automatically, so there is nothing to fill in on the road. ${safeOrg} covers the cost, and your personal journeys stay private to you.`
       }</p>
       <p style="margin: 24px 0;">
-        <a href="${url}" style="background: #f5a623; color: #030712; font-weight: 700; padding: 12px 28px; border-radius: 9999px; text-decoration: none; display: inline-block;">Accept invitation</a>
+        <a href="${url}" style="background: #6366f1; color: #ffffff; font-weight: 700; padding: 12px 28px; border-radius: 9999px; text-decoration: none; display: inline-block;">Accept invitation</a>
       </p>
-      <p style="color: #888; font-size: 12px;">The link is valid for 7 days. If you don't have a MileClear account yet you can create one on the same page.</p>
+      ${
+        isAdmin
+          ? ""
+          : `<p style="color: #333; font-size: 14px; line-height: 1.6;">One thing worth knowing: the app that does the recording is called <strong>MileClear</strong>, which is the system Milesheet runs on. Install that one and sign in with this email address. The different name is expected, not a mistake.</p>`
+      }
+      <p style="color: #888; font-size: 12px;">The link is valid for 7 days. If you don't have an account yet you can create one on the same page.</p>
     </div>
   `;
 
@@ -2693,7 +2698,7 @@ export async function sendInvoiceEmail(args: InvoiceEmailArgs): Promise<{ subjec
 }
 
 /**
- * MileClear Teams (Phase 2, 24 Aug 2026): "last month is ready to
+ * Milesheet (Phase 2, 24 Aug 2026): "last month is ready to
  * approve" nudge to an org admin, early in the following month. Points
  * at the team portal rather than embedding numbers, since figures can
  * still shift for unapproved drivers right up until the admin looks.

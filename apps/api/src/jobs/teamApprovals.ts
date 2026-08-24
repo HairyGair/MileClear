@@ -1,8 +1,8 @@
-// MileClear Teams Phase 2 (24 Aug 2026): "last month is ready to
+// Milesheet Phase 2 (24 Aug 2026): "last month is ready to
 // approve" email to org admins.
 //
-// Charlotte's stated need was "automatically submit expenses each
-// month" - the export in services/teamExport.ts is the document, this
+// The design partner's stated need was to "automatically submit expenses
+// each month" - the export in services/teamExport.ts is the document, this
 // job is the nudge that gets an admin to open the portal and produce it.
 // Runs early in the month (cron cadence set by whoever registers this),
 // targets the month that JUST ended, and is safe to run more than once:

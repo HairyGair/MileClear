@@ -2996,7 +2996,7 @@ function RevenueTab() {
                   <td>Team (pilot)</td>
                   <td style={cell}>{b.team}</td>
                   <td style={cell}>£0.00</td>
-                  <td style={{ fontSize: "0.8125rem", color: "var(--text-secondary)" }}>MileClear Teams drivers; pilot orgs are free until proven</td>
+                  <td style={{ fontSize: "0.8125rem", color: "var(--text-secondary)" }}>Milesheet drivers; pilot orgs are free until proven</td>
                 </tr>
               )}
               <tr>

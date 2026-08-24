@@ -60,7 +60,7 @@ export interface ProUserRow {
   appleOriginalTransactionId: string | null;
   subscriptionProductId?: string | null;
   referralProUntil: Date | null;
-  /** Active MileClear Teams membership (set by callers that joined it). */
+  /** Active Milesheet membership (set by callers that joined it). */
   hasTeamMembership?: boolean;
 }
 

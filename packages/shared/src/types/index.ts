@@ -1481,7 +1481,7 @@ export interface AdminRevenue {
     appleSandbox: number;
     comp: number;
     referral: number;
-    /** Active MileClear Teams drivers (pilot orgs pay nothing). */
+    /** Active Milesheet drivers (pilot orgs pay nothing). */
     team: number;
     expiredFlag: number;
   };
@@ -1588,7 +1588,7 @@ export interface AdminEmailResult {
   totalUsers: number;
 }
 
-// ─── MileClear Teams: approval + billing (phases 2 and 3) ────────────────
+// ─── Milesheet: approval + billing (phases 2 and 3) ────────────────
 
 export type TeamApprovalStatus = "pending" | "approved" | "queried";
 

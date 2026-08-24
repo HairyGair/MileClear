@@ -4,7 +4,7 @@ import { useEffect, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { api } from "../../lib/api";
 
-// MileClear Teams Phase 3 (24 Aug 2026) self-serve entry point on /teams.
+// Milesheet Phase 3 (24 Aug 2026) self-serve entry point on /teams.
 // Anonymous visitors never see this - they keep the interest-register form
 // that was already on the page. A logged-in visitor gets either "you're
 // already in a team" or a one-field org creation form, checked client-side
@@ -79,7 +79,7 @@ export default function TeamSelfServeGate() {
     setSubmitting(true);
     try {
       await api.post("/team/self-serve", { name: name.trim() });
-      window.location.href = "/dashboard/team";
+      window.location.href = "/milesheet/portal";
     } catch (err: any) {
       setError(err.message || "Could not create your team");
       setSubmitting(false);
@@ -91,11 +91,11 @@ export default function TeamSelfServeGate() {
   if (me) {
     return (
       <div style={card}>
-        <p style={{ color: "#e2e8f0", fontSize: "0.9375rem", margin: 0 }}>
-          You are already part of <strong>{me.orgName}</strong> on MileClear Teams.
+        <p style={{ color: "var(--text-primary)", fontSize: "0.9375rem", margin: 0 }}>
+          You are already part of <strong>{me.orgName}</strong> on Milesheet.
         </p>
-        <Link href="/dashboard/team" style={{ ...btn, textDecoration: "none", display: "inline-block" }}>
-          Go to your team dashboard
+        <Link href="/milesheet/portal" style={{ ...btn, textDecoration: "none", display: "inline-block" }}>
+          Open your portal
         </Link>
       </div>
     );
@@ -103,30 +103,30 @@ export default function TeamSelfServeGate() {
 
   return (
     <div style={card}>
-      <p style={{ color: "#f9fafb", fontSize: "1.0625rem", fontWeight: 700, margin: "0 0 0.5rem" }}>
-        Set up your team now
+      <p style={{ color: "var(--text-white)", fontSize: "1.0625rem", fontWeight: 700, margin: "0 0 0.5rem" }}>
+        Set your company up
       </p>
-      <p style={{ color: "#94a3b8", fontSize: "0.9375rem", lineHeight: 1.6, margin: "0 0 1rem" }}>
-        You are signed in, so you can skip the form below and start your own MileClear Teams organisation
-        straight away. You will be its admin and can invite drivers from the team dashboard.
+      <p style={{ color: "var(--text-secondary)", fontSize: "0.9375rem", lineHeight: 1.6, margin: "0 0 1rem" }}>
+        You are signed in, so you can create your company now. You will be its admin, and you can
+        invite your drivers by email as soon as it exists.
       </p>
       {error && (
-        <div style={{ color: "#f87171", fontSize: "0.875rem", marginBottom: "0.5rem" }}>{error}</div>
+        <div style={{ color: "var(--red-400, #f87171)", fontSize: "0.875rem", marginBottom: "0.5rem" }}>{error}</div>
       )}
       <form onSubmit={handleSubmit}>
-        <label style={{ display: "block", color: "#e2e8f0", fontSize: "0.875rem", fontWeight: 600 }}>
-          Team name
+        <label style={{ display: "block", color: "var(--text-primary)", fontSize: "0.875rem", fontWeight: 600 }}>
+          Company name
           <input
             style={inputStyle}
             value={name}
             onChange={(e) => setName(e.target.value)}
-            placeholder="e.g. Charlotte's Deliveries"
+            placeholder="e.g. Hartley &amp; Sons Ltd"
             maxLength={160}
             required
           />
         </label>
         <button type="submit" style={{ ...btn, opacity: submitting ? 0.7 : 1 }} disabled={submitting}>
-          {submitting ? "Creating..." : "Create my team"}
+          {submitting ? "Creating…" : "Create my company"}
         </button>
       </form>
     </div>

@@ -18,7 +18,7 @@ import {
   buildTeamExportFilename,
 } from "../../services/teamExport.js";
 
-// MileClear Teams Phase 1 (23 Aug 2026, TPS360 design-partner pilot).
+// Milesheet Phase 1 (23 Aug 2026, design-partner pilot).
 //
 // Shape: an Organisation owns memberships. An org admin invites drivers by
 // email; accepting binds the logged-in user; disabling removes org
