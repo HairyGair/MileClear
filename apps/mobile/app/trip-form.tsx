@@ -30,6 +30,7 @@ import {
   ClassificationSuggestion,
 } from "../lib/api/trips";
 import { getLocalTrip } from "../lib/db/queries";
+import { TripMapWidget } from "../components/map/TripMapWidget";
 import {
   syncCreateTrip,
   syncUpdateTrip,
@@ -974,6 +975,43 @@ export default function TripFormScreen() {
     prefillDepartedAt,
     prefillArrivedAt,
   ]);
+
+  // The route of a trip you are looking back at. Until 24 Aug 2026 the map was
+  // hidden whenever you opened an existing trip (showMap = isQuickMode &&
+  // !isEditing), so a driver reviewing yesterday's journeys saw addresses and
+  // nothing else - which is what Jimbo asked for: "show a map of where the
+  // journey has been tracked from and to, to help work out if it was business
+  // or personal". Read from local SQLite so it works offline like the rest of
+  // this screen, and downsampled because a long drive stores ~900 points and a
+  // thumbnail needs nothing like that many.
+  const [routeCoords, setRouteCoords] = useState<{ lat: number; lng: number }[]>([]);
+
+  useEffect(() => {
+    if (!id || !isEditing) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const db = await getDatabase();
+        const rows = await db.getAllAsync<{ lat: number; lng: number }>(
+          "SELECT lat, lng FROM coordinates WHERE trip_id = ? ORDER BY recorded_at",
+          [id]
+        );
+        if (cancelled || rows.length < 2) return;
+        const MAX_POINTS = 300;
+        const step = Math.max(1, Math.ceil(rows.length / MAX_POINTS));
+        const sampled = rows.filter((_, i) => i % step === 0);
+        // Always keep the true end point, whatever the sampling stride does.
+        if (sampled[sampled.length - 1] !== rows[rows.length - 1]) sampled.push(rows[rows.length - 1]);
+        setRouteCoords(sampled);
+      } catch {
+        // No local coordinates (older trip, or synced from another device) -
+        // the screen simply shows no map, exactly as before.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [id, isEditing]);
 
   // Load existing trip for editing
   useEffect(() => {
@@ -2833,6 +2871,14 @@ export default function TripFormScreen() {
                 <Text style={styles.suggestionText}>
                   Suggested from {suggestion.matchCount} previous trip{suggestion.matchCount !== 1 ? "s" : ""} here
                 </Text>
+              </View>
+            )}
+
+            {/* Where you actually went - shown before the business/personal
+                choice, because that is the question the route answers. */}
+            {isEditing && routeCoords.length >= 2 && (
+              <View style={{ marginBottom: 16 }}>
+                <TripMapWidget coordinates={routeCoords} height={160} />
               </View>
             )}
 
