@@ -282,8 +282,29 @@ export async function getNearbyStations(
 
 // --- National averages (unchanged) ---
 
-const GOV_UK_CSV_URL =
-  "https://assets.publishing.service.gov.uk/media/6993252f7da91680ad7f44a1/CSV__2018_-____3_.csv";
+
+/**
+ * UK average pump prices.
+ *
+ * This used to read the government's weekly road fuel CSV. That URL carries a
+ * dated filename and rotates every week, so it redirected to a file that was
+ * 410 Gone, and this function had been silently returning null: the app's
+ * fuel screen simply showed no national average. Discovered 25 Aug 2026.
+ *
+ * It is computed from our own station feed instead, which we already fetch
+ * and cache for nearby search and which covers thousands of UK forecourts.
+ * That removes the weekly breakage entirely, and the number is fresher than
+ * a weekly series. The MEDIAN is used rather than the mean because a single
+ * mis-keyed price in a retailer feed drags a mean and barely moves a median.
+ */
+const MIN_STATIONS_FOR_NATIONAL_AVERAGE = 100;
+
+function median(values: number[]): number | null {
+  if (values.length === 0) return null;
+  const sorted = [...values].sort((a, b) => a - b);
+  const mid = Math.floor(sorted.length / 2);
+  return sorted.length % 2 === 0 ? (sorted[mid - 1] + sorted[mid]) / 2 : sorted[mid];
+}
 
 export async function getNationalAverages(): Promise<NationalAveragePrices | null> {
   try {
@@ -292,34 +313,34 @@ export async function getNationalAverages(): Promise<NationalAveragePrices | nul
       return JSON.parse(cached) as NationalAveragePrices;
     }
 
-    const response = await fetch(GOV_UK_CSV_URL);
-    if (!response.ok) return null;
+    const { stations } = await getCachedStations();
+    // Sanity band: retailer feeds occasionally carry prices in pounds, or a
+    // placeholder. Anything outside a plausible pence-per-litre range is not
+    // a price and must not move the average.
+    const plausible = (v: number | undefined): v is number =>
+      typeof v === "number" && v >= 50 && v <= 400;
 
-    const text = await response.text();
-    const lines = text.trim().split("\n");
-    if (lines.length < 2) return null;
+    const petrol = stations.map((s) => s.prices.E10).filter(plausible);
+    const diesel = stations.map((s) => s.prices.B7).filter(plausible);
 
-    const headers = lines[0].split(",").map((h) => h.trim().toUpperCase());
-    const ulspIndex = headers.findIndex((h) => h.includes("ULSP"));
-    const ulsdIndex = headers.findIndex((h) => h.includes("ULSD"));
-    if (ulspIndex === -1 || ulsdIndex === -1) return null;
+    if (petrol.length < MIN_STATIONS_FOR_NATIONAL_AVERAGE || diesel.length < MIN_STATIONS_FOR_NATIONAL_AVERAGE) {
+      return null;
+    }
 
-    const lastLine = lines[lines.length - 1];
-    const cols = lastLine.split(",").map((c) => c.trim());
-
-    const petrolPpl = parseFloat(cols[ulspIndex]);
-    const dieselPpl = parseFloat(cols[ulsdIndex]);
-    if (isNaN(petrolPpl) || isNaN(dieselPpl)) return null;
+    const petrolMedian = median(petrol);
+    const dieselMedian = median(diesel);
+    if (petrolMedian === null || dieselMedian === null) return null;
 
     const result: NationalAveragePrices = {
-      petrolPencePerLitre: Math.round(petrolPpl * 10) / 10,
-      dieselPencePerLitre: Math.round(dieselPpl * 10) / 10,
+      petrolPencePerLitre: Math.round(petrolMedian * 10) / 10,
+      dieselPencePerLitre: Math.round(dieselMedian * 10) / 10,
       date: new Date().toISOString().slice(0, 10),
     };
 
     await cacheSet(NATIONAL_AVG_CACHE_KEY, JSON.stringify(result), NATIONAL_AVG_TTL_SECONDS);
     return result;
-  } catch {
+  } catch (err) {
+    console.error("[fuel] national averages failed:", (err as Error).message);
     return null;
   }
 }
