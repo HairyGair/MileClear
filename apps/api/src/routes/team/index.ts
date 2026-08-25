@@ -64,6 +64,9 @@ export async function teamRoutes(app: FastifyInstance) {
         data: {
           name,
           pilotFree,
+          // Free pilots are capped: free-for-testing must not scale into a
+          // free 400-driver fleet. Paying orgs are capped by their bill.
+          seatCap: pilotFree ? 20 : null,
           createdByUserId: request.userId!,
           memberships: {
             create: {
@@ -108,8 +111,17 @@ export async function teamRoutes(app: FastifyInstance) {
 
       const org = await prisma.organisation.findUnique({
         where: { id: admin.orgId },
-        select: { name: true },
+        select: { name: true, seatCap: true },
       });
+      // The cap counts every non-disabled membership, any role: everyone
+      // with a membership gets Pro, so everyone occupies a place. Counted
+      // once and tracked locally so a 50-email batch cannot sail past the
+      // ceiling between checks.
+      let occupied = org?.seatCap != null
+        ? await prisma.orgMembership.count({
+            where: { orgId: admin.orgId, status: { not: "disabled" } },
+          })
+        : 0;
       const results: Array<{ email: string; status: string }> = [];
       for (const raw of parsed.data.emails) {
         const email = raw.toLowerCase();
@@ -119,6 +131,12 @@ export async function teamRoutes(app: FastifyInstance) {
         });
         if (existing && existing.status !== "disabled") {
           results.push({ email, status: `already ${existing.status}` });
+          continue;
+        }
+        // A fresh invite and a re-invite of a disabled member both add one
+        // non-disabled membership, so both count against the cap.
+        if (org?.seatCap != null && occupied >= org.seatCap) {
+          results.push({ email, status: `not invited - your team is at its ${org.seatCap} member limit` });
           continue;
         }
         const token = crypto.randomBytes(64).toString("hex").slice(0, 128);
@@ -138,6 +156,7 @@ export async function teamRoutes(app: FastifyInstance) {
         } else {
           await prisma.orgMembership.create({ data: { orgId: admin.orgId, ...data } });
         }
+        occupied++;
         try {
           await sendTeamInviteEmail(email, org?.name ?? "your team", token, parsed.data.role);
           results.push({ email, status: "invited" });
@@ -286,6 +305,23 @@ export async function teamRoutes(app: FastifyInstance) {
     if (!m) return reply.status(404).send({ error: "Member not found" });
     if (m.id === admin.id) return reply.status(400).send({ error: "You cannot disable yourself." });
     if (m.status === "invited") return reply.status(400).send({ error: "Pending invites expire on their own; re-invite to refresh." });
+
+    if (parsed.data.status === "active") {
+      const org = await prisma.organisation.findUnique({
+        where: { id: admin.orgId },
+        select: { seatCap: true },
+      });
+      if (org?.seatCap != null) {
+        const occupied = await prisma.orgMembership.count({
+          where: { orgId: admin.orgId, status: { not: "disabled" } },
+        });
+        if (occupied >= org.seatCap) {
+          return reply.status(400).send({
+            error: `Your team is at its ${org.seatCap} member limit. Disable someone first, or get in touch to raise it.`,
+          });
+        }
+      }
+    }
 
     await prisma.orgMembership.update({
       where: { id: m.id },

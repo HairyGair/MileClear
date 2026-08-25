@@ -107,6 +107,12 @@ export default function SeatBillingCard() {
         </div>
         <p style={{ color: "var(--text-secondary)", fontSize: "0.875rem", lineHeight: 1.6 }}>
           This team is on a free Milesheet pilot. There is nothing to pay and no billing to set up.
+          {billing.seatCap != null && (
+            <>
+              {" "}Your pilot covers up to {billing.seatCap} people, and you are using{" "}
+              {billing.activeSeats} of those places. If you need more, just ask.
+            </>
+          )}
         </p>
       </div>
     );

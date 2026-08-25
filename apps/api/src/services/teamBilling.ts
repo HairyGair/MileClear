@@ -121,7 +121,7 @@ export async function getSeatBilling(orgId: string): Promise<TeamSeatBilling> {
 
   const org = await prisma.organisation.findUnique({
     where: { id: orgId },
-    select: {
+    select: { seatCap: true,
       pilotFree: true,
       stripeSubscriptionId: true,
       seatsBilled: true,
@@ -132,6 +132,7 @@ export async function getSeatBilling(orgId: string): Promise<TeamSeatBilling> {
     return {
       pilotFree: false,
       activeSeats,
+      seatCap: null,
       seatsBilled: null,
       pricePerSeatPence,
       status: "none",
@@ -143,6 +144,7 @@ export async function getSeatBilling(orgId: string): Promise<TeamSeatBilling> {
     return {
       pilotFree: true,
       activeSeats,
+      seatCap: org.seatCap,
       seatsBilled: org.seatsBilled,
       pricePerSeatPence,
       status: "pilot",
@@ -154,6 +156,7 @@ export async function getSeatBilling(orgId: string): Promise<TeamSeatBilling> {
     return {
       pilotFree: false,
       activeSeats,
+      seatCap: org.seatCap,
       seatsBilled: org.seatsBilled,
       pricePerSeatPence,
       status: "none",
@@ -178,6 +181,7 @@ export async function getSeatBilling(orgId: string): Promise<TeamSeatBilling> {
     return {
       pilotFree: false,
       activeSeats,
+      seatCap: org.seatCap,
       seatsBilled: org.seatsBilled,
       pricePerSeatPence,
       status,
@@ -189,6 +193,7 @@ export async function getSeatBilling(orgId: string): Promise<TeamSeatBilling> {
     return {
       pilotFree: false,
       activeSeats,
+      seatCap: org.seatCap,
       seatsBilled: org.seatsBilled,
       pricePerSeatPence,
       status: "none",

@@ -1028,6 +1028,11 @@ model Organisation {
   // Pilot orgs (TPS360) pay nothing; the flag keeps revenue views honest
   // and lets Phase 3 billing skip them explicitly.
   pilotFree       Boolean  @default(true)
+  // Hard ceiling on non-disabled memberships (any role - everyone with a
+  // membership gets Pro, so everyone counts). Null = uncapped. Free pilots
+  // get 20 by default: free-for-testing must not scale into free-for-a-
+  // 400-driver-fleet, which would be misuse rather than a pilot.
+  seatCap         Int?
   // Org-wide default employer rate; a member's own employerMileageRatePence
   // still wins when set.
   defaultRatePence Int?

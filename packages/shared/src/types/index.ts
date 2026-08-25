@@ -1634,6 +1634,8 @@ export interface TeamMonthSummary {
 export interface TeamSeatBilling {
   pilotFree: boolean;
   activeSeats: number;
+  /** Hard membership ceiling for this org, null = uncapped. Pilots get 20. */
+  seatCap: number | null;
   seatsBilled: number | null;
   /**
    * Null when no price has been set. The market read was explicit that
