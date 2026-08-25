@@ -25,6 +25,7 @@ import {
   runShortHopSavedLocationsJob,
 } from "./activation.js";
 import { runDiscordProSyncJob } from "./discordProSync.js";
+import { runGeocodeMissingAddressesJob } from "./geocodeMissingAddresses.js";
 import { runTaxTipOfTheDayJob } from "./taxTipOfTheDay.js";
 import { runWeeklyDigestJob } from "./weeklyDigest.js";
 import { runTaxDeadlineRemindersJob } from "./taxDeadlineReminders.js";
@@ -1579,6 +1580,17 @@ export function startNotificationJobs(): void {
     setInterval(
       () => void runJob("first_trip_celebration", runFirstTripCelebrationJob),
       FIRST_TRIP_INTERVAL_MS
+    );
+
+    // Missing trip addresses: every 6 hours. Fills null start/end addresses
+    // left by support-side trip splits and device reverse-geocode failures
+    // through the Nominatim reverse geocoder. 50 trips a run, paced to
+    // Nominatim's one-request-a-second policy, so a full run is under two
+    // minutes.
+    void runJob("geocode_missing_addresses", runGeocodeMissingAddressesJob);
+    setInterval(
+      () => void runJob("geocode_missing_addresses", runGeocodeMissingAddressesJob),
+      INTERVAL_MS
     );
 
     // Mileage milestone celebrations: daily cron. Checks if any

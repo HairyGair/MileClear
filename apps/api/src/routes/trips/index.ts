@@ -31,6 +31,7 @@ import {
 import { checkAndAwardAchievements } from "../../services/gamification.js";
 import { sendMilestonePush, sendAchievementPush } from "../../jobs/notifications.js";
 import { logEvent } from "../../services/appEvents.js";
+import { selectMissedJourneyCandidates } from "../../services/missedJourneys.js";
 import { advanceLastTripAt } from "../../services/userActivity.js";
 import { qualifyReferralOnFirstTrip } from "../../services/referral.js";
 import { looksLikePhantomTrip, hasRealMovementEvidence } from "../../lib/phantomTrip.js";
@@ -38,6 +39,7 @@ import { resolveRouteDistance, routedDurationUsable } from "../../services/routi
 import { reverseGeocode } from "../../services/geocoding.js";
 import { matchTripRoute, decodePolyline, isMatchPlausible, trimEdgePhantoms } from "../../services/mapMatching.js";
 import { computeTripConfidence } from "../../services/tripConfidence.js";
+import { reconcileWakeLagStart } from "../../services/wakeLagStart.js";
 import {
   getSplitSuggestions,
   executeTripSplit,
@@ -590,7 +592,7 @@ export async function tripRoutes(app: FastifyInstance) {
       trimAttempt && (trimAttempt.droppedLeading > 0 || trimAttempt.droppedTrailing > 0)
         ? trimAttempt
         : null;
-    const coordinates = edgeTrim ? edgeTrim.breadcrumbs : rawCoordinates;
+    let coordinates = edgeTrim ? edgeTrim.breadcrumbs : rawCoordinates;
     if (edgeTrim && coordinates) {
       if (edgeTrim.droppedLeading > 0) {
         resolvedStartLat = coordinates[0].lat;
@@ -604,7 +606,43 @@ export async function tripRoutes(app: FastifyInstance) {
       }
       distanceMiles = Math.max(0, Math.round((distanceMiles - edgeTrim.removedMiles) * 100) / 100);
     }
-    const hasCoordinates = coordinates && coordinates.length > 0;
+
+    // Wake-lag start reconciliation: the auto-detect engine arms ~0.3 mi
+    // into a drive, so the start lands down the road from the real origin.
+    // If the previous trip ended at a real stop a short while ago and this
+    // one starts a wake-lag hop away, move the start back there and add the
+    // routed miles for the missing stretch. Runs after the dedup check
+    // (which keys on the CLIENT's start) and after the edge trim (so it
+    // sees the real first fix). See services/wakeLagStart.ts.
+    const wakeLag = await reconcileWakeLagStart({
+      userId,
+      newTrip: {
+        startedAt: tripData.startedAt,
+        startLat: resolvedStartLat,
+        startLng: resolvedStartLng,
+        isManualEntry: !(coordinates && coordinates.length > 0),
+        hasCoordinates: Boolean(coordinates && coordinates.length > 0),
+      },
+    });
+    if (wakeLag && coordinates) {
+      resolvedStartLat = wakeLag.startLat;
+      resolvedStartLng = wakeLag.startLng;
+      tripData.startAddress = wakeLag.startAddress ?? undefined; // null: reverse-geocoded below
+      coordinates = [
+        {
+          lat: wakeLag.prependCoordinate.lat,
+          lng: wakeLag.prependCoordinate.lng,
+          speed: null,
+          accuracy: null,
+          recordedAt: wakeLag.prependCoordinate.recordedAt,
+        },
+        ...coordinates,
+      ];
+      distanceMiles = Math.round((distanceMiles + wakeLag.addedMiles) * 100) / 100;
+    }
+    // Snapshot after the wake-lag prepend so TypeScript can narrow it below.
+    const finalCoordinates = coordinates;
+    const hasCoordinates = finalCoordinates != null && finalCoordinates.length > 0;
 
     // Classification is now handled by the mobile classification engine
     // (lib/classification/). The API respects whatever the client sends.
@@ -693,14 +731,14 @@ export async function tripRoutes(app: FastifyInstance) {
 
     let trip;
 
-    if (hasCoordinates) {
+    if (hasCoordinates && finalCoordinates) {
       trip = await prisma.$transaction(async (tx) => {
         const created = await tx.trip.create({
           data: tripPayload,
         });
 
         await tx.tripCoordinate.createMany({
-          data: coordinates.map((c) => ({
+          data: finalCoordinates.map((c) => ({
             tripId: created.id,
             lat: c.lat,
             lng: c.lng,
@@ -807,6 +845,19 @@ export async function tripRoutes(app: FastifyInstance) {
           droppedTrailing: edgeTrim.droppedTrailing,
           removedMiles: Math.round(edgeTrim.removedMiles * 100) / 100,
           worstAccuracyM: edgeTrim.worstAccuracyM,
+          distanceMiles,
+          clientDistanceMiles: data.distanceMiles ?? null,
+        });
+      }
+
+      if (wakeLag) {
+        logEvent("trip.wake_lag_start_extended", userId, {
+          tripId: trip.id,
+          prevTripId: wakeLag.prevTripId,
+          addedMiles: wakeLag.addedMiles,
+          gapMin: wakeLag.gapMin,
+          crowMiles: wakeLag.crowMiles,
+          savedLocationId: wakeLag.savedLocationId,
           distanceMiles,
           clientDistanceMiles: data.distanceMiles ?? null,
         });
@@ -964,10 +1015,16 @@ export async function tripRoutes(app: FastifyInstance) {
   // Idempotent: each candidate upserts on a stable (userId, key), so repeat
   // scans never duplicate, and an accepted/dismissed proposal is never
   // resurrected. Stale 'proposed' rows (gap since closed) are pruned each scan.
+  //
+  // Wake lag: the auto engine needs roughly 0.3-0.4 mi of driving to wake and
+  // arm, so an auto-captured B routinely starts a few hundred metres from where
+  // the car actually left. For short-hop users that made EVERY consecutive pair
+  // a 0.3 mi "missed journey" (Rachel, 25 Aug 2026: five in one day). Those are
+  // the first stretch of trip B, not a separate drive, so an auto B needs a gap
+  // of at least MISSED_WAKE_LAG_MILES; a manual B (typed start, no wake lag)
+  // keeps the MISSED_MIN_MILES floor. Selection lives in services/missedJourneys
+  // so it is unit-tested; suppressed pairs are logged once per scan, not each.
   const MISSED_SCAN_DAYS = 30;
-  const MISSED_MIN_GAP_MIN = 5; // below this it's GPS jitter at one stop, not a drive
-  const MISSED_MAX_GAP_MIN = 24 * 60; // beyond a day the two trips aren't one journey
-  const MISSED_MIN_MILES = 0.3; // crow-flies; matches the phantom-trip floor
   const MISSED_MAX_RESULTS = 20;
 
   app.get("/missed-journeys", async (request, reply) => {
@@ -979,30 +1036,16 @@ export async function tripRoutes(app: FastifyInstance) {
       select: {
         id: true, startLat: true, startLng: true, startAddress: true,
         endLat: true, endLng: true, endAddress: true,
-        startedAt: true, endedAt: true,
+        startedAt: true, endedAt: true, isManualEntry: true,
       },
     });
 
-    const candidates: {
-      key: string; fromLat: number; fromLng: number; toLat: number; toLng: number;
-      fromAddress: string | null; toAddress: string | null;
-      departedAt: Date; arrivedAt: Date; estimatedMiles: number;
-    }[] = [];
-    for (let i = 0; i < trips.length - 1; i++) {
-      const a = trips[i];
-      const b = trips[i + 1];
-      if (a.endLat == null || a.endLng == null || a.endedAt == null) continue;
-      const gapMin = (b.startedAt.getTime() - a.endedAt.getTime()) / 60000;
-      if (gapMin < MISSED_MIN_GAP_MIN || gapMin > MISSED_MAX_GAP_MIN) continue;
-      const miles = haversineDistance(a.endLat, a.endLng, b.startLat, b.startLng);
-      if (miles < MISSED_MIN_MILES) continue;
-      candidates.push({
-        key: `${a.id}:${b.id}`,
-        fromLat: a.endLat, fromLng: a.endLng,
-        toLat: b.startLat, toLng: b.startLng,
-        fromAddress: a.endAddress, toAddress: b.startAddress,
-        departedAt: a.endedAt, arrivedAt: b.startedAt,
-        estimatedMiles: Math.round(miles * 10) / 10,
+    const { candidates, wakeLagSuppressed, wakeLagMaxMiles } =
+      selectMissedJourneyCandidates(trips);
+    if (wakeLagSuppressed > 0) {
+      logEvent("trip.missed_proposals_wake_lag_suppressed", userId, {
+        suppressed: wakeLagSuppressed,
+        maxMiles: wakeLagMaxMiles,
       });
     }
 
