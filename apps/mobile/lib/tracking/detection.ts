@@ -158,6 +158,13 @@ const QUICK_TRIP_MAX_SPAN_MS = STALE_ACTIVE_SHIFT_MS; // 18h - a quick trip whos
 const QUICK_TRIP_NO_START_MAX_SPAN_MS = 3 * 60 * 60 * 1000; // 3h - same backstop, but for a lock with NO quick_trip_start row. That combination means no trip-form session owns the recording, so the only thing keeping the lock "live" is the background location task feeding its own liveness check (Freja Bounds, 27 Jul 2026). A genuine quick trip missing its start row is possible (Anthony, 1 Jun) but cannot plausibly run this long
 const BACKGROUND_FETCH_INTERVAL_S = 15 * 60; // 15 minutes - iOS treats as a hint, actual cadence varies
 const COOLDOWN_MS = 20 * 60 * 1000; // 20 minutes
+
+// Gap-stop thresholds, shared by both engines (Class 20): a silence longer
+// than this across which the device moved less than the drift bound was a
+// stop, and the recording closes at the fix before it. Values mirror the
+// forensic split that repaired the welded trips (5 min gap, ~250m drift).
+export const GAP_STOP_MS = 5 * 60 * 1000;
+export const GAP_STOP_DRIFT_M = 250;
 const BUFFER_MAX_AGE_MS = 30 * 60 * 1000; // 30 minutes
 const SESSION_GAP_MS = 5 * 60 * 1000; // 5 min gap between buffered coords = a prior-trip boundary; below this it's one continuous drive
 const SPEED_THRESHOLD_MS = DRIVING_SPEED_THRESHOLD_MPH * 0.44704; // mph to m/s
@@ -231,7 +238,7 @@ export interface BufferedCoordinate {
   recorded_at: string;
 }
 
-function haversineMeters(lat1: number, lng1: number, lat2: number, lng2: number): number {
+export function haversineMeters(lat1: number, lng1: number, lat2: number, lng2: number): number {
   const R = 6371000; // Earth radius in meters
   const dLat = ((lat2 - lat1) * Math.PI) / 180;
   const dLng = ((lng2 - lng1) * Math.PI) / 180;
@@ -2511,7 +2518,51 @@ try {
       const recordingActiveRow = await db.getFirstAsync<{ value: string }>(
         "SELECT value FROM tracking_state WHERE key = 'auto_recording_active'"
       );
-      const isRecordingActive = recordingActiveRow?.value === "1";
+      let isRecordingActive = recordingActiveRow?.value === "1";
+
+      // Gap-stop, JS-engine side (Class 20, Rachel Thorndyke, 25 Aug 2026).
+      // Stop detection below needs slow fixes to fire, but iOS stops calling
+      // this task while the device sits at a visit, so a recording sails
+      // through the stop and the next drive is welded onto it. When the task
+      // wakes with a recording open, a long silence across which the device
+      // did not meaningfully move WAS a stop: close the trip at the fix
+      // before the silence, before this batch is buffered, so the visit and
+      // the next journey never join the route. The native engine has the
+      // same check at its own append point.
+      if (isRecordingActive && locations.length > 0) {
+        const newest = await db.getFirstAsync<{ lat: number; lng: number; recorded_at: string }>(
+          "SELECT lat, lng, recorded_at FROM detection_coordinates ORDER BY recorded_at DESC LIMIT 1"
+        );
+        if (newest) {
+          const lastMs = Date.parse(newest.recorded_at) || Number(newest.recorded_at) || 0;
+          const batchFirst = locations.reduce((a, b) => (a.timestamp <= b.timestamp ? a : b));
+          const gapMs = new Date(batchFirst.timestamp).getTime() - lastMs;
+          if (lastMs && gapMs > GAP_STOP_MS) {
+            const driftM = haversineMeters(
+              newest.lat,
+              newest.lng,
+              batchFirst.coords.latitude,
+              batchFirst.coords.longitude
+            );
+            if (driftM < GAP_STOP_DRIFT_M) {
+              logDetectionEvent("gap_stop_finalize", {
+                gapMs,
+                driftM: Math.round(driftM),
+                engine: "js",
+              }).catch(() => {});
+              await finalizeAutoTrip();
+              isRecordingActive = false;
+            } else {
+              logDetectionEvent("gap_stop_continued", {
+                gapMs,
+                driftM: Math.round(driftM),
+                engine: "js",
+              }).catch(() => {});
+            }
+          }
+        }
+      }
+
       const accuracyCeiling = isRecordingActive
         ? INGEST_ACCURACY_DURING_RECORDING_M
         : INGEST_ACCURACY_PRE_RECORDING_M;

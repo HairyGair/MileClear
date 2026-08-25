@@ -31,6 +31,11 @@ import {
   isDriveDetectionEnabled,
   startNativeAutoTripLiveActivity,
   shiftSuppressesAutoDetection,
+  clearNotDrivingCooldown,
+  isNotDrivingCooldownActive,
+  haversineMeters,
+  GAP_STOP_MS,
+  GAP_STOP_DRIFT_M,
 } from "./detection";
 
 // ─── Lazy, crash-safe native module load ────────────────────────────────────
@@ -86,6 +91,30 @@ const FORCE_START_ACCURACY_M = 30; // require a tight fix to avoid GPS-spike fal
 // drive-through doesn't split a trip; the trip-merge logic re-joins anything
 // that resumes quickly regardless.
 const HEARTBEAT_FINALIZE_STALE_MS = 7 * 60 * 1000;
+
+// Gap-stop (Class 20, Rachel Thorndyke, 25 Aug 2026). Stop detection fires on
+// slow FIXES, but during a visit the engine sleeps and no fixes arrive, so
+// nothing closes the recording and the next drive continues the same session:
+// a care worker's whole afternoon round welded into one 12.79mi "trip" with
+// seven visits inside it. The stationary motionchange and the heartbeat
+// backstop both missed it (occasional stationary blips reset the staleness
+// clock). So the one place every path converges - the moment a fix is
+// appended to an active recording - checks retroactively: a long silence
+// during which the device did not meaningfully move WAS a stop, and the
+// recording is closed at the fix before the silence. Large displacement
+// across a silence means a drive with sparse fixes (tunnels, iOS throttling)
+// and appends as before.
+// Thresholds live in detection.ts (GAP_STOP_MS / GAP_STOP_DRIFT_M) so the
+// two engines can never drift apart on what counts as a stop.
+
+/** recorded_at is stored as an ISO string by the JS engine and as the raw
+ *  native timestamp by bufferCoord - parse either without guessing. */
+function recordedAtMs(v: string | number): number {
+  const n = Number(v);
+  if (Number.isFinite(n) && n > 1e12) return n;
+  const parsed = Date.parse(String(v));
+  return Number.isFinite(parsed) ? parsed : 0;
+}
 
 // Post-trip keep-alive window. When iOS terminates the app between quick stops,
 // a short next hop is too brief to cold-relaunch RNBG before it ends and is
@@ -476,6 +505,41 @@ async function handleNativeLocation(loc: NativeLocation): Promise<void> {
       "SELECT value FROM tracking_state WHERE key = 'auto_recording_active'"
     );
     if (recording?.value === "1") {
+      const lastFix = await db.getFirstAsync<{ lat: number; lng: number; recorded_at: string }>(
+        "SELECT lat, lng, recorded_at FROM detection_coordinates ORDER BY recorded_at DESC LIMIT 1"
+      );
+      if (lastFix) {
+        const lastMs = recordedAtMs(lastFix.recorded_at);
+        const gapMs = recordedAtMs(loc.timestamp) - lastMs;
+        if (lastMs && gapMs > GAP_STOP_MS) {
+          const driftM = haversineMeters(
+            lastFix.lat,
+            lastFix.lng,
+            loc.coords.latitude,
+            loc.coords.longitude
+          );
+          if (driftM < GAP_STOP_DRIFT_M) {
+            // The silence was a stop. Close the trip at the fix before it,
+            // BEFORE buffering this one, so the visit never joins the route.
+            // The keep-alive window then catches the drive away from the
+            // visit warm, exactly as it does after a stationary finalize.
+            logDetectionEvent("gap_stop_finalize", {
+              gapMs,
+              driftM: Math.round(driftM),
+            }).catch(() => {});
+            await finalizeAutoTrip();
+            try {
+              await loadNativeModule()?.destroyLocations();
+            } catch {}
+            await enterPostTripKeepAlive(db);
+            return;
+          }
+          logDetectionEvent("gap_stop_continued", {
+            gapMs,
+            driftM: Math.round(driftM),
+          }).catch(() => {});
+        }
+      }
       await bufferCoord(db, loc);
       return;
     }
@@ -537,6 +601,17 @@ async function handleNativeMotionChange(event: NativeMotionEvent): Promise<void>
         await openNativeRecording(event.location, "motion");
       }
     } else {
+      // Parked. If a "Not driving" cooldown is running, its job is done: it
+      // existed to stop the dismissed drive re-promoting while the car was
+      // still moving (10 May 2026). Left to run its full 20 minutes it also
+      // swallows the NEXT journey whole - Tom's 6-mile Oxted to Edenbridge
+      // run fitted inside one untouched (Class 19, 25 Aug 2026). Parking is
+      // the natural end of the journey that was dismissed, so clear it here
+      // and let a genuinely new drive be detected on its own merits.
+      if (await isNotDrivingCooldownActive()) {
+        await clearNotDrivingCooldown();
+        logDetectionEvent("not_driving_cleared_parked", {}).catch(() => {});
+      }
       // Stationary — finalize through the existing pipeline (trim, distance,
       // map-match, phantom guards, offline sync all reused).
       const recording = await db.getFirstAsync<{ value: string }>(
