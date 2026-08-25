@@ -75,6 +75,27 @@ export const ACTIVE_ANNOUNCEMENT: SiteAnnouncement | null = null;
 
 export const RELEASE_NOTES: ReleaseNote[] = [
   {
+    // Build 85, cut 25 Aug 2026 for TestFlight. The engine pair: both fixes
+    // came from named drivers' reports this same week and were promised to
+    // them in writing. Plus the first binary carrying the classify-at-the-
+    // kerb Live Activity intents (b04ea90) and the explicit date wire format
+    // that retires the 2057 question. Label flow: "In Testing" now,
+    // "Pending Review" when submitted for review, "Latest" on approval.
+    version: "1.3.9",
+    date: "August 2026",
+    label: "In Testing",
+    items: [
+      "Stops during a journey are now understood properly: a visit no longer joins two drives into one long trip",
+      "Tapping Not Driving no longer pauses recording for the next journey - the pause ends when the car parks",
+      "Classify a trip as business or personal straight from the Dynamic Island when you park",
+      "Short hops that are too quick to record now say so on the lock screen instead of disappearing silently",
+      "See the route you drove on the trip screen when you look back at a finished trip",
+      "Driving for a company on Milesheet: earnings and gig features step out of the way automatically",
+      "Claim mileage from your employer? Tell us and we will invite your manager to approve it monthly",
+      "Live Activity timers are now guaranteed to count from the right decade",
+    ],
+  },
+  {
     // Build 84, cut 17 Aug 2026, submitted the same evening, APPROVED 20 Aug
     // 2026. Nine commits, none of them in build 83's binary: six are capture or
     // data-loss fixes and every one came from a named driver's report. Label
