@@ -30,30 +30,29 @@ import type { TeamSeatBilling } from "@mileclear/shared";
 
 const TEAM_SEAT_PRICE_ENV = "STRIPE_TEAM_SEAT_PRICE_ID";
 
-// Shown on the billing card before Stripe has been asked, and used as a
-// last-resort fallback if the live Price lookup fails. Kept near the
-// spec's £6-7/user/mo target. This value is NEVER used to compute a
-// charge - Stripe's Price object is always the source of truth for money.
-const FALLBACK_SEAT_PRICE_PENCE = 650;
+// There is NO fallback price, deliberately. Stripe's Price object is the only
+// source of a per-seat figure. Inventing one would put a number in front of a
+// customer that nobody has agreed to, and the pilot company has been told it
+// pays nothing. Null means "not decided yet" and the portal says exactly that.
 
 const PRICE_CACHE_TTL_MS = 60 * 60 * 1000; // a Price object rarely changes intraday
 let cachedSeatPrice: { pence: number; cachedAt: number } | null = null;
 
-async function getSeatPricePence(): Promise<number> {
+async function getSeatPricePence(): Promise<number | null> {
   const priceId = process.env[TEAM_SEAT_PRICE_ENV];
-  if (!stripe || !priceId) return FALLBACK_SEAT_PRICE_PENCE;
+  if (!stripe || !priceId) return null;
   const now = Date.now();
   if (cachedSeatPrice && now - cachedSeatPrice.cachedAt < PRICE_CACHE_TTL_MS) {
     return cachedSeatPrice.pence;
   }
   try {
     const price = await stripe.prices.retrieve(priceId);
-    const pence = price.unit_amount ?? FALLBACK_SEAT_PRICE_PENCE;
-    cachedSeatPrice = { pence, cachedAt: now };
-    return pence;
+    if (price.unit_amount == null) return cachedSeatPrice?.pence ?? null;
+    cachedSeatPrice = { pence: price.unit_amount, cachedAt: now };
+    return price.unit_amount;
   } catch (err) {
     console.error("teamBilling.getSeatPricePence: Stripe lookup failed:", err);
-    return cachedSeatPrice?.pence ?? FALLBACK_SEAT_PRICE_PENCE;
+    return cachedSeatPrice?.pence ?? null;
   }
 }
 

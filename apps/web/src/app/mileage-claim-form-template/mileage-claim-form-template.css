@@ -1,0 +1,70 @@
+/* Print stylesheet scoped to /mileage-claim-form-template only.
+   Imported directly by this page's page.tsx, not via globals.css. */
+
+.mcf-print-form {
+  background: #ffffff;
+  color: #0f172a;
+  border-radius: 14px;
+  overflow: hidden;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.35);
+}
+
+.mcf-print-form table {
+  border-collapse: collapse;
+  width: 100%;
+}
+
+.mcf-print-form th,
+.mcf-print-form td {
+  border: 1px solid #cbd5e1;
+  padding: 0.5rem 0.6rem;
+  font-size: 0.8125rem;
+  text-align: left;
+}
+
+.mcf-print-form th {
+  background: #f1f5f9;
+  color: #334155;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-size: 0.6875rem;
+}
+
+.mcf-print-form .mcf-blank-row td {
+  height: 2.1rem;
+  color: transparent;
+}
+
+@media print {
+  html,
+  body {
+    background: #ffffff !important;
+  }
+
+  body * {
+    visibility: hidden;
+  }
+
+  .mcf-print-form,
+  .mcf-print-form * {
+    visibility: visible;
+  }
+
+  .mcf-print-form {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    box-shadow: none;
+    border-radius: 0;
+  }
+
+  .no-print {
+    display: none !important;
+  }
+
+  @page {
+    margin: 1.2cm;
+    size: A4 landscape;
+  }
+}

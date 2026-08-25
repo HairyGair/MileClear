@@ -2729,3 +2729,44 @@ export async function sendTeamMonthReadyEmail(
   }
   await transporter.sendMail({ from: FROM, to: email, replyTo: "gair@mileclear.com", subject, html });
 }
+
+/**
+ * Milesheet manager nomination (Phase 1.5, 25 Aug 2026): sent to the
+ * manager a driver names via POST /team/nominate-manager, not to the
+ * driver. Same accent colour and structure as sendTeamInviteEmail's admin
+ * branch, since accepting this makes them a Milesheet org admin the same
+ * way. driverName and companyName both come from user input, so both are
+ * escaped before going into the HTML.
+ */
+export async function sendManagerNominationEmail(
+  email: string,
+  driverName: string,
+  companyName: string,
+  token: string
+): Promise<void> {
+  const base = process.env.API_BASE_URL || "https://mileclear.com";
+  const url = `${base}/milesheet/invite/${token}`;
+  const safeDriver = escapeHtml(driverName);
+  const safeCompany = escapeHtml(companyName);
+  const subject = `${driverName} has asked you to handle their mileage claims`;
+  const html = `
+    <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 560px; margin: 0 auto; padding: 32px 24px;">
+      <h2 style="color: #1a1a1a; margin-bottom: 8px;">${safeDriver} would like you to manage mileage claims for ${safeCompany}</h2>
+      <p style="color: #333; font-size: 15px; line-height: 1.6;"><strong>${safeDriver}</strong> at <strong>${safeCompany}</strong> uses MileClear to record their business mileage, and has asked you to handle their claims. Accepting below sets up Milesheet, the company side of MileClear, for ${safeCompany}.</p>
+      <p style="color: #333; font-size: 15px; line-height: 1.6;">Once you are set up, you can invite the rest of the team, see everyone's month in one place, approve it, and download a single file for payroll each month.</p>
+      <p style="margin: 24px 0;">
+        <a href="${url}" style="background: #6366f1; color: #ffffff; font-weight: 700; padding: 12px 28px; border-radius: 9999px; text-decoration: none; display: inline-block;">Accept and set up ${safeCompany}</a>
+      </p>
+      <p style="color: #888; font-size: 12px;">The link is valid for 7 days. If you don't have a MileClear account yet, you can create one on the same page. If you weren't expecting this, you can ignore it and nothing will be set up.</p>
+    </div>
+  `;
+
+  if (!transporter) {
+    if (process.env.NODE_ENV === "production") {
+      throw new Error("SMTP not configured - cannot send manager nomination in production");
+    }
+    console.log(`[EMAIL] Manager nomination from ${driverName} (${companyName}) -> ${email}: ${url} (dev only)`);
+    return;
+  }
+  await transporter.sendMail({ from: FROM, to: email, replyTo: "gair@mileclear.com", subject, html });
+}

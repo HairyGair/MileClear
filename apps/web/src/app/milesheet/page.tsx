@@ -4,9 +4,14 @@ import MilesheetHeader from "../../components/milesheet/MilesheetHeader";
 import MilesheetFooter from "../../components/milesheet/MilesheetFooter";
 
 export const metadata: Metadata = {
-  title: "Staff mileage claims, ready for payroll",
+  // Targeted at "business mileage app" and "mileage tracking software", the
+  // only two employer phrases with any volume at all (40 and 30 UK searches a
+  // month). This page is not expected to bring traffic. It exists so that the
+  // rare person who does look finds something good, and so paid clicks and
+  // referrals have somewhere to land.
+  title: "Business mileage app and mileage tracking software for employers",
   description:
-    "The company side of MileClear. Your staff drive, Milesheet records the miles automatically, you approve the month, and payroll gets one file at HMRC approved rates.",
+    "Milesheet is the company side of MileClear: business mileage tracking software for UK employers. Staff mileage is recorded automatically, you approve the month, and payroll gets one file at HMRC approved rates.",
   alternates: { canonical: "https://mileclear.com/milesheet" },
 };
 
@@ -107,6 +112,22 @@ export default function MilesheetPage() {
                 Milesheet replaces the memory and the spreadsheet with a recorded journey, an
                 approval with a name and a date against it, and a rate calculation you can show
                 anyone. It is quicker for the driver, quicker for you, and it stands up.
+              </p>
+            </div>
+          </section>
+
+          <section className="ms-section">
+            <h2 className="ms-section__title">A business mileage app your staff will use</h2>
+            <div className="ms-narrow" style={{ margin: 0 }}>
+              <p className="ms-lede">
+                Most mileage tracking software fails for the same reason: it asks the driver to do
+                something. Press start, press stop, remember the postcode, fill the form in on Friday
+                for a journey on Tuesday. People forget, and the claim gets reconstructed from memory.
+              </p>
+              <p className="ms-lede">
+                MileClear records the journey by itself in the background, which is the part your staff
+                notice, and Milesheet turns those journeys into a month you can approve, which is the
+                part you notice. Nobody has to be disciplined for the numbers to be right.
               </p>
             </div>
           </section>

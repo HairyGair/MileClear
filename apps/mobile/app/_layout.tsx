@@ -621,6 +621,7 @@ function RootNavigator() {
         <Stack.Screen name="trip-form" options={{ headerShown: true, title: "Add Trip" }} />
         <Stack.Screen name="trip-split" options={{ headerShown: true, title: "Split Trip" }} />
         <Stack.Screen name="vehicle-form" options={{ headerShown: true, title: "Add Vehicle" }} />
+        <Stack.Screen name="nominate-manager" options={{ headerShown: true, title: "Invite your manager" }} />
         <Stack.Screen name="work-schedule" options={{ headerShown: true, title: "Work Schedule" }} />
         <Stack.Screen name="earning-form" options={{ headerShown: true, title: "Add Earning" }} />
         <Stack.Screen name="fuel-form" options={{ headerShown: true, title: "Log Fuel" }} />

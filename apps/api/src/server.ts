@@ -29,6 +29,7 @@ import { contactRoutes } from "./routes/contact/index.js";
 import { teamInterestRoutes } from "./routes/teamInterest/index.js";
 import { teamRoutes } from "./routes/team/index.js";
 import { teamSelfServeRoutes } from "./routes/team/selfServe.js";
+import { nominateManagerRoutes } from "./routes/team/nominate.js";
 import { adminRoutes } from "./routes/admin/index.js";
 import { feedbackRoutes } from "./routes/feedback/index.js";
 import { notificationRoutes } from "./routes/notifications/index.js";
@@ -223,6 +224,9 @@ await app.register(teamRoutes, { prefix: "/team" });
 // Same prefix, disjoint paths (/self-serve, /billing*): Phase 3 lives in its
 // own file so billing changes cannot disturb the Phase 1 membership routes.
 await app.register(teamSelfServeRoutes, { prefix: "/team" });
+// Driver names their manager. Same prefix, its own path, its own file: the
+// primary acquisition route should not share a file with membership admin.
+await app.register(nominateManagerRoutes, { prefix: "/team" });
 await app.register(adminRoutes, { prefix: "/admin" });
 await app.register(feedbackRoutes, { prefix: "/feedback" });
 await app.register(notificationRoutes, { prefix: "/notifications" });

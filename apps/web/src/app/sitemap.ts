@@ -31,7 +31,16 @@ export default function sitemap(): MetadataRoute.Sitemap {
     { url: `${BASE_URL}/evri-mileage-tracker`, lastModified: new Date("2026-04-25") },
     { url: `${BASE_URL}/delivery-driver-mileage-tracker`, lastModified: new Date("2026-04-29") },
     { url: `${BASE_URL}/employee-mileage-tracker`, lastModified: new Date("2026-08-21") },
-    { url: `${BASE_URL}/teams`, lastModified: new Date("2026-08-21") },
+    // /teams now 308s to /milesheet, and a sitemap should not advertise a
+    // redirect. The destination is listed instead.
+    { url: `${BASE_URL}/milesheet`, lastModified: new Date("2026-08-25") },
+    // The HMRC cluster. This is the spine: the market read found our
+    // competitor takes ~28,000 UK clicks a month from tax content and none
+    // from product pages.
+    { url: `${BASE_URL}/mileage-calculator`, lastModified: new Date("2026-08-25") },
+    { url: `${BASE_URL}/approved-mileage-allowance-payments`, lastModified: new Date("2026-08-25") },
+    { url: `${BASE_URL}/mileage-claim-form-template`, lastModified: new Date("2026-08-25") },
+    { url: `${BASE_URL}/expenses-policy-template`, lastModified: new Date("2026-08-25") },
     { url: `${BASE_URL}/hmrc-mileage-rates`, lastModified: new Date("2026-06-08") },
     { url: `${BASE_URL}/ev-tax-relief`, lastModified: new Date("2026-06-14") },
     { url: `${BASE_URL}/ev-mileage-tracker`, lastModified: new Date("2026-07-25") },

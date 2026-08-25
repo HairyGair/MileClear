@@ -164,7 +164,7 @@ export async function teamRoutes(app: FastifyInstance) {
 
       const membership = await prisma.orgMembership.findUnique({
         where: { inviteTokenHash: hashToken(parsed.data.token) },
-        select: { id: true, orgId: true, status: true, inviteExpiresAt: true, org: { select: { name: true } } },
+        select: { id: true, orgId: true, role: true, status: true, inviteExpiresAt: true, org: { select: { name: true } } },
       });
       if (!membership || membership.status !== "invited") {
         return reply.status(404).send({ error: "Invite not found or already used." });
@@ -182,10 +182,27 @@ export async function teamRoutes(app: FastifyInstance) {
         return reply.status(409).send({ error: "You are already in a team. Ask us to move you." });
       }
 
+      const acceptingRole = membership.role;
+
       await prisma.orgMembership.update({
         where: { id: membership.id },
         data: { userId: request.userId!, status: "active", acceptedAt: new Date(), inviteTokenHash: null },
       });
+
+      // Manager-nominated orgs (POST /team/nominate-manager) leave the
+      // nominating driver's own membership "invited" with no token - they
+      // asked for this, so there was never anything for them to accept.
+      // The moment the admin they nominated accepts, those waiting drivers
+      // become real: activate every membership in this org that already
+      // has a userId (i.e. was created by a nomination, not an admin
+      // invite) and is still sitting at "invited".
+      if (acceptingRole === "admin") {
+        await prisma.orgMembership.updateMany({
+          where: { orgId: membership.orgId, status: "invited", userId: { not: null } },
+          data: { status: "active", acceptedAt: new Date() },
+        });
+      }
+
       // Seat count just changed. Fire-and-forget by design: syncSeats never
       // throws, and a Stripe hiccup must not fail the driver's acceptance.
       void syncSeats(membership.orgId);

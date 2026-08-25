@@ -43,6 +43,19 @@ export async function fuelRoutes(app: FastifyInstance) {
     radiusMiles: z.coerce.number().positive().max(50).default(FUEL_PRICE_DEFAULT_RADIUS_MILES),
   });
 
+  // Public: the UK national average pump prices on their own, with no
+  // location needed. The app has always had this, but only bundled into a
+  // nearby-stations lookup. The website's mileage calculator wants the
+  // number by itself so it can open with a real fuel price instead of a
+  // hardcoded guess.
+  app.get("/national-averages", async (_request, reply) => {
+    const nationalAverage = await getNationalAverages();
+    if (!nationalAverage) {
+      return reply.status(503).send({ error: "National average prices are unavailable right now." });
+    }
+    return reply.send({ data: nationalAverage });
+  });
+
   app.get("/prices", async (request, reply) => {
     const parsed = pricesQuerySchema.safeParse(request.query);
     if (!parsed.success) {

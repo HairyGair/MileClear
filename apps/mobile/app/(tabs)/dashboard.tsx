@@ -15,6 +15,7 @@ import {
 } from "react-native";
 import { AppModal } from "../../components/AppModal";
 import { AutoNoteNudgeCard } from "../../components/AutoNoteNudgeCard";
+import { NominateManagerCard } from "../../components/NominateManagerCard";
 import { Button } from "../../components/Button";
 import { Skeleton } from "../../components/Skeleton";
 import { FadeInStagger } from "../../components/FadeInStagger";
@@ -224,6 +225,12 @@ export default function DashboardScreen() {
 
   // Vehicle nudge — show when user has no vehicles at all
   const showVehicleNudge = !loading && vehicles.length === 0;
+
+  // Whether this driver has at least one trip that counts toward an HMRC
+  // deduction — a decent proxy for "has business mileage" without a
+  // separate query, since NominateManagerCard needs it to gate the
+  // employer-mileage prompt for gig-only drivers.
+  const hasBusinessMileage = (stats?.deductionPence ?? 0) > 0;
 
   // Data-quality improvement banner — fires once per user when they
   // open the app after a server-side backfill corrected some of their
@@ -2107,6 +2114,12 @@ export default function DashboardScreen() {
           </View>
         </TouchableOpacity>
       )}
+
+      {/* Nominate-manager prompt — Milesheet's driver-side acquisition loop.
+          Self-gated (company status, workType, dismissal), so it's safe to
+          render unconditionally here; work mode only, since claiming from
+          an employer is a work concept a gig-only driver never sees. */}
+      {isWork && <NominateManagerCard hasBusinessMileage={hasBusinessMileage} />}
 
       {/* ── Personal Dashboard (layout-aware) ── */}
       {isPersonal && (

@@ -88,7 +88,10 @@ export default function SeatBillingCard() {
 
   if (!billing) return null;
 
-  const monthlyTotalPence = billing.pricePerSeatPence * billing.activeSeats;
+  // A null price means nobody has set one yet. Show the seat count and say so,
+  // rather than putting a figure in front of a customer that we have not agreed.
+  const seatPricePence = billing.pricePerSeatPence;
+  const monthlyTotalPence = seatPricePence == null ? null : seatPricePence * billing.activeSeats;
   const overThreshold = billing.activeSeats >= INVOICE_THRESHOLD_SEATS;
 
   // Free pilot: say so plainly, nothing to pay, no upsell.
@@ -130,10 +133,11 @@ export default function SeatBillingCard() {
               />
               <div>
                 <div style={{ fontWeight: 600, color: "var(--text-white)" }}>
-                  {formatPence(monthlyTotalPence)}/mo
+                  {monthlyTotalPence == null ? "Price to be confirmed" : `${formatPence(monthlyTotalPence)}/mo`}
                 </div>
                 <div style={{ fontSize: "0.8125rem", color: "var(--text-muted)", marginTop: "0.25rem" }}>
-                  {formatPence(billing.pricePerSeatPence)}/seat &middot; {billing.activeSeats} seat
+                  {seatPricePence != null && `${formatPence(seatPricePence)}/seat · `}
+                  {billing.activeSeats} seat
                   {billing.activeSeats === 1 ? "" : "s"}
                   {billing.currentPeriodEnd &&
                     ` · renews ${new Date(billing.currentPeriodEnd).toLocaleDateString("en-GB")}`}
@@ -165,9 +169,11 @@ export default function SeatBillingCard() {
             {billing.status === "canceled"
               ? "Billing for this team was cancelled. Start it again to keep seats topped up automatically as drivers join."
               : "Start billing to pay per active driver, automatically, as people join or leave."}
-            {" "}Currently {formatPence(billing.pricePerSeatPence)}/seat/month.
+            {seatPricePence == null
+              ? " We have not set the per driver price yet, so nothing can be charged. We will agree it with you before any billing starts."
+              : ` Currently ${formatPence(seatPricePence)}/seat/month.`}
           </p>
-          <Button variant="primary" size="sm" onClick={startCheckout} disabled={actionLoading || billing.activeSeats < 1}>
+          <Button variant="primary" size="sm" onClick={startCheckout} disabled={actionLoading || billing.activeSeats < 1 || seatPricePence == null}>
             {actionLoading ? "Redirecting..." : "Start billing"}
           </Button>
           {billing.activeSeats < 1 && (

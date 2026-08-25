@@ -1635,7 +1635,12 @@ export interface TeamSeatBilling {
   pilotFree: boolean;
   activeSeats: number;
   seatsBilled: number | null;
-  pricePerSeatPence: number;
+  /**
+   * Null when no price has been set. The market read was explicit that
+   * Milesheet must not be priced on an inbound assumption, so an
+   * undecided price is shown as undecided rather than invented.
+   */
+  pricePerSeatPence: number | null;
   status: "pilot" | "none" | "active" | "past_due" | "canceled";
   currentPeriodEnd: string | null;
   billingEmail: string | null;
