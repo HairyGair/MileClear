@@ -474,7 +474,7 @@ export default function PrivacyPolicy() {
                 <p className="legal__card-text" style={{marginTop: '0.75rem'}}><strong>Expo Push Service (Push Notifications)</strong></p>
                 <p className="legal__card-text legal__text--small">Push token and notification content only, used to deliver scheduled notifications (weekly summaries, streak reminders, tax deadline alerts).</p>
                 <p className="legal__card-text" style={{marginTop: '0.75rem'}}><strong>Apple &amp; Google (Authentication)</strong></p>
-                <p className="legal__card-text legal__text--small">Sign-in only. We share: email address (sometimes) and sign-in request. We verify the token on our servers; Apple/Google do not see your other data. (Google Sign-In is currently paused pending future activation.)</p>
+                <p className="legal__card-text legal__text--small">Sign-in only. We share: email address (sometimes) and sign-in request. We verify the token on our servers; Apple/Google do not see your other data.</p>
                 <p className="legal__card-text" style={{marginTop: '0.75rem'}}><strong>Google Play (In-App Purchase - Android)</strong></p>
                 <p className="legal__card-text legal__text--small">Android subscriptions are processed by Google via Google Play. We share: the purchase token and order ID so we can confirm your subscription with Google&apos;s Play Developer API. Payment details are managed entirely by Google; we never see them.</p>
                 <p className="legal__card-text" style={{marginTop: '0.75rem'}}><strong>Firebase Cloud Messaging (Push Notifications - Android)</strong></p>
