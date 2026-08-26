@@ -37,7 +37,7 @@ export default function PrivacyPolicy() {
           {/* Header */}
           <div className="legal__header">
             <h1 className="heading">Privacy Policy</h1>
-            <p className="legal__date">Last updated: 22 April 2026</p>
+            <p className="legal__date">Last updated: 26 August 2026</p>
           </div>
 
           {/* Table of Contents */}
@@ -94,7 +94,7 @@ export default function PrivacyPolicy() {
                   <li className="legal__list-item">Display name (optional)</li>
                   <li className="legal__list-item">Password (hashed with bcryptjs, never stored in plain text)</li>
                   <li className="legal__list-item">Apple ID (if using Apple Sign-In)</li>
-                  <li className="legal__list-item">Google ID (if using Google Sign-In, pending future activation)</li>
+                  <li className="legal__list-item">Google ID (if using Google Sign-In)</li>
                   <li className="legal__list-item">Full name (optional, used on tax documents and PDF exports)</li>
                   <li className="legal__list-item">Account creation date and login history</li>
                   <li className="legal__list-item">Avatar selection (user-chosen vehicle illustration, never a photo)</li>
@@ -132,7 +132,7 @@ export default function PrivacyPolicy() {
                   <li className="legal__list-item">Shift start and end times</li>
                   <li className="legal__list-item">Trip start and end coordinates</li>
                   <li className="legal__list-item">Trip addresses and route information</li>
-                  <li className="legal__list-item">Distance travelled in miles (calculated via OSRM road routing and Haversine formula)</li>
+                  <li className="legal__list-item">Distance travelled in miles (calculated via road routing (GraphHopper, hosted by MileClear, with Google Routes as a fallback) and the Haversine formula)</li>
                   <li className="legal__list-item">Trip classification (business or personal)</li>
                   <li className="legal__list-item">GPS breadcrumbs and precise location history</li>
                   <li className="legal__list-item">Trip notes and comments you add</li>
@@ -145,10 +145,11 @@ export default function PrivacyPolicy() {
                 <ul className="legal__list">
                   <li className="legal__list-item">Earnings from gig platforms (manually entered)</li>
                   <li className="legal__list-item">CSV import of earnings data with platform auto-detection</li>
-                  <li className="legal__list-item">Open Banking data via Plaid (premium users only) for automatic transaction import</li>
-                  <li className="legal__list-item">Payment method information (card details are processed by Stripe or Apple; we never store them)</li>
+                  <li className="legal__list-item">Open Banking data via TrueLayer (premium users only) for automatic transaction import</li>
+                  <li className="legal__list-item">Payment method information (card details are processed by Stripe, Apple or Google Play; we never store them)</li>
                   <li className="legal__list-item">Stripe customer ID and subscription ID (web purchases)</li>
                   <li className="legal__list-item">Apple original transaction ID and appAccountToken (your UUID passed to Apple for linking IAP to your account)</li>
+                  <li className="legal__list-item">Google Play purchase token and order ID (Android subscriptions)</li>
                 </ul>
               </div>
 
@@ -249,7 +250,7 @@ export default function PrivacyPolicy() {
               <div className="legal__card">
                 <h3 className="legal__card-title">Premium Features</h3>
                 <ul className="legal__list">
-                  <li className="legal__list-item">Earnings tracking and automatic import via Open Banking (Plaid)</li>
+                  <li className="legal__list-item">Earnings tracking and automatic import via Open Banking (TrueLayer)</li>
                   <li className="legal__list-item">Advanced analytics and performance metrics</li>
                   <li className="legal__list-item">HMRC export functionality</li>
                   <li className="legal__list-item">Unlimited saved locations (free tier capped at 2)</li>
@@ -268,7 +269,7 @@ export default function PrivacyPolicy() {
               <div className="legal__card">
                 <h3 className="legal__card-title">Billing and Subscriptions</h3>
                 <ul className="legal__list">
-                  <li className="legal__list-item">Processing subscription payments via Stripe (web) or Apple In-App Purchase (iOS)</li>
+                  <li className="legal__list-item">Processing subscription payments via Stripe (web), Apple In-App Purchase (iOS) or Google Play Billing (Android)</li>
                   <li className="legal__list-item">Validating Apple IAP receipts and transaction IDs with Apple&apos;s App Store Server API</li>
                   <li className="legal__list-item">Managing premium feature access</li>
                   <li className="legal__list-item">Handling refunds and cancellations</li>
@@ -324,7 +325,7 @@ export default function PrivacyPolicy() {
                   <li className="legal__list-item">Background location tracking during active shifts</li>
                   <li className="legal__list-item">Significant location change detection outside shifts</li>
                   <li className="legal__list-item">Sending marketing communications or newsletters (opt-in)</li>
-                  <li className="legal__list-item">Using Open Banking (Plaid) to import earnings data</li>
+                  <li className="legal__list-item">Using Open Banking (TrueLayer) to import earnings data</li>
                   <li className="legal__list-item">Granting accountants read-only access to your data via token</li>
                 </ul>
                 <p className="legal__card-text legal__text--small" style={{marginTop: '1rem'}}>
@@ -404,7 +405,7 @@ export default function PrivacyPolicy() {
                   <li className="legal__list-item"><strong>Departure Anchor:</strong> A temporary 200-metre geofence is placed around your last known stationary position. When you physically leave this area, drive detection is activated. This geofence operates at the OS level and can detect movement even if the app has been closed.</li>
                   <li className="legal__list-item"><strong>Automatic Trip Recording:</strong> When driving is detected outside an active shift, MileClear may silently record GPS coordinates and automatically save a trip when a stop is detected (5+ minutes idle). These auto-recorded trips are stored as &ldquo;unclassified&rdquo; for your review.</li>
                   <li className="legal__list-item"><strong>Stop Detection:</strong> We identify stops and trip boundaries by detecting when movement drops below 2.2 mph for more than 5 minutes during automatic recording, or when speed equals 0 for more than 2 minutes during active shifts.</li>
-                  <li className="legal__list-item"><strong>Road Routing:</strong> For distance accuracy, we send GPS traces to OSRM (OpenStreetMap Routing Machine), a public open-source service, for map-matching. This improves trip distance accuracy but means location traces pass through OSRM&apos;s servers. OSRM does not store your data long-term.</li>
+                  <li className="legal__list-item"><strong>Road Routing and Addresses:</strong> For distance accuracy, GPS traces from your trips are matched to the road network by GraphHopper, a routing engine hosted on MileClear&apos;s own server, with Google Routes as a fallback when GraphHopper cannot route a trip. Start and end coordinates are turned into street addresses by Nominatim (OpenStreetMap) and address search uses Google Places. Only coordinates are sent; no name, email or account identifier is attached to these requests.</li>
                 </ul>
               </div>
 
@@ -460,20 +461,28 @@ export default function PrivacyPolicy() {
                 <p className="legal__card-text legal__text--small">PCI DSS Level 1 compliant. We share: Stripe customer ID, subscription status, and transaction records. Card details are entered directly into Stripe&apos;s secure forms - we never see them.</p>
                 <p className="legal__card-text" style={{marginTop: '0.75rem'}}><strong>Apple (In-App Purchase - iOS)</strong></p>
                 <p className="legal__card-text legal__text--small">iOS subscriptions are processed by Apple via the App Store. We share: transaction ID and receipt data for validation with Apple&apos;s App Store Server API. Payment details are managed entirely by Apple - we never see them. We also pass your MileClear UUID to Apple as the appAccountToken for webhook linking.</p>
-                <p className="legal__card-text" style={{marginTop: '0.75rem'}}><strong>Plaid (Open Banking)</strong></p>
-                <p className="legal__card-text legal__text--small">Premium users only. Plaid Financial Ltd is FCA-authorised to provide Open Banking services in the UK. We share: a request to connect your bank account for earnings auto-import. Plaid acts as the intermediary - they do not store your bank login, only aggregated transaction data. Access tokens are encrypted at rest on our servers.</p>
+                <p className="legal__card-text" style={{marginTop: '0.75rem'}}><strong>TrueLayer (Open Banking)</strong></p>
+                <p className="legal__card-text legal__text--small">Premium users only. TrueLayer Limited is FCA-authorised to provide Open Banking services in the UK. We share: a request to connect your bank account for earnings auto-import. TrueLayer acts as the intermediary: we never see your bank login, only the read-only transaction data you authorise. Access tokens are encrypted at rest on our servers and you can disconnect at any time in the app.</p>
                 <p className="legal__card-text" style={{marginTop: '0.75rem'}}><strong>DVLA (Vehicle Registration Lookup)</strong></p>
                 <p className="legal__card-text legal__text--small">We share: your vehicle registration plate to confirm make, model, fuel type, and CO2 emissions. Results are cached for 24 hours. DVLA does not store your lookup requests beyond processing.</p>
-                <p className="legal__card-text" style={{marginTop: '0.75rem'}}><strong>OSRM (OpenStreetMap Routing Machine - Road Distance)</strong></p>
-                <p className="legal__card-text legal__text--small">Public open-source routing service. We share: GPS coordinate traces from your trips for map-matching to improve distance accuracy. OSRM is stateless and does not store your traces long-term. No personal data is linked to these traces.</p>
+                <p className="legal__card-text" style={{marginTop: '0.75rem'}}><strong>GraphHopper, Google Routes, Nominatim and Google Places (Routing and Addresses)</strong></p>
+                <p className="legal__card-text legal__text--small">GraphHopper runs on MileClear&apos;s own server, so trip traces sent to it do not leave our infrastructure. Google Routes (fallback routing) and Google Places (address search) receive coordinates or the text you type; Nominatim (OpenStreetMap Foundation) receives start and end coordinates to produce street addresses. None of these requests carry your name, email or account identifier.</p>
                 <p className="legal__card-text" style={{marginTop: '0.75rem'}}><strong>UK Government Fuel Finder API</strong></p>
                 <p className="legal__card-text legal__text--small">We share: your device&apos;s approximate location (lat/lng) to retrieve nearby fuel station prices. No personally identifiable data is shared. Fuel Finder is the official UK government mandatory fuel price reporting API.</p>
-                <p className="legal__card-text" style={{marginTop: '0.75rem'}}><strong>Brevo (Email SMTP)</strong></p>
-                <p className="legal__card-text legal__text--small">We share: your email address for sending account verification codes, password reset links, welcome emails, and waitlist confirmations. Brevo is a GDPR-compliant email service provider based in France.</p>
+                <p className="legal__card-text" style={{marginTop: '0.75rem'}}><strong>Resend and Brevo (Email)</strong></p>
+                <p className="legal__card-text legal__text--small">We share: your email address and the content of the emails we send you (verification codes, password resets, welcome and product update emails, support replies). Resend is our primary email provider; Brevo (France) is the fallback. Both are GDPR-compliant email service providers.</p>
                 <p className="legal__card-text" style={{marginTop: '0.75rem'}}><strong>Expo Push Service (Push Notifications)</strong></p>
                 <p className="legal__card-text legal__text--small">Push token and notification content only, used to deliver scheduled notifications (weekly summaries, streak reminders, tax deadline alerts).</p>
                 <p className="legal__card-text" style={{marginTop: '0.75rem'}}><strong>Apple &amp; Google (Authentication)</strong></p>
                 <p className="legal__card-text legal__text--small">Sign-in only. We share: email address (sometimes) and sign-in request. We verify the token on our servers; Apple/Google do not see your other data. (Google Sign-In is currently paused pending future activation.)</p>
+                <p className="legal__card-text" style={{marginTop: '0.75rem'}}><strong>Google Play (In-App Purchase - Android)</strong></p>
+                <p className="legal__card-text legal__text--small">Android subscriptions are processed by Google via Google Play. We share: the purchase token and order ID so we can confirm your subscription with Google&apos;s Play Developer API. Payment details are managed entirely by Google; we never see them.</p>
+                <p className="legal__card-text" style={{marginTop: '0.75rem'}}><strong>Firebase Cloud Messaging (Push Notifications - Android)</strong></p>
+                <p className="legal__card-text legal__text--small">On Android, push notifications are delivered through Google&apos;s Firebase Cloud Messaging underneath the Expo Push Service. Push token and notification content only.</p>
+                <p className="legal__card-text" style={{marginTop: '0.75rem'}}><strong>DVSA (MOT History)</strong></p>
+                <p className="legal__card-text legal__text--small">We share: your vehicle registration plate to retrieve MOT test history and expiry dates for reminders.</p>
+                <p className="legal__card-text" style={{marginTop: '0.75rem'}}><strong>Discord (Internal Service Alerts)</strong></p>
+                <p className="legal__card-text legal__text--small">Our team receives operational alerts in a private Discord workspace so we can respond to support requests, billing problems and tracking failures. These alerts can include your email address, account ID, display name, subscription status and trip counts. They never include your location data or trip routes. Discord Inc. processes this data on our behalf under its standard data processing terms.</p>
               </div>
 
               <div className="legal__card">
@@ -816,10 +825,12 @@ export default function PrivacyPolicy() {
                 </p>
                 <ul className="legal__list">
                   <li className="legal__list-item"><strong>Stripe (USA):</strong> Subject to Data Processing Agreement and Standard Contractual Clauses (SCCs)</li>
-                  <li className="legal__list-item"><strong>Plaid (USA):</strong> Registered in EU/UK as Plaid Financial Ltd. Subject to DPA and SCCs</li>
+                  <li className="legal__list-item"><strong>TrueLayer (UK):</strong> UK-based, FCA-authorised Open Banking provider; no international transfer</li>
                   <li className="legal__list-item"><strong>Apple (USA):</strong> Authentication verification and In-App Purchase transaction validation. Subject to Apple&apos;s Data Processing Agreement</li>
-                  <li className="legal__list-item"><strong>Google (USA):</strong> Limited data transfer for authentication verification only (pending future activation)</li>
+                  <li className="legal__list-item"><strong>Google (USA):</strong> Authentication verification, Google Play subscription validation, Firebase Cloud Messaging (Android push), Google Routes and Places. Subject to Google&apos;s Data Processing Terms and SCCs</li>
                   <li className="legal__list-item"><strong>Brevo (France):</strong> Email service, GDPR-compliant EU processor</li>
+                  <li className="legal__list-item"><strong>Resend (USA):</strong> Primary email service. Subject to DPA and SCCs</li>
+                  <li className="legal__list-item"><strong>Discord (USA):</strong> Internal operational alerts. Subject to Discord&apos;s Data Processing Addendum and SCCs</li>
                 </ul>
                 <p className="legal__card-text legal__text--small" style={{marginTop: '1rem'}}>
                   All international transfers comply with UK GDPR Article 46 (SCCs) and Data Protection Act 2018 Chapter 5. We have reviewed these services&apos; security certifications and compliance frameworks.

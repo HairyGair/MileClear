@@ -97,6 +97,7 @@ export default function Footer() {
               <h3 className="footer__col-title">Legal</h3>
               <ul className="footer__col-list">
                 <li><a href="/privacy" className="footer__link">Privacy</a></li>
+                <li><a href="/delete-account" className="footer__link">Delete account</a></li>
                 <li><a href="/terms" className="footer__link">Terms</a></li>
                 <li><a href="/accessibility" className="footer__link">Accessibility</a></li>
                 <li><CookiePreferencesLink /></li>
