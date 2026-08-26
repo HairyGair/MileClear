@@ -23,6 +23,8 @@
 // STATUS: scaffolding. The event→pipeline wiring is in place and reuses the
 // real finalize path; config values are sensible defaults to tune on-device.
 
+import Constants from "expo-constants";
+import { Platform } from "react-native";
 import { getDatabase } from "../db/index";
 import {
   logDetectionEvent,
@@ -280,6 +282,32 @@ export function isNativeEngineTracking(): boolean {
   return loadNativeModule() !== null && !licenceFailed;
 }
 
+// ─── Android licence key present in the build? ──────────────────────────────
+//
+// RNBG's plugin writes app.json's `license` into the manifest (an empty string
+// becomes "UNDEFINED"). An unlicensed RELEASE build still loads the module and
+// ready() succeeds, but start() rejects AND the SDK shows its own
+// "LICENSE VALIDATION FAILURE" toast to the driver (seen on the 26 Aug 2026
+// emulator run). So on Android we never call start() unless the build was
+// made with a key: the JS engine takes over immediately and quietly. Buying
+// the licence and rebuilding flips this to true with no other change.
+function androidLicenceKeyConfigured(): boolean {
+  if (Platform.OS !== "android") return true;
+  try {
+    const plugins = (Constants.expoConfig?.plugins ?? []) as unknown[];
+    for (const entry of plugins) {
+      if (!Array.isArray(entry)) continue;
+      const [name, opts] = entry as [unknown, { license?: unknown } | undefined];
+      if (name === "react-native-background-geolocation") {
+        return typeof opts?.license === "string" && opts.license.trim().length > 0;
+      }
+    }
+  } catch {
+    // fall through: treat as unlicensed rather than risk the toast
+  }
+  return false;
+}
+
 /** True when RNBG explicitly rejected the licence on this device. */
 export function hasNativeLicenceFailed(): boolean {
   return licenceFailed;
@@ -303,6 +331,17 @@ export async function startNativeLocationEngine(): Promise<boolean> {
   if (!BGGeo) return false;
   if (started) return true;
   if (startPromise) return startPromise; // a start is already in flight
+  if (!androidLicenceKeyConfigured()) {
+    // Unlicensed Android build: do not touch start() (it rejects and the SDK
+    // toasts LICENSE VALIDATION FAILURE at the driver). Record the verdict so
+    // the dashboard shows the Basic tracking copy from the first launch.
+    if (!licenceFailed) {
+      licenceFailed = true;
+      void persistLicenceFailure();
+      logDetectionEvent("native_engine_unlicensed_build", {}).catch(() => {});
+    }
+    return false;
+  }
 
   startPromise = (async () => {
     try {
