@@ -16,8 +16,7 @@
       "env": {
         "EXPO_PUBLIC_API_URL": "https://api.mileclear.com",
         "EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID": "194042004-v652n998vp3qcar8krul6516vdpske3e.apps.googleusercontent.com",
-        "EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID": "194042004-s3b6j7s7uh0ht0k3kvvgeh39nvuigldd.apps.googleusercontent.com",
-        "EXPO_PUBLIC_GOOGLE_ANDROID_WEB_CLIENT_ID": "548565204067-suq98qa5a1efivgvdtsf1ccmim6fcuq4.apps.googleusercontent.com"
+        "EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID": "194042004-s3b6j7s7uh0ht0k3kvvgeh39nvuigldd.apps.googleusercontent.com"
       }
     },
     "development-simulator": {
@@ -29,8 +28,7 @@
       "env": {
         "EXPO_PUBLIC_API_URL": "https://api.mileclear.com",
         "EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID": "194042004-v652n998vp3qcar8krul6516vdpske3e.apps.googleusercontent.com",
-        "EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID": "194042004-s3b6j7s7uh0ht0k3kvvgeh39nvuigldd.apps.googleusercontent.com",
-        "EXPO_PUBLIC_GOOGLE_ANDROID_WEB_CLIENT_ID": "548565204067-suq98qa5a1efivgvdtsf1ccmim6fcuq4.apps.googleusercontent.com"
+        "EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID": "194042004-s3b6j7s7uh0ht0k3kvvgeh39nvuigldd.apps.googleusercontent.com"
       }
     },
     "preview": {
@@ -42,8 +40,7 @@
       "env": {
         "EXPO_PUBLIC_API_URL": "https://api.mileclear.com",
         "EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID": "194042004-v652n998vp3qcar8krul6516vdpske3e.apps.googleusercontent.com",
-        "EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID": "194042004-s3b6j7s7uh0ht0k3kvvgeh39nvuigldd.apps.googleusercontent.com",
-        "EXPO_PUBLIC_GOOGLE_ANDROID_WEB_CLIENT_ID": "548565204067-suq98qa5a1efivgvdtsf1ccmim6fcuq4.apps.googleusercontent.com"
+        "EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID": "194042004-s3b6j7s7uh0ht0k3kvvgeh39nvuigldd.apps.googleusercontent.com"
       }
     },
     "preview-simulator": {
@@ -54,8 +51,7 @@
       "env": {
         "EXPO_PUBLIC_API_URL": "https://api.mileclear.com",
         "EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID": "194042004-v652n998vp3qcar8krul6516vdpske3e.apps.googleusercontent.com",
-        "EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID": "194042004-s3b6j7s7uh0ht0k3kvvgeh39nvuigldd.apps.googleusercontent.com",
-        "EXPO_PUBLIC_GOOGLE_ANDROID_WEB_CLIENT_ID": "548565204067-suq98qa5a1efivgvdtsf1ccmim6fcuq4.apps.googleusercontent.com"
+        "EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID": "194042004-s3b6j7s7uh0ht0k3kvvgeh39nvuigldd.apps.googleusercontent.com"
       }
     },
     "production": {
@@ -70,8 +66,7 @@
       "env": {
         "EXPO_PUBLIC_API_URL": "https://api.mileclear.com",
         "EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID": "194042004-v652n998vp3qcar8krul6516vdpske3e.apps.googleusercontent.com",
-        "EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID": "194042004-s3b6j7s7uh0ht0k3kvvgeh39nvuigldd.apps.googleusercontent.com",
-        "EXPO_PUBLIC_GOOGLE_ANDROID_WEB_CLIENT_ID": "548565204067-suq98qa5a1efivgvdtsf1ccmim6fcuq4.apps.googleusercontent.com"
+        "EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID": "194042004-s3b6j7s7uh0ht0k3kvvgeh39nvuigldd.apps.googleusercontent.com"
       }
     }
   },
