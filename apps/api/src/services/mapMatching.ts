@@ -105,6 +105,17 @@ export function isMatchPlausible(
  */
 export const EDGE_PHANTOM_ACCURACY_M = 500;
 export const EDGE_PHANTOM_MIN_JUMP_MILES = 0.5;
+/** Second signature (Rachel, 25 Aug 2026): a stale edge fix can CLAIM good
+ *  accuracy (50 m) yet sit 1.2 mi from the next fix 52 s later, an 86 mph
+ *  jump no car made. When both points carry timestamps, an edge whose
+ *  implied speed to its neighbour exceeds this is phantom whatever it
+ *  claims. 90 mph is above any sustained UK road speed. */
+export const EDGE_PHANTOM_MAX_JUMP_MPH = 90;
+/** Third signature: a far edge fix whose remaining trail never leaves one
+ *  spot (Rachel's 25 Aug case: seven fixes shuffling 20 m at a client's
+ *  house behind a first fix 1.24 mi away). A real drive moves; a trail
+ *  spanning under this is a parked phone, so the far edge is stale. */
+export const EDGE_PHANTOM_STATIONARY_SPAN_MILES = 0.1;
 const MAX_EDGE_TRIM = 3;
 const MIN_POINTS_AFTER_TRIM = 3;
 
@@ -134,24 +145,40 @@ export function trimEdgePhantoms<T extends BreadcrumbInput>(input: T[]): EdgeTri
   let removedMiles = 0;
   let worst: number | null = null;
 
-  const isPhantomEdge = (edge: T, neighbour: T): boolean =>
-    typeof edge.accuracy === "number" &&
-    edge.accuracy > EDGE_PHANTOM_ACCURACY_M &&
-    milesBetween(edge, neighbour) >= EDGE_PHANTOM_MIN_JUMP_MILES;
+  const impliedMph = (a: T, b: T): number | null => {
+    if (a.recordedAt == null || b.recordedAt == null) return null;
+    const ms = Math.abs(new Date(b.recordedAt).getTime() - new Date(a.recordedAt).getTime());
+    if (!Number.isFinite(ms) || ms <= 0) return null;
+    return milesBetween(a, b) / (ms / 3_600_000);
+  };
+  const spanMiles = (rest: T[]): number => {
+    let span = 0;
+    for (let i = 1; i < rest.length; i++) span = Math.max(span, milesBetween(rest[0], rest[i]));
+    return span;
+  };
+  const isPhantomEdge = (edge: T, neighbour: T, rest: T[]): boolean => {
+    const jump = milesBetween(edge, neighbour);
+    if (jump < EDGE_PHANTOM_MIN_JUMP_MILES) return false;
+    if (typeof edge.accuracy === "number" && edge.accuracy > EDGE_PHANTOM_ACCURACY_M) return true;
+    if (spanMiles(rest) < EDGE_PHANTOM_STATIONARY_SPAN_MILES) return true;
+    const mph = impliedMph(edge, neighbour);
+    return mph != null && mph > EDGE_PHANTOM_MAX_JUMP_MPH;
+  };
 
-  while (droppedLeading < MAX_EDGE_TRIM && pts.length > MIN_POINTS_AFTER_TRIM && isPhantomEdge(pts[0], pts[1])) {
+  while (droppedLeading < MAX_EDGE_TRIM && pts.length > MIN_POINTS_AFTER_TRIM && isPhantomEdge(pts[0], pts[1], pts.slice(1))) {
     removedMiles += milesBetween(pts[0], pts[1]);
-    worst = Math.max(worst ?? 0, pts[0].accuracy as number);
+    worst = Math.max(worst ?? 0, typeof pts[0].accuracy === "number" ? pts[0].accuracy : 0);
     pts.shift();
     droppedLeading += 1;
   }
   while (
     droppedTrailing < MAX_EDGE_TRIM &&
     pts.length > MIN_POINTS_AFTER_TRIM &&
-    isPhantomEdge(pts[pts.length - 1], pts[pts.length - 2])
+    isPhantomEdge(pts[pts.length - 1], pts[pts.length - 2], pts.slice(0, -1))
   ) {
     removedMiles += milesBetween(pts[pts.length - 1], pts[pts.length - 2]);
-    worst = Math.max(worst ?? 0, pts[pts.length - 1].accuracy as number);
+    const last = pts[pts.length - 1];
+    worst = Math.max(worst ?? 0, typeof last.accuracy === "number" ? last.accuracy : 0);
     pts.pop();
     droppedTrailing += 1;
   }

@@ -182,6 +182,52 @@ describe("trimEdgePhantoms", () => {
     expect(r2.droppedLeading).toBe(0);
   });
 
+  // Rachel Thorndyke, 25 Aug 2026: first fix CLAIMED 50 m accuracy but sat
+  // 1.24 mi from the next fix 52 s later (86 mph). The rest is a 20 m
+  // shuffle at a client's house. Accuracy alone let it through.
+  const staleStart = { lat: 53.69172, lng: -0.34023, accuracy: 50, recordedAt: "2026-08-25T09:03:51Z" };
+  const parked = [
+    { lat: 53.68879, lng: -0.31039, accuracy: 4.75, recordedAt: "2026-08-25T09:04:43Z" },
+    { lat: 53.68896, lng: -0.31025, accuracy: 3.36, recordedAt: "2026-08-25T09:05:49Z" },
+    { lat: 53.68906, lng: -0.30999, accuracy: 2.21, recordedAt: "2026-08-25T09:07:00Z" },
+    { lat: 53.68891, lng: -0.31033, accuracy: 22.66, recordedAt: "2026-08-25T09:12:30Z" },
+  ];
+
+  it("drops an accurate-looking first fix when the rest of the trail is stationary", () => {
+    const r = trimEdgePhantoms([staleStart, ...parked]);
+    expect(r.droppedLeading).toBe(1);
+    expect(r.breadcrumbs[0]).toBe(parked[0]);
+    expect(r.removedMiles).toBeGreaterThan(1.2);
+    expect(r.removedMiles).toBeLessThan(1.3);
+  });
+
+  it("drops an accurate-looking first fix whose implied speed is impossible", () => {
+    // 1.24 mi in 40 s = 111 mph into a trail that then drives on for 2 mi
+    const moving = [
+      { lat: 53.68879, lng: -0.31039, accuracy: 4, recordedAt: "2026-08-25T09:04:31Z" },
+      { lat: 53.6763, lng: -0.3087, accuracy: 2, recordedAt: "2026-08-25T09:06:00Z" },
+      { lat: 53.6687, lng: -0.3067, accuracy: 5, recordedAt: "2026-08-25T09:08:00Z" },
+    ];
+    const r = trimEdgePhantoms([staleStart, ...moving]);
+    expect(r.droppedLeading).toBe(1);
+    expect(r.breadcrumbs[0]).toBe(moving[0]);
+  });
+
+  it("keeps a long first step at a plausible speed into a moving trail", () => {
+    const moving = [
+      { lat: 53.68879, lng: -0.31039, accuracy: 4, recordedAt: "2026-08-25T09:06:00Z" }, // 27 mph
+      { lat: 53.6763, lng: -0.3087, accuracy: 2, recordedAt: "2026-08-25T09:08:00Z" },
+      { lat: 53.6687, lng: -0.3067, accuracy: 5, recordedAt: "2026-08-25T09:10:00Z" },
+    ];
+    const r = trimEdgePhantoms([staleStart, ...moving]);
+    expect(r.droppedLeading).toBe(0);
+  });
+
+  it("stationary-trail rule needs no timestamps", () => {
+    const r = trimEdgePhantoms([{ lat: 53.69172, lng: -0.34023, accuracy: 50 }, ...parked.map(({ recordedAt: _r, ...c }) => c)]);
+    expect(r.droppedLeading).toBe(1);
+  });
+
   it("leaves at least three points", () => {
     const r = trimEdgePhantoms([phantomStart, real[0], { lat: 53.70, lng: -0.20, accuracy: 1500 }]);
     expect(r.breadcrumbs.length).toBe(3);
