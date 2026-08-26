@@ -183,6 +183,13 @@ function buildConfig(BGGeo: BgGeo): Record<string, unknown> {
     // motion coprocessor, which is what makes wake reliable.
     stopTimeout: 5, // minutes of stillness before it declares the trip stopped
     stationaryRadius: 25,
+    // ANDROID: no ACTIVITY_RECOGNITION permission. Google Play treats that
+    // permission as a health feature and forces a Health-apps declaration the
+    // app cannot truthfully make, so the manifest blocks it (app.json
+    // blockedPermissions, 27 Aug 2026). Without it RNBG leaves the stationary
+    // state via its stationary geofence + speed instead of the motion API.
+    // iOS keeps motion activity (Motion & Fitness).
+    disableMotionActivityUpdates: Platform.OS === "android",
     // Heartbeat: fires every 60s, but ONLY while the app is kept alive
     // (preventSuspend). We turn preventSuspend on for the duration of a
     // recording (see openNativeRecording) so the app survives the ~5min

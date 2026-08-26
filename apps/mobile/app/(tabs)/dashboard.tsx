@@ -12,6 +12,7 @@ import {
   Platform,
   Animated,
   Linking,
+  AppState,
 } from "react-native";
 import { AppModal } from "../../components/AppModal";
 import { AutoNoteNudgeCard } from "../../components/AutoNoteNudgeCard";
@@ -727,6 +728,25 @@ export default function DashboardScreen() {
       };
     }, [])
   );
+
+  // Location tier check, shared by the focus effect below and the AppState
+  // listener. The AppState path matters on Android: the "Your trips aren't
+  // being recorded" blocker sends the user to system Settings, and coming back
+  // via the Back button does NOT re-focus the route, so without this the
+  // banner stayed red after the permission had been granted (seen on the
+  // emulator, 26 Aug 2026).
+  const refreshLocationTier = useCallback(() => {
+    getLocationPermissionStatus().then(({ tier }) => {
+      setLocationTier(tier);
+      setBgLocationGranted(tier === "always");
+    }).catch(() => {});
+  }, []);
+  useEffect(() => {
+    const sub = AppState.addEventListener("change", (state) => {
+      if (state === "active") refreshLocationTier();
+    });
+    return () => sub.remove();
+  }, [refreshLocationTier]);
 
   useFocusEffect(
     useCallback(() => {
