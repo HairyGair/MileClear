@@ -96,7 +96,11 @@ export async function fetchObligations(args: {
     query: {
       fromDate: args.from,
       toDate: args.to,
-      status: args.status,
+      // `status` is deliberately NOT sent. HMRC's v3.0 endpoint rejects it
+      // with 400 FORMAT_STATUS for BOTH documented values (verified against
+      // the sandbox 7 Aug 2026: "Open" and "Fulfilled" both fail, omitting
+      // it returns 200). Every obligation comes back carrying its own
+      // status, so we filter below instead of guessing at their format.
       businessId: args.businessId,
       // HMRC rejects businessId without typeOfBusiness (MISSING_TYPE_OF_BUSINESS).
       // MileClear is self-employment-only, so the type is constant whenever a
@@ -124,5 +128,5 @@ export async function fetchObligations(args: {
   }
   // Newest first — drives the "next due" UI naturally.
   flat.sort((a, b) => new Date(a.due).getTime() - new Date(b.due).getTime());
-  return flat;
+  return args.status ? flat.filter((o) => o.status === args.status) : flat;
 }

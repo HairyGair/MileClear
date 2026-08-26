@@ -8,7 +8,10 @@ import { ToggleRow } from "../../components/settings/ToggleRow";
 import {
   isDriveDetectionEnabled,
   setDriveDetectionEnabled,
+  getJourneyEndMinutes,
+  setJourneyEndMinutes,
 } from "../../lib/tracking/detection";
+import { JOURNEY_END_CHOICES } from "../../lib/tracking/journeyBoundary";
 import {
   isBatterySaverEnabled,
   setBatterySaverEnabled,
@@ -23,10 +26,33 @@ export default function TrackingSettings() {
   const router = useRouter();
   const [driveDetection, setDriveDetection] = useState(true);
   const [batterySaver, setBatterySaver] = useState(true);
+  const [journeyEnd, setJourneyEnd] = useState(30);
 
   useEffect(() => {
     isDriveDetectionEnabled().then(setDriveDetection).catch(() => {});
     isBatterySaverEnabled().then(setBatterySaver).catch(() => {});
+    getJourneyEndMinutes().then(setJourneyEnd).catch(() => {});
+  }, []);
+
+  // How long stopped before one journey becomes the next. A visiting
+  // professional stopping 20 minutes at each call needs a shorter answer than
+  // a long-distance driver taking a break; there is no single right number,
+  // which is why it is asked rather than assumed.
+  const chooseJourneyEnd = useCallback(() => {
+    Alert.alert(
+      "End a journey after",
+      "How long do you usually stop before the next drive is a separate journey? Stops longer than this split your trips; shorter ones stay as one.",
+      [
+        ...JOURNEY_END_CHOICES.map((c) => ({
+          text: `${c.label} - ${c.hint}`,
+          onPress: () => {
+            setJourneyEnd(c.minutes);
+            setJourneyEndMinutes(c.minutes).catch(() => {});
+          },
+        })),
+        { text: "Cancel", style: "cancel" as const },
+      ]
+    );
   }, []);
 
   const toggleDriveDetection = useCallback((next: boolean) => {
@@ -75,6 +101,15 @@ export default function TrackingSettings() {
           hint="Ease off background tracking when the battery is low and unplugged. Won't drop trips."
           value={batterySaver}
           onToggle={toggleBatterySaver}
+        />
+        <SettingsRow
+          icon="timer-outline"
+          label="End a journey after"
+          hint={`${
+            JOURNEY_END_CHOICES.find((c) => c.minutes === journeyEnd)?.label ??
+            `${journeyEnd} minutes`
+          } stopped. Longer stops split your trips.`}
+          onPress={chooseJourneyEnd}
         />
         <SettingsRow
           icon="battery-charging-outline"

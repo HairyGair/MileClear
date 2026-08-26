@@ -54,6 +54,38 @@ export interface PhantomCheckInput {
   lowConfidence?: boolean;
 }
 
+// Plausible-journey reprieve for the crow-flies signature (3 Aug 2026).
+//
+// The crow-flies rule had no upper bound and no time sanity check, so a REAL
+// long drive whose intermediate fixes were lost to iOS suspension was hidden
+// exactly like a fake chord. Jenkins, 3 Aug: Liverpool -> Leeds, 58.24 miles
+// over 3h10m, 2 coordinates -> flagged phantom -> invisible in his trip list
+// AND excluded from his HMRC mileage. Fleet audit the same day: 42 such trips
+// across 17 users, 561 miles, 69% of all phantom-flagged mileage.
+//
+// The distinguishing fact is TIME. A GPS-spike teleport covers its distance
+// essentially instantly, so the implied average speed is absurd. A real drive
+// that lost its middle takes a driver's amount of time to get there. You also
+// cannot GPS-drift a mile, let alone fifty — displacement at a plausible
+// driving pace over a meaningful duration IS movement, however few fixes
+// survived. Keep those; the sparse route renders poorly but the mileage is
+// real and it is the user's tax record.
+const REAL_JOURNEY_MIN_MILES = 3;
+const REAL_JOURNEY_MIN_DURATION_SEC = 10 * 60;
+const REAL_JOURNEY_MIN_AVG_MPH = 5;   // below this it's the walking signature's job
+const REAL_JOURNEY_MAX_AVG_MPH = 90;  // above this no car sustained it — teleport
+function looksLikeRealJourney(args: PhantomCheckInput): boolean {
+  if (args.distanceMiles < REAL_JOURNEY_MIN_MILES) return false;
+  if (!args.endedAt) return false;
+  const startMs = new Date(args.startedAt).getTime();
+  const endMs = new Date(args.endedAt).getTime();
+  if (!Number.isFinite(startMs) || !Number.isFinite(endMs)) return false;
+  const durationSec = (endMs - startMs) / 1000;
+  if (durationSec < REAL_JOURNEY_MIN_DURATION_SEC) return false;
+  const avgMph = args.distanceMiles / (durationSec / 3600);
+  return avgMph >= REAL_JOURNEY_MIN_AVG_MPH && avgMph <= REAL_JOURNEY_MAX_AVG_MPH;
+}
+
 export function looksLikePhantomTrip(args: PhantomCheckInput): boolean {
   if (args.isManualEntry) return false;
 
@@ -71,7 +103,8 @@ export function looksLikePhantomTrip(args: PhantomCheckInput): boolean {
     args.coordinateCount < CROW_FLIES_MIN_COORDS &&
     args.distanceMiles >= CROW_FLIES_MIN_DISTANCE_MILES &&
     !args.hasRealMovementEvidence &&
-    !args.lowConfidence
+    !args.lowConfidence &&
+    !looksLikeRealJourney(args)
   ) {
     return true;
   }

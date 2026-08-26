@@ -148,6 +148,56 @@ export async function markLiveActivitySaving(currentDistanceMiles: number): Prom
 }
 
 /**
+ * Tell the driver, on the activity already on their screen, that the hop they
+ * just made was below the auto-record floor - and offer to add it.
+ *
+ * Drives under ~0.3 mi are dropped deliberately (the phantom-trip guard), which
+ * from the driver's seat is indistinguishable from the app failing: three of
+ * Denise Sweeney's Cove Bay hops vanished on 22 Aug with no explanation, and
+ * 34% of all 0.3-0.5 mile trips fleet-wide are typed in by hand. The activity
+ * is already running when the finalize drops the trip, so this converts a
+ * silent gap into a stated outcome with a one-tap alternative.
+ */
+export async function markLiveActivityTooShort(distanceMiles: number): Promise<void> {
+  if (Platform.OS !== "ios" || !LiveActivityModule) return;
+  try {
+    await LiveActivityModule.updateActivity({
+      activityId: currentActivityId,
+      distanceMiles,
+      speedMph: 0,
+      tripCount: 0,
+      startDateMs: activityStartDateMs ?? Date.now(),
+      phase: "too_short",
+      endDateMs: Date.now(),
+      needsClassification: false,
+    });
+  } catch {}
+}
+
+/**
+ * Flag, mid-drive, that a recording is open but no GPS is arriving.
+ *
+ * This is the only moment the driver can still act on it - the existing alert
+ * reaches them hours later, by which time the miles are gone. Only ever set
+ * while a recording is genuinely open; clearing happens naturally on the next
+ * update once fixes resume.
+ */
+export async function markLiveActivityNoSignal(distanceMiles: number): Promise<void> {
+  if (Platform.OS !== "ios" || !LiveActivityModule) return;
+  try {
+    await LiveActivityModule.updateActivity({
+      activityId: currentActivityId,
+      distanceMiles,
+      speedMph: 0,
+      tripCount: 0,
+      startDateMs: activityStartDateMs ?? Date.now(),
+      phase: "no_signal",
+      needsClassification: false,
+    });
+  } catch {}
+}
+
+/**
  * Read the current Live Activity phase, or null if none is running.
  * Used on app startup / AppState active to detect when an App Intent has
  * flipped the activity to "saving" and the main app now needs to finalize.

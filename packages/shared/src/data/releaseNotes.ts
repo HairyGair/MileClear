@@ -75,11 +75,102 @@ export const ACTIVE_ANNOUNCEMENT: SiteAnnouncement | null = null;
 
 export const RELEASE_NOTES: ReleaseNote[] = [
   {
-    // ⏳ ON APPROVAL: flip this label to "Latest" and 1.3.4's to
-    // "App Store" — the banner + Product Update email key off "Latest".
+    // Build 85, cut 25 Aug 2026 for TestFlight. The engine pair: both fixes
+    // came from named drivers' reports this same week and were promised to
+    // them in writing. Plus the first binary carrying the classify-at-the-
+    // kerb Live Activity intents (b04ea90) and the explicit date wire format
+    // that retires the 2057 question. Label flow: "In Testing" now,
+    // "Pending Review" when submitted for review, "Latest" on approval.
+    version: "1.3.9",
+    date: "August 2026",
+    label: "In Testing",
+    items: [
+      "Stops during a journey are now understood properly: a visit no longer joins two drives into one long trip",
+      "Tapping Not Driving no longer pauses recording for the next journey - the pause ends when the car parks",
+      "Classify a trip as business or personal straight from the Dynamic Island when you park",
+      "Short hops that are too quick to record now say so on the lock screen instead of disappearing silently",
+      "See the route you drove on the trip screen when you look back at a finished trip",
+      "Driving for a company on Milesheet: earnings and gig features step out of the way automatically",
+      "Claim mileage from your employer? Tell us and we will invite your manager to approve it monthly",
+      "Live Activity timers are now guaranteed to count from the right decade",
+    ],
+  },
+  {
+    // Build 84, cut 17 Aug 2026, submitted the same evening, APPROVED 20 Aug
+    // 2026. Nine commits, none of them in build 83's binary: six are capture or
+    // data-loss fixes and every one came from a named driver's report. Label
+    // flow ran to plan - "In Testing" on TestFlight, "Pending Review" while
+    // with Apple, and on approval this became "Latest" in the same edit that
+    // dropped 1.3.7 to "App Store", because the Product Update email and the
+    // site banner both key off "Latest".
+    version: "1.3.8",
+    date: "August 2026",
+    label: "Latest",
+    ctaUrl: "https://mileclear.com/releases",
+    ctaLabel: "Read the release notes",
+    emailSubject: "What's new in MileClear 1.3.8",
+    emailTagline:
+      "1.3.8 is another reliability release, and it is all about the miles that were quietly going missing: short hops, half-measured journeys, and routes that vanished before they could be saved.",
+    emailHighlights: [
+      "**Short hops are no longer dropped from a busy day** - a half-mile leg between two stops counts as a real journey now, instead of being discarded as stray GPS.",
+      "**A journey that starts recording late no longer loses its opening miles** - the app fills the gap with the real road distance and tells you it has done so, rather than quietly saving a short trip.",
+      "**A merged journey keeps its whole route on the map** - when two drives were joined, the second half's path used to be missing behind the mileage.",
+      "**An unfinished Start Trip is recovered instead of thrown away** - if the app was closed mid-drive, the route is turned into a trip rather than discarded.",
+      "**You choose when a stop ends a journey** - Settings, then Tracking: anything from 5 minutes to an hour, so long waits at a depot no longer split one job into several.",
+      "**A brief server problem can no longer cost you something you just saved.**",
+    ],
+    items: [
+      "**Short hops are no longer dropped from a busy day.** On a day of multi-stop driving, a leg under about half a mile could produce so few GPS points that the app treated it as stray data and discarded it, while keeping the longer legs either side. Short legs are now judged on the distance they actually covered, so a real journey survives however few points it produced. Found from three reports filed within three minutes by the same driver, all of them sub-mile.",
+      "**A journey that starts recording late no longer loses its opening miles.** If the phone shut MileClear down as you set off, recording could pick up well into the drive - and because the trip still showed the right start place and time, the shortfall was invisible. The app now fills that opening gap with the real road distance between where you set off and where recording began, and says on the trip that it has done so. Found from a driver whose 75-mile round trip had been saved as 39.",
+      "**A merged journey now keeps its whole route.** When a new drive was joined onto the one before it, the mileage was added but the second half's route was not stored, so the map drew half the journey and splitting it at a stop could not find the stop. The full path is now carried across.",
+      "**An unfinished Start Trip is recovered rather than discarded.** If you tapped Start Trip and the phone closed the app before you finished, the recorded route was eventually deleted. It is now turned into a trip instead, using the same stop-detection that a completed journey uses.",
+      "**You decide how long a stop means the journey ended.** In Settings, then Tracking, choose anything from 5 minutes to an hour. Long waits at a depot or a site no longer split one job into several trips, and sitting in traffic still keeps the journey whole.",
+      "**A brief server problem can no longer cost you data.** If the server was briefly unavailable at the moment something saved - during an update, for instance - the app could give up on that earning, fuel entry or shift and remove it locally. It now keeps it and retries.",
+      "**Reporting a missing trip now checks for one still saving.** Some drives finish saving a minute or two after you look, so the report form now finishes the job and drains anything waiting first, and shows you the trip if one appears.",
+      "**Signing in as someone else on the same phone starts clean.** A second person signing in on a shared handset could see the first person's trips and saved places until the app resynced. The local data is now cleared when the account changes.",
+      "**Two Making Tax Digital screens tell the truth about themselves.** The obligations screen now distinguishes \"HMRC says nothing is due\" from \"we could not reach HMRC\", instead of showing All caught up for both, and signing in to HMRC no longer reuses a stale browser session.",
+    ],
+  },
+  {
+    // Build 83. LIVE on the App Store 14 Aug 2026 (READY_FOR_SALE, released
+    // automatically on approval). History: build 81 was submitted 30 Jul then
+    // pulled the same evening to fold in two more driver-report fixes; build 82
+    // replaced it; build 83 added the HMRC device-model fix and was resubmitted
+    // 7 Aug after a build-expiry gotcha stalled the version for four days; a
+    // 2.3.7 metadata rejection on 11 Aug (screenshots said "free") sent it back
+    // for a same-build resubmission. Superseded by 1.3.8 on 20 Aug, which is
+    // when this dropped to "App Store" - the banner and the Product Update
+    // email both key off "Latest".
+    version: "1.3.7",
+    date: "August 2026",
+    label: "App Store",
+    ctaUrl: "https://mileclear.com/releases",
+    ctaLabel: "Read the release notes",
+    emailSubject: "What's new in MileClear 1.3.7",
+    emailTagline:
+      "1.3.7 is a reliability release. Every fix in it came from a driver telling us a drive went missing - and most were fixed the same day.",
+    emailHighlights: [
+      "**A finished drive can no longer be lost while it saves** - the recorded route is now kept safe until the save is confirmed, and the app finishes the job next time it opens if anything interrupts it.",
+      "**A suspended day of multi-stop driving can no longer be lost** - the queue of waiting journeys is worked through in full, and a new drive rescues any still waiting instead of discarding them.",
+      "**Automatic detection can no longer get stuck after Start Trip** - the tracking flag is released on every save path, and clears itself if it ever does stick.",
+      "**Faster, sturdier startup** - the app opens promptly even after weeks of heavy background tracking.",
+      "**Everything from 1.3.5 is here too** - trip splitting, the truer tax estimate, and real road routes on manual trips.",
+    ],
+    items: [
+      "**A finished drive can no longer be lost while it saves.** When a trip ended, there was a short window while the app worked out the route, addresses and distance where the phone going to sleep at exactly the wrong moment could throw the recorded route away before it was stored. The route is now kept safe until the save is confirmed, and if anything interrupts it, the app finishes the job the next time it opens instead of losing the drive. Found from a driver's report of a lost 153-mile drive - fixed the same day.",
+      "**Faster, sturdier startup.** The app now opens promptly even after weeks of heavy background tracking, and a loading screen can no longer sit indefinitely over the app if something slow is happening underneath.",
+      "**A suspended day of multi-stop driving can no longer be lost.** If your phone kept MileClear asleep through a day of stops, the queued journeys were processed when you next opened the app - but a bug could leave most of the queue waiting, and the next morning's drive would clear it. The queue is now worked through in full the moment the app wakes, a restart finishes the job if the phone interrupts it, and a new drive rescues any waiting journeys instead of discarding them. Found from a driver's report the day it happened.",
+      "**Automatic detection can no longer get stuck after Start Trip.** In rare circumstances a trip started from the map could leave a tracking flag behind when it saved, and automatic drive detection would quietly stand down until the app was reopened from scratch. The flag is now released on every save path, and if one does get stuck the app clears it itself within a few hours instead of staying silent. Also found from a driver's report, also fixed the same day.",
+      "**Making Tax Digital groundwork continues.** The app now reports the exact device details HMRC's fraud-prevention rules require. That is part of the accreditation work still to be completed before Making Tax Digital submissions can reach HMRC for real - the feature stays in beta against HMRC's test service until then.",
+      "**Everything from 1.3.5 is in this build too** - trip splitting, the truer tax estimate, real road routes on manual trips, and the Making Tax Digital groundwork.",
+    ],
+  },
+  {
+    // Approved + released 28 Jul 2026; superseded by 1.3.7 on 14 Aug. Its
+    // banner retires automatically with the label change.
     version: "1.3.5",
     date: "July 2026",
-    label: "Pending Review",
+    label: "App Store",
     ctaUrl: "https://mileclear.com/releases",
     ctaLabel: "Read the release notes",
     banner: {
@@ -108,7 +199,7 @@ export const RELEASE_NOTES: ReleaseNote[] = [
   {
     version: "1.3.4",
     date: "July 2026",
-    label: "Latest",
+    label: "App Store",
     ctaUrl: "https://mileclear.com/releases",
     ctaLabel: "Read the release notes",
     banner: {

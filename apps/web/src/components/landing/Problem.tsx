@@ -20,7 +20,8 @@ export default function Problem() {
             <span className="problem__em">
               MileClear was built to fix that.
             </span>{" "}
-            Automatic detection, offline-first storage, and every trip accounted for.
+            It detects your trips on its own, saves them to your phone first,
+            and doesn&apos;t lose them when signal drops.
           </p>
         </Reveal>
       </div>

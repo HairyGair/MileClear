@@ -48,6 +48,38 @@ export interface RouteResult {
   encodedPolyline: string | null;
 }
 
+/**
+ * Whether a routed drive time may stand in for a manually-entered trip's
+ * missing end time.
+ *
+ * The trap this exists to close: a routed duration describes the route WE
+ * priced, which is not always the journey the user recorded. Loosely
+ * geocoded endpoints ("Evesham" resolving to the town centre) can return a
+ * one-minute route for a trip the user logged as 6.7 miles, and stamping
+ * that on the row would imply 400mph and poison every per-hour figure it
+ * feeds. So we only use the duration when the route we found is recognisably
+ * the same journey, and refuse rather than guess otherwise.
+ */
+export function routedDurationUsable(args: {
+  routedMiles: number;
+  routedSecs: number;
+  storedMiles: number;
+}): boolean {
+  const { routedMiles, routedSecs, storedMiles } = args;
+  if (!Number.isFinite(routedSecs) || !Number.isFinite(routedMiles)) return false;
+  // Under 30s is a "route" between two points that are effectively the same
+  // place; over 12h is not a single drive.
+  if (routedSecs < 30 || routedSecs > 12 * 60 * 60) return false;
+  if (!Number.isFinite(storedMiles) || storedMiles <= 0) return false;
+
+  // The route must be recognisably the journey the user recorded.
+  if (Math.abs(routedMiles - storedMiles) / storedMiles > 0.25) return false;
+
+  // Backstop on the figure that actually gets consumed downstream.
+  const impliedMph = storedMiles / (routedSecs / 3600);
+  return impliedMph >= 5 && impliedMph <= 90;
+}
+
 /** Cache key precision: 4 decimal places ≈ 11 m at UK latitudes. */
 function roundCoord(value: number): number {
   return Math.round(value * 10_000) / 10_000;

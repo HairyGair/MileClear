@@ -47,6 +47,7 @@ export default function Footer() {
               <h3 className="footer__col-title">For drivers</h3>
               <ul className="footer__col-list">
                 <li><a href="/employee-mileage-tracker" className="footer__link">Employees with work car</a></li>
+                <li><a href="/milesheet" className="footer__link">Milesheet for employers</a></li>
                 <li><a href="/delivery-driver-mileage-tracker" className="footer__link">Delivery drivers</a></li>
                 <li><a href="/uber-mileage-tracker" className="footer__link">Uber drivers</a></li>
                 <li><a href="/deliveroo-mileage-tracker" className="footer__link">Deliveroo riders</a></li>
@@ -65,6 +66,7 @@ export default function Footer() {
                 <li><a href="/free-mileage-tracker-uk" className="footer__link">Free mileage tracker UK</a></li>
                 <li><a href="/mileage-tracker-uk" className="footer__link">Mileage tracker UK</a></li>
                 <li><a href="/self-employed-mileage-tracker" className="footer__link">Self-employed drivers</a></li>
+                <li><a href="/ev-mileage-tracker" className="footer__link">Electric car drivers</a></li>
                 <li><a href="/mileiq-alternative-uk" className="footer__link">MileIQ alternative</a></li>
                 <li><a href="/driversnote-alternative" className="footer__link">Driversnote alternative</a></li>
               </ul>

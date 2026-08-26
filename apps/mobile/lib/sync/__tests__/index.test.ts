@@ -172,6 +172,26 @@ describe("processSyncQueue error classification (preserve vs park)", () => {
     expect(mutated).toBeUndefined(); // broke out, item preserved untouched
   });
 
+  // 13 Aug 2026: our own deploy opens this window. `pm2 restart` leaves Apache
+  // serving 503 while Node boots, so a client syncing at that moment met a 5xx
+  // and burned a retry. Five deploys landing on one unlucky client parked a
+  // real trip as permanently_failed. 502/503/504 are infrastructure saying
+  // "come back later", never a verdict on the payload.
+  it("does NOT burn a retry on a 503 — preserves the item untouched", async () => {
+    const { ApiError } = await import("../../api/apiError");
+    mocks.db.getAllAsync.mockResolvedValueOnce([queueItem()]);
+    mocks.apiRequest.mockRejectedValueOnce(
+      new ApiError({ code: "UNAVAILABLE", message: "Service Unavailable", statusCode: 503, retryable: true })
+    );
+
+    await processSyncQueue();
+
+    const mutated = mocks.db.runAsync.mock.calls.find((c: unknown[]) =>
+      /UPDATE sync_queue SET status/.test(String(c[0]))
+    );
+    expect(mutated).toBeUndefined();
+  });
+
   it("parks a real 4xx as permanently_failed", async () => {
     const { ApiError } = await import("../../api/apiError");
     mocks.db.getAllAsync.mockResolvedValueOnce([queueItem()]);

@@ -36,6 +36,10 @@ model User {
   googlePlayPurchaseToken String? @unique @db.VarChar(512)
   // Latest Play order ID, kept for support lookups against the Play Console.
   googlePlayOrderId       String?  @db.VarChar(255)
+  // Which product the live subscription is on (Apple product id or Stripe
+  // price id). Stamped by the billing webhooks from 21 Aug 2026; null for
+  // older rows, where the admin revenue view infers period from expiry.
+  subscriptionProductId String? @db.VarChar(64)
   // When the user's first free trial began. Stamped once, never cleared on
   // cancellation, so a user cannot serial-trial by cancel-and-resubscribe.
   // null = trial-eligible (Stripe gates on this; Apple enforces natively).
@@ -209,6 +213,9 @@ model User {
   diagnosticDump      DiagnosticDump?
   expenses            Expense[]
   accountantInvites   AccountantInvite[]
+  orgMemberships     OrgMembership[]
+  organisationsOwned Organisation[]
+  teamApprovals      TeamApproval[]
   accountantAccess    AccountantAccess[]
   hmrcReconciliations HmrcReconciliation[]
   pickupWaits         PickupWait[]
@@ -992,6 +999,122 @@ model WaitlistEntry {
   @@map("waitlist")
 }
 
+// "MileClear for teams" interest register (21 Aug 2026). A probe, not a
+// product: companies asking for a manager view / approval workflow leave
+// their size and shape here so the decision to build an employer tier is
+// made from a list with driver counts on it, not from memory of who
+// emailed. Public form on /teams and /employee-mileage-tracker.
+model TeamInterest {
+  id                String   @id @default(uuid())
+  email             String   @db.VarChar(254)
+  company           String?  @db.VarChar(160)
+  // "1-5" | "6-20" | "21-50" | "50+"
+  drivers           String   @db.VarChar(8)
+  // "monthly_signoff" | "line_by_line" | "view_only"
+  approval          String   @db.VarChar(24)
+  // "payroll" | "expenses_system" | "spreadsheet" | "accountant" | "other"
+  destination       String   @db.VarChar(24)
+  destinationDetail String?  @db.VarChar(160)
+  notes             String?  @db.Text
+  // Which page the form was on.
+  source            String?  @db.VarChar(64)
+  createdAt         DateTime @default(now())
+
+  @@index([createdAt])
+  @@map("team_interest")
+}
+
+// MileClear Teams (P1, 23 Aug 2026). An organisation owns memberships;
+// an ACTIVE membership grants the driver Pro (proSource "team") without
+// touching their personal billing state, and disabling the membership takes
+// only the org visibility and the team entitlement away. Invites follow the
+// accountant-share token discipline: sha256 at rest, expiring.
+model Organisation {
+  id              String   @id @default(uuid())
+  name            String   @db.VarChar(160)
+  // Pilot orgs (TPS360) pay nothing; the flag keeps revenue views honest
+  // and lets Phase 3 billing skip them explicitly.
+  pilotFree       Boolean  @default(true)
+  // Hard ceiling on non-disabled memberships (any role - everyone with a
+  // membership gets Pro, so everyone counts). Null = uncapped. Free pilots
+  // get 20 by default: free-for-testing must not scale into free-for-a-
+  // 400-driver-fleet, which would be misuse rather than a pilot.
+  seatCap         Int?
+  // Org-wide default employer rate; a member's own employerMileageRatePence
+  // still wins when set.
+  defaultRatePence Int?
+  createdByUserId String
+  // Per-seat billing (Phase 3). Null while the org is a free pilot; seats are
+  // the count of ACTIVE driver memberships, pushed to Stripe as the
+  // subscription quantity so adding a driver bills automatically.
+  stripeCustomerId     String? @unique @db.VarChar(255)
+  stripeSubscriptionId String? @unique @db.VarChar(255)
+  billingEmail         String? @db.VarChar(255)
+  /// Quantity last synced to Stripe, so we only call out when it changes.
+  seatsBilled          Int?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  createdBy   User            @relation(fields: [createdByUserId], references: [id], onDelete: Restrict)
+  memberships OrgMembership[]
+  approvals   TeamApproval[]
+
+  @@map("organisations")
+}
+
+// One row per driver per month: the manager's sign-off on that person's
+// business mileage. Charlotte's "automatically submit expenses say each
+// month" is this plus the consolidated export it unlocks.
+model TeamApproval {
+  id         String   @id @default(uuid())
+  orgId      String
+  userId     String
+  /// "YYYY-MM" of the month being signed off, in UK local terms.
+  month      String   @db.VarChar(7)
+  /// pending | approved | queried
+  status     String   @default("pending") @db.VarChar(10)
+  /// Snapshot at approval time so a later trip edit cannot silently change
+  /// what a manager signed off. Null until approved.
+  milesAtApproval    Float?
+  amountPenceAtApproval Int?
+  note       String?  @db.Text
+  approvedByUserId String?
+  approvedAt DateTime?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  org  Organisation @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  user User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([orgId, userId, month])
+  @@index([orgId, month])
+  @@map("team_approvals")
+}
+
+model OrgMembership {
+  id              String    @id @default(uuid())
+  orgId           String
+  // Null until the invite is accepted by a logged-in user.
+  userId          String?
+  role            String    @default("driver") @db.VarChar(10) // admin | driver
+  status          String    @default("invited") @db.VarChar(10) // invited | active | disabled
+  invitedEmail    String    @db.VarChar(255)
+  /// sha256 of the invite token; the raw token exists only in the email.
+  inviteTokenHash String?   @unique @db.VarChar(64)
+  inviteExpiresAt DateTime?
+  invitedAt       DateTime  @default(now())
+  acceptedAt      DateTime?
+  disabledAt      DateTime?
+
+  org  Organisation @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  user User?        @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([orgId, invitedEmail])
+  @@index([userId, status])
+  @@index([orgId, status])
+  @@map("org_memberships")
+}
+
 model SavedLocation {
   id               String   @id @default(uuid())
   userId           String
@@ -1076,7 +1199,12 @@ model AccountantInvite {
   id        String   @id @default(uuid())
   userId    String
   email     String   @db.VarChar(255)
+  /// Legacy plaintext token. Superseded by tokenHash; dropped once the
+  /// backfill reports zero rows. Never write this on new invites.
   token     String   @unique @db.VarChar(128)
+  /// sha256 of the token the accountant holds. Lookups match on this so
+  /// the database never holds a usable credential.
+  tokenHash String?  @unique @db.VarChar(64)
   status    String   @default("pending") @db.VarChar(20)
   expiresAt DateTime
   createdAt DateTime @default(now())
@@ -1093,8 +1221,15 @@ model AccountantAccess {
   id               String    @id @default(uuid())
   userId           String
   accountantEmail  String    @db.VarChar(255)
+  /// Legacy plaintext token — see AccountantInvite.token.
   token            String    @unique @db.VarChar(128)
+  /// sha256 of the accountant's token.
+  tokenHash        String?   @unique @db.VarChar(64)
   permissions      String    @default("read") @db.VarChar(50)
+  /// Access expires. Before 14 Aug 2026 it did not, so a link handed to
+  /// an accountant for one tax year kept working indefinitely. Nullable
+  /// only so the migration can backfill; treat null as expired.
+  expiresAt        DateTime?
   lastAccessedAt   DateTime?
   createdAt        DateTime  @default(now())
 
@@ -1102,6 +1237,7 @@ model AccountantAccess {
 
   @@unique([userId, accountantEmail])
   @@index([userId])
+  @@index([expiresAt])
   @@map("accountant_access")
 }
 

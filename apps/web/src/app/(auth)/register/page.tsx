@@ -4,6 +4,7 @@ import { useState, useEffect, type FormEvent } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { register } from "../../../lib/auth";
+import { safeRedirectPath } from "../../../lib/safeRedirect";
 import { Input } from "../../../components/ui/Input";
 import { Button } from "../../../components/ui/Button";
 import { OAuthButtons } from "../../../components/ui/OAuthButtons";
@@ -17,11 +18,16 @@ export default function RegisterPage() {
   const [referralCode, setReferralCode] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  // Where to land after email verification - e.g. a Teams invite link.
+  // Carried through register -> /verify -> next so an invitee never has to
+  // re-open the email link.
+  const [next, setNext] = useState<string | null>(null);
 
   // Pre-fill the referral code from a ?ref= param or the value the /r/[code]
   // landing page stashed in localStorage when the friend arrived via a link.
   useEffect(() => {
-    const fromUrl = new URLSearchParams(window.location.search).get("ref");
+    const params = new URLSearchParams(window.location.search);
+    const fromUrl = params.get("ref");
     const stored = (() => {
       try {
         return window.localStorage.getItem("mc_referral_code");
@@ -31,6 +37,7 @@ export default function RegisterPage() {
     })();
     const code = (fromUrl || stored || "").trim().toUpperCase();
     if (code) setReferralCode(code);
+    setNext(safeRedirectPath(params.get("next")));
   }, []);
 
   const handleSubmit = async (e: FormEvent) => {
@@ -62,7 +69,7 @@ export default function RegisterPage() {
       } catch {
         // ignore
       }
-      router.push("/verify");
+      router.push(next ? `/verify?next=${encodeURIComponent(next)}` : "/verify");
     } catch (err: any) {
       setError(err.message || "Registration failed");
     } finally {
@@ -162,12 +169,13 @@ export default function RegisterPage() {
         </form>
 
         <OAuthButtons
-          onSuccess={() => router.push("/dashboard")}
+          onSuccess={() => router.push(next || "/dashboard")}
           onError={(msg) => setError(msg)}
         />
 
         <p className="auth-card__footer">
-          Already have an account? <Link href="/login">Sign in</Link>
+          Already have an account?{" "}
+          <Link href={next ? `/login?next=${encodeURIComponent(next)}` : "/login"}>Sign in</Link>
         </p>
       </div>
     </div>

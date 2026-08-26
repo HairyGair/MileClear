@@ -7,12 +7,19 @@ import { api } from "../../../../lib/api";
 // Triage inbox for "Missing a trip?" reports (the Trips-screen affordance,
 // live since 9 Jun 2026). Each report arrives pre-diagnosed using the
 // support-playbook rules, so most answer themselves before being opened:
+//   landed_after_report → Class 11: the trip arrived after the report.
+//   open_recording      → Class 15: signal_start with no trip.created since;
+//                         the route is on the phone until their next drive.
+//   no_addresses        → Class 14: the trip is there with no addresses, so
+//                         the list shows no route line.
+//   head_gap            → Class 16: first coordinate well after startedAt;
+//                         the leading miles are absent.
 //   permission_gap      → user lacks Always-location / Motion; engine can't
 //                         run backgrounded. Fix = the permission nudge.
 //   silent_non_capture  → native engine never opens recordings on this
 //                         device (the Norman Boomer class). Fix = engine
 //                         switch on the user detail panel.
-//   needs_look          → neither rule matched; read the dump.
+//   needs_look          → no rule matched; read the dump.
 
 interface Report {
   id: string;
@@ -27,10 +34,40 @@ interface Report {
   motionPermission: string | null;
   nativeEngine: boolean;
   recentAutoTrips: number;
-  diagnosis: "permission_gap" | "silent_non_capture" | "needs_look";
+  diagnosis:
+    | "landed_after_report"
+    | "open_recording"
+    | "no_addresses"
+    | "head_gap"
+    | "permission_gap"
+    | "silent_non_capture"
+    | "needs_look";
+  evidence: string | null;
+  tripId: string | null;
+  selfAdded: boolean;
 }
 
 const DIAGNOSIS_META: Record<Report["diagnosis"], { label: string; color: string; hint: string }> = {
+  landed_after_report: {
+    label: "Not missing - landed after report",
+    color: "#10b981",
+    hint: "The trip was created shortly after the report (finalize or sync lag). Nothing to recover; a push pointing at Trips closes it.",
+  },
+  open_recording: {
+    label: "Open recording on phone",
+    color: "#ef4444",
+    hint: "The engine opened a recording and never closed it. The route is in detection_coordinates on the phone and their NEXT DRIVE prunes it. Ask them to open the app now; if the heartbeat is frozen at the signal, no push will arrive.",
+  },
+  no_addresses: {
+    label: "Trip exists, no addresses",
+    color: "#f59e0b",
+    hint: "Both addresses are null so the trips list draws no route line and the drive reads as missing. Point them at the trip; consider a reverse-geocode backfill.",
+  },
+  head_gap: {
+    label: "Trip exists, head missing",
+    color: "#ef4444",
+    hint: "Start Trip path: startedAt is from the tap but the trail begins later, so the leading leg's miles are absent. Route the gap and add it (f7ecbb4 does this for new trips).",
+  },
   permission_gap: {
     label: "Permission gap",
     color: "#f59e0b",
@@ -144,6 +181,19 @@ export default function MissingTripReportsPage() {
                 <span style={{ color: "#64748b", fontSize: "0.8125rem" }}>{ago(r.reportedAt)}</span>
               </div>
 
+              {r.evidence && (
+                <div style={{ color: "#cbd5e1", fontSize: "0.8125rem", margin: "0.35rem 0", lineHeight: 1.5 }}>
+                  {r.evidence}
+                  {r.tripId && (
+                    <span style={{ color: "#64748b" }}> · trip <code>{r.tripId.slice(0, 8)}</code></span>
+                  )}
+                </div>
+              )}
+              {r.selfAdded && (
+                <div style={{ color: "#fbbf24", fontSize: "0.75rem", marginBottom: "0.25rem" }} title="They entered a manual trip after reporting. Un-hiding or re-adding the captured one would duplicate it.">
+                  Added a manual trip themselves afterwards
+                </div>
+              )}
               {r.note && (
                 <p style={{ color: "#cbd5e1", margin: "0.5rem 0 0", fontStyle: "italic" }}>
                   &ldquo;{r.note}&rdquo;

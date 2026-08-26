@@ -173,6 +173,9 @@ export const MAX_PAGE_SIZE = 1000;
 
 // Subscription
 export const PREMIUM_PRICE_MONTHLY_PENCE = 499;
+// Apple annual product (com.mileclear.premium.annual). £44.99/yr = £3.75/mo
+// equivalent, which is what MRR has to use for annual subscribers.
+export const PREMIUM_PRICE_ANNUAL_PENCE = 4499;
 
 // Platform tags
 export const GIG_PLATFORMS = [

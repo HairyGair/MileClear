@@ -82,6 +82,14 @@ const lastGaveUpLoggedAt = new Map<string, number>();
 // finalised the trip and just hasn't sent a fresh heartbeat yet.
 const HEARTBEAT_FRESHNESS_MS = 26 * 60 * 60 * 1000; // 26h, slightly more than the 24h heartbeat cadence
 
+// Check 1b threshold: a trip.signal_start with no trip.created after it and no
+// fresh heartbeat since is a recording that opened and then went dark. 45 min
+// is beyond any healthy drive-plus-finalize latency for the signal's cohort
+// (signals fire on BACKGROUND recording opens, where finalize lag is minutes,
+// not hours) while catching the app-open sweeper cases (17min/34min/3h40m
+// lags observed on one device, 2 Aug) long before the user notices.
+const SIGNAL_STUCK_THRESHOLD_MS = 45 * 60 * 1000;
+
 // Pending-sync check thresholds. Discovered 4 May 2026 via James Taylor:
 // trips finalise via the native background task, get queued in SQLite,
 // but the JS runtime dies before the 60s periodicTick can drain. Users
@@ -124,6 +132,12 @@ const ALERT_REPOST_MS = 6 * 60 * 60 * 1000; // re-surface an unchanged condition
 // so a genuinely new casualty still surfaces, but a persistent cluster goes
 // quiet. Reset when nobody is over the cap, so a fresh occurrence alerts.
 let lastGaveUpAlertSignature = "";
+// Time floor for gave_up-only re-posts. Set-change dedup alone floods when a
+// backlog of dark devices hits the 4-attempt cap one at a time (4 Aug: a new
+// cap-hit every 5-10 min, each "changing the set" and re-posting). New
+// casualties still surface - at most one post per hour instead of per tick.
+let lastGaveUpAlertAt = 0;
+const GAVE_UP_ALERT_MIN_INTERVAL_MS = 60 * 60 * 1000;
 
 interface StuckUser {
   id: string;
@@ -305,6 +319,91 @@ export async function runRecordingWatchdogJob(): Promise<void> {
     }
   }
 
+  // ── Check 1b: signal-opened recordings that went silent ───────────
+  //
+  // Liam Myhill, 3 Aug 2026: a background relaunch opened a recording at
+  // 09:34:20 and POSTed /trips/signal-start at 09:34:23 - then the device
+  // went COMPLETELY silent for 21.5 hours. Check 1 never saw him because
+  // his heartbeat (same second, built during boot) raced the recording
+  // flags and reported "not recording"; his return drive fell inside the
+  // silence and was never captured. The server held a positive
+  // "a recording just opened" marker the whole time and ignored it.
+  //
+  // So: any user whose latest trip.signal_start is older than
+  // SIGNAL_STUCK_THRESHOLD_MS with NO trip.created after it and NO fresh
+  // heartbeat since (a fresh heartbeat means the device is talking - its
+  // state is authoritative and Check 1 owns it) gets the same
+  // finalize_check silent push. Deliberately NO native-engine skip here:
+  // Check 1 skips native users because build 75+ self-finalizes via its
+  // own heartbeat, but this check's trigger condition IS "the device has
+  // gone silent", which is precisely when self-healing cannot run.
+  //
+  // The silence test is "no DEVICE-ORIGINATED event after the signal" - not
+  // "no trip.created". A merged segment emits trip.updated, a dropped
+  // too-short hop emits nothing while the user drives on, and both are
+  // healthy; requiring only no-trip.created matched 52 users on the 4 Aug
+  // dry run. Server-generated families (notification.*, alert.*,
+  // watchdog.*, billing.*) are ignored because they log against the userId
+  // while the device is dead - Liam received two streak nudges during his
+  // 21.5h silence. First live sweep (4 Aug): 64 dark devices from the 26h
+  // backlog; 13 of them woke on the silent push and saved 14 overdue trips
+  // inside 15 minutes. Steady state is far smaller once the backlog drains.
+  // The push payload reuses action "finalize_check" so every deployed
+  // build handles it; server-side metadata carries source: "signal_start".
+  const signalLookback = new Date(now - HEARTBEAT_FRESHNESS_MS);
+  const signalStuckCutoff = new Date(now - SIGNAL_STUCK_THRESHOLD_MS);
+  const handledInCheck1 = new Set(stuck.map((u) => u.id));
+
+  const signalStuck = await prisma.$queryRaw<
+    Array<{ id: string; pushToken: string | null; lastSignalAt: Date }>
+  >`
+    SELECT u.id, u.pushToken, s.lastSignalAt
+    FROM users u
+    JOIN (
+      SELECT userId, MAX(createdAt) AS lastSignalAt
+      FROM app_events
+      WHERE type = 'trip.signal_start' AND createdAt > ${signalLookback}
+      GROUP BY userId
+    ) s ON s.userId = u.id
+    WHERE s.lastSignalAt < ${signalStuckCutoff}
+      AND u.pushToken IS NOT NULL
+      AND (u.lastHeartbeatAt IS NULL OR u.lastHeartbeatAt < TIMESTAMPADD(MINUTE, 2, s.lastSignalAt))
+      AND NOT EXISTS (
+        SELECT 1 FROM app_events e2
+        WHERE e2.userId = u.id
+          AND e2.createdAt > TIMESTAMPADD(MINUTE, 2, s.lastSignalAt)
+          AND e2.type NOT LIKE 'notification.%'
+          AND e2.type NOT LIKE 'alert.%'
+          AND e2.type NOT LIKE 'watchdog.%'
+          AND e2.type NOT LIKE 'billing.%'
+      )
+  `;
+
+  let signalPinged = 0;
+  let signalCooldown = 0;
+  let signalGaveUp = 0;
+  const signalPingedUserIds = new Set<string>();
+  for (const user of signalStuck) {
+    // Check 1 already actioned this user this run (ping/reap/skip) - don't
+    // stack a second decision, and especially don't manufacture "cooldown"
+    // founder-alert noise by re-pushing inside the cooldown window.
+    if (handledInCheck1.has(user.id)) continue;
+    const result = await sendSilentPush(user, "finalize_check", {
+      source: "signal_start",
+      lastSignalAt: user.lastSignalAt.toISOString(),
+      signalAgeMs: now - user.lastSignalAt.getTime(),
+    });
+    if (result === "sent") {
+      signalPinged++;
+      signalPingedUserIds.add(user.id);
+    } else if (result === "cooldown") signalCooldown++;
+    else if (result === "gave_up") {
+      // Deliberately NOT added to gaveUpUserIds: 1b gave_ups are the normal
+      // resting state of ~50 iOS-terminated devices, not an incident set.
+      signalGaveUp++;
+    }
+  }
+
   // ── Check 2: pending sync queue + suspended JS runtime ────────────
   //
   // The sister failure mode to stuck recordings: trips/earnings/etc were
@@ -376,12 +475,16 @@ export async function runRecordingWatchdogJob(): Promise<void> {
     stuckCooldown > 0 ||
     stuckGaveUp > 0 ||
     stuckReaped > 0 ||
+    signalPinged > 0 ||
+    signalCooldown > 0 ||
+    signalGaveUp > 0 ||
     syncPinged > 0 ||
     syncCooldown > 0 ||
     syncGaveUp > 0
   ) {
     console.log(
       `[watchdog] stuck=${stuck.length} (pinged ${stuckPinged}, cooldown ${stuckCooldown}, gave_up ${stuckGaveUp}, reaped ${stuckReaped}, nativeSkipped ${stuckNativeSkipped}); ` +
+        `signalStuck=${signalStuck.length} (pinged ${signalPinged}, cooldown ${signalCooldown}, gave_up ${signalGaveUp}); ` +
         `pendingSync=${pendingSync.length} (pinged ${syncPinged}, cooldown ${syncCooldown}, gave_up ${syncGaveUp})`
     );
   }
@@ -403,6 +506,28 @@ export async function runRecordingWatchdogJob(): Promise<void> {
   //
   // Single-ping routine cases stay in the server log but not Discord.
   // Silent skip when DISCORD_WEBHOOK_FOUNDER isn't set.
+  // Check 1b's cooldowns AND pings are deliberately EXCLUDED here. For
+  // Checks 1/2 both are anomalous: a cooldown means "pinged <30min ago and
+  // STILL stuck", and 3+ pings in one tick means something fleet-wide. For
+  // 1b both are the NORMAL state of a large capped retry queue draining -
+  // it pings whichever handful came off cooldown this tick, every tick.
+  // The 4 Aug flood was fixed for cooldowns but not pings, so a routine
+  // "pinged 3-8" kept every 5-minute run worth alerting; worse, it forced
+  // actualPings >= 3, which is exactly the condition that switches OFF the
+  // gaveUpOnly path and its 1h floor, so the rate limit never engaged.
+  // 7 Aug: 1b now reaches #founder through NOTHING. Excluding its pings and
+  // cooldowns still left gaveUpHits (21-30 every tick) forcing worthAlerting,
+  // a single pending-sync cooldown switching OFF the gaveUpOnly 1h floor, and
+  // a 47-61-user cohort whose churning membership changed the dedup signature
+  // every run - so it posted every 5 minutes again.
+  //
+  // The deciding argument is the alert's own wording: "these self-resolve when
+  // the user next opens the app". A permanent ~50-device population of
+  // iOS-terminated apps that silent pushes cannot relaunch is a BACKGROUND
+  // CONDITION, not an incident, and #founder is for things needing a human
+  // glance. 1b keeps its pushes (they do recover trips) and stays fully
+  // visible in the server log line and in watchdog.* app_events for
+  // /admin/build-health - it just never pages anyone.
   const actualPings = stuckPinged + syncPinged;
   const cooldownHits = stuckCooldown + syncCooldown;
   const gaveUpHits = stuckGaveUp + syncGaveUp;
@@ -417,6 +542,10 @@ export async function runRecordingWatchdogJob(): Promise<void> {
   // Exclude reaped users — they're resolved this run, so they must not keep the
   // alert signature alive (otherwise a reaped-every-cycle orphan would look like
   // an unchanged stuck set forever).
+  // The signature must be the STABLE set of users in trouble, not the
+  // per-tick pinged subset. Feeding it only signalPingedUserIds (which
+  // rotates as users come off cooldown) changed the signature every tick
+  // and re-posted every 5 minutes (4 Aug flood). Use the full 1b cohort.
   const stuckUserIds = [
     ...stuck
       .map((u) => u.id)
@@ -435,7 +564,9 @@ export async function runRecordingWatchdogJob(): Promise<void> {
   if (gaveUpUserIds.size === 0) lastGaveUpAlertSignature = "";
   const gaveUpOnly = gaveUpHits > 0 && actualPings < 3 && cooldownHits === 0;
   const gaveUpClusterUnchanged =
-    gaveUpOnly && gaveUpSignature === lastGaveUpAlertSignature;
+    gaveUpOnly &&
+    (gaveUpSignature === lastGaveUpAlertSignature ||
+      now - lastGaveUpAlertAt < GAVE_UP_ALERT_MIN_INTERVAL_MS);
 
   const shouldPost =
     worthAlerting &&
@@ -454,11 +585,19 @@ export async function runRecordingWatchdogJob(): Promise<void> {
   if (shouldPost) {
     lastAlertSignature = alertSignature;
     lastAlertAt = now;
-    if (gaveUpHits > 0) lastGaveUpAlertSignature = gaveUpSignature;
+    if (gaveUpHits > 0) {
+      lastGaveUpAlertSignature = gaveUpSignature;
+      lastGaveUpAlertAt = now;
+    }
     const detailLines: string[] = [];
     if (stuck.length > 0) {
       detailLines.push(
         `Stuck recordings: ${stuck.length} (pinged ${stuckPinged}, cooldown ${stuckCooldown}, gave_up ${stuckGaveUp})`
+      );
+    }
+    if (signalPinged + signalCooldown + signalGaveUp > 0) {
+      detailLines.push(
+        `Signal-opened recordings gone silent: ${signalStuck.length} (pinged ${signalPinged}, cooldown ${signalCooldown}, gave_up ${signalGaveUp})`
       );
     }
     if (pendingSync.length > 0) {
@@ -467,6 +606,9 @@ export async function runRecordingWatchdogJob(): Promise<void> {
       );
     }
     if (gaveUpHits > 0) {
+      // 1b gave_ups are excluded from gaveUpHits, so this line is now only
+      // ever about Checks 1/2 - where hitting the cap really does mean push
+      // delivery is broken for that user.
       detailLines.push(
         `🚨 ${gaveUpHits} user(s) hit the 4-attempts-in-6h cap — push delivery is structurally broken for them. Check /admin/build-health for the watchdog.gave_up event list.`
       );

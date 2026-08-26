@@ -719,6 +719,67 @@ export interface CsvImportResult {
   skipped: number;
 }
 
+// ── Trip CSV import (bringing history over from another app) ───────
+//
+// Deliberately format-agnostic. Rather than templating each rival's
+// export (which breaks the moment they change a column), the parser
+// maps columns by header synonyms and, where a header is ambiguous,
+// by sniffing the values. "Start" means a time in one app and a place
+// in another, so the data decides.
+
+/** Which CSV column was matched to each field, for the preview UI. */
+export interface TripCsvColumnMap {
+  date: string | null;
+  startTime: string | null;
+  endTime: string | null;
+  from: string | null;
+  to: string | null;
+  distance: string | null;
+  classification: string | null;
+  purpose: string | null;
+}
+
+export interface CsvTripRow {
+  /** ISO date (yyyy-mm-dd) of the journey. */
+  date: string;
+  startTime: string | null;
+  endTime: string | null;
+  from: string | null;
+  to: string | null;
+  distanceMiles: number;
+  classification: TripClassification;
+  purpose: string | null;
+  /** Already on the account: same day, same distance. Skipped on import. */
+  isDuplicate: boolean;
+}
+
+/** A row we could not use, kept so the user sees what was left behind. */
+export interface CsvTripRowError {
+  /** 1-based line number in the uploaded file. */
+  line: number;
+  reason: string;
+}
+
+export interface CsvTripParsePreview {
+  /** Best guess at the source app, purely for the confirmation copy. */
+  detectedSource: string | null;
+  columns: TripCsvColumnMap;
+  /** True when distances were converted from kilometres. */
+  convertedFromKm: boolean;
+  rows: CsvTripRow[];
+  totalRows: number;
+  totalMiles: number;
+  duplicateCount: number;
+  errors: CsvTripRowError[];
+}
+
+export interface CsvTripImportResult {
+  imported: number;
+  skippedDuplicates: number;
+  skippedErrors: number;
+  totalMiles: number;
+}
+
 // Achievement types
 export interface Achievement {
   id: string;
@@ -1183,10 +1244,19 @@ export interface FeedbackWithVoted extends FeedbackItem {
 }
 
 // Admin types
+/** Why a user has Pro. Paying = Stripe or a production Apple subscription. */
+export type AdminProSource = "paying" | "comp" | "referral" | "sandbox" | "team";
+
 export interface AdminAnalytics {
   totalUsers: number;
   activeUsers30d: number;
+  /** Every isPremium row, including comp grants and sandbox. Kept for
+   *  compatibility; the card shows payingSubscribers. */
   premiumUsers: number;
+  payingSubscribers: number;
+  compPro: number;
+  referralPro: number;
+  sandboxPro: number;
   totalTrips: number;
   totalMiles: number;
   totalEarningsPence: number;
@@ -1200,6 +1270,8 @@ export interface AdminUserSummary {
   displayName: string | null;
   emailVerified: boolean;
   isPremium: boolean;
+  /** Why they have Pro; null when they do not. */
+  proSource?: AdminProSource | null;
   isAdmin: boolean;
   createdAt: string;
   lastLoginAt?: string | null;
@@ -1222,7 +1294,7 @@ export interface AdminUserSummary {
   unreachable?: boolean;
 }
 
-export type AdminUsersPlanFilter = "free" | "premium" | "trial" | "referral";
+export type AdminUsersPlanFilter = "free" | "premium" | "paying" | "comp" | "trial" | "referral";
 export type AdminUsersProviderFilter = "email" | "apple" | "google";
 export type AdminUsersLifecycleFilter =
   | "active"
@@ -1271,6 +1343,10 @@ export interface AdminUserDetail extends AdminUserSummary {
   totalEarningsPence: number;
   // Monetisation
   subscriptionPlatform?: "apple" | "stripe" | "none";
+  /** "sandbox" when the Apple transaction was seen on a sandbox webhook. */
+  subscriptionEnvironment?: "production" | "sandbox" | null;
+  subscriptionPeriod?: "monthly" | "annual" | null;
+  subscriptionPeriodInferred?: boolean;
   referralCode?: string | null;
   referredByCode?: string | null;
   // Reachability
@@ -1392,20 +1468,54 @@ export interface AdminHealthStatus {
 
 // Revenue Dashboard
 export interface AdminRevenue {
-  currentPremiumCount: number;
+  /** Sum of monthly-equivalent prices across paying subscribers only. */
   mrrPence: number;
-  stripeSubscribers: number;
-  appleSubscribers: number;
-  adminGranted: number;
+  payingSubscribers: number;
+  /** Every active Pro user, whatever the reason. */
+  proTotal: number;
+  breakdown: {
+    stripeMonthly: number;
+    stripeAnnual: number;
+    appleMonthly: number;
+    appleAnnual: number;
+    appleSandbox: number;
+    comp: number;
+    referral: number;
+    /** Active Milesheet drivers (pilot orgs pay nothing). */
+    team: number;
+    expiredFlag: number;
+  };
+  /** Paying rows whose period was inferred from expiry, not a stamped product id. */
+  inferredPeriods: number;
   churnedLast30d: number;
   churnRatePercent: number;
+  /** MRR / all registered users. */
   arpuPence: number;
+  /** MRR / paying subscribers. */
+  arppuPence: number;
+  /** First month the production webhook trail exists; rows before it are omitted. */
+  trailStartMonth: string | null;
   monthlyTrend: Array<{
     month: string;
-    premiumCount: number;
-    newPremium: number;
+    payingAtMonthEnd: number;
+    newPaid: number;
     churned: number;
+    /** @deprecated alias of payingAtMonthEnd for mobile builds <= 84. */
+    premiumCount: number;
+    /** @deprecated alias of newPaid for mobile builds <= 84. */
+    newPremium: number;
   }>;
+  // Aliases kept so the admin revenue screen in mobile builds <= 84 (which
+  // read the old shape) keeps rendering until build 85 ships. Remove once
+  // the fleet is past 84.
+  /** @deprecated use payingSubscribers */
+  currentPremiumCount: number;
+  /** @deprecated use breakdown.stripeMonthly + stripeAnnual */
+  stripeSubscribers: number;
+  /** @deprecated use breakdown.appleMonthly + appleAnnual (sandbox excluded) */
+  appleSubscribers: number;
+  /** @deprecated use breakdown.comp */
+  adminGranted: number;
 }
 
 // User Engagement
@@ -1476,4 +1586,64 @@ export interface AdminEmailResult {
   errorDetails: string[];
   dryRun: boolean;
   totalUsers: number;
+}
+
+// ─── Milesheet: approval + billing (phases 2 and 3) ────────────────
+
+export type TeamApprovalStatus = "pending" | "approved" | "queried";
+
+/** One driver's month as the manager sees it in the portal. */
+export interface TeamMonthDriver {
+  membershipId: string;
+  userId: string;
+  displayName: string | null;
+  email: string;
+  businessTrips: number;
+  businessMiles: number;
+  /** Reimbursable at the rate that applies to this driver, in pence. */
+  amountPence: number;
+  /** Pence per mile actually used, so the portal can show its working. */
+  ratePence: number;
+  /** True when the driver's own employer rate overrode the org default. */
+  usesOwnRate: boolean;
+  status: TeamApprovalStatus;
+  note: string | null;
+  approvedAt: string | null;
+  approvedByName: string | null;
+  /**
+   * Set when a trip changed after approval, so the figure signed off no
+   * longer matches the figure now. The portal surfaces it rather than
+   * silently reapproving.
+   */
+  driftMiles: number | null;
+  unclassifiedTrips: number;
+}
+
+export interface TeamMonthSummary {
+  orgId: string;
+  orgName: string;
+  month: string;
+  drivers: TeamMonthDriver[];
+  totalMiles: number;
+  totalAmountPence: number;
+  approvedCount: number;
+  pendingCount: number;
+  queriedCount: number;
+}
+
+export interface TeamSeatBilling {
+  pilotFree: boolean;
+  activeSeats: number;
+  /** Hard membership ceiling for this org, null = uncapped. Pilots get 20. */
+  seatCap: number | null;
+  seatsBilled: number | null;
+  /**
+   * Null when no price has been set. The market read was explicit that
+   * Milesheet must not be priced on an inbound assumption, so an
+   * undecided price is shown as undecided rather than invented.
+   */
+  pricePerSeatPence: number | null;
+  status: "pilot" | "none" | "active" | "past_due" | "canceled";
+  currentPeriodEnd: string | null;
+  billingEmail: string | null;
 }

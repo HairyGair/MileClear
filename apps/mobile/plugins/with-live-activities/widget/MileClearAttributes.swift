@@ -55,6 +55,84 @@ struct MileClearAttributes: ActivityAttributes {
         // via calculateHmrcDeduction so the figure honours vehicle
         // type + 10k tier crossover.
         var hmrcDeductionPence: Int? = nil
+
+        // ── Explicit wire format (build 85 date hedge, 25 Aug 2026) ─────
+        // Push payloads carry dates as Unix epoch SECONDS. Swift's default
+        // Codable reads a bare number as timeIntervalSinceReferenceDate
+        // (2001), a 31-year error: our payload decoded to 2057 under the
+        // default. Whether ActivityKit overrides the strategy is
+        // undocumented, so the format is now explicit in both directions
+        // and the question is moot. Encoding matches decoding, so local
+        // activities (serialized between app and widget with this same
+        // Codable) round-trip unchanged. decodeIfPresent + defaults also
+        // makes the long-standing "defaulted so older states still decode"
+        // comments actually true - synthesized Codable never did that.
+        private enum CodingKeys: String, CodingKey {
+            case distanceMiles, speedMph, tripCount, startDate, phase
+            case endDate, needsClassification, dailyTotalMiles
+            case milestoneText, earningsTodayPence, hmrcDeductionPence
+        }
+
+        init(
+            distanceMiles: Double,
+            speedMph: Double,
+            tripCount: Int,
+            startDate: Date,
+            phase: String = "active",
+            endDate: Date? = nil,
+            needsClassification: Bool = false,
+            dailyTotalMiles: Double = 0,
+            milestoneText: String? = nil,
+            earningsTodayPence: Int? = nil,
+            hmrcDeductionPence: Int? = nil
+        ) {
+            self.distanceMiles = distanceMiles
+            self.speedMph = speedMph
+            self.tripCount = tripCount
+            self.startDate = startDate
+            self.phase = phase
+            self.endDate = endDate
+            self.needsClassification = needsClassification
+            self.dailyTotalMiles = dailyTotalMiles
+            self.milestoneText = milestoneText
+            self.earningsTodayPence = earningsTodayPence
+            self.hmrcDeductionPence = hmrcDeductionPence
+        }
+
+        init(from decoder: Decoder) throws {
+            let c = try decoder.container(keyedBy: CodingKeys.self)
+            distanceMiles = try c.decodeIfPresent(Double.self, forKey: .distanceMiles) ?? 0
+            speedMph = try c.decodeIfPresent(Double.self, forKey: .speedMph) ?? 0
+            tripCount = try c.decodeIfPresent(Int.self, forKey: .tripCount) ?? 0
+            let startEpoch = try c.decode(Double.self, forKey: .startDate)
+            startDate = Date(timeIntervalSince1970: startEpoch)
+            phase = try c.decodeIfPresent(String.self, forKey: .phase) ?? "active"
+            if let endEpoch = try c.decodeIfPresent(Double.self, forKey: .endDate) {
+                endDate = Date(timeIntervalSince1970: endEpoch)
+            } else {
+                endDate = nil
+            }
+            needsClassification = try c.decodeIfPresent(Bool.self, forKey: .needsClassification) ?? false
+            dailyTotalMiles = try c.decodeIfPresent(Double.self, forKey: .dailyTotalMiles) ?? 0
+            milestoneText = try c.decodeIfPresent(String.self, forKey: .milestoneText)
+            earningsTodayPence = try c.decodeIfPresent(Int.self, forKey: .earningsTodayPence)
+            hmrcDeductionPence = try c.decodeIfPresent(Int.self, forKey: .hmrcDeductionPence)
+        }
+
+        func encode(to encoder: Encoder) throws {
+            var c = encoder.container(keyedBy: CodingKeys.self)
+            try c.encode(distanceMiles, forKey: .distanceMiles)
+            try c.encode(speedMph, forKey: .speedMph)
+            try c.encode(tripCount, forKey: .tripCount)
+            try c.encode(startDate.timeIntervalSince1970, forKey: .startDate)
+            try c.encode(phase, forKey: .phase)
+            try c.encodeIfPresent(endDate?.timeIntervalSince1970, forKey: .endDate)
+            try c.encode(needsClassification, forKey: .needsClassification)
+            try c.encode(dailyTotalMiles, forKey: .dailyTotalMiles)
+            try c.encodeIfPresent(milestoneText, forKey: .milestoneText)
+            try c.encodeIfPresent(earningsTodayPence, forKey: .earningsTodayPence)
+            try c.encodeIfPresent(hmrcDeductionPence, forKey: .hmrcDeductionPence)
+        }
     }
 
     var activityType: String // "trip" or "shift"
@@ -69,4 +147,41 @@ struct MileClearAttributes: ActivityAttributes {
     // Empty string = no badge shown (matches the existing vehicleName
     // empty-check convention).
     var tripContextLabel: String = ""
+
+    // Same explicit wire format as ContentState, same reasons.
+    private enum CodingKeys: String, CodingKey {
+        case activityType, startedAt, vehicleName, isBusinessMode, tripContextLabel
+    }
+
+    init(
+        activityType: String,
+        startedAt: Date,
+        vehicleName: String,
+        isBusinessMode: Bool,
+        tripContextLabel: String = ""
+    ) {
+        self.activityType = activityType
+        self.startedAt = startedAt
+        self.vehicleName = vehicleName
+        self.isBusinessMode = isBusinessMode
+        self.tripContextLabel = tripContextLabel
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        activityType = try c.decodeIfPresent(String.self, forKey: .activityType) ?? "trip"
+        startedAt = Date(timeIntervalSince1970: try c.decode(Double.self, forKey: .startedAt))
+        vehicleName = try c.decodeIfPresent(String.self, forKey: .vehicleName) ?? ""
+        isBusinessMode = try c.decodeIfPresent(Bool.self, forKey: .isBusinessMode) ?? true
+        tripContextLabel = try c.decodeIfPresent(String.self, forKey: .tripContextLabel) ?? ""
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(activityType, forKey: .activityType)
+        try c.encode(startedAt.timeIntervalSince1970, forKey: .startedAt)
+        try c.encode(vehicleName, forKey: .vehicleName)
+        try c.encode(isBusinessMode, forKey: .isBusinessMode)
+        try c.encode(tripContextLabel, forKey: .tripContextLabel)
+    }
 }

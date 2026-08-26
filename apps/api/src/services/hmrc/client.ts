@@ -14,6 +14,7 @@
 
 import { prisma } from "../../lib/prisma.js";
 import { logEvent } from "../appEvents.js";
+import { redactNinoInPath } from "../../lib/redactUrl.js";
 import { encrypt, decryptIfEncrypted } from "../../lib/encryption.js";
 import { getHmrcConfig, type HmrcEnvironment } from "./config.js";
 import {
@@ -197,6 +198,61 @@ async function performRequest(args: {
   const config = getHmrcConfig();
   if (!config) throw new Error("HMRC integration not configured");
 
+  // Refuse callers we cannot describe truthfully in the fraud-prevention
+  // headers. MileClear ships MTD from the mobile app only; a request
+  // without its X-MileClear-* context is our own tooling, a script, or a
+  // browser poking the API. The old code answered that case by declaring
+  // WEB_APP_VIA_SERVER and filling a browser identity from hardcoded
+  // defaults, which HMRC's Fraud Headers team flagged on 7 Aug 2026 —
+  // the same placeholder objection as device-model, one branch over.
+  // Declaring one connection method and meaning it is the whole fix.
+  if (args.options.client.connectionMethod !== "MOBILE_APP_VIA_SERVER") {
+    logEvent("hmrc.blocked_unsupported_connection", args.options.userId, {
+      path: redactNinoInPath(args.options.path),
+      rawPlatform: args.options.client.rawPlatform ?? null,
+      connectionMethod: args.options.client.connectionMethod,
+      // Port diagnostics: a deliberate blocked probe through the public
+      // domain verifies end-to-end that Apache stamps the real source
+      // port (portSource "apache") without any HMRC traffic.
+      publicPort: args.options.client.publicPort ?? null,
+      portSource: args.options.client.portSource ?? null,
+    });
+    throw new HmrcError(
+      "HMRC submissions are only available from the MileClear mobile app.",
+      400,
+      "CONNECTION_METHOD_UNSUPPORTED",
+      null
+    );
+  }
+
+  // Refuse to call HMRC at all from a client that cannot report real
+  // hardware. requestContext strips placeholder models ("Unknown" from
+  // pre-83 binaries, "arm64"/"x86_64" from simulators), so an absent model
+  // here means the device is one of those. HMRC review a rolling 30 days of
+  // our traffic and rejected us in July for exactly this value, so a single
+  // such request sets the clean window back a month. Fail loudly instead.
+  if (
+    args.options.client.connectionMethod === "MOBILE_APP_VIA_SERVER" &&
+    !args.options.client.deviceModel
+  ) {
+    // Log the block. This guard runs BEFORE any HMRC request, so it emits no
+    // api_call/api_error and was invisible in telemetry on the first cut -
+    // a blocked attempt looked identical to no attempt at all, which cost
+    // real time working out whether a test run had even happened.
+    logEvent("hmrc.blocked_placeholder_device", args.options.userId, {
+      path: redactNinoInPath(args.options.path),
+      deviceId: args.options.client.deviceId,
+      rawDeviceModel: args.options.client.rawDeviceModel ?? null,
+      connectionMethod: args.options.client.connectionMethod,
+    });
+    throw new HmrcError(
+      "This version of the app can't report your device details, which HMRC requires. Please update MileClear to the latest version and try again.",
+      400,
+      "DEVICE_MODEL_UNAVAILABLE",
+      null
+    );
+  }
+
   const headers: Record<string, string> = {
     Authorization: `Bearer ${args.conn.accessToken}`,
     Accept: `application/vnd.hmrc.${args.options.apiVersion}+json`,
@@ -228,6 +284,21 @@ async function performRequest(args: {
 export async function hmrcCall<T = unknown>(opts: HmrcCallOptions): Promise<T> {
   let conn = await loadActiveConnection(opts.userId);
 
+  // Gov-Client-User-IDs must carry the identifier the user signs in with
+  // (per spec: username / email / phone) — not the device UUID, which
+  // already fills Gov-Client-Device-ID and made the two headers identical.
+  // The transport layer can't know it, so it's attached here from the
+  // user row, where the sign-in identifier actually lives.
+  if (opts.client.connectionMethod === "MOBILE_APP_VIA_SERVER" && !opts.client.signInIdentifier) {
+    const user = await prisma.user.findUnique({
+      where: { id: opts.userId },
+      select: { email: true },
+    });
+    if (user?.email) {
+      opts = { ...opts, client: { ...opts.client, signInIdentifier: user.email } };
+    }
+  }
+
   // Pre-emptive refresh if the cached token expires within 60s.
   if (isTokenExpiringSoon(conn.expiresAt)) {
     conn = await refreshSingleFlight(conn);
@@ -258,20 +329,59 @@ export async function hmrcCall<T = unknown>(opts: HmrcCallOptions): Promise<T> {
         ? String((parsed as { message: unknown }).message)
         : `HMRC API error: HTTP ${response.status}`;
 
+    // A rejected call still carried fraud-prevention headers to HMRC, and
+    // their review covers every request we make, not just the successful
+    // ones. Record the same device identity here as on the success path or
+    // a failed test run leaves no evidence of what we actually sent.
     logEvent("hmrc.api_error", opts.userId, {
-      path: opts.path,
+      path: redactNinoInPath(opts.path),
       httpStatus: response.status,
       hmrcCode: code,
+      connectionMethod: opts.client.connectionMethod,
+      deviceId:
+        opts.client.connectionMethod === "MOBILE_APP_VIA_SERVER"
+          ? opts.client.deviceId
+          : null,
+      deviceModel:
+        opts.client.connectionMethod === "MOBILE_APP_VIA_SERVER"
+          ? opts.client.deviceModel ?? null
+          : null,
     });
 
     throw new HmrcError(message, response.status, code, parsed);
   }
 
+  // deviceModel is recorded so we can prove, from our own data, what went
+  // out in Gov-Client-User-Agent. HMRC rejected our July 2026 submissions
+  // over a placeholder model and we had no way to check the corrected
+  // header short of asking them to review again. A null here means the
+  // client could not report its hardware, which is the case worth catching
+  // before requesting a re-review.
   logEvent("hmrc.api_call", opts.userId, {
-    path: opts.path,
+    path: redactNinoInPath(opts.path),
     method: opts.method,
     httpStatus: response.status,
     apiVersion: opts.apiVersion,
+    connectionMethod: opts.client.connectionMethod,
+    deviceId:
+      opts.client.connectionMethod === "MOBILE_APP_VIA_SERVER"
+        ? opts.client.deviceId
+        : null,
+    deviceModel: opts.client.connectionMethod === "MOBILE_APP_VIA_SERVER"
+      ? opts.client.deviceModel ?? null
+      : null,
+    // Self-verification for the 11 Aug header audit: prove from our own
+    // data that the port was measured (portSource) and that the vendor
+    // version headers carried the app's real per-device version.
+    publicPort: opts.client.connectionMethod === "MOBILE_APP_VIA_SERVER"
+      ? opts.client.publicPort ?? null
+      : null,
+    portSource: opts.client.connectionMethod === "MOBILE_APP_VIA_SERVER"
+      ? opts.client.portSource ?? null
+      : null,
+    appVersion: opts.client.connectionMethod === "MOBILE_APP_VIA_SERVER"
+      ? opts.client.appVersion ?? null
+      : null,
   });
 
   // Some endpoints (e.g. the cumulative period-summary PUT) return 204 or a 200

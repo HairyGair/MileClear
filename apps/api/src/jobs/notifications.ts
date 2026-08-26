@@ -1,3 +1,4 @@
+import { runTeamMonthReadyJob } from "./teamApprovals.js";
 import { prisma } from "../lib/prisma.js";
 import { sendPushNotifications, sendPushToUser, ExpoPushMessage } from "../lib/push.js";
 import { pushPrefEnabled } from "../services/pushPrefs.js";
@@ -17,8 +18,14 @@ import { logEvent } from "../services/appEvents.js";
 import { runJob } from "../services/jobRun.js";
 import { getNearbyStations, prewarmStationCache } from "../services/fuel.js";
 import { runVehicleRemindersJob } from "./vehicleReminders.js";
-import { runActivationDay7Job, runPayingInactiveAlarmJob } from "./activation.js";
+import {
+  runActivationDay7Job,
+  runCaptureLapsedJob,
+  runPayingInactiveAlarmJob,
+  runShortHopSavedLocationsJob,
+} from "./activation.js";
 import { runDiscordProSyncJob } from "./discordProSync.js";
+import { runGeocodeMissingAddressesJob } from "./geocodeMissingAddresses.js";
 import { runTaxTipOfTheDayJob } from "./taxTipOfTheDay.js";
 import { runWeeklyDigestJob } from "./weeklyDigest.js";
 import { runTaxDeadlineRemindersJob } from "./taxDeadlineReminders.js";
@@ -837,6 +844,20 @@ async function runDiagnosticScanJob(): Promise<void> {
         }),
       ]);
       captureStalled = lifetimeAuto >= 3 && recentAuto === 0;
+
+      // On the native (ClearTrack) engine taskRunning is ALWAYS false - it is
+      // what RNBG reports, on every runtime (21 Aug 2026: 100% of native
+      // dumps) - so the gate above is permanently open there and the alert
+      // degraded to "no trip for four days", which pushes "tracking may have
+      // stopped" at people who are simply away. The dump's own 24h trigger
+      // signature tells the two apart: a phone that MOVED (motion changes)
+      // and still never opened a recording is a deaf engine; a phone that
+      // did not move is parked or on holiday. Require the movement.
+      if (captureStalled && status.nativeEngineEnabled === true) {
+        const activity = (status.activitySummary ?? {}) as Record<string, number>;
+        const moved = (activity.native_motionchange ?? 0) > 0;
+        if (!moved) captureStalled = false;
+      }
     }
 
     // Check each alert type with cooldown
@@ -1217,8 +1238,45 @@ async function runHeartbeatAlertScanJob(): Promise<void> {
       freeDiskBytes: true,
       autoRecordingActive: true,
       lastDrivingSpeedAt: true,
+      lastHeartbeatAt: true,
+      createdAt: true,
     },
   });
+
+  // Freshness corroboration for the permission-derived checks (2 Aug 2026).
+  //
+  // bgLocationPermission on the user row comes from the HEARTBEAT, which only
+  // fires every 24h (HEARTBEAT_INTERVAL_MS in apps/mobile/lib/heartbeat) and is
+  // accepted here up to 7 days old. Two ways that goes wrong, both producing a
+  // "Trips aren't being tracked" push to someone whose permission is fine:
+  //   1. The user granted Always AFTER their last heartbeat - the row still
+  //      says denied/undetermined for up to a day.
+  //   2. A brand-new account's ONLY heartbeat is the one sent milliseconds
+  //      after registration, BEFORE the iOS permission prompts are answered,
+  //      so it is permanently "undetermined" until the next daily beat.
+  //      (Scott Lough, 2 Aug: registered 11:42, heartbeat at 11:42:29 with
+  //      bg "undetermined", alerted 17:07 - while his dump said granted.)
+  //
+  // Measured 2 Aug: 20 of 41 users alerted since 1 Aug had a diagnostic dump
+  // saying backgroundPermission was GRANTED. Half the alerts were false, and
+  // the 24h repeat cadence added the day before turned each of those into a
+  // recurring nag. Diagnostic dumps are uploaded on app open, so they are
+  // usually FRESHER than the heartbeat - prefer them when they are.
+  const dumps = await prisma.diagnosticDump.findMany({
+    where: { userId: { in: users.map((u) => u.id) } },
+    select: { userId: true, capturedAt: true, statusJson: true },
+  });
+  const dumpByUser = new Map(dumps.map((d) => [d.userId, d]));
+  const permissionLooksGrantedNewer = (userId: string, heartbeatAt: Date | null): boolean => {
+    const d = dumpByUser.get(userId);
+    if (!d || !heartbeatAt) return false;
+    if (d.capturedAt <= heartbeatAt) return false; // heartbeat is the fresher source
+    const bg = (d.statusJson as { backgroundPermission?: string } | null)?.backgroundPermission;
+    return bg === "granted" || bg === "always";
+  };
+  // A heartbeat sent within this window of registration is the first-launch
+  // one, captured before the permission prompts - it says nothing useful.
+  const FIRST_LAUNCH_GRACE_MS = 10 * 60 * 1000;
 
   let sent = 0;
 
@@ -1229,17 +1287,71 @@ async function runHeartbeatAlertScanJob(): Promise<void> {
       title: string;
       body: string;
       data: Record<string, unknown>;
+      // Per-check cooldown override. Defaults to ALERT_COOLDOWN_MS (7 days).
+      cooldownMs?: number;
+      // With a short cooldown, cap how many sends can land inside one
+      // 7-day window before falling back to silence — repeat-nagging a
+      // user who CAN'T change the setting (MDM, parental controls) is
+      // worse than under-alerting.
+      maxSendsPerWindow?: number;
     }> = [];
 
     // 1. Background location permission lost mid-flight. Without this
     //    iOS won't wake the app to track, so trips silently stop.
-    if (user.bgLocationPermission && !["always", "granted"].includes(user.bgLocationPermission)) {
+    //
+    //    Repeats DAILY (capped at 3 per week), not the generic 7-day
+    //    cooldown: for an active driver this is total capture loss, and
+    //    one missable evening push wasn't enough — Rynelle De Souza
+    //    (31 Jul 2026) was pushed once on the Wednesday, didn't act, and
+    //    lost a full 5-hour Amazon Flex block on the Thursday with the
+    //    cooldown still holding. A next-morning repeat would have landed
+    //    before her block started.
+    //    Guarded by the freshness checks above: skip when a NEWER diagnostic
+    //    dump says the permission is granted, and skip when the only heartbeat
+    //    we have was the first-launch one sent before the prompts.
+    const heartbeatIsFirstLaunch =
+      !!user.lastHeartbeatAt &&
+      user.lastHeartbeatAt.getTime() - user.createdAt.getTime() < FIRST_LAUNCH_GRACE_MS;
+    if (
+      user.bgLocationPermission &&
+      !["always", "granted"].includes(user.bgLocationPermission) &&
+      !permissionLooksGrantedNewer(user.id, user.lastHeartbeatAt) &&
+      !heartbeatIsFirstLaunch
+    ) {
       checks.push({
         condition: true,
         alertType: "alert.heartbeat_bg_location_lost",
         title: "Trips aren't being tracked",
         body: "Background location was turned off. Open Settings → MileClear → Location → Always to keep tracking working.",
         data: { action: "open_settings" },
+        cooldownMs: 24 * 60 * 60 * 1000,
+        maxSendsPerWindow: 3,
+      });
+    }
+
+    // 1b. Drive detection switched OFF in the app's own settings. Distinct
+    //     from every permission case: nothing iOS shows will ever surface it,
+    //     and the user often does not know - two hit it on 6 Aug 2026, one a
+    //     premium subscriber whose engine had never run once since install,
+    //     the other a shift-only driver who did not realise drives outside a
+    //     shift vanish. Only the diagnostic dump reports the in-app toggle
+    //     (the heartbeat does not carry it), and dumps upload on app open.
+    //
+    //     Deliberately gentle and rare: disabling detection is a legitimate
+    //     choice (battery, privacy, a shift-only workflow), so this is worded
+    //     as information rather than a fault and repeats only every 30 days.
+    const detectionDump = dumpByUser.get(user.id);
+    const detectionOff =
+      (detectionDump?.statusJson as { enabled?: boolean } | null)?.enabled === false;
+    if (detectionOff) {
+      checks.push({
+        condition: true,
+        alertType: "alert.detection_disabled",
+        title: "Drives aren't being recorded automatically",
+        body:
+          "Drive detection is switched off, so MileClear only records during a shift. If that's deliberate, ignore this. To turn it on: Profile > Settings > Drive detection.",
+        data: { action: "open_settings" },
+        cooldownMs: 30 * 24 * 60 * 60 * 1000,
       });
     }
 
@@ -1283,11 +1395,19 @@ async function runHeartbeatAlertScanJob(): Promise<void> {
 
     for (const check of checks) {
       if (!check.condition) continue;
-      const cutoff = new Date(Date.now() - ALERT_COOLDOWN_MS);
+      const cutoff = new Date(Date.now() - (check.cooldownMs ?? ALERT_COOLDOWN_MS));
       const already = await prisma.appEvent.findFirst({
         where: { userId: user.id, type: check.alertType, createdAt: { gte: cutoff } },
       });
       if (already) continue;
+      // Short-cooldown checks: stop repeating once the weekly cap is hit.
+      if (check.maxSendsPerWindow) {
+        const windowCutoff = new Date(Date.now() - ALERT_COOLDOWN_MS);
+        const recentSends = await prisma.appEvent.count({
+          where: { userId: user.id, type: check.alertType, createdAt: { gte: windowCutoff } },
+        });
+        if (recentSends >= check.maxSendsPerWindow) continue;
+      }
 
       try {
         await sendPushToUser(user.id, check.title, check.body, check.data);
@@ -1332,7 +1452,13 @@ export function startNotificationJobs(): void {
     void runJob("morning_briefing", runMorningBriefingJob);
     void runJob("fuel_price_alert", runFuelPriceAlertJob);
     void runJob("activation_d7", runActivationDay7Job);
+    void runJob("capture_lapsed", runCaptureLapsedJob);
     void runJob("pro_inactive_alarm", runPayingInactiveAlarmJob);
+    void runJob("short_hop_saved_locations", runShortHopSavedLocationsJob);
+    // Teams "last month is ready to approve". Windowed rather than on the 6h
+    // loop for the reason above: it only fires in the first days of the
+    // month, and self-gates to near-zero cost once its emails have gone.
+    void runJob("team_month_ready", runTeamMonthReadyJob);
   };
 
   setTimeout(() => {
@@ -1454,6 +1580,17 @@ export function startNotificationJobs(): void {
     setInterval(
       () => void runJob("first_trip_celebration", runFirstTripCelebrationJob),
       FIRST_TRIP_INTERVAL_MS
+    );
+
+    // Missing trip addresses: every 6 hours. Fills null start/end addresses
+    // left by support-side trip splits and device reverse-geocode failures
+    // through the Nominatim reverse geocoder. 50 trips a run, paced to
+    // Nominatim's one-request-a-second policy, so a full run is under two
+    // minutes.
+    void runJob("geocode_missing_addresses", runGeocodeMissingAddressesJob);
+    setInterval(
+      () => void runJob("geocode_missing_addresses", runGeocodeMissingAddressesJob),
+      INTERVAL_MS
     );
 
     // Mileage milestone celebrations: daily cron. Checks if any

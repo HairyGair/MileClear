@@ -253,6 +253,15 @@ export default function HmrcRatesPage() {
               </p>
             </div>
             <MileageCalculator />
+            <p className="subtext" style={{ marginTop: "1.25rem" }}>
+              Want the fuel side too? The{" "}
+              <a href="/mileage-calculator">full mileage and fuel cost calculator</a>{" "}
+              works out what your journeys actually cost in petrol or diesel and compares
+              that with what you can claim. See also{" "}
+              <a href="/approved-mileage-allowance-payments">approved mileage allowance payments</a>{" "}
+              if your employer pays you a mileage rate, and a free{" "}
+              <a href="/mileage-claim-form-template">mileage claim form template</a>.
+            </p>
           </div>
         </section>
 

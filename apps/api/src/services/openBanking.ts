@@ -7,38 +7,72 @@ import {
   truelayerEnabled,
 } from "../lib/truelayer.js";
 import { prisma } from "../lib/prisma.js";
+import { encrypt, decrypt, isEncrypted } from "../lib/encryption.js";
 import { MERCHANT_PLATFORM_MAP } from "@mileclear/shared";
 import { resolveMerchantSuggestion } from "./merchantCategoriser.js";
 import { reconcileInvoicePayments } from "./invoiceReconcile.js";
 
-// ── Encryption (AES-256-GCM for tokens at rest) ──────────────────────
+// ── Encryption of bank tokens at rest ─────────────────────────────────
+//
+// These are the credentials that read a user's bank account, so they are
+// the most sensitive secrets we hold. They now use the same audited
+// helper as the HMRC tokens and the NINO (lib/encryption.ts: AES-256-GCM,
+// random IV, auth tag, `enc:v1:` prefix, and a hard failure when the key
+// is missing rather than a silent fallback).
+//
+// What this replaces, and why (GDPR audit, 14 Aug 2026). The previous
+// implementation derived its key as
+//   sha256(TRUELAYER_TOKEN_ENCRYPTION_KEY || JWT_SECRET || "")
+// and TRUELAYER_TOKEN_ENCRYPTION_KEY was not set in production. So live
+// bank tokens were encrypted under the JWT *signing* secret. Three ways
+// that hurts: one leaked secret becomes both token forgery and bank
+// credential disclosure; rotating JWT_SECRET (a routine, sensible act)
+// would have silently made every stored bank token undecryptable; and
+// had JWT_SECRET also been unset, the key would have been sha256("") — a
+// publicly known constant — with encryption proceeding as if fine.
+//
+// Reads accept the legacy format during migration (see decryptToken).
+// Writes are always `enc:v1:`. Once scripts/reencrypt-truelayer-tokens.ts
+// reports zero legacy rows, the legacy branch below can be deleted.
 
-const ENCRYPTION_KEY = process.env.TRUELAYER_TOKEN_ENCRYPTION_KEY || process.env.JWT_SECRET || "";
-const ENCRYPTION_ALGORITHM = "aes-256-gcm";
-
-function getEncryptionKey(): Buffer {
-  return crypto.createHash("sha256").update(ENCRYPTION_KEY).digest();
-}
+const LEGACY_KEY_SOURCE =
+  process.env.TRUELAYER_TOKEN_ENCRYPTION_KEY || process.env.JWT_SECRET || "";
 
 function encryptToken(plaintext: string): string {
-  const key = getEncryptionKey();
-  const iv = crypto.randomBytes(12);
-  const cipher = crypto.createCipheriv(ENCRYPTION_ALGORITHM, key, iv);
-  let encrypted = cipher.update(plaintext, "utf8", "hex");
-  encrypted += cipher.final("hex");
-  const tag = cipher.getAuthTag().toString("hex");
-  return `${iv.toString("hex")}:${tag}:${encrypted}`;
+  return encrypt(plaintext);
 }
 
-function decryptToken(encrypted: string): string {
-  if (!encrypted.includes(":")) return encrypted;
-  const [ivHex, tagHex, ciphertext] = encrypted.split(":");
-  const key = getEncryptionKey();
-  const decipher = crypto.createDecipheriv(ENCRYPTION_ALGORITHM, key, Buffer.from(ivHex, "hex"));
-  decipher.setAuthTag(Buffer.from(tagHex, "hex"));
-  let decrypted = decipher.update(ciphertext, "hex", "utf8");
-  decrypted += decipher.final("utf8");
-  return decrypted;
+/**
+ * Legacy read path: `<ivHex>:<tagHex>:<ciphertextHex>` under a
+ * sha256-derived key. Returns null when the value cannot be read that
+ * way, so the caller can tell "not legacy" from "legacy but broken".
+ */
+function decryptLegacyToken(value: string): string | null {
+  const parts = value.split(":");
+  if (parts.length !== 3) return null;
+  const [ivHex, tagHex, ciphertext] = parts;
+  try {
+    const key = crypto.createHash("sha256").update(LEGACY_KEY_SOURCE).digest();
+    const decipher = crypto.createDecipheriv("aes-256-gcm", key, Buffer.from(ivHex, "hex"));
+    decipher.setAuthTag(Buffer.from(tagHex, "hex"));
+    return decipher.update(ciphertext, "hex", "utf8") + decipher.final("utf8");
+  } catch {
+    return null;
+  }
+}
+
+function decryptToken(value: string): string {
+  if (isEncrypted(value)) return decrypt(value);
+  const legacy = decryptLegacyToken(value);
+  if (legacy !== null) return legacy;
+  // Neither current nor legacy ciphertext. Historically this function
+  // returned such values verbatim, which meant a plaintext token passed
+  // through unnoticed and looked encrypted to every caller. Fail instead:
+  // a bank sync that stops is recoverable, a silent plaintext credential
+  // is not.
+  throw new Error(
+    "TrueLayer token is neither enc:v1: nor legacy ciphertext — refusing to treat it as plaintext"
+  );
 }
 
 // ── Merchant matching ─────────────────────────────────────────────────

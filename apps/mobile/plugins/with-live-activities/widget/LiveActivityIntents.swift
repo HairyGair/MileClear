@@ -73,3 +73,81 @@ struct CancelTripIntent: LiveActivityIntent {
         return .result()
     }
 }
+
+// MARK: - Classify at the kerb
+//
+// The tax-relevant decision is "was that business or personal", and the best
+// moment to ask is the one where the driver has just parked and still
+// remembers. Until now the ended Live Activity offered "Classify Trip", which
+// opens the app - so the decision was deferred, and unclassified trips are the
+// single biggest tax risk in the data.
+//
+// These follow the EndTripIntent contract exactly: the widget process can only
+// touch the activity's own state, so they record the CHOICE in `phase` and let
+// the main app apply it at its next poll (detection.ts background task,
+// app launch, or foreground). `phase` is chosen deliberately over a new field
+// because getLiveActivityPhase() already crosses the bridge and is already
+// polled at all three points - no new native method, no new plumbing.
+
+@available(iOS 17.2, *)
+private func recordClassification(_ value: String) async {
+    for activity in Activity<MileClearAttributes>.activities {
+        var state = activity.content.state
+        // Only a finished trip can be classified, and only once.
+        guard state.phase == "ended", state.needsClassification else { continue }
+        state.phase = value
+        state.needsClassification = false
+        // Keep it on screen briefly so the tap visibly registers; the app
+        // ends the activity once it has applied the classification.
+        let content = ActivityContent(state: state, staleDate: Date().addingTimeInterval(120))
+        await activity.update(content)
+    }
+}
+
+@available(iOS 17.2, *)
+struct ClassifyBusinessIntent: LiveActivityIntent {
+    static var title: LocalizedStringResource = "Business"
+    static var description = IntentDescription("Marks the trip you just finished as a business journey.")
+
+    func perform() async throws -> some IntentResult {
+        await recordClassification("classified_business")
+        return .result()
+    }
+}
+
+@available(iOS 17.2, *)
+struct ClassifyPersonalIntent: LiveActivityIntent {
+    static var title: LocalizedStringResource = "Personal"
+    static var description = IntentDescription("Marks the trip you just finished as personal.")
+
+    func perform() async throws -> some IntentResult {
+        await recordClassification("classified_personal")
+        return .result()
+    }
+}
+
+// MARK: - Add a hop that was too short to record
+//
+// Drives under about a third of a mile are dropped on purpose (the phantom-trip
+// floor), which from the driver's seat looks identical to the app failing: three
+// of Denise Sweeney's Cove Bay hops on 22 Aug produced nothing and no
+// explanation, and 34% of all 0.3-0.5 mile trips fleet-wide are typed in by
+// hand. The activity is already on screen when this happens, so it can say so
+// and offer the one-tap alternative rather than vanishing.
+
+@available(iOS 17.2, *)
+struct AddShortTripIntent: LiveActivityIntent {
+    static var title: LocalizedStringResource = "Add it"
+    static var description = IntentDescription("Adds the short hop that was too brief to record automatically.")
+
+    func perform() async throws -> some IntentResult {
+        for activity in Activity<MileClearAttributes>.activities {
+            var state = activity.content.state
+            guard state.phase == "too_short" else { continue }
+            state.phase = "too_short_add"
+            let content = ActivityContent(state: state, staleDate: Date().addingTimeInterval(120))
+            await activity.update(content)
+        }
+        return .result()
+    }
+}

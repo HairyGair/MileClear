@@ -456,8 +456,12 @@ private struct LockScreenView: View {
         switch state.phase {
         case "saving":
             return "Saving trip..."
-        case "ended":
+        case "ended", "classified_business", "classified_personal":
             return isShift ? "Shift Complete" : "Trip Complete"
+        case "too_short", "too_short_add":
+            return "Too short to log"
+        case "no_signal":
+            return isShift ? "Shift Active - no GPS" : "Trip Active - no GPS"
         default:
             return isShift ? "Shift Active" : "Trip Active"
         }
@@ -570,6 +574,87 @@ private struct LockScreenView: View {
     @ViewBuilder
     private var actionRow: some View {
         switch state.phase {
+        case "classified_business", "classified_personal":
+            // The tap registered; the app applies it and ends the activity.
+            HStack(spacing: 6) {
+                Image(systemName: "checkmark.circle.fill")
+                    .font(.system(size: 11))
+                    .foregroundColor(accent)
+                Text(state.phase == "classified_business" ? "Saved as business" : "Saved as personal")
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundColor(textMuted)
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 8)
+            .background(Color.white.opacity(0.04))
+            .cornerRadius(8)
+
+        case "too_short":
+            // The hop was below the auto-record floor. Say so, and offer the
+            // alternative in one tap rather than leaving a silent gap.
+            if #available(iOS 17.2, *) {
+                Button(intent: AddShortTripIntent()) {
+                    HStack(spacing: 5) {
+                        Image(systemName: "plus.circle.fill")
+                            .font(.system(size: 11))
+                        Text("Add it anyway")
+                            .font(.system(size: 12, weight: .semibold))
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 8)
+                    .background(accent.opacity(0.18))
+                    .foregroundColor(accent)
+                    .cornerRadius(8)
+                }
+                .buttonStyle(.plain)
+            } else {
+                Link(destination: URL(string: "mileclear://add-trip")!) {
+                    HStack(spacing: 5) {
+                        Image(systemName: "plus.circle.fill")
+                            .font(.system(size: 11))
+                        Text("Add it anyway")
+                            .font(.system(size: 12, weight: .semibold))
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 8)
+                    .background(accent.opacity(0.18))
+                    .foregroundColor(accent)
+                    .cornerRadius(8)
+                }
+            }
+
+        case "too_short_add":
+            HStack(spacing: 6) {
+                Image(systemName: "arrow.up.forward.app.fill")
+                    .font(.system(size: 11))
+                    .foregroundColor(accent)
+                Text("Open MileClear to finish adding it")
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundColor(textMuted)
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 8)
+            .background(Color.white.opacity(0.04))
+            .cornerRadius(8)
+
+        case "no_signal":
+            // A recording is open but no GPS is arriving. Said here because
+            // this is the only moment the driver can still do something about
+            // it - a push hours later is too late for those miles.
+            Link(destination: URL(string: "mileclear://diagnostics")!) {
+                HStack(spacing: 5) {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .font(.system(size: 11))
+                    Text("Not receiving GPS - tap to check")
+                        .font(.system(size: 12, weight: .semibold))
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 8)
+                .background(Color.orange.opacity(0.18))
+                .foregroundColor(.orange)
+                .cornerRadius(8)
+            }
+
         case "saving":
             // No buttons while saving - the main app is working, any tap
             // would be ambiguous. A subtle progress hint instead.
@@ -589,7 +674,43 @@ private struct LockScreenView: View {
         case "ended":
             // Classify CTA if needed, otherwise "View trip"
             if state.needsClassification {
-                HStack(spacing: 10) {
+                // Classify at the kerb. Two taps-worth of decision, taken while
+                // the driver still remembers where they have been, without
+                // opening the app: LiveActivityIntent runs in the widget
+                // process. Pre-17.2 devices keep the old link into the app.
+                if #available(iOS 17.2, *) {
+                    HStack(spacing: 8) {
+                        Button(intent: ClassifyBusinessIntent()) {
+                            HStack(spacing: 5) {
+                                Image(systemName: "briefcase.fill")
+                                    .font(.system(size: 11))
+                                Text("Business")
+                                    .font(.system(size: 12, weight: .semibold))
+                            }
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 8)
+                            .background(accent.opacity(0.18))
+                            .foregroundColor(accent)
+                            .cornerRadius(8)
+                        }
+                        .buttonStyle(.plain)
+
+                        Button(intent: ClassifyPersonalIntent()) {
+                            HStack(spacing: 5) {
+                                Image(systemName: "house.fill")
+                                    .font(.system(size: 11))
+                                Text("Personal")
+                                    .font(.system(size: 12, weight: .semibold))
+                            }
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 8)
+                            .background(Color.white.opacity(0.08))
+                            .foregroundColor(.white.opacity(0.85))
+                            .cornerRadius(8)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                } else {
                     Link(destination: URL(string: "mileclear://classify-trip")!) {
                         HStack(spacing: 5) {
                             Image(systemName: "tag.fill")

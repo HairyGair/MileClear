@@ -73,6 +73,29 @@ export function isRateLimited(err: unknown): boolean {
   return err instanceof ApiError && err.statusCode === 429;
 }
 
+/** The server is temporarily unavailable (502/503/504). These come from
+ *  INFRASTRUCTURE, not from our application logic: Apache answering while the
+ *  Node process restarts, a proxy timing out, a host blip. Semantically they
+ *  are "come back later" - identical to being unreachable - and can never be a
+ *  verdict on the payload.
+ *
+ *  They were previously treated as generic transient failures, which burns a
+ *  retry each time; at MAX_RETRIES the item parks as permanently_failed and the
+ *  user's data is gone. **Our own deploys produce this window**: `pm2 restart`
+ *  leaves Apache serving 503 for a few seconds, so every deploy took a bite out
+ *  of the retry budget of anyone syncing at that moment (found 13 Aug 2026).
+ *  Treated like 429 now: preserve and stop, no retry consumed.
+ *
+ *  500 is deliberately NOT included. A 500 can be a genuine server-side fault
+ *  on that specific payload, and the retry-then-park path is the right home for
+ *  it - otherwise it would retry forever. */
+export function isServerUnavailable(err: unknown): boolean {
+  return (
+    err instanceof ApiError &&
+    (err.statusCode === 502 || err.statusCode === 503 || err.statusCode === 504)
+  );
+}
+
 /** The ONLY safe reason to stop retrying an item / discard a captured row:
  *  the server definitively rejected the payload as malformed (a 4xx client
  *  error, excluding 429 and the auth codes below). Anything else - network

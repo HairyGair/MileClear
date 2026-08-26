@@ -19,7 +19,7 @@ import {
 } from "../../services/email.js";
 import { logEvent } from "../../services/appEvents.js";
 import { sendPushNotification, sendPushNotifications } from "../../lib/push.js";
-import { PREMIUM_PRICE_MONTHLY_PENCE, getTaxYear, haversineDistance } from "@mileclear/shared";
+import { getTaxYear, haversineDistance } from "@mileclear/shared";
 import { upsertMileageSummary } from "../../services/mileage.js";
 import { advanceLastTripAt } from "../../services/userActivity.js";
 import { getAppleClient, getSignedDataVerifier, fetchTransactionWithEnvFallback, type AppleIapEnvironment } from "../../services/appleIap.js";
@@ -32,6 +32,14 @@ import {
 } from "../../services/discord.js";
 import { resolveRouteDistance } from "../../services/routing.js";
 import { matchTripRoute, isMatchPlausible, decodePolyline } from "../../services/mapMatching.js";
+import {
+  getSubscriptionTruth,
+  getPaidTrend,
+  churnLast30d,
+  classifyProSource,
+  loadSandboxTxnIds,
+  inferPeriod,
+} from "../../services/subscriptionTruth.js";
 
 const premiumToggleSchema = z.object({
   isPremium: z.boolean(),
@@ -109,7 +117,7 @@ const PLACEHOLDER_EMAIL_SUFFIX = "@private.mileclear.com";
 // here maps to columns we already collect — the filters just expose them.
 const usersListFilterSchema = z.object({
   q: z.string().max(200).optional(),
-  plan: z.enum(["free", "premium", "trial", "referral"]).optional(),
+  plan: z.enum(["free", "premium", "paying", "comp", "trial", "referral"]).optional(),
   provider: z.enum(["email", "apple", "google"]).optional(),
   lifecycle: z.enum(["active", "dormant14", "dormant90", "dormant2y", "never"]).optional(),
   healthBand: z.enum(["good", "warning", "critical", "unknown"]).optional(),
@@ -124,15 +132,38 @@ const usersListFilterSchema = z.object({
 
 type UsersListFilters = z.infer<typeof usersListFilterSchema>;
 
-function buildUsersWhere(f: UsersListFilters): Prisma.UserWhereInput {
+function buildUsersWhere(f: UsersListFilters, sandboxTxns: string[]): Prisma.UserWhereInput {
   const and: Prisma.UserWhereInput[] = [];
   const daysAgo = (d: number) => new Date(Date.now() - d * 86_400_000);
+  const now = new Date();
 
   if (f.q) {
     and.push({ OR: [{ email: { contains: f.q } }, { displayName: { contains: f.q } }] });
   }
   if (f.plan === "premium") and.push({ isPremium: true });
   if (f.plan === "free") and.push({ isPremium: false });
+  // Paying = an active Stripe or production-Apple subscription. Sandbox
+  // transactions (TestFlight / App Review) are excluded by id; comp grants
+  // have neither subscription id.
+  if (f.plan === "paying") {
+    and.push({
+      isPremium: true,
+      OR: [{ premiumExpiresAt: null }, { premiumExpiresAt: { gt: now } }],
+    });
+    and.push({
+      OR: [
+        { stripeSubscriptionId: { not: null } },
+        {
+          appleOriginalTransactionId: sandboxTxns.length
+            ? { not: null, notIn: sandboxTxns }
+            : { not: null },
+        },
+      ],
+    });
+  }
+  if (f.plan === "comp") {
+    and.push({ isPremium: true, stripeSubscriptionId: null, appleOriginalTransactionId: null });
+  }
   if (f.plan === "trial") and.push({ trialUsedAt: { not: null } });
   if (f.plan === "referral") and.push({ referralProUntil: { gt: new Date() } });
 
@@ -203,6 +234,7 @@ export async function adminRoutes(app: FastifyInstance) {
       referralsAttached,
       referralsQualified,
       referralActiveUsers,
+      subscriptionTruth,
     ] = await Promise.all([
       prisma.user.count(),
       prisma.user.count({ where: { isPremium: true } }),
@@ -225,6 +257,7 @@ export async function adminRoutes(app: FastifyInstance) {
       prisma.referral.count(),
       prisma.referral.count({ where: { status: "qualified" } }),
       prisma.user.count({ where: { referralProUntil: { gt: now } } }),
+      getSubscriptionTruth(now),
     ]);
 
     return reply.send({
@@ -232,6 +265,12 @@ export async function adminRoutes(app: FastifyInstance) {
         totalUsers,
         activeUsers30d: activeUserRows.length,
         premiumUsers,
+        // Who is actually paying, and why the rest have Pro. See
+        // services/subscriptionTruth.ts - this is what the Overview card shows.
+        payingSubscribers: subscriptionTruth.payingSubscribers,
+        compPro: subscriptionTruth.breakdown.comp,
+        referralPro: subscriptionTruth.breakdown.referral,
+        sandboxPro: subscriptionTruth.breakdown.appleSandbox,
         totalTrips,
         totalMiles: Math.round((tripAggregates._sum.distanceMiles ?? 0) * 10) / 10,
         totalEarningsPence: earningAggregates._sum.amountPence ?? 0,
@@ -274,7 +313,8 @@ export async function adminRoutes(app: FastifyInstance) {
     const size = Math.min(50, Math.max(1, parseInt(pageSize || "20", 10) || 20));
     const skip = (pageNum - 1) * size;
 
-    const where = buildUsersWhere(filters);
+    const sandboxSet = await loadSandboxTxnIds();
+    const where = buildUsersWhere(filters, [...sandboxSet]);
 
     let orderBy:
       | { createdAt: "desc" }
@@ -302,6 +342,10 @@ export async function adminRoutes(app: FastifyInstance) {
       appVersion: true,
       trialUsedAt: true,
       referralProUntil: true,
+      // For proSource (paying / comp / referral / sandbox) on the list row.
+      premiumExpiresAt: true,
+      stripeSubscriptionId: true,
+      appleOriginalTransactionId: true,
       marketingEmailsEnabled: true,
       pushToken: true,
       // Heartbeat fields used to compute the per-user health score.
@@ -339,6 +383,7 @@ export async function adminRoutes(app: FastifyInstance) {
         ...rest,
         healthScore: score,
         healthBand: band,
+        proSource: classifyProSource(u, sandboxSet),
         hasPushToken: !!pushToken,
         unreachable: u.email.endsWith(PLACEHOLDER_EMAIL_SUFFIX) && !pushToken,
       };
@@ -382,7 +427,8 @@ export async function adminRoutes(app: FastifyInstance) {
       return reply.status(400).send({ error: parsedFilters.error.errors[0].message });
     }
     const filters = parsedFilters.data;
-    const where = buildUsersWhere(filters);
+    const sandboxSet = await loadSandboxTxnIds();
+    const where = buildUsersWhere(filters, [...sandboxSet]);
 
     const users = await prisma.user.findMany({
       where,
@@ -480,6 +526,7 @@ export async function adminRoutes(app: FastifyInstance) {
         stripeCustomerId: true,
         stripeSubscriptionId: true,
         premiumExpiresAt: true,
+        subscriptionProductId: true,
         appleId: true,
         googleId: true,
         notes: true,
@@ -639,6 +686,28 @@ export async function adminRoutes(app: FastifyInstance) {
           : user.stripeSubscriptionId
             ? "stripe"
             : "none",
+        ...(await (async () => {
+          const sandbox = await loadSandboxTxnIds();
+          const proSource = classifyProSource(user, sandbox);
+          const isApple = !!user.appleOriginalTransactionId;
+          const isStripe = !!user.stripeSubscriptionId;
+          const period =
+            proSource === "paying"
+              ? isStripe && !user.subscriptionProductId
+                ? { period: "monthly" as const, inferred: false }
+                : inferPeriod(user.subscriptionProductId, user.premiumExpiresAt)
+              : null;
+          return {
+            proSource,
+            subscriptionEnvironment: isApple
+              ? sandbox.has(user.appleOriginalTransactionId!)
+                ? ("sandbox" as const)
+                : ("production" as const)
+              : null,
+            subscriptionPeriod: period?.period ?? null,
+            subscriptionPeriodInferred: period?.inferred ?? false,
+          };
+        })()),
         hasPushToken: !!pushToken,
         unreachable: user.email.endsWith(PLACEHOLDER_EMAIL_SUFFIX) && !pushToken,
         integrations: {
@@ -846,6 +915,292 @@ export async function adminRoutes(app: FastifyInstance) {
       totalPages: Math.ceil(total / size),
       last24h,
       ghostCount: ghostIds.length,
+    });
+  });
+
+  // GET /admin/team-interest
+  // The "MileClear for teams" register. Rows newest first plus the totals
+  // that decide whether an employer tier gets built: how many companies,
+  // and roughly how many drivers they represent (band midpoints, so the
+  // figure is indicative, not a count).
+  app.get("/team-interest", async (_request, reply) => {
+    const rows = await prisma.teamInterest.findMany({
+      orderBy: { createdAt: "desc" },
+      take: 200,
+    });
+    const MIDPOINT: Record<string, number> = { "1-5": 3, "6-20": 13, "21-50": 35, "50+": 75 };
+    const byDrivers: Record<string, number> = {};
+    const byApproval: Record<string, number> = {};
+    const byDestination: Record<string, number> = {};
+    const domains = new Set<string>();
+    let estimatedDrivers = 0;
+    for (const r of rows) {
+      byDrivers[r.drivers] = (byDrivers[r.drivers] ?? 0) + 1;
+      byApproval[r.approval] = (byApproval[r.approval] ?? 0) + 1;
+      byDestination[r.destination] = (byDestination[r.destination] ?? 0) + 1;
+      domains.add(r.email.split("@")[1]?.toLowerCase() ?? r.email);
+      estimatedDrivers += MIDPOINT[r.drivers] ?? 0;
+    }
+    return reply.send({
+      data: rows,
+      totals: {
+        submissions: rows.length,
+        companies: domains.size,
+        estimatedDrivers,
+        // The bar set on 21 Aug 2026: five companies with 10+ drivers each.
+        tenPlusCompanies: rows.filter((r) => r.drivers !== "1-5").length,
+        byDrivers,
+        byApproval,
+        byDestination,
+      },
+    });
+  });
+
+  // GET /admin/activation-health
+  // The activation hole (18 Aug 2026): a quarter of the active fleet could
+  // not capture in the background and 45 users were running the app while
+  // recording nothing, and no view showed it because fleet trip volume kept
+  // rising. This answers "who is running MileClear and getting nothing from
+  // it, and why" from heartbeats, dumps, trips and the watchdog trail.
+  //
+  // Permission is read from the heartbeat, overridden by the diagnostic
+  // dump when the dump is NEWER - the two go stale at different moments and
+  // the newer one is the truth (Rakesh Patel's fix was in his dump two hours
+  // before his heartbeat caught up).
+  app.get("/activation-health", async (_request, reply) => {
+    const now = Date.now();
+    const d14 = new Date(now - 14 * 86_400_000);
+    const d24h = new Date(now - 24 * 3_600_000);
+    const d60 = new Date(now - 60 * 86_400_000);
+
+    const fleet = await prisma.user.findMany({
+      where: { lastHeartbeatAt: { gte: d14 } },
+      select: {
+        id: true,
+        email: true,
+        displayName: true,
+        createdAt: true,
+        lastHeartbeatAt: true,
+        bgLocationPermission: true,
+        lastTripAt: true,
+        pushToken: true,
+        buildNumber: true,
+        appVersion: true,
+        _count: { select: { trips: true } },
+      },
+    });
+    const fleetIds = fleet.map((u) => u.id);
+
+    // Dumps only for the users whose heartbeat says "not granted" - that is
+    // where a newer dump can change the answer, and it keeps the JSON load
+    // to ~100 rows rather than the whole fleet.
+    const notGrantedIds = fleet.filter((u) => u.bgLocationPermission !== "granted").map((u) => u.id);
+    const [dumps, trips14, nudges, dailyMissing] = await Promise.all([
+      notGrantedIds.length
+        ? prisma.diagnosticDump.findMany({
+            where: { userId: { in: notGrantedIds } },
+            select: { userId: true, capturedAt: true, statusJson: true },
+          })
+        : Promise.resolve([]),
+      fleetIds.length
+        ? prisma.trip.groupBy({
+            by: ["userId"],
+            where: { userId: { in: fleetIds }, startedAt: { gte: d14 } },
+            _count: { _all: true },
+          })
+        : Promise.resolve([]),
+      fleetIds.length
+        ? prisma.appEvent.groupBy({
+            by: ["userId", "type"],
+            where: {
+              userId: { in: fleetIds },
+              type: { in: ["notification.capture_lapsed", "notification.activation_d7", "notification.short_hop_saved_locations"] },
+              createdAt: { gte: d60 },
+            },
+            _max: { createdAt: true },
+          })
+        : Promise.resolve([]),
+      prisma.$queryRaw<Array<{ d: Date; users: bigint }>>`
+        SELECT DATE(createdAt) AS d, COUNT(DISTINCT userId) AS users
+        FROM app_events
+        WHERE type = 'alert.permission_missing' AND createdAt >= ${d14}
+        GROUP BY DATE(createdAt) ORDER BY d
+      `,
+    ]);
+
+    const dumpBy = new Map(dumps.map((d) => [d.userId, d]));
+    const trips14By = new Map(trips14.map((t) => [t.userId, t._count._all]));
+    const nudgeBy = new Map<string, Date>();
+    for (const n of nudges) {
+      if (!n._max.createdAt) continue;
+      const prev = nudgeBy.get(n.userId!);
+      if (!prev || n._max.createdAt > prev) nudgeBy.set(n.userId!, n._max.createdAt);
+    }
+
+    const permissionCounts: Record<string, number> = { granted: 0, undetermined: 0, denied: 0, unknown: 0 };
+    let cannotCapture = 0;
+    let dumpOverrides = 0;
+    const silentNever: typeof rows = [];
+    const silentLapsed: typeof rows = [];
+    const needsPermission: typeof rows = [];
+    const rows: Array<{
+      userId: string;
+      email: string;
+      displayName: string | null;
+      createdAt: string;
+      lastHeartbeatAt: string | null;
+      heartbeatPermission: string | null;
+      effectivePermission: string;
+      permissionSource: "heartbeat" | "dump";
+      lastTripAt: string | null;
+      trips14d: number;
+      tripsLifetime: number;
+      hasPushToken: boolean;
+      build: string | null;
+      lastNudgedAt: string | null;
+    }> = [];
+
+    for (const u of fleet) {
+      let effective = u.bgLocationPermission ?? "unknown";
+      let source: "heartbeat" | "dump" = "heartbeat";
+      const dump = dumpBy.get(u.id);
+      if (dump && u.lastHeartbeatAt && dump.capturedAt > u.lastHeartbeatAt) {
+        const s = (dump.statusJson ?? {}) as { backgroundPermission?: string };
+        if (s.backgroundPermission) {
+          if (s.backgroundPermission !== effective) dumpOverrides += 1;
+          effective = s.backgroundPermission;
+          source = "dump";
+        }
+      }
+      const key = effective === "granted" || effective === "undetermined" || effective === "denied" ? effective : "unknown";
+      permissionCounts[key] += 1;
+      const t14 = trips14By.get(u.id) ?? 0;
+      const row = {
+        userId: u.id,
+        email: u.email,
+        displayName: u.displayName,
+        createdAt: u.createdAt.toISOString(),
+        lastHeartbeatAt: u.lastHeartbeatAt?.toISOString() ?? null,
+        heartbeatPermission: u.bgLocationPermission,
+        effectivePermission: effective,
+        permissionSource: source,
+        lastTripAt: u.lastTripAt?.toISOString() ?? null,
+        trips14d: t14,
+        tripsLifetime: u._count.trips,
+        hasPushToken: !!u.pushToken,
+        build: u.buildNumber,
+        lastNudgedAt: nudgeBy.get(u.id)?.toISOString() ?? null,
+      };
+      rows.push(row);
+      if (effective !== "granted") {
+        cannotCapture += 1;
+        needsPermission.push(row);
+      }
+      if (t14 === 0) {
+        if (u._count.trips === 0) silentNever.push(row);
+        else silentLapsed.push(row);
+      }
+    }
+
+    // Most valuable first: lapsed users who used to record a lot, then
+    // never-recorded users by how long they have been waiting.
+    silentLapsed.sort((a, b) => b.tripsLifetime - a.tripsLifetime);
+    silentNever.sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+    needsPermission.sort((a, b) => b.tripsLifetime - a.tripsLifetime);
+
+    // Watchdog gave_up, last 24h: phone asleep vs alive-and-silent. The raw
+    // count is almost all sleeping phones (18 Aug: 85 gave up, ~6 were
+    // alive and had not saved a trip). Only the second group is a casualty.
+    const gaveUpEvents = await prisma.appEvent.findMany({
+      where: { type: "watchdog.gave_up", createdAt: { gte: d24h }, userId: { not: null } },
+      select: { userId: true, createdAt: true },
+      orderBy: { createdAt: "desc" },
+    });
+    const lastGaveUp = new Map<string, Date>();
+    for (const e of gaveUpEvents) if (!lastGaveUp.has(e.userId!)) lastGaveUp.set(e.userId!, e.createdAt);
+    const gaveUpIds = [...lastGaveUp.keys()];
+    const [gaveUpUsers, tripsSince] = gaveUpIds.length
+      ? await Promise.all([
+          prisma.user.findMany({
+            where: { id: { in: gaveUpIds } },
+            select: { id: true, email: true, displayName: true, lastHeartbeatAt: true, pushToken: true, buildNumber: true },
+          }),
+          prisma.trip.findMany({
+            where: { userId: { in: gaveUpIds }, createdAt: { gte: d24h } },
+            select: { userId: true, createdAt: true },
+          }),
+        ])
+      : [[], []];
+    const gaveUp = { total: gaveUpIds.length, recovered: 0, asleep: 0, aliveAndSilentCount: 0 };
+    const aliveAndSilent: Array<{
+      userId: string; email: string; displayName: string | null; gaveUpAt: string;
+      lastHeartbeatAt: string | null; hasPushToken: boolean; build: string | null;
+    }> = [];
+    for (const u of gaveUpUsers) {
+      const at = lastGaveUp.get(u.id)!;
+      const saved = tripsSince.some((t) => t.userId === u.id && t.createdAt >= at);
+      if (saved) { gaveUp.recovered += 1; continue; }
+      // Alive = the phone has reported since the give-up (or within the hour before it).
+      const alive = !!u.lastHeartbeatAt && u.lastHeartbeatAt.getTime() >= at.getTime() - 3_600_000;
+      if (!alive) { gaveUp.asleep += 1; continue; }
+      gaveUp.aliveAndSilentCount += 1;
+      aliveAndSilent.push({
+        userId: u.id, email: u.email, displayName: u.displayName, gaveUpAt: at.toISOString(),
+        lastHeartbeatAt: u.lastHeartbeatAt?.toISOString() ?? null, hasPushToken: !!u.pushToken, build: u.buildNumber,
+      });
+    }
+
+    // OTA adoption from the same 14-day dump window: what each binary is
+    // actually running. updateId identifies the published group; createdAt
+    // is the update's own publish time.
+    const recentDumps = await prisma.diagnosticDump.findMany({
+      where: { capturedAt: { gte: d14 } },
+      select: { statusJson: true },
+    });
+    const ota = new Map<string, { devices: number; embedded: number; updates: Map<string, { devices: number; publishedAt: string | null }> }>();
+    for (const d of recentDumps) {
+      const u = ((d.statusJson ?? {}) as { updates?: { runtimeVersion?: string | null; updateId?: string | null; isEmbeddedLaunch?: boolean | null; createdAt?: string | null } }).updates;
+      const rt = u?.runtimeVersion ?? "unknown";
+      let e = ota.get(rt);
+      if (!e) { e = { devices: 0, embedded: 0, updates: new Map() }; ota.set(rt, e); }
+      e.devices += 1;
+      if (u?.isEmbeddedLaunch !== false) { e.embedded += 1; continue; }
+      const id = u?.updateId ?? "unknown";
+      const cur = e.updates.get(id) ?? { devices: 0, publishedAt: u?.createdAt ?? null };
+      cur.devices += 1;
+      e.updates.set(id, cur);
+    }
+
+    return reply.send({
+      data: {
+        windowDays: 14,
+        fleet: fleet.length,
+        permission: permissionCounts,
+        cannotCapture,
+        cannotCapturePct: fleet.length ? Math.round((cannotCapture / fleet.length) * 1000) / 10 : 0,
+        dumpOverrides,
+        silent: {
+          total: silentNever.length + silentLapsed.length,
+          never: silentNever.length,
+          lapsed: silentLapsed.length,
+          neverRows: silentNever.slice(0, 60),
+          lapsedRows: silentLapsed.slice(0, 60),
+        },
+        needsPermission: needsPermission.slice(0, 80),
+        dailyPermissionMissing: dailyMissing.map((r) => ({ date: new Date(r.d).toISOString().slice(0, 10), users: Number(r.users) })),
+        gaveUp24h: { ...gaveUp, aliveAndSilent },
+        ota: [...ota.entries()]
+          .map(([runtime, e]) => ({
+            runtime,
+            devices: e.devices,
+            embedded: e.embedded,
+            updates: [...e.updates.entries()]
+              .map(([updateId, v]) => ({ updateId, devices: v.devices, publishedAt: v.publishedAt }))
+              .sort((a, b) => b.devices - a.devices),
+          }))
+          .sort((a, b) => b.devices - a.devices),
+        generatedAt: new Date().toISOString(),
+      },
     });
   });
 
@@ -1503,84 +1858,47 @@ export async function adminRoutes(app: FastifyInstance) {
   });
 
   // GET /admin/revenue
+  // Revenue truth (21 Aug 2026). MRR is the sum of monthly-equivalent prices
+  // across PAYING subscribers only - Stripe plus production Apple, monthly at
+  // £4.99 and annual at £44.99/12. Comp grants, referral credit and sandbox
+  // subscriptions are reported but never priced. The trend is reconstructed
+  // from the production webhook + Stripe event trail, not the users table,
+  // so it reflects what was true each month rather than today's flags.
   app.get("/revenue", async (_request, reply) => {
     const now = new Date();
-    const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+    const [truth, trend, churned, totalUsers] = await Promise.all([
+      getSubscriptionTruth(now),
+      getPaidTrend(6, now),
+      churnLast30d(now),
+      prisma.user.count(),
+    ]);
 
-    const [stripeSubscribers, appleSubscribers, adminGranted, totalUsers, churned] =
-      await Promise.all([
-        prisma.user.count({
-          where: { isPremium: true, stripeSubscriptionId: { not: null } },
-        }),
-        prisma.user.count({
-          where: { isPremium: true, appleOriginalTransactionId: { not: null } },
-        }),
-        prisma.user.count({
-          where: {
-            isPremium: true,
-            stripeSubscriptionId: null,
-            appleOriginalTransactionId: null,
-          },
-        }),
-        prisma.user.count(),
-        prisma.user.count({
-          where: {
-            isPremium: false,
-            premiumExpiresAt: { gte: thirtyDaysAgo, lt: now },
-          },
-        }),
-      ]);
-
-    const currentPremiumCount = stripeSubscribers + appleSubscribers + adminGranted;
-    const mrrPence = currentPremiumCount * PREMIUM_PRICE_MONTHLY_PENCE;
-    const churnBase = churned + currentPremiumCount;
-    const churnRatePercent = churnBase > 0
-      ? Math.round((churned / churnBase) * 1000) / 10
-      : 0;
-    const arpuPence = totalUsers > 0
-      ? Math.round(mrrPence / totalUsers)
-      : 0;
-
-    // Monthly premium trend (last 6 months)
-    const sixMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 5, 1);
-    const trendRows = await prisma.$queryRaw<
-      Array<{ month: string; premiumCount: bigint; newPremium: bigint; churned: bigint }>
-    >`
-      SELECT
-        DATE_FORMAT(months.m, '%Y-%m') AS month,
-        (SELECT COUNT(*) FROM users
-         WHERE isPremium = true
-         AND createdAt <= LAST_DAY(months.m)) AS premiumCount,
-        (SELECT COUNT(*) FROM users
-         WHERE isPremium = true
-         AND DATE_FORMAT(createdAt, '%Y-%m') = DATE_FORMAT(months.m, '%Y-%m')) AS newPremium,
-        (SELECT COUNT(*) FROM users
-         WHERE isPremium = false
-         AND premiumExpiresAt IS NOT NULL
-         AND DATE_FORMAT(premiumExpiresAt, '%Y-%m') = DATE_FORMAT(months.m, '%Y-%m')) AS churned
-      FROM (
-        SELECT DATE_ADD(${sixMonthsAgo}, INTERVAL n MONTH) AS m
-        FROM (SELECT 0 AS n UNION SELECT 1 UNION SELECT 2 UNION SELECT 3 UNION SELECT 4 UNION SELECT 5) nums
-      ) months
-      ORDER BY months.m
-    `;
+    const churnBase = churned + truth.payingSubscribers;
+    const churnRatePercent = churnBase > 0 ? Math.round((churned / churnBase) * 1000) / 10 : 0;
 
     return reply.send({
       data: {
-        currentPremiumCount,
-        mrrPence,
-        stripeSubscribers,
-        appleSubscribers,
-        adminGranted,
+        mrrPence: truth.mrrPence,
+        payingSubscribers: truth.payingSubscribers,
+        proTotal: truth.proTotal,
+        breakdown: truth.breakdown,
+        inferredPeriods: truth.inferredPeriods,
         churnedLast30d: churned,
         churnRatePercent,
-        arpuPence,
-        monthlyTrend: trendRows.map((r) => ({
-          month: r.month,
-          premiumCount: Number(r.premiumCount),
-          newPremium: Number(r.newPremium),
-          churned: Number(r.churned),
+        arpuPence: totalUsers > 0 ? Math.round(truth.mrrPence / totalUsers) : 0,
+        arppuPence:
+          truth.payingSubscribers > 0 ? Math.round(truth.mrrPence / truth.payingSubscribers) : 0,
+        trailStartMonth: trend.trailStartMonth,
+        monthlyTrend: trend.rows.map((r) => ({
+          ...r,
+          premiumCount: r.payingAtMonthEnd,
+          newPremium: r.newPaid,
         })),
+        // Deprecated aliases for the mobile admin screen in builds <= 84.
+        currentPremiumCount: truth.payingSubscribers,
+        stripeSubscribers: truth.breakdown.stripeMonthly + truth.breakdown.stripeAnnual,
+        appleSubscribers: truth.breakdown.appleMonthly + truth.breakdown.appleAnnual,
+        adminGranted: truth.breakdown.comp,
       },
     });
   });
@@ -1794,7 +2112,16 @@ export async function adminRoutes(app: FastifyInstance) {
     const FRESH_MS = 48 * 60 * 60 * 1000;
 
     // Engine split + native heartbeat health from the latest dump per user.
+    // Dumps are one-per-user and never deleted, so without a date filter
+    // the split counts every device that ever reported - on 21 Aug 2026
+    // 300 of 673 dumps were older than a fortnight. Fourteen days matches
+    // the "active fleet" window used elsewhere.
+    const fourteenDaysAgo = new Date(now - 14 * 24 * 60 * 60 * 1000);
+    const staleDumpsExcluded = await prisma.diagnosticDump.count({
+      where: { capturedAt: { lt: fourteenDaysAgo } },
+    });
     const dumps = await prisma.diagnosticDump.findMany({
+      where: { capturedAt: { gte: fourteenDaysAgo } },
       select: {
         capturedAt: true,
         statusJson: true,
@@ -1945,6 +2272,8 @@ export async function adminRoutes(app: FastifyInstance) {
           nativeStale,
           nativeNever,
           dumpsTotal: dumps.length,
+          dumpWindowDays: 14,
+          staleDumpsExcluded,
         },
         // True native binary (runtimeVersion) tied to the OTA labels running on
         // it. e.g. { runtime: "1.3.0-build74", devices: 11, otaLabels: [
@@ -2440,11 +2769,23 @@ export async function adminRoutes(app: FastifyInstance) {
 
   // GET /admin/missing-trip-reports
   // Triage inbox for the "Missing a trip?" affordance (trips/report-missing).
-  // Each report is joined with the user's latest dump and capture stats, and
-  // auto-diagnosed using the support-playbook rules: permission gap vs silent
-  // native non-capture vs needs-a-look.
+  // Each report is joined with the user's latest dump, their trips and events
+  // around the report, and auto-diagnosed with the support-playbook classes
+  // in the order a support read actually goes (first match wins):
+  //   landed_after_report  Class 11: trip.created shortly AFTER the report.
+  //   open_recording       Class 15: trip.signal_start with no trip.created
+  //                        since - the route is alive on the phone.
+  //   no_addresses         Class 14: the trip is there with both addresses
+  //                        null, so the list shows no route line.
+  //   head_gap             Class 16: a trip whose first coordinate is well
+  //                        after startedAt - the leading miles are absent.
+  //   permission_gap / silent_non_capture / needs_look  as before.
+  // selfAdded flags a manual trip the user entered after reporting.
   app.get("/missing-trip-reports", async (_request, reply) => {
-    const cutoff = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+    const HOUR = 60 * 60 * 1000;
+    const DAY = 24 * HOUR;
+    const now = Date.now();
+    const cutoff = new Date(now - 30 * DAY);
     const events = await prisma.appEvent.findMany({
       where: { type: "trip.report_missing", createdAt: { gte: cutoff } },
       orderBy: { createdAt: "desc" },
@@ -2454,12 +2795,14 @@ export async function adminRoutes(app: FastifyInstance) {
         userId: true,
         metadata: true,
         createdAt: true,
-        user: { select: { email: true, displayName: true } },
+        user: { select: { email: true, displayName: true, lastHeartbeatAt: true } },
       },
     });
 
     const ids = [...new Set(events.map((e) => e.userId).filter((v): v is string => !!v))];
-    const [dumps, recentAuto] = ids.length
+    const earliest = events.length ? events[events.length - 1].createdAt.getTime() : now;
+    const windowStart = new Date(earliest - DAY);
+    const [dumps, recentAuto, tripEvents, nearbyTrips] = ids.length
       ? await Promise.all([
           prisma.diagnosticDump.findMany({
             where: { userId: { in: ids } },
@@ -2470,14 +2813,77 @@ export async function adminRoutes(app: FastifyInstance) {
             where: {
               userId: { in: ids },
               isManualEntry: false,
-              startedAt: { gte: new Date(Date.now() - 4 * 24 * 60 * 60 * 1000) },
+              startedAt: { gte: new Date(now - 4 * DAY) },
             },
             _count: { _all: true },
           }),
+          prisma.appEvent.findMany({
+            where: {
+              userId: { in: ids },
+              type: "trip.signal_start",
+              createdAt: { gte: windowStart },
+            },
+            select: { userId: true, type: true, createdAt: true },
+            orderBy: { createdAt: "asc" },
+          }),
+          prisma.trip.findMany({
+            where: {
+              userId: { in: ids },
+              OR: [{ createdAt: { gte: windowStart } }, { startedAt: { gte: windowStart } }],
+            },
+            select: {
+              id: true,
+              userId: true,
+              startedAt: true,
+              endedAt: true,
+              createdAt: true,
+              isManualEntry: true,
+              startAddress: true,
+              endAddress: true,
+              distanceMiles: true,
+              classification: true,
+            },
+          }),
         ])
-      : [[], []];
+      : [[], [], [], []];
+
+    // First stored coordinate per non-manual nearby trip, for the head-gap tell.
+    const autoTripIds = nearbyTrips.filter((t) => !t.isManualEntry).map((t) => t.id);
+    const firstCoord = autoTripIds.length
+      ? await prisma.tripCoordinate.groupBy({
+          by: ["tripId"],
+          where: { tripId: { in: autoTripIds } },
+          _min: { recordedAt: true },
+        })
+      : [];
+    const firstCoordBy = new Map(firstCoord.map((c) => [c.tripId, c._min.recordedAt]));
+
     const dumpBy = new Map(dumps.map((d) => [d.userId, d]));
     const recentBy = new Map(recentAuto.map((r) => [r.userId, r._count._all]));
+    const eventsBy = new Map<string, typeof tripEvents>();
+    for (const ev of tripEvents) {
+      if (!ev.userId) continue;
+      const arr = eventsBy.get(ev.userId) ?? [];
+      arr.push(ev);
+      eventsBy.set(ev.userId, arr);
+    }
+    const tripsBy = new Map<string, typeof nearbyTrips>();
+    for (const t of nearbyTrips) {
+      const arr = tripsBy.get(t.userId) ?? [];
+      arr.push(t);
+      tripsBy.set(t.userId, arr);
+    }
+
+    type Diagnosis =
+      | "landed_after_report"
+      | "open_recording"
+      | "no_addresses"
+      | "head_gap"
+      | "permission_gap"
+      | "silent_non_capture"
+      | "needs_look";
+
+    const mins = (ms: number) => Math.round(ms / 60000);
 
     const reports = events.map((e) => {
       const dump = e.userId ? dumpBy.get(e.userId) : undefined;
@@ -2489,9 +2895,98 @@ export async function adminRoutes(app: FastifyInstance) {
       };
       const meta = (e.metadata ?? {}) as { note?: string };
       const recent = e.userId ? (recentBy.get(e.userId) ?? 0) : 0;
+      const at = e.createdAt.getTime();
+      const userEvents = e.userId ? (eventsBy.get(e.userId) ?? []) : [];
+      const userTrips = e.userId ? (tripsBy.get(e.userId) ?? []) : [];
 
-      let diagnosis: "permission_gap" | "silent_non_capture" | "needs_look" = "needs_look";
-      if (dump) {
+      let diagnosis: Diagnosis = "needs_look";
+      let evidence: string | null = null;
+      let tripId: string | null = null;
+
+      // Class 11: the trip landed after the report (finalize / sync lag).
+      // Captured trips only - a manual entry the user typed in afterwards
+      // also creates a trip, and that is them working around the problem,
+      // not the problem resolving (first dry run mis-filed 20 reports that
+      // way).
+      // The reported drive STARTED before the report and was CREATED after
+      // it. A captured trip that started after the report is their next
+      // drive, not this one (Andrew Hitchen, 17 Aug: the real answer was a
+      // head gap on the trip he already had).
+      const landed = userTrips.find(
+        (t) =>
+          !t.isManualEntry &&
+          t.startedAt.getTime() <= at + 5 * 60000 &&
+          t.createdAt.getTime() >= at &&
+          t.createdAt.getTime() <= at + 6 * HOUR
+      );
+      if (landed) {
+        diagnosis = "landed_after_report";
+        tripId = landed.id;
+        evidence = `captured trip ${landed.id.slice(0, 8)} (${landed.distanceMiles?.toFixed(2) ?? "?"} mi) was created ${mins(landed.createdAt.getTime() - at)} min after the report.`;
+      }
+
+      // Class 15: a recording opened and never closed.
+      if (diagnosis === "needs_look") {
+        const signals = userEvents.filter(
+          (ev) => ev.type === "trip.signal_start" && ev.createdAt.getTime() >= at - DAY && ev.createdAt.getTime() <= at + HOUR
+        );
+        const lastSignal = signals[signals.length - 1];
+        if (lastSignal) {
+          // The recording that opened at the signal would finalise into a
+          // captured trip starting near the signal. A manual entry, or an
+          // admin reconstruction days later, does not close it.
+          const sig = lastSignal.createdAt.getTime();
+          const closed = userTrips.some(
+            (t) =>
+              !t.isManualEntry &&
+              t.startedAt.getTime() >= sig - 10 * 60000 &&
+              t.startedAt.getTime() <= sig + 12 * HOUR &&
+              // A genuine finalize lands within the day; a reconstruction
+              // added by support days later does not count as closing it.
+              t.createdAt.getTime() <= sig + DAY
+          );
+          if (!closed) {
+            diagnosis = "open_recording";
+            const hb = e.user?.lastHeartbeatAt?.getTime() ?? null;
+            const frozen = hb !== null && Math.abs(hb - lastSignal.createdAt.getTime()) <= 2 * 60000;
+            evidence = `trip.signal_start ${mins(at - lastSignal.createdAt.getTime())} min before the report, no trip.created since. Route is on the phone until their next drive.${frozen ? " Heartbeat frozen at the signal: device unreachable, only opening the app will finalise it." : ""}`;
+          }
+        }
+      }
+
+      // Class 14: the trip is there, it just has no addresses.
+      if (diagnosis === "needs_look") {
+        const blank = userTrips.find(
+          (t) =>
+            !t.isManualEntry &&
+            t.startAddress === null &&
+            t.endAddress === null &&
+            Math.abs(t.startedAt.getTime() - at) <= DAY
+        );
+        if (blank) {
+          diagnosis = "no_addresses";
+          tripId = blank.id;
+          evidence = `trip ${blank.id.slice(0, 8)} (${blank.distanceMiles?.toFixed(2) ?? "?"} mi, ${blank.classification}) has no start or end address, so the list draws no route line.`;
+        }
+      }
+
+      // Class 16: the trip looks whole but its first coordinate is late.
+      if (diagnosis === "needs_look") {
+        for (const t of userTrips) {
+          if (t.isManualEntry || Math.abs(t.startedAt.getTime() - at) > DAY) continue;
+          const first = firstCoordBy.get(t.id);
+          if (!first) continue;
+          const gapMin = mins(first.getTime() - t.startedAt.getTime());
+          if (gapMin >= 10) {
+            diagnosis = "head_gap";
+            tripId = t.id;
+            evidence = `trip ${t.id.slice(0, 8)} starts at ${t.startedAt.toISOString().slice(11, 16)}Z but its first coordinate is ${gapMin} min later - the leading leg has no trail and its miles are missing from ${t.distanceMiles?.toFixed(2) ?? "?"} mi.`;
+            break;
+          }
+        }
+      }
+
+      if (diagnosis === "needs_look" && dump) {
         if (s.backgroundPermission !== "granted" || s.motionPermission === "denied") {
           diagnosis = "permission_gap";
         } else if (
@@ -2502,6 +2997,10 @@ export async function adminRoutes(app: FastifyInstance) {
           diagnosis = "silent_non_capture";
         }
       }
+
+      const selfAdded = userTrips.some(
+        (t) => t.isManualEntry && t.createdAt.getTime() >= at && t.createdAt.getTime() <= at + DAY
+      );
 
       return {
         id: e.id,
@@ -2517,6 +3016,9 @@ export async function adminRoutes(app: FastifyInstance) {
         nativeEngine: s.nativeEngineEnabled === true,
         recentAutoTrips: recent,
         diagnosis,
+        evidence,
+        tripId,
+        selfAdded,
       };
     });
 
@@ -2661,7 +3163,7 @@ export async function adminRoutes(app: FastifyInstance) {
       prisma.$queryRaw<Array<{ c: bigint }>>`
         SELECT COUNT(DISTINCT userId) AS c FROM earnings
       `.then((r) => Number(r[0]?.c ?? 0)),
-      prisma.user.count({ where: { isPremium: true } }),
+      getSubscriptionTruth().then((t) => t.payingSubscribers),
     ]);
 
     const pct = (n: number, denom: number) =>
@@ -2674,60 +3176,68 @@ export async function adminRoutes(app: FastifyInstance) {
           { key: "first_trip", label: "Logged first trip", count: usersWithTrip, pctOfPrev: pct(usersWithTrip, totalUsers), pctOfTotal: pct(usersWithTrip, totalUsers) },
           { key: "five_trips", label: "5+ trips (active)", count: usersWith5Trips, pctOfPrev: pct(usersWith5Trips, usersWithTrip), pctOfTotal: pct(usersWith5Trips, totalUsers) },
           { key: "earnings", label: "Logged earnings", count: usersWithEarnings, pctOfPrev: pct(usersWithEarnings, usersWith5Trips), pctOfTotal: pct(usersWithEarnings, totalUsers) },
-          { key: "premium", label: "Upgraded to Pro", count: premiumUsers, pctOfPrev: pct(premiumUsers, usersWith5Trips), pctOfTotal: pct(premiumUsers, totalUsers) },
+          { key: "premium", label: "Paying subscriber", count: premiumUsers, pctOfPrev: pct(premiumUsers, usersWith5Trips), pctOfTotal: pct(premiumUsers, totalUsers) },
         ],
       },
     });
   });
 
   // GET /admin/retention
-  // D1/D7/D30 retention - of users who signed up in the last 90 days, what
-  // fraction logged a trip on or after day 1/7/30 from their signup date.
+  // D1/D7/D30 retention over signups in the last 90 days. Each metric is
+  // measured only over users who are OLD ENOUGH to have reached that day:
+  // someone who signed up five days ago cannot have a D7 yet, and counting
+  // them in the denominator halves the real figure (21 Aug 2026: 574 in the
+  // cohort, 274 eligible for D30, D30 shown at under half its value).
   app.get("/retention", async (_request, reply) => {
     const now = new Date();
     const ninetyDaysAgo = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
+    const cut = (d: number) => new Date(now.getTime() - d * 24 * 60 * 60 * 1000);
+    const cut1 = cut(1);
+    const cut7 = cut(7);
+    const cut30 = cut(30);
 
     const rows = await prisma.$queryRaw<
       Array<{
         cohort: bigint;
-        d1: bigint;
-        d7: bigint;
-        d30: bigint;
+        e1: bigint; d1: bigint;
+        e7: bigint; d7: bigint;
+        e30: bigint; d30: bigint;
       }>
     >`
       SELECT
         COUNT(DISTINCT u.id) AS cohort,
-        SUM(CASE WHEN EXISTS (
-          SELECT 1 FROM trips t
-          WHERE t.userId = u.id AND t.startedAt >= DATE_ADD(u.createdAt, INTERVAL 1 DAY)
+        SUM(u.createdAt <= ${cut1}) AS e1,
+        SUM(CASE WHEN u.createdAt <= ${cut1} AND EXISTS (
+          SELECT 1 FROM trips t WHERE t.userId = u.id AND t.startedAt >= DATE_ADD(u.createdAt, INTERVAL 1 DAY)
         ) THEN 1 ELSE 0 END) AS d1,
-        SUM(CASE WHEN EXISTS (
-          SELECT 1 FROM trips t
-          WHERE t.userId = u.id AND t.startedAt >= DATE_ADD(u.createdAt, INTERVAL 7 DAY)
+        SUM(u.createdAt <= ${cut7}) AS e7,
+        SUM(CASE WHEN u.createdAt <= ${cut7} AND EXISTS (
+          SELECT 1 FROM trips t WHERE t.userId = u.id AND t.startedAt >= DATE_ADD(u.createdAt, INTERVAL 7 DAY)
         ) THEN 1 ELSE 0 END) AS d7,
-        SUM(CASE WHEN EXISTS (
-          SELECT 1 FROM trips t
-          WHERE t.userId = u.id AND t.startedAt >= DATE_ADD(u.createdAt, INTERVAL 30 DAY)
+        SUM(u.createdAt <= ${cut30}) AS e30,
+        SUM(CASE WHEN u.createdAt <= ${cut30} AND EXISTS (
+          SELECT 1 FROM trips t WHERE t.userId = u.id AND t.startedAt >= DATE_ADD(u.createdAt, INTERVAL 30 DAY)
         ) THEN 1 ELSE 0 END) AS d30
       FROM users u
       WHERE u.createdAt >= ${ninetyDaysAgo}
     `;
 
     const r = rows[0];
-    const cohort = Number(r?.cohort ?? 0);
-    const d1 = Number(r?.d1 ?? 0);
-    const d7 = Number(r?.d7 ?? 0);
-    const d30 = Number(r?.d30 ?? 0);
-    const pct = (n: number) =>
-      cohort > 0 ? Math.round((n / cohort) * 1000) / 10 : 0;
+    const n = (v: bigint | number | null | undefined) => Number(v ?? 0);
+    const metric = (count: bigint | number | null | undefined, eligible: bigint | number | null | undefined) => {
+      const c = n(count);
+      const e = n(eligible);
+      return { count: c, eligible: e, pct: e > 0 ? Math.round((c / e) * 1000) / 10 : 0 };
+    };
 
     return reply.send({
       data: {
-        cohortSize: cohort,
+        cohortSize: n(r?.cohort),
         cohortWindow: "Signups in last 90 days",
-        d1: { count: d1, pct: pct(d1) },
-        d7: { count: d7, pct: pct(d7) },
-        d30: { count: d30, pct: pct(d30) },
+        d1: metric(r?.d1, r?.e1),
+        d7: metric(r?.d7, r?.e7),
+        d30: metric(r?.d30, r?.e30),
+        note: "Each day is measured over users old enough to have reached it.",
       },
     });
   });
@@ -2950,7 +3460,7 @@ export async function adminRoutes(app: FastifyInstance) {
       prisma.$queryRaw<Array<{ c: bigint }>>`
         SELECT COUNT(DISTINCT userId) AS c FROM earnings
       `.then((r) => Number(r[0]?.c ?? 0)),
-      prisma.user.count({ where: { isPremium: true } }),
+      getSubscriptionTruth().then((t) => t.payingSubscribers),
       prisma.user.count({ where: { createdAt: { lt: sevenDaysAgo } } }),
       prisma.$queryRaw<Array<{ c: bigint }>>`
         SELECT COUNT(DISTINCT t.userId) AS c
@@ -2989,7 +3499,7 @@ export async function adminRoutes(app: FastifyInstance) {
       { label: "Logged first trip", count: withFirstTrip, pct: pct(withFirstTrip) },
       { label: "Classified at least one trip", count: withClassifiedTrip, pct: pct(withClassifiedTrip) },
       { label: "Logged earnings", count: withEarning, pct: pct(withEarning) },
-      { label: "Upgraded to Pro", count: premium, pct: pct(premium) },
+      { label: "Paying subscriber", count: premium, pct: pct(premium) },
     ];
 
     // Annotate each step with drop-from-previous metrics. The first
@@ -3296,6 +3806,25 @@ export async function adminRoutes(app: FastifyInstance) {
       _count: { id: true },
     });
 
+    // Step 3b: exposure. Dividing by users CURRENTLY on a build is
+    // confounded the moment a build is new: its users have only been on it
+    // for part of the window, so every rate looks low, and the build they
+    // left looks worse (20 Aug 2026: build 84, one day old, read 10x
+    // healthier than 83 on every metric). Normalise by active user-days on
+    // the build instead - distinct (user, day) pairs among that build's
+    // events in the window - and report rates per user-week.
+    const exposureRows = await prisma.$queryRaw<
+      Array<{ buildNumber: string; userDays: bigint; firstSeen: Date }>
+    >`
+      SELECT buildNumber, COUNT(DISTINCT userId, DATE(createdAt)) AS userDays, MIN(createdAt) AS firstSeen
+      FROM app_events
+      WHERE createdAt >= ${since} AND userId IS NOT NULL AND buildNumber IN (${Prisma.join(buildNumbers)})
+      GROUP BY buildNumber
+    `;
+    const exposureByBuild = new Map(
+      exposureRows.map((r) => [r.buildNumber, { userDays: Number(r.userDays), firstSeen: r.firstSeen }])
+    );
+
     // Step 4: Pivot — for each build, build a { eventType: count } map.
     const eventsByBuild = new Map<string, Record<string, number>>();
     for (const row of eventCounts) {
@@ -3322,19 +3851,28 @@ export async function adminRoutes(app: FastifyInstance) {
       const tripDeletionRatePct =
         tripCreated > 0 ? Math.round((tripDeleted / tripCreated) * 1000) / 10 : 0;
 
+      const exposure = exposureByBuild.get(b.buildNumber!);
+      const userDays = exposure?.userDays ?? 0;
+      const firstSeenAt = exposure?.firstSeen ?? null;
+      const daysObserved = firstSeenAt
+        ? Math.min(WINDOW_DAYS, Math.max(1, Math.ceil((Date.now() - firstSeenAt.getTime()) / 86_400_000)))
+        : WINDOW_DAYS;
+      // Rate per active user-week: events / user-days * 7. Comparable across
+      // builds of any age and any audience size.
+      const perUserWeek = (count: number) =>
+        userDays > 0 ? Math.round((count / userDays) * 7 * 100) / 100 : 0;
+
       return {
         appVersion: b.appVersion ?? "unknown",
         buildNumber: b.buildNumber!,
         activeUsers,
-        // Per-user rates — comparable across builds with different audience sizes.
-        watchdogPingsPerUser:
-          activeUsers > 0 ? Math.round((watchdogPings / activeUsers) * 100) / 100 : 0,
-        reconciliationDriftPerUser:
-          activeUsers > 0 ? Math.round((reconciliationDrift / activeUsers) * 100) / 100 : 0,
-        slowRequestsPerUser:
-          activeUsers > 0 ? Math.round((slowRequests / activeUsers) * 100) / 100 : 0,
-        loginFailuresPerUser:
-          activeUsers > 0 ? Math.round((loginFailures / activeUsers) * 100) / 100 : 0,
+        userDays,
+        firstSeenAt: firstSeenAt ? firstSeenAt.toISOString() : null,
+        daysObserved,
+        watchdogPingsPerUserWeek: perUserWeek(watchdogPings),
+        reconciliationDriftPerUserWeek: perUserWeek(reconciliationDrift),
+        slowRequestsPerUserWeek: perUserWeek(slowRequests),
+        loginFailuresPerUserWeek: perUserWeek(loginFailures),
         // Absolute counts kept for raw inspection.
         watchdogPings,
         reconciliationDrift,

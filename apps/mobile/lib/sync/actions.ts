@@ -7,7 +7,7 @@
 import { randomUUID } from "expo-crypto";
 import type { SQLiteBindValue } from "expo-sqlite";
 import { getDatabase } from "../db/index";
-import { isNetworkError, isLocalSystemError, isDefiniteClientRejection } from "./errors";
+import { isNetworkError, isLocalSystemError, isDefiniteClientRejection, isServerUnavailable } from "./errors";
 import { enqueueSync } from "./queue";
 import {
   createTrip as apiCreateTrip,
@@ -311,12 +311,18 @@ export async function syncCreateEarning(data: CreateEarningData) {
     ]);
     return result;
   } catch (err) {
-    if (isNetworkError(err) || isLocalSystemError(err)) {
-      await enqueueSync("earning", localId, "create", data as unknown as Record<string, unknown>);
-      return null;
+    // Same rule as syncCreateTrip: keep what the user captured by DEFAULT and
+    // discard only when the server definitively rejected the payload (a real
+    // 4xx). This branch used to delete the row on ANY non-network error, so a
+    // 503 from a proxy - including the few seconds our own deploy produces -
+    // destroyed it outright. The trip path was fixed after the golf-club loss;
+    // its siblings were left behind (found 13 Aug 2026).
+    if (isDefiniteClientRejection(err)) {
+      await db.runAsync("DELETE FROM earnings WHERE id = ?", [localId]);
+      throw err;
     }
-    await db.runAsync("DELETE FROM earnings WHERE id = ?", [localId]);
-    throw err;
+    await enqueueSync("earning", localId, "create", data as unknown as Record<string, unknown>);
+      return null;
   }
 }
 
@@ -407,12 +413,18 @@ export async function syncCreateFuelLog(data: CreateFuelLogData) {
     ]);
     return result;
   } catch (err) {
-    if (isNetworkError(err) || isLocalSystemError(err)) {
-      await enqueueSync("fuel_log", localId, "create", data as unknown as Record<string, unknown>);
-      return null;
+    // Same rule as syncCreateTrip: keep what the user captured by DEFAULT and
+    // discard only when the server definitively rejected the payload (a real
+    // 4xx). This branch used to delete the row on ANY non-network error, so a
+    // 503 from a proxy - including the few seconds our own deploy produces -
+    // destroyed it outright. The trip path was fixed after the golf-club loss;
+    // its siblings were left behind (found 13 Aug 2026).
+    if (isDefiniteClientRejection(err)) {
+      await db.runAsync("DELETE FROM fuel_logs WHERE id = ?", [localId]);
+      throw err;
     }
-    await db.runAsync("DELETE FROM fuel_logs WHERE id = ?", [localId]);
-    throw err;
+    await enqueueSync("fuel_log", localId, "create", data as unknown as Record<string, unknown>);
+      return null;
   }
 }
 
@@ -516,12 +528,18 @@ export async function syncStartShift(
 
     return result;
   } catch (err) {
-    if (isNetworkError(err) || isLocalSystemError(err)) {
-      await enqueueSync("shift", localId, "create", (data ?? {}) as Record<string, unknown>);
-      return { data: localShift };
+    // Same rule as syncCreateTrip: keep what the user captured by DEFAULT and
+    // discard only when the server definitively rejected the payload (a real
+    // 4xx). This branch used to delete the row on ANY non-network error, so a
+    // 503 from a proxy - including the few seconds our own deploy produces -
+    // destroyed it outright. The trip path was fixed after the golf-club loss;
+    // its siblings were left behind (found 13 Aug 2026).
+    if (isDefiniteClientRejection(err)) {
+      await db.runAsync("DELETE FROM shifts WHERE id = ?", [localId]);
+      throw err;
     }
-    await db.runAsync("DELETE FROM shifts WHERE id = ?", [localId]);
-    throw err;
+    await enqueueSync("shift", localId, "create", (data ?? {}) as Record<string, unknown>);
+    return { data: localShift };
   }
 }
 
@@ -545,8 +563,10 @@ export async function syncEndShift(id: string) {
     );
     return result;
   } catch (err) {
-    if (isNetworkError(err) || isLocalSystemError(err)) {
-      // Shift ended locally; scorecard unavailable offline
+    if (isNetworkError(err) || isLocalSystemError(err) || isServerUnavailable(err)) {
+      // Shift ended locally; scorecard unavailable offline. A 502/503/504 is
+      // the server being briefly away, not a rejection - reverting the user's
+      // ended shift because a proxy blinked would be wrong.
       return null;
     }
     // API error — revert local change
@@ -594,12 +614,18 @@ export async function syncCreateSavedLocation(data: CreateSavedLocationData) {
     ]);
     return result;
   } catch (err) {
-    if (isNetworkError(err) || isLocalSystemError(err)) {
-      await enqueueSync("saved_location", localId, "create", data as unknown as Record<string, unknown>);
-      return null;
+    // Same rule as syncCreateTrip: keep what the user captured by DEFAULT and
+    // discard only when the server definitively rejected the payload (a real
+    // 4xx). This branch used to delete the row on ANY non-network error, so a
+    // 503 from a proxy - including the few seconds our own deploy produces -
+    // destroyed it outright. The trip path was fixed after the golf-club loss;
+    // its siblings were left behind (found 13 Aug 2026).
+    if (isDefiniteClientRejection(err)) {
+      await db.runAsync("DELETE FROM saved_locations WHERE id = ?", [localId]);
+      throw err;
     }
-    await db.runAsync("DELETE FROM saved_locations WHERE id = ?", [localId]);
-    throw err;
+    await enqueueSync("saved_location", localId, "create", data as unknown as Record<string, unknown>);
+      return null;
   }
 }
 

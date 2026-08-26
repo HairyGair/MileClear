@@ -72,12 +72,12 @@ export default function EarlyAccess() {
             />
             <p className="label">Available on the App Store</p>
             <h2 className="heading ea__heading">
-              Ready to claim what you&apos;re owed?
+              Claim what you&apos;re owed
             </h2>
             <p className="subtext ea__subtext">
-              Download MileClear free. <strong>Unlimited tracking, forever</strong> &mdash;
-              not 40 drives a month like MileIQ, not 15 like Driversnote. No credit
-              card, no trial period. Just open it, drive, and watch your HMRC deduction grow.
+              Download MileClear free. <strong>Unlimited tracking, forever.</strong> Not
+              40 drives a month like MileIQ, or 15 like Driversnote. There is no card
+              and no trial. Open it, drive, and your HMRC deduction builds with every trip.
             </p>
           </div>
         </Reveal>

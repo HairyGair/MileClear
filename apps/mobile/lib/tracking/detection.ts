@@ -146,6 +146,7 @@ export async function startNativeAutoTripLiveActivity(): Promise<void> {
 }
 
 import type { TripClassification, PlatformTag } from "@mileclear/shared";
+import { resolveJourneyEndMinutes, journeyBoundaryMs } from "./journeyBoundary";
 
 const DETECTION_TASK_NAME = "mileclear-drive-detection";
 const BACKGROUND_FINALIZE_TASK = "mileclear-background-finalize";
@@ -154,8 +155,16 @@ const QUICK_TRIP_STALE_MS = 3 * 60 * 60 * 1000; // 3h - a quick_trip_start older
 const STALE_ACTIVE_SHIFT_MS = 18 * 60 * 60 * 1000; // 18h - no real gig shift runs this long; an active_shift_id older than this is abandoned and must not keep muting the engine
 const QUICK_TRIP_LIVE_COORD_MS = 20 * 60 * 1000; // 20 min - a breadcrumb this recent means the quick trip is genuinely recording RIGHT NOW; never clear it
 const QUICK_TRIP_MAX_SPAN_MS = STALE_ACTIVE_SHIFT_MS; // 18h - a quick trip whose recording has spanned longer than any real single journey is a stuck lock (app killed mid-trip / Arrive never tapped) muting auto-detection; recover its route into trips and release it, mirroring the real-shift backstop
+const QUICK_TRIP_NO_START_MAX_SPAN_MS = 3 * 60 * 60 * 1000; // 3h - same backstop, but for a lock with NO quick_trip_start row. That combination means no trip-form session owns the recording, so the only thing keeping the lock "live" is the background location task feeding its own liveness check (Freja Bounds, 27 Jul 2026). A genuine quick trip missing its start row is possible (Anthony, 1 Jun) but cannot plausibly run this long
 const BACKGROUND_FETCH_INTERVAL_S = 15 * 60; // 15 minutes - iOS treats as a hint, actual cadence varies
 const COOLDOWN_MS = 20 * 60 * 1000; // 20 minutes
+
+// Gap-stop thresholds, shared by both engines (Class 20): a silence longer
+// than this across which the device moved less than the drift bound was a
+// stop, and the recording closes at the fix before it. Values mirror the
+// forensic split that repaired the welded trips (5 min gap, ~250m drift).
+export const GAP_STOP_MS = 5 * 60 * 1000;
+export const GAP_STOP_DRIFT_M = 250;
 const BUFFER_MAX_AGE_MS = 30 * 60 * 1000; // 30 minutes
 const SESSION_GAP_MS = 5 * 60 * 1000; // 5 min gap between buffered coords = a prior-trip boundary; below this it's one continuous drive
 const SPEED_THRESHOLD_MS = DRIVING_SPEED_THRESHOLD_MPH * 0.44704; // mph to m/s
@@ -165,7 +174,13 @@ const WATCH_MODE_MAX_AGE_MS = 20 * 60 * 1000; // 20 minutes - silently clean up 
 const CONTINUE_SPEED_MS = 1.0; // ~2.2 mph - any movement keeps an active recording alive
 const RESUME_DISPLACEMENT_M = 80; // metres - must move this far from stop anchor to resume trip (GPS drift stays within ~30m)
 const MIN_AUTO_TRIP_DISTANCE_MILES = 0.3; // Filter noise / parking lot shuffles / GPS drift mini-trips
-const MERGE_TIME_WINDOW_MS = 15 * 60 * 1000; // 15 minutes - merge trips that ended within this window
+// MERGE_TIME_WINDOW_MS now lives in journeyBoundary.ts, alongside the rule
+// that caps it, so the two halves of the merge/split decision stay together.
+
+// Journey boundary (how long stopped before a journey is over) lives in its own
+// module so the rule is unit-testable - this file pulls in the native tracking
+// stack and cannot be imported by the test runner. See journeyBoundary.ts for
+// why it is deliberately not BUFFER_MAX_AGE_MS.
 const MERGE_DISTANCE_M = 500; // metres - merge trips whose end/start are within this radius
 const ANCHOR_EXIT_VERIFY_M = 130; // metres - device must be this far outside the 100m anchor before a backstop "missed Exit" is trusted (mirrors the geofence handler's verify gate)
 const BACKSTOP_DISTANCE_INTERVAL_M = 500; // metres - displacement filter for the low-power parked backstop subscription (the geofence is the precise fast path; this is the safety net)
@@ -223,7 +238,7 @@ export interface BufferedCoordinate {
   recorded_at: string;
 }
 
-function haversineMeters(lat1: number, lng1: number, lat2: number, lng2: number): number {
+export function haversineMeters(lat1: number, lng1: number, lat2: number, lng2: number): number {
   const R = 6371000; // Earth radius in meters
   const dLat = ((lat2 - lat1) * Math.PI) / 180;
   const dLng = ((lng2 - lng1) * Math.PI) / 180;
@@ -441,6 +456,53 @@ export interface DriveDetectionDiagnostics {
 }
 
 /**
+ * Release a __quick_trip__ lock and turn whatever it accumulated into trips.
+ *
+ * Atomically CLAIMS the lock first: onLocation / onMotionChange / onHeartbeat
+ * can all reach a release branch in the same event-loop window, and
+ * processShiftTrips is not idempotent (it reads shift_coordinates up front and
+ * deletes them only after slow network-bound work) — two entrants would create
+ * every recovered trip twice. The conditional DELETE serialises on SQLite: only
+ * the caller whose DELETE actually removed the row proceeds, and losers get
+ * false so they report "not suppressed" without touching the coords the winner
+ * is processing.
+ *
+ * Recovery is processShiftTrips, the same processor a completed shift uses: it
+ * segments on >2min stops, skips anything under MIN_TRIP_DISTANCE_MILES,
+ * deletes the breadcrumbs itself once there is nothing left worth keeping, and
+ * KEEPS them for a later retry if trip creation fails. So it is safe to run
+ * even when the buffer holds nothing — which is why both release branches use
+ * it rather than one of them deleting outright.
+ */
+async function releaseQuickTripLock(
+  db: Awaited<ReturnType<typeof getDatabase>>,
+  event: string,
+  detail: Record<string, unknown>
+): Promise<boolean> {
+  const claimed = await db.runAsync(
+    "DELETE FROM tracking_state WHERE key = 'active_shift_id' AND value = ?",
+    [QUICK_TRIP_SHIFT_ID]
+  );
+  if (claimed.changes === 0) return false; // another caller won the claim
+  await db.runAsync("DELETE FROM tracking_state WHERE key = 'quick_trip_start'");
+  let recovered = 0;
+  try {
+    // Dynamic import: tracking/index.ts imports from this module, so a static
+    // import would be a cycle.
+    const { processShiftTrips, stopQuickTripLocationTask } = await import("./index");
+    recovered = await processShiftTrips(QUICK_TRIP_SHIFT_ID);
+    // Stop the task that has been feeding this lock, or it keeps delivering
+    // fixes for a trip nobody is driving.
+    await stopQuickTripLocationTask();
+  } catch {
+    // Best-effort: the lock is already released, so detection resumes even if
+    // recovery fails.
+  }
+  logDetectionEvent(event, { ...detail, tripsRecovered: recovered }).catch(() => {});
+  return true;
+}
+
+/**
  * Decide whether an active_shift_id should suppress auto-detection — and
  * self-heal an orphaned quick trip as a side effect.
  *
@@ -484,8 +546,27 @@ export async function shiftSuppressesAutoDetection(
       const startedMs = new Date(shiftRow.started_at).getTime();
       staleActive = Number.isFinite(startedMs) && Date.now() - startedMs > STALE_ACTIVE_SHIFT_MS;
     }
-    // No local row found (shiftRow null) is left to suppress: avoids racing a
-    // just-started shift whose row hasn't landed yet.
+
+    // A missing local shifts row used to be left suppressing indefinitely,
+    // to avoid racing a just-started shift whose row had not landed yet.
+    // That race lasts seconds; one user sat in it for six weeks, silently
+    // capturing nothing, with no way out through the UI because the app
+    // showed no shift to end. Age the lock by its own timestamp instead:
+    // it is written in the same breath as the lock, so a fresh shift is
+    // still protected, while an old orphan finally times out.
+    if (!shiftRow && !alreadyEnded && !staleActive) {
+      const stamp = await db.getFirstAsync<{ value: string }>(
+        "SELECT value FROM tracking_state WHERE key = 'active_shift_started_at'"
+      );
+      const stampedMs = stamp ? Number(stamp.value) : NaN;
+      staleActive = Number.isFinite(stampedMs)
+        ? Date.now() - stampedMs > STALE_ACTIVE_SHIFT_MS
+        : // No row AND no timestamp means the lock predates this stamping
+          // (or its shift was never recorded locally). Either way nothing is
+          // tracking under it, so there is nothing left to protect.
+          true;
+    }
+
     if (!alreadyEnded && !staleActive) {
       logDetectionEvent("detection_skipped", { reason: "active_shift" }).catch(() => {});
       return true;
@@ -498,10 +579,12 @@ export async function shiftSuppressesAutoDetection(
         activeShift.value,
       ]);
     }
-    await db.runAsync("DELETE FROM tracking_state WHERE key = 'active_shift_id'");
+    await db.runAsync(
+      "DELETE FROM tracking_state WHERE key IN ('active_shift_id', 'active_shift_started_at')"
+    );
     logDetectionEvent("stale_active_shift_cleared", {
       shiftId: activeShift.value,
-      reason: alreadyEnded ? "already_ended" : "active_too_long",
+      reason: alreadyEnded ? "already_ended" : !shiftRow ? "no_local_row" : "active_too_long",
     }).catch(() => {});
     return false;
   }
@@ -540,35 +623,20 @@ export async function shiftSuppressesAutoDetection(
     firstCoord ? new Date(firstCoord.recorded_at).getTime() : Infinity,
     Number.isFinite(quickTripStartMs) ? quickTripStartMs : Infinity
   );
-  if (Number.isFinite(anchorMs) && Date.now() - anchorMs > QUICK_TRIP_MAX_SPAN_MS) {
-    // Atomically CLAIM the lock: onLocation / onMotionChange / onHeartbeat can
-    // all reach this branch in the same event-loop window, and processShiftTrips
-    // is not idempotent (it reads shift_coordinates up front and deletes them
-    // only after slow network-bound work) — two entrants would create every
-    // recovered trip twice. The conditional DELETE serialises on SQLite: only
-    // the caller whose DELETE actually removed the row proceeds to recovery;
-    // losers see changes === 0 and report "not suppressed" without touching
-    // the coords the winner is processing.
-    const claimed = await db.runAsync(
-      "DELETE FROM tracking_state WHERE key = 'active_shift_id' AND value = ?",
-      [QUICK_TRIP_SHIFT_ID]
-    );
-    if (claimed.changes === 0) return false; // another caller won the claim
-    await db.runAsync("DELETE FROM tracking_state WHERE key = 'quick_trip_start'");
-    let recovered = 0;
-    try {
-      // Dynamic import: tracking/index.ts imports from this module, so a static
-      // import would be a cycle. processShiftTrips keeps its coords on failure.
-      const { processShiftTrips } = await import("./index");
-      recovered = await processShiftTrips(QUICK_TRIP_SHIFT_ID);
-    } catch {
-      // Best-effort: the lock is already released, so detection resumes even if
-      // recovery fails.
-    }
-    logDetectionEvent("stale_quick_trip_recovered", {
+  // A lock with no quick_trip_start row gets a much tighter cap. Without that
+  // row no trip-form session owns the recording, yet the background location
+  // task started by startQuickTripTracking keeps writing breadcrumbs under
+  // __quick_trip__ — which is exactly what the liveness check below reads. The
+  // lock therefore feeds its own "live" verdict and the 18h cap becomes the
+  // only escape. Freja Bounds (27 Jul 2026) was stranded that way from her
+  // first drive: an auto finalize saved the journey and left the lock behind,
+  // and every detection tick after it logged detection_skipped/active_quick_trip.
+  const spanCapMs = qts ? QUICK_TRIP_MAX_SPAN_MS : QUICK_TRIP_NO_START_MAX_SPAN_MS;
+  if (Number.isFinite(anchorMs) && Date.now() - anchorMs > spanCapMs) {
+    await releaseQuickTripLock(db, "stale_quick_trip_recovered", {
       spanHours: Math.round((Date.now() - anchorMs) / 3_600_000),
-      tripsRecovered: recovered,
-    }).catch(() => {});
+      hadStartRow: !!qts,
+    });
     return false;
   }
 
@@ -597,12 +665,40 @@ export async function shiftSuppressesAutoDetection(
     return true;
   }
   // Abandoned lock (no recent breadcrumb, no fresh quick_trip_start, span under
-  // the cap): clear it so auto-detection / native capture isn't suppressed
-  // forever. Too little data here to be worth recovering.
-  await db.runAsync("DELETE FROM tracking_state WHERE key = 'active_shift_id'");
-  await db.runAsync("DELETE FROM tracking_state WHERE key = 'quick_trip_start'");
-  await db.runAsync("DELETE FROM shift_coordinates WHERE shift_id = ?", [QUICK_TRIP_SHIFT_ID]);
-  logDetectionEvent("orphaned_quick_trip_cleared", {}).catch(() => {});
+  // the cap): release it so auto-detection / native capture isn't suppressed
+  // forever.
+  //
+  // ⚠️ This used to DELETE the breadcrumbs outright, on the reasoning that an
+  // orphan holds "too little data to be worth recovering". An orphan can hold a
+  // whole journey. These breadcrumbs are the ONLY record of a Start Trip
+  // session: the trip form reads them at Arrive and they are all that survives
+  // if iOS terminates the app mid-drive, taking the form's in-memory trail with
+  // it (andrew.hitchen, 17 Aug 2026 — a 36-mile leg whose trail was the only
+  // evidence it happened). Once the app dies the lock outlives the form,
+  // liveness stops protecting it QUICK_TRIP_STALE_MS (3h) after the tap, and
+  // the next native fix reached this branch and erased what survived, 15 hours
+  // before the 18h span cap would have recovered it properly. Recover instead:
+  // processShiftTrips keeps only what clears MIN_TRIP_DISTANCE_MILES and
+  // deletes the rest itself, so a genuinely empty orphan still ends up cleared.
+  //
+  // One case is deliberately left alone: a FOREGROUND app that still has a
+  // quick_trip_start row. There the trip form owns the recording and holds its
+  // own in-memory foreground breadcrumbs, so recovering behind its back would
+  // produce a duplicate the moment the user tapped Arrive. They are looking at
+  // the screen and can finish it themselves; the span cap remains the backstop.
+  const formOwnsRecording = !!qts && AppState.currentState === "active";
+  if (formOwnsRecording) {
+    logDetectionEvent("detection_skipped", { reason: "active_quick_trip_foreground" }).catch(
+      () => {}
+    );
+    return true;
+  }
+  await releaseQuickTripLock(db, "orphaned_quick_trip_cleared", {
+    hadStartRow: !!qts,
+    quietMinutes: lastCoord
+      ? Math.round((Date.now() - new Date(lastCoord.recorded_at).getTime()) / 60_000)
+      : null,
+  });
   return false;
 }
 
@@ -806,6 +902,25 @@ async function getAutoTripRunningDistance(): Promise<{ miles: number; speedMph: 
 // foreground handler) can interleave at await points, both reading the same
 // coordinates before either deletes them.
 let finalizingTrip = false;
+/**
+ * Whether a finalize pass currently owns the detection buffer. For callers
+ * (openNativeRecording) that would otherwise clear or rescue the buffer while
+ * a finalize is mid-flight - awaiting it is not an option there (it can be
+ * network-slow) and clearing under it is a data race.
+ */
+export function isFinalizeInFlight(): boolean {
+  return finalizingTrip;
+}
+
+// Set by the multileg-deferral block in _finalizeAutoTripInner when real legs
+// remain in the buffer after a pass. Read by finalizeAutoTrip's drain loop.
+// This REPLACED a fire-and-forget setTimeout(finalizeAutoTrip, 600): the first
+// pass's network-bound trip save routinely takes longer than 600ms, so the
+// scheduled call hit the finalizingTrip re-entrancy guard and was silently
+// swallowed - no retry, no log. Keir Fawcus, 29 Jul 2026: 818 deferred coords
+// (a full afternoon of multi-stop driving) sat unprocessed overnight and were
+// then destroyed by the next morning's recording open.
+let deferredFinalizePending = false;
 
 // Lock prevents concurrent "confirmed driving" blocks from each sending
 // a notification. Multiple background location callbacks can fire at once,
@@ -946,7 +1061,20 @@ export async function finalizeAutoTrip(): Promise<void> {
     await reconcileNativeBufferBeforeFinalize();
   } catch {}
   try {
-    await _finalizeAutoTripInner();
+    // Drain loop: a multileg buffer defers its remaining real legs and sets
+    // deferredFinalizePending; each pass consumes the oldest leg, so the loop
+    // shrinks the buffer monotonically. Run the passes HERE, inside the
+    // re-entrancy guard we already hold - the old setTimeout(600) follow-up
+    // raced this very guard and lost whenever the first pass's save took
+    // longer than 600ms (it usually does; it's network-bound). The cap is a
+    // backstop only: a real journey has single-digit legs.
+    const MAX_FINALIZE_PASSES = 8;
+    let passes = 0;
+    do {
+      deferredFinalizePending = false;
+      await _finalizeAutoTripInner();
+      passes++;
+    } while (deferredFinalizePending && passes < MAX_FINALIZE_PASSES);
   } finally {
     finalizingTrip = false;
     try {
@@ -960,6 +1088,69 @@ export async function finalizeAutoTrip(): Promise<void> {
       const { isNativeEngineAvailable, destroyNativeLocations } = await import("./nativeLocation");
       if (isNativeEngineAvailable()) await destroyNativeLocations();
     } catch {}
+    await releaseStrandedQuickTripLock();
+  }
+}
+
+/**
+ * Release a __quick_trip__ lock that an auto finalize has just orphaned.
+ *
+ * The auto recorder and a quick trip can both be armed for the same journey:
+ * the user taps Start Trip while detection already has a recording open, and
+ * cancelAutoRecording() inside startQuickTripTracking() races the fix that
+ * re-arms it. Whichever way it happens, the auto path then finalizes the drive
+ * on its own — the stale sweeper does this up to 40 minutes later — and saves a
+ * trip WITHOUT ever going through stopQuickTripTracking(). So active_shift_id
+ * stays on __quick_trip__ and the background location task keeps running.
+ *
+ * That is not a cosmetic leak. The task goes on writing breadcrumbs under the
+ * stale id, shiftSuppressesAutoDetection reads any breadcrumb under 20 minutes
+ * old as proof the trip is live, and the lock therefore sustains its own
+ * liveness check indefinitely. Freja Bounds (day-one user, 27 Jul 2026) was
+ * stranded from her very first drive: every detection tick afterwards logged
+ * detection_skipped/active_quick_trip and nothing was ever captured again.
+ *
+ * Deliberately conservative, because getting this wrong kills a recording trip:
+ * release ONLY when there is no quick_trip_start row AND no breadcrumb has
+ * landed recently. A start row means the trip form owns the recording. Fresh
+ * breadcrumbs mean something is still feeding it, and a quick trip CAN run
+ * without its start row (Anthony, 1 Jun) — that combination is left to the
+ * tightened no-start-row span cap in shiftSuppressesAutoDetection, which waits
+ * for evidence rather than acting on one ambiguous moment. The decisive fix for
+ * the common case is in the trip form, which releases the lock on save.
+ */
+async function releaseStrandedQuickTripLock(): Promise<void> {
+  try {
+    const db = await getDatabase();
+    const activeShift = await db.getFirstAsync<{ value: string }>(
+      "SELECT value FROM tracking_state WHERE key = 'active_shift_id'"
+    );
+    if (activeShift?.value !== QUICK_TRIP_SHIFT_ID) return;
+    const qts = await db.getFirstAsync<{ value: string }>(
+      "SELECT value FROM tracking_state WHERE key = 'quick_trip_start'"
+    );
+    if (qts) return; // a real trip-form session owns this recording
+
+    const lastCoord = await db.getFirstAsync<{ recorded_at: string }>(
+      "SELECT recorded_at FROM shift_coordinates WHERE shift_id = ? ORDER BY recorded_at DESC LIMIT 1",
+      [QUICK_TRIP_SHIFT_ID]
+    );
+    if (lastCoord) {
+      const ms = new Date(lastCoord.recorded_at).getTime();
+      if (Number.isFinite(ms) && Date.now() - ms < QUICK_TRIP_LIVE_COORD_MS) return;
+    }
+
+    await db.runAsync("DELETE FROM tracking_state WHERE key = 'active_shift_id'");
+    try {
+      const { stopQuickTripLocationTask } = await import("./index");
+      await stopQuickTripLocationTask();
+    } catch {}
+    // Coords are left in place rather than deleted: the next Start Trip clears
+    // them anyway (trip-form), and if this call was wrong about the trip being
+    // over, the form can still recover the trail via peekBackgroundCoordinates.
+    logDetectionEvent("stranded_quick_trip_lock_released", {}).catch(() => {});
+  } catch {
+    // never let cleanup break a finalize
   }
 }
 
@@ -984,12 +1175,14 @@ async function _finalizeAutoTripInner(): Promise<void> {
   // multi-stop-journey case below). Re-buffered after the buffer is cleared.
   let deferredCoords: BufferedCoordinate[] = [];
   if (rawCoords.length >= 2) {
-    // Split into contiguous segments separated by gaps > BUFFER_MAX_AGE_MS.
+    // Split into contiguous segments separated by gaps longer than the user's
+    // journey boundary (default 30 min, i.e. the previous fixed behaviour).
+    const { splitMs } = journeyBoundaryMs(await getJourneyEndMinutes());
     const segments: BufferedCoordinate[][] = [[rawCoords[0]]];
     for (let i = 1; i < rawCoords.length; i++) {
       const prev = new Date(rawCoords[i - 1].recorded_at).getTime();
       const curr = new Date(rawCoords[i].recorded_at).getTime();
-      if (curr - prev > BUFFER_MAX_AGE_MS) {
+      if (curr - prev > splitMs) {
         segments.push([]);
       }
       segments[segments.length - 1].push(rawCoords[i]);
@@ -1008,8 +1201,36 @@ async function _finalizeAutoTripInner(): Promise<void> {
       // So: a segment is a real LEG if it has enough coords; tiny segments are
       // stragglers. Finalise the OLDEST real leg now and re-buffer the rest so
       // each becomes its own trip; if only one real leg remains, just keep it.
+      // Coordinate count alone cannot tell a straggler from a short leg.
+      // It is a proxy for how far the segment went, and a poor one: a
+      // half-mile hop at the 50m distance filter, after the accuracy gate
+      // has rejected a few fixes, can land at 5 or 6 coords and be thrown
+      // away as a straggler. Chris Saunders, 10 Aug 2026: a day of sub-mile
+      // calls around High Wycombe, finalize_gap_trimmed showed 11 coords in
+      // 2 segments (6 and 5), BOTH under the bar, so the real second leg was
+      // dropped. Three trips reported missing in three minutes, all short.
+      //
+      // So qualify on distance OR coords. A genuine straggler is a couple of
+      // post-arrival fixes sitting within metres of each other, which spans
+      // ~0 miles and is still excluded; a real short leg spans a real
+      // distance no matter how few fixes it produced.
       const MIN_LEG_COORDS = 10;
-      const realLegs = segments.filter((s) => s.length >= MIN_LEG_COORDS);
+      const segmentSpanMiles = (seg: typeof rawCoords): number => {
+        if (seg.length < 2) return 0;
+        let miles = 0;
+        for (let i = 1; i < seg.length; i++) {
+          miles += haversineMiles(
+            seg[i - 1].lat, seg[i - 1].lng,
+            seg[i].lat, seg[i].lng
+          );
+        }
+        return miles;
+      };
+      const realLegs = segments.filter(
+        (s) =>
+          s.length >= MIN_LEG_COORDS ||
+          segmentSpanMiles(s) >= MIN_AUTO_TRIP_DISTANCE_MILES
+      );
       if (realLegs.length >= 2) {
         allCoords = realLegs[0];
         deferredCoords = realLegs.slice(1).flat();
@@ -1046,43 +1267,62 @@ async function _finalizeAutoTripInner(): Promise<void> {
   // below; this is the single notification cleanup point.
   dismissRecordingActiveNotification().catch(() => {});
 
-  // Clear state regardless of outcome
-  await db.runAsync("DELETE FROM detection_coordinates");
-  await db.runAsync(
-    "DELETE FROM tracking_state WHERE key IN ('auto_recording_active', 'last_driving_speed_at', 'driving_detection_count', 'finalization_mode', 'stop_anchor')"
-  );
-
-  // Multi-stop journey: re-buffer the remaining real legs and re-arm so they
-  // each finalise as their own trip. We process the oldest leg in THIS pass
-  // (above) and schedule another finalize shortly after this one releases the
-  // re-entrancy guard; that pass re-runs the same split on a smaller buffer,
-  // so it terminates leg by leg. The native store was already drained, and is
-  // cleared again in finalizeAutoTrip's finally, so the next reconcile won't
-  // clobber what we re-buffer here.
-  if (deferredCoords.length > 0) {
-    try {
-      for (const c of deferredCoords) {
-        await db.runAsync(
-          `INSERT INTO detection_coordinates (lat, lng, speed, accuracy, recorded_at)
-           VALUES (?, ?, ?, ?, ?)`,
-          [c.lat, c.lng, c.speed ?? null, c.accuracy ?? null, c.recorded_at]
-        );
-      }
+  // ── Delete-AFTER-save (30 Jul 2026, Eddie Doyle's 153-mile Carmarthen →
+  // Witney drive). The buffer used to be cleared HERE, "regardless of
+  // outcome" — seconds of network work (map-match, geocode, classify) then
+  // stood between the irreversible delete and the actual save. iOS suspended
+  // Eddie's app 1s into that window and 2,053 coords ceased to exist with no
+  // recovery path. Now NOTHING is deleted until the outcome is known: every
+  // exit path calls consumeProcessedBuffer() at its end, and a finalize that
+  // dies mid-flight leaves buffer + armed state intact, so the next boot's
+  // checkStaleAutoRecording simply runs the whole finalize again. Idempotency
+  // for the crash-after-save-before-consume window (now milliseconds, and
+  // local-only) is handled by the started_at / ended_at dedup guards before
+  // the save calls below.
+  //
+  // Multileg deferral folds in here too: deferred legs are simply NEVER
+  // deleted (targeted delete up to the processed leg's last coord) instead of
+  // the old delete-all + re-insert loop, and the re-arm + timestamp re-plant
+  // (the Keir Fawcus boot-rescue fix) happens at consume time.
+  const consumeProcessedBuffer = async (): Promise<void> => {
+    if (deferredCoords.length > 0 && allCoords.length > 0) {
+      const processedMax = allCoords[allCoords.length - 1].recorded_at;
+      await db.runAsync(
+        "DELETE FROM detection_coordinates WHERE recorded_at <= ?",
+        [processedMax]
+      );
+    } else {
+      await db.runAsync("DELETE FROM detection_coordinates");
+    }
+    await db.runAsync(
+      "DELETE FROM tracking_state WHERE key IN ('auto_recording_active', 'last_driving_speed_at', 'driving_detection_count', 'finalization_mode', 'stop_anchor')"
+    );
+    if (deferredCoords.length > 0) {
       await db.runAsync(
         "INSERT OR REPLACE INTO tracking_state (key, value) VALUES ('auto_recording_active', '1')"
       );
+      // Re-plant last_driving_speed_at from the newest deferred coordinate.
+      // An ARMED flag with NO timestamp reads as corrupt to
+      // checkStaleAutoRecording, which then DISARMS instead of finalizing -
+      // killing the boot-time rescue for a deferred payload that outlives
+      // this JS session (app suspended or killed before the drain loop
+      // finishes). With a real, old timestamp the next startup finalizes it
+      // into trips instead.
+      const newest = deferredCoords[deferredCoords.length - 1];
+      const newestMs = new Date(newest.recorded_at).getTime();
+      await db.runAsync(
+        "INSERT OR REPLACE INTO tracking_state (key, value) VALUES ('last_driving_speed_at', ?)",
+        [String(Number.isFinite(newestMs) ? newestMs : Date.now())]
+      );
       logDetectionEvent("finalize_multileg_deferred", { coords: deferredCoords.length }).catch(() => {});
-      setTimeout(() => {
-        finalizeAutoTrip().catch(() => {});
-      }, 600);
-    } catch {
-      // Best-effort: if re-buffering fails, we still saved the oldest leg.
+      deferredFinalizePending = true;
     }
-  }
+  };
 
   if (allCoords.length < 2) {
     // No meaningful trip - dismiss Live Activity immediately
     logDetectionEvent("finalize_no_coords").catch(() => {});
+    await consumeProcessedBuffer();
     endLiveActivity().catch(() => {});
     // Re-arm the departure anchor at the current position. Critical for
     // phantom anchor_exit recovery: indoor GPS drift fires a false exit,
@@ -1125,6 +1365,7 @@ async function _finalizeAutoTripInner(): Promise<void> {
       spanMs,
       distanceMiles: earlyDistMiles,
     }).catch(() => {});
+    await consumeProcessedBuffer();
     endLiveActivity().catch(() => {});
     try {
       const { setDepartureAnchor } = await import("../geofencing/index");
@@ -1177,6 +1418,7 @@ async function _finalizeAutoTripInner(): Promise<void> {
       keptCoords: coords.length,
       endIdx,
     }).catch(() => {});
+    await consumeProcessedBuffer();
     return;
   }
 
@@ -1208,6 +1450,29 @@ async function _finalizeAutoTripInner(): Promise<void> {
   }
   const first = filteredCoords[0];
   const last = filteredCoords[filteredCoords.length - 1];
+
+  // Idempotency guard for the delete-after-save ordering: a process death
+  // between a successful save and consumeProcessedBuffer() re-runs this
+  // finalize with identical coords at the next boot. started_at is copied
+  // verbatim from the first buffered coord (deterministic through the split,
+  // trim and outlier filter), so an exact local match means this exact leg is
+  // already saved — consume the buffer and stop instead of duplicating.
+  try {
+    const already = await db.getFirstAsync<{ id: string }>(
+      "SELECT id FROM trips WHERE started_at = ? LIMIT 1",
+      [first.recorded_at]
+    );
+    if (already) {
+      logDetectionEvent("finalize_dedup_local_skip", { tripId: already.id }).catch(() => {});
+      await consumeProcessedBuffer();
+      endLiveActivity().catch(() => {});
+      return;
+    }
+  } catch {
+    // Guard is best-effort; the 2-minute dedup window in syncCreateTrip still
+    // covers the common case.
+  }
+
   const distanceResult = await bestTraceDistance(filteredCoords, gpsSumDistance);
   const totalDistance = distanceResult.distanceMiles;
   const tripQuality = computeTripQuality(allCoords, filteredCoords, {
@@ -1216,9 +1481,26 @@ async function _finalizeAutoTripInner(): Promise<void> {
   });
 
   if (totalDistance < MIN_AUTO_TRIP_DISTANCE_MILES) {
-    // Too short to save - dismiss Live Activity immediately
-    logDetectionEvent("finalize_too_short", { distance: totalDistance, gpsSumDistance }).catch(() => {});
-    endLiveActivity().catch(() => {});
+    // Too short to save. Whether to SAY so depends on what it was: a genuine
+    // short hop deserves an explanation and a one-tap alternative, but this
+    // same branch catches GPS drift and parking-lot shuffles, and inviting
+    // someone to add a drive that never happened is worse than saying nothing.
+    // Driving speed is the discriminator - the same evidence test the phantom
+    // guard uses below. Denise Sweeney's Cove Bay hops (22 Aug, 0.2-0.5 mi at
+    // ~28 mph) are the case this is for.
+    const wasRealDriving = (tripQuality.maxSpeedMph ?? 0) >= DRIVING_EVIDENCE_SPEED_MPH;
+    logDetectionEvent("finalize_too_short", {
+      distance: totalDistance,
+      gpsSumDistance,
+      wasRealDriving,
+    }).catch(() => {});
+    await consumeProcessedBuffer();
+    if (wasRealDriving) {
+      const { markLiveActivityTooShort } = await import("../liveActivity");
+      markLiveActivityTooShort(totalDistance).catch(() => {});
+    } else {
+      endLiveActivity().catch(() => {});
+    }
     // Re-arm the departure anchor at the end of the brief movement so the
     // next real trip gets a fresh exit event. Without this, a short walk
     // or parking-lot shuffle consumes the anchor exit and leaves iOS with
@@ -1250,6 +1532,7 @@ async function _finalizeAutoTripInner(): Promise<void> {
       durationSec: Math.round(durationSec),
       avgMph: Math.round(avgMph * 10) / 10,
     }).catch(() => {});
+    await consumeProcessedBuffer();
     endLiveActivity().catch(() => {});
     try {
       const { setDepartureAnchor } = await import("../geofencing/index");
@@ -1293,6 +1576,7 @@ async function _finalizeAutoTripInner(): Promise<void> {
         coords: filteredCoords.length,
         reason: "implausible_distance",
       }).catch(() => {});
+      await consumeProcessedBuffer();
       endLiveActivity().catch(() => {});
       try {
         const { setDepartureAnchor } = await import("../geofencing/index");
@@ -1407,6 +1691,19 @@ async function _finalizeAutoTripInner(): Promise<void> {
 
     let merged = false;
     if (recentTrip?.ended_at && recentTrip.end_lat != null && recentTrip.end_lng != null) {
+      // Idempotency (delete-after-save): the previous trip ending at EXACTLY
+      // this segment's last coord timestamp means a prior pass already merged
+      // this very segment and died before consuming the buffer. Re-merging
+      // would double-count its distance onto the same trip.
+      if (recentTrip.ended_at === last.recorded_at) {
+        logDetectionEvent("finalize_dedup_local_skip", {
+          tripId: recentTrip.id,
+          kind: "merged",
+        }).catch(() => {});
+        await consumeProcessedBuffer();
+        endLiveActivity().catch(() => {});
+        return;
+      }
       const timeSinceLastTrip = new Date(first.recorded_at).getTime() - new Date(recentTrip.ended_at).getTime();
       const distFromLastEnd = haversineMeters(
         recentTrip.end_lat, recentTrip.end_lng,
@@ -1417,10 +1714,13 @@ async function _finalizeAutoTripInner(): Promise<void> {
       // silent. The Raven 13 May 2026 case (108-mile drive split into
       // 5.7 + 103 trips at a petrol station) was invisible in the
       // diagnostic dump until we queried the DB directly.
+      // Capped by the user's journey boundary: gluing a segment back on across
+      // a gap they call the end of a journey would undo the split immediately.
+      const { mergeMs } = journeyBoundaryMs(await getJourneyEndMinutes());
       const decision: string =
-        Math.abs(timeSinceLastTrip) < MERGE_TIME_WINDOW_MS && distFromLastEnd < MERGE_DISTANCE_M
+        Math.abs(timeSinceLastTrip) < mergeMs && distFromLastEnd < MERGE_DISTANCE_M
           ? "merged"
-          : Math.abs(timeSinceLastTrip) >= MERGE_TIME_WINDOW_MS
+          : Math.abs(timeSinceLastTrip) >= mergeMs
           ? "rejected_too_old"
           : "rejected_too_far";
       logDetectionEvent("merge_attempted", {
@@ -1440,7 +1740,7 @@ async function _finalizeAutoTripInner(): Promise<void> {
       // continuous drive. (Raven 13 May 2026: 5.7 mi trip + 103 mi
       // trip split at Spicewood, 18m apart, 1-second overlap.)
       // Math.abs() so the 15-minute window is symmetric.
-      if (Math.abs(timeSinceLastTrip) < MERGE_TIME_WINDOW_MS && distFromLastEnd < MERGE_DISTANCE_M) {
+      if (Math.abs(timeSinceLastTrip) < mergeMs && distFromLastEnd < MERGE_DISTANCE_M) {
         // Merge: extend the previous trip's end point, distance, and time
         const { syncUpdateTrip } = await import("../sync/actions");
         const newDistance = Math.round((recentTrip.distance_miles + totalDistance) * 100) / 100;
@@ -1450,6 +1750,17 @@ async function _finalizeAutoTripInner(): Promise<void> {
           endAddress: endAddress ?? null,
           endedAt: last.recorded_at,
           distanceMiles: newDistance,
+          // Carry this segment's breadcrumbs into the trip we are extending.
+          // Without them the merge moved endedAt and distance over a stretch
+          // with no path behind it: the Journey Map drew half the drive and
+          // Split Trip could not find the stop (Dempsey Chimwara, 12 Aug 2026).
+          coordinates: filteredCoords.map((c) => ({
+            lat: c.lat,
+            lng: c.lng,
+            speed: c.speed,
+            accuracy: c.accuracy,
+            recordedAt: c.recorded_at,
+          })),
         });
         merged = true;
         logDetectionEvent("finalize_merged", { intoTripId: recentTrip.id, segmentMiles: totalDistance, mergedTotal: newDistance }).catch(() => {});
@@ -1673,6 +1984,13 @@ async function _finalizeAutoTripInner(): Promise<void> {
     }
 
     } // end if (!merged)
+
+    // The trip (merged, created, or dedup-skipped — all three mean "the data
+    // is durably saved locally") is safe: NOW consume the processed coords
+    // and clear the recording state. A throw anywhere above skips this, the
+    // outer catch logs it, and the intact buffer + armed state retry the
+    // whole finalize at the next boot instead of losing the drive.
+    await consumeProcessedBuffer();
 
     // Set departure anchor at the user's CURRENT position — not the trimmed
     // "last coord" from the trip buffer. Using the last buffered coord is
@@ -1899,6 +2217,19 @@ try {
         try {
           const { getLiveActivityPhase } = await import("../liveActivity");
           const phase = await getLiveActivityPhase();
+          // Kerbside decisions (Business / Personal) are applied here too -
+          // this callback keeps firing for minutes after the user parks, so
+          // the tap usually lands before they pick the phone up.
+          if (phase === "classified_business" || phase === "classified_personal") {
+            const { applyPendingLiveActivityAction } = await import("../liveActivity/pending");
+            const applied = await applyPendingLiveActivityAction();
+            if (applied?.kind === "classified") {
+              logDetectionEvent("la_classified_at_kerb", {
+                classification: applied.classification,
+                source: "background_task",
+              }).catch(() => {});
+            }
+          }
           if (phase === "saving") {
             logDetectionEvent("pending_finalize_via_task", { source: "app_intent" }).catch(() => {});
             await finalizeAutoTrip();
@@ -2187,7 +2518,51 @@ try {
       const recordingActiveRow = await db.getFirstAsync<{ value: string }>(
         "SELECT value FROM tracking_state WHERE key = 'auto_recording_active'"
       );
-      const isRecordingActive = recordingActiveRow?.value === "1";
+      let isRecordingActive = recordingActiveRow?.value === "1";
+
+      // Gap-stop, JS-engine side (Class 20, Rachel Thorndyke, 25 Aug 2026).
+      // Stop detection below needs slow fixes to fire, but iOS stops calling
+      // this task while the device sits at a visit, so a recording sails
+      // through the stop and the next drive is welded onto it. When the task
+      // wakes with a recording open, a long silence across which the device
+      // did not meaningfully move WAS a stop: close the trip at the fix
+      // before the silence, before this batch is buffered, so the visit and
+      // the next journey never join the route. The native engine has the
+      // same check at its own append point.
+      if (isRecordingActive && locations.length > 0) {
+        const newest = await db.getFirstAsync<{ lat: number; lng: number; recorded_at: string }>(
+          "SELECT lat, lng, recorded_at FROM detection_coordinates ORDER BY recorded_at DESC LIMIT 1"
+        );
+        if (newest) {
+          const lastMs = Date.parse(newest.recorded_at) || Number(newest.recorded_at) || 0;
+          const batchFirst = locations.reduce((a, b) => (a.timestamp <= b.timestamp ? a : b));
+          const gapMs = new Date(batchFirst.timestamp).getTime() - lastMs;
+          if (lastMs && gapMs > GAP_STOP_MS) {
+            const driftM = haversineMeters(
+              newest.lat,
+              newest.lng,
+              batchFirst.coords.latitude,
+              batchFirst.coords.longitude
+            );
+            if (driftM < GAP_STOP_DRIFT_M) {
+              logDetectionEvent("gap_stop_finalize", {
+                gapMs,
+                driftM: Math.round(driftM),
+                engine: "js",
+              }).catch(() => {});
+              await finalizeAutoTrip();
+              isRecordingActive = false;
+            } else {
+              logDetectionEvent("gap_stop_continued", {
+                gapMs,
+                driftM: Math.round(driftM),
+                engine: "js",
+              }).catch(() => {});
+            }
+          }
+        }
+      }
+
       const accuracyCeiling = isRecordingActive
         ? INGEST_ACCURACY_DURING_RECORDING_M
         : INGEST_ACCURACY_PRE_RECORDING_M;
@@ -3374,6 +3749,24 @@ export async function isDriveDetectionEnabled(): Promise<boolean> {
     "SELECT value FROM tracking_state WHERE key = 'drive_detection_enabled'"
   );
   return row ? row.value === "1" : true;
+}
+
+export async function getJourneyEndMinutes(): Promise<number> {
+  const db = await getDatabase();
+  const row = await db.getFirstAsync<{ value: string }>(
+    "SELECT value FROM tracking_state WHERE key = 'journey_end_minutes'"
+  );
+  return resolveJourneyEndMinutes(row?.value);
+}
+
+export async function setJourneyEndMinutes(minutes: number): Promise<void> {
+  const db = await getDatabase();
+  const clamped = resolveJourneyEndMinutes(minutes);
+  await db.runAsync(
+    "INSERT OR REPLACE INTO tracking_state (key, value) VALUES ('journey_end_minutes', ?)",
+    [String(clamped)]
+  );
+  logDetectionEvent("journey_end_minutes_set", { minutes: clamped }).catch(() => {});
 }
 
 export async function setDriveDetectionEnabled(enabled: boolean): Promise<void> {

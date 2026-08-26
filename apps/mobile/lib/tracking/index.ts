@@ -78,6 +78,27 @@ export async function isTrackingActive(): Promise<boolean> {
   return TaskManager.isTaskRegisteredAsync(LOCATION_TASK_NAME);
 }
 
+/**
+ * Stop the background location task WITHOUT the rest of the quick-trip teardown
+ * (no coord read, no detection restart, no anchor).
+ *
+ * For the self-heal paths in detection.ts, which release a stranded
+ * __quick_trip__ lock themselves and must not call stopQuickTripTracking() —
+ * that restarts drive detection, which re-enters shiftSuppressesAutoDetection.
+ * Leaving the task running is not harmless: it goes on delivering fixes, and
+ * the moment anything re-sets active_shift_id those land under the stale id
+ * again. On Android it also keeps the tracking foreground notification up.
+ */
+export async function stopQuickTripLocationTask(): Promise<void> {
+  try {
+    if (await TaskManager.isTaskRegisteredAsync(LOCATION_TASK_NAME)) {
+      await Location.stopLocationUpdatesAsync(LOCATION_TASK_NAME);
+    }
+  } catch {
+    // best-effort: the caller has already released the lock
+  }
+}
+
 export async function startShiftTracking(shiftId: string): Promise<void> {
   // Starting a shift is an explicit "I am driving" signal. Clear any
   // pending not-driving cooldown so the shift records normally.
@@ -89,6 +110,15 @@ export async function startShiftTracking(shiftId: string): Promise<void> {
   await db.runAsync(
     "INSERT OR REPLACE INTO tracking_state (key, value) VALUES ('active_shift_id', ?)",
     [shiftId]
+  );
+  // Stamp when the lock was taken. The staleness check reads the local
+  // shifts row for started_at, but that row can be absent (a reinstall, a
+  // create that never landed), and a lock with no age can never be judged
+  // stale — it then suppresses auto-detection forever. One user sat in
+  // exactly that state for six weeks. See shiftSuppressesAutoDetection.
+  await db.runAsync(
+    "INSERT OR REPLACE INTO tracking_state (key, value) VALUES ('active_shift_started_at', ?)",
+    [String(Date.now())]
   );
 
   try {
@@ -121,7 +151,7 @@ export async function stopShiftTracking(): Promise<void> {
   }
 
   const db = await getDatabase();
-  await db.runAsync("DELETE FROM tracking_state WHERE key = 'active_shift_id'");
+  await db.runAsync("DELETE FROM tracking_state WHERE key IN ('active_shift_id', 'active_shift_started_at')");
 
   // Clear any leftover detection coordinates and auto-recording state so the
   // detection system cannot finalize a duplicate trip for the same journey.
@@ -147,6 +177,20 @@ export async function startQuickTripTracking(): Promise<void> {
     "INSERT OR REPLACE INTO tracking_state (key, value) VALUES ('active_shift_id', ?)",
     [QUICK_TRIP_SHIFT_ID]
   );
+  await db.runAsync(
+    "INSERT OR REPLACE INTO tracking_state (key, value) VALUES ('active_shift_started_at', ?)",
+    [String(Date.now())]
+  );
+
+  // Cancel again AFTER the lock is set. The cancelAutoRecording() above runs
+  // before anything suppresses detection, so a driving-speed fix landing in
+  // between re-arms auto_recording_active and leaves two recorders on the same
+  // journey. The auto one then finalizes independently — the stale sweeper
+  // fires up to 40 minutes later — producing a fragment trip the user does not
+  // recognise and stranding this lock, because that path never calls
+  // stopQuickTripTracking(). Freja Bounds, 27 Jul 2026. Once the lock is set
+  // the suppression check holds, so this second cancel closes the window.
+  await cancelAutoRecording();
 
   const isRunning = await TaskManager.isTaskRegisteredAsync(LOCATION_TASK_NAME);
   if (isRunning) return; // Already running (e.g. resumed after background)
@@ -186,7 +230,7 @@ export async function stopQuickTripTracking(): Promise<StoredCoordinate[]> {
 
   // Clean up
   await db.runAsync("DELETE FROM shift_coordinates WHERE shift_id = ?", [QUICK_TRIP_SHIFT_ID]);
-  await db.runAsync("DELETE FROM tracking_state WHERE key = 'active_shift_id'");
+  await db.runAsync("DELETE FROM tracking_state WHERE key IN ('active_shift_id', 'active_shift_started_at')");
 
   // Clear detection coordinates to prevent duplicate trip finalization
   await cancelAutoRecording(true);

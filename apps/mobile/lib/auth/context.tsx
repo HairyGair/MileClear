@@ -42,9 +42,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // the app cold-starts, but the session is still valid as long as we can
     // refresh it. Checking the access token caused false "not authenticated"
     // states that cascaded into forced re-logins.
+    //
+    // Watchdog (30 Jul 2026): this keychain read is the single promise
+    // standing between the user and the entire app - isLoading starts true
+    // and ONLY this .finally clears it, and showLoading's overlay blocks all
+    // touches while it's up. A keychain call that never settles (locked
+    // keychain edge cases, Security.framework stalls) therefore bricks the
+    // app with a black screen. After 10s, proceed unauthenticated; if the
+    // read then resolves late with a token, setIsAuthenticated flips and the
+    // navigator recovers to the signed-in stack.
+    const fallback = setTimeout(() => setIsLoading(false), 10_000);
     SecureStore.getItemAsync(REFRESH_TOKEN_KEY)
       .then((token) => setIsAuthenticated(!!token))
-      .finally(() => setIsLoading(false));
+      .finally(() => {
+        clearTimeout(fallback);
+        setIsLoading(false);
+      });
 
     // Auto-logout when any API call detects an expired session.
     // Guard prevents multiple alerts from concurrent 401s during hydration.

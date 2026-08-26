@@ -14,6 +14,7 @@ import {
   ActivityIndicator,
 } from "react-native";
 import { Stack, useFocusEffect } from "expo-router";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { AppModal } from "../components/AppModal";
 import { Ionicons } from "@expo/vector-icons";
 import { getDatabase } from "../lib/db/index";
@@ -239,9 +240,17 @@ function AddRuleModal({
   onSave: (form: FormState) => Promise<void>;
   savedLocations: SavedLocationRow[];
 }) {
+  const insets = useSafeAreaInsets();
   const [form, setForm] = useState<FormState>(defaultForm());
   const [saving, setSaving] = useState(false);
   const [showLocationPicker, setShowLocationPicker] = useState(false);
+
+  // The modal is presented overFullScreen, so it covers the status bar. Without
+  // this the only two exits from the form - Cancel and Save - sit underneath the
+  // clock and battery and cannot be tapped, which traps the user in the screen
+  // (reported by a user on 20 Aug 2026, iPhone). Keep a floor for the devices
+  // that report a zero top inset.
+  const headerPadTop = Math.max(insets.top, 12) + 8;
 
   const resetAndClose = useCallback(() => {
     setForm(defaultForm());
@@ -315,7 +324,7 @@ function AddRuleModal({
         onRequestClose={() => setShowLocationPicker(false)}
       >
         <View style={s.modalContainer}>
-          <View style={s.modalHeader}>
+          <View style={[s.modalHeader, { paddingTop: headerPadTop }]}>
             <TouchableOpacity
               onPress={() => setShowLocationPicker(false)}
               hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
@@ -384,7 +393,7 @@ function AddRuleModal({
         keyboardVerticalOffset={20}
       >
         {/* Header */}
-        <View style={s.modalHeader}>
+        <View style={[s.modalHeader, { paddingTop: headerPadTop }]}>
           <TouchableOpacity
             onPress={resetAndClose}
             hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}

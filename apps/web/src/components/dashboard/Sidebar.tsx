@@ -148,6 +148,7 @@ const BUSINESS_ITEMS: NavItem[] = [
   { href: "/dashboard/tax", label: "Tax Summary", icon: icons.tax },
   { href: "/dashboard/self-assessment", label: "Self Assessment", icon: icons.tax },
   { href: "/dashboard/accountant", label: "Accountant", icon: icons.accountant },
+  { href: "/milesheet/portal", label: "Milesheet", icon: icons.accountant },
 ];
 
 const PERSONAL_ITEMS: NavItem[] = [

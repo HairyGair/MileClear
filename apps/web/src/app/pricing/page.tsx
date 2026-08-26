@@ -61,6 +61,7 @@ const freeFeatures = [
   'Business and personal trip classification',
   'HMRC mileage deduction calculator (55p/25p car, 24p moped) - rate rose from 45p on 6 April 2026',
   'Higher-rate threshold warning when approaching £50,270',
+  'Self Assessment wizard - step-by-step mapping to HMRC SA103 form boxes',
   'First-time Self Assessment guide',
   'Achievements, streaks, weekly and monthly recaps',
   '2 saved locations with geofencing',
@@ -69,7 +70,7 @@ const freeFeatures = [
 
 const proFeatures = [
   'Everything in Free, plus:',
-  'Self Assessment wizard - step-by-step mapping to HMRC SA103 form boxes',
+  'Print-ready Self Assessment PDF - the wizard\'s SA103 figures as a filing-ready document',
   'PDF mileage log with signed HMRC attestation cover sheet',
   'CSV and accounting-software exports',
   'Accountant Portal - read-only dashboard you can invite your accountant to',
@@ -88,11 +89,11 @@ const faqs = [
   },
   {
     q: 'Does MileClear cap how many trips I can track on the free tier?',
-    a: 'No. Trip tracking is unlimited and free forever - no monthly drive cap. That is the single biggest difference between MileClear and the US-built alternatives most UK drivers are pointed at: MileIQ stops at 40 drives a month on the free tier, Driversnote at 20, TripLog at 40. A full-time gig driver or a DPD ODF burns through any of those inside the first shift. MileClear has no cap, no time limit, and never will. Pro (£4.99/month) is only for the HMRC exports, Self Assessment wizard, Accountant Portal, and business insights.',
+    a: 'No. Trip tracking is unlimited and free forever - no monthly drive cap. That is the single biggest difference between MileClear and the US-built alternatives most UK drivers are pointed at: MileIQ stops at 40 drives a month on the free tier and Driversnote at 20. A full-time gig driver or a DPD ODF burns through either of those inside the first shift. MileClear has no cap, no time limit, and never will. Pro (£4.99/month) is only for the HMRC exports, Accountant Portal, and business insights.',
   },
   {
     q: 'What happens when I upgrade to Pro?',
-    a: 'You unlock the Self Assessment wizard, PDF and CSV exports, the Accountant Portal, receipt scanning, CSV earnings import, business insights (golden hours, P&L, shift grades), pickup-wait community insights, and unlimited saved locations. Everything switches on the moment your payment goes through.',
+    a: 'You unlock the print-ready Self Assessment PDF, the full PDF and CSV exports, the Accountant Portal, receipt scanning, CSV earnings import, business insights (golden hours, P&L, shift grades), pickup-wait community insights, and unlimited saved locations. Everything switches on the moment your payment goes through.',
   },
   {
     q: 'Can I cancel anytime?',
@@ -100,11 +101,11 @@ const faqs = [
   },
   {
     q: 'Is there a free trial?',
-    a: 'There is no time-limited trial, but the free plan is genuinely comprehensive. You can use the Tax Readiness card, Anonymous Benchmarking, HMRC Reconciliation, MOT history, and the dashboard fully before deciding if the Pro tools (Self Assessment wizard, exports, Accountant Portal, receipt OCR) are worth it for you.',
+    a: 'There is no time-limited trial, but the free plan is genuinely comprehensive. You can use the Tax Readiness card, the Self Assessment wizard, Anonymous Benchmarking, HMRC Reconciliation, MOT history, and the dashboard fully before deciding if the Pro tools (exports, the print-ready Self Assessment PDF, Accountant Portal, receipt OCR) are worth it for you.',
   },
   {
     q: 'Do I need Pro to file my Self Assessment?',
-    a: 'You do not need Pro to track your mileage or to see your HMRC deduction build up - that is all on the free plan. Pro is for the export workflow: a PDF mileage log with a signed cover sheet that HMRC inspectors recognise, the Self Assessment wizard that maps your numbers to specific SA103 form boxes, and the Accountant Portal that lets you share read-only access by email. If you do your own return manually using just the numbers, free is enough.',
+    a: 'You do not need Pro to track your mileage, see your HMRC deduction build up, or use the Self Assessment wizard that maps your numbers to specific SA103 form boxes - all of that is on the free plan. Pro is for the export workflow: the wizard\'s figures as a print-ready PDF, a mileage log with a signed cover sheet that HMRC inspectors recognise, and the Accountant Portal that lets you share read-only access by email. If you do your own return manually using just the numbers, free is enough.',
   },
   {
     q: 'How does payment work?',
@@ -150,7 +151,7 @@ export default function PricingPage() {
         availability: 'https://schema.org/InStock',
         url: 'https://mileclear.com/pricing',
         description:
-          'Self Assessment wizard, PDF and CSV exports with HMRC attestation cover sheet, Accountant Portal, receipt scanning, CSV earnings import, business insights, pickup-wait community insights, unlimited saved locations.',
+          'Print-ready Self Assessment PDF, PDF and CSV exports with HMRC attestation cover sheet, Accountant Portal, receipt scanning, CSV earnings import, business insights, pickup-wait community insights, unlimited saved locations.',
         priceSpecification: {
           '@type': 'UnitPriceSpecification',
           price: '4.99',
@@ -168,7 +169,7 @@ export default function PricingPage() {
         availability: 'https://schema.org/InStock',
         url: 'https://mileclear.com/pricing',
         description:
-          'Self Assessment wizard, PDF and CSV exports with HMRC attestation cover sheet, Accountant Portal, receipt scanning, CSV earnings import, business insights, pickup-wait community insights, unlimited saved locations. Billed yearly.',
+          'Print-ready Self Assessment PDF, PDF and CSV exports with HMRC attestation cover sheet, Accountant Portal, receipt scanning, CSV earnings import, business insights, pickup-wait community insights, unlimited saved locations. Billed yearly.',
         priceSpecification: {
           '@type': 'UnitPriceSpecification',
           price: '44.99',
@@ -259,7 +260,7 @@ export default function PricingPage() {
                   or &pound;44.99/year (two months free)
                 </p>
                 <p className="p-card__desc">
-                  Self Assessment wizard, HMRC-ready exports, Accountant Portal, receipt scanning, and the full business-insights toolkit for self-employed drivers.
+                  Print-ready Self Assessment PDF, HMRC-ready exports, Accountant Portal, receipt scanning, and the full business-insights toolkit for self-employed drivers.
                 </p>
                 <ul className="p-card__list">
                   {proFeatures.map((feature) => (

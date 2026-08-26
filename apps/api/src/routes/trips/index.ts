@@ -24,15 +24,22 @@ function tripVehicleCazClass(vehicleType: string | null | undefined): CazVehicle
   return "car";
 }
 import { upsertMileageSummary } from "../../services/mileage.js";
+import {
+  parseTripCsvPreview,
+  confirmTripCsvImport,
+} from "../../services/tripCsvParser.js";
 import { checkAndAwardAchievements } from "../../services/gamification.js";
 import { sendMilestonePush, sendAchievementPush } from "../../jobs/notifications.js";
 import { logEvent } from "../../services/appEvents.js";
+import { selectMissedJourneyCandidates } from "../../services/missedJourneys.js";
 import { advanceLastTripAt } from "../../services/userActivity.js";
 import { qualifyReferralOnFirstTrip } from "../../services/referral.js";
 import { looksLikePhantomTrip, hasRealMovementEvidence } from "../../lib/phantomTrip.js";
-import { resolveRouteDistance } from "../../services/routing.js";
-import { matchTripRoute, decodePolyline, isMatchPlausible } from "../../services/mapMatching.js";
+import { resolveRouteDistance, routedDurationUsable } from "../../services/routing.js";
+import { reverseGeocode } from "../../services/geocoding.js";
+import { matchTripRoute, decodePolyline, isMatchPlausible, trimEdgePhantoms } from "../../services/mapMatching.js";
 import { computeTripConfidence } from "../../services/tripConfidence.js";
+import { reconcileWakeLagStart } from "../../services/wakeLagStart.js";
 import {
   getSplitSuggestions,
   executeTripSplit,
@@ -122,7 +129,17 @@ const createTripSchema = z.object({
   // Optional odometer readings (miles) corroborating the distance.
   odometerStart: z.number().min(0).max(2_000_000).nullable().optional(),
   odometerEnd: z.number().min(0).max(2_000_000).nullable().optional(),
-});
+})
+  // A trip cannot end before it starts. The server accepted this until 7 Aug
+  // 2026: Lisa Purchase's backdated manual entries produced a trip whose
+  // endedAt preceded its startedAt, which then reports a negative duration
+  // everywhere it is displayed or averaged. Manual entry now carries a lot of
+  // this app's tax data (it is the resolution path for most missing-trip
+  // reports), so the invariant is enforced where every client meets it.
+  .refine((d) => !d.endedAt || d.endedAt.getTime() >= d.startedAt.getTime(), {
+    message: "End time cannot be before the start time",
+    path: ["endedAt"],
+  });
 
 const updateTripSchema = z.object({
   classification: z.enum(TRIP_CLASSIFICATIONS).optional(),
@@ -146,6 +163,13 @@ const updateTripSchema = z.object({
   classificationAutoAccepted: z.boolean().optional(),
   odometerStart: z.number().min(0).max(2_000_000).nullable().optional(),
   odometerEnd: z.number().min(0).max(2_000_000).nullable().optional(),
+  // Breadcrumbs for a segment being merged into this trip (multi-stop merge,
+  // mobile detection.ts). APPEND-ONLY: stored coordinates are never deleted,
+  // and an incoming point whose recordedAt already exists on the trip is
+  // skipped, so a retried PATCH from the sync queue cannot duplicate the
+  // route. Before 12 Aug 2026 the merge sent only endedAt/distance, which
+  // extended the trip over a stretch with no path behind it.
+  coordinates: z.array(coordinateInputSchema).max(20000).optional(),
 });
 
 const listTripsQuery = z.object({
@@ -160,6 +184,60 @@ const listTripsQuery = z.object({
   page: z.coerce.number().int().positive().default(1),
   pageSize: z.coerce.number().int().positive().max(MAX_PAGE_SIZE).default(DEFAULT_PAGE_SIZE),
 });
+
+/**
+ * Give a trip a name the driver recognises, when the device could not.
+ *
+ * Addresses normally arrive from the client. When its reverse geocode fails it
+ * sends null, and a trip with BOTH addresses null draws no route line at all in
+ * the trips list — a captured drive that reads as a missing one. Six of the
+ * people who filed missing-trip reports in the week to 15 Aug had trips in this
+ * state; Hanson reported his twice and then tried to re-enter it by hand while
+ * it was already saved.
+ *
+ * Fire-and-forget, after the row is written, exactly like the manual route
+ * polyline: trip capture is Priority 1 and must not take on a new external
+ * dependency in its critical path. Only ever FILLS a null — whatever the client
+ * sent always wins, because the device was there and we were not.
+ */
+async function backfillTripAddresses(args: {
+  tripId: string;
+  userId: string;
+  startLat: number;
+  startLng: number;
+  endLat: number | null;
+  endLng: number | null;
+  hasStart: boolean;
+  hasEnd: boolean;
+}): Promise<void> {
+  const wantStart = !args.hasStart && hasValidCoords(args.startLat, args.startLng);
+  const wantEnd =
+    !args.hasEnd &&
+    args.endLat != null &&
+    args.endLng != null &&
+    hasValidCoords(args.endLat, args.endLng);
+  if (!wantStart && !wantEnd) return;
+
+  const [start, end] = await Promise.all([
+    wantStart ? reverseGeocode(args.startLat, args.startLng) : Promise.resolve(null),
+    wantEnd ? reverseGeocode(args.endLat!, args.endLng!) : Promise.resolve(null),
+  ]);
+  if (!start && !end) return;
+
+  await prisma.trip.update({
+    where: { id: args.tripId },
+    data: {
+      ...(start ? { startAddress: start } : {}),
+      ...(end ? { endAddress: end } : {}),
+    },
+  });
+
+  logEvent("trip.address_backfilled", args.userId, {
+    tripId: args.tripId,
+    filledStart: Boolean(start),
+    filledEnd: Boolean(end),
+  });
+}
 
 export async function tripRoutes(app: FastifyInstance) {
   // Auth runs at onRequest, BEFORE Fastify parses the request body. POST /trips
@@ -271,19 +349,25 @@ export async function tripRoutes(app: FastifyInstance) {
       return reply.send({ sent: false, reason: "cooldown" });
     }
 
+    // Log BEFORE the token short-circuit. trip.signal_start doubles as the
+    // recording watchdog's "a recording just opened" marker (Check 1b,
+    // 4 Aug 2026) — a user without a Live Activity token still needs the
+    // marker, or their silent mid-recording death is invisible to the
+    // server. Placed after the cooldown gate so a flaky double-signal
+    // doesn't double-log.
+    const startedAtMs = d.startedAtMs ?? now;
+    signalStartCooldown.set(userId, now);
+    logEvent("trip.signal_start", userId, { activityType: d.activityType });
+
     const user = await prisma.user.findUnique({
       where: { id: userId },
       select: { liveActivityPushToStartToken: true },
     });
     const token = user?.liveActivityPushToStartToken;
     if (!token) {
+      logEvent("la.push_start", userId, { ok: false, reason: "no_token" });
       return reply.send({ sent: false, reason: "no_token" });
     }
-
-    const startedAtMs = d.startedAtMs ?? now;
-    signalStartCooldown.set(userId, now);
-
-    logEvent("trip.signal_start", userId, { activityType: d.activityType });
 
     const result = await sendLiveActivityStartPush({
       pushToStartToken: token,
@@ -304,6 +388,20 @@ export async function tripRoutes(app: FastifyInstance) {
       alert: { title: "Recording your trip", body: "MileClear is tracking your drive." },
       // Auto-clear after 4h if the app never ends it (failsafe).
       staleDate: startedAtMs + 4 * 60 * 60 * 1000,
+    });
+
+    // Record the OUTCOME, not just the request (24 Aug 2026). trip.signal_start
+    // says only that a device ASKED for a Live Activity - 12,964 of them in the
+    // fortnight to 24 Aug - and whether any of those actually lit a Dynamic
+    // Island was invisible. The failures existed (TooManyProviderTokenUpdates,
+    // Unregistered, timeouts) but only in pm2's logs, which carry no timestamps
+    // and rotate, so they could not even be dated. This makes the success rate
+    // a number anyone can query.
+    logEvent("la.push_start", userId, {
+      ok: result.ok,
+      status: result.status,
+      reason: result.reason ?? null,
+      activityType: d.activityType,
     });
 
     // BadDeviceToken / Unregistered => the stored token is dead; clear it so we
@@ -479,8 +577,72 @@ export async function tripRoutes(app: FastifyInstance) {
       }
     }
 
-    const { coordinates, ...tripData } = data;
-    const hasCoordinates = coordinates && coordinates.length > 0;
+    const { coordinates: rawCoordinates, ...tripData } = data;
+
+    // Edge phantom trim: a cell-tower first or last fix (accuracy in the
+    // thousands of metres, a mile or more from the real edge) makes the trip
+    // start somewhere the driver never was and inflates the distance by the
+    // phantom jump - and the map-match guard then protects the bad number.
+    // Drop such points, move the edge to the first real fix, and take the
+    // phantom miles back off the stored distance; map-matching below then
+    // lands on the road figure. See trimEdgePhantoms for the numbers.
+    const trimAttempt =
+      rawCoordinates && rawCoordinates.length >= 3 ? trimEdgePhantoms(rawCoordinates) : null;
+    const edgeTrim =
+      trimAttempt && (trimAttempt.droppedLeading > 0 || trimAttempt.droppedTrailing > 0)
+        ? trimAttempt
+        : null;
+    let coordinates = edgeTrim ? edgeTrim.breadcrumbs : rawCoordinates;
+    if (edgeTrim && coordinates) {
+      if (edgeTrim.droppedLeading > 0) {
+        resolvedStartLat = coordinates[0].lat;
+        resolvedStartLng = coordinates[0].lng;
+        tripData.startAddress = undefined; // reverse-geocoded from the real start below
+      }
+      if (edgeTrim.droppedTrailing > 0) {
+        resolvedEndLat = coordinates[coordinates.length - 1].lat;
+        resolvedEndLng = coordinates[coordinates.length - 1].lng;
+        tripData.endAddress = undefined;
+      }
+      distanceMiles = Math.max(0, Math.round((distanceMiles - edgeTrim.removedMiles) * 100) / 100);
+    }
+
+    // Wake-lag start reconciliation: the auto-detect engine arms ~0.3 mi
+    // into a drive, so the start lands down the road from the real origin.
+    // If the previous trip ended at a real stop a short while ago and this
+    // one starts a wake-lag hop away, move the start back there and add the
+    // routed miles for the missing stretch. Runs after the dedup check
+    // (which keys on the CLIENT's start) and after the edge trim (so it
+    // sees the real first fix). See services/wakeLagStart.ts.
+    const wakeLag = await reconcileWakeLagStart({
+      userId,
+      newTrip: {
+        startedAt: tripData.startedAt,
+        startLat: resolvedStartLat,
+        startLng: resolvedStartLng,
+        isManualEntry: !(coordinates && coordinates.length > 0),
+        hasCoordinates: Boolean(coordinates && coordinates.length > 0),
+      },
+    });
+    if (wakeLag && coordinates) {
+      resolvedStartLat = wakeLag.startLat;
+      resolvedStartLng = wakeLag.startLng;
+      tripData.startAddress = wakeLag.startAddress ?? undefined; // null: reverse-geocoded below
+      coordinates = [
+        {
+          lat: wakeLag.prependCoordinate.lat,
+          lng: wakeLag.prependCoordinate.lng,
+          speed: null,
+          accuracy: null,
+          recordedAt: wakeLag.prependCoordinate.recordedAt,
+        },
+        ...coordinates,
+      ];
+      distanceMiles = Math.round((distanceMiles + wakeLag.addedMiles) * 100) / 100;
+    }
+    // Snapshot after the wake-lag prepend so TypeScript can narrow it below.
+    const finalCoordinates = coordinates;
+    const hasCoordinates = finalCoordinates != null && finalCoordinates.length > 0;
 
     // Classification is now handled by the mobile classification engine
     // (lib/classification/). The API respects whatever the client sends.
@@ -569,14 +731,14 @@ export async function tripRoutes(app: FastifyInstance) {
 
     let trip;
 
-    if (hasCoordinates) {
+    if (hasCoordinates && finalCoordinates) {
       trip = await prisma.$transaction(async (tx) => {
         const created = await tx.trip.create({
           data: tripPayload,
         });
 
         await tx.tripCoordinate.createMany({
-          data: coordinates.map((c) => ({
+          data: finalCoordinates.map((c) => ({
             tripId: created.id,
             lat: c.lat,
             lng: c.lng,
@@ -640,10 +802,20 @@ export async function tripRoutes(app: FastifyInstance) {
       advanceLastTripAt(userId, data.startedAt).catch(() => {});
 
       // Referral qualification: if this user was invited and this is their
-      // first real trip, the referrer earns a free month. Idempotent + only
-      // acts on a pending referral, so it's safe to call on every non-phantom
+      // first real trip, both sides earn a free month. Idempotent + only
+      // acts on a pending referral, so it's safe to call on every eligible
       // trip (the helper no-ops after the first qualification).
-      qualifyReferralOnFirstTrip(userId).catch(() => {});
+      //
+      // TRACKED trips only (11 Aug 2026): a manual entry is typed into a
+      // form, so it costs nothing to manufacture — the same morning a user
+      // qualified his own second account with one manual trip. The phantom
+      // guard was meant to keep no-driving accounts from paying out;
+      // requiring a GPS-tracked trip is what actually enforces that. A
+      // referee who only ever logs manual trips stays "pending", which is
+      // the intended answer, not an oversight.
+      if (!isManualEntry) {
+        qualifyReferralOnFirstTrip(userId).catch(() => {});
+      }
       checkAndAwardAchievements(userId)
         .then((newAchievements) => {
           sendAchievementPush(userId, newAchievements).catch(() => {});
@@ -666,6 +838,31 @@ export async function tripRoutes(app: FastifyInstance) {
         }).catch(() => {});
       }
 
+      if (edgeTrim) {
+        logEvent("trip.edge_phantom_trimmed", userId, {
+          tripId: trip.id,
+          droppedLeading: edgeTrim.droppedLeading,
+          droppedTrailing: edgeTrim.droppedTrailing,
+          removedMiles: Math.round(edgeTrim.removedMiles * 100) / 100,
+          worstAccuracyM: edgeTrim.worstAccuracyM,
+          distanceMiles,
+          clientDistanceMiles: data.distanceMiles ?? null,
+        });
+      }
+
+      if (wakeLag) {
+        logEvent("trip.wake_lag_start_extended", userId, {
+          tripId: trip.id,
+          prevTripId: wakeLag.prevTripId,
+          addedMiles: wakeLag.addedMiles,
+          gapMin: wakeLag.gapMin,
+          crowMiles: wakeLag.crowMiles,
+          savedLocationId: wakeLag.savedLocationId,
+          distanceMiles,
+          clientDistanceMiles: data.distanceMiles ?? null,
+        });
+      }
+
       logEvent("trip.created", userId, {
         distanceMiles,
         classification: finalClassification,
@@ -680,6 +877,19 @@ export async function tripRoutes(app: FastifyInstance) {
         learnedSuggestionMatchCount: learnedSuggestion?.matchCount ?? null,
       });
     }
+
+    // Name the trip if the device could not. Fire-and-forget: the response is
+    // already correct without it, and a slow geocoder must never hold up a save.
+    backfillTripAddresses({
+      tripId: trip.id,
+      userId,
+      startLat: resolvedStartLat,
+      startLng: resolvedStartLng,
+      endLat: resolvedEndLat ?? null,
+      endLng: resolvedEndLng ?? null,
+      hasStart: Boolean(tripData.startAddress),
+      hasEnd: Boolean(tripData.endAddress),
+    }).catch(() => {});
 
     return reply.status(201).send({
       data: trip,
@@ -805,10 +1015,16 @@ export async function tripRoutes(app: FastifyInstance) {
   // Idempotent: each candidate upserts on a stable (userId, key), so repeat
   // scans never duplicate, and an accepted/dismissed proposal is never
   // resurrected. Stale 'proposed' rows (gap since closed) are pruned each scan.
+  //
+  // Wake lag: the auto engine needs roughly 0.3-0.4 mi of driving to wake and
+  // arm, so an auto-captured B routinely starts a few hundred metres from where
+  // the car actually left. For short-hop users that made EVERY consecutive pair
+  // a 0.3 mi "missed journey" (Rachel, 25 Aug 2026: five in one day). Those are
+  // the first stretch of trip B, not a separate drive, so an auto B needs a gap
+  // of at least MISSED_WAKE_LAG_MILES; a manual B (typed start, no wake lag)
+  // keeps the MISSED_MIN_MILES floor. Selection lives in services/missedJourneys
+  // so it is unit-tested; suppressed pairs are logged once per scan, not each.
   const MISSED_SCAN_DAYS = 30;
-  const MISSED_MIN_GAP_MIN = 5; // below this it's GPS jitter at one stop, not a drive
-  const MISSED_MAX_GAP_MIN = 24 * 60; // beyond a day the two trips aren't one journey
-  const MISSED_MIN_MILES = 0.3; // crow-flies; matches the phantom-trip floor
   const MISSED_MAX_RESULTS = 20;
 
   app.get("/missed-journeys", async (request, reply) => {
@@ -820,30 +1036,16 @@ export async function tripRoutes(app: FastifyInstance) {
       select: {
         id: true, startLat: true, startLng: true, startAddress: true,
         endLat: true, endLng: true, endAddress: true,
-        startedAt: true, endedAt: true,
+        startedAt: true, endedAt: true, isManualEntry: true,
       },
     });
 
-    const candidates: {
-      key: string; fromLat: number; fromLng: number; toLat: number; toLng: number;
-      fromAddress: string | null; toAddress: string | null;
-      departedAt: Date; arrivedAt: Date; estimatedMiles: number;
-    }[] = [];
-    for (let i = 0; i < trips.length - 1; i++) {
-      const a = trips[i];
-      const b = trips[i + 1];
-      if (a.endLat == null || a.endLng == null || a.endedAt == null) continue;
-      const gapMin = (b.startedAt.getTime() - a.endedAt.getTime()) / 60000;
-      if (gapMin < MISSED_MIN_GAP_MIN || gapMin > MISSED_MAX_GAP_MIN) continue;
-      const miles = haversineDistance(a.endLat, a.endLng, b.startLat, b.startLng);
-      if (miles < MISSED_MIN_MILES) continue;
-      candidates.push({
-        key: `${a.id}:${b.id}`,
-        fromLat: a.endLat, fromLng: a.endLng,
-        toLat: b.startLat, toLng: b.startLng,
-        fromAddress: a.endAddress, toAddress: b.startAddress,
-        departedAt: a.endedAt, arrivedAt: b.startedAt,
-        estimatedMiles: Math.round(miles * 10) / 10,
+    const { candidates, wakeLagSuppressed, wakeLagMaxMiles } =
+      selectMissedJourneyCandidates(trips);
+    if (wakeLagSuppressed > 0) {
+      logEvent("trip.missed_proposals_wake_lag_suppressed", userId, {
+        suppressed: wakeLagSuppressed,
+        maxMiles: wakeLagMaxMiles,
       });
     }
 
@@ -1790,6 +1992,13 @@ export async function tripRoutes(app: FastifyInstance) {
       return reply.status(404).send({ error: "Trip not found" });
     }
 
+    // Same end-before-start invariant as the create path, but resolved against
+    // the STORED startedAt since a PATCH usually sends endedAt alone (this is
+    // the path a user takes when correcting times on a trip we added for them).
+    if (updates.endedAt && updates.endedAt.getTime() < existing.startedAt.getTime()) {
+      return reply.status(400).send({ error: "End time cannot be before the start time" });
+    }
+
     // Vehicle correction: if reassigning to a vehicle, it must belong to this
     // user (never let a trip be tagged with someone else's vehicle). Unknown
     // ids are STRIPPED rather than rejected so an offline-queued update
@@ -1858,10 +2067,17 @@ export async function tripRoutes(app: FastifyInstance) {
     // classificationAutoAccepted is write-once. Mobile sends it on the first
     // user classification of an auto-classified trip; we never overwrite the
     // original accept/reject signal if the user later changes their mind.
-    const { classificationAutoAccepted: incomingAutoAccepted, ...restUpdates } = updates;
+    const {
+      classificationAutoAccepted: incomingAutoAccepted,
+      coordinates: incomingCoordinates,
+      ...restUpdates
+    } = updates;
     const shouldWriteAutoAccepted =
       incomingAutoAccepted !== undefined &&
       existing.classificationAutoAccepted === null;
+
+    const appendCoordinates = incomingCoordinates ?? [];
+    const hasAppendCoordinates = appendCoordinates.length > 0;
 
     // A manual trip whose end point moved has stale route geometry — clear
     // it in the same write, then refresh fire-and-forget below.
@@ -1871,16 +2087,75 @@ export async function tripRoutes(app: FastifyInstance) {
       newEndLng != null &&
       (newEndLat !== existing.endLat || newEndLng !== existing.endLng);
 
-    const trip = await prisma.trip.update({
-      where: { id },
-      data: {
-        ...restUpdates,
-        ...(distanceMiles !== undefined && { distanceMiles }),
-        ...(shouldWriteAutoAccepted && { classificationAutoAccepted: incomingAutoAccepted }),
-        ...(endMoved ? { routePolyline: null } : {}),
-      },
-      include: { vehicle: true, shift: true },
-    });
+    const tripUpdateData = {
+      ...restUpdates,
+      ...(distanceMiles !== undefined && { distanceMiles }),
+      ...(shouldWriteAutoAccepted && { classificationAutoAccepted: incomingAutoAccepted }),
+      ...(endMoved ? { routePolyline: null } : {}),
+      // New breadcrumbs extend the route, so a polyline matched against the
+      // old, shorter coordinate set no longer describes this trip. Drop it;
+      // POST /trips/:id/recalc rebuilds it from the full set.
+      ...(hasAppendCoordinates ? { routePolyline: null } : {}),
+    };
+
+    let trip;
+    let appendedCoordinates = 0;
+
+    if (hasAppendCoordinates) {
+      // Update and append together: a merge that extended endedAt/distance but
+      // lost its coordinates is exactly the failure being fixed here, so the
+      // two must not be able to come apart.
+      trip = await prisma.$transaction(async (tx) => {
+        const updated = await tx.trip.update({
+          where: { id },
+          data: tripUpdateData,
+          include: { vehicle: true, shift: true },
+        });
+
+        const stored = await tx.tripCoordinate.findMany({
+          where: { tripId: id },
+          select: { recordedAt: true },
+        });
+        // Dedupe against what is already stored AND within the incoming batch,
+        // keyed on the exact timestamp. Makes a replayed PATCH a no-op.
+        const seen = new Set(stored.map((c) => c.recordedAt.getTime()));
+        const fresh = appendCoordinates.filter((c) => {
+          const key = c.recordedAt.getTime();
+          if (seen.has(key)) return false;
+          seen.add(key);
+          return true;
+        });
+
+        if (fresh.length > 0) {
+          await tx.tripCoordinate.createMany({
+            data: fresh.map((c) => ({
+              tripId: id,
+              lat: c.lat,
+              lng: c.lng,
+              speed: c.speed ?? null,
+              accuracy: c.accuracy ?? null,
+              recordedAt: c.recordedAt,
+            })),
+          });
+        }
+        appendedCoordinates = fresh.length;
+
+        return updated;
+      });
+
+      logEvent("trip.coordinates_appended", userId, {
+        tripId: id,
+        received: appendCoordinates.length,
+        appended: appendedCoordinates,
+        duplicatesSkipped: appendCoordinates.length - appendedCoordinates,
+      });
+    } else {
+      trip = await prisma.trip.update({
+        where: { id },
+        data: tripUpdateData,
+        include: { vehicle: true, shift: true },
+      });
+    }
 
     if (endMoved) {
       attachManualRoutePolyline({
@@ -2044,6 +2319,93 @@ export async function tripRoutes(app: FastifyInstance) {
     });
 
     return reply.status(201).send({ data: anomaly });
+  });
+
+  // ── CSV import ──────────────────────────────────────────────────
+  //
+  // Deliberately NOT premium-gated, unlike the earnings CSV import.
+  // This is a switching tool: the person with a year of history to
+  // bring across is, by definition, someone who has not paid yet.
+  // Charging at that moment removes the main reason to move at all.
+
+  // POST /trips/import/preview — parse and report, write nothing.
+  app.post("/import/preview", async (request, reply) => {
+    const schema = z.object({
+      csvContent: z
+        .string()
+        .min(1, "CSV content is required")
+        .max(1_000_000, "That file is too large (max 1MB). Split it and import in parts."),
+    });
+    const parsed = schema.safeParse(request.body);
+    if (!parsed.success) {
+      return reply.status(400).send({ error: parsed.error.issues[0].message });
+    }
+
+    try {
+      const preview = await parseTripCsvPreview(request.userId!, parsed.data.csvContent);
+      return reply.send({ data: preview });
+    } catch (err) {
+      // Parser errors are written for the user ("we could not find a date
+      // column"), so surface them rather than a generic 500.
+      return reply
+        .status(400)
+        .send({ error: err instanceof Error ? err.message : "Could not read that file." });
+    }
+  });
+
+  // POST /trips/import/confirm — create the trips the user accepted.
+  app.post("/import/confirm", async (request, reply) => {
+    const schema = z.object({
+      rows: z
+        .array(
+          z.object({
+            date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Invalid date"),
+            startTime: z.string().nullable().optional(),
+            endTime: z.string().nullable().optional(),
+            from: z.string().max(500).nullable().optional(),
+            to: z.string().max(500).nullable().optional(),
+            distanceMiles: z.number().positive().max(10_000),
+            classification: z.enum(TRIP_CLASSIFICATIONS),
+            purpose: z.string().max(500).nullable().optional(),
+            isDuplicate: z.boolean(),
+          })
+        )
+        .min(1, "No trips to import")
+        .max(2000, "Too many trips in one import"),
+    });
+    const parsed = schema.safeParse(request.body);
+    if (!parsed.success) {
+      return reply.status(400).send({ error: parsed.error.issues[0].message });
+    }
+
+    const rows = parsed.data.rows.map((r) => ({
+      date: r.date,
+      startTime: r.startTime ?? null,
+      endTime: r.endTime ?? null,
+      from: r.from ?? null,
+      to: r.to ?? null,
+      distanceMiles: r.distanceMiles,
+      classification: r.classification,
+      purpose: r.purpose ?? null,
+      isDuplicate: r.isDuplicate,
+    }));
+
+    const result = await confirmTripCsvImport(request.userId!, rows, geocodeAddress);
+
+    // Imported trips are tax-relevant, so the per-tax-year summary has to
+    // be rebuilt or the dashboard deduction silently ignores them.
+    const years = new Set(rows.map((r) => getTaxYear(new Date(`${r.date}T12:00`))));
+    for (const taxYear of years) {
+      await upsertMileageSummary(request.userId!, taxYear).catch(() => {});
+    }
+
+    logEvent("trips.csv_imported", request.userId!, {
+      imported: result.imported,
+      skippedDuplicates: result.skippedDuplicates,
+      totalMiles: result.totalMiles,
+    });
+
+    return reply.send({ data: result });
   });
 }
 
@@ -2252,11 +2614,58 @@ async function attachManualRoutePolyline(args: {
     endLng: args.endLng,
     userId: args.userId,
   });
-  if (!route?.encodedPolyline) return;
+  if (!route) return;
+
+  // The same lookup answers "how long does this drive take?", which is the
+  // only end time a manually-entered trip can have when the user did not
+  // give one. The web form has no end-time field at all and mobile's is
+  // optional, so ~11% of manual trips were stored with endedAt NULL and
+  // dropped out of every duration-derived figure (shift grades, earnings
+  // per hour, golden hours, the weekly P&L). An estimate beats absence
+  // there, but it must be labelled, so gpsQuality carries its provenance
+  // and the trip is only touched when the user left the field empty.
+  const current = await prisma.trip.findUnique({
+    where: { id: args.tripId },
+    select: { startedAt: true, endedAt: true, distanceMiles: true, gpsQuality: true },
+  });
+  if (!current) return;
+
+  const inferEndedAt =
+    current.endedAt === null &&
+    routedDurationUsable({
+      routedMiles: route.distanceMiles,
+      routedSecs: route.durationSecs,
+      storedMiles: current.distanceMiles,
+    });
+
+  if (!route.encodedPolyline && !inferEndedAt) return;
+
   await prisma.trip.update({
     where: { id: args.tripId },
-    data: { routePolyline: route.encodedPolyline },
+    data: {
+      ...(route.encodedPolyline ? { routePolyline: route.encodedPolyline } : {}),
+      ...(inferEndedAt
+        ? {
+            endedAt: new Date(current.startedAt.getTime() + route.durationSecs * 1000),
+            gpsQuality: {
+              ...(current.gpsQuality && typeof current.gpsQuality === "object" && !Array.isArray(current.gpsQuality)
+                ? (current.gpsQuality as Prisma.JsonObject)
+                : {}),
+              endedAtSource: "routed_duration",
+              endedAtDurationSecs: route.durationSecs,
+            },
+          }
+        : {}),
+    },
   });
+
+  if (inferEndedAt) {
+    logEvent("trip.ended_at_inferred", args.userId, {
+      tripId: args.tripId,
+      durationSecs: route.durationSecs,
+      source: route.source,
+    });
+  }
 }
 
 /**

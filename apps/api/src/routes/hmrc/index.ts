@@ -231,13 +231,22 @@ export async function hmrcRoutes(app: FastifyInstance) {
     }
   );
 
-  // POST /hmrc/disconnect — soft-disconnect (clears active tokens)
+  // POST /hmrc/disconnect — soft-disconnect (clears active tokens AND the
+  // taxpayer identity). Reconnecting updates the existing row rather than
+  // creating one, so a nino left behind here survives forever: the app only
+  // prompts for a nino when it has none, and every reconnect immediately
+  // re-queries the OLD one. Sign in as a different taxpayer and you get an
+  // unbreakable CLIENT_OR_AGENT_NOT_AUTHORISED loop with no way out through
+  // the UI (7 Aug 2026: three reconnects as a fresh test user, all still
+  // querying the previous user's NINO). Disconnect means start over.
   app.post("/disconnect", { preHandler: authMiddleware }, async (request, reply) => {
     await prisma.hmrcConnection.updateMany({
       where: { userId: request.userId!, disconnectedAt: null },
       data: {
         accessToken: "",
         refreshToken: "",
+        nino: null,
+        businessId: null,
         disconnectedAt: new Date(),
       },
     });

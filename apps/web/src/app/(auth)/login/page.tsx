@@ -5,16 +5,26 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { login, fetchProfile } from "../../../lib/auth";
 import { setTokens } from "../../../lib/api";
+import { safeRedirectPath } from "../../../lib/safeRedirect";
 import { Input } from "../../../components/ui/Input";
 import { Button } from "../../../components/ui/Button";
 import { OAuthButtons } from "../../../components/ui/OAuthButtons";
 
 export default function LoginPage() {
   const router = useRouter();
+  // Read from window.location rather than useSearchParams() - matches the
+  // ?ref= handling on /register and avoids a Suspense boundary requirement
+  // for a value only needed after mount anyway.
+  const [next, setNext] = useState("/dashboard");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    const fromUrl = new URLSearchParams(window.location.search).get("next");
+    setNext(safeRedirectPath(fromUrl) || "/dashboard");
+  }, []);
 
   // Handle Apple Sign-In redirect (tokens in URL hash)
   useEffect(() => {
@@ -28,7 +38,7 @@ export default function LoginPage() {
       if (accessToken && refreshToken) {
         setTokens(accessToken, refreshToken);
         fetchProfile()
-          .then(() => router.push("/dashboard"))
+          .then(() => router.push(next))
           .catch(() => setError("Apple sign-in failed"));
       }
     }
@@ -39,7 +49,7 @@ export default function LoginPage() {
       setError(appleError);
       window.history.replaceState(null, "", window.location.pathname);
     }
-  }, [router]);
+  }, [router, next]);
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -48,7 +58,7 @@ export default function LoginPage() {
 
     try {
       await login(email, password);
-      router.push("/dashboard");
+      router.push(next);
     } catch (err: any) {
       setError(err.message || "Invalid email or password");
     } finally {
@@ -114,12 +124,15 @@ export default function LoginPage() {
         </form>
 
         <OAuthButtons
-          onSuccess={() => router.push("/dashboard")}
+          onSuccess={() => router.push(next)}
           onError={(msg) => setError(msg)}
         />
 
         <p className="auth-card__footer">
-          Don&apos;t have an account? <Link href="/register">Create one</Link>
+          Don&apos;t have an account?{" "}
+          <Link href={next === "/dashboard" ? "/register" : `/register?next=${encodeURIComponent(next)}`}>
+            Create one
+          </Link>
         </p>
       </div>
     </div>

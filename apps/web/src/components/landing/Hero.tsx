@@ -17,12 +17,11 @@ export default function Hero() {
             <em>Claim every penny.</em>
           </h1>
           <p className="hero__sub">
-            The UK mileage tracker built for gig workers, delivery drivers, and
-            employees who drive their own car for work. Automatic trip recording
-            powered by ClearTrack, smart classification that learns your routes,
-            HMRC AMAP rates and
-            employer-reimbursement claims handled in one place &mdash;{" "}
-            <strong>with no monthly drive cap</strong>. MileIQ stops you at
+            The UK mileage tracker for gig workers, delivery drivers, and
+            anyone who drives their own car for work. ClearTrack records your
+            trips automatically, classification learns your regular routes, and
+            your HMRC or employer claim adds up as you drive.{" "}
+            <strong>There is no monthly drive cap.</strong> MileIQ stops you at
             40 drives a month unless you pay. We never do.
           </p>
           <a href={APP_STORE_URL} target="_blank" rel="noopener noreferrer" className="hero__cta">

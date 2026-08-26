@@ -30,6 +30,10 @@ interface Analytics {
   totalUsers: number;
   activeUsers30d: number;
   premiumUsers: number;
+  payingSubscribers?: number;
+  compPro?: number;
+  referralPro?: number;
+  sandboxPro?: number;
   totalTrips: number;
   totalMiles: number;
   totalEarningsPence: number;
@@ -49,6 +53,7 @@ interface AdminUser {
   displayName: string | null;
   emailVerified: boolean;
   isPremium: boolean;
+  proSource?: "paying" | "comp" | "referral" | "sandbox" | null;
   isAdmin: boolean;
   createdAt: string;
   lastLoginAt?: string | null;
@@ -113,6 +118,9 @@ interface AdminUserDetail extends AdminUser {
   }[];
   // Monetisation
   subscriptionPlatform?: "apple" | "stripe" | "none";
+  subscriptionEnvironment?: "production" | "sandbox" | null;
+  subscriptionPeriod?: "monthly" | "annual" | null;
+  subscriptionPeriodInferred?: boolean;
   referralCode?: string | null;
   referralProUntil?: string | null;
   referredByCode?: string | null;
@@ -459,10 +467,19 @@ function OverviewTab() {
           </p>
         </div>
         <div className="stat-card">
-          <p className="stat-card__label">Premium Users</p>
+          <p className="stat-card__label">Paying subscribers</p>
           <p className="stat-card__value stat-card__value--amber">
-            {formatNumber(analytics.premiumUsers)}
+            {formatNumber(analytics.payingSubscribers ?? analytics.premiumUsers)}
           </p>
+          {analytics.payingSubscribers !== undefined && (
+            <p
+              style={{ fontSize: "0.75rem", color: "var(--text-secondary)", marginTop: 2 }}
+              title="Pro users who are not paying: admin comp grants, referral credit, and App Store sandbox (TestFlight / App Review) subscriptions"
+            >
+              +{(analytics.compPro ?? 0) + (analytics.referralPro ?? 0) + (analytics.sandboxPro ?? 0)} non-paying Pro
+              {" "}({analytics.compPro ?? 0} comp · {analytics.referralPro ?? 0} referral · {analytics.sandboxPro ?? 0} sandbox)
+            </p>
+          )}
         </div>
         <div className="stat-card">
           <p className="stat-card__label">Total Trips</p>
@@ -1078,8 +1095,16 @@ function UserDetailModal({
                 <div style={{ marginTop: 4, display: "flex", gap: "0.375rem", flexWrap: "wrap" }}>
                   {user.subscriptionPlatform === "apple" && <Badge variant="source">Apple IAP</Badge>}
                   {user.subscriptionPlatform === "stripe" && <Badge variant="source">Stripe</Badge>}
+                  {user.subscriptionEnvironment === "sandbox" && (
+                    <span title="Seen on a sandbox webhook: TestFlight or App Review. Grants Pro, never revenue."><Badge variant="warning">Sandbox</Badge></span>
+                  )}
+                  {user.subscriptionPeriod && user.subscriptionEnvironment !== "sandbox" && (
+                    <span title={user.subscriptionPeriodInferred ? "Inferred from expiry date (product id not stamped yet)" : "From the stamped product id"}>
+                      <Badge variant="source">{user.subscriptionPeriod === "annual" ? "Annual" : "Monthly"}{user.subscriptionPeriodInferred ? " (inferred)" : ""}</Badge>
+                    </span>
+                  )}
                   {(!user.subscriptionPlatform || user.subscriptionPlatform === "none") && (
-                    <Badge variant="source">{user.isPremium ? "Manual grant" : "None"}</Badge>
+                    <Badge variant="source">{user.isPremium ? "Comp (admin grant)" : "None"}</Badge>
                   )}
                 </div>
               </div>
@@ -2239,7 +2264,9 @@ function UsersTab() {
           options={[
             { value: "", label: "Plan: all" },
             { value: "free", label: "Free" },
-            { value: "premium", label: "Premium" },
+            { value: "paying", label: "Paying (Stripe + Apple production)" },
+            { value: "premium", label: "Any Pro flag" },
+            { value: "comp", label: "Comp (admin-granted)" },
             { value: "trial", label: "Trial used" },
             { value: "referral", label: "Referral Pro" },
           ]}
@@ -2395,8 +2422,17 @@ function UsersTab() {
                     <td>
                       <div style={{ display: "flex", gap: "0.3rem", flexWrap: "wrap" }}>
                         {user.isPremium && <Badge variant="pro">PRO</Badge>}
+                        {user.proSource === "comp" && (
+                          <span title="Admin-granted Pro - no subscription, not counted in revenue"><Badge variant="source">Comp</Badge></span>
+                        )}
+                        {user.proSource === "sandbox" && (
+                          <span title="App Store sandbox subscription (TestFlight / App Review) - not revenue"><Badge variant="warning">Sandbox</Badge></span>
+                        )}
+                        {user.proSource === "referral" && (
+                          <span title="Pro via referral credit - not a paying subscriber"><Badge variant="source">Referral Pro</Badge></span>
+                        )}
                         {user.isAdmin && <Badge variant="primary">Admin</Badge>}
-                        {!user.isPremium && !user.isAdmin && (
+                        {!user.isPremium && !user.isAdmin && user.proSource !== "referral" && (
                           <Badge variant="source">Free</Badge>
                         )}
                         {user.unreachable && (
@@ -2809,18 +2845,30 @@ function HealthTab() {
 // ---------------------------------------------------------------------------
 
 interface RevenueData {
-  currentPremiumCount: number;
   mrrPence: number;
-  stripeSubscribers: number;
-  appleSubscribers: number;
-  adminGranted: number;
+  payingSubscribers: number;
+  proTotal: number;
+  breakdown: {
+    stripeMonthly: number;
+    stripeAnnual: number;
+    appleMonthly: number;
+    appleAnnual: number;
+    appleSandbox: number;
+    comp: number;
+    referral: number;
+    team: number;
+    expiredFlag: number;
+  };
+  inferredPeriods: number;
   churnedLast30d: number;
   churnRatePercent: number;
   arpuPence: number;
+  arppuPence: number;
+  trailStartMonth: string | null;
   monthlyTrend: Array<{
     month: string;
-    premiumCount: number;
-    newPremium: number;
+    payingAtMonthEnd: number;
+    newPaid: number;
     churned: number;
   }>;
 }
@@ -2842,57 +2890,146 @@ function RevenueTab() {
   if (error) return <div className="alert alert--error">{error}</div>;
   if (!data) return null;
 
+  const b = data.breakdown;
+  const nonPaying = b.comp + b.referral + b.appleSandbox;
+  const sub = { fontSize: "0.75rem", color: "var(--text-secondary)", marginTop: 2 } as const;
+  const cell = { textAlign: "right", fontVariantNumeric: "tabular-nums" } as const;
+
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "1.25rem" }}>
       <div className="stats-grid">
         <div className="stat-card">
           <p className="stat-card__label">MRR</p>
           <p className="stat-card__value stat-card__value--emerald">{formatPence(data.mrrPence)}</p>
+          <p style={sub} title="Monthly at £4.99, annual at £44.99 / 12. Comp, referral and sandbox Pro are never priced.">
+            paying only · annual at £3.75/mo
+          </p>
         </div>
         <div className="stat-card">
-          <p className="stat-card__label">Subscribers</p>
-          <p className="stat-card__value stat-card__value--amber">{data.currentPremiumCount}</p>
+          <p className="stat-card__label">Paying subscribers</p>
+          <p className="stat-card__value stat-card__value--amber">{data.payingSubscribers}</p>
+          <p style={sub}>
+            {data.proTotal} Pro in total · {nonPaying} not paying
+          </p>
         </div>
         <div className="stat-card">
           <p className="stat-card__label">Churn (30d)</p>
           <p className="stat-card__value">{data.churnRatePercent}%</p>
-          <p style={{ fontSize: "0.75rem", color: "var(--text-secondary)", marginTop: 2 }}>
+          <p style={sub} title="Production Apple EXPIRED / REVOKE / REFUND plus Stripe cancellations in the last 30 days, over paying + churned.">
             {data.churnedLast30d} lost
           </p>
         </div>
         <div className="stat-card">
-          <p className="stat-card__label">ARPU</p>
-          <p className="stat-card__value">{formatPence(data.arpuPence)}</p>
+          <p className="stat-card__label">ARPPU</p>
+          <p className="stat-card__value">{formatPence(data.arppuPence)}</p>
+          <p style={sub} title="MRR / paying subscribers. ARPU across every registered user is shown alongside.">
+            ARPU all users {formatPence(data.arpuPence)}
+          </p>
         </div>
       </div>
 
-      {/* Platform split */}
-      <Card title="Subscription Platform">
-        <div style={{ display: "flex", gap: "1.5rem", fontSize: "0.9375rem" }}>
-          <div>
-            <span style={{ color: "var(--text-secondary)" }}>Stripe </span>
-            <strong>{data.stripeSubscribers}</strong>
-          </div>
-          <div>
-            <span style={{ color: "var(--text-secondary)" }}>Apple IAP </span>
-            <strong>{data.appleSubscribers}</strong>
-          </div>
-          <div>
-            <span style={{ color: "var(--text-secondary)" }}>Admin-granted </span>
-            <strong>{data.adminGranted}</strong>
-          </div>
+      <Card title="Who has Pro, and why">
+        <div className="table-wrap">
+          <table className="table">
+            <thead>
+              <tr>
+                <th>Source</th>
+                <th style={{ textAlign: "right" }}>Users</th>
+                <th style={{ textAlign: "right" }}>Monthly value</th>
+                <th>Notes</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Apple · monthly</td>
+                <td style={cell}>{b.appleMonthly}</td>
+                <td style={cell}>{formatPence(b.appleMonthly * 499)}</td>
+                <td style={{ fontSize: "0.8125rem", color: "var(--text-secondary)" }}>Production App Store, £4.99/mo</td>
+              </tr>
+              <tr>
+                <td>Apple · annual</td>
+                <td style={cell}>{b.appleAnnual}</td>
+                <td style={cell}>{formatPence(b.appleAnnual * 375)}</td>
+                <td style={{ fontSize: "0.8125rem", color: "var(--text-secondary)" }}>
+                  £44.99/yr counted as £3.75/mo
+                  {data.inferredPeriods > 0 && (
+                    <span title="Rows written before 21 Aug 2026 carry no product id, so monthly vs annual is inferred from how far out the expiry sits. Each renewal stamps the real product and this count falls.">
+                      {" "}· {data.inferredPeriods} period{data.inferredPeriods === 1 ? "" : "s"} inferred from expiry
+                    </span>
+                  )}
+                </td>
+              </tr>
+              <tr>
+                <td>Stripe · monthly</td>
+                <td style={cell}>{b.stripeMonthly}</td>
+                <td style={cell}>{formatPence(b.stripeMonthly * 499)}</td>
+                <td style={{ fontSize: "0.8125rem", color: "var(--text-secondary)" }}>Web checkout, £4.99/mo</td>
+              </tr>
+              {b.stripeAnnual > 0 && (
+                <tr>
+                  <td>Stripe · annual</td>
+                  <td style={cell}>{b.stripeAnnual}</td>
+                  <td style={cell}>{formatPence(b.stripeAnnual * 375)}</td>
+                  <td style={{ fontSize: "0.8125rem", color: "var(--text-secondary)" }}>£44.99/yr counted as £3.75/mo</td>
+                </tr>
+              )}
+              <tr style={{ borderTop: "2px solid var(--border-color, rgba(255,255,255,0.08))" }}>
+                <td><strong>Paying</strong></td>
+                <td style={cell}><strong>{data.payingSubscribers}</strong></td>
+                <td style={cell}><strong>{formatPence(data.mrrPence)}</strong></td>
+                <td />
+              </tr>
+              <tr>
+                <td>Comp (admin-granted)</td>
+                <td style={cell}>{b.comp}</td>
+                <td style={cell}>£0.00</td>
+                <td style={{ fontSize: "0.8125rem", color: "var(--text-secondary)" }}>Pro flag with no subscription: testers, reviewers, goodwill</td>
+              </tr>
+              <tr>
+                <td>Referral credit</td>
+                <td style={cell}>{b.referral}</td>
+                <td style={cell}>£0.00</td>
+                <td style={{ fontSize: "0.8125rem", color: "var(--text-secondary)" }}>Earned free months; isPremium is false on these rows</td>
+              </tr>
+              {b.team > 0 && (
+                <tr>
+                  <td>Team (pilot)</td>
+                  <td style={cell}>{b.team}</td>
+                  <td style={cell}>£0.00</td>
+                  <td style={{ fontSize: "0.8125rem", color: "var(--text-secondary)" }}>Milesheet drivers; pilot orgs are free until proven</td>
+                </tr>
+              )}
+              <tr>
+                <td>Apple sandbox</td>
+                <td style={cell}>{b.appleSandbox}</td>
+                <td style={cell}>£0.00</td>
+                <td style={{ fontSize: "0.8125rem", color: "var(--text-secondary)" }}>TestFlight / App Review subscriptions: real Pro, no money</td>
+              </tr>
+              {b.expiredFlag > 0 && (
+                <tr>
+                  <td>Flagged but expired</td>
+                  <td style={cell}>{b.expiredFlag}</td>
+                  <td style={cell}>£0.00</td>
+                  <td style={{ fontSize: "0.8125rem", color: "var(--dash-red)" }}>isPremium still true with premiumExpiresAt in the past; the gate already refuses them</td>
+                </tr>
+              )}
+            </tbody>
+          </table>
         </div>
       </Card>
 
-      {/* Monthly trend */}
       {data.monthlyTrend.length > 0 && (
-        <Card title="Monthly Trend">
+        <Card title="Paying subscribers by month">
+          <p style={{ fontSize: "0.8125rem", color: "var(--text-secondary)", margin: "0 0 0.75rem" }}>
+            Reconstructed from the production webhook and Stripe event trail
+            {data.trailStartMonth ? `, which begins ${data.trailStartMonth}` : ""}. Earlier months are not shown because nothing recorded them.
+          </p>
           <div className="table-wrap">
             <table className="table">
               <thead>
                 <tr>
                   <th>Month</th>
-                  <th style={{ textAlign: "right" }}>Premium</th>
+                  <th style={{ textAlign: "right" }}>Paying at month end</th>
                   <th style={{ textAlign: "right" }}>New</th>
                   <th style={{ textAlign: "right" }}>Churned</th>
                 </tr>
@@ -2901,11 +3038,9 @@ function RevenueTab() {
                 {data.monthlyTrend.map((row) => (
                   <tr key={row.month}>
                     <td>{row.month}</td>
-                    <td style={{ textAlign: "right", fontVariantNumeric: "tabular-nums" }}>{row.premiumCount}</td>
-                    <td style={{ textAlign: "right", fontVariantNumeric: "tabular-nums", color: "var(--emerald-400)" }}>
-                      +{row.newPremium}
-                    </td>
-                    <td style={{ textAlign: "right", fontVariantNumeric: "tabular-nums", color: row.churned > 0 ? "var(--dash-red)" : undefined }}>
+                    <td style={cell}>{row.payingAtMonthEnd}</td>
+                    <td style={{ ...cell, color: "var(--emerald-400)" }}>+{row.newPaid}</td>
+                    <td style={{ ...cell, color: row.churned > 0 ? "var(--dash-red)" : undefined }}>
                       {row.churned > 0 ? `-${row.churned}` : "0"}
                     </td>
                   </tr>
@@ -3081,6 +3216,8 @@ interface DetectionFleetData {
     nativeStale: number;
     nativeNever: number;
     dumpsTotal: number;
+      dumpWindowDays?: number;
+    staleDumpsExcluded?: number;
   };
   quietDrivers: Array<{
     email: string;
@@ -3184,7 +3321,7 @@ function AutoTripsTab() {
             <div className="stat-card">
               <p className="stat-card__label">Native Engine</p>
               <p className="stat-card__value">{fleet.engineSplit.nativeOn}</p>
-              <p style={{ fontSize: "0.75rem", color: "var(--text-secondary)", marginTop: 2 }}>vs {fleet.engineSplit.jsEngine} JS · {fleet.engineSplit.dumpsTotal} dumps</p>
+              <p style={{ fontSize: "0.75rem", color: "var(--text-secondary)", marginTop: 2 }}>vs {fleet.engineSplit.jsEngine} JS · {fleet.engineSplit.dumpsTotal} dumps in {fleet.engineSplit.dumpWindowDays ?? 14}d{fleet.engineSplit.staleDumpsExcluded ? ` (${fleet.engineSplit.staleDumpsExcluded} older excluded)` : ""}</p>
             </div>
             <div className="stat-card">
               <p className="stat-card__label">Native Healthy</p>
@@ -4177,10 +4314,36 @@ function FeedbackTab() {
 // Activity Tab
 // ---------------------------------------------------------------------------
 
+interface TeamInterestRow {
+  id: string;
+  email: string;
+  company: string | null;
+  drivers: string;
+  approval: string;
+  destination: string;
+  destinationDetail: string | null;
+  notes: string | null;
+  source: string | null;
+  createdAt: string;
+}
+interface TeamInterestResponse {
+  data: TeamInterestRow[];
+  totals: {
+    submissions: number;
+    companies: number;
+    estimatedDrivers: number;
+    tenPlusCompanies: number;
+    byDrivers: Record<string, number>;
+    byApproval: Record<string, number>;
+    byDestination: Record<string, number>;
+  };
+}
+
 function ActivityTab() {
   const [recentUsers, setRecentUsers] = useState<AdminUser[]>([]);
   const [premiumUsers, setPremiumUsers] = useState<AdminUser[]>([]);
   const [recentFeedback, setRecentFeedback] = useState<FbItem[]>([]);
+  const [teamInterest, setTeamInterest] = useState<TeamInterestResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [detailUserId, setDetailUserId] = useState<string | null>(null);
@@ -4189,12 +4352,14 @@ function ActivityTab() {
     Promise.all([
       api.get<{ data: AdminUser[] }>("/admin/users?page=1&pageSize=15"),
       api.get<{ data: FbItem[] }>("/feedback/?page=1&pageSize=10&sort=newest"),
+      api.get<TeamInterestResponse>("/admin/team-interest").catch(() => null),
     ])
-      .then(([usersRes, fbRes]) => {
+      .then(([usersRes, fbRes, teamRes]) => {
         const allUsers = usersRes.data;
         setRecentUsers(allUsers.slice(0, 10));
         setPremiumUsers(allUsers.filter((u) => u.isPremium).slice(0, 10));
         setRecentFeedback(fbRes.data);
+        setTeamInterest(teamRes);
       })
       .catch((err: Error) => setError(err.message))
       .finally(() => setLoading(false));
@@ -4203,8 +4368,57 @@ function ActivityTab() {
   if (loading) return <LoadingSkeleton variant="card" count={3} style={{ height: 120 }} />;
   if (error) return <div className="alert alert--error">{error}</div>;
 
+  const APPROVAL_LABEL: Record<string, string> = {
+    monthly_signoff: "Monthly sign-off",
+    line_by_line: "Line by line",
+    view_only: "View only",
+  };
+
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "1.25rem" }}>
+      {/* Teams interest register - the bar is 5 companies with 10+ drivers */}
+      {teamInterest && (
+        <Card title={`Teams interest (${teamInterest.totals.submissions})`}>
+          <div style={{ display: "flex", gap: "1.5rem", flexWrap: "wrap", fontSize: "0.9375rem", marginBottom: teamInterest.data.length ? "1rem" : 0 }}>
+            <div><span style={{ color: "var(--text-secondary)" }}>Companies </span><strong>{teamInterest.totals.companies}</strong></div>
+            <div title="Band midpoints: 3 / 13 / 35 / 75. Indicative, not a count."><span style={{ color: "var(--text-secondary)" }}>Drivers (est.) </span><strong>{teamInterest.totals.estimatedDrivers}</strong></div>
+            <div title="The trigger set on 21 Aug 2026: five companies with ten or more drivers each."><span style={{ color: "var(--text-secondary)" }}>10+ driver companies </span><strong style={{ color: teamInterest.totals.tenPlusCompanies >= 5 ? "var(--emerald-400)" : undefined }}>{teamInterest.totals.tenPlusCompanies} / 5</strong></div>
+          </div>
+          {teamInterest.data.length === 0 ? (
+            <p style={{ color: "var(--text-secondary)", fontSize: "0.875rem", margin: 0 }}>Nobody has registered yet. The form is on /teams and /employee-mileage-tracker.</p>
+          ) : (
+            <div className="table-wrap">
+              <table className="table">
+                <thead>
+                  <tr>
+                    <th>When</th>
+                    <th>Who</th>
+                    <th>Drivers</th>
+                    <th>Approval</th>
+                    <th>Figures go to</th>
+                    <th>Notes</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {teamInterest.data.slice(0, 25).map((r) => (
+                    <tr key={r.id}>
+                      <td style={{ whiteSpace: "nowrap", fontSize: "0.8125rem" }}>{new Date(r.createdAt).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}</td>
+                      <td>
+                        <div>{r.company || r.email.split("@")[1]}</div>
+                        <div style={{ fontSize: "0.75rem", color: "var(--text-secondary)" }}>{r.email}{r.source ? ` · via /${r.source}` : ""}</div>
+                      </td>
+                      <td style={{ fontVariantNumeric: "tabular-nums" }}>{r.drivers}</td>
+                      <td>{APPROVAL_LABEL[r.approval] ?? r.approval}</td>
+                      <td>{r.destination.replace("_", " ")}{r.destinationDetail ? ` (${r.destinationDetail})` : ""}</td>
+                      <td style={{ fontSize: "0.8125rem", color: "var(--text-secondary)", maxWidth: 320 }}>{r.notes || "-"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </Card>
+      )}
       {/* Recent Signups */}
       <Card title={`Recent Signups (${recentUsers.length})`}>
         <div className="table-wrap">
@@ -4332,6 +4546,7 @@ function ActivityTab() {
 
 interface AppleWebhookLog {
   id: string;
+  environment?: string | null;
   notificationType: string | null;
   subtype: string | null;
   originalTransactionId: string | null;
@@ -4734,6 +4949,7 @@ function OpsTab() {
                   <thead>
                     <tr>
                       <th>Received</th>
+                      <th title="Production = App Store customer. Sandbox = TestFlight tester or App Review; grants Pro, never revenue.">Env</th>
                       <th>Type</th>
                       <th>Subtype</th>
                       <th>Status</th>
@@ -4751,6 +4967,13 @@ function OpsTab() {
                       >
                         <td style={{ fontSize: "0.75rem", whiteSpace: "nowrap" }}>
                           {new Date(w.receivedAt).toLocaleString()}
+                        </td>
+                        <td style={{ fontSize: "0.75rem" }}>
+                          {w.environment === "sandbox" ? (
+                            <span style={{ color: "var(--amber-400, #fbbf24)", fontWeight: 600 }}>sandbox</span>
+                          ) : (
+                            w.environment || "-"
+                          )}
                         </td>
                         <td style={{ fontSize: "0.75rem" }}>{w.notificationType || "-"}</td>
                         <td style={{ fontSize: "0.75rem" }}>{w.subtype || "-"}</td>
@@ -5192,6 +5415,7 @@ export default function AdminPage() {
         <div style={{ display: "flex", gap: 8, alignSelf: "center", flexWrap: "wrap" }}>
           {[
             { href: "/dashboard/admin/cleartrack", label: "ClearTrack" },
+            { href: "/dashboard/admin/activation", label: "Activation" },
             { href: "/dashboard/admin/missing-trips", label: "Missing Trips" },
             { href: "/dashboard/admin/build-health", label: "Build Health" },
             { href: "/dashboard/admin/funnel", label: "Funnel" },

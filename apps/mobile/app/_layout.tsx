@@ -202,11 +202,25 @@ function RootNavigator() {
       setOnboardingChecked(true);
       return;
     }
+    // Watchdog (30 Jul 2026): getDatabase() shares ONE connection app-wide,
+    // and a boot-path write burst (native-store reconcile on a swollen
+    // buffer) can queue this gate's query for minutes. A HANG is not a
+    // rejection, so the .catch below never fires and showLoading pins its
+    // black touch-blocking overlay over the whole app - indistinguishable
+    // from a dead screen. The hydration gate next door has had a 30s timeout
+    // since day one; this gate gets one too. Onboarding has auto-marked
+    // itself complete since 21 May (both branches write 'true'), so
+    // proceeding as complete matches what the query would conclude anyway.
+    const fallback = setTimeout(() => {
+      setOnboardingComplete(true);
+      setOnboardingChecked(true);
+    }, 15_000);
     getDatabase()
       .then(async (db) => {
         const row = await db.getFirstAsync<{ value: string }>(
           "SELECT value FROM tracking_state WHERE key = 'onboarding_complete'"
         );
+        clearTimeout(fallback);
         if (row?.value === "true") {
           setOnboardingComplete(true);
         } else {
@@ -239,9 +253,11 @@ function RootNavigator() {
           });
       })
       .catch(() => {
+        clearTimeout(fallback);
         setOnboardingComplete(false);
         setOnboardingChecked(true);
       });
+    return () => clearTimeout(fallback);
   }, [isAuthenticated]);
 
   const [hydrating, setHydrating] = useState(false);
@@ -469,6 +485,25 @@ function RootNavigator() {
       try {
         const { getLiveActivityPhase } = await import("../lib/liveActivity");
         const phase = await getLiveActivityPhase();
+
+        // A decision taken on the Live Activity itself, waiting to be applied.
+        if (
+          phase === "classified_business" ||
+          phase === "classified_personal" ||
+          phase === "too_short_add"
+        ) {
+          const { applyPendingLiveActivityAction } = await import("../lib/liveActivity/pending");
+          const applied = await applyPendingLiveActivityAction();
+          if (applied?.kind === "add_short_trip") {
+            // They asked for the hop that was too short to record; open the
+            // manual form so it takes one more tap, not a hunt through menus.
+            const { endLiveActivity } = await import("../lib/liveActivity");
+            await endLiveActivity().catch(() => {});
+            router.push("/trip-form" as never);
+          }
+          return;
+        }
+
         if (phase !== "saving") return;
 
         const db = await getDatabase();
@@ -542,7 +577,7 @@ function RootNavigator() {
       }
     });
     return () => sub.remove();
-  }, [isAuthenticated, isLoading]);
+  }, [isAuthenticated, isLoading, router]);
 
   // Apple In-App Purchase: global listener for StoreKit transactions
   const { refreshUser } = useUser();
@@ -608,6 +643,7 @@ function RootNavigator() {
         <Stack.Screen name="trip-form" options={{ headerShown: true, title: "Add Trip" }} />
         <Stack.Screen name="trip-split" options={{ headerShown: true, title: "Split Trip" }} />
         <Stack.Screen name="vehicle-form" options={{ headerShown: true, title: "Add Vehicle" }} />
+        <Stack.Screen name="nominate-manager" options={{ headerShown: true, title: "Invite your manager" }} />
         <Stack.Screen name="work-schedule" options={{ headerShown: true, title: "Work Schedule" }} />
         <Stack.Screen name="earning-form" options={{ headerShown: true, title: "Add Earning" }} />
         <Stack.Screen name="fuel-form" options={{ headerShown: true, title: "Log Fuel" }} />

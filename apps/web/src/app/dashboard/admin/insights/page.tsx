@@ -16,9 +16,9 @@ interface FunnelStep {
 interface RetentionData {
   cohortSize: number;
   cohortWindow: string;
-  d1: { count: number; pct: number };
-  d7: { count: number; pct: number };
-  d30: { count: number; pct: number };
+  d1: { count: number; eligible: number; pct: number };
+  d7: { count: number; eligible: number; pct: number };
+  d30: { count: number; eligible: number; pct: number };
 }
 
 interface ActiveTrip {
@@ -290,7 +290,7 @@ function RetentionCard() {
   return (
     <Card
       title="Retention (D1 / D7 / D30)"
-      description="Of users who signed up in the last 90 days, what fraction logged a trip on or after each day from signup."
+      description="Of users who signed up in the last 90 days AND are old enough to have reached that day, what fraction logged a trip on or after it. Newer signups are left out of each denominator rather than counted as lost."
     >
       {error && <p style={{ color: "#f87171" }}>{error}</p>}
       {!data && !error && <p style={{ color: "#64748b" }}>Loading…</p>}
@@ -318,7 +318,7 @@ function RetentionCard() {
                   {data[k].pct.toFixed(1)}%
                 </div>
                 <div style={{ fontSize: "0.75rem", color: "#64748b", marginTop: 2 }}>
-                  {data[k].count} active
+                  {data[k].count} of {data[k].eligible} eligible
                 </div>
               </div>
             ))}

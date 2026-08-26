@@ -13,6 +13,7 @@ const free = [
   "HMRC Reconciliation - compare what HMRC sees to what you tracked",
   "MOT and tax expiry reminders + full DVSA MOT history",
   "Activity Heatmap (when you drive and earn most)",
+  "Self Assessment wizard - mapped to HMRC SA103 form boxes",
   "Shift mode with platform tagging",
   "Fuel prices from 8,300+ UK stations",
   "Pickup wait timer (community insights are Pro)",
@@ -22,7 +23,7 @@ const free = [
 
 const pro = [
   "Everything in Free, plus:",
-  "Self Assessment wizard - mapped to HMRC SA103 form boxes",
+  "Print-ready Self Assessment PDF - the wizard's figures, ready to file",
   "PDF mileage log with signed HMRC attestation cover sheet",
   "CSV and accounting-software exports",
   "Accountant Portal (read-only dashboard you can invite by email)",
@@ -43,10 +44,10 @@ export default function Pricing() {
           <p className="subtext">
             No drive caps, no time limits, no surprise paywalls on basic features.
             MileIQ stops you at 40 drives a month unless you pay &pound;5.99.
-            TripLog limits you to 40. Driversnote limits you to 20. We don&apos;t
-            limit any of it &mdash; track as many miles as you like, on us. Pro
-            (&pound;4.99/month or &pound;44.99/year) adds the tax-export and
-            analyst toolkit; it never gates the tracker itself.
+            TripLog limits you to 40. Driversnote limits you to 15. We don&apos;t
+            limit any of it. Track as many miles as you like, on us. Pro
+            (&pound;4.99/month or &pound;44.99/year) adds the tax exports and
+            earnings analytics; it never gates the tracker itself.
           </p>
         </Reveal>
 

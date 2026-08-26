@@ -4,6 +4,7 @@ import {
   generateStateToken,
   buildAuthorizationUrl,
   buildFraudPreventionHeaders,
+  buildClientContext,
   getHmrcConfig,
   resetHmrcConfig,
   normaliseObligation,
@@ -128,37 +129,46 @@ describe("buildFraudPreventionHeaders", () => {
     receivedAt: "2026-05-04T19:30:00.000Z",
   };
 
+  // A fully-populated context, as a real build-83+ device produces. Every
+  // field here is one the app measures — the suite's job is to prove no
+  // header can be built from anything less.
+  const mobileClient = (
+    overrides: Partial<import("../../services/hmrc/index.js").MobileClientContext> = {}
+  ): import("../../services/hmrc/index.js").MobileClientContext => ({
+    connectionMethod: "MOBILE_APP_VIA_SERVER",
+    deviceId: "device-uuid-1",
+    signInIdentifier: "driver@example.com",
+    appVersion: "1.3.7",
+    publicIp: "5.6.7.8",
+    publicIpTimestamp: "2026-05-08T19:30:00.000Z",
+    publicPort: "54321",
+    osFamily: "iOS",
+    osVersion: "17.4.1",
+    deviceManufacturer: "Apple",
+    deviceModel: "iPhone15,2",
+    screenWidth: 1170,
+    screenHeight: 2532,
+    scalingFactor: 3,
+    colourDepth: 24,
+    language: "en-GB",
+    timezone: "Europe/London",
+    timezoneOffset: "UTC+01:00",
+    ...overrides,
+  });
+
   // Spec v3.3 (validated 8 May 2026 against Test Fraud Prevention Headers
   // API). Tests assert the key-value structures HMRC's validator expects;
   // earlier shapes (plain UA strings, "+0100" timezone offsets) are
   // rejected with INVALID_HEADER.
 
   it("emits the mandatory vendor headers in key-value structure", () => {
-    const headers = buildFraudPreventionHeaders({
-      config,
-      server,
-      client: {
-        connectionMethod: "MOBILE_APP_VIA_SERVER",
-        deviceId: "device-uuid-1",
-        publicIp: "5.6.7.8",
-        publicIpTimestamp: "2026-05-08T19:30:00.000Z",
-        publicPort: "443",
-        osFamily: "iOS",
-        osVersion: "17.4.1",
-        deviceManufacturer: "Apple",
-        deviceModel: "iPhone15,2",
-        screenWidth: 1170,
-        screenHeight: 2532,
-        scalingFactor: 3,
-        colourDepth: 24,
-        language: "en-GB",
-        timezone: "Europe/London",
-        timezoneOffset: "UTC+01:00",
-      },
-    });
+    const headers = buildFraudPreventionHeaders({ config, server, client: mobileClient() });
 
     expect(headers["Gov-Vendor-Product-Name"]).toBe("MileClear");
-    expect(headers["Gov-Vendor-Version"]).toBe("client=1.2.0&server=1.2.0");
+    // Client pair = the app's REAL per-device version; server pair = ours.
+    // Named per spec (`<software-name>=<version>`); the old `client=`/
+    // `server=` keys carried one identical constant for every device.
+    expect(headers["Gov-Vendor-Version"]).toBe("mileclear-ios=1.3.7&mileclear-api=1.2.0");
     expect(headers["Gov-Vendor-Public-IP"]).toBe("1.2.3.4");
     expect(headers["Gov-Vendor-Forwarded"]).toBe("by=1.2.3.4&for=5.6.7.8");
     // Local-IP no longer sent — validator flags it as UNEXPECTED_HEADER.
@@ -167,131 +177,94 @@ describe("buildFraudPreventionHeaders", () => {
     expect(headers["Gov-Client-Device-ID"]).toBe("device-uuid-1");
     expect(headers["Gov-Client-Public-IP"]).toBe("5.6.7.8");
     expect(headers["Gov-Client-Public-IP-Timestamp"]).toBe("2026-05-08T19:30:00.000Z");
-    expect(headers["Gov-Client-Public-Port"]).toBe("443");
+    expect(headers["Gov-Client-Public-Port"]).toBe("54321");
     expect(headers["Gov-Client-Screens"]).toBe(
       "width=1170&height=2532&scaling-factor=3&colour-depth=24"
     );
     expect(headers["Gov-Client-Window-Size"]).toBe("width=1170&height=2532");
     expect(headers["Gov-Client-Timezone"]).toBe("UTC+01:00");
+    // Spec: the identifier the user signs in with — NOT the device UUID,
+    // which would duplicate Gov-Client-Device-ID.
+    expect(headers["Gov-Client-User-IDs"]).toBe("mileclear=driver%40example.com");
   });
 
-  it("encodes user-agent as os-family/version/manufacturer/model key-value", () => {
+  it("omits Gov-Client-Public-Port when no real port was measured, rather than inventing one", () => {
     const headers = buildFraudPreventionHeaders({
       config,
       server,
-      client: {
-        connectionMethod: "MOBILE_APP_VIA_SERVER",
-        deviceId: "d1",
-        publicIp: "5.6.7.8",
-        publicIpTimestamp: "2026-05-08T19:30:00.000Z",
-        publicPort: "443",
-        osFamily: "iOS",
-        osVersion: "17.4.1",
-        deviceManufacturer: "Apple",
-        deviceModel: "iPhone15,2",
-        screenWidth: 100,
-        screenHeight: 200,
-        language: "en-GB",
-        timezone: "Europe/London",
-        timezoneOffset: "UTC+01:00",
-      },
+      client: mobileClient({ publicPort: undefined }),
     });
+    expect(headers["Gov-Client-Public-Port"]).toBeUndefined();
+  });
+
+  it("refuses to build headers without the app's real version or the sign-in identifier", () => {
+    expect(() =>
+      buildFraudPreventionHeaders({
+        config,
+        server,
+        client: mobileClient({ appVersion: undefined }),
+      })
+    ).toThrow(/real version/);
+    expect(() =>
+      buildFraudPreventionHeaders({
+        config,
+        server,
+        client: mobileClient({ signInIdentifier: undefined }),
+      })
+    ).toThrow(/sign-in identifier/);
+  });
+
+  it("encodes user-agent as os-family/version/manufacturer/model key-value", () => {
+    const headers = buildFraudPreventionHeaders({ config, server, client: mobileClient() });
     expect(headers["Gov-Client-User-Agent"]).toBe(
       "os-family=iOS&os-version=17.4.1&device-manufacturer=Apple&device-model=iPhone15%2C2"
     );
   });
 
-  it("emits web-shaped headers when connection method is web", () => {
+  // HMRC's Fraud Headers team rejected our July 2026 submissions because
+  // device-model arrived as the literal "Unknown". An absent field is a
+  // gap; a placeholder reads as a header we never implemented.
+  it("omits device fields it cannot determine rather than sending a placeholder", () => {
     const headers = buildFraudPreventionHeaders({
       config,
       server,
-      client: {
-        connectionMethod: "WEB_APP_VIA_SERVER",
-        publicIp: "5.6.7.8",
-        publicIpTimestamp: "2026-05-08T19:30:00.000Z",
-        publicPort: "443",
-        browserName: "Safari",
-        browserVersion: "17.4",
-        windowWidth: 1440,
-        windowHeight: 900,
-        language: "en-GB",
-        timezone: "Europe/London",
-        timezoneOffset: "UTC+01:00",
-      },
+      client: mobileClient({ deviceModel: undefined }),
     });
-    expect(headers["Gov-Client-Connection-Method"]).toBe("WEB_APP_VIA_SERVER");
-    expect(headers["Gov-Client-Window-Size"]).toBe("width=1440&height=900");
-    expect(headers["Gov-Client-Timezone"]).toBe("UTC+01:00");
-    expect(headers["Gov-Client-Device-ID"]).toBeUndefined();
-    expect(headers["Gov-Client-User-Agent"]).toBe("browser-name=Safari&browser-version=17.4");
+    expect(headers["Gov-Client-User-Agent"]).toBe(
+      "os-family=iOS&os-version=17.4.1&device-manufacturer=Apple"
+    );
+    expect(headers["Gov-Client-User-Agent"]).not.toContain("Unknown");
   });
 
-  it("throws when a required header would be empty", () => {
+  // MileClear ships MTD from the mobile app only. Until 7 Aug 2026 a caller
+  // without mobile context was declared WEB_APP_VIA_SERVER and given a
+  // browser identity invented from hardcoded defaults; HMRC's Fraud Headers
+  // team flagged those calls. Refusing is now the contract, so that a
+  // connection method we cannot evidence can never be sent again.
+  it("refuses to build headers for a client it cannot describe", () => {
     expect(() =>
       buildFraudPreventionHeaders({
         config,
         server,
-        client: {
-          connectionMethod: "MOBILE_APP_VIA_SERVER",
-          deviceId: "",
-          publicIp: "5.6.7.8",
-          publicIpTimestamp: "2026-05-08T19:30:00.000Z",
-          publicPort: "443",
-          osFamily: "iOS",
-          osVersion: "17.4.1",
-          deviceManufacturer: "Apple",
-          deviceModel: "iPhone15,2",
-          screenWidth: 100,
-          screenHeight: 200,
-          language: "en-GB",
-          timezone: "Europe/London",
-          timezoneOffset: "UTC+01:00",
-        },
+        client: { connectionMethod: "UNSUPPORTED_CLIENT", rawPlatform: "" },
       })
+    ).toThrow(/MOBILE_APP_VIA_SERVER only/);
+  });
+
+  it("throws when a required header would be empty", () => {
+    expect(() =>
+      buildFraudPreventionHeaders({ config, server, client: mobileClient({ deviceId: "" }) })
     ).toThrow(/Gov-Client-Device-ID.*empty/i);
   });
 
   it("includes Multi-Factor only when methods are provided, with unique-reference each", () => {
-    const withoutMfa = buildFraudPreventionHeaders({
-      config,
-      server,
-      client: {
-        connectionMethod: "MOBILE_APP_VIA_SERVER",
-        deviceId: "d1",
-        publicIp: "5.6.7.8",
-        publicIpTimestamp: "2026-05-08T19:30:00.000Z",
-        publicPort: "443",
-        osFamily: "iOS",
-        osVersion: "17.4.1",
-        deviceManufacturer: "Apple",
-        deviceModel: "iPhone15,2",
-        screenWidth: 100,
-        screenHeight: 200,
-        language: "en-GB",
-        timezone: "Europe/London",
-        timezoneOffset: "UTC+01:00",
-      },
-    });
+    const withoutMfa = buildFraudPreventionHeaders({ config, server, client: mobileClient() });
     expect(withoutMfa["Gov-Client-Multi-Factor"]).toBeUndefined();
 
     const withMfa = buildFraudPreventionHeaders({
       config,
       server,
-      client: {
-        connectionMethod: "MOBILE_APP_VIA_SERVER",
-        deviceId: "d1",
-        publicIp: "5.6.7.8",
-        publicIpTimestamp: "2026-05-08T19:30:00.000Z",
-        publicPort: "443",
-        osFamily: "iOS",
-        osVersion: "17.4.1",
-        deviceManufacturer: "Apple",
-        deviceModel: "iPhone15,2",
-        screenWidth: 100,
-        screenHeight: 200,
-        language: "en-GB",
-        timezone: "Europe/London",
-        timezoneOffset: "UTC+01:00",
+      client: mobileClient({
         multiFactor: [
           {
             type: "TOTP",
@@ -299,10 +272,97 @@ describe("buildFraudPreventionHeaders", () => {
             timestamp: "2026-05-08T19:30:00.000Z",
           },
         ],
-      },
+      }),
     });
     expect(withMfa["Gov-Client-Multi-Factor"]).toContain("type=TOTP");
     expect(withMfa["Gov-Client-Multi-Factor"]).toContain("unique-reference=user-totp-method-1");
+  });
+});
+
+describe("buildClientContext", () => {
+  // The layer that actually produced the calls HMRC flagged on 7 Aug 2026.
+  // The bug was not in a header value but in the classifier: a two-way
+  // branch whose `else` treated "no mobile headers" as "must be a browser".
+  const asRequest = (headers: Record<string, string>) =>
+    ({ headers, ip: "5.6.7.8", socket: { remotePort: 54321 } }) as never;
+
+  // The full header block a genuine build-83+ app sends (clientContext.ts
+  // builds these together — a real client never sends a partial set).
+  const appHeaders = (overrides: Record<string, string | undefined> = {}) => {
+    const h: Record<string, string | undefined> = {
+      "x-mileclear-platform": "ios",
+      "x-mileclear-device-id": "device-uuid-1",
+      "x-mileclear-device-model": "iPhone17,2",
+      "x-mileclear-os-version": "27.0",
+      "x-mileclear-app-version": "1.3.7",
+      "x-mileclear-screen-width": "1179",
+      "x-mileclear-screen-height": "2556",
+      "x-mileclear-scaling-factor": "3",
+      "x-mileclear-timezone-offset": "UTC+01:00",
+      ...overrides,
+    };
+    return Object.fromEntries(
+      Object.entries(h).filter((e): e is [string, string] => e[1] !== undefined)
+    );
+  };
+
+  it("classifies a request carrying the app's full context as mobile", () => {
+    const ctx = buildClientContext(asRequest(appHeaders()));
+    expect(ctx.connectionMethod).toBe("MOBILE_APP_VIA_SERVER");
+    if (ctx.connectionMethod === "MOBILE_APP_VIA_SERVER") {
+      // Every value measured, none defaulted.
+      expect(ctx.osVersion).toBe("27.0");
+      expect(ctx.appVersion).toBe("1.3.7");
+      expect(ctx.screenWidth).toBe(1179);
+      expect(ctx.publicPort).toBe("54321");
+    }
+  });
+
+  it("refuses to invent a browser for a request with no mobile context", () => {
+    const ctx = buildClientContext(asRequest({ "user-agent": "Mozilla/5.0" }));
+    expect(ctx.connectionMethod).toBe("UNSUPPORTED_CLIENT");
+  });
+
+  // The 7 Aug calls came from fabricated defaults. A platform header alone
+  // (or any partial set) must never be padded out with invented values —
+  // os-version "0.0" and a 1170x2532 screen were placeholders with better
+  // camouflage than "Unknown".
+  it("refuses a mobile-flagged request missing measured fields rather than padding with defaults", () => {
+    for (const missing of [
+      "x-mileclear-device-id",
+      "x-mileclear-os-version",
+      "x-mileclear-app-version",
+      "x-mileclear-screen-width",
+      "x-mileclear-scaling-factor",
+      "x-mileclear-timezone-offset",
+    ]) {
+      const ctx = buildClientContext(asRequest(appHeaders({ [missing]: undefined })));
+      expect(ctx.connectionMethod, `missing ${missing}`).toBe("UNSUPPORTED_CLIENT");
+    }
+  });
+
+  it("still classifies an older genuine build without a device model as mobile", () => {
+    // Pre-83 binaries send the full base set minus the model; they must
+    // reach the DEVICE_MODEL_UNAVAILABLE guard (which tells them to
+    // update), not be misread as a non-app caller.
+    const ctx = buildClientContext(
+      asRequest(appHeaders({ "x-mileclear-device-model": undefined }))
+    );
+    expect(ctx.connectionMethod).toBe("MOBILE_APP_VIA_SERVER");
+    if (ctx.connectionMethod === "MOBILE_APP_VIA_SERVER") {
+      expect(ctx.deviceModel).toBeUndefined();
+    }
+  });
+
+  it("takes the public IP from the last X-Forwarded-For entry (ours), not the first (spoofable)", () => {
+    const ctx = buildClientContext(
+      asRequest(appHeaders({ "x-forwarded-for": "203.0.113.99, 81.100.10.20" }))
+    );
+    if (ctx.connectionMethod === "MOBILE_APP_VIA_SERVER") {
+      expect(ctx.publicIp).toBe("81.100.10.20");
+    } else {
+      throw new Error("expected mobile context");
+    }
   });
 });
 

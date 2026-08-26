@@ -22,9 +22,8 @@ export {
   buildFraudPreventionHeaders,
   type ClientContext,
   type MobileClientContext,
-  type WebClientContext,
+  type UnsupportedClientContext,
   type ServerContext,
-  type ConnectionMethod,
 } from "./fraudPreventionHeaders.js";
 
 export {

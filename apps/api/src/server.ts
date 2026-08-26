@@ -2,6 +2,7 @@ import "dotenv/config";
 import Fastify from "fastify";
 import { ZodError } from "zod";
 import { ApiError } from "./lib/apiError.js";
+import { redactUrlSecrets } from "./lib/redactUrl.js";
 import cors from "@fastify/cors";
 import cookie from "@fastify/cookie";
 import helmet from "@fastify/helmet";
@@ -26,6 +27,10 @@ import { userRoutes } from "./routes/user/index.js";
 import { referralRoutes } from "./routes/referrals/index.js";
 import { waitlistRoutes } from "./routes/waitlist/index.js";
 import { contactRoutes } from "./routes/contact/index.js";
+import { teamInterestRoutes } from "./routes/teamInterest/index.js";
+import { teamRoutes } from "./routes/team/index.js";
+import { teamSelfServeRoutes } from "./routes/team/selfServe.js";
+import { nominateManagerRoutes } from "./routes/team/nominate.js";
 import { adminRoutes } from "./routes/admin/index.js";
 import { feedbackRoutes } from "./routes/feedback/index.js";
 import { notificationRoutes } from "./routes/notifications/index.js";
@@ -98,9 +103,23 @@ const HOST = process.env.API_HOST || "0.0.0.0";
 const app = Fastify({
   trustProxy: true,
   bodyLimit: 10_485_760, // 10MB (trips with up to 20k coords can be ~3MB)
+  // Fastify's default is 100, and accountant tokens are 128 hex chars, so
+  // every real accountant link 404'd at the router before reaching its
+  // handler - the portal has never worked in production, which is why the
+  // access table is empty. Found 14 Aug 2026 while verifying the token
+  // hardening. 200 leaves headroom without inviting silly URLs.
+  maxParamLength: 200,
   logger: {
     level: process.env.NODE_ENV === "production" ? "info" : "debug",
     redact: ["req.headers.authorization"],
+    serializers: {
+      req(request: { method: string; url: string; headers: Record<string, unknown> }) {
+        return {
+          method: request.method,
+          url: redactUrlSecrets(request.url),
+        };
+      },
+    },
   },
 });
 
@@ -114,6 +133,11 @@ await app.register(cors, {
     ? process.env.CORS_ORIGIN.split(",").map((o) => o.trim()).filter(Boolean)
     : ["http://localhost:3003"],
   credentials: true,
+  // The web app and the API are on different origins, so a browser cannot
+  // read Content-Disposition from a fetch()ed download unless we say so.
+  // Without this every blob download falls back to a generic filename and
+  // the server's careful naming is thrown away, silently.
+  exposedHeaders: ["Content-Disposition"],
 });
 
 await app.register(cookie);
@@ -149,7 +173,7 @@ app.setErrorHandler((error: Error & { statusCode?: number; validation?: unknown 
   const statusCode = error.statusCode && error.statusCode < 500 ? error.statusCode : 500;
   if (statusCode >= 500) {
     logEvent("error.500", (request as any).userId ?? null, {
-      path: request.url,
+      path: redactUrlSecrets(request.url),
       method: request.method,
       message: error.message,
     });
@@ -164,7 +188,7 @@ app.addHook("onResponse", (request, reply, done) => {
   const duration = reply.elapsedTime;
   if (duration > 2000) {
     logEvent("perf.slow_request", (request as any).userId ?? null, {
-      path: request.url,
+      path: redactUrlSecrets(request.url),
       method: request.method,
       statusCode: reply.statusCode,
       durationMs: Math.round(duration),
@@ -199,6 +223,14 @@ await app.register(userRoutes, { prefix: "/user" });
 await app.register(referralRoutes, { prefix: "/referrals" });
 await app.register(waitlistRoutes, { prefix: "/waitlist" });
 await app.register(contactRoutes, { prefix: "/contact" });
+await app.register(teamInterestRoutes, { prefix: "/team-interest" });
+await app.register(teamRoutes, { prefix: "/team" });
+// Same prefix, disjoint paths (/self-serve, /billing*): Phase 3 lives in its
+// own file so billing changes cannot disturb the Phase 1 membership routes.
+await app.register(teamSelfServeRoutes, { prefix: "/team" });
+// Driver names their manager. Same prefix, its own path, its own file: the
+// primary acquisition route should not share a file with membership admin.
+await app.register(nominateManagerRoutes, { prefix: "/team" });
 await app.register(adminRoutes, { prefix: "/admin" });
 await app.register(feedbackRoutes, { prefix: "/feedback" });
 await app.register(notificationRoutes, { prefix: "/notifications" });

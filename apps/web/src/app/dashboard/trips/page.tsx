@@ -17,6 +17,7 @@ import type { Trip, TripInsights, TripCoordinate, PaginatedResponse, PlatformTag
 import { GIG_PLATFORMS, BUSINESS_PURPOSES, fetchRouteDistance, getTaxYear, parseTaxYear, formatPence } from "@mileclear/shared";
 import { useAuth } from "../../../lib/auth-context";
 import { useToast } from "../../../components/ui/Toast";
+import { ImportTripsModal } from "../../../components/dashboard/ImportTripsModal";
 
 interface DetailTrip extends Trip {
   insights?: TripInsights | null;
@@ -282,6 +283,7 @@ export default function TripsPage() {
 
   // Add manual trip modal
   const [showAdd, setShowAdd] = useState(false);
+  const [showImport, setShowImport] = useState(false);
   const [addForm, setAddForm] = useState({
     startAddress: "",
     endAddress: "",
@@ -292,6 +294,9 @@ export default function TripsPage() {
     notes: "",
     projectLabel: "",
     startedAt: new Date().toISOString().slice(0, 16),
+    // Optional. Left blank, the server estimates it from the road route so the
+    // trip still counts toward duration-based figures instead of being skipped.
+    endedAt: "",
   });
   const [addLoading, setAddLoading] = useState(false);
   const [addCoords, setAddCoords] = useState<{
@@ -480,6 +485,10 @@ export default function TripsPage() {
       setError("Please enter a valid distance");
       return;
     }
+    if (addForm.endedAt && new Date(addForm.endedAt) < new Date(addForm.startedAt)) {
+      setError("Arrival time cannot be before the departure time");
+      return;
+    }
     setAddLoading(true);
     setError(null);
     try {
@@ -493,6 +502,7 @@ export default function TripsPage() {
         notes: addForm.notes || undefined,
         projectLabel: addForm.projectLabel.trim() || undefined,
         startedAt: new Date(addForm.startedAt).toISOString(),
+        endedAt: addForm.endedAt ? new Date(addForm.endedAt).toISOString() : undefined,
         startLat: addCoords?.startLat ?? 0,
         startLng: addCoords?.startLng ?? 0,
         endLat: addCoords?.endLat,
@@ -511,6 +521,7 @@ export default function TripsPage() {
         notes: "",
         projectLabel: "",
         startedAt: new Date().toISOString().slice(0, 16),
+        endedAt: "",
       });
       toast("Trip added");
       loadTrips();
@@ -691,9 +702,14 @@ export default function TripsPage() {
         title="Trips"
         subtitle={`${total} trip${total !== 1 ? "s" : ""} recorded`}
         action={
-          <Button variant="primary" size="sm" onClick={() => setShowAdd(true)}>
-            + Add trip
-          </Button>
+          <div style={{ display: "flex", gap: "0.5rem" }}>
+            <Button variant="ghost" size="sm" onClick={() => setShowImport(true)}>
+              Import CSV
+            </Button>
+            <Button variant="primary" size="sm" onClick={() => setShowAdd(true)}>
+              + Add trip
+            </Button>
+          </div>
         }
       />
 
@@ -1018,6 +1034,22 @@ export default function TripsPage() {
         </>
       )}
 
+      <ImportTripsModal
+        open={showImport}
+        onClose={() => setShowImport(false)}
+        onImported={(result) => {
+          const skipped = result.skippedDuplicates
+            ? `, ${result.skippedDuplicates} already on your account`
+            : "";
+          toast(
+            `Imported ${result.imported} trip${result.imported === 1 ? "" : "s"} (${result.totalMiles} miles)${skipped}`,
+            "success"
+          );
+          loadTrips();
+          loadSummary();
+        }}
+      />
+
       {/* Edit Modal */}
       <Modal
         open={!!editTrip}
@@ -1140,6 +1172,21 @@ export default function TripsPage() {
             value={addForm.startedAt}
             onChange={(e) => setAddForm((f) => ({ ...f, startedAt: e.target.value }))}
           />
+        </div>
+        <div className="form-row">
+          <div>
+            <Input
+              id="addEnd"
+              label="Arrived (optional)"
+              type="datetime-local"
+              value={addForm.endedAt}
+              min={addForm.startedAt}
+              onChange={(e) => setAddForm((f) => ({ ...f, endedAt: e.target.value }))}
+            />
+            <span style={{ fontSize: "0.75rem", color: "var(--text-muted)", marginTop: "0.25rem", display: "block" }}>
+              Leave blank and we will estimate the drive time from the route.
+            </span>
+          </div>
         </div>
         <div className="form-row">
           <Select

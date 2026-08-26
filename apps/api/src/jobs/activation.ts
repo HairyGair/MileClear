@@ -22,6 +22,7 @@ import { sendPushNotifications, type ExpoPushMessage } from "../lib/push.js";
 import { logEvent } from "../services/appEvents.js";
 import { postFounderAlert } from "../services/discord.js";
 import { resolvePremiumStatus } from "../services/referral.js";
+import { classifyProSource, loadSandboxTxnIds } from "../services/subscriptionTruth.js";
 
 async function wasEverNotified(userId: string, eventType: string): Promise<boolean> {
   const existing = await prisma.appEvent.findFirst({
@@ -77,6 +78,263 @@ export async function runActivationDay7Job(): Promise<void> {
   }
 }
 
+// ── Capture-lapsed nudge (18 Aug 2026) ───────────────────────────────────
+//
+// The hole this fills, found by auditing why Rakesh Patel sat for 17 days with
+// one trip to his name: 25% of the active fleet cannot capture in the
+// background, and 45 users were running the app with NOTHING recorded in 14
+// days — 33 of whom had never recorded anything at all. Every existing safety
+// net missed them:
+//
+//   - the in-app "Always" prompt only fires AFTER a trip is saved through the
+//     form, so it is gated on the very thing it exists to fix;
+//   - the dashboard's persistent blocker only appears at permission tier
+//     "none", while a "foreground" user who never drives with the app open
+//     records exactly as much as a "none" user, and gets a dismissible nudge;
+//   - runActivationDay7Job below fires once, in a 6-9 day window, and skips
+//     anyone with tripCount > 0 — so a single day-one trip grants lifetime
+//     immunity from the only server-side prompt there was.
+//
+// None of it showed up in the numbers, because fleet trip volume rose the whole
+// time (roughly 400/day in late July to 700/day by mid-August). Total
+// individual failures are invisible inside a growing total.
+//
+// THE QUALIFIER THAT MAKES THIS SAFE TO SEND: background permission is not
+// granted. Without it this job would push everyone who happened not to drive
+// for a fortnight, which is most of a holiday season. With it, we are only
+// telling people something true and specific: the app cannot see your drives,
+// and here is the switch.
+const LAPSED_TRIP_SILENCE_DAYS = 14;
+const LAPSED_COOLDOWN_DAYS = 30;
+const LAPSED_MAX_SENDS = 3;
+
+export async function runCaptureLapsedJob(): Promise<void> {
+  const now = new Date();
+  // ACTIVATION_LAPSED_DRY_RUN=1 logs who WOULD be pushed and sends nothing,
+  // and skips the time window so it can be run on demand. Mirrors
+  // INVOICE_CHASE_DRY_RUN. Use it before letting this loose on real people.
+  const dryRun = process.env.ACTIVATION_LAPSED_DRY_RUN === "1";
+  if (!dryRun && !inNudgeWindow(now)) return;
+
+  const tripCutoff = new Date(now.getTime() - LAPSED_TRIP_SILENCE_DAYS * 86_400_000);
+  const aliveCutoff = new Date(now.getTime() - 14 * 86_400_000);
+  const cooldownCutoff = new Date(now.getTime() - LAPSED_COOLDOWN_DAYS * 86_400_000);
+
+  const candidates = await prisma.user.findMany({
+    where: {
+      // Still using the app — a dead install is a churn problem, not this one.
+      lastHeartbeatAt: { gte: aliveCutoff },
+      pushToken: { not: null },
+      // The app cannot record in the background for them. This is the whole
+      // basis of the message, so it is a hard filter, not a ranking signal.
+      OR: [{ bgLocationPermission: null }, { bgLocationPermission: { not: "granted" } }],
+      // Nothing captured in the silence window.
+      trips: { none: { startedAt: { gte: tripCutoff } } },
+      // Give the day-7 job its own run at brand-new accounts first.
+      createdAt: { lte: new Date(now.getTime() - 9 * 86_400_000) },
+    },
+    select: {
+      id: true,
+      pushToken: true,
+      lastHeartbeatAt: true,
+      _count: { select: { trips: true } },
+    },
+    take: 300,
+  });
+  if (candidates.length === 0) return;
+
+  const heartbeatById = new Map(candidates.map((c) => [c.id, c.lastHeartbeatAt]));
+
+  // The permission reading above comes from the last HEARTBEAT, which can be
+  // stale by hours - and the gap is exactly when someone has just fixed it.
+  // Rakesh Patel granted Always at 10:04 on 18 Aug after 17 dark days; his
+  // heartbeat still said "undetermined", so the first dry run of this job had
+  // it telling him to go and do the thing he had done two hours earlier. The
+  // diagnostic dump carries its own, often fresher, permission snapshot (the
+  // same disagreement that made Isla Hignett's case readable the day before),
+  // so where the dump is newer than the heartbeat, believe the dump.
+  const dumps = await prisma.diagnosticDump.findMany({
+    where: { userId: { in: candidates.map((c) => c.id) } },
+    select: { userId: true, capturedAt: true, statusJson: true },
+  });
+  const fixedSinceHeartbeat = new Set<string>();
+  for (const d of dumps) {
+    const status = d.statusJson as { backgroundPermission?: unknown } | null;
+    if (status?.backgroundPermission !== "granted") continue;
+    const hb = heartbeatById.get(d.userId);
+    if (hb && d.capturedAt > hb) fixedSinceHeartbeat.add(d.userId);
+  }
+
+  // One query for the send history of every candidate, rather than two per
+  // user: this job runs every 30 minutes inside its window.
+  const history = await prisma.appEvent.findMany({
+    where: { type: "notification.capture_lapsed", userId: { in: candidates.map((c) => c.id) } },
+    select: { userId: true, createdAt: true },
+  });
+  const sends = new Map<string, { count: number; last: Date }>();
+  for (const h of history) {
+    if (!h.userId) continue;
+    const prev = sends.get(h.userId);
+    if (!prev) sends.set(h.userId, { count: 1, last: h.createdAt });
+    else sends.set(h.userId, { count: prev.count + 1, last: h.createdAt > prev.last ? h.createdAt : prev.last });
+  }
+
+  const messages: ExpoPushMessage[] = [];
+  for (const user of candidates) {
+    if (fixedSinceHeartbeat.has(user.id)) continue;
+    const seen = sends.get(user.id);
+    if (seen && seen.count >= LAPSED_MAX_SENDS) continue;
+    if (seen && seen.last > cooldownCutoff) continue;
+
+    // Two populations, two truths. Someone who has recorded before knows what
+    // they are missing; someone who never has needs telling what it is for.
+    const everCaptured = user._count.trips > 0;
+    const body = everCaptured
+      ? "MileClear hasn't recorded a drive in a fortnight because it can't see your location in the background. Tap to open Settings, then Location, and choose Always."
+      : "MileClear can't record your drives yet because it can't see your location in the background. Tap to open Settings, then Location, and choose Always. It takes a moment and then it runs by itself.";
+
+    if (dryRun) {
+      console.log(
+        `[jobs/activation] DRY RUN would push ${user.id} (everCaptured=${everCaptured}, trips=${user._count.trips}, sendNumber=${(seen?.count ?? 0) + 1})`
+      );
+      continue;
+    }
+    logEvent("notification.capture_lapsed", user.id, {
+      everCaptured,
+      sendNumber: (seen?.count ?? 0) + 1,
+    });
+    messages.push({
+      to: user.pushToken!,
+      title: everCaptured ? "Your drives aren't being recorded" : "One switch and MileClear starts working",
+      body,
+      sound: "default",
+      // open_settings routes to Linking.openSettings(), which lands them on
+      // MileClear's own iOS settings page where the Location row lives.
+      data: { type: "capture_lapsed", action: "open_settings" },
+    });
+  }
+
+  if (dryRun) {
+    console.log(`[jobs/activation] DRY RUN complete: ${candidates.length} candidates examined, 0 sent`);
+    return;
+  }
+  if (messages.length > 0) {
+    await sendPushNotifications(messages);
+    console.log(`[jobs/activation] Capture-lapsed nudge: sent ${messages.length} push(es)`);
+  }
+}
+
+// Short-hop drivers without saved locations (23 Aug 2026).
+//
+// The engine records plenty of short trips - 497 auto-captured at 0.3-0.5 mi
+// in the month to 23 Aug - but it cannot ARM in time for a sixty-second
+// drive when it has to wait for CoreMotion's "automotive" verdict, so the
+// manual share climbs as trips shorten: 3% of 2+ mile trips are typed in,
+// 34% of 0.3-0.5 mile ones. A saved location's geofence fires the instant
+// the phone leaves it, which is exactly what a short hop needs, and the
+// people who need it do not have any: of 148 users doing five or more
+// sub-mile trips a month, 29 had a saved location. This tells the other
+// 119 what to do, with their own number in it so it reads as specific.
+const SHORT_HOP_WINDOW_DAYS = 30;
+const SHORT_HOP_MIN_TRIPS = 5;
+const SHORT_HOP_MAX_MILES = 1;
+const SHORT_HOP_COOLDOWN_DAYS = 60;
+const SHORT_HOP_MAX_SENDS = 2;
+
+export async function runShortHopSavedLocationsJob(): Promise<void> {
+  const now = new Date();
+  // SHORT_HOP_NUDGE_DRY_RUN=1 prints who would be pushed, sends nothing, and
+  // ignores the window so it can be run on demand.
+  const dryRun = process.env.SHORT_HOP_NUDGE_DRY_RUN === "1";
+  if (!dryRun && !inNudgeWindow(now)) return;
+
+  const since = new Date(now.getTime() - SHORT_HOP_WINDOW_DAYS * 86_400_000);
+  const aliveCutoff = new Date(now.getTime() - 14 * 86_400_000);
+  const cooldownCutoff = new Date(now.getTime() - SHORT_HOP_COOLDOWN_DAYS * 86_400_000);
+
+  const counts = await prisma.trip.groupBy({
+    by: ["userId"],
+    where: { startedAt: { gte: since }, distanceMiles: { lt: SHORT_HOP_MAX_MILES } },
+    _count: { _all: true },
+    _sum: { distanceMiles: true },
+    having: { userId: { _count: { gte: SHORT_HOP_MIN_TRIPS } } },
+  });
+  if (counts.length === 0) return;
+  const shortTripsBy = new Map(counts.map((c) => [c.userId, c._count._all]));
+
+  const candidates = await prisma.user.findMany({
+    where: {
+      id: { in: [...shortTripsBy.keys()] },
+      lastHeartbeatAt: { gte: aliveCutoff },
+      pushToken: { not: null },
+      // The whole point: they have nothing for the geofence to fire from.
+      savedLocations: { none: {} },
+    },
+    select: { id: true, pushToken: true },
+    take: 300,
+  });
+  if (candidates.length === 0) return;
+
+  const history = await prisma.appEvent.findMany({
+    where: {
+      type: "notification.short_hop_saved_locations",
+      userId: { in: candidates.map((c) => c.id) },
+    },
+    select: { userId: true, createdAt: true },
+  });
+  const sends = new Map<string, { count: number; last: Date }>();
+  for (const h of history) {
+    if (!h.userId) continue;
+    const prev = sends.get(h.userId);
+    if (!prev) sends.set(h.userId, { count: 1, last: h.createdAt });
+    else sends.set(h.userId, { count: prev.count + 1, last: h.createdAt > prev.last ? h.createdAt : prev.last });
+  }
+
+  const messages: ExpoPushMessage[] = [];
+  let examined = 0;
+  for (const user of candidates) {
+    examined += 1;
+    const seen = sends.get(user.id);
+    if (seen && seen.count >= SHORT_HOP_MAX_SENDS) continue;
+    if (seen && seen.last > cooldownCutoff) continue;
+    const n = shortTripsBy.get(user.id) ?? 0;
+
+    const body = `You made ${n} short trips last month. Save home and your regular stops in MileClear (Settings, then Tracking, then Saved locations) and the app catches short hops the moment you leave, instead of waiting to notice you are driving.`;
+
+    if (dryRun) {
+      console.log(
+        `[jobs/activation] DRY RUN short-hop nudge would push ${user.id} (shortTrips=${n}, sendNumber=${(seen?.count ?? 0) + 1})`
+      );
+      continue;
+    }
+    logEvent("notification.short_hop_saved_locations", user.id, {
+      shortTrips: n,
+      sendNumber: (seen?.count ?? 0) + 1,
+    });
+    messages.push({
+      to: user.pushToken!,
+      title: "Your short trips can record themselves",
+      body,
+      sound: "default",
+      // open_saved_locations lands on the Saved Locations screen from build
+      // 85; earlier builds fall through to opening the app, and the body
+      // spells out the path.
+      data: { type: "short_hop_saved_locations", action: "open_saved_locations" },
+    });
+  }
+
+  if (dryRun) {
+    console.log(
+      `[jobs/activation] DRY RUN complete: ${counts.length} short-hop drivers, ${candidates.length} reachable with no saved location, ${examined} examined, 0 sent`
+    );
+    return;
+  }
+  if (messages.length > 0) {
+    await sendPushNotifications(messages);
+    console.log(`[jobs/activation] Short-hop saved-locations nudge: sent ${messages.length} push(es)`);
+  }
+}
+
 export async function runPayingInactiveAlarmJob(): Promise<void> {
   const now = new Date();
   if (!inNudgeWindow(now)) return;
@@ -100,13 +358,22 @@ export async function runPayingInactiveAlarmJob(): Promise<void> {
       isPremium: true,
       premiumExpiresAt: true,
       referralProUntil: true,
+      stripeSubscriptionId: true,
+      appleOriginalTransactionId: true,
       _count: { select: { trips: true, invoices: true, earnings: true } },
     },
     take: 500,
   });
 
+  // "Paying user" means paying. The alarm fired on 21 Aug 2026 for App
+  // Review's sandbox subscription (a reviewer account that will never
+  // drive), and would fire for comp grants and referral credit too. Only a
+  // Stripe or production-Apple subscriber is worth a personal email.
+  const sandboxTxns = await loadSandboxTxnIds();
+
   for (const user of candidates) {
     if (!resolvePremiumStatus(user).active) continue;
+    if (classifyProSource(user, sandboxTxns, now) !== "paying") continue;
     // "Inactive" = paying and using NOTHING. Any trips, invoices or
     // earnings mean they've found their value path — leave them alone.
     if (user._count.trips > 0 || user._count.invoices > 0 || user._count.earnings > 0) continue;

@@ -201,6 +201,21 @@ export default function ProfileScreen() {
     ]);
   }, [logout]);
 
+  // The server row is gone at this point, so the local copy is the only
+  // one left and there is nothing it could still sync to. Unconditional
+  // wipe: unlike logout, deletion is deliberate and irreversible, so
+  // keeping a shadow copy of the user's trips and home/work pins on the
+  // handset would defeat the erasure they just asked for.
+  const wipeLocalDataAfterDeletion = async () => {
+    try {
+      const { resetLocalData } = await import("../../lib/db/index");
+      await resetLocalData();
+    } catch {
+      // Never leave the user stuck on a spinner over housekeeping; the
+      // ownership check still wipes when the next account signs in.
+    }
+  };
+
   const handleDeleteAccount = useCallback(async () => {
     let message = "This is permanent and cannot be undone. Enter your password to confirm.";
     try {
@@ -224,6 +239,7 @@ export default function ProfileScreen() {
               setDeletingAccount(true);
               try {
                 await deleteAccount(password);
+                await wipeLocalDataAfterDeletion();
                 await logout();
               } catch (err: unknown) {
                 Alert.alert(
@@ -249,6 +265,7 @@ export default function ProfileScreen() {
     try {
       await deleteAccount(deletePassword);
       setShowDeleteModal(false);
+      await wipeLocalDataAfterDeletion();
       await logout();
     } catch (err: unknown) {
       Alert.alert(

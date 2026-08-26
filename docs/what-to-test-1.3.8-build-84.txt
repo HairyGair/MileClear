@@ -1,0 +1,21 @@
+1.3.8 is a capture reliability build. Nine fixes, and every one came from a driver telling us a drive went wrong. Real driving is the only thing that tests it properly.
+
+THE BIG ONE - a day with a SHORT hop in it:
+Drive somewhere, stop for ten minutes, then drive a SHORT leg (under a mile) to a second stop, then drive home. Leave the app closed throughout. Every leg should appear as its own trip, including the short one. Short hops used to be thrown away as stray GPS while the longer legs either side were kept. Then open the longest trip and check the map draws the WHOLE route, not half of it.
+
+START TRIP, ABANDONED:
+Tap Start Trip, drive for ten minutes, and do NOT tap "I've Arrived". Background the app and leave it. The drive should still become a trip on its own. It used to be deleted.
+
+START TRIP WITH THE APP KILLED:
+Tap Start Trip, drive a few minutes, then swipe the app away completely. Keep driving, reopen it near the end and tap "I've Arrived". You should see an amber note saying part of the trip was estimated, with the miles it filled in, and a total close to what you actually drove. Previously it saved only the last stretch and said nothing.
+
+REPORTING A MISSING TRIP:
+Finish a drive and, before the trip appears, tap "Missing a trip you made?" and send. It should pause, then tell you a trip has just finished saving and ask if that was the one.
+
+NEW SETTING - when a stop ends a journey:
+Settings, then Tracking, then "End a journey after". Anything from 5 minutes to an hour, default 30. Useful if long waits at a depot are splitting one job into several trips.
+
+SHARED PHONE (do this LAST):
+Signing in as a different person now clears the previous person's trips from the phone. Only try this once your own trips have synced - check the sync status first.
+
+If anything does not record, use "Missing a trip you made?" in the app. The diagnostic that comes with it is exactly what we fix from.

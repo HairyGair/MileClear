@@ -101,7 +101,14 @@ export default function ReleasesPage() {
                   >
                     {note.items.map((item, i) => (
                       <li key={i} className="release-card__item">
-                        {renderMarkdownInline(item)}
+                        {/* Single wrapper span: the li is display:flex (dot +
+                            text), and renderMarkdownInline returns MULTIPLE
+                            nodes - unwrapped, each strong/span became its own
+                            flex column, so a long bold lead-in rendered as a
+                            narrow wrapped label beside the body text. */}
+                        <span className="release-card__item-text">
+                          {renderMarkdownInline(item)}
+                        </span>
                       </li>
                     ))}
                   </ul>

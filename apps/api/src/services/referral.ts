@@ -3,10 +3,15 @@
 // Mechanics (locked with Anthony 28 May):
 //  - Each user has a unique shareable `referralCode`.
 //  - A friend signs up with the code -> a `pending` Referral row is created.
-//  - When that friend records their FIRST real (non-phantom) trip, the
-//    referrer earns 1 free month of Pro. Qualifying on first-trip (not signup)
-//    is the anti-fraud measure: fake accounts that never drive never pay out.
-//  - Single-sided: only the referrer is rewarded.
+//  - When that friend records their FIRST GPS-TRACKED (non-phantom,
+//    non-manual) trip, the reward is granted. Qualifying on first-trip (not
+//    signup) is the anti-fraud measure: fake accounts that never drive never
+//    pay out. Tracked-only since 11 Aug 2026 — a manual entry is typed into
+//    a form and costs nothing to manufacture, which is exactly how a user
+//    qualified his own second account that morning. Call-site gate:
+//    routes/trips/index.ts.
+//  - Double-sided since 11 Jun 2026: referrer AND referee each get a month
+//    (single-sided ran two weeks with zero conversions).
 //  - Capped at 3 rewards (3 months) per referrer.
 //  - The free month is BANKED in `users.referralProUntil`, never written to
 //    the Stripe/Apple subscription columns. Effective premium = active
@@ -168,9 +173,11 @@ export async function attachReferral(
 }
 
 /**
- * Called after a referee records their first real (non-phantom) trip. Grants
- * the referrer a banked free month if they're under the cap. Idempotent: only
- * acts on a still-`pending` referral, so repeat calls are no-ops.
+ * Called after a referee records their first GPS-TRACKED, non-phantom trip
+ * (the call site gates out manual entries — see routes/trips/index.ts).
+ * Grants both sides a banked free month if the referrer is under the cap.
+ * Idempotent: only acts on a still-`pending` referral, so repeat calls are
+ * no-ops.
  */
 export async function qualifyReferralOnFirstTrip(refereeId: string): Promise<void> {
   const referral = await prisma.referral.findUnique({ where: { refereeId } });

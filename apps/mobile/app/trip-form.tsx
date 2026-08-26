@@ -30,6 +30,7 @@ import {
   ClassificationSuggestion,
 } from "../lib/api/trips";
 import { getLocalTrip } from "../lib/db/queries";
+import { TripMapWidget } from "../components/map/TripMapWidget";
 import {
   syncCreateTrip,
   syncUpdateTrip,
@@ -43,7 +44,7 @@ import type { TripClassification, TripCategory, PlatformTag, BusinessPurpose, Ve
 import { formatPence } from "@mileclear/shared";
 import { createExpense } from "../lib/api/expenses";
 import { getDatabase } from "../lib/db/index";
-import { startQuickTripTracking, stopQuickTripTracking, clearDetectionCooldown, peekBackgroundCoordinates } from "../lib/tracking";
+import { startQuickTripTracking, stopQuickTripTracking, stopQuickTripLocationTask, clearDetectionCooldown, peekBackgroundCoordinates } from "../lib/tracking";
 import { recordLastSavedTrip } from "../lib/events/lastTrip";
 import { maybeOfferAlwaysAfterCapture } from "../lib/permissions/location";
 import { maybeRequestReview } from "../lib/rating/index";
@@ -147,6 +148,14 @@ const QUICK_TRIP_KEY = "quick_trip_start";
 // is a real dropout worth routing through roads instead of measuring as a chord.
 const GAP_FILL_THRESHOLD_MILES = 0.2;
 const MAX_GAP_FILLS = 8; // cap server route lookups per save
+
+// The gap in FRONT of the first breadcrumb, between tapping Start and the trail
+// beginning. A little lag is normal (first GPS fix takes seconds, and the user
+// may tap Start before pulling away), so these are set well above the noise: a
+// real dropout means the app died on the way out and the journey's opening is
+// unmeasured. See the leading-gap block in handleArrived.
+const LEAD_GAP_MIN_MILES = 0.5;
+const LEAD_GAP_MIN_MS = 5 * 60 * 1000;
 
 interface QuickTripStart {
   lat: number;
@@ -655,7 +664,7 @@ export default function TripFormScreen() {
   }>();
   const isEditing = !!id;
   const hasMissedPrefill = !!missedId;
-  const { user: currentUser } = useUser();
+  const { user: currentUser, isCompanyDriver } = useUser();
   const { showPaywall } = usePaywall();
 
   // Honor a `mode=manual` deep link (e.g. the dashboard first-trip nudge's
@@ -967,6 +976,43 @@ export default function TripFormScreen() {
     prefillArrivedAt,
   ]);
 
+  // The route of a trip you are looking back at. Until 24 Aug 2026 the map was
+  // hidden whenever you opened an existing trip (showMap = isQuickMode &&
+  // !isEditing), so a driver reviewing yesterday's journeys saw addresses and
+  // nothing else - which is what Jimbo asked for: "show a map of where the
+  // journey has been tracked from and to, to help work out if it was business
+  // or personal". Read from local SQLite so it works offline like the rest of
+  // this screen, and downsampled because a long drive stores ~900 points and a
+  // thumbnail needs nothing like that many.
+  const [routeCoords, setRouteCoords] = useState<{ lat: number; lng: number }[]>([]);
+
+  useEffect(() => {
+    if (!id || !isEditing) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const db = await getDatabase();
+        const rows = await db.getAllAsync<{ lat: number; lng: number }>(
+          "SELECT lat, lng FROM coordinates WHERE trip_id = ? ORDER BY recorded_at",
+          [id]
+        );
+        if (cancelled || rows.length < 2) return;
+        const MAX_POINTS = 300;
+        const step = Math.max(1, Math.ceil(rows.length / MAX_POINTS));
+        const sampled = rows.filter((_, i) => i % step === 0);
+        // Always keep the true end point, whatever the sampling stride does.
+        if (sampled[sampled.length - 1] !== rows[rows.length - 1]) sampled.push(rows[rows.length - 1]);
+        setRouteCoords(sampled);
+      } catch {
+        // No local coordinates (older trip, or synced from another device) -
+        // the screen simply shows no map, exactly as before.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [id, isEditing]);
+
   // Load existing trip for editing
   useEffect(() => {
     if (!id) return;
@@ -1123,6 +1169,14 @@ export default function TripFormScreen() {
   const [calculatingRoute, setCalculatingRoute] = useState(false);
   const [routeSource, setRouteSource] = useState<RouteDistanceResult["source"] | null>(null);
   const [routeUnavailable, setRouteUnavailable] = useState(false);
+  // Set when the trail began materially after the Start tap, so the review
+  // screen and the saved trip can both say so instead of the shortfall being
+  // silent. miles = what routing recovered (0 if routing was unavailable).
+  const [trailLeadGap, setTrailLeadGap] = useState<{
+    minutes: number;
+    miles: number;
+    filled: boolean;
+  } | null>(null);
   useEffect(() => {
     if (startLat == null || startLng == null || endLat == null || endLng == null) return;
     // In driving/arrived modes, distance is tracked via GPS breadcrumbs
@@ -1505,6 +1559,55 @@ export default function TripFormScreen() {
           }
         }
       }
+      // LEADING gap: the loop above starts at i = 1, so it can only bridge gaps
+      // BETWEEN breadcrumbs. It cannot see the gap in front of the first one —
+      // between where the user tapped Start and where the trail actually
+      // begins. That gap is the whole journey when iOS terminates the app on
+      // the way out: breadcrumbsRef dies with the process, the background task
+      // stops writing, and the trail resumes only once the app is alive again.
+      // The trip then saves with a correct-looking header (right start place,
+      // right start time, right end) over a distance that covers only the tail.
+      // andrew.hitchen, 17 Aug 2026: Scone to Fortingall and back, saved as
+      // 39.41 mi of a ~75 mi round trip, because his trail began 94 minutes and
+      // 36 miles into the journey. Nothing in the app flagged it; he reported
+      // the outbound as a missing trip. A fleet scan found 6 such trips in 14
+      // days, every one from this save path and none from an auto finalize
+      // (which cannot diverge, since it takes startedAt FROM its first coord).
+      //
+      // So bridge it the same way, with the same guards, and record that we
+      // did: the mileage is a road route between two real points (the tap
+      // location and the first fix), not an invention, but the user must be
+      // able to see that part of the trip was not measured.
+      let leadGapMiles = 0;
+      if (crumbs.length >= 1 && startLat != null && startLng != null && startedAt) {
+        const chord = haversineDistance(startLat, startLng, crumbs[0].lat, crumbs[0].lng);
+        const lagMs = new Date(crumbs[0].recordedAt).getTime() - startedAt.getTime();
+        if (chord >= LEAD_GAP_MIN_MILES || lagMs >= LEAD_GAP_MIN_MS) {
+          const routed = await fetchServerRouteDistance({
+            startLat,
+            startLng,
+            endLat: crumbs[0].lat,
+            endLng: crumbs[0].lng,
+          }).catch(() => null);
+          // Same guards as the interior fills: never take a routed number
+          // shorter than the straight line, and never one wildly longer.
+          if (routed && routed.distanceMiles >= chord && routed.routeToHaversineRatio <= 5) {
+            leadGapMiles = routed.distanceMiles;
+          } else {
+            // Routing unavailable. Do not invent a chord across a 36-mile hole
+            // and present it as measured mileage - the honest move is to keep
+            // what GPS proved and tell the user the rest is missing.
+            leadGapMiles = 0;
+          }
+          setTrailLeadGap({
+            minutes: Math.round(lagMs / 60000),
+            miles: leadGapMiles,
+            filled: leadGapMiles > 0,
+          });
+        }
+      }
+      trailDistance += leadGapMiles;
+
       // Fall back to straight-line if trail is too short
       const finalDistance = trailDistance > 0.05
         ? Math.round(trailDistance * 100) / 100
@@ -1841,6 +1944,27 @@ export default function TripFormScreen() {
             }))
           : undefined;
 
+        // A trip whose opening was never measured must say so on the record,
+        // not just on the screen the user has already swiped past. The note is
+        // both the user-facing marker and the queryable one
+        // (notes LIKE 'Tracking began%').
+        //
+        // Deliberately NOT gpsQuality, tempting as it looks: this form has
+        // never set that column, and "gpsQuality IS NULL on a non-manual trip"
+        // is exactly what identified this save path when Andrew Hitchen's
+        // half-measured trip was diagnosed on 17 Aug 2026. Populating it here
+        // would spend a working diagnostic to gain a second copy of a marker
+        // the note already carries.
+        const leadGapNote = trailLeadGap
+          ? trailLeadGap.filled
+            ? `Tracking began ${trailLeadGap.minutes} min after this trip started, so the first ` +
+              `${trailLeadGap.miles.toFixed(1)} mi is a road-route estimate rather than a recorded trail.`
+            : `Tracking began ${trailLeadGap.minutes} min after this trip started, so the beginning ` +
+              `of the journey was not recorded and the mileage may be short. Please check it.`
+          : null;
+        const userNote = notes.trim();
+        const finalNote = [leadGapNote, userNote].filter(Boolean).join("\n\n");
+
         const data: CreateTripData = {
           startLat,
           startLng,
@@ -1854,7 +1978,7 @@ export default function TripFormScreen() {
           ...(platformTag && { platformTag }),
           ...(businessPurpose && { businessPurpose }),
           ...(category && { category }),
-          ...(notes.trim() && { notes: notes.trim() }),
+          ...(finalNote && { notes: finalNote }),
           ...(projectLabel.trim() && { projectLabel: projectLabel.trim() }),
           ...(vehicleId && { vehicleId }),
           ...(coords && { coordinates: coords }),
@@ -1908,9 +2032,50 @@ export default function TripFormScreen() {
           }
         }
 
-        // Clear persisted quick trip state
-        const db = await getDatabase();
-        await db.runAsync("DELETE FROM tracking_state WHERE key = ?", [QUICK_TRIP_KEY]);
+        // Clear persisted quick trip state.
+        //
+        // The lock and the task go too, not just the start row. handleArrived
+        // normally tears both down via stopQuickTripTracking(), but a save can
+        // reach here without that having run — most obviously when the auto
+        // recorder finalized the same journey first and the form saved on top
+        // of it. Clearing only QUICK_TRIP_KEY then leaves active_shift_id on
+        // __quick_trip__ with no start row, which is the worst combination:
+        // the background location task keeps writing breadcrumbs under the
+        // stale id, and shiftSuppressesAutoDetection reads any breadcrumb
+        // under 20 minutes old as proof the trip is still live, so the lock
+        // sustains its own liveness check and auto-detection never runs again.
+        // Freja Bounds, 27 Jul 2026: stranded on her first drive, dump showed
+        // the lock held with detection_skipped/active_quick_trip on repeat.
+        // Idempotent, so it is safe when handleArrived already did the work.
+        //
+        // Two guards bound the cleanup:
+        //
+        // 1. Mode. This branch is the generic create path, so it also runs for
+        //    a MANUAL entry — and the missed-journey prefill drops straight
+        //    into manual mode without ever checking for a live quick trip, so
+        //    a quick trip CAN be recording in the background while a manual
+        //    save happens. Touching its state from here would kill the live
+        //    recording; even the old unconditional QUICK_TRIP_KEY delete
+        //    orphaned its lock into exactly the stranded state described
+        //    above. A stray lock a manual save leaves alone is still healed
+        //    by the span caps in shiftSuppressesAutoDetection.
+        //
+        // 2. The conditional delete's changes count. The background location
+        //    task is SHARED with shift tracking, so it may only be stopped
+        //    when the lock we just released was actually the quick trip.
+        if (mode !== "manual") {
+          const db = await getDatabase();
+          await db.runAsync("DELETE FROM tracking_state WHERE key = ?", [QUICK_TRIP_KEY]);
+          const releasedQuickTrip = await db.runAsync(
+            "DELETE FROM tracking_state WHERE key = 'active_shift_id' AND value = '__quick_trip__'"
+          );
+          if (releasedQuickTrip.changes > 0) {
+            await db.runAsync(
+              "DELETE FROM shift_coordinates WHERE shift_id = '__quick_trip__'"
+            ).catch(() => {});
+            await stopQuickTripLocationTask().catch(() => {});
+          }
+        }
       }
 
       // Reset detection cooldown so the next drive triggers a notification promptly
@@ -2044,9 +2209,10 @@ export default function TripFormScreen() {
     isEditing, id, classification, platformTag, businessPurpose, category, vehicleId, vehicles,
     startAddress, endAddress, startLat, startLng, endLat, endLng,
     distanceMiles, startedAt, endedAt, notes, projectLabel, router, showPaywall, routeSource,
+    trailLeadGap,
     anomalyDef, anomalyResponse, anomalyCustomNote,
     locationQuestions, locationResponses, locationCustomNotes,
-    odometerStart, odometerEnd, missedId,
+    odometerStart, odometerEnd, missedId, mode,
   ]);
 
   const handleCancel = useCallback(() => {
@@ -2109,8 +2275,12 @@ export default function TripFormScreen() {
       : null;
   const selectedVehicle = vehicles.find((v) => v.id === vehicleId);
   const workType = currentUser?.workType ?? "gig";
-  const isGigDriver = workType === "gig" || workType === "both";
-  const isEmployeeDriver = workType === "employee" || workType === "both";
+  // Company mode: a Milesheet driver is claiming mileage back from their
+  // employer, so a Deliveroo or Uber tag on the journey is meaningless to
+  // them and to the manager approving it. Suppressing it here covers both
+  // places the picker renders.
+  const isGigDriver = (workType === "gig" || workType === "both") && !isCompanyDriver;
+  const isEmployeeDriver = workType === "employee" || workType === "both" || isCompanyDriver;
   const isQuickMode = mode === "ready" || mode === "driving" || mode === "arrived" || mode === "saving";
   const showMap = isQuickMode && !isEditing;
 
@@ -2583,6 +2753,25 @@ export default function TripFormScreen() {
             )}
 
             {/* Anomaly question */}
+            {trailLeadGap && (
+              <View style={styles.leadGapCard}>
+                <Text style={styles.leadGapTitle}>
+                  {trailLeadGap.filled
+                    ? "Part of this trip was estimated"
+                    : "Part of this trip was not recorded"}
+                </Text>
+                <Text style={styles.leadGapBody}>
+                  {trailLeadGap.filled
+                    ? `Tracking only started ${trailLeadGap.minutes} min in, so the first ` +
+                      `${trailLeadGap.miles.toFixed(1)} mi is the road distance between where you ` +
+                      `set off and where tracking picked up. Check the total before saving.`
+                    : `Tracking only started ${trailLeadGap.minutes} min in and the road distance ` +
+                      `could not be worked out, so the mileage below covers only part of the ` +
+                      `journey. Please correct it before saving.`}
+                </Text>
+              </View>
+            )}
+
             {anomalyDef && (
               <View style={styles.anomalyCard}>
                 <Text style={styles.anomalyQuestion}>{anomalyDef.question}</Text>
@@ -2686,6 +2875,14 @@ export default function TripFormScreen() {
                 <Text style={styles.suggestionText}>
                   Suggested from {suggestion.matchCount} previous trip{suggestion.matchCount !== 1 ? "s" : ""} here
                 </Text>
+              </View>
+            )}
+
+            {/* Where you actually went - shown before the business/personal
+                choice, because that is the question the route answers. */}
+            {isEditing && routeCoords.length >= 2 && (
+              <View style={{ marginBottom: 16 }}>
+                <TripMapWidget coordinates={routeCoords} height={160} />
               </View>
             )}
 
@@ -4350,6 +4547,28 @@ const styles = StyleSheet.create({
     borderColor: "rgba(245, 166, 35, 0.2)",
     padding: 14,
     marginBottom: 16,
+  },
+  // Amber rather than the anomaly card's subtle border: this one is telling the
+  // driver their mileage may be wrong, which is worth a firmer edge.
+  leadGapCard: {
+    backgroundColor: "#0a1628",
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "rgba(245, 166, 35, 0.55)",
+    padding: 14,
+    marginBottom: 16,
+  },
+  leadGapTitle: {
+    fontSize: 14,
+    fontFamily: fonts.semibold,
+    color: "#f5a623",
+    marginBottom: 6,
+  },
+  leadGapBody: {
+    fontSize: 13,
+    fontFamily: fonts.regular,
+    color: TEXT_1,
+    lineHeight: 19,
   },
   anomalyQuestion: {
     fontSize: 14,

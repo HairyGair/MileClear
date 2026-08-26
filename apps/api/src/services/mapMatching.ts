@@ -85,6 +85,108 @@ export function isMatchPlausible(
 }
 
 /**
+ * Edge phantom trim (22 Aug 2026, Rachel Thorndyke's "random point in
+ * Immingham"). A recording's first or last fix is sometimes a cell-tower
+ * position a mile or more from where the phone actually was - Rachel's
+ * opened with accuracy 2,724 m, 2.3 mi south-east of the real start;
+ * others in the same fortnight read 1,130 / 1,422 / 149,000 / 3,356 m
+ * against 2-28 m for every point after. The JS engine's ingest filter
+ * drops such fixes; the native engine's buffer does not. The phone then
+ * sums its distance across the phantom jump, the trip starts in a place
+ * the driver never was, and the map-match plausibility guard - seeing a
+ * road route much shorter than the raw one - keeps the inflated figure.
+ * Eleven trips in fourteen days, all over-claims on HMRC records.
+ *
+ * This drops up to MAX_EDGE_TRIM points from each end that are both
+ * grossly inaccurate AND far from their neighbour, and reports how many
+ * raw miles went with them so the caller can correct the stored distance.
+ * Interior points are never touched; a mid-trip glitch is the matcher's
+ * job. Pure, so it is unit-tested.
+ */
+export const EDGE_PHANTOM_ACCURACY_M = 500;
+export const EDGE_PHANTOM_MIN_JUMP_MILES = 0.5;
+/** Second signature (Rachel, 25 Aug 2026): a stale edge fix can CLAIM good
+ *  accuracy (50 m) yet sit 1.2 mi from the next fix 52 s later, an 86 mph
+ *  jump no car made. When both points carry timestamps, an edge whose
+ *  implied speed to its neighbour exceeds this is phantom whatever it
+ *  claims. 90 mph is above any sustained UK road speed. */
+export const EDGE_PHANTOM_MAX_JUMP_MPH = 90;
+/** Third signature: a far edge fix whose remaining trail never leaves one
+ *  spot (Rachel's 25 Aug case: seven fixes shuffling 20 m at a client's
+ *  house behind a first fix 1.24 mi away). A real drive moves; a trail
+ *  spanning under this is a parked phone, so the far edge is stale. */
+export const EDGE_PHANTOM_STATIONARY_SPAN_MILES = 0.1;
+const MAX_EDGE_TRIM = 3;
+const MIN_POINTS_AFTER_TRIM = 3;
+
+export interface EdgeTrimResult<T extends BreadcrumbInput> {
+  breadcrumbs: T[];
+  droppedLeading: number;
+  droppedTrailing: number;
+  /** Raw haversine miles the dropped edge segments contributed. */
+  removedMiles: number;
+  /** Worst accuracy among the dropped points, for the audit event. */
+  worstAccuracyM: number | null;
+}
+
+function milesBetween(a: BreadcrumbInput, b: BreadcrumbInput): number {
+  const R = 3958.8;
+  const k = Math.PI / 180;
+  const x =
+    Math.sin(((b.lat - a.lat) * k) / 2) ** 2 +
+    Math.cos(a.lat * k) * Math.cos(b.lat * k) * Math.sin(((b.lng - a.lng) * k) / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(x));
+}
+
+export function trimEdgePhantoms<T extends BreadcrumbInput>(input: T[]): EdgeTrimResult<T> {
+  const pts = [...input];
+  let droppedLeading = 0;
+  let droppedTrailing = 0;
+  let removedMiles = 0;
+  let worst: number | null = null;
+
+  const impliedMph = (a: T, b: T): number | null => {
+    if (a.recordedAt == null || b.recordedAt == null) return null;
+    const ms = Math.abs(new Date(b.recordedAt).getTime() - new Date(a.recordedAt).getTime());
+    if (!Number.isFinite(ms) || ms <= 0) return null;
+    return milesBetween(a, b) / (ms / 3_600_000);
+  };
+  const spanMiles = (rest: T[]): number => {
+    let span = 0;
+    for (let i = 1; i < rest.length; i++) span = Math.max(span, milesBetween(rest[0], rest[i]));
+    return span;
+  };
+  const isPhantomEdge = (edge: T, neighbour: T, rest: T[]): boolean => {
+    const jump = milesBetween(edge, neighbour);
+    if (jump < EDGE_PHANTOM_MIN_JUMP_MILES) return false;
+    if (typeof edge.accuracy === "number" && edge.accuracy > EDGE_PHANTOM_ACCURACY_M) return true;
+    if (spanMiles(rest) < EDGE_PHANTOM_STATIONARY_SPAN_MILES) return true;
+    const mph = impliedMph(edge, neighbour);
+    return mph != null && mph > EDGE_PHANTOM_MAX_JUMP_MPH;
+  };
+
+  while (droppedLeading < MAX_EDGE_TRIM && pts.length > MIN_POINTS_AFTER_TRIM && isPhantomEdge(pts[0], pts[1], pts.slice(1))) {
+    removedMiles += milesBetween(pts[0], pts[1]);
+    worst = Math.max(worst ?? 0, typeof pts[0].accuracy === "number" ? pts[0].accuracy : 0);
+    pts.shift();
+    droppedLeading += 1;
+  }
+  while (
+    droppedTrailing < MAX_EDGE_TRIM &&
+    pts.length > MIN_POINTS_AFTER_TRIM &&
+    isPhantomEdge(pts[pts.length - 1], pts[pts.length - 2], pts.slice(0, -1))
+  ) {
+    removedMiles += milesBetween(pts[pts.length - 1], pts[pts.length - 2]);
+    const last = pts[pts.length - 1];
+    worst = Math.max(worst ?? 0, typeof last.accuracy === "number" ? last.accuracy : 0);
+    pts.pop();
+    droppedTrailing += 1;
+  }
+
+  return { breadcrumbs: pts, droppedLeading, droppedTrailing, removedMiles, worstAccuracyM: worst };
+}
+
+/**
  * Snap GPS breadcrumbs to the nearest road network. Returns null on
  * any failure — caller MUST handle that without breaking trip save.
  */

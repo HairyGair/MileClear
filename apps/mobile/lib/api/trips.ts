@@ -155,6 +155,9 @@ export interface UpdateTripData {
   classificationAutoAccepted?: boolean;
   odometerStart?: number | null;
   odometerEnd?: number | null;
+  // Breadcrumbs for a segment merged into this trip. The API appends them and
+  // skips any timestamp it already holds, so this is safe to replay.
+  coordinates?: CoordinateInput[];
 }
 
 export interface ListTripsParams {

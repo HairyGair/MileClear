@@ -54,7 +54,8 @@ export default function AdminDashboardScreen() {
   const stats = [
     { label: "Total Users", value: analytics?.totalUsers ?? 0 },
     { label: "Active (30d)", value: analytics?.activeUsers30d ?? 0 },
-    { label: "Premium", value: analytics?.premiumUsers ?? 0 },
+    // Paying subscribers, not every Pro flag (comp / referral / sandbox are not revenue).
+    { label: "Paying", value: analytics?.payingSubscribers ?? analytics?.premiumUsers ?? 0 },
     { label: "Total Trips", value: analytics?.totalTrips ?? 0 },
     { label: "Total Miles", value: (analytics?.totalMiles ?? 0).toFixed(1) },
     { label: "Revenue", value: formatPence(analytics?.totalEarningsPence ?? 0) },

@@ -59,6 +59,9 @@ const MENU_ITEMS: Record<string, MenuItem> = {
 };
 
 // Group definitions — items render in layout-pref order within each group
+/** Menu entries that only make sense for a gig worker, hidden in company mode. */
+const GIG_ONLY_MENU_KEYS = new Set(["menu_earnings"]);
+
 const GROUPS = [
   { id: "nav", label: "NAVIGATE", keys: ["menu_dashboard", "menu_trips", "menu_fuel", "menu_earnings"] },
   // Work-related shortcuts. Settings hub has a Work & Tax sub-screen
@@ -73,7 +76,7 @@ const GROUPS = [
 // ── Component ──────────────────────────────────────────────────────
 
 export default function AvatarMenuButton() {
-  const { user } = useUser();
+  const { user, isCompanyDriver } = useUser();
   const { logout } = useAuth();
   const router = useRouter();
   const segments = useSegments();
@@ -211,6 +214,10 @@ export default function AvatarMenuButton() {
                 {GROUPS.map((group) => {
                   const items = group.keys
                     .filter((k) => visibleSet.has(k) && MENU_ITEMS[k])
+                    // Company mode: someone claiming mileage back from their
+                    // employer has no gig income to log, so the Earnings
+                    // shortcut is noise on their menu.
+                    .filter((k) => !(isCompanyDriver && GIG_ONLY_MENU_KEYS.has(k)))
                     .sort((a, b) => {
                       const ai = menuLayout.visibleKeys.indexOf(a);
                       const bi = menuLayout.visibleKeys.indexOf(b);

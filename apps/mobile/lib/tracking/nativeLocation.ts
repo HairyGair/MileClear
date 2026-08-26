@@ -27,9 +27,15 @@ import { getDatabase } from "../db/index";
 import {
   logDetectionEvent,
   finalizeAutoTrip,
+  isFinalizeInFlight,
   isDriveDetectionEnabled,
   startNativeAutoTripLiveActivity,
   shiftSuppressesAutoDetection,
+  clearNotDrivingCooldown,
+  isNotDrivingCooldownActive,
+  haversineMeters,
+  GAP_STOP_MS,
+  GAP_STOP_DRIFT_M,
 } from "./detection";
 
 // ─── Lazy, crash-safe native module load ────────────────────────────────────
@@ -85,6 +91,30 @@ const FORCE_START_ACCURACY_M = 30; // require a tight fix to avoid GPS-spike fal
 // drive-through doesn't split a trip; the trip-merge logic re-joins anything
 // that resumes quickly regardless.
 const HEARTBEAT_FINALIZE_STALE_MS = 7 * 60 * 1000;
+
+// Gap-stop (Class 20, Rachel Thorndyke, 25 Aug 2026). Stop detection fires on
+// slow FIXES, but during a visit the engine sleeps and no fixes arrive, so
+// nothing closes the recording and the next drive continues the same session:
+// a care worker's whole afternoon round welded into one 12.79mi "trip" with
+// seven visits inside it. The stationary motionchange and the heartbeat
+// backstop both missed it (occasional stationary blips reset the staleness
+// clock). So the one place every path converges - the moment a fix is
+// appended to an active recording - checks retroactively: a long silence
+// during which the device did not meaningfully move WAS a stop, and the
+// recording is closed at the fix before the silence. Large displacement
+// across a silence means a drive with sparse fixes (tunnels, iOS throttling)
+// and appends as before.
+// Thresholds live in detection.ts (GAP_STOP_MS / GAP_STOP_DRIFT_M) so the
+// two engines can never drift apart on what counts as a stop.
+
+/** recorded_at is stored as an ISO string by the JS engine and as the raw
+ *  native timestamp by bufferCoord - parse either without guessing. */
+function recordedAtMs(v: string | number): number {
+  const n = Number(v);
+  if (Number.isFinite(n) && n > 1e12) return n;
+  const parsed = Date.parse(String(v));
+  return Number.isFinite(parsed) ? parsed : 0;
+}
 
 // Post-trip keep-alive window. When iOS terminates the app between quick stops,
 // a short next hop is too brief to cold-relaunch RNBG before it ends and is
@@ -177,6 +207,16 @@ function buildConfig(BGGeo: BgGeo): Record<string, unknown> {
     // stays off — we upload through our own offline sync queue, not RNBG's HTTP.
     persistMode: BGGeo.PERSIST_MODE_LOCATION ?? 1,
     autoSync: false,
+    // Bound the native store. With autoSync off NOTHING prunes it except our
+    // destroyLocations() after finalize — and a finalize that dies mid-flight
+    // (Eddie Doyle, 29 Jul 2026: iOS suspended the app 1s into a 2,053-coord
+    // finalize) leaves the store to grow without limit. Every later launch
+    // then drags the whole store across the bridge in reconcile, which is how
+    // a device bricks itself into a blank screen. 10k records ≈ 750mi at the
+    // 20m distanceFilter — far beyond any real journey; 3 days covers the
+    // longest observed deferral spans (Keir's overnight multileg).
+    maxRecordsToPersist: 10000,
+    maxDaysToPersist: 3,
     // Quieter logs in production.
     debug: false,
     logLevel: 0,
@@ -462,17 +502,56 @@ async function openNativeRecording(
 ): Promise<void> {
   const db = await getDatabase();
   const BGGeo = loadNativeModule();
-  // Start with a clean buffer. A native recording open is always a fresh start
-  // (the engine doesn't pre-buffer before recording), so any coords already in
-  // the table are stale leftovers from a prior recording that never finalized
-  // (app killed mid-drive). Clearing them stops stale coords mixing with this
-  // drive and being (mis)gap-trimmed — the buffer hygiene problem affecting
-  // ~1 in 5 users in the fleet diagnostics.
-  const cleared = await db.runAsync("DELETE FROM detection_coordinates");
-  if (cleared.changes > 0) {
-    logDetectionEvent("native_buffer_cleared_on_open", {
-      droppedCoords: cleared.changes,
-    }).catch(() => {});
+  // An ARMED buffer is not stale garbage - it is a deferred multileg payload
+  // still waiting to be turned into trips (finalize_multileg_deferred re-arms
+  // auto_recording_active around exactly this state). The unconditional clear
+  // below used to destroy it: Keir Fawcus, 29 Jul 2026, lost his entire
+  // multi-stop afternoon (818 coords) when the next morning's recording open
+  // wiped the queue his 11pm app-open had deferred. Finalize it into trips
+  // FIRST, then open clean. finalizeAutoTrip's re-entrancy guard makes the
+  // await safe, and a few seconds' delay opening the new recording costs
+  // nothing - RNBG's native store accumulates the new drive independently
+  // and reconcile drains it into the next finalize.
+  if (isFinalizeInFlight()) {
+    // A finalize owns the buffer right now (e.g. the boot stale-check racing
+    // this open). Awaiting it here could stall the open behind network work,
+    // and clearing under it is a data race - its own "Clear state" block and
+    // deferral logic manage the buffer. Skip both the rescue and the hygiene
+    // clear this once.
+    logDetectionEvent("native_open_skipped_clear_finalize_inflight", {}).catch(() => {});
+  } else {
+    const armed = await db.getFirstAsync<{ value: string }>(
+      "SELECT value FROM tracking_state WHERE key = 'auto_recording_active'"
+    );
+    if (armed?.value === "1") {
+      const pending = await db.getFirstAsync<{ n: number }>(
+        "SELECT COUNT(*) AS n FROM detection_coordinates"
+      );
+      if ((pending?.n ?? 0) > 0) {
+        logDetectionEvent("deferred_buffer_rescued_on_open", {
+          coords: pending?.n ?? 0,
+        }).catch(() => {});
+        try {
+          await finalizeAutoTrip();
+        } catch {
+          // Best-effort: even a failed rescue falls through to the clear,
+          // which is no worse than the old behaviour.
+        }
+      }
+    }
+    // Start with a clean buffer. A native recording open is always a fresh
+    // start (the engine doesn't pre-buffer before recording), so any coords
+    // still in the table now ARE stale leftovers from a prior recording that
+    // never finalized (app killed mid-drive) - the armed/deferred case was
+    // rescued above. Clearing them stops stale coords mixing with this drive
+    // and being (mis)gap-trimmed — the buffer hygiene problem affecting
+    // ~1 in 5 users in the fleet diagnostics.
+    const cleared = await db.runAsync("DELETE FROM detection_coordinates");
+    if (cleared.changes > 0) {
+      logDetectionEvent("native_buffer_cleared_on_open", {
+        droppedCoords: cleared.changes,
+      }).catch(() => {});
+    }
   }
   if (reason === "speed") {
     try {
@@ -520,6 +599,41 @@ async function handleNativeLocation(loc: NativeLocation): Promise<void> {
       "SELECT value FROM tracking_state WHERE key = 'auto_recording_active'"
     );
     if (recording?.value === "1") {
+      const lastFix = await db.getFirstAsync<{ lat: number; lng: number; recorded_at: string }>(
+        "SELECT lat, lng, recorded_at FROM detection_coordinates ORDER BY recorded_at DESC LIMIT 1"
+      );
+      if (lastFix) {
+        const lastMs = recordedAtMs(lastFix.recorded_at);
+        const gapMs = recordedAtMs(loc.timestamp) - lastMs;
+        if (lastMs && gapMs > GAP_STOP_MS) {
+          const driftM = haversineMeters(
+            lastFix.lat,
+            lastFix.lng,
+            loc.coords.latitude,
+            loc.coords.longitude
+          );
+          if (driftM < GAP_STOP_DRIFT_M) {
+            // The silence was a stop. Close the trip at the fix before it,
+            // BEFORE buffering this one, so the visit never joins the route.
+            // The keep-alive window then catches the drive away from the
+            // visit warm, exactly as it does after a stationary finalize.
+            logDetectionEvent("gap_stop_finalize", {
+              gapMs,
+              driftM: Math.round(driftM),
+            }).catch(() => {});
+            await finalizeAutoTrip();
+            try {
+              await loadNativeModule()?.destroyLocations();
+            } catch {}
+            await enterPostTripKeepAlive(db);
+            return;
+          }
+          logDetectionEvent("gap_stop_continued", {
+            gapMs,
+            driftM: Math.round(driftM),
+          }).catch(() => {});
+        }
+      }
       await bufferCoord(db, loc);
       return;
     }
@@ -581,6 +695,17 @@ async function handleNativeMotionChange(event: NativeMotionEvent): Promise<void>
         await openNativeRecording(event.location, "motion");
       }
     } else {
+      // Parked. If a "Not driving" cooldown is running, its job is done: it
+      // existed to stop the dismissed drive re-promoting while the car was
+      // still moving (10 May 2026). Left to run its full 20 minutes it also
+      // swallows the NEXT journey whole - Tom's 6-mile Oxted to Edenbridge
+      // run fitted inside one untouched (Class 19, 25 Aug 2026). Parking is
+      // the natural end of the journey that was dismissed, so clear it here
+      // and let a genuinely new drive be detected on its own merits.
+      if (await isNotDrivingCooldownActive()) {
+        await clearNotDrivingCooldown();
+        logDetectionEvent("not_driving_cleared_parked", {}).catch(() => {});
+      }
       // Stationary — finalize through the existing pipeline (trim, distance,
       // map-match, phantom guards, offline sync all reused).
       const recording = await db.getFirstAsync<{ value: string }>(
@@ -763,6 +888,13 @@ export async function destroyNativeLocations(): Promise<void> {
   }
 }
 
+// Hard ceiling on how many native fixes one reconcile will rebuild into the
+// JS buffer. 6,000 covers Eddie Doyle's 26-hour runaway store (2,054 coords)
+// three times over; anything bigger is pathological accumulation, and the
+// most RECENT fixes are the ones that belong to real recent driving. Keeping
+// the tail (not the head) matches how the multileg split consumes legs.
+const MAX_RECONCILE_COORDS = 6000;
+
 async function reconcileNativeBuffer(BGGeo: BgGeo): Promise<void> {
   try {
     const native = await BGGeo.getLocations();
@@ -773,19 +905,40 @@ async function reconcileNativeBuffer(BGGeo: BgGeo): Promise<void> {
         "SELECT COUNT(*) AS c FROM detection_coordinates"
       ))?.c ?? 0;
     if (native.length <= jsCount) return; // JS buffer already has everything
-    await db.runAsync("DELETE FROM detection_coordinates");
-    for (const loc of native) {
-      const c = loc.coords;
-      if (!c) continue;
-      await db.runAsync(
-        `INSERT INTO detection_coordinates (lat, lng, speed, accuracy, recorded_at)
-         VALUES (?, ?, ?, ?, ?)`,
-        [c.latitude, c.longitude, c.speed ?? null, c.accuracy ?? null, loc.timestamp]
-      );
+    const kept = native.length > MAX_RECONCILE_COORDS ? native.slice(-MAX_RECONCILE_COORDS) : native;
+    // One transaction + multi-row inserts. The old shape — one awaited
+    // runAsync per fix, no transaction — meant a big store produced thousands
+    // of serialized writes (each its own journal commit) on the app's single
+    // shared SQLite connection, starving every boot-path query behind it:
+    // the launch never finished, destroyLocations() never ran, and the store
+    // was even bigger next launch. ~40 statements now instead of ~6,000.
+    await db.execAsync("BEGIN IMMEDIATE");
+    try {
+      await db.runAsync("DELETE FROM detection_coordinates");
+      const CHUNK = 150; // 5 params/row, safely under SQLite's 999-variable cap
+      for (let i = 0; i < kept.length; i += CHUNK) {
+        const rows = kept.slice(i, i + CHUNK).filter((l) => l.coords);
+        if (rows.length === 0) continue;
+        const placeholders = rows.map(() => "(?, ?, ?, ?, ?)").join(", ");
+        const params: (number | string | null)[] = [];
+        for (const loc of rows) {
+          const c = loc.coords!;
+          params.push(c.latitude, c.longitude, c.speed ?? null, c.accuracy ?? null, loc.timestamp);
+        }
+        await db.runAsync(
+          `INSERT INTO detection_coordinates (lat, lng, speed, accuracy, recorded_at) VALUES ${placeholders}`,
+          params
+        );
+      }
+      await db.execAsync("COMMIT");
+    } catch (txErr) {
+      await db.execAsync("ROLLBACK").catch(() => {});
+      throw txErr;
     }
     logDetectionEvent("native_buffer_reconciled", {
       jsCount,
       nativeCount: native.length,
+      dropped: native.length - kept.length,
     }).catch(() => {});
   } catch (err) {
     logDetectionEvent("native_reconcile_error", {

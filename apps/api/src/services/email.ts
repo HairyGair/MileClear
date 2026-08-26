@@ -313,6 +313,60 @@ export async function sendContactEmail(
   });
 }
 
+/**
+ * "MileClear for teams" interest register - one email per submission so
+ * a company asking for a manager view is seen the day it asks. The row is
+ * already saved before this is called; the email is a notification, not
+ * the record.
+ */
+export async function sendTeamInterestEmail(d: {
+  email: string;
+  company: string | null;
+  drivers: string;
+  approval: string;
+  destination: string;
+  destinationDetail: string | null;
+  notes: string | null;
+  source: string | null;
+}): Promise<void> {
+  const subject = `Teams interest: ${d.company || d.email.split("@")[1]} (${d.drivers} drivers)`;
+  const row = (k: string, v: string | null) =>
+    v
+      ? `<tr><td style="padding:4px 12px 4px 0;color:#555;white-space:nowrap;">${escapeHtml(k)}</td><td style="padding:4px 0;color:#1a1a1a;">${escapeHtml(v)}</td></tr>`
+      : "";
+  const html = `
+    <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 560px; margin: 0 auto; padding: 32px 24px;">
+      <h2 style="color: #1a1a1a; margin-bottom: 8px;">Someone wants MileClear for a team</h2>
+      <table style="border-collapse:collapse;font-size:14px;margin:16px 0;">
+        ${row("Email", d.email)}
+        ${row("Company", d.company)}
+        ${row("Drivers", d.drivers)}
+        ${row("Approval", d.approval)}
+        ${row("Figures go to", d.destinationDetail ? `${d.destination} (${d.destinationDetail})` : d.destination)}
+        ${row("From page", d.source)}
+      </table>
+      ${d.notes ? `<div style="background: #f4f4f5; border-radius: 8px; padding: 16px; color: #1a1a1a; font-size: 14px; line-height: 1.6;">${escapeHtml(d.notes).replace(/\n/g, "<br/>")}</div>` : ""}
+      <p style="color: #888; font-size: 12px; margin-top: 20px;">Reply to this email to respond directly. The full register is in Admin &gt; Activity.</p>
+    </div>
+  `;
+
+  if (!transporter) {
+    if (process.env.NODE_ENV === "production") {
+      throw new Error("SMTP not configured - cannot send team interest email in production");
+    }
+    console.log(`[EMAIL] Team interest from ${d.email} (${d.drivers}) (dev only)`);
+    return;
+  }
+
+  await transporter.sendMail({
+    from: FROM,
+    to: SUPPORT_INBOX,
+    replyTo: d.email,
+    subject,
+    html,
+  });
+}
+
 export async function sendPasswordResetEmail(
   email: string,
   code: string
@@ -2414,6 +2468,54 @@ export async function sendWaitlistConfirmation(
   await transporter.sendMail({ from: FROM, to: email, subject, html });
 }
 
+/**
+ * Milesheet invite (P1 pilot). The link lands on the web accept page;
+ * a driver without an account registers first and the token survives the
+ * round trip. The raw token exists only in this email.
+ */
+export async function sendTeamInviteEmail(
+  email: string,
+  orgName: string,
+  token: string,
+  role: "admin" | "driver"
+): Promise<void> {
+  const base = process.env.API_BASE_URL || "https://mileclear.com";
+  const url = `${base}/milesheet/invite/${token}`;
+  const safeOrg = escapeHtml(orgName);
+  const isAdmin = role === "admin";
+  const subject = isAdmin
+    ? `You're the Milesheet admin for ${orgName}`
+    : `${orgName} has set you up for mileage claims`;
+  const html = `
+    <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 560px; margin: 0 auto; padding: 32px 24px;">
+      <h2 style="color: #1a1a1a; margin-bottom: 8px;">${isAdmin ? `Manage ${safeOrg}'s mileage claims on Milesheet` : `${safeOrg} uses Milesheet, from MileClear`}</h2>
+      <p style="color: #333; font-size: 15px; line-height: 1.6;">${
+        isAdmin
+          ? `You have been set up as the Milesheet admin for <strong>${safeOrg}</strong>. Accept below to open the portal: invite your drivers, see everyone's month in one place, approve it, and download a single file for payroll.`
+          : `Accept below and your business journeys are recorded automatically, so there is nothing to fill in on the road. ${safeOrg} covers the cost, and your personal journeys stay private to you.`
+      }</p>
+      <p style="margin: 24px 0;">
+        <a href="${url}" style="background: #6366f1; color: #ffffff; font-weight: 700; padding: 12px 28px; border-radius: 9999px; text-decoration: none; display: inline-block;">Accept invitation</a>
+      </p>
+      ${
+        isAdmin
+          ? ""
+          : `<p style="color: #333; font-size: 14px; line-height: 1.6;">Milesheet is the company side of <strong>MileClear</strong>. Install the MileClear app on your phone and sign in with this email address, and your journeys start recording.</p>`
+      }
+      <p style="color: #888; font-size: 12px;">The link is valid for 7 days. If you don't have an account yet you can create one on the same page.</p>
+    </div>
+  `;
+
+  if (!transporter) {
+    if (process.env.NODE_ENV === "production") {
+      throw new Error("SMTP not configured - cannot send team invite in production");
+    }
+    console.log(`[EMAIL] Team invite (${role}) for ${orgName} -> ${email}: ${url} (dev only)`);
+    return;
+  }
+  await transporter.sendMail({ from: FROM, to: email, replyTo: "gair@mileclear.com", subject, html });
+}
+
 export async function sendAccountantInviteEmail(
   email: string,
   inviterName: string,
@@ -2593,4 +2695,78 @@ export async function sendInvoiceEmail(args: InvoiceEmailArgs): Promise<{ subjec
   });
 
   return { subject };
+}
+
+/**
+ * Milesheet (Phase 2, 24 Aug 2026): "last month is ready to
+ * approve" nudge to an org admin, early in the following month. Points
+ * at the team portal rather than embedding numbers, since figures can
+ * still shift for unapproved drivers right up until the admin looks.
+ */
+export async function sendTeamMonthReadyEmail(
+  email: string,
+  orgName: string,
+  monthLabel: string
+): Promise<void> {
+  const url = `${process.env.API_BASE_URL || "https://mileclear.com"}/team`;
+  const safeOrg = escapeHtml(orgName);
+  const safeMonth = escapeHtml(monthLabel);
+  const subject = `${monthLabel} is ready to approve for ${orgName}`;
+  const html = `
+    <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 560px; margin: 0 auto; padding: 32px 24px;">
+      <h2 style="color: #1a1a1a; margin-bottom: 8px;">${safeMonth} is ready to approve</h2>
+      <p style="color: #333; font-size: 15px; line-height: 1.6;">${safeOrg}'s drivers have logged their mileage for ${safeMonth}. Open the team portal to review each driver's month, approve or query, and download the consolidated report when you are ready.</p>
+      <p style="margin: 24px 0;">
+        <a href="${url}" style="background: #f5a623; color: #030712; font-weight: 700; padding: 12px 28px; border-radius: 9999px; text-decoration: none; display: inline-block;">Open team portal</a>
+      </p>
+      <p style="color: #888; font-size: 12px;">You are getting this because you are an admin for ${safeOrg} on MileClear.</p>
+    </div>
+  `;
+
+  if (!transporter) {
+    console.log(`[EMAIL] Team month ready (${monthLabel}) for ${orgName} -> ${email} (dev only)`);
+    return;
+  }
+  await transporter.sendMail({ from: FROM, to: email, replyTo: "gair@mileclear.com", subject, html });
+}
+
+/**
+ * Milesheet manager nomination (Phase 1.5, 25 Aug 2026): sent to the
+ * manager a driver names via POST /team/nominate-manager, not to the
+ * driver. Same accent colour and structure as sendTeamInviteEmail's admin
+ * branch, since accepting this makes them a Milesheet org admin the same
+ * way. driverName and companyName both come from user input, so both are
+ * escaped before going into the HTML.
+ */
+export async function sendManagerNominationEmail(
+  email: string,
+  driverName: string,
+  companyName: string,
+  token: string
+): Promise<void> {
+  const base = process.env.API_BASE_URL || "https://mileclear.com";
+  const url = `${base}/milesheet/invite/${token}`;
+  const safeDriver = escapeHtml(driverName);
+  const safeCompany = escapeHtml(companyName);
+  const subject = `${driverName} has asked you to handle their mileage claims`;
+  const html = `
+    <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 560px; margin: 0 auto; padding: 32px 24px;">
+      <h2 style="color: #1a1a1a; margin-bottom: 8px;">${safeDriver} would like you to manage mileage claims for ${safeCompany}</h2>
+      <p style="color: #333; font-size: 15px; line-height: 1.6;"><strong>${safeDriver}</strong> at <strong>${safeCompany}</strong> uses MileClear to record their business mileage, and has asked you to handle their claims. Accepting below sets up Milesheet, the company side of MileClear, for ${safeCompany}.</p>
+      <p style="color: #333; font-size: 15px; line-height: 1.6;">Once you are set up, you can invite the rest of the team, see everyone's month in one place, approve it, and download a single file for payroll each month.</p>
+      <p style="margin: 24px 0;">
+        <a href="${url}" style="background: #6366f1; color: #ffffff; font-weight: 700; padding: 12px 28px; border-radius: 9999px; text-decoration: none; display: inline-block;">Accept and set up ${safeCompany}</a>
+      </p>
+      <p style="color: #888; font-size: 12px;">The link is valid for 7 days. If you don't have a MileClear account yet, you can create one on the same page. If you weren't expecting this, you can ignore it and nothing will be set up.</p>
+    </div>
+  `;
+
+  if (!transporter) {
+    if (process.env.NODE_ENV === "production") {
+      throw new Error("SMTP not configured - cannot send manager nomination in production");
+    }
+    console.log(`[EMAIL] Manager nomination from ${driverName} (${companyName}) -> ${email}: ${url} (dev only)`);
+    return;
+  }
+  await transporter.sendMail({ from: FROM, to: email, replyTo: "gair@mileclear.com", subject, html });
 }

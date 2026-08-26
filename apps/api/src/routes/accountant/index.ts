@@ -2,6 +2,7 @@ import crypto from "crypto";
 import { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { prisma } from "../../lib/prisma.js";
+import { logEvent } from "../../services/appEvents.js";
 import { authMiddleware } from "../../middleware/auth.js";
 import { premiumMiddleware } from "../../middleware/premium.js";
 import { sendAccountantInviteEmail } from "../../services/email.js";
@@ -10,6 +11,70 @@ import { generateTripsCsv, generateTripsPdf } from "../../services/export.js";
 import { getTaxYear } from "@mileclear/shared";
 
 const INVITE_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
+
+// How long granted access lasts before the accountant needs re-inviting.
+// Until 14 Aug 2026 it lasted forever: a link handed over for one tax
+// year still opened the user's whole account years later, after the
+// engagement had ended. Twelve months covers a full tax year plus the
+// 31 January filing deadline, which is the real unit of the relationship.
+const ACCESS_TTL_MS = 365 * 24 * 60 * 60 * 1000;
+
+/**
+ * Accountant links are bearer credentials that travel in a URL, so the
+ * database stores only a hash. Same reasoning (and same primitive) as
+ * refresh tokens in routes/auth. A dump of the table is then useless on
+ * its own: an attacker gets hashes, not working links.
+ *
+ * sha256 with no salt is deliberate: the token is 128 hex characters of
+ * CSPRNG output, so there is nothing to brute-force and lookups must be
+ * exact-match on an indexed column.
+ */
+function hashToken(token: string): string {
+  return crypto.createHash("sha256").update(token).digest("hex");
+}
+
+/**
+ * Resolve a bearer token from an accountant URL to a live access record.
+ *
+ * Centralised because the dashboard and the export route each did their
+ * own two-step check, and an expiry added to one and not the other is
+ * exactly the kind of drift that produced the never-expiring link in the
+ * first place.
+ *
+ * Returns a discriminated result rather than throwing so callers can map
+ * "revoked" and "expired" to different messages for the accountant.
+ */
+async function resolveAccountantAccess(token: string) {
+  const tokenHash = hashToken(token);
+
+  const access = await prisma.accountantAccess.findFirst({
+    where: { OR: [{ tokenHash }, { token }] },
+    include: {
+      user: { select: { id: true, displayName: true, fullName: true, email: true } },
+    },
+  });
+  if (!access) return { ok: false as const, status: 404, error: "Access not found or revoked" };
+
+  // Null expiresAt means a row predating the expiry column that the
+  // backfill has not reached. Treat it as expired rather than eternal:
+  // failing closed is the whole point of this change.
+  if (!access.expiresAt || access.expiresAt.getTime() <= Date.now()) {
+    return {
+      ok: false as const,
+      status: 403,
+      error: "This link has expired. Ask your client to send a new invite.",
+    };
+  }
+
+  // The originating invite must still be accepted — this is how a
+  // revocation by the user takes effect on an already-issued link.
+  const invite = await prisma.accountantInvite.findFirst({
+    where: { OR: [{ tokenHash }, { token }], status: "accepted" },
+  });
+  if (!invite) return { ok: false as const, status: 403, error: "Access has been revoked" };
+
+  return { ok: true as const, access };
+}
 
 const inviteBodySchema = z.object({
   email: z.string().email("Must be a valid email address"),
@@ -72,6 +137,7 @@ export async function accountantRoutes(app: FastifyInstance) {
           userId,
           email: normalizedEmail,
           token,
+          tokenHash: hashToken(token),
           status: "pending",
           expiresAt,
         },
@@ -133,7 +199,7 @@ export async function accountantRoutes(app: FastifyInstance) {
         permissions: acc.permissions,
         lastAccessedAt: acc.lastAccessedAt,
         createdAt: acc.createdAt,
-        expiresAt: null,
+        expiresAt: acc.expiresAt,
         source: "access" as const,
       }));
 
@@ -203,9 +269,12 @@ export async function accountantRoutes(app: FastifyInstance) {
 
       const { token } = paramsParsed.data;
 
+      // Match on the hash. `token` is still accepted for invites issued
+      // before the hash column existed; drop that half once backfilled.
+      const tokenHash = hashToken(token);
       const invite = await prisma.accountantInvite.findFirst({
         where: {
-          token,
+          OR: [{ tokenHash }, { token }],
           status: "pending",
           expiresAt: { gt: new Date() },
         },
@@ -223,11 +292,17 @@ export async function accountantRoutes(app: FastifyInstance) {
             userId: invite.userId,
             accountantEmail: invite.email,
             token,
+            tokenHash,
             permissions: "read",
+            expiresAt: new Date(Date.now() + ACCESS_TTL_MS),
           },
           update: {
             token,
+            tokenHash,
             lastAccessedAt: new Date(),
+            // Re-accepting a fresh invite renews the window rather than
+            // extending the original one indefinitely.
+            expiresAt: new Date(Date.now() + ACCESS_TTL_MS),
           },
         }),
         prisma.accountantInvite.update({
@@ -254,37 +329,24 @@ export async function accountantRoutes(app: FastifyInstance) {
 
       const { token } = paramsParsed.data;
 
-      const access = await prisma.accountantAccess.findUnique({
-        where: { token },
-        include: {
-          user: {
-            select: {
-              id: true,
-              displayName: true,
-              fullName: true,
-              email: true,
-            },
-          },
-        },
-      });
-
-      if (!access) {
-        return reply.status(404).send({ error: "Access not found or revoked" });
+      const resolved = await resolveAccountantAccess(token);
+      if (!resolved.ok) {
+        return reply.status(resolved.status).send({ error: resolved.error });
       }
+      const { access } = resolved;
 
-      // Verify the originating invite hasn't been revoked since access was granted
-      const invite = await prisma.accountantInvite.findFirst({
-        where: { token, status: "accepted" },
-      });
-
-      if (!invite) {
-        return reply.status(403).send({ error: "Access has been revoked" });
-      }
-
-      // Update lastAccessedAt
       await prisma.accountantAccess.update({
-        where: { token },
+        where: { id: access.id },
         data: { lastAccessedAt: new Date() },
+      });
+
+      // Durable access record. lastAccessedAt is overwritten on each hit,
+      // so on its own it cannot answer "how often has my accountant
+      // looked, and did they look after I revoked them?". The user can
+      // see these events; that is the point.
+      logEvent("accountant.dashboard_viewed", access.userId, {
+        accessId: access.id,
+        accountantEmail: access.accountantEmail,
       });
 
       const userId = access.userId;
@@ -303,8 +365,11 @@ export async function accountantRoutes(app: FastifyInstance) {
       const [summary, expenseSummary, recentTrips] = await Promise.all([
         fetchExportSummary(userId, taxYear),
         fetchExpenseSummary(userId, taxYear),
+        // Business trips only. An accountant needs the deductible journeys,
+        // not a list of where their client drove at the weekend, and the
+        // start/end addresses below make that distinction concrete.
         prisma.trip.findMany({
-          where: { userId },
+          where: { userId, classification: { not: "personal" } },
           orderBy: { startedAt: "desc" },
           take: 20,
           select: {
@@ -357,26 +422,22 @@ export async function accountantRoutes(app: FastifyInstance) {
         return reply.status(400).send({ error: "taxYear is required" });
       }
 
-      const access = await prisma.accountantAccess.findUnique({
-        where: { token },
-      });
-
-      if (!access) {
-        return reply.status(404).send({ error: "Access not found or revoked" });
+      const resolved = await resolveAccountantAccess(token);
+      if (!resolved.ok) {
+        return reply.status(resolved.status).send({ error: resolved.error });
       }
-
-      // Verify the originating invite hasn't been revoked
-      const invite = await prisma.accountantInvite.findFirst({
-        where: { token, status: "accepted" },
-      });
-
-      if (!invite) {
-        return reply.status(403).send({ error: "Access has been revoked" });
-      }
+      const { access } = resolved;
 
       await prisma.accountantAccess.update({
-        where: { token },
+        where: { id: access.id },
         data: { lastAccessedAt: new Date() },
+      });
+
+      logEvent("accountant.export_downloaded", access.userId, {
+        accessId: access.id,
+        accountantEmail: access.accountantEmail,
+        format,
+        taxYear,
       });
 
       const dateTag = new Date().toISOString().slice(0, 10).replace(/-/g, "");
