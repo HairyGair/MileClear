@@ -63,7 +63,7 @@
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#ffffff"
+        "backgroundColor": "#030712"
       },
       "package": "com.mileclear.app",
       "versionCode": 1,
