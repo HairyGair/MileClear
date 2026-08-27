@@ -520,6 +520,10 @@ export interface AutoSplitResult {
   cutTimestamps: Date[];
 }
 
+/** A hop across a cut longer than this was driven, not shuffled: the phone
+ *  slept through the stop and woke up down the road. */
+export const AUTO_SPLIT_STOP_HOP_MILES = 0.15;
+
 /**
  * Divide the parent's stored distance between its legs, in proportion to the
  * ground each leg covers.
@@ -532,20 +536,30 @@ export interface AutoSplitResult {
  * its breadcrumbs. A user who never asked for this must not lose road miles
  * off a tax record to it.
  *
- * Sharing the parent figure keeps whatever accuracy the parent had. The legs
- * still sum to slightly less than the parent, by exactly the fraction of the
- * trail that lies inside a stop — which is the correction being made.
+ * The hop ACROSS each cut needs deciding too, and it is not always the same
+ * thing. Where the phone kept reporting through the stop it is a few metres
+ * of jitter in a car park, and dropping it is the correction. Where the phone
+ * slept it can be most of a mile — Rachel's 27 Aug trip 8319b610 wakes 1.38 km
+ * after the stop — and those are miles she really drove, so they belong to the
+ * leg that follows. Dropping them was costing 1.58 miles off a 3.77-mile trip
+ * in the second dry-run.
  */
 export function shareParentDistance(parentMiles: number, legs: SplitCoord[][]): number[] {
-  const legHav = legs.map((leg) => legDistanceMiles(leg));
-  const wholeHav = legs.flat().reduce((sum, _c, i, all) => {
-    if (i === 0) return sum;
-    return sum + haversineDistance(all[i - 1].lat, all[i - 1].lng, all[i].lat, all[i].lng);
-  }, 0);
-  // No usable trail to scale against: fall back to each leg's own haversine.
-  if (!(wholeHav > 0) || !(parentMiles > 0)) return legHav.map((m) => Math.round(m * 100) / 100);
-  const scale = parentMiles / wholeHav;
-  return legHav.map((m) => Math.round(m * scale * 100) / 100);
+  const attributed = legs.map((leg) => legDistanceMiles(leg));
+  let stopped = 0;
+  for (let k = 1; k < legs.length; k++) {
+    const from = legs[k - 1][legs[k - 1].length - 1];
+    const to = legs[k][0];
+    const hop = haversineDistance(from.lat, from.lng, to.lat, to.lng);
+    if (hop <= AUTO_SPLIT_STOP_HOP_MILES) stopped += hop;
+    else attributed[k] += hop;
+  }
+  const trailTotal = attributed.reduce((a, b) => a + b, 0) + stopped;
+  if (!(trailTotal > 0) || !(parentMiles > 0)) {
+    return attributed.map((m) => Math.round(m * 100) / 100);
+  }
+  const scale = parentMiles / trailTotal;
+  return attributed.map((m) => Math.round(m * scale * 100) / 100);
 }
 
 /**

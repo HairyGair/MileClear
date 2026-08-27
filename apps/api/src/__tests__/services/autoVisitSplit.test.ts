@@ -148,17 +148,43 @@ describe("shareParentDistance", () => {
     expect(shared[0]).toBeGreaterThan(shared[1] * 3);
   });
 
-  it("leaves the stop out: legs sum to less than the parent", () => {
-    // Half of leg two is a car going nowhere, so the driving legs cannot
-    // claim the whole parent figure between them.
+  it("drops the shuffling about at a stop the phone stayed awake through", () => {
+    // Jitter while parked: real fixes, no journey. Those metres should not
+    // survive into either leg.
     const withVisit = route([
       { n: 50, speed: DRIVING },
       { n: 40, speed: STOPPED },
       { n: 50, speed: DRIVING },
     ]);
-    const cut = planAutoSplit(withVisit);
-    const parts = partitionAtCuts(withVisit, cut);
-    expect(shareParentDistance(10, parts).reduce((a, b) => a + b, 0)).toBeLessThan(10);
+    const cut = planAutoSplit(withVisit)[0];
+    // Nudge the coords either side of the cut apart by ~50 m of car-park drift.
+    withVisit[cut] = { ...withVisit[cut], lat: withVisit[cut].lat + 0.00045 };
+    const parts = partitionAtCuts(withVisit, [cut]);
+    const shared = shareParentDistance(10, parts);
+    expect(shared.reduce((a, b) => a + b, 0)).toBeLessThan(10);
+  });
+
+  it("keeps the miles when the phone slept through the stop and woke down the road", () => {
+    // Rachel's f8e190f2, 26 Aug: 859 seconds of silence at a client's house and
+    // the next fix 501 m away. Slow enough over that long to read as a stop,
+    // far enough that the hop across it is a third of a mile she really drove.
+    const before = route([{ n: 50, speed: DRIVING }]);
+    const last = before[before.length - 1];
+    const after: SplitCoord[] = [];
+    for (let i = 0; i < 50; i++) {
+      after.push({
+        lat: last.lat + 0.0045 + i * 0.00036, // ~500 m wake gap
+        lng: -0.3271,
+        speed: DRIVING,
+        recordedAt: new Date(last.recordedAt.getTime() + 14 * 60_000 + i * 10_000),
+      });
+    }
+    const coords = [...before, ...after];
+    const parts = partitionAtCuts(coords, planAutoSplit(coords));
+    const shared = shareParentDistance(10, parts);
+    expect(shared.reduce((a, b) => a + b, 0)).toBeCloseTo(10, 1);
+    // and those miles land on the leg that drove them
+    expect(shared[1]).toBeGreaterThan(shared[0]);
   });
 
   it("falls back to raw leg distances when there is nothing to scale against", () => {
