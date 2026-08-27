@@ -5,6 +5,7 @@ import {
   legDistanceMiles,
   AUTO_SPLIT_MIN_DWELL_SEC,
   AUTO_SPLIT_MAX_CUTS,
+  shareParentDistance,
   type SplitCoord,
 } from "../../services/tripSplit.js";
 
@@ -120,5 +121,71 @@ describe("planAutoSplit", () => {
     }
     const cuts = planAutoSplit([...before, ...after]);
     expect(cuts).toEqual([before.length - 1]);
+  });
+});
+
+describe("shareParentDistance", () => {
+  // One continuous trail cut in two, which is what a split actually produces.
+  const trail = route([{ n: 50, speed: DRIVING }, { n: 50, speed: DRIVING }]);
+  const legs = [trail.slice(0, 50), trail.slice(50)];
+
+  it("hands the parent's own distance out, rather than re-deriving it", () => {
+    // The parent is map-matched to 10 miles; its raw breadcrumbs sum to less.
+    // Splitting must not quietly swap the road figure for the straight lines.
+    const shared = shareParentDistance(10, legs);
+    const total = shared.reduce((a, b) => a + b, 0);
+    // Not exactly 10: the hop across the cut belongs to no leg, which is the
+    // point. On a clean trail that is one sample interval, ~1%.
+    expect(total).toBeGreaterThan(9.8);
+    expect(total).toBeLessThanOrEqual(10.01);
+    // And the naive version really would have lost most of it.
+    expect(legs.reduce((sum, leg) => sum + legDistanceMiles(leg), 0)).toBeLessThan(5);
+  });
+
+  it("gives a leg that covered more ground the larger share", () => {
+    const uneven = [trail.slice(0, 80), trail.slice(80)];
+    const shared = shareParentDistance(10, uneven);
+    expect(shared[0]).toBeGreaterThan(shared[1] * 3);
+  });
+
+  it("leaves the stop out: legs sum to less than the parent", () => {
+    // Half of leg two is a car going nowhere, so the driving legs cannot
+    // claim the whole parent figure between them.
+    const withVisit = route([
+      { n: 50, speed: DRIVING },
+      { n: 40, speed: STOPPED },
+      { n: 50, speed: DRIVING },
+    ]);
+    const cut = planAutoSplit(withVisit);
+    const parts = partitionAtCuts(withVisit, cut);
+    expect(shareParentDistance(10, parts).reduce((a, b) => a + b, 0)).toBeLessThan(10);
+  });
+
+  it("falls back to raw leg distances when there is nothing to scale against", () => {
+    expect(shareParentDistance(0, legs).every((m) => m >= 0)).toBe(true);
+  });
+});
+
+describe("planAutoSplit - shift guard", () => {
+  it("refuses a trip with more stops than the cap rather than picking some", () => {
+    // A gig shift: six waits, none of which the server can tell from a visit.
+    // The fleet dry-run wanted to split 620 trips over 48h, mostly these.
+    const segments: Array<{ n: number; speed: number }> = [{ n: 50, speed: DRIVING }];
+    for (let i = 0; i < 6; i++) {
+      segments.push({ n: 40, speed: STOPPED });
+      segments.push({ n: 50, speed: DRIVING });
+    }
+    expect(planAutoSplit(route(segments))).toEqual([]);
+  });
+
+  it("still splits a round with two visits in it", () => {
+    const coords = route([
+      { n: 50, speed: DRIVING },
+      { n: 40, speed: STOPPED },
+      { n: 50, speed: DRIVING },
+      { n: 40, speed: STOPPED },
+      { n: 50, speed: DRIVING },
+    ]);
+    expect(planAutoSplit(coords)).toHaveLength(2);
   });
 });

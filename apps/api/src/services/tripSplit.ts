@@ -280,9 +280,21 @@ export const AUTO_SPLIT_MIN_DWELL_SEC = 240;
 /** Each resulting leg must cover at least this much ground — kills the
  *  arrival dwell, where the "leg" after the cut is a few metres of jitter. */
 export const AUTO_SPLIT_MIN_LEG_MILES = 0.25;
-/** More cuts than this on one trip is a delivery run, not a round of visits:
- *  leave it to the user-confirmed flow, which can show them all. */
-export const AUTO_SPLIT_MAX_CUTS = 5;
+/**
+ * At most two cuts, and only on a short trip. Both bounds come from a
+ * fleet dry-run on 27 Aug 2026 that talked me out of the first version:
+ * over 48 hours it wanted to split 620 of 2,005 trips across 236 users.
+ * The extra ones were not welds — they were gig shifts, 71 miles over six
+ * hours, 143 over twenty — where every wait at a restaurant reads as a
+ * dwell and only the driver knows which pauses were drops. That is the case
+ * the user-confirmed flow above was BUILT for, and it must keep it.
+ *
+ * A trip that needs three or more cuts is a working shift, not a journey
+ * with a visit in it. Hand it back to the flow that can ask.
+ */
+export const AUTO_SPLIT_MAX_CUTS = 2;
+/** Above this, it is a shift or a motorway run, not a hop between stops. */
+export const AUTO_SPLIT_MAX_TRIP_MILES = 20;
 
 /**
  * Choose the cuts a trip can be split on with no human in the loop. Returns
@@ -295,12 +307,12 @@ export const AUTO_SPLIT_MAX_CUTS = 5;
 export function planAutoSplit(coords: SplitCoord[]): number[] {
   if (coords.length < MIN_LEG_COORDS * 2) return [];
 
-  const candidates = detectDwells(coords)
-    .filter((d) => d.dwellSec >= AUTO_SPLIT_MIN_DWELL_SEC)
-    .sort((a, b) => b.dwellSec - a.dwellSec)   // longest stops win the cap
-    .slice(0, AUTO_SPLIT_MAX_CUTS)
-    .map((d) => d.cutIndex)
-    .sort((a, b) => a - b);
+  const dwells = detectDwells(coords).filter((d) => d.dwellSec >= AUTO_SPLIT_MIN_DWELL_SEC);
+  // Deliberately NOT "take the longest two". Needing to choose is itself the
+  // evidence that this is a multi-stop shift rather than one interrupted
+  // journey, and picking two of six stops would leave a mess no one asked for.
+  if (dwells.length > AUTO_SPLIT_MAX_CUTS) return [];
+  const candidates = dwells.map((d) => d.cutIndex).sort((a, b) => a - b);
 
   // Validate against the legs each cut would actually produce, dropping the
   // weakest offender until what remains is legal. Checking a cut in isolation
@@ -509,6 +521,34 @@ export interface AutoSplitResult {
 }
 
 /**
+ * Divide the parent's stored distance between its legs, in proportion to the
+ * ground each leg covers.
+ *
+ * NOT the same as re-deriving each leg with legDistanceMiles, which is what
+ * the user-confirmed split does and what the first version of this did. The
+ * dry-run showed why it matters: a 153-mile trip lost 8.8 miles to that, and
+ * the loss was not the shuffling about at the stops — it was the parent's
+ * map-matched road distance being quietly replaced by a straight-line sum of
+ * its breadcrumbs. A user who never asked for this must not lose road miles
+ * off a tax record to it.
+ *
+ * Sharing the parent figure keeps whatever accuracy the parent had. The legs
+ * still sum to slightly less than the parent, by exactly the fraction of the
+ * trail that lies inside a stop — which is the correction being made.
+ */
+export function shareParentDistance(parentMiles: number, legs: SplitCoord[][]): number[] {
+  const legHav = legs.map((leg) => legDistanceMiles(leg));
+  const wholeHav = legs.flat().reduce((sum, _c, i, all) => {
+    if (i === 0) return sum;
+    return sum + haversineDistance(all[i - 1].lat, all[i - 1].lng, all[i].lat, all[i].lng);
+  }, 0);
+  // No usable trail to scale against: fall back to each leg's own haversine.
+  if (!(wholeHav > 0) || !(parentMiles > 0)) return legHav.map((m) => Math.round(m * 100) / 100);
+  const scale = parentMiles / wholeHav;
+  return legHav.map((m) => Math.round(m * scale * 100) / 100);
+}
+
+/**
  * Split a welded trip at its visit boundaries WITHOUT asking, and without
  * deleting anything.
  *
@@ -533,12 +573,14 @@ export async function autoSplitVisitWelds(args: {
   if (parent.isManualEntry || parent.isPhantomTrip) return null;
   if (parent.endedAt == null) return null;
 
+  if (parent.distanceMiles > AUTO_SPLIT_MAX_TRIP_MILES) return null;
+
   const coords = await loadCoords(parent.id);
   const cutIndices = planAutoSplit(coords);
   if (cutIndices.length === 0) return null;
 
   const legs = partitionAtCuts(coords, cutIndices);
-  const legMiles = legs.map((leg) => legDistanceMiles(leg));
+  const legMiles = shareParentDistance(parent.distanceMiles, legs);
   const result: AutoSplitResult = {
     tripId: parent.id,
     legs: legs.length,
