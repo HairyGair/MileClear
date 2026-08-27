@@ -913,7 +913,7 @@ export interface BillingStatus {
   subscriptionStatus: "active" | "canceled" | "past_due" | "none";
   cancelAtPeriodEnd: boolean;
   currentPeriodEnd: string | null;
-  subscriptionPlatform: "apple" | "stripe" | "none";
+  subscriptionPlatform: "apple" | "google" | "stripe" | "none";
   // Whether the active Pro comes from a paid subscription or banked referral
   // credit. referralProUntil is the referral-credit expiry (null if none).
   premiumSource?: "subscription" | "referral" | "none";
@@ -1342,7 +1342,7 @@ export interface AdminUserDetail extends AdminUserSummary {
   totalMiles: number;
   totalEarningsPence: number;
   // Monetisation
-  subscriptionPlatform?: "apple" | "stripe" | "none";
+  subscriptionPlatform?: "apple" | "google" | "stripe" | "none";
   /** "sandbox" when the Apple transaction was seen on a sandbox webhook. */
   subscriptionEnvironment?: "production" | "sandbox" | null;
   subscriptionPeriod?: "monthly" | "annual" | null;

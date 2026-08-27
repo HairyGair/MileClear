@@ -1,0 +1,26 @@
+This is the first MileClear build on Android: 1.3.9 (2), in a Google Play closed test. It is the same code as the iPhone app; what has never been done is running it on real Android phones, and that is the whole job here. Google needs 12 opted-in testers for 14 days before it can go to production, so installing it and keeping it on the phone is useful even if you only drive once.
+
+JOIN: [JOIN LINK]
+
+INSTALL AND SIGN IN (start here):
+Open the join link on the phone, opt in, install from Google Play. Sign in with Google (new on Android) or email and password. There is no Apple Sign-In on Android; if your account was created with Apple on an iPhone, say so and I will sort it. When Android asks for location, choose "Allow all the time" (it often asks in two steps; if you only get "While using", go to Settings > Apps > MileClear > Permissions > Location). If the app crashes on launch or sign-in loops, stop there and report it with the phone model and Android version.
+
+EXPECT "BASIC TRACKING":
+The recording engine used on iPhone needs a licence we have not bought for Android yet, so this build uses the JS engine and says so. That is expected, not a fault. Automatic recording still works, but it is the part with the least evidence on Android.
+
+AUTOMATIC RECORDING - the big one:
+Drive somewhere with the app swiped away, stop ten minutes, drive back. Every leg should appear as its own trip within a minute of opening the app, with the route drawn on the map. Then leave the app closed overnight and drive the next morning. Some phones (Samsung, Xiaomi, Huawei, OnePlus) kill background apps hard; if a drive is missed, tell us the model and whether battery optimisation is on for MileClear. Use "Missing a trip you made?" in the app; the diagnostic it attaches is what we fix from.
+
+START TRIP AND SHIFTS:
+Start Trip, drive, I've Arrived, save. Then a shift with two legs and a stop between: both trips under the shift, scorecard at the end.
+
+MANUAL TRIP:
+Add a past trip by address. The road route should draw, not a straight line.
+
+QUICK PASS ON THE REST:
+Classify a trip as business and check the HMRC figure moves (55p/25p, 24p motorbike). Fuel prices load for your area. Add an earning and an expense and check they sync. Page through the Self Assessment wizard.
+
+NOT ON ANDROID (do not report):
+Live Activities, Dynamic Island, Siri, CarPlay, widgets, Apple Sign-In. Pro cannot be bought yet (Google Play Billing is still being set up); ask me and I will switch Pro on for your account.
+
+FEEDBACK: support@mileclear.com or the in-app Feedback screen. For a missed drive use "Missing a trip you made?" instead, because it attaches the diagnostic.

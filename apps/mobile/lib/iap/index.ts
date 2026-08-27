@@ -54,6 +54,31 @@ export function isIapAvailable(): boolean {
   return loadIapModule() !== null;
 }
 
+/**
+ * Whether the app may hand the user off to Stripe Checkout in a browser.
+ * Google Play's payments policy forbids steering to an external payment page
+ * for digital goods, so a native Android build must never open Stripe even
+ * when Play Billing is unavailable. iOS, Expo Go and dev builds keep the
+ * fallback.
+ */
+export function externalCheckoutAllowed(): boolean {
+  if (isAndroid && isNativeBuild) return false;
+  return true;
+}
+
+/**
+ * Copy shown in place of the Stripe fallback when external checkout is not
+ * allowed and the store is unavailable. Deliberately a plain statement with
+ * no link: opening the website from here would still count as steering.
+ */
+export const EXTERNAL_CHECKOUT_BLOCKED_TITLE = "Google Play Billing is not available";
+export const EXTERNAL_CHECKOUT_BLOCKED_MESSAGE =
+  "Google Play Billing is not available on this device. Pro can be bought on the website at mileclear.com and works on every device.";
+
+/** Deep link to Google Play's subscription management for our Pro SKU. */
+export const PLAY_SUBSCRIPTIONS_URL =
+  "https://play.google.com/store/account/subscriptions?sku=premium&package=com.mileclear.app";
+
 /** Which store backs the current platform — decides the validate endpoint. */
 export function iapStore(): "apple" | "google" | null {
   if (!isIapAvailable()) return null;

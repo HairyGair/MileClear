@@ -9,6 +9,7 @@ import {
   Alert,
   Platform,
   TextInput,
+  Linking,
 } from "react-native";
 import { AppModal } from "../../components/AppModal";
 import { Ionicons } from "@expo/vector-icons";
@@ -31,6 +32,7 @@ import {
   getSubscriptionProduct,
   restorePurchases,
   iapStore,
+  PLAY_SUBSCRIPTIONS_URL,
 } from "../../lib/iap/index";
 import { validateGooglePurchase } from "../../lib/api/billingGoogle";
 import { AvatarPicker } from "../../components/avatars/AvatarPicker";
@@ -503,6 +505,26 @@ export default function ProfileScreen() {
                       </Text>
                     </TouchableOpacity>
                   </>
+                ) : billing?.subscriptionPlatform === "google" ||
+                  (Platform.OS === "android" && billing?.subscriptionPlatform !== "stripe") ? (
+                  <>
+                    <Text style={styles.subDetail}>Managed by Google Play</Text>
+                    <TouchableOpacity
+                      onPress={() => Linking.openURL(PLAY_SUBSCRIPTIONS_URL).catch(() => {})}
+                      accessibilityRole="link"
+                      accessibilityLabel="Manage subscription in Google Play"
+                    >
+                      <Text style={[styles.subLink, { color: "#3b82f6" }]}>
+                        Manage in Google Play
+                      </Text>
+                    </TouchableOpacity>
+                  </>
+                ) : Platform.OS === "android" ? (
+                  // Stripe-billed user on Android: Play policy means no link
+                  // to the website from here, just say where it is managed.
+                  <Text style={styles.subDetail}>
+                    This subscription was bought on the website. Manage or cancel it from your account at mileclear.com.
+                  </Text>
                 ) : billing?.cancelAtPeriodEnd ? (
                   <Text style={styles.subDetail}>
                     Cancels on{" "}

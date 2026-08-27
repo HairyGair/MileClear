@@ -11,7 +11,13 @@ import { useRouter } from "expo-router";
 import * as FileSystem from "expo-file-system";
 import { uploadCsvPreview, confirmCsvImport } from "../lib/api/earnings";
 import { useUser } from "../lib/user/context";
-import { isIapAvailable, purchaseSubscription } from "../lib/iap/index";
+import {
+  isIapAvailable,
+  purchaseSubscription,
+  externalCheckoutAllowed,
+  EXTERNAL_CHECKOUT_BLOCKED_TITLE,
+  EXTERNAL_CHECKOUT_BLOCKED_MESSAGE,
+} from "../lib/iap/index";
 import { createCheckoutSession } from "../lib/api/billing";
 import * as WebBrowser from "expo-web-browser";
 
@@ -206,6 +212,8 @@ export default function CsvImportScreen() {
       try {
         if (isIapAvailable()) {
           await purchaseSubscription("monthly", user?.id);
+        } else if (!externalCheckoutAllowed()) {
+          Alert.alert(EXTERNAL_CHECKOUT_BLOCKED_TITLE, EXTERNAL_CHECKOUT_BLOCKED_MESSAGE);
         } else {
           const res = await createCheckoutSession();
           if (res.data?.url) await WebBrowser.openBrowserAsync(res.data.url);

@@ -12,26 +12,17 @@
 //   "aware"     — refund granted, refund request filed (email only,
 //                 no push — informational, doesn't need immediate action)
 
-import nodemailer from "nodemailer";
 import { prisma } from "../lib/prisma.js";
 import { sendPushToUser } from "../lib/push.js";
 import { logEvent } from "./appEvents.js";
 import { postToChannel } from "./discord.js";
 import { syncProMemberRole } from "./discordBot.js";
 import { applyEnvironmentPolicy } from "./billingAlertPolicy.js";
+import { sendAdminEmail } from "./email.js";
 
-const transporter =
-  process.env.BREVO_SMTP_USER && process.env.BREVO_SMTP_KEY
-    ? nodemailer.createTransport({
-        host: "smtp-relay.brevo.com",
-        port: 587,
-        auth: {
-          user: process.env.BREVO_SMTP_USER,
-          pass: process.env.BREVO_SMTP_KEY,
-        },
-      })
-    : null;
-
+// Delivery rides email.ts's transport chain (Resend HTTP first, Brevo
+// fallback) rather than a private SMTP transport, which failed 2 of 7
+// nights on the money route.
 const FROM = process.env.EMAIL_FROM || "MileClear <noreply@mileclear.com>";
 // Override via env if the recipient changes (handover, second admin, etc).
 const ADMIN_EMAIL = process.env.BILLING_ALERT_EMAIL || "anthonygair@icloud.com";
@@ -88,7 +79,6 @@ async function notifyAdminsByPush(input: BillingAlertInput): Promise<number> {
 }
 
 async function notifyAdminByEmail(input: BillingAlertInput): Promise<boolean> {
-  if (!transporter) return false;
   const subject = `[MileClear ${input.tier === "act_now" ? "⚠️ ACTION" : input.tier === "celebrate" ? "✓" : "•"}] ${input.title}`;
 
   const detailLines = [
@@ -120,7 +110,7 @@ async function notifyAdminByEmail(input: BillingAlertInput): Promise<boolean> {
 </body></html>`;
 
   try {
-    await transporter.sendMail({
+    await sendAdminEmail({
       from: FROM,
       to: ADMIN_EMAIL,
       subject,
