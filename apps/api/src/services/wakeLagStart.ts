@@ -34,7 +34,17 @@ import { resolveRouteDistance } from "./routing.js";
 import { logEvent } from "./appEvents.js";
 
 export const WAKE_LAG_MIN_MILES = 0.15;
-export const WAKE_LAG_MAX_MILES = 0.6;
+// 0.6 -> 0.9 on 27 Aug 2026. Measured, not guessed: Rachel Thorndyke's native
+// engine repeatedly armed 0.79 and 0.80 miles out (Maydale Farm 26 Aug 13:07,
+// Barrow 27 Aug 16:07), so both drives fell through this ceiling and came back
+// at her as "missed journeys" instead of being folded into the trip they
+// belong to. The extension stays as conservative as it was — previous end must
+// be a real stop, the added distance is the ROUTED figure or nothing, and
+// distance only ever increases — so widening the window changes which gaps are
+// eligible, not how carefully each one is judged. MISSED_WAKE_LAG_MILES stays
+// at 0.6 deliberately: when this fires the gap closes to zero and no proposal
+// is generated anyway, and when it declines the gap SHOULD still be offered.
+export const WAKE_LAG_MAX_MILES = 0.9;
 export const WAKE_LAG_MIN_GAP_MS = 5 * 60 * 1000;
 export const WAKE_LAG_MAX_GAP_MS = 24 * 60 * 60 * 1000;
 

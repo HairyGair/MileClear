@@ -26,6 +26,7 @@ import {
 } from "./activation.js";
 import { runDiscordProSyncJob } from "./discordProSync.js";
 import { runGeocodeMissingAddressesJob } from "./geocodeMissingAddresses.js";
+import { runVisitSplitJob } from "./visitSplit.js";
 import { runTaxTipOfTheDayJob } from "./taxTipOfTheDay.js";
 import { runWeeklyDigestJob } from "./weeklyDigest.js";
 import { runTaxDeadlineRemindersJob } from "./taxDeadlineReminders.js";
@@ -1592,6 +1593,15 @@ export function startNotificationJobs(): void {
       () => void runJob("geocode_missing_addresses", runGeocodeMissingAddressesJob),
       INTERVAL_MS
     );
+
+    // Visit auto-split: every 30 minutes, cut welded trips at the visits
+    // inside them. Claims trips by creation time in a 30-75 minute window, so
+    // the tick must stay narrower than that window or trips slip past
+    // unexamined. Leaves the interior stop addresses null; the geocode job
+    // above names them on its next pass.
+    const VISIT_SPLIT_INTERVAL_MS = 30 * 60 * 1000;
+    void runJob("visit_auto_split", runVisitSplitJob);
+    setInterval(() => void runJob("visit_auto_split", runVisitSplitJob), VISIT_SPLIT_INTERVAL_MS);
 
     // Mileage milestone celebrations: daily cron. Checks if any
     // Discord-linked driver crossed 1k/5k/10k/25k business miles

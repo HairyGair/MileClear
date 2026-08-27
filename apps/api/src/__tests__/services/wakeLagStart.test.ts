@@ -84,12 +84,25 @@ describe("resolveWakeLagStart", () => {
     expect(d).toMatchObject({ ok: false, reason: "gap_below_min" });
   });
 
-  it("skips when the hop is 0.6 mi or more", () => {
+  it("covers a 0.8 mi wake lag, which the native engine really does produce", () => {
+    // Ceiling raised 0.6 -> 0.9 on 27 Aug 2026. Rachel Thorndyke's engine armed
+    // 0.79 and 0.80 mi out on consecutive days; at 0.6 those drives lost their
+    // opening mileage and came back to her as phantom "missed journeys".
     const d = resolveWakeLagStart({
       prevTrip: prev(),
-      newTrip: next({ startLng: HOME.lng + 0.016 }), // ~0.69 mi
+      newTrip: next({ startLng: HOME.lng + 0.019 }), // ~0.82 mi
       savedLocations,
-      routeMiles: 0.8,
+      routeMiles: 0.9,
+    });
+    expect(d).toMatchObject({ ok: true });
+  });
+
+  it("skips when the hop is 0.9 mi or more", () => {
+    const d = resolveWakeLagStart({
+      prevTrip: prev(),
+      newTrip: next({ startLng: HOME.lng + 0.024 }), // ~1.03 mi
+      savedLocations,
+      routeMiles: 1.2,
     });
     expect(d).toMatchObject({ ok: false, reason: "gap_above_max" });
   });

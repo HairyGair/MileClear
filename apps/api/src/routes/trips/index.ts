@@ -43,9 +43,11 @@ import { reconcileWakeLagStart } from "../../services/wakeLagStart.js";
 import {
   getSplitSuggestions,
   executeTripSplit,
+  autoSplitVisitWelds,
   SplitValidationError,
 } from "../../services/tripSplit.js";
 import { sendLiveActivityStartPush, isApnsConfigured } from "../../services/apns.js";
+import { visitAutoSplitEnabled } from "../../jobs/visitSplit.js";
 
 // In-memory per-user cooldown for /trips/signal-start so a double-signal can't
 // start two Live Activities. Per-process is fine: a duplicate within the window
@@ -689,7 +691,7 @@ export async function tripRoutes(app: FastifyInstance) {
 
     const isManualEntry = !hasCoordinates;
     const gq = tripData.gpsQuality as
-      | { maxSpeedMph?: number | null; lowConfidence?: boolean }
+      | { maxSpeedMph?: number | null; lowConfidence?: boolean; avgAccuracyM?: number | null }
       | null
       | undefined;
     const isPhantomTrip = looksLikePhantomTrip({
@@ -701,6 +703,7 @@ export async function tripRoutes(app: FastifyInstance) {
       hasRealMovementEvidence: hasRealMovementEvidence(tripData.gpsQuality),
       maxSpeedMph: typeof gq?.maxSpeedMph === "number" ? gq.maxSpeedMph : null,
       lowConfidence: gq?.lowConfidence === true,
+      avgAccuracyM: typeof gq?.avgAccuracyM === "number" ? gq.avgAccuracyM : null,
     });
 
     const tripPayload = {
@@ -2149,6 +2152,15 @@ export async function tripRoutes(app: FastifyInstance) {
         appended: appendedCoordinates,
         duplicatesSkipped: appendCoordinates.length - appendedCoordinates,
       });
+
+      // New breadcrumbs can carry a whole extra leg, and a visit with it — a
+      // device that was offline appends yesterday's driving in one go. The
+      // sweep job claims trips by CREATION time and will never look at this
+      // one again, so re-cut it here. Fire-and-forget: the append has already
+      // succeeded and must not fail on a split.
+      if (appendedCoordinates > 0 && visitAutoSplitEnabled()) {
+        autoSplitVisitWelds({ userId, tripId: id }).catch(() => {});
+      }
     } else {
       trip = await prisma.trip.update({
         where: { id },
