@@ -250,12 +250,23 @@ const LICENCE_FAILED_KEY = "native_engine_licence_failed";
 let licenceFailed = false;
 let licenceStateLoaded = false;
 
+// The persisted value is a fingerprint of the licence key the failure was
+// recorded under ("none" for an unlicensed build), not a bare "1". A build
+// that ships a DIFFERENT key must not inherit the verdict: the first licensed
+// build (versionCode 3, 27 Aug 2026) installed over the unlicensed build 2
+// kept showing "Basic tracking" because the old "1" was still in SQLite and
+// the gate never tried start() again.
+function licenceFingerprint(): string {
+  const key = androidLicenceKey();
+  return key ? key.slice(0, 12) : "none";
+}
+
 async function persistLicenceFailure(): Promise<void> {
   try {
     const db = await getDatabase();
     await db.runAsync(
       "INSERT OR REPLACE INTO tracking_state (key, value) VALUES (?, ?)",
-      [LICENCE_FAILED_KEY, "1"]
+      [LICENCE_FAILED_KEY, licenceFingerprint()]
     );
   } catch {
     // in-memory flag still holds for this session
@@ -273,7 +284,15 @@ export async function loadLicenceState(): Promise<void> {
       "SELECT value FROM tracking_state WHERE key = ?",
       [LICENCE_FAILED_KEY]
     );
-    if (row?.value === "1") licenceFailed = true;
+    // "1" is the pre-fingerprint format written by unlicensed builds 1 and 2.
+    const recordedUnder = row?.value === "1" ? "none" : row?.value;
+    if (recordedUnder === licenceFingerprint()) {
+      licenceFailed = true;
+    } else if (recordedUnder) {
+      // Verdict belongs to a different key (or to no key): forget it so this
+      // build gets its own start() attempt.
+      await db.runAsync("DELETE FROM tracking_state WHERE key = ?", [LICENCE_FAILED_KEY]).catch(() => {});
+    }
   } catch {
     // leave optimistic; a start() attempt will settle it
   }
@@ -298,21 +317,26 @@ export function isNativeEngineTracking(): boolean {
 // emulator run). So on Android we never call start() unless the build was
 // made with a key: the JS engine takes over immediately and quietly. Buying
 // the licence and rebuilding flips this to true with no other change.
-function androidLicenceKeyConfigured(): boolean {
-  if (Platform.OS !== "android") return true;
+function androidLicenceKey(): string {
+  if (Platform.OS !== "android") return "";
   try {
     const plugins = (Constants.expoConfig?.plugins ?? []) as unknown[];
     for (const entry of plugins) {
       if (!Array.isArray(entry)) continue;
       const [name, opts] = entry as [unknown, { license?: unknown } | undefined];
       if (name === "react-native-background-geolocation") {
-        return typeof opts?.license === "string" && opts.license.trim().length > 0;
+        return typeof opts?.license === "string" ? opts.license.trim() : "";
       }
     }
   } catch {
     // fall through: treat as unlicensed rather than risk the toast
   }
-  return false;
+  return "";
+}
+
+function androidLicenceKeyConfigured(): boolean {
+  if (Platform.OS !== "android") return true;
+  return androidLicenceKey().length > 0;
 }
 
 /** True when RNBG explicitly rejected the licence on this device. */
