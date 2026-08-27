@@ -19,6 +19,7 @@
 import { prisma } from "../lib/prisma.js";
 import { reverseGeocode } from "../services/geocoding.js";
 import { logEvent } from "../services/appEvents.js";
+import { haversineDistance } from "@mileclear/shared";
 
 const LOOKBACK_DAYS = 60;
 const DEFAULT_LIMIT = 50;
@@ -29,6 +30,9 @@ const MAX_CONSECUTIVE_FAILURES = 5;
 // Nominatim usage policy: <= 1 request a second. Cache hits return well under
 // this, so pacing is applied per lookup rather than per trip.
 const LOOKUP_PACE_MS = 1100;
+/** Same buffer the classifier allows for GPS drift at a saved location. */
+const SAVED_LOCATION_DRIFT_BUFFER_M = 50;
+const METERS_TO_MILES = 0.000621371;
 
 export interface GeocodeMissingAddressesResult {
   scanned: number;
@@ -98,6 +102,39 @@ export async function runGeocodeMissingAddresses(
     aborted: false,
   };
 
+  // A driver names the places they go, and the app shows those names
+  // everywhere else. Nominatim called the stop at the end of one of Rachel
+  // Thorndyke's split legs "South End, DN19 7NE"; she calls it Michelle
+  // Atkin, and so does every other trip that ends there. Ask her own list
+  // first, and only fall back to the street.
+  const userIds = [...new Set(trips.map((t) => t.userId))];
+  const savedByUser = new Map<string, Array<{ name: string; latitude: number; longitude: number; radiusMeters: number }>>();
+  if (userIds.length > 0) {
+    const saved = await prisma.savedLocation.findMany({
+      where: { userId: { in: userIds } },
+      select: { userId: true, name: true, latitude: true, longitude: true, radiusMeters: true },
+    });
+    for (const row of saved) {
+      const list = savedByUser.get(row.userId) ?? [];
+      list.push(row);
+      savedByUser.set(row.userId, list);
+    }
+  }
+  const namedPlace = (userId: string, lat: number | null, lng: number | null): string | null => {
+    if (!hasValidCoords(lat, lng)) return null;
+    let best: string | null = null;
+    let bestMiles = Infinity;
+    for (const loc of savedByUser.get(userId) ?? []) {
+      const miles = haversineDistance(lat!, lng!, loc.latitude, loc.longitude);
+      const limit = (loc.radiusMeters + SAVED_LOCATION_DRIFT_BUFFER_M) * METERS_TO_MILES;
+      if (miles <= limit && miles < bestMiles) {
+        best = loc.name;
+        bestMiles = miles;
+      }
+    }
+    return best;
+  };
+
   let consecutiveFailures = 0;
 
   for (const trip of trips) {
@@ -110,14 +147,20 @@ export async function runGeocodeMissingAddresses(
     let sideFailed = false;
 
     if (wantStart) {
-      start = await reverseGeocode(trip.startLat, trip.startLng);
-      if (!start) sideFailed = true;
-      if (pace) await sleep(LOOKUP_PACE_MS);
+      start = namedPlace(trip.userId, trip.startLat, trip.startLng);
+      if (!start) {
+        start = await reverseGeocode(trip.startLat, trip.startLng);
+        if (!start) sideFailed = true;
+        if (pace) await sleep(LOOKUP_PACE_MS);
+      }
     }
     if (wantEnd) {
-      end = await reverseGeocode(trip.endLat!, trip.endLng!);
-      if (!end) sideFailed = true;
-      if (pace) await sleep(LOOKUP_PACE_MS);
+      end = namedPlace(trip.userId, trip.endLat, trip.endLng);
+      if (!end) {
+        end = await reverseGeocode(trip.endLat!, trip.endLng!);
+        if (!end) sideFailed = true;
+        if (pace) await sleep(LOOKUP_PACE_MS);
+      }
     }
 
     if (start || end) {

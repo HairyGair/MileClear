@@ -14,6 +14,9 @@ vi.mock("../../lib/prisma.js", () => ({
       findMany: vi.fn(),
       update: vi.fn().mockResolvedValue({}),
     },
+    savedLocation: {
+      findMany: vi.fn().mockResolvedValue([]),
+    },
   },
 }));
 
@@ -143,6 +146,73 @@ describe("runGeocodeMissingAddresses", () => {
       "job.geocode_missing_addresses",
       null,
       { scanned: 10, filled: 0, failed: 5, aborted: true }
+    );
+  });
+});
+
+describe("runGeocodeMissingAddresses - saved locations come first", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    (reverseGeocode as ReturnType<typeof vi.fn>).mockResolvedValue("South End, DN19 7NE");
+  });
+
+  it("names a stop the way the driver named it, not the way the street is", async () => {
+    // The end of a split leg lands at a client's house. Nominatim calls it
+    // South End; every other trip in her list calls it Michelle Atkin.
+    (prisma.savedLocation.findMany as ReturnType<typeof vi.fn>).mockResolvedValue([
+      { userId: "u1", name: "Michelle Atkin", latitude: 53.66861, longitude: -0.30651, radiusMeters: 100 },
+    ]);
+    (prisma.trip.findMany as ReturnType<typeof vi.fn>).mockResolvedValue([
+      {
+        id: "t1", userId: "u1",
+        startLat: 53.66866, startLng: -0.30666, startAddress: null,
+        endLat: null, endLng: null, endAddress: "Home",
+      },
+    ]);
+
+    await runGeocodeMissingAddresses({ pace: false });
+    expect(prisma.trip.update).toHaveBeenCalledWith(
+      expect.objectContaining({ data: { startAddress: "Michelle Atkin" } })
+    );
+    // and it cost no provider call at all
+    expect(reverseGeocode).not.toHaveBeenCalled();
+  });
+
+  it("falls back to the street when the point is nowhere they have named", async () => {
+    (prisma.savedLocation.findMany as ReturnType<typeof vi.fn>).mockResolvedValue([
+      { userId: "u1", name: "Michelle Atkin", latitude: 53.66861, longitude: -0.30651, radiusMeters: 100 },
+    ]);
+    (prisma.trip.findMany as ReturnType<typeof vi.fn>).mockResolvedValue([
+      {
+        id: "t1", userId: "u1",
+        startLat: 53.6, startLng: -0.4, startAddress: null,
+        endLat: null, endLng: null, endAddress: "Home",
+      },
+    ]);
+
+    await runGeocodeMissingAddresses({ pace: false });
+    expect(reverseGeocode).toHaveBeenCalled();
+    expect(prisma.trip.update).toHaveBeenCalledWith(
+      expect.objectContaining({ data: { startAddress: "South End, DN19 7NE" } })
+    );
+  });
+
+  it("prefers the nearer of two saved places when they overlap", async () => {
+    (prisma.savedLocation.findMany as ReturnType<typeof vi.fn>).mockResolvedValue([
+      { userId: "u1", name: "Catherine Bradley", latitude: 53.6694, longitude: -0.31875, radiusMeters: 400 },
+      { userId: "u1", name: "Claire Ramsey Mayes", latitude: 53.66907, longitude: -0.31673, radiusMeters: 400 },
+    ]);
+    (prisma.trip.findMany as ReturnType<typeof vi.fn>).mockResolvedValue([
+      {
+        id: "t1", userId: "u1",
+        startLat: 53.66905, startLng: -0.3167, startAddress: null,
+        endLat: null, endLng: null, endAddress: "Home",
+      },
+    ]);
+
+    await runGeocodeMissingAddresses({ pace: false });
+    expect(prisma.trip.update).toHaveBeenCalledWith(
+      expect.objectContaining({ data: { startAddress: "Claire Ramsey Mayes" } })
     );
   });
 });
