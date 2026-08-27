@@ -319,7 +319,7 @@ export default function MileClearVsMileIQ() {
                     },
                     {
                       feature: "OS Support",
-                      mileclear: "iOS now, Android on roadmap",
+                      mileclear: "iOS, Android in closed beta",
                       mileiq: "iOS and Android",
                       highlight: false,
                     },
@@ -562,9 +562,9 @@ export default function MileClearVsMileIQ() {
             </h2>
             <p style={{ color: "#94a3b8", fontSize: "0.9375rem", lineHeight: 1.7, marginBottom: "1rem" }}>
               It would not be a fair comparison without acknowledging where MileIQ has an advantage. MileIQ
-              is available on both iOS and Android, which gives it a clear edge over MileClear right now.
-              MileClear is currently iOS-only, with Android on the roadmap. If you use an Android device,
-              MileIQ or one of the other alternatives may be your only option until Android launches.
+              is available on both iOS and Android. MileClear for Android is in closed beta on Google Play
+              (August 2026), so until the public release MileIQ or one of the other alternatives is the
+              option you can install today; Android users can leave an email on mileclear.com for a test invite.
             </p>
             <p style={{ color: "#94a3b8", fontSize: "0.9375rem", lineHeight: 1.7 }}>
               MileIQ also has a longer track record and a larger user base, which can matter if you want

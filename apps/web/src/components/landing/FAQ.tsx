@@ -38,7 +38,7 @@ const faqs: { q: string; a: React.ReactNode }[] = [
   },
   {
     q: "Is it available on Android?",
-    a: <>MileClear is currently available on the App Store for iPhone. Android is on the roadmap. <a href="#early-access" style={{ color: "var(--amber-400)", textDecoration: "underline" }}>Leave your email below</a> and we will let you know as soon as it launches.</>,
+    a: <>MileClear is on the App Store for iPhone and iPad. The Android app is in closed beta on Google Play (August 2026), ahead of a public release. <a href="#early-access" style={{ color: "var(--amber-400)", textDecoration: "underline" }}>Leave your email below</a> and we will send you a test invite.</>,
   },
 ];
 

@@ -131,10 +131,10 @@ export default function EarlyAccess() {
                 <path d="M13.73 21a2 2 0 01-3.46 0" />
               </svg>
             </div>
-            <p className="ea__notify-label">Not on iPhone? Get notified when Android launches.</p>
+            <p className="ea__notify-label">On Android? MileClear is in closed beta on Google Play. Leave your email for a test invite.</p>
             {status === "ok" ? (
               <div className="ea__ok">
-                You&apos;re on the list. We&apos;ll email you when MileClear is available on Android.
+                You&apos;re on the list. We&apos;ll email you a Google Play test invite.
               </div>
             ) : (
               <form className="ea__form" onSubmit={submit}>
