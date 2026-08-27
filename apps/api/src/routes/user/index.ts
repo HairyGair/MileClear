@@ -9,7 +9,7 @@ import { logEvent } from "../../services/appEvents.js";
 import { resolvePremiumStatus } from "../../services/referral.js";
 import { encrypt, decryptIfEncrypted } from "../../lib/encryption.js";
 import { canSafelyEmbedImage } from "../../services/export.js";
-import { formatInvoiceNumber } from "@mileclear/shared";
+import { formatInvoiceNumber, scrubCoordinates, scrubDiagnosticEventData } from "@mileclear/shared";
 
 const updateProfileSchema = z.object({
   displayName: z.string().max(100).nullable().optional(),
@@ -699,23 +699,75 @@ export async function userRoutes(app: FastifyInstance) {
     });
   });
 
-  // GDPR data export
+  // GDPR data export (Art. 15 / Art. 20). Every model that carries this
+  // user's data is included; the only omissions are credentials (refresh
+  // tokens, verification / reset codes, OAuth access tokens, invite tokens)
+  // and the 24h idempotency cache, which holds nothing not exported
+  // elsewhere. Push tokens are included masked. Existing keys keep their
+  // shape; new data is added under new keys.
   app.get("/export", async (request, reply) => {
     const userId = request.userId!;
 
-    const [user, vehicles, shifts, trips, fuelLogs, earnings, achievements, mileageSummaries, tripAnomalies, clients, invoices, logo] =
+    // Cursor-paginate a table by id so a heavy user (tens of thousands of
+    // trips, millions of coordinates) does not become one giant query.
+    const fetchAllRows = async <T extends { id: string }>(
+      page: (args: { cursor?: { id: string }; skip: number; take: number }) => Promise<T[]>,
+      batch = 2000
+    ): Promise<T[]> => {
+      const rows: T[] = [];
+      let cursor: { id: string } | undefined;
+      for (;;) {
+        const chunk = await page(cursor ? { cursor, skip: 1, take: batch } : { skip: 0, take: batch });
+        rows.push(...chunk);
+        if (chunk.length < batch) break;
+        cursor = { id: chunk[chunk.length - 1].id };
+      }
+      return rows;
+    };
+
+    const [user, userExtra, vehicles, shifts, tripRows, fuelLogs, earnings, achievements, mileageSummaries, tripAnomalies, clients, invoices, logo] =
       await Promise.all([
         prisma.user.findUnique({
           where: { id: userId },
           select: USER_SELECT,
         }),
+        prisma.user.findUnique({
+          where: { id: userId },
+          select: {
+            appleId: true,
+            googleId: true,
+            discordUserId: true,
+            stripeCustomerId: true,
+            stripeSubscriptionId: true,
+            appleOriginalTransactionId: true,
+            googlePlayPurchaseToken: true,
+            googlePlayOrderId: true,
+            subscriptionProductId: true,
+            trialUsedAt: true,
+            termsAcceptedAt: true,
+            pushToken: true,
+            liveActivityPushToStartToken: true,
+            laTokenUpdatedAt: true,
+            pushPrefs: true,
+            electricityPencePerKwh: true,
+            notes: true,
+            lastLoginAt: true,
+            lastTripAt: true,
+            marketingEmailsDisabledAt: true,
+            marketingEmailsDisabledSource: true,
+            lastHeartbeatAt: true,
+            bgLocationPermission: true,
+            notificationPermission: true,
+            trackingTaskActive: true,
+            appVersion: true,
+            buildNumber: true,
+            osVersion: true,
+            lastPendingSyncCount: true,
+          },
+        }),
         prisma.vehicle.findMany({ where: { userId } }),
         prisma.shift.findMany({ where: { userId } }),
-        prisma.trip.findMany({
-          where: { userId },
-          take: 10000,
-          include: { coordinates: { take: 1000 } },
-        }),
+        fetchAllRows((args) => prisma.trip.findMany({ where: { userId }, orderBy: { id: "asc" }, ...args })),
         prisma.fuelLog.findMany({ where: { userId } }),
         prisma.earning.findMany({ where: { userId } }),
         prisma.achievement.findMany({ where: { userId } }),
@@ -729,11 +781,247 @@ export async function userRoutes(app: FastifyInstance) {
         prisma.userLogo.findUnique({ where: { userId } }),
       ]);
 
+    // Full GPS trail for every trip, fetched in trip-id chunks. The old
+    // export capped this at 1,000 points per trip and 10,000 trips.
+    const coordsByTrip = new Map<string, Array<{ lat: number; lng: number; speed: number | null; accuracy: number | null; recordedAt: Date }>>();
+    const TRIP_CHUNK = 100;
+    for (let i = 0; i < tripRows.length; i += TRIP_CHUNK) {
+      const ids = tripRows.slice(i, i + TRIP_CHUNK).map((t) => t.id);
+      const coords = await fetchAllRows(
+        (args) =>
+          prisma.tripCoordinate.findMany({
+            where: { tripId: { in: ids } },
+            orderBy: { id: "asc" },
+            select: { id: true, tripId: true, lat: true, lng: true, speed: true, accuracy: true, recordedAt: true },
+            ...args,
+          }),
+        5000
+      );
+      for (const c of coords) {
+        const list = coordsByTrip.get(c.tripId) ?? [];
+        list.push({ lat: c.lat, lng: c.lng, speed: c.speed, accuracy: c.accuracy, recordedAt: c.recordedAt });
+        coordsByTrip.set(c.tripId, list);
+      }
+    }
+    const trips = tripRows.map((t) => ({
+      ...t,
+      coordinates: (coordsByTrip.get(t.id) ?? []).sort(
+        (a, b) => a.recordedAt.getTime() - b.recordedAt.getTime()
+      ),
+    }));
+
+    const [
+      expenses,
+      savedLocations,
+      feedback,
+      feedbackVotes,
+      feedbackReplies,
+      diagnosticDump,
+      appEvents,
+      referralsMade,
+      referralReceived,
+      orgMemberships,
+      organisationsOwned,
+      teamApprovals,
+      accountantInvites,
+      accountantAccess,
+      hmrcConnection,
+      hmrcReconciliations,
+      openBankingConnections,
+      bankTransactions,
+      merchantMappings,
+      missedJourneyProposals,
+      pickupWaits,
+      geofenceRadiusObservations,
+      quickBooksConnection,
+      quickBooksSyncedTrips,
+      quickBooksSyncedEarnings,
+      quickBooksSyncedExpenses,
+      quickBooksSyncedVehicles,
+      xeroConnection,
+      xeroSyncedItems,
+      appleIapWebhookLogs,
+    ] = await Promise.all([
+      prisma.expense.findMany({ where: { userId } }),
+      prisma.savedLocation.findMany({ where: { userId } }),
+      prisma.feedback.findMany({
+        where: { userId },
+        include: { replies: { select: { id: true, body: true, createdAt: true, userId: true } } },
+      }),
+      prisma.feedbackVote.findMany({ where: { userId }, select: { id: true, feedbackId: true, createdAt: true } }),
+      prisma.feedbackReply.findMany({ where: { userId } }),
+      prisma.diagnosticDump.findUnique({ where: { userId } }),
+      fetchAllRows((args) =>
+        prisma.appEvent.findMany({
+          where: { userId },
+          orderBy: { id: "asc" },
+          select: { id: true, type: true, metadata: true, appVersion: true, buildNumber: true, createdAt: true },
+          ...args,
+        })
+      ),
+      // The other party's user id is withheld on both sides: it is their
+      // data, not this user's.
+      prisma.referral.findMany({
+        where: { referrerId: userId },
+        select: { id: true, code: true, status: true, rewardGrantedAt: true, createdAt: true, updatedAt: true },
+      }),
+      prisma.referral.findFirst({
+        where: { refereeId: userId },
+        select: { id: true, code: true, status: true, rewardGrantedAt: true, createdAt: true, updatedAt: true },
+      }),
+      prisma.orgMembership.findMany({
+        where: { userId },
+        select: {
+          id: true,
+          orgId: true,
+          role: true,
+          status: true,
+          invitedEmail: true,
+          inviteExpiresAt: true,
+          invitedAt: true,
+          acceptedAt: true,
+          disabledAt: true,
+          org: { select: { id: true, name: true } },
+        },
+      }),
+      prisma.organisation.findMany({
+        where: { createdByUserId: userId },
+        select: {
+          id: true,
+          name: true,
+          pilotFree: true,
+          seatCap: true,
+          defaultRatePence: true,
+          stripeCustomerId: true,
+          stripeSubscriptionId: true,
+          billingEmail: true,
+          seatsBilled: true,
+          createdAt: true,
+          updatedAt: true,
+        },
+      }),
+      prisma.teamApproval.findMany({ where: { userId } }),
+      prisma.accountantInvite.findMany({
+        where: { userId },
+        select: { id: true, email: true, status: true, expiresAt: true, createdAt: true },
+      }),
+      prisma.accountantAccess.findMany({
+        where: { userId },
+        select: { id: true, accountantEmail: true, permissions: true, expiresAt: true, lastAccessedAt: true, createdAt: true },
+      }),
+      prisma.hmrcConnection.findUnique({
+        where: { userId },
+        select: {
+          id: true,
+          scope: true,
+          environment: true,
+          expiresAt: true,
+          nino: true,
+          businessId: true,
+          connectedAt: true,
+          updatedAt: true,
+          disconnectedAt: true,
+        },
+      }),
+      prisma.hmrcReconciliation.findMany({ where: { userId } }),
+      prisma.plaidConnection.findMany({
+        where: { userId },
+        select: {
+          id: true,
+          institutionId: true,
+          institutionName: true,
+          itemId: true,
+          lastSynced: true,
+          status: true,
+          createdAt: true,
+          updatedAt: true,
+        },
+      }),
+      fetchAllRows((args) => prisma.bankTransaction.findMany({ where: { userId }, orderBy: { id: "asc" }, ...args })),
+      prisma.merchantMapping.findMany({ where: { userId } }),
+      prisma.missedJourneyProposal.findMany({ where: { userId } }),
+      prisma.pickupWait.findMany({ where: { userId } }),
+      prisma.geofenceRadiusObservation.findMany({ where: { userId } }),
+      prisma.quickBooksConnection.findMany({
+        where: { userId },
+        select: {
+          id: true,
+          realmId: true,
+          tokenExpiresAt: true,
+          environment: true,
+          companyName: true,
+          expenseAccountId: true,
+          payFromAccountId: true,
+          lastSyncedAt: true,
+          status: true,
+          createdAt: true,
+          updatedAt: true,
+        },
+      }),
+      prisma.quickBooksSyncedTrip.findMany({ where: { userId } }),
+      prisma.quickBooksSyncedEarning.findMany({ where: { userId } }),
+      prisma.quickBooksSyncedExpense.findMany({ where: { userId } }),
+      prisma.quickBooksSyncedVehicle.findMany({ where: { userId } }),
+      prisma.xeroConnection.findMany({
+        where: { userId },
+        select: {
+          id: true,
+          tenantId: true,
+          tenantName: true,
+          tokenExpiresAt: true,
+          expenseAccountCode: true,
+          payFromAccountId: true,
+          lastSyncedAt: true,
+          status: true,
+          createdAt: true,
+          updatedAt: true,
+        },
+      }),
+      prisma.xeroSyncedItem.findMany({ where: { userId } }),
+      prisma.appleIapWebhookLog.findMany({ where: { userId } }),
+    ]);
+
+    // Email-keyed tables with no userId: only rows matching this account's
+    // email are this user's.
+    const [waitlistEntry, teamInterest] = user
+      ? await Promise.all([
+          prisma.waitlistEntry.findUnique({ where: { email: user.email } }),
+          prisma.teamInterest.findMany({ where: { email: user.email } }),
+        ])
+      : [null, []];
+
+    // Push tokens are device credentials: show that one is held and its
+    // tail, never the full value.
+    const maskToken = (t: string | null | undefined) =>
+      t ? `${"*".repeat(Math.max(0, t.length - 4))}${t.slice(-4)}` : null;
+
     const exportData = {
       exportedAt: new Date().toISOString(),
       // Bank details decrypted — it's the owner's own data (GDPR access
       // right covers the plaintext, not our storage encoding).
-      user: user ? withDecryptedBankDetails(user) : null,
+      user: user
+        ? {
+            ...withDecryptedBankDetails(user),
+            appleId: userExtra?.appleId ?? null,
+            googleId: userExtra?.googleId ?? null,
+            discordUserId: userExtra?.discordUserId ?? null,
+            stripeCustomerId: userExtra?.stripeCustomerId ?? null,
+            stripeSubscriptionId: userExtra?.stripeSubscriptionId ?? null,
+            appleOriginalTransactionId: userExtra?.appleOriginalTransactionId ?? null,
+            googlePlayPurchaseToken: maskToken(userExtra?.googlePlayPurchaseToken),
+            googlePlayOrderId: userExtra?.googlePlayOrderId ?? null,
+            subscriptionProductId: userExtra?.subscriptionProductId ?? null,
+            trialUsedAt: userExtra?.trialUsedAt ?? null,
+            termsAcceptedAt: userExtra?.termsAcceptedAt ?? null,
+            electricityPencePerKwh: userExtra?.electricityPencePerKwh ?? null,
+            lastLoginAt: userExtra?.lastLoginAt ?? null,
+            lastTripAt: userExtra?.lastTripAt ?? null,
+            marketingEmailsDisabledAt: userExtra?.marketingEmailsDisabledAt ?? null,
+            marketingEmailsDisabledSource: userExtra?.marketingEmailsDisabledSource ?? null,
+            // Notes written about the user by an admin: Art. 15 covers these.
+            adminNotes: userExtra?.notes ?? null,
+          }
+        : null,
       vehicles,
       shifts,
       trips,
@@ -747,6 +1035,62 @@ export async function userRoutes(app: FastifyInstance) {
       logo: logo
         ? { mime: logo.mime, dataBase64: Buffer.from(logo.data).toString("base64") }
         : null,
+      // Added 27 Aug 2026 (GDPR audit: export previously omitted ~25 models)
+      expenses,
+      savedLocations,
+      feedback,
+      feedbackVotes,
+      feedbackReplies,
+      notificationPreferences: {
+        pushPrefs: userExtra?.pushPrefs ?? null,
+        pushToken: maskToken(userExtra?.pushToken),
+        liveActivityPushToStartToken: maskToken(userExtra?.liveActivityPushToStartToken),
+        laTokenUpdatedAt: userExtra?.laTokenUpdatedAt ?? null,
+        marketingEmailsEnabled: user?.marketingEmailsEnabled ?? null,
+      },
+      heartbeat: {
+        lastHeartbeatAt: userExtra?.lastHeartbeatAt ?? null,
+        bgLocationPermission: userExtra?.bgLocationPermission ?? null,
+        notificationPermission: userExtra?.notificationPermission ?? null,
+        trackingTaskActive: userExtra?.trackingTaskActive ?? null,
+        appVersion: userExtra?.appVersion ?? null,
+        buildNumber: userExtra?.buildNumber ?? null,
+        osVersion: userExtra?.osVersion ?? null,
+        lastPendingSyncCount: userExtra?.lastPendingSyncCount ?? null,
+      },
+      diagnosticDump,
+      appEvents,
+      referrals: { made: referralsMade, received: referralReceived },
+      orgMemberships,
+      organisationsOwned,
+      teamApprovals,
+      accountantInvites,
+      accountantAccess,
+      hmrc: {
+        connection: hmrcConnection
+          ? { ...hmrcConnection, nino: decryptIfEncrypted(hmrcConnection.nino) }
+          : null,
+        reconciliations: hmrcReconciliations,
+      },
+      openBankingConnections,
+      bankTransactions,
+      merchantMappings,
+      missedJourneyProposals,
+      pickupWaits,
+      geofenceRadiusObservations,
+      accounting: {
+        quickBooks: {
+          connections: quickBooksConnection,
+          syncedTrips: quickBooksSyncedTrips,
+          syncedEarnings: quickBooksSyncedEarnings,
+          syncedExpenses: quickBooksSyncedExpenses,
+          syncedVehicles: quickBooksSyncedVehicles,
+        },
+        xero: { connections: xeroConnection, syncedItems: xeroSyncedItems },
+      },
+      appleIapWebhookLogs,
+      waitlistEntry,
+      teamInterest,
     };
 
     reply.header("Content-Disposition", "attachment; filename=mileclear-data-export.json");
@@ -840,7 +1184,18 @@ export async function userRoutes(app: FastifyInstance) {
     if (!parsed.success) {
       return reply.status(400).send({ error: parsed.error.errors[0].message });
     }
-    const d = parsed.data;
+    // Defensive scrub on receipt. The client strips coordinates before
+    // upload, but older binaries do not, and the privacy policy promises
+    // dumps hold no coordinates, so the server enforces it too. Event names
+    // and every non-location field survive untouched.
+    const d = {
+      ...parsed.data,
+      statusJson: scrubCoordinates(parsed.data.statusJson),
+      eventsJson: parsed.data.eventsJson.map((e) => ({
+        ...e,
+        data: scrubDiagnosticEventData(e.data),
+      })),
+    };
 
     await prisma.diagnosticDump.upsert({
       where: { userId },

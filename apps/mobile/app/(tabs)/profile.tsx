@@ -9,6 +9,7 @@ import {
   Alert,
   Platform,
   TextInput,
+  Linking,
 } from "react-native";
 import { AppModal } from "../../components/AppModal";
 import { Ionicons } from "@expo/vector-icons";
@@ -30,7 +31,10 @@ import {
   isIapAvailable,
   getSubscriptionProduct,
   restorePurchases,
+  iapStore,
+  PLAY_SUBSCRIPTIONS_URL,
 } from "../../lib/iap/index";
+import { validateGooglePurchase } from "../../lib/api/billingGoogle";
 import { AvatarPicker } from "../../components/avatars/AvatarPicker";
 import { useLayoutPrefs, resetAllLayouts } from "../../lib/layout/index";
 import { usePaywall } from "../../components/paywall";
@@ -131,13 +135,23 @@ export default function ProfileScreen() {
   const handleRestorePurchases = useCallback(async () => {
     setRestoring(true);
     try {
-      const transactionIds = await restorePurchases();
-      if (transactionIds.length === 0) {
-        Alert.alert("Nothing to restore", "No previous subscription was found for this Apple ID.");
+      const tokens = await restorePurchases();
+      if (tokens.length === 0) {
+        Alert.alert(
+          "Nothing to restore",
+          iapStore() === "google"
+            ? "No previous subscription was found for this Google account."
+            : "No previous subscription was found for this Apple ID."
+        );
         return;
       }
-      for (const txId of transactionIds) {
-        await validateApplePurchase(txId);
+      const isGoogle = iapStore() === "google";
+      for (const token of tokens) {
+        if (isGoogle) {
+          await validateGooglePurchase(token);
+        } else {
+          await validateApplePurchase(token);
+        }
       }
       loadData();
       Alert.alert("Subscription restored", "Pro is back on this device.");
@@ -491,6 +505,26 @@ export default function ProfileScreen() {
                       </Text>
                     </TouchableOpacity>
                   </>
+                ) : billing?.subscriptionPlatform === "google" ||
+                  (Platform.OS === "android" && billing?.subscriptionPlatform !== "stripe") ? (
+                  <>
+                    <Text style={styles.subDetail}>Managed by Google Play</Text>
+                    <TouchableOpacity
+                      onPress={() => Linking.openURL(PLAY_SUBSCRIPTIONS_URL).catch(() => {})}
+                      accessibilityRole="link"
+                      accessibilityLabel="Manage subscription in Google Play"
+                    >
+                      <Text style={[styles.subLink, { color: "#3b82f6" }]}>
+                        Manage in Google Play
+                      </Text>
+                    </TouchableOpacity>
+                  </>
+                ) : Platform.OS === "android" ? (
+                  // Stripe-billed user on Android: Play policy means no link
+                  // to the website from here, just say where it is managed.
+                  <Text style={styles.subDetail}>
+                    This subscription was bought on the website. Manage or cancel it from your account at mileclear.com.
+                  </Text>
                 ) : billing?.cancelAtPeriodEnd ? (
                   <Text style={styles.subDetail}>
                     Cancels on{" "}

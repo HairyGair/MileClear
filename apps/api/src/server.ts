@@ -22,6 +22,7 @@ import { earningRoutes } from "./routes/earnings/index.js";
 import { gamificationRoutes } from "./routes/gamification/index.js";
 import { exportRoutes } from "./routes/exports/index.js";
 import { billingRoutes } from "./routes/billing/index.js";
+import { googleBillingRoutes } from "./routes/billing/google.js";
 import { userRoutes } from "./routes/user/index.js";
 import { referralRoutes } from "./routes/referrals/index.js";
 import { waitlistRoutes } from "./routes/waitlist/index.js";
@@ -215,6 +216,9 @@ await app.register(donationRoutes, { prefix: "/donations" });
 await app.register(gamificationRoutes, { prefix: "/gamification" });
 await app.register(exportRoutes, { prefix: "/exports" });
 await app.register(billingRoutes, { prefix: "/billing" });
+// Registered separately from billingRoutes so the Android billing path stays
+// independent of the Stripe/Apple route module.
+await app.register(googleBillingRoutes, { prefix: "/billing/google" });
 await app.register(userRoutes, { prefix: "/user" });
 await app.register(referralRoutes, { prefix: "/referrals" });
 await app.register(waitlistRoutes, { prefix: "/waitlist" });

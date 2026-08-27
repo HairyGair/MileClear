@@ -1,0 +1,46 @@
+{
+  "project_info": {
+    "project_number": "194042004",
+    "project_id": "mileclear",
+    "storage_bucket": "mileclear.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:194042004:android:b9c90dc6ac229b8ce2bc81",
+        "android_client_info": {
+          "package_name": "com.mileclear.app"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "194042004-v652n998vp3qcar8krul6516vdpske3e.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAfelz2DqQFYkcH2pgTtRCymEZct1xiGNk"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "194042004-v652n998vp3qcar8krul6516vdpske3e.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "194042004-s3b6j7s7uh0ht0k3kvvgeh39nvuigldd.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.mileclear.app"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

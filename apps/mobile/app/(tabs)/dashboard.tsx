@@ -12,6 +12,7 @@ import {
   Platform,
   Animated,
   Linking,
+  AppState,
 } from "react-native";
 import { AppModal } from "../../components/AppModal";
 import { AutoNoteNudgeCard } from "../../components/AutoNoteNudgeCard";
@@ -55,7 +56,7 @@ import type {
   ShiftScorecard,
   PeriodRecap,
 } from "@mileclear/shared";
-import { formatPence } from "@mileclear/shared";
+import { formatPence, filterTraceOutliers } from "@mileclear/shared";
 import { maybeRequestReview } from "../../lib/rating/index";
 import { useMode } from "../../lib/mode/context";
 import { ModeToggle } from "../../components/ModeToggle";
@@ -78,6 +79,7 @@ import { useLayoutPrefs } from "../../lib/layout/index";
 import { PremiumGate, useIsPremium } from "../../components/PremiumGate";
 import { SmartInsightCard } from "../../components/SmartInsightCard";
 import { usePaywall } from "../../components/paywall";
+import { usePrompt } from "../../components/prompt";
 import { requestOrFixBackgroundLocation, getLocationPermissionStatus, type LocationPermissionTier } from "../../lib/permissions/location";
 import { haptic } from "../../lib/haptics";
 
@@ -244,6 +246,7 @@ export default function DashboardScreen() {
 
   // Pro nudge card — dismissible, for free users with 5+ trips
   const { showPaywall } = usePaywall();
+  const { prompt } = usePrompt();
   const [proNudgeDismissedUntil, setProNudgeDismissedUntil] = useState<number>(Date.now() + 999999999);
   const showProNudge = !isPremium && !loading && (stats?.totalTrips ?? 0) >= 5 && Date.now() >= proNudgeDismissedUntil;
 
@@ -726,6 +729,25 @@ export default function DashboardScreen() {
     }, [])
   );
 
+  // Location tier check, shared by the focus effect below and the AppState
+  // listener. The AppState path matters on Android: the "Your trips aren't
+  // being recorded" blocker sends the user to system Settings, and coming back
+  // via the Back button does NOT re-focus the route, so without this the
+  // banner stayed red after the permission had been granted (seen on the
+  // emulator, 26 Aug 2026).
+  const refreshLocationTier = useCallback(() => {
+    getLocationPermissionStatus().then(({ tier }) => {
+      setLocationTier(tier);
+      setBgLocationGranted(tier === "always");
+    }).catch(() => {});
+  }, []);
+  useEffect(() => {
+    const sub = AppState.addEventListener("change", (state) => {
+      if (state === "active") refreshLocationTier();
+    });
+    return () => sub.remove();
+  }, [refreshLocationTier]);
+
   useFocusEffect(
     useCallback(() => {
       loadData();
@@ -829,7 +851,15 @@ export default function DashboardScreen() {
       try {
         const coords = await peekBackgroundCoordinates(activeShiftId);
         if (!mounted) return;
-        const dist = coords.length >= 2 ? calcDistance(coords) : 0;
+        // Filter before summing, with the SAME filter the save path uses
+        // (processShiftTrips -> filterTraceOutliers). Without this the live
+        // figure was a raw haversine sum over every stored fix while the saved
+        // figure dropped >50m-accuracy points and >120mph teleports, so the two
+        // were guaranteed to disagree whenever a bad fix arrived - the number
+        // appeared to drop when the shift ended. Same reason the Live Activity
+        // end-card was inflated: it reads liveDistRef.
+        const filtered = filterTraceOutliers(coords);
+        const dist = filtered.length >= 2 ? calcDistance(filtered) : 0;
         setLiveDistance(dist);
         liveDistRef.current = dist;
       } catch {
@@ -862,38 +892,37 @@ export default function DashboardScreen() {
     })();
   }, []);
 
+  // Persist a new hourly rate. Shared by the iOS Alert.prompt path and the
+  // Android modal below so both write the rate identically.
+  const saveHourlyRate = useCallback(async (raw: string | undefined) => {
+    const pounds = parseFloat((raw ?? "").replace(/[^0-9.]/g, ""));
+    if (!isFinite(pounds) || pounds <= 0) return;
+    const pence = Math.round(pounds * 100);
+    setHourlyRatePence(pence);
+    try {
+      const db = await getDatabase();
+      await db.runAsync(
+        "INSERT OR REPLACE INTO tracking_state (key, value) VALUES ('shift_hourly_rate_pence', ?)",
+        [String(pence)]
+      );
+    } catch {
+      // best-effort persistence; the in-memory rate still drives the ticker
+    }
+  }, []);
+
   // Set / change the hourly rate for live shift earnings. Persisted so the next
-  // shift remembers it. Alert.prompt is iOS-only; the feature is iOS-first.
-  const promptHourlyRate = useCallback(() => {
-    Alert.prompt(
-      "Hourly rate",
-      "What are you paid per hour? Your earnings will tick up live as you work.",
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Save",
-          onPress: async (val?: string) => {
-            const pounds = parseFloat((val ?? "").replace(/[^0-9.]/g, ""));
-            if (!isFinite(pounds) || pounds <= 0) return;
-            const pence = Math.round(pounds * 100);
-            setHourlyRatePence(pence);
-            try {
-              const db = await getDatabase();
-              await db.runAsync(
-                "INSERT OR REPLACE INTO tracking_state (key, value) VALUES ('shift_hourly_rate_pence', ?)",
-                [String(pence)]
-              );
-            } catch {
-              // best-effort persistence; the in-memory rate still drives the ticker
-            }
-          },
-        },
-      ],
-      "plain-text",
-      hourlyRatePence != null ? (hourlyRatePence / 100).toFixed(2) : "",
-      "decimal-pad"
-    );
-  }, [hourlyRatePence]);
+  // shift remembers it. usePrompt keeps Alert.prompt on iOS and gives Android a
+  // real input modal - Alert.prompt is a silent no-op there.
+  const promptHourlyRate = useCallback(async () => {
+    const res = await prompt({
+      title: "Hourly rate",
+      message: "What are you paid per hour? Your earnings will tick up live as you work.",
+      defaultValue: hourlyRatePence != null ? (hourlyRatePence / 100).toFixed(2) : "",
+      keyboardType: "decimal-pad",
+    });
+    if (res.action !== "submit") return;
+    await saveHourlyRate(res.value);
+  }, [hourlyRatePence, saveHourlyRate, prompt]);
 
   const handleStartShift = useCallback(async () => {
     setStarting(true);

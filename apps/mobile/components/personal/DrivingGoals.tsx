@@ -13,7 +13,6 @@ import { useEffect, useRef, useState } from "react";
 import {
   Alert,
   Animated,
-  Platform,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -23,6 +22,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { getDatabase } from "../../lib/db/index";
 import { colors, fonts } from "../../lib/theme";
 import { useReducedMotion } from "../../lib/accessibility";
+import { usePrompt } from "../prompt";
 
 // Local theme aliases — same pattern as the (tabs) screens.
 const AMBER = colors.amber;
@@ -93,6 +93,7 @@ function getStatusMessage(
 // ─── Component ───────────────────────────────────────────────────────────────
 
 export function DrivingGoals({ weekMiles }: DrivingGoalsProps) {
+  const { prompt } = usePrompt();
   const [target, setTarget] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -174,67 +175,27 @@ export function DrivingGoals({ weekMiles }: DrivingGoalsProps) {
   }
 
   // ── Prompt helpers ────────────────────────────────────────────────────────
-  function promptSetGoal(prefill?: string) {
-    if (Platform.OS === "ios") {
-      Alert.prompt(
-        "Weekly Miles Goal",
+  async function promptSetGoal(prefill?: string) {
+    const res = await prompt({
+      title: "Weekly Miles Goal",
+      message:
         "Set your target miles for this week (e.g. 50).\nDriving less than your goal keeps you on track.",
-        [
-          { text: "Cancel", style: "cancel" },
-          {
-            text: "Save",
-            onPress: (value: string | undefined) => {
-              if (!value) return;
-              const parsed = parseFloat(value.trim());
-              if (!isFinite(parsed) || parsed <= 0) {
-                Alert.alert(
-                  "Invalid number",
-                  "Please enter a positive number of miles."
-                );
-                return;
-              }
-              saveGoal(Math.round(parsed * 10) / 10);
-            },
-          },
-        ],
-        "plain-text",
-        prefill ?? "",
-        "number-pad"
-      );
-    } else {
-      // Android — two-step approach: confirm then fallback
-      // Alert.prompt is iOS-only; on Android we use a simple confirm flow
-      // prompting the user to edit via a pre-seeded value shown in the message.
-      const currentVal = prefill ?? (target ? String(target) : "");
-      Alert.alert(
-        "Weekly Miles Goal",
-        `Current target: ${currentVal || "none"}\n\nEnter your new weekly target in the box below.\n\nTip: type a number then tap Save.`,
-        [
-          { text: "Cancel", style: "cancel" },
-          ...(target !== null
-            ? [
-                {
-                  text: "Clear goal",
-                  style: "destructive" as const,
-                  onPress: clearGoal,
-                },
-              ]
-            : []),
-          {
-            text: "Set to 25 mi",
-            onPress: () => saveGoal(25),
-          },
-          {
-            text: "Set to 50 mi",
-            onPress: () => saveGoal(50),
-          },
-          {
-            text: "Set to 100 mi",
-            onPress: () => saveGoal(100),
-          },
-        ]
-      );
+      defaultValue: prefill ?? "",
+      keyboardType: "number-pad",
+      neutralLabel: target !== null ? "Clear goal" : undefined,
+    });
+    if (res.action === "cancel") return;
+    if (res.action === "neutral") {
+      await clearGoal();
+      return;
     }
+    if (!res.value) return;
+    const parsed = parseFloat(res.value.trim());
+    if (!isFinite(parsed) || parsed <= 0) {
+      Alert.alert("Invalid number", "Please enter a positive number of miles.");
+      return;
+    }
+    saveGoal(Math.round(parsed * 10) / 10);
   }
 
   function confirmClearGoal() {

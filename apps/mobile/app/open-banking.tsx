@@ -20,7 +20,13 @@ import type { PlaidConnection } from "@mileclear/shared";
 import { Button } from "../components/Button";
 import { BetaBanner } from "../components/BetaBanner";
 import { useUser } from "../lib/user/context";
-import { isIapAvailable, purchaseSubscription } from "../lib/iap/index";
+import {
+  isIapAvailable,
+  purchaseSubscription,
+  externalCheckoutAllowed,
+  EXTERNAL_CHECKOUT_BLOCKED_TITLE,
+  EXTERNAL_CHECKOUT_BLOCKED_MESSAGE,
+} from "../lib/iap/index";
 import { createCheckoutSession } from "../lib/api/billing";
 import * as SecureStore from "expo-secure-store";
 import { ACCESS_TOKEN_KEY } from "../lib/api/index";
@@ -218,9 +224,10 @@ export default function OpenBankingScreen() {
   const handleUpgrade = async () => {
     setUpgrading(true);
     try {
-      const iap = await isIapAvailable();
-      if (iap) {
+      if (isIapAvailable()) {
         await purchaseSubscription("monthly", user?.id);
+      } else if (!externalCheckoutAllowed()) {
+        Alert.alert(EXTERNAL_CHECKOUT_BLOCKED_TITLE, EXTERNAL_CHECKOUT_BLOCKED_MESSAGE);
       } else {
         const res = await createCheckoutSession();
         if (res.data?.url) {

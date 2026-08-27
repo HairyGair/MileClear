@@ -1,22 +1,55 @@
 /**
- * Vision OCR bridge
+ * On-device OCR bridge
  *
- * Wraps the native VisionOcrModule with graceful fallbacks.
- * Returns empty results silently when not supported (Expo Go, Android).
- * Images are processed entirely on-device - nothing leaves the phone.
+ * Two engines behind one interface:
+ *   - iOS:     Apple Vision, via the native VisionOcrModule.
+ *   - Android: Google ML Kit, via @react-native-ml-kit/text-recognition.
+ *
+ * Both run entirely on-device - no image ever leaves the phone. Returns empty
+ * results silently when neither engine is present (Expo Go, web).
+ *
+ * The receipt parser below is engine-agnostic and shared by both platforms;
+ * only recognizeText() differs.
  */
 
 import { NativeModules, Platform } from "react-native";
 
 const VisionOcrModule = NativeModules.VisionOcrModule;
 
+// Checked directly rather than through the package's default export: when the
+// native side is missing, that export is a Proxy that throws on ANY property
+// access, so touching it to test availability is itself the crash.
+const MlKitNativeModule = NativeModules.TextRecognition;
+
+type MlKitModule = typeof import("@react-native-ml-kit/text-recognition").default;
+let mlKit: MlKitModule | null = null;
+let mlKitLoadAttempted = false;
+
+function loadMlKit(): MlKitModule | null {
+  if (mlKitLoadAttempted) return mlKit;
+  mlKitLoadAttempted = true;
+  if (Platform.OS !== "android" || !MlKitNativeModule) return null;
+  try {
+    mlKit = require("@react-native-ml-kit/text-recognition").default;
+  } catch {
+    mlKit = null;
+  }
+  return mlKit;
+}
+
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 export interface OcrLine {
-  /** Raw text string recognized by Vision framework */
+  /** Raw text string recognized by the OCR engine */
   text: string;
-  /** Confidence score 0.0 - 1.0 */
-  confidence: number;
+  /**
+   * Confidence score 0.0 - 1.0, or null when the engine doesn't report one.
+   * Apple Vision gives a per-line confidence; ML Kit does not expose one
+   * through its React Native bridge. Null rather than an invented number:
+   * this value is shown to the driver as a percentage, and a fabricated
+   * "90%" would be presented as if it were measured.
+   */
+  confidence: number | null;
 }
 
 export interface OcrParseResult {
@@ -26,8 +59,12 @@ export interface OcrParseResult {
   date: string | null;
   /** Best-guess vendor name, or null if not found */
   vendor: string | null;
-  /** Average confidence across all recognized lines (0.0 - 1.0) */
-  confidence: number;
+  /**
+   * Average confidence across all recognized lines (0.0 - 1.0), or null when
+   * the engine reports no confidence at all (ML Kit / Android). Callers must
+   * hide any confidence UI when this is null.
+   */
+  confidence: number | null;
   /** All recognized text lines (raw) */
   rawLines: string[];
 }
@@ -35,11 +72,13 @@ export interface OcrParseResult {
 // ── Availability ──────────────────────────────────────────────────────────────
 
 /**
- * Returns true only on iOS native builds with the Vision module linked.
- * Expo Go and Android both return false.
+ * True when an on-device OCR engine is present: Apple Vision on iOS native
+ * builds, ML Kit on Android native builds. Expo Go returns false on both.
  */
 export function isOcrAvailable(): boolean {
-  return Platform.OS === "ios" && !!VisionOcrModule;
+  if (Platform.OS === "ios") return !!VisionOcrModule;
+  if (Platform.OS === "android") return loadMlKit() !== null;
+  return false;
 }
 
 // ── Core recognition ──────────────────────────────────────────────────────────
@@ -52,6 +91,24 @@ export function isOcrAvailable(): boolean {
  */
 export async function recognizeText(imageUri: string): Promise<OcrLine[]> {
   if (!isOcrAvailable()) return [];
+
+  if (Platform.OS === "android") {
+    const engine = loadMlKit();
+    if (!engine) return [];
+    try {
+      // ML Kit returns blocks of lines; Vision returns a flat list of lines.
+      // Flatten to match, so parseReceiptText sees the same shape either way.
+      const result = await engine.recognize(imageUri);
+      return (result?.blocks || []).flatMap((block) =>
+        (block.lines || [])
+          .map((line) => ({ text: line.text, confidence: null }))
+          .filter((line) => !!line.text),
+      );
+    } catch {
+      return [];
+    }
+  }
+
   try {
     return await VisionOcrModule.recognizeText(imageUri);
   } catch {
@@ -151,10 +208,14 @@ function parseDateString(text: string): string | null {
  */
 export function parseReceiptText(lines: OcrLine[]): OcrParseResult {
   const rawLines = lines.map((l) => l.text);
+  // Average only the lines that actually carry a score. Treating a missing
+  // score as 0 would drag the average down and make a good ML Kit scan look
+  // like a bad one; null means "not measured", not "measured as zero".
+  const scored = lines
+    .map((l) => l.confidence)
+    .filter((c): c is number => typeof c === "number");
   const avgConfidence =
-    lines.length > 0
-      ? lines.reduce((sum, l) => sum + l.confidence, 0) / lines.length
-      : 0;
+    scored.length > 0 ? scored.reduce((sum, c) => sum + c, 0) / scored.length : null;
 
   // ── Amount ──
 

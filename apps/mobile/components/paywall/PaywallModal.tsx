@@ -22,6 +22,9 @@ import {
   purchaseSubscription,
   getSubscriptionProducts,
   restorePurchases,
+  externalCheckoutAllowed,
+  EXTERNAL_CHECKOUT_BLOCKED_TITLE,
+  EXTERNAL_CHECKOUT_BLOCKED_MESSAGE,
 } from "../../lib/iap/index";
 import { validateApplePurchase } from "../../lib/api/billing";
 import { useUser } from "../../lib/user/context";
@@ -99,6 +102,10 @@ export function PaywallModal({ visible, onClose, source: _source }: PaywallModal
       if (isIapAvailable()) {
         await purchaseSubscription(selectedPlan, user?.id);
         // Purchase listener in _layout.tsx handles validation + refreshUser
+      } else if (!externalCheckoutAllowed()) {
+        // Play policy: never route to Stripe from a native Android build.
+        Alert.alert(EXTERNAL_CHECKOUT_BLOCKED_TITLE, EXTERNAL_CHECKOUT_BLOCKED_MESSAGE);
+        return;
       } else {
         const res = await createCheckoutSession();
         if (res.data.url) {

@@ -63,21 +63,86 @@
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#ffffff"
+        "backgroundColor": "#030712"
       },
       "package": "com.mileclear.app",
-      "versionCode": 1,
+      "versionCode": 2,
+      "googleServicesFile": "./google-services.json",
+      "config": {
+        "googleMaps": {
+          "apiKey": "AIzaSyAfelz2DqQFYkcH2pgTtRCymEZct1xiGNk"
+        }
+      },
       "permissions": [
         "ACCESS_FINE_LOCATION",
         "ACCESS_COARSE_LOCATION",
         "ACCESS_BACKGROUND_LOCATION",
         "FOREGROUND_SERVICE",
         "FOREGROUND_SERVICE_LOCATION",
-        "ACTIVITY_RECOGNITION",
         "POST_NOTIFICATIONS"
+      ],
+      "blockedPermissions": [
+        "android.permission.ACTIVITY_RECOGNITION",
+        "com.google.android.gms.permission.ACTIVITY_RECOGNITION",
+        "com.huawei.hms.permission.ACTIVITY_RECOGNITION",
+        "android.permission.RECORD_AUDIO"
       ]
     },
     "plugins": [
+      [
+        "expo-font",
+        {
+          "android": {
+            "fonts": [
+              {
+                "fontFamily": "PlusJakartaSans_300Light",
+                "fontDefinitions": [
+                  {
+                    "path": "./assets/fonts/PlusJakartaSans_300Light.ttf",
+                    "weight": 300
+                  }
+                ]
+              },
+              {
+                "fontFamily": "PlusJakartaSans_400Regular",
+                "fontDefinitions": [
+                  {
+                    "path": "./assets/fonts/PlusJakartaSans_400Regular.ttf",
+                    "weight": 400
+                  }
+                ]
+              },
+              {
+                "fontFamily": "PlusJakartaSans_500Medium",
+                "fontDefinitions": [
+                  {
+                    "path": "./assets/fonts/PlusJakartaSans_500Medium.ttf",
+                    "weight": 500
+                  }
+                ]
+              },
+              {
+                "fontFamily": "PlusJakartaSans_600SemiBold",
+                "fontDefinitions": [
+                  {
+                    "path": "./assets/fonts/PlusJakartaSans_600SemiBold.ttf",
+                    "weight": 600
+                  }
+                ]
+              },
+              {
+                "fontFamily": "PlusJakartaSans_700Bold",
+                "fontDefinitions": [
+                  {
+                    "path": "./assets/fonts/PlusJakartaSans_700Bold.ttf",
+                    "weight": 700
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ],
       "expo-router",
       "expo-secure-store",
       "expo-sqlite",
@@ -109,9 +174,12 @@
       "./plugins/with-vision-ocr",
       "./plugins/with-siri-shortcuts",
       "./plugins/with-modular-headers",
+      "./plugins/with-play-services-location-version",
       [
         "react-native-background-geolocation",
-        { "license": "" }
+        {
+          "license": ""
+        }
       ]
     ],
     "extra": {

@@ -5,6 +5,7 @@
 import { Platform } from "react-native";
 import Constants from "expo-constants";
 import * as Updates from "expo-updates";
+import { scrubCoordinates, scrubDiagnosticEventData } from "@mileclear/shared";
 import { apiRequest } from "./index";
 import {
   getDriveDetectionDiagnostics,
@@ -97,6 +98,10 @@ async function getRecentLocalTrips(limit = 10) {
  * can resolve UUIDs in event payloads to human-readable names. Without
  * this, every `geofence_tentative_arrival {locationId: "abc-123-..."}`
  * event required a server query to make sense of.
+ *
+ * Deliberately no latitude/longitude: the privacy policy says dumps carry
+ * no coordinates, and a home/work pin is the most sensitive fix we hold.
+ * Name + type + radius is all the reader needs.
  */
 async function getSavedLocations() {
   try {
@@ -105,12 +110,10 @@ async function getSavedLocations() {
       id: string;
       name: string;
       location_type: string;
-      latitude: number;
-      longitude: number;
       radius_meters: number;
       geofence_enabled: number;
     }>(
-      "SELECT id, name, location_type, latitude, longitude, radius_meters, geofence_enabled FROM saved_locations ORDER BY name ASC"
+      "SELECT id, name, location_type, radius_meters, geofence_enabled FROM saved_locations ORDER BY name ASC"
     );
   } catch {
     return [];
@@ -174,6 +177,15 @@ export async function uploadDiagnosticDump(): Promise<void> {
       (row) => !STRIPPED_KEYS.has(row.key)
     );
 
+    // Detection events are written by many call sites, some of which attach
+    // anchors / geofence centres / coordinate buffers to `data`. Scrub every
+    // event before upload so the dump never carries a fix. The server runs
+    // the same scrub on receipt as a second line of defence.
+    const safeEvents = events.map((e) => ({
+      ...e,
+      data: scrubDiagnosticEventData(e.data),
+    }));
+
     // Verdict. The previous logic flagged "error" whenever taskRunning was
     // false — but under the backstop model taskRunning:false is the NORMAL
     // parked/backgrounded state (the subscription restarts on foreground and
@@ -224,7 +236,9 @@ export async function uploadDiagnosticDump(): Promise<void> {
         appVersion: APP_VERSION,
         buildNumber: BUILD_NUMBER,
         verdict,
-        statusJson: {
+        // Deep-scrubbed: any lat/lng-shaped key or string fragment in the
+        // status tree is redacted before it leaves the device.
+        statusJson: scrubCoordinates({
           enabled: diagnostics.enabled,
           taskRunning: diagnostics.taskRunning,
           foregroundPermission: diagnostics.foregroundPermission,
@@ -270,8 +284,8 @@ export async function uploadDiagnosticDump(): Promise<void> {
               executionEnvironment: Constants.executionEnvironment ?? null,
             },
           },
-        },
-        eventsJson: events,
+        }),
+        eventsJson: safeEvents,
       }),
     });
   } catch {

@@ -1,5 +1,5 @@
 import { useCallback } from "react";
-import { Alert } from "react-native";
+import { Alert, Platform } from "react-native";
 import { SettingsScreen } from "../../components/settings/SettingsScreen";
 import { SettingsGroup } from "../../components/settings/SettingsGroup";
 import { SettingsRow } from "../../components/settings/SettingsRow";
@@ -21,7 +21,19 @@ const RELOCK_OPTIONS = [
 export default function SecuritySettings() {
   const { isLockRequired, available, lockType, setEnabled, setRequireAfterMs, config } = useAppLock();
 
-  const method = lockType === "face" ? "Face ID" : lockType === "fingerprint" ? "Touch ID" : "passcode";
+  // Face ID / Touch ID are Apple brand names; naming them on Android reads as
+  // a port. Android's equivalents are generic and vary by OEM.
+  const isIos = Platform.OS === "ios";
+  const method = isIos
+    ? lockType === "face" ? "Face ID" : lockType === "fingerprint" ? "Touch ID" : "passcode"
+    : lockType === "face" ? "face unlock" : lockType === "fingerprint" ? "fingerprint" : "screen lock";
+  const methodFallback = isIos ? "Face ID / passcode" : "biometrics / screen lock";
+  const setupHint = isIos
+    ? "Set up Face ID, Touch ID, or a device passcode in your iOS Settings first, then come back."
+    : "Set up fingerprint, face unlock, or a screen lock in your Android settings first, then come back.";
+  const setupHintShort = isIos
+    ? "Set up Face ID, Touch ID, or a passcode in iOS Settings to use this."
+    : "Set up fingerprint, face unlock, or a screen lock in Android settings to use this.";
 
   const onToggle = useCallback(
     async (next: boolean) => {
@@ -31,11 +43,11 @@ export default function SecuritySettings() {
           available ? "Couldn't turn on app lock" : "Not available yet",
           available
             ? "Authentication was cancelled or didn't succeed. Try again."
-            : "Set up Face ID, Touch ID, or a device passcode in your iOS Settings first, then come back."
+            : setupHint
         );
       }
     },
-    [setEnabled, available]
+    [setEnabled, available, setupHint]
   );
 
   const pickRelock = useCallback(() => {
@@ -56,11 +68,11 @@ export default function SecuritySettings() {
       <SettingsGroup title="APP LOCK">
         <ToggleRow
           icon="lock-closed-outline"
-          label={`Require ${available ? method : "Face ID / passcode"} to open`}
+          label={`Require ${available ? method : methodFallback} to open`}
           hint={
             available
               ? "Lock MileClear whenever you leave it. Trip tracking keeps running while locked."
-              : "Set up Face ID, Touch ID, or a passcode in iOS Settings to use this."
+              : setupHintShort
           }
           value={isLockRequired}
           onToggle={onToggle}

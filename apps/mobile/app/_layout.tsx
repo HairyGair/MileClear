@@ -152,9 +152,11 @@ import { getDatabase } from "../lib/db/index";
 import { hydrateLocalData, isHydrationComplete, reconcileSavedLocations, reconcileTrips } from "../lib/sync/hydrate";
 import { uploadDiagnosticDump } from "../lib/api/diagnostics";
 import { mountAppStateTracker } from "../lib/appState";
-import { isIapAvailable, initializeIap, setupPurchaseListeners, endIapConnection } from "../lib/iap/index";
+import { isIapAvailable, initializeIap, setupPurchaseListeners, endIapConnection, iapStore } from "../lib/iap/index";
+import { validateGooglePurchase } from "../lib/api/billingGoogle";
 import { validateApplePurchase } from "../lib/api/billing";
 import { PaywallProvider } from "../components/paywall";
+import { PromptProvider } from "../components/prompt";
 import { QuickStartModal } from "../components/QuickStartModal";
 import { AppLockProvider } from "../lib/appLock/context";
 import { AppLockGate } from "../components/AppLockGate";
@@ -172,6 +174,20 @@ const HEADER_TITLE_STYLE = { fontFamily: "PlusJakartaSans_300Light", color: "#f0
 // 2026). Internally gated on onboarding + permissions; never prompts; never
 // throws.
 void bootNativeEngineOnLaunch();
+
+// Load the persisted Android licence verdict before React renders. Without
+// this, every cold launch optimistically shows "ClearTrack is on" until the
+// first start() attempt rejects again - so an unlicensed release build would
+// flash a false promise on every single launch.
+//
+// DYNAMIC import, deliberately. nativeLocation pulls in ./detection, which is
+// already in require cycles with geofencing and notifications. Importing it
+// statically here reordered module evaluation enough that lib/auth/context was
+// only half-initialised when useAuth ran, and the app died on launch with
+// "useAuth must be used within an AuthProvider". Every other consumer
+// (lib/auth, lib/geofencing) imports this module dynamically for the same
+// reason - follow that.
+void import("../lib/tracking/nativeLocation").then((m) => m.loadLicenceState());
 
 function RootNavigator() {
   const { isLoading, isAuthenticated } = useAuth();
@@ -573,8 +589,14 @@ function RootNavigator() {
     initializeIap().then((ok) => {
       if (!ok) return;
       cleanup = setupPurchaseListeners({
-        onPurchaseSuccess: async (transactionId) => {
-          await validateApplePurchase(transactionId);
+        onPurchaseSuccess: async (token) => {
+          // token is a StoreKit transaction ID on iOS, a Play purchase token
+          // on Android — each store has its own validate endpoint.
+          if (iapStore() === "google") {
+            await validateGooglePurchase(token);
+          } else {
+            await validateApplePurchase(token);
+          }
           refreshUser();
         },
         onPurchaseError: (error) => {
@@ -749,13 +771,15 @@ export default function RootLayout() {
         <AuthProvider>
           <UserProvider>
             <PaywallProvider>
-              <ModeProvider>
-                <SyncProvider>
-                  <AppLockProvider>
-                    <RootNavigator />
-                  </AppLockProvider>
-                </SyncProvider>
-              </ModeProvider>
+              <PromptProvider>
+                <ModeProvider>
+                  <SyncProvider>
+                    <AppLockProvider>
+                      <RootNavigator />
+                    </AppLockProvider>
+                  </SyncProvider>
+                </ModeProvider>
+              </PromptProvider>
             </PaywallProvider>
           </UserProvider>
         </AuthProvider>

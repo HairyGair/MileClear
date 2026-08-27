@@ -3263,9 +3263,24 @@ export async function startDriveDetection(): Promise<void> {
             const { stopGeofencing } = await import("../geofencing/index");
             await stopGeofencing();
           } catch {}
-          await startNativeLocationEngine();
-          logDetectionEvent("detection_using_native_engine", {}).catch(() => {});
-          return;
+          const nativeStarted = await startNativeLocationEngine();
+          if (nativeStarted) {
+            logDetectionEvent("detection_using_native_engine", {}).catch(() => {});
+            return;
+          }
+
+          // Native refused to start. This used to `return` unconditionally,
+          // which meant NOTHING was tracking: the JS layer and geofences were
+          // torn down just above to give native exclusive ownership of
+          // location, so an early return left the device with no engine at all
+          // and a dashboard still claiming drives record automatically.
+          //
+          // The expected cause on Android is an unlicensed release build -
+          // RNBG's licence gate lives in start(), which rejects with
+          // LICENSE_VALIDATION_FAILURE. Falling through restarts the JS engine
+          // immediately rather than waiting for the 3-day deaf-engine
+          // self-heal, which would cost a new user their first three days.
+          logDetectionEvent("native_engine_start_failed_fallback_js", {}).catch(() => {});
         }
       } else {
         // Flag on but binary missing (e.g. an OTA before the dev build) — fall

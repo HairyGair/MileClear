@@ -238,7 +238,12 @@ export async function reconcileWakeLagStart(args: {
       savedLocations,
       routeMiles: Number.POSITIVE_INFINITY,
     });
-    if (!dryRun.ok && dryRun.reason !== "route_implausible") return null;
+    // routeMiles is deliberately Infinity here, which the guard reports as
+    // "route_unavailable". That is the pass-through signal, not a failure:
+    // until 27 Aug 2026 this line only accepted "route_implausible" (which
+    // Infinity can never produce), so every candidate returned null and the
+    // extension never fired once in production.
+    if (!dryRun.ok && dryRun.reason !== "route_unavailable") return null;
 
     const route = await resolveRouteDistance({
       startLat: prevTrip.endLat!,

@@ -81,8 +81,25 @@ try {
 try {
   const google = require("@react-native-google-signin/google-signin");
   GoogleSignin = google.GoogleSignin;
+  // Android signs in through a SEPARATE Google Cloud project from iOS.
+  //
+  // The original OAuth clients live in project 194042004, which is no longer
+  // reachable from the console, so Android gets its own web + Android client
+  // pair created in mileclear-495918. Google requires the Android OAuth client
+  // and the webClientId to sit in the SAME project - mixing them fails with
+  // DEVELOPER_ERROR - so Android cannot reuse the iOS/web client ID.
+  //
+  // Falls back to the shared web client when the Android-specific one isn't
+  // set, so nothing breaks before the new client exists.
+  const androidWebClientId =
+    process.env.EXPO_PUBLIC_GOOGLE_ANDROID_WEB_CLIENT_ID ||
+    process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID;
+
   GoogleSignin?.configure({
-    webClientId: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID,
+    webClientId:
+      Platform.OS === "android"
+        ? androidWebClientId
+        : process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID,
     iosClientId: process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID,
   });
 } catch {}

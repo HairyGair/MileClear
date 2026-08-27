@@ -6,6 +6,7 @@ import {
   TouchableOpacity,
   ScrollView,
   StyleSheet,
+  Dimensions,
 } from "react-native";
 import { AppModal } from "./AppModal";
 import { Ionicons } from "@expo/vector-icons";
@@ -364,7 +365,11 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     paddingTop: 8,
-    maxHeight: "85%",
+    // Was maxHeight: "85%". A percentage needs a definite parent height to
+    // resolve against; inside Android's Modal container it resolved to 0, so
+    // the sheet rendered with no height at all - backdrop visible, menu
+    // invisible. iOS resolved it fine, which is why this never showed up.
+    maxHeight: Math.round(Dimensions.get("window").height * 0.85),
     borderWidth: 1,
     borderBottomWidth: 0,
     borderColor: "rgba(255,255,255,0.06)",

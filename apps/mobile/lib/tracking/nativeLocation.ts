@@ -23,6 +23,8 @@
 // STATUS: scaffolding. The event→pipeline wiring is in place and reuses the
 // real finalize path; config values are sensible defaults to tune on-device.
 
+import Constants from "expo-constants";
+import { Platform } from "react-native";
 import { getDatabase } from "../db/index";
 import {
   logDetectionEvent,
@@ -157,6 +159,23 @@ export function isNativeEngineAvailable(): boolean {
 // ─── Configuration (tune on-device) ─────────────────────────────────────────
 function buildConfig(BGGeo: BgGeo): Record<string, unknown> {
   return {
+    // ANDROID ONLY. Ignored on iOS, which takes this copy from the Info.plist
+    // usage descriptions instead.
+    //
+    // Without this, RNBG shows its own default: "[CHANGEME] This app collects
+    // location data for FEATURE X and FEATURE Y." That placeholder was being
+    // displayed on the background-location prompt - the single most important
+    // permission in the app - until it was caught on the emulator, 26 Jul.
+    // Two reasons it matters: a driver being asked for always-on location is
+    // at their most suspicious, and Google Play requires an accurate
+    // disclosure of background location use, which placeholder text is not.
+    backgroundPermissionRationale: {
+      title: "Allow MileClear to record trips in the background?",
+      message:
+        "MileClear needs location access all the time so it can record your business mileage automatically, including when your phone is locked or the app is closed. Without it, trips only record while the app is open on screen.",
+      positiveAction: 'Change to "Allow all the time"',
+      negativeAction: "Cancel",
+    },
     // Capture
     desiredAccuracy: BGGeo.DESIRED_ACCURACY_NAVIGATION,
     distanceFilter: 20, // metres between recorded fixes while moving
@@ -164,6 +183,13 @@ function buildConfig(BGGeo: BgGeo): Record<string, unknown> {
     // motion coprocessor, which is what makes wake reliable.
     stopTimeout: 5, // minutes of stillness before it declares the trip stopped
     stationaryRadius: 25,
+    // ANDROID: no ACTIVITY_RECOGNITION permission. Google Play treats that
+    // permission as a health feature and forces a Health-apps declaration the
+    // app cannot truthfully make, so the manifest blocks it (app.json
+    // blockedPermissions, 27 Aug 2026). Without it RNBG leaves the stationary
+    // state via its stationary geofence + speed instead of the motion API.
+    // iOS keeps motion activity (Motion & Fitness).
+    disableMotionActivityUpdates: Platform.OS === "android",
     // Heartbeat: fires every 60s, but ONLY while the app is kept alive
     // (preventSuspend). We turn preventSuspend on for the duration of a
     // recording (see openNativeRecording) so the app survives the ~5min
@@ -208,6 +234,91 @@ function buildConfig(BGGeo: BgGeo): Record<string, unknown> {
 }
 
 let started = false;
+
+// ─── Android licence state ──────────────────────────────────────────────────
+//
+// RNBG is free in Android DEBUG builds and licensed for RELEASE. An unlicensed
+// release build still LOADS the native module, so isNativeEngineAvailable()
+// (which only checks the module loaded) cannot tell the difference. The only
+// signal is start() rejecting with LICENSE_VALIDATION_FAILURE - see the catch
+// in startNativeLocationEngine.
+//
+// Persisted because the in-memory flag is only known AFTER a start attempt in
+// the current process: without it, every cold launch optimistically claims
+// ClearTrack is on until the first start() round-trip fails again.
+const LICENCE_FAILED_KEY = "native_engine_licence_failed";
+let licenceFailed = false;
+let licenceStateLoaded = false;
+
+async function persistLicenceFailure(): Promise<void> {
+  try {
+    const db = await getDatabase();
+    await db.runAsync(
+      "INSERT OR REPLACE INTO tracking_state (key, value) VALUES (?, ?)",
+      [LICENCE_FAILED_KEY, "1"]
+    );
+  } catch {
+    // in-memory flag still holds for this session
+  }
+}
+
+/** Load the persisted licence verdict once per process. Call before relying on
+ *  isNativeEngineTracking() early in a cold launch. */
+export async function loadLicenceState(): Promise<void> {
+  if (licenceStateLoaded) return;
+  licenceStateLoaded = true;
+  try {
+    const db = await getDatabase();
+    const row = await db.getFirstAsync<{ value: string }>(
+      "SELECT value FROM tracking_state WHERE key = ?",
+      [LICENCE_FAILED_KEY]
+    );
+    if (row?.value === "1") licenceFailed = true;
+  } catch {
+    // leave optimistic; a start() attempt will settle it
+  }
+}
+
+/**
+ * Whether the native engine can actually record - module present AND not
+ * licence-rejected. Use this for anything the DRIVER sees ("ClearTrack is
+ * on"). isNativeEngineAvailable() stays as-is for callers that genuinely only
+ * need "is the binary present".
+ */
+export function isNativeEngineTracking(): boolean {
+  return loadNativeModule() !== null && !licenceFailed;
+}
+
+// ─── Android licence key present in the build? ──────────────────────────────
+//
+// RNBG's plugin writes app.json's `license` into the manifest (an empty string
+// becomes "UNDEFINED"). An unlicensed RELEASE build still loads the module and
+// ready() succeeds, but start() rejects AND the SDK shows its own
+// "LICENSE VALIDATION FAILURE" toast to the driver (seen on the 26 Aug 2026
+// emulator run). So on Android we never call start() unless the build was
+// made with a key: the JS engine takes over immediately and quietly. Buying
+// the licence and rebuilding flips this to true with no other change.
+function androidLicenceKeyConfigured(): boolean {
+  if (Platform.OS !== "android") return true;
+  try {
+    const plugins = (Constants.expoConfig?.plugins ?? []) as unknown[];
+    for (const entry of plugins) {
+      if (!Array.isArray(entry)) continue;
+      const [name, opts] = entry as [unknown, { license?: unknown } | undefined];
+      if (name === "react-native-background-geolocation") {
+        return typeof opts?.license === "string" && opts.license.trim().length > 0;
+      }
+    }
+  } catch {
+    // fall through: treat as unlicensed rather than risk the toast
+  }
+  return false;
+}
+
+/** True when RNBG explicitly rejected the licence on this device. */
+export function hasNativeLicenceFailed(): boolean {
+  return licenceFailed;
+}
 // Single-flight guard. startDriveDetection runs on every app foreground, so two
 // foregrounds milliseconds apart both called this before `started` was set at
 // the end — each ran removeAllListeners + re-registered onLocation/onMotionChange,
@@ -227,6 +338,17 @@ export async function startNativeLocationEngine(): Promise<boolean> {
   if (!BGGeo) return false;
   if (started) return true;
   if (startPromise) return startPromise; // a start is already in flight
+  if (!androidLicenceKeyConfigured()) {
+    // Unlicensed Android build: do not touch start() (it rejects and the SDK
+    // toasts LICENSE VALIDATION FAILURE at the driver). Record the verdict so
+    // the dashboard shows the Basic tracking copy from the first launch.
+    if (!licenceFailed) {
+      licenceFailed = true;
+      void persistLicenceFailure();
+      logDetectionEvent("native_engine_unlicensed_build", {}).catch(() => {});
+    }
+    return false;
+  }
 
   startPromise = (async () => {
     try {
@@ -269,8 +391,26 @@ export async function startNativeLocationEngine(): Promise<boolean> {
         .catch(() => {});
       return true;
     } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+
+      // RNBG's Android licence gate lives in start(), NOT ready() - ready()
+      // resolves happily unlicensed. On failure start() rejects with the
+      // literal string LICENSE_VALIDATION_FAILURE. Without recording that, the
+      // engine looks "available" (isNativeEngineAvailable only checks the
+      // native module loaded) and the dashboard would keep telling the driver
+      // "ClearTrack is on - drives record automatically" while nothing is
+      // being recorded. Silent non-capture is the worst failure this app has.
+      //
+      // Only ever true on Android release builds: debuggable APKs bypass
+      // validation, so this cannot be reproduced in a dev client.
+      if (message.includes("LICENSE_VALIDATION_FAILURE")) {
+        licenceFailed = true;
+        void persistLicenceFailure();
+        logDetectionEvent("native_engine_licence_invalid", {}).catch(() => {});
+      }
+
       logDetectionEvent("native_engine_start_failed", {
-        error: err instanceof Error ? err.message.slice(0, 160) : String(err),
+        error: message.slice(0, 160),
       }).catch(() => {});
       return false;
     }

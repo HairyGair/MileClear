@@ -58,6 +58,7 @@ type MailOpts = {
   replyTo?: string;
   subject?: string;
   html?: string;
+  text?: string;
   headers?: Record<string, string>;
   attachments?: { filename: string; content: Buffer; contentType: string }[];
 };
@@ -75,6 +76,7 @@ async function sendViaBrevoApi(opts: MailOpts): Promise<void> {
     subject: opts.subject ?? "",
     htmlContent: opts.html ?? "",
   };
+  if (opts.text) payload.textContent = opts.text;
   if (opts.replyTo) payload.replyTo = parseAddress(opts.replyTo);
   if (opts.headers && Object.keys(opts.headers).length > 0) {
     payload.headers = opts.headers;
@@ -112,6 +114,7 @@ async function sendViaResend(opts: MailOpts): Promise<void> {
     subject: opts.subject ?? "",
     html: opts.html ?? "",
   };
+  if (opts.text) payload.text = opts.text;
   if (opts.replyTo) payload.reply_to = opts.replyTo;
   if (opts.headers && Object.keys(opts.headers).length > 0) {
     payload.headers = opts.headers;
@@ -1280,6 +1283,34 @@ async function deliver(opts: {
     html: opts.html,
     headers: opts.gated ? unsubscribeHeaders(opts.userId) : undefined,
     attachments: opts.attachments,
+  });
+}
+
+/** Plain admin/operator email (billing alerts, ops notices). Rides the
+ *  same Resend-first / Brevo-fallback chain as every user-facing send.
+ *  Not gated by marketing consent: the recipient is an admin, not a
+ *  user. Defaults From to EMAIL_FROM (noreply@mileclear.com, a domain
+ *  verified in Resend). Throws on a payload-level failure so callers
+ *  can record it; logs to console when no transport is configured. */
+export async function sendAdminEmail(opts: {
+  to: string;
+  subject: string;
+  html: string;
+  text?: string;
+  replyTo?: string;
+  from?: string;
+}): Promise<void> {
+  if (!transporter) {
+    console.log(`[EMAIL] admin "${opts.subject}" for ${opts.to}`);
+    return;
+  }
+  await transporter.sendMail({
+    from: opts.from ?? FROM,
+    to: opts.to,
+    replyTo: opts.replyTo,
+    subject: opts.subject,
+    html: opts.html,
+    text: opts.text,
   });
 }
 

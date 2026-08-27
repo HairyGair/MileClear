@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { Alert, Platform, TouchableOpacity, View, Text, StyleSheet } from "react-native";
+import { Alert, TouchableOpacity, View, Text, StyleSheet } from "react-native";
 import { router } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import type { WorkType } from "@mileclear/shared";
@@ -10,6 +10,7 @@ import { fetchProfile, updateProfile } from "../../lib/api/user";
 import { useUser } from "../../lib/user/context";
 import { getDatabase } from "../../lib/db";
 import { colors, fonts, radii, spacing } from "../../lib/theme";
+import { usePrompt } from "../../components/prompt";
 
 /**
  * Work & Tax sub-screen. Owns the three "self-employed driver" settings
@@ -22,6 +23,7 @@ import { colors, fonts, radii, spacing } from "../../lib/theme";
  */
 export default function WorkTaxSettings() {
   const { refreshUser } = useUser();
+  const { prompt } = usePrompt();
   const [workType, setWorkType] = useState<WorkType>("gig");
   const [employerRate, setEmployerRate] = useState<number | null>(null);
   const [employerRateAfter10k, setEmployerRateAfter10k] = useState<number | null>(null);
@@ -78,107 +80,70 @@ export default function WorkTaxSettings() {
   );
 
   // ── Employer rate (two-tier prompt on iOS) ────────────────────────
-  const handleEmployerRate = useCallback(() => {
-    const promptAfter10k = (firstTier: number | null) => {
-      if (firstTier == null) {
-        setEmployerRateAfter10k(null);
-        updateProfile({
-          employerMileageRatePence: null,
-          employerMileageRatePenceAfter10k: null,
-        }).catch(() => {});
+  const handleEmployerRate = useCallback(async () => {
+    const saveTiers = async (first: number | null, after: number | null) => {
+      setEmployerRate(first);
+      setEmployerRateAfter10k(after);
+      try {
+        await updateProfile({
+          employerMileageRatePence: first,
+          employerMileageRatePenceAfter10k: after,
+        });
         refreshUser();
-        return;
+      } catch {
+        Alert.alert("Couldn't save the rate", "Try again in a moment.");
       }
-      Alert.prompt(
-        "Rate after 10,000 miles",
-        `Some employers pay less per mile after 10,000 business miles in the tax year. Leave blank if they pay ${firstTier}p the whole way.`,
-        [
-          {
-            text: "Skip",
-            onPress: async () => {
-              setEmployerRateAfter10k(null);
-              try {
-                await updateProfile({
-                  employerMileageRatePence: firstTier,
-                  employerMileageRatePenceAfter10k: null,
-                });
-                refreshUser();
-              } catch {
-                Alert.alert("Couldn't save the rate", "Try again in a moment.");
-              }
-            },
-          },
-          {
-            text: "Save",
-            onPress: async (value: string | undefined) => {
-              const trimmed = value?.trim() ?? "";
-              const after = trimmed === "" ? null : parseInt(trimmed, 10);
-              if (after !== null && (isNaN(after) || after < 0 || after > 100)) {
-                Alert.alert("Out of range", "Enter a value between 0 and 100, or leave blank.");
-                return;
-              }
-              setEmployerRateAfter10k(after);
-              try {
-                await updateProfile({
-                  employerMileageRatePence: firstTier,
-                  employerMileageRatePenceAfter10k: after,
-                });
-                refreshUser();
-              } catch {
-                Alert.alert("Couldn't save the rate", "Try again in a moment.");
-              }
-            },
-          },
-        ],
-        "plain-text",
-        employerRateAfter10k ? String(employerRateAfter10k) : "",
-        "number-pad"
-      );
     };
 
-    if (Platform.OS === "ios") {
-      Alert.prompt(
-        "Rate for first 10,000 miles",
+    const firstRes = await prompt({
+      title: "Rate for first 10,000 miles",
+      message:
         "Pence per mile your employer reimburses (0 to clear). HMRC's AMAP rate is 55p for the first 10,000 miles, then 25p, so anything below leaves a gap you can claim back via Mileage Allowance Relief (rate rose from 45p to 55p on 6 April 2026).",
-        [
-          { text: "Cancel", style: "cancel" },
-          {
-            text: "Next",
-            onPress: (value: string | undefined) => {
-              if (!value?.trim()) return;
-              const parsed = parseInt(value.trim(), 10);
-              if (isNaN(parsed) || parsed < 0 || parsed > 100) {
-                Alert.alert("Out of range", "Enter a value between 0 and 100.");
-                return;
-              }
-              const firstTier = parsed === 0 ? null : parsed;
-              setEmployerRate(firstTier);
-              promptAfter10k(firstTier);
-            },
-          },
-        ],
-        "plain-text",
-        employerRate ? String(employerRate) : "",
-        "number-pad"
-      );
-    } else {
-      // Android Alert can't capture text input. Quick presets cover the
-      // common employer policies; finer control lives in the web dashboard.
-      Alert.alert(
-        "Employer Mileage Rate",
-        `Current: ${employerRate ? `${employerRate}p${employerRateAfter10k != null ? ` / ${employerRateAfter10k}p after 10k` : ""}` : "Not set"}\n\nFor a custom two-tier rate, use the web dashboard.`,
-        [
-          { text: "Cancel", style: "cancel" },
-          { text: "Clear", onPress: async () => { setEmployerRate(null); setEmployerRateAfter10k(null); await updateProfile({ employerMileageRatePence: null, employerMileageRatePenceAfter10k: null }).catch(() => {}); refreshUser(); } },
-          { text: "40p flat", onPress: async () => { setEmployerRate(40); setEmployerRateAfter10k(null); await updateProfile({ employerMileageRatePence: 40, employerMileageRatePenceAfter10k: null }).catch(() => {}); refreshUser(); } },
-          { text: "55p / 25p (HMRC)", onPress: async () => { setEmployerRate(55); setEmployerRateAfter10k(25); await updateProfile({ employerMileageRatePence: 55, employerMileageRatePenceAfter10k: 25 }).catch(() => {}); refreshUser(); } },
-        ]
-      );
+      defaultValue: employerRate ? String(employerRate) : "",
+      keyboardType: "number-pad",
+      submitLabel: "Next",
+    });
+    if (firstRes.action !== "submit") return;
+    if (!firstRes.value.trim()) return;
+
+    const parsed = parseInt(firstRes.value.trim(), 10);
+    if (isNaN(parsed) || parsed < 0 || parsed > 100) {
+      Alert.alert("Out of range", "Enter a value between 0 and 100.");
+      return;
     }
-  }, [employerRate, employerRateAfter10k, refreshUser]);
+
+    const firstTier = parsed === 0 ? null : parsed;
+    // 0 means "clear" - no rate, so no second tier to ask about.
+    if (firstTier == null) {
+      await saveTiers(null, null);
+      return;
+    }
+
+    const afterRes = await prompt({
+      title: "Rate after 10,000 miles",
+      message: `Some employers pay less per mile after 10,000 business miles in the tax year. Leave blank if they pay ${firstTier}p the whole way.`,
+      defaultValue: employerRateAfter10k ? String(employerRateAfter10k) : "",
+      keyboardType: "number-pad",
+      cancelLabel: null,
+      neutralLabel: "Skip",
+    });
+    if (afterRes.action === "cancel") return;
+    if (afterRes.action === "neutral") {
+      await saveTiers(firstTier, null);
+      return;
+    }
+
+    const trimmed = afterRes.value.trim();
+    const after = trimmed === "" ? null : parseInt(trimmed, 10);
+    if (after !== null && (isNaN(after) || after < 0 || after > 100)) {
+      Alert.alert("Out of range", "Enter a value between 0 and 100, or leave blank.");
+      return;
+    }
+    await saveTiers(firstTier, after);
+  }, [employerRate, employerRateAfter10k, refreshUser, prompt]);
 
   // ── Other annual income ───────────────────────────────────────────
-  const handleOtherIncome = useCallback(() => {
+  const handleOtherIncome = useCallback(async () => {
     const currentPounds = otherIncomePence != null
       ? Math.round(otherIncomePence / 100).toString()
       : "";
@@ -210,35 +175,19 @@ export default function WorkTaxSettings() {
       }
     };
 
-    if (Platform.OS === "ios") {
-      Alert.prompt(
-        "Other annual income",
+    const res = await prompt({
+      title: "Other annual income",
+      message:
         "Pre-tax income from your main job, pension, rental, etc. We use this to calculate the right tax bracket on your gig profit. Leave blank if MileClear earnings are your only taxable income.",
-        [
-          { text: "Cancel", style: "cancel" },
-          { text: "Save", onPress: save },
-        ],
-        "plain-text",
-        currentPounds,
-        "number-pad"
-      );
-    } else {
-      Alert.alert(
-        "Other annual income",
-        `Current: ${otherIncomePence != null ? `£${(otherIncomePence / 100).toLocaleString("en-GB")}` : "Not set"}\n\nFor a precise figure, use the web dashboard.`,
-        [
-          { text: "Cancel", style: "cancel" },
-          { text: "Clear", onPress: () => save("") },
-          { text: "£25,000 (basic)", onPress: () => save("25000") },
-          { text: "£50,000 (higher)", onPress: () => save("50000") },
-          { text: "£75,000 (higher)", onPress: () => save("75000") },
-        ]
-      );
-    }
-  }, [otherIncomePence, refreshUser]);
+      defaultValue: currentPounds,
+      keyboardType: "number-pad",
+    });
+    if (res.action !== "submit") return;
+    await save(res.value);
+  }, [otherIncomePence, refreshUser, prompt]);
 
   // ── PAYE tax already paid this year ──────────────────────────────
-  const handlePayeTaxPaid = useCallback(() => {
+  const handlePayeTaxPaid = useCallback(async () => {
     const currentPounds =
       payeTaxPaidPence != null ? Math.round(payeTaxPaidPence / 100).toString() : "";
     const save = async (value: string | undefined) => {
@@ -269,29 +218,16 @@ export default function WorkTaxSettings() {
       }
     };
 
-    if (Platform.OS === "ios") {
-      Alert.prompt(
-        "PAYE tax already paid",
+    const res = await prompt({
+      title: "PAYE tax already paid",
+      message:
         "Total tax deducted by your employer so far this tax year (from your latest payslip). We subtract it from the Tax Readiness figure so you see what's still owed, not the gross liability.",
-        [
-          { text: "Cancel", style: "cancel" },
-          { text: "Save", onPress: save },
-        ],
-        "plain-text",
-        currentPounds,
-        "number-pad"
-      );
-    } else {
-      Alert.alert(
-        "PAYE tax already paid",
-        `Current: ${payeTaxPaidPence != null ? `£${(payeTaxPaidPence / 100).toLocaleString("en-GB")}` : "Not set"}\n\nFor a precise figure, use the web dashboard.`,
-        [
-          { text: "Cancel", style: "cancel" },
-          { text: "Clear", onPress: () => save("") },
-        ]
-      );
-    }
-  }, [payeTaxPaidPence, refreshUser]);
+      defaultValue: currentPounds,
+      keyboardType: "number-pad",
+    });
+    if (res.action !== "submit") return;
+    await save(res.value);
+  }, [payeTaxPaidPence, refreshUser, prompt]);
 
   // ── Tax basis (cash vs accruals) ──────────────────────────────────
   const handleTaxBasis = useCallback(() => {
@@ -321,7 +257,7 @@ export default function WorkTaxSettings() {
   }, [refreshUser]);
 
   // ── Weekly goal ───────────────────────────────────────────────────
-  const handleWeeklyGoal = useCallback(() => {
+  const handleWeeklyGoal = useCallback(async () => {
     const persistGoal = async (n: number | null) => {
       const db = await getDatabase();
       if (n === null) {
@@ -335,48 +271,27 @@ export default function WorkTaxSettings() {
       setWeeklyGoal(n);
     };
 
-    if (Platform.OS === "ios") {
-      Alert.prompt(
-        "Weekly miles goal",
-        "Set a target for your weekly driving (e.g. 50). Leave blank to remove.",
-        [
-          { text: "Cancel", style: "cancel" },
-          ...(weeklyGoal !== null
-            ? [{ text: "Remove", style: "destructive" as const, onPress: () => persistGoal(null) }]
-            : []),
-          {
-            text: "Save",
-            onPress: async (value: string | undefined) => {
-              if (!value?.trim()) return;
-              const parsed = parseFloat(value.trim());
-              if (!isFinite(parsed) || parsed <= 0) {
-                Alert.alert("Invalid", "Enter a positive number of miles.");
-                return;
-              }
-              persistGoal(Math.round(parsed * 10) / 10);
-            },
-          },
-        ],
-        "plain-text",
-        weeklyGoal ? String(weeklyGoal) : "",
-        "number-pad"
-      );
-    } else {
-      Alert.alert(
-        "Weekly miles goal",
-        `Current: ${weeklyGoal ? `${weeklyGoal} miles` : "Not set"}`,
-        [
-          { text: "Cancel", style: "cancel" },
-          ...(weeklyGoal !== null
-            ? [{ text: "Remove", style: "destructive" as const, onPress: () => persistGoal(null) }]
-            : []),
-          { text: "25 mi", onPress: () => persistGoal(25) },
-          { text: "50 mi", onPress: () => persistGoal(50) },
-          { text: "100 mi", onPress: () => persistGoal(100) },
-        ]
-      );
+    const res = await prompt({
+      title: "Weekly miles goal",
+      message: "Set a target for your weekly driving (e.g. 50). Leave blank to remove.",
+      defaultValue: weeklyGoal ? String(weeklyGoal) : "",
+      keyboardType: "number-pad",
+      // "Remove" only makes sense once a goal exists.
+      neutralLabel: weeklyGoal !== null ? "Remove" : undefined,
+    });
+    if (res.action === "cancel") return;
+    if (res.action === "neutral") {
+      await persistGoal(null);
+      return;
     }
-  }, [weeklyGoal]);
+    if (!res.value.trim()) return;
+    const parsed = parseFloat(res.value.trim());
+    if (!isFinite(parsed) || parsed <= 0) {
+      Alert.alert("Invalid", "Enter a positive number of miles.");
+      return;
+    }
+    await persistGoal(Math.round(parsed * 10) / 10);
+  }, [weeklyGoal, prompt]);
 
   // ── Render ────────────────────────────────────────────────────────
   const workTypeLabel =
