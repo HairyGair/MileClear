@@ -36,9 +36,14 @@ import {
   clearNotDrivingCooldown,
   isNotDrivingCooldownActive,
   haversineMeters,
-  GAP_STOP_MS,
-  GAP_STOP_DRIFT_M,
+  recentBufferedFixes,
 } from "./detection";
+import {
+  gapStopDecision,
+  isJourneyStillMoving,
+  GAP_STOP_MS,
+  type RecentFix,
+} from "./gapStop";
 
 // ─── Lazy, crash-safe native module load ────────────────────────────────────
 // Never a static import: the module is native-only (crashes in Expo Go, absent
@@ -103,11 +108,16 @@ const HEARTBEAT_FINALIZE_STALE_MS = 7 * 60 * 1000;
 // clock). So the one place every path converges - the moment a fix is
 // appended to an active recording - checks retroactively: a long silence
 // during which the device did not meaningfully move WAS a stop, and the
-// recording is closed at the fix before the silence. Large displacement
-// across a silence means a drive with sparse fixes (tunnels, iOS throttling)
-// and appends as before.
-// Thresholds live in detection.ts (GAP_STOP_MS / GAP_STOP_DRIFT_M) so the
-// two engines can never drift apart on what counts as a stop.
+// recording is closed at the fix before the silence.
+//
+// ⚠️ REVISED 27 Aug 2026. "Did not meaningfully move" was measured across the
+// silence, which assumes the next fix arrives where the driver parked. On a
+// sleeping phone it arrives once they are driving again, several hundred
+// metres on, so all three of Rachel's next visits read as sparse-fix drives
+// and appended. The rule now asks whether the vehicle had STOPPED before the
+// silence and keeps the displacement test only as the fallback. The rule and
+// its thresholds live in gapStop.ts, shared by both engines so they can never
+// drift apart on what counts as a stop.
 
 /** recorded_at is stored as an ISO string by the JS engine and as the raw
  *  native timestamp by bufferCoord - parse either without guessing. */
@@ -541,8 +551,26 @@ async function plantNativeAnchorBackfill(db: DB, seed: NativeLocation): Promise<
   }
 }
 
-/** Append a fix to the recording buffer + stamp the last-driving-speed time. */
-async function bufferCoord(db: DB, loc: NativeLocation): Promise<void> {
+/**
+ * Append a fix to the recording buffer, and stamp the idle timer IF the fix is
+ * evidence the journey is still going.
+ *
+ * That condition is the fix, 27 Aug 2026. This used to stamp on every fix,
+ * parked ones included. `last_driving_speed_at` is what the watchdog
+ * (checkAndFinalizeIfStopped) and the background-fetch finalizer measure
+ * STOP_TIMEOUT_MS against, so refreshing it from a stationary phone meant the
+ * native engine's ten-minute stop timeout could never expire: the only thing
+ * that could ever end a native recording was RNBG deciding the device was
+ * stationary, and RNBG does not decide that while the phone is being carried
+ * around. Rachel Thorndyke's trip 3e706e24 holds twelve consecutive fixes
+ * between 0.5 and 3.6 mph over nine minutes at a client's house, inside one
+ * trip that ran on for another two hours.
+ *
+ * The JS engine has always stamped this only on movement (its detection branch
+ * writes it, its stationary branch reads it), so this brings the native engine
+ * in line rather than inventing a new rule.
+ */
+async function bufferCoord(db: DB, loc: NativeLocation, previous?: RecentFix): Promise<void> {
   await db.runAsync(
     `INSERT INTO detection_coordinates (lat, lng, speed, accuracy, recorded_at)
      VALUES (?, ?, ?, ?, ?)`,
@@ -554,10 +582,21 @@ async function bufferCoord(db: DB, loc: NativeLocation): Promise<void> {
       loc.timestamp,
     ]
   );
-  await db.runAsync(
-    "INSERT OR REPLACE INTO tracking_state (key, value) VALUES ('last_driving_speed_at', ?)",
-    [Date.now().toString()]
+  const moving = isJourneyStillMoving(
+    {
+      lat: loc.coords.latitude,
+      lng: loc.coords.longitude,
+      speed: loc.coords.speed ?? null,
+      atMs: recordedAtMs(loc.timestamp) || Date.now(),
+    },
+    previous
   );
+  if (moving) {
+    await db.runAsync(
+      "INSERT OR REPLACE INTO tracking_state (key, value) VALUES ('last_driving_speed_at', ?)",
+      [Date.now().toString()]
+    );
+  }
 }
 
 /**
@@ -646,6 +685,16 @@ async function openNativeRecording(
   // the user actually set off.
   await plantNativeAnchorBackfill(db, seed);
   await bufferCoord(db, seed);
+  // Stamp the idle timer unconditionally on open, whatever the seed fix says.
+  // bufferCoord only stamps on movement now, and a recording can legitimately
+  // open on a slow fix (CoreMotion calls "moving" before the car is). Leaving
+  // the key absent would be read as broken state by the watchdog and the
+  // background-fetch finalizer, both of which clear auto_recording_active when
+  // they find no timestamp - killing the recording at birth.
+  await db.runAsync(
+    "INSERT OR REPLACE INTO tracking_state (key, value) VALUES ('last_driving_speed_at', ?)",
+    [Date.now().toString()]
+  );
   logDetectionEvent("native_recording_started", {
     accuracy: Math.round(seed.coords.accuracy ?? -1),
     reason,
@@ -669,20 +718,19 @@ async function handleNativeLocation(loc: NativeLocation): Promise<void> {
       "SELECT value FROM tracking_state WHERE key = 'auto_recording_active'"
     );
     if (recording?.value === "1") {
-      const lastFix = await db.getFirstAsync<{ lat: number; lng: number; recorded_at: string }>(
-        "SELECT lat, lng, recorded_at FROM detection_coordinates ORDER BY recorded_at DESC LIMIT 1"
-      );
+      const recent = await recentBufferedFixes(db);
+      const lastFix = recent[0];
       if (lastFix) {
-        const lastMs = recordedAtMs(lastFix.recorded_at);
-        const gapMs = recordedAtMs(loc.timestamp) - lastMs;
-        if (lastMs && gapMs > GAP_STOP_MS) {
+        const gapMs = recordedAtMs(loc.timestamp) - lastFix.atMs;
+        if (lastFix.atMs && gapMs > GAP_STOP_MS) {
           const driftM = haversineMeters(
             lastFix.lat,
             lastFix.lng,
             loc.coords.latitude,
             loc.coords.longitude
           );
-          if (driftM < GAP_STOP_DRIFT_M) {
+          const decision = gapStopDecision({ driftM, recent });
+          if (decision.finalize) {
             // The silence was a stop. Close the trip at the fix before it,
             // BEFORE buffering this one, so the visit never joins the route.
             // The keep-alive window then catches the drive away from the
@@ -690,6 +738,8 @@ async function handleNativeLocation(loc: NativeLocation): Promise<void> {
             logDetectionEvent("gap_stop_finalize", {
               gapMs,
               driftM: Math.round(driftM),
+              reason: decision.reason,
+              inferred: decision.inferred,
             }).catch(() => {});
             await finalizeAutoTrip();
             try {
@@ -701,10 +751,11 @@ async function handleNativeLocation(loc: NativeLocation): Promise<void> {
           logDetectionEvent("gap_stop_continued", {
             gapMs,
             driftM: Math.round(driftM),
+            reason: decision.reason,
           }).catch(() => {});
         }
       }
-      await bufferCoord(db, loc);
+      await bufferCoord(db, loc, lastFix);
       return;
     }
 

@@ -147,6 +147,7 @@ export async function startNativeAutoTripLiveActivity(): Promise<void> {
 
 import type { TripClassification, PlatformTag } from "@mileclear/shared";
 import { resolveJourneyEndMinutes, journeyBoundaryMs } from "./journeyBoundary";
+import { gapStopDecision, GAP_STOP_MS, type RecentFix } from "./gapStop";
 
 const DETECTION_TASK_NAME = "mileclear-drive-detection";
 const BACKGROUND_FINALIZE_TASK = "mileclear-background-finalize";
@@ -159,12 +160,12 @@ const QUICK_TRIP_NO_START_MAX_SPAN_MS = 3 * 60 * 60 * 1000; // 3h - same backsto
 const BACKGROUND_FETCH_INTERVAL_S = 15 * 60; // 15 minutes - iOS treats as a hint, actual cadence varies
 const COOLDOWN_MS = 20 * 60 * 1000; // 20 minutes
 
-// Gap-stop thresholds, shared by both engines (Class 20): a silence longer
-// than this across which the device moved less than the drift bound was a
-// stop, and the recording closes at the fix before it. Values mirror the
-// forensic split that repaired the welded trips (5 min gap, ~250m drift).
-export const GAP_STOP_MS = 5 * 60 * 1000;
-export const GAP_STOP_DRIFT_M = 250;
+// Gap-stop, shared by both engines (Class 20). The thresholds and the rule now
+// live in gapStop.ts, re-exported here so existing importers are unaffected.
+// The rule changed on 27 Aug 2026: it asks whether the vehicle had STOPPED
+// before the silence, not how far the next fix landed from the last one. See
+// gapStop.ts for the five measured silences that forced the change.
+export { GAP_STOP_MS, GAP_STOP_DRIFT_M } from "./gapStop";
 const BUFFER_MAX_AGE_MS = 30 * 60 * 1000; // 30 minutes
 const SESSION_GAP_MS = 5 * 60 * 1000; // 5 min gap between buffered coords = a prior-trip boundary; below this it's one continuous drive
 const SPEED_THRESHOLD_MS = DRIVING_SPEED_THRESHOLD_MPH * 0.44704; // mph to m/s
@@ -252,6 +253,36 @@ export function haversineMeters(lat1: number, lng1: number, lat2: number, lng2: 
 
 function haversineMiles(lat1: number, lng1: number, lat2: number, lng2: number): number {
   return haversineMeters(lat1, lng1, lat2, lng2) / 1609.344;
+}
+
+/**
+ * The last few buffered fixes, newest first, for the gap-stop rule.
+ *
+ * Both engines buffer into the same table, so both ask this. `recorded_at` is
+ * an ISO string from the JS engine and can be a raw timestamp from the native
+ * one, which is why it is parsed defensively here rather than by the caller.
+ */
+export async function recentBufferedFixes(
+  db: Awaited<ReturnType<typeof getDatabase>>,
+  limit = 5
+): Promise<RecentFix[]> {
+  const rows = await db.getAllAsync<{
+    lat: number;
+    lng: number;
+    speed: number | null;
+    recorded_at: string;
+  }>(
+    "SELECT lat, lng, speed, recorded_at FROM detection_coordinates ORDER BY recorded_at DESC LIMIT ?",
+    [limit]
+  );
+  return rows
+    .map((r) => ({
+      lat: r.lat,
+      lng: r.lng,
+      speed: r.speed,
+      atMs: Date.parse(r.recorded_at) || Number(r.recorded_at) || 0,
+    }))
+    .filter((r) => r.atMs > 0);
 }
 
 /**
@@ -2544,10 +2575,16 @@ try {
               batchFirst.coords.latitude,
               batchFirst.coords.longitude
             );
-            if (driftM < GAP_STOP_DRIFT_M) {
+            const decision = gapStopDecision({
+              driftM,
+              recent: await recentBufferedFixes(db),
+            });
+            if (decision.finalize) {
               logDetectionEvent("gap_stop_finalize", {
                 gapMs,
                 driftM: Math.round(driftM),
+                reason: decision.reason,
+                inferred: decision.inferred,
                 engine: "js",
               }).catch(() => {});
               await finalizeAutoTrip();
@@ -2556,6 +2593,7 @@ try {
               logDetectionEvent("gap_stop_continued", {
                 gapMs,
                 driftM: Math.round(driftM),
+                reason: decision.reason,
                 engine: "js",
               }).catch(() => {});
             }
