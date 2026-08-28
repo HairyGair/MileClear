@@ -84,27 +84,30 @@ describe("resolveWakeLagStart", () => {
     expect(d).toMatchObject({ ok: false, reason: "gap_below_min" });
   });
 
-  it("covers a 0.8 mi wake lag, which the native engine really does produce", () => {
-    // Ceiling raised 0.6 -> 0.9 on 27 Aug 2026. Rachel Thorndyke's engine armed
-    // 0.79 and 0.80 mi out on consecutive days; at 0.6 those drives lost their
-    // opening mileage and came back to her as phantom "missed journeys".
+  it("refuses a hop of 0.6 mi or more, however wake-lag-shaped it looks", () => {
+    // The ceiling went to 0.9 on 27 Aug and came back the next morning. A gap
+    // this wide is as often an unrecorded leg as a late-arming engine, and
+    // guessing wrong writes a journey the driver never made into a tax record.
+    // Above the ceiling the gap goes to the Missed Journeys card instead, where
+    // they can accept it.
     const d = resolveWakeLagStart({
       prevTrip: prev(),
       newTrip: next({ startLng: HOME.lng + 0.019 }), // ~0.82 mi
       savedLocations,
       routeMiles: 0.9,
     });
-    expect(d).toMatchObject({ ok: true });
+    expect(d).toMatchObject({ ok: false, reason: "gap_above_max" });
   });
 
-  it("skips when the hop is 0.9 mi or more", () => {
+  it("still covers the ordinary wake lag the engine actually produces", () => {
+    // 0.3-0.4 mi is the designed arming distance, and the common case.
     const d = resolveWakeLagStart({
       prevTrip: prev(),
-      newTrip: next({ startLng: HOME.lng + 0.024 }), // ~1.03 mi
+      newTrip: next({ startLng: HOME.lng + 0.009 }), // ~0.39 mi
       savedLocations,
-      routeMiles: 1.2,
+      routeMiles: 0.45,
     });
-    expect(d).toMatchObject({ ok: false, reason: "gap_above_max" });
+    expect(d).toMatchObject({ ok: true });
   });
 
   it("skips manual entries", () => {

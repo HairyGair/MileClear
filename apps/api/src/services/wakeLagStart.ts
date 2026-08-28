@@ -34,17 +34,30 @@ import { resolveRouteDistance } from "./routing.js";
 import { logEvent } from "./appEvents.js";
 
 export const WAKE_LAG_MIN_MILES = 0.15;
-// 0.6 -> 0.9 on 27 Aug 2026. Measured, not guessed: Rachel Thorndyke's native
-// engine repeatedly armed 0.79 and 0.80 miles out (Maydale Farm 26 Aug 13:07,
-// Barrow 27 Aug 16:07), so both drives fell through this ceiling and came back
-// at her as "missed journeys" instead of being folded into the trip they
-// belong to. The extension stays as conservative as it was — previous end must
-// be a real stop, the added distance is the ROUTED figure or nothing, and
-// distance only ever increases — so widening the window changes which gaps are
-// eligible, not how carefully each one is judged. MISSED_WAKE_LAG_MILES stays
-// at 0.6 deliberately: when this fires the gap closes to zero and no proposal
-// is generated anyway, and when it declines the gap SHOULD still be offered.
-export const WAKE_LAG_MAX_MILES = 0.9;
+// 0.6, raised to 0.9 on 27 Aug 2026 and PUT BACK the next morning.
+//
+// The case for 0.9 was real: Rachel Thorndyke's engine armed 0.79 and 0.80 mi
+// out on consecutive days, so those drives lost their opening mileage. The
+// case against it arrived within twelve hours. Her Co-op-to-home leg was never
+// captured, so the last thing the server knew was a trip ending at the Co-op;
+// next morning she set off from home, 0.74 mi away, and the extension moved
+// the start of her day to a shop she had left the night before and added a
+// mile she had not driven. She spotted it herself.
+//
+// Audited across the fleet: six extensions used the 0.6-0.9 band in its one
+// day, and five of them looked right (someone parks, and later drives off from
+// where they parked). So the band is not mostly wrong. It is reverted anyway,
+// because the two failures are not equal. Refusing to extend leaves a gap that
+// surfaces on the Missed Journeys card, where the driver can accept it: visible
+// and correctable. Extending wrongly writes a journey the driver never made
+// into a tax record, silently, and it does so exactly when capture has already
+// failed once - which is our most common defect, not a rare one.
+//
+// Reopening this needs a way to tell "drove off from where they parked" from
+// "drove somewhere unrecorded first", which the server does not have today.
+// Neither distance nor elapsed time separates them: of the four extensions that
+// bridged an overnight gap, three were correct.
+export const WAKE_LAG_MAX_MILES = 0.6;
 export const WAKE_LAG_MIN_GAP_MS = 5 * 60 * 1000;
 export const WAKE_LAG_MAX_GAP_MS = 24 * 60 * 60 * 1000;
 
