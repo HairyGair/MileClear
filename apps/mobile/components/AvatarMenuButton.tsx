@@ -47,16 +47,16 @@ const MENU_ITEMS: Record<string, MenuItem> = {
   menu_locations: { key: "menu_locations", label: "Saved Locations", route: "/saved-locations", icon: "location-outline" },
   menu_fuel: { key: "menu_fuel", label: "Fuel", route: "/(tabs)/fuel", icon: "water-outline", replace: true },
   menu_tax: { key: "menu_tax", label: "Self Assessment", route: "/self-assessment", icon: "calculator-outline" },
-  menu_reconciliation: { key: "menu_reconciliation", label: "HMRC Reconciliation", route: "/hmrc-reconciliation", icon: "git-compare-outline" },
+  menu_reconciliation: { key: "menu_reconciliation", label: "Reconciliation", route: "/hmrc-reconciliation", icon: "git-compare-outline" },
   menu_exports: { key: "menu_exports", label: "Tax Exports", route: "/exports", icon: "download-outline", badge: "PRO" },
-  menu_accountant: { key: "menu_accountant", label: "My Accountant", route: "/accountant", icon: "people-outline", badge: "PRO" },
-  menu_work_tax: { key: "menu_work_tax", label: "Work & Tax Settings", route: "/settings/work-tax", icon: "briefcase-outline" },
+  menu_accountant: { key: "menu_accountant", label: "Accountant", route: "/accountant", icon: "people-outline", badge: "PRO" },
+  menu_work_tax: { key: "menu_work_tax", label: "Tax Settings", route: "/settings/work-tax", icon: "briefcase-outline" },
   menu_earnings: { key: "menu_earnings", label: "Earnings", route: "/(tabs)/earnings", icon: "cash-outline", replace: true },
   menu_expenses: { key: "menu_expenses", label: "Expenses", route: "/expenses", icon: "receipt-outline" },
   menu_invoices: { key: "menu_invoices", label: "Invoices", route: "/invoices", icon: "document-text-outline" },
-  menu_bank: { key: "menu_bank", label: "Connect Bank", route: "/open-banking", icon: "business-outline", badge: "PRO" },
+  menu_bank: { key: "menu_bank", label: "Link Bank", route: "/open-banking", icon: "business-outline", badge: "PRO" },
   menu_inbox: { key: "menu_inbox", label: "Bank Inbox", route: "/inbox", icon: "mail-unread-outline", badge: "PRO" },
-  menu_insights: { key: "menu_insights", label: "Business Insights", route: "/insights", icon: "stats-chart-outline", badge: "PRO" },
+  menu_insights: { key: "menu_insights", label: "Insights", route: "/insights", icon: "stats-chart-outline", badge: "PRO" },
   menu_analytics: { key: "menu_analytics", label: "Analytics", route: "/analytics", icon: "bar-chart-outline", badge: "PRO" },
   menu_achievements: { key: "menu_achievements", label: "Achievements", route: "/achievements", icon: "trophy-outline" },
   menu_schedule: { key: "menu_schedule", label: "Work Schedule", route: "/work-schedule", icon: "time-outline" },
@@ -173,15 +173,21 @@ export default function AvatarMenuButton() {
           animationType="slide"
           onRequestClose={() => setMenuVisible(false)}
         >
-          <Pressable
-            style={styles.backdrop}
-            onPress={() => setMenuVisible(false)}
-            accessibilityRole="button"
-            accessibilityLabel="Close menu"
-          >
+          <View style={styles.backdrop}>
+            {/* The backdrop sits BEHIND the sheet as a sibling, so the sheet
+                needs no responder trick to stop taps closing the menu. The
+                old shape (sheet inside the Pressable, with
+                onStartShouldSetResponder on the sheet) claimed every touch at
+                start and the ScrollView never received a pan: the menu
+                could not be scrolled to its bottom on any build. */}
+            <Pressable
+              style={StyleSheet.absoluteFill}
+              onPress={() => setMenuVisible(false)}
+              accessibilityRole="button"
+              accessibilityLabel="Close menu"
+            />
             <View
               style={[styles.sheet, { paddingBottom: insets.bottom + 12 }]}
-              onStartShouldSetResponder={() => true}
               accessibilityViewIsModal
             >
               {/* Handle */}
@@ -252,7 +258,10 @@ export default function AvatarMenuButton() {
                             style={[
                               styles.menuItem,
                               isActive(item.route) && styles.menuItemActive,
-                              idx % 2 === 0 && styles.menuItemLeft,
+                              idx % 2 === 0 && idx !== items.length - 1 && styles.menuItemLeft,
+                              // An odd last tile spans the row rather than
+                              // leaving an empty cell beside it.
+                              idx === items.length - 1 && idx % 2 === 0 && styles.menuItemFull,
                               idx < items.length - (items.length % 2 === 0 ? 2 : 1) && styles.menuItemBorder,
                             ]}
                             onPress={() => handleNav(item.route, item.replace)}
@@ -350,7 +359,7 @@ export default function AvatarMenuButton() {
                 </TouchableOpacity>
               </ScrollView>
             </View>
-          </Pressable>
+          </View>
         </AppModal>
       )}
     </View>
@@ -427,11 +436,15 @@ const styles = StyleSheet.create({
   // Scroll area
   scrollArea: {
     paddingHorizontal: 16,
+    // Without this the ScrollView sizes itself to its content, overflows
+    // the sheet's maxHeight and is clipped: the menu looked scrollable
+    // but the bottom of it could never be reached.
+    flexShrink: 1,
   },
 
   // Groups
   group: {
-    marginTop: 12,
+    marginTop: 10,
   },
   groupLabel: {
     fontSize: 11,
@@ -458,10 +471,13 @@ const styles = StyleSheet.create({
     width: "50%",
     flexDirection: "row",
     alignItems: "center",
-    paddingVertical: 12,
+    paddingVertical: 10,
     paddingHorizontal: 12,
     gap: 10,
-    minHeight: 58,
+    minHeight: 52,
+  },
+  menuItemFull: {
+    width: "100%",
   },
   menuItemActive: {
     backgroundColor: "rgba(245, 166, 35, 0.05)",
