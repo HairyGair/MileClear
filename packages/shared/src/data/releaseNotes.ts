@@ -90,6 +90,14 @@ export const RELEASE_NOTES: ReleaseNote[] = [
     // the route bullet true (212f5a1: the map read a local table nothing
     // writes, so it had never appeared for anyone).
     //
+    // That bullet said only "see the route you drove on the trip screen", which
+    // named neither where the map is nor what it is for. It is the answer to a
+    // specific request - Jimbo asked for "a map of where the journey has been
+    // tracked from and to, to help work out if it was business or personal" -
+    // and a driver reading a vague version has no idea the thing they asked for
+    // has arrived. Say where a feature appears and what it is for, or it does
+    // not land.
+    //
     // BUILD 87 is OPEN and accumulating (Anthony, 28 Aug: "we'll add to build
     // 87 as we go"). app.json is already on 87 so the next cut cannot collide
     // with a build number Apple has seen. In it so far: editing where a
@@ -110,7 +118,7 @@ export const RELEASE_NOTES: ReleaseNote[] = [
       "Tapping Not Driving no longer pauses recording for the next journey - the pause ends when the car parks",
       "Classify a trip as business or personal straight from the Dynamic Island when you park",
       "Short hops that are too quick to record now say so on the lock screen instead of disappearing silently",
-      "See the route you drove on the trip screen when you look back at a finished trip",
+      "Open a finished trip and a map of the route now sits directly above the Business and Personal buttons, so you can see where you actually went before deciding which it was",
       "Journeys you never made no longer turn up in your list: a single stray phone-mast fix can no longer become a trip",
       "Correct where a journey started, the same way you always could where it ended, and the miles you drove before the app began recording are added back",
       "A phone drifting about while you are parked no longer becomes a short journey of its own",
