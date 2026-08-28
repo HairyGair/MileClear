@@ -1088,8 +1088,17 @@ export async function tripRoutes(app: FastifyInstance) {
         update: {},
       });
     }
+    // Prune only what this scan owns. A "recorded" row is a drive the engine
+    // actually captured and then discarded for being under the minimum
+    // distance: it is evidence, it has no gap to close, and it would be wiped
+    // by the very next scan if it were included here.
     await prisma.missedJourneyProposal.deleteMany({
-      where: { userId, status: "proposed", key: { notIn: candidateKeys.length ? candidateKeys : ["__none__"] } },
+      where: {
+        userId,
+        status: "proposed",
+        source: "gap",
+        key: { notIn: candidateKeys.length ? candidateKeys : ["__none__"] },
+      },
     });
 
     const open = await prisma.missedJourneyProposal.findMany({
@@ -1106,8 +1115,91 @@ export async function tripRoutes(app: FastifyInstance) {
         departedAt: p.departedAt.toISOString(),
         arrivedAt: p.arrivedAt.toISOString(),
         estimatedMiles: p.estimatedMiles,
+        source: p.source,
+        recordedMiles: p.recordedMiles,
       })),
     });
+  });
+
+  // A drive the engine recorded and then threw away.
+  //
+  // finalizeAutoTrip discards anything under MIN_AUTO_TRIP_DISTANCE_MILES,
+  // which exists to keep car-park shuffles and GPS drift out of the trip list.
+  // The trouble is that it measures what was RECORDED, not what was driven,
+  // and the engine only starts recording a few hundred metres in: a real
+  // 0.7-mile hop can arrive here as 0.28 miles and be deleted. Chris Saunders
+  // lost three that way in one day (28 Aug 2026).
+  //
+  // So the client now reports the discard instead of swallowing it, and it
+  // surfaces in Missed Journeys like any other. The client only reports the
+  // ones that reached a genuine driving speed, so a shuffle round a car park
+  // still says nothing.
+  const discardedSchema = z.object({
+    fromLat: z.number().min(-90).max(90),
+    fromLng: z.number().min(-180).max(180),
+    toLat: z.number().min(-90).max(90),
+    toLng: z.number().min(-180).max(180),
+    departedAt: z.coerce.date(),
+    arrivedAt: z.coerce.date(),
+    recordedMiles: z.number().min(0).max(50),
+  });
+
+  app.post("/missed-journeys/recorded", async (request, reply) => {
+    const userId = request.userId!;
+    const parsed = discardedSchema.safeParse(request.body ?? {});
+    if (!parsed.success) {
+      return reply.status(400).send({ error: parsed.error.issues[0].message });
+    }
+    const d = parsed.data;
+    if (d.arrivedAt <= d.departedAt) {
+      return reply.status(400).send({ error: "arrivedAt must be after departedAt" });
+    }
+
+    // Keyed on the departure instant so a retry from the sync queue updates the
+    // same row rather than stacking duplicates.
+    const key = `recorded:${d.departedAt.toISOString()}`;
+
+    // If a trip already covers this moment, the drive was captured after all
+    // (a merge, or the user added it themselves) and there is nothing to offer.
+    const covered = await prisma.trip.findFirst({
+      where: {
+        userId,
+        isPhantomTrip: false,
+        startedAt: { lte: d.arrivedAt },
+        OR: [{ endedAt: { gte: d.departedAt } }, { endedAt: null }],
+      },
+      select: { id: true },
+    });
+    if (covered) {
+      return reply.send({ ok: true, skipped: "already_covered" });
+    }
+
+    const crow = haversineDistance(d.fromLat, d.fromLng, d.toLat, d.toLng);
+    await prisma.missedJourneyProposal.upsert({
+      where: { userId_key: { userId, key } },
+      create: {
+        userId,
+        key,
+        status: "proposed",
+        source: "recorded",
+        fromLat: d.fromLat, fromLng: d.fromLng,
+        toLat: d.toLat, toLng: d.toLng,
+        fromAddress: null, toAddress: null,
+        departedAt: d.departedAt,
+        arrivedAt: d.arrivedAt,
+        // What we show. The recorded figure is the honest floor; the crow-flies
+        // figure can be larger when the engine woke late, and the trip form
+        // recomputes the road distance when it is accepted anyway.
+        estimatedMiles: Math.round(Math.max(crow, d.recordedMiles) * 10) / 10,
+        recordedMiles: d.recordedMiles,
+      },
+      update: {},
+    });
+    logEvent("trip.discarded_recording_offered", userId, {
+      recordedMiles: d.recordedMiles,
+      crowMiles: Math.round(crow * 100) / 100,
+    });
+    return reply.send({ ok: true });
   });
 
   // Mark a proposal handled. accept = the user added the trip (the Trip row

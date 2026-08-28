@@ -101,6 +101,14 @@ export function MissedJourneys() {
           <Text style={styles.meta}>
             {formatWhen(p.arrivedAt)} · ~{p.estimatedMiles} mi
           </Text>
+          {p.source === "recorded" && (
+            // Worth distinguishing. A gap row is us guessing from a hole in the
+            // list; this one is a drive we actually recorded and then dropped
+            // for being short, so the driver can trust it happened.
+            <Text style={styles.recordedNote}>
+              We recorded this one but it was too short to save on its own
+            </Text>
+          )}
           <View style={styles.actions}>
             <TouchableOpacity style={styles.addBtn} onPress={() => add(p)} activeOpacity={0.85}>
               <Text style={styles.addText}>Add trip</Text>
@@ -145,6 +153,12 @@ const styles = StyleSheet.create({
     color: colors.text1,
     fontFamily: fonts.bold,
     fontSize: 14,
+  },
+  recordedNote: {
+    color: colors.text3,
+    fontFamily: fonts.regular,
+    fontSize: 12,
+    marginTop: 2,
   },
   row: {
     paddingVertical: 12,

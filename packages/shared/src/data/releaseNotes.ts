@@ -104,7 +104,10 @@ export const RELEASE_NOTES: ReleaseNote[] = [
     // BUILD 87 is OPEN and accumulating (Anthony, 28 Aug: "we'll add to build
     // 87 as we go"). app.json is already on 87 so the next cut cannot collide
     // with a build number Apple has seen. In it so far: editing where a
-    // journey started (e799c0e). ADD THE BULLET WHEN THE WORK LANDS, not when
+    // journey started (e799c0e); the suggested-places list no longer vanishing
+    // once you save your first place (f8007ad); and discarded short recordings
+    // being offered back rather than deleted, which came from Chris Saunders
+    // losing three real journeys to it in a single day. ADD THE BULLET WHEN THE WORK LANDS, not when
     // the build is cut - three of the items above were written for build 85
     // and two of them were not true until 86.
     //
@@ -130,6 +133,7 @@ export const RELEASE_NOTES: ReleaseNote[] = [
       "Short hops that are too quick to record now say so on the lock screen instead of disappearing silently",
       "Open a finished trip and a map of the route now sits directly above the Business and Personal buttons, so you can see where you actually went before deciding which it was",
       "Journeys you never made no longer turn up in your list: a single stray phone-mast fix can no longer become a trip",
+      "A short drive the app records but decides is too brief to save is now offered back to you to add, instead of being deleted without a word",
       "Journeys now start where you set off rather than a few hundred metres down the road where the app noticed you were moving, so the opening miles are counted and those stretches stop appearing as journeys you might have missed",
       "Correct where a journey started, the same way you always could where it ended, and the miles you drove before the app began recording are added back",
       "A phone drifting about while you are parked no longer becomes a short journey of its own",

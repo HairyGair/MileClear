@@ -1591,6 +1591,17 @@ model MissedJourneyProposal {
   departedAt     DateTime // previous trip's endedAt
   arrivedAt      DateTime // next trip's startedAt
   estimatedMiles Float
+  // "gap"      - inferred from a hole between two captured trips. The scan
+  //              recreates these every time it runs, and prunes its own rows
+  //              once the hole closes.
+  // "recorded" - the engine actually recorded this drive and then discarded it
+  //              for being under the minimum distance. Evidence, not inference,
+  //              so the scan must never prune it.
+  source         String   @default("gap") @db.VarChar(20)
+  /** What the engine captured before discarding it. Lower than the real
+   *  journey, because it only starts recording once it is sure you are
+   *  driving. Null for gap-derived rows. */
+  recordedMiles  Float?
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 

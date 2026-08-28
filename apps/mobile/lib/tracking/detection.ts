@@ -1529,6 +1529,32 @@ async function _finalizeAutoTripInner(): Promise<void> {
     if (wasRealDriving) {
       const { markLiveActivityTooShort } = await import("../liveActivity");
       markLiveActivityTooShort(totalDistance).catch(() => {});
+      // Offer it back rather than deleting it. This filter measures what was
+      // RECORDED, not what was driven, and the engine only starts recording a
+      // few hundred metres in - so a real 0.7-mile hop can arrive here as 0.28
+      // and be thrown away. Chris Saunders lost three in a day that way
+      // (28 Aug 2026), and a there-and-back leaves no gap for the missed-journey
+      // scan to spot either, so nothing else would ever have found them.
+      //
+      // Only on the wasRealDriving branch: the same discard catches car-park
+      // shuffles and GPS drift, and offering someone a drive they never made is
+      // worse than saying nothing.
+      try {
+        const { reportDiscardedRecording } = await import("../api/trips");
+        await reportDiscardedRecording({
+          fromLat: first.lat,
+          fromLng: first.lng,
+          toLat: last.lat,
+          toLng: last.lng,
+          departedAt: new Date(first.recorded_at).toISOString(),
+          arrivedAt: new Date(last.recorded_at).toISOString(),
+          recordedMiles: Math.round(totalDistance * 100) / 100,
+        });
+        logDetectionEvent("too_short_offered_back", { distance: totalDistance }).catch(() => {});
+      } catch {
+        // Offline or the call failed. The trip is already gone either way, and
+        // failing here must not break the rest of the finalize.
+      }
     } else {
       endLiveActivity().catch(() => {});
     }

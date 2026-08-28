@@ -417,10 +417,33 @@ export interface MissedJourneyProposal {
   departedAt: string; // ISO — previous trip's end
   arrivedAt: string; // ISO — next trip's start
   estimatedMiles: number; // crow-flies estimate; the form recomputes road distance
+  /** "gap" = inferred from a hole between two trips. "recorded" = the engine
+   *  captured this drive and then discarded it for being too short. */
+  source?: "gap" | "recorded";
+  /** What the engine captured before discarding it, for "recorded" rows. */
+  recordedMiles?: number | null;
 }
 
 export function fetchMissedJourneys() {
   return apiRequest<{ proposals: MissedJourneyProposal[] }>("/trips/missed-journeys");
+}
+
+// Report a drive the engine recorded and then discarded for being under the
+// minimum distance, so it can be offered back in Missed Journeys instead of
+// disappearing. Best-effort: a failure here must never affect the finalize.
+export function reportDiscardedRecording(data: {
+  fromLat: number;
+  fromLng: number;
+  toLat: number;
+  toLng: number;
+  departedAt: string;
+  arrivedAt: string;
+  recordedMiles: number;
+}) {
+  return apiRequest<{ ok: boolean; skipped?: string }>("/trips/missed-journeys/recorded", {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
 }
 
 // Mark a proposal handled: "accept" once the user has added the trip (the Trip
