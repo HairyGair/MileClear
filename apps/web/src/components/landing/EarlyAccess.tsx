@@ -43,6 +43,7 @@ export default function EarlyAccess() {
         body: JSON.stringify({
           email: email.trim(),
           driverType: driverType || undefined,
+          source: "android",
         }),
       });
       if (!res.ok) {
