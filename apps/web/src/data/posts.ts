@@ -2404,6 +2404,14 @@ export function getAllReleaseNotes(): ReleaseNote[] {
 // ----------------------------------------------------------------
 // Guides - evergreen reference pages, separate from time-sensitive Blog
 // ----------------------------------------------------------------
+// Reference pages, listed under Guides on /updates. Adding a page to the site
+// does NOT put it here: five of these were built and live for months, findable
+// only through search, because nobody added the four lines. If a page answers a
+// question rather than selling the app, it belongs in this list.
+//
+// Commercial landing pages (the platform pages, the comparisons, the "best
+// tracker" pages) deliberately stay out: they are pitches, and a Guides tab
+// full of pitches is worth nothing to the person reading it.
 export const GUIDES: Guide[] = [
   {
     slug: "hmrc-mileage-rates",
@@ -2428,6 +2436,46 @@ export const GUIDES: Guide[] = [
       "Eight real-world situations with plain answers: home-to-first-job, trips between sites, training, supplier runs, client lunches, charity volunteering, and the school-run detour.",
     category: "rules",
     readTime: "6 min read",
+  },
+  {
+    slug: "approved-mileage-allowance-payments",
+    title: "Approved Mileage Allowance Payments (AMAP)",
+    excerpt:
+      "What AMAP is, the 55p/25p rates for 2026-27, the 10,000-mile threshold, the tax-free limits, passenger payments, and how to claim the difference back if your employer pays you less than the approved rate.",
+    category: "tax",
+    readTime: "7 min read",
+  },
+  {
+    slug: "mileage-calculator",
+    title: "UK Mileage Calculator",
+    excerpt:
+      "Work out your HMRC approved mileage allowance and your real petrol or diesel cost side by side, at the 2026-27 rates. No sign-up, and it shows you which of the two is larger.",
+    category: "tax",
+    readTime: "Calculator",
+  },
+  {
+    slug: "ev-tax-relief",
+    title: "Electric Vehicle Tax Relief",
+    excerpt:
+      "What UK electric vehicle drivers can claim: mileage relief at the same 55p/25p rate as petrol, home and public charging, the first-year allowance on a new EV, benefit-in-kind, VAT, grants, and the road tax that arrived in 2025.",
+    category: "tax",
+    readTime: "8 min read",
+  },
+  {
+    slug: "mileage-claim-form-template",
+    title: "Mileage Claim Form Template",
+    excerpt:
+      "A free UK mileage claim form, printable from the page or copyable straight into a spreadsheet. Built around what HMRC expects a mileage record to contain, so it stands up if anyone asks.",
+    category: "tracking",
+    readTime: "Template",
+  },
+  {
+    slug: "expenses-policy-template",
+    title: "Staff Mileage and Expenses Policy Template",
+    excerpt:
+      "A free policy template for employers to adapt: scope, the rate you pay, how staff claim, who approves, deadlines and how long records are kept. For anyone who signs off other people's mileage.",
+    category: "rules",
+    readTime: "Template",
   },
 ];
 
