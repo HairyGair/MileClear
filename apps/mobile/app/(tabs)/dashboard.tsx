@@ -397,7 +397,7 @@ export default function DashboardScreen() {
   // 2026). Shows on every dashboard visit until dismissed; one-time
   // SQLite flag keyed on the announcement id so a future announcement
   // re-shows even to people who dismissed this one.
-  const AMAP_ANNOUNCEMENT_ID = "amap_rate_2026_27";
+  const AMAP_ANNOUNCEMENT_ID = "android_beta_2026_09";
   const [amapBannerSeen, setAmapBannerSeen] = useState(true); // default seen until loaded
   useEffect(() => {
     let cancelled = false;
@@ -1705,20 +1705,19 @@ export default function DashboardScreen() {
         unclassifiedCount={unclassifiedCount}
       />
 
-      {/* HMRC AMAP rate change announcement (45p -> 55p, effective
-          6 April 2026). Same visual treatment as the suggestion cards
-          below. Dismissible per device; one-time SQLite flag keyed on
-          the announcement id so a future announcement re-shows even
-          to people who dismissed this one. */}
+      {/* Dashboard announcement slot. 28 Aug 2026: Android closed beta
+          (replaced the 55p rate card that ran from April). Dismissible per
+          device; one-time SQLite flag keyed on the announcement id so a new
+          announcement re-shows even to people who dismissed the last one. */}
       {!amapBannerSeen && (
         <TouchableOpacity
           style={s.savedLocsNudge}
           onPress={() => {
-            Linking.openURL("https://mileclear.com/hmrc-mileage-rates").catch(() => {});
+            Linking.openURL("https://mileclear.com/updates/mileclear-on-android-closed-beta").catch(() => {});
           }}
           activeOpacity={0.85}
           accessibilityRole="button"
-          accessibilityLabel="HMRC mileage rate raised to 55p from 6 April 2026"
+          accessibilityLabel="MileClear is on Android. Closed beta, testers wanted."
         >
           <TouchableOpacity
             style={s.savedLocsNudgeDismiss}
@@ -1733,12 +1732,12 @@ export default function DashboardScreen() {
             <Ionicons name="megaphone" size={20} color={AMBER} accessible={false} />
           </View>
           <Text style={s.savedLocsNudgeTitle}>
-            HMRC mileage rate raised to 55p
+            MileClear is on Android
           </Text>
           <Text style={s.savedLocsNudgeBody}>
-            From 6 April 2026, cars and vans claim 55p per mile for the first
-            10,000 business miles (up from 45p). MileClear picks the right
-            rate per trip date - older trips stay at 45p.
+            The Android app is in closed testing on Google Play. Know anyone
+            with an Android phone? Testers get Pro free. Send their Google
+            account email to support@mileclear.com for an invite.
           </Text>
           <View style={s.savedLocsNudgeCta}>
             <Text style={s.savedLocsNudgeCtaText}>Learn more</Text>
