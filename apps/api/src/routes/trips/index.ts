@@ -1175,6 +1175,25 @@ export async function tripRoutes(app: FastifyInstance) {
     }
 
     const crow = haversineDistance(d.fromLat, d.fromLng, d.toLat, d.toLng);
+    // Price it on the road, not the straight line. Every other number we put in
+    // front of a driver here has been a crow-flies estimate, and it shows: Paul
+    // Battman's card offered a 24.9-mile drive home as 18.4 (28 Aug 2026). This
+    // one is a short hop where the recorded stub and the straight line are BOTH
+    // shorter than the drive, so a straight line would understate it twice over.
+    const route = await resolveRouteDistance({
+      startLat: d.fromLat, startLng: d.fromLng,
+      endLat: d.toLat, endLng: d.toLng,
+      userId,
+    });
+    const routeUsable =
+      route != null &&
+      Number.isFinite(route.distanceMiles) &&
+      route.distanceMiles >= crow * 0.95 &&
+      route.distanceMiles <= Math.max(crow * 4, 1);
+    const offeredMiles = routeUsable
+      ? route.distanceMiles
+      : Math.max(crow, d.recordedMiles);
+
     await prisma.missedJourneyProposal.upsert({
       where: { userId_key: { userId, key } },
       create: {
@@ -1187,10 +1206,7 @@ export async function tripRoutes(app: FastifyInstance) {
         fromAddress: null, toAddress: null,
         departedAt: d.departedAt,
         arrivedAt: d.arrivedAt,
-        // What we show. The recorded figure is the honest floor; the crow-flies
-        // figure can be larger when the engine woke late, and the trip form
-        // recomputes the road distance when it is accepted anyway.
-        estimatedMiles: Math.round(Math.max(crow, d.recordedMiles) * 10) / 10,
+        estimatedMiles: Math.round(offeredMiles * 100) / 100,
         recordedMiles: d.recordedMiles,
       },
       update: {},
@@ -1198,6 +1214,8 @@ export async function tripRoutes(app: FastifyInstance) {
     logEvent("trip.discarded_recording_offered", userId, {
       recordedMiles: d.recordedMiles,
       crowMiles: Math.round(crow * 100) / 100,
+      offeredMiles: Math.round(offeredMiles * 100) / 100,
+      routed: routeUsable,
     });
     return reply.send({ ok: true });
   });
