@@ -44,34 +44,42 @@ interface MenuItem {
 const MENU_ITEMS: Record<string, MenuItem> = {
   menu_dashboard: { key: "menu_dashboard", label: "Dashboard", route: "/(tabs)/dashboard", icon: "speedometer-outline", replace: true },
   menu_trips: { key: "menu_trips", label: "Trips", route: "/(tabs)/trips", icon: "car-outline", replace: true },
+  menu_locations: { key: "menu_locations", label: "Saved Locations", route: "/saved-locations", icon: "location-outline" },
   menu_fuel: { key: "menu_fuel", label: "Fuel", route: "/(tabs)/fuel", icon: "water-outline", replace: true },
-  menu_earnings: { key: "menu_earnings", label: "Earnings", route: "/(tabs)/earnings", icon: "cash-outline", replace: true },
   menu_tax: { key: "menu_tax", label: "Self Assessment", route: "/self-assessment", icon: "calculator-outline" },
-  menu_invoices: { key: "menu_invoices", label: "Invoices", route: "/invoices", icon: "document-text-outline" },
-  menu_expenses: { key: "menu_expenses", label: "Expenses", route: "/expenses", icon: "receipt-outline" },
-  menu_inbox: { key: "menu_inbox", label: "Inbox", route: "/inbox", icon: "mail-unread-outline", badge: "PRO" },
-  menu_work_tax: { key: "menu_work_tax", label: "Work & Tax", route: "/settings/work-tax", icon: "briefcase-outline" },
-  menu_insights: { key: "menu_insights", label: "Insights", route: "/insights", icon: "stats-chart-outline", badge: "PRO" },
-  menu_analytics: { key: "menu_analytics", label: "Analytics", route: "/analytics", icon: "bar-chart-outline", badge: "PRO" },
+  menu_reconciliation: { key: "menu_reconciliation", label: "HMRC Reconciliation", route: "/hmrc-reconciliation", icon: "git-compare-outline" },
   menu_exports: { key: "menu_exports", label: "Tax Exports", route: "/exports", icon: "download-outline", badge: "PRO" },
+  menu_accountant: { key: "menu_accountant", label: "My Accountant", route: "/accountant", icon: "people-outline", badge: "PRO" },
+  menu_work_tax: { key: "menu_work_tax", label: "Work & Tax Settings", route: "/settings/work-tax", icon: "briefcase-outline" },
+  menu_earnings: { key: "menu_earnings", label: "Earnings", route: "/(tabs)/earnings", icon: "cash-outline", replace: true },
+  menu_expenses: { key: "menu_expenses", label: "Expenses", route: "/expenses", icon: "receipt-outline" },
+  menu_invoices: { key: "menu_invoices", label: "Invoices", route: "/invoices", icon: "document-text-outline" },
+  menu_bank: { key: "menu_bank", label: "Connect Bank", route: "/open-banking", icon: "business-outline", badge: "PRO" },
+  menu_inbox: { key: "menu_inbox", label: "Bank Inbox", route: "/inbox", icon: "mail-unread-outline", badge: "PRO" },
+  menu_insights: { key: "menu_insights", label: "Business Insights", route: "/insights", icon: "stats-chart-outline", badge: "PRO" },
+  menu_analytics: { key: "menu_analytics", label: "Analytics", route: "/analytics", icon: "bar-chart-outline", badge: "PRO" },
+  menu_achievements: { key: "menu_achievements", label: "Achievements", route: "/achievements", icon: "trophy-outline" },
+  menu_schedule: { key: "menu_schedule", label: "Work Schedule", route: "/work-schedule", icon: "time-outline" },
+  menu_refer: { key: "menu_refer", label: "Refer a Driver", route: "/refer", icon: "gift-outline" },
   menu_suggestions: { key: "menu_suggestions", label: "Suggestions", route: "/feedback", icon: "bulb-outline" },
-  menu_schedule: { key: "menu_schedule", label: "Work Schedule", route: "/work-schedule", icon: "time-outline", badge: "PRO" },
   menu_help: { key: "menu_help", label: "Help & Tutorials", route: "/help", icon: "help-circle-outline" },
 };
 
-// Group definitions — items render in layout-pref order within each group
+// Group definitions — items render in layout-pref order within each group.
+// Ordered by what a driver comes here for: recording, then the tax the
+// recording is for, then the money around it. Settings sit last, not
+// first; a tax-settings page was the headline of "WORK & TAX" while
+// Self Assessment, HMRC Reconciliation, Open Banking, Saved Locations and
+// Achievements were not in the menu at all.
 /** Menu entries that only make sense for a gig worker, hidden in company mode. */
-const GIG_ONLY_MENU_KEYS = new Set(["menu_earnings"]);
+const GIG_ONLY_MENU_KEYS = new Set(["menu_earnings", "menu_bank", "menu_inbox", "menu_invoices"]);
 
 const GROUPS = [
-  { id: "nav", label: "NAVIGATE", keys: ["menu_dashboard", "menu_trips", "menu_fuel", "menu_earnings"] },
-  // Work-related shortcuts. Settings hub has a Work & Tax sub-screen
-  // (PAYE deductions, tax basis, mileage rates, invoices entry) — this
-  // surfaces it one tap from the avatar menu so gig drivers don't have
-  // to navigate three layers deep to tweak their tax setup.
-  { id: "work", label: "WORK & TAX", keys: ["menu_tax", "menu_invoices", "menu_expenses", "menu_work_tax", "menu_inbox", "menu_schedule"] },
-  { id: "tools", label: "TOOLS", keys: ["menu_insights", "menu_analytics", "menu_exports", "menu_suggestions"] },
-  { id: "support", label: "SUPPORT", keys: ["menu_help"] },
+  { id: "track", label: "TRACKING", keys: ["menu_dashboard", "menu_trips", "menu_locations", "menu_fuel"] },
+  { id: "tax", label: "TAX", keys: ["menu_tax", "menu_reconciliation", "menu_exports", "menu_accountant", "menu_work_tax"] },
+  { id: "money", label: "MONEY", keys: ["menu_earnings", "menu_expenses", "menu_invoices", "menu_bank", "menu_inbox"] },
+  { id: "insight", label: "INSIGHTS", keys: ["menu_insights", "menu_analytics", "menu_achievements"] },
+  { id: "more", label: "MORE", keys: ["menu_schedule", "menu_refer", "menu_suggestions", "menu_help"] },
 ];
 
 // ── Component ──────────────────────────────────────────────────────
