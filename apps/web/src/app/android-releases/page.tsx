@@ -4,6 +4,7 @@ import Navbar from "@/components/landing/Navbar";
 import Footer from "@/components/landing/Footer";
 import BreadcrumbsJsonLd from "@/components/seo/BreadcrumbsJsonLd";
 import { ANDROID_RELEASE_NOTES } from "@mileclear/shared";
+import { PLAY_STORE_URL } from "@/data/android";
 import "../updates.css";
 
 export const metadata: Metadata = {
@@ -71,8 +72,16 @@ export default function AndroidReleasesPage() {
             MileClear for Android is in closed testing on Google Play. It shares
             a codebase and an account with the iPhone app, but not a release
             history, so it has its own notes.{" "}
+            <Link href="/android" className="updates__inline-link">
+              How to join the test
+            </Link>
+            {" "}&middot;{" "}
+            <a href={PLAY_STORE_URL} className="updates__inline-link" rel="noopener noreferrer">
+              Open on Google Play
+            </a>
+            {" "}&middot;{" "}
             <Link href="/releases" className="updates__inline-link">
-              Looking for the iPhone release notes?
+              iPhone release notes
             </Link>
           </p>
         </header>

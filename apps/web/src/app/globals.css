@@ -1199,6 +1199,8 @@ body::after {
 }
 .ea__notify .ea__form { margin-top: 0; }
 .ea__notify .ea__ok { margin-top: 0; }
+.ea__notify-link { color: var(--amber-400); text-decoration: underline; text-underline-offset: 2px; }
+.ea__notify-link:hover { color: var(--amber-300); }
 .ea__notify .ea__row { flex-direction: column; }
 
 /* Form elements */

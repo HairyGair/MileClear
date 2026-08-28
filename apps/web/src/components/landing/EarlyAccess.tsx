@@ -2,6 +2,7 @@
 
 import { useState, type FormEvent } from "react";
 import Reveal from "./Reveal";
+import { PLAY_STORE_URL, PLAY_TEST_JOIN_URL } from "@/data/android";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3002";
 const APP_STORE_URL = "https://apps.apple.com/app/mileclear/id6759671005";
@@ -131,10 +132,16 @@ export default function EarlyAccess() {
                 <path d="M13.73 21a2 2 0 01-3.46 0" />
               </svg>
             </div>
-            <p className="ea__notify-label">On Android? MileClear is in closed beta on Google Play. Leave your email for a test invite.</p>
+            <p className="ea__notify-label">
+              On Android? MileClear is in closed beta on Google Play. Leave the Gmail your phone uses and we&apos;ll add you to the test.{" "}
+              <a href="/android" className="ea__notify-link">How it works</a>
+            </p>
             {status === "ok" ? (
               <div className="ea__ok">
-                You&apos;re on the list. We&apos;ll email you a Google Play test invite.
+                You&apos;re on the list. Once we&apos;ve added you, open{" "}
+                <a href={PLAY_TEST_JOIN_URL} className="ea__notify-link" rel="noopener noreferrer">the join link</a>{" "}
+                on your phone, then install from{" "}
+                <a href={PLAY_STORE_URL} className="ea__notify-link" rel="noopener noreferrer">Google Play</a>.
               </div>
             ) : (
               <form className="ea__form" onSubmit={submit}>

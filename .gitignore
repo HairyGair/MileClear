@@ -31,7 +31,8 @@ prisma/*.db
 *.key
 *.mobileprovision
 *.orig.*
-android/
+/android/
+/apps/mobile/android/
 ios/
 
 # Expo
