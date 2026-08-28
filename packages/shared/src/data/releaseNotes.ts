@@ -105,6 +105,13 @@ export const RELEASE_NOTES: ReleaseNote[] = [
     // the build is cut - three of the items above were written for build 85
     // and two of them were not true until 86.
     //
+    // 28 Aug: audited the whole list against every commit since build 84 rather
+    // than against memory, and six user-visible changes were missing - the
+    // wake-lag start reconciliation (which is the fix for the complaint that
+    // started all of this), the fuel average, the missing-trip form, the data
+    // export, and the dump scrub. Do that audit before a cut, not after: most
+    // of these had shipped weeks earlier and nobody would have been told.
+    //
     // Bullets here cover server-side work too, which is live for everyone the
     // day it deploys rather than when they update. That is deliberate and
     // matches 1.3.8, but it means a reader on an older build sees some of this
@@ -120,9 +127,14 @@ export const RELEASE_NOTES: ReleaseNote[] = [
       "Short hops that are too quick to record now say so on the lock screen instead of disappearing silently",
       "Open a finished trip and a map of the route now sits directly above the Business and Personal buttons, so you can see where you actually went before deciding which it was",
       "Journeys you never made no longer turn up in your list: a single stray phone-mast fix can no longer become a trip",
+      "Journeys now start where you set off rather than a few hundred metres down the road where the app noticed you were moving, so the opening miles are counted and those stretches stop appearing as journeys you might have missed",
       "Correct where a journey started, the same way you always could where it ended, and the miles you drove before the app began recording are added back",
       "A phone drifting about while you are parked no longer becomes a short journey of its own",
       "A stop that splits a journey in two is named from your own saved places rather than the nearest street",
+      "The fuel screen shows a UK average price again: the government file it read had quietly gone missing and the figure had been blank",
+      "Reporting a missing trip while you are still driving now tells you the drive is still recording, instead of taking a report for a journey that is about to arrive",
+      "Downloading your data now gives you everything we hold that is linked to you, rather than part of it",
+      "Diagnostic reports sent from the app no longer carry the coordinates of your saved places",
       "Driving for a company on Milesheet: earnings and gig features step out of the way automatically",
       "Claim mileage from your employer? Tell us and we will invite your manager to approve it monthly",
       "Live Activity timers are now guaranteed to count from the right decade",
