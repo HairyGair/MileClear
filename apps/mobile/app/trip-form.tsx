@@ -626,6 +626,18 @@ function getPositiveMessage(distanceMiles: number | null, numberOfStops: number,
   return "Trip tracked!";
 }
 
+/** Thin a route down to something a thumbnail can draw. A long drive stores
+ *  ~900 points and the widget needs nothing like that many; the true end point
+ *  is always kept, whatever the stride does. */
+function sampleRoute(points: { lat: number; lng: number }[]): { lat: number; lng: number }[] {
+  const MAX_POINTS = 300;
+  const step = Math.max(1, Math.ceil(points.length / MAX_POINTS));
+  const sampled = points.filter((_, i) => i % step === 0);
+  const last = points[points.length - 1];
+  if (sampled[sampled.length - 1] !== last) sampled.push(last);
+  return sampled.map((c) => ({ lat: c.lat, lng: c.lng }));
+}
+
 const CLASSIFICATIONS: { value: TripClassification; label: string }[] = [
   { value: "business", label: "Business" },
   { value: "personal", label: "Personal" },
@@ -985,6 +997,10 @@ export default function TripFormScreen() {
   // this screen, and downsampled because a long drive stores ~900 points and a
   // thumbnail needs nothing like that many.
   const [routeCoords, setRouteCoords] = useState<{ lat: number; lng: number }[]>([]);
+  /** Road-snapped version of the same route, when the server has one. Kept
+   *  separate rather than merged so the widget can do what it is built to do:
+   *  draw the snapped line, but pin the start and end on the real fixes. */
+  const [routeMatched, setRouteMatched] = useState<{ lat: number; lng: number }[]>([]);
 
   useEffect(() => {
     if (!id || !isEditing) return;
@@ -997,15 +1013,11 @@ export default function TripFormScreen() {
           [id]
         );
         if (cancelled || rows.length < 2) return;
-        const MAX_POINTS = 300;
-        const step = Math.max(1, Math.ceil(rows.length / MAX_POINTS));
-        const sampled = rows.filter((_, i) => i % step === 0);
-        // Always keep the true end point, whatever the sampling stride does.
-        if (sampled[sampled.length - 1] !== rows[rows.length - 1]) sampled.push(rows[rows.length - 1]);
-        setRouteCoords(sampled);
+        // Never overwrite a route already taken off the server payload: that
+        // one is road-snapped and complete.
+        setRouteCoords((existing) => (existing.length >= 2 ? existing : sampleRoute(rows)));
       } catch {
-        // No local coordinates (older trip, or synced from another device) -
-        // the screen simply shows no map, exactly as before.
+        // No local coordinates - the server payload is the normal source.
       }
     })();
     return () => {
@@ -1034,6 +1046,7 @@ export default function TripFormScreen() {
       cleanAirZones?: CazTripAssessment | null;
       isManualEntry?: boolean;
       coordinates?: unknown[];
+      matchedCoordinates?: { lat: number; lng: number }[] | null;
     }) => {
       setClassification(t.classification as TripClassification);
       setPlatformTag((t.platformTag ?? undefined) as PlatformTag | undefined);
@@ -1064,6 +1077,17 @@ export default function TripFormScreen() {
       // Only the server payload carries these; the local-SQLite fallback
       // doesn't, so canSplit stays false offline (split needs the API anyway).
       setCanSplit(t.isManualEntry === false && (t.coordinates?.length ?? 0) >= 10);
+      // The route for the map above the Business/Personal choice. It comes off
+      // this payload, which is already in hand, and prefers the road-snapped
+      // line over the raw breadcrumbs exactly as the other map widgets do.
+      const raw = (t.coordinates as { lat?: number; lng?: number }[] | undefined ?? [])
+        .filter((c): c is { lat: number; lng: number } =>
+          typeof c?.lat === "number" && typeof c?.lng === "number")
+        .map((c) => ({ lat: c.lat, lng: c.lng }));
+      if (raw.length >= 2) setRouteCoords(sampleRoute(raw));
+      if ((t.matchedCoordinates?.length ?? 0) >= 2) {
+        setRouteMatched(sampleRoute(t.matchedCoordinates!));
+      }
       const od = t as { odometerStart?: number | null; odometerEnd?: number | null; updatedAt?: string; createdAt?: string };
       if (od.odometerStart != null) { setOdometerStart(String(od.odometerStart)); setOdometerOpen(true); }
       if (od.odometerEnd != null) { setOdometerEnd(String(od.odometerEnd)); setOdometerOpen(true); }
@@ -2882,7 +2906,11 @@ export default function TripFormScreen() {
                 choice, because that is the question the route answers. */}
             {isEditing && routeCoords.length >= 2 && (
               <View style={{ marginBottom: 16 }}>
-                <TripMapWidget coordinates={routeCoords} height={160} />
+                <TripMapWidget
+                  coordinates={routeCoords}
+                  matchedCoordinates={routeMatched.length >= 2 ? routeMatched : null}
+                  height={160}
+                />
               </View>
             )}
 
