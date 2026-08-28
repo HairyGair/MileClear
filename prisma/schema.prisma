@@ -456,6 +456,13 @@ model Trip {
   vehicleId      String?
   startLat       Float
   startLng       Float
+  // Where the DEVICE said the trip began, kept only when something later moved
+  // the start: the wake-lag extension, the leading edge-phantom trim, or the
+  // driver correcting it by hand. Create-time dedup keys on the start, so
+  // without this a retried create carrying the original coordinates no longer
+  // matches the stored trip and saves a second copy of the same drive.
+  originalStartLat Float?
+  originalStartLng Float?
   endLat         Float?
   endLng         Float?
   startAddress   String?

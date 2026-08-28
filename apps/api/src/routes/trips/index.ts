@@ -40,6 +40,7 @@ import { reverseGeocode } from "../../services/geocoding.js";
 import { matchTripRoute, decodePolyline, isMatchPlausible, trimEdgePhantoms } from "../../services/mapMatching.js";
 import { computeTripConfidence } from "../../services/tripConfidence.js";
 import { reconcileWakeLagStart } from "../../services/wakeLagStart.js";
+import { planTripStartEdit } from "../../services/tripStartEdit.js";
 import {
   getSplitSuggestions,
   executeTripSplit,
@@ -154,6 +155,13 @@ const updateTripSchema = z.object({
   endLat: z.number().min(-90).max(90).nullable().optional(),
   endLng: z.number().min(-180).max(180).nullable().optional(),
   endedAt: z.coerce.date().nullable().optional(),
+  // The start, editable from 28 Aug 2026. Not nullable, unlike the end: a trip
+  // has to begin somewhere, and clearing it would leave a row no map can draw.
+  // startedAt stays out of this schema deliberately - it is half the dedup key,
+  // and the ask was to correct WHERE a journey began, not when.
+  startAddress: z.string().max(500).optional(),
+  startLat: z.number().min(-90).max(90).optional(),
+  startLng: z.number().min(-180).max(180).optional(),
   distanceMiles: z.number().min(0).optional(),
   // Correct a wrong vehicle after the fact. Was missing from the update schema,
   // so the PATCH silently stripped it and a corrected vehicle reverted on the
@@ -500,13 +508,22 @@ export async function tripRoutes(app: FastifyInstance) {
       }
     }
 
-    // Deduplication: reject if an identical trip already exists (same user, start time, start coords)
+    // Deduplication: reject if an identical trip already exists (same user,
+    // start time, start coords).
+    //
+    // Also match on originalStartLat/Lng. Three things move a start after this
+    // key is formed - the wake-lag extension and the leading edge trim, both of
+    // which run below on the way in, and the driver editing it afterwards. A
+    // retried create still carries the coordinates the device first sent, so
+    // without the second arm it matches nothing and saves the same drive twice.
     const existing = await prisma.trip.findFirst({
       where: {
         userId,
         startedAt: data.startedAt,
-        startLat: data.startLat,
-        startLng: data.startLng,
+        OR: [
+          { startLat: data.startLat, startLng: data.startLng },
+          { originalStartLat: data.startLat, originalStartLng: data.startLng },
+        ],
       },
       include: { vehicle: true, shift: true },
     });
@@ -608,6 +625,11 @@ export async function tripRoutes(app: FastifyInstance) {
       }
       distanceMiles = Math.max(0, Math.round((distanceMiles - edgeTrim.removedMiles) * 100) / 100);
     }
+
+    // Whatever moves the start below, the device's own figure is what a retried
+    // create will carry, so remember it for the dedup above.
+    const deviceStartLat = data.startLat;
+    const deviceStartLng = data.startLng;
 
     // Wake-lag start reconciliation: the auto-detect engine arms ~0.3 mi
     // into a drive, so the start lands down the road from the real origin.
@@ -712,6 +734,9 @@ export async function tripRoutes(app: FastifyInstance) {
       vehicleId: tripData.vehicleId ?? null,
       startLat: resolvedStartLat,
       startLng: resolvedStartLng,
+      ...(resolvedStartLat !== deviceStartLat || resolvedStartLng !== deviceStartLng
+        ? { originalStartLat: deviceStartLat, originalStartLng: deviceStartLng }
+        : {}),
       endLat: resolvedEndLat,
       endLng: resolvedEndLng,
       startAddress: tripData.startAddress ?? null,
@@ -2021,6 +2046,34 @@ export async function tripRoutes(app: FastifyInstance) {
       }
     }
 
+    // Moving the start. The driver is saying the journey began further back
+    // than the recording did, so a tracked trip keeps its trail and gains the
+    // missing stretch in front of it; a manual one, having no trail, is simply
+    // re-routed end to end below. See services/tripStartEdit.ts.
+    let startEdit: Awaited<ReturnType<typeof planTripStartEdit>> = null;
+    if (updates.startLat !== undefined || updates.startLng !== undefined || updates.startAddress !== undefined) {
+      let newStartLat = updates.startLat ?? existing.startLat;
+      let newStartLng = updates.startLng ?? existing.startLng;
+      // An address typed with no pin: resolve it, or there is nothing to move to.
+      if (updates.startAddress && updates.startLat === undefined && updates.startLng === undefined) {
+        const geo = await geocodeAddress(updates.startAddress);
+        if (geo) {
+          newStartLat = geo.lat;
+          newStartLng = geo.lng;
+        }
+      }
+      startEdit = await planTripStartEdit({
+        userId,
+        trip: existing,
+        newLat: newStartLat,
+        newLng: newStartLng,
+      });
+      if (startEdit) {
+        updates.startLat = startEdit.startLat;
+        updates.startLng = startEdit.startLng;
+      }
+    }
+
     // Geocode end address if provided without coordinates
     let newEndLat = updates.endLat !== undefined ? updates.endLat : existing.endLat;
     let newEndLng = updates.endLng !== undefined ? updates.endLng : existing.endLng;
@@ -2037,17 +2090,24 @@ export async function tripRoutes(app: FastifyInstance) {
     // Use explicit distanceMiles if provided (e.g. merged trip with GPS-measured distance),
     // otherwise recalculate via the routing service if end coords changed.
     let distanceMiles: number | undefined = updates.distanceMiles;
+    // A tracked trip whose start moved keeps every recorded mile and gains the
+    // routed stretch in front. Never a re-route between two points: that would
+    // discard the trail they actually drove.
+    if (distanceMiles === undefined && startEdit?.addedMiles) {
+      distanceMiles = Math.round((existing.distanceMiles + startEdit.addedMiles) * 100) / 100;
+    }
     if (distanceMiles === undefined) {
       const endLatChanged = updates.endLat !== undefined && updates.endLat !== existing.endLat;
       const endLngChanged = updates.endLng !== undefined && updates.endLng !== existing.endLng;
+      const startMovedOnManual = startEdit != null && startEdit.addedMiles === 0;
       if (
-        (endLatChanged || endLngChanged) &&
+        (endLatChanged || endLngChanged || startMovedOnManual) &&
         newEndLat != null &&
         newEndLng != null
       ) {
         const route = await resolveRouteDistance({
-          startLat: existing.startLat,
-          startLng: existing.startLng,
+          startLat: startEdit?.startLat ?? existing.startLat,
+          startLng: startEdit?.startLng ?? existing.startLng,
           endLat: newEndLat,
           endLng: newEndLng,
           userId,
@@ -2090,11 +2150,22 @@ export async function tripRoutes(app: FastifyInstance) {
       newEndLng != null &&
       (newEndLat !== existing.endLat || newEndLng !== existing.endLng);
 
+    // Keep the device's original start the first time anything moves it, so a
+    // retried create still dedups against this trip. Written once and never
+    // overwritten: a second edit must not make the first one the "original".
+    const rememberDeviceStart =
+      startEdit != null && existing.originalStartLat == null && existing.originalStartLng == null;
+
     const tripUpdateData = {
       ...restUpdates,
       ...(distanceMiles !== undefined && { distanceMiles }),
       ...(shouldWriteAutoAccepted && { classificationAutoAccepted: incomingAutoAccepted }),
       ...(endMoved ? { routePolyline: null } : {}),
+      ...(rememberDeviceStart
+        ? { originalStartLat: existing.startLat, originalStartLng: existing.startLng }
+        : {}),
+      // The drawn route no longer starts where the trip does.
+      ...(startEdit ? { routePolyline: null } : {}),
       // New breadcrumbs extend the route, so a polyline matched against the
       // old, shorter coordinate set no longer describes this trip. Drop it;
       // POST /trips/:id/recalc rebuilds it from the full set.
@@ -2167,6 +2238,30 @@ export async function tripRoutes(app: FastifyInstance) {
         data: tripUpdateData,
         include: { vehicle: true, shift: true },
       });
+    }
+
+    if (startEdit) {
+      if (startEdit.prependCoordinate) {
+        await prisma.tripCoordinate.create({
+          data: {
+            tripId: id,
+            lat: startEdit.prependCoordinate.lat,
+            lng: startEdit.prependCoordinate.lng,
+            speed: null,
+            accuracy: null,
+            recordedAt: startEdit.prependCoordinate.recordedAt,
+          },
+        }).catch(() => {});
+      }
+      logEvent("trip.start_edited", userId, {
+        tripId: id,
+        addedMiles: startEdit.addedMiles,
+        crowMiles: startEdit.crowMiles,
+        distanceUnchanged: startEdit.distanceUnchangedReason,
+        wasManual: existing.isManualEntry,
+      });
+      const taxYearForStart = getTaxYear(existing.startedAt);
+      upsertMileageSummary(userId, taxYearForStart).catch(() => {});
     }
 
     if (endMoved) {

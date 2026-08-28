@@ -165,6 +165,9 @@ export async function syncUpdateTrip(id: string, data: UpdateTripData) {
   if (data.category !== undefined) { setClauses.push("category = ?"); values.push(data.category); }
   if (data.businessPurpose !== undefined) { setClauses.push("business_purpose = ?"); values.push(data.businessPurpose); }
   if (data.notes !== undefined) { setClauses.push("notes = ?"); values.push(data.notes); }
+  if (data.startAddress !== undefined) { setClauses.push("start_address = ?"); values.push(data.startAddress); }
+  if (data.startLat !== undefined) { setClauses.push("start_lat = ?"); values.push(data.startLat); }
+  if (data.startLng !== undefined) { setClauses.push("start_lng = ?"); values.push(data.startLng); }
   if (data.endAddress !== undefined) { setClauses.push("end_address = ?"); values.push(data.endAddress); }
   if (data.endLat !== undefined) { setClauses.push("end_lat = ?"); values.push(data.endLat); }
   if (data.endLng !== undefined) { setClauses.push("end_lng = ?"); values.push(data.endLng); }

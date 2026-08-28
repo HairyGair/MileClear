@@ -996,6 +996,10 @@ export default function TripFormScreen() {
   // or personal". Read from local SQLite so it works offline like the rest of
   // this screen, and downsampled because a long drive stores ~900 points and a
   // thumbnail needs nothing like that many.
+  /** Set when the driver moves the start pin on a trip they are editing. The
+   *  PATCH carries the start only then, so an ordinary classification tap does
+   *  not ask the server to reconcile an opening stretch that has not changed. */
+  const [startMoved, setStartMoved] = useState(false);
   const [routeCoords, setRouteCoords] = useState<{ lat: number; lng: number }[]>([]);
   /** Road-snapped version of the same route, when the server has one. Kept
    *  separate rather than merged so the widget can do what it is built to do:
@@ -1945,6 +1949,18 @@ export default function TripFormScreen() {
           endLat: endLat ?? null,
           endLng: endLng ?? null,
           endedAt: endedAt ? endedAt.toISOString() : null,
+          // The start, correctable from 28 Aug 2026. Only sent when it actually
+          // moved: the server treats an incoming start as an instruction to
+          // reconcile the trip's opening stretch, and there is no point asking
+          // it to do that on every classification tap. Never sent as null - a
+          // trip has to begin somewhere.
+          ...(startLat != null && startLng != null && startMoved
+            ? {
+                startLat,
+                startLng,
+                ...(startAddress ? { startAddress } : {}),
+              }
+            : {}),
           // Allow correcting a wrong vehicle — was never sent, so the picker in
           // edit mode did nothing on save (audit point 5).
           vehicleId: vehicleId ?? null,
@@ -2231,7 +2247,7 @@ export default function TripFormScreen() {
     }
   }, [
     isEditing, id, classification, platformTag, businessPurpose, category, vehicleId, vehicles,
-    startAddress, endAddress, startLat, startLng, endLat, endLng,
+    startAddress, endAddress, startLat, startLng, endLat, endLng, startMoved,
     distanceMiles, startedAt, endedAt, notes, projectLabel, router, showPaywall, routeSource,
     trailLeadGap,
     anomalyDef, anomalyResponse, anomalyCustomNote,
@@ -3130,13 +3146,13 @@ export default function TripFormScreen() {
                 setStartLat(lat);
                 setStartLng(lng);
                 setStartAddress(addr);
+                if (isEditing) setStartMoved(true);
               }}
               onClear={() => {
                 setStartLat(null);
                 setStartLng(null);
                 setStartAddress(null);
               }}
-              disabled={isEditing}
             />
 
             {/* Distance card */}

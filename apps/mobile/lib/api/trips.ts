@@ -147,6 +147,13 @@ export interface UpdateTripData {
   endLat?: number | null;
   endLng?: number | null;
   endedAt?: string | null;
+  // Correcting where a journey began (28 Aug 2026). Sent only when the driver
+  // actually moves the pin: the server reads an incoming start as an
+  // instruction to reconcile the trip's opening stretch. Not nullable - a trip
+  // has to begin somewhere.
+  startAddress?: string;
+  startLat?: number;
+  startLng?: number;
   distanceMiles?: number;
   // Correct a wrong vehicle after the fact (audit point 5).
   vehicleId?: string | null;
