@@ -145,6 +145,10 @@ export const RELEASE_NOTES: ReleaseNote[] = [
       "Driving for a company on Milesheet: earnings and gig features step out of the way automatically",
       "Claim mileage from your employer? Tell us and we will invite your manager to approve it monthly",
       "Live Activity timers are now guaranteed to count from the right decade",
+      "The menu is reorganised into Tracking, Tax, Money, Insights and More, two entries to a row, and now includes Self Assessment, HMRC Reconciliation, Link Bank, Saved Locations, Achievements, your accountant and referrals, none of which it listed before",
+      "The menu can now be scrolled all the way to the bottom; on earlier versions the lower entries could not be reached",
+      "Tax, Invoices, Expenses and Insights sit one tap from the top of the dashboard, and the tax summary card opens Self Assessment directly",
+      "The list of suggested places to save no longer disappears once you have saved your first place",
     ],
   },
   {
@@ -773,6 +777,21 @@ export function blogUrlForRelease(version: string): string {
 // Rendered at /android-releases. Deliberately NOT read by the Product Update
 // email, which goes to the whole fleet and is overwhelmingly iPhone users.
 export const ANDROID_RELEASE_NOTES: ReleaseNote[] = [
+  {
+    version: "1.3.9",
+    build: "5",
+    date: "August 2026",
+    label: "In Testing",
+    items: [
+      "Buy Pro inside the app through Google Play, monthly or yearly, and manage it from your Play subscriptions",
+      "The menu is reorganised into Tracking, Tax, Money, Insights and More, two entries to a row, with Self Assessment, HMRC Reconciliation, Link Bank, Saved Locations, Achievements, your accountant and referrals all listed",
+      "The menu can now be scrolled to the bottom",
+      "Tax, Invoices, Expenses and Insights sit one tap from the top of the dashboard",
+      "Open a finished trip and a map of the route sits above the Business and Personal buttons",
+      "A short drive the app records but decides is too brief to save is offered back to you instead of being deleted",
+      "The list of suggested places to save no longer disappears once you have saved your first place",
+    ],
+  },
   {
     version: "1.3.9",
     build: "4",
