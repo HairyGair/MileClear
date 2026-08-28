@@ -252,7 +252,8 @@ export default function AvatarMenuButton() {
                             style={[
                               styles.menuItem,
                               isActive(item.route) && styles.menuItemActive,
-                              idx < items.length - 1 && styles.menuItemBorder,
+                              idx % 2 === 0 && styles.menuItemLeft,
+                              idx < items.length - (items.length % 2 === 0 ? 2 : 1) && styles.menuItemBorder,
                             ]}
                             onPress={() => handleNav(item.route, item.replace)}
                             activeOpacity={0.6}
@@ -266,14 +267,17 @@ export default function AvatarMenuButton() {
                             ]}>
                               <Ionicons
                                 name={item.icon as any}
-                                size={18}
+                                size={16}
                                 color={isActive(item.route) ? AMBER : TEXT_2}
                               />
                             </View>
-                            <Text style={[
-                              styles.menuLabel,
-                              isActive(item.route) && styles.menuLabelActive,
-                            ]}>
+                            <Text
+                              style={[
+                                styles.menuLabel,
+                                isActive(item.route) && styles.menuLabelActive,
+                              ]}
+                              numberOfLines={2}
+                            >
                               {item.label}
                             </Text>
                             {item.badge && (
@@ -443,26 +447,36 @@ const styles = StyleSheet.create({
     overflow: "hidden",
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.06)",
+    flexDirection: "row",
+    flexWrap: "wrap",
   },
 
-  // Menu items
+  // Menu items: two tiles per row. The single column ran to ~1,550px for
+  // 21 entries against a sheet capped at 85% of the screen, so Money,
+  // Insights and More all sat below the fold.
   menuItem: {
+    width: "50%",
     flexDirection: "row",
     alignItems: "center",
-    paddingVertical: 13,
-    paddingHorizontal: 14,
-    gap: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 12,
+    gap: 10,
+    minHeight: 58,
   },
   menuItemActive: {
     backgroundColor: "rgba(245, 166, 35, 0.05)",
+  },
+  menuItemLeft: {
+    borderRightWidth: 1,
+    borderRightColor: "rgba(255,255,255,0.04)",
   },
   menuItemBorder: {
     borderBottomWidth: 1,
     borderBottomColor: "rgba(255,255,255,0.04)",
   },
   iconCircle: {
-    width: 34,
-    height: 34,
+    width: 30,
+    height: 30,
     borderRadius: 10,
     backgroundColor: "rgba(255,255,255,0.04)",
     justifyContent: "center",
@@ -472,7 +486,8 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(245, 166, 35, 0.1)",
   },
   menuLabel: {
-    fontSize: 15,
+    fontSize: 13,
+    lineHeight: 16,
     fontFamily: fonts.medium,
     color: TEXT_1,
     flex: 1,
@@ -489,8 +504,8 @@ const styles = StyleSheet.create({
   },
   badge: {
     backgroundColor: AMBER,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
+    paddingHorizontal: 5,
+    paddingVertical: 1,
     borderRadius: 4,
   },
   badgeText: {
