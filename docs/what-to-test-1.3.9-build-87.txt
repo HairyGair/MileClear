@@ -34,14 +34,26 @@ Items 1 to 3 are the reason 85 was replaced: its stop fix did not work.
    Finally, drag the pin somewhere absurd, tens of miles away. The label should
    move and the mileage should NOT: we will not price a stretch that far.
 
-6. PARK AND CLASSIFY FROM THE DYNAMIC ISLAND
+6. A SHORT HOP THAT USED TO VANISH  (new in 87)
+   Drive somewhere under half a mile at normal road speed, park, and wait a
+   minute. The app will still decide the recording is too short to save on its
+   own, but it should now appear under Missed Journeys saying "We recorded this
+   one but it was too short to save on its own", at the ROAD distance rather
+   than the straight line. Add it and check the mileage looks right.
+   Then do a there-and-back: out to somewhere close and straight back to where
+   you started. That one used to be invisible twice over, because returning to
+   your starting point leaves no gap for the app to notice.
+   The opposite check matters too: shuffling the car around a car park must
+   still produce nothing at all.
+
+7. PARK AND CLASSIFY FROM THE DYNAMIC ISLAND
    Untested since build 85. Business and Personal should both be offered, and
    the choice should stick when you next open the app.
 
-7. WATCH THE LIVE ACTIVITY TIMER
+8. WATCH THE LIVE ACTIVITY TIMER
    Untested since build 85. It must count from today, not from 2057.
 
-8. A SHORT HOP OF UNDER A MINUTE
+9. A SHORT HOP OF UNDER A MINUTE
    Should say it was too short to record, on the lock screen, rather than
    silently disappearing.
 
