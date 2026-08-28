@@ -11,6 +11,7 @@ import {
   StyleSheet,
 } from "react-native";
 import { useRouter, useFocusEffect } from "expo-router";
+import { Ionicons } from "@expo/vector-icons";
 import { fetchEarnings } from "../../lib/api/earnings";
 import { getLocalEarnings, getLocalUnsyncedEarnings } from "../../lib/db/queries";
 import { GIG_PLATFORMS, formatPence } from "@mileclear/shared";
@@ -186,6 +187,18 @@ export default function EarningsScreen() {
             <View style={styles.summaryCard}>
               <Text style={styles.summaryLabel}>Total Earnings</Text>
               <Text style={styles.summaryAmount}>{formatPence(totalPence)}</Text>
+              {/* Invoicing is the other half of getting paid; it used to
+                  live only in the avatar menu. */}
+              <TouchableOpacity
+                onPress={() => router.push("/invoices" as never)}
+                style={styles.invoicesLink}
+                accessibilityRole="button"
+                accessibilityLabel="Open invoices"
+              >
+                <Ionicons name="document-text-outline" size={14} color={AMBER} />
+                <Text style={styles.invoicesLinkText}>Invoices</Text>
+                <Ionicons name="chevron-forward" size={14} color={AMBER} />
+              </TouchableOpacity>
             </View>
 
             {/* Platform filter chips */}
@@ -337,6 +350,22 @@ const styles = StyleSheet.create({
     fontSize: 28,
     fontFamily: fonts.bold,
     color: GREEN,
+  },
+  invoicesLink: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    marginTop: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: CARD_BORDER,
+  },
+  invoicesLinkText: {
+    fontSize: 12,
+    fontFamily: fonts.semibold,
+    color: AMBER,
   },
   // Filter chips
   filterRow: {

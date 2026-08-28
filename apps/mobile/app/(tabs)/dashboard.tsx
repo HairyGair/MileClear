@@ -2040,47 +2040,51 @@ export default function DashboardScreen() {
           case "work_shift":
             return null;
           case "work_quicknav":
+            // Tax, invoices and expenses are the screens drivers most often
+            // could not find (they lived three taps deep under Settings >
+            // Work & Tax). Trips has its own tab and Badges its carousel, so
+            // those tiles gave way. Exports stays one tap away inside Tax.
             return (
               <View key={key} style={s.quickActions}>
                 <TouchableOpacity
                   style={s.quickAction}
-                  onPress={() => router.push("/insights")}
+                  onPress={() => router.push("/self-assessment" as never)}
+                  activeOpacity={0.7}
+                  accessibilityRole="button"
+                  accessibilityLabel="Self Assessment and tax summary"
+                >
+                  <Ionicons name="calculator-outline" size={22} color="#f5a623" style={{ marginBottom: 4 }} accessible={false} />
+                  <Text style={s.quickActionLabel}>Tax</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={s.quickAction}
+                  onPress={() => router.push("/invoices" as never)}
+                  activeOpacity={0.7}
+                  accessibilityRole="button"
+                  accessibilityLabel="Invoices"
+                >
+                  <Ionicons name="document-text-outline" size={22} color="#f5a623" style={{ marginBottom: 4 }} accessible={false} />
+                  <Text style={s.quickActionLabel}>Invoices</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={s.quickAction}
+                  onPress={() => router.push("/expenses" as never)}
+                  activeOpacity={0.7}
+                  accessibilityRole="button"
+                  accessibilityLabel="Expenses"
+                >
+                  <Ionicons name="receipt-outline" size={22} color="#f5a623" style={{ marginBottom: 4 }} accessible={false} />
+                  <Text style={s.quickActionLabel}>Expenses</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={s.quickAction}
+                  onPress={() => router.push("/insights" as never)}
                   activeOpacity={0.7}
                   accessibilityRole="button"
                   accessibilityLabel="Business Insights"
                 >
                   <Ionicons name="analytics-outline" size={22} color="#f5a623" style={{ marginBottom: 4 }} accessible={false} />
                   <Text style={s.quickActionLabel}>Insights</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={s.quickAction}
-                  onPress={() => router.replace("/(tabs)/trips" as any)}
-                  activeOpacity={0.7}
-                  accessibilityRole="button"
-                  accessibilityLabel="View Trips"
-                >
-                  <Ionicons name="list-outline" size={22} color="#f5a623" style={{ marginBottom: 4 }} accessible={false} />
-                  <Text style={s.quickActionLabel}>Trips</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={s.quickAction}
-                  onPress={() => router.push("/exports")}
-                  activeOpacity={0.7}
-                  accessibilityRole="button"
-                  accessibilityLabel="Tax Exports"
-                >
-                  <Ionicons name="download-outline" size={22} color="#f5a623" style={{ marginBottom: 4 }} accessible={false} />
-                  <Text style={s.quickActionLabel}>Exports</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={s.quickAction}
-                  onPress={() => router.push("/achievements")}
-                  activeOpacity={0.7}
-                  accessibilityRole="button"
-                  accessibilityLabel="View Badges and Achievements"
-                >
-                  <Ionicons name="trophy-outline" size={22} color="#f5a623" style={{ marginBottom: 4 }} accessible={false} />
-                  <Text style={s.quickActionLabel}>Badges</Text>
                 </TouchableOpacity>
               </View>
             );

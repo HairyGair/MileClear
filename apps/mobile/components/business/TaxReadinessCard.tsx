@@ -272,6 +272,19 @@ export function TaxReadinessCard() {
         </View>
       )}
 
+      {/* The card summarises the numbers; the wizard is where they get
+          used. Make that the obvious next tap rather than a menu hunt. */}
+      <TouchableOpacity
+        onPress={() => router.navigate("/self-assessment" as never)}
+        style={s.ctaButton}
+        accessibilityRole="button"
+        accessibilityLabel="Open Self Assessment"
+      >
+        <Ionicons name="calculator-outline" size={15} color="#0b0f1a" />
+        <Text style={s.ctaButtonText}>Open Self Assessment</Text>
+        <Ionicons name="chevron-forward" size={15} color="#0b0f1a" />
+      </TouchableOpacity>
+
       {/* First-time guide link - subtle, low-priority entry point */}
       <TouchableOpacity
         onPress={() => router.navigate("/first-tax-return" as never)}
@@ -522,6 +535,21 @@ const s = StyleSheet.create({
     fontSize: 12,
     lineHeight: 16,
     marginTop: 2,
+  },
+  ctaButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    marginTop: 14,
+    paddingVertical: 11,
+    borderRadius: 10,
+    backgroundColor: AMBER,
+  },
+  ctaButtonText: {
+    color: "#0b0f1a",
+    fontSize: 13,
+    fontWeight: "700",
   },
   guideLink: {
     flexDirection: "row",
