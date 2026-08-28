@@ -82,13 +82,26 @@ export const RELEASE_NOTES: ReleaseNote[] = [
     // that retires the 2057 question. Label flow: "In Testing" now,
     // "Pending Review" when submitted for review, "Latest" on approval.
     //
-    // BUILD 86 (28 Aug 2026) replaces build 85 in TestFlight, same version
+    // BUILD 86 (28 Aug 2026) replaced build 85 in TestFlight, same version
     // because 1.3.9 was never submitted for review. It carries the two fixes
     // that make the first bullet actually true (b497fd2: the native engine's
     // ten-minute stop timeout could never fire, and gap-stop was asking about
     // distance instead of whether the car had stopped) and the one that makes
     // the route bullet true (212f5a1: the map read a local table nothing
     // writes, so it had never appeared for anyone).
+    //
+    // BUILD 87 is OPEN and accumulating (Anthony, 28 Aug: "we'll add to build
+    // 87 as we go"). app.json is already on 87 so the next cut cannot collide
+    // with a build number Apple has seen. In it so far: editing where a
+    // journey started (e799c0e). ADD THE BULLET WHEN THE WORK LANDS, not when
+    // the build is cut - three of the items above were written for build 85
+    // and two of them were not true until 86.
+    //
+    // Bullets here cover server-side work too, which is live for everyone the
+    // day it deploys rather than when they update. That is deliberate and
+    // matches 1.3.8, but it means a reader on an older build sees some of this
+    // list already working: keep such bullets phrased as what changed, never
+    // as "update to get this".
     version: "1.3.9",
     date: "August 2026",
     label: "In Testing",
@@ -99,6 +112,9 @@ export const RELEASE_NOTES: ReleaseNote[] = [
       "Short hops that are too quick to record now say so on the lock screen instead of disappearing silently",
       "See the route you drove on the trip screen when you look back at a finished trip",
       "Journeys you never made no longer turn up in your list: a single stray phone-mast fix can no longer become a trip",
+      "Correct where a journey started, the same way you always could where it ended, and the miles you drove before the app began recording are added back",
+      "A phone drifting about while you are parked no longer becomes a short journey of its own",
+      "A stop that splits a journey in two is named from your own saved places rather than the nearest street",
       "Driving for a company on Milesheet: earnings and gig features step out of the way automatically",
       "Claim mileage from your employer? Tell us and we will invite your manager to approve it monthly",
       "Live Activity timers are now guaranteed to count from the right decade",

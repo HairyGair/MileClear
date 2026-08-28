@@ -1,0 +1,49 @@
+Build 87 is OPEN and accumulating. Add to this list as work lands, not when the
+build is cut.
+
+Everything build 86 asked for still stands, because 86 has not been driven yet.
+Items 1 to 3 are the reason 85 was replaced: its stop fix did not work.
+
+1. DRIVE, STOP SOMEWHERE FOR TEN MINUTES OR MORE, THEN DRIVE ON
+   Two trips, not one. Get out and walk about during the stop rather than
+   sitting in the car: a carried phone is exactly what the old code could never
+   read as a stop, because the engine refreshed its own idle clock on every GPS
+   fix including the ones from a parked phone.
+
+2. STOP FOR FIVE MINUTES SOMEWHERE WITH POOR SIGNAL, THEN DRIVE ON
+   Also two trips. The old rule asked how far the phone had moved by the time it
+   woke up, which is the wrong question when it wakes half a mile down the road.
+
+3. DRIVE THROUGH A TUNNEL OR A LONG BLACKSPOT WITHOUT STOPPING
+   The regression check: this must stay ONE trip.
+
+4. OPEN A FINISHED TRIP AND LOOK ABOVE THE BUSINESS/PERSONAL BUTTONS
+   A map of the route. This was in build 85 and never appeared for anyone: it
+   read a local table nothing writes to. It now comes from the server, so it
+   also works for trips recorded on another device.
+
+5. CORRECT WHERE A JOURNEY STARTED  (new in 87)
+   Open a tracked trip, tap Start Location, move it back to where you actually
+   set off, save. Check three things:
+     - the start address changes to the place you picked;
+     - the distance goes UP by roughly the road distance you added, and the
+       route on the map keeps everything it recorded;
+     - the trip does not appear twice in the list afterwards.
+   Then try it on a manual trip: there is no recorded route, so the distance is
+   re-worked between the two ends instead.
+   Finally, drag the pin somewhere absurd, tens of miles away. The label should
+   move and the mileage should NOT: we will not price a stretch that far.
+
+6. PARK AND CLASSIFY FROM THE DYNAMIC ISLAND
+   Untested since build 85. Business and Personal should both be offered, and
+   the choice should stick when you next open the app.
+
+7. WATCH THE LIVE ACTIVITY TIMER
+   Untested since build 85. It must count from today, not from 2057.
+
+8. A SHORT HOP OF UNDER A MINUTE
+   Should say it was too short to record, on the lock screen, rather than
+   silently disappearing.
+
+Anything that looks like a journey you did not make, or one of yours that is
+missing, is worth reporting however small it seems.
