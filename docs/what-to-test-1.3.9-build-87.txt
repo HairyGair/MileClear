@@ -1,61 +1,23 @@
-Build 87 is OPEN and accumulating. Add to this list as work lands, not when the
-build is cut.
+MileClear 1.3.9 (build 87) / Android 1.3.9 (5) - what to test
 
-Everything build 86 asked for still stands, because 86 has not been driven yet.
-Items 1 to 3 are the reason 85 was replaced: its stop fix did not work.
+Cut 28 Aug 2026 at 0b41ab5. Everything build 86 carried, plus:
 
-1. DRIVE, STOP SOMEWHERE FOR TEN MINUTES OR MORE, THEN DRIVE ON
-   Two trips, not one. Get out and walk about during the stop rather than
-   sitting in the car: a carried phone is exactly what the old code could never
-   read as a stop, because the engine refreshed its own idle clock on every GPS
-   fix including the ones from a parked phone.
+1. THE MENU (avatar, top right). Five groups - Tracking, Tax, Money,
+   Insights, More - two entries to a row. Scroll it: Insights, More and
+   Log out must be reachable. (On every earlier build the sheet could not
+   be scrolled at all.) Tap Link Bank, Reconciliation, Accountant,
+   Achievements, Refer a Driver: each must open.
+2. DASHBOARD (Work mode). Under Weekly Earnings: Tax / Invoices / Expenses /
+   Insights tiles. The HMRC card has an amber "Open Self Assessment" button.
+   Earnings tab: an Invoices pill under the total.
+3. SAVED PLACES. Save your first suggested place; the rest of the suggestions
+   must stay on screen.
+4. SHORT DRIVE OFFERED BACK. Drive under 0.3 mi and stop. Instead of nothing,
+   Missed Journeys should offer the drive to add.
+5. ANDROID ONLY: Profile > Upgrade opens the Google Play sheet, monthly and
+   yearly; cancel from Play subscriptions.
+6. Still untested from 85/86: classify-at-the-kerb on the Dynamic Island, and
+   the Live Activity timer showing a sane count (not 2057).
 
-2. STOP FOR FIVE MINUTES SOMEWHERE WITH POOR SIGNAL, THEN DRIVE ON
-   Also two trips. The old rule asked how far the phone had moved by the time it
-   woke up, which is the wrong question when it wakes half a mile down the road.
-
-3. DRIVE THROUGH A TUNNEL OR A LONG BLACKSPOT WITHOUT STOPPING
-   The regression check: this must stay ONE trip.
-
-4. OPEN A FINISHED TRIP AND LOOK ABOVE THE BUSINESS/PERSONAL BUTTONS
-   A map of the route. This was in build 85 and never appeared for anyone: it
-   read a local table nothing writes to. It now comes from the server, so it
-   also works for trips recorded on another device.
-
-5. CORRECT WHERE A JOURNEY STARTED  (new in 87)
-   Open a tracked trip, tap Start Location, move it back to where you actually
-   set off, save. Check three things:
-     - the start address changes to the place you picked;
-     - the distance goes UP by roughly the road distance you added, and the
-       route on the map keeps everything it recorded;
-     - the trip does not appear twice in the list afterwards.
-   Then try it on a manual trip: there is no recorded route, so the distance is
-   re-worked between the two ends instead.
-   Finally, drag the pin somewhere absurd, tens of miles away. The label should
-   move and the mileage should NOT: we will not price a stretch that far.
-
-6. A SHORT HOP THAT USED TO VANISH  (new in 87)
-   Drive somewhere under half a mile at normal road speed, park, and wait a
-   minute. The app will still decide the recording is too short to save on its
-   own, but it should now appear under Missed Journeys saying "We recorded this
-   one but it was too short to save on its own", at the ROAD distance rather
-   than the straight line. Add it and check the mileage looks right.
-   Then do a there-and-back: out to somewhere close and straight back to where
-   you started. That one used to be invisible twice over, because returning to
-   your starting point leaves no gap for the app to notice.
-   The opposite check matters too: shuffling the car around a car park must
-   still produce nothing at all.
-
-7. PARK AND CLASSIFY FROM THE DYNAMIC ISLAND
-   Untested since build 85. Business and Personal should both be offered, and
-   the choice should stick when you next open the app.
-
-8. WATCH THE LIVE ACTIVITY TIMER
-   Untested since build 85. It must count from today, not from 2057.
-
-9. A SHORT HOP OF UNDER A MINUTE
-   Should say it was too short to record, on the lock screen, rather than
-   silently disappearing.
-
-Anything that looks like a journey you did not make, or one of yours that is
-missing, is worth reporting however small it seems.
+Same JS went out by OTA today to 1.3.8-build84 (App Store fleet) and
+1.3.9-build86 (TestFlight) for items 1-3 (and 4 on build 86).
