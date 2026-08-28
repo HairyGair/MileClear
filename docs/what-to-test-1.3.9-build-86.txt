@@ -1,0 +1,41 @@
+Build 86 replaces build 85. Same version, because 1.3.9 has not gone for review.
+
+Everything build 85 asked for still needs doing, and three of the items below
+are the reason it is being replaced: build 85's stop fix did not actually work.
+
+1. DRIVE, STOP SOMEWHERE FOR TEN MINUTES OR MORE, THEN DRIVE ON
+   This is the main one. You should get two trips, not one. Build 85 gave one:
+   the ten-minute stop timeout could never fire, because the engine refreshed
+   its own idle clock on every GPS fix including the ones from a parked phone.
+   Getting out and walking about during the stop is the case that was broken,
+   so please do that rather than sitting in the car.
+
+2. STOP FOR FIVE MINUTES SOMEWHERE WITH POOR SIGNAL, THEN DRIVE ON
+   Also two trips. The old rule asked how far the phone had moved by the time
+   it woke up again, which is the wrong question when it wakes half a mile down
+   the road. It now asks whether the car had stopped before the phone went
+   quiet.
+
+3. DRIVE THROUGH A TUNNEL OR A LONG SIGNAL BLACKSPOT WITHOUT STOPPING
+   The opposite check, and the one to watch for regressions: this must stay ONE
+   trip. A four-minute silence at speed is a tunnel, not a visit.
+
+4. OPEN A FINISHED TRIP AND LOOK ABOVE THE BUSINESS/PERSONAL BUTTONS
+   There should be a map of the route. This was in build 85 and never appeared
+   for anybody: it was reading a local table that nothing ever writes to. It now
+   comes from the server, so it also works for trips recorded on another device.
+
+5. PARK AT THE END OF A DRIVE AND CLASSIFY FROM THE DYNAMIC ISLAND
+   Unchanged from build 85 and still untested on a phone: Business and Personal
+   should both be there, and the choice should stick when you open the app.
+
+6. WATCH THE LIVE ACTIVITY TIMER
+   Unchanged from build 85 and still untested on a phone: it must count from
+   today, not from the year 2057.
+
+7. A SHORT HOP OF UNDER A MINUTE
+   Should say it was too short to record, on the lock screen, rather than
+   silently disappearing.
+
+Anything that looks like a journey you did not make, or a journey of yours that
+is missing, is worth reporting even if it seems small.

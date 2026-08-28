@@ -81,6 +81,14 @@ export const RELEASE_NOTES: ReleaseNote[] = [
     // kerb Live Activity intents (b04ea90) and the explicit date wire format
     // that retires the 2057 question. Label flow: "In Testing" now,
     // "Pending Review" when submitted for review, "Latest" on approval.
+    //
+    // BUILD 86 (28 Aug 2026) replaces build 85 in TestFlight, same version
+    // because 1.3.9 was never submitted for review. It carries the two fixes
+    // that make the first bullet actually true (b497fd2: the native engine's
+    // ten-minute stop timeout could never fire, and gap-stop was asking about
+    // distance instead of whether the car had stopped) and the one that makes
+    // the route bullet true (212f5a1: the map read a local table nothing
+    // writes, so it had never appeared for anyone).
     version: "1.3.9",
     date: "August 2026",
     label: "In Testing",
@@ -90,6 +98,7 @@ export const RELEASE_NOTES: ReleaseNote[] = [
       "Classify a trip as business or personal straight from the Dynamic Island when you park",
       "Short hops that are too quick to record now say so on the lock screen instead of disappearing silently",
       "See the route you drove on the trip screen when you look back at a finished trip",
+      "Journeys you never made no longer turn up in your list: a single stray phone-mast fix can no longer become a trip",
       "Driving for a company on Milesheet: earnings and gig features step out of the way automatically",
       "Claim mileage from your employer? Tell us and we will invite your manager to approve it monthly",
       "Live Activity timers are now guaranteed to count from the right decade",
