@@ -9,7 +9,7 @@ import "../updates.css";
 export const metadata: Metadata = {
   title: "Updates",
   description:
-    "MileClear release notes and the development blog. Follow the latest improvements to the app, engineering deep-dives, and guides for UK drivers.",
+    "MileClear release notes for iPhone and Android, plus the development blog. Follow the latest improvements to the app, engineering deep-dives, and guides for UK drivers.",
   alternates: {
     canonical: "https://mileclear.com/updates",
   },
@@ -97,11 +97,12 @@ export default function UpdatesPage() {
             <span className="label">What&apos;s New</span>
             <h1 className="updates__heading">Release Notes &amp; Driver Guides</h1>
             <p className="updates__sub">
-              Release notes, engineering write-ups, and guides for UK drivers.
+              Release notes for iPhone and Android, engineering write-ups, and
+              guides for UK drivers.
             </p>
           </header>
 
-          <TabSwitcher defaultTab="releases" />
+          <TabSwitcher defaultTab="ios" />
         </div>
       </main>
 

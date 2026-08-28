@@ -4,26 +4,80 @@ import { useState } from "react";
 import Link from "next/link";
 import {
   getAllReleaseNotes,
+  getAllAndroidReleaseNotes,
   getAllBlogPosts,
   getAllGuides,
   CATEGORY_LABELS,
   GUIDE_CATEGORY_LABELS,
   type BlogPost,
+  type ReleaseNote,
 } from "@/data/posts";
 
-type Tab = "releases" | "blog" | "guides";
+type Tab = "ios" | "android" | "blog" | "guides";
 
 function categoryClass(category: BlogPost["category"]): string {
   return `blog-card__category blog-card__category--${category}`;
 }
 
+/**
+ * One release card. Shared by the iPhone and Android panels rather than
+ * duplicated: the only difference between them is the Play versionCode beside
+ * the version, which iOS entries leave unset.
+ */
+function ReleaseList({ notes, label }: { notes: ReleaseNote[]; label: string }) {
+  return (
+    <ul className="release-list" aria-label={label}>
+      {notes.map((note) => (
+        <li key={`${note.version}-${note.build ?? ""}`}>
+          <article className="release-card">
+            <header className="release-card__head">
+              <h2 className="release-card__version">
+                v{note.version}
+                {note.build && <span className="release-card__build"> ({note.build})</span>}
+              </h2>
+              {note.label && (
+                <span
+                  className={`release-card__badge release-card__badge--${note.label.toLowerCase().replace(/\s+/g, "-")}`}
+                >
+                  {note.label}
+                </span>
+              )}
+              <time className="release-card__date" dateTime={note.date}>
+                {note.date}
+              </time>
+            </header>
+            <ul className="release-card__items" aria-label={`Changes in v${note.version}`}>
+              {note.items.map((item, i) => (
+                <li key={i} className="release-card__item">
+                  {item}
+                </li>
+              ))}
+            </ul>
+            {note.ctaUrl && (
+              <a
+                href={note.ctaUrl}
+                className="release-card__cta"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                {note.ctaLabel || "Try it now"} &rarr;
+              </a>
+            )}
+          </article>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
 export default function TabSwitcher({
-  defaultTab = "releases",
+  defaultTab = "ios",
 }: {
   defaultTab?: Tab;
 }) {
   const [tab, setTab] = useState<Tab>(defaultTab);
   const releaseNotes = getAllReleaseNotes();
+  const androidReleaseNotes = getAllAndroidReleaseNotes();
   const blogPosts = getAllBlogPosts();
   const guides = getAllGuides();
 
@@ -34,12 +88,21 @@ export default function TabSwitcher({
         <div className="updates__tab-group" role="tablist">
           <button
             role="tab"
-            aria-selected={tab === "releases"}
-            aria-controls="panel-releases"
-            className={`updates__tab${tab === "releases" ? " updates__tab--active" : ""}`}
-            onClick={() => setTab("releases")}
+            aria-selected={tab === "ios"}
+            aria-controls="panel-ios"
+            className={`updates__tab${tab === "ios" ? " updates__tab--active" : ""}`}
+            onClick={() => setTab("ios")}
           >
-            Release Notes
+            iOS
+          </button>
+          <button
+            role="tab"
+            aria-selected={tab === "android"}
+            aria-controls="panel-android"
+            className={`updates__tab${tab === "android" ? " updates__tab--active" : ""}`}
+            onClick={() => setTab("android")}
+          >
+            Android
           </button>
           <button
             role="tab"
@@ -62,54 +125,29 @@ export default function TabSwitcher({
         </div>
       </div>
 
-      {/* Release notes panel */}
+      {/* iPhone release notes panel */}
       <div
-        id="panel-releases"
+        id="panel-ios"
         role="tabpanel"
-        hidden={tab !== "releases"}
+        hidden={tab !== "ios"}
         className="updates__content"
       >
-        <ul className="release-list" aria-label="Release notes">
-          {releaseNotes.map((note) => (
-            <li key={note.version}>
-              <article className="release-card">
-                <header className="release-card__head">
-                  <h2 className="release-card__version">v{note.version}</h2>
-                  {note.label && (
-                    <span
-                      className={`release-card__badge release-card__badge--${note.label.toLowerCase().replace(/\s+/g, "-")}`}
-                    >
-                      {note.label}
-                    </span>
-                  )}
-                  <time
-                    className="release-card__date"
-                    dateTime={note.date}
-                  >
-                    {note.date}
-                  </time>
-                </header>
-                <ul className="release-card__items" aria-label={`Changes in v${note.version}`}>
-                  {note.items.map((item, i) => (
-                    <li key={i} className="release-card__item">
-                      {item}
-                    </li>
-                  ))}
-                </ul>
-                {note.ctaUrl && (
-                  <a
-                    href={note.ctaUrl}
-                    className="release-card__cta"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                  >
-                    {note.ctaLabel || "Try it now"} &rarr;
-                  </a>
-                )}
-              </article>
-            </li>
-          ))}
-        </ul>
+        <ReleaseList notes={releaseNotes} label="iPhone release notes" />
+      </div>
+
+      {/* Android release notes panel */}
+      <div
+        id="panel-android"
+        role="tabpanel"
+        hidden={tab !== "android"}
+        className="updates__content"
+      >
+        <p className="updates__panel-intro">
+          MileClear for Android is in closed testing on Google Play. It shares a
+          codebase and an account with the iPhone app, but not a release
+          history, so its builds are listed separately.
+        </p>
+        <ReleaseList notes={androidReleaseNotes} label="Android release notes" />
       </div>
 
       {/* Blog panel */}

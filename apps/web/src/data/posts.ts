@@ -13,8 +13,8 @@
 // working unchanged. We also `import` them locally so the helper
 // functions further down (getAllReleaseNotes, the Post union type)
 // can still reference them.
-import { RELEASE_NOTES, type ReleaseNote } from "@mileclear/shared";
-export { RELEASE_NOTES, type ReleaseNote };
+import { RELEASE_NOTES, ANDROID_RELEASE_NOTES, type ReleaseNote } from "@mileclear/shared";
+export { RELEASE_NOTES, ANDROID_RELEASE_NOTES, type ReleaseNote };
 
 export interface BlogPost {
   slug: string;
@@ -2391,7 +2391,12 @@ export function getBlogPostBySlug(slug: string): BlogPost | undefined {
   return BLOG_POSTS.find((p) => p.slug === slug);
 }
 
-/** All release notes (newest first by array order). */
+/** Android release notes (newest first by array order). */
+export function getAllAndroidReleaseNotes(): ReleaseNote[] {
+  return ANDROID_RELEASE_NOTES;
+}
+
+/** iPhone release notes (newest first by array order). */
 export function getAllReleaseNotes(): ReleaseNote[] {
   return RELEASE_NOTES;
 }

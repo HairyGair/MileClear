@@ -726,6 +726,29 @@
    Responsive
    ---------------------------------------------------------------- */
 @media (max-width: 640px) {
+  /* Four tabs instead of three since Android got its own list. On a narrow
+     phone the pill group is wider than the screen, so let it scroll sideways
+     rather than break the row or shrink the tap targets. */
+  .updates__tabs {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+
+  .updates__tabs::-webkit-scrollbar {
+    display: none;
+  }
+
+  .updates__tab-group {
+    flex-wrap: nowrap;
+  }
+
+  .updates__tab {
+    padding-left: 0.9rem;
+    padding-right: 0.9rem;
+    white-space: nowrap;
+  }
+
   .release-card__date {
     margin-left: 0;
     width: 100%;
