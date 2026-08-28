@@ -7,31 +7,33 @@ const Tick = () => (
 );
 
 const free = [
-  "Unlimited GPS trip tracking with auto-detection - no monthly drive cap (MileIQ stops you at 40)",
-  "Tax Readiness card (live tax estimate, weekly set-aside, deadline countdown)",
-  "Anonymous Benchmarking vs other UK drivers",
-  "HMRC Reconciliation - compare what HMRC sees to what you tracked",
-  "MOT and tax expiry reminders + full DVSA MOT history",
-  "Activity Heatmap (when you drive and earn most)",
+  "Unlimited GPS trip tracking with auto-detection - no monthly drive cap (MileIQ stops you at 40, Driversnote at 15)",
   "Self Assessment wizard - mapped to HMRC SA103 form boxes",
-  "Shift mode with platform tagging",
-  "Fuel prices from 8,300+ UK stations",
-  "Pickup wait timer (community insights are Pro)",
-  "Achievements, streaks, weekly and monthly recaps",
+  "Tax Readiness card (live tax estimate, weekly set-aside, deadline countdown)",
+  "HMRC Reconciliation - compare what HMRC sees to what you tracked",
+  "Expenses log and on-device receipt scanning",
+  "Invoicing - 3 tracked invoices a month",
+  "1 vehicle with DVLA lookup, MOT history and MOT/tax reminders",
+  "Fuel prices from 8,300+ UK stations, EV charging nearby",
+  "Anonymous Benchmarking and Activity Heatmap",
+  "Shift mode with platform tagging, pickup wait timer",
+  "Achievements, streaks and recaps",
   "2 saved locations with geofencing",
+  "Web dashboard included",
 ];
 
 const pro = [
   "Everything in Free, plus:",
   "Print-ready Self Assessment PDF - the wizard's figures, ready to file",
-  "PDF mileage log with signed HMRC attestation cover sheet",
-  "CSV and accounting-software exports",
+  "PDF mileage log with signed HMRC attestation cover sheet, CSV exports",
   "Accountant Portal (read-only dashboard you can invite by email)",
-  "Receipt scanning - on-device OCR, your images stay on your phone",
+  "Open Banking earnings import and bank-transaction inbox",
   "CSV earnings import from Uber, Deliveroo, Just Eat, Amazon Flex, Stuart",
+  "Auto-Classify Rules - business or personal from your work schedule",
   "Business insights - earnings/mile, golden hours, weekly P&L, shift grades",
-  "Pickup-wait community insights (\"drivers here average 12-min waits\")",
-  "Unlimited saved locations",
+  "Driving Analytics and Journey Map",
+  "Pickup-wait community insights",
+  "Unlimited vehicles, saved locations and invoices",
 ];
 
 export default function Pricing() {
@@ -43,9 +45,8 @@ export default function Pricing() {
           <h2 className="heading">Tracking is free. Forever.</h2>
           <p className="subtext">
             No drive caps, no time limits, no surprise paywalls on basic features.
-            MileIQ stops you at 40 drives a month unless you pay &pound;5.99.
-            TripLog limits you to 40. Driversnote limits you to 15. We don&apos;t
-            limit any of it. Track as many miles as you like, on us. Pro
+            MileIQ stops you at 40 drives a month on its free tier and
+            Driversnote at 15. We don&apos;t limit any of it. Track as many miles as you like, on us. Pro
             (&pound;4.99/month or &pound;44.99/year) adds the tax exports and
             earnings analytics; it never gates the tracker itself.
           </p>
@@ -78,7 +79,7 @@ export default function Pricing() {
                 &pound;4.99<span className="p-card__period"> /month</span>
               </p>
               <p className="p-card__desc">
-                Tax-ready exports, earnings insights, and the full toolkit for self-employed drivers.
+                Filing-ready exports, Open Banking, auto-classification and the full insights toolkit for self-employed drivers.
               </p>
               <ul className="p-card__list">
                 {pro.map((f) => (
