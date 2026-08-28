@@ -2470,6 +2470,46 @@ export const GUIDES: Guide[] = [
     readTime: "Template",
   },
   {
+    slug: "mileage-allowance-relief",
+    title: "When Your Employer Pays Less Than the Approved Rate",
+    excerpt:
+      "Plenty of employers pay 25p a mile against an approved rate of 55p. You can claim tax relief on the gap, going back four years, and most people who could never do. What it is worth, and how to claim it.",
+    category: "tax",
+    readTime: "6 min read",
+  },
+  {
+    slug: "mileage-or-actual-costs",
+    title: "Mileage or Actual Costs?",
+    excerpt:
+      "A flat rate per mile, or the business share of what the vehicle really costs plus capital allowances. How to tell which is worth more, and the lock-in that means the first claim you make fixes your options for that vehicle.",
+    category: "tax",
+    readTime: "7 min read",
+  },
+  {
+    slug: "limited-company-mileage",
+    title: "Claiming Mileage as a Limited Company Director",
+    excerpt:
+      "Your own car or the company's, and why that one question decides everything else. The approved rate paid tax free, the benefit-in-kind trap, reclaiming the VAT, and the paperwork a single-director company still needs.",
+    category: "rules",
+    readTime: "7 min read",
+  },
+  {
+    slug: "how-long-to-keep-mileage-records",
+    title: "How Long to Keep Your Mileage Records",
+    excerpt:
+      "Five years after the filing deadline if you are self-employed, 22 months if you are employed, six years for a company. What a record has to contain, and why the real-world period is nearly six years.",
+    category: "rules",
+    readTime: "5 min read",
+  },
+  {
+    slug: "tracker-missed-a-trip",
+    title: "Your Tracker Missed a Trip: What To Do",
+    excerpt:
+      "Why every automatic app misses drives sometimes, what to check first, how to add the journey in a way HMRC will accept, and the phone settings that stop it happening again.",
+    category: "tracking",
+    readTime: "6 min read",
+  },
+  {
     slug: "expenses-policy-template",
     title: "Staff Mileage and Expenses Policy Template",
     excerpt:
