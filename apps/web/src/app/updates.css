@@ -140,6 +140,13 @@
   letter-spacing: -0.025em;
 }
 
+/* Play versionCode beside the version name. Quieter than the version itself:
+   it is the number a tester quotes back to us, not the headline. */
+.release-card__build {
+  font-weight: 500;
+  color: var(--text-muted, #94a3b8);
+}
+
 .release-card__badge {
   font-size: 0.6875rem;
   font-weight: 700;

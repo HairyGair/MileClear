@@ -71,6 +71,10 @@ export default function ReleasesPage() {
             engineering deep-dives, guides, or news?{" "}
             <Link href="/updates" className="updates__inline-link">
               See the Updates blog.
+            </Link>{" "}
+            On Android?{" "}
+            <Link href="/android-releases" className="updates__inline-link">
+              Those notes are here.
             </Link>
           </p>
         </header>

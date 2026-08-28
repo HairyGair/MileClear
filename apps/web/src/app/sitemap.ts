@@ -49,6 +49,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
     { url: `${BASE_URL}/mtd-itsa-software-for-sole-traders`, lastModified: new Date("2026-05-09") },
     { url: `${BASE_URL}/updates`, lastModified: new Date("2026-04-26T20:30:00Z") },
     { url: `${BASE_URL}/releases`, lastModified: new Date("2026-06-29") },
+    { url: `${BASE_URL}/android-releases`, lastModified: new Date("2026-08-28") },
     { url: `${BASE_URL}/support`, lastModified: new Date("2026-03-25") },
     { url: `${BASE_URL}/design`, lastModified: new Date("2026-04-21") },
     { url: `${BASE_URL}/privacy`, lastModified: new Date("2026-03-13") },

@@ -51,6 +51,155 @@ export interface Guide {
 // ----------------------------------------------------------------
 export const BLOG_POSTS: BlogPost[] = [
   {
+    slug: "mileclear-on-android-closed-beta",
+    title: "MileClear on Android: what is in the closed beta",
+    excerpt:
+      "MileClear for Android is in closed testing on Google Play. Same account, same trips, and the same background tracking engine as the iPhone app. Here is what works today, what does not yet, and why a port of a mileage tracker is harder than it sounds.",
+    date: "28 August 2026",
+    author: "Gair",
+    category: "announcement",
+    content: `
+<p>MileClear has been an iPhone app for its whole life. It is now also an Android app, in closed testing on Google Play.</p>
+
+<p>This is not a re-skin or a web page in a wrapper. It is the same codebase, signing in to the same account, reading the same trips. If you have been tracking on an iPhone and you switch, your mileage is already there.</p>
+
+<h2>What works today</h2>
+
+<ul>
+<li><strong>Background trip capture</strong>, on the same tracking engine the iPhone app uses. Drives are detected and recorded without opening the app.</li>
+<li><strong>Sign in with Google or an email address</strong>, and everything you have already recorded appears.</li>
+<li><strong>Maps, trip history, classification, saved locations, vehicles, fuel logs, earnings and expenses.</strong></li>
+<li><strong>Receipt scanning</strong>, done on the phone rather than uploaded anywhere.</li>
+<li><strong>Push notifications</strong> for streaks, reminders and trip prompts.</li>
+<li><strong>Pro carries across.</strong> If you already pay on the web or on an iPhone, signing in on Android gives you Pro there too.</li>
+</ul>
+
+<h2>What does not work yet</h2>
+
+<p>You cannot buy Pro from inside the Android app. Google Play billing needs a merchant account set up before subscriptions can exist, and that is still in progress, so upgrades happen on the web for now. Everything else about Pro behaves normally once you have it.</p>
+
+<h2>Why a port takes this long</h2>
+
+<p>Most of a mileage tracker ports in an afternoon. Screens are screens. The part that does not is the only part that matters: deciding, on a phone in a pocket, that a drive has started, staying alive for the whole of it, and noticing when it has ended.</p>
+
+<p>Every operating system fights you on this, and each fights differently. iOS suspends apps aggressively and has its own rules about what may wake one up. Android hands the same job to a foreground service, a different permission model, and manufacturer battery managers that will happily kill a well-behaved app because it has been running for a while. Getting a drive recorded reliably on a Samsung is a genuinely different problem from getting it recorded on an iPhone, even with identical code above the engine.</p>
+
+<p>Some of the trip is unglamorous. Twelve of our app icons turned out to be JPEG files with .png on the end. iOS had never cared. Android's build tools refused them outright, and the first release build failed on nothing more interesting than that.</p>
+
+<h2>Why closed, and not just released</h2>
+
+<p>Because the fleet has been burned by launch-day problems before, and because I have not yet driven a real Android phone around with this on it. An emulator can tell you the app builds, signs in, draws a map and records a route. It cannot tell you what a phone does in a coat pocket on a wet Tuesday with battery saver on. Until that has happened on real hardware, a closed test is the honest place for it.</p>
+
+<h2>Getting in</h2>
+
+<p>Testing is closed while we work through the first round of real drives. If you drive for a living, you are on Android, and you would like to be part of it, <a href="/support">tell us</a> and we will add you.</p>
+
+<p>Build-by-build notes live on the <a href="/android-releases">Android release notes</a> page, separate from the iPhone ones, because the two are at different points in their lives and pretending otherwise would make both lists confusing.</p>
+
+<p>- Gair</p>
+`,
+  },
+  {
+    slug: "what-makes-a-journey-end",
+    title: "What makes a journey end",
+    excerpt:
+      "Deciding a drive has started is easy. Deciding it has finished is the hard part, and getting it wrong welds a whole afternoon of visits into one enormous trip. An engineering account of how we now tell a stop from a traffic queue, and of the fleet-wide check that stopped a fix going out wrong.",
+    date: "28 August 2026",
+    author: "Gair",
+    category: "engineering",
+    content: `
+<p>A mileage tracker has two hard problems. The famous one is noticing that a drive has begun. The quieter one, which causes more grief, is noticing that it has ended.</p>
+
+<p>Get it wrong in one direction and a driver's afternoon of six visits arrives as one enormous journey with the stops buried inside it. Get it wrong in the other and a queue at a level crossing splits an ordinary commute into three trips. Both are wrong on a tax return, and only one of them looks obviously wrong to the person reading their trip list.</p>
+
+<h2>Two ways a stop looks</h2>
+
+<p>When someone parks up, one of two things happens to the data.</p>
+
+<p>Sometimes the phone goes quiet. Modern trackers stop asking for GPS when nothing is moving, because a location fix is one of the most expensive things a phone can do. So a fifteen minute visit shows up as fifteen minutes of nothing at all.</p>
+
+<p>Sometimes it does not. The driver gets out, walks round a yard with the phone in a pocket, and the phone carries on producing fixes: a dozen of them, at two or three miles an hour, all within forty metres of each other.</p>
+
+<p>These look completely different in the data, and both mean "the journey is over". Any rule that only handles one of them leaves the other broken.</p>
+
+<h2>The rule that looked right and was not</h2>
+
+<p>Our first attempt handled the silent case, and asked what seemed like a sensible question: after a long gap with no fixes, how far had the phone moved? If the next fix arrived near the last one, nothing happened in between, so it was a stop.</p>
+
+<p>That assumes the next fix arrives where the driver parked. It usually does not. The phone wakes up when it notices movement, which is to say once they are already driving again, several hundred metres down the road. Measured against real journeys, the distance across the gap separated nothing at all: a genuine fifteen minute visit and a drive through a tunnel produced the same answer.</p>
+
+<p>The signal that does work is on the other side of the silence. Look at the speed on the last few fixes <em>before</em> the phone went quiet. At a real visit the car had already come to rest: three miles an hour, two, then nothing. On a tunnel it had not: thirty, then nothing. That is the question worth asking, and it is now the one we ask.</p>
+
+<p>For the second case, where the phone never went quiet, there is no gap to reason about at all. That needs a different check: a run of fixes, over several minutes, that never gets above walking pace and never moves more than a few dozen metres. A car that has not exceeded walking pace for nine minutes has arrived somewhere.</p>
+
+<h2>The check that stopped the fix going out</h2>
+
+<p>Here is the part I want to record honestly, because it nearly went wrong.</p>
+
+<p>Having built a rule that splits welded journeys at the visits inside them, the obvious next step was to run it across everyone's recent trips. Before doing that, we ran it as a dry run: work out exactly what it would do to every trip from the last forty-eight hours, and change nothing.</p>
+
+<p>It wanted to split 620 trips out of 2,005, across 236 drivers, and it would have taken 595 miles off people's records in one pass.</p>
+
+<p>The extra six hundred were not welded journeys. They were delivery shifts. A driver doing drops for six hours stops constantly, and every wait outside a restaurant looks exactly like a visit. Whether those stops are journey boundaries is genuinely the driver's call, not ours, which is why MileClear has always had a Split Trip tool that asks rather than assumes.</p>
+
+<p>So the rule got two limits. It will make at most two cuts in a trip, and it leaves anything over twenty miles alone. Needing to choose which of six stops to cut is itself the evidence that this is a working shift rather than one interrupted journey.</p>
+
+<p>The second problem in that dry run was quieter and worse. Splitting a trip means giving each leg a distance, and the obvious way is to add up the GPS points in each leg. Do that and a 153 mile trip loses nearly nine miles, because the stored figure was matched to real roads and the raw points cut corners. Nobody would have noticed a fifty-fourth of a tax return going missing. The fix is to share out the distance the trip already had, in proportion, so the accuracy it was saved with survives the split.</p>
+
+<p>After both changes the same dry run split 353 trips and moved <strong>6.36 miles</strong> across the entire fleet: the shuffling about at the stops, which is not driving. That is the number a change like this should produce.</p>
+
+<h2>What we took from it</h2>
+
+<p>Three things worth keeping.</p>
+
+<p>The first is that a rule which cannot separate your test cases has not been tested. Distance across a gap felt obviously right and separated nothing; it took writing the numbers for five real stops in a column to see that.</p>
+
+<p>The second is that a dry run over the whole fleet is worth more than any amount of confidence. Ours turned a change that would have rewritten 620 people's trips into one that touches the cases it was built for.</p>
+
+<p>The third is that when a tracker is unsure, the safe direction is to leave the driver's mileage alone and show them the question, rather than quietly deciding for them. A suggestion they can accept is recoverable. A number silently changed on a tax record is not.</p>
+
+<p>- Gair</p>
+`,
+  },
+  {
+    slug: "milesheet-mileage-claims-for-employers",
+    title: "Milesheet: the company side of MileClear",
+    excerpt:
+      "If your staff claim mileage from you, the monthly routine is usually a spreadsheet, a stack of guesses, and nobody being sure. Milesheet is the manager's half of MileClear: drivers record as normal, you approve a month in one screen, and payroll gets one file.",
+    date: "28 August 2026",
+    author: "Gair",
+    category: "announcement",
+    content: `
+<p>MileClear was built for people who claim mileage back from HMRC. A good number of drivers using it do not: they claim from an employer, and at the end of every month somebody in an office is reconciling a spreadsheet against a stack of half-remembered journeys.</p>
+
+<p>Milesheet is that half of the problem. It is part of MileClear, not a separate product, and it is aimed squarely at the person doing the approving.</p>
+
+<h2>How it works</h2>
+
+<p>Drivers carry on exactly as they are. Same app, same automatic tracking, same trip list. Because they are driving for a company rather than for themselves, the gig-work features step out of the way: no earnings tab, no platform tags, no comparisons against other delivery drivers.</p>
+
+<p>The manager gets a portal. One screen per month shows every driver, the business miles they recorded, the rate, and what that comes to. You approve a driver, or you query them, and a query pushes a notification straight to their phone with the trips in question. Approving takes a snapshot, so if a trip is edited afterwards the figure you signed off no longer matches and the screen tells you so rather than quietly moving.</p>
+
+<p>Payroll gets one file for everybody who has been approved, as a spreadsheet or a PDF.</p>
+
+<h2>The part worth getting right</h2>
+
+<p>HMRC's approved mileage rates are not flat. The higher rate applies to the first 10,000 business miles in a <em>tax year</em>, and the lower one after that.</p>
+
+<p>The obvious way to build a monthly report gets this wrong, and the error is invisible: give every month its own fresh 10,000 mile allowance and a driver doing 3,000 miles a month is overstated by hundreds of pounds within half a year. Milesheet scores each month against the driver's running total for the year, and splits April at the sixth so the allowance resets on the right day rather than the first of the month.</p>
+
+<p>That is the sort of detail nobody asks about in a demo and everybody discovers in an audit.</p>
+
+<h2>Where it is up to</h2>
+
+<p>Milesheet is live and being used with a small number of companies while it settles. Pilots are free, up to twenty people, and there is no invoicing flow yet for anything larger.</p>
+
+<p>If your drivers claim mileage from you, <a href="/milesheet">the overview is here</a>. And if you are a driver who claims from an employer, there is a prompt in the app to nominate whoever signs your expenses off, which is by far the easiest way to start: they get an invitation, and you carry on doing nothing different.</p>
+
+<p>- Gair</p>
+`,
+  },
+  {
     slug: "making-tax-digital-self-employed-drivers",
     title: "Making Tax Digital: what it actually means if you drive for a living",
     // First ~155 characters double as the meta description, so they are

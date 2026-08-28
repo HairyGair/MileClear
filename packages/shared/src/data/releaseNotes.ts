@@ -13,6 +13,9 @@
 
 export interface ReleaseNote {
   version: string;
+  /** Android only: the Play versionCode, which is what a tester on the closed
+   *  track actually sees next to the version. iOS entries leave it unset. */
+  build?: string;
   date: string;
   label?: "Latest" | "Major" | "Pending Review" | "App Store" | "In Testing" | "In Development";
   items: string[];
@@ -747,3 +750,38 @@ export function getLatestRelease(): ReleaseNote | null {
 export function blogUrlForRelease(version: string): string {
   return `https://mileclear.com/updates/whats-new-in-version-${version.replace(/\./g, "-")}`;
 }
+
+
+// ================================================================
+// Android release notes
+// ================================================================
+//
+// A separate list, not a platform flag on the one above, because the two
+// products are at genuinely different points: iOS is on its ninth public
+// release and Android is in closed testing on Google Play. Merging them would
+// mean every iOS entry needed an "iPhone only" caveat and every Android entry
+// a "not on the App Store" one, and the version numbers only look the same by
+// coincidence - they share a codebase, not a release history.
+//
+// Android identifies a build by its Play versionCode, which is what a tester
+// sees, so entries here set `build` as well as `version`.
+//
+// Rendered at /android-releases. Deliberately NOT read by the Product Update
+// email, which goes to the whole fleet and is overwhelmingly iPhone users.
+export const ANDROID_RELEASE_NOTES: ReleaseNote[] = [
+  {
+    version: "1.3.9",
+    build: "4",
+    date: "August 2026",
+    label: "In Testing",
+    items: [
+      "MileClear on Android, in closed testing: the same app, the same account, and the same trips as the iPhone version",
+      "Background trip capture on the same tracking engine the iPhone app uses, now fully licensed, so drives are detected and recorded without opening the app",
+      "Sign in with Google or with an email address, and everything you have already recorded is there",
+      "Maps, trip history, classification, saved locations, vehicles, fuel logs, earnings and expenses",
+      "Receipt scanning on-device, and push notifications for streaks, reminders and trip prompts",
+      "If you already pay for Pro on the web or on an iPhone, signing in on Android gives you Pro there too",
+      "Not yet: buying Pro from inside the Android app. Google Play billing is waiting on merchant setup, so upgrades still happen on the web for now",
+    ],
+  },
+];
