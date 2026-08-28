@@ -2099,7 +2099,7 @@ export async function tripRoutes(app: FastifyInstance) {
     if (distanceMiles === undefined) {
       const endLatChanged = updates.endLat !== undefined && updates.endLat !== existing.endLat;
       const endLngChanged = updates.endLng !== undefined && updates.endLng !== existing.endLng;
-      const startMovedOnManual = startEdit != null && startEdit.addedMiles === 0;
+      const startMovedOnManual = startEdit?.rerouteEndToEnd === true;
       if (
         (endLatChanged || endLngChanged || startMovedOnManual) &&
         newEndLat != null &&

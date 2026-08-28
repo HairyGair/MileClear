@@ -146,6 +146,14 @@ export interface PlannedStartEdit {
   prependCoordinate: { lat: number; lng: number; recordedAt: Date } | null;
   /** Set when the pin moved but the distance deliberately did not. */
   distanceUnchangedReason: StartEditSkipReason | null;
+  /**
+   * Only a MANUAL trip gets its distance re-derived as a route between its two
+   * ends. Never inferred from addedMiles being zero: that is also true when a
+   * tracked trip's new pin was too far away to price, and re-routing there
+   * would replace a recorded GPS trail with a straight line - it turned a
+   * 1.91-mile tracked trip into 1.32 in the first end-to-end run.
+   */
+  rerouteEndToEnd: boolean;
 }
 
 /**
@@ -199,6 +207,7 @@ export async function planTripStartEdit(args: {
       crowMiles: dry.crowMiles,
       prependCoordinate: null,
       distanceUnchangedReason: "too_far",
+      rerouteEndToEnd: false,
     };
   }
   if (dry.ok) {
@@ -210,6 +219,7 @@ export async function planTripStartEdit(args: {
       crowMiles: dry.crowMiles,
       prependCoordinate: null,
       distanceUnchangedReason: null,
+      rerouteEndToEnd: true,
     };
   }
 
@@ -234,6 +244,7 @@ export async function planTripStartEdit(args: {
       crowMiles: decision.crowMiles,
       prependCoordinate: null,
       distanceUnchangedReason: decision.reason,
+      rerouteEndToEnd: false,
     };
   }
   return {
@@ -243,5 +254,6 @@ export async function planTripStartEdit(args: {
     crowMiles: decision.crowMiles,
     prependCoordinate: decision.prependCoordinate,
     distanceUnchangedReason: null,
+    rerouteEndToEnd: false,
   };
 }
