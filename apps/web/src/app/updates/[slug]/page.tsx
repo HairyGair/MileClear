@@ -1,3 +1,5 @@
+import { existsSync } from "node:fs";
+import { join } from "node:path";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import Link from "next/link";
@@ -48,7 +50,7 @@ export async function generateMetadata({
       authors: [post.author],
       images: [
         {
-          url: "/branding/og-image.png",
+          url: ogImageFor(post.slug),
           width: 1200,
           height: 628,
           alt: post.title,
@@ -59,9 +61,16 @@ export async function generateMetadata({
       card: "summary_large_image",
       title: `${post.title} | MileClear`,
       description: post.excerpt,
-      images: ["/branding/og-image.png"],
+      images: [ogImageFor(post.slug)],
     },
   };
+}
+
+// Per-post 1200x628 card rendered by scripts/og-cards.py into public/og/updates.
+// Falls back to the site-wide image when a post has no card yet.
+function ogImageFor(slug: string): string {
+  const rel = `/og/updates/${slug}.png`;
+  return existsSync(join(process.cwd(), "public", rel)) ? rel : "/branding/og-image.png";
 }
 
 // ----------------------------------------------------------------
@@ -97,7 +106,7 @@ function buildBlogPostingJsonLd(post: BlogPost) {
         url: "https://mileclear.com/branding/logo-120x120.png",
       },
     },
-    image: "https://mileclear.com/branding/og-image.png",
+    image: `https://mileclear.com${ogImageFor(post.slug)}`,
     mainEntityOfPage: {
       "@type": "WebPage",
       "@id": `https://mileclear.com/updates/${post.slug}`,
