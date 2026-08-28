@@ -14,6 +14,7 @@ import { ConfirmModal } from "../../../components/ui/ConfirmModal";
 import { EmptyState } from "../../../components/ui/EmptyState";
 import { LoadingSkeleton } from "../../../components/ui/LoadingSkeleton";
 import type { SavedLocation } from "@mileclear/shared";
+import { addDarkBasemap } from "@/lib/basemap";
 
 const FREE_LIMIT = 2;
 
@@ -195,9 +196,7 @@ export default function LocationsPage() {
           attributionControl: false,
         }).setView([lat, lng], form.latitude ? 15 : 6);
 
-        L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", {
-          maxZoom: 19,
-        }).addTo(map);
+        addDarkBasemap(L, map);
 
         const markerIcon = L.divIcon({
           className: "map-picker__marker",

@@ -12,6 +12,7 @@ import { Modal } from "../../../components/ui/Modal";
 import { ConfirmModal } from "../../../components/ui/ConfirmModal";
 import { Pagination } from "../../../components/ui/Pagination";
 import { LoadingSkeleton } from "../../../components/ui/LoadingSkeleton";
+import { addDarkBasemap } from "@/lib/basemap";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -814,9 +815,7 @@ function UserDetailModal({
         zoomControl: true,
         attributionControl: false,
       });
-      L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", {
-        maxZoom: 19,
-      }).addTo(map);
+      addDarkBasemap(L, map);
 
       const colours = [
         "#fbbf24", "#60a5fa", "#34d399", "#f472b6", "#a78bfa",

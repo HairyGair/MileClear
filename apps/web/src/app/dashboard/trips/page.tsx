@@ -18,6 +18,7 @@ import { GIG_PLATFORMS, BUSINESS_PURPOSES, fetchRouteDistance, getTaxYear, parse
 import { useAuth } from "../../../lib/auth-context";
 import { useToast } from "../../../components/ui/Toast";
 import { ImportTripsModal } from "../../../components/dashboard/ImportTripsModal";
+import { addDarkBasemap } from "@/lib/basemap";
 
 interface DetailTrip extends Trip {
   insights?: TripInsights | null;
@@ -616,9 +617,7 @@ export default function TripsPage() {
       });
 
       // Dark tile layer
-      L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", {
-        maxZoom: 19,
-      }).addTo(map);
+      addDarkBasemap(L, map);
 
       const coords = detailTrip!.coordinates || [];
       const startIcon = L.divIcon({

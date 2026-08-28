@@ -5,6 +5,7 @@ import Link from "next/link";
 import type { Map as LeafletMap, LayerGroup } from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { api } from "../../../../lib/api";
+import { addDarkBasemap } from "@/lib/basemap";
 
 // Geographic density - admin map of where trips start and end, enriched
 // with reach, growth, premium and platform signals. Real OSM basemap
@@ -213,10 +214,7 @@ export default function GeographicDensityPage() {
       const L = (await import("leaflet")).default;
       if (disposed || !mapElRef.current || mapRef.current) return;
       const map = L.map(mapElRef.current, { attributionControl: true, minZoom: 4, maxZoom: 12 }).setView([54.5, -3.2], 6);
-      L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", {
-        attribution: '&copy; OpenStreetMap &copy; CARTO',
-        subdomains: "abcd",
-      }).addTo(map);
+      addDarkBasemap(L, map);
       cellLayerRef.current = L.layerGroup().addTo(map);
       mapRef.current = map;
       // Trigger the cell draw now that the map exists.
