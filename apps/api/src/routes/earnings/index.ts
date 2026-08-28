@@ -285,6 +285,7 @@ export async function earningRoutes(app: FastifyInstance) {
           JSON.stringify({ userId: request.userId, ts: Date.now() })
         ).toString("base64url");
         const authLink = buildAuthLink(state);
+        logEvent("earnings.open_banking_link_issued", request.userId!);
         return reply.send({ data: { authLink } });
       } catch (err: any) {
         request.log.error(err, "Failed to create auth link");
@@ -319,9 +320,18 @@ export async function earningRoutes(app: FastifyInstance) {
           parsed.data.code,
           parsed.data.institutionName
         );
+        logEvent("earnings.open_banking_connected", request.userId!, {
+          connectionId: connection.id,
+          institution: connection.institutionName ?? null,
+        });
         return reply.status(201).send({ data: connection });
       } catch (err: any) {
         request.log.error(err, "Failed to exchange TrueLayer code");
+        // The one step nobody can retry from the app: the auth code is
+        // single-use. Record why it failed so a silent flow is visible.
+        logEvent("earnings.open_banking_exchange_failed", request.userId!, {
+          message: String(err?.message ?? err).slice(0, 300),
+        });
         return reply.status(500).send({ error: "Failed to connect bank" });
       }
     }
@@ -367,10 +377,15 @@ export async function earningRoutes(app: FastifyInstance) {
         );
         logEvent("earnings.open_banking_synced", request.userId!, {
           connectionId: parsed.data.connectionId,
+          ...(result && typeof result === "object" ? result : {}),
         });
         return reply.send({ data: result });
       } catch (err: any) {
         request.log.error(err, "Failed to sync transactions");
+        logEvent("earnings.open_banking_sync_failed", request.userId!, {
+          connectionId: parsed.data.connectionId,
+          message: String(err?.message ?? err).slice(0, 300),
+        });
         return reply.status(500).send({ error: "Transaction sync failed. Please try again later." });
       }
     }
@@ -385,6 +400,7 @@ export async function earningRoutes(app: FastifyInstance) {
 
       try {
         await disconnectConnection(request.userId!, id);
+        logEvent("earnings.open_banking_disconnected", request.userId!, { connectionId: id });
         return reply.send({ message: "Bank disconnected" });
       } catch (err: any) {
         request.log.error(err, "Failed to disconnect bank");
@@ -396,12 +412,25 @@ export async function earningRoutes(app: FastifyInstance) {
   // ── TrueLayer callback page (opened in WebBrowser after bank auth) ──
 
   app.get("/open-banking/callback", async (request, reply) => {
-    const { code, error: tlError } = request.query as {
+    const { code, error: tlError, state: tlState } = request.query as {
       code?: string;
       error?: string;
+      state?: string;
     };
 
     const apiBaseUrl = process.env.API_BASE_URL || `http://localhost:${process.env.API_PORT || 3002}`;
+
+    // This is the first server-side sight of a user coming back from the
+    // bank. The state we issued carries the userId, so the landing can be
+    // attributed even though the route itself is unauthenticated.
+    let stateUserId: string | null = null;
+    try {
+      if (tlState) stateUserId = JSON.parse(Buffer.from(tlState, "base64url").toString("utf8"))?.userId ?? null;
+    } catch { /* malformed state: log unattributed */ }
+    logEvent("earnings.open_banking_callback", stateUserId, {
+      outcome: tlError ? "error" : code ? "code" : "cancelled",
+      error: tlError ?? null,
+    });
 
     // Build the callback HTML page
     const html = `<!DOCTYPE html>
