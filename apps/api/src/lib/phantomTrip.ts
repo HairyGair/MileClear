@@ -47,6 +47,15 @@ const TELEPORT_MAX_AVG_MPH = 120;
 const CELL_TOWER_ACCURACY_M = 500;
 const CELL_TOWER_MIN_MILES = 0.5;
 
+// Never-got-going signature (28 Aug 2026). Rachel Thorndyke deleted a 0.49-mile
+// "journey" by hand: 5m34s of her phone drifting around a farmyard while she
+// worked, top speed 5 mph. The walking rule below missed it by a whisker - it
+// wants an AVERAGE under 5 mph and this averaged 5.28 - which is a silly thing
+// for the answer to hinge on. A car that never got above walking pace for the
+// whole of a short trip did not go anywhere, whatever the average works out at.
+const NEVER_DROVE_MAX_SPEED_MPH = 6;
+const NEVER_DROVE_MAX_MILES = 1.0;
+
 export interface PhantomCheckInput {
   distanceMiles: number;
   startedAt: Date | string;
@@ -150,6 +159,16 @@ function looksLikeRealJourney(args: PhantomCheckInput): boolean {
 
 export function looksLikePhantomTrip(args: PhantomCheckInput): boolean {
   if (args.isManualEntry) return false;
+
+  // Short, and never once reached a speed a car reaches. Checked before the
+  // speed reprieve below, which asks the same question the other way round.
+  if (
+    typeof args.maxSpeedMph === "number" &&
+    args.maxSpeedMph < NEVER_DROVE_MAX_SPEED_MPH &&
+    args.distanceMiles < NEVER_DROVE_MAX_MILES
+  ) {
+    return true;
+  }
 
   // Physics first, ABOVE every reprieve. A trip that covers its distance in
   // no time, or that is two cell-tower fixes with a line between them, is not

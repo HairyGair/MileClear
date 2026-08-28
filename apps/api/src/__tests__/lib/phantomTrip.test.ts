@@ -200,3 +200,54 @@ describe("looksLikePhantomTrip - teleport / cell-tower signature", () => {
     ).toBe(false);
   });
 });
+
+describe("looksLikePhantomTrip - never got going", () => {
+  // Rachel Thorndyke, 27 Aug 2026. She deleted this one by hand: 0.49 miles
+  // over 5m34s in a farmyard while she worked, top speed 5 mph. The walking
+  // rule missed it because the AVERAGE came out at 5.28 mph, just over its bar.
+  const farmyardDrift = {
+    startedAt: "2026-08-27T16:07:14.000Z",
+    endedAt: "2026-08-27T16:12:48.000Z",
+    isManualEntry: false,
+    distanceMiles: 0.49,
+    coordinateCount: 7,
+    maxSpeedMph: 5,
+    avgAccuracyM: 22,
+  };
+
+  it("flags a short trip that never got above walking pace", () => {
+    expect(looksLikePhantomTrip(farmyardDrift)).toBe(true);
+  });
+
+  it("does not hinge on the average, which was over the walking bar", () => {
+    const durationHours = (5 * 60 + 34) / 3600;
+    expect(farmyardDrift.distanceMiles / durationHours).toBeGreaterThan(5);
+  });
+
+  it("spares a short trip that did reach a driving speed", () => {
+    expect(looksLikePhantomTrip({ ...farmyardDrift, maxSpeedMph: 22 })).toBe(false);
+  });
+
+  it("spares a long slow crawl, where the distance says a journey happened", () => {
+    // Two miles at a top speed of 5 mph is odd, but it is two miles.
+    expect(
+      looksLikePhantomTrip({ ...farmyardDrift, distanceMiles: 2.0, maxSpeedMph: 5 })
+    ).toBe(false);
+  });
+
+  it("says nothing when the device reported no speed at all", () => {
+    // Absent is not slow. Older rows and some engines send nothing.
+    expect(
+      looksLikePhantomTrip({
+        ...farmyardDrift,
+        maxSpeedMph: null,
+        startedAt: "2026-08-27T16:07:14.000Z",
+        endedAt: "2026-08-27T16:09:14.000Z", // 2 min, under the walking rule's window
+      })
+    ).toBe(false);
+  });
+
+  it("spares a manual entry", () => {
+    expect(looksLikePhantomTrip({ ...farmyardDrift, isManualEntry: true })).toBe(false);
+  });
+});
