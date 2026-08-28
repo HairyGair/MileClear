@@ -268,40 +268,47 @@ export default function SavedLocationsScreen() {
             tintColor={AMBER}
           />
         }
+        ListHeaderComponent={
+          // The "places you visit often" CTA used to live inside
+          // ListEmptyComponent, so it vanished the moment someone saved their
+          // first place: the feature that exists to help you save the REST of
+          // them was only ever offered to people with none. Chris Saunders,
+          // 28 Aug 2026, had one pinned place, went hunting through the FAQs
+          // for the manual flow, and asked whether there was an easier way.
+          // There was, and it was hidden from him.
+          suggestionCount > 0 && !atFreeLimit ? (
+            <TouchableOpacity
+              style={styles.suggestCta}
+              onPress={() => router.push("/saved-locations-suggest" as never)}
+              activeOpacity={0.85}
+              accessibilityRole="button"
+              accessibilityLabel={`Review ${suggestionCount} suggested ${
+                suggestionCount === 1 ? "place" : "places"
+              }`}
+            >
+              <View style={styles.suggestCtaIcon}>
+                <Ionicons name="sparkles" size={18} color={BG} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.suggestCtaTitle}>
+                  Review {suggestionCount} suggested{" "}
+                  {suggestionCount === 1 ? "place" : "places"}
+                </Text>
+                <Text style={styles.suggestCtaSubtitle}>
+                  MileClear spotted places you visit often. Save them in seconds.
+                </Text>
+              </View>
+              <Ionicons name="chevron-forward" size={20} color={TEXT_2} />
+            </TouchableOpacity>
+          ) : null
+        }
         ListEmptyComponent={
           !loading ? (
-            <View>
-              <EmptyState
-                icon="location-outline"
-                title="Save the places you drive from"
-                description="Pin home, work, or your depot. When a trip starts or ends near a saved location, MileClear labels the route with the saved name."
-              />
-              {suggestionCount > 0 ? (
-                <TouchableOpacity
-                  style={styles.suggestCta}
-                  onPress={() => router.push("/saved-locations-suggest" as never)}
-                  activeOpacity={0.85}
-                  accessibilityRole="button"
-                  accessibilityLabel={`Review ${suggestionCount} suggested ${
-                    suggestionCount === 1 ? "place" : "places"
-                  }`}
-                >
-                  <View style={styles.suggestCtaIcon}>
-                    <Ionicons name="sparkles" size={18} color={BG} />
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.suggestCtaTitle}>
-                      Review {suggestionCount} suggested{" "}
-                      {suggestionCount === 1 ? "place" : "places"}
-                    </Text>
-                    <Text style={styles.suggestCtaSubtitle}>
-                      MileClear spotted places you visit often. Save them in seconds.
-                    </Text>
-                  </View>
-                  <Ionicons name="chevron-forward" size={20} color={TEXT_2} />
-                </TouchableOpacity>
-              ) : null}
-            </View>
+            <EmptyState
+              icon="location-outline"
+              title="Save the places you drive from"
+              description="Pin home, work, or your depot. When a trip starts or ends near a saved location, MileClear labels the route with the saved name."
+            />
           ) : null
         }
         ListFooterComponent={
