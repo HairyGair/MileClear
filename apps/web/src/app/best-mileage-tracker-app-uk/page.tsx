@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Navbar from "@/components/landing/Navbar";
 import Footer from "@/components/landing/Footer";
+import StoreButtons from "@/components/StoreButtons";
 
 export const metadata: Metadata = {
   title: "Best Mileage Tracker App UK (2026) - Free Tracking Compared",
@@ -181,7 +182,7 @@ const VERDICTS = [
     name: "MileClear",
     tag: "Best for UK drivers who want free tracking + HMRC done for them",
     body:
-      "The only app on this list that pairs unlimited free tracking with free HMRC tax tooling. It applies the 55p/25p AMAP rates automatically, tags gig platforms, works offline, and keeps the whole tracker free forever - Pro (£4.99/mo) is only for exports and the Self Assessment wizard. The catch: iOS only for now, with Android on the roadmap.",
+      "The only app on this list that pairs unlimited free tracking with free HMRC tax tooling. It applies the 55p/25p AMAP rates automatically, tags gig platforms, works offline, and keeps the whole tracker free forever - Pro (£4.99/mo) is only for exports and the Self Assessment wizard. The catch: Android is still in closed beta, so it is iPhone-first for now.",
     accent: "#fbbf24",
   },
   {
@@ -516,20 +517,7 @@ export default function BestMileageTrackerAppUK() {
               No trip cap, no US rates to reconfigure, no card required. Download MileClear free on the App Store.
             </p>
             <div style={{ display: "flex", gap: "1rem", justifyContent: "center", flexWrap: "wrap" }}>
-              <a
-                href="https://apps.apple.com/app/mileclear/id6759671005"
-                style={{
-                  background: "#fbbf24",
-                  color: "#030712",
-                  fontWeight: 700,
-                  fontSize: "0.9375rem",
-                  padding: "0.75rem 1.75rem",
-                  borderRadius: 9999,
-                  display: "inline-block",
-                }}
-              >
-                Download Free on App Store
-              </a>
+              <StoreButtons align="center" />
               <a
                 href="/pricing"
                 style={{

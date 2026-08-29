@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
 import Navbar from "@/components/landing/Navbar";
 import Footer from "@/components/landing/Footer";
+import StoreButtons from "@/components/StoreButtons";
 
-const APP_STORE_URL = "https://apps.apple.com/app/mileclear/id6759671005";
 const URL = "https://mileclear.com/mileiq-alternative-uk";
 
 export const metadata: Metadata = {
@@ -134,22 +134,7 @@ export default function MileIqAlternativeUk() {
               decide which app is actually usable.
             </p>
             <div style={{ marginTop: "1.75rem" }}>
-              <a
-                href={APP_STORE_URL}
-                target="_blank"
-                rel="noopener noreferrer"
-                style={{
-                  display: "inline-block",
-                  background: "var(--amber-400, #fbbf24)",
-                  color: "#030712",
-                  fontWeight: 700,
-                  padding: "0.85rem 1.5rem",
-                  borderRadius: 10,
-                  textDecoration: "none",
-                }}
-              >
-                Get MileClear free on the App Store
-              </a>
+              <StoreButtons align="start" />
             </div>
           </header>
 
@@ -221,14 +206,7 @@ export default function MileIqAlternativeUk() {
               Install MileClear, grant location access, and it starts tracking your business miles automatically -
               free, unlimited, HMRC-ready.
             </p>
-            <a
-              href={APP_STORE_URL}
-              target="_blank"
-              rel="noopener noreferrer"
-              style={{ display: "inline-block", background: "var(--amber-400, #fbbf24)", color: "#030712", fontWeight: 700, padding: "0.85rem 1.75rem", borderRadius: 10, textDecoration: "none" }}
-            >
-              Download free on the App Store
-            </a>
+            <StoreButtons align="center" />
           </section>
         </div>
       </main>

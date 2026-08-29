@@ -3,6 +3,7 @@ import { join } from "node:path";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import Link from "next/link";
+import StoreButtons from "@/components/StoreButtons";
 import Navbar from "@/components/landing/Navbar";
 import Footer from "@/components/landing/Footer";
 import BreadcrumbsJsonLd from "@/components/seo/BreadcrumbsJsonLd";
@@ -217,14 +218,7 @@ export default async function BlogPostPage({
                 <Link href="/support#contact" className="post__footer-feedback">
                   Got feedback? Get in touch &rarr;
                 </Link>
-                <a
-                  href="https://apps.apple.com/app/mileclear/id6759671005"
-                  className="post__cta"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  Install MileClear free &rarr;
-                </a>
+                <StoreButtons size="sm" />
               </div>
             </footer>
           </article>

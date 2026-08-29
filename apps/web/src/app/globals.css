@@ -1518,3 +1518,65 @@ body::after {
   0%,100% { opacity: 1; }
   50%     { opacity: .3; }
 }
+
+/* ── Store buttons (App Store + Google Play beta) ─────────────────────── */
+.store-btns { display: flex; flex-wrap: wrap; gap: 0.75rem; align-items: center; }
+.store-btns--center { justify-content: center; }
+.store-btns--start { justify-content: flex-start; }
+
+.store-btn {
+  display: inline-flex; align-items: center; gap: 0.7rem;
+  padding: 0.7rem 1.25rem 0.7rem 1rem;
+  border-radius: var(--r-md);
+  text-decoration: none; line-height: 1.1;
+  font-family: var(--font-display);
+  position: relative; overflow: hidden;
+  transition: transform .2s, box-shadow .2s, border-color .2s, background .2s;
+  white-space: nowrap;
+}
+.store-btn:hover { transform: translateY(-2px); }
+.store-btn__logo { width: 1.5rem; height: 1.5rem; flex: 0 0 auto; }
+.store-btn__text { display: flex; flex-direction: column; gap: 0.1rem; text-align: left; }
+.store-btn__eyebrow { font-family: var(--font-body); font-size: 0.68rem; font-weight: 500; opacity: 0.8; letter-spacing: 0.01em; }
+.store-btn__name { font-size: 1.05rem; font-weight: 700; }
+
+.store-btn--apple {
+  color: var(--bg-deep);
+  background: linear-gradient(135deg, var(--amber-300), var(--amber-500));
+  box-shadow: 0 0 40px var(--amber-glow-md), 0 4px 16px rgba(0,0,0,.35);
+}
+.store-btn--apple::after {
+  content: ""; position: absolute; top: 0; left: -100%; width: 100%; height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,.2), transparent);
+  transition: left .55s ease;
+}
+.store-btn--apple:hover { box-shadow: 0 0 60px var(--amber-glow-strong), 0 8px 24px rgba(0,0,0,.45); }
+.store-btn--apple:hover::after { left: 100%; }
+
+.store-btn--play {
+  color: #e2e8f0;
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,255,255,0.12);
+}
+.store-btn--play:hover { background: rgba(255,255,255,0.09); border-color: rgba(255,255,255,0.22); }
+.store-btn__tag {
+  margin-left: 0.35rem;
+  font-family: var(--font-body); font-size: 0.62rem; font-weight: 700;
+  letter-spacing: 0.08em; text-transform: uppercase;
+  color: var(--amber-300);
+  border: 1px solid rgba(251,191,36,0.45);
+  border-radius: 9999px; padding: 0.15rem 0.45rem;
+}
+
+.store-btns--sm .store-btn { padding: 0.5rem 0.9rem 0.5rem 0.75rem; gap: 0.5rem; }
+.store-btns--sm .store-btn__logo { width: 1.2rem; height: 1.2rem; }
+.store-btns--sm .store-btn__name { font-size: 0.9rem; }
+.store-btns--sm .store-btn__eyebrow { font-size: 0.6rem; }
+.store-btns--lg .store-btn { padding: 0.85rem 1.6rem 0.85rem 1.2rem; }
+.store-btns--lg .store-btn__logo { width: 1.75rem; height: 1.75rem; }
+.store-btns--lg .store-btn__name { font-size: 1.2rem; }
+
+@media (max-width: 480px) {
+  .store-btns { flex-direction: column; align-items: stretch; }
+  .store-btn { justify-content: center; }
+}

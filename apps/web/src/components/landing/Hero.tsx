@@ -1,6 +1,6 @@
 import Image from "next/image";
 
-const APP_STORE_URL = "https://apps.apple.com/app/mileclear/id6759671005";
+import StoreButtons from "@/components/StoreButtons";
 
 export default function Hero() {
   return (
@@ -24,10 +24,7 @@ export default function Hero() {
             <strong>There is no monthly drive cap.</strong> MileIQ stops you at
             40 drives a month unless you pay. We never do.
           </p>
-          <a href={APP_STORE_URL} target="_blank" rel="noopener noreferrer" className="hero__cta">
-            Download free
-            <span className="hero__cta-arrow" aria-hidden="true">&rarr;</span>
-          </a>
+          <StoreButtons size="lg" />
           <p className="hero__trust">
             Unlimited trips &middot; No card required &middot; Pro is optional, never gates tracking
           </p>

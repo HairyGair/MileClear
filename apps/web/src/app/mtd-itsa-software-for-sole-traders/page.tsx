@@ -3,6 +3,7 @@ import Link from "next/link";
 import Navbar from "@/components/landing/Navbar";
 import Footer from "@/components/landing/Footer";
 import BreadcrumbsJsonLd from "@/components/seo/BreadcrumbsJsonLd";
+import StoreButtons from "@/components/StoreButtons";
 
 export const metadata: Metadata = {
   title: "MTD ITSA Software for Sole Traders & Self-Employed Drivers (2026 Deadline)",
@@ -700,23 +701,7 @@ export default function MtdItsaSoftwarePage() {
               tracking, classification, and tax-readiness tooling. The
               MTD ITSA quarterly submission lands in 1.2.0.
             </p>
-            <a
-              href="https://apps.apple.com/app/mileclear/id6759671005"
-              style={{
-                display: "inline-block",
-                padding: "0.875rem 2rem",
-                background: "var(--amber-400)",
-                color: "var(--bg-deep)",
-                fontFamily: "var(--font-display)",
-                fontWeight: 700,
-                fontSize: "1rem",
-                borderRadius: "var(--r-md)",
-                textDecoration: "none",
-                marginBottom: "0.75rem",
-              }}
-            >
-              Install MileClear on iOS
-            </a>
+            <StoreButtons align="center" />
             <div style={{ marginTop: "0.5rem" }}>
               <Link
                 href="/updates"

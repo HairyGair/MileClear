@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import Navbar from '@/components/landing/Navbar';
 import Footer from '@/components/landing/Footer';
 import BreadcrumbsJsonLd from '@/components/seo/BreadcrumbsJsonLd';
+import StoreButtons from "@/components/StoreButtons";
 
 export const metadata: Metadata = {
   title: 'Pricing',
@@ -432,27 +433,7 @@ export default function PricingPage() {
             </p>
 
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '1rem', justifyContent: 'center', alignItems: 'center' }}>
-              <a
-                href="https://apps.apple.com/app/mileclear/id6759671005"
-                target="_blank"
-                rel="noopener noreferrer"
-                style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '0.6rem',
-                  background: 'var(--amber-400)',
-                  color: 'var(--bg-deep)',
-                  fontFamily: 'var(--font-display)',
-                  fontWeight: 700,
-                  fontSize: '0.9375rem',
-                  padding: '0.75rem 1.75rem',
-                  borderRadius: 'var(--r-full)',
-                  transition: 'background 0.2s, transform 0.15s',
-                  textDecoration: 'none',
-                }}
-              >
-                Download MileClear
-              </a>
+              <StoreButtons align="center" />
 
               <a
                 href="/features"

@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Navbar from "@/components/landing/Navbar";
 import Footer from "@/components/landing/Footer";
 import BreadcrumbsJsonLd from "@/components/seo/BreadcrumbsJsonLd";
+import StoreButtons from "@/components/StoreButtons";
 
 export const metadata: Metadata = {
   title: "Features",
@@ -1410,19 +1411,7 @@ export default function FeaturesPage() {
               are all free.
             </p>
 
-            <a
-              href="https://apps.apple.com/gb/app/mileclear/id6759671005"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="ea__appstore-link"
-              aria-label="Download MileClear on the App Store"
-            >
-              <img
-                src="/branding/app-store-badge.svg"
-                alt="Download on the App Store"
-                className="ea__appstore-badge"
-              />
-            </a>
+            <StoreButtons align="center" />
 
             <p
               style={{
@@ -1431,7 +1420,7 @@ export default function FeaturesPage() {
                 color: "var(--text-muted)",
               }}
             >
-              iOS only for now. Have questions?{" "}
+              On iPhone now; Android is in closed beta. Have questions?{" "}
               <a
                 href="/support"
                 style={{ color: "var(--amber-400)", textDecoration: "underline" }}

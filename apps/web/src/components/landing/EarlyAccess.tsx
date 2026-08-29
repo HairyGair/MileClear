@@ -5,7 +5,7 @@ import Reveal from "./Reveal";
 import { PLAY_STORE_URL, PLAY_TEST_JOIN_URL } from "@/data/android";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3002";
-const APP_STORE_URL = "https://apps.apple.com/app/mileclear/id6759671005";
+import StoreButtons from "@/components/StoreButtons";
 
 const types = [
   { value: "", label: "What do you drive for? (optional)" },
@@ -86,20 +86,7 @@ export default function EarlyAccess() {
 
         <Reveal delay="reveal-d1">
           <div className="ea__download-row">
-            <a
-              href={APP_STORE_URL}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="ea__appstore-link"
-            >
-              <img
-                src="/branding/app-store-badge.svg"
-                alt="Download on the App Store"
-                className="ea__appstore-badge"
-                width={160}
-                height={53}
-              />
-            </a>
+            <StoreButtons />
             <div className="ea__qr">
               <img
                 src="/branding/qr-code.png"

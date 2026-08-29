@@ -2,9 +2,7 @@ import type { Metadata } from "next";
 import Navbar from "@/components/landing/Navbar";
 import Footer from "@/components/landing/Footer";
 import BreadcrumbsJsonLd from "@/components/seo/BreadcrumbsJsonLd";
-
-const APP_STORE_URL =
-  "https://apps.apple.com/us/app/mileclear-mileage-tracker-uk/id6759671005";
+import StoreButtons from "@/components/StoreButtons";
 
 export const metadata: Metadata = {
   title: "MileClear Case Study - Reliable Mileage Tracking Built for UK Drivers",
@@ -254,10 +252,7 @@ export default function CaseStudyPage() {
               improving, with reliability fixes shipped straight from driver reports.
             </P>
             <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap", marginTop: "1.25rem", alignItems: "center" }}>
-              <a href={APP_STORE_URL} target="_blank" rel="noopener noreferrer" className="hero__cta">
-                Download on the App Store
-                <span className="hero__cta-arrow" aria-hidden="true">&rarr;</span>
-              </a>
+              <StoreButtons align="start" />
               <a
                 href="/register"
                 style={{

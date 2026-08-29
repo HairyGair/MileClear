@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Navbar from "@/components/landing/Navbar";
 import Footer from "@/components/landing/Footer";
+import StoreButtons from "@/components/StoreButtons";
 
 export const metadata: Metadata = {
   title: {
@@ -188,20 +189,7 @@ export default function FreeMileageTrackerUk() {
               tax-time export PDF and a few power-user extras. It never gates the tracker.
             </p>
             <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap", marginTop: "1.5rem" }}>
-              <a
-                href="https://apps.apple.com/app/mileclear/id6759671005"
-                style={{
-                  background: "#fbbf24",
-                  color: "#030712",
-                  fontWeight: 700,
-                  fontSize: "0.9375rem",
-                  padding: "0.75rem 1.75rem",
-                  borderRadius: 9999,
-                  display: "inline-block",
-                }}
-              >
-                Download Free on App Store
-              </a>
+              <StoreButtons align="start" />
               <a
                 href="/#pricing"
                 style={{
@@ -468,20 +456,7 @@ export default function FreeMileageTrackerUk() {
             <p style={{ color: "#94a3b8", fontSize: "1rem", lineHeight: 1.7, marginBottom: "1.75rem", maxWidth: 520, margin: "0 auto 1.75rem" }}>
               No card. No trial. Just download and drive. We'll be here when you want the tax-export PDF.
             </p>
-            <a
-              href="https://apps.apple.com/app/mileclear/id6759671005"
-              style={{
-                background: "#fbbf24",
-                color: "#030712",
-                fontWeight: 700,
-                fontSize: "0.9375rem",
-                padding: "0.75rem 1.75rem",
-                borderRadius: 9999,
-                display: "inline-block",
-              }}
-            >
-              Download Free on App Store
-            </a>
+            <StoreButtons align="center" />
           </section>
 
         </div>

@@ -3,6 +3,7 @@ import Navbar from "@/components/landing/Navbar";
 import Footer from "@/components/landing/Footer";
 import BreadcrumbsJsonLd from "@/components/seo/BreadcrumbsJsonLd";
 import "./quickbooks.css";
+import StoreButtons from "@/components/StoreButtons";
 
 // Public landing page for the QuickBooks Online integration. Also
 // serves as Intuit's "Launch URL" and "Connect/Reconnect URL" for the
@@ -33,9 +34,6 @@ export const metadata: Metadata = {
   },
 };
 
-const APP_STORE_URL =
-  "https://apps.apple.com/gb/app/mileclear/id6759671005";
-
 export default function QuickBooksLanding() {
   return (
     <>
@@ -59,14 +57,7 @@ export default function QuickBooksLanding() {
               for UK QuickBooks Online and isn't live yet.
             </p>
             <div className="qb-hero__cta-row">
-              <a
-                className="btn btn--primary qb-hero__cta"
-                href={APP_STORE_URL}
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                Get MileClear
-              </a>
+              <StoreButtons align="center" />
             </div>
             <p className="qb-hero__finepoint">
               When it launches, it will require QuickBooks Online (Simple Start
@@ -210,14 +201,7 @@ export default function QuickBooksLanding() {
               MileClear Pro + QuickBooks Online is coming soon. Get the app now
               and start tracking, so your records are ready the day it lands.
             </p>
-            <a
-              className="btn btn--primary qb-cta__btn"
-              href={APP_STORE_URL}
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              Get MileClear on the App Store
-            </a>
+            <StoreButtons align="center" />
           </div>
         </section>
       </main>

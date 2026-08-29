@@ -4,6 +4,7 @@ import Footer from '@/components/landing/Footer';
 import BreadcrumbsJsonLd from '@/components/seo/BreadcrumbsJsonLd';
 import '../legal.css';
 import './about.css';
+import StoreButtons from "@/components/StoreButtons";
 
 export const metadata: Metadata = {
   title: 'About MileClear',
@@ -170,14 +171,7 @@ export default function AboutPage() {
                   Free to download. No credit card required. HMRC rates built in from day one.
                 </p>
                 <div className="about__cta-links">
-                  <a
-                    href="https://apps.apple.com/gb/app/mileclear/id6743638010"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="about__cta-btn about__cta-btn--primary"
-                  >
-                    Download on the App Store
-                  </a>
+                  <StoreButtons align="center" />
                   <a href="/features" className="about__cta-btn about__cta-btn--ghost">
                     See All Features
                   </a>

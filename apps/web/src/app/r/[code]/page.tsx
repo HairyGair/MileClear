@@ -2,8 +2,7 @@
 
 import { use, useEffect, useState } from "react";
 import Link from "next/link";
-
-const APP_STORE_URL = "https://apps.apple.com/app/mileclear/id6759671005";
+import StoreButtons from "@/components/StoreButtons";
 
 /**
  * Referral landing page (mileclear.com/r/CODE). A friend taps an invite link.
@@ -93,11 +92,7 @@ export default function ReferralLandingPage({
           </button>
         </div>
 
-        <a href={APP_STORE_URL} target="_blank" rel="noopener noreferrer" style={{ display: "block", marginBottom: 8 }}>
-          <button className="btn btn--primary btn--lg" style={{ width: "100%" }}>
-            Get MileClear on the App Store
-          </button>
-        </a>
+        <StoreButtons align="center" />
         <p style={{ fontSize: 13, color: "#8494a7", textAlign: "center", margin: "0 0 16px" }}>
           When you open the app, sign up and paste your code{copied ? " (it's on your clipboard)" : ` (${code || "above"})`} in the <strong>invite code</strong> box.
         </p>

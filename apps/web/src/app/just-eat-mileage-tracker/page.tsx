@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Navbar from "@/components/landing/Navbar";
 import Footer from "@/components/landing/Footer";
+import StoreButtons from "@/components/StoreButtons";
 
 export const metadata: Metadata = {
   title: "Just Eat Mileage Tracker UK - Free & Automatic",
@@ -804,20 +805,7 @@ export default function JustEatMileageTracker() {
               Just Eat is reporting to HMRC.
             </p>
             <div style={{ display: "flex", gap: "1rem", justifyContent: "center", flexWrap: "wrap" }}>
-              <a
-                href="https://apps.apple.com/app/mileclear/id6759671005"
-                style={{
-                  background: "#fbbf24",
-                  color: "#030712",
-                  fontWeight: 700,
-                  fontSize: "0.9375rem",
-                  padding: "0.75rem 1.75rem",
-                  borderRadius: 9999,
-                  display: "inline-block",
-                }}
-              >
-                Download Free on App Store
-              </a>
+              <StoreButtons align="center" />
               <a
                 href="/#pricing"
                 style={{
