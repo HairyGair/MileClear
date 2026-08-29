@@ -3480,6 +3480,19 @@ export default function TripFormScreen() {
               maximumDate={new Date()}
             />
 
+            {/* Where the trip actually went, shown above the Business/Personal
+                choice because that is the question the route answers. This is
+                the path the classify inbox opens; the arrived step has its own. */}
+            {isEditing && routeCoords.length >= 2 && (
+              <View style={{ marginBottom: 16 }}>
+                <TripMapWidget
+                  coordinates={routeCoords}
+                  matchedCoordinates={routeMatched.length >= 2 ? routeMatched : null}
+                  height={160}
+                />
+              </View>
+            )}
+
             {/* Classification */}
             <Text style={styles.label}>Classification</Text>
             <View style={styles.classRow}>
