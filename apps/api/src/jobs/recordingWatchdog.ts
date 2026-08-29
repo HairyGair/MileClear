@@ -413,15 +413,40 @@ export async function runRecordingWatchdogJob(): Promise<void> {
       )
   `;
 
+  // Native skip, same reasoning as Check 1 (29 Aug 2026). On build 84 the
+  // native engine only finalises once fixes stop and a wake arrives, so the
+  // lag from signal_start to the saved trip is p50 44 min, p75 1.8h, p90 4.9h
+  // - the 45-min threshold flagged about half of all normal native drives.
+  // Every one of the 1,622 finalize_check pushes in the previous 24h went to
+  // a native user, and the phone logs nothing on receipt. Those users are
+  // counted here and reported separately, never pushed.
+  const signalNativeIds = new Set<string>();
+  const signalCandidates = signalStuck.filter((u) => !handledInCheck1.has(u.id));
+  if (signalCandidates.length > 0) {
+    const dumps = await prisma.diagnosticDump.findMany({
+      where: { userId: { in: signalCandidates.map((u) => u.id) } },
+      select: { userId: true, statusJson: true },
+    });
+    for (const d of dumps) {
+      const s = (d.statusJson ?? {}) as { nativeEngineEnabled?: boolean };
+      if (s.nativeEngineEnabled === true) signalNativeIds.add(d.userId);
+    }
+  }
+
   let signalPinged = 0;
   let signalCooldown = 0;
   let signalGaveUp = 0;
+  let signalNativeSkipped = 0;
   const signalPingedUserIds = new Set<string>();
   for (const user of signalStuck) {
     // Check 1 already actioned this user this run (ping/reap/skip) - don't
     // stack a second decision, and especially don't manufacture "cooldown"
     // founder-alert noise by re-pushing inside the cooldown window.
     if (handledInCheck1.has(user.id)) continue;
+    if (signalNativeIds.has(user.id)) {
+      signalNativeSkipped++;
+      continue;
+    }
     const result = await sendSilentPush(user, "finalize_check", {
       source: "signal_start",
       lastSignalAt: user.lastSignalAt.toISOString(),
@@ -518,7 +543,7 @@ export async function runRecordingWatchdogJob(): Promise<void> {
   ) {
     console.log(
       `[watchdog] stuck=${stuck.length} (pinged ${stuckPinged}, cooldown ${stuckCooldown}, gave_up ${stuckGaveUp}, reaped ${stuckReaped}, nativeSkipped ${stuckNativeSkipped}, drained ${stuckDrained}); ` +
-        `signalStuck=${signalStuck.length} (pinged ${signalPinged}, cooldown ${signalCooldown}, gave_up ${signalGaveUp}); ` +
+        `signalStuck=${signalStuck.length} (pinged ${signalPinged}, cooldown ${signalCooldown}, gave_up ${signalGaveUp}, nativeSkipped ${signalNativeSkipped}); ` +
         `pendingSync=${pendingSync.length} (pinged ${syncPinged}, cooldown ${syncCooldown}, gave_up ${syncGaveUp})`
     );
   }
@@ -643,7 +668,8 @@ export async function runRecordingWatchdogJob(): Promise<void> {
     }
     if (signalPinged + signalCooldown + signalGaveUp > 0) {
       detailLines.push(
-        `Signal-opened recordings gone silent: ${signalStuck.length} (pinged ${signalPinged}, cooldown ${signalCooldown}, gave_up ${signalGaveUp})`
+        `Signal-opened recordings gone silent: ${signalStuck.length - signalNativeSkipped} (pinged ${signalPinged}, cooldown ${signalCooldown}, gave_up ${signalGaveUp})` +
+          (signalNativeSkipped > 0 ? ` · set aside: ${signalNativeSkipped} native self-finalising` : "")
       );
     }
     if (pendingSync.length > 0) {
