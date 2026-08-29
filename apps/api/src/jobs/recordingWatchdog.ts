@@ -239,6 +239,32 @@ export async function runRecordingWatchdogJob(): Promise<void> {
       AND pushToken IS NOT NULL
   `;
 
+  // Drained check. The heartbeat is a snapshot that is typically hours old by
+  // the time we read it (24h cadence plus opportunistic sends). If the user
+  // has since SAVED a trip that ended at or after the snapshot's last driving
+  // time, the recording the heartbeat flagged went on to finish normally and
+  // the server flag is simply out of date. 29 Aug 2026: 10 of 11 "stuck"
+  // recordings were exactly this. Trips are server truth; the heartbeat is not.
+  const drainedUserIds = new Set<string>();
+  const drainCandidates = stuck.filter((u) => u.lastDrivingSpeedAt != null);
+  if (drainCandidates.length > 0) {
+    const drained = await prisma.trip.groupBy({
+      by: ["userId"],
+      where: {
+        userId: { in: drainCandidates.map((u) => u.id) },
+        endedAt: { not: null, gte: new Date(now - HEARTBEAT_FRESHNESS_MS) },
+      },
+      _max: { endedAt: true },
+    });
+    const lastEndByUser = new Map(drained.map((d) => [d.userId, d._max.endedAt]));
+    for (const u of drainCandidates) {
+      const lastEnd = lastEndByUser.get(u.id);
+      if (lastEnd && lastEnd.getTime() >= u.lastDrivingSpeedAt!.getTime()) {
+        drainedUserIds.add(u.id);
+      }
+    }
+  }
+
   // Native-engine awareness. The native ClearTrack engine (build 73+) updates
   // lastNativeLocationAt — NOT lastDrivingSpeedAt — so a native device that's
   // genuinely mid-drive (or recently parked) looks "stuck" to the
@@ -266,6 +292,7 @@ export async function runRecordingWatchdogJob(): Promise<void> {
   let stuckGaveUp = 0;
   let stuckReaped = 0;
   let stuckNativeSkipped = 0;
+  let stuckDrained = 0;
   const reapedUserIds = new Set<string>();
   const nativeSkippedUserIds = new Set<string>();
   // Users over the retry cap this run, across both checks — drives gave_up
@@ -276,6 +303,13 @@ export async function runRecordingWatchdogJob(): Promise<void> {
       user.lastDrivingSpeedAt != null
         ? now - user.lastDrivingSpeedAt.getTime()
         : null;
+
+    // A trip landed after the snapshot's last driving time: not stuck, the
+    // flag is stale. Nothing to push, nothing to reap, nothing to alert.
+    if (drainedUserIds.has(user.id)) {
+      stuckDrained++;
+      continue;
+    }
 
     // Reap orphaned flags that are definitively dead instead of pushing a
     // finalize-check the client can never satisfy. Resolves silently - no
@@ -483,7 +517,7 @@ export async function runRecordingWatchdogJob(): Promise<void> {
     syncGaveUp > 0
   ) {
     console.log(
-      `[watchdog] stuck=${stuck.length} (pinged ${stuckPinged}, cooldown ${stuckCooldown}, gave_up ${stuckGaveUp}, reaped ${stuckReaped}, nativeSkipped ${stuckNativeSkipped}); ` +
+      `[watchdog] stuck=${stuck.length} (pinged ${stuckPinged}, cooldown ${stuckCooldown}, gave_up ${stuckGaveUp}, reaped ${stuckReaped}, nativeSkipped ${stuckNativeSkipped}, drained ${stuckDrained}); ` +
         `signalStuck=${signalStuck.length} (pinged ${signalPinged}, cooldown ${signalCooldown}, gave_up ${signalGaveUp}); ` +
         `pendingSync=${pendingSync.length} (pinged ${syncPinged}, cooldown ${syncCooldown}, gave_up ${syncGaveUp})`
     );
@@ -549,7 +583,9 @@ export async function runRecordingWatchdogJob(): Promise<void> {
   const stuckUserIds = [
     ...stuck
       .map((u) => u.id)
-      .filter((id) => !reapedUserIds.has(id) && !nativeSkippedUserIds.has(id)),
+      .filter(
+        (id) => !reapedUserIds.has(id) && !nativeSkippedUserIds.has(id) && !drainedUserIds.has(id)
+      ),
     ...pendingSync.map((u) => u.id),
   ].sort();
   if (stuckUserIds.length === 0) {
@@ -591,8 +627,18 @@ export async function runRecordingWatchdogJob(): Promise<void> {
     }
     const detailLines: string[] = [];
     if (stuck.length > 0) {
+      // Headline = the recordings we actually acted on. The ones the watchdog
+      // itself set aside (native self-finalising, drained since the heartbeat,
+      // reaped as dead) are listed separately so the number means something.
+      const actionable = stuck.length - stuckNativeSkipped - stuckDrained - stuckReaped;
+      const setAside = [
+        stuckNativeSkipped > 0 ? `${stuckNativeSkipped} native self-finalising` : null,
+        stuckDrained > 0 ? `${stuckDrained} drained since heartbeat` : null,
+        stuckReaped > 0 ? `${stuckReaped} reaped` : null,
+      ].filter(Boolean);
       detailLines.push(
-        `Stuck recordings: ${stuck.length} (pinged ${stuckPinged}, cooldown ${stuckCooldown}, gave_up ${stuckGaveUp})`
+        `Stuck recordings: ${actionable} (pinged ${stuckPinged}, cooldown ${stuckCooldown}, gave_up ${stuckGaveUp})` +
+          (setAside.length ? ` · set aside: ${setAside.join(", ")}` : "")
       );
     }
     if (signalPinged + signalCooldown + signalGaveUp > 0) {
