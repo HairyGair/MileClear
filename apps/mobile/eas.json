@@ -82,6 +82,11 @@
         "ascApiKeyPath": "/Users/anthony/.appstoreconnect/AuthKey_W5BF8M9SHV.p8",
         "ascApiKeyId": "W5BF8M9SHV",
         "ascApiKeyIssuerId": "69a6de96-8b80-47e3-e053-5b8c7c11a4d1"
+      },
+      "android": {
+        "serviceAccountKeyPath": "/Users/anthony/.google-play/play-publisher.json",
+        "track": "alpha",
+        "releaseStatus": "completed"
       }
     }
   }
