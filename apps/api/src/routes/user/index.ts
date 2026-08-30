@@ -193,8 +193,12 @@ async function analyzeDiagnosticAndAlert(
     // /admin/diagnostic-alerts feed. No need to spam admin phones.
   }
 
-  // Alert 1: Background permission not granted
-  if (bgPermission && bgPermission !== "granted") {
+  // Alert 1: Background permission not granted.
+  // "undetermined" means the system prompt has not been answered yet - on a
+  // fresh install the first dump uploads mid-onboarding, before the user has
+  // had a chance to grant anything (both real Android testers got this alert
+  // within minutes of signing up, 30 Aug 2026). Only a real refusal alerts.
+  if (bgPermission === "denied") {
     await sendAlertWithAdminNotify(
       userId,
       "alert.permission_missing",
@@ -205,8 +209,11 @@ async function analyzeDiagnosticAndAlert(
     );
   }
 
-  // Alert 2: Task not running but detection is enabled
-  if (taskRunning === false && enabled === true) {
+  // Alert 2: Task not running but detection is enabled. On the native
+  // ClearTrack engine taskRunning is false BY DESIGN (the native engine is
+  // the detector; the JS task idles), so this only means something on the
+  // JS engine.
+  if (taskRunning === false && enabled === true && statusJson.nativeEngineEnabled !== true) {
     await sendAlertWithAdminNotify(
       userId,
       "alert.task_not_running",
