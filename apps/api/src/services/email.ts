@@ -1555,6 +1555,52 @@ ${SIGN_OFF}`;
 
 // ── Tax / HMRC seasonal ───────────────────────────────────────────────
 
+/** Tax-deduction milestone crossed within the current tax year (e.g. £250).
+ *  Sent once per milestone from jobs/triggeredEmails.ts. */
+export async function sendTaxMilestoneEmail(
+  email: string,
+  displayName: string | null | undefined,
+  data: {
+    taxYear: string;
+    milestonePence: number;
+    deductionPence: number;
+    businessMiles: number;
+  },
+  userId: string
+): Promise<void> {
+  const greeting = displayName ? `Hi ${escapeHtml(displayName)},` : "Hi there,";
+  const miles = data.businessMiles.toLocaleString("en-GB", {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  });
+  const bodyHtml = `
+${para(greeting)}
+${para(`Your business mileage for ${escapeHtml(data.taxYear)} has just passed <strong style="color:#f5a623;">${gbp(data.milestonePence)}</strong> in tax deduction.`)}
+${statGrid([
+    { value: gbp(data.deductionPence), label: "Deduction so far" },
+    { value: miles, label: "Business miles" },
+  ])}
+${para("That figure is built from the trips you have marked as business, at the HMRC rate for the year. It goes straight into the Self Assessment wizard when you need it, so there is nothing to do now except keep driving with MileClear on.")}
+${para("If any of those trips are still unclassified, sorting them is the quickest way to move this number.")}
+${ctaButton("See your tax figure", `${DASHBOARD_URL}/tax`)}
+${SIGN_OFF}`;
+  const html = emailShell({
+    preheader: `${gbp(data.deductionPence)} of tax deduction so far this year.`,
+    eyebrow: `Tax year ${escapeHtml(data.taxYear)}`,
+    title: `Past ${gbp(data.milestonePence)} in deductions`,
+    bodyHtml,
+    footerHtml: unsubscribeFooterHtml(userId),
+  });
+  await deliver({
+    email,
+    subject: `You've passed ${gbp(data.milestonePence)} in mileage deductions`,
+    html,
+    userId,
+    label: "Tax milestone",
+    gated: true,
+  });
+}
+
 /** Tax year-end summary (~5 April). */
 export async function sendTaxYearEndSummaryEmail(
   email: string,

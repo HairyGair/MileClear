@@ -29,6 +29,13 @@ import { runGeocodeMissingAddressesJob } from "./geocodeMissingAddresses.js";
 import { runVisitSplitJob } from "./visitSplit.js";
 import { runTaxTipOfTheDayJob } from "./taxTipOfTheDay.js";
 import { runWeeklyDigestJob } from "./weeklyDigest.js";
+import {
+  runUnclassifiedNudgeEmailJob,
+  runWeeklyRecapEmailJob,
+  runTaxMilestoneEmailJob,
+  runTaxYearEndEmailJob,
+  runSaDeadlineEmailJob,
+} from "./triggeredEmails.js";
 import { runTaxDeadlineRemindersJob } from "./taxDeadlineReminders.js";
 import { postFounderAlert } from "../services/discord.js";
 import {
@@ -1460,6 +1467,13 @@ export function startNotificationJobs(): void {
     // loop for the reason above: it only fires in the first days of the
     // month, and self-gates to near-zero cost once its emails have gone.
     void runJob("team_month_ready", runTeamMonthReadyJob);
+    // Triggered lifecycle emails (30 Aug 2026). Each self-gates to a UK
+    // local-time window and to TRIGGERED_EMAILS_ENABLED=1.
+    void runJob("email_unclassified_nudge", runUnclassifiedNudgeEmailJob);
+    void runJob("email_weekly_recap", runWeeklyRecapEmailJob);
+    void runJob("email_tax_milestone", runTaxMilestoneEmailJob);
+    void runJob("email_tax_year_end", runTaxYearEndEmailJob);
+    void runJob("email_sa_deadline", runSaDeadlineEmailJob);
   };
 
   setTimeout(() => {
