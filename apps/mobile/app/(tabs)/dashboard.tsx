@@ -81,6 +81,12 @@ import { SmartInsightCard } from "../../components/SmartInsightCard";
 import { usePaywall } from "../../components/paywall";
 import { usePrompt } from "../../components/prompt";
 import { requestOrFixBackgroundLocation, getLocationPermissionStatus, type LocationPermissionTier } from "../../lib/permissions/location";
+import {
+  getNotificationPermissionStatus,
+  registerForPushNotifications,
+  type NotificationPermissionState,
+} from "../../lib/notifications/index";
+import { registerPushToken } from "../../lib/api/notifications";
 import { haptic } from "../../lib/haptics";
 
 function formatElapsed(seconds: number): string {
@@ -213,6 +219,17 @@ export default function DashboardScreen() {
   // nudge (engine still works via the speed backstop), 7-day cooldown.
   const [motionDenied, setMotionDenied] = useState(false);
   const [motionNudgeDismissedAt, setMotionNudgeDismissedAt] = useState<number | null>(null);
+
+  // Notification permission. On Android a denial doesn't just stop pushes -
+  // it also blocks the LOCAL "Looks like you're driving?" prompt and the
+  // missed-journey offers, so it degrades capture quality. "undetermined"
+  // shows the primer card (startup no longer fires the bare system prompt);
+  // "denied" shows the amber settings nudge. Both dismissible, 7-day snooze.
+  // Default "granted" until checked to avoid a flash on load.
+  const [notifPermission, setNotifPermission] = useState<NotificationPermissionState>("granted");
+  const [notifPrimerDismissedAt, setNotifPrimerDismissedAt] = useState<number | null>(null);
+  const [notifDeniedDismissedAt, setNotifDeniedDismissedAt] = useState<number | null>(null);
+  const [notifRequesting, setNotifRequesting] = useState(false);
 
   // First-trip nudge dismissal. Mirrors the bg-loc nudge cooldown. The
   // in-app safety net for the activation funnel: a user who has Always
@@ -437,7 +454,7 @@ export default function DashboardScreen() {
     (async () => {
       const db = await getDatabase();
       const rows = await db.getAllAsync<{ key: string; value: string }>(
-        "SELECT key, value FROM tracking_state WHERE key IN ('work_explainer_seen', 'bg_loc_nudge_dismissed_at', 'first_trip_nudge_dismissed_at', 'referral_card_dismissed_at', 'motion_nudge_dismissed_at')"
+        "SELECT key, value FROM tracking_state WHERE key IN ('work_explainer_seen', 'bg_loc_nudge_dismissed_at', 'first_trip_nudge_dismissed_at', 'referral_card_dismissed_at', 'motion_nudge_dismissed_at', 'notif_primer_dismissed_at', 'notif_denied_nudge_dismissed_at')"
       );
       const map = Object.fromEntries(rows.map((r) => [r.key, r.value]));
       setWorkExplainerSeen(map["work_explainer_seen"] === "1");
@@ -457,6 +474,14 @@ export default function DashboardScreen() {
         ? parseInt(map["referral_card_dismissed_at"], 10)
         : null;
       setReferralCardDismissedAt(Number.isFinite(refDismissedAt as number) ? refDismissedAt : null);
+      const npDismissedAt = map["notif_primer_dismissed_at"]
+        ? parseInt(map["notif_primer_dismissed_at"], 10)
+        : null;
+      setNotifPrimerDismissedAt(Number.isFinite(npDismissedAt as number) ? npDismissedAt : null);
+      const ndDismissedAt = map["notif_denied_nudge_dismissed_at"]
+        ? parseInt(map["notif_denied_nudge_dismissed_at"], 10)
+        : null;
+      setNotifDeniedDismissedAt(Number.isFinite(ndDismissedAt as number) ? ndDismissedAt : null);
     })();
   }, []);
 
@@ -488,6 +513,53 @@ export default function DashboardScreen() {
   const motionNudgeSilenced =
     motionNudgeDismissedAt !== null &&
     Date.now() - motionNudgeDismissedAt < SEVEN_DAYS_MS;
+
+  // Notification primer + denied nudge dismissals. Same 7-day snooze the
+  // other permission nudges use, persisted in tracking_state.
+  const dismissNotifPrimer = useCallback(async () => {
+    const now = Date.now();
+    setNotifPrimerDismissedAt(now);
+    const db = await getDatabase();
+    await db.runAsync(
+      "INSERT OR REPLACE INTO tracking_state (key, value) VALUES ('notif_primer_dismissed_at', ?)",
+      [String(now)]
+    );
+  }, []);
+  const notifPrimerSilenced =
+    notifPrimerDismissedAt !== null &&
+    Date.now() - notifPrimerDismissedAt < SEVEN_DAYS_MS;
+
+  const dismissNotifDeniedNudge = useCallback(async () => {
+    const now = Date.now();
+    setNotifDeniedDismissedAt(now);
+    const db = await getDatabase();
+    await db.runAsync(
+      "INSERT OR REPLACE INTO tracking_state (key, value) VALUES ('notif_denied_nudge_dismissed_at', ?)",
+      [String(now)]
+    );
+  }, []);
+  const notifDeniedNudgeSilenced =
+    notifDeniedDismissedAt !== null &&
+    Date.now() - notifDeniedDismissedAt < SEVEN_DAYS_MS;
+
+  // "Enable notifications" on the primer card: fires the system prompt, then
+  // registers the push token exactly the way startup does for already-granted
+  // users. If the user denies, the state flips to "denied" and the amber
+  // settings nudge takes over on its own 7-day cadence.
+  const enableNotifications = useCallback(async () => {
+    if (notifRequesting) return;
+    setNotifRequesting(true);
+    try {
+      const token = await registerForPushNotifications();
+      if (token) await registerPushToken(token).catch(() => {});
+    } catch {
+      // non-fatal - the status refresh below reflects whatever happened
+    } finally {
+      const status = await getNotificationPermissionStatus();
+      setNotifPermission(status);
+      setNotifRequesting(false);
+    }
+  }, [notifRequesting]);
 
   const dismissFirstTripNudge = useCallback(async () => {
     const now = Date.now();
@@ -740,6 +812,10 @@ export default function DashboardScreen() {
       setLocationTier(tier);
       setBgLocationGranted(tier === "always");
     }).catch(() => {});
+    // Same round trip for notifications: the denied nudge sends the user to
+    // system Settings, and on Android the Back button doesn't re-focus the
+    // route, so the AppState path is what clears the nudge after a fix.
+    getNotificationPermissionStatus().then(setNotifPermission).catch(() => {});
   }, []);
   useEffect(() => {
     const sub = AppState.addEventListener("change", (state) => {
@@ -751,6 +827,9 @@ export default function DashboardScreen() {
   useFocusEffect(
     useCallback(() => {
       loadData();
+      // Notification permission drives the primer card (undetermined) and
+      // the denied nudge - re-check on each focus.
+      getNotificationPermissionStatus().then(setNotifPermission).catch(() => {});
       // Check the full location permission tier on each focus.
       getLocationPermissionStatus().then(({ tier }) => {
         setLocationTier(tier);
@@ -1608,6 +1687,86 @@ export default function DashboardScreen() {
             </TouchableOpacity>
           </View>
         </TouchableOpacity>
+      )}
+
+      {/* NOTIFICATIONS DENIED — on Android this also blocks the LOCAL
+          "Looks like you're driving?" prompt and missed-journey offers, so
+          capture quality degrades, not just marketing reach. Amber (the app
+          still records), dismissible, resurfaces weekly. Never shown while
+          undetermined - the primer card below owns that state. */}
+      {notifPermission === "denied" && !activeShift && !notifDeniedNudgeSilenced && (
+        <TouchableOpacity
+          style={s.bgLocNudge}
+          onPress={() => Linking.openSettings().catch(() => {})}
+          activeOpacity={0.7}
+          accessibilityRole="button"
+          accessibilityLabel="Notifications are off, so drive prompts can't appear. Tap to open Settings and turn them on."
+        >
+          <View style={s.bgLocNudgeRow}>
+            <View style={s.bgLocNudgeIcon}>
+              <Ionicons name="notifications-off-outline" size={20} color="#f59e0b" accessible={false} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={s.bgLocNudgeTitle}>Notifications are off</Text>
+              <Text style={s.bgLocNudgeBody}>
+                MileClear can&apos;t ask &ldquo;Looks like you&apos;re driving?&rdquo; or offer back missed journeys while notifications are off. Tap to turn them on in Settings.
+              </Text>
+            </View>
+            <TouchableOpacity
+              onPress={dismissNotifDeniedNudge}
+              hitSlop={{ top: 12, right: 12, bottom: 12, left: 12 }}
+              accessibilityRole="button"
+              accessibilityLabel="Dismiss for 7 days"
+            >
+              <Ionicons name="close" size={16} color="#6b7280" accessible={false} />
+            </TouchableOpacity>
+          </View>
+        </TouchableOpacity>
+      )}
+
+      {/* NOTIFICATION PRIMER — permission never asked yet. The startup chain
+          no longer fires the bare system prompt (both Android beta testers
+          denied it cold); this card explains what notifications do first,
+          then Enable fires the real prompt and registers the push token.
+          "Not now" snoozes it for 7 days. */}
+      {notifPermission === "undetermined" && !activeShift && !notifPrimerSilenced && (
+        <View style={s.ftNudge}>
+          <View style={s.bgLocNudgeRow}>
+            <View style={s.ftNudgeIcon}>
+              <Ionicons name="notifications-outline" size={20} color={AMBER} accessible={false} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={s.bgLocNudgeTitle}>Turn on notifications</Text>
+              <Text style={s.bgLocNudgeBody}>
+                MileClear asks &ldquo;Looks like you&apos;re driving?&rdquo; when a drive starts, offers back journeys it might have missed, and reminds you before tax deadlines. Without notifications those prompts can&apos;t appear.
+              </Text>
+            </View>
+          </View>
+          <View style={s.ftNudgeActions}>
+            <TouchableOpacity
+              style={[s.ftNudgeBtn, s.ftNudgeBtnPrimary]}
+              onPress={enableNotifications}
+              disabled={notifRequesting}
+              activeOpacity={0.8}
+              accessibilityRole="button"
+              accessibilityLabel="Enable notifications"
+            >
+              <Ionicons name="notifications" size={14} color="#0b0e14" accessible={false} />
+              <Text style={s.ftNudgeBtnTextPrimary}>
+                {notifRequesting ? "Asking..." : "Enable notifications"}
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={s.ftNudgeBtn}
+              onPress={dismissNotifPrimer}
+              activeOpacity={0.8}
+              accessibilityRole="button"
+              accessibilityLabel="Not now, ask again in a week"
+            >
+              <Text style={s.ftNudgeBtnText}>Not now</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
       )}
 
       {/* First-trip nudge — in-app activation safety net. Shows when the user

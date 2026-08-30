@@ -141,7 +141,7 @@ import { radii, spacing } from "../lib/theme";
 import "../lib/tracking/detection";
 import {
   setupNotificationResponseHandler,
-  registerForPushNotifications,
+  registerForPushNotificationsIfGranted,
   registerNotificationCategories,
 } from "../lib/notifications/index";
 import { setupNotificationChannels, scheduleWeeklyMileageSummary, scheduleTaxYearDeadlineReminder, checkUnclassifiedTripsNudge, checkStreakAtRisk, checkLongRunningShift } from "../lib/notifications/scheduler";
@@ -325,7 +325,14 @@ function RootNavigator() {
       reconcileTrips().catch(() => {});
       setDepartureAnchor().catch(() => {});
       shadeExpiredUnconfirmedTrips().catch(() => {});
-      registerForPushNotifications()
+      // Register the push token only when permission is ALREADY granted -
+      // never fire the system permission prompt from the startup chain. The
+      // bare prompt used to fire right here with zero explanation and both
+      // Android beta testers denied it, which on Android also kills the
+      // local "Looks like you're driving?" prompts and missed-journey
+      // offers. The ask now lives behind the dashboard primer card (and the
+      // onboarding notification step), which explain the value first.
+      registerForPushNotificationsIfGranted()
         .then((token) => { if (token) return registerPushToken(token); })
         .catch(() => {});
       // Register the Live Activity push-to-start token (iOS 17.2+) so the

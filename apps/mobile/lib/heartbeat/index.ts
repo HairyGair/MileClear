@@ -31,20 +31,43 @@ const HEARTBEAT_INTERVAL_MS = 24 * 60 * 60 * 1000; // 24 hours
 export async function maybeSendHeartbeat(): Promise<void> {
   try {
     const db = await getDatabase();
-    const row = await db.getFirstAsync<{ value: string }>(
-      "SELECT value FROM tracking_state WHERE key = 'last_heartbeat_at'"
-    );
-    if (row) {
+
+    // Permission snapshot BEFORE the cooldown check, because it decides
+    // whether the cooldown applies. The very first heartbeat fires seconds
+    // after registration (auth effect in _layout), BEFORE the onboarding
+    // permission prompts are answered, so it used to record
+    // bgLocationPermission "undetermined" and the 24h cooldown then pinned
+    // that stale value on the server - while the diagnostic dump, which
+    // re-uploads on EVERY startup from the same expo-location source,
+    // already said "granted". Documented server-side as the Scott Lough
+    // class (apps/api routes/user heartbeat comment, 2 Aug 2026); every
+    // Android beta user showed the same signature, 29 Aug 2026. A change in
+    // either permission now bypasses the cooldown, so the server learns
+    // within one launch/foreground of a grant or revoke.
+    const [bg, notif] = await Promise.all([
+      Location.getBackgroundPermissionsAsync().catch(() => null),
+      Notifications.getPermissionsAsync().catch(() => null),
+    ]);
+    const bgLocationPermission = mapLocationStatus(bg?.status);
+    const notificationPermission = mapNotificationStatus(notif?.status);
+    const permsFingerprint = `${bgLocationPermission ?? "?"}|${notificationPermission ?? "?"}`;
+
+    const [row, permsRow] = await Promise.all([
+      db.getFirstAsync<{ value: string }>(
+        "SELECT value FROM tracking_state WHERE key = 'last_heartbeat_at'"
+      ),
+      db.getFirstAsync<{ value: string }>(
+        "SELECT value FROM tracking_state WHERE key = 'last_heartbeat_perms'"
+      ),
+    ]);
+    if (row && permsRow?.value === permsFingerprint) {
       const last = parseInt(row.value, 10);
       if (!Number.isNaN(last) && Date.now() - last < HEARTBEAT_INTERVAL_MS) {
-        return; // within 24h cooldown
+        return; // within 24h cooldown and permissions unchanged
       }
     }
 
     const [
-      fg,
-      bg,
-      notif,
       taskActive,
       pendingSyncCount,
       syncQueueBreakdown,
@@ -53,9 +76,6 @@ export async function maybeSendHeartbeat(): Promise<void> {
       backgroundFetchStatus,
       recordingState,
     ] = await Promise.all([
-      Location.getForegroundPermissionsAsync().catch(() => null),
-      Location.getBackgroundPermissionsAsync().catch(() => null),
-      Notifications.getPermissionsAsync().catch(() => null),
       TaskManager.isTaskRegisteredAsync(DETECTION_TASK_NAME).catch(() => false),
       getPendingCount().catch(() => 0),
       collectSyncQueueBreakdown(db).catch(() => ({ failed: 0, permFailed: 0 })),
@@ -73,13 +93,9 @@ export async function maybeSendHeartbeat(): Promise<void> {
       .then((m) => m.getPushToStartToken())
       .catch(() => null);
 
-    // Unused foreground permission kept in scope to avoid dead-code warnings
-    // in case we add a fg-permission field later.
-    void fg;
-
     const data: HeartbeatData = {
-      bgLocationPermission: mapLocationStatus(bg?.status),
-      notificationPermission: mapNotificationStatus(notif?.status),
+      bgLocationPermission,
+      notificationPermission,
       trackingTaskActive: taskActive,
       appVersion: Constants.expoConfig?.version ?? undefined,
       buildNumber:
@@ -105,6 +121,13 @@ export async function maybeSendHeartbeat(): Promise<void> {
     await db.runAsync(
       "INSERT OR REPLACE INTO tracking_state (key, value) VALUES ('last_heartbeat_at', ?)",
       [String(Date.now())]
+    );
+    // Remember which permission snapshot the server now holds, so the next
+    // launch can tell "unchanged, respect the cooldown" from "changed,
+    // re-send now".
+    await db.runAsync(
+      "INSERT OR REPLACE INTO tracking_state (key, value) VALUES ('last_heartbeat_perms', ?)",
+      [permsFingerprint]
     );
   } catch {
     // Never throw - telemetry is non-critical.

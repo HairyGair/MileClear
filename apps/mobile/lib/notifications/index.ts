@@ -86,6 +86,45 @@ export async function requestNotificationPermissions(): Promise<boolean> {
   return status === "granted";
 }
 
+export type NotificationPermissionState = "granted" | "denied" | "undetermined";
+
+/**
+ * Read-only snapshot of the notification permission. Never fires the system
+ * prompt. Returns "undetermined" on any failure so callers treat the state
+ * as unknown rather than denied.
+ */
+export async function getNotificationPermissionStatus(): Promise<NotificationPermissionState> {
+  try {
+    const { status } = await Notifications.getPermissionsAsync();
+    if (status === "granted") return "granted";
+    if (status === "denied") return "denied";
+    return "undetermined";
+  } catch {
+    return "undetermined";
+  }
+}
+
+/**
+ * Startup-safe variant of registerForPushNotifications: registers the push
+ * token ONLY when notification permission is already granted, and never
+ * fires the system permission prompt. The prompt itself is owned by the
+ * dashboard primer card (and the onboarding notification step), which
+ * explain what notifications are for before asking - a cold start must not
+ * ambush the user with a bare permission dialog. Both Android beta testers
+ * denied the unexplained startup prompt (29 Aug 2026), and on Android a
+ * denial also blocks the LOCAL drive-detection prompts and missed-journey
+ * offers, so this is capture quality, not just marketing reach.
+ */
+export async function registerForPushNotificationsIfGranted(): Promise<string | null> {
+  try {
+    const { status } = await Notifications.getPermissionsAsync();
+    if (status !== "granted") return null;
+    return await registerForPushNotifications();
+  } catch {
+    return null;
+  }
+}
+
 export async function sendDrivingDetectedNotification(): Promise<void> {
   await Notifications.scheduleNotificationAsync({
     content: {
