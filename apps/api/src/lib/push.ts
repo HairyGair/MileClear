@@ -66,6 +66,7 @@ export async function sendPushNotifications(
   messages: ExpoPushMessage[]
 ): Promise<ExpoPushTicket[]> {
   if (messages.length === 0) return [];
+  if (process.env.NODE_ENV === "test") return []; // never page a real device from a test
 
   const CHUNK_SIZE = 100;
   const tickets: ExpoPushTicket[] = [];

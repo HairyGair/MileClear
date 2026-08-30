@@ -110,6 +110,10 @@ export async function postToChannel(
   channel: DiscordChannel,
   options: PostOptions
 ): Promise<boolean> {
+  // Tests must never reach a real channel. 30 Aug 2026: the feedback route
+  // test mocked Prisma but not this, and every pre-push run posted its
+  // fixtures ("Add dark mode", an alert(1) probe) to #founder.
+  if (process.env.NODE_ENV === "test") return false;
   const url = channelWebhookUrl(channel);
   if (!url) {
     // Silent skip — no webhook configured for this channel.

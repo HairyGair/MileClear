@@ -1268,6 +1268,8 @@ async function deliver(opts: {
   fromAddress?: string;
   attachments?: { filename: string; content: Buffer; contentType: string }[];
 }): Promise<void> {
+  if (process.env.NODE_ENV === "test") return; // never send from a test run
+
   if (opts.gated && !(await isMarketingAllowed(opts.userId))) return;
   if (!transporter) {
     console.log(`[EMAIL] ${opts.label} for ${opts.email}`);
