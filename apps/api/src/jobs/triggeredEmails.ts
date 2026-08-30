@@ -30,6 +30,11 @@ const SEND_DELAY_MS = 300;
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 const UNCLASSIFIED_MIN_COUNT = 3;
+// Above this the "ten seconds to sort them" line is untrue and the user has
+// shown they do not classify; a nudge is noise. Dry run 30 Aug: median
+// backlog across active users was 24, max 262.
+const UNCLASSIFIED_MAX_COUNT = 40;
+const UNCLASSIFIED_RECENT_MS = 14 * DAY_MS; // still capturing, not a dead backlog
 const UNCLASSIFIED_COOLDOWN_MS = 13 * DAY_MS; // at most every other Sunday
 const ACTIVE_WINDOW_MS = 30 * DAY_MS; // must have driven recently to hear from us
 const MILESTONES_PENCE = [10000, 25000, 50000, 100000, 250000, 500000];
@@ -95,14 +100,21 @@ async function activeCandidates(extra: Record<string, unknown> = {}): Promise<Ca
 async function unclassifiedTargets(): Promise<Array<{ user: Candidate; count: number; pence: number }>> {
   const out: Array<{ user: Candidate; count: number; pence: number }> = [];
   const taxYear = getTaxYear(new Date());
-  for (const user of await activeCandidates()) {
+  // Personal-mode users track for themselves; business classification is
+  // not a thing they are neglecting.
+  for (const user of await activeCandidates({ NOT: { dashboardMode: "personal" } })) {
     const agg = await prisma.trip.aggregate({
       where: { userId: user.id, classification: "unclassified", isPhantomTrip: false },
       _count: { _all: true },
       _sum: { distanceMiles: true },
     });
     const count = agg._count._all;
-    if (count < UNCLASSIFIED_MIN_COUNT) continue;
+    if (count < UNCLASSIFIED_MIN_COUNT || count > UNCLASSIFIED_MAX_COUNT) continue;
+    const recent = await prisma.trip.count({
+      where: { userId: user.id, classification: "unclassified", isPhantomTrip: false,
+        startedAt: { gte: new Date(Date.now() - UNCLASSIFIED_RECENT_MS) } },
+    });
+    if (recent === 0) continue;
     if (await sentWithin(user.id, EVENT.unclassified, UNCLASSIFIED_COOLDOWN_MS)) continue;
     const pence = calculateMileageDeduction("car", agg._sum.distanceMiles ?? 0, {
       ...resolveMileageRates(user), taxYear,
@@ -164,7 +176,7 @@ export async function runWeeklyRecapEmailJob(): Promise<void> {
 }
 
 // ── 3. Daily: a deduction milestone crossed this tax year ────────────
-async function milestoneTargets(): Promise<Array<{ user: Candidate; taxYear: string; milestone: number; deductionPence: number; businessMiles: number }>> {
+async function milestoneTargets(seed = false): Promise<Array<{ user: Candidate; taxYear: string; milestone: number; deductionPence: number; businessMiles: number }>> {
   const out: Array<{ user: Candidate; taxYear: string; milestone: number; deductionPence: number; businessMiles: number }> = [];
   const taxYear = getTaxYear(new Date());
   const summaries = await prisma.mileageSummary.findMany({
@@ -188,6 +200,14 @@ async function milestoneTargets(): Promise<Array<{ user: Candidate; taxYear: str
         .filter((m) => m?.taxYear === taxYear).map((m) => m!.milestone)
     );
     if (sentMilestones.has(top)) continue;
+    // First sight of this user this tax year: they crossed `top` at some
+    // point before we started watching. Congratulating them now would be
+    // stale (dry run 30 Aug: 174 users on day one). Record the baseline
+    // silently; only crossings from here on get an email.
+    if (sentMilestones.size === 0 && seed) {
+      logEvent(EVENT.milestone, user.id, { milestone: top, taxYear, deductionPence: s.deductionPence, seeded: true });
+      continue;
+    }
     if (await sentWithin(user.id, EVENT.milestone, MILESTONE_COOLDOWN_MS)) continue;
     out.push({ user, taxYear, milestone: top, deductionPence: s.deductionPence, businessMiles: s.businessMiles });
   }
@@ -199,7 +219,7 @@ export async function runTaxMilestoneEmailJob(): Promise<void> {
   if (t.hour !== 9) return; // 09:00-09:59 UK daily
   if (!ENABLED()) return;
   let sent = 0;
-  for (const m of await milestoneTargets()) {
+  for (const m of await milestoneTargets(true)) {
     try {
       await sendTaxMilestoneEmail(m.user.email, m.user.displayName, {
         taxYear: m.taxYear, milestonePence: m.milestone, deductionPence: m.deductionPence, businessMiles: m.businessMiles,
