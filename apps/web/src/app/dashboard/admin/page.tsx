@@ -39,6 +39,7 @@ interface Analytics {
   totalMiles: number;
   totalEarningsPence: number;
   usersThisMonth: number;
+  platformCounts?: { ios: number; android: number; both: number; web: number; unknown: number };
   tripsThisMonth: number;
   ratingFunnel?: RatingFunnel;
   referrals?: {
@@ -59,6 +60,9 @@ interface AdminUser {
   createdAt: string;
   lastLoginAt?: string | null;
   lastTripAt?: string | null;
+  platforms?: string[];
+  signupPlatform?: string | null;
+  signupLocation?: string | null;
   _count: {
     trips: number;
     vehicles: number;
@@ -82,6 +86,9 @@ interface AdminUser {
 }
 
 interface AdminUserDetail extends AdminUser {
+  platforms?: string[];
+  signupPlatform?: string | null;
+  signupLocation?: string | null;
   totalMiles: number;
   totalEarningsPence: number;
   stripeCustomerId: string | null;
@@ -172,6 +179,16 @@ interface AdminUserEvent {
 }
 
 type UsersSortBy = "createdAt" | "lastTripAt" | "lastLoginAt";
+
+/** "Apple", "Android", "Both", "Web" or "-" from the platforms-seen set. */
+function platformLabel(platforms?: string[] | null): string {
+  const set = new Set(platforms ?? []);
+  if (set.has("ios") && set.has("android")) return "Both";
+  if (set.has("ios")) return "Apple";
+  if (set.has("android")) return "Android";
+  if (set.has("web")) return "Web";
+  return "-";
+}
 
 interface UsersFilters {
   plan: string;
@@ -508,6 +525,17 @@ function OverviewTab() {
           <p className="stat-card__label">Trips This Month</p>
           <p className="stat-card__value">{formatNumber(analytics.tripsThisMonth)}</p>
         </div>
+        {analytics.platformCounts && (
+          <div className="stat-card">
+            <p className="stat-card__label">Platforms</p>
+            <p className="stat-card__value" style={{ fontSize: "1.1rem", lineHeight: 1.5 }}>
+              Apple {formatNumber(analytics.platformCounts.ios)} · Android {formatNumber(analytics.platformCounts.android)} · Both {formatNumber(analytics.platformCounts.both)}
+            </p>
+            <p style={{ fontSize: "0.75rem", color: "var(--text-secondary)", marginTop: 4 }}>
+              Web only {formatNumber(analytics.platformCounts.web)} · unknown {formatNumber(analytics.platformCounts.unknown)}
+            </p>
+          </div>
+        )}
       </div>
 
       {/* Referral program */}
@@ -1181,6 +1209,20 @@ function UserDetailModal({
                 <span style={{ color: "var(--text-secondary)" }}>Last login</span>
                 <p style={{ marginTop: 2 }} title={user.lastLoginAt ? new Date(user.lastLoginAt).toLocaleString() : ""}>
                   {user.lastLoginAt ? `${timeAgo(user.lastLoginAt)} (${new Date(user.lastLoginAt).toLocaleDateString("en-GB")})` : "-"}
+                </p>
+              </div>
+              <div>
+                <span style={{ color: "var(--text-secondary)" }}>Platform</span>
+                <p style={{ marginTop: 2 }}>
+                  {platformLabel(user.platforms)}
+                  {user.platforms && user.platforms.length > 0 ? ` (${user.platforms.join(", ")})` : ""}
+                </p>
+              </div>
+              <div>
+                <span style={{ color: "var(--text-secondary)" }}>Signed up</span>
+                <p style={{ marginTop: 2 }}>
+                  {user.signupPlatform ? user.signupPlatform : "-"}
+                  {user.signupLocation ? ` · ${user.signupLocation}` : ""}
                 </p>
               </div>
             </div>
@@ -2384,6 +2426,7 @@ function UsersTab() {
                   <th>Email</th>
                   <th>Name</th>
                   <th>Status</th>
+                  <th>Platform</th>
                   <th title="Per-user health score (0-100). Composed from heartbeat fields: bg-location, tracking task, sync queue, recent driving signal.">Health</th>
                   <th>Trips</th>
                   <th>Last trip</th>
@@ -2440,6 +2483,9 @@ function UsersTab() {
                           </span>
                         )}
                       </div>
+                    </td>
+                    <td style={{ fontSize: "0.8125rem", whiteSpace: "nowrap" }} title={user.signupLocation ? `Signed up on ${user.signupPlatform ?? "?"} from ${user.signupLocation}` : undefined}>
+                      {platformLabel(user.platforms)}
                     </td>
                     <td style={{ fontSize: "0.875rem", whiteSpace: "nowrap" }}>
                       {user.healthScore !== undefined && user.healthBand ? (

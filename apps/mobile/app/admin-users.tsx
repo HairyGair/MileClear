@@ -159,6 +159,18 @@ export default function AdminUsersScreen() {
           <Text style={s.userMeta}>Last trip: {timeAgo(item.lastTripAt)}</Text>
           <Text style={s.userMeta}>Login: {timeAgo(item.lastLoginAt)}</Text>
         </View>
+        {(item.platforms?.length || item.signupLocation) ? (
+          <View style={s.userBottom}>
+            <Text style={s.userMeta}>
+              {item.platforms?.includes("ios") && item.platforms?.includes("android")
+                ? "Apple + Android"
+                : item.platforms?.includes("ios") ? "Apple"
+                : item.platforms?.includes("android") ? "Android"
+                : item.platforms?.includes("web") ? "Web" : "Platform unknown"}
+            </Text>
+            {item.signupLocation ? <Text style={s.userMeta}>{item.signupLocation}</Text> : null}
+          </View>
+        ) : null}
       </TouchableOpacity>
     );
   }, [router]);

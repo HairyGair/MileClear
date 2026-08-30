@@ -141,6 +141,13 @@ model User {
   appVersion            String?   @db.VarChar(32)
   buildNumber           String?   @db.VarChar(32)
   osVersion             String?   @db.VarChar(32)
+  /** Every platform this account has been seen on, comma-joined and sorted:
+   *  "ios", "android", "web", "android,ios". Merged on signup, login,
+   *  heartbeat and diagnostics. Admin shows Apple / Android / Both. */
+  platformsSeen         String?   @db.VarChar(32)
+  /** Platform and coarse location (city, region, country) at signup. */
+  signupPlatform        String?   @db.VarChar(16)
+  signupLocation        String?   @db.VarChar(120)
   // Sync-queue depth at time of last heartbeat. Lets admin detect stuck
   // queues per-user without waiting for a diagnostic dump. > 0 sustained
   // across heartbeats indicates the sync engine isn't draining.

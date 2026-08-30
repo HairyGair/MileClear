@@ -1,4 +1,4 @@
-import { FastifyInstance } from "fastify";
+import { FastifyInstance, FastifyRequest } from "fastify";
 import { z } from "zod";
 import crypto from "crypto";
 import { createLocalJWKSet, jwtVerify, type JSONWebKeySet } from "jose";
@@ -16,6 +16,7 @@ import {
 } from "../../services/email.js";
 import { authMiddleware } from "../../middleware/auth.js";
 import { logEvent } from "../../services/appEvents.js";
+import { onUserRegistered, recordPlatformSeen, detectPlatform } from "../../services/signup.js";
 import { attachReferral } from "../../services/referral.js";
 import { REFRESH_TOKEN_EXPIRY_DAYS } from "@mileclear/shared";
 
@@ -179,12 +180,13 @@ async function revokeTokenFamily(familyId: string): Promise<void> {
   });
 }
 
-async function stampLastLogin(userId: string): Promise<void> {
+async function stampLastLogin(userId: string, request?: FastifyRequest): Promise<void> {
   try {
     await prisma.user.update({
       where: { id: userId },
       data: { lastLoginAt: new Date() },
     });
+    if (request) void recordPlatformSeen(userId, detectPlatform(request));
   } catch (err) {
     console.error("Failed to stamp lastLoginAt:", err);
   }
@@ -264,6 +266,7 @@ export async function authRoutes(app: FastifyInstance) {
     );
 
     logEvent("user.registered", user.id, { method: "email" });
+    void onUserRegistered(user, request, "email");
 
     // Attribute the referral (fire-and-forget, never blocks signup). The
     // reward isn't granted now — only when this user records their first trip.
@@ -310,7 +313,7 @@ export async function authRoutes(app: FastifyInstance) {
       // Successful login — clear failed attempts
       clearFailedLogins(email);
       logEvent("user.login", user.id, { method: "email" });
-      await stampLastLogin(user.id);
+      await stampLastLogin(user.id, request);
 
       const accessToken = generateAccessToken(user.id, user.isAdmin);
       const refreshToken = generateRefreshToken(user.id);
@@ -770,7 +773,8 @@ export async function authRoutes(app: FastifyInstance) {
     }
 
     logEvent(isNewUser ? "user.registered" : "user.login", user.id, { method: "apple" });
-    await stampLastLogin(user.id);
+    if (isNewUser) void onUserRegistered(user, request, "apple");
+    await stampLastLogin(user.id, request);
 
     const accessToken = generateAccessToken(user.id, user.isAdmin);
     const refreshToken = generateRefreshToken(user.id);
@@ -882,7 +886,8 @@ export async function authRoutes(app: FastifyInstance) {
     }
 
     logEvent(isNewUser ? "user.registered" : "user.login", user.id, { method: "google" });
-    await stampLastLogin(user.id);
+    if (isNewUser) void onUserRegistered(user, request, "google");
+    await stampLastLogin(user.id, request);
 
     const accessToken = generateAccessToken(user.id, user.isAdmin);
     const refreshToken = generateRefreshToken(user.id);
@@ -1034,7 +1039,8 @@ export async function authRoutes(app: FastifyInstance) {
     }
 
     logEvent(isNewUser ? "user.registered" : "user.login", user.id, { method: "apple_web" });
-    await stampLastLogin(user.id);
+    if (isNewUser) void onUserRegistered(user, request, "apple_web");
+    await stampLastLogin(user.id, request);
 
     const accessToken = generateAccessToken(user.id, user.isAdmin);
     const refreshToken = generateRefreshToken(user.id);

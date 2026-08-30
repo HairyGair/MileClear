@@ -6,6 +6,7 @@ import { stripe } from "../../lib/stripe.js";
 import { verifyPassword } from "../../services/auth.js";
 import { sendPushToUser } from "../../lib/push.js";
 import { logEvent } from "../../services/appEvents.js";
+import { recordPlatformSeen, platformFromOsVersion } from "../../services/signup.js";
 import { resolvePremiumStatus } from "../../services/referral.js";
 import { encrypt, decryptIfEncrypted } from "../../lib/encryption.js";
 import { canSafelyEmbedImage } from "../../services/export.js";
@@ -1227,7 +1228,8 @@ export async function userRoutes(app: FastifyInstance) {
     // Deduped to once per 7 days per issue type via AppEvent table.
     analyzeDiagnosticAndAlert(userId, d.statusJson).catch(() => {});
 
-    return reply.send({ success: true });
+    void recordPlatformSeen(request.userId!, d.platform === "ios" || d.platform === "android" ? d.platform : "unknown");
+        return reply.send({ success: true });
   });
 
   // POST /user/event - lightweight client event logging
@@ -1318,6 +1320,7 @@ export async function userRoutes(app: FastifyInstance) {
           : {}),
       },
     });
+    void recordPlatformSeen(request.userId!, platformFromOsVersion(d.osVersion));
     return reply.send({ success: true });
   });
 }

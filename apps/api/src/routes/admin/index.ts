@@ -235,6 +235,7 @@ export async function adminRoutes(app: FastifyInstance) {
       referralsQualified,
       referralActiveUsers,
       subscriptionTruth,
+      platformRows,
     ] = await Promise.all([
       prisma.user.count(),
       prisma.user.count({ where: { isPremium: true } }),
@@ -258,6 +259,7 @@ export async function adminRoutes(app: FastifyInstance) {
       prisma.referral.count({ where: { status: "qualified" } }),
       prisma.user.count({ where: { referralProUntil: { gt: now } } }),
       getSubscriptionTruth(now),
+      prisma.$queryRaw<Array<{ platformsSeen: string | null; c: bigint }>>`SELECT platformsSeen, COUNT(*) c FROM users GROUP BY platformsSeen`,
     ]);
 
     return reply.send({
@@ -275,6 +277,19 @@ export async function adminRoutes(app: FastifyInstance) {
         totalMiles: Math.round((tripAggregates._sum.distanceMiles ?? 0) * 10) / 10,
         totalEarningsPence: earningAggregates._sum.amountPence ?? 0,
         usersThisMonth,
+        platformCounts: platformRows.reduce(
+          (acc, r) => {
+            const set = (r.platformsSeen ?? "").split(",").filter(Boolean);
+            const n = Number(r.c);
+            if (set.includes("ios") && set.includes("android")) acc.both += n;
+            else if (set.includes("ios")) acc.ios += n;
+            else if (set.includes("android")) acc.android += n;
+            else if (set.includes("web")) acc.web += n;
+            else acc.unknown += n;
+            return acc;
+          },
+          { ios: 0, android: 0, both: 0, web: 0, unknown: 0 }
+        ),
         tripsThisMonth,
         ratingFunnel: {
           promptsShown: ratingPromptsShown,
@@ -340,6 +355,9 @@ export async function adminRoutes(app: FastifyInstance) {
       lastTripAt: true,
       buildNumber: true,
       appVersion: true,
+      platformsSeen: true,
+      signupPlatform: true,
+      signupLocation: true,
       trialUsedAt: true,
       referralProUntil: true,
       // For proSource (paying / comp / referral / sandbox) on the list row.
@@ -379,7 +397,9 @@ export async function adminRoutes(app: FastifyInstance) {
         secondsSinceLastTripPost: u.secondsSinceLastTripPost,
       });
       const { pushToken, ...rest } = u;
+      const platforms = (u.platformsSeen ?? "").split(",").map((x) => x.trim()).filter(Boolean);
       return {
+        platforms,
         ...rest,
         healthScore: score,
         healthBand: band,
@@ -538,6 +558,9 @@ export async function adminRoutes(app: FastifyInstance) {
         trackingTaskActive: true,
         appVersion: true,
         buildNumber: true,
+        platformsSeen: true,
+        signupPlatform: true,
+        signupLocation: true,
         osVersion: true,
         lastPendingSyncCount: true,
         // 1.1.3+ heartbeat telemetry

@@ -1262,6 +1262,8 @@ export interface AdminAnalytics {
   totalEarningsPence: number;
   usersThisMonth: number;
   tripsThisMonth: number;
+  /** Accounts by platform seen. "both" = iOS and Android on one account. */
+  platformCounts?: { ios: number; android: number; both: number; web: number; unknown: number };
 }
 
 export interface AdminUserSummary {
@@ -1276,6 +1278,12 @@ export interface AdminUserSummary {
   createdAt: string;
   lastLoginAt?: string | null;
   lastTripAt?: string | null;
+  /** Platforms this account has been seen on: "ios" | "android" | "web".
+   *  Two or more means the same account on more than one platform. */
+  platforms?: string[];
+  signupPlatform?: string | null;
+  /** City, region, country from the signup IP; never finer than that. */
+  signupLocation?: string | null;
   _count: { trips: number; vehicles: number; earnings: number };
   diagnosticDump?: {
     verdict: string;
