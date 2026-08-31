@@ -140,18 +140,26 @@ restriction rejecting it, not an app restriction.
 those two APIs alongside Maps SDK for Android. Symptom if skipped is silent:
 no push token, no error the user ever sees.
 
-## Confirmed runtime gaps (build passes, these fail at runtime)
+## Confirmed runtime gaps — ALL RESOLVED (updated 1 Sep 2026)
 
-Both were checked in the green build's log:
+The three gaps below were real on 26 Jul and are all closed; kept for history.
+(The API-key/FCM warning further up is also stale: the key was widened to
+Maps + FCM on 26 Aug, and Expo received FCM V1 credentials on 30 Aug.)
 
-- **No `google-services.json`** — Android push registration will fail. Needs
-  the Firebase project.
-- **No Maps SDK key** in the manifest — maps render blank. Needs the Google
-  Cloud key restricted by package + SHA-1.
-- **RNBG licence injected as empty** (`Adding license-keys to
-  AndroidManifest: { license: '' }`). Harmless in debug, which is why
-  capture will work in a `development` build and silently will not in a
-  release one.
+- ~~No `google-services.json`~~ — committed since 26 Aug; FCM V1 service
+  account uploaded to EAS 30 Aug. Push works once the user grants the
+  notification permission (primer shipped by OTA 1 Sep).
+- ~~No Maps SDK key~~ — Android-restricted key live; maps confirmed rendering
+  on real devices (tester screenshots, 31 Aug).
+- ~~RNBG licence empty~~ — licence purchased 27 Aug (order #17198, expires
+  27 Aug 2027); key in app.json since versionCode 3. Real-device capture
+  confirmed 30 Aug (two auto trips, Swansea).
+
+One genuinely open Android auth item: Google sign-in was broken on ALL
+Play-delivered builds until 31 Aug (DEVELOPER_ERROR — Play App Signing
+SHA-1 was on no OAuth client; fixed by the "MileClear Android (Play App
+Signing)" client in mileclear-495918). Awaiting first successful
+Google-method login as confirmation.
 
 ## Remaining work, in dependency order
 
