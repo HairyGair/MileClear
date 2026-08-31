@@ -22,6 +22,7 @@ import {
   TouchableOpacity,
   StyleSheet,
   ScrollView,
+  Dimensions,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
@@ -160,7 +161,8 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: radii.sheet,
     borderTopRightRadius: radii.sheet,
     paddingBottom: spacing.xl,
-    maxHeight: "85%",
+    // Same Android trap as the work explainer (94c6896): a percentage maxHeight needs a definite parent height.
+    maxHeight: Math.round(Dimensions.get("window").height * 0.85),
   },
   handle: {
     width: 36,
@@ -196,6 +198,8 @@ const styles = StyleSheet.create({
   },
   body: {
     paddingHorizontal: spacing.lg,
+    // Without this the ScrollView sizes to its content and pushes the footer buttons off-screen (same Android trap as the work explainer, 94c6896).
+    flexShrink: 1,
   },
   bodyContent: {
     paddingBottom: spacing.md,

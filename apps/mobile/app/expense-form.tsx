@@ -10,6 +10,7 @@ import {
   StyleSheet,
   KeyboardAvoidingView,
   Platform,
+  Dimensions,
 } from "react-native";
 import { useRouter, useLocalSearchParams, Stack } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
@@ -565,7 +566,8 @@ const styles = StyleSheet.create({
     paddingTop: 12,
     paddingHorizontal: 20,
     paddingBottom: 32,
-    maxHeight: "80%",
+    // Same Android trap as the work explainer (94c6896): a percentage maxHeight needs a definite parent height.
+    maxHeight: Math.round(Dimensions.get("window").height * 0.8),
   },
   modalHandle: {
     alignSelf: "center",
@@ -582,7 +584,8 @@ const styles = StyleSheet.create({
     color: TEXT_1,
     marginBottom: 12,
   },
-  modalList: { maxHeight: 480 },
+  // flexShrink lets the list give way when the sheet is shorter than 480 (same Android trap as the work explainer, 94c6896).
+  modalList: { maxHeight: 480, flexShrink: 1 },
   modalItem: {
     flexDirection: "row",
     alignItems: "center",

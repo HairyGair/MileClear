@@ -4,6 +4,7 @@ import {
   Pressable,
   ScrollView,
   StyleSheet,
+  Dimensions,
 } from "react-native";
 import { AppModal } from "./AppModal";
 import { Ionicons } from "@expo/vector-icons";
@@ -190,8 +191,9 @@ const styles = StyleSheet.create({
     backgroundColor: BG,
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
-    maxHeight: "85%",
-    minHeight: "50%",
+    // Same Android trap as the work explainer (94c6896): a percentage maxHeight needs a definite parent height.
+    maxHeight: Math.round(Dimensions.get("window").height * 0.85),
+    minHeight: Math.round(Dimensions.get("window").height * 0.5),
     paddingTop: 8,
     borderTopWidth: 1,
     borderColor: CARD_BORDER,
@@ -223,6 +225,8 @@ const styles = StyleSheet.create({
   },
   scrollArea: {
     flexGrow: 0,
+    // Without this the ScrollView sizes to its content and gets clipped instead of scrolling (same Android trap as the work explainer, 94c6896).
+    flexShrink: 1,
   },
   scrollContent: {
     paddingHorizontal: 20,

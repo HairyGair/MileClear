@@ -5,6 +5,7 @@ import {
   TouchableOpacity,
   ScrollView,
   StyleSheet,
+  Dimensions,
 } from "react-native";
 import { AppModal } from "../AppModal";
 import { AVATARS, AvatarIcon, UserAvatar } from "./AvatarRegistry";
@@ -56,6 +57,8 @@ export function AvatarPicker({ currentAvatarId, onSelect }: AvatarPickerProps) {
             <Text style={styles.title}>Choose Your Ride</Text>
 
             <ScrollView
+              // Without this the grid sizes to its content and pushes the Cancel button off-screen (same Android trap as the work explainer, 94c6896).
+              style={{ flexShrink: 1 }}
               contentContainerStyle={styles.grid}
               showsVerticalScrollIndicator={false}
             >
@@ -137,7 +140,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingBottom: 36,
     paddingTop: 12,
-    maxHeight: "80%",
+    // Same Android trap as the work explainer (94c6896): a percentage maxHeight needs a definite parent height.
+    maxHeight: Math.round(Dimensions.get("window").height * 0.8),
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.06)",
     borderBottomWidth: 0,

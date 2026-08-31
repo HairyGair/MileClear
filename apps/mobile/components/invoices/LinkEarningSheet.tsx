@@ -17,6 +17,7 @@ import {
   ScrollView,
   ActivityIndicator,
   StyleSheet,
+  Dimensions,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { AppModal } from "../AppModal";
@@ -324,7 +325,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingTop: 8,
     paddingBottom: 28,
-    maxHeight: "82%",
+    // Same Android trap as the work explainer (94c6896): a percentage maxHeight needs a definite parent height.
+    maxHeight: Math.round(Dimensions.get("window").height * 0.82),
   },
   handle: {
     width: 38,
