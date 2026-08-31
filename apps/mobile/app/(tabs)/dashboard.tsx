@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
+  Dimensions,
   View,
   Text,
   TouchableOpacity,
@@ -1301,7 +1302,13 @@ export default function DashboardScreen() {
     >
       <View style={s.explainerOverlay}>
         <View style={s.explainerCard}>
-          <ScrollView showsVerticalScrollIndicator={false}>
+          <ScrollView
+            // Without this the ScrollView sizes itself to its content,
+            // overflows the card's maxHeight and is clipped instead of
+            // scrolling (same fix as the menu sheet).
+            style={{ flexShrink: 1 }}
+            showsVerticalScrollIndicator={false}
+          >
             <View style={s.explainerIconWrap}>
               <Ionicons name="briefcase" size={28} color="#f5a623" />
             </View>
@@ -3412,7 +3419,13 @@ const s = StyleSheet.create({
     backgroundColor: "#0a1120",
     borderRadius: 20,
     padding: 24,
-    maxHeight: "85%",
+    // Was maxHeight: "85%". Same Android trap the menu sheet hit (0f04895):
+    // a percentage maxHeight needs a definite parent height, and without one
+    // the card grows past the screen and pushes the "Got it" button off it.
+    // Steven, 31 Aug 2026, Android 15 with large font scale: two
+    // work_explainer.shown, zero dismissed - the exact frozen-modal
+    // signature the dwell-time comment above describes.
+    maxHeight: Math.round(Dimensions.get("window").height * 0.85),
     width: "100%",
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.08)",
