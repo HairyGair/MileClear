@@ -1,8 +1,8 @@
 import * as Notifications from "expo-notifications";
 import Constants from "expo-constants";
 import { router } from "expo-router";
-import { Linking } from "react-native";
-import { cancelAutoRecording, clearNotDrivingCooldown, upgradeDetectionAccuracy } from "../tracking/detection";
+import { Linking, Platform } from "react-native";
+import { cancelAutoRecording, clearNotDrivingCooldown, upgradeDetectionAccuracy, logDetectionEvent } from "../tracking/detection";
 
 try {
   Notifications.setNotificationHandler({
@@ -266,9 +266,20 @@ export async function registerForPushNotifications(): Promise<string | null> {
     const tokenData = await Notifications.getExpoPushTokenAsync({ projectId });
     return tokenData.data;
   } catch (err) {
-    // Silently swallow — Expo Go on simulator throws here, physical device may
-    // also fail in some environments. Callers should treat null as non-fatal.
+    // Non-fatal for the caller, but NOT invisible any more. As of 1 Sep 2026
+    // every Android user who has granted notifications still has no push token
+    // on the server - four of them - and this console.warn was the only trace
+    // it left, which is to say none: a warn on a phone is nowhere. Whatever
+    // FCM says here (no Play Services, Firebase app not initialised, an API
+    // key restriction, SERVICE_NOT_AVAILABLE) is the answer to why the whole
+    // Android fleet is unreachable, and the next dump should carry it.
     console.warn("registerForPushNotifications failed:", err);
+    try {
+      await logDetectionEvent("push_token_failed", {
+        platform: Platform.OS,
+        error: err instanceof Error ? `${err.name}: ${err.message}`.slice(0, 200) : String(err).slice(0, 200),
+      });
+    } catch {}
     return null;
   }
 }
