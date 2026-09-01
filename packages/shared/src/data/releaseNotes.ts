@@ -124,8 +124,8 @@ export const RELEASE_NOTES: ReleaseNote[] = [
     // list already working: keep such bullets phrased as what changed, never
     // as "update to get this".
     version: "1.3.9",
-    date: "August 2026",
-    label: "In Testing",
+    date: "September 2026",
+    label: "Latest",
     items: [
       "Stops during a journey are now understood properly: a visit no longer joins two drives into one long trip",
       "Tapping Not Driving no longer pauses recording for the next journey - the pause ends when the car parks",
@@ -149,6 +149,20 @@ export const RELEASE_NOTES: ReleaseNote[] = [
       "The menu can now be scrolled all the way to the bottom; on earlier versions the lower entries could not be reached",
       "Tax, Invoices, Expenses and Insights sit one tap from the top of the dashboard, and the tax summary card opens Self Assessment directly",
       "The list of suggested places to save no longer disappears once you have saved your first place",
+      "A drive that finished recording but lost track of itself is now found and saved the next time you open the app, instead of sitting on the phone unseen: previously your next journey would clear it away",
+      "Panels that could open taller than the screen, the work explainer and the help sheet among them, now always scroll as far as their buttons",
+    ],
+    ctaUrl: "https://mileclear.com/releases",
+    ctaLabel: "Read the release notes",
+    emailSubject: "What's new in MileClear 1.3.9",
+    emailTagline:
+      "1.3.9 is about journeys that were being quietly mishandled at their edges: stops in the middle of a drive, the first few hundred metres before the app noticed, short hops too quick to save, and recordings that finished but never surfaced.",
+    emailHighlights: [
+      "**A stop in the middle of a job no longer welds two drives into one** - a visit ends the journey it belongs to, so a day of drops reads as the trips you actually made.",
+      "**Journeys start where you set off** - not a few hundred metres down the road where the app first noticed you moving, so the opening miles are counted rather than lost.",
+      "**A drive that finished but never appeared is now found and saved** - the app checks the route itself every time you open it, instead of relying on a marker that could go missing.",
+      "**A short drive judged too brief to save is offered back to you** - you decide whether it counts, rather than it being deleted without a word.",
+      "**Classify from the Dynamic Island the moment you park** - business or personal, without unlocking into the app.",
     ],
   },
   {
@@ -161,7 +175,7 @@ export const RELEASE_NOTES: ReleaseNote[] = [
     // site banner both key off "Latest".
     version: "1.3.8",
     date: "August 2026",
-    label: "Latest",
+    label: "App Store",
     ctaUrl: "https://mileclear.com/releases",
     ctaLabel: "Read the release notes",
     emailSubject: "What's new in MileClear 1.3.8",
