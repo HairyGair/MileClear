@@ -200,7 +200,6 @@ const FROM = process.env.EMAIL_FROM || "MileClear <noreply@mileclear.com>";
 const FROM_PERSONAL = "Gair - MileClear <gair@mileclear.com>";
 const API_BASE_URL = process.env.API_BASE_URL || "https://api.mileclear.com";
 const WEB_BASE_URL = process.env.WEB_BASE_URL || "https://mileclear.com";
-const UNSUBSCRIBE_MAILTO = "gair@mileclear.com";
 const SUPPORT_INBOX = process.env.SUPPORT_INBOX || "support@mileclear.com";
 
 function escapeHtml(str: string): string {
@@ -229,12 +228,28 @@ async function isMarketingAllowed(userId: string): Promise<boolean> {
 }
 
 // Build the headers the mail clients use to render a native "Unsubscribe"
-// button (Gmail, iOS Mail, Apple Mail, Outlook). RFC 8058 One-Click + RFC 2369
-// mailto fallback. Returns a plain object for nodemailer's `headers` option.
+// button (Gmail, iOS Mail, Apple Mail, Outlook). RFC 8058 One-Click, HTTPS only.
+//
+// The RFC 2369 mailto used to sit alongside it, and it was a hole. Given both,
+// Apple Mail takes the mailto: it sends a message to gair@mileclear.com titled
+// "unsubscribe" and considers the job done, telling the user they have been
+// unsubscribed. Nothing reads that mailbox automatically, so the opt-out only
+// happened if a human noticed the mail and ran a database update by hand.
+// Shannon Simpson, 1 Sep 2026, minutes after the 1.3.9 announcement went to
+// 858 people: she tapped Unsubscribe, Apple told her it was done, and her
+// account was still flagged as subscribed when I checked. The counts say she
+// is not the first (2 inbound_reply, 1 manual_email_reply) and those are only
+// the ones somebody spotted.
+//
+// The HTTPS one-click endpoint works and is what everything else already uses
+// (34 opt-outs through it). Removing the mailto leaves it as the only
+// machine-readable route, so Apple Mail does the POST like Gmail does and the
+// opt-out is applied in the same second the user asks for it. Clients too old
+// for HTTPS one-click still get the visible Unsubscribe link in the footer.
 function unsubscribeHeaders(userId: string): Record<string, string> {
   const token = signUnsubscribeToken(userId);
   return {
-    "List-Unsubscribe": `<${API_BASE_URL}/unsubscribe?token=${token}>, <mailto:${UNSUBSCRIBE_MAILTO}?subject=unsubscribe>`,
+    "List-Unsubscribe": `<${API_BASE_URL}/unsubscribe?token=${token}>`,
     "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
     "Precedence": "bulk",
     "X-Auto-Response-Suppress": "All",
