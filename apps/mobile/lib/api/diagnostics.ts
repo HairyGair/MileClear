@@ -144,6 +144,20 @@ async function getActivitySummary() {
 }
 
 /**
+ * How many detection events ride along with a dump.
+ *
+ * Was 50, against the 500 the device itself keeps. Fifty is roughly two hours
+ * of an ordinary phone's app_state_change traffic, so by the time a user
+ * notices a trip is missing and the next dump uploads, the drive that went
+ * wrong has already been pushed out of the window: SteveG's 1 Sep 2026 dump
+ * opened at 11:22, an hour and twelve minutes AFTER the journey it was supposed
+ * to explain had ended. The events were still on his phone; we just did not ask
+ * for them. Two hundred is the whole of a working day for a normal device and
+ * still a small JSON column.
+ */
+const DUMP_EVENT_COUNT = 200;
+
+/**
  * Upload the current diagnostics dump to the server. Called once per app
  * startup from _layout.tsx. Fire-and-forget — never throws, never blocks.
  */
@@ -158,7 +172,7 @@ export async function uploadDiagnosticDump(): Promise<void> {
       routingStats,
     ] = await Promise.all([
       getDriveDetectionDiagnostics(),
-      getRecentDetectionEvents(50),
+      getRecentDetectionEvents(DUMP_EVENT_COUNT),
       getRecentLocalTrips(10),
       getSavedLocations(),
       getActivitySummary(),

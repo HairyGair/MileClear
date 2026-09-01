@@ -148,6 +148,7 @@ export async function startNativeAutoTripLiveActivity(): Promise<void> {
 import type { TripClassification, PlatformTag } from "@mileclear/shared";
 import { resolveJourneyEndMinutes, journeyBoundaryMs } from "./journeyBoundary";
 import { gapStopDecision, GAP_STOP_MS, type RecentFix } from "./gapStop";
+import { orphanRouteDecision } from "./orphanRoute";
 
 const DETECTION_TASK_NAME = "mileclear-drive-detection";
 const BACKGROUND_FINALIZE_TASK = "mileclear-background-finalize";
@@ -2152,8 +2153,92 @@ export async function finalizeStaleAutoRecordings(): Promise<void> {
       }
     }
     await checkStaleAutoRecording();
+    // checkStaleAutoRecording only ever looks at the armed flag. Sweep for a
+    // route whose flag is gone but whose fixes are still there — see
+    // sweepOrphanedRoute.
+    await sweepOrphanedRoute("app_open");
   } catch (err) {
     console.error("Stale auto-recording finalization failed:", err);
+  }
+}
+
+/**
+ * Find and save a route that nothing is armed to finalize.
+ *
+ * checkStaleAutoRecording, the background-fetch finalizer and every native stop
+ * handler read `auto_recording_active` first and return silently when it is
+ * missing. That makes a drive whose flag was lost invisible: SteveG's 135.7
+ * miles sat complete in RNBG's native store through five app opens on 1 Sep
+ * 2026 while he typed the journey in by hand, and only surfaced six hours later
+ * when a native start failure dropped him onto the JS engine, whose location
+ * task has an equivalent catch-all. This is that catch-all, on the path every
+ * app open takes, judged on the COORDINATES rather than the flag.
+ *
+ * Whether the fixes are a trip is not decided here. finalizeAutoTrip's existing
+ * guards — trim, phantom shape, too-short, dedup, multileg split — decide that,
+ * and consume the buffer on every outcome, so a sweep runs at most once per
+ * orphan.
+ */
+export async function sweepOrphanedRoute(source: string): Promise<void> {
+  try {
+    if (isFinalizeInFlight()) return;
+    const db = await getDatabase();
+
+    const buffer = await db.getFirstAsync<{ n: number; newest: string | null }>(
+      "SELECT COUNT(*) AS n, MAX(recorded_at) AS newest FROM detection_coordinates"
+    );
+    const jsCoordCount = buffer?.n ?? 0;
+    const jsNewestMs = buffer?.newest ? Date.parse(buffer.newest) || 0 : 0;
+
+    const armedRow = await db.getFirstAsync<{ value: string }>(
+      "SELECT value FROM tracking_state WHERE key = 'auto_recording_active'"
+    );
+    const armed = armedRow?.value === "1";
+
+    // Ask RNBG too, whenever the flag is down. Both directions matter: the
+    // native store can be the only copy of a finished route (SteveG had 2,766
+    // fixes there and 61 in the JS buffer), and it can equally be a drive still
+    // in progress behind a lost flag — in which case a stale JS buffer must NOT
+    // be finalized, or the rest of the live journey is destroyed with the store.
+    // Skipped while armed, which is checkStaleAutoRecording's business.
+    let native: { count: number; newestMs: number } | null = null;
+    if (!armed) {
+      const { getNativeStoreSummary } = await import("./nativeLocation");
+      native = await getNativeStoreSummary();
+    }
+
+    const decision = orphanRouteDecision({
+      armed,
+      jsCoordCount,
+      jsNewestMs,
+      nativeCount: native?.count ?? null,
+      nativeNewestMs: native?.newestMs ?? null,
+      shiftActive: await shiftSuppressesAutoDetection(db),
+      now: Date.now(),
+    });
+    if (!decision.finalize) return;
+
+    logDetectionEvent("orphan_route_finalize", {
+      source,
+      reason: decision.reason,
+      jsCoords: jsCoordCount,
+      nativeCoords: native?.count ?? null,
+      ageMs: decision.ageMs,
+      evidence: decision.source,
+    }).catch(() => {});
+
+    await finalizeAutoTrip();
+    // finalizeAutoTrip consumes the JS buffer but leaves RNBG's store alone —
+    // its callers clear that. Without this the same fixes are reconciled into
+    // the NEXT finalize and arrive as a duplicate of the trip just saved.
+    try {
+      const { destroyNativeLocations } = await import("./nativeLocation");
+      await destroyNativeLocations();
+    } catch {}
+  } catch (err) {
+    logDetectionEvent("orphan_route_sweep_error", {
+      error: err instanceof Error ? err.message.slice(0, 120) : String(err),
+    }).catch(() => {});
   }
 }
 

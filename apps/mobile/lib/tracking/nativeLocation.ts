@@ -44,6 +44,7 @@ import {
   GAP_STOP_MS,
   type RecentFix,
 } from "./gapStop";
+import { orphanRouteDecision } from "./orphanRoute";
 
 // ─── Lazy, crash-safe native module load ────────────────────────────────────
 // Never a static import: the module is native-only (crashes in Expo Go, absent
@@ -632,19 +633,48 @@ async function openNativeRecording(
     const armed = await db.getFirstAsync<{ value: string }>(
       "SELECT value FROM tracking_state WHERE key = 'auto_recording_active'"
     );
-    if (armed?.value === "1") {
-      const pending = await db.getFirstAsync<{ n: number }>(
-        "SELECT COUNT(*) AS n FROM detection_coordinates"
-      );
-      if ((pending?.n ?? 0) > 0) {
-        logDetectionEvent("deferred_buffer_rescued_on_open", {
-          coords: pending?.n ?? 0,
+    const pending = await db.getFirstAsync<{ n: number; newest: string | null }>(
+      "SELECT COUNT(*) AS n, MAX(recorded_at) AS newest FROM detection_coordinates"
+    );
+    const pendingCount = pending?.n ?? 0;
+    if (armed?.value === "1" && pendingCount > 0) {
+      logDetectionEvent("deferred_buffer_rescued_on_open", {
+        coords: pendingCount,
+      }).catch(() => {});
+      try {
+        await finalizeAutoTrip();
+      } catch {
+        // Best-effort: even a failed rescue falls through to the clear,
+        // which is no worse than the old behaviour.
+      }
+    } else if (pendingCount > 0) {
+      // NOT armed, but the buffer is not empty. The clear below (and the
+      // destroyLocations() a few lines further down) is about to delete both
+      // copies of whatever this is. If it is a finished route whose flag was
+      // lost, driving again is what destroys it — SteveG's 135.7 miles were one
+      // drive away from that on 1 Sep 2026. Save it first; the age bound in
+      // orphanRouteDecision keeps this off the pre-recording fixes that belong
+      // to the drive now starting.
+      const decision = orphanRouteDecision({
+        armed: false,
+        jsCoordCount: pendingCount,
+        jsNewestMs: pending?.newest ? Date.parse(pending.newest) || 0 : 0,
+        // The native store is not evidence here: destroyLocations() ran at the
+        // last open, so anything in it belongs to the drive being opened now.
+        nativeCount: null,
+        nativeNewestMs: null,
+        shiftActive: false,
+        now: Date.now(),
+      });
+      if (decision.finalize) {
+        logDetectionEvent("orphan_buffer_rescued_on_open", {
+          coords: pendingCount,
+          ageMs: decision.ageMs,
         }).catch(() => {});
         try {
           await finalizeAutoTrip();
         } catch {
-          // Best-effort: even a failed rescue falls through to the clear,
-          // which is no worse than the old behaviour.
+          // Best-effort, as above.
         }
       }
     }
@@ -995,6 +1025,37 @@ export async function reconcileNativeBufferBeforeFinalize(): Promise<void> {
     await reconcileNativeBuffer(BGGeo);
   } catch {
     // best-effort — finalize proceeds on the JS buffer
+  }
+}
+
+/**
+ * How much route RNBG is holding natively, without importing any of it.
+ *
+ * The native store survives JS-runtime death, which is exactly why it can end
+ * up as the ONLY copy of a drive (SteveG, 1 Sep 2026: 2,766 fixes here against
+ * 61 in the JS buffer). The orphan sweep has to be able to see it before it
+ * decides whether there is anything to save. Returns null on the JS engine or
+ * when the module is absent, so callers can skip the check entirely.
+ */
+export async function getNativeStoreSummary(): Promise<{
+  count: number;
+  newestMs: number;
+} | null> {
+  try {
+    const { isNativeLocationEngineEnabled } = await import("./nativeEngineFlag");
+    if (!(await isNativeLocationEngineEnabled())) return null;
+    const BGGeo = loadNativeModule();
+    if (!BGGeo) return null;
+    const native = await BGGeo.getLocations();
+    if (!Array.isArray(native) || native.length === 0) return { count: 0, newestMs: 0 };
+    let newestMs = 0;
+    for (const loc of native) {
+      const at = recordedAtMs(loc.timestamp);
+      if (at > newestMs) newestMs = at;
+    }
+    return { count: native.length, newestMs };
+  } catch {
+    return null;
   }
 }
 
