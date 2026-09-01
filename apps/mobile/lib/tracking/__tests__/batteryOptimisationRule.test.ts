@@ -152,6 +152,8 @@ describe("batteryNudgeCopy", () => {
 
   it("names the stock setting for the stock screen", () => {
     const c = batteryNudgeCopy("stock", "Google");
+    // Android 12+ calls it Unrestricted; pre-12 phones say Don't optimise.
+    expect(c.body).toContain("Unrestricted");
     expect(c.body).toContain("Don't optimise");
     expect(c.body).not.toContain("Google");
   });

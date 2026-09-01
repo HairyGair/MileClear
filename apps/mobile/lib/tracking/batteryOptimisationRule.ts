@@ -129,6 +129,6 @@ export function batteryNudgeCopy(
   }
   return {
     title,
-    body: "Android's battery optimisation can close MileClear between drives, so journeys go unrecorded. Tap to open the setting, find MileClear and choose Don't optimise.",
+    body: "Android's battery optimisation can close MileClear between drives, so journeys go unrecorded. Tap to open the setting, find MileClear and set it to Unrestricted (Don't optimise on older phones).",
   };
 }
