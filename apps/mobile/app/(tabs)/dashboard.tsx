@@ -88,6 +88,15 @@ import {
   type NotificationPermissionState,
 } from "../../lib/notifications/index";
 import { registerPushToken } from "../../lib/api/notifications";
+import {
+  getBatteryOptimisationState,
+  openBatteryOptimisationSettings,
+} from "../../lib/tracking/batteryOptimisation";
+import {
+  batteryNudgeDecision,
+  batteryNudgeCopy,
+  type BatteryOptimisationState,
+} from "../../lib/tracking/batteryOptimisationRule";
 import { haptic } from "../../lib/haptics";
 
 function formatElapsed(seconds: number): string {
@@ -231,6 +240,17 @@ export default function DashboardScreen() {
   const [notifPrimerDismissedAt, setNotifPrimerDismissedAt] = useState<number | null>(null);
   const [notifDeniedDismissedAt, setNotifDeniedDismissedAt] = useState<number | null>(null);
   const [notifRequesting, setNotifRequesting] = useState(false);
+
+  // Android battery optimisation. Stock "Optimised" and the vendor power
+  // managers (Honor/Huawei App launch, Xiaomi Autostart...) end the recorder
+  // between drives, and the stationary geofence then has nothing to wake: the
+  // drive is never recorded. SteveG's Honor X5C lost a 10 mi afternoon drive
+  // to it on 1 Sep 2026 with every permission granted. null = not Android or
+  // not knowable, and the nudge stays hidden. Rule + copy live in
+  // batteryOptimisationRule.ts; 7-day snooze like the other nudges.
+  const [batteryOptState, setBatteryOptState] = useState<BatteryOptimisationState | null>(null);
+  const [batteryNudgeDismissedAt, setBatteryNudgeDismissedAt] = useState<number | null>(null);
+  const batteryNudgeShownLogged = useRef(false);
 
   // First-trip nudge dismissal. Mirrors the bg-loc nudge cooldown. The
   // in-app safety net for the activation funnel: a user who has Always
@@ -455,7 +475,7 @@ export default function DashboardScreen() {
     (async () => {
       const db = await getDatabase();
       const rows = await db.getAllAsync<{ key: string; value: string }>(
-        "SELECT key, value FROM tracking_state WHERE key IN ('work_explainer_seen', 'bg_loc_nudge_dismissed_at', 'first_trip_nudge_dismissed_at', 'referral_card_dismissed_at', 'motion_nudge_dismissed_at', 'notif_primer_dismissed_at', 'notif_denied_nudge_dismissed_at')"
+        "SELECT key, value FROM tracking_state WHERE key IN ('work_explainer_seen', 'bg_loc_nudge_dismissed_at', 'first_trip_nudge_dismissed_at', 'referral_card_dismissed_at', 'motion_nudge_dismissed_at', 'notif_primer_dismissed_at', 'notif_denied_nudge_dismissed_at', 'battery_opt_nudge_dismissed_at')"
       );
       const map = Object.fromEntries(rows.map((r) => [r.key, r.value]));
       setWorkExplainerSeen(map["work_explainer_seen"] === "1");
@@ -483,6 +503,10 @@ export default function DashboardScreen() {
         ? parseInt(map["notif_denied_nudge_dismissed_at"], 10)
         : null;
       setNotifDeniedDismissedAt(Number.isFinite(ndDismissedAt as number) ? ndDismissedAt : null);
+      const boDismissedAt = map["battery_opt_nudge_dismissed_at"]
+        ? parseInt(map["battery_opt_nudge_dismissed_at"], 10)
+        : null;
+      setBatteryNudgeDismissedAt(Number.isFinite(boDismissedAt as number) ? boDismissedAt : null);
     })();
   }, []);
 
@@ -542,6 +566,51 @@ export default function DashboardScreen() {
   const notifDeniedNudgeSilenced =
     notifDeniedDismissedAt !== null &&
     Date.now() - notifDeniedDismissedAt < SEVEN_DAYS_MS;
+
+  // Battery-optimisation nudge: decision + copy from the pure rule, so the
+  // screen it opens and the words on the card can never disagree.
+  const batteryNudge = batteryNudgeDecision({
+    platform: Platform.OS,
+    state: batteryOptState,
+    dismissedAt: batteryNudgeDismissedAt,
+    now: Date.now(),
+  });
+  const batteryNudgeText =
+    batteryNudge.show && batteryNudge.screen
+      ? batteryNudgeCopy(batteryNudge.screen, batteryOptState?.vendor?.manufacturer)
+      : null;
+  useEffect(() => {
+    if (!batteryNudge.show || batteryNudgeShownLogged.current) return;
+    batteryNudgeShownLogged.current = true;
+    trackEvent("battery_opt_nudge.shown", {
+      screen: batteryNudge.screen,
+      reason: batteryNudge.reason,
+      manufacturer: batteryOptState?.vendor?.manufacturer ?? null,
+      ignoring: batteryOptState?.ignoring ?? null,
+    });
+  }, [batteryNudge.show, batteryNudge.screen, batteryNudge.reason, batteryOptState]);
+  const dismissBatteryNudge = useCallback(async () => {
+    const now = Date.now();
+    setBatteryNudgeDismissedAt(now);
+    trackEvent("battery_opt_nudge.dismissed", { screen: batteryNudge.screen });
+    const db = await getDatabase();
+    await db.runAsync(
+      "INSERT OR REPLACE INTO tracking_state (key, value) VALUES ('battery_opt_nudge_dismissed_at', ?)",
+      [String(now)]
+    );
+  }, [batteryNudge.screen]);
+  const openBatteryNudgeSettings = useCallback(async () => {
+    const screen = batteryNudge.screen ?? "stock";
+    trackEvent("battery_opt_nudge.tapped", {
+      screen,
+      manufacturer: batteryOptState?.vendor?.manufacturer ?? null,
+    });
+    // Vendor screen first; if the device turns out not to have one after
+    // all, the stock allow-list; failing that, the app's own settings page.
+    if (await openBatteryOptimisationSettings(screen)) return;
+    if (screen === "vendor" && (await openBatteryOptimisationSettings("stock"))) return;
+    Linking.openSettings().catch(() => {});
+  }, [batteryNudge.screen, batteryOptState]);
 
   // "Enable notifications" on the primer card: fires the system prompt, then
   // registers the push token exactly the way startup does for already-granted
@@ -817,6 +886,9 @@ export default function DashboardScreen() {
     // system Settings, and on Android the Back button doesn't re-focus the
     // route, so the AppState path is what clears the nudge after a fix.
     getNotificationPermissionStatus().then(setNotifPermission).catch(() => {});
+    // And for battery optimisation: the nudge sends the user to a settings
+    // screen; this is what clears it when they come back having fixed it.
+    getBatteryOptimisationState().then(setBatteryOptState).catch(() => {});
   }, []);
   useEffect(() => {
     const sub = AppState.addEventListener("change", (state) => {
@@ -831,6 +903,7 @@ export default function DashboardScreen() {
       // Notification permission drives the primer card (undetermined) and
       // the denied nudge - re-check on each focus.
       getNotificationPermissionStatus().then(setNotifPermission).catch(() => {});
+      getBatteryOptimisationState().then(setBatteryOptState).catch(() => {});
       // Check the full location permission tier on each focus.
       getLocationPermissionStatus().then(({ tier }) => {
         setLocationTier(tier);
@@ -1774,6 +1847,39 @@ export default function DashboardScreen() {
             </TouchableOpacity>
           </View>
         </View>
+      )}
+
+      {/* BATTERY OPTIMISATION (Android) — the phone's power manager can end
+          the recorder between drives, and the next drive is then never
+          recorded at all. Amber like the other settings nudges, dismissible,
+          resurfaces weekly. The copy names the screen the tap opens and what
+          to do there, because once they tap they are outside the app. */}
+      {batteryNudge.show && batteryNudgeText && !activeShift && (
+        <TouchableOpacity
+          style={s.bgLocNudge}
+          onPress={openBatteryNudgeSettings}
+          activeOpacity={0.7}
+          accessibilityRole="button"
+          accessibilityLabel={`${batteryNudgeText.title}. ${batteryNudgeText.body}`}
+        >
+          <View style={s.bgLocNudgeRow}>
+            <View style={s.bgLocNudgeIcon}>
+              <Ionicons name="battery-half-outline" size={20} color="#f59e0b" accessible={false} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={s.bgLocNudgeTitle}>{batteryNudgeText.title}</Text>
+              <Text style={s.bgLocNudgeBody}>{batteryNudgeText.body}</Text>
+            </View>
+            <TouchableOpacity
+              onPress={dismissBatteryNudge}
+              hitSlop={{ top: 12, right: 12, bottom: 12, left: 12 }}
+              accessibilityRole="button"
+              accessibilityLabel="Dismiss for 7 days"
+            >
+              <Ionicons name="close" size={16} color="#6b7280" accessible={false} />
+            </TouchableOpacity>
+          </View>
+        </TouchableOpacity>
       )}
 
       {/* First-trip nudge — in-app activation safety net. Shows when the user

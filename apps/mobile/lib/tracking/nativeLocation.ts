@@ -167,6 +167,31 @@ export function isNativeEngineAvailable(): boolean {
   return loadNativeModule() !== null;
 }
 
+/** RNBG's DeviceSettings API (Android battery-optimisation + vendor power
+ *  manager screens). Exposed here so batteryOptimisation.ts shares the one
+ *  module loader instead of a second require(). null off-Android, in Expo Go,
+ *  or on an RNBG build without the API. */
+export interface NativeDeviceSettingsRequest {
+  manufacturer: string;
+  model: string;
+  version: string;
+  seen: boolean;
+  lastSeenAt: Date;
+  action: string;
+}
+export interface NativeDeviceSettings {
+  isIgnoringBatteryOptimizations: () => Promise<boolean>;
+  showIgnoreBatteryOptimizations: () => Promise<NativeDeviceSettingsRequest>;
+  showPowerManager: () => Promise<NativeDeviceSettingsRequest>;
+  show: (request: NativeDeviceSettingsRequest) => Promise<boolean>;
+}
+export function getNativeDeviceSettings(): NativeDeviceSettings | null {
+  const mod = loadNativeModule();
+  const ds = mod?.deviceSettings as NativeDeviceSettings | undefined;
+  if (!ds || typeof ds.isIgnoringBatteryOptimizations !== "function") return null;
+  return ds;
+}
+
 // ─── Configuration (tune on-device) ─────────────────────────────────────────
 function buildConfig(BGGeo: BgGeo): Record<string, unknown> {
   return {

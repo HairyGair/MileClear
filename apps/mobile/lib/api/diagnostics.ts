@@ -15,6 +15,7 @@ import { getDatabase } from "../db";
 import { getAppStateInfo } from "../appState";
 import { getRoutingStats } from "../tracking/routingStats";
 import { getBatterySnapshot } from "../tracking/batteryAware";
+import { getBatteryOptimisationState } from "../tracking/batteryOptimisation";
 
 const APP_VERSION = Constants.expoConfig?.version ?? "unknown";
 const BUILD_NUMBER =
@@ -185,6 +186,12 @@ export async function uploadDiagnosticDump(): Promise<void> {
       charging: null,
       lowPowerMode: null,
     }));
+    // Android only, null elsewhere. Whether stock battery optimisation and the
+    // vendor power manager (Honor/Huawei App launch, Xiaomi Autostart...) can
+    // end the recorder between drives: the setting SteveG's Honor X5C lost an
+    // afternoon's driving to, 1 Sep 2026, and that the app had never asked
+    // about or reported. See batteryOptimisationRule.ts.
+    const batteryOptimisation = await getBatteryOptimisationState().catch(() => null);
 
     // Strip GDPR-sensitive tracking state entries
     const safeTrackingState = diagnostics.trackingState.filter(
@@ -271,6 +278,7 @@ export async function uploadDiagnosticDump(): Promise<void> {
           nativeEngineEnabled: diagnostics.nativeEngineEnabled,
           lastNativeLocationAt: diagnostics.lastNativeLocationAt,
           motionPermission: diagnostics.motionPermission,
+          batteryOptimisation,
           // True native-binary identity + which OTA is running on top of it,
           // so the reported appVersion/buildNumber (OTA label) can be
           // reconciled against the real binary. See getUpdatesInfo().
