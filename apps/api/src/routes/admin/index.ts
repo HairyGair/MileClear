@@ -1589,8 +1589,26 @@ export async function adminRoutes(app: FastifyInstance) {
   // resolved subject + truncated body excerpt so the admin can verify
   // content matches expectations before tapping Send).
   app.post("/send-update", async (request, reply) => {
-    const { dryRun } = request.query as { dryRun?: string };
+    const { dryRun, platform } = request.query as { dryRun?: string; platform?: string };
     const isDryRun = dryRun === "true";
+
+    // Platform targeting. RELEASE_NOTES is the iPhone list and the email says
+    // so ("live on the App Store"), which is wrong to send to the Android
+    // testers on Play closed testing: they cannot act on it and it reads as a
+    // release they have been left out of.
+    //
+    // "ios" means everyone who is NOT android-only. Deliberately not
+    // `platformsSeen contains "ios"`: platformsSeen was backfilled from
+    // osVersion in Aug 2026 and 88 accounts came out NULL, all of them from
+    // when the app was iPhone-only. A contains-check drops those 88 silently.
+    // Note the NULL: `NOT { platformsSeen: "android" }` alone excludes them
+    // too, because SQL says NULL != 'android' is NULL, not true.
+    const platformWhere: Prisma.UserWhereInput =
+      platform === "ios"
+        ? { OR: [{ platformsSeen: null }, { NOT: { platformsSeen: "android" } }] }
+        : platform === "android"
+          ? { platformsSeen: "android" }
+          : {};
 
     // Resolve the email content from RELEASE_NOTES first. If there's no
     // Latest release, abort before touching the user list.
@@ -1609,10 +1627,10 @@ export async function adminRoutes(app: FastifyInstance) {
     // (incl. unsubscribers) would be emailed. They won't.
     const [users, totalUsers] = await Promise.all([
       prisma.user.findMany({
-        where: { marketingEmailsEnabled: { not: false } },
+        where: { marketingEmailsEnabled: { not: false }, ...platformWhere },
         select: { id: true, email: true, displayName: true },
       }),
-      prisma.user.count(),
+      prisma.user.count({ where: platformWhere }),
     ]);
     const optedOut = totalUsers - users.length;
 
@@ -1630,6 +1648,7 @@ export async function adminRoutes(app: FastifyInstance) {
           totalUsers,
           errors: 0,
           dryRun: true,
+          platform: platform ?? "all",
           preview: {
             subject: preview.subject,
             // First 600 chars of the rendered HTML — enough to see
@@ -1652,7 +1671,7 @@ export async function adminRoutes(app: FastifyInstance) {
     }
 
     request.log.info(
-      { adminId: request.userId, action: "update-email", sent, errors: errors.length, isDryRun },
+      { adminId: request.userId, action: "update-email", sent, errors: errors.length, isDryRun, platform: platform ?? "all" },
       `Update email: ${sent} sent, ${errors.length} errors${isDryRun ? " (DRY RUN)" : ""}`
     );
 
@@ -1662,6 +1681,7 @@ export async function adminRoutes(app: FastifyInstance) {
         willReceive: users.length,
         optedOut,
         totalUsers,
+        platform: platform ?? "all",
         errors: errors.length,
         errorDetails: errors.slice(0, 10),
         dryRun: isDryRun,

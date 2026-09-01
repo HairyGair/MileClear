@@ -51,6 +51,76 @@ export interface Guide {
 // ----------------------------------------------------------------
 export const BLOG_POSTS: BlogPost[] = [
   {
+    slug: "whats-new-in-version-1-3-9",
+    title: "What's new in version 1.3.9",
+    excerpt:
+      "A release about the edges of a journey: the stop in the middle that used to weld two drives into one, the first few hundred metres before the app noticed you were moving, the hop too short to save, and the recording that finished but never appeared. Plus classifying from the Dynamic Island the moment you park.",
+    date: "1 September 2026",
+    author: "Gair",
+    category: "announcement",
+    content: `
+<p>Version 1.3.9 is live on the App Store. Almost everything in it came from a driver writing in to say a journey was wrong, so this is mostly a list of other people's bug reports, which is the best kind of release.</p>
+
+<p>The theme, if there is one, is the edges of a journey. The middle of a drive has been solid for a long time. It was the start, the end and the handover that kept letting people down.</p>
+
+<h2>A stop in the middle no longer welds two drives into one</h2>
+
+<p>If you park, spend twenty minutes somewhere and drive on, that is two journeys. The app used to record it as one, because while you were parked your phone went quiet, and when the fixes started arriving again the app simply carried on with the trip it already had open. A care worker's whole afternoon round came through as a single twelve-mile trip with seven visits buried inside it.</p>
+
+<p>The fix sounds obvious once you say it out loud: ask whether the car had already stopped before the phone went quiet, rather than how far the phone had moved by the time it spoke again. On a sleeping phone the next fix arrives once you are moving again, several hundred metres down the road, so the old test read every one of those visits as a sparse-fix drive and joined them up. The new one gets all of them right, and it runs on both the phone and the server, so journeys that were already welded together get separated too.</p>
+
+<h2>Journeys start where you set off</h2>
+
+<p>Auto-detection has always had a delay. Your phone has to notice you are moving before it can start recording, and on a cold start that can take a few hundred metres. Those metres were simply gone. Worse, they turned up later as a "missed journey" suggestion, because the gap between where you actually were and where the trip started looked like a drive nobody recorded.</p>
+
+<p>Now the opening stretch is reconciled back onto the front of the trip using the real road distance. The miles are counted, and the phantom missed-journey suggestions that came from the same gap have stopped.</p>
+
+<p>You can also correct where a journey started, the same way you have always been able to correct where it ended, and the miles you drove before recording began are added back.</p>
+
+<h2>A short hop is offered back instead of deleted</h2>
+
+<p>The app discards very short recordings, because most of them are a phone drifting about in a car park rather than a drive. That guard was throwing away real journeys: one driver lost three genuine trips to it in a single day.</p>
+
+<p>Now a recording judged too brief to save is offered back to you to add, with the distance measured along the road rather than as the crow flies, which is what made several of them look shorter than they were. You decide whether it counts. Nothing is deleted without telling you.</p>
+
+<h2>A drive that finished but never appeared</h2>
+
+<p>This one was found the day before the release went out, by a driver on a 135-mile run from Bristol to Hatfield.</p>
+
+<p>The app recorded the whole journey perfectly. Every mile of it, at full GPS quality, sitting on his phone. It just never appeared in his trip list. He opened the app five times over the following ninety minutes, saw nothing, and typed the journey in by hand.</p>
+
+<p>Internally, a recording is opened and closed against a marker the app sets when it decides you are driving. His went missing partway through the drive. The route was safe the whole time, but every check that would have saved it asked about the marker first and never looked at the route sitting right there. No marker, nothing to see.</p>
+
+<p>The app now looks at the route rather than the marker, every time you open it. There is a second guard too, because his case turned up something worse than a delay: with the marker gone, his next drive would have cleared those 135 miles away rather than saving them. Both halves are fixed.</p>
+
+<h2>Classify from the Dynamic Island when you park</h2>
+
+<p>When a trip finishes, the Live Activity on your Lock Screen now carries Business and Personal buttons. Tap one as you are getting out of the car and the trip is classified before you have unlocked your phone. Open a finished trip in the app and a map of the route sits directly above those same two buttons, so you can see where you actually went before deciding which it was.</p>
+
+<p>Short hops that were too quick to record now say so on the Lock Screen, instead of nothing appearing and you being left to wonder.</p>
+
+<h2>Journeys you never made</h2>
+
+<p>A single stray phone-mast fix could turn into a trip: a line drawn between two cell towers, sometimes tens of miles long, appearing in your list as a drive you never took. On one account that was inflating a fortnight by around seventy-nine miles. Those are now recognised for what they are and kept out, and a phone drifting about while you are parked no longer becomes a short journey of its own.</p>
+
+<h2>The rest</h2>
+
+<ul>
+<li>A stop that splits a journey in two is named from your own saved places rather than the nearest street.</li>
+<li>The menu is reorganised into Tracking, Tax, Money, Insights and More, and now lists Self Assessment, HMRC Reconciliation, Link Bank, Saved Locations, Achievements, your accountant and referrals, none of which it showed before. It can also be scrolled to the bottom, which on earlier versions it could not.</li>
+<li>Tax, Invoices, Expenses and Insights sit one tap from the top of the dashboard.</li>
+<li>The fuel screen shows a UK average price again. The government file it reads had quietly moved and the figure had been blank.</li>
+<li>Reporting a missing trip while you are still driving now tells you the drive is still recording, rather than taking a report for a journey that is about to arrive on its own.</li>
+<li>Downloading your data gives you everything we hold that is linked to you, rather than part of it, and diagnostic reports sent from the app no longer carry the coordinates of your saved places.</li>
+<li>If you claim mileage from an employer rather than through Self Assessment, you can tell us and we will invite your manager to approve it monthly.</li>
+</ul>
+
+<h2>A note on how this list gets written</h2>
+
+<p>Most of these came from someone taking the time to write in about a journey that was wrong, often with a date and a road name attached. That is worth more than any amount of testing here, because the failures that matter happen on real roads with real phones in real pockets. If a trip of yours is wrong, tell me. It is the fastest route to it being fixed for everyone.</p>
+`,
+  },
+  {
     slug: "mileclear-on-android-closed-beta",
     title: "MileClear on Android: what is in the closed beta",
     excerpt:
