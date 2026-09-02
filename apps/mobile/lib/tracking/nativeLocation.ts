@@ -211,8 +211,13 @@ export interface NativeEngineDiagnostics {
   logLines: number | null;
 }
 
-const NATIVE_LOG_LINES = 300;
-const NATIVE_LOG_MAX_CHARS = 40_000;
+// A debug-level day is ~1,500 lines / ~80 KB on a quiet phone. The first
+// 40 KB cap (2 Sep 2026) cut Steve's log off at 13:50, fourteen minutes
+// after the launch that mattered, so the one question the dump was built to
+// answer (was a stationary region armed before he drove off?) was not in it.
+// The API body limit is 10 MB; a JSON column holds this easily.
+const NATIVE_LOG_LINES = 4000;
+const NATIVE_LOG_MAX_CHARS = 400_000;
 
 export async function getNativeEngineDiagnostics(): Promise<NativeEngineDiagnostics | null> {
   if (Platform.OS !== "android") return null;
