@@ -40,6 +40,9 @@ interface TripMapWidgetProps {
   cutMarkers?: Coordinate[];
   height?: number;
   interactive?: boolean;
+  /** Draw the route line. Off for a manual trip's two pins, where a straight
+   *  line between them would claim a route nobody recorded. */
+  showLine?: boolean;
 }
 
 export function TripMapWidget({
@@ -48,6 +51,7 @@ export function TripMapWidget({
   cutMarkers,
   height = 200,
   interactive = false,
+  showLine = true,
 }: TripMapWidgetProps) {
   // Use the matched polyline when the server has computed one — it's
   // road-snapped and looks materially cleaner than raw breadcrumbs.
@@ -116,12 +120,20 @@ export function TripMapWidget({
         showsCompass={false}
         showsScale={false}
         showsPointsOfInterest={false}
+        // A non-interactive widget is a picture of a route. Ask the SDK to
+        // treat it as one: iOS renders once to an image (cacheEnabled),
+        // Android uses its lite bitmap mode. That is what makes a list of
+        // trip cards with a map each (TripRouteCard, 2 Sep 2026) affordable.
+        cacheEnabled={!interactive}
+        liteMode={!interactive}
       >
-        <PolylineComponent
-          coordinates={polylineCoords}
-          strokeColor={AMBER}
-          strokeWidth={3}
-        />
+        {showLine && (
+          <PolylineComponent
+            coordinates={polylineCoords}
+            strokeColor={AMBER}
+            strokeWidth={3}
+          />
+        )}
         <MarkerComponent
           coordinate={{ latitude: start.lat, longitude: start.lng }}
           pinColor="#34c759"

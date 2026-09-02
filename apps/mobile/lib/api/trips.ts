@@ -67,6 +67,10 @@ export interface TripWithVehicle extends Trip {
     level: "high" | "medium" | "low";
     reasons: string[];
   };
+  /** Google-encoded map-matched route, straight off the trip row. The list
+   *  has always carried it; the trip card started drawing it on 2 Sep 2026
+   *  (TripRouteCard). Null for unmatched and manual trips. */
+  routePolyline?: string | null;
 }
 
 export interface TripDetail extends Trip {

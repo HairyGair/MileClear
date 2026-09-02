@@ -18,6 +18,7 @@ import {
 import { useRouter, useFocusEffect } from "expo-router";
 import { Button } from "../../components/Button";
 import { DateTimePickerField } from "../../components/DateTimePickerField";
+import { TripRouteCard } from "../../components/map/TripRouteCard";
 import { fetchTrips, fetchTripSummary, fetchUnclassifiedCount, fetchClassificationSuggestion, mergeTrips, TripWithVehicle, ClassificationSuggestion, type TripSummary } from "../../lib/api/trips";
 import { describeError } from "../../lib/api/apiError";
 import { syncUpdateTrip, syncDeleteTrip } from "../../lib/sync/actions";
@@ -955,6 +956,21 @@ export default function TripsScreen() {
             )}
           </View>
 
+          {/* Where it went. On every card, classified or not - the map is
+              the thing the Business / Personal choice is actually about
+              (Anthony, 2 Sep 2026). Taps and swipes pass straight through. */}
+          <TripRouteCard
+            tripId={item.id}
+            routePolyline={item.routePolyline}
+            isManualEntry={item.isManualEntry}
+            startLat={item.startLat}
+            startLng={item.startLng}
+            endLat={item.endLat}
+            endLng={item.endLng}
+            height={120}
+            style={styles.tripRouteMap}
+          />
+
           {/* Free-text note — prominent in Inbox, subtle elsewhere */}
           {isEditingNote ? (
             <View style={styles.noteEditWrap}>
@@ -1137,6 +1153,20 @@ export default function TripsScreen() {
               : `Latest: ${latestDate} at ${latestTime}`}
           </Text>
 
+          {/* The route, before the Business / Personal buttons that ask
+              about it. The group's latest trip stands for the group. */}
+          <TripRouteCard
+            tripId={latestTrip.id}
+            routePolyline={latestTrip.routePolyline}
+            isManualEntry={latestTrip.isManualEntry}
+            startLat={latestTrip.startLat}
+            startLng={latestTrip.startLng}
+            endLat={latestTrip.endLat}
+            endLng={latestTrip.endLng}
+            height={140}
+            style={styles.routeGroupMap}
+          />
+
           <View style={styles.routeGroupMeta}>
             <View style={styles.routeGroupMetaPill}>
               <Text style={styles.routeGroupMetaText}>
@@ -1225,6 +1255,12 @@ export default function TripsScreen() {
         renderItem={filter === "unclassified" ? (renderRouteGroup as any) : renderTrip}
         onEndReached={onEndReachedSafe}
         onEndReachedThreshold={0.3}
+        // Each card now carries a map. Keep the render window tight so the
+        // list mounts a screen or two of them, not the whole page.
+        windowSize={7}
+        initialNumToRender={6}
+        maxToRenderPerBatch={6}
+        removeClippedSubviews={Platform.OS === "android"}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -1978,6 +2014,13 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingVertical: 12,
     paddingHorizontal: 14,
+  },
+  tripRouteMap: {
+    marginTop: 10,
+  },
+  routeGroupMap: {
+    marginTop: 10,
+    marginBottom: 10,
   },
   noteGlyphBtn: { paddingHorizontal: 4, paddingVertical: 2 },
   noteEditWrap: {
