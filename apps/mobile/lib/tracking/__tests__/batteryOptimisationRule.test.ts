@@ -136,6 +136,58 @@ describe("brandName / isHuaweiFamily", () => {
   });
 });
 
+describe("a Honor the SDK has no vendor screen for (the X5C, 2 Sep 2026)", () => {
+  // RNBG: "Failed to find POWER_MANAGER screen for device HONOR NLA-LX1@15".
+  // vendor is null, but the stock request still names the maker.
+  it("still nudges when stock says exempt, via the stock screen", () => {
+    const d = batteryNudgeDecision({
+      platform: "android",
+      state: { ignoring: true, vendor: null, manufacturer: "HONOR" },
+      dismissedAt: null,
+      now: NOW,
+    });
+    expect(d).toEqual({ show: true, reason: "vendor_manual", screen: "stock" });
+  });
+
+  it("uses the stock reason when stock is not exempt either", () => {
+    const d = batteryNudgeDecision({
+      platform: "android",
+      state: { ignoring: false, vendor: null, manufacturer: "HONOR" },
+      dismissedAt: null,
+      now: NOW,
+    });
+    expect(d).toEqual({ show: true, reason: "optimised", screen: "stock" });
+  });
+
+  it("does not nudge a Pixel that is exempt", () => {
+    const d = batteryNudgeDecision({
+      platform: "android",
+      state: { ignoring: true, vendor: null, manufacturer: "Google" },
+      dismissedAt: null,
+      now: NOW,
+    });
+    expect(d).toEqual({ show: false, reason: "exempt", screen: null });
+  });
+
+  it("respects the snooze", () => {
+    const d = batteryNudgeDecision({
+      platform: "android",
+      state: { ignoring: true, vendor: null, manufacturer: "HONOR" },
+      dismissedAt: NOW - 1000,
+      now: NOW,
+    });
+    expect(d.show).toBe(false);
+  });
+
+  it("spells out App launch management on the stock screen for a Honor", () => {
+    const c = batteryNudgeCopy("stock", "HONOR");
+    expect(c.body).toContain("Unrestricted");
+    expect(c.body).toContain("App launch management");
+    expect(c.body).toContain("Manage automatically");
+    expect(c.body.startsWith("Honor")).toBe(true);
+  });
+});
+
 describe("batteryNudgeCopy", () => {
   it("spells out the three toggles for a Honor", () => {
     const c = batteryNudgeCopy("vendor", "HONOR");

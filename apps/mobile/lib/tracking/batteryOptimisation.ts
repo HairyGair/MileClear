@@ -44,11 +44,24 @@ export async function getBatteryOptimisationState(): Promise<BatteryOptimisation
     vendor = null;
   }
 
-  const state: BatteryOptimisationState = { ignoring, vendor };
+  // The maker, even when there is no vendor screen: the stock request
+  // carries it too (it only RETURNS the request; nothing opens here).
+  let manufacturer: string | null = vendor?.manufacturer ?? null;
+  if (!manufacturer) {
+    try {
+      const req = await ds.showIgnoreBatteryOptimizations();
+      manufacturer = req.manufacturer ?? null;
+    } catch {
+      manufacturer = null;
+    }
+  }
+
+  const state: BatteryOptimisationState = { ignoring, vendor, manufacturer };
   if (!checkedThisLaunch) {
     checkedThisLaunch = true;
     logDetectionEvent("battery_opt_checked", {
       ignoring,
+      manufacturer,
       vendorManufacturer: vendor?.manufacturer ?? null,
       vendorModel: vendor?.model ?? null,
       vendorSeen: vendor?.seen ?? null,

@@ -577,7 +577,7 @@ export default function DashboardScreen() {
   });
   const batteryNudgeText =
     batteryNudge.show && batteryNudge.screen
-      ? batteryNudgeCopy(batteryNudge.screen, batteryOptState?.vendor?.manufacturer)
+      ? batteryNudgeCopy(batteryNudge.screen, (batteryOptState?.vendor?.manufacturer ?? batteryOptState?.manufacturer))
       : null;
   useEffect(() => {
     if (!batteryNudge.show || batteryNudgeShownLogged.current) return;
@@ -585,7 +585,7 @@ export default function DashboardScreen() {
     trackEvent("battery_opt_nudge.shown", {
       screen: batteryNudge.screen,
       reason: batteryNudge.reason,
-      manufacturer: batteryOptState?.vendor?.manufacturer ?? null,
+      manufacturer: (batteryOptState?.vendor?.manufacturer ?? batteryOptState?.manufacturer) ?? null,
       ignoring: batteryOptState?.ignoring ?? null,
     });
   }, [batteryNudge.show, batteryNudge.screen, batteryNudge.reason, batteryOptState]);
@@ -603,7 +603,7 @@ export default function DashboardScreen() {
     const screen = batteryNudge.screen ?? "stock";
     trackEvent("battery_opt_nudge.tapped", {
       screen,
-      manufacturer: batteryOptState?.vendor?.manufacturer ?? null,
+      manufacturer: (batteryOptState?.vendor?.manufacturer ?? batteryOptState?.manufacturer) ?? null,
     });
     // Vendor screen first; if the device turns out not to have one after
     // all, the stock allow-list; failing that, the app's own settings page.

@@ -205,7 +205,11 @@ function computeHealth(
           "Take a short drive to confirm it captures. If no trip appears, toggle ClearTrack off (falls back to the JS engine) and tap Restart detection.",
       });
     }
-    if (d.motionPermission === "denied") {
+    // iOS only: Android has no Motion & Fitness setting, and the activity
+    // permission is deliberately not requested there (Play policy). Showing
+    // the iOS instruction on an Android phone sent SteveG looking for a
+    // setting that does not exist (2 Sep 2026).
+    if (Platform.OS === "ios" && d.motionPermission === "denied") {
       problems.push({
         severity: "warning",
         title: "Motion & Fitness is off",
@@ -284,6 +288,26 @@ function computeHealth(
       onAction: () => {
         Linking.openSettings().catch(() => {});
       },
+    });
+  }
+
+  // 6b. ClearTrack failed to start and the JS engine took over. Before
+  //     2 Sep 2026 a start collision ("waiting for previous start action")
+  //     was logged as a failure and handed location to the JS backstop, which
+  //     left the native engine without a stationary region - SteveG's Honor
+  //     lost four drives that way while this screen said "working". The
+  //     collision is now waited out, so what remains here is a real refusal.
+  const recentStartFails = events
+    .slice(0, 100)
+    .filter((e) => e.event === "native_engine_start_failed").length;
+  if (nativeActive && recentStartFails >= 2) {
+    problems.push({
+      severity: "warning",
+      title: `ClearTrack refused to start ${recentStartFails}x recently`,
+      cause:
+        "The native engine rejected its start and the JS engine took over each time. While that is happening the engine may be started but have nothing armed to wake it, so a drive can pass unrecorded.",
+      action:
+        "Tap Restart detection below. If it keeps happening, press Start Trip when you set off and tell support.",
     });
   }
 

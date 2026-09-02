@@ -465,6 +465,56 @@ export function hasNativeLicenceFailed(): boolean {
 // gap-trimmed trips). Dedup concurrent starts so listeners register exactly once.
 let startPromise: Promise<boolean> | null = null;
 
+export function isStartCollision(err: unknown): boolean {
+  const message = err instanceof Error ? err.message : String(err);
+  return /waiting for previous start action/i.test(message);
+}
+
+const START_COLLISION_ATTEMPTS = 6;
+const START_COLLISION_DELAY_MS = 1500;
+
+/** The SDK reported a start already in flight. Poll its state and retry
+ *  start() for ~9 s. Returns how long it took to come up, or null if it never
+ *  did (the caller then treats the original rejection as the failure). */
+async function waitOutStartCollision(BGGeo: BgGeo): Promise<number | null> {
+  const t0 = Date.now();
+  const getState = BGGeo.getState as (() => Promise<{ enabled?: boolean }>) | undefined;
+  for (let attempt = 1; attempt <= START_COLLISION_ATTEMPTS; attempt++) {
+    await new Promise((r) => setTimeout(r, START_COLLISION_DELAY_MS));
+    try {
+      if (typeof getState === "function") {
+        const s = await getState();
+        if (s?.enabled === true) return Date.now() - t0;
+      }
+      await BGGeo.start();
+      return Date.now() - t0;
+    } catch (err) {
+      if (!isStartCollision(err)) return null;
+    }
+  }
+  return null;
+}
+
+/** After an Android start: if the SDK is stationary, ask it to (re)acquire
+ *  its stationary position, which is what arms the stationary geofence. A
+ *  no-op when the SDK already thinks it is moving - never interrupt a drive. */
+async function armStationaryRegionOnStart(BGGeo: BgGeo): Promise<void> {
+  try {
+    const getState = BGGeo.getState as (() => Promise<{ isMoving?: boolean }>) | undefined;
+    if (typeof getState === "function") {
+      const s = await getState();
+      if (s?.isMoving === true) return;
+    }
+    if (typeof BGGeo.changePace !== "function") return;
+    await BGGeo.changePace(false);
+    logDetectionEvent("native_stationary_armed_on_start", {}).catch(() => {});
+  } catch (err) {
+    logDetectionEvent("native_stationary_arm_failed", {
+      error: err instanceof Error ? err.message.slice(0, 120) : String(err),
+    }).catch(() => {});
+  }
+}
+
 /**
  * Start the native engine. Idempotent + re-entrancy-safe. Wires native location
  * + motion events into the EXISTING detection_coordinates buffer +
@@ -520,9 +570,31 @@ export async function startNativeLocationEngine(): Promise<boolean> {
       });
 
       await BGGeo.ready(buildConfig(BGGeo));
-      await BGGeo.start();
+      try {
+        await BGGeo.start();
+      } catch (err) {
+        // "Waiting for previous start action to complete": the SDK already
+        // has a start in flight - its own relaunch (stopOnTerminate:false,
+        // startOnBoot, headless) racing our cold-launch start. That is not a
+        // failure, it is a queue. Treating it as a failure is what cost
+        // SteveG four drives (Honor X5C, 1-2 Sep 2026): the caller fell back
+        // to the JS engine, JS took the location subscription for the next
+        // ten minutes, and the SDK never armed its stationary region, so
+        // nothing could wake it when he drove off. Wait for the pending start
+        // instead, retrying start() a few times; a retry seconds later
+        // succeeded on every one of his launches.
+        if (!isStartCollision(err)) throw err;
+        const resolvedAfterMs = await waitOutStartCollision(BGGeo);
+        if (resolvedAfterMs == null) throw err;
+        logDetectionEvent("native_engine_start_collision_resolved", { waitedMs: resolvedAfterMs }).catch(() => {});
+      }
       started = true;
       logDetectionEvent("native_engine_started", {}).catch(() => {});
+      // ANDROID: make sure the SDK has a stationary region armed before the
+      // driver leaves. Without ACTIVITY_RECOGNITION that region is the only
+      // thing that wakes the engine, and a start that never acquired its
+      // "motionchange" position leaves the engine started but deaf.
+      if (Platform.OS === "android") void armStationaryRegionOnStart(BGGeo);
       // Arm the car-audio + CLVisit triggers (dynamic import avoids a cycle).
       import("./carDetection")
         .then((m) => m.startCarAndVisitTriggers())

@@ -43,6 +43,12 @@ export interface BatteryOptimisationState {
   /** null when the device has no vendor power manager (Pixel, most stock
    *  Android) or RNBG has no screen for it. */
   vendor: VendorPowerManager | null;
+  /** The maker as RNBG reports it even when it has no vendor screen for the
+   *  model ("Failed to find POWER_MANAGER screen for device HONOR NLA-LX1"
+   *  - SteveG's Honor X5C, 2 Sep 2026). A Honor with no screen still has App
+   *  launch management; the copy has to say so even if the tap can only open
+   *  the stock setting. */
+  manufacturer?: string | null;
 }
 
 /** Same weekly cadence as the other permission nudges on the dashboard. */
@@ -54,6 +60,9 @@ export type BatteryNudgeReason =
   | "snoozed"
   | "vendor_power_manager"
   | "optimised"
+  /** Huawei/Honor with no vendor screen RNBG can open: the card still has
+   *  to send them to App launch management by hand. */
+  | "vendor_manual"
   | "exempt";
 
 export interface BatteryNudgeDecision {
@@ -83,6 +92,14 @@ export function batteryNudgeDecision(input: BatteryNudgeInput): BatteryNudgeDeci
   }
   if (input.state.ignoring === false) {
     return { show: true, reason: "optimised", screen: "stock" };
+  }
+  // A Honor/Huawei the SDK has no vendor screen for (the X5C): stock says
+  // exempt, but App launch management is still there and still ends the
+  // recorder. Show the card with the manual route; the 7-day snooze bounds
+  // the repeat, and RNBG has no "seen" memory to offer for a screen it
+  // cannot open.
+  if (!input.state.vendor && isHuaweiFamily(input.state.manufacturer)) {
+    return { show: true, reason: "vendor_manual", screen: "stock" };
   }
   return { show: false, reason: "exempt", screen: null };
 }
@@ -125,6 +142,14 @@ export function batteryNudgeCopy(
     return {
       title,
       body: `${brand}'s power manager can close MileClear between drives, so journeys go unrecorded. Tap to open it and allow MileClear to run in the background.`,
+    };
+  }
+  if (isHuaweiFamily(manufacturer)) {
+    // Stock screen on a Honor/Huawei: the tap opens the stock setting, the
+    // App launch step has to be spelled out because nothing can open it.
+    return {
+      title,
+      body: `${brandName(manufacturer)} closes apps in the background, so drives go unrecorded. Two settings: tap to set MileClear to Unrestricted here, then in Settings > Battery > App launch management find MileClear, turn off Manage automatically and allow all three options.`,
     };
   }
   return {
