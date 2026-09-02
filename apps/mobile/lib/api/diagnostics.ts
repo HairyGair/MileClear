@@ -16,6 +16,7 @@ import { getAppStateInfo } from "../appState";
 import { getRoutingStats } from "../tracking/routingStats";
 import { getBatterySnapshot } from "../tracking/batteryAware";
 import { getBatteryOptimisationState } from "../tracking/batteryOptimisation";
+import { getNativeEngineDiagnostics } from "../tracking/nativeLocation";
 
 const APP_VERSION = Constants.expoConfig?.version ?? "unknown";
 const BUILD_NUMBER =
@@ -192,6 +193,11 @@ export async function uploadDiagnosticDump(): Promise<void> {
     // afternoon's driving to, 1 Sep 2026, and that the app had never asked
     // about or reported. See batteryOptimisationRule.ts.
     const batteryOptimisation = await getBatteryOptimisationState().catch(() => null);
+    // Android only, null elsewhere. The SDK's own state + the tail of its own
+    // log: the only record of what the recorder did while JS was asleep
+    // (SteveG, 2 Sep 2026 - three missed drives with every setting correct
+    // and nothing in our event log). See getNativeEngineDiagnostics().
+    const nativeEngine = await getNativeEngineDiagnostics().catch(() => null);
 
     // Strip GDPR-sensitive tracking state entries
     const safeTrackingState = diagnostics.trackingState.filter(
@@ -279,6 +285,7 @@ export async function uploadDiagnosticDump(): Promise<void> {
           lastNativeLocationAt: diagnostics.lastNativeLocationAt,
           motionPermission: diagnostics.motionPermission,
           batteryOptimisation,
+          nativeEngine,
           // True native-binary identity + which OTA is running on top of it,
           // so the reported appVersion/buildNumber (OTA label) can be
           // reconciled against the real binary. See getUpdatesInfo().

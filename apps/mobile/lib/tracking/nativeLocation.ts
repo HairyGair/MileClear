@@ -192,6 +192,68 @@ export function getNativeDeviceSettings(): NativeDeviceSettings | null {
   return ds;
 }
 
+/** What the SDK itself says about its state, plus the tail of its own log.
+ *  For the diagnostic dump, Android only (the log is off on iOS). null when
+ *  the module is absent (Expo Go, iOS, a binary without it). The log text
+ *  passes through scrubCoordinates like everything else in the dump, so a
+ *  fix logged by the SDK is redacted before upload. */
+export interface NativeEngineDiagnostics {
+  state: {
+    enabled: boolean | null;
+    isMoving: boolean | null;
+    trackingMode: number | null;
+    schedulerEnabled: boolean | null;
+    odometer: number | null;
+    didLaunchInBackground: boolean | null;
+  } | null;
+  /** Newest first. Capped so a dump stays well under the API body limit. */
+  logTail: string | null;
+  logLines: number | null;
+}
+
+const NATIVE_LOG_LINES = 300;
+const NATIVE_LOG_MAX_CHARS = 40_000;
+
+export async function getNativeEngineDiagnostics(): Promise<NativeEngineDiagnostics | null> {
+  if (Platform.OS !== "android") return null;
+  const mod = loadNativeModule();
+  if (!mod) return null;
+  const out: NativeEngineDiagnostics = { state: null, logTail: null, logLines: null };
+  try {
+    const getState = mod.getState as (() => Promise<Record<string, unknown>>) | undefined;
+    if (typeof getState === "function") {
+      const s = await getState();
+      const bool = (v: unknown) => (typeof v === "boolean" ? v : null);
+      const num = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? v : null);
+      out.state = {
+        enabled: bool(s.enabled),
+        isMoving: bool(s.isMoving),
+        trackingMode: num(s.trackingMode),
+        schedulerEnabled: bool(s.schedulerEnabled),
+        odometer: num(s.odometer),
+        didLaunchInBackground: bool(s.didLaunchInBackground),
+      };
+    }
+  } catch {
+    // state is best-effort
+  }
+  try {
+    const logger = mod.logger as
+      | { getLog?: (q?: Record<string, unknown>) => Promise<string>; ORDER_DESC?: number }
+      | undefined;
+    if (logger && typeof logger.getLog === "function") {
+      const text = await logger.getLog({ order: logger.ORDER_DESC ?? 1, limit: NATIVE_LOG_LINES });
+      if (typeof text === "string" && text.length > 0) {
+        out.logLines = text.split("\n").length;
+        out.logTail = text.length > NATIVE_LOG_MAX_CHARS ? text.slice(0, NATIVE_LOG_MAX_CHARS) : text;
+      }
+    }
+  } catch {
+    // log is best-effort
+  }
+  return out;
+}
+
 // ─── Configuration (tune on-device) ─────────────────────────────────────────
 function buildConfig(BGGeo: BgGeo): Record<string, unknown> {
   return {
@@ -262,9 +324,20 @@ function buildConfig(BGGeo: BgGeo): Record<string, unknown> {
     // longest observed deferral spans (Keir's overnight multileg).
     maxRecordsToPersist: 10000,
     maxDaysToPersist: 3,
-    // Quieter logs in production.
+    // Quieter logs in production. iOS keeps the SDK log off.
+    //
+    // ANDROID: the SDK's own log is ON (debug, 3-day cap) since 2 Sep 2026.
+    // SteveG's Honor X5C lost three drives in two days with every power
+    // setting correct and nothing in our event log, because our events only
+    // exist while JS is awake; the drives it did capture were captured with
+    // JS asleep. Whether the service survived between app opens, whether the
+    // stationary geofence ever fired, whether the OS restarted the service
+    // ("Waiting for previous start action to complete" on every cold launch)
+    // is recorded ONLY by the SDK's log. The dump ships its tail; see
+    // getNativeEngineDiagnostics().
     debug: false,
-    logLevel: 0,
+    logLevel: Platform.OS === "android" ? ((BGGeo.LOG_LEVEL_DEBUG as number | undefined) ?? 4) : 0,
+    logMaxDays: 3,
     foregroundService: true,
   };
 }
