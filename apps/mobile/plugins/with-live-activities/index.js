@@ -301,7 +301,12 @@ function addWidgetExtensionTarget(project, projectName, config) {
     INFOPLIST_FILE: `${WIDGET_TARGET}/Info.plist`,
     INFOPLIST_KEY_CFBundleDisplayName: "MileClear",
     INFOPLIST_KEY_NSHumanReadableCopyright: '""',
-    IPHONEOS_DEPLOYMENT_TARGET: "16.2",
+    // 18.0 (was 16.2) since 3 Sep 2026: the CarPlay presentation needs
+    // supplementalActivityFamilies / activityFamily, which are iOS 18 API.
+    // Fleet on 3 Sep: 589 active iOS devices, 3 below iOS 18 (two on 15,
+    // which never had Live Activities, one on 16). The extension simply is
+    // not installed on those; the app itself keeps its own minimum.
+    IPHONEOS_DEPLOYMENT_TARGET: "18.0",
     LD_RUNPATH_SEARCH_PATHS: '"$(inherited) @executable_path/Frameworks @executable_path/../../Frameworks"',
     MARKETING_VERSION: "1.0",
     PRODUCT_BUNDLE_IDENTIFIER: `"${WIDGET_BUNDLE_ID}"`,
