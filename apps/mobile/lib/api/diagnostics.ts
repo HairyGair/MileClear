@@ -17,6 +17,7 @@ import { getRoutingStats } from "../tracking/routingStats";
 import { getBatterySnapshot } from "../tracking/batteryAware";
 import { getBatteryOptimisationState } from "../tracking/batteryOptimisation";
 import { getNativeEngineDiagnostics } from "../tracking/nativeLocation";
+import { getLiveActivityState } from "../liveActivity/presence";
 
 const APP_VERSION = Constants.expoConfig?.version ?? "unknown";
 const BUILD_NUMBER =
@@ -198,6 +199,11 @@ export async function uploadDiagnosticDump(): Promise<void> {
     // (SteveG, 2 Sep 2026 - three missed drives with every setting correct
     // and nothing in our event log). See getNativeEngineDiagnostics().
     const nativeEngine = await getNativeEngineDiagnostics().catch(() => null);
+    // iOS: is the Live Activity switch on, is one showing now, do we hold a
+    // push-to-start token, and what did we last do about it. Anthony's own
+    // phone had the switch off for months and nothing reported it (3 Sep
+    // 2026). See lib/liveActivity/presence.ts.
+    const liveActivity = await getLiveActivityState().catch(() => null);
 
     // Strip GDPR-sensitive tracking state entries
     const safeTrackingState = diagnostics.trackingState.filter(
@@ -286,6 +292,7 @@ export async function uploadDiagnosticDump(): Promise<void> {
           motionPermission: diagnostics.motionPermission,
           batteryOptimisation,
           nativeEngine,
+          liveActivity,
           // True native-binary identity + which OTA is running on top of it,
           // so the reported appVersion/buildNumber (OTA label) can be
           // reconciled against the real binary. See getUpdatesInfo().

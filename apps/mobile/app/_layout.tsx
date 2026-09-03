@@ -368,6 +368,12 @@ function RootNavigator() {
         import("../lib/liveActivity")
           .then((m) => m.syncPushToStartToken())
           .catch(() => {});
+        // Ask ActivityKit whether a Live Activity is actually showing while
+        // a recording is open or one was just requested. The only observer
+        // that can tell a push-to-start that displayed from one that did not.
+        import("../lib/liveActivity/presence")
+          .then((m) => m.probeLiveActivityPresence())
+          .catch(() => {});
       }
     });
     return () => sub.remove();

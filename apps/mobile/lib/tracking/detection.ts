@@ -140,6 +140,11 @@ export async function startNativeAutoTripLiveActivity(): Promise<void> {
     if (!started) {
       signalTripStart({ activityType: "trip", isBusinessMode }).catch(() => {});
     }
+    // Remember what we did, so the foreground presence probe can compare
+    // "we asked for one" against "ActivityKit shows one". See presence.ts.
+    import("../liveActivity/presence")
+      .then((m) => m.noteLiveActivitySignal(started ? "local_started" : "push_requested"))
+      .catch(() => {});
   } catch {
     // diagnostics only - never throw
   }
