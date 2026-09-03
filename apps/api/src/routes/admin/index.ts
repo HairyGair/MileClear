@@ -1018,7 +1018,7 @@ export async function adminRoutes(app: FastifyInstance) {
     // where a newer dump can change the answer, and it keeps the JSON load
     // to ~100 rows rather than the whole fleet.
     const notGrantedIds = fleet.filter((u) => u.bgLocationPermission !== "granted").map((u) => u.id);
-    const [dumps, trips14, nudges, dailyMissing] = await Promise.all([
+    const [dumps, trips14, autoTrips14, nudges, dailyMissing] = await Promise.all([
       notGrantedIds.length
         ? prisma.diagnosticDump.findMany({
             where: { userId: { in: notGrantedIds } },
@@ -1029,6 +1029,15 @@ export async function adminRoutes(app: FastifyInstance) {
         ? prisma.trip.groupBy({
             by: ["userId"],
             where: { userId: { in: fleetIds }, startedAt: { gte: d14 } },
+            _count: { _all: true },
+          })
+        : Promise.resolve([]),
+      // Auto-captured trips only. A manual entry says nothing about whether
+      // the engine can see the phone; a captured one settles it.
+      fleetIds.length
+        ? prisma.trip.groupBy({
+            by: ["userId"],
+            where: { userId: { in: fleetIds }, startedAt: { gte: d14 }, isManualEntry: false, isPhantomTrip: false },
             _count: { _all: true },
           })
         : Promise.resolve([]),
@@ -1053,6 +1062,7 @@ export async function adminRoutes(app: FastifyInstance) {
 
     const dumpBy = new Map(dumps.map((d) => [d.userId, d]));
     const trips14By = new Map(trips14.map((t) => [t.userId, t._count._all]));
+    const autoTrips14By = new Map(autoTrips14.map((t) => [t.userId, t._count._all]));
     const nudgeBy = new Map<string, Date>();
     for (const n of nudges) {
       if (!n._max.createdAt) continue;
@@ -1062,10 +1072,12 @@ export async function adminRoutes(app: FastifyInstance) {
 
     const permissionCounts: Record<string, number> = { granted: 0, undetermined: 0, denied: 0, unknown: 0 };
     let cannotCapture = 0;
+    let capturingAnyway = 0;
     let dumpOverrides = 0;
     const silentNever: typeof rows = [];
     const silentLapsed: typeof rows = [];
     const needsPermission: typeof rows = [];
+    const capturingAnywayRows: typeof rows = [];
     const rows: Array<{
       userId: string;
       email: string;
@@ -1077,6 +1089,7 @@ export async function adminRoutes(app: FastifyInstance) {
       permissionSource: "heartbeat" | "dump";
       lastTripAt: string | null;
       trips14d: number;
+      autoTrips14d: number;
       tripsLifetime: number;
       hasPushToken: boolean;
       build: string | null;
@@ -1098,6 +1111,7 @@ export async function adminRoutes(app: FastifyInstance) {
       const key = effective === "granted" || effective === "undetermined" || effective === "denied" ? effective : "unknown";
       permissionCounts[key] += 1;
       const t14 = trips14By.get(u.id) ?? 0;
+      const auto14 = autoTrips14By.get(u.id) ?? 0;
       const row = {
         userId: u.id,
         email: u.email,
@@ -1109,15 +1123,30 @@ export async function adminRoutes(app: FastifyInstance) {
         permissionSource: source,
         lastTripAt: u.lastTripAt?.toISOString() ?? null,
         trips14d: t14,
+        autoTrips14d: auto14,
         tripsLifetime: u._count.trips,
         hasPushToken: !!u.pushToken,
         build: u.buildNumber,
         lastNudgedAt: nudgeBy.get(u.id)?.toISOString() ?? null,
       };
       rows.push(row);
+      // The reading alone does not decide it. On iPhone expo-location reports
+      // "undetermined" for While Using as well as for never-asked, and While
+      // Using drivers who open the app before setting off capture fine: on
+      // 2 Sep 2026 the four most valuable names on this list read
+      // "undetermined" in both heartbeat and dump and had captured auto trips
+      // that day (one of them 17). Judge by outcome: not granted AND no auto
+      // trip in the window is "cannot capture"; not granted with captures is
+      // a reading the app cannot resolve, listed separately so nobody nudges
+      // a working driver to flip a switch.
       if (effective !== "granted") {
-        cannotCapture += 1;
-        needsPermission.push(row);
+        if (auto14 > 0) {
+          capturingAnyway += 1;
+          capturingAnywayRows.push(row);
+        } else {
+          cannotCapture += 1;
+          needsPermission.push(row);
+        }
       }
       if (t14 === 0) {
         if (u._count.trips === 0) silentNever.push(row);
@@ -1130,6 +1159,7 @@ export async function adminRoutes(app: FastifyInstance) {
     silentLapsed.sort((a, b) => b.tripsLifetime - a.tripsLifetime);
     silentNever.sort((a, b) => a.createdAt.localeCompare(b.createdAt));
     needsPermission.sort((a, b) => b.tripsLifetime - a.tripsLifetime);
+    capturingAnywayRows.sort((a, b) => b.autoTrips14d - a.autoTrips14d);
 
     // Watchdog gave_up, last 24h: phone asleep vs alive-and-silent. The raw
     // count is almost all sleeping phones (18 Aug: 85 gave up, ~6 were
@@ -1201,6 +1231,8 @@ export async function adminRoutes(app: FastifyInstance) {
         permission: permissionCounts,
         cannotCapture,
         cannotCapturePct: fleet.length ? Math.round((cannotCapture / fleet.length) * 1000) / 10 : 0,
+        capturingAnyway,
+        capturingAnywayRows: capturingAnywayRows.slice(0, 60),
         dumpOverrides,
         silent: {
           total: silentNever.length + silentLapsed.length,

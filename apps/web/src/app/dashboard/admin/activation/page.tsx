@@ -20,6 +20,7 @@ interface Row {
   permissionSource: "heartbeat" | "dump";
   lastTripAt: string | null;
   trips14d: number;
+  autoTrips14d: number;
   tripsLifetime: number;
   hasPushToken: boolean;
   build: string | null;
@@ -42,6 +43,8 @@ interface Data {
   permission: Record<string, number>;
   cannotCapture: number;
   cannotCapturePct: number;
+  capturingAnyway: number;
+  capturingAnywayRows: Row[];
   dumpOverrides: number;
   silent: { total: number; never: number; lapsed: number; neverRows: Row[]; lapsedRows: Row[] };
   needsPermission: Row[];
@@ -132,6 +135,7 @@ function UserTable({ rows, showTrips }: { rows: Row[]; showTrips: boolean }) {
             <th style={th}>Heartbeat</th>
             <th style={th}>Background location</th>
             {showTrips && <th style={th}>Trips (lifetime)</th>}
+            {showTrips && <th style={th} title="Auto-captured, non-phantom trips started in the window">Auto trips (14d)</th>}
             <th style={th}>Last trip</th>
             <th style={th}>Build</th>
             <th style={th}>Reachable</th>
@@ -151,6 +155,7 @@ function UserTable({ rows, showTrips }: { rows: Row[]; showTrips: boolean }) {
               <td style={td}>{ago(r.lastHeartbeatAt)}</td>
               <td style={td}><PermissionPill row={r} /></td>
               {showTrips && <td style={{ ...td, fontVariantNumeric: "tabular-nums" }}>{r.tripsLifetime}</td>}
+              {showTrips && <td style={{ ...td, fontVariantNumeric: "tabular-nums", color: r.autoTrips14d > 0 ? "#10b981" : "#64748b" }}>{r.autoTrips14d}</td>}
               <td style={td}>{ago(r.lastTripAt)}</td>
               <td style={td}>{r.build ?? "-"}</td>
               <td style={td}>
@@ -204,12 +209,18 @@ export default function ActivationPage() {
         <>
           <section style={card}>
             <h2 style={h2}>Can they capture at all?</h2>
-            <p style={sub}>Background location across the active fleet. Anything other than granted records nothing unless the app is open while driving.</p>
+            <p style={sub}>
+              Background location across the active fleet, judged by outcome. &quot;Cannot capture&quot; is not granted AND no
+              auto-captured trip in the window. On iPhone the reading says &quot;undetermined&quot; for While Using as well as
+              never-asked, and While Using drivers who open the app before setting off capture fine, so a not-granted
+              reading with captures behind it is listed separately rather than counted.
+            </p>
             <div style={{ display: "flex", gap: "2rem", flexWrap: "wrap", marginBottom: "1rem" }}>
               {stat("Active fleet", data.fleet)}
-              {stat("Cannot capture", `${data.cannotCapture} (${data.cannotCapturePct}%)`, data.cannotCapturePct >= 20 ? "#ef4444" : "#f59e0b")}
+              {stat("Cannot capture", `${data.cannotCapture} (${data.cannotCapturePct}%)`, data.cannotCapturePct >= 20 ? "#ef4444" : "#f59e0b", "not granted, no auto trip in the window")}
+              {stat("Capturing anyway", data.capturingAnyway, "#10b981", "not granted, but auto trips in the window")}
               {stat("Granted", data.permission.granted, "#10b981")}
-              {stat("Undetermined", data.permission.undetermined, "#f59e0b", "never asked, or asked and dismissed")}
+              {stat("Undetermined", data.permission.undetermined, "#f59e0b", "never asked, dismissed, or While Using")}
               {stat("Denied", data.permission.denied, "#ef4444")}
               {stat("Dump overrode heartbeat", data.dumpOverrides, undefined, "newer dump disagreed")}
             </div>
@@ -238,10 +249,21 @@ export default function ActivationPage() {
           <section style={card}>
             <h2 style={h2}>Needs the permission fixed ({data.needsPermission.length})</h2>
             <p style={sub}>
-              Active fleet with background location not granted, most-valuable first. &quot;Last nudged&quot; is the most recent
-              capture_lapsed or activation_d7 push in 60 days; never means no automated nudge has reached them.
+              Active fleet with background location not granted and no auto-captured trip in the window, most-valuable
+              first. &quot;Last nudged&quot; is the most recent capture_lapsed or activation_d7 push in 60 days; never means no
+              automated nudge has reached them.
             </p>
             <UserTable rows={data.needsPermission} showTrips />
+          </section>
+
+          <section style={card}>
+            <h2 style={h2}>Reads not granted, capturing anyway ({data.capturingAnyway})</h2>
+            <p style={sub}>
+              The reading and the outcome disagree, and the outcome wins: these phones captured auto trips in the window.
+              Do not nudge them to flip a switch. The capture_lapsed job skips anyone who has captured under their current
+              reading before.
+            </p>
+            <UserTable rows={data.capturingAnywayRows} showTrips />
           </section>
 
           <section style={card}>

@@ -137,6 +137,7 @@ export async function runCaptureLapsedJob(): Promise<void> {
       id: true,
       pushToken: true,
       lastHeartbeatAt: true,
+      bgLocationPermission: true,
       _count: { select: { trips: true } },
     },
     take: 300,
@@ -144,6 +145,40 @@ export async function runCaptureLapsedJob(): Promise<void> {
   if (candidates.length === 0) return;
 
   const heartbeatById = new Map(candidates.map((c) => [c.id, c.lastHeartbeatAt]));
+  const candidateIds = candidates.map((c) => c.id);
+
+  // "undetermined" is not proof. On iPhone expo-location reports it for
+  // While Using as well as for never-asked, and a While Using driver who
+  // opens the app before setting off captures fine (2 Sep 2026: the four
+  // most valuable "undetermined" accounts in the fleet had each captured
+  // auto trips that day). For someone who has captured before, the reading
+  // only counts if their captures STOPPED when it appeared: the daily
+  // alert.heartbeat_bg_location_lost event is the first dated record of the
+  // reading, so an auto trip captured after that first alert means this
+  // phone records under this reading and the message would be false. No
+  // alert on file means no evidence either way, which is also a skip.
+  // "denied" is a real refusal and needs no corroboration.
+  const [lastAutoTrips, firstLostAlerts] = await Promise.all([
+    prisma.trip.groupBy({
+      by: ["userId"],
+      where: { userId: { in: candidateIds }, isManualEntry: false, isPhantomTrip: false },
+      _max: { startedAt: true },
+    }),
+    prisma.appEvent.groupBy({
+      by: ["userId"],
+      where: { userId: { in: candidateIds }, type: "alert.heartbeat_bg_location_lost" },
+      _min: { createdAt: true },
+    }),
+  ]);
+  const lastAutoTripBy = new Map(lastAutoTrips.map((t) => [t.userId, t._max.startedAt]));
+  const firstLostAlertBy = new Map(firstLostAlerts.map((a) => [a.userId!, a._min.createdAt]));
+  const readingUnproven = (user: { id: string; bgLocationPermission: string | null }): boolean => {
+    if (user.bgLocationPermission === "denied") return false;
+    const lastAuto = lastAutoTripBy.get(user.id);
+    if (!lastAuto) return false; // never captured: the reading is consistent with the outcome
+    const firstLost = firstLostAlertBy.get(user.id);
+    return !firstLost || lastAuto > firstLost;
+  };
 
   // The permission reading above comes from the last HEARTBEAT, which can be
   // stale by hours - and the gap is exactly when someone has just fixed it.
@@ -182,6 +217,10 @@ export async function runCaptureLapsedJob(): Promise<void> {
   const messages: ExpoPushMessage[] = [];
   for (const user of candidates) {
     if (fixedSinceHeartbeat.has(user.id)) continue;
+    if (readingUnproven(user)) {
+      if (dryRun) console.log(`[jobs/activation] DRY RUN skip ${user.id}: captured under this permission reading before`);
+      continue;
+    }
     const seen = sends.get(user.id);
     if (seen && seen.count >= LAPSED_MAX_SENDS) continue;
     if (seen && seen.last > cooldownCutoff) continue;
