@@ -1,4 +1,5 @@
 import { describe, it, expect } from "vitest";
+import { haversineDistance } from "@mileclear/shared";
 import {
   planAutoSplit,
   partitionAtCuts,
@@ -6,6 +7,7 @@ import {
   AUTO_SPLIT_MIN_DWELL_SEC,
   AUTO_SPLIT_MAX_CUTS,
   shareParentDistance,
+  AUTO_SPLIT_MAX_SCALE,
   type SplitCoord,
 } from "../../services/tripSplit.js";
 
@@ -130,16 +132,22 @@ describe("shareParentDistance", () => {
   const legs = [trail.slice(0, 50), trail.slice(50)];
 
   it("hands the parent's own distance out, rather than re-deriving it", () => {
-    // The parent is map-matched to 10 miles; its raw breadcrumbs sum to less.
-    // Splitting must not quietly swap the road figure for the straight lines.
-    const shared = shareParentDistance(10, legs);
+    // The parent is map-matched to a little over its breadcrumbs (a routed
+    // correction over a sparse stretch). Splitting must hand THAT figure out,
+    // not quietly swap the road figure for the straight lines.
+    const raw = legs.reduce((sum, leg) => sum + legDistanceMiles(leg), 0);
+    const parent = Math.round(raw * 1.15 * 100) / 100;
+    const shared = shareParentDistance(parent, legs);
     const total = shared.reduce((a, b) => a + b, 0);
-    // Not exactly 10: the hop across the cut belongs to no leg, which is the
-    // point. On a clean trail that is one sample interval, ~1%.
-    expect(total).toBeGreaterThan(9.8);
-    expect(total).toBeLessThanOrEqual(10.01);
-    // And the naive version really would have lost most of it.
-    expect(legs.reduce((sum, leg) => sum + legDistanceMiles(leg), 0)).toBeLessThan(5);
+    // Not exactly the parent: the hop across the cut belongs to no leg, which
+    // is the point. On a clean trail that is one sample interval, ~1%.
+    expect(total).toBeGreaterThan(parent * 0.98);
+    expect(total).toBeLessThanOrEqual(parent + 0.01);
+    // But a parent figure the breadcrumbs cannot support is capped at the
+    // trail: 10 miles on ~2.5 of trail is not a road correction, it is the
+    // phone's cumulative figure for a recording that was already split.
+    const capped = shareParentDistance(10, legs).reduce((a, b) => a + b, 0);
+    expect(capped).toBeLessThanOrEqual(raw * AUTO_SPLIT_MAX_SCALE + 0.02);
   });
 
   it("gives a leg that covered more ground the larger share", () => {
@@ -181,14 +189,49 @@ describe("shareParentDistance", () => {
     }
     const coords = [...before, ...after];
     const parts = partitionAtCuts(coords, planAutoSplit(coords));
-    const shared = shareParentDistance(10, parts);
-    expect(shared.reduce((a, b) => a + b, 0)).toBeCloseTo(10, 1);
+    // The parent's figure covers the trail AND the wake gap, plus a small
+    // routed correction - a figure the breadcrumbs can support.
+    const endOfFirst = parts[0][parts[0].length - 1];
+    const startOfNext = parts[1][0];
+    const hop = haversineDistance(endOfFirst.lat, endOfFirst.lng, startOfNext.lat, startOfNext.lng);
+    const trailWithHop = parts.reduce((s, leg) => s + legDistanceMiles(leg), 0) + hop;
+    const parent = Math.round(trailWithHop * 1.05 * 100) / 100;
+    const shared = shareParentDistance(parent, parts);
+    expect(shared.reduce((a, b) => a + b, 0)).toBeCloseTo(parent, 1);
     // and those miles land on the leg that drove them
     expect(shared[1]).toBeGreaterThan(shared[0]);
   });
 
   it("falls back to raw leg distances when there is nothing to scale against", () => {
     expect(shareParentDistance(0, legs).every((m) => m >= 0)).toBe(true);
+  });
+});
+
+describe("shareParentDistance - the trail is the ceiling (Rachel Rennie, 3 Sep 2026)", () => {
+  it("does not let a parent figure that includes already-split miles inflate the legs", () => {
+    // Two legs of ~1 mile each, but the parent's stored distance is the
+    // phone's cumulative figure for the whole recording: 11.27 miles, most
+    // of it already living in other trips.
+    const legs = partitionAtCuts(
+      route([{ n: 45, speed: DRIVING }, { n: 40, speed: STOPPED }, { n: 45, speed: DRIVING }]),
+      [45 + 20]
+    );
+    const trail = legs.reduce((s, leg) => s + legDistanceMiles(leg), 0);
+    const shared = shareParentDistance(11.27, legs);
+    const total = shared.reduce((a, b) => a + b, 0);
+    expect(total).toBeLessThanOrEqual(trail * AUTO_SPLIT_MAX_SCALE + 0.02);
+    expect(total).toBeLessThan(4);
+  });
+
+  it("still applies a modest routed correction when the parent is only slightly over the trail", () => {
+    const legs = partitionAtCuts(
+      route([{ n: 45, speed: DRIVING }, { n: 40, speed: STOPPED }, { n: 45, speed: DRIVING }]),
+      [45 + 20]
+    );
+    const trail = legs.reduce((s, leg) => s + legDistanceMiles(leg), 0);
+    const parent = Math.round(trail * 1.1 * 100) / 100;
+    const total = shareParentDistance(parent, legs).reduce((a, b) => a + b, 0);
+    expect(Math.abs(total - parent)).toBeLessThan(0.03);
   });
 });
 

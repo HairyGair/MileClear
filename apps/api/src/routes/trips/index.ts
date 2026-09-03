@@ -46,6 +46,7 @@ import {
   executeTripSplit,
   autoSplitVisitWelds,
   SplitValidationError,
+  trailDistanceMiles,
 } from "../../services/tripSplit.js";
 import { sendLiveActivityStartPush, isApnsConfigured } from "../../services/apns.js";
 import { visitAutoSplitEnabled } from "../../jobs/visitSplit.js";
@@ -2252,6 +2253,19 @@ export async function tripRoutes(app: FastifyInstance) {
     const appendCoordinates = incomingCoordinates ?? [];
     const hasAppendCoordinates = appendCoordinates.length > 0;
 
+    // Has the server already cut visits out of this trip? The device does not
+    // know: it still holds the whole recording under this id and PATCHes its
+    // cumulative distance with every append, legs that now live in other
+    // trips included. Writing that figure onto the parent, then sharing it
+    // across the legs that remain, is how Rachel Rennie's 3 Sep 2026 day
+    // came to 57.8 miles on 40 of GPS (and 27 users, 226 miles, in 14 days).
+    // For a split parent the breadcrumbs are the only honest distance.
+    const wasAutoSplitParent =
+      hasAppendCoordinates &&
+      (await prisma.trip.count({
+        where: { userId, gpsQuality: { path: "$.autoSplitFromTripId", equals: id } },
+      })) > 0;
+
     // A manual trip whose end point moved has stale route geometry — clear
     // it in the same write, then refresh fire-and-forget below.
     const endMoved =
@@ -2323,6 +2337,28 @@ export async function tripRoutes(app: FastifyInstance) {
           });
         }
         appendedCoordinates = fresh.length;
+
+        if (wasAutoSplitParent) {
+          const trail = await tx.tripCoordinate.findMany({
+            where: { tripId: id },
+            orderBy: { recordedAt: "asc" },
+            select: { lat: true, lng: true },
+          });
+          const trailMiles = trailDistanceMiles(trail);
+          if (trail.length >= 2 && trailMiles !== updated.distanceMiles) {
+            logEvent("trip.append_distance_recomputed", userId, {
+              tripId: id,
+              clientMiles: updated.distanceMiles,
+              trailMiles,
+              coords: trail.length,
+            });
+            return tx.trip.update({
+              where: { id },
+              data: { distanceMiles: trailMiles },
+              include: { vehicle: true, shift: true },
+            });
+          }
+        }
 
         return updated;
       });

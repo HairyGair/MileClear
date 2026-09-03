@@ -544,6 +544,22 @@ export const AUTO_SPLIT_STOP_HOP_MILES = 0.15;
  * leg that follows. Dropping them was costing 1.58 miles off a 3.77-mile trip
  * in the second dry-run.
  */
+/**
+ * The parent's stored miles may legitimately exceed the breadcrumb trail
+ * (a routed correction over a sparse stretch) but never by much: with the
+ * 20 m distance filter the trail IS the road. Anything beyond this ratio is
+ * not a distance for these breadcrumbs at all.
+ *
+ * Rachel Rennie, 3 Sep 2026: after a trip had been split once, the phone
+ * kept PATCHing the parent with its cumulative distance for the WHOLE
+ * recording (legs already moved to other trips included), and each re-split
+ * shared that figure across the legs that remained. One 3-minute leg ended
+ * up at 4.87 miles on 1.79 miles of trail; her day read 57.8 against 40 of
+ * GPS. 67 trips across 27 users in 14 days, 226 miles of excess. The clamp
+ * makes the trail the ceiling.
+ */
+export const AUTO_SPLIT_MAX_SCALE = 1.25;
+
 export function shareParentDistance(parentMiles: number, legs: SplitCoord[][]): number[] {
   const attributed = legs.map((leg) => legDistanceMiles(leg));
   let stopped = 0;
@@ -558,8 +574,17 @@ export function shareParentDistance(parentMiles: number, legs: SplitCoord[][]): 
   if (!(trailTotal > 0) || !(parentMiles > 0)) {
     return attributed.map((m) => Math.round(m * 100) / 100);
   }
-  const scale = parentMiles / trailTotal;
+  const scale = Math.min(parentMiles / trailTotal, AUTO_SPLIT_MAX_SCALE);
   return attributed.map((m) => Math.round(m * scale * 100) / 100);
+}
+
+/** Haversine over a whole trail, same basis as legDistanceMiles. */
+export function trailDistanceMiles(coords: Array<{ lat: number; lng: number }>): number {
+  let miles = 0;
+  for (let i = 1; i < coords.length; i++) {
+    miles += haversineDistance(coords[i - 1].lat, coords[i - 1].lng, coords[i].lat, coords[i].lng);
+  }
+  return Math.round(miles * 100) / 100;
 }
 
 /**

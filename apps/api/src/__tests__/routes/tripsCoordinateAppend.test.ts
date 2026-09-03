@@ -199,4 +199,55 @@ describe("PATCH /trips/:id — merge coordinate append", () => {
     // An edit that touches no coordinates must not discard the polyline.
     expect(prisma.trip.update.mock.calls[0][0].data.routePolyline).toBeUndefined();
   });
+
+  it("recomputes a split parent's distance from its breadcrumbs instead of taking the phone's cumulative figure", async () => {
+    // The server has already cut a visit out of this trip (a child carries
+    // autoSplitFromTripId). The phone does not know and PATCHes the parent
+    // with its cumulative 11.27 miles for the whole recording. Rachel
+    // Rennie, 3 Sep 2026: that figure, shared across the legs that remained,
+    // put 4.87 miles on a 3-minute, 1.79-mile leg.
+    vi.mocked(prisma.trip.count).mockResolvedValue(1 as any);
+    // A short straight trail: three fixes ~0.5 mi apart along a meridian.
+    const trail = [
+      { lat: 53.5, lng: -2.47, recordedAt: new Date("2026-08-12T17:00:00Z") },
+      { lat: 53.5072, lng: -2.47, recordedAt: new Date("2026-08-12T17:02:00Z") },
+      { lat: 53.5144, lng: -2.47, recordedAt: new Date("2026-08-12T17:04:00Z") },
+    ];
+    const tx = {
+      trip: { update: vi.fn().mockImplementation(({ data }) => Promise.resolve({ ...EXISTING_TRIP, ...data })) },
+      tripCoordinate: {
+        findMany: vi.fn().mockResolvedValue(trail),
+        createMany: vi.fn().mockResolvedValue({ count: 0 }),
+      },
+    };
+    vi.mocked(prisma.$transaction).mockImplementation(async (fn: any) => fn(tx));
+
+    const res = await app.inject({
+      method: "PATCH", url: `/trips/${TRIP_ID}`, headers: auth,
+      payload: { ...MERGE_BODY, distanceMiles: 11.27 },
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(tx.trip.update).toHaveBeenCalledTimes(2);
+    const second = tx.trip.update.mock.calls[1][0].data.distanceMiles;
+    // ~1 mile of trail, never the 11.27 the phone sent.
+    expect(second).toBeGreaterThan(0.9);
+    expect(second).toBeLessThan(1.1);
+    expect(logEvent).toHaveBeenCalledWith(
+      "trip.append_distance_recomputed",
+      USER_ID,
+      expect.objectContaining({ tripId: TRIP_ID, clientMiles: 11.27 })
+    );
+  });
+
+  it("leaves an unsplit trip's client distance alone on append", async () => {
+    vi.mocked(prisma.trip.count).mockResolvedValue(0 as any);
+    const tx = wireTransaction([new Date("2026-08-12T17:32:45Z")]);
+    const res = await app.inject({
+      method: "PATCH", url: `/trips/${TRIP_ID}`, headers: auth, payload: MERGE_BODY,
+    });
+    expect(res.statusCode).toBe(200);
+    expect(tx.trip.update).toHaveBeenCalledTimes(1);
+    expect(tx.trip.update.mock.calls[0][0].data.distanceMiles).toBe(7.03);
+  });
 });
