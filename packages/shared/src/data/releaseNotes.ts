@@ -78,6 +78,42 @@ export const ACTIVE_ANNOUNCEMENT: SiteAnnouncement | null = null;
 
 export const RELEASE_NOTES: ReleaseNote[] = [
   {
+    // Build 88, cut 3 Sep 2026 (evening), the first binary since 87. Its one
+    // native reason: Akbar's CarPlay photo. iOS 26 puts the trip Live Activity
+    // on the CarPlay dashboard, and with no layout of our own for that size it
+    // drew the compact Dynamic Island views over each other - "2.5 mi" on top
+    // of the previous reading, the badge doubled. The widget now declares the
+    // small activity family with a layout of its own (logo, distance, state),
+    // which moved the widget target's minimum OS to 18.
+    //
+    // Everything else here went to 1.3.9 phones by OTA between 1 and 3 Sep and
+    // is listed so the version has an honest record; the phrasing rule from
+    // 1.3.9 applies (what changed, never "update to get this"). Label flow:
+    // "In Testing" on TestFlight, "Pending Review" with Apple, "Latest" on
+    // approval in the same edit that drops 1.3.9 to "App Store".
+    version: "1.3.10",
+    date: "September 2026",
+    label: "In Testing",
+    items: [
+      "The trip counter on a CarPlay dashboard no longer draws each new reading over the last one; it now shows the MileClear mark, the distance so far and what the app is doing",
+      "Every trip card in the list carries a map of the route, not only the trips you have just finished",
+      "A stop part-way through a journey no longer inflates the miles of the drives either side of it: the miles come from the route the phone actually recorded",
+      "When recording began part-way through a drive the app now says so and offers to extend the trip back to where you set off, instead of offering the opening stretch as a journey you missed",
+      "Turning off the Live Activity in the app now also stops the one the server starts when a drive is detected",
+      "Starting a recording while the last one was still closing no longer fails quietly; the app waits its turn",
+    ],
+    ctaUrl: "https://mileclear.com/releases",
+    ctaLabel: "Read the release notes",
+    emailSubject: "What's new in MileClear 1.3.10",
+    emailTagline:
+      "1.3.10 fixes the CarPlay trip counter and carries the three September improvements to how journeys are recorded and shown.",
+    emailHighlights: [
+      "**CarPlay shows the trip counter properly** - the mark, the miles so far and the state, with no readings drawn over each other.",
+      "**A map on every trip card** - see where a drive went before you decide what it was.",
+      "**Recording began late? Extend the trip** - the miles before the app noticed are added back to the drive they belong to.",
+    ],
+  },
+  {
     // Build 85, cut 25 Aug 2026 for TestFlight. The engine pair: both fixes
     // came from named drivers' reports this same week and were promised to
     // them in writing. Plus the first binary carrying the classify-at-the-

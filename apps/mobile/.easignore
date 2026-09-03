@@ -8,7 +8,9 @@ apps/mobile/assets/appstore-screenshots
 apps/mobile/assets/logo-concepts
 _pending
 
-# Docs
+# Docs (user dumps and print masters carry personal data)
+docs/dumps
+docs/print
 *.md
 !node_modules/**/*.md
 LICENSE
