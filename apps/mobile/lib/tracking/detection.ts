@@ -26,6 +26,7 @@ import { getNotificationPreferences } from "../notifications/preferences";
 // live bindings are resolved by the time anything runs.
 import { ensureAnchorGeofenceArmed } from "../geofencing";
 import { signalTripStart } from "../api/trips";
+import { decideAutoTripLiveActivity } from "../liveActivity/autoTripRule";
 
 /**
  * Wrapper around startLiveActivity for auto-detected trips. Honors the user
@@ -119,6 +120,22 @@ export async function startNativeAutoTripLiveActivity(): Promise<void> {
   } catch {
     // default to business mode
   }
+  // The in-app switch (Settings > Notifications > "Live Activity") decides
+  // BOTH the local start and the push-to-start. Until 3 Sep 2026 only the
+  // local start honoured it: the push request below ran regardless, so a
+  // driver who had turned the Live Activity off still had the server ask
+  // Apple to show one. See lib/liveActivity/autoTripRule.ts.
+  let prefEnabled = true;
+  try {
+    prefEnabled = (await getNotificationPreferences()).autoTripLiveActivity;
+  } catch {
+    // pref read failure is non-fatal; default to showing the LA
+  }
+  if (!prefEnabled) {
+    logDetectionEvent("native_la_suppressed_by_pref").catch(() => {});
+    return;
+  }
+
   await startAutoTripLiveActivityFromBufferedState({ activityType: "trip", isBusinessMode });
   // Surface whether the Live Activity actually started. iOS silently rejects a
   // Live Activity START while the app is backgrounded, and startLiveActivity
@@ -127,6 +144,7 @@ export async function startNativeAutoTripLiveActivity(): Promise<void> {
   // whether the foreground catch-up (dashboard) is what's carrying it.
   try {
     const started = await recoverLiveActivity();
+    const action = decideAutoTripLiveActivity({ prefEnabled, localStarted: started });
     logDetectionEvent(
       started ? "native_la_started" : "native_la_start_blocked",
       started ? undefined : { error: getLastLiveActivityStartError() ?? "unknown" }
@@ -137,13 +155,13 @@ export async function startNativeAutoTripLiveActivity(): Promise<void> {
     // Dynamic Island appears on its own. Only when the local start failed —
     // a successful local start already shows the activity, and a push would
     // spawn a second one. Best-effort; never blocks recording.
-    if (!started) {
+    if (action === "push_requested") {
       signalTripStart({ activityType: "trip", isBusinessMode }).catch(() => {});
     }
     // Remember what we did, so the foreground presence probe can compare
     // "we asked for one" against "ActivityKit shows one". See presence.ts.
     import("../liveActivity/presence")
-      .then((m) => m.noteLiveActivitySignal(started ? "local_started" : "push_requested"))
+      .then((m) => m.noteLiveActivitySignal(action === "local_started" ? "local_started" : "push_requested"))
       .catch(() => {});
   } catch {
     // diagnostics only - never throw
