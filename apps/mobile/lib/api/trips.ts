@@ -422,8 +422,10 @@ export interface MissedJourneyProposal {
   arrivedAt: string; // ISO — next trip's start
   estimatedMiles: number; // crow-flies estimate; the form recomputes road distance
   /** "gap" = inferred from a hole between two trips. "recorded" = the engine
-   *  captured this drive and then discarded it for being too short. */
-  source?: "gap" | "recorded";
+   *  captured this drive and then discarded it for being too short.
+   *  "trip_start" = the next trip was already moving when it began recording,
+   *  so this is its opening stretch: "extend" it rather than add a trip. */
+  source?: "gap" | "recorded" | "trip_start";
   /** What the engine captured before discarding it, for "recorded" rows. */
   recordedMiles?: number | null;
 }
@@ -452,8 +454,8 @@ export function reportDiscardedRecording(data: {
 
 // Mark a proposal handled: "accept" once the user has added the trip (the Trip
 // itself is created by the prefilled form via createTrip), "dismiss" to hide it.
-export function resolveMissedJourney(id: string, action: "accept" | "dismiss") {
-  return apiRequest<{ ok: boolean }>(`/trips/missed-journeys/${id}/resolve`, {
+export function resolveMissedJourney(id: string, action: "accept" | "dismiss" | "extend") {
+  return apiRequest<{ ok: boolean; tripId?: string; addedMiles?: number }>(`/trips/missed-journeys/${id}/resolve`, {
     method: "POST",
     body: JSON.stringify({ action }),
   });

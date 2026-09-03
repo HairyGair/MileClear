@@ -79,17 +79,40 @@ export function MissedJourneys() {
     }
   };
 
+  // A "trip_start" offer: the next trip was already moving when it began
+  // recording, so this stretch is its beginning, not a drive of its own.
+  // Accepting moves that trip's start back and credits the routed miles;
+  // nothing new appears in the list (Anthony, 3 Sep 2026: the old "Add trip"
+  // path put a 1-mile trip at the previous stop's time into classification).
+  const extend = async (id: string) => {
+    setBusyId(id);
+    setItems((prev) => prev.filter((p) => p.id !== id)); // optimistic
+    try {
+      await resolveMissedJourney(id, "extend");
+    } catch {
+      load();
+    } finally {
+      setBusyId(null);
+    }
+  };
+
   if (items.length === 0) return null;
+
+  const starts = items.filter((p) => p.source === "trip_start").length;
+  const header =
+    starts === items.length
+      ? items.length === 1
+        ? "A trip that may have started earlier"
+        : `${items.length} trips that may have started earlier`
+      : items.length === 1
+        ? "A journey you might have missed"
+        : `${items.length} journeys to check`;
 
   return (
     <View style={styles.card}>
       <View style={styles.header}>
         <Ionicons name="git-compare-outline" size={16} color={colors.amber} />
-        <Text style={styles.headerText}>
-          {items.length === 1
-            ? "A journey you might have missed"
-            : `${items.length} journeys you might have missed`}
-        </Text>
+        <Text style={styles.headerText}>{header}</Text>
       </View>
       {items.map((p) => (
         <View key={p.id} style={styles.row}>
@@ -109,10 +132,27 @@ export function MissedJourneys() {
               We recorded this one but it was too short to save on its own
             </Text>
           )}
+          {p.source === "trip_start" && (
+            <Text style={styles.recordedNote}>
+              Recording began part-way through this drive. Extend it to start from{" "}
+              {shortPlace(p.fromAddress, p.fromLat, p.fromLng)}.
+            </Text>
+          )}
           <View style={styles.actions}>
-            <TouchableOpacity style={styles.addBtn} onPress={() => add(p)} activeOpacity={0.85}>
-              <Text style={styles.addText}>Add trip</Text>
-            </TouchableOpacity>
+            {p.source === "trip_start" ? (
+              <TouchableOpacity
+                style={styles.addBtn}
+                onPress={() => extend(p.id)}
+                disabled={busyId === p.id}
+                activeOpacity={0.85}
+              >
+                <Text style={styles.addText}>Extend trip</Text>
+              </TouchableOpacity>
+            ) : (
+              <TouchableOpacity style={styles.addBtn} onPress={() => add(p)} activeOpacity={0.85}>
+                <Text style={styles.addText}>Add trip</Text>
+              </TouchableOpacity>
+            )}
             <TouchableOpacity
               style={styles.dismissBtn}
               onPress={() => dismiss(p.id)}

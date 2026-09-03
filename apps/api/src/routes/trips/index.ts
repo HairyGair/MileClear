@@ -31,7 +31,11 @@ import {
 import { checkAndAwardAchievements } from "../../services/gamification.js";
 import { sendMilestonePush, sendAchievementPush } from "../../jobs/notifications.js";
 import { logEvent } from "../../services/appEvents.js";
-import { selectMissedJourneyCandidates } from "../../services/missedJourneys.js";
+import {
+  selectMissedJourneyCandidates,
+  isMovingAtFirstFix,
+  type MissedJourneyTripInput,
+} from "../../services/missedJourneys.js";
 import { advanceLastTripAt } from "../../services/userActivity.js";
 import { qualifyReferralOnFirstTrip } from "../../services/referral.js";
 import { looksLikePhantomTrip, hasRealMovementEvidence } from "../../lib/phantomTrip.js";
@@ -1059,7 +1063,7 @@ export async function tripRoutes(app: FastifyInstance) {
   app.get("/missed-journeys", async (request, reply) => {
     const userId = request.userId!;
     const since = new Date(Date.now() - MISSED_SCAN_DAYS * 24 * 60 * 60 * 1000);
-    const trips = await prisma.trip.findMany({
+    const trips: MissedJourneyTripInput[] = await prisma.trip.findMany({
       where: { userId, isPhantomTrip: false, startedAt: { gte: since } },
       orderBy: { startedAt: "asc" },
       select: {
@@ -1069,24 +1073,50 @@ export async function tripRoutes(app: FastifyInstance) {
       },
     });
 
-    const { candidates, wakeLagSuppressed, wakeLagMaxMiles } =
+    // Two passes. The first finds the pairs worth asking about; for each of
+    // those, look at the next trip's first two breadcrumbs and ask whether
+    // the car was already moving when recording began. If it was, the gap is
+    // that trip's opening stretch, not a missed drive (Anthony, 3 Sep 2026:
+    // "always the very beginning of a trip"; 251 of 358 fleet-wide). Only
+    // the candidates' B trips are looked up, so the cost is a handful of
+    // two-row reads, not one per trip in the window.
+    const firstPass = selectMissedJourneyCandidates(trips);
+    const byId = new Map(trips.map((t) => [t.id, t]));
+    for (const c of firstPass.candidates) {
+      const bId = c.key.split(":")[1];
+      const b = byId.get(bId);
+      if (!b || b.isManualEntry) continue;
+      const fixes = await prisma.tripCoordinate.findMany({
+        where: { tripId: bId },
+        orderBy: { recordedAt: "asc" },
+        take: 2,
+        select: { lat: true, lng: true, speed: true, recordedAt: true },
+      });
+      b.movingAtFirstFix = isMovingAtFirstFix(fixes);
+    }
+    const { candidates, wakeLagSuppressed, wakeLagMaxMiles, tripStartOffers } =
       selectMissedJourneyCandidates(trips);
     if (wakeLagSuppressed > 0) {
       logEvent("trip.missed_proposals_wake_lag_suppressed", userId, {
         suppressed: wakeLagSuppressed,
         maxMiles: wakeLagMaxMiles,
+        tripStartOffers,
       });
     }
 
-    // Upsert candidates (no-op update preserves an existing accepted/dismissed
-    // status, so a handled proposal is never resurrected), then prune any
-    // 'proposed' rows whose gap has since closed (key no longer a candidate).
+    // Upsert candidates. The update touches only `source`, so a pair that was
+    // offered as a gap before the first-fix check existed becomes a
+    // trip-start offer, while an accepted/dismissed row keeps its status and
+    // is never resurrected. Then prune any 'proposed' rows whose gap has
+    // since closed (key no longer a candidate).
     const candidateKeys = candidates.map((c) => c.key);
     for (const c of candidates) {
+      const { kind, tripId: _tripId, ...columns } = c;
+      void _tripId;
       await prisma.missedJourneyProposal.upsert({
         where: { userId_key: { userId, key: c.key } },
-        create: { userId, status: "proposed", ...c },
-        update: {},
+        create: { userId, status: "proposed", source: kind, ...columns },
+        update: { source: kind },
       });
     }
     // Prune only what this scan owns. A "recorded" row is a drive the engine
@@ -1097,7 +1127,7 @@ export async function tripRoutes(app: FastifyInstance) {
       where: {
         userId,
         status: "proposed",
-        source: "gap",
+        source: { in: ["gap", "trip_start"] },
         key: { notIn: candidateKeys.length ? candidateKeys : ["__none__"] },
       },
     });
@@ -1224,12 +1254,84 @@ export async function tripRoutes(app: FastifyInstance) {
   // Mark a proposal handled. accept = the user added the trip (the Trip row
   // itself is created via POST /trips by the prefilled form); dismiss = not a
   // real drive, don't show again. Scoped to the owner to avoid IDOR.
-  const missedActionSchema = z.object({ action: z.enum(["accept", "dismiss"]) });
+  const missedActionSchema = z.object({ action: z.enum(["accept", "dismiss", "extend"]) });
   app.post("/missed-journeys/:id/resolve", async (request, reply) => {
     const userId = request.userId!;
     const { id } = request.params as { id: string };
     const parsed = missedActionSchema.safeParse(request.body ?? {});
     if (!parsed.success) return reply.code(400).send({ error: "Invalid action" });
+
+    // "extend": a trip-start offer. The next trip was already moving when it
+    // began recording, so the gap is its opening stretch; accepting moves
+    // that trip's start back to where the previous one ended and credits the
+    // routed miles, the same way the automatic wake-lag extension does for
+    // gaps under 0.6 mi. No separate trip is created: the "1 mile at odd
+    // times" rows Anthony kept meeting in classification (3 Sep 2026) were
+    // exactly those, offered as journeys of their own.
+    if (parsed.data.action === "extend") {
+      const p = await prisma.missedJourneyProposal.findFirst({ where: { id, userId } });
+      if (!p) return reply.code(404).send({ error: "Not found" });
+      if (p.source !== "trip_start") return reply.code(400).send({ error: "Not a trip-start offer" });
+      if (p.status !== "proposed") return reply.send({ ok: true, skipped: "already_handled" });
+      const bId = p.key.split(":")[1];
+      const b = await prisma.trip.findFirst({ where: { id: bId, userId, isPhantomTrip: false } });
+      if (!b) return reply.code(404).send({ error: "Trip no longer exists" });
+
+      const crow = haversineDistance(p.fromLat, p.fromLng, p.toLat, p.toLng);
+      const route = await resolveRouteDistance({
+        startLat: p.fromLat, startLng: p.fromLng,
+        endLat: p.toLat, endLng: p.toLng,
+        userId,
+      });
+      const routeUsable =
+        route != null &&
+        Number.isFinite(route.distanceMiles) &&
+        route.distanceMiles >= crow * 0.95 &&
+        route.distanceMiles <= Math.max(crow * 4, 1);
+      const addedMiles = Math.round((routeUsable ? route.distanceMiles : crow) * 100) / 100;
+      const travelSecs =
+        routeUsable && route.durationSecs && route.durationSecs > 0
+          ? route.durationSecs
+          : (addedMiles / 20) * 3600;
+      const prependAt = new Date(b.startedAt.getTime() - Math.round(travelSecs * 1000));
+      const gq = (b.gpsQuality && typeof b.gpsQuality === "object" && !Array.isArray(b.gpsQuality))
+        ? (b.gpsQuality as Record<string, unknown>)
+        : {};
+
+      await prisma.$transaction(async (tx) => {
+        await tx.tripCoordinate.create({
+          data: { tripId: b.id, lat: p.fromLat, lng: p.fromLng, speed: null, accuracy: null, recordedAt: prependAt },
+        });
+        await tx.trip.update({
+          where: { id: b.id },
+          data: {
+            startLat: p.fromLat,
+            startLng: p.fromLng,
+            startAddress: p.fromAddress ?? null,
+            distanceMiles: Math.round((b.distanceMiles + addedMiles) * 100) / 100,
+            routePolyline: null,
+            originalStartLat: b.originalStartLat ?? b.startLat,
+            originalStartLng: b.originalStartLng ?? b.startLng,
+            gpsQuality: {
+              ...gq,
+              startExtendedMiles: addedMiles,
+              startExtendedSource: "missed_journey_trip_start",
+            } as Prisma.InputJsonValue,
+          },
+        });
+        await tx.missedJourneyProposal.update({ where: { id }, data: { status: "accepted" } });
+      });
+      logEvent("trip.start_extended_from_offer", userId, {
+        tripId: b.id,
+        proposalId: id,
+        addedMiles,
+        crowMiles: Math.round(crow * 100) / 100,
+        routed: routeUsable,
+      });
+      upsertMileageSummary(userId, getTaxYear(b.startedAt)).catch(() => {});
+      return reply.send({ ok: true, tripId: b.id, addedMiles });
+    }
+
     const status = parsed.data.action === "accept" ? "accepted" : "dismissed";
     const result = await prisma.missedJourneyProposal.updateMany({
       where: { id, userId },

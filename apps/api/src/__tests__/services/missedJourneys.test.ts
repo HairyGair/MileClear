@@ -5,6 +5,7 @@
 import { describe, it, expect } from "vitest";
 import {
   selectMissedJourneyCandidates,
+  isMovingAtFirstFix,
   MISSED_WAKE_LAG_MILES,
   MISSED_MIN_MILES,
   type MissedJourneyTripInput,
@@ -100,8 +101,8 @@ describe("selectMissedJourneyCandidates", () => {
       trip("a", { startMin: 0, endMin: 10 }),
       trip("b", { startMin: 15, endMin: 40, startLatOffsetMiles: 0.8 }),
     ];
-    expect(selectMissedJourneyCandidates(tooSoon)).toEqual({ candidates: [], wakeLagSuppressed: 0, wakeLagMaxMiles: 0 });
-    expect(selectMissedJourneyCandidates(tooLate)).toEqual({ candidates: [], wakeLagSuppressed: 0, wakeLagMaxMiles: 0 });
+    expect(selectMissedJourneyCandidates(tooSoon)).toEqual({ candidates: [], wakeLagSuppressed: 0, wakeLagMaxMiles: 0, tripStartOffers: 0 });
+    expect(selectMissedJourneyCandidates(tooLate)).toEqual({ candidates: [], wakeLagSuppressed: 0, wakeLagMaxMiles: 0, tripStartOffers: 0 });
     expect(selectMissedJourneyCandidates(justInside).candidates).toHaveLength(1);
   });
 
@@ -129,5 +130,71 @@ describe("selectMissedJourneyCandidates", () => {
   it("exposes the floors it uses", () => {
     expect(MISSED_MIN_MILES).toBe(0.3);
     expect(MISSED_WAKE_LAG_MILES).toBe(0.6);
+  });
+});
+
+describe("moving at first fix - the gap is the start of the next trip (Anthony, 3 Sep 2026)", () => {
+  it("offers a 1.2 mi gap before an auto trip that was already moving as that trip's start, not a separate drive", () => {
+    const a = trip("a", { startMin: 0, endMin: 10 });
+    const b = { ...trip("b", { startLatOffsetMiles: 1.2, startMin: 40, endMin: 55 }), movingAtFirstFix: true };
+    const sel = selectMissedJourneyCandidates([a, b]);
+    expect(sel.candidates).toHaveLength(1);
+    expect(sel.candidates[0].kind).toBe("trip_start");
+    expect(sel.candidates[0].tripId).toBe("b");
+    expect(sel.tripStartOffers).toBe(1);
+    expect(sel.wakeLagSuppressed).toBe(0);
+  });
+
+  it("offers the same gap as a plain missed drive when the next trip started from rest", () => {
+    const a = trip("a", { startMin: 0, endMin: 10 });
+    const b = { ...trip("b", { startLatOffsetMiles: 1.2, startMin: 40, endMin: 55 }), movingAtFirstFix: false };
+    const sel = selectMissedJourneyCandidates([a, b]);
+    expect(sel.candidates).toHaveLength(1);
+    expect(sel.candidates[0].kind).toBe("gap");
+    expect(sel.tripStartOffers).toBe(0);
+  });
+
+  it("treats unknown motion (no breadcrumbs to judge from) as a plain gap", () => {
+    const a = trip("a", { startMin: 0, endMin: 10 });
+    const b = { ...trip("b", { startLatOffsetMiles: 1.2, startMin: 40, endMin: 55 }), movingAtFirstFix: null };
+    expect(selectMissedJourneyCandidates([a, b]).candidates[0].kind).toBe("gap");
+  });
+
+  it("keeps a long gap as a plain gap even when the next trip was moving: it can hold a real drive as well", () => {
+    const a = trip("a", { startMin: 0, endMin: 10 });
+    const b = { ...trip("b", { startLatOffsetMiles: 8, startMin: 120, endMin: 140 }), movingAtFirstFix: true };
+    const sel = selectMissedJourneyCandidates([a, b]);
+    expect(sel.candidates[0].kind).toBe("gap");
+    expect(sel.tripStartOffers).toBe(0);
+  });
+
+  it("ignores the flag on a manual next trip (a typed start has no wake lag)", () => {
+    const a = trip("a", { startMin: 0, endMin: 10 });
+    const b = { ...trip("b", { startLatOffsetMiles: 1.2, startMin: 40, endMin: 55, isManualEntry: true }), movingAtFirstFix: true };
+    expect(selectMissedJourneyCandidates([a, b]).candidates[0].kind).toBe("gap");
+  });
+});
+
+describe("isMovingAtFirstFix", () => {
+  const t0 = Date.UTC(2026, 8, 3, 13, 0, 0);
+  it("says moving when the first fix reports driving speed", () => {
+    expect(isMovingAtFirstFix([{ lat: 52.2, lng: -1.9, speed: 8.9, recordedAt: new Date(t0) }])).toBe(true);
+  });
+  it("says moving when the first two fixes imply driving speed even with no stored speed", () => {
+    // ~0.29 mi in 60 s ≈ 17 mph.
+    expect(isMovingAtFirstFix([
+      { lat: 52.2, lng: -1.9, speed: null, recordedAt: new Date(t0) },
+      { lat: 52.2042, lng: -1.9, speed: null, recordedAt: new Date(t0 + 60_000) },
+    ])).toBe(true);
+  });
+  it("says at rest for a slow first fix followed by a short hop", () => {
+    expect(isMovingAtFirstFix([
+      { lat: 52.2, lng: -1.9, speed: 0.4, recordedAt: new Date(t0) },
+      { lat: 52.20005, lng: -1.9, speed: 2, recordedAt: new Date(t0 + 30_000) },
+    ])).toBe(false);
+  });
+  it("says unknown with nothing to judge from", () => {
+    expect(isMovingAtFirstFix([])).toBeNull();
+    expect(isMovingAtFirstFix([{ lat: 52.2, lng: -1.9, speed: null, recordedAt: new Date(t0) }])).toBeNull();
   });
 });
