@@ -11,6 +11,7 @@
 // End Time, From, To, Distance (miles), Classification, Business Purpose.
 
 import { prisma } from "../lib/prisma.js";
+import { defaultVehicleIdForUser } from "./vehicleDefaults.js";
 import type {
   CsvTripRow,
   CsvTripRowError,
@@ -357,6 +358,7 @@ export async function confirmTripCsvImport(
   let imported = 0;
   let totalMiles = 0;
 
+  const defaultVehicleId = await defaultVehicleIdForUser(userId);
   for (const row of toImport) {
     const start = await resolve(row.from);
     const end = await resolve(row.to);
@@ -377,6 +379,7 @@ export async function confirmTripCsvImport(
     await prisma.trip.create({
       data: {
         userId,
+        vehicleId: defaultVehicleId,
         // 0,0 is the established "no coordinates" sentinel (hasValidCoords
         // in routes/trips treats near-zero as unset), so imported rows we
         // cannot geocode stay out of the UK bounding-box queries that feed

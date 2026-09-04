@@ -4,6 +4,7 @@ import { Prisma } from "@prisma/client";
 import { authMiddleware } from "../../middleware/auth.js";
 import { attachIdempotency } from "../../middleware/idempotency.js";
 import { prisma } from "../../lib/prisma.js";
+import { defaultVehicleIdForUser } from "../../services/vehicleDefaults.js";
 import {
   TRIP_CLASSIFICATIONS,
   TRIP_CATEGORIES,
@@ -736,7 +737,7 @@ export async function tripRoutes(app: FastifyInstance) {
     const tripPayload = {
       userId,
       shiftId: tripData.shiftId ?? null,
-      vehicleId: tripData.vehicleId ?? null,
+      vehicleId: tripData.vehicleId ?? (await defaultVehicleIdForUser(userId)),
       startLat: resolvedStartLat,
       startLng: resolvedStartLng,
       ...(resolvedStartLat !== deviceStartLat || resolvedStartLng !== deviceStartLng

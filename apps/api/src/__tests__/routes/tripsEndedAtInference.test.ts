@@ -28,7 +28,7 @@ vi.mock("../../lib/prisma.js", () => ({
       groupBy: vi.fn().mockResolvedValue([]),
     },
     tripCoordinate: { createMany: vi.fn(), findMany: vi.fn().mockResolvedValue([]), deleteMany: vi.fn() },
-    vehicle: { findFirst: vi.fn().mockResolvedValue(null) },
+    vehicle: { findFirst: vi.fn().mockResolvedValue(null), findMany: vi.fn().mockResolvedValue([]) },
     shift: { findFirst: vi.fn().mockResolvedValue(null) },
     appEvent: { create: vi.fn().mockResolvedValue({}) },
     user: { findUnique: vi.fn().mockResolvedValue(null) },

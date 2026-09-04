@@ -8,6 +8,7 @@ vi.mock("../../lib/prisma.js", () => ({
       findMany: vi.fn().mockResolvedValue([]),
       create: vi.fn().mockResolvedValue({}),
     },
+    vehicle: { findMany: vi.fn().mockResolvedValue([]) },
   },
 }));
 

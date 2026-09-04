@@ -2,8 +2,10 @@ import { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { authMiddleware } from "../../middleware/auth.js";
 import { prisma } from "../../lib/prisma.js";
+import { attachSoleVehicleToOrphanTrips } from "../../services/vehicleDefaults.js";
+import { upsertMileageSummary } from "../../services/mileage.js";
 import { cacheGet, cacheSet } from "../../lib/redis.js";
-import { FUEL_TYPES, VEHICLE_TYPES, assessCleanAirZones } from "@mileclear/shared";
+import { FUEL_TYPES, VEHICLE_TYPES, assessCleanAirZones, getTaxYear } from "@mileclear/shared";
 import type { FuelType, VehicleLookupResult, CazVehicleClass } from "@mileclear/shared";
 import { fetchMotHistory, DvsaMotError } from "../../services/dvsaMot.js";
 
@@ -242,6 +244,13 @@ export async function vehicleRoutes(app: FastifyInstance) {
     const vehicle = await prisma.vehicle.create({
       data: { ...data, userId },
     });
+
+    // First vehicle: the trips recorded before it was added belong to it,
+    // and the tax figure must follow (a motorbike is 24p, not 55p).
+    const attached = await attachSoleVehicleToOrphanTrips(userId);
+    if (attached > 0) {
+      await upsertMileageSummary(userId, getTaxYear(new Date())).catch(() => {});
+    }
 
     return reply.status(201).send({ data: withCleanAirZones(vehicle) });
   });

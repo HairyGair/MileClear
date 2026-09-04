@@ -1,6 +1,7 @@
 export { calculateHmrcDeduction } from "@mileclear/shared";
 
 import { prisma } from "../lib/prisma.js";
+import { attachSoleVehicleToOrphanTrips } from "./vehicleDefaults.js";
 import { calculateMileageDeduction, parseTaxYear, resolveMileageRates } from "@mileclear/shared";
 
 /**
@@ -16,6 +17,10 @@ export async function upsertMileageSummary(
   taxYear: string
 ): Promise<void> {
   const { start, end } = parseTaxYear(taxYear);
+
+  // A driver with one vehicle means every trip is on it; give the orphans
+  // that vehicle before aggregating so the AMAP rate is the right one.
+  await attachSoleVehicleToOrphanTrips(userId);
 
   const user = await prisma.user.findUnique({
     where: { id: userId },
