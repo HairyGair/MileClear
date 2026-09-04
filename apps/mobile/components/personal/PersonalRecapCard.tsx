@@ -570,10 +570,13 @@ const styles = StyleSheet.create({
     gap: 6,
     paddingTop: 10,
     paddingBottom: 2,
+    paddingHorizontal: 20,
   },
   referCtaText: {
     fontSize: 12,
     fontFamily: fonts.medium,
     color: TEXT_3,
+    flex: 1,
+    textAlign: "center",
   },
 });
