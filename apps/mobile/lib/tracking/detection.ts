@@ -4,6 +4,7 @@ import * as TaskManager from "expo-task-manager";
 import * as BackgroundFetch from "expo-background-fetch";
 import * as Notifications from "expo-notifications";
 import { getDatabase } from "../db/index";
+import { getAppMode } from "../mode/index";
 import {
   sendDrivingDetectedNotification,
   showRecordingActiveNotification,
@@ -1797,13 +1798,33 @@ async function _finalizeAutoTripInner(): Promise<void> {
       // diagnostic dump until we queried the DB directly.
       // Capped by the user's journey boundary: gluing a segment back on across
       // a gap they call the end of a journey would undo the split immediately.
-      const { mergeMs } = journeyBoundaryMs(await getJourneyEndMinutes());
+      const { mergeMs: boundaryMergeMs } = journeyBoundaryMs(await getJourneyEndMinutes());
+      // "Still on a job", tapped at the stop that ended recentTrip: the wait
+      // was part of the job, so this leg joins it whatever the boundary
+      // setting says, and the join is marked so the server leaves it whole.
+      // The hint is consumed here whichever way the decision goes.
+      const keepGoing = await readKeepGoingHint();
+      const keepGoingApplies =
+        keepGoing != null &&
+        keepGoing.tripId === recentTrip.id &&
+        Date.now() < keepGoing.untilMs;
+      if (keepGoing) await clearKeepGoingHint();
+      const mergeMs = keepGoingApplies ? KEEP_GOING_MERGE_MS : boundaryMergeMs;
+      const mergeDistanceM = keepGoingApplies ? KEEP_GOING_MERGE_DISTANCE_M : MERGE_DISTANCE_M;
       const decision: string =
-        Math.abs(timeSinceLastTrip) < mergeMs && distFromLastEnd < MERGE_DISTANCE_M
+        Math.abs(timeSinceLastTrip) < mergeMs && distFromLastEnd < mergeDistanceM
           ? "merged"
           : Math.abs(timeSinceLastTrip) >= mergeMs
           ? "rejected_too_old"
           : "rejected_too_far";
+      if (keepGoing) {
+        logDetectionEvent("keep_going_hint_used", {
+          hintTripId: keepGoing.tripId,
+          recentTripId: recentTrip.id,
+          applies: keepGoingApplies,
+          decision,
+        }).catch(() => {});
+      }
       logDetectionEvent("merge_attempted", {
         recentTripId: recentTrip.id,
         timeSinceLastTripMs: timeSinceLastTrip,
@@ -1821,7 +1842,7 @@ async function _finalizeAutoTripInner(): Promise<void> {
       // continuous drive. (Raven 13 May 2026: 5.7 mi trip + 103 mi
       // trip split at Spicewood, 18m apart, 1-second overlap.)
       // Math.abs() so the 15-minute window is symmetric.
-      if (Math.abs(timeSinceLastTrip) < mergeMs && distFromLastEnd < MERGE_DISTANCE_M) {
+      if (Math.abs(timeSinceLastTrip) < mergeMs && distFromLastEnd < mergeDistanceM) {
         // Merge: extend the previous trip's end point, distance, and time
         const { syncUpdateTrip } = await import("../sync/actions");
         const newDistance = Math.round((recentTrip.distance_miles + totalDistance) * 100) / 100;
@@ -1842,6 +1863,7 @@ async function _finalizeAutoTripInner(): Promise<void> {
             accuracy: c.accuracy,
             recordedAt: c.recorded_at,
           })),
+          ...(keepGoingApplies ? { gpsQuality: { driverKeptGoing: true } } : {}),
         });
         merged = true;
         logDetectionEvent("finalize_merged", { intoTripId: recentTrip.id, segmentMiles: totalDistance, mergedTotal: newDistance }).catch(() => {});
@@ -2025,10 +2047,49 @@ async function _finalizeAutoTripInner(): Promise<void> {
       });
     } catch {}
 
+    // A working driver who has just stopped may only be waiting: a
+    // restaurant, a depot queue. Ask, so the next leg can join this trip
+    // rather than become its own (lsstart24, 4 Sep 2026). Only when the
+    // driver is working, never at a saved place (home, the depot: the stop
+    // IS the end), and not more than once every KEEP_GOING_PROMPT_COOLDOWN_MS,
+    // since a courier's day is thirty stops long.
+    let offeredKeepGoing = false;
+    if (savedTripId && !isQuietHours()) {
+      try {
+        const offer = await shouldOfferKeepGoing(last.lat, last.lng);
+        if (offer.offer) {
+          offeredKeepGoing = true;
+          await markKeepGoingPrompted();
+          const from = startAddress || "Unknown";
+          const to = endAddress || "Unknown";
+          Notifications.scheduleNotificationAsync({
+            content: {
+              title: "You've stopped, so this trip is saved",
+              body: `${from} to ${to} (${totalDistance.toFixed(1)} mi). Still on a job? Tap and the next leg joins this trip.`,
+              data: {
+                action: "trip_stopped",
+                tripId: savedTripId,
+                startLat: first.lat,
+                startLng: first.lng,
+                endLat: last.lat,
+                endLng: last.lng,
+              },
+              categoryIdentifier: wasAutoClassified ? "trip_stopped_classified" : "trip_stopped",
+            },
+            trigger: null,
+          }).catch(() => {});
+        }
+        logDetectionEvent("keep_going_prompt", { offered: offer.offer, reason: offer.reason }).catch(() => {});
+      } catch (err) {
+        logDetectionEvent("keep_going_prompt_failed", { error: String(err).slice(0, 120) }).catch(() => {});
+      }
+    }
+
     // For unclassified trips, fire the "classify it" notification NOW that
     // we have the server tripId. The Business/Personal lock-screen buttons
-    // call syncUpdateTrip(tripId, ...) which needs the canonical ID.
-    if (!wasAutoClassified && !isQuietHours()) {
+    // call syncUpdateTrip(tripId, ...) which needs the canonical ID. The
+    // trip_stopped notification carries the same buttons, so not both.
+    if (!offeredKeepGoing && !wasAutoClassified && !isQuietHours()) {
       const from = startAddress || "Unknown";
       const to = endAddress || "Unknown";
       const tripId = savedTripId;
@@ -4265,4 +4326,96 @@ export async function getAndClearBufferedCoordinates(): Promise<BufferedCoordina
     "DELETE FROM tracking_state WHERE key IN ('auto_recording_active', 'last_driving_speed_at', 'finalization_mode')"
   );
   return rows;
+}
+
+// ── "Still on a job" ─────────────────────────────────────────────────────────
+//
+// The recorder ends a leg a few minutes after the car stops, and the next leg
+// only merges back within the journey-boundary window (15 min at most) and
+// MERGE_DISTANCE_M. A driver waiting at a restaurant can wait longer than
+// that. The trip_stopped notification's "Still on a job" button stores a hint
+// here; the next finalize honours it with wider limits and marks the joined
+// trip driverKeptGoing so the server's visit splitter leaves it alone.
+
+/** How long a "Still on a job" answer stays good for. */
+export const KEEP_GOING_MERGE_MS = 90 * 60 * 1000;
+/** A car park, a loading bay, a drive round the block for a space. */
+export const KEEP_GOING_MERGE_DISTANCE_M = 1500;
+/** No more than one prompt per this long. */
+export const KEEP_GOING_PROMPT_COOLDOWN_MS = 20 * 60 * 1000;
+
+export interface KeepGoingHint {
+  tripId: string;
+  endLat: number;
+  endLng: number;
+  untilMs: number;
+}
+
+export async function setKeepGoingHint(hint: { tripId: string; endLat: number; endLng: number }): Promise<void> {
+  const db = await getDatabase();
+  const untilMs = Date.now() + KEEP_GOING_MERGE_MS;
+  await db.runAsync(
+    "INSERT OR REPLACE INTO tracking_state (key, value) VALUES ('keep_going_hint', ?)",
+    [JSON.stringify({ ...hint, untilMs })]
+  );
+  logDetectionEvent("keep_going_hint_set", { tripId: hint.tripId }).catch(() => {});
+}
+
+export async function readKeepGoingHint(): Promise<KeepGoingHint | null> {
+  const db = await getDatabase();
+  const row = await db.getFirstAsync<{ value: string }>(
+    "SELECT value FROM tracking_state WHERE key = 'keep_going_hint'"
+  );
+  if (!row?.value) return null;
+  try {
+    const parsed = JSON.parse(row.value) as Partial<KeepGoingHint>;
+    if (typeof parsed.tripId !== "string" || typeof parsed.untilMs !== "number") return null;
+    return {
+      tripId: parsed.tripId,
+      endLat: Number(parsed.endLat),
+      endLng: Number(parsed.endLng),
+      untilMs: parsed.untilMs,
+    };
+  } catch {
+    return null;
+  }
+}
+
+export async function clearKeepGoingHint(): Promise<void> {
+  const db = await getDatabase();
+  await db.runAsync("DELETE FROM tracking_state WHERE key = 'keep_going_hint'");
+}
+
+async function markKeepGoingPrompted(): Promise<void> {
+  const db = await getDatabase();
+  await db.runAsync(
+    "INSERT OR REPLACE INTO tracking_state (key, value) VALUES ('keep_going_prompt_at', ?)",
+    [String(Date.now())]
+  );
+}
+
+/**
+ * Whether the stop that just ended a trip is worth asking about. Working
+ * drivers only (Work mode, or a shift running), never inside a saved place,
+ * and rate-limited.
+ */
+async function shouldOfferKeepGoing(
+  lat: number,
+  lng: number
+): Promise<{ offer: boolean; reason: string }> {
+  const db = await getDatabase();
+  const shift = await db.getFirstAsync<{ value: string }>(
+    "SELECT value FROM tracking_state WHERE key = 'active_shift_id'"
+  );
+  const working = !!shift?.value || (await getAppMode()) === "work";
+  if (!working) return { offer: false, reason: "not_working" };
+  if (await isInsideAnySavedLocation(lat, lng)) return { offer: false, reason: "saved_location" };
+  const last = await db.getFirstAsync<{ value: string }>(
+    "SELECT value FROM tracking_state WHERE key = 'keep_going_prompt_at'"
+  );
+  const lastMs = last ? Number(last.value) : NaN;
+  if (Number.isFinite(lastMs) && Date.now() - lastMs < KEEP_GOING_PROMPT_COOLDOWN_MS) {
+    return { offer: false, reason: "cooldown" };
+  }
+  return { offer: true, reason: "working_stop" };
 }

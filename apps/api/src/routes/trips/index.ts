@@ -186,6 +186,9 @@ const updateTripSchema = z.object({
   // route. Before 12 Aug 2026 the merge sent only endedAt/distance, which
   // extended the trip over a stretch with no path behind it.
   coordinates: z.array(coordinateInputSchema).max(20000).optional(),
+  // Merge-patched into the stored blob, never replacing it: the device only
+  // ever knows the keys it is setting (driverKeptGoing, today).
+  gpsQuality: z.record(z.unknown()).optional(),
 });
 
 const listTripsQuery = z.object({
@@ -2347,8 +2350,13 @@ export async function tripRoutes(app: FastifyInstance) {
     const {
       classificationAutoAccepted: incomingAutoAccepted,
       coordinates: incomingCoordinates,
+      gpsQuality: incomingGpsQuality,
       ...restUpdates
     } = updates;
+    const existingGpsQuality =
+      existing.gpsQuality && typeof existing.gpsQuality === "object" && !Array.isArray(existing.gpsQuality)
+        ? (existing.gpsQuality as Record<string, unknown>)
+        : {};
     const shouldWriteAutoAccepted =
       incomingAutoAccepted !== undefined &&
       existing.classificationAutoAccepted === null;
@@ -2385,6 +2393,9 @@ export async function tripRoutes(app: FastifyInstance) {
 
     const tripUpdateData = {
       ...restUpdates,
+      ...(incomingGpsQuality
+        ? { gpsQuality: { ...existingGpsQuality, ...incomingGpsQuality } as Prisma.InputJsonValue }
+        : {}),
       ...(distanceMiles !== undefined && { distanceMiles }),
       ...(shouldWriteAutoAccepted && { classificationAutoAccepted: incomingAutoAccepted }),
       ...(endMoved ? { routePolyline: null } : {}),

@@ -33,6 +33,36 @@ export async function registerNotificationCategories(): Promise<void> {
         options: { isDestructive: true, opensAppToForeground: false },
       },
     ]);
+    // trip_stopped: the recorder ended a leg at a stop while the driver was
+    // working. "Still on a job" says the stop was a wait (a restaurant, a
+    // depot queue): the next leg joins this trip instead of becoming its own,
+    // and the server's visit splitter leaves the join alone. Android allows
+    // three buttons, so classification rides along and the separate
+    // "classify it" notification is not sent for these trips.
+    await Notifications.setNotificationCategoryAsync("trip_stopped", [
+      {
+        identifier: "keep_going",
+        buttonTitle: "Still on a job",
+        options: { opensAppToForeground: false },
+      },
+      {
+        identifier: "classify_business",
+        buttonTitle: "Business",
+        options: { opensAppToForeground: false },
+      },
+      {
+        identifier: "classify_personal",
+        buttonTitle: "Personal",
+        options: { opensAppToForeground: false },
+      },
+    ]);
+    await Notifications.setNotificationCategoryAsync("trip_stopped_classified", [
+      {
+        identifier: "keep_going",
+        buttonTitle: "Still on a job",
+        options: { opensAppToForeground: false },
+      },
+    ]);
     await Notifications.setNotificationCategoryAsync("trip_recorded", [
       {
         identifier: "classify_business",
@@ -386,7 +416,7 @@ export function setupNotificationResponseHandler(): void {
 
   Notifications.addNotificationResponseReceivedListener(async (response) => {
     const data = response.notification.request.content.data;
-    const action = data?.action as string | undefined;
+    let action = data?.action as string | undefined;
     const actionId = response.actionIdentifier;
 
     // Handle action buttons pressed from lock screen / notification banner
@@ -467,6 +497,28 @@ export function setupNotificationResponseHandler(): void {
       }
       router.navigate("/(tabs)/trips");
       return;
+    }
+
+    // "Still on a job" at a stop: remember the trip so the next leg is
+    // joined onto it (detection.ts reads the hint at its next finalize).
+    if (action === "trip_stopped" && actionId === "keep_going") {
+      const tripId = data?.tripId as string | undefined;
+      const endLat = data?.endLat as number | undefined;
+      const endLng = data?.endLng as number | undefined;
+      if (tripId && endLat != null && endLng != null) {
+        try {
+          const { setKeepGoingHint } = await import("../tracking/detection");
+          await setKeepGoingHint({ tripId, endLat, endLng });
+        } catch (err) {
+          console.error("Keep-going hint failed:", err);
+        }
+      }
+      return;
+    }
+    // Its Business / Personal buttons are the classify_trip ones; a body tap
+    // opens the trips list like any other saved-trip notification.
+    if (action === "trip_stopped") {
+      action = "classify_trip";
     }
 
     // Handle trip classification from lock screen

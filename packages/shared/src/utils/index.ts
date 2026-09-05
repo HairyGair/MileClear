@@ -378,6 +378,10 @@ export interface TripQuality {
   // and must be shown, but the route/distance is uncertain — surface a badge and
   // route it to the inbox for review rather than silently deleting it.
   lowConfidence?: boolean;
+  // The driver answered "Still on a job" at a stop, so the leg that followed
+  // was joined onto this trip on purpose. The server's visit auto-split must
+  // leave the trip whole: the dwell inside it is a wait, not a journey end.
+  driverKeptGoing?: boolean;
 }
 
 /**

@@ -600,6 +600,15 @@ export function trailDistanceMiles(coords: Array<{ lat: number; lng: number }>):
  * Returns null when the trip has no cut worth making, which is the common
  * case — this runs over every recent trip.
  */
+export function driverKeptGoing(gpsQuality: unknown): boolean {
+  return (
+    !!gpsQuality &&
+    typeof gpsQuality === "object" &&
+    !Array.isArray(gpsQuality) &&
+    (gpsQuality as { driverKeptGoing?: unknown }).driverKeptGoing === true
+  );
+}
+
 export async function autoSplitVisitWelds(args: {
   userId: string;
   tripId: string;
@@ -611,6 +620,9 @@ export async function autoSplitVisitWelds(args: {
   if (!parent) return null;
   if (parent.isManualEntry || parent.isPhantomTrip) return null;
   if (parent.endedAt == null) return null;
+  // The driver said the stop inside this trip was a wait on the same job
+  // (the "Still on a job" prompt), so the dwell is not a boundary.
+  if (driverKeptGoing(parent.gpsQuality)) return null;
 
   if (parent.distanceMiles > AUTO_SPLIT_MAX_TRIP_MILES) return null;
 

@@ -9,6 +9,7 @@ import {
   shareParentDistance,
   AUTO_SPLIT_MAX_SCALE,
   type SplitCoord,
+  driverKeptGoing,
 } from "../../services/tripSplit.js";
 
 // ---------------------------------------------------------------------------
@@ -256,5 +257,21 @@ describe("planAutoSplit - shift guard", () => {
       { n: 50, speed: DRIVING },
     ]);
     expect(planAutoSplit(coords)).toHaveLength(2);
+  });
+});
+
+describe("driverKeptGoing", () => {
+  it("is true only for the explicit mark", () => {
+    expect(driverKeptGoing({ driverKeptGoing: true })).toBe(true);
+    expect(driverKeptGoing({ driverKeptGoing: false })).toBe(false);
+    expect(driverKeptGoing({ rawCoords: 40 })).toBe(false);
+  });
+
+  it("tolerates every shape the column has held", () => {
+    expect(driverKeptGoing(null)).toBe(false);
+    expect(driverKeptGoing(undefined)).toBe(false);
+    expect(driverKeptGoing("garbage")).toBe(false);
+    expect(driverKeptGoing([])).toBe(false);
+    expect(driverKeptGoing({ driverKeptGoing: "true" })).toBe(false);
   });
 });
