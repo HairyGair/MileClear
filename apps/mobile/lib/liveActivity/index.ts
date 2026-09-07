@@ -6,6 +6,7 @@
  */
 
 import { NativeModules, Platform } from "react-native";
+import { decideLiveActivityStart } from "./startRule";
 import { registerLiveActivityToken } from "../api/notifications";
 
 const LiveActivityModule = NativeModules.LiveActivityModule;
@@ -18,6 +19,13 @@ let activityStartDateMs: number | null = null;
 // auto-start was blocked (e.g. an ActivityAuthorizationError) instead of
 // guessing. Foreground starts succeed; the gap is the background path.
 let lastStartError: string | null = null;
+
+/** Fire-and-forget diagnostic. Lazy import: detection.ts imports this module. */
+function logLiveActivityEvent(event: string, meta?: Record<string, unknown>): void {
+  import("../tracking/detection")
+    .then((m) => m.logDetectionEvent(event, meta))
+    .catch(() => {});
+}
 export function getLastLiveActivityStartError(): string | null {
   return lastStartError;
 }
@@ -58,6 +66,38 @@ export async function startLiveActivity(params: {
 }): Promise<string | null> {
   if (Platform.OS !== "ios" || !LiveActivityModule) return null;
   try {
+    // Adopt an activity that is already on screen rather than replacing it.
+    // The native startActivity ends every existing activity BEFORE it calls
+    // Activity.request, and that request always fails in the background, so
+    // a second start inside one drive destroyed the activity the server had
+    // just put up by push-to-start. See startRule.ts for the measurement.
+    const existingId = await Promise.resolve(LiveActivityModule.getActiveActivityId()).catch(
+      () => null
+    );
+    let existingPhase: string | null = null;
+    if (existingId) {
+      existingPhase = await Promise.resolve(LiveActivityModule.getLiveActivityPhase()).catch(
+        () => null
+      );
+    }
+    const decision = decideLiveActivityStart({ existingId, existingPhase });
+    if (decision.action === "adopt") {
+      currentActivityId = decision.activityId;
+      // Keep whatever start time the caller knows about (the earliest buffered
+      // coord, usually); fall back to the one we already had, then to now.
+      activityStartDateMs = params.startDateMs ?? activityStartDateMs ?? Date.now();
+      lastStartError = null;
+      logLiveActivityEvent("la_adopted_existing", { phase: existingPhase ?? "unknown" });
+      // Stamped so the next foreground presence check can report it. An adopt
+      // in the BACKGROUND is the proof we could never get before: an activity
+      // was on screen that this app did not start, i.e. a push-to-start that
+      // really did display.
+      import("./presence")
+        .then((m) => m.noteLiveActivityAdopted())
+        .catch(() => {});
+      return decision.activityId;
+    }
+
     const id = await LiveActivityModule.startActivity({
       activityType: params.activityType,
       vehicleName: params.vehicleName ?? "",

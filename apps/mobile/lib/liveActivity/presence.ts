@@ -23,6 +23,7 @@ import { decidePresenceProbe } from "./presenceRule";
 const KEY_SIGNAL_AT = "la_last_signal_at";
 const KEY_SIGNAL_KIND = "la_last_signal_kind";
 const KEY_PROBE_AT = "la_presence_probe_at";
+const KEY_ADOPT_AT = "la_last_adopt_at";
 
 export type LiveActivitySignalKind = "local_started" | "push_requested";
 
@@ -43,6 +44,11 @@ async function writeState(key: string, value: string): Promise<void> {
   } catch {
     // diagnostics only
   }
+}
+
+/** Stamped when startLiveActivity found an activity already running and adopted it. */
+export async function noteLiveActivityAdopted(): Promise<void> {
+  await writeState(KEY_ADOPT_AT, String(Date.now()));
 }
 
 /** Called by detection when an activity was started locally or a push-to-start was requested. */
@@ -104,10 +110,11 @@ export async function probeLiveActivityPresence(): Promise<void> {
   if (Platform.OS !== "ios") return;
   try {
     const now = Date.now();
-    const [recording, signalAt, probeAt] = await Promise.all([
+    const [recording, signalAt, probeAt, adoptAt] = await Promise.all([
       readState("auto_recording_active"),
       readState(KEY_SIGNAL_AT),
       readState(KEY_PROBE_AT),
+      readState(KEY_ADOPT_AT),
     ]);
     const decision = decidePresenceProbe({
       now,
@@ -128,12 +135,31 @@ export async function probeLiveActivityPresence(): Promise<void> {
       sinceSignalMs: signalAt ? now - Number(signalAt) : null,
       lastStartError: state.lastStartError,
       osVersion: String(Platform.Version),
+      // Non-null means we have since found an activity running that we did not
+      // start — the only direct evidence a push-to-start displayed.
+      sinceAdoptMs: adoptAt ? now - Number(adoptAt) : null,
     };
     const detection = await import("../tracking/detection");
     detection.logDetectionEvent("la_presence_check", payload).catch(() => {});
     apiRequest("/user/event", { method: "POST", body: JSON.stringify({ type: "la.presence_check", metadata: payload }) }).catch(
       () => {}
     );
+
+    // Measured, and now mended. A recording is open, the app is in front and
+    // ActivityKit shows nothing: start one here. Foreground starts are the
+    // ones iOS allows, so this is the reliable moment. The dashboard already
+    // did this on its own tab, which is no help to a driver who opens the app
+    // on Trips or Earnings - and the probe says that is where they land.
+    if (decision.context === "recording_open" && state.enabled === true && state.present === false) {
+      await detection.startNativeAutoTripLiveActivity().catch(() => {});
+      const after = await getLiveActivityState();
+      const healed = { started: after.present === true, lastStartError: after.lastStartError };
+      detection.logDetectionEvent("la_foreground_heal", healed).catch(() => {});
+      apiRequest("/user/event", {
+        method: "POST",
+        body: JSON.stringify({ type: "la.foreground_heal", metadata: healed }),
+      }).catch(() => {});
+    }
   } catch {
     // diagnostics only
   }

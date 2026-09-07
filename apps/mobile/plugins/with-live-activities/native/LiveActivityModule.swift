@@ -52,15 +52,20 @@ class LiveActivityModule: NSObject {
             startDate: Date()
         )
 
-        // End any existing activities first to prevent duplicates
-        // (concurrent background callbacks can each start one)
+        // An activity already on screen is handed straight back, and the
+        // JS side adopts it (see lib/liveActivity/startRule.ts).
+        //
+        // This used to end every existing activity BEFORE requesting a new
+        // one. In the background the request then failed ("Target is not
+        // foreground"), so a second start inside one drive DESTROYED the
+        // activity the server had just put up by push-to-start and left the
+        // driver with a dark Dynamic Island for the rest of the journey.
+        // 478 of 483 presence probes during an open recording found nothing
+        // (7 Sep 2026). Never end an activity we are not certain to replace.
         let existingActivities = Activity<MileClearAttributes>.activities
-        if !existingActivities.isEmpty {
-            Task {
-                for activity in existingActivities {
-                    await activity.end(nil, dismissalPolicy: .immediate)
-                }
-            }
+        if let existing = existingActivities.first {
+            resolve(existing.id)
+            return
         }
 
         do {
@@ -71,6 +76,16 @@ class LiveActivityModule: NSObject {
                 content: content,
                 pushType: nil
             )
+            // Only now that a replacement exists is it safe to clear any
+            // duplicates a concurrent background callback may have created.
+            let stale = existingActivities.filter { $0.id != activity.id }
+            if !stale.isEmpty {
+                Task {
+                    for old in stale {
+                        await old.end(nil, dismissalPolicy: .immediate)
+                    }
+                }
+            }
             resolve(activity.id)
         } catch {
             reject("START_FAILED", error.localizedDescription, error)
