@@ -51,6 +51,92 @@ export interface Guide {
 // ----------------------------------------------------------------
 export const BLOG_POSTS: BlogPost[] = [
   {
+    slug: "what-a-thousand-drivers-taught-us",
+    title: "What a thousand drivers taught us",
+    excerpt:
+      "Our thousandth member signed up this afternoon. Between them, the first thousand have recorded 54,000 journeys and three quarters of a million miles \u2014 and taught us that almost everything hard about a mileage tracker happens after the driving stops.",
+    date: "7 September 2026",
+    author: "Gair",
+    category: "announcement",
+    content: `
+<p>Somebody signed up to MileClear at ten past three this afternoon and became our thousandth member. She has no idea, and by the time you read this she will have got on with her day.</p>
+
+<p>It seems a reasonable moment to say what the first thousand people have actually done with it, and what they have taught us. The second part is longer, and less flattering.</p>
+
+<h2>What a thousand people look like</h2>
+
+<p>A thousand and nine of you have signed up. Seven hundred and thirty four have recorded at least one journey, and five hundred and fifty have recorded one in the last month. The gap between those numbers is the most useful thing on this page, and I will come back to it.</p>
+
+<p>Between you, that is 54,036 journeys and 748,019 miles. Twenty thousand of those journeys were business, adding up to 326,754 miles, which at HMRC's rates is around \u00a3178,000 of allowable expenses that would otherwise have been guesswork or nothing at all.</p>
+
+<p>Ninety four per cent of those journeys recorded themselves. Nobody pressed start.</p>
+
+<p>The growth has been steady rather than dramatic: three people in February, eighteen in March, then eighty, seventy, a hundred and twenty, two hundred and thirty, and three hundred and sixty nine in August. Most days now bring around fifteen hundred journeys.</p>
+
+<h2>The easy half is starting</h2>
+
+<p>Everybody assumes the hard problem is noticing that a drive has begun. It is not. A phone can tell you it is moving at thirty miles an hour without much trouble.</p>
+
+<p>The hard problem is noticing that a drive has <em>ended</em>, and almost every difficult thing we have built in the last seven months is downstream of that one question.</p>
+
+<p>Get it wrong one way and a courier's afternoon of six drops arrives as a single enormous journey with the stops buried inside it. Get it wrong the other way and a queue at a level crossing becomes three separate trips. Both are wrong on a tax return, and only one of them looks wrong to the person reading their list.</p>
+
+<p>What we eventually understood is that there is no correct answer in the data, because the answer is a property of the job rather than of the phone. A driver doing animal care with twenty visits a day and a driver doing one long delivery run disagree about what counts as the end of a journey, and both are right. So it became a setting. The person who suggested it also spotted its limit before we did: it cannot go very low, or a city driver sitting in traffic has their journey ended underneath them.</p>
+
+<h2>Trips that never happened</h2>
+
+<p>A tracker has two ways to be wrong about a journey, and we have met both.</p>
+
+<p>The first is losing one. The second, which we did not expect to matter nearly as much, is inventing one.</p>
+
+<p>A phone that has been sitting in a pocket at a farm for twenty minutes will sometimes report a position four kilometres away, then correct itself. If you are not careful, that is a two and a half mile journey from an address the driver has never visited, recorded in ninety seconds, at an implied hundred and five miles an hour on a country lane. We have caught 582 of these, holding 2,614 miles of fiction that would otherwise have been on somebody's return.</p>
+
+<p>The lesson took a while. We tried to catch them by comparing the speed the trip implied against the fastest speed the phone had actually measured, which sounds clever and is wrong: a real one mile drive whose middle was lost looks exactly the same, because the only surviving readings are the stationary ones at each end. Physical impossibility turned out to be the only safe test. A car cannot average a hundred miles an hour between two points a mile apart. It can easily average thirteen.</p>
+
+<h2>Never change a thousand records without a rehearsal</h2>
+
+<p>The single most valuable habit we have picked up costs nothing.</p>
+
+<p>Having built a rule that cuts welded journeys apart at the visits inside them, the obvious next step was to run it over everyone's recent trips. Instead we ran it as a rehearsal: work out precisely what it would do to every journey from the previous two days, and change nothing at all.</p>
+
+<p>It wanted to cut 620 journeys out of 2,005, across 236 drivers, taking 595 miles off people's records in a single pass. Those extra six hundred were not welded journeys. They were delivery shifts, where every wait outside a restaurant looks exactly like a visit.</p>
+
+<p>We have done that rehearsal before every fleet-wide change since, and it has caught something almost every time. If we ever stop doing it, that is the day we quietly ruin a few hundred tax records.</p>
+
+<h2>The gap between installed and working</h2>
+
+<p>Back to the difference between a thousand sign-ups and seven hundred and thirty four people with a journey on record.</p>
+
+<p>Some of that is ordinary curiosity: people try things and move on. But a good part of it was our fault, and finding out was uncomfortable. At one point a quarter of the people using MileClear could not capture anything in the background, because of a permission they had never been asked for properly, and dozens of phones were running an app that was recording nothing at all while looking perfectly healthy.</p>
+
+<p>On Android the same problem wears different clothes. The operating system is allowed to freeze an app to save battery, and it does. The way you spot it is not the missing journeys, it is the one that survived: a drive recorded correctly at half past two that does not reach us until the driver opens the app at half past eight. That six hour silence is the whole story.</p>
+
+<p>The uncomfortable general lesson is that a tracker can look completely healthy to its owner and be doing nothing. Green dashboards, passing tests and a satisfied-looking settings screen all agree with each other and none of them is evidence. Only the data is evidence.</p>
+
+<h2>Believe the driver, not the app</h2>
+
+<p>Roughly a third of recorded journeys are still sitting unclassified, and the missed-journey suggestions we offer get accepted about a third of the time. Neither of those is a number to be proud of, and both are the same lesson: an app that asks too often gets ignored, and once it is being ignored it cannot tell you anything.</p>
+
+<p>The things that have worked are the ones where the driver knows something we cannot: naming the places they stop, saying whether a wait is part of a job, correcting a start point we got wrong. The things that have worked badly are the ones where we guessed on their behalf and were confident about it.</p>
+
+<h2>The bug we were causing ourselves</h2>
+
+<p>The most humbling one is a fortnight old.</p>
+
+<p>MileClear can put a live counter on an iPhone's lock screen while you drive. For months we had no evidence it was ever appearing, so we built a small probe to ask the phone directly. The answer came back: in 478 out of 483 checks, during a journey that was actively recording, there was nothing on screen at all.</p>
+
+<p>It was not Apple. It was us. Every time the app tried to start that counter it first cleared away any existing one, and starting a new one is not permitted while the app is in the background, so the second attempt in a drive destroyed the very thing the first had put there. Six thousand notifications were accepted and delivered perfectly, into a space we had just emptied.</p>
+
+<p>We would still be guessing about it if we had not built something whose only job was to measure whether the feature worked. That is now a habit too.</p>
+
+<h2>Thank you</h2>
+
+<p>Nearly everything above was found because somebody wrote in. Not politely worded bug reports either: "my last few trips look a little strange", "it says it is not syncing", "I went home, Sam's, Debbie's, Maydale, home". Every one of those turned into a fix that quietly improved things for the other nine hundred and ninety nine.</p>
+
+<p>So: thank you, and keep telling us when it looks wrong. It is genuinely the fastest way this gets better.</p>
+`,
+  },
+  {
     slug: "whats-new-in-version-1-3-9",
     title: "What's new in version 1.3.9",
     excerpt:
