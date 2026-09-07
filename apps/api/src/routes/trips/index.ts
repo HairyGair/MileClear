@@ -421,6 +421,12 @@ export async function tripRoutes(app: FastifyInstance) {
       status: result.status,
       reason: result.reason ?? null,
       activityType: d.activityType,
+      // Apple's own id for this notification. A 200 only means accepted, so
+      // when one never appears on the phone this is the single thing that can
+      // be looked up in the Push Notifications Console to see what became of
+      // it — delivered, stored for an offline device, or discarded because
+      // the feature is switched off. Captured since 24 Aug but never recorded.
+      apnsId: result.apnsId ?? null,
     });
 
     // BadDeviceToken / Unregistered => the stored token is dead; clear it so we

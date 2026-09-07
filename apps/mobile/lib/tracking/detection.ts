@@ -157,7 +157,19 @@ export async function startNativeAutoTripLiveActivity(): Promise<void> {
     // a successful local start already shows the activity, and a push would
     // spawn a second one. Best-effort; never blocks recording.
     if (action === "push_requested") {
-      signalTripStart({ activityType: "trip", isBusinessMode }).catch(() => {});
+      // Only if iOS would actually show one. Apple throttles push-to-start at
+      // roughly ten per device in a rolling day and a start push spends that
+      // budget whether or not anything can be displayed; a third of our users
+      // already exceed it (7 Sep 2026). A phone with Live Activities switched
+      // off in Settings can never show one, so pushing to it burns the budget
+      // of the drivers who can.
+      const { isLiveActivitySupported } = await import("../liveActivity");
+      const osAllows = await isLiveActivitySupported().catch(() => true);
+      if (osAllows) {
+        signalTripStart({ activityType: "trip", isBusinessMode }).catch(() => {});
+      } else {
+        logDetectionEvent("la_push_skipped_os_disabled").catch(() => {});
+      }
     }
     // Remember what we did, so the foreground presence probe can compare
     // "we asked for one" against "ActivityKit shows one". See presence.ts.
