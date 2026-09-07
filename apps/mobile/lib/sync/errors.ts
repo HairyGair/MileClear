@@ -109,6 +109,19 @@ export function isServerUnavailable(err: unknown): boolean {
  *  permanently_failed destroyed real trips the user could never recover (the
  *  data-loss bug, 16 Jun 2026). Treat them like a network error: preserve and
  *  retry. Only genuine payload rejections (400/409/422 etc.) are permanent. */
+/** The server has no such record: a 404 on an update or delete.
+ *
+ *  Not a malformed payload, so it does not belong with the other client
+ *  rejections. The edit was queued against a trip that has since gone from the
+ *  server, and parking it forever leaves a red "Sync issues" badge that reads
+ *  as "nothing is saving" — 59 users in a fortnight (Katy Moore, 7 Sep 2026,
+ *  one stuck item from 55 days earlier while every trip she made was safely
+ *  on the server). What to do about it depends on whether the phone still has
+ *  the record; see resolveMissingTarget in actions handling. */
+export function isTargetMissing(err: unknown): boolean {
+  return err instanceof ApiError && err.statusCode === 404;
+}
+
 export function isDefiniteClientRejection(err: unknown): boolean {
   if (err instanceof ApiError) {
     if (err.statusCode === 401 || err.statusCode === 403) return false;
