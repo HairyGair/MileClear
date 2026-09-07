@@ -251,3 +251,91 @@ describe("looksLikePhantomTrip - never got going", () => {
     expect(looksLikePhantomTrip({ ...farmyardDrift, isManualEntry: true })).toBe(false);
   });
 });
+
+describe("the impossible chord (Rachel Thorndyke, 7 Sep 2026)", () => {
+  const base = { isManualEntry: false, hasRealMovementEvidence: false };
+
+  it("catches two fixes a car could not have travelled between", () => {
+    // Parked at Maydale Farm: a stale fix 4 km away and a good one. 2.65
+    // miles in 91 seconds, an implied 105 mph on a farm lane.
+    expect(
+      looksLikePhantomTrip({
+        ...base,
+        distanceMiles: 2.65,
+        startedAt: "2026-09-07T16:52:50Z",
+        endedAt: "2026-09-07T16:54:22Z",
+        coordinateCount: 2,
+        maxSpeedMph: 5,
+        avgAccuracyM: 24,
+        lowConfidence: true,
+      })
+    ).toBe(true);
+  });
+
+  it("keeps the short hop whose middle was lost", () => {
+    // The case that killed the first draft of this rule: a real mile in five
+    // minutes, where the only surviving fixes are the stationary ones at each
+    // end, so the fastest speed ever measured is 1 mph. 13 of these were in
+    // the fleet dry-run and every one of them is a genuine drive.
+    expect(
+      looksLikePhantomTrip({
+        ...base,
+        distanceMiles: 1.14,
+        startedAt: "2026-09-01T10:00:00Z",
+        endedAt: "2026-09-01T10:05:00Z",
+        coordinateCount: 2,
+        maxSpeedMph: 1,
+        avgAccuracyM: 20,
+        lowConfidence: true,
+      })
+    ).toBe(false);
+  });
+
+  it("keeps a real drive that lost its middle", () => {
+    // Jenkins, 3 Aug: Liverpool to Leeds, 58.24 miles over 3h10m on two
+    // coords. 18 mph implied — nowhere near impossible.
+    expect(
+      looksLikePhantomTrip({
+        ...base,
+        distanceMiles: 58.24,
+        startedAt: "2026-08-03T09:00:00Z",
+        endedAt: "2026-08-03T12:10:00Z",
+        coordinateCount: 2,
+        maxSpeedMph: 68,
+        avgAccuracyM: 30,
+        lowConfidence: true,
+      })
+    ).toBe(false);
+  });
+
+  it("keeps a fast but possible sparse drive", () => {
+    // 1.85 miles in 118 seconds is 56 mph point to point. Quick, and a car
+    // can do it.
+    expect(
+      looksLikePhantomTrip({
+        ...base,
+        distanceMiles: 1.85,
+        startedAt: "2026-09-02T08:00:00Z",
+        endedAt: "2026-09-02T08:01:58Z",
+        coordinateCount: 2,
+        maxSpeedMph: 6,
+        avgAccuracyM: 20,
+        lowConfidence: true,
+      })
+    ).toBe(false);
+  });
+
+  it("stays out of the way of a dense trace", () => {
+    expect(
+      looksLikePhantomTrip({
+        ...base,
+        distanceMiles: 4,
+        startedAt: "2026-09-07T10:00:00Z",
+        endedAt: "2026-09-07T10:02:00Z",
+        coordinateCount: 40,
+        maxSpeedMph: 60,
+        avgAccuracyM: 8,
+      })
+    ).toBe(false);
+  });
+});

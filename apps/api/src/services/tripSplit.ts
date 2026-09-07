@@ -600,6 +600,42 @@ export function trailDistanceMiles(coords: Array<{ lat: number; lng: number }>):
  * Returns null when the trip has no cut worth making, which is the common
  * case — this runs over every recent trip.
  */
+/** Matches the geocode job's tolerance for a fix drifting off a saved pin. */
+const SAVED_LOCATION_DRIFT_BUFFER_M = 50;
+const METERS_TO_MILES = 1 / 1609.34;
+
+/**
+ * The driver's own name for a point, or null.
+ *
+ * A split leg used to be written with null addresses and left for the geocode
+ * job, which runs every six hours. Rachel Thorndyke's 7 Sep round: the app cut
+ * her journey at Samantha Littlewood's, and for the rest of the evening her
+ * trip list showed a leg that started nowhere. She has that place saved, and
+ * asked why it was not being named. Nothing was broken, but a name she is
+ * already looking at should not wait a quarter of a day.
+ *
+ * Nearest match wins, so a second saved place a little further off (Longlakes
+ * Equestrian, 86 m away against Samantha Littlewood's 53 m) cannot take the
+ * label. The geocode job still fills anything left, street names included.
+ */
+function nearestSavedName(
+  saved: Array<{ name: string; latitude: number; longitude: number; radiusMeters: number }>,
+  lat: number,
+  lng: number
+): string | null {
+  let best: string | null = null;
+  let bestMiles = Infinity;
+  for (const loc of saved) {
+    const miles = haversineDistance(lat, lng, loc.latitude, loc.longitude);
+    const limit = (loc.radiusMeters + SAVED_LOCATION_DRIFT_BUFFER_M) * METERS_TO_MILES;
+    if (miles <= limit && miles < bestMiles) {
+      best = loc.name;
+      bestMiles = miles;
+    }
+  }
+  return best;
+}
+
 export function driverKeptGoing(gpsQuality: unknown): boolean {
   return (
     !!gpsQuality &&
@@ -632,6 +668,10 @@ export async function autoSplitVisitWelds(args: {
 
   const legs = partitionAtCuts(coords, cutIndices);
   const legMiles = shareParentDistance(parent.distanceMiles, legs);
+  const savedLocations = await prisma.savedLocation.findMany({
+    where: { userId },
+    select: { name: true, latitude: true, longitude: true, radiusMeters: true },
+  });
   const result: AutoSplitResult = {
     tripId: parent.id,
     legs: legs.length,
@@ -660,9 +700,13 @@ export async function autoSplitVisitWelds(args: {
           endLat: last.lat,
           endLng: last.lng,
           // Interior boundaries are the stop, and only the driver knows what
-          // it is called. Left null for the geocode job to name.
-          startAddress: null,
-          endAddress: k === legs.length - 1 ? parent.endAddress : null,
+          // it is called. Ask their saved places now; the geocode job fills
+          // anything still null on its next pass.
+          startAddress: nearestSavedName(savedLocations, first.lat, first.lng),
+          endAddress:
+            k === legs.length - 1
+              ? parent.endAddress
+              : nearestSavedName(savedLocations, last.lat, last.lng),
           distanceMiles: legMiles[k],
           startedAt: first.recordedAt,
           endedAt: last.recordedAt,
@@ -701,15 +745,17 @@ export async function autoSplitVisitWelds(args: {
 
     // The parent keeps leg one's breadcrumbs and shrinks to match them. Its
     // end address belonged to the far end of the welded journey and has moved
-    // to the last leg, so null it and let the geocoder name the stop.
+    // to the last leg, so replace it with the driver's name for the stop, and
+    // leave it null for the geocoder only if they have no name for it.
     const firstLeg = legs[0];
+    const parentEnd = firstLeg[firstLeg.length - 1];
     await tx.trip.update({
       where: { id: parent.id },
       data: {
-        endLat: firstLeg[firstLeg.length - 1].lat,
-        endLng: firstLeg[firstLeg.length - 1].lng,
-        endAddress: null,
-        endedAt: firstLeg[firstLeg.length - 1].recordedAt,
+        endLat: parentEnd.lat,
+        endLng: parentEnd.lng,
+        endAddress: nearestSavedName(savedLocations, parentEnd.lat, parentEnd.lng),
+        endedAt: parentEnd.recordedAt,
         distanceMiles: legMiles[0],
         routePolyline: encodePolyline(firstLeg),
       },

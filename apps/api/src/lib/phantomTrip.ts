@@ -113,6 +113,50 @@ function looksLikeTeleport(args: PhantomCheckInput): boolean {
  * timestamps minutes apart, in which case the speed says nothing; the
  * accuracy still does.
  */
+/**
+ * Two fixes a car could not possibly have travelled between.
+ *
+ * Rachel Thorndyke, 7 Sep 2026, parked at Maydale Farm: two surviving fixes,
+ * one stale and 4 km away at 50 m accuracy, one good at 2 m. It saved as 2.65
+ * miles in 91 seconds - an implied 105 mph on a farm lane - and showed in her
+ * list as a drive from an Immingham address she had never visited.
+ *
+ * Every existing rule let it through. The teleport bound is 120 mph, loose on
+ * purpose so a genuine motorway drive with a lost middle survives. The
+ * cell-tower rule wants 500 m accuracy and this averaged 24 m. And the
+ * crow-flies rule steps aside for `lowConfidence`, which the device had set
+ * precisely because it threw three of five fixes away.
+ *
+ * So this rule tightens the speed bound, but ONLY for a trip whose distance
+ * rests on two fixes and a straight line. There, a bad fix is the likeliest
+ * explanation of an impossible speed, and crow-flies distance is always
+ * shorter than the road, so the implied figure understates the real one: 90
+ * mph point-to-point means sustained motorway speeds on top.
+ *
+ * A first draft compared the implied speed against the fastest the device had
+ * measured, on the theory that a real drive shows its speed. A fleet dry-run
+ * killed it: 13 of the 14 trips it newly hid were ordinary short hops of a
+ * mile in five minutes, where the only surviving fixes were the stationary
+ * ones at each end, so the observed maximum was 1 mph and the implied 13.
+ * That is what a real drive looks like when the middle is lost. Physical
+ * impossibility is the only safe discriminator here.
+ */
+export const SPARSE_MAX_IMPLIED_MPH = 90;
+
+function looksLikeImpossibleChord(args: PhantomCheckInput): boolean {
+  if (args.coordinateCount === undefined || args.coordinateCount >= CROW_FLIES_MIN_COORDS) {
+    return false;
+  }
+  if (args.distanceMiles < CELL_TOWER_MIN_MILES) return false;
+  if (!args.endedAt) return false;
+  const startMs = new Date(args.startedAt).getTime();
+  const endMs = new Date(args.endedAt).getTime();
+  if (!Number.isFinite(startMs) || !Number.isFinite(endMs)) return false;
+  const hours = (endMs - startMs) / 3600000;
+  if (hours <= 0) return false;
+  return args.distanceMiles / hours > SPARSE_MAX_IMPLIED_MPH;
+}
+
 function looksLikeCellTowerChord(args: PhantomCheckInput): boolean {
   if (args.coordinateCount === undefined || args.coordinateCount >= CROW_FLIES_MIN_COORDS) {
     return false;
@@ -175,6 +219,7 @@ export function looksLikePhantomTrip(args: PhantomCheckInput): boolean {
   // a drive whatever the client flagged it.
   if (looksLikeTeleport(args)) return true;
   if (looksLikeCellTowerChord(args)) return true;
+  if (looksLikeImpossibleChord(args)) return true;
 
   // Speed reprieve: if the trip clocked a real driving speed at any point, it's
   // a genuine drive however short or sparse — never a phantom.
