@@ -7,6 +7,7 @@ import { apiRequest } from "../api/index";
 import { isOnline, onConnectivityChange } from "../network";
 import { getPendingCount, MAX_RETRIES } from "./queue";
 import { backfillGhostTrips } from "./backfill";
+import { resolveMissingTarget } from "./missingTargetRule";
 import {
   isNetworkError,
   isLocalSystemError,
@@ -15,6 +16,7 @@ import {
   isAuthError,
   isServerUnavailable,
   isDefiniteClientRejection,
+  isTargetMissing,
 } from "./errors";
 
 export type SyncState = "idle" | "syncing" | "error";
@@ -237,6 +239,45 @@ export async function processSyncQueue(): Promise<void> {
 
         const errMsg = err instanceof Error ? err.message : "Unknown error";
         const now2 = new Date().toISOString();
+
+        // The server has no such record. Not a malformed payload, so it does
+        // not belong in the permanently_failed pile where it sits for ever
+        // behind a red "Sync issues" badge. See missingTargetRule.ts.
+        if (isTargetMissing(err)) {
+          const tableForItem: Record<string, string> = {
+            trip: "trips",
+            earning: "earnings",
+            fuel_log: "fuel_logs",
+            shift: "shifts",
+            saved_location: "saved_locations",
+          };
+          const localTable = tableForItem[item.entity_type];
+          let localRowExists = false;
+          if (localTable) {
+            const row = await db.getFirstAsync<{ id: string }>(
+              `SELECT id FROM ${localTable} WHERE id = ?`,
+              [item.entity_id]
+            );
+            localRowExists = !!row;
+          }
+          const resolution = resolveMissingTarget({
+            action: item.action as "create" | "update" | "delete",
+            localRowExists,
+          });
+          if (resolution === "drop") {
+            await db.runAsync("DELETE FROM sync_queue WHERE id = ?", [item.id]);
+            continue;
+          }
+          if (resolution === "recreate") {
+            // The phone is the only place this record still exists. Upload it
+            // again rather than discarding the miles.
+            await db.runAsync(
+              "UPDATE sync_queue SET action = 'create', status = 'pending', retry_count = 0, last_error = ?, updated_at = ? WHERE id = ?",
+              ["re-created: the server no longer had it", now2, item.id]
+            );
+            continue;
+          }
+        }
 
         if (isDefiniteClientRejection(err)) {
           // The server definitively rejected THIS payload (a real 4xx, not
