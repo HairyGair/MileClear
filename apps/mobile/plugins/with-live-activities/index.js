@@ -114,6 +114,7 @@ function addNativeModuleToMainTarget(project, projectName) {
     { name: "MileClearAttributes.swift", type: "sourcecode.swift" },
     { name: "LiveActivityIntents.swift", type: "sourcecode.swift" },
     { name: "LiveActivityModule.swift", type: "sourcecode.swift" },
+    { name: "LiveActivityTokenBootstrap.swift", type: "sourcecode.swift" },
     { name: "LiveActivityBridge.m", type: "sourcecode.c.objc" },
   ];
 

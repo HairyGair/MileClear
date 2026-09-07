@@ -309,21 +309,9 @@ class LiveActivityModule: NSObject {
     // JS, which POSTs it to /notifications/la-token. The token can rotate, so
     // an observer keeps the latest value and JS re-reads it on launch/foreground.
 
-    private static var latestPushToStartToken: String?
-    private static var pushTokenObserverStarted = false
-
-    @available(iOS 17.2, *)
-    private static func startPushToStartObservation() {
-        if pushTokenObserverStarted { return }
-        pushTokenObserverStarted = true
-        Task {
-            for await tokenData in Activity<MileClearAttributes>.pushToStartTokenUpdates {
-                let hex = tokenData.map { String(format: "%02x", $0) }.joined()
-                LiveActivityModule.latestPushToStartToken = hex
-                NSLog("[LiveActivity] push-to-start token updated (%d chars)", hex.count)
-            }
-        }
-    }
+    // The observer itself lives in LiveActivityTokenBootstrap and is attached
+    // at app launch, not on the first call from JS. iOS emits the token once,
+    // during launch, and the sequence does not replay — see that file.
 
     // Returns the device's current push-to-start token (hex), or nil on
     // iOS < 17.2 or before the system has issued one. Starts the observer on
@@ -336,13 +324,15 @@ class LiveActivityModule: NSObject {
             resolve(nil)
             return
         }
-        LiveActivityModule.startPushToStartObservation()
-        if let token = LiveActivityModule.latestPushToStartToken {
+        // Idempotent: launch normally got here first, but a process that
+        // somehow missed it still starts observing rather than returning nil.
+        LiveActivityTokenBootstrap.start()
+        if let token = LiveActivityTokenBootstrap.latestToken {
             resolve(token)
             return
         }
         DispatchQueue.global().asyncAfter(deadline: .now() + 2.0) {
-            resolve(LiveActivityModule.latestPushToStartToken)
+            resolve(LiveActivityTokenBootstrap.latestToken)
         }
     }
 }
