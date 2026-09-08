@@ -1,4 +1,4 @@
-import { AppState } from "react-native";
+import { AppState, Platform } from "react-native";
 import * as Location from "expo-location";
 import * as TaskManager from "expo-task-manager";
 import * as BackgroundFetch from "expo-background-fetch";
@@ -18,7 +18,7 @@ import {
   filterTraceOutliers,
   hasRealMovementEvidence,
 } from "@mileclear/shared";
-import { startLiveActivity, updateLiveActivity, endLiveActivity, endLiveActivityWithSummary, recoverLiveActivity, getLastLiveActivityStartError } from "../liveActivity";
+import { startLiveActivity, updateLiveActivity, endLiveActivity, endLiveActivityWithSummary, recoverLiveActivity, getLastLiveActivityStartError, getActiveActivityId } from "../liveActivity";
 import { getLiveActivityContext } from "../liveActivity/context";
 import { getNotificationPreferences } from "../notifications/preferences";
 // Lazy-safe: geofencing imports enterWatchMode/logDetectionEvent from this
@@ -944,7 +944,53 @@ function detectMovement(locations: Location.LocationObject[]): boolean {
 // ── Live Activity helpers for auto-trip ───────────────────────────────────
 
 /** Calculate running distance from all buffered detection coordinates. */
-async function getAutoTripRunningDistance(): Promise<{ miles: number; speedMph: number }> {
+/**
+ * Feed the Live Activity from the native engine's location stream.
+ *
+ * Called (throttled) from handleNativeLocation while a recording is open.
+ * Until 8 Sep 2026 nothing on the native path ever updated the activity:
+ * the running-distance update lived only in the JS location task, so the
+ * widget showed "0.0 mi, 0 mph" for whole drives while its clock ran. The
+ * earliest buffered fix is passed as the start so an activity this process
+ * did not start (push-to-start, or the foreground repair from an earlier
+ * launch) keeps its real start time when updateLiveActivity adopts it.
+ * Logs once per process on the first success and the first miss, so the
+ * dump says whether the native path could see the activity at all.
+ */
+let progressLoggedFound = false;
+let progressLoggedMissing = false;
+export async function pushAutoTripLiveActivityProgress(): Promise<void> {
+  if (Platform.OS !== "ios") return;
+  try {
+    const db = await getDatabase();
+    const earliest = await db.getFirstAsync<{ recorded_at: string }>(
+      "SELECT recorded_at FROM detection_coordinates ORDER BY recorded_at ASC LIMIT 1"
+    );
+    const startDateMs = earliest ? new Date(earliest.recorded_at).getTime() : undefined;
+    const { miles, speedMph } = await getAutoTripRunningDistance();
+    const ctx = await getLiveActivityContext({ currentTripMiles: miles, includeEarnings: true }).catch(() => null);
+    await updateLiveActivity({
+      distanceMiles: miles,
+      speedMph,
+      dailyTotalMiles: ctx?.dailyTotalMiles,
+      milestoneText: ctx?.milestoneText,
+      earningsTodayPence: ctx?.earningsTodayPence,
+      startDateMs,
+    });
+    const present = !!(await getActiveActivityId());
+    if (present && !progressLoggedFound) {
+      progressLoggedFound = true;
+      logDetectionEvent("la_progress_update", { found: true, miles, speedMph }).catch(() => {});
+    } else if (!present && !progressLoggedMissing) {
+      progressLoggedMissing = true;
+      logDetectionEvent("la_progress_update", { found: false, miles, speedMph }).catch(() => {});
+    }
+  } catch {
+    // diagnostics and display only, never the recording
+  }
+}
+
+export async function getAutoTripRunningDistance(): Promise<{ miles: number; speedMph: number }> {
   try {
     const db = await getDatabase();
     const coords = await db.getAllAsync<{ lat: number; lng: number; speed: number | null }>(
@@ -1309,17 +1355,45 @@ async function _finalizeAutoTripInner(): Promise<void> {
           processingCoords: allCoords.length,
           deferredCoords: deferredCoords.length,
         }).catch(() => {});
+      } else if (realLegs.length === 1) {
+        // Exactly one segment qualifies as a leg on distance or coords: keep
+        // THAT one, whatever else is in the buffer. Until 8 Sep 2026 this
+        // case fell through to "largest by coordinate count", and a sparse
+        // real leg lost to a denser burst of parked fixes: Steve Denyer's
+        // 45-mile Crawley to Heathrow commute (3 Sep) was a 3-fix segment
+        // beside a 4-fix, 581 ms start burst; the burst was kept, judged a
+        // phantom, and the commute was deleted with it.
+        allCoords = realLegs[0];
+        const keptMiles = segmentSpanMiles(allCoords);
+        logDetectionEvent("finalize_gap_trimmed", {
+          totalCoords: rawCoords.length,
+          keptCoords: allCoords.length,
+          droppedCoords: rawCoords.length - allCoords.length,
+          segments: segments.length,
+          keptMiles: Math.round(keptMiles * 100) / 100,
+          keptBy: "real_leg",
+        }).catch(() => {});
       } else {
-        // 0 or 1 real legs: keep the largest segment (drops stragglers). This
-        // is the original, safe single-trip behaviour.
+        // No segment qualifies as a leg: keep the one that went furthest,
+        // then the one with most fixes. Distance first, because a straggler
+        // burst can out-count a genuine short hop.
         let best = segments[0];
-        for (const seg of segments) if (seg.length >= best.length) best = seg;
+        let bestMiles = segmentSpanMiles(best);
+        for (const seg of segments) {
+          const miles = segmentSpanMiles(seg);
+          if (miles > bestMiles || (miles === bestMiles && seg.length >= best.length)) {
+            best = seg;
+            bestMiles = miles;
+          }
+        }
         allCoords = best;
         logDetectionEvent("finalize_gap_trimmed", {
           totalCoords: rawCoords.length,
           keptCoords: allCoords.length,
           droppedCoords: rawCoords.length - allCoords.length,
           segments: segments.length,
+          keptMiles: Math.round(bestMiles * 100) / 100,
+          keptBy: "span",
         }).catch(() => {});
       }
     }
@@ -1428,10 +1502,19 @@ async function _finalizeAutoTripInner(): Promise<void> {
   }
   const earlyDistMiles = quickDistMeters / 1609.344;
   if (spanMs < 30_000 && earlyDistMiles < 0.3) {
+    // The native store's size rides along: a phantom judged on four JS fixes
+    // while the native store holds a route is the signature of a drive lost
+    // to a starved buffer (Steve Denyer, 3 Sep 2026), and it was invisible.
+    let nativeCount: number | null = null;
+    try {
+      const { getNativeStoreSummary } = await import("./nativeLocation");
+      nativeCount = (await getNativeStoreSummary())?.count ?? null;
+    } catch {}
     logDetectionEvent("finalize_dropped_phantom", {
       coordCount: allCoords.length,
       spanMs,
       distanceMiles: earlyDistMiles,
+      nativeCount,
     }).catch(() => {});
     await consumeProcessedBuffer();
     endLiveActivity().catch(() => {});

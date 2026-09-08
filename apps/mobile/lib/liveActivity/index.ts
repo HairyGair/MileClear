@@ -155,8 +155,25 @@ export async function updateLiveActivity(params: {
    *  sources. Shown on shift activities only — the "EARNED" subtitle.
    *  Pass null/undefined to hide. */
   earningsTodayPence?: number | null;
+  /** When the trip began, for callers that know it (the earliest buffered
+   *  fix). Used only when this process has to adopt an activity it did not
+   *  start, so the widget's clock keeps counting from the real start rather
+   *  than resetting to now. */
+  startDateMs?: number;
 }): Promise<void> {
-  if (Platform.OS !== "ios" || !LiveActivityModule || !currentActivityId) return;
+  if (Platform.OS !== "ios" || !LiveActivityModule) return;
+  if (!currentActivityId) {
+    // Adopt on demand. A push-to-start activity, or one the foreground
+    // repair put up in another JS lifetime, exists on screen without this
+    // process ever learning its id, and every update was silently dropped
+    // here. Ask ActivityKit once per call; if nothing is running, drop the
+    // update as before.
+    const id = await Promise.resolve(LiveActivityModule.getActiveActivityId()).catch(() => null);
+    if (!id) return;
+    currentActivityId = id;
+    activityStartDateMs = params.startDateMs ?? activityStartDateMs ?? Date.now();
+    logLiveActivityEvent("la_adopted_for_update", {});
+  }
   try {
     await LiveActivityModule.updateActivity({
       activityId: currentActivityId,
