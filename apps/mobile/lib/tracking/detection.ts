@@ -2026,6 +2026,33 @@ async function _finalizeAutoTripInner(): Promise<void> {
       ).catch(() => {});
     }
 
+    // The server may have classified this trip quietly from the driver's
+    // own history. The local engine decided "unclassified" before the
+    // create, so without this the row stays unclassified on the phone and
+    // the "classify it" push fires for a trip that is already sorted.
+    const serverAutoApplied = tripResult?.learnedSuggestion?.autoApplied === true;
+    const serverClassification = tripResult?.data?.classification;
+    if (serverAutoApplied && savedTripId && serverClassification) {
+      db.runAsync(
+        "UPDATE trips SET classification = ?, classification_source = 'pattern_learning' WHERE id = ?",
+        [serverClassification, savedTripId]
+      ).catch(() => {});
+      logDetectionEvent("server_auto_classified", {
+        classification: serverClassification,
+        matchCount: tripResult?.learnedSuggestion?.matchCount ?? 0,
+      }).catch(() => {});
+      if (!isQuietHours()) {
+        Notifications.scheduleNotificationAsync({
+          content: {
+            title: `Trip recorded as ${serverClassification}`,
+            body: `${startAddress || "Unknown"} to ${endAddress || "Unknown"} (${totalDistance.toFixed(1)} mi). Sorted from your previous drives; undo in Trips.`,
+            data: { action: "open_trips" },
+          },
+          trigger: null,
+        }).catch(() => {});
+      }
+    }
+
     if (tripResult === null) {
       // syncCreateTrip returned null = hit the dedup window (another sync
       // path already saved this trip within 2 minutes). Log explicitly so
@@ -2101,7 +2128,7 @@ async function _finalizeAutoTripInner(): Promise<void> {
     // we have the server tripId. The Business/Personal lock-screen buttons
     // call syncUpdateTrip(tripId, ...) which needs the canonical ID. The
     // trip_stopped notification carries the same buttons, so not both.
-    if (!offeredKeepGoing && !wasAutoClassified && !isQuietHours()) {
+    if (!offeredKeepGoing && !wasAutoClassified && !serverAutoApplied && !isQuietHours()) {
       const from = startAddress || "Unknown";
       const to = endAddress || "Unknown";
       const tripId = savedTripId;

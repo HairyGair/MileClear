@@ -275,10 +275,32 @@ export function scanLowConfidenceTrips(args: { scanOnly?: boolean; sinceDays?: n
   });
 }
 
+export interface LearnedSuggestionResult {
+  classification: string;
+  platformTag: string | null;
+  businessPurpose: string | null;
+  category: string | null;
+  confidence: number;
+  matchCount: number;
+  /** True when the server applied the classification quietly at create. */
+  autoApplied: boolean;
+}
+
 export function createTrip(data: CreateTripData) {
-  return apiRequest<{ data: TripWithVehicle }>("/trips", {
+  return apiRequest<{ data: TripWithVehicle; learnedSuggestion?: LearnedSuggestionResult | null }>(
+    "/trips",
+    {
+      method: "POST",
+      body: JSON.stringify(data),
+    }
+  );
+}
+
+/** Reverse a quiet classification; the trip goes back to unclassified and
+ *  the server counts the undo against that route pair from now on. */
+export function undoClassification(id: string) {
+  return apiRequest<{ data: TripWithVehicle }>(`/trips/${id}/undo-classification`, {
     method: "POST",
-    body: JSON.stringify(data),
   });
 }
 

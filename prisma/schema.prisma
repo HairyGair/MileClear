@@ -506,6 +506,17 @@ model Trip {
   // trip was never auto-classified OR the user hasn't touched it yet.
   // Written once (API guards against overwrite) on the first user PATCH.
   classificationAutoAccepted Boolean?
+  // How the current classification was decided. "pattern_learning" means
+  // the server applied it quietly at create time from the driver's own
+  // history; "user" means the driver set it; "user_undo" means the driver
+  // reversed a quiet one, which the learner then counts AGAINST that pair.
+  classificationSource String? @db.VarChar(30)
+  // Set only while a quiet classification is still undoable in the app;
+  // cleared the moment the driver touches the classification themselves.
+  autoClassifiedAt DateTime?
+  // What undo restores. Always "unclassified" today, stored explicitly so
+  // the undo path never has to infer it.
+  preAutoClassification String? @db.VarChar(20)
 
   // Phantom-trip flag (4 May 2026). Set when an auto-detected trip
   // matches the walking-speed signature (distance < 1mi, duration > 5min,

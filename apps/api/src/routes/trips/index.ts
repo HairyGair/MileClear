@@ -768,6 +768,15 @@ export async function tripRoutes(app: FastifyInstance) {
       platformTag: finalPlatformTag,
       businessPurpose: finalBusinessPurpose,
       category: finalCategory,
+      // Mark a quiet classification so the app can show it and offer undo,
+      // and so the learner never mistakes its own output for a decision.
+      ...(learnedSuggestion && finalClassification !== tripData.classification
+        ? {
+            classificationSource: "pattern_learning",
+            autoClassifiedAt: new Date(),
+            preAutoClassification: tripData.classification,
+          }
+        : {}),
       notes: tripData.notes ?? null,
       projectLabel: tripData.projectLabel ?? null,
       gpsQuality: (tripData.gpsQuality ?? undefined) as Prisma.InputJsonValue | undefined,
@@ -1485,6 +1494,41 @@ export async function tripRoutes(app: FastifyInstance) {
     lat: z.coerce.number().min(-90).max(90),
     lng: z.coerce.number().min(-180).max(180),
     type: z.enum(["start", "end"]).default("end"),
+  });
+
+  /**
+   * Undo a quiet classification. Restores what the trip had before the
+   * server guessed (always "unclassified" today), and records the undo on
+   * the row so the learner counts it against that pair from now on.
+   */
+  app.post("/:id/undo-classification", async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const userId = request.userId!;
+    const existing = await prisma.trip.findFirst({
+      where: { id, userId },
+      select: { id: true, autoClassifiedAt: true, preAutoClassification: true, classification: true, startedAt: true },
+    });
+    if (!existing) return reply.status(404).send({ error: "Trip not found" });
+    if (!existing.autoClassifiedAt) {
+      return reply.status(409).send({ error: "This trip was not classified automatically" });
+    }
+    const restored = existing.preAutoClassification ?? "unclassified";
+    const trip = await prisma.trip.update({
+      where: { id },
+      data: {
+        classification: restored,
+        classificationSource: "user_undo",
+        autoClassifiedAt: null,
+      },
+      include: { vehicle: true },
+    });
+    logEvent("trip.auto_classification_undone", userId, {
+      tripId: id,
+      was: existing.classification,
+      restored,
+    });
+    upsertMileageSummary(userId, getTaxYear(existing.startedAt)).catch(() => {});
+    return reply.send({ data: trip });
   });
 
   /**
@@ -2480,6 +2524,11 @@ export async function tripRoutes(app: FastifyInstance) {
         : {}),
       ...(distanceMiles !== undefined && { distanceMiles }),
       ...(shouldWriteAutoAccepted && { classificationAutoAccepted: incomingAutoAccepted }),
+      // The driver has set the classification themselves: it is theirs now,
+      // no longer quiet, and no longer undoable as an auto guess.
+      ...(restUpdates.classification !== undefined
+        ? { classificationSource: "user", autoClassifiedAt: null }
+        : {}),
       ...(endMoved ? { routePolyline: null } : {}),
       ...(rememberDeviceStart
         ? { originalStartLat: existing.startLat, originalStartLng: existing.startLng }
@@ -2887,6 +2936,9 @@ export interface PairSuggestion {
   matchCount: number;
   /** Integer 0-100 — share of nearby trips that agree on classification. */
   confidence: number;
+  /** Prior trips at this pair that disagree with the winner, including any
+   *  the driver explicitly undid. Quiet auto-apply requires zero. */
+  contradictions: number;
 }
 
 export async function suggestPairClassification(args: {
@@ -2904,11 +2956,22 @@ export async function suggestPairClassification(args: {
   const endLatDelta = 0.0045;
   const endLngDelta = 0.0045 / Math.cos((endLat * Math.PI) / 180);
 
+  // Two rules keep the learner honest. Trips it classified itself are
+  // excluded, otherwise one wrong quiet guess becomes three matching
+  // "priors" and the mistake compounds. Trips the driver UNDID are
+  // included and counted as contradictions, so an undo actually teaches
+  // the pair rather than being re-derived from the untouched history.
   const nearby = await prisma.trip.findMany({
     where: {
       userId,
       isPhantomTrip: false,
-      classification: { not: "unclassified" },
+      OR: [
+        {
+          classification: { not: "unclassified" },
+          NOT: { classificationSource: "pattern_learning" },
+        },
+        { classificationSource: "user_undo" },
+      ],
       startLat: { gte: startLat - startLatDelta, lte: startLat + startLatDelta },
       startLng: { gte: startLng - startLngDelta, lte: startLng + startLngDelta },
       endLat: { gte: endLat - endLatDelta, lte: endLat + endLatDelta },
@@ -2916,6 +2979,7 @@ export async function suggestPairClassification(args: {
     },
     select: {
       classification: true,
+      classificationSource: true,
       platformTag: true,
       businessPurpose: true,
       category: true,
@@ -2928,11 +2992,18 @@ export async function suggestPairClassification(args: {
 
   const counts: Record<string, number> = {};
   for (const t of nearby) {
-    counts[t.classification] = (counts[t.classification] ?? 0) + 1;
+    // An undone trip is unclassified again; it votes for nothing but
+    // still counts in the denominator and as a contradiction.
+    const key = t.classificationSource === "user_undo" ? "__undone__" : t.classification;
+    counts[key] = (counts[key] ?? 0) + 1;
   }
-  const top = Object.entries(counts).sort((a, b) => b[1] - a[1])[0];
+  const top = Object.entries(counts)
+    .filter(([k]) => k !== "__undone__" && k !== "unclassified")
+    .sort((a, b) => b[1] - a[1])[0];
+  if (!top) return null;
   const confidence = top[1] / nearby.length;
   if (confidence < 0.6) return null;
+  const contradictions = nearby.length - top[1];
 
   const matching = nearby.filter((t) => t.classification === top[0]);
 
@@ -2953,6 +3024,7 @@ export async function suggestPairClassification(args: {
     category: modeOf("category"),
     matchCount: nearby.length,
     confidence: Math.round(confidence * 100),
+    contradictions,
   };
 }
 
@@ -2967,7 +3039,13 @@ const AUTO_APPLY_MIN_MATCHES = 3;
 
 export function shouldAutoApplySuggestion(s: PairSuggestion | null): boolean {
   if (!s) return false;
-  return s.confidence >= AUTO_APPLY_CONFIDENCE_PCT && s.matchCount >= AUTO_APPLY_MIN_MATCHES;
+  // A single disagreeing prior (or a single undo) is enough to demote this
+  // pair from quiet to suggested. Wrong quiet guesses land on a tax record.
+  return (
+    s.confidence >= AUTO_APPLY_CONFIDENCE_PCT &&
+    s.matchCount >= AUTO_APPLY_MIN_MATCHES &&
+    s.contradictions === 0
+  );
 }
 
 /**

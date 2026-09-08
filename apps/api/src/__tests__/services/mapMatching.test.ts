@@ -84,6 +84,20 @@ describe("shouldAutoApplySuggestion", () => {
     expect(shouldAutoApplySuggestion(null)).toBe(false);
   });
 
+  it("rejects a single contradiction even at high confidence and many matches", () => {
+    expect(
+      shouldAutoApplySuggestion({
+        classification: "business",
+        platformTag: null,
+        businessPurpose: null,
+        category: null,
+        matchCount: 6,
+        confidence: 83,
+        contradictions: 1,
+      })
+    ).toBe(false);
+  });
+
   it("auto-applies at 80% confidence with 3 matches", () => {
     expect(
       shouldAutoApplySuggestion({
@@ -92,6 +106,7 @@ describe("shouldAutoApplySuggestion", () => {
         businessPurpose: null,
         category: null,
         matchCount: 3,
+        contradictions: 0,
         confidence: 80,
       })
     ).toBe(true);
@@ -105,6 +120,7 @@ describe("shouldAutoApplySuggestion", () => {
         businessPurpose: null,
         category: null,
         matchCount: 5,
+        contradictions: 0,
         confidence: 79,
       })
     ).toBe(false);
@@ -118,6 +134,7 @@ describe("shouldAutoApplySuggestion", () => {
         businessPurpose: null,
         category: null,
         matchCount: 2,
+        contradictions: 0,
         confidence: 100,
       })
     ).toBe(false);
@@ -131,6 +148,7 @@ describe("shouldAutoApplySuggestion", () => {
         businessPurpose: null,
         category: null,
         matchCount: 3,
+        contradictions: 0,
         confidence: 80,
       })
     ).toBe(true);

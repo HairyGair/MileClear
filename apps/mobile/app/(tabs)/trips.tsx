@@ -19,7 +19,7 @@ import { useRouter, useFocusEffect } from "expo-router";
 import { Button } from "../../components/Button";
 import { DateTimePickerField } from "../../components/DateTimePickerField";
 import { TripRouteCard } from "../../components/map/TripRouteCard";
-import { fetchTrips, fetchTripSummary, fetchUnclassifiedCount, fetchClassificationSuggestion, mergeTrips, TripWithVehicle, ClassificationSuggestion, type TripSummary } from "../../lib/api/trips";
+import { fetchTrips, fetchTripSummary, fetchUnclassifiedCount, fetchClassificationSuggestion, mergeTrips, undoClassification, TripWithVehicle, ClassificationSuggestion, type TripSummary } from "../../lib/api/trips";
 import { describeError } from "../../lib/api/apiError";
 import { syncUpdateTrip, syncDeleteTrip } from "../../lib/sync/actions";
 import { processSyncQueue } from "../../lib/sync";
@@ -358,8 +358,21 @@ export default function TripsScreen() {
     );
     if (unclassified.length === 0) return;
 
+    // The list response carries the suggestion inline since 8 Sep 2026.
+    // Rows that have the field (even as null) need no fetch; only rows
+    // from an older server shape fall back to the per-row call.
+    const inline: Record<string, ClassificationSuggestion> = {};
+    for (const t of unclassified) {
+      if (t.suggestion) inline[t.id] = t.suggestion as ClassificationSuggestion;
+    }
+    if (Object.keys(inline).length > 0) {
+      setSuggestions((prev) => ({ ...prev, ...inline }));
+    }
+    const needsFetch = unclassified.filter((t) => t.suggestion === undefined);
+    if (needsFetch.length === 0) return;
+
     // Fetch suggestions in parallel (max 10 to avoid flooding)
-    const toFetch = unclassified.slice(0, 10);
+    const toFetch = needsFetch.slice(0, 10);
     const results = await Promise.allSettled(
       toFetch.map((t) =>
         fetchClassificationSuggestion(t.endLat!, t.endLng!, "end").then((res) => ({
@@ -550,6 +563,29 @@ export default function TripsScreen() {
   }, [isOffline, onEndReached]);
 
   // Quick classify a trip directly from the list
+  // Reverse a quiet server classification. The trip returns to the inbox
+  // and the server counts the undo against that route from now on.
+  const handleUndoClassification = useCallback(async (tripId: string) => {
+    setClassifyingId(tripId);
+    try {
+      await undoClassification(tripId);
+      haptic("selection");
+      LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+      setTrips((prev) =>
+        prev.map((t) =>
+          t.id === tripId
+            ? { ...t, classification: "unclassified", autoClassifiedAt: null, classificationSource: "user_undo" }
+            : t
+        )
+      );
+      setUnclassifiedCount((prev) => prev + 1);
+    } catch {
+      Alert.alert("Couldn't undo", "Check your connection and try again.");
+    } finally {
+      setClassifyingId(null);
+    }
+  }, []);
+
   const handleQuickClassify = useCallback(
     async (tripId: string, classification: "business" | "personal") => {
       setClassifyingId(tripId);
@@ -762,6 +798,12 @@ export default function TripsScreen() {
     const isBusiness = item.classification === "business";
     const isClassifying = classifyingId === item.id;
     const tripSuggestion = isUnclassified ? suggestions[item.id] : null;
+    // A quiet server classification stays undoable in the list for a week;
+    // after that it reads like any other classified trip.
+    const isRecentAuto =
+      !isUnclassified &&
+      !!item.autoClassifiedAt &&
+      Date.now() - new Date(item.autoClassifiedAt).getTime() < 7 * 24 * 60 * 60 * 1000;
     const isSelected = mergeMode && selectedIds.has(item.id);
     const note = displayNote(item.notes);
     const isEditingNote = editingNoteId === item.id;
@@ -915,14 +957,27 @@ export default function TripsScreen() {
                 <Text style={styles.unclassifiedBadgeText}>Classify</Text>
               </View>
             ) : (
-              <Text
-                style={[
-                  styles.classificationBadge,
-                  isBusiness ? styles.businessBadge : styles.personalBadge,
-                ]}
-              >
-                {isBusiness ? "Business" : "Personal"}
-              </Text>
+              <>
+                <Text
+                  style={[
+                    styles.classificationBadge,
+                    isBusiness ? styles.businessBadge : styles.personalBadge,
+                  ]}
+                >
+                  {isBusiness ? "Business" : "Personal"}
+                </Text>
+                {isRecentAuto && (
+                  <TouchableOpacity
+                    onPress={() => handleUndoClassification(item.id)}
+                    disabled={classifyingId === item.id}
+                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                    accessibilityRole="button"
+                    accessibilityLabel="Sorted automatically from your previous drives. Undo"
+                  >
+                    <Text style={styles.autoUndoText}>auto · Undo</Text>
+                  </TouchableOpacity>
+                )}
+              </>
             )}
             {showConfidence && (
               <View
@@ -2202,6 +2257,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: 4,
+  },
+  autoUndoText: {
+    fontSize: 11,
+    fontFamily: fonts.semibold,
+    color: AMBER,
+    marginLeft: 6,
   },
   unclassifiedBadgeText: {
     fontSize: 11,

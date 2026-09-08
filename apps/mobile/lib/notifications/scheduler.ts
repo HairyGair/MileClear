@@ -120,7 +120,11 @@ export async function scheduleTaxYearDeadlineReminder(): Promise<void> {
 // Fires immediately if there are trips with no platform/notes older than 24h
 
 const UNCLASSIFIED_COOLDOWN_KEY = "last_unclassified_nudge";
-const UNCLASSIFIED_COOLDOWN_MS = 24 * 60 * 60 * 1000; // 24 hours
+// Weekly, not daily. A third of trips sat unclassified while this fired
+// every day: asking more often was being ignored more often. The quiet
+// classifier now sorts the routine ones, so what remains is a small
+// weekly tidy-up rather than a daily nag.
+const UNCLASSIFIED_COOLDOWN_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
 
 export async function checkUnclassifiedTripsNudge(): Promise<void> {
   if (isQuietHours()) return;
@@ -151,7 +155,9 @@ export async function checkUnclassifiedTripsNudge(): Promise<void> {
   let count = 0;
   if (isOnline()) {
     try {
-      const res = await fetchUnclassifiedCount(24); // older than 24h, server truth
+      // Older than 48 h: anything newer may still be sorted quietly by the
+      // server, or by the driver on their own, before we mention it.
+      const res = await fetchUnclassifiedCount(48); // server truth
       count = res.count;
     } catch {
       // Network blip — skip rather than fire a possibly-stale local count.

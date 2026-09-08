@@ -543,6 +543,21 @@ export interface Trip {
   updatedAt?: string;
   createdAt?: string;
   syncedAt: string | null;
+  /** How the current classification was decided: "pattern_learning" (quiet,
+   *  server, undoable), "user", or "user_undo". Absent on older rows. */
+  classificationSource?: string | null;
+  /** Present only while a quiet classification is still undoable. */
+  autoClassifiedAt?: string | null;
+  preAutoClassification?: string | null;
+  /** Inline classification hint for unclassified rows on the list response. */
+  suggestion?: {
+    classification: string;
+    platformTag: string | null;
+    businessPurpose: string | null;
+    category: string | null;
+    confidence: number;
+    matchCount: number;
+  } | null;
 }
 
 export interface TripCoordinate {
