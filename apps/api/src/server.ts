@@ -6,6 +6,7 @@ import { redactUrlSecrets } from "./lib/redactUrl.js";
 import cors from "@fastify/cors";
 import cookie from "@fastify/cookie";
 import helmet from "@fastify/helmet";
+import compress from "@fastify/compress";
 import rateLimit from "@fastify/rate-limit";
 import { authRoutes } from "./routes/auth/index.js";
 import { discordAuthRoutes } from "./routes/auth/discord.js";
@@ -124,6 +125,11 @@ const app = Fastify({
 });
 
 // Plugins
+// Responses were leaving uncompressed: a trips page is polyline-heavy JSON
+// that gzips roughly ten to one, and the mobile app reads it over cellular.
+// Threshold keeps tiny bodies (health checks, counts) untouched.
+await app.register(compress, { threshold: 1024 });
+
 await app.register(helmet, {
   contentSecurityPolicy: false, // API serves JSON, not HTML
 });

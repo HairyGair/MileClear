@@ -228,8 +228,11 @@ describe("PATCH /trips/:id — merge coordinate append", () => {
     });
 
     expect(res.statusCode).toBe(200);
-    expect(tx.trip.update).toHaveBeenCalledTimes(2);
-    const second = tx.trip.update.mock.calls[1][0].data.distanceMiles;
+    // main update, the coordinateCount increment for the appended rows,
+    // then the trail-distance recompute.
+    expect(tx.trip.update).toHaveBeenCalledTimes(3);
+    expect(tx.trip.update.mock.calls[1][0].data.coordinateCount).toEqual({ increment: 3 });
+    const second = tx.trip.update.mock.calls[2][0].data.distanceMiles;
     // ~1 mile of trail, never the 11.27 the phone sent.
     expect(second).toBeGreaterThan(0.9);
     expect(second).toBeLessThan(1.1);
@@ -247,7 +250,10 @@ describe("PATCH /trips/:id — merge coordinate append", () => {
       method: "PATCH", url: `/trips/${TRIP_ID}`, headers: auth, payload: MERGE_BODY,
     });
     expect(res.statusCode).toBe(200);
-    expect(tx.trip.update).toHaveBeenCalledTimes(1);
+    // main update plus the coordinateCount increment; no distance recompute
+    // for an unsplit trip.
+    expect(tx.trip.update).toHaveBeenCalledTimes(2);
+    expect(tx.trip.update.mock.calls[1][0].data.coordinateCount).toEqual({ increment: 3 });
     expect(tx.trip.update.mock.calls[0][0].data.distanceMiles).toBe(7.03);
   });
 });

@@ -2,6 +2,7 @@ import Stripe from "stripe";
 import { FastifyInstance } from "fastify";
 import { authMiddleware } from "../../middleware/auth.js";
 import { prisma } from "../../lib/prisma.js";
+import { invalidatePremiumCache } from "../../middleware/premium.js";
 import { handleTeamSubscriptionEvent } from "../../services/teamBilling.js";
 import { stripe } from "../../lib/stripe.js";
 import { sendPushNotification } from "../../lib/push.js";
@@ -154,6 +155,7 @@ export async function billingRoutes(app: FastifyInstance) {
             premiumExpiresAt: new Date(getPeriodEnd(sub) * 1000),
           },
         });
+        await invalidatePremiumCache(userId).catch(() => {});
 
         logEvent("billing.subscription_activated", userId, { platform: "stripe", subscriptionId });
         app.log.info(`User ${userId} upgraded to premium`);

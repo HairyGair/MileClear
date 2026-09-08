@@ -483,6 +483,10 @@ model Trip {
   businessPurpose String?
   category       String?
   notes          String?   @db.Text
+  // Denormalised count of rows in trip_coordinates, maintained at every
+  // coordinate write. Exists so the list endpoint can price a confidence
+  // badge without a correlated COUNT over the biggest table in the schema.
+  coordinateCount Int @default(0)
   routePolyline  String?   @db.LongText
 
   // Freeform per-trip project / client tag. Phase 3 of the Money
@@ -534,6 +538,7 @@ model Trip {
   // Without this, those area queries full-scanned trips; see migration
   // 20260603_trips_geo_index.
   @@index([startLat, startLng])
+  @@index([endLat, endLng])
   @@map("trips")
 }
 

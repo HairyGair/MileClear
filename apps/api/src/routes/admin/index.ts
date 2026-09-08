@@ -2,6 +2,7 @@ import { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { Prisma } from "@prisma/client";
 import { prisma } from "../../lib/prisma.js";
+import { invalidatePremiumCache } from "../../middleware/premium.js";
 import { authMiddleware } from "../../middleware/auth.js";
 import { adminMiddleware } from "../../middleware/admin.js";
 import { stripe } from "../../lib/stripe.js";
@@ -1370,6 +1371,8 @@ export async function adminRoutes(app: FastifyInstance) {
       data: { isPremium: parsed.data.isPremium },
       select: { id: true, email: true, isPremium: true },
     });
+
+    await invalidatePremiumCache(userId).catch(() => {});
 
     logEvent("admin.premium_toggled", request.userId!, {
       targetUserId: userId,

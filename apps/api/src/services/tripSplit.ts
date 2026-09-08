@@ -708,6 +708,7 @@ export async function autoSplitVisitWelds(args: {
               ? parent.endAddress
               : nearestSavedName(savedLocations, last.lat, last.lng),
           distanceMiles: legMiles[k],
+          coordinateCount: leg.length,
           startedAt: first.recordedAt,
           endedAt: last.recordedAt,
           isManualEntry: false,
@@ -757,6 +758,7 @@ export async function autoSplitVisitWelds(args: {
         endAddress: nearestSavedName(savedLocations, parentEnd.lat, parentEnd.lng),
         endedAt: parentEnd.recordedAt,
         distanceMiles: legMiles[0],
+        coordinateCount: firstLeg.length,
         routePolyline: encodePolyline(firstLeg),
       },
     });

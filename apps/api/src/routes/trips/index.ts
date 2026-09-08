@@ -201,7 +201,10 @@ const listTripsQuery = z.object({
   from: z.coerce.date().optional(),
   to: z.coerce.date().optional(),
   page: z.coerce.number().int().positive().default(1),
-  pageSize: z.coerce.number().int().positive().max(MAX_PAGE_SIZE).default(DEFAULT_PAGE_SIZE),
+  // Capped at 200: MAX_PAGE_SIZE (1000) belongs to export paths. The app
+  // asks for 20 and the sync hydrator for 100; anything larger multiplies
+  // the per-row work of the API's busiest endpoint for no caller.
+  pageSize: z.coerce.number().int().positive().max(200).default(DEFAULT_PAGE_SIZE),
 });
 
 /**
@@ -777,7 +780,7 @@ export async function tripRoutes(app: FastifyInstance) {
     if (hasCoordinates && finalCoordinates) {
       trip = await prisma.$transaction(async (tx) => {
         const created = await tx.trip.create({
-          data: tripPayload,
+          data: { ...tripPayload, coordinateCount: finalCoordinates.length },
         });
 
         await tx.tripCoordinate.createMany({
@@ -982,17 +985,28 @@ export async function tripRoutes(app: FastifyInstance) {
       prisma.trip.findMany({
         where,
         orderBy: { startedAt: "desc" },
-        include: {
-          vehicle: true,
-          // Include lightweight count + polyline presence so the client
-          // can render a confidence badge without a per-row round trip.
-          _count: { select: { coordinates: true } },
-        },
+        // coordinateCount is a column now: the correlated COUNT(*) against
+        // trip_coordinates that used to live here was the largest cost of
+        // the slowest endpoint in the API (31,184 slow requests, avg 2.4 s,
+        // in the first week of September 2026).
+        include: { vehicle: true },
         skip: (page - 1) * pageSize,
         take: pageSize,
       }),
       prisma.trip.count({ where }),
     ]);
+
+    // Classification suggestions for the unclassified rows on this page,
+    // answered inline instead of by a per-row fetch from the client.
+    const suggestions = new Map<string, Awaited<ReturnType<typeof suggestionForPoint>>>();
+    await Promise.all(
+      rawData
+        .filter((t) => t.classification === "unclassified" && t.endLat != null && t.endLng != null)
+        .map(async (t) => {
+          const sug = await suggestionForPoint(userId, t.endLat!, t.endLng!, "end").catch(() => null);
+          if (sug) suggestions.set(t.id, sug);
+        })
+    );
 
     // Compute per-trip confidence inline. computeTripConfidence is pure
     // and ~microseconds per call, so doing it for a 100-row page is
@@ -1003,18 +1017,18 @@ export async function tripRoutes(app: FastifyInstance) {
         : null;
       const confidence = computeTripConfidence({
         isManualEntry: trip.isManualEntry,
-        coordinateCount: trip._count.coordinates,
+        coordinateCount: trip.coordinateCount,
         hasMatchedPolyline: trip.routePolyline != null,
         distanceMiles: trip.distanceMiles,
         durationSecs,
         hasEndCoords: trip.endLat != null && trip.endLng != null,
         gpsQuality: extractGpsQualityForConfidence(trip.gpsQuality),
       });
-      // Strip the nested _count from the response — it's an
-      // implementation detail not a public field.
-      const { _count, ...rest } = trip;
-      void _count;
-      return { ...rest, confidence };
+      // gpsQuality is consumed above and never read by the list screens;
+      // dropping it keeps the page body lean.
+      const { gpsQuality, ...rest } = trip;
+      void gpsQuality;
+      return { ...rest, confidence, suggestion: suggestions.get(trip.id) ?? null };
     });
 
     return reply.send({
@@ -1315,6 +1329,7 @@ export async function tripRoutes(app: FastifyInstance) {
         await tx.trip.update({
           where: { id: b.id },
           data: {
+            coordinateCount: { increment: 1 },
             startLat: p.fromLat,
             startLng: p.fromLng,
             startAddress: p.fromAddress ?? null,
@@ -1471,6 +1486,66 @@ export async function tripRoutes(app: FastifyInstance) {
     lng: z.coerce.number().min(-180).max(180),
     type: z.enum(["start", "end"]).default("end"),
   });
+
+  /**
+   * The classification suggestion for a single point, shared by the
+   * /suggest endpoint and the trips list. The Trips tab used to fetch this
+   * once per unclassified row - up to ten extra requests per open, each a
+   * range scan with no index on the end coordinates - and that fan-out
+   * queued behind the list request itself. The list now answers inline and
+   * the endpoint remains for older app builds.
+   */
+  async function suggestionForPoint(
+    userId: string,
+    lat: number,
+    lng: number,
+    type: "start" | "end"
+  ): Promise<{
+    classification: string;
+    platformTag: string | null;
+    businessPurpose: string | null;
+    category: string | null;
+    confidence: number;
+    matchCount: number;
+  } | null> {
+    const latDelta = 0.0045;
+    const lngDelta = 0.0045 / Math.cos((lat * Math.PI) / 180);
+    const latField = type === "start" ? "startLat" : "endLat";
+    const lngField = type === "start" ? "startLng" : "endLng";
+    const nearby = await prisma.trip.findMany({
+      where: {
+        userId,
+        isPhantomTrip: false,
+        classification: { not: "unclassified" },
+        [latField]: { gte: lat - latDelta, lte: lat + latDelta },
+        [lngField]: { gte: lng - lngDelta, lte: lng + lngDelta },
+      },
+      select: { classification: true, platformTag: true, businessPurpose: true, category: true },
+      orderBy: { startedAt: "desc" },
+      take: 20,
+    });
+    if (nearby.length < 3) return null;
+    const counts: Record<string, number> = {};
+    for (const t of nearby) counts[t.classification] = (counts[t.classification] ?? 0) + 1;
+    const top = Object.entries(counts).sort((a, b) => b[1] - a[1])[0];
+    const confidence = top[1] / nearby.length;
+    if (confidence < 0.6) return null;
+    const matching = nearby.filter((t) => t.classification === top[0]);
+    const modeOf = (field: "platformTag" | "businessPurpose" | "category"): string | null => {
+      const c: Record<string, number> = {};
+      for (const t of matching) { const v = t[field]; if (v) c[v] = (c[v] ?? 0) + 1; }
+      const best = Object.entries(c).sort((a, b) => b[1] - a[1])[0];
+      return best ? best[0] : null;
+    };
+    return {
+      classification: top[0],
+      platformTag: modeOf("platformTag"),
+      businessPurpose: modeOf("businessPurpose"),
+      category: modeOf("category"),
+      confidence: Math.round(confidence * 100),
+      matchCount: nearby.length,
+    };
+  }
 
   app.get("/suggest", async (request, reply) => {
     const parsed = suggestQuery.safeParse(request.query);
@@ -1646,6 +1721,7 @@ export async function tripRoutes(app: FastifyInstance) {
       // Create the merged trip
       const created = await tx.trip.create({
         data: {
+          coordinateCount: allCoords.length,
           userId,
           shiftId: first.shiftId,
           vehicleId: first.vehicleId,
@@ -2457,6 +2533,12 @@ export async function tripRoutes(app: FastifyInstance) {
           });
         }
         appendedCoordinates = fresh.length;
+        if (fresh.length > 0) {
+          await tx.trip.update({
+            where: { id },
+            data: { coordinateCount: { increment: fresh.length } },
+          });
+        }
 
         if (wasAutoSplitParent) {
           const trail = await tx.tripCoordinate.findMany({
@@ -2518,6 +2600,10 @@ export async function tripRoutes(app: FastifyInstance) {
             recordedAt: startEdit.prependCoordinate.recordedAt,
           },
         }).catch(() => {});
+        await prisma.trip.update({
+          where: { id },
+          data: { coordinateCount: { increment: 1 } },
+        });
       }
       logEvent("trip.start_edited", userId, {
         tripId: id,
