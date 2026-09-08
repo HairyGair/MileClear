@@ -32,20 +32,35 @@ export interface StartDecisionInput {
   existingId: string | null;
   /** Its content-state phase, if it could be read. */
   existingPhase: string | null;
+  /** Whether the app is in the foreground right now. */
+  appActive: boolean;
 }
 
 export type StartDecision =
   | { action: "adopt"; activityId: string }
-  | { action: "start"; reason: "none_running" | "existing_finished" };
+  | { action: "start"; reason: "none_running" | "existing_finished" }
+  | { action: "skip"; reason: "background" };
 
+// 8 Sep 2026, from the probe again, after the adopt rule shipped over the
+// air (OTA #15/#16): 54 of 91 checks during an open recording still carried
+// "Target is not foreground" and no activity. The adopt rule only helps when
+// the JS layer can SEE the pushed activity; the binary's native startActivity
+// still ends every activity before its own request, which cannot succeed in
+// the background on any build before 89. So from the background we do not
+// call it at all. Nothing is lost: a background request never succeeded, and
+// the push-to-start path that follows a failed local start is unchanged.
 export function decideLiveActivityStart(input: StartDecisionInput): StartDecision {
-  const { existingId, existingPhase } = input;
-  if (!existingId) return { action: "start", reason: "none_running" };
-  // A phase we cannot read is treated as live: destroying a running activity
-  // is the failure we are fixing, and a stale one costs only a wrong label
-  // until the next update, which lands seconds later.
-  if (existingPhase == null || (LIVE_PHASES as readonly string[]).includes(existingPhase)) {
-    return { action: "adopt", activityId: existingId };
+  const { existingId, existingPhase, appActive } = input;
+  if (existingId) {
+    // A phase we cannot read is treated as live: destroying a running activity
+    // is the failure we are fixing, and a stale one costs only a wrong label
+    // until the next update, which lands seconds later.
+    if (existingPhase == null || (LIVE_PHASES as readonly string[]).includes(existingPhase)) {
+      return { action: "adopt", activityId: existingId };
+    }
+    if (!appActive) return { action: "skip", reason: "background" };
+    return { action: "start", reason: "existing_finished" };
   }
-  return { action: "start", reason: "existing_finished" };
+  if (!appActive) return { action: "skip", reason: "background" };
+  return { action: "start", reason: "none_running" };
 }
