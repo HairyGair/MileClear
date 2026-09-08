@@ -57,8 +57,9 @@ import type {
   ShiftScorecard,
   PeriodRecap,
 } from "@mileclear/shared";
-import { formatPence, filterTraceOutliers } from "@mileclear/shared";
+import { formatPence, filterTraceOutliers, MAX_FREE_SAVED_LOCATIONS } from "@mileclear/shared";
 import { maybeRequestReview } from "../../lib/rating/index";
+import { maybeSuggestSavedPlaces } from "../../lib/savedPlacesPrompt/index";
 import { useMode } from "../../lib/mode/context";
 import { ModeToggle } from "../../components/ModeToggle";
 import { PersonalDashboard } from "../../components/personal/PersonalDashboard";
@@ -300,9 +301,14 @@ export default function DashboardScreen() {
   const [savedLocationsCount, setSavedLocationsCount] = useState<number | null>(null);
   const [savedLocsNudgeDismissedUntil, setSavedLocsNudgeDismissedUntil] =
     useState<number>(Date.now() + 999999999);
+  // "Below their limit", not "zero saved": a free user with one pinned
+  // place and seven suggestions still has a slot to fill, and gating on
+  // zero hid the card from exactly the people it was built for (same bug
+  // f8007ad fixed on the list screen). Pro has no limit.
   const showSavedLocationsNudge =
     !loading &&
-    savedLocationsCount === 0 &&
+    savedLocationsCount !== null &&
+    (isPremium || savedLocationsCount < MAX_FREE_SAVED_LOCATIONS) &&
     savedLocationsSuggestionCount > 0 &&
     Date.now() >= savedLocsNudgeDismissedUntil;
   const proNudgeMessages = [
@@ -641,10 +647,12 @@ export default function DashboardScreen() {
     );
   }, []);
 
-  // First-trip nudge: zero trips, Always location already on (so we don't
-  // collide with the "Auto-detection is off" nudge above — that one owns the
-  // permission case), not in an active shift, and not snoozed. Reaches both
-  // Work and Personal mode, unlike the work-only Day-1 hero.
+  // First-trip nudge: zero trips, any location permission at all (the
+  // no-location blocker owns the "none" case), not in an active shift, and
+  // not snoozed. Foreground-only users used to see nothing actionable here
+  // because this required Always; a While Using user can still press Start
+  // Trip, so the "Add it now" ask reaches them too. Reaches both Work and
+  // Personal mode, unlike the work-only Day-1 hero.
   const firstTripNudgeSilenced =
     firstTripNudgeDismissedAt !== null &&
     Date.now() - firstTripNudgeDismissedAt < SEVEN_DAYS_MS;
@@ -652,7 +660,7 @@ export default function DashboardScreen() {
     !loading &&
     stats !== null &&
     (stats.totalTrips ?? 0) === 0 &&
-    bgLocationGranted &&
+    locationTier !== "none" &&
     !activeShift &&
     !firstTripNudgeSilenced;
 
@@ -900,6 +908,17 @@ export default function DashboardScreen() {
   useFocusEffect(
     useCallback(() => {
       loadData();
+      // Saved-location count was read once on mount, so saving a place on
+      // the suggest screen and coming back left the nudge showing a stale
+      // "below the limit" state until the next cold start.
+      getDatabase()
+        .then((db) =>
+          db.getFirstAsync<{ count: number }>(
+            "SELECT COUNT(*) as count FROM saved_locations"
+          )
+        )
+        .then((row) => setSavedLocationsCount(row?.count ?? 0))
+        .catch(() => {});
       // Notification permission drives the primer card (undetermined) and
       // the denied nudge - re-check on each focus.
       getNotificationPermissionStatus().then(setNotifPermission).catch(() => {});
@@ -948,7 +967,14 @@ export default function DashboardScreen() {
       // only fire after positive moments (achievement, streak, trip
       // saved/classified, scorecard). Manual fallback lives at
       // Profile → Rate MileClear for users who want to volunteer one.
-    }, [loadData])
+      //
+      // The one-time "save Home and Work?" ask lives here instead. It is
+      // delayed past the 3 s streak rating trigger and yields if the
+      // rating alert has already shown this session, so a single focus
+      // never stacks two prompts.
+      const suggestTimer = setTimeout(() => maybeSuggestSavedPlaces("dashboard_focus", isPremium), 4000);
+      return () => clearTimeout(suggestTimer);
+    }, [loadData, isPremium])
   );
 
   useEffect(() => {
@@ -1936,6 +1962,49 @@ export default function DashboardScreen() {
           queries on focus, renders nothing when there's no candidate). */}
       <AutoNoteNudgeCard />
 
+      {/* Saved-locations nudge: clusters available and a free slot to put them
+          in. Sits above the referral promo because it improves the user's own
+          data (named stops) and that earns the higher spot. */}
+      {showSavedLocationsNudge && (
+        <TouchableOpacity
+          style={s.savedLocsNudge}
+          onPress={() => router.push("/saved-locations-suggest" as never)}
+          activeOpacity={0.85}
+          accessibilityRole="button"
+          accessibilityLabel={`Review ${savedLocationsSuggestionCount} suggested ${
+            savedLocationsSuggestionCount === 1 ? "place" : "places"
+          }`}
+        >
+          <TouchableOpacity
+            style={s.savedLocsNudgeDismiss}
+            onPress={dismissSavedLocationsNudge}
+            hitSlop={{ top: 12, right: 12, bottom: 12, left: 12 }}
+            accessibilityRole="button"
+            accessibilityLabel="Dismiss"
+          >
+            <Ionicons name="close" size={16} color="#6b7280" accessible={false} />
+          </TouchableOpacity>
+          <View style={s.savedLocsNudgeIconWrap}>
+            <Ionicons name="sparkles" size={20} color={AMBER} accessible={false} />
+          </View>
+          <Text style={s.savedLocsNudgeTitle}>
+            Save the places you visit often
+          </Text>
+          <Text style={s.savedLocsNudgeBody}>
+            MileClear spotted{" "}
+            {savedLocationsSuggestionCount === 1
+              ? "1 place"
+              : `${savedLocationsSuggestionCount} places`}{" "}
+            in your recent trips. Save them so journeys are labelled with names
+            you recognise.
+          </Text>
+          <View style={s.savedLocsNudgeCta}>
+            <Text style={s.savedLocsNudgeCtaText}>Review suggestions</Text>
+            <Ionicons name="chevron-forward" size={14} color={AMBER} accessible={false} />
+          </View>
+        </TouchableOpacity>
+      )}
+
       {/* Referral promo — dismissible (30 days), both modes. Links to the
           Invite Friends screen. Suppressed while the first-trip nudge shows. */}
       {showReferralCard && (
@@ -2013,47 +2082,6 @@ export default function DashboardScreen() {
           </Text>
           <View style={s.savedLocsNudgeCta}>
             <Text style={s.savedLocsNudgeCtaText}>Learn more</Text>
-            <Ionicons name="chevron-forward" size={14} color={AMBER} accessible={false} />
-          </View>
-        </TouchableOpacity>
-      )}
-
-      {/* Saved-locations nudge — users with 0 pinned places + clusters available */}
-      {showSavedLocationsNudge && (
-        <TouchableOpacity
-          style={s.savedLocsNudge}
-          onPress={() => router.push("/saved-locations-suggest" as never)}
-          activeOpacity={0.85}
-          accessibilityRole="button"
-          accessibilityLabel={`Review ${savedLocationsSuggestionCount} suggested ${
-            savedLocationsSuggestionCount === 1 ? "place" : "places"
-          }`}
-        >
-          <TouchableOpacity
-            style={s.savedLocsNudgeDismiss}
-            onPress={dismissSavedLocationsNudge}
-            hitSlop={{ top: 12, right: 12, bottom: 12, left: 12 }}
-            accessibilityRole="button"
-            accessibilityLabel="Dismiss"
-          >
-            <Ionicons name="close" size={16} color="#6b7280" accessible={false} />
-          </TouchableOpacity>
-          <View style={s.savedLocsNudgeIconWrap}>
-            <Ionicons name="sparkles" size={20} color={AMBER} accessible={false} />
-          </View>
-          <Text style={s.savedLocsNudgeTitle}>
-            Save the places you visit often
-          </Text>
-          <Text style={s.savedLocsNudgeBody}>
-            MileClear spotted{" "}
-            {savedLocationsSuggestionCount === 1
-              ? "1 place"
-              : `${savedLocationsSuggestionCount} places`}{" "}
-            in your recent trips. Save them so journeys are labelled with names
-            you recognise.
-          </Text>
-          <View style={s.savedLocsNudgeCta}>
-            <Text style={s.savedLocsNudgeCtaText}>Review suggestions</Text>
             <Ionicons name="chevron-forward" size={14} color={AMBER} accessible={false} />
           </View>
         </TouchableOpacity>

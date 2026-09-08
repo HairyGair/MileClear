@@ -4,10 +4,9 @@ import { authMiddleware } from "../../middleware/auth.js";
 import { attachIdempotency } from "../../middleware/idempotency.js";
 import { prisma } from "../../lib/prisma.js";
 import { getSuggestedSavedLocations } from "../../services/locationSuggestions.js";
+import { MAX_FREE_SAVED_LOCATIONS } from "@mileclear/shared";
 
 const LOCATION_TYPES = ["home", "work", "depot", "custom"] as const;
-
-const FREE_TIER_LIMIT = 2;
 
 const createSavedLocationSchema = z.object({
   name: z.string().min(1).max(100),
@@ -87,10 +86,9 @@ export async function savedLocationRoutes(app: FastifyInstance) {
         where: { userId },
       });
 
-      if (existingCount >= FREE_TIER_LIMIT) {
+      if (existingCount >= MAX_FREE_SAVED_LOCATIONS) {
         return reply.status(403).send({
-          error:
-            "Free accounts are limited to 2 saved locations. Upgrade to Pro for unlimited.",
+          error: `Free accounts are limited to ${MAX_FREE_SAVED_LOCATIONS} saved locations. Upgrade to Pro for unlimited.`,
         });
       }
     }

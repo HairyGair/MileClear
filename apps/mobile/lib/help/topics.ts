@@ -44,7 +44,7 @@ export const HELP_SECTIONS: HelpSection[] = [
       {
         id: "trip-detection",
         q: "How does MileClear know when I'm driving?",
-        a: "Two ways. Drive past 15mph for more than a few minutes and the app starts a recording automatically (\"watch-and-wait\" detection). Or set up saved locations like Home and Work, and we'll auto-detect when you leave one and arrive at another — the Lock Screen shows a Live Activity from the moment you cross the boundary.\n\nYou can also add trips manually from the dashboard if the detection missed one.",
+        a: "Two ways. Drive past 15mph for more than a few minutes and the app starts a recording automatically (\"watch-and-wait\" detection). Once a recording is under way the Lock Screen shows a Live Activity. Saved locations like Home and Work don't start a recording, but they do name the stops on the trips detection captures, and they stop the app treating a stroll around a known place as a drive.\n\nYou can also add trips manually from the dashboard if the detection missed one.",
       },
       {
         id: "modes",
@@ -55,7 +55,7 @@ export const HELP_SECTIONS: HelpSection[] = [
       {
         id: "first-trip",
         q: "I just installed the app — what should I do first?",
-        a: "Five things in order:\n\n1. Add your vehicle in Settings → Vehicles. We need fuel type + MPG to calculate fuel costs.\n2. Allow notifications when prompted. Push is how we send trip-classify nudges, MOT reminders, and the streak / recap pings.\n3. Pin Home and Work as saved locations (Settings → Saved Locations). The app will then auto-detect trips between them. After you've taken a handful of trips MileClear suggests other places to pin, surfaced as a sparkles card on the dashboard.\n4. Take your first drive. You'll see a \"Trip Active\" Live Activity on the Lock Screen.\n5. Optional but recommended: join the Discord (Profile → Settings → Community) for tax tips, platform talk and product updates from other UK drivers.",
+        a: "Five things in order:\n\n1. Add your vehicle in Settings → Vehicles. We need fuel type + MPG to calculate fuel costs.\n2. Allow notifications when prompted. Push is how we send trip-classify nudges, MOT reminders, and the streak / recap pings.\n3. Pin Home and Work as saved locations (Settings → Saved Locations). Trips that start or end there get labelled with the name rather than a street address, and trips between two saved places can be auto-classified. After you've taken a handful of trips MileClear suggests other places to pin, surfaced as a sparkles card on the dashboard.\n4. Take your first drive. You'll see a \"Trip Active\" Live Activity on the Lock Screen.\n5. Optional but recommended: join the Discord (Profile → Settings → Community) for tax tips, platform talk and product updates from other UK drivers.",
       },
       {
         id: "unlimited-free",
@@ -197,7 +197,7 @@ export const HELP_SECTIONS: HelpSection[] = [
       {
         id: "saved-locations-pin",
         q: "How do I pin a place manually?",
-        a: "Profile menu → Saved Locations → Add. Search by name or address, drop the pin precisely with the map picker, set the type (home / work / depot / custom) and the geofence radius (default 100m, MileClear adapts based on observations).\n\nFree tier: 2 saved locations. Pro: unlimited. Once pinned, MileClear stops auto-detecting trips while you're parked there (saves battery), uses the name in your trip list, and can auto-classify trips between two saved locations.",
+        a: "Profile menu → Saved Locations → Add. Search by name or address, drop the pin precisely with the map picker, set the type (home / work / depot / custom) and the radius (default 100m) that counts as being at the place.\n\nFree tier: 2 saved locations. Pro: unlimited. Once pinned, MileClear uses the name in your trip list, ignores GPS drift while you're parked there so it isn't logged as a trip, and can auto-classify trips between two saved locations.",
         goTo: "/saved-locations",
       },
       {
@@ -424,7 +424,7 @@ export const HELP_SECTIONS: HelpSection[] = [
       {
         id: "auto-detection-missed",
         q: "Auto-detection missed a trip - what now?",
-        a: "Three layered fixes:\n\n1. Add it manually. Dashboard → Start Trip → Manual. Enter start + end address (or pick on the map), set the date, classify, save. The routing engine gives the same mileage for the same address pair every time, so HMRC accepts it.\n2. Check why it was missed. Settings → Data Quality. Common culprits: Location set to \"While Using\" instead of \"Always\", Background App Refresh off, app force-quit before the trip started, signal blackspot for the whole journey.\n3. Pin Home / Work / regular stops as saved locations. With those in place we don't need to rely on speed detection - the geofence picks up the moment you leave / arrive.\n\nIf detection's missing trips often, send a screenshot of Settings → Data Quality to support@mileclear.com - Anthony will work out what's tripping it.",
+        a: "Three layered fixes:\n\n1. Add it manually. Dashboard → Start Trip → Manual. Enter start + end address (or pick on the map), set the date, classify, save. The routing engine gives the same mileage for the same address pair every time, so HMRC accepts it.\n2. Check why it was missed. Settings → Data Quality. Common culprits: Location set to \"While Using\" instead of \"Always\", Background App Refresh off, app force-quit before the trip started, signal blackspot for the whole journey.\n3. Pin Home / Work / regular stops as saved locations. They don't start a recording (detection is still speed-based), but a captured trip that starts or ends at one is labelled with the name, which makes a missed leg much easier to spot and add.\n\nIf detection's missing trips often, send a screenshot of Settings → Data Quality to support@mileclear.com - Anthony will work out what's tripping it.",
       },
       {
         id: "offline",

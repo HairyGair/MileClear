@@ -129,7 +129,7 @@ export default function TrackingSettings() {
         <SettingsRow
           icon="bookmark-outline"
           label="Saved locations"
-          hint="Home, work, depot, custom geofences"
+          hint="Name the places your trips start and end"
           onPress={() => router.push("/saved-locations" as never)}
         />
         <SettingsRow

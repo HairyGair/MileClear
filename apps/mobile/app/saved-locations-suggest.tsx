@@ -16,9 +16,13 @@ import {
 } from "../lib/api/savedLocations";
 import { syncCreateSavedLocation } from "../lib/sync/actions";
 import { registerGeofences } from "../lib/geofencing/index";
+import { getDatabase } from "../lib/db/index";
+import { useUser } from "../lib/user/context";
+import { usePaywall } from "../components/paywall";
 import { Button } from "../components/Button";
 import { EmptyState } from "../components/EmptyState";
 import { colors, fonts, radii } from "../lib/theme";
+import { MAX_FREE_SAVED_LOCATIONS } from "@mileclear/shared";
 import type { LocationType } from "@mileclear/shared";
 
 /**
@@ -54,13 +58,32 @@ const TEXT_3 = colors.text3;
 
 export default function SavedLocationsSuggestScreen() {
   const router = useRouter();
+  const { user } = useUser();
+  const { showPaywall } = usePaywall();
+  const isPremium = user?.isPremium ?? false;
   const [suggestions, setSuggestions] = useState<SuggestedSavedLocation[] | null>(null);
   const [loading, setLoading] = useState(true);
+  // Places already saved before this screen opened. Read once; saves made
+  // here are counted from rowState so a local write-through doesn't double
+  // count. Without this gate a free user could tap Save on all eight rows
+  // and rows three onwards each surfaced the server's raw 403 text.
+  const [existingCount, setExistingCount] = useState<number | null>(null);
   // Per-row state: the type the user is currently choosing (defaults from
   // server's suggestedType), the editable name, and the row's saving state.
   const [rowState, setRowState] = useState<
     Record<string, { type: SuggestionType; name: string; saving: boolean; saved: boolean }>
   >({});
+
+  useEffect(() => {
+    getDatabase()
+      .then((db) =>
+        db.getFirstAsync<{ count: number }>(
+          "SELECT COUNT(*) as count FROM saved_locations"
+        )
+      )
+      .then((row) => setExistingCount(row?.count ?? 0))
+      .catch(() => setExistingCount(0));
+  }, []);
 
   useEffect(() => {
     fetchSavedLocationSuggestions()
@@ -129,10 +152,19 @@ export default function SavedLocationsSuggestScreen() {
     });
   }, []);
 
+  const savedHere = Object.values(rowState).filter((r) => r.saved).length;
+  const slotsLeft = isPremium
+    ? Number.POSITIVE_INFINITY
+    : Math.max(0, MAX_FREE_SAVED_LOCATIONS - (existingCount ?? 0) - savedHere);
+
   const handleSave = useCallback(
     async (suggestion: SuggestedSavedLocation) => {
       const row = rowState[suggestion.id];
       if (!row || row.saving || row.saved) return;
+      if (slotsLeft <= 0) {
+        showPaywall("saved_locations_suggest");
+        return;
+      }
       const name = row.name.trim();
       if (!name) {
         Alert.alert("Name needed", "Give this place a name before saving.");
@@ -172,7 +204,7 @@ export default function SavedLocationsSuggestScreen() {
         );
       }
     },
-    [rowState]
+    [rowState, slotsLeft, showPaywall]
   );
 
   const handleDismiss = useCallback((id: string) => {
@@ -224,11 +256,25 @@ export default function SavedLocationsSuggestScreen() {
             been to multiple times. Save them so trips get auto-classified and
             labelled with names you recognise.
           </Text>
+          {!isPremium && existingCount !== null && (
+            <Text style={styles.introLimit}>
+              {slotsLeft === 0
+                ? `You've used the ${MAX_FREE_SAVED_LOCATIONS} saved places on the free plan.`
+                : `Free plan: ${slotsLeft} of ${MAX_FREE_SAVED_LOCATIONS} saved places left.`}
+            </Text>
+          )}
         </View>
 
-        {suggestions.map((s) => {
+        {suggestions.map((s, index) => {
           const row = rowState[s.id];
           if (!row) return null;
+          // Free slots go to the highest-visit rows first (the server sorts
+          // by visitCount); everything past the last free slot is locked
+          // rather than failing on tap.
+          const unsavedBefore = suggestions
+            .slice(0, index)
+            .filter((prev) => rowState[prev.id] && !rowState[prev.id]!.saved).length;
+          const locked = !row.saved && unsavedBefore >= slotsLeft;
           return (
             <View key={s.id} style={styles.card}>
               <View style={styles.cardHeader}>
@@ -263,6 +309,22 @@ export default function SavedLocationsSuggestScreen() {
                   <Ionicons name="checkmark-circle" size={20} color={colors.green} />
                   <Text style={styles.savedText}>Saved as {row.name}</Text>
                 </View>
+              ) : locked ? (
+                <TouchableOpacity
+                  style={styles.lockedRow}
+                  onPress={() => showPaywall("saved_locations_suggest")}
+                  activeOpacity={0.7}
+                  accessibilityRole="button"
+                  accessibilityLabel="Save this place, upgrade to Pro for unlimited saved locations"
+                >
+                  <View style={styles.lockedRowTop}>
+                    <Ionicons name="lock-closed" size={16} color={TEXT_2} />
+                    <Text style={styles.lockedRowText}>Save this place</Text>
+                  </View>
+                  <Text style={styles.lockedRowSubtitle}>
+                    Upgrade to Pro for unlimited saved locations
+                  </Text>
+                </TouchableOpacity>
               ) : (
                 <>
                   <View style={styles.typeRow}>
@@ -357,6 +419,12 @@ const styles = StyleSheet.create({
     color: TEXT_2,
     lineHeight: 20,
   },
+  introLimit: {
+    fontSize: 13,
+    fontFamily: fonts.medium,
+    color: TEXT_3,
+    marginTop: 8,
+  },
   card: {
     backgroundColor: CARD_BG,
     borderRadius: radii.md,
@@ -429,6 +497,30 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontFamily: fonts.medium,
     color: colors.green,
+  },
+  lockedRow: {
+    marginTop: 12,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: "rgba(255,255,255,0.06)",
+    alignItems: "center",
+    gap: 4,
+  },
+  lockedRowTop: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  lockedRowText: {
+    fontSize: 15,
+    fontFamily: fonts.semibold,
+    color: TEXT_2,
+  },
+  lockedRowSubtitle: {
+    fontSize: 12,
+    fontFamily: fonts.regular,
+    color: TEXT_3,
+    textAlign: "center",
   },
   doneButton: {
     alignSelf: "center",

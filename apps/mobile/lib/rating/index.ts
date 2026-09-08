@@ -18,6 +18,15 @@ const MIN_TRIPS = 5;
 // a trip within a few seconds. Not persisted; resets on app restart.
 let promptShownThisSession = false;
 
+/**
+ * Lets other one-shot prompts (the saved-places ask) stand down when the
+ * rating alert has already gone up this session, so a user never gets two
+ * system alerts stacked on one dashboard focus.
+ */
+export function reviewPromptShownThisSession(): boolean {
+  return promptShownThisSession;
+}
+
 /** Fire-and-forget event log to the API for admin visibility. */
 function trackRatingEvent(type: string, metadata?: Record<string, unknown>): void {
   apiRequest("/user/event", {
