@@ -86,10 +86,19 @@ export interface WakeLagNewTrip {
 
 export interface WakeLagSavedLocation {
   id: string;
+  /** The driver's own name for the place ("Home", "Depot"). */
+  name: string;
   latitude: number;
   longitude: number;
   radiusMeters: number;
 }
+
+/**
+ * Where the moved start's label came from. The label must follow the pin:
+ * once the start sits at the previous end, the street the engine woke on
+ * ("Petworth Road") is the one place the trip did NOT start.
+ */
+export type WakeLagStartAddressSource = "saved_location" | "prev_trip_end" | "cleared";
 
 export type WakeLagSkipReason =
   | "manual_entry"
@@ -109,8 +118,13 @@ export interface WakeLagExtension {
   ok: true;
   startLat: number;
   startLng: number;
-  /** Previous trip's end address, or null when it had none. */
+  /**
+   * Label for the moved start: the matched saved location's name, else the
+   * previous trip's end address, else null so the address backfill geocodes
+   * the new pin. Never the device's label for the first fix.
+   */
   startAddress: string | null;
+  startAddressFrom: WakeLagStartAddressSource;
   /** Routed road miles for the missing stretch, rounded to 2 dp. */
   addedMiles: number;
   /** Crow-flies gap between prev end and the original start, 2 dp. */
@@ -205,11 +219,27 @@ export function resolveWakeLagStart(args: {
       : (routeMiles / FALLBACK_URBAN_MPH) * 3600;
   const recordedAt = new Date(newTrip.startedAt.getTime() - Math.round(secs * 1000));
 
+  // The label follows the pin. Duncan (8 Sep 2026) filed one journey four
+  // times because the start had been moved home but still read "Petworth
+  // Road", the street where the engine woke; the previous trip's own end
+  // label was that same street-level geocode, while the place he knows is
+  // his saved location. So the driver's name for the place wins, then the
+  // previous end's address, and with neither we leave it null for the
+  // address backfill to geocode from the new coordinates.
+  const savedName = prevEndLocation?.name?.trim() ?? "";
+  const prevEndAddress = prevTrip.endAddress?.trim() ?? "";
+  const label: { startAddress: string | null; startAddressFrom: WakeLagStartAddressSource } =
+    savedName
+      ? { startAddress: savedName, startAddressFrom: "saved_location" }
+      : prevEndAddress
+        ? { startAddress: prevEndAddress, startAddressFrom: "prev_trip_end" }
+        : { startAddress: null, startAddressFrom: "cleared" };
+
   return {
     ok: true,
     startLat: prevTrip.endLat,
     startLng: prevTrip.endLng,
-    startAddress: prevTrip.endAddress?.trim() ? prevTrip.endAddress : null,
+    ...label,
     addedMiles,
     crowMiles,
     gapMin,
@@ -250,7 +280,7 @@ export async function reconcileWakeLagStart(args: {
 
     const savedLocations = await prisma.savedLocation.findMany({
       where: { userId },
-      select: { id: true, latitude: true, longitude: true, radiusMeters: true },
+      select: { id: true, name: true, latitude: true, longitude: true, radiusMeters: true },
     });
 
     // Cheap pass first (no routing). Only pay for a route when geometry and

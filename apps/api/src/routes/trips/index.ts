@@ -900,6 +900,9 @@ export async function tripRoutes(app: FastifyInstance) {
           droppedTrailing: edgeTrim.droppedTrailing,
           removedMiles: Math.round(edgeTrim.removedMiles * 100) / 100,
           worstAccuracyM: edgeTrim.worstAccuracyM,
+          // A trimmed leading edge moves the start pin, and the device's
+          // label was cleared with it so the backfill geocodes the real start.
+          startAddressFrom: edgeTrim.droppedLeading > 0 ? "cleared" : null,
           distanceMiles,
           clientDistanceMiles: data.distanceMiles ?? null,
         });
@@ -913,6 +916,9 @@ export async function tripRoutes(app: FastifyInstance) {
           gapMin: wakeLag.gapMin,
           crowMiles: wakeLag.crowMiles,
           savedLocationId: wakeLag.savedLocationId,
+          startAddressFrom: wakeLag.startAddressFrom,
+          startAddress: wakeLag.startAddress,
+          deviceStartAddress: data.startAddress ?? null,
           distanceMiles,
           clientDistanceMiles: data.distanceMiles ?? null,
         });

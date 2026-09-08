@@ -4,7 +4,7 @@ import { resolveWakeLagStart } from "../../services/wakeLagStart.js";
 // Home (saved location, 50 m radius) and a point ~0.3 mi east of it.
 // At lat 51.5, one degree of longitude is ~43 mi, so 0.007 deg is ~0.30 mi.
 const HOME = { lat: 51.5, lng: -0.12 };
-const home = { id: "home", latitude: HOME.lat, longitude: HOME.lng, radiusMeters: 50 };
+const home = { id: "home", name: "Home", latitude: HOME.lat, longitude: HOME.lng, radiusMeters: 50 };
 const savedLocations = [home];
 
 const T0 = new Date("2026-08-25T08:00:00Z");
@@ -45,7 +45,8 @@ describe("resolveWakeLagStart", () => {
     if (!d.ok) return;
     expect(d.startLat).toBe(HOME.lat);
     expect(d.startLng).toBe(HOME.lng);
-    expect(d.startAddress).toBe("12 Home Street");
+    expect(d.startAddress).toBe("Home");
+    expect(d.startAddressFrom).toBe("saved_location");
     expect(d.addedMiles).toBe(0.36);
     expect(d.crowMiles).toBeCloseTo(0.3, 1);
     expect(d.gapMin).toBe(30);
@@ -61,7 +62,64 @@ describe("resolveWakeLagStart", () => {
       savedLocations: [],
       routeMiles: 0.35,
     });
-    expect(d.ok).toBe(true);
+    expect(d).toMatchObject({
+      ok: true,
+      startAddress: "12 Home Street",
+      startAddressFrom: "prev_trip_end",
+      savedLocationId: null,
+    });
+  });
+
+  describe("the start label follows the moved pin", () => {
+    // Duncan, 8 Sep 2026: the start was moved home, but the card still read
+    // "Petworth Road", the street where the engine woke. He did not recognise
+    // his own drive and entered it by hand four times. The device's label for
+    // the first fix must never survive the move.
+    it("prefers the saved location's name over the previous end's street geocode", () => {
+      const d = resolveWakeLagStart({
+        prevTrip: prev({ endAddress: "Petworth Road, Godalming, GU8" }),
+        newTrip: next(),
+        savedLocations,
+        routeMiles: 0.36,
+      });
+      expect(d).toMatchObject({
+        ok: true,
+        startAddress: "Home",
+        startAddressFrom: "saved_location",
+        savedLocationId: "home",
+      });
+    });
+
+    it("falls back to the previous end address when the saved location has a blank name", () => {
+      const d = resolveWakeLagStart({
+        prevTrip: prev({ endAddress: "  12 Home Street  " }),
+        newTrip: next(),
+        savedLocations: [{ ...home, name: "   " }],
+        routeMiles: 0.36,
+      });
+      expect(d).toMatchObject({
+        ok: true,
+        startAddress: "12 Home Street",
+        startAddressFrom: "prev_trip_end",
+        savedLocationId: "home",
+      });
+    });
+
+    it("clears the label when the saved location is unnamed and the previous end had no address", () => {
+      // Null, not the device's label: the address backfill geocodes the new pin.
+      const d = resolveWakeLagStart({
+        prevTrip: prev({ endAddress: null }),
+        newTrip: next(),
+        savedLocations: [{ ...home, name: "" }],
+        routeMiles: 0.36,
+      });
+      expect(d).toMatchObject({
+        ok: true,
+        startAddress: null,
+        startAddressFrom: "cleared",
+        savedLocationId: "home",
+      });
+    });
   });
 
   it("skips when the previous end is neither a saved location nor addressed", () => {
