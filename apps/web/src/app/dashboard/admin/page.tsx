@@ -299,7 +299,7 @@ interface HealthData {
 // ---------------------------------------------------------------------------
 
 function formatPence(pence: number): string {
-  return `£${(pence / 100).toFixed(2)}`;
+  return (pence / 100).toLocaleString("en-GB", { style: "currency", currency: "GBP" });
 }
 
 function formatUptime(seconds: number): string {
