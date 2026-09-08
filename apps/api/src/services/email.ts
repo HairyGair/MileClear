@@ -201,6 +201,10 @@ const FROM_PERSONAL = "Gair - MileClear <gair@mileclear.com>";
 const API_BASE_URL = process.env.API_BASE_URL || "https://api.mileclear.com";
 const WEB_BASE_URL = process.env.WEB_BASE_URL || "https://mileclear.com";
 const SUPPORT_INBOX = process.env.SUPPORT_INBOX || "support@mileclear.com";
+const APP_STORE_URL = "https://apps.apple.com/gb/app/mileclear/id6759671005";
+// The Play listing is a closed test and returns "not found" to anyone not on
+// the tester list, so Android goes via the page that collects the email.
+const ANDROID_PAGE_URL = `${WEB_BASE_URL}/android`;
 
 function escapeHtml(str: string): string {
   return str
@@ -574,6 +578,12 @@ export async function sendWelcomeEmail(
 
                   <p style="color: #c0c8d4; font-size: 15px; line-height: 1.7; margin: 0 0 24px;"><strong style="color: #f0f2f5;">To get started:</strong> add a vehicle, set your home and work locations, then just drive. MileClear handles the rest.</p>
 
+                  <!-- The app is where drives get recorded. Until 8 Sep 2026
+                       this email had no link at all, so a website signup was
+                       never told where the app was. -->
+${ctaButton("Get the app", APP_STORE_URL)}
+                  <p style="color: #6b7689; font-size: 13px; line-height: 1.6; margin: 4px 0 28px; text-align: center;">On Android? The app is in closed testing. Leave your email at <a href="${ANDROID_PAGE_URL}" style="color: #f5a623; text-decoration: underline;">mileclear.com/android</a> and you get the link.</p>
+
                   <!-- Support callout -->
                   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin: 0 0 28px;">
                     <tr><td style="background-color: rgba(245,166,35,0.08); border: 1px solid rgba(245,166,35,0.15); border-radius: 10px; padding: 18px 20px;">
@@ -702,8 +712,6 @@ export async function sendProWelcomeEmail(
 // One polished, consistent wrapper for the campaign emails (re-engagement,
 // product update, service status). Dark navy (#030712) canvas, glass card,
 // amber accent, "MileClear" wordmark header, bulletproof CTA button.
-const APP_STORE_URL = "https://apps.apple.com/gb/app/mileclear/id6759671005";
-
 /** Bulletproof amber CTA button (table-based, dark text for contrast). */
 function ctaButton(label: string, url: string, accent = "#f5a623"): string {
   return `
@@ -2441,6 +2449,83 @@ export async function sendCheckinEmail(
     subject,
     html,
     headers: unsubscribeHeaders(userId),
+  });
+}
+
+export type ActivationNudgeReason = "web_only" | "no_permission" | "no_drive_yet";
+
+/**
+ * Activation nudge for a zero-trip account with no push token (day 1, 3 and
+ * 7 after signup). One reason per send, chosen by the job: the single thing
+ * standing between them and a recorded drive. Same gating and unsubscribe
+ * plumbing as the check-in email.
+ */
+export async function sendActivationNudgeEmail(
+  email: string,
+  displayName: string | null | undefined,
+  opts: { reason: ActivationNudgeReason },
+  userId: string
+): Promise<void> {
+  if (!(await isMarketingAllowed(userId))) return;
+  const greeting = displayName ? `Hi ${escapeHtml(displayName)},` : "Hi there,";
+  const p = (text: string) =>
+    `        <p style="color: #c0c8d4; font-size: 15px; line-height: 1.7; margin: 0 0 16px;">${text}</p>`;
+  const steps = (text: string) =>
+    `        <p style="color: #f0f2f5; font-size: 15px; font-weight: 600; line-height: 1.7; margin: 0 0 20px; padding: 14px 18px; background-color: rgba(245,166,35,0.08); border: 1px solid rgba(245,166,35,0.18); border-radius: 12px;">${text}</p>`;
+  const signoff = `${p("Reply to this email if anything is in the way. I read every message.")}
+        <p style="color: #c0c8d4; font-size: 15px; line-height: 1.7; margin: 0;">Cheers,</p>
+        <p style="color: #f0f2f5; font-size: 15px; font-weight: 600; margin: 4px 0 0;">Gair</p>`;
+
+  let subject: string;
+  let title: string;
+  let preheader: string;
+  let bodyHtml: string;
+
+  if (opts.reason === "web_only") {
+    subject = "MileClear records drives from your phone";
+    title = "The app is the part that records";
+    preheader = "You signed up on the website. Drives are recorded by the app on your phone.";
+    bodyHtml = `${p(greeting)}
+${p("You signed up on the website, and the website only shows what the app on your phone has recorded. Without the app there is nothing to show yet.")}
+${p("Install it, sign in with the same email, and your next drive records by itself.")}
+${ctaButton("Get the app", APP_STORE_URL)}
+${p(`On Android? The app is in closed testing. Leave your email at <a href="${ANDROID_PAGE_URL}" style="color: #f5a623; text-decoration: underline;">mileclear.com/android</a> and you get the link.`)}
+${signoff}`;
+  } else if (opts.reason === "no_permission") {
+    subject = "One setting and MileClear starts recording";
+    title = "One setting stands between you and your first drive";
+    preheader = "The app cannot see your location in the background yet, so nothing records by itself.";
+    bodyHtml = `${p(greeting)}
+${p("MileClear is installed but it cannot see your location in the background, so it cannot record a drive unless the app is open. One setting fixes that:")}
+${steps("Settings, then MileClear, then Location, then Always.")}
+${p("After that, just drive with your phone in the car. You do not need to open the app.")}
+${ctaButton("Open MileClear", APP_STORE_URL)}
+${signoff}`;
+  } else {
+    subject = "Add a drive you have already done";
+    title = "Two minutes to your first mile";
+    preheader = "MileClear is set up and waiting. A drive you have already done takes seconds to add.";
+    bodyHtml = `${p(greeting)}
+${p("MileClear is set up and nothing has been recorded yet. Your next drive records by itself, but you do not have to wait for it.")}
+${p("Add a drive you have already done from the dashboard: tap Add trip, put in where it started and ended, and MileClear works out the distance. Every business mile counts at 55p towards your tax deduction.")}
+${ctaButton("Open MileClear", APP_STORE_URL)}
+${signoff}`;
+  }
+
+  const html = emailShell({
+    preheader,
+    title,
+    bodyHtml,
+    footerHtml: unsubscribeFooterHtml(userId),
+  });
+
+  await deliver({
+    email,
+    subject,
+    html,
+    userId,
+    label: `Activation nudge (${opts.reason})`,
+    gated: true,
   });
 }
 

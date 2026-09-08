@@ -18,11 +18,13 @@ import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import * as Notifications from "expo-notifications";
 import { Button } from "../components/Button";
+import { registerPushToken } from "../lib/api/notifications";
 import { updateProfile } from "../lib/api/user";
 import { createVehicle } from "../lib/api/vehicles";
 import { getDatabase } from "../lib/db/index";
 import { useMode } from "../lib/mode/context";
 import { requestOrFixBackgroundLocation, getLocationPermissionStatus } from "../lib/permissions/location";
+import { registerForPushNotifications } from "../lib/notifications";
 import type { WorkType, VehicleType } from "@mileclear/shared";
 import { colors, fonts } from "../lib/theme";
 
@@ -152,11 +154,25 @@ export default function OnboardingScreen() {
 
   const handleRequestNotifications = useCallback(async () => {
     setNotifStatus("requesting");
+    let granted = false;
     try {
       const { status } = await Notifications.requestPermissionsAsync();
-      setNotifStatus(status === "granted" ? "granted" : "denied");
+      granted = status === "granted";
+      setNotifStatus(granted ? "granted" : "denied");
     } catch {
       setNotifStatus("denied");
+    }
+    if (!granted) return;
+    // Register the token now rather than on the next cold start. The startup
+    // chain only registers when permission is already granted, so until 8 Sep
+    // 2026 a fresh install's token reached the server on day 2 at the
+    // earliest, after the day-1 nudge had already looked for it. Best effort:
+    // onboarding never fails on a push problem.
+    try {
+      const token = await registerForPushNotifications();
+      if (token) await registerPushToken(token).catch(() => {});
+    } catch {
+      // ignore
     }
   }, []);
 
@@ -1129,8 +1145,9 @@ export default function OnboardingScreen() {
               </View>
             </View>
 
-            {/* Pro tip - small actionable next-step that improves the
-                auto-detection experience materially */}
+            {/* Pro tip - small actionable next-step. Saved locations are not
+                geofences (since 17 May 2026); they name stops and suppress
+                drift while parked, so the copy claims only that. */}
             <View style={s.tipCard}>
               <View style={s.tipIconWrap}>
                 <Ionicons name="bulb-outline" size={18} color={AMBER} />
@@ -1138,7 +1155,7 @@ export default function OnboardingScreen() {
               <View style={{ flex: 1 }}>
                 <Text style={s.tipTitle}>Pro tip: pin Home and Work</Text>
                 <Text style={s.tipBody}>
-                  Add saved locations from Profile - Locations. Auto-detection pauses when you're parked at one, which saves battery and keeps your trip list clean.
+                  Add saved locations from Profile - Locations. They name your stops on the trip list, and the app stops inventing trips while you're parked at one.
                 </Text>
               </View>
             </View>

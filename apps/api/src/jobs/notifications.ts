@@ -20,6 +20,7 @@ import { getNearbyStations, prewarmStationCache } from "../services/fuel.js";
 import { runVehicleRemindersJob } from "./vehicleReminders.js";
 import {
   runActivationDay7Job,
+  runActivationEarlyNudgeJob,
   runCaptureLapsedJob,
   runPayingInactiveAlarmJob,
   runShortHopSavedLocationsJob,
@@ -1459,6 +1460,11 @@ export function startNotificationJobs(): void {
   const runWindowed = () => {
     void runJob("morning_briefing", runMorningBriefingJob);
     void runJob("fuel_price_alert", runFuelPriceAlertJob);
+    // Day 1 and day 3 sit alongside the welcome nudge and check-in email
+    // rather than replacing them: those two need a push token or send to
+    // everyone; these name the blocker and reach the tokenless by email.
+    void runJob("activation_d1", () => runActivationEarlyNudgeJob(1));
+    void runJob("activation_d3", () => runActivationEarlyNudgeJob(3));
     void runJob("activation_d7", runActivationDay7Job);
     void runJob("capture_lapsed", runCaptureLapsedJob);
     void runJob("pro_inactive_alarm", runPayingInactiveAlarmJob);

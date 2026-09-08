@@ -16,13 +16,25 @@
 //   relationship to save.
 //
 // Both once-ever per user (AppEvent dedup), gated to a sane send hour.
+//
+// Day 1 and day 3 added 8 Sep 2026, and the push-token filter dropped from
+// all three. 275 of 1,009 registered users had never recorded a trip, and
+// the push-only jobs could not reach the two groups that made up most of
+// them: web signups who never installed the app, and app installs whose
+// token only reaches the server on the second cold start. Each nudge now
+// names the one thing in the way (see activationBlocker.ts) and falls back
+// to email when there is no token.
 
 import { prisma } from "../lib/prisma.js";
 import { sendPushNotifications, type ExpoPushMessage } from "../lib/push.js";
 import { logEvent } from "../services/appEvents.js";
 import { postFounderAlert } from "../services/discord.js";
+import { sendActivationNudgeEmail } from "../services/email.js";
 import { resolvePremiumStatus } from "../services/referral.js";
 import { classifyProSource, loadSandboxTxnIds } from "../services/subscriptionTruth.js";
+import { classifyActivationBlocker, type ActivationBlocker } from "./activationBlocker.js";
+
+export { classifyActivationBlocker, type ActivationBlocker } from "./activationBlocker.js";
 
 async function wasEverNotified(userId: string, eventType: string): Promise<boolean> {
   const existing = await prisma.appEvent.findFirst({
@@ -38,44 +50,217 @@ function inNudgeWindow(now: Date): boolean {
   return h >= 16 && h < 18;
 }
 
-export async function runActivationDay7Job(): Promise<void> {
+// ── Activation nudges: day 1, day 3, day 7 ───────────────────────────────
+
+export type ActivationNudgeDay = 1 | 3 | 7;
+export type ActivationNudgeChannel = "push" | "email" | "none";
+
+export interface ActivationNudgeCandidate {
+  userId: string;
+  email: string;
+  displayName: string | null;
+  createdAt: Date;
+  blocker: Exclude<ActivationBlocker, "none">;
+  channel: ActivationNudgeChannel;
+  pushToken: string | null;
+}
+
+// Account-age windows in hours. Wider than the 30-minute tick so a missed
+// tick (restart, window edge) still catches everyone once.
+const NUDGE_WINDOW_HOURS: Record<ActivationNudgeDay, [number, number]> = {
+  1: [20, 44],
+  3: [68, 92],
+  7: [6 * 24, 9 * 24],
+};
+
+const pushEvent = (day: ActivationNudgeDay) => `notification.activation_d${day}`;
+const emailEvent = (day: ActivationNudgeDay) => `email.activation_d${day}`;
+
+/**
+ * Everyone this day's nudge would reach right now, with the blocker and the
+ * channel it would use. Shared by the job and the rehearsal script; the
+ * only side effects are reads.
+ */
+export async function previewActivationEarlyNudges(day: ActivationNudgeDay): Promise<ActivationNudgeCandidate[]> {
   const now = new Date();
-  if (!inNudgeWindow(now)) return;
-
-  const nineDaysAgo = new Date(now.getTime() - 9 * 24 * 60 * 60 * 1000);
-  const sixDaysAgo = new Date(now.getTime() - 6 * 24 * 60 * 60 * 1000);
-
-  const candidates = await prisma.user.findMany({
+  const [minHours, maxHours] = NUDGE_WINDOW_HOURS[day];
+  const users = await prisma.user.findMany({
     where: {
-      createdAt: { gte: nineDaysAgo, lte: sixDaysAgo },
-      pushToken: { not: null },
+      createdAt: {
+        gte: new Date(now.getTime() - maxHours * 3_600_000),
+        lte: new Date(now.getTime() - minHours * 3_600_000),
+      },
     },
-    select: { id: true, pushToken: true },
+    select: {
+      id: true,
+      email: true,
+      displayName: true,
+      createdAt: true,
+      pushToken: true,
+      emailVerified: true,
+      marketingEmailsEnabled: true,
+      signupPlatform: true,
+      platformsSeen: true,
+      lastHeartbeatAt: true,
+      bgLocationPermission: true,
+    },
     take: 200,
   });
+  if (users.length === 0) return [];
+  const ids = users.map((u) => u.id);
+
+  const [tripCounts, dumps, history] = await Promise.all([
+    prisma.trip.groupBy({
+      by: ["userId"],
+      where: { userId: { in: ids }, isPhantomTrip: false },
+      _count: { _all: true },
+    }),
+    prisma.diagnosticDump.findMany({
+      where: { userId: { in: ids } },
+      select: { userId: true, capturedAt: true, statusJson: true },
+    }),
+    prisma.appEvent.findMany({
+      where: { userId: { in: ids }, type: { in: [pushEvent(day), emailEvent(day)] } },
+      select: { userId: true },
+    }),
+  ]);
+  const tripsBy = new Map(tripCounts.map((t) => [t.userId, t._count._all]));
+  const dumpBy = new Map(
+    dumps.map((d) => [
+      d.userId,
+      {
+        capturedAt: d.capturedAt,
+        backgroundPermission: (d.statusJson as { backgroundPermission?: unknown } | null)?.backgroundPermission,
+      },
+    ])
+  );
+  const notified = new Set(history.map((h) => h.userId));
+
+  const out: ActivationNudgeCandidate[] = [];
+  for (const u of users) {
+    if (notified.has(u.id)) continue;
+    const blocker = classifyActivationBlocker({
+      tripCount: tripsBy.get(u.id) ?? 0,
+      lastHeartbeatAt: u.lastHeartbeatAt,
+      signupPlatform: u.signupPlatform,
+      platformsSeen: u.platformsSeen,
+      bgLocationPermission: u.bgLocationPermission,
+      pushToken: u.pushToken,
+      dump: dumpBy.get(u.id) ?? null,
+    });
+    if (blocker === "none") continue;
+    const channel: ActivationNudgeChannel = u.pushToken
+      ? "push"
+      : u.emailVerified && u.marketingEmailsEnabled
+        ? "email"
+        : "none";
+    out.push({
+      userId: u.id,
+      email: u.email,
+      displayName: u.displayName,
+      createdAt: u.createdAt,
+      blocker,
+      channel,
+      pushToken: u.pushToken,
+    });
+  }
+  return out;
+}
+
+function pushForBlocker(
+  day: ActivationNudgeDay,
+  blocker: Exclude<ActivationBlocker, "none">,
+  to: string
+): ExpoPushMessage {
+  const type = `activation_d${day}`;
+  if (blocker === "no_permission") {
+    return {
+      to,
+      title: "One switch and MileClear starts working",
+      body: "MileClear can't record your drives yet because it can't see your location in the background. Tap to open Settings, then Location, and choose Always. After that it runs by itself.",
+      sound: "default",
+      // open_settings lands on MileClear's own iOS settings page, where the
+      // Location row lives.
+      data: { type, action: "open_settings" },
+    };
+  }
+  // web_only with a push token cannot happen (the token proves an install),
+  // so anything left is no_drive_yet: the low-effort path, a past drive.
+  if (day === 7) {
+    return {
+      to,
+      title: "Two minutes to your first mile",
+      body: "Add a drive you've already done, it takes seconds, and every business mile counts at 55p towards your tax deduction. Or turn on Always location and MileClear records the next one by itself.",
+      sound: "default",
+      data: { type, action: "open_dashboard" },
+    };
+  }
+  return {
+    to,
+    title: day === 1 ? "Your first mile" : "Still no drives recorded",
+    body:
+      day === 1
+        ? "Location is set up, so your next drive records by itself. Done one already? Add it from the dashboard in a few seconds, and every business mile counts at 55p towards your tax deduction."
+        : "MileClear is ready but nothing has been recorded yet. Add a drive you've already done from the dashboard, or just drive with your phone in the car and it records the next one.",
+    sound: "default",
+    data: { type, action: "open_dashboard" },
+  };
+}
+
+async function runActivationNudge(day: ActivationNudgeDay): Promise<void> {
+  const now = new Date();
+  // ACTIVATION_EARLY_DRY_RUN=1 prints who would get what, sends nothing on
+  // either channel, and ignores the window so it can be run on demand.
+  // Covers day 7 too, since day 7 now emails as well as pushes.
+  const dryRun = process.env.ACTIVATION_EARLY_DRY_RUN === "1";
+  if (!dryRun && !inNudgeWindow(now)) return;
+
+  const candidates = await previewActivationEarlyNudges(day);
+  if (candidates.length === 0) return;
 
   const messages: ExpoPushMessage[] = [];
-  for (const user of candidates) {
-    if (await wasEverNotified(user.id, "notification.activation_d7")) continue;
-    const tripCount = await prisma.trip.count({
-      where: { userId: user.id, isPhantomTrip: false },
-    });
-    if (tripCount > 0) continue;
-
-    logEvent("notification.activation_d7", user.id);
-    messages.push({
-      to: user.pushToken!,
-      title: "Two minutes to your first mile",
-      body: "Add a drive you've already done — it takes seconds, and every business mile is worth 55p off your tax bill. Or turn on Always location and MileClear records the next one by itself.",
-      sound: "default",
-      data: { type: "activation_d7", action: "open_dashboard" },
-    });
+  let emailed = 0;
+  for (const c of candidates) {
+    if (c.channel === "none") continue;
+    if (dryRun) {
+      console.log(`[jobs/activation] DRY RUN day-${day} would ${c.channel} ${c.userId} (blocker=${c.blocker})`);
+      continue;
+    }
+    if (c.channel === "push") {
+      if (!c.pushToken) continue;
+      logEvent(pushEvent(day), c.userId, { blocker: c.blocker });
+      messages.push(pushForBlocker(day, c.blocker, c.pushToken));
+      continue;
+    }
+    try {
+      await sendActivationNudgeEmail(c.email, c.displayName, { reason: c.blocker }, c.userId);
+      logEvent(emailEvent(day), c.userId, { blocker: c.blocker });
+      emailed += 1;
+      // Small delay between emails, as the check-in job does.
+      await new Promise((r) => setTimeout(r, 300));
+    } catch (err) {
+      console.error(`[jobs/activation] Day-${day} email failed for ${c.userId}:`, err);
+    }
   }
 
-  if (messages.length > 0) {
-    await sendPushNotifications(messages);
-    console.log(`[jobs/activation] Day-7 nudge: sent ${messages.length} push(es)`);
+  if (dryRun) {
+    console.log(
+      `[jobs/activation] DRY RUN day-${day} complete: ${candidates.length} candidates, ${candidates.filter((c) => c.channel === "none").length} unreachable, 0 sent`
+    );
+    return;
   }
+  if (messages.length > 0) await sendPushNotifications(messages);
+  if (messages.length > 0 || emailed > 0) {
+    console.log(`[jobs/activation] Day-${day} nudge: sent ${messages.length} push(es), ${emailed} email(s)`);
+  }
+}
+
+export async function runActivationEarlyNudgeJob(day: 1 | 3): Promise<void> {
+  await runActivationNudge(day);
+}
+
+export async function runActivationDay7Job(): Promise<void> {
+  await runActivationNudge(7);
 }
 
 // ── Capture-lapsed nudge (18 Aug 2026) ───────────────────────────────────
@@ -263,17 +448,23 @@ export async function runCaptureLapsedJob(): Promise<void> {
   }
 }
 
-// Short-hop drivers without saved locations (23 Aug 2026).
+// Short-hop drivers without saved locations (23 Aug 2026, copy corrected
+// 8 Sep 2026).
 //
 // The engine records plenty of short trips - 497 auto-captured at 0.3-0.5 mi
 // in the month to 23 Aug - but it cannot ARM in time for a sixty-second
 // drive when it has to wait for CoreMotion's "automotive" verdict, so the
 // manual share climbs as trips shorten: 3% of 2+ mile trips are typed in,
-// 34% of 0.3-0.5 mile ones. A saved location's geofence fires the instant
-// the phone leaves it, which is exactly what a short hop needs, and the
-// people who need it do not have any: of 148 users doing five or more
-// sub-mile trips a month, 29 had a saved location. This tells the other
-// 119 what to do, with their own number in it so it reads as specific.
+// 34% of 0.3-0.5 mile ones. Of 148 users doing five or more sub-mile trips
+// a month, 29 had a saved location.
+//
+// What a saved location actually does, and what this message may claim:
+// saved locations have NOT been geofences since 17 May 2026, so nothing
+// fires when the phone leaves one and they do not make a short hop record
+// any sooner. What they do is name the stops on the trip list and let the
+// app tell regular places apart, which is worth most to exactly the people
+// making lots of short trips between the same few places. The first version
+// of this push promised capture "the moment you leave"; that was false.
 const SHORT_HOP_WINDOW_DAYS = 30;
 const SHORT_HOP_MIN_TRIPS = 5;
 const SHORT_HOP_MAX_MILES = 1;
@@ -306,7 +497,7 @@ export async function runShortHopSavedLocationsJob(): Promise<void> {
       id: { in: [...shortTripsBy.keys()] },
       lastHeartbeatAt: { gte: aliveCutoff },
       pushToken: { not: null },
-      // The whole point: they have nothing for the geofence to fire from.
+      // The whole point: none of their regular stops has a name yet.
       savedLocations: { none: {} },
     },
     select: { id: true, pushToken: true },
@@ -338,7 +529,7 @@ export async function runShortHopSavedLocationsJob(): Promise<void> {
     if (seen && seen.last > cooldownCutoff) continue;
     const n = shortTripsBy.get(user.id) ?? 0;
 
-    const body = `You made ${n} short trips last month. Save home and your regular stops in MileClear (Settings, then Tracking, then Saved locations) and the app catches short hops the moment you leave, instead of waiting to notice you are driving.`;
+    const body = `You made ${n} short trips last month. Save home and your regular stops in MileClear (Settings, then Tracking, then Saved locations) so each one is named on your trip list and the app can tell your regular places apart.`;
 
     if (dryRun) {
       console.log(
@@ -352,7 +543,7 @@ export async function runShortHopSavedLocationsJob(): Promise<void> {
     });
     messages.push({
       to: user.pushToken!,
-      title: "Your short trips can record themselves",
+      title: "Name the places you keep driving between",
       body,
       sound: "default",
       // open_saved_locations lands on the Saved Locations screen from build
