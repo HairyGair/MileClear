@@ -128,7 +128,14 @@ const app = Fastify({
 // Responses were leaving uncompressed: a trips page is polyline-heavy JSON
 // that gzips roughly ten to one, and the mobile app reads it over cellular.
 // Threshold keeps tiny bodies (health checks, counts) untouched.
-await app.register(compress, { threshold: 1024 });
+// The cast: a pnpm store can hold two fastify instances (the plugin's
+// peer resolution beside the app's pin) and their FastifyInstance types
+// then refuse each other at build time even though the runtime is one
+// process and fine. Erasing the plugin's instance type keeps the build
+// independent of how the store happens to be laid out on a given box.
+await (app.register as unknown as (p: unknown, o?: unknown) => Promise<void>)(compress, {
+  threshold: 1024,
+});
 
 await app.register(helmet, {
   contentSecurityPolicy: false, // API serves JSON, not HTML
