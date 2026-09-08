@@ -321,10 +321,12 @@ function timeAgo(date: string): string {
   return new Date(date).toLocaleDateString("en-GB", { day: "numeric", month: "short" });
 }
 
+// Full numbers with thousands separators. The overview used to abbreviate
+// anything from 1,000 up ("1.0K"), which turned the day the fleet passed a
+// thousand users into a rounded label (Anthony, 8 Sep 2026). Every count on
+// these cards fits in full.
 function formatNumber(n: number): string {
-  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
-  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
-  return String(n);
+  return Math.round(n).toLocaleString("en-GB");
 }
 
 function downloadTextFile(filename: string, content: string) {
