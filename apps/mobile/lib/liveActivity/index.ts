@@ -5,7 +5,7 @@
  * Returns null/void silently when not supported (Expo Go, Android, iOS < 16.2).
  */
 
-import { NativeModules, Platform } from "react-native";
+import { AppState, NativeModules, Platform } from "react-native";
 import { decideLiveActivityStart } from "./startRule";
 import { registerLiveActivityToken } from "../api/notifications";
 
@@ -80,7 +80,19 @@ export async function startLiveActivity(params: {
         () => null
       );
     }
-    const decision = decideLiveActivityStart({ existingId, existingPhase });
+    const decision = decideLiveActivityStart({
+      existingId,
+      existingPhase,
+      appActive: AppState.currentState === "active",
+    });
+    if (decision.action === "skip") {
+      // Leave whatever is on screen alone and let the caller fall through to
+      // push-to-start, exactly as it would after a failed request, minus the
+      // request that used to destroy the pushed activity on the way.
+      lastStartError = "Skipped: app in background (push-to-start will show it)";
+      logLiveActivityEvent("la_local_start_skipped_background", {});
+      return null;
+    }
     if (decision.action === "adopt") {
       currentActivityId = decision.activityId;
       // Keep whatever start time the caller knows about (the earliest buffered
