@@ -32,12 +32,17 @@ import {
   isFinalizeInFlight,
   isDriveDetectionEnabled,
   startNativeAutoTripLiveActivity,
+  pushAutoTripLiveActivityProgress,
   shiftSuppressesAutoDetection,
   clearNotDrivingCooldown,
   isNotDrivingCooldownActive,
   haversineMeters,
   recentBufferedFixes,
 } from "./detection";
+import { decideProgressPush } from "../liveActivity/progressRule";
+
+// When the Live Activity was last fed from the native location stream.
+let lastLaProgressAt: number | null = null;
 import {
   gapStopDecision,
   isJourneyStillMoving,
@@ -961,6 +966,14 @@ async function handleNativeLocation(loc: NativeLocation): Promise<void> {
         }
       }
       await bufferCoord(db, loc, lastFix);
+      // Feed the Live Activity from this stream. Until 8 Sep 2026 nothing on
+      // the native path did, so the widget's miles and speed stayed at zero
+      // for the whole drive while its clock ran.
+      const nowMs = Date.now();
+      if (decideProgressPush({ now: nowMs, lastPushAt: lastLaProgressAt })) {
+        lastLaProgressAt = nowMs;
+        pushAutoTripLiveActivityProgress().catch(() => {});
+      }
       return;
     }
 
@@ -1255,13 +1268,29 @@ const MAX_RECONCILE_COORDS = 6000;
 async function reconcileNativeBuffer(BGGeo: BgGeo): Promise<void> {
   try {
     const native = await BGGeo.getLocations();
-    if (!Array.isArray(native) || native.length === 0) return;
+    if (!Array.isArray(native) || native.length === 0) {
+      // Logged so a phantom drop on top of an empty native store reads
+      // differently from one on top of a full store that was never pulled
+      // (Steve Denyer, 3 Sep 2026: no reconcile event at all, and this
+      // silence was the reason nobody could say which).
+      logDetectionEvent("native_reconcile_skipped", { reason: "empty", nativeCount: 0 }).catch(() => {});
+      return;
+    }
     const db = await getDatabase();
     const jsCount =
       (await db.getFirstAsync<{ c: number }>(
         "SELECT COUNT(*) AS c FROM detection_coordinates"
       ))?.c ?? 0;
-    if (native.length <= jsCount) return; // JS buffer already has everything
+    if (native.length <= jsCount) {
+      // JS buffer already has at least as many rows. A row count is not a
+      // coverage check, so say so in the log rather than staying silent.
+      logDetectionEvent("native_reconcile_skipped", {
+        reason: "js_has_more",
+        nativeCount: native.length,
+        jsCount,
+      }).catch(() => {});
+      return;
+    }
     const kept = native.length > MAX_RECONCILE_COORDS ? native.slice(-MAX_RECONCILE_COORDS) : native;
     // One transaction + multi-row inserts. The old shape — one awaited
     // runAsync per fix, no transaction — meant a big store produced thousands
