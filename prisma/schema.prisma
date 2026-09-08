@@ -234,6 +234,7 @@ model User {
   merchantMappings    MerchantMapping[]
   referralsMade       Referral[]         @relation("Referrer")
   missedJourneys      MissedJourneyProposal[]
+  deletedTrips        DeletedTrip[]
 
   @@map("users")
 }
@@ -566,6 +567,35 @@ model TripCoordinate {
 
   @@index([tripId, recordedAt])
   @@map("trip_coordinates")
+}
+
+// Server-side archive of deleted trips (8 Sep 2026). DELETE /trips/:id is a
+// hard delete and trip_coordinates cascades, so a swiped-away trip was gone
+// for good. Twice in one month a paying user deleted a real drive by accident
+// and support could only rebuild it from a diagnostic dump, without its route.
+// The row is written best-effort just before the delete; nothing else in the
+// trip read paths knows this table exists. An admin can restore it (new trip
+// id) from the user detail page. Rows older than 60 days can be purged later.
+model DeletedTrip {
+  id              String    @id @default(uuid())
+  userId          String
+  originalTripId  String
+  deletedAt       DateTime  @default(now())
+  // "user" (DELETE /trips/:id) or "admin"
+  deletedBy       String    @db.VarChar(16)
+  // The full trips row as it was, serialised as JSON (dates as ISO strings)
+  tripJson        Json
+  // Array of {lat,lng,speed,accuracy,recordedAt}, chronological, capped at
+  // 6000 with the newest kept
+  coordinatesJson Json
+  restoredTripId  String?
+  restoredAt      DateTime?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, deletedAt])
+  @@index([originalTripId])
+  @@map("deleted_trips")
 }
 
 model TripAnomaly {

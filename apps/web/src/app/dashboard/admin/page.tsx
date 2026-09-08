@@ -85,6 +85,22 @@ interface AdminUser {
   unreachable?: boolean;
 }
 
+// One row of the deleted_trips archive (GET /admin/users/:userId/deleted-trips).
+interface AdminDeletedTrip {
+  id: string;
+  originalTripId: string;
+  deletedAt: string;
+  deletedBy: "user" | "admin" | string;
+  restoredTripId: string | null;
+  restoredAt: string | null;
+  startedAt: string | null;
+  endedAt: string | null;
+  distanceMiles: number | null;
+  startAddress: string | null;
+  endAddress: string | null;
+  classification: string;
+}
+
 interface AdminUserDetail extends AdminUser {
   platforms?: string[];
   signupPlatform?: string | null;
@@ -706,6 +722,10 @@ function UserDetailModal({
   const [diag, setDiag] = useState<DiagnosticDump | null>(null);
   const [events, setEvents] = useState<AdminUserEvent[] | null>(null);
   const [showAllEvents, setShowAllEvents] = useState(false);
+  // Recently deleted trips (archive) + restore state
+  const [deletedTrips, setDeletedTrips] = useState<AdminDeletedTrip[] | null>(null);
+  const [restoringId, setRestoringId] = useState<string | null>(null);
+  const [restoreResult, setRestoreResult] = useState<string | null>(null);
   // Trip filter for the diagnostic events panel - when set, the events
   // list is scoped to that trip's time window (±60s). Mirrors the
   // mobile Drive Detection screen pattern.
@@ -791,15 +811,20 @@ function UserDetailModal({
     resetTripForm();
     setEvents(null);
     setShowAllEvents(false);
+    setDeletedTrips(null);
+    setRestoringId(null);
+    setRestoreResult(null);
     Promise.all([
       api.get<{ data: AdminUserDetail }>(`/admin/users/${userId}`),
       api.get<{ data: DiagnosticDump | null }>(`/admin/users/${userId}/diagnostics`).catch(() => ({ data: null })),
       api.get<{ data: AdminUserEvent[] }>(`/admin/users/${userId}/events`).catch(() => ({ data: [] as AdminUserEvent[] })),
+      api.get<{ data: AdminDeletedTrip[] }>(`/admin/users/${userId}/deleted-trips`).catch(() => ({ data: [] as AdminDeletedTrip[] })),
     ])
-      .then(([userRes, diagRes, eventsRes]) => {
+      .then(([userRes, diagRes, eventsRes, deletedRes]) => {
         setUser(userRes.data);
         setDiag(diagRes.data);
         setEvents(eventsRes.data);
+        setDeletedTrips(deletedRes.data);
         setNotesDraft(userRes.data.notes ?? "");
       })
       .catch((err: Error) => setError(err.message))
@@ -958,6 +983,30 @@ function UserDetailModal({
       setTripResult(`Error: ${err.message}`);
     } finally {
       setTripSaving(false);
+    }
+  };
+
+  const handleRestoreDeletedTrip = async (deletedTripId: string) => {
+    if (!userId || restoringId) return;
+    setRestoringId(deletedTripId);
+    setRestoreResult(null);
+    try {
+      const res = await api.post<{ data: { tripId: string; coordinateCount: number } }>(
+        `/admin/deleted-trips/${deletedTripId}/restore`,
+        {}
+      );
+      setRestoreResult(`Restored as trip ${res.data.tripId.slice(0, 8)} (${res.data.coordinateCount} route points)`);
+      // Refresh user detail (Recent Trips) and the archive list
+      const [refreshed, deletedRes] = await Promise.all([
+        api.get<{ data: AdminUserDetail }>(`/admin/users/${userId}`),
+        api.get<{ data: AdminDeletedTrip[] }>(`/admin/users/${userId}/deleted-trips`).catch(() => ({ data: [] as AdminDeletedTrip[] })),
+      ]);
+      setUser(refreshed.data);
+      setDeletedTrips(deletedRes.data);
+    } catch (err: any) {
+      setRestoreResult(`Error: ${err.message}`);
+    } finally {
+      setRestoringId(null);
     }
   };
 
@@ -1701,6 +1750,84 @@ function UserDetailModal({
                   </tbody>
                 </table>
               </div>
+            </div>
+          )}
+
+          {/* Recently deleted trips (archive, last 60 days) */}
+          {deletedTrips && deletedTrips.length > 0 && (
+            <div className="settings-section">
+              <h4 className="settings-section__title">Recently Deleted</h4>
+              <p style={{ fontSize: "0.75rem", color: "var(--text-secondary)", margin: "0 0 0.5rem" }}>
+                Trips removed in the last 60 days. Restore creates a new trip with the same details and route.
+              </p>
+              <div className="table-wrap">
+                <table className="table">
+                  <thead>
+                    <tr>
+                      <th>Date</th>
+                      <th>Distance</th>
+                      <th>From / To</th>
+                      <th>Deleted</th>
+                      <th></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {deletedTrips.map((dt) => (
+                      <tr key={dt.id}>
+                        <td style={{ whiteSpace: "nowrap", fontSize: "0.8125rem" }}>
+                          {dt.startedAt
+                            ? new Date(dt.startedAt).toLocaleDateString("en-GB", {
+                                day: "numeric",
+                                month: "short",
+                                year: "2-digit",
+                              })
+                            : "-"}
+                        </td>
+                        <td style={{ fontSize: "0.8125rem", whiteSpace: "nowrap" }}>
+                          {dt.distanceMiles != null ? `${dt.distanceMiles.toFixed(1)} mi` : "-"}
+                        </td>
+                        <td style={{ fontSize: "0.75rem", color: "var(--text-secondary)", maxWidth: 260 }}>
+                          {dt.startAddress || "?"} {"\u2192"} {dt.endAddress || "?"}
+                        </td>
+                        <td style={{ fontSize: "0.75rem", color: "var(--text-secondary)", whiteSpace: "nowrap" }}>
+                          {new Date(dt.deletedAt).toLocaleString("en-GB", {
+                            day: "numeric",
+                            month: "short",
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          })}{" "}
+                          by {dt.deletedBy}
+                        </td>
+                        <td style={{ whiteSpace: "nowrap" }}>
+                          {dt.restoredTripId ? (
+                            <Badge variant="success">Restored</Badge>
+                          ) : (
+                            <Button
+                              size="sm"
+                              variant="secondary"
+                              disabled={!!restoringId}
+                              onClick={() => handleRestoreDeletedTrip(dt.id)}
+                            >
+                              {restoringId === dt.id ? "Restoring..." : "Restore"}
+                            </Button>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              {restoreResult && (
+                <p
+                  style={{
+                    fontSize: "0.8125rem",
+                    marginTop: "0.5rem",
+                    color: restoreResult.startsWith("Error") ? "var(--dash-red)" : "var(--emerald-400)",
+                  }}
+                >
+                  {restoreResult}
+                </p>
+              )}
             </div>
           )}
 

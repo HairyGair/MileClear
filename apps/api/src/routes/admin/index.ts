@@ -23,6 +23,12 @@ import { sendPushNotification, sendPushNotifications } from "../../lib/push.js";
 import { getTaxYear, haversineDistance } from "@mileclear/shared";
 import { upsertMileageSummary } from "../../services/mileage.js";
 import { advanceLastTripAt } from "../../services/userActivity.js";
+import {
+  restoreDeletedTrip,
+  DeletedTripNotFoundError,
+  DeletedTripAlreadyRestoredError,
+  DELETED_TRIP_RETENTION_DAYS,
+} from "../../services/tripArchive.js";
 import { getAppleClient, getSignedDataVerifier, fetchTransactionWithEnvFallback, type AppleIapEnvironment } from "../../services/appleIap.js";
 import { calculateUserHealthScore } from "../../services/userHealthScore.js";
 import { buildGeographicDensity } from "../../services/geographicDensity.js";
@@ -1491,6 +1497,89 @@ export async function adminRoutes(app: FastifyInstance) {
     );
 
     return reply.status(201).send({ data: trip });
+  });
+
+  // GET /admin/users/:userId/deleted-trips
+  // Trips the user (or an admin) deleted in the last 60 days, newest first,
+  // from the deleted_trips archive. Summary fields come out of the stored
+  // trip JSON so the response stays small.
+  app.get("/users/:userId/deleted-trips", async (request, reply) => {
+    const { userId } = request.params as { userId: string };
+    const since = new Date(Date.now() - DELETED_TRIP_RETENTION_DAYS * 24 * 60 * 60 * 1000);
+
+    const rows = await prisma.deletedTrip.findMany({
+      where: { userId, deletedAt: { gte: since } },
+      orderBy: { deletedAt: "desc" },
+      take: 200,
+      select: {
+        id: true,
+        originalTripId: true,
+        deletedAt: true,
+        deletedBy: true,
+        restoredTripId: true,
+        restoredAt: true,
+        tripJson: true,
+      },
+    });
+
+    const str = (v: unknown): string | null => (typeof v === "string" ? v : null);
+    const num = (v: unknown): number | null =>
+      typeof v === "number" && Number.isFinite(v) ? v : null;
+
+    const data = rows.map((r) => {
+      const t = (r.tripJson ?? {}) as Record<string, unknown>;
+      return {
+        id: r.id,
+        originalTripId: r.originalTripId,
+        deletedAt: r.deletedAt,
+        deletedBy: r.deletedBy,
+        restoredTripId: r.restoredTripId,
+        restoredAt: r.restoredAt,
+        startedAt: str(t.startedAt),
+        endedAt: str(t.endedAt),
+        distanceMiles: num(t.distanceMiles),
+        startAddress: str(t.startAddress),
+        endAddress: str(t.endAddress),
+        classification: str(t.classification) ?? "unclassified",
+      };
+    });
+
+    return reply.send({ data });
+  });
+
+  // POST /admin/deleted-trips/:id/restore
+  // Recreate an archived trip (new id, same fields + route) for its owner.
+  // 404 if no such archive row, 409 if it was already restored.
+  app.post("/deleted-trips/:id/restore", async (request, reply) => {
+    const params = z.object({ id: z.string().uuid() }).safeParse(request.params);
+    if (!params.success) {
+      return reply.status(400).send({ error: "Invalid deleted trip id" });
+    }
+
+    try {
+      const result = await restoreDeletedTrip(params.data.id, request.userId);
+      request.log.warn(
+        {
+          adminId: request.userId,
+          deletedTripId: params.data.id,
+          restoredTripId: result.tripId,
+          action: "admin.trip.restore",
+        },
+        `Admin restored deleted trip ${params.data.id} as ${result.tripId}`,
+      );
+      return reply.send({ data: result });
+    } catch (err) {
+      if (err instanceof DeletedTripNotFoundError) {
+        return reply.status(404).send({ error: "Deleted trip not found" });
+      }
+      if (err instanceof DeletedTripAlreadyRestoredError) {
+        return reply.status(409).send({
+          error: "Deleted trip already restored",
+          restoredTripId: err.restoredTripId,
+        });
+      }
+      throw err;
+    }
   });
 
   // DELETE /admin/users/:userId

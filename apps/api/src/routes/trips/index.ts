@@ -38,6 +38,7 @@ import {
   type MissedJourneyTripInput,
 } from "../../services/missedJourneys.js";
 import { advanceLastTripAt } from "../../services/userActivity.js";
+import { archiveTripBeforeDelete } from "../../services/tripArchive.js";
 import { qualifyReferralOnFirstTrip } from "../../services/referral.js";
 import { looksLikePhantomTrip, hasRealMovementEvidence } from "../../lib/phantomTrip.js";
 import { resolveRouteDistance, routedDurationUsable } from "../../services/routing.js";
@@ -2711,6 +2712,21 @@ export async function tripRoutes(app: FastifyInstance) {
       { userId, tripId: id, action: "trip.delete", miles: existing.distanceMiles },
       `Trip deleted: ${id}`
     );
+
+    // Safety net: copy the trip + route into deleted_trips so an accidental
+    // swipe can be restored by support. Best-effort; never blocks the delete.
+    try {
+      await archiveTripBeforeDelete(id, userId, "user");
+    } catch (err) {
+      request.log.error(
+        { err, userId, tripId: id, action: "trip.archive_failed" },
+        `Failed to archive trip before delete: ${id}`
+      );
+      logEvent("trip.archive_failed", userId, {
+        tripId: id,
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
 
     await prisma.trip.delete({ where: { id } });
 
