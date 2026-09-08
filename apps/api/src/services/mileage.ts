@@ -1,7 +1,7 @@
 export { calculateHmrcDeduction } from "@mileclear/shared";
 
 import { prisma } from "../lib/prisma.js";
-import { attachSoleVehicleToOrphanTrips } from "./vehicleDefaults.js";
+import { attachSoleVehicleToOrphanTrips, fallbackVehicleTypeForUser } from "./vehicleDefaults.js";
 import { calculateMileageDeduction, parseTaxYear, resolveMileageRates } from "@mileclear/shared";
 
 /**
@@ -31,6 +31,10 @@ export async function upsertMileageSummary(
     },
   });
 
+  // Rate class for any trip still without a vehicle (two-vehicle accounts
+  // with no primary are never attached above).
+  const fallbackType = await fallbackVehicleTypeForUser(userId);
+
   // Aggregate total and business miles, grouped by vehicle type.
   // Phantom trips (auto-detected walking-speed misfires) are excluded
   // so HMRC totals never include rubbish.
@@ -59,7 +63,7 @@ export async function upsertMileageSummary(
     totalMiles += trip.distanceMiles;
     if (trip.classification === "business") {
       businessMiles += trip.distanceMiles;
-      const vType = trip.vehicle?.vehicleType ?? "car";
+      const vType = trip.vehicle?.vehicleType ?? fallbackType;
       businessMilesByType[vType] =
         (businessMilesByType[vType] ?? 0) + trip.distanceMiles;
     }

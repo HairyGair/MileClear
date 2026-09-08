@@ -1,5 +1,6 @@
 import { prisma } from "../lib/prisma.js";
 import { fetchExpenseSummary } from "./export-data.js";
+import { fallbackVehicleTypeFromList } from "./vehicleDefaults.js";
 import {
   estimateUkTax,
   calculateMileageDeduction,
@@ -166,10 +167,12 @@ export async function buildTaxSnapshot(userId: string): Promise<TaxSnapshot> {
     const earningsNudge = recentBusinessTripCount >= 3 && recentEarningsCount === 0;
 
   // Mileage deduction: group business miles by vehicle type so the right AMAP
-  // rate is applied. Trips without a linked vehicle assume car (most common).
+  // rate is applied. Trips without a linked vehicle take the user's primary
+  // vehicle's type, or the one type they own, before assuming car.
+  const fallbackVehicleType = fallbackVehicleTypeFromList(vehicles);
   const milesByType = new Map<VehicleType, number>();
   for (const trip of businessTrips) {
-    const type = (trip.vehicle?.vehicleType ?? "car") as VehicleType;
+    const type = (trip.vehicle?.vehicleType ?? fallbackVehicleType) as VehicleType;
     milesByType.set(type, (milesByType.get(type) ?? 0) + trip.distanceMiles);
   }
   const rateOpts = user ? resolveMileageRates(user) : {};
@@ -335,6 +338,7 @@ export async function buildTaxSnapshot(userId: string): Promise<TaxSnapshot> {
     milesByType,
     businessTripCount: businessTrips.length,
     totalDeductionPence: mileageDeductionPence,
+    fallbackVehicleType,
   });
 
   // Cross-window comparison for the deduction. Long-press the figure to
@@ -346,6 +350,7 @@ export async function buildTaxSnapshot(userId: string): Promise<TaxSnapshot> {
     taxYear,
     thisYearTotalPence: mileageDeductionPence,
     rateOpts,
+    fallbackVehicleType,
   });
 
   // Provenance for the gross-earnings figure. Same "why this number?"
@@ -416,6 +421,8 @@ interface DerivationInput {
   milesByType: Map<VehicleType, number>;
   businessTripCount: number;
   totalDeductionPence: number;
+  /** Rate class applied to trips with no vehicle, named in the notes. */
+  fallbackVehicleType: VehicleType;
 }
 
 /**
@@ -433,7 +440,7 @@ interface DerivationInput {
  * what the figure WOULD be — that's more useful than nothing.
  */
 function buildMileageDeductionDerivation(input: DerivationInput): NumberDerivation {
-  const { taxYear, start, end, milesByType, businessTripCount, totalDeductionPence } = input;
+  const { taxYear, start, end, milesByType, businessTripCount, totalDeductionPence, fallbackVehicleType } = input;
 
   const components: NumberDerivation["components"] = [];
 
@@ -530,7 +537,7 @@ function buildMileageDeductionDerivation(input: DerivationInput): NumberDerivati
       taxYear >= "2026-27"
         ? "AMAP rates (cars and vans, 2026-27 onwards): 55p per mile for the first 10,000 business miles, 25p per mile thereafter. Motorbikes are 24p flat. Previous rate was 45p/25p — rate rose on 6 April 2026."
         : "AMAP rates (cars and vans, up to 2025-26): 45p per mile for the first 10,000 business miles, 25p per mile thereafter. Motorbikes are 24p flat. Rate rose to 55p/25p from 6 April 2026.",
-      "Trips without a linked vehicle assume car rates. Add or assign a vehicle on the Trip detail screen if a trip used a different vehicle type.",
+      `Trips without a linked vehicle use ${fallbackVehicleType} rates. Add or assign a vehicle on the Trip detail screen if a trip used a different vehicle type.`,
     ],
   };
 }
@@ -547,6 +554,8 @@ interface AcrossWindowsInput {
   /** Resolved mileage-rate options from the parent snapshot, so all four
    *  windows apply the same rate set the user is set up to claim under. */
   rateOpts: { customRateFirst10kPence?: number | null; customRateAfter10kPence?: number | null };
+  /** Rate class for trips with no vehicle, resolved once by the parent. */
+  fallbackVehicleType: VehicleType;
 }
 
 /**
@@ -560,7 +569,7 @@ interface AcrossWindowsInput {
 async function buildMileageDeductionAcrossWindows(
   input: AcrossWindowsInput
 ): Promise<NumberAcrossWindows> {
-  const { userId, now, taxYear, thisYearTotalPence, rateOpts } = input;
+  const { userId, now, taxYear, thisYearTotalPence, rateOpts, fallbackVehicleType } = input;
 
   // Window bounds.
   const last7DaysStart = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
@@ -619,7 +628,7 @@ async function buildMileageDeductionAcrossWindows(
   ) => {
     const milesByTypeLocal = new Map<VehicleType, number>();
     for (const t of trips) {
-      const type = (t.vehicle?.vehicleType ?? "car") as VehicleType;
+      const type = (t.vehicle?.vehicleType ?? fallbackVehicleType) as VehicleType;
       milesByTypeLocal.set(type, (milesByTypeLocal.get(type) ?? 0) + t.distanceMiles);
     }
     let pence = 0;

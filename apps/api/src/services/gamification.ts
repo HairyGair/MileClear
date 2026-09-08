@@ -1,4 +1,5 @@
 import { prisma } from "../lib/prisma.js";
+import { fallbackVehicleTypeForUser } from "./vehicleDefaults.js";
 import {
   getTaxYear,
   parseTaxYear,
@@ -500,7 +501,7 @@ export async function getShiftScorecard(
   if (!shift) return null;
 
   // Get trips in this shift
-  const [trips, scorecardUser] = await Promise.all([
+  const [trips, scorecardUser, scorecardFallbackType] = await Promise.all([
     prisma.trip.findMany({
       where: { shiftId: shift.id, userId, isPhantomTrip: false },
       include: { vehicle: true },
@@ -513,6 +514,7 @@ export async function getShiftScorecard(
         employerMileageRatePenceAfter10k: true,
       },
     }),
+    fallbackVehicleTypeForUser(userId),
   ]);
 
   const tripsCompleted = trips.length;
@@ -525,7 +527,7 @@ export async function getShiftScorecard(
     totalMiles += trip.distanceMiles;
     if (trip.classification === "business") {
       businessMiles += trip.distanceMiles;
-      const vType = (trip.vehicle?.vehicleType ?? "car") as
+      const vType = (trip.vehicle?.vehicleType ?? scorecardFallbackType) as
         | "car"
         | "van"
         | "motorbike";
@@ -634,7 +636,7 @@ export async function getPeriodRecap(
     label = fmt(start, { month: "long", year: "numeric" });
   }
 
-  const [trips, recapUser] = await Promise.all([
+  const [trips, recapUser, recapFallbackType] = await Promise.all([
     prisma.trip.findMany({
       where: {
         userId,
@@ -652,6 +654,7 @@ export async function getPeriodRecap(
         employerMileageRatePenceAfter10k: true,
       },
     }),
+    fallbackVehicleTypeForUser(userId),
   ]);
 
   let totalMiles = 0;
@@ -668,7 +671,7 @@ export async function getPeriodRecap(
     totalMiles += trip.distanceMiles;
     if (trip.classification === "business") {
       businessMiles += trip.distanceMiles;
-      const vType = (trip.vehicle?.vehicleType ?? "car") as
+      const vType = (trip.vehicle?.vehicleType ?? recapFallbackType) as
         | "car"
         | "van"
         | "motorbike";

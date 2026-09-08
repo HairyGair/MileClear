@@ -26,6 +26,7 @@ import {
   type VehicleType,
 } from "@mileclear/shared";
 import { logEvent } from "../services/appEvents.js";
+import { fallbackVehicleTypeForUsers } from "../services/vehicleDefaults.js";
 
 // Drift below this threshold is ignored. Below 5 pence and 0.05 mi we're
 // in floating-point-rounding territory, not real disagreement.
@@ -88,8 +89,15 @@ export async function runReconciliationJob(): Promise<void> {
   // that's only worth it once we're over a few thousand users.
   const drifts: DriftRow[] = [];
 
+  // Rate class for trips with no vehicle, loaded once for every user in the
+  // run rather than once per summary. Must match upsertMileageSummary or the
+  // job reports drift that is really just a different fallback.
+  const fallbackByUser = await fallbackVehicleTypeForUsers(summaries.map((s) => s.userId));
+
   for (const summary of summaries) {
     const { start, end } = parseTaxYear(summary.taxYear);
+    // The map covers every summary's user; the "car" here only narrows the type.
+    const fallbackType = fallbackByUser.get(summary.userId) ?? "car";
     const [trips, reconUser] = await Promise.all([
       prisma.trip.findMany({
         where: {
@@ -117,7 +125,7 @@ export async function runReconciliationJob(): Promise<void> {
     const milesByType = new Map<VehicleType, number>();
     for (const t of trips) {
       expectedMiles += t.distanceMiles;
-      const type = (t.vehicle?.vehicleType ?? "car") as VehicleType;
+      const type = (t.vehicle?.vehicleType ?? fallbackType) as VehicleType;
       milesByType.set(type, (milesByType.get(type) ?? 0) + t.distanceMiles);
     }
 

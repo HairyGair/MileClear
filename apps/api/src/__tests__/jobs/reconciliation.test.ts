@@ -15,6 +15,11 @@ vi.mock("../../lib/prisma.js", () => ({
     trip: {
       findMany: vi.fn(),
     },
+    // The job preloads each user's vehicle list once to pick the rate class
+    // for trips with no vehicle. No vehicles means the car fallback.
+    vehicle: {
+      findMany: vi.fn(async () => []),
+    },
     appEvent: {
       create: vi.fn().mockResolvedValue({}),
     },
