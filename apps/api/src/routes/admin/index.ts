@@ -38,6 +38,7 @@ import {
   type DiscordChannel,
 } from "../../services/discord.js";
 import { resolveRouteDistance } from "../../services/routing.js";
+import { adminObservabilityRoutes } from "./observability.js";
 import { matchTripRoute, isMatchPlausible, decodePolyline } from "../../services/mapMatching.js";
 import {
   getSubscriptionTruth,
@@ -216,6 +217,9 @@ function csvCell(value: string | number | boolean | null | undefined): string {
 export async function adminRoutes(app: FastifyInstance) {
   app.addHook("preHandler", authMiddleware);
   app.addHook("preHandler", adminMiddleware);
+  // Sep 2026 observability endpoints (support queue, Android testers, Live
+  // Activity health, trip quality) live in their own module.
+  await app.register(adminObservabilityRoutes);
 
   // GET /admin/analytics
   app.get("/analytics", async (_request, reply) => {
@@ -2969,7 +2973,7 @@ export async function adminRoutes(app: FastifyInstance) {
     const ids = [...new Set(events.map((e) => e.userId).filter((v): v is string => !!v))];
     const earliest = events.length ? events[events.length - 1].createdAt.getTime() : now;
     const windowStart = new Date(earliest - DAY);
-    const [dumps, recentAuto, tripEvents, nearbyTrips] = ids.length
+    const [dumps, recentAuto, tripEvents, nearbyTrips, deletedNearby] = ids.length
       ? await Promise.all([
           prisma.diagnosticDump.findMany({
             where: { userId: { in: ids } },
@@ -3011,8 +3015,20 @@ export async function adminRoutes(app: FastifyInstance) {
               classification: true,
             },
           }),
+          // Trips the user (or an admin) deleted in the window: a report that
+          // follows a deletion is usually the deleted trip itself.
+          prisma.deletedTrip.findMany({
+            where: { userId: { in: ids }, deletedAt: { gte: windowStart } },
+            select: { id: true, userId: true, originalTripId: true, deletedAt: true, deletedBy: true, restoredTripId: true, tripJson: true },
+          }),
         ])
-      : [[], [], [], []];
+      : [[], [], [], [], []];
+    const deletedBy = new Map<string, typeof deletedNearby>();
+    for (const d of deletedNearby) {
+      const arr = deletedBy.get(d.userId) ?? [];
+      arr.push(d);
+      deletedBy.set(d.userId, arr);
+    }
 
     // First stored coordinate per non-manual nearby trip, for the head-gap tell.
     const autoTripIds = nearbyTrips.filter((t) => !t.isManualEntry).map((t) => t.id);
@@ -3186,6 +3202,25 @@ export async function adminRoutes(app: FastifyInstance) {
         evidence,
         tripId,
         selfAdded,
+        // Sep 2026 additions for the Support section.
+        deletedBefore: (e.userId ? (deletedBy.get(e.userId) ?? []) : [])
+          .filter((d) => d.deletedAt.getTime() <= at && d.deletedAt.getTime() >= at - 2 * DAY)
+          .map((d) => {
+            const tj = (d.tripJson ?? {}) as { distanceMiles?: number; startedAt?: string };
+            return {
+              id: d.id,
+              originalTripId: d.originalTripId,
+              deletedAt: d.deletedAt.toISOString(),
+              deletedBy: d.deletedBy,
+              restored: d.restoredTripId !== null,
+              distanceMiles: typeof tj.distanceMiles === "number" ? tj.distanceMiles : null,
+              startedAt: tj.startedAt ?? null,
+            };
+          }),
+        tripsThatDay: userTrips.filter((t) => Math.abs(t.startedAt.getTime() - at) <= 12 * HOUR).length,
+        liveRecordingAtReport: !!landed === false && userEvents.some(
+          (ev) => ev.type === "trip.signal_start" && ev.createdAt.getTime() <= at && ev.createdAt.getTime() >= at - 3 * HOUR
+        ),
       };
     });
 
