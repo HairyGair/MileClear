@@ -16,11 +16,20 @@
 // stationary, ask it to re-acquire its stationary position, which is what
 // (re)arms the region. Never when the SDK thinks it is moving.
 //
+// It does one more thing since 9 Sep 2026 (Jenny Hyett-Bell's Galaxy S25+):
+// when a headless location fix is a confident driving-speed fix and the SDK
+// still says stationary, wake it into tracking. The re-arm above acquires one
+// position per heartbeat; on Samsung the stationary geofence exit never came,
+// so a 50 mph fix arrived here and was discarded because the speed backstop
+// lives only in the foreground code. Now it opens tracking; the native store
+// keeps the fixes and the next app open reconciles them into a trip.
+//
 // Registered from the app entry (index.js) so it exists before anything
 // renders. Android-only by construction: the SDK only fires headless events
 // there, and the module is required lazily so Expo Go and iOS never touch it.
 
 import { Platform } from "react-native";
+import { decideHeadlessWake, readHeadlessFix } from "./headlessSpeedRule";
 
 type HeadlessEvent = { name?: string; params?: Record<string, unknown> };
 type BgGeoHeadless = {
@@ -56,6 +65,34 @@ async function rearmIfStationary(BGGeo: BgGeoHeadless, trigger: string): Promise
   }
 }
 
+async function wakeIfDriving(BGGeo: BgGeoHeadless, name: string, params: unknown): Promise<void> {
+  const fix = readHeadlessFix(name, params);
+  // Cheap pre-check before touching the SDK: most fixes are slow or absent.
+  if (!decideHeadlessWake({ fix, isMoving: null, enabled: null })) return;
+  let log: ((event: string, data?: Record<string, unknown>) => Promise<void>) | null = null;
+  try {
+    log = (await import("./detection")).logDetectionEvent;
+  } catch {
+    log = null;
+  }
+  try {
+    const state = typeof BGGeo.getState === "function" ? await BGGeo.getState() : null;
+    if (!decideHeadlessWake({ fix, isMoving: state?.isMoving ?? null, enabled: state?.enabled ?? null })) return;
+    if (typeof BGGeo.changePace !== "function") return;
+    await BGGeo.changePace(true);
+    await log?.("native_headless_force_start_from_speed", {
+      trigger: name,
+      speedMph: Math.round((fix?.speedMs ?? 0) * 2.23694),
+      accuracy: Math.round(fix?.accuracyM ?? 0),
+    });
+  } catch (err) {
+    await log?.("native_headless_wake_failed", {
+      trigger: name,
+      error: err instanceof Error ? err.message.slice(0, 120) : String(err),
+    }).catch(() => {});
+  }
+}
+
 export function registerNativeHeadlessTask(): void {
   if (Platform.OS !== "android") return;
   let BGGeo: BgGeoHeadless | null = null;
@@ -76,11 +113,13 @@ export function registerNativeHeadlessTask(): void {
         if (Date.now() - lastRearmAt >= HEARTBEAT_REARM_MS) {
           await rearmIfStationary(BGGeo!, name);
         }
+      } else if (name === "location" || name === "motionchange") {
+        await wakeIfDriving(BGGeo!, name, event?.params);
       }
-      // Every other event (location, motionchange, geofence, providerchange,
-      // connectivitychange, http, schedule, powersavechange, activitychange)
-      // is the SDK's own business; the native store keeps the fixes and the
-      // next app open reconciles them.
+      // Every other event (geofence, providerchange, connectivitychange,
+      // http, schedule, powersavechange, activitychange) is the SDK's own
+      // business; the native store keeps the fixes and the next app open
+      // reconciles them.
     } catch {
       // A headless task must always resolve; the SDK finishes it either way.
     }
