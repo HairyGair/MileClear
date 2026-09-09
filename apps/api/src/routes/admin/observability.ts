@@ -25,6 +25,16 @@ import {
 const HOUR = 60 * 60 * 1000;
 const DAY = 24 * HOUR;
 
+/** "ios", "android", "both", or the signup platform as a fallback. Older
+ *  accounts have no signupPlatform, so platformsSeen comes first. */
+function platformOf(seen: string | null, signup: string | null): string | null {
+  const set = new Set((seen ?? "").split(",").map((v) => v.trim()).filter(Boolean));
+  if (set.has("ios") && set.has("android")) return "both";
+  if (set.has("ios")) return "ios";
+  if (set.has("android")) return "android";
+  return signup;
+}
+
 export async function adminObservabilityRoutes(app: FastifyInstance): Promise<void> {
   // ── Support queue ────────────────────────────────────────────────────────
   app.get("/support-queue", async (_request, reply) => {
@@ -287,7 +297,7 @@ export async function adminObservabilityRoutes(app: FastifyInstance): Promise<vo
           isManualEntry: true,
           isPhantomTrip: true,
           coordinateCount: true,
-          user: { select: { signupPlatform: true } },
+          user: { select: { platformsSeen: true, signupPlatform: true } },
         },
       }),
       prisma.appEvent.groupBy({
@@ -313,7 +323,7 @@ export async function adminObservabilityRoutes(app: FastifyInstance): Promise<vo
         isManualEntry: t.isManualEntry,
         isPhantomTrip: t.isPhantomTrip,
         coordinateCount: t.coordinateCount,
-        platform: t.user.signupPlatform,
+        platform: platformOf(t.user.platformsSeen, t.user.signupPlatform),
       }))
     );
     const byType = new Map(eventCounts.map((e) => [e.type, e._count._all]));
