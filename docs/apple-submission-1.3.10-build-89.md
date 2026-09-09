@@ -4,7 +4,7 @@ Cut 8 Sep 2026 at f04d3ee, TestFlight since 8 Sep. Public App Store is 1.3.9 (bu
 
 ## Promotional Text (170 char limit)
 
-Recommended (social proof + free-first; check the admin Users count before pasting and use the figure that is true on the day):
+Recommended (social proof + free-first; "1,000+" verified against the admin Users count of 1,035 on 9 Sep 2026):
 
 ```
 1,000+ UK drivers track every mile free with MileClear - automatic trip detection, no monthly caps, and your HMRC mileage figure ready for Self Assessment.
