@@ -110,7 +110,7 @@ export const RELEASE_NOTES: ReleaseNote[] = [
     ctaLabel: "Read the release notes",
     emailSubject: "What's new in MileClear 1.3.10",
     emailTagline:
-      "1.3.10 fixes the CarPlay trip counter and carries the three September improvements to how journeys are recorded and shown.",
+      "1.3.10 fixes the lock-screen trip counter and the CarPlay tile, opens the trip list in a fraction of a second, and sorts routine drives for you with an undo.",
     emailHighlights: [
       "**CarPlay shows the trip counter properly** - the mark, the miles so far and the state, with no readings drawn over each other.",
       "**A map on every trip card** - see where a drive went before you decide what it was.",
