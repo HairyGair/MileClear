@@ -2585,14 +2585,20 @@ export async function adminRoutes(app: FastifyInstance) {
     const dumps = await prisma.diagnosticDump.findMany({
       select: {
         buildNumber: true,
+        platform: true,
         user: { select: { pushToken: true, lastLoginAt: true } },
       },
     });
 
+    // iPhones only. The body says "update in the App Store", and an Android
+    // build number is a Play versionCode (5 as of September 2026), which is
+    // below every iOS build ever cut: without this, every Android tester
+    // holding a token would be sent to a store they cannot use.
     const cohort = dumps.filter((d) => {
       const build = parseInt(d.buildNumber ?? "", 10);
       const active = d.user.lastLoginAt && d.user.lastLoginAt > thirtyDaysAgo;
-      return active && Number.isFinite(build) && build < maxBuild && d.user.pushToken;
+      const isIos = (d.platform ?? "ios") !== "android";
+      return isIos && active && Number.isFinite(build) && build < maxBuild && d.user.pushToken;
     });
 
     let pushSent = 0;

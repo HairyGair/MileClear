@@ -51,6 +51,67 @@ export interface Guide {
 // ----------------------------------------------------------------
 export const BLOG_POSTS: BlogPost[] = [
   {
+    slug: "whats-new-in-version-1-3-10",
+    title: "What's new in version 1.3.10",
+    excerpt:
+      "The lock-screen counter that was never really there, a trip list that took two seconds to open, drives that sort themselves, and a stop mid-shift that asks instead of guessing. Plus the CarPlay tile drawn properly, and your most-visited places offered by name.",
+    date: "10 September 2026",
+    author: "Gair",
+    category: "announcement",
+    content: `
+<p>Version 1.3.10 is live on the App Store. Two of the things in it are fixes for problems we did not know we had until we measured them, one is the fastest change we have ever shipped, and the rest came, as usual, from drivers writing in.</p>
+
+<h2>The counter that was never there</h2>
+
+<p>MileClear can put a live trip counter on your Lock Screen and in the Dynamic Island while you drive. For months we assumed it was working. Then we built a small probe to ask the phone directly, and the answer was that during a recording it was on screen in five checks out of nearly five hundred.</p>
+
+<p>The cause was ours. Every time the app tried to start that counter it first cleared away any existing one, and starting a new one is not allowed while the app is in the background. So the second attempt in a drive, and there is always a second attempt, destroyed the very thing the first had put there. The server had sent six thousand perfectly good notifications into a space we had just emptied.</p>
+
+<p>1.3.10 stops the app from ever doing that: an activity already on screen is adopted and updated, not replaced, and the listener that lets the server start one now begins with the app rather than with the first screen you open. If you have never seen the counter, this is the version where you should.</p>
+
+<h2>The trip list opens in a fraction of a second</h2>
+
+<p>For the whole of the first week of September, opening the Trips tab took an average of two and a half seconds, for almost every one of you. The list itself is small; the cost was needless work the server was doing on every page, including counting every GPS point of every trip on it against a table of ten million points, purely to draw a small confidence dot.</p>
+
+<p>That work is gone. The same list for our heaviest user now comes back in about twenty-five milliseconds. This needed no update on your phone, so it has been fast since the 8th.</p>
+
+<h2>Drives that sort themselves, with an undo</h2>
+
+<p>A third of all trips recorded so far were sitting unclassified, and when the app suggested a classification, two thirds of the suggestions were dismissed. An app that asks too often gets ignored.</p>
+
+<p>Now a drive between two places you have already sorted the same way three or more times arrives classified, marked "auto" in the list with an Undo beside it for a week. Undo it once and the app stops sorting that route quietly and goes back to suggesting. Two rules keep it honest: it never counts its own guesses as evidence, and a route you have sorted both ways is never sorted for you. The "trips to classify" reminder is now weekly rather than daily, and a quietly sorted trip no longer gets a "classify it" notification at all.</p>
+
+<h2>Still on a job</h2>
+
+<p>When you stop for a few minutes mid-shift, the app has to decide whether the drive has ended. For a courier waiting outside a restaurant, it has not. 1.3.10 asks: the notification that says your trip is saved now carries a "Still on a job" button, and if you tap it the next leg joins the first as one trip instead of appearing as a second entry.</p>
+
+<h2>Your most-visited places, offered by name</h2>
+
+<p>Saved places are what give your stops proper names on the trip list, and only one driver in nine had any. After your tenth trip the app now offers, once, to save your two most-visited unnamed places, by the names it already knows for them. The card on the dashboard that suggests places also no longer disappears the moment you save your first one, which it had been doing to exactly the people it was built for.</p>
+
+<h2>CarPlay</h2>
+
+<p>On a CarPlay dashboard the MileClear tile was drawing each new distance reading over the last one. It now shows the mark, one reading and one line of state, each replacing the last.</p>
+
+<h2>The rest</h2>
+
+<ul>
+<li>When recording began part-way through a drive, the app says so and offers to extend the trip back to where you set off, rather than offering the opening stretch as a journey you missed.</li>
+<li>Every trip card in the list carries a map of the route.</li>
+<li>A stop part-way through a journey no longer inflates the miles of the drives either side of it.</li>
+<li>Turning the Live Activity off in the app now also stops the one the server starts when a drive is detected.</li>
+<li>A trip you edited after it had been deleted elsewhere no longer leaves a stuck "sync failed" badge.</li>
+<li>Starting a recording while the last one was still closing no longer fails quietly; the app waits its turn.</li>
+</ul>
+
+<h2>Android</h2>
+
+<p>Nothing in this list needs a new Android build. Android testers have had everything except the CarPlay and Lock Screen changes, which are iPhone features, since the 8th.</p>
+
+<p>As ever, most of this began with somebody writing in about a journey that was wrong. Keep doing that. It is still the fastest way anything gets fixed.</p>
+`,
+  },
+  {
     slug: "what-a-thousand-drivers-taught-us",
     title: "What a thousand drivers taught us",
     excerpt:
