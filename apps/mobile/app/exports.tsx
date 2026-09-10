@@ -155,7 +155,7 @@ export default function ExportsScreen() {
         )}
 
         <Text style={styles.subtitle}>
-          Professional HMRC-compliant reports with your mileage data, vehicle breakdown, and tax deduction summary.
+          Professional HMRC-ready reports with your mileage data, vehicle breakdown, and tax deduction summary.
         </Text>
 
         {/* Period mode toggle: tax year or a custom date range */}
@@ -240,7 +240,7 @@ export default function ExportsScreen() {
             <View style={styles.rowTitleRow}>
               <Text style={styles.rowTitle}>HMRC Self-Assessment</Text>
               <View style={styles.hmrcBadge}>
-                <Text style={styles.hmrcBadgeText}>HMRC COMPLIANT</Text>
+                <Text style={styles.hmrcBadgeText}>HMRC READY</Text>
               </View>
             </View>
             <Text style={styles.rowDesc}>

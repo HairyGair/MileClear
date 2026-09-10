@@ -7,7 +7,7 @@ MileClear is a full-stack mileage tracking platform I built for UK gig workers (
 
 **Key Features:**
 - Automatic GPS trip tracking with background location and stop detection
-- HMRC-compliant mileage deduction calculations (45p/25p car rates, 24p motorbike)
+- Mileage deduction calculations at HMRC's approved rates (45p/25p car rates, 24p motorbike)
 - Work and Personal driving modes
 - Shift management for gig workers with per-shift scorecards
 - Earnings tracking with CSV import and Open Banking (Plaid) integration

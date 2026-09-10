@@ -136,7 +136,7 @@ export default function ExportsPage() {
     <>
       <PageHeader
         title="Tax Exports"
-        subtitle="Professional HMRC-compliant reports with branded trip data, vehicle breakdowns, and tax deduction summaries."
+        subtitle="Professional HMRC-ready reports with branded trip data, vehicle breakdowns, and tax deduction summaries."
       />
 
       {premiumError && (
@@ -163,7 +163,7 @@ export default function ExportsPage() {
         <div className="export-card" style={{ borderColor: "rgba(16, 185, 129, 0.3)" }}>
           <div className="export-card__title">
             HMRC Self-Assessment
-            <Badge variant="success">HMRC COMPLIANT</Badge>
+            <Badge variant="success">HMRC READY</Badge>
           </div>
           <p className="export-card__desc">
             Complete tax report with vehicle breakdown, monthly summary, HMRC rate explanation, and unique report reference. Ready for your accountant.
