@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import Navbar from "@/components/landing/Navbar";
 import Footer from "@/components/landing/Footer";
+import StoreButtons from "@/components/StoreButtons";
 import BreadcrumbsJsonLd from "@/components/seo/BreadcrumbsJsonLd";
 import { RELEASE_NOTES } from "@/data/posts";
 import "../updates.css";
@@ -77,6 +78,9 @@ export default function ReleasesPage() {
               Those notes are here.
             </Link>
           </p>
+        {/* The notes tell people what changed; the buttons let them get it
+              without leaving the page. Android stays on the closed-beta route. */}
+          <StoreButtons align="center" className="updates__store-btns" />
         </header>
 
         <div className="updates__content">

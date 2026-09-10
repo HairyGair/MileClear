@@ -764,3 +764,8 @@
     align-items: flex-start;
   }
 }
+
+/* Download buttons beneath the release-notes intro. */
+.updates__store-btns {
+  margin-top: 1.5rem;
+}

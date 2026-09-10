@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import Navbar from "@/components/landing/Navbar";
 import Footer from "@/components/landing/Footer";
+import StoreButtons from "@/components/StoreButtons";
 import BreadcrumbsJsonLd from "@/components/seo/BreadcrumbsJsonLd";
 import { ANDROID_RELEASE_NOTES } from "@mileclear/shared";
 import { PLAY_STORE_URL } from "@/data/android";
@@ -84,6 +85,9 @@ export default function AndroidReleasesPage() {
               iPhone release notes
             </Link>
           </p>
+        {/* The notes tell people what changed; the buttons let them get it
+              without leaving the page. Android stays on the closed-beta route. */}
+          <StoreButtons align="center" className="updates__store-btns" />
         </header>
 
         <div className="updates__content">
