@@ -93,7 +93,7 @@ export const RELEASE_NOTES: ReleaseNote[] = [
     // approval in the same edit that drops 1.3.9 to "App Store".
     version: "1.3.10",
     date: "September 2026",
-    label: "Pending Review",
+    label: "Latest",
     items: [
       "The trip counter on a CarPlay dashboard no longer draws each new reading over the last one; it now shows the MileClear mark, the distance so far and what the app is doing",
       "Every trip card in the list carries a map of the route, not only the trips you have just finished",
@@ -167,7 +167,7 @@ export const RELEASE_NOTES: ReleaseNote[] = [
     // as "update to get this".
     version: "1.3.9",
     date: "September 2026",
-    label: "Latest",
+    label: "App Store",
     items: [
       "Stops during a journey are now understood properly: a visit no longer joins two drives into one long trip",
       "Tapping Not Driving no longer pauses recording for the next journey - the pause ends when the car parks",
