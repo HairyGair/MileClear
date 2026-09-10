@@ -1228,6 +1228,7 @@ export async function reconcileNativeBufferBeforeFinalize(): Promise<void> {
 export async function getNativeStoreSummary(): Promise<{
   count: number;
   newestMs: number;
+  oldestMs: number;
 } | null> {
   try {
     const { isNativeLocationEngineEnabled } = await import("./nativeEngineFlag");
@@ -1235,13 +1236,15 @@ export async function getNativeStoreSummary(): Promise<{
     const BGGeo = loadNativeModule();
     if (!BGGeo) return null;
     const native = await BGGeo.getLocations();
-    if (!Array.isArray(native) || native.length === 0) return { count: 0, newestMs: 0 };
+    if (!Array.isArray(native) || native.length === 0) return { count: 0, newestMs: 0, oldestMs: 0 };
     let newestMs = 0;
+    let oldestMs = 0;
     for (const loc of native) {
       const at = recordedAtMs(loc.timestamp);
       if (at > newestMs) newestMs = at;
+      if (at > 0 && (oldestMs === 0 || at < oldestMs)) oldestMs = at;
     }
-    return { count: native.length, newestMs };
+    return { count: native.length, newestMs, oldestMs };
   } catch {
     return null;
   }

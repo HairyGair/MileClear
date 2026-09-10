@@ -38,6 +38,16 @@ function haversine(lat1: number, lng1: number, lat2: number, lng2: number): numb
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
+/** Drop RNBG's native location store. Best effort; a missing module is fine. */
+async function discardNativeStore(): Promise<void> {
+  try {
+    const { destroyNativeLocations } = await import("./nativeLocation");
+    await destroyNativeLocations();
+  } catch {
+    // best effort
+  }
+}
+
 export async function requestLocationPermissions(): Promise<boolean> {
   // Foreground permission is sufficient - background is best-effort
   // (Expo Go can't grant background permission at all)
@@ -156,6 +166,10 @@ export async function stopShiftTracking(): Promise<void> {
   // Clear any leftover detection coordinates and auto-recording state so the
   // detection system cannot finalize a duplicate trip for the same journey.
   await cancelAutoRecording(true);
+  // The native engine kept its own copy of every fix while the shift ran;
+  // left in place, the next app open's orphan sweep saves the same journey
+  // again (Lohitha, 5-8 Sep 2026: 85, 33 and 32 duplicate miles).
+  await discardNativeStore();
 
   await startDriveDetection();
 
@@ -234,6 +248,7 @@ export async function stopQuickTripTracking(): Promise<StoredCoordinate[]> {
 
   // Clear detection coordinates to prevent duplicate trip finalization
   await cancelAutoRecording(true);
+  await discardNativeStore();
 
   // Restart drive detection for the next trip
   await startDriveDetection();

@@ -184,7 +184,7 @@ export async function startNativeAutoTripLiveActivity(): Promise<void> {
 import type { TripClassification, PlatformTag } from "@mileclear/shared";
 import { resolveJourneyEndMinutes, journeyBoundaryMs } from "./journeyBoundary";
 import { gapStopDecision, GAP_STOP_MS, type RecentFix } from "./gapStop";
-import { orphanRouteDecision } from "./orphanRoute";
+import { orphanRouteDecision, savedTripOverlap } from "./orphanRoute";
 
 const DETECTION_TASK_NAME = "mileclear-drive-detection";
 const BACKGROUND_FINALIZE_TASK = "mileclear-background-finalize";
@@ -2390,11 +2390,12 @@ export async function sweepOrphanedRoute(source: string): Promise<void> {
     if (isFinalizeInFlight()) return;
     const db = await getDatabase();
 
-    const buffer = await db.getFirstAsync<{ n: number; newest: string | null }>(
-      "SELECT COUNT(*) AS n, MAX(recorded_at) AS newest FROM detection_coordinates"
+    const buffer = await db.getFirstAsync<{ n: number; newest: string | null; oldest: string | null }>(
+      "SELECT COUNT(*) AS n, MAX(recorded_at) AS newest, MIN(recorded_at) AS oldest FROM detection_coordinates"
     );
     const jsCoordCount = buffer?.n ?? 0;
     const jsNewestMs = buffer?.newest ? Date.parse(buffer.newest) || 0 : 0;
+    const jsOldestMs = buffer?.oldest ? Date.parse(buffer.oldest) || 0 : 0;
 
     const armedRow = await db.getFirstAsync<{ value: string }>(
       "SELECT value FROM tracking_state WHERE key = 'auto_recording_active'"
@@ -2407,10 +2408,30 @@ export async function sweepOrphanedRoute(source: string): Promise<void> {
     // in progress behind a lost flag — in which case a stale JS buffer must NOT
     // be finalized, or the rest of the live journey is destroyed with the store.
     // Skipped while armed, which is checkStaleAutoRecording's business.
-    let native: { count: number; newestMs: number } | null = null;
+    let native: { count: number; newestMs: number; oldestMs: number } | null = null;
     if (!armed) {
       const { getNativeStoreSummary } = await import("./nativeLocation");
       native = await getNativeStoreSummary();
+    }
+
+    // Is this route already in the trip list? A shift or Start Trip recording
+    // saves its own copy while the native store keeps collecting the same
+    // fixes; hours later this sweep would save them again (Lohitha, 5-8 Sep
+    // 2026: three duplicate evenings of 30-85 miles). Compare the buffered
+    // span with saved trips that touch it.
+    const spanStartMs = [jsOldestMs, native?.oldestMs ?? 0].filter((v) => v > 0).reduce((a, b) => Math.min(a, b), Infinity);
+    const spanEndMs = Math.max(jsNewestMs || 0, native?.newestMs || 0);
+    let savedOverlap: number | null = null;
+    if (Number.isFinite(spanStartMs) && spanEndMs > spanStartMs) {
+      const saved = await db.getAllAsync<{ id: string; started_at: string; ended_at: string | null }>(
+        "SELECT id, started_at, ended_at FROM trips WHERE ended_at IS NOT NULL AND ended_at >= ? AND started_at <= ?",
+        [new Date(spanStartMs).toISOString(), new Date(spanEndMs).toISOString()]
+      );
+      savedOverlap = savedTripOverlap(
+        spanStartMs,
+        spanEndMs,
+        saved.map((t) => ({ id: t.id, startedMs: Date.parse(t.started_at) || 0, endedMs: Date.parse(t.ended_at ?? "") || 0 }))
+      );
     }
 
     const decision = orphanRouteDecision({
@@ -2420,8 +2441,24 @@ export async function sweepOrphanedRoute(source: string): Promise<void> {
       nativeCount: native?.count ?? null,
       nativeNewestMs: native?.newestMs ?? null,
       shiftActive: await shiftSuppressesAutoDetection(db),
+      savedOverlap,
       now: Date.now(),
     });
+    if (decision.discard) {
+      logDetectionEvent("orphan_route_skipped_duplicate", {
+        source,
+        jsCoords: jsCoordCount,
+        nativeCoords: native?.count ?? null,
+        overlap: Math.round((savedOverlap ?? 0) * 100) / 100,
+        spanMin: Math.round((spanEndMs - spanStartMs) / 60000),
+      }).catch(() => {});
+      await db.runAsync("DELETE FROM detection_coordinates");
+      try {
+        const { destroyNativeLocations } = await import("./nativeLocation");
+        await destroyNativeLocations();
+      } catch {}
+      return;
+    }
     if (!decision.finalize) return;
 
     logDetectionEvent("orphan_route_finalize", {

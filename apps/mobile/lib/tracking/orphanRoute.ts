@@ -52,11 +52,15 @@ export type OrphanReason =
   | "recording_armed"
   | "too_few_coords"
   | "still_current"
-  | "shift_owns_gps";
+  | "shift_owns_gps"
+  | "already_saved";
 
 export interface OrphanDecision {
   finalize: boolean;
   reason: OrphanReason;
+  /** The buffered fixes are a second copy of a trip that is already saved:
+   *  throw them away instead of finalizing OR keeping them. */
+  discard: boolean;
   /** Where the evidence came from, for the log line. */
   source: OrphanSource | null;
   /** How long ago the newest buffered fix was recorded. */
@@ -80,7 +84,53 @@ export interface OrphanInputs {
   nativeNewestMs?: number | null;
   /** A shift or live quick trip owns the GPS; its coordinates are its own. */
   shiftActive: boolean;
+  /** How much of the buffered route's time span is already covered by a saved
+   *  trip (0..1), from savedTripOverlap. Null when the span is unknown. */
+  savedOverlap?: number | null;
   now: number;
+}
+
+/** A buffered route whose span is at least this much covered by a saved trip
+ *  is that trip's second copy, not a lost drive. Half, not all: the shift
+ *  recording and the native store start and stop a few minutes apart. */
+export const ALREADY_SAVED_MIN_OVERLAP = 0.5;
+
+export interface SavedTripSpan {
+  id: string;
+  startedMs: number;
+  endedMs: number;
+}
+
+/**
+ * Fraction of [spanStartMs, spanEndMs] that saved trips cover. Overlaps are
+ * merged so two legs of one journey are not double counted.
+ *
+ * Lohitha (lsstart24, 5-8 Sep 2026, Android 5): she tracked three evenings by
+ * shift or Start Trip. The native engine stored the same fixes throughout,
+ * detection was correctly suppressed while the shift ran, and at the next app
+ * open, hours later, this sweep found a "finished route nobody was looking
+ * after" and saved it again: 85.75, 33.44 and 31.87 duplicate miles she then
+ * had to find and delete.
+ */
+export function savedTripOverlap(spanStartMs: number, spanEndMs: number, trips: SavedTripSpan[]): number {
+  const span = spanEndMs - spanStartMs;
+  if (!(span > 0)) return 0;
+  const pieces = trips
+    .map((t) => [Math.max(t.startedMs, spanStartMs), Math.min(t.endedMs, spanEndMs)] as [number, number])
+    .filter(([a, b]) => b > a)
+    .sort((x, y) => x[0] - y[0]);
+  let covered = 0;
+  let cur: [number, number] | null = null;
+  for (const piece of pieces) {
+    if (!cur || piece[0] > cur[1]) {
+      if (cur) covered += cur[1] - cur[0];
+      cur = [piece[0], piece[1]];
+    } else if (piece[1] > cur[1]) {
+      cur[1] = piece[1];
+    }
+  }
+  if (cur) covered += cur[1] - cur[0];
+  return Math.min(1, covered / span);
 }
 
 /**
@@ -100,12 +150,19 @@ export function orphanRouteDecision(input: OrphanInputs): OrphanDecision {
   const newestMs = Math.max(input.jsNewestMs || 0, input.nativeNewestMs || 0);
   const ageMs = newestMs > 0 ? input.now - newestMs : 0;
 
-  if (input.armed) return { finalize: false, reason: "recording_armed", source, ageMs };
-  if (input.shiftActive) return { finalize: false, reason: "shift_owns_gps", source, ageMs };
+  if (input.armed) return { finalize: false, reason: "recording_armed", source, ageMs, discard: false };
+  if (input.shiftActive) return { finalize: false, reason: "shift_owns_gps", source, ageMs, discard: false };
 
   const coords = Math.max(jsCount, nativeCount);
   if (coords < ORPHAN_MIN_COORDS) {
-    return { finalize: false, reason: "too_few_coords", source, ageMs };
+    return { finalize: false, reason: "too_few_coords", source, ageMs, discard: false };
+  }
+
+  // A second copy of a trip already in the list is not a lost drive. Checked
+  // before the age bound: the copy is also "finished", and finalizing it is
+  // exactly the duplicate this guards against.
+  if ((input.savedOverlap ?? 0) >= ALREADY_SAVED_MIN_OVERLAP) {
+    return { finalize: false, reason: "already_saved", source, ageMs, discard: true };
   }
 
   // No timestamp to judge by means the fixes are of unknown age. Treat that as
@@ -113,8 +170,8 @@ export function orphanRouteDecision(input: OrphanInputs): OrphanDecision {
   // corrupt state this sweep exists to clear, and finalize's own guards decide
   // whether it becomes a trip.
   if (newestMs > 0 && ageMs < ORPHAN_MIN_AGE_MS) {
-    return { finalize: false, reason: "still_current", source, ageMs };
+    return { finalize: false, reason: "still_current", source, ageMs, discard: false };
   }
 
-  return { finalize: true, reason: "orphaned_route", source, ageMs };
+  return { finalize: true, reason: "orphaned_route", source, ageMs, discard: false };
 }
