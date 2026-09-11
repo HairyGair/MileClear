@@ -300,6 +300,29 @@ class LiveActivityModule: NSObject {
         }
     }
 
+    // MARK: - Pending kerbside decision (App Group)
+    //
+    // A LiveActivityIntent tap ("Business", "Personal", "Not Driving") is
+    // recorded by the widget process in App Group UserDefaults, because the
+    // activity it used to be recorded on is gone by the time the app looks.
+    // The app reads it here, applies it, then clears it - read and clear are
+    // separate so a failed apply keeps the driver's tap for the next poll.
+
+    @objc func getPendingLiveActivityDecision(
+        _ resolve: @escaping RCTPromiseResolveBlock,
+        reject: @escaping RCTPromiseRejectBlock
+    ) {
+        resolve(LiveActivityDecisionStore.pending())
+    }
+
+    @objc func clearPendingLiveActivityDecision(
+        _ resolve: @escaping RCTPromiseResolveBlock,
+        reject: @escaping RCTPromiseRejectBlock
+    ) {
+        LiveActivityDecisionStore.clear()
+        resolve(true)
+    }
+
     // MARK: - Push-to-start token (iOS 17.2+)
     //
     // iOS refuses Activity.request() from the background ("Target is not

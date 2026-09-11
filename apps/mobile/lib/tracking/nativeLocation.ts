@@ -912,6 +912,27 @@ async function openNativeRecording(
   startNativeAutoTripLiveActivity().catch(() => {});
 }
 
+/**
+ * Apply a Live Activity tap left in the App Group store (pending.ts). Lazy
+ * import: liveActivity/pending imports detection, which this module already
+ * imports; a static edge here would close a cycle. Never throws.
+ */
+async function applyKerbsideDecision(): Promise<{ kind: string } | null> {
+  try {
+    const { applyPendingLiveActivityAction } = await import("../liveActivity/pending");
+    const applied = await applyPendingLiveActivityAction();
+    if (applied?.kind === "classified") {
+      logDetectionEvent("la_classified_at_kerb", {
+        classification: applied.classification,
+        source: "native_engine",
+      }).catch(() => {});
+    }
+    return applied;
+  } catch {
+    return null;
+  }
+}
+
 async function handleNativeLocation(loc: NativeLocation): Promise<void> {
   try {
     if (!(await isDriveDetectionEnabled())) return;
@@ -923,6 +944,16 @@ async function handleNativeLocation(loc: NativeLocation): Promise<void> {
       "INSERT OR REPLACE INTO tracking_state (key, value) VALUES ('last_native_location_at', ?)",
       [Date.now().toString()]
     );
+
+    // A tap on the Live Activity ("Not Driving", or Business / Personal at
+    // the kerb) is waiting in the App Group store. This callback is the one
+    // that runs while the car is still moving, so "Not Driving" lands here
+    // and cancels the recording before another fix is buffered. Cheap: one
+    // UserDefaults read; no-op off iOS.
+    if (Platform.OS === "ios") {
+      const applied = await applyKerbsideDecision();
+      if (applied?.kind === "cancelled_recording") return;
+    }
 
     const recording = await db.getFirstAsync<{ value: string }>(
       "SELECT value FROM tracking_state WHERE key = 'auto_recording_active'"
@@ -1027,6 +1058,10 @@ async function handleNativeMotionChange(event: NativeMotionEvent): Promise<void>
     if (event.isMoving) {
       // Driving started (CoreMotion classified it) — open the recording. If the
       // backstop already opened it from a speed fix, this is a harmless no-op.
+      // A "Not driving" cooldown means the driver just dismissed this very
+      // drive (a passenger ride); the speed backstop already honours it, and
+      // a motion flap mid-ride must not re-open what they turned off.
+      if (await isNotDrivingCooldownActive()) return;
       const already = await db.getFirstAsync<{ value: string }>(
         "SELECT value FROM tracking_state WHERE key = 'auto_recording_active'"
       );
@@ -1139,6 +1174,13 @@ async function handleNativeHeartbeat(): Promise<void> {
       await db.runAsync("DELETE FROM tracking_state WHERE key = 'keepalive_until'");
       await setNativePreventSuspend(false);
       return;
+    }
+    // Kerbside taps arrive here too: the heartbeat keeps firing through the
+    // post-trip keep-alive window, which is exactly when Business / Personal
+    // gets pressed on the lock screen.
+    if (Platform.OS === "ios") {
+      const applied = await applyKerbsideDecision();
+      if (applied?.kind === "cancelled_recording") return;
     }
     const recording = await db.getFirstAsync<{ value: string }>(
       "SELECT value FROM tracking_state WHERE key = 'auto_recording_active'"

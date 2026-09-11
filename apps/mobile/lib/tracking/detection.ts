@@ -2502,6 +2502,13 @@ export async function cancelAutoRecording(clearCoords = false): Promise<void> {
   );
   if (clearCoords) {
     await db.runAsync("DELETE FROM detection_coordinates");
+    // The native engine keeps its own copy of the fixes. Left in place, the
+    // orphan-route sweep at the next app open would turn the ride the driver
+    // just said was not theirs into a trip anyway (the Class 37 shape).
+    try {
+      const { isNativeEngineAvailable, destroyNativeLocations } = await import("./nativeLocation");
+      if (isNativeEngineAvailable()) await destroyNativeLocations();
+    } catch {}
     // Also clear watch-mode flags so the detection task doesn't think
     // we're still in the watch-and-wait phase. clearWatchModeFlags is
     // idempotent — safe even if watch mode wasn't active.
@@ -2598,23 +2605,29 @@ try {
       // location task keeps firing for a few minutes after the user parks
       // (iOS drip-feeds callbacks), so even if the user never opens the app,
       // we'll catch the pending finalize within seconds of the tap.
+      // Kerbside decisions (Business / Personal / Not Driving) are applied
+      // here too - this callback keeps firing for minutes after the user
+      // parks, so the tap usually lands before they pick the phone up. Not
+      // gated on isRecording: the classify buttons only exist once the
+      // recording has closed.
+      try {
+        const { applyPendingLiveActivityAction } = await import("../liveActivity/pending");
+        const applied = await applyPendingLiveActivityAction();
+        if (applied?.kind === "classified") {
+          logDetectionEvent("la_classified_at_kerb", {
+            classification: applied.classification,
+            source: "background_task",
+          }).catch(() => {});
+        }
+        if (applied?.kind === "cancelled_recording") return;
+      } catch {
+        // best-effort
+      }
+
       if (isRecording) {
         try {
           const { getLiveActivityPhase } = await import("../liveActivity");
           const phase = await getLiveActivityPhase();
-          // Kerbside decisions (Business / Personal) are applied here too -
-          // this callback keeps firing for minutes after the user parks, so
-          // the tap usually lands before they pick the phone up.
-          if (phase === "classified_business" || phase === "classified_personal") {
-            const { applyPendingLiveActivityAction } = await import("../liveActivity/pending");
-            const applied = await applyPendingLiveActivityAction();
-            if (applied?.kind === "classified") {
-              logDetectionEvent("la_classified_at_kerb", {
-                classification: applied.classification,
-                source: "background_task",
-              }).catch(() => {});
-            }
-          }
           if (phase === "saving") {
             logDetectionEvent("pending_finalize_via_task", { source: "app_intent" }).catch(() => {});
             await finalizeAutoTrip();

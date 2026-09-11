@@ -412,6 +412,27 @@ export async function restartLiveActivity(params: {
 // token, which the native module observes (pushToStartTokenUpdates) and we
 // register with the server so /trips/signal-start can use it.
 
+/**
+ * A decision the driver made on the Live Activity itself (Business /
+ * Personal / Not Driving), left for us in App Group UserDefaults by the
+ * widget process. Raw shape; pendingRule.ts parses and judges it.
+ */
+export async function getPendingLiveActivityDecision(): Promise<unknown> {
+  if (Platform.OS !== "ios" || !LiveActivityModule?.getPendingLiveActivityDecision) return null;
+  try {
+    return await LiveActivityModule.getPendingLiveActivityDecision();
+  } catch {
+    return null;
+  }
+}
+
+export async function clearPendingLiveActivityDecision(): Promise<void> {
+  if (Platform.OS !== "ios" || !LiveActivityModule?.clearPendingLiveActivityDecision) return;
+  try {
+    await LiveActivityModule.clearPendingLiveActivityDecision();
+  } catch {}
+}
+
 let lastRegisteredLaToken: string | null = null;
 
 /**

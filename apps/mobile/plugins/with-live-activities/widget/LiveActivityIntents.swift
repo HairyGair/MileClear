@@ -53,12 +53,42 @@ struct EndTripIntent: LiveActivityIntent {
     }
 }
 
+// MARK: - Shared decision store
+//
+// The widget process owns none of the app's state, and until 11 Sep 2026 the
+// only channel back to the app was the activity's own `phase`. That channel
+// dies with the activity: once the trip is finished nothing in the app polls
+// it until the next launch, so "Business" sat on the lock screen unapplied
+// and "Not Driving" dismissed the card while the recorder drove on and saved
+// the trip anyway (Anthony, 11 Sep 2026). App Group UserDefaults survives
+// the activity ending, and the app reads it on every native location fix,
+// every heartbeat, and at launch/foreground. One key, last writer wins.
+
+enum LiveActivityDecisionStore {
+    static let suite = "group.com.mileclear.app"
+    static let key = "la_pending_decision"
+
+    static func record(_ decision: [String: Any]) {
+        guard let defaults = UserDefaults(suiteName: suite) else { return }
+        var payload = decision
+        payload["atMs"] = Date().timeIntervalSince1970 * 1000
+        defaults.set(payload, forKey: key)
+    }
+
+    static func pending() -> [String: Any]? {
+        UserDefaults(suiteName: suite)?.dictionary(forKey: key)
+    }
+
+    static func clear() {
+        UserDefaults(suiteName: suite)?.removeObject(forKey: key)
+    }
+}
+
 // MARK: - Cancel Trip Intent
 //
 // Runs in the widget extension process when the user taps "Not Driving".
-// Dismisses the Live Activity immediately. The main app will see
-// auto_recording_active still set next time it runs and will clear it via
-// the existing checkStaleAutoRecording / cancelAutoRecording flows.
+// Records the decision for the app (which cancels the recording on its next
+// location fix, while the car is still moving) and dismisses the card.
 
 @available(iOS 17.2, *)
 struct CancelTripIntent: LiveActivityIntent {
@@ -66,6 +96,7 @@ struct CancelTripIntent: LiveActivityIntent {
     static var description: IntentDescription = IntentDescription("Dismisses the current MileClear driving detection.")
 
     func perform() async throws -> some IntentResult {
+        LiveActivityDecisionStore.record(["kind": "not_driving"])
         // End all activities immediately - no summary view needed.
         for activity in Activity<MileClearAttributes>.activities {
             await activity.end(nil, dismissalPolicy: .immediate)
@@ -97,10 +128,15 @@ private func recordClassification(_ value: String) async {
         guard state.phase == "ended", state.needsClassification else { continue }
         state.phase = value
         state.needsClassification = false
-        // Keep it on screen briefly so the tap visibly registers; the app
-        // ends the activity once it has applied the classification.
-        let content = ActivityContent(state: state, staleDate: Date().addingTimeInterval(120))
-        await activity.update(content)
+        LiveActivityDecisionStore.record([
+            "kind": "classified",
+            "classification": value == "classified_business" ? "business" : "personal",
+        ])
+        // Show "Saved as ..." for a moment so the tap visibly registers, then
+        // take the card down here: the app is usually asleep at the kerb and
+        // would otherwise leave it on the lock screen until the next launch.
+        let content = ActivityContent(state: state, staleDate: nil)
+        await activity.end(content, dismissalPolicy: .after(Date().addingTimeInterval(4)))
     }
 }
 

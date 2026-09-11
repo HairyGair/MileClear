@@ -78,6 +78,29 @@ export const ACTIVE_ANNOUNCEMENT: SiteAnnouncement | null = null;
 
 export const RELEASE_NOTES: ReleaseNote[] = [
   {
+    // Build 90, cut 11 Sep 2026. One native reason: the Live Activity's own
+    // buttons. Business / Personal after a trip, and Not Driving during one,
+    // each ran in the widget process and could only write to the activity
+    // itself; the app read that at its next launch, so the card sat on the
+    // lock screen unapplied and a dismissed drive was still saved (Anthony,
+    // 11 Sep). The widget now hands the tap to the app through the shared
+    // App Group and takes the card down itself; the app acts on it at the
+    // next location fix, which for Not Driving is while the car is still
+    // moving. Label flow: "In Testing" on TestFlight, "Pending Review" with
+    // Apple, "Latest" on approval in the same edit that drops 1.3.10 to
+    // "App Store".
+    version: "1.3.11",
+    date: "September 2026",
+    label: "In Testing",
+    items: [
+      "Tapping Business or Personal on the lock-screen card after a trip now applies at once and the card clears, instead of waiting until the next time you open the app",
+      "Tapping Not Driving on the lock-screen card during a detected drive now stops the recording there and then; before, the card went away but the drive was still saved",
+      "A ride you dismissed as not yours is no longer offered back as a missed journey the next time you open the app",
+    ],
+    ctaUrl: "https://mileclear.com/releases",
+    ctaLabel: "Read the release notes",
+  },
+  {
     // Build 88, cut 3 Sep 2026 (evening), the first binary since 87. Its one
     // native reason: Akbar's CarPlay photo. iOS 26 puts the trip Live Activity
     // on the CarPlay dashboard, and with no layout of our own for that size it

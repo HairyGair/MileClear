@@ -496,27 +496,22 @@ function RootNavigator() {
 
     const checkPendingFinalize = async () => {
       try {
+        // A decision taken on the Live Activity itself, waiting to be applied:
+        // the App Group record (Business / Personal / Not Driving) or, for an
+        // older widget, the activity's own phase. pending.ts checks both.
+        const { applyPendingLiveActivityAction } = await import("../lib/liveActivity/pending");
+        const applied = await applyPendingLiveActivityAction();
+        if (applied?.kind === "add_short_trip") {
+          // They asked for the hop that was too short to record; open the
+          // manual form so it takes one more tap, not a hunt through menus.
+          const { endLiveActivity } = await import("../lib/liveActivity");
+          await endLiveActivity().catch(() => {});
+          router.push("/trip-form" as never);
+        }
+        if (applied) return;
+
         const { getLiveActivityPhase } = await import("../lib/liveActivity");
         const phase = await getLiveActivityPhase();
-
-        // A decision taken on the Live Activity itself, waiting to be applied.
-        if (
-          phase === "classified_business" ||
-          phase === "classified_personal" ||
-          phase === "too_short_add"
-        ) {
-          const { applyPendingLiveActivityAction } = await import("../lib/liveActivity/pending");
-          const applied = await applyPendingLiveActivityAction();
-          if (applied?.kind === "add_short_trip") {
-            // They asked for the hop that was too short to record; open the
-            // manual form so it takes one more tap, not a hunt through menus.
-            const { endLiveActivity } = await import("../lib/liveActivity");
-            await endLiveActivity().catch(() => {});
-            router.push("/trip-form" as never);
-          }
-          return;
-        }
-
         if (phase !== "saving") return;
 
         const db = await getDatabase();

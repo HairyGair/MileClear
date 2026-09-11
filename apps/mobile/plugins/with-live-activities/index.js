@@ -18,6 +18,8 @@ const path = require("path");
 
 const WIDGET_TARGET = "MileClearWidgets";
 const WIDGET_BUNDLE_ID = "com.mileclear.app.MileClearWidgets";
+const WIDGET_ENTITLEMENTS_FILE = "MileClearWidgets.entitlements";
+const APP_GROUP = "group.com.mileclear.app";
 
 // ── 1. Info.plist ────────────────────────────────────────────────────────────
 
@@ -51,6 +53,25 @@ function withLiveActivitiesFiles(config) {
           path.join(widgetDest, file)
         );
       }
+      // The widget shares the app's App Group so a LiveActivityIntent can
+      // hand a kerbside decision (Business / Personal / Not Driving) to the
+      // app through UserDefaults(suiteName:). The main app gets the same
+      // group from with-siri-shortcuts. EAS provisions the extension's
+      // profile with the capability from app.json's appExtensions entry.
+      fs.writeFileSync(
+        path.join(widgetDest, WIDGET_ENTITLEMENTS_FILE),
+        `<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+  <dict>
+    <key>com.apple.security.application-groups</key>
+    <array>
+      <string>${APP_GROUP}</string>
+    </array>
+  </dict>
+</plist>
+`
+      );
 
       // Copy shared Attributes + LiveActivityIntents + native module files to main app.
       // Copy to BOTH ios/ root and ios/<ProjectName>/ because the Xcode
@@ -205,6 +226,16 @@ function addWidgetExtensionTarget(project, projectName, config) {
   }));
   groupChildren.push({ value: infoPlistUuid, comment: "Info.plist" });
 
+  const entitlementsUuid = project.generateUuid();
+  project.hash.project.objects.PBXFileReference[entitlementsUuid] = {
+    isa: "PBXFileReference",
+    lastKnownFileType: "text.plist.entitlements",
+    path: WIDGET_ENTITLEMENTS_FILE,
+    sourceTree: '"<group>"',
+  };
+  project.hash.project.objects.PBXFileReference[`${entitlementsUuid}_comment`] = WIDGET_ENTITLEMENTS_FILE;
+  groupChildren.push({ value: entitlementsUuid, comment: WIDGET_ENTITLEMENTS_FILE });
+
   const groupUuid = project.generateUuid();
   project.hash.project.objects.PBXGroup[groupUuid] = {
     isa: "PBXGroup",
@@ -295,6 +326,7 @@ function addWidgetExtensionTarget(project, projectName, config) {
 
   const commonSettings = {
     CLANG_CXX_LANGUAGE_STANDARD: '"gnu++20"',
+    CODE_SIGN_ENTITLEMENTS: `${WIDGET_TARGET}/${WIDGET_ENTITLEMENTS_FILE}`,
     CODE_SIGN_STYLE: "Automatic",
     DEVELOPMENT_TEAM: "EG4MH38B54",
     CURRENT_PROJECT_VERSION: config.ios?.buildNumber || "1",
