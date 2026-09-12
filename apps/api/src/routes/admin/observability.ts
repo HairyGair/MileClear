@@ -17,6 +17,7 @@ import {
   feedbackIsOpen,
   lastReplyBy,
   liveActivityRollup,
+  handledReportIds,
   missingTripAnswered,
   tripQualityRollup,
   STUB_COORD_MAX,
@@ -34,6 +35,8 @@ function platformOf(seen: string | null, signup: string | null): string | null {
   if (set.has("android")) return "android";
   return signup;
 }
+
+const SUPPORT_REPORT_HANDLED = "support.report_handled";
 
 export async function adminObservabilityRoutes(app: FastifyInstance): Promise<void> {
   // ── Support queue ────────────────────────────────────────────────────────
@@ -81,6 +84,14 @@ export async function adminObservabilityRoutes(app: FastifyInstance): Promise<vo
           select: { userId: true, type: true, createdAt: true },
         })
       : [];
+    // Reports an admin has explicitly cleared. Keyed on the report's own event
+    // id so an orphaned report (account deleted) can still leave the queue.
+    const handledEvents = await prisma.appEvent.findMany({
+      where: { type: SUPPORT_REPORT_HANDLED, createdAt: { gte: since } },
+      select: { metadata: true },
+    });
+    const handled = handledReportIds(handledEvents);
+
     const followBy = new Map<string, Array<{ type: string; createdAt: Date }>>();
     for (const f of followUps) {
       if (!f.userId) continue;
@@ -127,6 +138,7 @@ export async function adminObservabilityRoutes(app: FastifyInstance): Promise<vo
       });
     }
     for (const r of reports) {
+      if (handled.has(r.id)) continue;
       const ups = r.userId ? (followBy.get(r.userId) ?? []) : [];
       if (missingTripAnswered(r.createdAt, ups)) continue;
       const meta = (r.metadata ?? {}) as { note?: string };
@@ -159,6 +171,45 @@ export async function adminObservabilityRoutes(app: FastifyInstance): Promise<vo
       },
     });
   });
+
+  // Clear a missing-trip report by hand.
+  //
+  // The queue clears a report when a support reply or an admin-added trip
+  // follows it, which leaves two kinds of row stuck forever: reports answered
+  // before reply-logging existed (11 of them on 12 Sep 2026), and reports whose
+  // account has since been deleted, which come back as "(anonymous)" with no
+  // account left to answer. This is the manual escape hatch for both.
+  app.post<{ Params: { reportId: string }; Body: { note?: string } }>(
+    "/support-queue/missing-trip/:reportId/handled",
+    async (request, reply) => {
+      const { reportId } = request.params;
+
+      const report = await prisma.appEvent.findUnique({
+        where: { id: reportId },
+        select: { id: true, type: true, userId: true },
+      });
+      if (!report || report.type !== "trip.report_missing") {
+        return reply.status(404).send({ error: "Missing-trip report not found" });
+      }
+
+      const note = typeof request.body?.note === "string" ? request.body.note.slice(0, 200) : undefined;
+      const event = await prisma.appEvent.create({
+        data: {
+          type: SUPPORT_REPORT_HANDLED,
+          // Null for an orphaned report; the reportEventId is what matters.
+          userId: report.userId,
+          metadata: {
+            reportEventId: report.id,
+            handledBy: request.userId ?? null,
+            ...(note ? { note } : {}),
+          },
+        },
+        select: { id: true, createdAt: true },
+      });
+
+      return reply.send({ data: { reportId: report.id, handledAt: event.createdAt.toISOString(), eventId: event.id } });
+    }
+  );
 
   // ── Android testers ──────────────────────────────────────────────────────
   app.get("/android-testers", async (_request, reply) => {

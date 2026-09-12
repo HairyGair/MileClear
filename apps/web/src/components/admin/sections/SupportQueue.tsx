@@ -44,6 +44,7 @@ function ageTone(hours: number): "good" | "warn" | "bad" {
 export function SupportQueue() {
   const [data, setData] = useState<QueueResponse["data"] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [busyId, setBusyId] = useState<string | null>(null);
 
   useEffect(() => {
     api
@@ -51,6 +52,35 @@ export function SupportQueue() {
       .then((r) => setData(r.data))
       .catch((e: unknown) => setError(e instanceof Error ? e.message : "Failed to load"));
   }, []);
+
+  // Clear a missing-trip report by hand. Two kinds never clear on their own:
+  // ones answered before reply-logging existed (11 of them on 12 Sep 2026), and
+  // ones whose account has since been deleted, which come back as "(anonymous)"
+  // with nobody left to answer. Sends nothing to the user.
+  async function markHandled(reportId: string) {
+    setBusyId(reportId);
+    setError(null);
+    try {
+      await api.post(`/admin/support-queue/missing-trip/${reportId}/handled`);
+      setData((prev) =>
+        prev
+          ? {
+              ...prev,
+              items: prev.items.filter((i) => !(i.kind === "missing_trip" && i.id === reportId)),
+              counts: {
+                ...prev.counts,
+                missingTripsOpen: Math.max(0, prev.counts.missingTripsOpen - 1),
+                total: Math.max(0, prev.counts.total - 1),
+              },
+            }
+          : prev
+      );
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "Could not mark it handled");
+    } finally {
+      setBusyId(null);
+    }
+  }
 
   const columns: Column<QueueItem>[] = [
     {
@@ -99,6 +129,24 @@ export function SupportQueue() {
         r.kind === "feedback"
           ? `${r.status ?? "new"}${r.replies ? `, ${r.replies} repl${r.replies === 1 ? "y" : "ies"}` : ", no reply yet"}`
           : "no reply logged",
+    },
+    {
+      key: "actions",
+      header: "",
+      render: (r) =>
+        r.kind === "missing_trip" ? (
+          <div className="table__actions">
+            <button
+              className="table__action-btn"
+              onClick={() => void markHandled(r.id)}
+              disabled={busyId === r.id}
+              title="Clear it from the queue. Sends nothing to the user."
+              aria-label="Mark this missing-trip report handled"
+            >
+              {busyId === r.id ? "Marking..." : "Mark handled"}
+            </button>
+          </div>
+        ) : null,
     },
   ];
 

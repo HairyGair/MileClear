@@ -47,6 +47,22 @@ export function missingTripAnswered(
   );
 }
 
+/**
+ * Report ids an admin has explicitly marked handled from the support queue.
+ * Keyed on the REPORT's event id rather than the user, so a report whose
+ * account has since been deleted (userId nulled, its reply event gone with it)
+ * can still be cleared. Mario Kyprianou, 12 Sep 2026: his report came back to
+ * the queue as "(anonymous)" after he deleted, and nothing could ever answer it.
+ */
+export function handledReportIds(events: Array<{ metadata: unknown }>): Set<string> {
+  const out = new Set<string>();
+  for (const e of events) {
+    const id = (e.metadata as { reportEventId?: unknown } | null | undefined)?.reportEventId;
+    if (typeof id === "string" && id.length > 0) out.add(id);
+  }
+  return out;
+}
+
 // ── Android testers ────────────────────────────────────────────────────────
 
 export type AndroidVerdict = "capturing" | "stub_fixes" | "silent" | "new" | "no_permission" | "gone";

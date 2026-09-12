@@ -5,6 +5,7 @@ import {
   feedbackIsOpen,
   lastReplyBy,
   liveActivityRollup,
+  handledReportIds,
   missingTripAnswered,
   tripQualityRollup,
 } from "../../services/adminObservability.js";
@@ -49,6 +50,27 @@ describe("support queue helpers", () => {
     expect(missingTripAnswered(at, [{ type: "support.reply_sent", createdAt: new Date(NOW) }])).toBe(true);
     expect(missingTripAnswered(at, [{ type: "admin.trip_created", createdAt: new Date(NOW) }])).toBe(true);
     expect(missingTripAnswered(at, [{ type: "trip.created", createdAt: new Date(NOW) }])).toBe(false);
+  });
+
+  it("collects the report ids an admin has marked handled", () => {
+    const ids = handledReportIds([
+      { metadata: { reportEventId: "a" } },
+      { metadata: { reportEventId: "b", note: "answered before logging existed" } },
+    ]);
+    expect(ids.has("a")).toBe(true);
+    expect(ids.has("b")).toBe(true);
+    expect(ids.size).toBe(2);
+  });
+
+  it("ignores handled rows with no usable report id rather than throwing", () => {
+    const ids = handledReportIds([
+      { metadata: null },
+      { metadata: {} },
+      { metadata: { reportEventId: "" } },
+      { metadata: { reportEventId: 42 } },
+      { metadata: "nonsense" },
+    ]);
+    expect(ids.size).toBe(0);
   });
 });
 
