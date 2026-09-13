@@ -881,7 +881,12 @@ async function runDiagnosticScanJob(): Promise<void> {
         condition: !!bgPerm && bgPerm !== "granted",
         alertType: "alert.permission_missing",
         title: "Auto-tracking is off",
-        body: "Set Location to 'Always' in Settings > MileClear so trips record while the app is in the background.",
+        // Always offer the alternative. Mario Kyprianou (12 Sep 2026) refused
+        // Always on privacy grounds and deleted his account the same minute:
+        // he had never seen the app capture anything, so we were asking for
+        // the most invasive setting on the phone for a benefit he had not yet
+        // seen. Manual entry needs no location permission at all.
+        body: "Set Location to 'Always' in Settings > MileClear so trips record in the background. Prefer not to? Turn Drive detection off and add trips by hand instead.",
         data: { action: "open_settings" },
       },
       {
@@ -1331,7 +1336,7 @@ async function runHeartbeatAlertScanJob(): Promise<void> {
         condition: true,
         alertType: "alert.heartbeat_bg_location_lost",
         title: "Trips aren't being tracked",
-        body: "Background location was turned off. Open Settings → MileClear → Location → Always to keep tracking working.",
+        body: "Background location was turned off. Open Settings → MileClear → Location → Always to keep tracking, or add trips by hand instead.",
         data: { action: "open_settings" },
         cooldownMs: 24 * 60 * 60 * 1000,
         maxSendsPerWindow: 3,

@@ -43,7 +43,7 @@ import { qualifyReferralOnFirstTrip } from "../../services/referral.js";
 import { looksLikePhantomTrip, hasRealMovementEvidence } from "../../lib/phantomTrip.js";
 import { resolveRouteDistance, routedDurationUsable } from "../../services/routing.js";
 import { reverseGeocode } from "../../services/geocoding.js";
-import { matchTripRoute, decodePolyline, isMatchPlausible, trimEdgePhantoms } from "../../services/mapMatching.js";
+import { matchTripRoute, decodePolyline, isMatchPlausible, trimEdgePhantoms, type KnownPlace } from "../../services/mapMatching.js";
 import { computeTripConfidence } from "../../services/tripConfidence.js";
 import { reconcileWakeLagStart } from "../../services/wakeLagStart.js";
 import { planTripStartEdit } from "../../services/tripStartEdit.js";
@@ -624,8 +624,44 @@ export async function tripRoutes(app: FastifyInstance) {
     // Drop such points, move the edge to the first real fix, and take the
     // phantom miles back off the stored distance; map-matching below then
     // lands on the road figure. See trimEdgePhantoms for the numbers.
+    // Places this driver is known to have been: the end of their previous trip
+    // and their saved locations. The trim's inferential rules stand down within
+    // EDGE_PHANTOM_ANCHOR_METRES of one, so a real-but-sparse departure is no
+    // longer read as a stale fix (Rachel Thorndyke, 8 + 12 Sep 2026).
+    const trimAnchors: KnownPlace[] = [];
+    if (rawCoordinates && rawCoordinates.length >= 3) {
+      const [prevEnd, savedPlaces] = await Promise.all([
+        prisma.trip.findFirst({
+          where: {
+            userId,
+            isPhantomTrip: false,
+            endedAt: {
+              lte: data.startedAt,
+              gte: new Date(data.startedAt.getTime() - 24 * 60 * 60 * 1000),
+            },
+            endLat: { not: null },
+            endLng: { not: null },
+          },
+          orderBy: { endedAt: "desc" },
+          select: { endLat: true, endLng: true },
+        }),
+        prisma.savedLocation.findMany({
+          where: { userId },
+          select: { latitude: true, longitude: true },
+        }),
+      ]);
+      if (prevEnd?.endLat != null && prevEnd.endLng != null) {
+        trimAnchors.push({ lat: prevEnd.endLat, lng: prevEnd.endLng });
+      }
+      for (const place of savedPlaces) {
+        trimAnchors.push({ lat: place.latitude, lng: place.longitude });
+      }
+    }
+
     const trimAttempt =
-      rawCoordinates && rawCoordinates.length >= 3 ? trimEdgePhantoms(rawCoordinates) : null;
+      rawCoordinates && rawCoordinates.length >= 3
+        ? trimEdgePhantoms(rawCoordinates, trimAnchors)
+        : null;
     const edgeTrim =
       trimAttempt && (trimAttempt.droppedLeading > 0 || trimAttempt.droppedTrailing > 0)
         ? trimAttempt

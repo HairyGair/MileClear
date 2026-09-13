@@ -27,6 +27,7 @@
 
 import { prisma } from "../lib/prisma.js";
 import { sendPushNotification } from "../lib/push.js";
+import { deviceProvedAliveSince } from "../services/adminObservability.js";
 import { logEvent } from "../services/appEvents.js";
 import { postFounderAlert } from "../services/discord.js";
 
@@ -484,11 +485,18 @@ export async function runRecordingWatchdogJob(): Promise<void> {
   //     actually be fixed: reviveNetworkParkedItems() on cold-start revives
   //     network-blip rows when the user next opens the app, and the
   //     SyncStatusBanner surfaces genuinely-dead (4xx) rows for a manual retry.
-  //   - heartbeat is stale enough that 30+ periodicTicks should have
-  //     drained the queue by now (so the runtime is genuinely dead)
+  //   - heartbeat is stale enough that the queue SHOULD have drained by now.
+  //     Read this as a weak hint, NOT as "the runtime is dead". Both
+  //     lastHeartbeatAt and lastPendingSyncCount are written only by
+  //     POST /user/heartbeat, and the client rate-limits that to once per 24h
+  //     (apps/mobile/lib/heartbeat, HEARTBEAT_INTERVAL_MS), so a healthy phone
+  //     is "30+ min stale" for ~23 hours out of every 24 and its queue count is
+  //     a snapshot up to a day old. The staleness alone proves nothing.
   //   - heartbeat isn't SO stale that the user has clearly moved on
   //   - lastDrivingSpeedAt within ~2 weeks (active user, not a dormant
   //     install we'd be wasting silent-push budget on)
+  //   - AND the disproof pass below: no Trip and no device-originated AppEvent
+  //     since that heartbeat. See the comment on the pass itself (12 Sep 2026).
   const minStaleHb = new Date(now - PENDING_SYNC_MIN_STALE_MS);
   const maxStaleHb = new Date(now - PENDING_SYNC_MAX_STALE_MS);
   const drivingRecency = new Date(now - PENDING_SYNC_DRIVING_RECENCY_MS);
@@ -507,10 +515,97 @@ export async function runRecordingWatchdogJob(): Promise<void> {
       AND pushToken IS NOT NULL
   `;
 
+  // Disproof pass (12 Sep 2026). The selection above cannot tell a dead JS
+  // runtime from a healthy phone whose 24h heartbeat simply hasn't come round
+  // again, so on its own it manufactured exactly the self-perpetuating alert
+  // the permFailed note above describes: 3 users hit the 4-attempts cap that
+  // day, all iOS with valid push tokens, all saving trips while the alert said
+  // "push delivery is structurally broken for them" — one had a heartbeat
+  // frozen at 07:29 and created trips at 16:28 and 16:46. The server holds the
+  // disproof: a Trip row or a DEVICE-ORIGINATED AppEvent row newer than the
+  // heartbeat means the app has reached us since the snapshot, so the snapshot
+  // is out of date, not evidence of a dead runtime. Those users are skipped
+  // before any push, so they can never reach the cap or the founder alert.
+  //
+  // Server-side event families are excluded for the same reason Check 1b
+  // excludes them: they are logged against the userId while the device is dark
+  // (Liam got two streak nudges during his 21.5h silence), so counting them
+  // would suppress the pushes genuinely-stuck users need.
+  //
+  // One grouped query per table for the whole candidate set, bounded by the
+  // oldest heartbeat we accept so both stay on (userId, createdAt) ranges.
+  const SERVER_ORIGINATED_EVENT_PREFIXES = [
+    "notification.",
+    "alert.",
+    "watchdog.",
+    "billing.",
+    "email.",
+    "discord.",
+    "job.",
+    "admin.",
+    "support.",
+  ];
+  const syncProvedAliveIds = new Set<string>();
+  if (pendingSync.length > 0) {
+    const candidateIds = pendingSync.map((u) => u.id);
+    const [tripActivity, eventActivity] = await Promise.all([
+      prisma.trip.groupBy({
+        by: ["userId"],
+        where: { userId: { in: candidateIds }, createdAt: { gt: maxStaleHb } },
+        _max: { createdAt: true },
+      }),
+      prisma.appEvent.groupBy({
+        by: ["userId"],
+        where: {
+          userId: { in: candidateIds },
+          createdAt: { gt: maxStaleHb },
+          NOT: {
+            OR: SERVER_ORIGINATED_EVENT_PREFIXES.map((prefix) => ({
+              type: { startsWith: prefix },
+            })),
+          },
+        },
+        _max: { createdAt: true },
+      }),
+    ]);
+    const latestActivityByUser = new Map<string, Date>();
+    const absorb = (
+      rows: Array<{ userId: string | null; _max: { createdAt: Date | null } }>
+    ) => {
+      for (const row of rows) {
+        const at = row._max.createdAt;
+        if (!row.userId || !at) continue;
+        const prev = latestActivityByUser.get(row.userId);
+        if (!prev || at.getTime() > prev.getTime()) {
+          latestActivityByUser.set(row.userId, at);
+        }
+      }
+    };
+    absorb(tripActivity);
+    absorb(eventActivity);
+    for (const user of pendingSync) {
+      if (
+        deviceProvedAliveSince(
+          user.lastHeartbeatAt,
+          latestActivityByUser.get(user.id) ?? null
+        )
+      ) {
+        syncProvedAliveIds.add(user.id);
+      }
+    }
+  }
+
   let syncPinged = 0;
   let syncCooldown = 0;
   let syncGaveUp = 0;
+  let syncProvedAlive = 0;
   for (const user of pendingSync) {
+    // The device has talked to us since this heartbeat: the pending-sync count
+    // is a stale snapshot, not a dead runtime. No push, no cap, no alert.
+    if (syncProvedAliveIds.has(user.id)) {
+      syncProvedAlive++;
+      continue;
+    }
     const heartbeatStaleMs =
       user.lastHeartbeatAt != null
         ? now - user.lastHeartbeatAt.getTime()
@@ -539,12 +634,13 @@ export async function runRecordingWatchdogJob(): Promise<void> {
     signalGaveUp > 0 ||
     syncPinged > 0 ||
     syncCooldown > 0 ||
-    syncGaveUp > 0
+    syncGaveUp > 0 ||
+    syncProvedAlive > 0
   ) {
     console.log(
       `[watchdog] stuck=${stuck.length} (pinged ${stuckPinged}, cooldown ${stuckCooldown}, gave_up ${stuckGaveUp}, reaped ${stuckReaped}, nativeSkipped ${stuckNativeSkipped}, drained ${stuckDrained}); ` +
         `signalStuck=${signalStuck.length} (pinged ${signalPinged}, cooldown ${signalCooldown}, gave_up ${signalGaveUp}, nativeSkipped ${signalNativeSkipped}); ` +
-        `pendingSync=${pendingSync.length} (pinged ${syncPinged}, cooldown ${syncCooldown}, gave_up ${syncGaveUp})`
+        `pendingSync=${pendingSync.length} (pinged ${syncPinged}, cooldown ${syncCooldown}, gave_up ${syncGaveUp}, provedAlive ${syncProvedAlive})`
     );
   }
 
@@ -611,7 +707,10 @@ export async function runRecordingWatchdogJob(): Promise<void> {
       .filter(
         (id) => !reapedUserIds.has(id) && !nativeSkippedUserIds.has(id) && !drainedUserIds.has(id)
       ),
-    ...pendingSync.map((u) => u.id),
+    // Same reasoning as the reaped/native/drained exclusions above: a user the
+    // watchdog set aside is resolved this run, so they must not keep the alert
+    // signature alive.
+    ...pendingSync.map((u) => u.id).filter((id) => !syncProvedAliveIds.has(id)),
   ].sort();
   if (stuckUserIds.length === 0) {
     lastAlertSignature = "";
@@ -673,8 +772,13 @@ export async function runRecordingWatchdogJob(): Promise<void> {
       );
     }
     if (pendingSync.length > 0) {
+      // Headline = the queues we actually acted on. Users proved alive since
+      // their heartbeat are listed separately, so the number means something.
       detailLines.push(
-        `Pending sync queues: ${pendingSync.length} (pinged ${syncPinged}, cooldown ${syncCooldown}, gave_up ${syncGaveUp})`
+        `Pending sync queues: ${pendingSync.length - syncProvedAlive} (pinged ${syncPinged}, cooldown ${syncCooldown}, gave_up ${syncGaveUp})` +
+          (syncProvedAlive > 0
+            ? ` · set aside: ${syncProvedAlive} proved alive since heartbeat`
+            : "")
       );
     }
     if (gaveUpHits > 0) {

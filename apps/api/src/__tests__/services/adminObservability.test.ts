@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   ageHours,
   classifyAndroidTester,
+  deviceProvedAliveSince,
   feedbackIsOpen,
   lastReplyBy,
   liveActivityRollup,
@@ -160,5 +161,34 @@ describe("tripQualityRollup", () => {
     expect(r.stubRate).toBeNull();
     expect(r.avgCoords).toBeNull();
     expect(r.byPlatform).toEqual([]);
+  });
+});
+
+describe("deviceProvedAliveSince", () => {
+  const heartbeat = new Date(NOW - 9 * 60 * 60 * 1000); // frozen at 00:00, read at 09:00
+
+  it("treats activity newer than the heartbeat as proof the app is alive", () => {
+    // The 12 Sep production shape: heartbeat frozen hours ago, trips since.
+    expect(deviceProvedAliveSince(heartbeat, new Date(NOW - 60 * 1000))).toBe(true);
+  });
+
+  it("does not count activity older than the heartbeat", () => {
+    expect(deviceProvedAliveSince(heartbeat, new Date(NOW - 10 * 60 * 60 * 1000))).toBe(false);
+  });
+
+  it("does not count activity from the same instant as the heartbeat", () => {
+    // The heartbeat request itself can write rows; they prove nothing extra.
+    expect(deviceProvedAliveSince(heartbeat, new Date(heartbeat.getTime()))).toBe(false);
+  });
+
+  it("returns false with a null heartbeat, so the push still goes out", () => {
+    expect(deviceProvedAliveSince(null, new Date(NOW))).toBe(false);
+    expect(deviceProvedAliveSince(undefined, new Date(NOW))).toBe(false);
+  });
+
+  it("returns false with no activity at all — the genuinely stuck case", () => {
+    expect(deviceProvedAliveSince(heartbeat, null)).toBe(false);
+    expect(deviceProvedAliveSince(heartbeat, undefined)).toBe(false);
+    expect(deviceProvedAliveSince(null, null)).toBe(false);
   });
 });

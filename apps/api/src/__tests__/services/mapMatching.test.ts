@@ -193,6 +193,69 @@ describe("trimEdgePhantoms", () => {
     expect(r.droppedLeading).toBe(0);
   });
 
+  // Rachel Thorndyke, 8 + 12 Sep 2026: the trim ate five REAL departures
+  // across two days, all at ~50 m accuracy, because the trail had not moved
+  // yet or the implied speed looked impossible. Anchors are the fix.
+  describe("known-place anchors", () => {
+    // A sparse departure: first fix at the farm, next fix 1.2 mi away, and
+    // the rest of the trail still close to it, so BOTH inferential rules bite.
+    const departure = { lat: 53.6687, lng: -0.3067, accuracy: 50, recordedAt: "2026-09-12T06:18:00Z" };
+    const sparseTrail = [
+      { lat: 53.6870, lng: -0.3090, accuracy: 8, recordedAt: "2026-09-12T06:18:52Z" },
+      { lat: 53.6872, lng: -0.3091, accuracy: 8, recordedAt: "2026-09-12T06:19:10Z" },
+      { lat: 53.6873, lng: -0.3092, accuracy: 8, recordedAt: "2026-09-12T06:19:30Z" },
+    ];
+
+    it("trims the real departure when nothing says the driver was there", () => {
+      const r = trimEdgePhantoms([departure, ...sparseTrail]);
+      expect(r.droppedLeading).toBe(1);
+    });
+
+    it("keeps it when it sits on the previous trip's end", () => {
+      const r = trimEdgePhantoms([departure, ...sparseTrail], [{ lat: 53.6687, lng: -0.3067 }]);
+      expect(r.droppedLeading).toBe(0);
+      expect(r.removedMiles).toBe(0);
+    });
+
+    it("keeps it when it sits on a saved location a little way off", () => {
+      // ~120 m away, inside EDGE_PHANTOM_ANCHOR_METRES.
+      const r = trimEdgePhantoms([departure, ...sparseTrail], [{ lat: 53.6698, lng: -0.3067 }]);
+      expect(r.droppedLeading).toBe(0);
+    });
+
+    it("still trims when the anchor is too far away to vouch for it", () => {
+      // ~1.4 km away, outside the anchor radius.
+      const r = trimEdgePhantoms([departure, ...sparseTrail], [{ lat: 53.6810, lng: -0.3067 }]);
+      expect(r.droppedLeading).toBe(1);
+    });
+
+    it("still trims a cell-tower fix sitting ON a known place: physics outranks anchors", () => {
+      const ghost = { lat: 53.6363, lng: -0.2941, accuracy: 2724 };
+      const r = trimEdgePhantoms([ghost, ...real], [{ lat: 53.6363, lng: -0.2941 }]);
+      expect(r.droppedLeading).toBe(1);
+      expect(r.worstAccuracyM).toBe(2724);
+    });
+
+    it("will not let a known place vouch for an impossible jump", () => {
+      // The 13 Sep dry-run's worst real cases were 1,497 / 1,496 / 417 miles,
+      // all decided by inference at good claimed accuracy. A stale fix sitting
+      // at home must NOT keep a leg like that on the trip.
+      const farAway = [
+        { lat: 55.9533, lng: -3.1883, accuracy: 8, recordedAt: "2026-09-12T06:18:52Z" },
+        { lat: 55.9534, lng: -3.1884, accuracy: 8, recordedAt: "2026-09-12T06:19:10Z" },
+        { lat: 55.9535, lng: -3.1885, accuracy: 8, recordedAt: "2026-09-12T06:19:30Z" },
+      ];
+      const r = trimEdgePhantoms([departure, ...farAway], [{ lat: 53.6687, lng: -0.3067 }]);
+      expect(r.droppedLeading).toBe(1);
+      expect(r.removedMiles).toBeGreaterThan(100);
+    });
+
+    it("behaves exactly as before when no anchors are passed", () => {
+      const r = trimEdgePhantoms([phantomStart, ...real]);
+      expect(r.droppedLeading).toBe(1);
+    });
+  });
+
   it("never touches interior points or accuracy-less points", () => {
     const r = trimEdgePhantoms([real[0], { lat: 53.60, lng: -0.20, accuracy: 3000 }, real[2], real[3]]);
     expect(r.breadcrumbs.length).toBe(4);

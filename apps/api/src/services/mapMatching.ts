@@ -116,8 +116,38 @@ export const EDGE_PHANTOM_MAX_JUMP_MPH = 90;
  *  house behind a first fix 1.24 mi away). A real drive moves; a trail
  *  spanning under this is a parked phone, so the far edge is stale. */
 export const EDGE_PHANTOM_STATIONARY_SPAN_MILES = 0.1;
+/** Fourth signature, inverted (Rachel Thorndyke, 8 + 12 Sep 2026). The two
+ *  INFERENTIAL rules above - "the rest of the trail never moved" and "that
+ *  implied speed is impossible" - both read a sparse departure as a ghost.
+ *  They are wrong when the edge fix sits where the driver demonstrably was:
+ *  the end of their previous trip, or one of their saved places. On 8 Sep the
+ *  trim ate three of her real departures (1.57 / 1.48 / 0.85 mi); on 12 Sep it
+ *  took 1.31 and 3.14 mi more, all at 50 m accuracy, i.e. nowhere near the
+ *  cell-tower rule. A fix within this distance of a known place is a real
+ *  start, so those two rules stand down for it.
+ *
+ *  The ACCURACY rule deliberately still applies: a 2,724 m cell-tower fix is a
+ *  ghost wherever it happens to land, and a stale one can sit right on top of
+ *  a saved place. Only inference is vetoed, never physics. */
+export const EDGE_PHANTOM_ANCHOR_METRES = 250;
+/** Ceiling on what a known place is allowed to vouch for. A 14-day dry-run
+ *  (13 Sep 2026) found the inferential rules decide 555 of 673 trims, and the
+ *  biggest were 1,497 / 1,496 / 417 miles - GPS garbage, caught by inference
+ *  rather than by accuracy. A stale first fix very often sits AT HOME, which
+ *  is exactly the anchor being trusted, so without this ceiling the guard
+ *  would keep a 1,497-mile leg on someone's HMRC record. Real wake-lag
+ *  departures are small: Rachel's were 0.85-3.14 mi. Above this, the
+ *  inferential rules bite whatever the anchors say. */
+export const EDGE_PHANTOM_ANCHOR_MAX_JUMP_MILES = 10;
 const MAX_EDGE_TRIM = 3;
 const MIN_POINTS_AFTER_TRIM = 3;
+
+/** Somewhere the driver is known to have been: the end of their previous
+ *  trip, or a saved location. */
+export interface KnownPlace {
+  lat: number;
+  lng: number;
+}
 
 export interface EdgeTrimResult<T extends BreadcrumbInput> {
   breadcrumbs: T[];
@@ -138,7 +168,10 @@ function milesBetween(a: BreadcrumbInput, b: BreadcrumbInput): number {
   return 2 * R * Math.asin(Math.sqrt(x));
 }
 
-export function trimEdgePhantoms<T extends BreadcrumbInput>(input: T[]): EdgeTrimResult<T> {
+export function trimEdgePhantoms<T extends BreadcrumbInput>(
+  input: T[],
+  anchors: KnownPlace[] = []
+): EdgeTrimResult<T> {
   const pts = [...input];
   let droppedLeading = 0;
   let droppedTrailing = 0;
@@ -156,10 +189,21 @@ export function trimEdgePhantoms<T extends BreadcrumbInput>(input: T[]): EdgeTri
     for (let i = 1; i < rest.length; i++) span = Math.max(span, milesBetween(rest[0], rest[i]));
     return span;
   };
+  const anchorMiles = EDGE_PHANTOM_ANCHOR_METRES / 1609.344;
+  const atKnownPlace = (edge: T): boolean =>
+    anchors.some((a) => milesBetween(edge, a) <= anchorMiles);
+
   const isPhantomEdge = (edge: T, neighbour: T, rest: T[]): boolean => {
     const jump = milesBetween(edge, neighbour);
     if (jump < EDGE_PHANTOM_MIN_JUMP_MILES) return false;
+    // Physics first, and it outranks the anchors: a cell-tower fix is a ghost
+    // even when it lands on a place the driver knows.
     if (typeof edge.accuracy === "number" && edge.accuracy > EDGE_PHANTOM_ACCURACY_M) return true;
+    // The two inferential rules stand down at a known place - that is a real
+    // departure the phone was simply slow to follow, not a stale fix. But a
+    // known place only vouches for a PLAUSIBLE jump; nothing on earth makes a
+    // 400-mile hop from the driveway real.
+    if (jump <= EDGE_PHANTOM_ANCHOR_MAX_JUMP_MILES && atKnownPlace(edge)) return false;
     if (spanMiles(rest) < EDGE_PHANTOM_STATIONARY_SPAN_MILES) return true;
     const mph = impliedMph(edge, neighbour);
     return mph != null && mph > EDGE_PHANTOM_MAX_JUMP_MPH;

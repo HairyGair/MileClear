@@ -159,6 +159,49 @@ export function liveActivityRollup(events: LiveActivityEventLike[]): LiveActivit
   return out;
 }
 
+// ── Watchdog liveness corroboration ────────────────────────────────────────
+
+/**
+ * Did this device demonstrably talk to the server AFTER the heartbeat the
+ * watchdog is reasoning about?
+ *
+ * Why this exists (12 Sep 2026). The recording watchdog's pending-sync check
+ * treats "heartbeat older than 30 minutes" as "the JS runtime is dead, so 30+
+ * periodicTicks should have drained the queue by now". That inference is
+ * invalid: `lastHeartbeatAt` and `lastPendingSyncCount` are written ONLY by
+ * POST /user/heartbeat, and the mobile client rate-limits that to once per 24
+ * hours (apps/mobile/lib/heartbeat, HEARTBEAT_INTERVAL_MS). A perfectly
+ * healthy phone therefore has a 30-minutes-plus-stale heartbeat for roughly 23
+ * of every 24 hours, and its pending-sync count is a snapshot up to a day old.
+ * Three users hit the 4-attempts cap on production that day; all three were on
+ * iOS with valid push tokens and were saving trips while the watchdog declared
+ * their push delivery "structurally broken" — one had a heartbeat frozen at
+ * 07:29 and created trips at 16:28 and 16:46.
+ *
+ * The server already holds the disproof: a Trip row or a device-originated
+ * AppEvent row created after that heartbeat is proof the app reached us since
+ * the snapshot, so the snapshot is simply out of date rather than evidence of a
+ * dead runtime. Callers must pass only DEVICE-ORIGINATED activity: server-side
+ * families (notification.*, watchdog.*, billing.* …) are logged against a
+ * userId while the device is dark, so counting them would suppress the pushes
+ * that genuinely-stuck users need.
+ *
+ * Strictly-newer comparison: the heartbeat request itself can write rows in the
+ * same instant, and those prove nothing beyond the heartbeat we already have.
+ *
+ * A null heartbeat returns false: there is no snapshot to be stale, so there is
+ * nothing for activity to disprove, and with no reference point a months-old
+ * trip would otherwise read as "alive". The watchdog's own selection query
+ * already requires a non-null heartbeat.
+ */
+export function deviceProvedAliveSince(
+  lastHeartbeatAt: Date | null | undefined,
+  latestActivityAt: Date | null | undefined
+): boolean {
+  if (!lastHeartbeatAt || !latestActivityAt) return false;
+  return latestActivityAt.getTime() > lastHeartbeatAt.getTime();
+}
+
 // ── Trip quality ───────────────────────────────────────────────────────────
 
 export interface TripQualityRow {
