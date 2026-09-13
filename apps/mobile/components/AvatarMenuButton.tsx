@@ -85,7 +85,7 @@ const GROUPS = [
 // ── Component ──────────────────────────────────────────────────────
 
 export default function AvatarMenuButton() {
-  const { user, isCompanyDriver } = useUser();
+  const { user, isCompanyDriver, isLoading } = useUser();
   const { logout } = useAuth();
   const router = useRouter();
   const segments = useSegments();
@@ -140,6 +140,14 @@ export default function AvatarMenuButton() {
     () => new Set(menuLayout.visibleKeys),
     [menuLayout.visibleKeys]
   );
+
+  // Same isPremium field the rest of the app reads (see PremiumGate's
+  // useIsPremium). A paying subscriber should not be advertised features
+  // they already own, so the "PRO" badges below are for free users only.
+  // While the profile is still loading, user is null and this reads as
+  // false — treat that as premium too rather than flash "PRO" at someone
+  // who pays, for the moment before their real status arrives.
+  const isPremium = isLoading || (user?.isPremium ?? false);
 
   return (
     <View style={styles.avatarBtn}>
@@ -242,6 +250,11 @@ export default function AvatarMenuButton() {
                       const item = MENU_ITEMS[k];
                       if (k === "menu_trips" && unclassifiedCount > 0) {
                         return { ...item, badge: String(unclassifiedCount) };
+                      }
+                      // Pro badge is the upsell for free users — a Pro
+                      // subscriber already has these features, so drop it.
+                      if (item.badge === "PRO" && isPremium) {
+                        return { ...item, badge: undefined };
                       }
                       return item;
                     });
