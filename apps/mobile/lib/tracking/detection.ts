@@ -15,8 +15,11 @@ import {
   DRIVING_EVIDENCE_SPEED_MPH,
   bestTraceDistance,
   computeTripQuality,
+  computeSustainedSpeedMph,
+  decideWalk,
   filterTraceOutliers,
   hasRealMovementEvidence,
+  summariseMotion,
 } from "@mileclear/shared";
 import { startLiveActivity, updateLiveActivity, endLiveActivity, endLiveActivityWithSummary, recoverLiveActivity, getLastLiveActivityStartError, getActiveActivityId } from "../liveActivity";
 import { getLiveActivityContext } from "../liveActivity/context";
@@ -28,6 +31,7 @@ import { getNotificationPreferences } from "../notifications/preferences";
 import { ensureAnchorGeofenceArmed } from "../geofencing";
 import { signalTripStart } from "../api/trips";
 import { decideAutoTripLiveActivity } from "../liveActivity/autoTripRule";
+import { getStepsBetween } from "./stepCount";
 
 /**
  * Wrapper around startLiveActivity for auto-detected trips. Honors the user
@@ -273,6 +277,10 @@ export interface BufferedCoordinate {
   lng: number;
   speed: number | null;
   accuracy: number | null;
+  /** Motion coprocessor classification for this fix, when the platform gives
+   *  us one (iOS native engine only). Drives walk detection at finalize. */
+  activity?: string | null;
+  activity_confidence?: number | null;
   recorded_at: string;
 }
 
@@ -1273,7 +1281,7 @@ async function _finalizeAutoTripInner(): Promise<void> {
 
   // Read all buffered coordinates
   const rawCoords = await db.getAllAsync<BufferedCoordinate>(
-    "SELECT lat, lng, speed, accuracy, recorded_at FROM detection_coordinates ORDER BY recorded_at ASC"
+    "SELECT lat, lng, speed, accuracy, activity, activity_confidence, recorded_at FROM detection_coordinates ORDER BY recorded_at ASC"
   );
 
   // Safety: if auto_recording_active got stuck ON across a crash, the buffer
@@ -1631,6 +1639,27 @@ async function _finalizeAutoTripInner(): Promise<void> {
     matchSucceeded: distanceResult.matchSucceeded,
   });
 
+  // Walk evidence, computed once and used by every guard below.
+  //
+  // Speed comes from the trace geometry, not the device speed field, because
+  // the field cannot be trusted: the fleet carries 100-mile-plus motorway
+  // drives whose recorded peak is 0, and a rule keyed on it would have hidden
+  // 1,578 real trips. Motion comes from the coprocessor's per-fix
+  // classification, which is ground truth about the body carrying the phone
+  // and is independent of GPS entirely.
+  const sustainedSpeedMph = computeSustainedSpeedMph(filteredCoords);
+  const motion = summariseMotion(allCoords);
+  tripQuality.sustainedSpeedMph = sustainedSpeedMph;
+  tripQuality.motionFixes = motion.fixes;
+  tripQuality.pctOnFoot = motion.pctOnFoot;
+  tripQuality.pctInVehicle = motion.pctInVehicle;
+
+  /** Did this trip prove it was a vehicle? Sustained speed first (trustworthy
+   *  and usually present), the device's own peak as a fallback. */
+  const provedDriving =
+    (sustainedSpeedMph !== null && sustainedSpeedMph >= DRIVING_EVIDENCE_SPEED_MPH) ||
+    (tripQuality.maxSpeedMph ?? 0) >= DRIVING_EVIDENCE_SPEED_MPH;
+
   if (totalDistance < MIN_AUTO_TRIP_DISTANCE_MILES) {
     // Too short to save. Whether to SAY so depends on what it was: a genuine
     // short hop deserves an explanation and a one-tap alternative, but this
@@ -1639,7 +1668,7 @@ async function _finalizeAutoTripInner(): Promise<void> {
     // Driving speed is the discriminator - the same evidence test the phantom
     // guard uses below. Denise Sweeney's Cove Bay hops (22 Aug, 0.2-0.5 mi at
     // ~28 mph) are the case this is for.
-    const wasRealDriving = (tripQuality.maxSpeedMph ?? 0) >= DRIVING_EVIDENCE_SPEED_MPH;
+    const wasRealDriving = provedDriving;
     logDetectionEvent("finalize_too_short", {
       distance: totalDistance,
       gpsSumDistance,
@@ -1702,7 +1731,54 @@ async function _finalizeAutoTripInner(): Promise<void> {
   const avgMph = durationSec > 0 ? totalDistance / (durationSec / 3600) : 0;
   // Speed reprieve: a trip that clocked a real driving speed is a genuine
   // (short, stop-go) drive, not a walking-shape GPS-drift misfire — never drop it.
-  const hitDrivingSpeed = (tripQuality.maxSpeedMph ?? 0) >= DRIVING_EVIDENCE_SPEED_MPH;
+  const hitDrivingSpeed = provedDriving;
+
+  // Walk guard (13 Sep 2026). The old walking-shape test below only looks at
+  // trips under a mile, so an ordinary dog walk cleared it and was saved as a
+  // drive - which is why people were going through their mileage every day
+  // cancelling trips. This asks the question directly instead of inferring it
+  // from distance: what did the motion coprocessor say, and did the phone ever
+  // hold a speed no walker can?
+  //
+  // A "walk" verdict requires POSITIVE on-foot evidence. Absence of driving
+  // evidence is never enough - that asymmetry is the whole safety argument,
+  // and it is why this changes nothing on Android (no motion API available)
+  // and nothing for any trip whose evidence is missing.
+  const steps = await getStepsBetween(
+    new Date(first.recorded_at),
+    new Date(last.recorded_at)
+  );
+  tripQuality.steps = steps;
+  const walk = decideWalk({
+    distanceMiles: totalDistance,
+    durationSec,
+    sustainedSpeedMph,
+    motion,
+    steps,
+  });
+  tripQuality.walkVerdict = walk.verdict;
+  tripQuality.walkReason = walk.reason;
+
+  if (walk.verdict === "walk") {
+    logDetectionEvent("finalize_dropped_walk", {
+      distance: totalDistance,
+      durationSec: Math.round(durationSec),
+      reason: walk.reason,
+      sustainedSpeedMph,
+      motionFixes: motion.fixes,
+      pctOnFoot: motion.pctOnFoot,
+      steps,
+    }).catch(() => {});
+    await consumeProcessedBuffer();
+    endLiveActivity().catch(() => {});
+    try {
+      const { setDepartureAnchor } = await import("../geofencing/index");
+      await setDepartureAnchor(last.lat, last.lng);
+      logDetectionEvent("anchor_rearmed_after_phantom", { reason: "walk" }).catch(() => {});
+    } catch {}
+    return;
+  }
+
   if (totalDistance < 1.0 && durationSec > 5 * 60 && avgMph < 5 && !hitDrivingSpeed) {
     logDetectionEvent("finalize_dropped_phantom", {
       distance: totalDistance,

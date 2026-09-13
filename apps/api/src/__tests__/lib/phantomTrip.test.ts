@@ -339,3 +339,98 @@ describe("the impossible chord (Rachel Thorndyke, 7 Sep 2026)", () => {
     ).toBe(false);
   });
 });
+
+describe("looksLikePhantomTrip - walk evidence (13 Sep 2026)", () => {
+  const walkBase = {
+    ...base,
+    endedAt: "2026-05-29T15:45:00.000Z", // 45 min
+    isManualEntry: false,
+    coordinateCount: 120,
+  };
+
+  it("flags a two-mile dog walk, which the distance-capped rule never saw", () => {
+    expect(
+      looksLikePhantomTrip({
+        ...walkBase,
+        distanceMiles: 2.1,
+        sustainedSpeedMph: 3.2,
+        pctOnFoot: 0.9,
+        motionFixes: 60,
+      })
+    ).toBe(true);
+  });
+
+  it("trusts the device's own walk verdict, which saw the per-fix motion data", () => {
+    expect(
+      looksLikePhantomTrip({ ...walkBase, distanceMiles: 3.4, walkVerdict: "walk" })
+    ).toBe(true);
+  });
+
+  it("outranks the single-sample speed reprieve", () => {
+    // One spurious 18 mph fix in a half-hour walk used to buy the whole walk
+    // a pass, because the reprieve fired before the walking test.
+    expect(
+      looksLikePhantomTrip({
+        ...walkBase,
+        distanceMiles: 1.8,
+        maxSpeedMph: 19,
+        sustainedSpeedMph: 3,
+        pctOnFoot: 0.85,
+        motionFixes: 40,
+      })
+    ).toBe(true);
+  });
+
+  it("leaves a mixed walk-then-drive trace alone", () => {
+    expect(
+      looksLikePhantomTrip({
+        ...walkBase,
+        distanceMiles: 6,
+        sustainedSpeedMph: 24,
+        pctOnFoot: 0.7,
+        motionFixes: 40,
+      })
+    ).toBe(false);
+  });
+
+  it("needs a big enough motion sample to conclude anything", () => {
+    expect(
+      looksLikePhantomTrip({
+        ...walkBase,
+        distanceMiles: 4,
+        sustainedSpeedMph: 5,
+        pctOnFoot: 1,
+        motionFixes: 3,
+      })
+    ).toBe(false);
+  });
+
+  it("does not flag a slow drive that simply has no motion data (Android)", () => {
+    expect(
+      looksLikePhantomTrip({ ...walkBase, distanceMiles: 4, sustainedSpeedMph: 6 })
+    ).toBe(false);
+  });
+});
+
+describe("provedDriving - either speed measure rescues a trip", () => {
+  // A fleet dry-run found sparse long drives whose geometry-derived sustained
+  // speed lands below the bar while the device's own peak is well above it: a
+  // 210-mile journey carried 33 coordinates. Neither measure may veto the other.
+  const sparse = {
+    ...base,
+    endedAt: "2026-05-29T16:05:00.000Z", // 65 min
+    isManualEntry: false,
+    distanceMiles: 0.6,
+    coordinateCount: 2,
+  };
+
+  it("rescues a sparse trip on the device peak when geometry saw nothing", () => {
+    expect(looksLikePhantomTrip({ ...sparse, maxSpeedMph: 26, sustainedSpeedMph: 13.1 }))
+      .toBe(false);
+  });
+
+  it("rescues a trip on sustained speed when the device reported zero", () => {
+    expect(looksLikePhantomTrip({ ...sparse, maxSpeedMph: 0, sustainedSpeedMph: 38 }))
+      .toBe(false);
+  });
+});
