@@ -768,7 +768,15 @@ export async function tripRoutes(app: FastifyInstance) {
 
     const isManualEntry = !hasCoordinates;
     const gq = tripData.gpsQuality as
-      | { maxSpeedMph?: number | null; lowConfidence?: boolean; avgAccuracyM?: number | null }
+      | {
+          maxSpeedMph?: number | null;
+          lowConfidence?: boolean;
+          avgAccuracyM?: number | null;
+          sustainedSpeedMph?: number | null;
+          pctOnFoot?: number | null;
+          motionFixes?: number | null;
+          walkVerdict?: string | null;
+        }
       | null
       | undefined;
     const isPhantomTrip = looksLikePhantomTrip({
@@ -781,6 +789,14 @@ export async function tripRoutes(app: FastifyInstance) {
       maxSpeedMph: typeof gq?.maxSpeedMph === "number" ? gq.maxSpeedMph : null,
       lowConfidence: gq?.lowConfidence === true,
       avgAccuracyM: typeof gq?.avgAccuracyM === "number" ? gq.avgAccuracyM : null,
+      // Walk evidence (13 Sep 2026). Only newer builds send these; every one
+      // is optional and absence means "no opinion", so older clients behave
+      // exactly as before.
+      sustainedSpeedMph:
+        typeof gq?.sustainedSpeedMph === "number" ? gq.sustainedSpeedMph : null,
+      pctOnFoot: typeof gq?.pctOnFoot === "number" ? gq.pctOnFoot : null,
+      motionFixes: typeof gq?.motionFixes === "number" ? gq.motionFixes : null,
+      walkVerdict: typeof gq?.walkVerdict === "string" ? gq.walkVerdict : null,
     });
 
     const tripPayload = {

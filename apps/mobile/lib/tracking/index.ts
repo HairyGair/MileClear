@@ -10,7 +10,7 @@ import { startDriveDetection, stopDriveDetection, cancelAutoRecording, clearNotD
 import { reverseGeocode } from "../location/geocoding";
 import { getScheduleClassification } from "../schedule/index";
 import { setDepartureAnchor } from "../geofencing/index";
-import { bestTraceDistance, computeTripQuality, filterTraceOutliers } from "@mileclear/shared";
+import { bestTraceDistance, computeSustainedSpeedMph, computeTripQuality, filterTraceOutliers } from "@mileclear/shared";
 
 const LOCATION_TASK_NAME = "mileclear-background-location";
 const QUICK_TRIP_SHIFT_ID = "__quick_trip__";
@@ -421,6 +421,12 @@ export async function processShiftTrips(
       distanceSource: distanceResult.source,
       matchSucceeded: distanceResult.matchSucceeded,
     });
+    // Speed from the trace geometry, recorded for the server's benefit. A
+    // shift trip is never walk-suppressed - the driver started the shift
+    // themselves, so their intent outranks any sensor - but the server's
+    // phantom guards use this to tell a real short hop from GPS drift, and
+    // the device's own speed field is too often zero to rely on.
+    tripQuality.sustainedSpeedMph = computeSustainedSpeedMph(filteredSegment);
 
     if (totalDistance < MIN_TRIP_DISTANCE_MILES) continue;
 

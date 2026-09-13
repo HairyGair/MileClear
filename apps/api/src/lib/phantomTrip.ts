@@ -17,7 +17,12 @@
 // in the DB for diagnostics, but excluded from user-facing reads and
 // analytics aggregates.
 
-import { DRIVING_EVIDENCE_SPEED_MPH } from "@mileclear/shared";
+import {
+  DRIVING_EVIDENCE_SPEED_MPH,
+  WALK_MAX_SUSTAINED_MPH,
+  WALK_MIN_MOTION_FIXES,
+  WALK_MIN_ON_FOOT_PCT,
+} from "@mileclear/shared";
 
 const PHANTOM_MIN_DURATION_SEC = 5 * 60;   // 5 min
 const PHANTOM_MAX_DISTANCE_MILES = 1.0;    // 1 mile
@@ -87,6 +92,20 @@ export interface PhantomCheckInput {
    *  thousands means the trip never had a GPS fix at all — every point is a
    *  cell tower, so the distance between them is a guess. */
   avgAccuracyM?: number | null;
+  /** Fastest speed HELD for 45 seconds, computed from the trace geometry
+   *  (13 Sep 2026). Strictly better evidence than maxSpeedMph, which is the
+   *  device's own speed field and reads 0 on plenty of motorway drives — a
+   *  fleet check found 1,578 trips and 5,156 miles that a maxSpeedMph rule
+   *  would have wrongly hidden, including a 263-mile Carlisle-to-London run. */
+  sustainedSpeedMph?: number | null;
+  /** Share (0-1) of confidently classified fixes the motion coprocessor called
+   *  on foot, and how many such fixes there were. iOS only. */
+  pctOnFoot?: number | null;
+  motionFixes?: number | null;
+  /** The device's own walk verdict. It had the per-fix motion data that never
+   *  reaches the server, so when it says "walk" it is better informed than
+   *  anything this file can work out. */
+  walkVerdict?: string | null;
 }
 
 /**
@@ -201,15 +220,77 @@ function looksLikeRealJourney(args: PhantomCheckInput): boolean {
   return avgMph >= REAL_JOURNEY_MIN_AVG_MPH && avgMph <= REAL_JOURNEY_MAX_AVG_MPH;
 }
 
+/**
+ * Did the trip prove it was a vehicle?
+ *
+ * EITHER measure is enough, and that is deliberate. A first draft let the
+ * sustained figure replace maxSpeedMph whenever it was present, and a fleet
+ * dry-run caught it: of 150 sampled drives over 20 miles, four reported a
+ * device peak comfortably over the bar (26, 28, 35 mph) while their sustained
+ * figure came in at 13-17.7, because the trace was too sparse for the geometry
+ * to see the fast part. A 210-mile journey held just 33 coordinates. Replacing
+ * one with the other would have stripped the driving reprieve from real
+ * motorway drives; the two measures fail in different conditions, so the trip
+ * gets the benefit of whichever one saw the driving.
+ */
+function provedDriving(args: PhantomCheckInput): boolean {
+  if (
+    typeof args.sustainedSpeedMph === "number" &&
+    args.sustainedSpeedMph >= DRIVING_EVIDENCE_SPEED_MPH
+  ) {
+    return true;
+  }
+  return (args.maxSpeedMph ?? 0) >= DRIVING_EVIDENCE_SPEED_MPH;
+}
+
+/**
+ * Was the phone being carried on foot?
+ *
+ * Positive evidence only: a majority of confidently-classified fixes saying on
+ * foot, over a large enough sample, with no speed a walker could not hold.
+ * Absence of driving evidence never reaches this function's conclusion, which
+ * is what stops it eating real drives whose telemetry was thin.
+ *
+ * Unlike the walking-shape rule at the bottom of this file, there is no
+ * distance cap. That cap is exactly why an ordinary two-mile dog walk was
+ * saved as a drive and had to be deleted by hand every day.
+ */
+function looksLikeWalk(args: PhantomCheckInput): boolean {
+  if (args.walkVerdict === "walk") return true;
+  if (typeof args.pctOnFoot !== "number") return false;
+  if ((args.motionFixes ?? 0) < WALK_MIN_MOTION_FIXES) return false;
+  if (args.pctOnFoot < WALK_MIN_ON_FOOT_PCT) return false;
+  if (
+    typeof args.sustainedSpeedMph === "number" &&
+    args.sustainedSpeedMph >= WALK_MAX_SUSTAINED_MPH
+  ) {
+    return false;
+  }
+  return true;
+}
+
 export function looksLikePhantomTrip(args: PhantomCheckInput): boolean {
   if (args.isManualEntry) return false;
 
   // Short, and never once reached a speed a car reaches. Checked before the
   // speed reprieve below, which asks the same question the other way round.
+  //
+  // The sustained clause was added 13 Sep 2026 because this rule rested
+  // entirely on maxSpeedMph, and that field reads 0 on plenty of real drives.
+  // A fleet sample of 150 trips already flagged phantom found 18 whose trace
+  // geometry showed sustained driving speed - among them 0.61 miles in 3
+  // minutes at 21.9 mph and 0.8 miles in 4 minutes at 18.5. Those are short
+  // hops that genuinely happened, hidden from their owner's mileage by a
+  // sensor reading rather than by anything they did. If the geometry saw
+  // driving, the phone did drive.
   if (
     typeof args.maxSpeedMph === "number" &&
     args.maxSpeedMph < NEVER_DROVE_MAX_SPEED_MPH &&
-    args.distanceMiles < NEVER_DROVE_MAX_MILES
+    args.distanceMiles < NEVER_DROVE_MAX_MILES &&
+    !(
+      typeof args.sustainedSpeedMph === "number" &&
+      args.sustainedSpeedMph >= NEVER_DROVE_MAX_SPEED_MPH
+    )
   ) {
     return true;
   }
@@ -221,9 +302,14 @@ export function looksLikePhantomTrip(args: PhantomCheckInput): boolean {
   if (looksLikeCellTowerChord(args)) return true;
   if (looksLikeImpossibleChord(args)) return true;
 
-  // Speed reprieve: if the trip clocked a real driving speed at any point, it's
-  // a genuine drive however short or sparse — never a phantom.
-  if ((args.maxSpeedMph ?? 0) >= DRIVING_EVIDENCE_SPEED_MPH) return false;
+  // On-foot evidence, ABOVE the speed reprieve. The reprieve fires on a single
+  // sample, and one spurious 18 mph fix in a half-hour walk was enough to buy
+  // the whole walk a pass. Motion evidence spans the trip, so it outranks it.
+  if (looksLikeWalk(args)) return true;
+
+  // Speed reprieve: if the trip clocked a real driving speed, it's a genuine
+  // drive however short or sparse — never a phantom.
+  if (provedDriving(args)) return false;
 
   // Crow-flies check fires regardless of duration/avg-speed. An auto trip
   // with 0/1/2 coords and >=1 mile distance is structurally suspect —
