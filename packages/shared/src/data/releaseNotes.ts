@@ -89,6 +89,14 @@ export const RELEASE_NOTES: ReleaseNote[] = [
     // moving. Label flow: "In Testing" on TestFlight, "Pending Review" with
     // Apple, "Latest" on approval in the same edit that drops 1.3.10 to
     // "App Store".
+    //
+    // 13 Sep 2026: the walk bullets below did NOT wait for this binary. They
+    // went out by OTA the day they landed, to build 89 and build 87 on iOS and
+    // to the Android fleet, so they are already true for ~92% of active
+    // drivers. Listed here because 1.3.11 is the open version and the rule is
+    // to add the bullet when the work LANDS, not when the build is cut — same
+    // as 1.3.10 carrying what had OTA'd to 1.3.9 phones. Phrased as what
+    // changed, never "update to get this", because most readers already have it.
     version: "1.3.11",
     date: "September 2026",
     label: "In Testing",
@@ -96,6 +104,8 @@ export const RELEASE_NOTES: ReleaseNote[] = [
       "Tapping Business or Personal on the lock-screen card after a trip now applies at once and the card clears, instead of waiting until the next time you open the app",
       "Tapping Not Driving on the lock-screen card during a detected drive now stops the recording there and then; before, the card went away but the drive was still saved",
       "A ride you dismissed as not yours is no longer offered back as a missed journey the next time you open the app",
+      "A walk no longer turns into a trip. The app now reads your phone's motion sensor, which can tell being carried on foot from being driven, so walking the dog or moving about a yard stops appearing in your mileage as something to delete",
+      "Short real drives that were being left out of your mileage now count. The app had been judging them on a speed reading that is often missing or zero even on a motorway, and it now works the speed out from the route itself",
     ],
     ctaUrl: "https://mileclear.com/releases",
     ctaLabel: "Read the release notes",
@@ -869,6 +879,7 @@ export const ANDROID_RELEASE_NOTES: ReleaseNote[] = [
       "Open a finished trip and a map of the route sits above the Business and Personal buttons",
       "A short drive the app records but decides is too brief to save is offered back to you instead of being deleted",
       "The list of suggested places to save no longer disappears once you have saved your first place",
+      "Short real drives that were being left out of your mileage now count. The speed is now worked out from the route itself rather than from a phone reading that is often zero even on a motorway",
     ],
   },
   {
