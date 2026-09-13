@@ -378,6 +378,38 @@ export interface TripQuality {
   // and must be shown, but the route/distance is uncertain — surface a badge and
   // route it to the inbox for review rather than silently deleting it.
   lowConfidence?: boolean;
+  // The driver answered "Still on a job" at a stop, so the leg that followed
+  // was joined onto this trip on purpose. The server's visit auto-split must
+  // leave the trip whole: the dwell inside it is a wait, not a journey end.
+  driverKeptGoing?: boolean;
+
+  // ── Walk evidence (13 Sep 2026) ──────────────────────────────────────────
+  // Why these exist: the fleet proved that neither average speed nor the
+  // device's own reported peak speed can tell a walk from a drive. Average
+  // speed measures a broken end-time clock (167-mile "trips" at 6 mph), and
+  // maxSpeedMph is absent or zero on genuinely fast drives (a 263-mile run
+  // reporting a peak of 0). So the decision moved onto signals that are
+  // actually trustworthy, and they are recorded here so the rule stays
+  // auditable against real trips rather than tuned by guesswork.
+  //
+  /** Fastest speed HELD for a 45-second window, computed from the trace
+   *  geometry rather than read from the device. Available whenever there are
+   *  timestamped fixes, which is exactly when the device field is not. */
+  sustainedSpeedMph?: number | null;
+  /** Fixes carrying a confident motion classification. Zero on Android, where
+   *  the ACTIVITY_RECOGNITION permission is blocked. */
+  motionFixes?: number;
+  /** Share (0-1) of confident fixes classified on foot / in a vehicle. Null
+   *  when too few fixes to divide by. */
+  pctOnFoot?: number | null;
+  pctInVehicle?: number | null;
+  /** Steps over the trip window (iOS CMPedometer). Null means no pedometer;
+   *  zero means it counted none. Never treat zero as evidence of driving. */
+  steps?: number | null;
+  /** What the walk rule concluded, and why. "unknown" is the common and safe
+   *  answer and changes nothing. */
+  walkVerdict?: "walk" | "drive" | "unknown";
+  walkReason?: string;
 }
 
 /**

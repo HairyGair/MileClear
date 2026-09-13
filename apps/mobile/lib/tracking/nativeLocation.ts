@@ -85,6 +85,12 @@ interface NativeLocation {
   coords: { latitude: number; longitude: number; speed: number | null; accuracy: number | null };
   timestamp: string;
   is_moving?: boolean;
+  // The motion coprocessor's own read on what the phone's carrier was doing
+  // when this fix was taken. RNBG has always sent it; we discarded it until
+  // 13 Sep 2026, which is why a walk and a crawling drive were
+  // indistinguishable. iOS only: the config sets disableMotionActivityUpdates
+  // on Android because ACTIVITY_RECOGNITION is blocked there.
+  activity?: { type?: string | null; confidence?: number | null } | null;
 }
 interface NativeMotionEvent {
   isMoving: boolean;
@@ -753,13 +759,15 @@ async function plantNativeAnchorBackfill(db: DB, seed: NativeLocation): Promise<
  */
 async function bufferCoord(db: DB, loc: NativeLocation, previous?: RecentFix): Promise<void> {
   await db.runAsync(
-    `INSERT INTO detection_coordinates (lat, lng, speed, accuracy, recorded_at)
-     VALUES (?, ?, ?, ?, ?)`,
+    `INSERT INTO detection_coordinates (lat, lng, speed, accuracy, activity, activity_confidence, recorded_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`,
     [
       loc.coords.latitude,
       loc.coords.longitude,
       loc.coords.speed ?? null,
       loc.coords.accuracy ?? null,
+      loc.activity?.type ?? null,
+      typeof loc.activity?.confidence === "number" ? loc.activity.confidence : null,
       loc.timestamp,
     ]
   );
@@ -1304,18 +1312,27 @@ async function reconcileNativeBuffer(BGGeo: BgGeo): Promise<void> {
     await db.execAsync("BEGIN IMMEDIATE");
     try {
       await db.runAsync("DELETE FROM detection_coordinates");
-      const CHUNK = 150; // 5 params/row, safely under SQLite's 999-variable cap
+      const CHUNK = 120; // 7 params/row, safely under SQLite's 999-variable cap
       for (let i = 0; i < kept.length; i += CHUNK) {
         const rows = kept.slice(i, i + CHUNK).filter((l) => l.coords);
         if (rows.length === 0) continue;
-        const placeholders = rows.map(() => "(?, ?, ?, ?, ?)").join(", ");
+        const placeholders = rows.map(() => "(?, ?, ?, ?, ?, ?, ?)").join(", ");
         const params: (number | string | null)[] = [];
         for (const loc of rows) {
           const c = loc.coords!;
-          params.push(c.latitude, c.longitude, c.speed ?? null, c.accuracy ?? null, loc.timestamp);
+          const act = (loc as { activity?: { type?: string | null; confidence?: number | null } | null }).activity;
+          params.push(
+            c.latitude,
+            c.longitude,
+            c.speed ?? null,
+            c.accuracy ?? null,
+            act?.type ?? null,
+            typeof act?.confidence === "number" ? act.confidence : null,
+            loc.timestamp
+          );
         }
         await db.runAsync(
-          `INSERT INTO detection_coordinates (lat, lng, speed, accuracy, recorded_at) VALUES ${placeholders}`,
+          `INSERT INTO detection_coordinates (lat, lng, speed, accuracy, activity, activity_confidence, recorded_at) VALUES ${placeholders}`,
           params
         );
       }

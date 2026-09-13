@@ -2,7 +2,7 @@
 
 import * as SQLite from "expo-sqlite";
 
-const CURRENT_SCHEMA_VERSION = 10;
+const CURRENT_SCHEMA_VERSION = 11;
 
 let dbPromise: Promise<SQLite.SQLiteDatabase> | null = null;
 
@@ -116,6 +116,13 @@ async function initializeSchema(database: SQLite.SQLiteDatabase): Promise<void> 
       lng REAL NOT NULL,
       speed REAL,
       accuracy REAL,
+      -- What the motion coprocessor said the body carrying the phone was
+      -- doing when this fix was recorded (still / walking / on_foot /
+      -- running / on_bicycle / in_vehicle), with its confidence 0-100.
+      -- Null on Android (ACTIVITY_RECOGNITION is blocked) and on fixes from
+      -- the JS engine, which has no motion API. See utils/walk.ts.
+      activity TEXT,
+      activity_confidence REAL,
       recorded_at TEXT NOT NULL
     );
 
@@ -295,6 +302,26 @@ async function initializeSchema(database: SQLite.SQLiteDatabase): Promise<void> 
     if (!tripCols10.includes("classification_auto_accepted_sent")) {
       await database.execAsync(
         "ALTER TABLE trips ADD COLUMN classification_auto_accepted_sent INTEGER;"
+      );
+    }
+  }
+
+  if (currentVersion < 11) {
+    // Walk detection (13 Sep 2026). The native engine attaches a motion
+    // classification to every fix and we were discarding it, so a walk and a
+    // crawling drive looked identical and walks were saved as trips.
+    const detInfo11 = await database.getAllAsync<{ name: string }>(
+      "PRAGMA table_info(detection_coordinates)"
+    );
+    const detCols11 = detInfo11.map((c) => c.name);
+    if (!detCols11.includes("activity")) {
+      await database.execAsync(
+        "ALTER TABLE detection_coordinates ADD COLUMN activity TEXT;"
+      );
+    }
+    if (!detCols11.includes("activity_confidence")) {
+      await database.execAsync(
+        "ALTER TABLE detection_coordinates ADD COLUMN activity_confidence REAL;"
       );
     }
   }

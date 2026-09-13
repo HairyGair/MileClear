@@ -251,3 +251,186 @@ describe("looksLikePhantomTrip - never got going", () => {
     expect(looksLikePhantomTrip({ ...farmyardDrift, isManualEntry: true })).toBe(false);
   });
 });
+
+describe("the impossible chord (Rachel Thorndyke, 7 Sep 2026)", () => {
+  const base = { isManualEntry: false, hasRealMovementEvidence: false };
+
+  it("catches two fixes a car could not have travelled between", () => {
+    // Parked at Maydale Farm: a stale fix 4 km away and a good one. 2.65
+    // miles in 91 seconds, an implied 105 mph on a farm lane.
+    expect(
+      looksLikePhantomTrip({
+        ...base,
+        distanceMiles: 2.65,
+        startedAt: "2026-09-07T16:52:50Z",
+        endedAt: "2026-09-07T16:54:22Z",
+        coordinateCount: 2,
+        maxSpeedMph: 5,
+        avgAccuracyM: 24,
+        lowConfidence: true,
+      })
+    ).toBe(true);
+  });
+
+  it("keeps the short hop whose middle was lost", () => {
+    // The case that killed the first draft of this rule: a real mile in five
+    // minutes, where the only surviving fixes are the stationary ones at each
+    // end, so the fastest speed ever measured is 1 mph. 13 of these were in
+    // the fleet dry-run and every one of them is a genuine drive.
+    expect(
+      looksLikePhantomTrip({
+        ...base,
+        distanceMiles: 1.14,
+        startedAt: "2026-09-01T10:00:00Z",
+        endedAt: "2026-09-01T10:05:00Z",
+        coordinateCount: 2,
+        maxSpeedMph: 1,
+        avgAccuracyM: 20,
+        lowConfidence: true,
+      })
+    ).toBe(false);
+  });
+
+  it("keeps a real drive that lost its middle", () => {
+    // Jenkins, 3 Aug: Liverpool to Leeds, 58.24 miles over 3h10m on two
+    // coords. 18 mph implied — nowhere near impossible.
+    expect(
+      looksLikePhantomTrip({
+        ...base,
+        distanceMiles: 58.24,
+        startedAt: "2026-08-03T09:00:00Z",
+        endedAt: "2026-08-03T12:10:00Z",
+        coordinateCount: 2,
+        maxSpeedMph: 68,
+        avgAccuracyM: 30,
+        lowConfidence: true,
+      })
+    ).toBe(false);
+  });
+
+  it("keeps a fast but possible sparse drive", () => {
+    // 1.85 miles in 118 seconds is 56 mph point to point. Quick, and a car
+    // can do it.
+    expect(
+      looksLikePhantomTrip({
+        ...base,
+        distanceMiles: 1.85,
+        startedAt: "2026-09-02T08:00:00Z",
+        endedAt: "2026-09-02T08:01:58Z",
+        coordinateCount: 2,
+        maxSpeedMph: 6,
+        avgAccuracyM: 20,
+        lowConfidence: true,
+      })
+    ).toBe(false);
+  });
+
+  it("stays out of the way of a dense trace", () => {
+    expect(
+      looksLikePhantomTrip({
+        ...base,
+        distanceMiles: 4,
+        startedAt: "2026-09-07T10:00:00Z",
+        endedAt: "2026-09-07T10:02:00Z",
+        coordinateCount: 40,
+        maxSpeedMph: 60,
+        avgAccuracyM: 8,
+      })
+    ).toBe(false);
+  });
+});
+
+describe("looksLikePhantomTrip - walk evidence (13 Sep 2026)", () => {
+  const walkBase = {
+    ...base,
+    endedAt: "2026-05-29T15:45:00.000Z", // 45 min
+    isManualEntry: false,
+    coordinateCount: 120,
+  };
+
+  it("flags a two-mile dog walk, which the distance-capped rule never saw", () => {
+    expect(
+      looksLikePhantomTrip({
+        ...walkBase,
+        distanceMiles: 2.1,
+        sustainedSpeedMph: 3.2,
+        pctOnFoot: 0.9,
+        motionFixes: 60,
+      })
+    ).toBe(true);
+  });
+
+  it("trusts the device's own walk verdict, which saw the per-fix motion data", () => {
+    expect(
+      looksLikePhantomTrip({ ...walkBase, distanceMiles: 3.4, walkVerdict: "walk" })
+    ).toBe(true);
+  });
+
+  it("outranks the single-sample speed reprieve", () => {
+    // One spurious 18 mph fix in a half-hour walk used to buy the whole walk
+    // a pass, because the reprieve fired before the walking test.
+    expect(
+      looksLikePhantomTrip({
+        ...walkBase,
+        distanceMiles: 1.8,
+        maxSpeedMph: 19,
+        sustainedSpeedMph: 3,
+        pctOnFoot: 0.85,
+        motionFixes: 40,
+      })
+    ).toBe(true);
+  });
+
+  it("leaves a mixed walk-then-drive trace alone", () => {
+    expect(
+      looksLikePhantomTrip({
+        ...walkBase,
+        distanceMiles: 6,
+        sustainedSpeedMph: 24,
+        pctOnFoot: 0.7,
+        motionFixes: 40,
+      })
+    ).toBe(false);
+  });
+
+  it("needs a big enough motion sample to conclude anything", () => {
+    expect(
+      looksLikePhantomTrip({
+        ...walkBase,
+        distanceMiles: 4,
+        sustainedSpeedMph: 5,
+        pctOnFoot: 1,
+        motionFixes: 3,
+      })
+    ).toBe(false);
+  });
+
+  it("does not flag a slow drive that simply has no motion data (Android)", () => {
+    expect(
+      looksLikePhantomTrip({ ...walkBase, distanceMiles: 4, sustainedSpeedMph: 6 })
+    ).toBe(false);
+  });
+});
+
+describe("provedDriving - either speed measure rescues a trip", () => {
+  // A fleet dry-run found sparse long drives whose geometry-derived sustained
+  // speed lands below the bar while the device's own peak is well above it: a
+  // 210-mile journey carried 33 coordinates. Neither measure may veto the other.
+  const sparse = {
+    ...base,
+    endedAt: "2026-05-29T16:05:00.000Z", // 65 min
+    isManualEntry: false,
+    distanceMiles: 0.6,
+    coordinateCount: 2,
+  };
+
+  it("rescues a sparse trip on the device peak when geometry saw nothing", () => {
+    expect(looksLikePhantomTrip({ ...sparse, maxSpeedMph: 26, sustainedSpeedMph: 13.1 }))
+      .toBe(false);
+  });
+
+  it("rescues a trip on sustained speed when the device reported zero", () => {
+    expect(looksLikePhantomTrip({ ...sparse, maxSpeedMph: 0, sustainedSpeedMph: 38 }))
+      .toBe(false);
+  });
+});
