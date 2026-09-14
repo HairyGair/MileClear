@@ -229,9 +229,18 @@ export async function startQuickTripTracking(): Promise<void> {
 }
 
 export async function stopQuickTripTracking(): Promise<StoredCoordinate[]> {
-  const isTracking = await TaskManager.isTaskRegisteredAsync(LOCATION_TASK_NAME);
-  if (isTracking) {
-    await Location.stopLocationUpdatesAsync(LOCATION_TASK_NAME);
+  // Stopping the OS subscription is best-effort and MUST NOT be able to skip
+  // the cleanup below. It used to throw straight out of this function, so a
+  // rejection left active_shift_id in place — a lock nobody could see and
+  // nothing would clear, silently muting auto-detection (14 Sep 2026).
+  // Failing to stop listening is survivable; failing to drop the lock is not.
+  try {
+    const isTracking = await TaskManager.isTaskRegisteredAsync(LOCATION_TASK_NAME);
+    if (isTracking) {
+      await Location.stopLocationUpdatesAsync(LOCATION_TASK_NAME);
+    }
+  } catch {
+    // fall through to the deletes
   }
 
   const db = await getDatabase();
