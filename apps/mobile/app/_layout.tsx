@@ -687,6 +687,7 @@ function RootNavigator() {
         <Stack.Screen name="drive-detection-diagnostics" options={{ headerShown: true, title: "Drive Detection" }} />
         <Stack.Screen name="saved-locations" options={{ headerShown: true, title: "Saved Locations" }} />
         <Stack.Screen name="saved-location-form" options={{ headerShown: true, title: "Add Location" }} />
+        <Stack.Screen name="saved-locations-suggest" options={{ headerShown: true, title: "Suggested Places" }} />
         <Stack.Screen name="insights" options={{ headerShown: true, title: "Insights & Analytics" }} />
         <Stack.Screen name="analytics" options={{ headerShown: true, title: "Driving Analytics" }} />
         <Stack.Screen name="classification-rules" options={{ headerShown: true, title: "Classification Rules" }} />
