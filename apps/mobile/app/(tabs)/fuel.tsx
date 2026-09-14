@@ -19,6 +19,7 @@ import type { FuelLogWithVehicle } from "@mileclear/shared";
 import { Skeleton } from "../../components/Skeleton";
 import { EmptyState } from "../../components/EmptyState";
 import { colors, fonts, radii } from "../../lib/theme";
+import AppHeader from "../../components/AppHeader";
 
 type FuelLogItem = FuelLogWithVehicle & { _isLocal?: boolean };
 
@@ -189,6 +190,7 @@ export default function FuelScreen() {
 
   return (
     <View style={styles.container}>
+      <AppHeader title="Fuel" showBack addRoute="/fuel-form" />
       <FlatList
         data={logs}
         keyExtractor={(item) => item.id}

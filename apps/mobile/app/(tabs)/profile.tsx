@@ -39,6 +39,7 @@ import { AvatarPicker } from "../../components/avatars/AvatarPicker";
 import { useLayoutPrefs, resetAllLayouts } from "../../lib/layout/index";
 import { usePaywall } from "../../components/paywall";
 import { colors, fonts, radii, spacing } from "../../lib/theme";
+import AppHeader from "../../components/AppHeader";
 
 const VEHICLE_TYPE_LABELS: Record<string, string> = {
   car: "Car",
@@ -300,6 +301,7 @@ export default function ProfileScreen() {
   // ── Render ───────────────────────────────────────────────────────
   return (
     <View style={styles.container}>
+      <AppHeader title="Profile" showBack />
       <ScrollView
         refreshControl={
           <RefreshControl
