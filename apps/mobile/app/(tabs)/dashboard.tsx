@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Dimensions,
   View,
@@ -77,6 +77,9 @@ import { Ionicons } from "@expo/vector-icons";
 import { startLiveActivity, updateLiveActivity, endLiveActivityWithSummary, recoverLiveActivity } from "../../lib/liveActivity";
 import { getLiveActivityContext } from "../../lib/liveActivity/context";
 import { useLayoutPrefs } from "../../lib/layout/index";
+import { selectDashboardMessages } from "../../lib/dashboardMessages";
+import { DashboardBlockerCard } from "../../components/DashboardBlockerCard";
+import { SetupChecklistCard, type SetupChecklistRow } from "../../components/SetupChecklistCard";
 import { PremiumGate, useIsPremium } from "../../components/PremiumGate";
 import { SmartInsightCard } from "../../components/SmartInsightCard";
 import { usePaywall } from "../../components/paywall";
@@ -203,6 +206,16 @@ export default function DashboardScreen() {
   // Work mode explainer — shown once on first Work mode visit
   const [showWorkExplainer, setShowWorkExplainer] = useState(false);
   const [workExplainerSeen, setWorkExplainerSeen] = useState(true); // default true until loaded
+  // Location primer - the one-time blocking explainer shown to users who
+  // currently have NO location access at all, so the app is recording
+  // nothing. Onboarding has auto-marked itself complete since 21 May, which
+  // means its permission step never runs and new users land straight on a
+  // dashboard that silently cannot work. This is that step, moved to the
+  // first place the user actually arrives. It fires the OS prompt on a tap
+  // rather than cold, because a prompt with no explanation in front of it is
+  // the thing that produced 121 undetermined permissions.
+  const [showLocPrimer, setShowLocPrimer] = useState(false);
+  const [locPrimerSeen, setLocPrimerSeen] = useState(true); // default true until loaded
   // Timestamp the explainer was shown, to measure dwell time on dismiss.
   const explainerShownAtRef = useRef<number | null>(null);
 
@@ -307,7 +320,7 @@ export default function DashboardScreen() {
     savedLocationsSuggestionCount > 0 &&
     Date.now() >= savedLocsNudgeDismissedUntil;
   const proNudgeMessages = [
-    stats ? `You've saved ${formatPence(stats.deductionPence)} in deductions — export them with Pro` : "Export your HMRC deductions with Pro",
+    stats ? `You've saved ${formatPence(stats.deductionPence)} in deductions. Export them with Pro` : "Export your HMRC deductions with Pro",
     "See which platform pays best with business insights",
     "Save unlimited work locations with Pro",
     "Get monthly and yearly recap reports",
@@ -476,10 +489,11 @@ export default function DashboardScreen() {
     (async () => {
       const db = await getDatabase();
       const rows = await db.getAllAsync<{ key: string; value: string }>(
-        "SELECT key, value FROM tracking_state WHERE key IN ('work_explainer_seen', 'bg_loc_nudge_dismissed_at', 'first_trip_nudge_dismissed_at', 'referral_card_dismissed_at', 'motion_nudge_dismissed_at', 'notif_primer_dismissed_at', 'notif_denied_nudge_dismissed_at', 'battery_opt_nudge_dismissed_at')"
+        "SELECT key, value FROM tracking_state WHERE key IN ('work_explainer_seen', 'bg_loc_nudge_dismissed_at', 'first_trip_nudge_dismissed_at', 'referral_card_dismissed_at', 'motion_nudge_dismissed_at', 'notif_primer_dismissed_at', 'notif_denied_nudge_dismissed_at', 'battery_opt_nudge_dismissed_at', 'loc_primer_seen')"
       );
       const map = Object.fromEntries(rows.map((r) => [r.key, r.value]));
       setWorkExplainerSeen(map["work_explainer_seen"] === "1");
+      setLocPrimerSeen(map["loc_primer_seen"] === "1");
       const dismissedAt = map["bg_loc_nudge_dismissed_at"]
         ? parseInt(map["bg_loc_nudge_dismissed_at"], 10)
         : null;
@@ -698,14 +712,167 @@ export default function DashboardScreen() {
     !showFirstTripNudge &&
     (referralEarnedMonths === null || referralEarnedMonths < 3);
 
-  // Auto-show work explainer on first Work mode visit
+  // ── What the dashboard is allowed to say ────────────────────────
+  //
+  // Sixteen hardcoded cards used to live below, each hand-wired to dodge the
+  // others, and nothing capped the total across families: five asks could
+  // stack above the driver's own mileage (14 Sep 2026). Ordering and capping
+  // now live in lib/dashboardMessages, which is pure and unit-tested.
+  const fixLocationFromBlocker = useCallback(async () => {
+    const final = await requestOrFixBackgroundLocation();
+    setLocationTier(final.tier);
+    setBgLocationGranted(final.tier === "always");
+  }, []);
+
+  const fixMotionFromChecklist = useCallback(async () => {
+    const { requestMotionPermission } = await import("../../lib/tracking/motionPermission");
+    const result = await requestMotionPermission();
+    if (result === "granted") setMotionDenied(false);
+    else Linking.openSettings().catch(() => {});
+  }, []);
+
+  const dashboardMessages = useMemo(
+    () =>
+      selectDashboardMessages({
+        activeShift: !!activeShift,
+        loading,
+        locationTier,
+        bgRefreshOff,
+        bgPermissionLost,
+        motionDenied,
+        notifPermission,
+        batteryApplicable: Platform.OS === "android",
+        batteryNudgeShow: !!(batteryNudge.show && batteryNudgeText),
+        bgLocNudgeSilenced,
+        motionNudgeSilenced,
+        notifDeniedNudgeSilenced,
+        notifPrimerSilenced,
+        firstTripEligible: showFirstTripNudge,
+        savedPlacesEligible: showSavedLocationsNudge,
+        referralEligible: showReferralCard,
+        proEligible: showProNudge,
+        androidBetaEligible: !amapBannerSeen,
+      }),
+    [
+      activeShift, loading, locationTier, bgRefreshOff, bgPermissionLost,
+      motionDenied, notifPermission, batteryNudge.show, batteryNudgeText,
+      bgLocNudgeSilenced, motionNudgeSilenced, notifDeniedNudgeSilenced,
+      notifPrimerSilenced, showFirstTripNudge, showSavedLocationsNudge,
+      showReferralCard, showProNudge, amapBannerSeen,
+    ]
+  );
+
+  const snoozeSetupChecklist = useCallback(async () => {
+    // Snoozes every outstanding row for 7 days using the flags that already
+    // existed, so nothing is orphaned and the card can come back later.
+    trackEvent("setup_checklist.snoozed", {
+      done: dashboardMessages.setup?.done ?? 0,
+      total: dashboardMessages.setup?.total ?? 0,
+    });
+    await Promise.all([
+      dismissBgLocNudge(),
+      dismissMotionNudge(),
+      notifPermission === "undetermined" ? dismissNotifPrimer() : dismissNotifDeniedNudge(),
+      dismissBatteryNudge(),
+    ]);
+  }, [
+    dashboardMessages.setup, notifPermission, dismissBgLocNudge, dismissMotionNudge,
+    dismissNotifPrimer, dismissNotifDeniedNudge, dismissBatteryNudge,
+  ]);
+
+  const setupRows: SetupChecklistRow[] = useMemo(() => {
+    const items = dashboardMessages.setup?.items ?? [];
+    const out: SetupChecklistRow[] = [];
+    for (const it of items) {
+      if (!it.applicable) continue;
+      if (it.id === "always_location") {
+        out.push({
+          key: it.id, icon: "location-outline", label: "Allow location Always",
+          hint: "So drives record with the app closed",
+          done: it.done, actionable: it.actionable, onPress: fixLocationFromBlocker,
+        });
+      } else if (it.id === "motion") {
+        out.push({
+          key: it.id, icon: "walk-outline", label: "Turn on Motion & Fitness",
+          hint: "It is how we catch the moment a drive starts",
+          done: it.done, actionable: it.actionable, onPress: fixMotionFromChecklist,
+        });
+      } else if (it.id === "notifications") {
+        out.push({
+          key: it.id, icon: "notifications-outline", label: "Turn on notifications",
+          hint: "Drive prompts, missed journeys and tax reminders",
+          done: it.done, actionable: it.actionable,
+          onPress:
+            notifPermission === "undetermined"
+              ? enableNotifications
+              : () => { Linking.openSettings().catch(() => {}); },
+        });
+      } else if (it.id === "battery") {
+        out.push({
+          key: it.id, icon: "battery-half-outline",
+          label: batteryNudgeText?.title ?? "Battery settings",
+          hint: batteryNudgeText?.body ?? "",
+          done: it.done, actionable: it.actionable, onPress: openBatteryNudgeSettings,
+        });
+      }
+    }
+    return out;
+  }, [
+    dashboardMessages.setup, notifPermission, batteryNudgeText,
+    fixLocationFromBlocker, fixMotionFromChecklist, enableNotifications,
+    openBatteryNudgeSettings,
+  ]);
+
+
+  // Auto-show work explainer on first Work mode visit.
+  //
+  // Yields to the location primer. Both are Modals rendered by this screen,
+  // and a Modal floats above the whole navigation stack, so two of them firing
+  // on the same render stack on top of each other (and on top of whatever
+  // screen the user has since pushed). A driver who is recording nothing has a
+  // more urgent problem than which mode to pick, so the primer goes first.
+  // locPrimerSeen is true for everyone who never sees the primer, and flips
+  // true the moment it is dismissed either way, so this cannot strand the
+  // explainer.
   useEffect(() => {
-    if (isWork && !workExplainerSeen && !loading) {
+    if (isWork && !workExplainerSeen && !loading && !showLocPrimer && locPrimerSeen) {
       explainerShownAtRef.current = Date.now();
       trackEvent("work_explainer.shown", { source: "auto" });
       setShowWorkExplainer(true);
     }
-  }, [isWork, workExplainerSeen, loading]);
+  }, [isWork, workExplainerSeen, loading, showLocPrimer, locPrimerSeen]);
+
+  // locationTier starts optimistically at "always" and only becomes "none"
+  // after a real permission read, so this cannot flash on a cold start.
+  useEffect(() => {
+    if (locationTier === "none" && !locPrimerSeen && !loading) {
+      trackEvent("loc_primer.shown", { source: "auto" });
+      setShowLocPrimer(true);
+    }
+  }, [locationTier, locPrimerSeen, loading]);
+
+  const markLocPrimerSeen = useCallback(async () => {
+    setLocPrimerSeen(true);
+    setShowLocPrimer(false);
+    const db = await getDatabase();
+    await db.runAsync(
+      "INSERT OR REPLACE INTO tracking_state (key, value) VALUES ('loc_primer_seen', '1')"
+    );
+  }, []);
+
+  const enableLocationFromPrimer = useCallback(async () => {
+    trackEvent("loc_primer.accepted", {});
+    const final = await requestOrFixBackgroundLocation();
+    setLocationTier(final.tier);
+    setBgLocationGranted(final.tier === "always");
+    trackEvent("loc_primer.result", { tier: final.tier });
+    await markLocPrimerSeen();
+  }, [markLocPrimerSeen]);
+
+  const dismissLocPrimer = useCallback(async (method: string = "not_now") => {
+    trackEvent("loc_primer.dismissed", { method });
+    await markLocPrimerSeen();
+  }, [markLocPrimerSeen]);
 
   const dismissWorkExplainer = useCallback(async (method: string = "got_it") => {
     const shownAt = explainerShownAtRef.current;
@@ -1433,6 +1600,71 @@ export default function DashboardScreen() {
     </AppModal>
   );
 
+  const locPrimerModal = (
+    <AppModal
+      visible={showLocPrimer}
+      animationType="fade"
+      onRequestClose={() => dismissLocPrimer("system")}
+    >
+      <View style={s.explainerOverlay}>
+        <View style={s.explainerCard}>
+          <ScrollView style={{ flexShrink: 1 }} showsVerticalScrollIndicator={false}>
+            <View style={s.explainerIconWrap}>
+              <Ionicons name="location" size={28} color="#f5a623" />
+            </View>
+            <Text style={s.explainerTitle}>Never miss a mile</Text>
+            <Text style={s.explainerBody}>
+              MileClear is not recording your trips yet. It needs location access to log your miles, even with your screen off. A forgotten 20-mile trip is about <Text style={s.explainerBold}>£11</Text> you cannot claim back.
+            </Text>
+
+            <View style={s.explainerList}>
+              <ExplainerItem
+                icon="navigate-outline"
+                text="While using the app: tracks your route with MileClear open on screen."
+              />
+              <ExplainerItem
+                icon="radio-button-on-outline"
+                text="Always (recommended): records trips with the app closed, so every claimable mile is captured."
+              />
+            </View>
+
+            <View style={s.explainerDivider} />
+
+            <Text style={s.explainerSubhead}>What happens next</Text>
+            <Text style={s.explainerBody}>
+              Tap below and your phone will ask for location access. Choose <Text style={s.explainerBold}>Always</Text> for automatic tracking. You can change it any time in Settings.
+            </Text>
+          </ScrollView>
+
+          <TouchableOpacity
+            onPress={enableLocationFromPrimer}
+            activeOpacity={0.85}
+            style={s.explainerCta}
+            accessibilityRole="button"
+            accessibilityLabel="Turn on location access"
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
+            <Ionicons name="location" size={20} color="#030712" />
+            <Text style={s.explainerCtaText}>Turn on location</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            onPress={() => dismissLocPrimer("not_now")}
+            activeOpacity={0.7}
+            style={{ marginTop: 12, paddingVertical: 10, alignItems: "center" }}
+            accessibilityRole="button"
+            accessibilityLabel="Not now"
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
+            <Text style={{ color: TEXT_3, fontSize: 14, fontFamily: fonts.regular }}>
+              Not now
+            </Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    </AppModal>
+  );
+
   // ── Active Shift ──────────────────────────────────────────────
   if (activeShift) {
     return (
@@ -1540,6 +1772,7 @@ export default function DashboardScreen() {
       {scorecardModal}
       {recapModal}
       {workExplainerModal}
+      {locPrimerModal}
       <AppHeader />
       <ScrollView
         style={s.container}
@@ -1603,374 +1836,39 @@ export default function DashboardScreen() {
           outright. Linking.openSettings() alone is wrong for fresh installs:
           iOS doesn't show a Location row in Settings until the app has
           actually asked for permission once. */}
-      {/* ACTIVATION BLOCKER — no location access at all (undetermined/denied):
-          the app literally cannot record a single trip. Persistent and
-          NON-dismissible until fixed. This is the dead state a new user lands
-          in after skipping the onboarding permission prompt (Adnan K, 1 June:
-          onboarding_complete with permission 'undetermined', zero trips, gone
-          in 90s). An app that silently can't work is worse than an honest one
-          that says so. */}
-      {locationTier === "none" && !activeShift && (
-        <TouchableOpacity
-          style={[s.bgLocNudge, s.bgLocBlocker]}
-          onPress={async () => {
-            const final = await requestOrFixBackgroundLocation();
-            setLocationTier(final.tier);
-            setBgLocationGranted(final.tier === "always");
-          }}
-          activeOpacity={0.7}
-          accessibilityRole="button"
-          accessibilityLabel="Your trips are not being recorded. Tap to turn on location access so MileClear can log your miles."
-        >
-          <View style={s.bgLocNudgeRow}>
-            <View style={s.bgLocNudgeIcon}>
-              <Ionicons name="warning" size={20} color="#ef4444" accessible={false} />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={s.bgLocBlockerTitle}>Your trips aren&apos;t being recorded</Text>
-              <Text style={s.bgLocNudgeBody}>
-                MileClear needs location access to log your miles. Until it&apos;s on, every drive — and every £ of tax deduction — is lost. Tap to turn it on.
-              </Text>
-            </View>
-          </View>
-        </TouchableOpacity>
+      {/* One thing above your mileage: either MileClear cannot record at
+          all (red, non-dismissible) or there is setup left to finish. Never
+          both, and never the five separate permission nags this replaced. */}
+      {dashboardMessages.blocker && (
+        <DashboardBlockerCard
+          id={dashboardMessages.blocker}
+          onFixLocation={fixLocationFromBlocker}
+          onOpenSettings={() => { Linking.openSettings().catch(() => {}); }}
+        />
+      )}
+      {dashboardMessages.setup && (
+        <SetupChecklistCard
+          rows={setupRows}
+          done={dashboardMessages.setup.done}
+          total={dashboardMessages.setup.total}
+          onSnooze={snoozeSetupChecklist}
+        />
       )}
 
-      {/* BACKGROUND APP REFRESH OFF — iOS won't run the app in the background,
-          so recording fails no matter how good detection is (fleet diagnostics
-          found 11 active users in this state, 3 Jun 2026). Only shown once
-          location itself is sorted (locationTier !== "none"), so we never stack
-          two red blockers. Opens Settings directly — there's no in-app fix. */}
-      {bgRefreshOff && locationTier !== "none" && !activeShift && (
-        <TouchableOpacity
-          style={[s.bgLocNudge, s.bgLocBlocker]}
-          onPress={() => Linking.openSettings().catch(() => {})}
-          activeOpacity={0.7}
-          accessibilityRole="button"
-          accessibilityLabel="Background App Refresh is off. Tap to open Settings and turn it on so MileClear can record your trips in the background."
-        >
-          <View style={s.bgLocNudgeRow}>
-            <View style={s.bgLocNudgeIcon}>
-              <Ionicons name="warning" size={20} color="#ef4444" accessible={false} />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={s.bgLocBlockerTitle}>Background App Refresh is off</Text>
-              <Text style={s.bgLocNudgeBody}>
-                iOS won&apos;t let MileClear run in the background, so your trips can&apos;t record automatically. Turn it on in Settings → MileClear → Background App Refresh. Tap to open Settings.
-              </Text>
-            </View>
-          </View>
-        </TouchableOpacity>
-      )}
 
-      {/* REGRESSION — background location was granted before and has been lost
-          (iOS downgrade, OS update, user change). 40% of the fleet has a
-          permission_lost event. Firm, non-dismissible recovery banner, distinct
-          from the soft "upgrade to Always" nudge below (which is for users who
-          never granted it). Takes precedence over that nudge. */}
-      {bgPermissionLost && locationTier !== "always" && !activeShift && (
-        <TouchableOpacity
-          style={[s.bgLocNudge, s.bgLocBlocker]}
-          onPress={async () => {
-            const final = await requestOrFixBackgroundLocation();
-            setLocationTier(final.tier);
-            setBgLocationGranted(final.tier === "always");
-          }}
-          activeOpacity={0.7}
-          accessibilityRole="button"
-          accessibilityLabel="You've lost background location access. Tap to restore it so MileClear can record your trips again."
-        >
-          <View style={s.bgLocNudgeRow}>
-            <View style={s.bgLocNudgeIcon}>
-              <Ionicons name="warning" size={20} color="#ef4444" accessible={false} />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={s.bgLocBlockerTitle}>Your trips stopped recording</Text>
-              <Text style={s.bgLocNudgeBody}>
-                MileClear had background location access, but it&apos;s been turned off — so your drives aren&apos;t being recorded anymore. Tap to switch it back to &ldquo;Always&rdquo;.
-              </Text>
-            </View>
-          </View>
-        </TouchableOpacity>
-      )}
 
-      {/* Foreground-only ("While Using"): records while the app is open but
-          misses backgrounded drives. The app still works, so this stays a soft,
-          dismissible nudge to upgrade to Always. Suppressed when the firm
-          regression banner above is showing. */}
-      {locationTier === "foreground" && !activeShift && !bgLocNudgeSilenced && !bgPermissionLost && (
-        <TouchableOpacity
-          style={s.bgLocNudge}
-          onPress={async () => {
-            const final = await requestOrFixBackgroundLocation();
-            setLocationTier(final.tier);
-            setBgLocationGranted(final.tier === "always");
-          }}
-          activeOpacity={0.7}
-          accessibilityRole="button"
-          accessibilityLabel="Auto-detection is limited. Tap to allow Always location so trips record in the background too."
-        >
-          <View style={s.bgLocNudgeRow}>
-            <View style={s.bgLocNudgeIcon}>
-              <Ionicons name="location-outline" size={20} color="#f59e0b" accessible={false} />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={s.bgLocNudgeTitle}>Auto-detection is limited</Text>
-              <Text style={s.bgLocNudgeBody}>
-                Trips only record while MileClear is open. Switch to &ldquo;Always&rdquo; so backgrounded drives are captured too - tap to fix.
-              </Text>
-            </View>
-            <TouchableOpacity
-              onPress={dismissBgLocNudge}
-              hitSlop={{ top: 12, right: 12, bottom: 12, left: 12 }}
-              accessibilityRole="button"
-              accessibilityLabel="Dismiss for 7 days"
-            >
-              <Ionicons name="close" size={16} color="#6b7280" accessible={false} />
-            </TouchableOpacity>
-          </View>
-        </TouchableOpacity>
-      )}
 
-      {/* Motion & Fitness denied — ClearTrack can't catch the START of short
-          trips via the motion chip and leans on the slower GPS speed backstop,
-          missing cold-start morning legs (balkistomi, recurring 14 Jun 2026).
-          Soft + dismissable: the engine still works, this just makes it
-          reliable. Only when location is otherwise fine, so we don't stack it
-          under the firmer location prompts. */}
-      {motionDenied && locationTier === "always" && !bgRefreshOff && !activeShift && !motionNudgeSilenced && (
-        <TouchableOpacity
-          style={s.bgLocNudge}
-          onPress={async () => {
-            const { requestMotionPermission } = await import("../../lib/tracking/motionPermission");
-            const result = await requestMotionPermission();
-            if (result === "granted") setMotionDenied(false);
-            else Linking.openSettings().catch(() => {});
-          }}
-          activeOpacity={0.7}
-          accessibilityRole="button"
-          accessibilityLabel="Turn on Motion and Fitness so MileClear catches the start of short trips. Tap to fix."
-        >
-          <View style={s.bgLocNudgeRow}>
-            <View style={s.bgLocNudgeIcon}>
-              <Ionicons name="walk-outline" size={20} color="#f59e0b" accessible={false} />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={s.bgLocNudgeTitle}>Turn on Motion &amp; Fitness</Text>
-              <Text style={s.bgLocNudgeBody}>
-                It&apos;s how we catch the moment a drive starts. Without it, short trips can be missed. Tap to switch it on in Settings.
-              </Text>
-            </View>
-            <TouchableOpacity
-              onPress={dismissMotionNudge}
-              hitSlop={{ top: 12, right: 12, bottom: 12, left: 12 }}
-              accessibilityRole="button"
-              accessibilityLabel="Dismiss for 7 days"
-            >
-              <Ionicons name="close" size={16} color="#6b7280" accessible={false} />
-            </TouchableOpacity>
-          </View>
-        </TouchableOpacity>
-      )}
 
-      {/* NOTIFICATIONS DENIED — on Android this also blocks the LOCAL
-          "Looks like you're driving?" prompt and missed-journey offers, so
-          capture quality degrades, not just marketing reach. Amber (the app
-          still records), dismissible, resurfaces weekly. Never shown while
-          undetermined - the primer card below owns that state. */}
-      {notifPermission === "denied" && !activeShift && !notifDeniedNudgeSilenced && (
-        <TouchableOpacity
-          style={s.bgLocNudge}
-          onPress={() => Linking.openSettings().catch(() => {})}
-          activeOpacity={0.7}
-          accessibilityRole="button"
-          accessibilityLabel="Notifications are off, so drive prompts can't appear. Tap to open Settings and turn them on."
-        >
-          <View style={s.bgLocNudgeRow}>
-            <View style={s.bgLocNudgeIcon}>
-              <Ionicons name="notifications-off-outline" size={20} color="#f59e0b" accessible={false} />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={s.bgLocNudgeTitle}>Notifications are off</Text>
-              <Text style={s.bgLocNudgeBody}>
-                MileClear can&apos;t ask &ldquo;Looks like you&apos;re driving?&rdquo; or offer back missed journeys while notifications are off. Tap to turn them on in Settings.
-              </Text>
-            </View>
-            <TouchableOpacity
-              onPress={dismissNotifDeniedNudge}
-              hitSlop={{ top: 12, right: 12, bottom: 12, left: 12 }}
-              accessibilityRole="button"
-              accessibilityLabel="Dismiss for 7 days"
-            >
-              <Ionicons name="close" size={16} color="#6b7280" accessible={false} />
-            </TouchableOpacity>
-          </View>
-        </TouchableOpacity>
-      )}
 
-      {/* NOTIFICATION PRIMER — permission never asked yet. The startup chain
-          no longer fires the bare system prompt (both Android beta testers
-          denied it cold); this card explains what notifications do first,
-          then Enable fires the real prompt and registers the push token.
-          "Not now" snoozes it for 7 days. */}
-      {notifPermission === "undetermined" && !activeShift && !notifPrimerSilenced && (
-        <View style={s.ftNudge}>
-          <View style={s.bgLocNudgeRow}>
-            <View style={s.ftNudgeIcon}>
-              <Ionicons name="notifications-outline" size={20} color={AMBER} accessible={false} />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={s.bgLocNudgeTitle}>Turn on notifications</Text>
-              <Text style={s.bgLocNudgeBody}>
-                MileClear asks &ldquo;Looks like you&apos;re driving?&rdquo; when a drive starts, offers back journeys it might have missed, and reminds you before tax deadlines. Without notifications those prompts can&apos;t appear.
-              </Text>
-            </View>
-          </View>
-          <View style={s.ftNudgeActions}>
-            <TouchableOpacity
-              style={[s.ftNudgeBtn, s.ftNudgeBtnPrimary]}
-              onPress={enableNotifications}
-              disabled={notifRequesting}
-              activeOpacity={0.8}
-              accessibilityRole="button"
-              accessibilityLabel="Enable notifications"
-            >
-              <Ionicons name="notifications" size={14} color="#0b0e14" accessible={false} />
-              <Text style={s.ftNudgeBtnTextPrimary}>
-                {notifRequesting ? "Asking..." : "Enable notifications"}
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={s.ftNudgeBtn}
-              onPress={dismissNotifPrimer}
-              activeOpacity={0.8}
-              accessibilityRole="button"
-              accessibilityLabel="Not now, ask again in a week"
-            >
-              <Text style={s.ftNudgeBtnText}>Not now</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      )}
 
-      {/* BATTERY OPTIMISATION (Android) — the phone's power manager can end
-          the recorder between drives, and the next drive is then never
-          recorded at all. Amber like the other settings nudges, dismissible,
-          resurfaces weekly. The copy names the screen the tap opens and what
-          to do there, because once they tap they are outside the app. */}
-      {batteryNudge.show && batteryNudgeText && !activeShift && (
-        <TouchableOpacity
-          style={s.bgLocNudge}
-          onPress={openBatteryNudgeSettings}
-          activeOpacity={0.7}
-          accessibilityRole="button"
-          accessibilityLabel={`${batteryNudgeText.title}. ${batteryNudgeText.body}`}
-        >
-          <View style={s.bgLocNudgeRow}>
-            <View style={s.bgLocNudgeIcon}>
-              <Ionicons name="battery-half-outline" size={20} color="#f59e0b" accessible={false} />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={s.bgLocNudgeTitle}>{batteryNudgeText.title}</Text>
-              <Text style={s.bgLocNudgeBody}>{batteryNudgeText.body}</Text>
-            </View>
-            <TouchableOpacity
-              onPress={dismissBatteryNudge}
-              hitSlop={{ top: 12, right: 12, bottom: 12, left: 12 }}
-              accessibilityRole="button"
-              accessibilityLabel="Dismiss for 7 days"
-            >
-              <Ionicons name="close" size={16} color="#6b7280" accessible={false} />
-            </TouchableOpacity>
-          </View>
-        </TouchableOpacity>
-      )}
 
-      {/* First-trip nudge — in-app activation safety net. Shows when the user
-          has Always location on but still zero trips. Two paths: take a live
-          trip now, or backfill one they already drove. */}
-      {showFirstTripNudge && (
-        <View style={s.ftNudge}>
-          <View style={s.bgLocNudgeRow}>
-            <View style={s.ftNudgeIcon}>
-              <Ionicons name="navigate-outline" size={20} color={AMBER} accessible={false} />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={s.bgLocNudgeTitle}>Record your first trip</Text>
-              <Text style={s.bgLocNudgeBody}>
-                Auto-detection is on - just drive and it records itself. Already made a journey? Add it now so your deduction starts.
-              </Text>
-            </View>
-            <TouchableOpacity
-              onPress={dismissFirstTripNudge}
-              hitSlop={{ top: 12, right: 12, bottom: 12, left: 12 }}
-              accessibilityRole="button"
-              accessibilityLabel="Dismiss for 7 days"
-            >
-              <Ionicons name="close" size={16} color="#6b7280" accessible={false} />
-            </TouchableOpacity>
-          </View>
-          <View style={s.ftNudgeActions}>
-            <TouchableOpacity
-              style={[s.ftNudgeBtn, s.ftNudgeBtnPrimary]}
-              onPress={() => router.push("/trip-form")}
-              activeOpacity={0.8}
-              accessibilityRole="button"
-              accessibilityLabel="Start a trip now"
-            >
-              <Ionicons name="play" size={14} color="#0b0e14" accessible={false} />
-              <Text style={s.ftNudgeBtnTextPrimary}>Start a trip</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={s.ftNudgeBtn}
-              onPress={() => router.push({ pathname: "/trip-form", params: { mode: "manual" } } as any)}
-              activeOpacity={0.8}
-              accessibilityRole="button"
-              accessibilityLabel="Add a past trip manually"
-            >
-              <Ionicons name="create-outline" size={14} color={AMBER} accessible={false} />
-              <Text style={s.ftNudgeBtnText}>Add a past trip</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      )}
 
       {/* Auto-classified trips skip the Inbox, so they never get the prominent
           "Add a note" row. Nudge for the most recent one (self-contained:
           queries on focus, renders nothing when there's no candidate). */}
       <AutoNoteNudgeCard />
 
-      {/* Referral promo — dismissible (30 days), both modes. Links to the
-          Invite Friends screen. Suppressed while the first-trip nudge shows. */}
-      {showReferralCard && (
-        <TouchableOpacity
-          style={s.referralCard}
-          onPress={() => router.push("/refer" as never)}
-          activeOpacity={0.85}
-          accessibilityRole="button"
-          accessibilityLabel="Invite friends and get a free month of Pro for each. Opens the invite screen."
-        >
-          <View style={s.referralCardIcon}>
-            <Ionicons name="gift" size={20} color={AMBER} accessible={false} />
-          </View>
-          <View style={{ flex: 1 }}>
-            <Text style={s.referralCardTitle}>Get Pro free - invite friends</Text>
-            <Text style={s.referralCardBody}>
-              A free month of Pro for every friend who joins and takes a trip (up to 3).
-            </Text>
-          </View>
-          <Ionicons name="chevron-forward" size={16} color={TEXT_3} accessible={false} />
-          <TouchableOpacity
-            onPress={dismissReferralCard}
-            hitSlop={{ top: 12, right: 12, bottom: 12, left: 12 }}
-            style={s.referralCardDismiss}
-            accessibilityRole="button"
-            accessibilityLabel="Dismiss"
-          >
-            <Ionicons name="close" size={15} color="#6b7280" accessible={false} />
-          </TouchableOpacity>
-        </TouchableOpacity>
-      )}
+
 
       {/* Smart Insights */}
       <SmartInsightCard
@@ -1981,117 +1879,7 @@ export default function DashboardScreen() {
         unclassifiedCount={unclassifiedCount}
       />
 
-      {/* Dashboard announcement slot. 28 Aug 2026: Android closed beta
-          (replaced the 55p rate card that ran from April). Dismissible per
-          device; one-time SQLite flag keyed on the announcement id so a new
-          announcement re-shows even to people who dismissed the last one. */}
-      {!amapBannerSeen && (
-        <TouchableOpacity
-          style={s.savedLocsNudge}
-          onPress={() => {
-            Linking.openURL("https://mileclear.com/updates/mileclear-on-android-closed-beta").catch(() => {});
-          }}
-          activeOpacity={0.85}
-          accessibilityRole="button"
-          accessibilityLabel="MileClear is on Android. Closed beta, testers wanted."
-        >
-          <TouchableOpacity
-            style={s.savedLocsNudgeDismiss}
-            onPress={dismissAmapBanner}
-            hitSlop={{ top: 12, right: 12, bottom: 12, left: 12 }}
-            accessibilityRole="button"
-            accessibilityLabel="Dismiss"
-          >
-            <Ionicons name="close" size={16} color="#6b7280" accessible={false} />
-          </TouchableOpacity>
-          <View style={s.savedLocsNudgeIconWrap}>
-            <Ionicons name="megaphone" size={20} color={AMBER} accessible={false} />
-          </View>
-          <Text style={s.savedLocsNudgeTitle}>
-            MileClear is on Android
-          </Text>
-          <Text style={s.savedLocsNudgeBody}>
-            The Android app is in closed testing on Google Play. Know anyone
-            with an Android phone? Testers get Pro free. Send their Google
-            account email to support@mileclear.com for an invite.
-          </Text>
-          <View style={s.savedLocsNudgeCta}>
-            <Text style={s.savedLocsNudgeCtaText}>Learn more</Text>
-            <Ionicons name="chevron-forward" size={14} color={AMBER} accessible={false} />
-          </View>
-        </TouchableOpacity>
-      )}
 
-      {/* Saved-locations nudge — users with 0 pinned places + clusters available */}
-      {showSavedLocationsNudge && (
-        <TouchableOpacity
-          style={s.savedLocsNudge}
-          onPress={() => router.push("/saved-locations-suggest" as never)}
-          activeOpacity={0.85}
-          accessibilityRole="button"
-          accessibilityLabel={`Review ${savedLocationsSuggestionCount} suggested ${
-            savedLocationsSuggestionCount === 1 ? "place" : "places"
-          }`}
-        >
-          <TouchableOpacity
-            style={s.savedLocsNudgeDismiss}
-            onPress={dismissSavedLocationsNudge}
-            hitSlop={{ top: 12, right: 12, bottom: 12, left: 12 }}
-            accessibilityRole="button"
-            accessibilityLabel="Dismiss"
-          >
-            <Ionicons name="close" size={16} color="#6b7280" accessible={false} />
-          </TouchableOpacity>
-          <View style={s.savedLocsNudgeIconWrap}>
-            <Ionicons name="sparkles" size={20} color={AMBER} accessible={false} />
-          </View>
-          <Text style={s.savedLocsNudgeTitle}>
-            Save the places you visit often
-          </Text>
-          <Text style={s.savedLocsNudgeBody}>
-            MileClear spotted{" "}
-            {savedLocationsSuggestionCount === 1
-              ? "1 place"
-              : `${savedLocationsSuggestionCount} places`}{" "}
-            in your recent trips. Save them so journeys are labelled with names
-            you recognise.
-          </Text>
-          <View style={s.savedLocsNudgeCta}>
-            <Text style={s.savedLocsNudgeCtaText}>Review suggestions</Text>
-            <Ionicons name="chevron-forward" size={14} color={AMBER} accessible={false} />
-          </View>
-        </TouchableOpacity>
-      )}
-
-      {/* Pro Nudge Card — free users with 5+ trips */}
-      {showProNudge && (
-        <TouchableOpacity
-          style={s.proNudgeCard}
-          onPress={() => showPaywall("dashboard_nudge")}
-          activeOpacity={0.7}
-          accessibilityRole="button"
-          accessibilityLabel="Upgrade to Pro"
-        >
-          <TouchableOpacity
-            style={s.btPromoDismiss}
-            onPress={dismissProNudge}
-            hitSlop={{ top: 12, right: 12, bottom: 12, left: 12 }}
-            accessibilityRole="button"
-            accessibilityLabel="Dismiss Pro nudge"
-          >
-            <Ionicons name="close" size={16} color="#6b7280" accessible={false} />
-          </TouchableOpacity>
-          <View style={s.proNudgeIcon}>
-            <Ionicons name="star" size={24} color={AMBER} accessible={false} />
-          </View>
-          <Text style={s.btPromoTitle}>Upgrade to Pro</Text>
-          <Text style={s.btPromoBody}>{proNudgeMessages[proNudgeIndex]}</Text>
-          <View style={s.btPromoCta}>
-            <Text style={s.vehicleNudgeCtaText}>See plans</Text>
-            <Ionicons name="chevron-forward" size={14} color={AMBER} accessible={false} />
-          </View>
-        </TouchableOpacity>
-      )}
 
       {/* ── Work Mode (layout-aware) ── */}
       {/* Each card fades-in-from-below with a small stagger via
@@ -2459,6 +2247,203 @@ export default function DashboardScreen() {
           </Text>
           <View style={s.btPromoCta}>
             <Text style={s.vehicleNudgeCtaText}>Add vehicle</Text>
+            <Ionicons name="chevron-forward" size={14} color={AMBER} accessible={false} />
+          </View>
+        </TouchableOpacity>
+      )}
+
+      {/* Suggestions. Optional, capped at two, and deliberately BELOW the
+          driver's own mileage: you opened the app to see your miles, not a
+          list of chores. Ordering and the cap live in lib/dashboardMessages. */}
+      {dashboardMessages.suggestions.length > 0 && (
+        <Text style={s.suggestionsHeading}>Suggestions</Text>
+      )}
+      {/* First-trip nudge — in-app activation safety net. Shows when the user
+          has Always location on but still zero trips. Two paths: take a live
+          trip now, or backfill one they already drove. */}
+      {dashboardMessages.suggestions.includes("first_trip") && (
+        <View style={s.ftNudge}>
+          <View style={s.bgLocNudgeRow}>
+            <View style={s.ftNudgeIcon}>
+              <Ionicons name="navigate-outline" size={20} color={AMBER} accessible={false} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={s.bgLocNudgeTitle}>Record your first trip</Text>
+              <Text style={s.bgLocNudgeBody}>
+                Auto-detection is on - just drive and it records itself. Already made a journey? Add it now so your deduction starts.
+              </Text>
+            </View>
+            <TouchableOpacity
+              onPress={dismissFirstTripNudge}
+              hitSlop={{ top: 12, right: 12, bottom: 12, left: 12 }}
+              accessibilityRole="button"
+              accessibilityLabel="Dismiss for 7 days"
+            >
+              <Ionicons name="close" size={16} color="#6b7280" accessible={false} />
+            </TouchableOpacity>
+          </View>
+          <View style={s.ftNudgeActions}>
+            <TouchableOpacity
+              style={[s.ftNudgeBtn, s.ftNudgeBtnPrimary]}
+              onPress={() => router.push("/trip-form")}
+              activeOpacity={0.8}
+              accessibilityRole="button"
+              accessibilityLabel="Start a trip now"
+            >
+              <Ionicons name="play" size={14} color="#0b0e14" accessible={false} />
+              <Text style={s.ftNudgeBtnTextPrimary}>Start a trip</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={s.ftNudgeBtn}
+              onPress={() => router.push({ pathname: "/trip-form", params: { mode: "manual" } } as any)}
+              activeOpacity={0.8}
+              accessibilityRole="button"
+              accessibilityLabel="Add a past trip manually"
+            >
+              <Ionicons name="create-outline" size={14} color={AMBER} accessible={false} />
+              <Text style={s.ftNudgeBtnText}>Add a past trip</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
+      {/* Saved-locations nudge: clusters available and a free slot to put them
+          in. Sits above the referral promo because it improves the user's own
+          data (named stops) and that earns the higher spot. */}
+      {dashboardMessages.suggestions.includes("saved_places") && (
+        <TouchableOpacity
+          style={s.savedLocsNudge}
+          onPress={() => router.push("/saved-locations-suggest" as never)}
+          activeOpacity={0.85}
+          accessibilityRole="button"
+          accessibilityLabel={`Review ${savedLocationsSuggestionCount} suggested ${
+            savedLocationsSuggestionCount === 1 ? "place" : "places"
+          }`}
+        >
+          <TouchableOpacity
+            style={s.savedLocsNudgeDismiss}
+            onPress={dismissSavedLocationsNudge}
+            hitSlop={{ top: 12, right: 12, bottom: 12, left: 12 }}
+            accessibilityRole="button"
+            accessibilityLabel="Dismiss"
+          >
+            <Ionicons name="close" size={16} color="#6b7280" accessible={false} />
+          </TouchableOpacity>
+          <View style={s.savedLocsNudgeIconWrap}>
+            <Ionicons name="sparkles" size={20} color={AMBER} accessible={false} />
+          </View>
+          <Text style={s.savedLocsNudgeTitle}>
+            Save the places you visit often
+          </Text>
+          <Text style={s.savedLocsNudgeBody}>
+            MileClear spotted{" "}
+            {savedLocationsSuggestionCount === 1
+              ? "1 place"
+              : `${savedLocationsSuggestionCount} places`}{" "}
+            in your recent trips. Save them so journeys are labelled with names
+            you recognise.
+          </Text>
+          <View style={s.savedLocsNudgeCta}>
+            <Text style={s.savedLocsNudgeCtaText}>Review suggestions</Text>
+            <Ionicons name="chevron-forward" size={14} color={AMBER} accessible={false} />
+          </View>
+        </TouchableOpacity>
+      )}
+      {/* Referral promo — dismissible (30 days), both modes. Links to the
+          Invite Friends screen. Suppressed while the first-trip nudge shows. */}
+      {dashboardMessages.suggestions.includes("referral") && (
+        <TouchableOpacity
+          style={s.referralCard}
+          onPress={() => router.push("/refer" as never)}
+          activeOpacity={0.85}
+          accessibilityRole="button"
+          accessibilityLabel="Invite friends and get a free month of Pro for each. Opens the invite screen."
+        >
+          <View style={s.referralCardIcon}>
+            <Ionicons name="gift" size={20} color={AMBER} accessible={false} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={s.referralCardTitle}>Get Pro free - invite friends</Text>
+            <Text style={s.referralCardBody}>
+              A free month of Pro for every friend who joins and takes a trip (up to 3).
+            </Text>
+          </View>
+          <Ionicons name="chevron-forward" size={16} color={TEXT_3} accessible={false} />
+          <TouchableOpacity
+            onPress={dismissReferralCard}
+            hitSlop={{ top: 12, right: 12, bottom: 12, left: 12 }}
+            style={s.referralCardDismiss}
+            accessibilityRole="button"
+            accessibilityLabel="Dismiss"
+          >
+            <Ionicons name="close" size={15} color="#6b7280" accessible={false} />
+          </TouchableOpacity>
+        </TouchableOpacity>
+      )}
+      {/* Pro Nudge Card — free users with 5+ trips */}
+      {dashboardMessages.suggestions.includes("pro") && (
+        <TouchableOpacity
+          style={s.proNudgeCard}
+          onPress={() => showPaywall("dashboard_nudge")}
+          activeOpacity={0.7}
+          accessibilityRole="button"
+          accessibilityLabel="Upgrade to Pro"
+        >
+          <TouchableOpacity
+            style={s.btPromoDismiss}
+            onPress={dismissProNudge}
+            hitSlop={{ top: 12, right: 12, bottom: 12, left: 12 }}
+            accessibilityRole="button"
+            accessibilityLabel="Dismiss Pro nudge"
+          >
+            <Ionicons name="close" size={16} color="#6b7280" accessible={false} />
+          </TouchableOpacity>
+          <View style={s.proNudgeIcon}>
+            <Ionicons name="star" size={24} color={AMBER} accessible={false} />
+          </View>
+          <Text style={s.btPromoTitle}>Upgrade to Pro</Text>
+          <Text style={s.btPromoBody}>{proNudgeMessages[proNudgeIndex]}</Text>
+          <View style={s.btPromoCta}>
+            <Text style={s.vehicleNudgeCtaText}>See plans</Text>
+            <Ionicons name="chevron-forward" size={14} color={AMBER} accessible={false} />
+          </View>
+        </TouchableOpacity>
+      )}
+      {/* Dashboard announcement slot. 28 Aug 2026: Android closed beta
+          (replaced the 55p rate card that ran from April). Dismissible per
+          device; one-time SQLite flag keyed on the announcement id so a new
+          announcement re-shows even to people who dismissed the last one. */}
+      {dashboardMessages.suggestions.includes("android_beta") && (
+        <TouchableOpacity
+          style={s.savedLocsNudge}
+          onPress={() => {
+            Linking.openURL("https://mileclear.com/updates/mileclear-on-android-closed-beta").catch(() => {});
+          }}
+          activeOpacity={0.85}
+          accessibilityRole="button"
+          accessibilityLabel="MileClear is on Android. Closed beta, testers wanted."
+        >
+          <TouchableOpacity
+            style={s.savedLocsNudgeDismiss}
+            onPress={dismissAmapBanner}
+            hitSlop={{ top: 12, right: 12, bottom: 12, left: 12 }}
+            accessibilityRole="button"
+            accessibilityLabel="Dismiss"
+          >
+            <Ionicons name="close" size={16} color="#6b7280" accessible={false} />
+          </TouchableOpacity>
+          <View style={s.savedLocsNudgeIconWrap}>
+            <Ionicons name="megaphone" size={20} color={AMBER} accessible={false} />
+          </View>
+          <Text style={s.savedLocsNudgeTitle}>
+            MileClear is on Android
+          </Text>
+          <Text style={s.savedLocsNudgeBody}>
+            The Android app is in closed testing on Google Play. Know anyone
+            with an Android phone? Testers get Pro free. Send their Google
+            account email to support@mileclear.com for an invite.
+          </Text>
+          <View style={s.savedLocsNudgeCta}>
+            <Text style={s.savedLocsNudgeCtaText}>Learn more</Text>
             <Ionicons name="chevron-forward" size={14} color={AMBER} accessible={false} />
           </View>
         </TouchableOpacity>
@@ -3602,6 +3587,15 @@ const s = StyleSheet.create({
     fontSize: 17,
     fontFamily: fonts.bold,
     letterSpacing: 0.3,
+  },
+  suggestionsHeading: {
+    fontSize: 11,
+    fontFamily: fonts.semibold,
+    color: TEXT_3,
+    letterSpacing: 0.8,
+    textTransform: "uppercase",
+    marginTop: 24,
+    marginBottom: 10,
   },
   customizeFooter: {
     flexDirection: "row",
