@@ -1254,6 +1254,29 @@ export async function userRoutes(app: FastifyInstance) {
     return reply.send({ success: true });
   });
 
+  // POST /user/events - the batched sibling of /user/event above. Same event
+  // shape, same sink (logEvent -> app_events); the only difference is that the
+  // app can hand over several at once.
+  //
+  // It exists for screen.viewed. Screen views are the one client event
+  // frequent enough that a request per event would be worse than no telemetry
+  // at all, so the app buffers them and flushes on backgrounding. Capped at
+  // MAX so one client cannot turn a single request into unbounded writes.
+  const eventBatchSchema = z.object({
+    events: z.array(eventSchema).min(1).max(50),
+  });
+
+  app.post("/events", async (request, reply) => {
+    const parsed = eventBatchSchema.safeParse(request.body);
+    if (!parsed.success) {
+      return reply.status(400).send({ error: "Invalid events" });
+    }
+    for (const event of parsed.data.events) {
+      logEvent(event.type, request.userId!, event.metadata);
+    }
+    return reply.send({ success: true, count: parsed.data.events.length });
+  });
+
   // Heartbeat: called by the mobile app on launch + every ~24h. Lets admin
   // see silent failures (revoked BG permission, dead tracking task, stale
   // app versions) without needing a user-initiated diagnostic dump.
