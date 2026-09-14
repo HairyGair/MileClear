@@ -2841,9 +2841,13 @@ export async function adminRoutes(app: FastifyInstance) {
     const recentCutoff = new Date(now - RECENT_DAYS * 24 * 60 * 60 * 1000);
     const baselineCutoff = new Date(now - (RECENT_DAYS + 14) * 24 * 60 * 60 * 1000);
 
+    // NO orderBy here, deliberately: same MysqlError 1038 the native health
+    // scan hit (89060a0). MySQL sorts the whole selected row and statusJson
+    // averages ~10 KB against a 256 KB sort_buffer_size, so ordering this
+    // 7-day window threw "Out of sort memory" and 500'd the page. The sort was
+    // only ever used to take the newest dump per user, so compare capturedAt.
     const dumps = await prisma.diagnosticDump.findMany({
       where: { createdAt: { gte: dumpCutoff } },
-      orderBy: { capturedAt: "desc" },
       select: {
         userId: true,
         verdict: true,
@@ -2853,7 +2857,10 @@ export async function adminRoutes(app: FastifyInstance) {
       },
     });
     const latest = new Map<string, (typeof dumps)[number]>();
-    for (const d of dumps) if (!latest.has(d.userId)) latest.set(d.userId, d);
+    for (const d of dumps) {
+      const prev = latest.get(d.userId);
+      if (!prev || d.capturedAt > prev.capturedAt) latest.set(d.userId, d);
+    }
 
     const native = [...latest.values()].filter((d) => {
       const s = (d.statusJson ?? {}) as Record<string, unknown>;

@@ -39,13 +39,18 @@ async function getCaptureHealthCounts(): Promise<{
   selfHeals24h: number;
 }> {
   const now = Date.now();
+  // NO orderBy here, deliberately - see /admin/cleartrack-health and 89060a0.
+  // capturedAt is selected only so the newest-per-user pick below keeps meaning
+  // "newest dump the DEVICE captured", not "newest row the server wrote".
   const dumps = await prisma.diagnosticDump.findMany({
     where: { createdAt: { gte: new Date(now - 7 * 24 * 60 * 60 * 1000) } },
-    orderBy: { capturedAt: "desc" },
-    select: { userId: true, createdAt: true, statusJson: true },
+    select: { userId: true, createdAt: true, capturedAt: true, statusJson: true },
   });
   const latest = new Map<string, (typeof dumps)[number]>();
-  for (const d of dumps) if (!latest.has(d.userId)) latest.set(d.userId, d);
+  for (const d of dumps) {
+    const prev = latest.get(d.userId);
+    if (!prev || d.capturedAt > prev.capturedAt) latest.set(d.userId, d);
+  }
 
   const native = [...latest.values()].filter((d) => {
     const s = (d.statusJson ?? {}) as Record<string, unknown>;
