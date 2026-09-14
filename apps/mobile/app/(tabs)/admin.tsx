@@ -13,6 +13,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { fetchAdminAnalytics } from "../../lib/api/admin";
 import { formatPence } from "@mileclear/shared";
 import type { AdminAnalytics } from "@mileclear/shared";
+import AppHeader from "../../components/AppHeader";
 
 export default function AdminDashboardScreen() {
   const router = useRouter();
@@ -64,151 +65,154 @@ export default function AdminDashboardScreen() {
   ];
 
   return (
-    <ScrollView
-      style={s.container}
-      contentContainerStyle={s.content}
-      refreshControl={
-        <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={AMBER} />
-      }
-    >
-      <View style={s.headerRow}>
-        <Ionicons name="shield-outline" size={22} color={AMBER} />
-        <Text style={s.headerTitle}>Admin Dashboard</Text>
-      </View>
+    <View style={s.container}>
+      <AppHeader title="Admin" showBack />
+      <ScrollView
+        style={s.container}
+        contentContainerStyle={s.content}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={AMBER} />
+        }
+      >
+        <View style={s.headerRow}>
+          <Ionicons name="shield-outline" size={22} color={AMBER} />
+          <Text style={s.headerTitle}>Admin Dashboard</Text>
+        </View>
 
-      {/* Analytics Grid */}
-      <View style={s.grid}>
-        {stats.map((stat) => (
-          <View key={stat.label} style={s.statCard}>
-            <Text style={s.statValue}>{stat.value}</Text>
-            <Text style={s.statLabel}>{stat.label}</Text>
+        {/* Analytics Grid */}
+        <View style={s.grid}>
+          {stats.map((stat) => (
+            <View key={stat.label} style={s.statCard}>
+              <Text style={s.statValue}>{stat.value}</Text>
+              <Text style={s.statLabel}>{stat.label}</Text>
+            </View>
+          ))}
+        </View>
+
+        {/* Navigation Cards */}
+        <TouchableOpacity
+          style={s.navCard}
+          onPress={() => router.push("/admin-users")}
+          activeOpacity={0.7}
+          accessibilityRole="button"
+          accessibilityLabel="User Management"
+          accessibilityHint="Opens the user management screen"
+        >
+          <View style={s.navCardLeft}>
+            <Ionicons name="people-outline" size={22} color={AMBER} />
+            <Text style={s.navCardLabel}>User Management</Text>
           </View>
-        ))}
-      </View>
+          <Ionicons name="chevron-forward" size={20} color={TEXT_3} />
+        </TouchableOpacity>
 
-      {/* Navigation Cards */}
-      <TouchableOpacity
-        style={s.navCard}
-        onPress={() => router.push("/admin-users")}
-        activeOpacity={0.7}
-        accessibilityRole="button"
-        accessibilityLabel="User Management"
-        accessibilityHint="Opens the user management screen"
-      >
-        <View style={s.navCardLeft}>
-          <Ionicons name="people-outline" size={22} color={AMBER} />
-          <Text style={s.navCardLabel}>User Management</Text>
-        </View>
-        <Ionicons name="chevron-forward" size={20} color={TEXT_3} />
-      </TouchableOpacity>
+        <TouchableOpacity
+          style={s.navCard}
+          onPress={() => router.push("/admin-health")}
+          activeOpacity={0.7}
+          accessibilityRole="button"
+          accessibilityLabel="System Health"
+          accessibilityHint="Opens the system health screen"
+        >
+          <View style={s.navCardLeft}>
+            <Ionicons name="pulse-outline" size={22} color={AMBER} />
+            <Text style={s.navCardLabel}>System Health</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={20} color={TEXT_3} />
+        </TouchableOpacity>
 
-      <TouchableOpacity
-        style={s.navCard}
-        onPress={() => router.push("/admin-health")}
-        activeOpacity={0.7}
-        accessibilityRole="button"
-        accessibilityLabel="System Health"
-        accessibilityHint="Opens the system health screen"
-      >
-        <View style={s.navCardLeft}>
-          <Ionicons name="pulse-outline" size={22} color={AMBER} />
-          <Text style={s.navCardLabel}>System Health</Text>
-        </View>
-        <Ionicons name="chevron-forward" size={20} color={TEXT_3} />
-      </TouchableOpacity>
+        <TouchableOpacity
+          style={s.navCard}
+          onPress={() => router.push("/admin-feedback")}
+          activeOpacity={0.7}
+          accessibilityRole="button"
+          accessibilityLabel="Community Feedback"
+          accessibilityHint="Opens the community feedback screen"
+        >
+          <View style={s.navCardLeft}>
+            <Ionicons name="chatbox-ellipses-outline" size={22} color={AMBER} />
+            <Text style={s.navCardLabel}>Community Feedback</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={20} color={TEXT_3} />
+        </TouchableOpacity>
 
-      <TouchableOpacity
-        style={s.navCard}
-        onPress={() => router.push("/admin-feedback")}
-        activeOpacity={0.7}
-        accessibilityRole="button"
-        accessibilityLabel="Community Feedback"
-        accessibilityHint="Opens the community feedback screen"
-      >
-        <View style={s.navCardLeft}>
-          <Ionicons name="chatbox-ellipses-outline" size={22} color={AMBER} />
-          <Text style={s.navCardLabel}>Community Feedback</Text>
-        </View>
-        <Ionicons name="chevron-forward" size={20} color={TEXT_3} />
-      </TouchableOpacity>
+        <TouchableOpacity
+          style={s.navCard}
+          onPress={() => router.push("/admin-revenue")}
+          activeOpacity={0.7}
+          accessibilityRole="button"
+          accessibilityLabel="Revenue"
+          accessibilityHint="Opens the revenue screen"
+        >
+          <View style={s.navCardLeft}>
+            <Ionicons name="cash-outline" size={22} color={AMBER} />
+            <Text style={s.navCardLabel}>Revenue</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={20} color={TEXT_3} />
+        </TouchableOpacity>
 
-      <TouchableOpacity
-        style={s.navCard}
-        onPress={() => router.push("/admin-revenue")}
-        activeOpacity={0.7}
-        accessibilityRole="button"
-        accessibilityLabel="Revenue"
-        accessibilityHint="Opens the revenue screen"
-      >
-        <View style={s.navCardLeft}>
-          <Ionicons name="cash-outline" size={22} color={AMBER} />
-          <Text style={s.navCardLabel}>Revenue</Text>
-        </View>
-        <Ionicons name="chevron-forward" size={20} color={TEXT_3} />
-      </TouchableOpacity>
+        <TouchableOpacity
+          style={s.navCard}
+          onPress={() => router.push("/admin-engagement")}
+          activeOpacity={0.7}
+          accessibilityRole="button"
+          accessibilityLabel="Engagement"
+          accessibilityHint="Opens the engagement screen"
+        >
+          <View style={s.navCardLeft}>
+            <Ionicons name="trending-up-outline" size={22} color={AMBER} />
+            <Text style={s.navCardLabel}>Engagement</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={20} color={TEXT_3} />
+        </TouchableOpacity>
 
-      <TouchableOpacity
-        style={s.navCard}
-        onPress={() => router.push("/admin-engagement")}
-        activeOpacity={0.7}
-        accessibilityRole="button"
-        accessibilityLabel="Engagement"
-        accessibilityHint="Opens the engagement screen"
-      >
-        <View style={s.navCardLeft}>
-          <Ionicons name="trending-up-outline" size={22} color={AMBER} />
-          <Text style={s.navCardLabel}>Engagement</Text>
-        </View>
-        <Ionicons name="chevron-forward" size={20} color={TEXT_3} />
-      </TouchableOpacity>
+        <TouchableOpacity
+          style={s.navCard}
+          onPress={() => router.push("/admin-auto-trips")}
+          activeOpacity={0.7}
+          accessibilityRole="button"
+          accessibilityLabel="Auto-trip Health"
+          accessibilityHint="Opens the auto-trip health screen"
+        >
+          <View style={s.navCardLeft}>
+            <Ionicons name="car-outline" size={22} color={AMBER} />
+            <Text style={s.navCardLabel}>Auto-trip Health</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={20} color={TEXT_3} />
+        </TouchableOpacity>
 
-      <TouchableOpacity
-        style={s.navCard}
-        onPress={() => router.push("/admin-auto-trips")}
-        activeOpacity={0.7}
-        accessibilityRole="button"
-        accessibilityLabel="Auto-trip Health"
-        accessibilityHint="Opens the auto-trip health screen"
-      >
-        <View style={s.navCardLeft}>
-          <Ionicons name="car-outline" size={22} color={AMBER} />
-          <Text style={s.navCardLabel}>Auto-trip Health</Text>
-        </View>
-        <Ionicons name="chevron-forward" size={20} color={TEXT_3} />
-      </TouchableOpacity>
+        <TouchableOpacity
+          style={s.navCard}
+          onPress={() => router.push("/admin-push")}
+          activeOpacity={0.7}
+          accessibilityRole="button"
+          accessibilityLabel="Push Notifications"
+          accessibilityHint="Opens the push notifications screen"
+        >
+          <View style={s.navCardLeft}>
+            <Ionicons name="notifications-outline" size={22} color={AMBER} />
+            <Text style={s.navCardLabel}>Push Notifications</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={20} color={TEXT_3} />
+        </TouchableOpacity>
 
-      <TouchableOpacity
-        style={s.navCard}
-        onPress={() => router.push("/admin-push")}
-        activeOpacity={0.7}
-        accessibilityRole="button"
-        accessibilityLabel="Push Notifications"
-        accessibilityHint="Opens the push notifications screen"
-      >
-        <View style={s.navCardLeft}>
-          <Ionicons name="notifications-outline" size={22} color={AMBER} />
-          <Text style={s.navCardLabel}>Push Notifications</Text>
-        </View>
-        <Ionicons name="chevron-forward" size={20} color={TEXT_3} />
-      </TouchableOpacity>
+        <TouchableOpacity
+          style={s.navCard}
+          onPress={() => router.push("/admin-email")}
+          activeOpacity={0.7}
+          accessibilityRole="button"
+          accessibilityLabel="Email Campaigns"
+          accessibilityHint="Opens the email campaigns screen"
+        >
+          <View style={s.navCardLeft}>
+            <Ionicons name="mail-outline" size={22} color={AMBER} />
+            <Text style={s.navCardLabel}>Email Campaigns</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={20} color={TEXT_3} />
+        </TouchableOpacity>
 
-      <TouchableOpacity
-        style={s.navCard}
-        onPress={() => router.push("/admin-email")}
-        activeOpacity={0.7}
-        accessibilityRole="button"
-        accessibilityLabel="Email Campaigns"
-        accessibilityHint="Opens the email campaigns screen"
-      >
-        <View style={s.navCardLeft}>
-          <Ionicons name="mail-outline" size={22} color={AMBER} />
-          <Text style={s.navCardLabel}>Email Campaigns</Text>
-        </View>
-        <Ionicons name="chevron-forward" size={20} color={TEXT_3} />
-      </TouchableOpacity>
-
-      <View style={{ height: 24 }} />
-    </ScrollView>
+        <View style={{ height: 24 }} />
+      </ScrollView>
+    </View>
   );
 }
 

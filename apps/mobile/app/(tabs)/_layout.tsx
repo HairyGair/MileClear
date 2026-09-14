@@ -1,137 +1,25 @@
-import { Stack, useRouter } from "expo-router";
-import { View, Text, Image, TouchableOpacity, StyleSheet } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
-import AvatarMenuButton from "../../components/AvatarMenuButton";
+// The screens in this group draw their own header (components/AppHeader)
+// rather than using Apple's navigation bar. The reason is documented at the
+// top of AppHeader.tsx: on iOS 26 UIKit stretches a Liquid Glass capsule
+// behind navigation bar button items, and nothing in our layout controls it.
+//
+// Note this is a plain Stack, not Tabs. There is no bottom tab bar in this
+// app; the avatar menu is the only navigation between these screens.
 
-const ROUTE_LABELS: Record<string, string> = {
-  "/trip-form": "Add trip",
-  "/fuel-form": "Add fuel log",
-  "/earning-form": "Add earning",
-};
-
-function HeaderAddButton({ route }: { route: string }) {
-  const router = useRouter();
-  const label = ROUTE_LABELS[route] ?? "Add";
-  return (
-    <TouchableOpacity
-      onPress={() => router.push(route as any)}
-      hitSlop={8}
-      style={headerStyles.addBtn}
-      accessibilityRole="button"
-      accessibilityLabel={label}
-    >
-      <Ionicons name="add" size={20} color="#f5a623" accessible={false} />
-    </TouchableOpacity>
-  );
-}
-
-const headerStyles = StyleSheet.create({
-  addBtn: {
-    width: 30,
-    height: 30,
-    borderRadius: 15,
-    backgroundColor: "rgba(245,166,35,0.12)",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  rightRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    alignSelf: "center",
-    gap: 8,
-  },
-});
-
-function BrandHeader() {
-  const router = useRouter();
-  return (
-    <TouchableOpacity
-      onPress={() => router.replace("/(tabs)/dashboard" as any)}
-      activeOpacity={0.7}
-      style={brandStyles.row}
-      accessibilityRole="button"
-      accessibilityLabel="Go to dashboard"
-      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-    >
-      <Image
-        source={require("../../assets/branding/logo-original.png")}
-        style={brandStyles.icon}
-        resizeMode="contain"
-        accessible={false}
-      />
-      <Text style={brandStyles.nameWhite}>Mile</Text>
-      <Text style={brandStyles.nameAmber}>Clear</Text>
-    </TouchableOpacity>
-  );
-}
-
-const brandStyles = StyleSheet.create({
-  row: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  icon: {
-    width: 28,
-    height: 28,
-    borderRadius: 6,
-    marginRight: 8,
-  },
-  nameWhite: {
-    fontSize: 18,
-    fontFamily: "PlusJakartaSans_600SemiBold",
-    color: "#f0f2f5",
-  },
-  nameAmber: {
-    fontSize: 18,
-    fontFamily: "PlusJakartaSans_600SemiBold",
-    color: "#f5a623",
-  },
-});
-
-const HEADER_BG = { backgroundColor: "#030712" } as const;
-
-function HeaderRightWithAdd({ route }: { route: string }) {
-  return (
-    <View style={headerStyles.rightRow}>
-      <HeaderAddButton route={route} />
-      <AvatarMenuButton />
-    </View>
-  );
-}
+import { Stack } from "expo-router";
 
 export default function TabLayout() {
   return (
     <Stack
       screenOptions={{
-        headerStyle: HEADER_BG,
-        headerTintColor: "#f0f2f5",
-        headerTitleStyle: { fontFamily: "PlusJakartaSans_300Light", color: "#f0f2f5" },
-        headerShadowVisible: false,
-        headerBackButtonDisplayMode: "minimal",
-        headerTitle: () => <BrandHeader />,
-        headerRight: () => <AvatarMenuButton />,
+        headerShown: false,
         animation: "fade",
       }}
     >
       <Stack.Screen name="dashboard" />
-      <Stack.Screen
-        name="trips"
-        options={{
-          headerRight: () => <HeaderRightWithAdd route="/trip-form" />,
-        }}
-      />
-      <Stack.Screen
-        name="fuel"
-        options={{
-          headerRight: () => <HeaderRightWithAdd route="/fuel-form" />,
-        }}
-      />
-      <Stack.Screen
-        name="earnings"
-        options={{
-          headerRight: () => <HeaderRightWithAdd route="/earning-form" />,
-        }}
-      />
+      <Stack.Screen name="trips" />
+      <Stack.Screen name="fuel" />
+      <Stack.Screen name="earnings" />
       <Stack.Screen name="profile" />
       <Stack.Screen name="admin" />
     </Stack>
