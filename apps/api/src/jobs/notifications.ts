@@ -961,9 +961,20 @@ async function runNativeEngineHealthJob(): Promise<void> {
   const WINDOW_MS = 12 * 60 * 60 * 1000;
   const cutoff = new Date(Date.now() - WINDOW_MS);
 
+  // NO orderBy here, deliberately. MySQL sorts the whole selected row, and
+  // statusJson averages ~10 KB with a worst case of 568 KB against a 256 KB
+  // sort_buffer_size, so ordering the ~376 rows in this window threw
+  // MysqlError 1038 "Out of sort memory" on essentially every run: 1,084
+  // failures by 14 Sep 2026, which means the error / silent / stranded alerts
+  // below had not fired in a very long time and nobody noticed, because a job
+  // that dies produces no output either way.
+  //
+  // The identical ORDER BY succeeds when only narrow columns are selected,
+  // which is how it was pinned down. The sort was never needed: the reduction
+  // below wants the newest dump per user, so compare capturedAt directly
+  // instead of leaning on arrival order.
   const dumps = await prisma.diagnosticDump.findMany({
     where: { createdAt: { gte: cutoff } },
-    orderBy: { capturedAt: "desc" },
     select: {
       userId: true,
       capturedAt: true,
@@ -973,9 +984,12 @@ async function runNativeEngineHealthJob(): Promise<void> {
     },
   });
 
-  // Reduce to the latest dump per user (the list is desc by capturedAt).
+  // Newest dump per user, by value rather than by arrival order.
   const latest = new Map<string, (typeof dumps)[number]>();
-  for (const d of dumps) if (!latest.has(d.userId)) latest.set(d.userId, d);
+  for (const d of dumps) {
+    const prev = latest.get(d.userId);
+    if (!prev || d.capturedAt > prev.capturedAt) latest.set(d.userId, d);
+  }
 
   let nativeTotal = 0;
   let permissionGated = 0;
