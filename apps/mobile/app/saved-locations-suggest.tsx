@@ -111,7 +111,7 @@ export default function SavedLocationsSuggestScreen() {
               ? "Home"
               : s.suggestedType === "work"
                 ? "Work"
-                : (s.inferredName ?? "");
+                : (s.inferredName ?? "Saved place");
           initial[s.id] = {
             type: initialType,
             name: defaultName,
@@ -136,7 +136,7 @@ export default function SavedLocationsSuggestScreen() {
       // unless they've already typed something custom. Heuristic: if the
       // current name matches one of the canonical labels (or is empty),
       // overwrite it; otherwise leave it alone.
-      const canonicalNames = new Set(["", "Home", "Work", "Depot", "Other"]);
+      const canonicalNames = new Set(["", "Home", "Work", "Depot", "Other", "Saved place"]);
       let nextName = current.name;
       if (canonicalNames.has(current.name)) {
         nextName =
@@ -219,7 +219,7 @@ export default function SavedLocationsSuggestScreen() {
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
-        <Stack.Screen options={{ title: "Suggested places" }} />
+        <Stack.Screen options={{ title: "Suggested Places" }} />
         <ActivityIndicator color={AMBER} />
       </View>
     );
@@ -228,11 +228,11 @@ export default function SavedLocationsSuggestScreen() {
   if (!suggestions || suggestions.length === 0) {
     return (
       <View style={styles.root}>
-        <Stack.Screen options={{ title: "Suggested places" }} />
+        <Stack.Screen options={{ title: "Suggested Places" }} />
         <EmptyState
           icon="location-outline"
           title="Nothing to suggest yet"
-          description="MileClear needs at least 3 trips to spot patterns. Drive a few more journeys and check back — your home, work, and regular stops will surface here."
+          description="MileClear needs at least 3 trips to spot patterns. Drive a few more journeys and check back. Your home, work, and regular stops will surface here."
         />
         <View style={{ paddingHorizontal: 16, marginTop: 16 }}>
           <Button
@@ -247,10 +247,9 @@ export default function SavedLocationsSuggestScreen() {
 
   return (
     <View style={styles.root}>
-      <Stack.Screen options={{ title: "Suggested places" }} />
+      <Stack.Screen options={{ title: "Suggested Places" }} />
       <ScrollView contentContainerStyle={styles.scroll}>
         <View style={styles.intro}>
-          <Text style={styles.introTitle}>Places you visit often</Text>
           <Text style={styles.introBody}>
             MileClear spotted {suggestions.length} {suggestions.length === 1 ? "place" : "places"} you've
             been to multiple times. Save them so trips get auto-classified and
@@ -279,11 +278,15 @@ export default function SavedLocationsSuggestScreen() {
             <View key={s.id} style={styles.card}>
               <View style={styles.cardHeader}>
                 <View style={{ flex: 1 }}>
-                  <Text style={styles.visitCount}>
-                    {s.visitCount} {s.visitCount === 1 ? "visit" : "visits"}
+                  <Text style={styles.placeName} numberOfLines={1}>
+                    {row.name || "Saved place"}
                   </Text>
-                  <Text style={styles.visitMeta}>
-                    Last visited {formatRelative(s.lastVisitedAt)}
+                  <Text style={styles.placeMeta} numberOfLines={1}>
+                    {s.inferredName && s.inferredName !== row.name
+                      ? `${s.inferredName} · `
+                      : ""}
+                    {s.visitCount} {s.visitCount === 1 ? "visit" : "visits"} ·{" "}
+                    {formatRelative(s.lastVisitedAt)}
                   </Text>
                 </View>
                 {!row.saved && (
@@ -297,12 +300,6 @@ export default function SavedLocationsSuggestScreen() {
                   </TouchableOpacity>
                 )}
               </View>
-
-              {s.inferredName ? (
-                <Text style={styles.inferredName} numberOfLines={1}>
-                  {s.inferredName}
-                </Text>
-              ) : null}
 
               {row.saved ? (
                 <View style={styles.savedRow}>
@@ -343,7 +340,7 @@ export default function SavedLocationsSuggestScreen() {
                       >
                         <Ionicons
                           name={opt.icon}
-                          size={14}
+                          size={13}
                           color={row.type === opt.value ? colors.bg : TEXT_2}
                         />
                         <Text
@@ -364,6 +361,7 @@ export default function SavedLocationsSuggestScreen() {
                     onPress={() => handleSave(s)}
                     loading={row.saving}
                     disabled={row.saving || !row.name.trim()}
+                    size="sm"
                     style={{ marginTop: 12 }}
                   />
                 </>
@@ -407,12 +405,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   intro: { marginBottom: 16 },
-  introTitle: {
-    fontSize: 22,
-    fontFamily: fonts.bold,
-    color: TEXT_1,
-    marginBottom: 6,
-  },
   introBody: {
     fontSize: 14,
     fontFamily: fonts.regular,
@@ -438,22 +430,16 @@ const styles = StyleSheet.create({
     alignItems: "flex-start",
     gap: 8,
   },
-  visitCount: {
-    fontSize: 18,
-    fontFamily: fonts.bold,
-    color: AMBER,
+  placeName: {
+    fontSize: 16,
+    fontFamily: fonts.semibold,
+    color: TEXT_1,
   },
-  visitMeta: {
+  placeMeta: {
     fontSize: 12,
     fontFamily: fonts.regular,
     color: TEXT_3,
-    marginTop: 2,
-  },
-  inferredName: {
-    fontSize: 13,
-    fontFamily: fonts.medium,
-    color: TEXT_2,
-    marginTop: 8,
+    marginTop: 3,
   },
   typeRow: {
     flexDirection: "row",
@@ -464,8 +450,8 @@ const styles = StyleSheet.create({
   typeChip: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 6,
-    paddingHorizontal: 12,
+    gap: 5,
+    paddingHorizontal: 10,
     paddingVertical: 8,
     borderRadius: 999,
     backgroundColor: "rgba(255,255,255,0.04)",
@@ -477,7 +463,7 @@ const styles = StyleSheet.create({
     borderColor: AMBER,
   },
   typeChipText: {
-    fontSize: 13,
+    fontSize: 12,
     fontFamily: fonts.semibold,
     color: TEXT_2,
   },
