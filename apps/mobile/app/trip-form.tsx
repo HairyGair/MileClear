@@ -69,6 +69,7 @@ import { fetchCommunityInsights } from "../lib/api/communityInsights";
 import * as Notifications from "expo-notifications";
 import { colors, fonts } from "../lib/theme";
 import { haptic } from "../lib/haptics";
+import { plausibleMissedJourneyTimes } from "../lib/trips/missedJourneyTimes";
 
 /**
  * One-time contextual notification permission ask for users who skipped onboarding.
@@ -857,8 +858,27 @@ export default function TripFormScreen() {
           }
           const dep = prefillDepartedAt ? new Date(String(prefillDepartedAt)) : null;
           const arr = prefillArrivedAt ? new Date(String(prefillArrivedAt)) : null;
-          if (dep && !Number.isNaN(dep.getTime())) setStartedAt(dep);
-          if (arr && !Number.isNaN(arr.getTime())) setEndedAt(arr);
+          if (dep && !Number.isNaN(dep.getTime()) && arr && !Number.isNaN(arr.getTime())) {
+            // The proposal's bracket says the journey happened between these
+            // two moments, not that it took that long. An overnight gap would
+            // otherwise save as a trip lasting all night. See
+            // lib/trips/missedJourneyTimes.ts.
+            const crowMiles =
+              Number.isFinite(fLat) && Number.isFinite(fLng) &&
+              Number.isFinite(tLat) && Number.isFinite(tLng)
+                ? haversineDistance(fLat, fLng, tLat, tLng)
+                : 0;
+            const times = plausibleMissedJourneyTimes({
+              departedAt: dep,
+              arrivedAt: arr,
+              estimatedMiles: crowMiles,
+            });
+            setStartedAt(times.startedAt);
+            setEndedAt(times.endedAt);
+          } else {
+            if (dep && !Number.isNaN(dep.getTime())) setStartedAt(dep);
+            if (arr && !Number.isNaN(arr.getTime())) setEndedAt(arr);
+          }
           setMode("manual");
           return; // finally sets loading=false
         }
