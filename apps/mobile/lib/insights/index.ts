@@ -82,7 +82,7 @@ function generateInsights(input: InsightInput): Insight[] {
       id: "unclassified_trips",
       icon: "alert-circle-outline",
       iconColor: "#ef4444",
-      title: `${unclassifiedCount} trip${unclassifiedCount === 1 ? "" : "s"} need classifying`,
+      title: `${unclassifiedCount} trip${unclassifiedCount === 1 ? " needs" : "s need"} classifying`,
       body: "Business trips are tax deductible. Classify them so you don't miss out.",
       priority: "urgent",
       actionLabel: "Review trips",

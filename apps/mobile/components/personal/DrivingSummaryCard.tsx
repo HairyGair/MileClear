@@ -5,13 +5,16 @@ import { colors, fonts } from "../../lib/theme";
 // Local theme aliases — same pattern as the (tabs) screens.
 const CARD_BG = colors.surface;
 
+// Leads on TODAY, not the month. Until 13 Sep this card printed the month's
+// miles as its hero and the month's trip count as a stat, and MileageMonthCard
+// directly below printed both again — the same two numbers twice on one
+// screen, which is what Akbar's UI video complained about. The month total now
+// lives only in MileageMonthCard, which owns the prev/next month navigation.
 interface DrivingSummaryCardProps {
-  monthMiles: number;
-  monthTrips: number;
   estimatedCostPence: number | null;
-  monthLabel: string;
   streakDays?: number;
   todayMiles?: number;
+  todayTrips?: number;
   weekMiles?: number;
 }
 
@@ -31,21 +34,17 @@ function formatMilesCompact(miles: number): string {
 }
 
 export function DrivingSummaryCard({
-  monthMiles,
-  monthTrips,
   estimatedCostPence,
-  monthLabel,
   streakDays = 0,
   todayMiles = 0,
+  todayTrips = 0,
   weekMiles = 0,
 }: DrivingSummaryCardProps) {
   return (
     <View style={styles.card}>
       {/* Header row: label + streak badge */}
       <View style={styles.headerRow}>
-        <Text style={styles.label}>
-          YOUR DRIVING {"\u00B7"} {monthLabel.toUpperCase()}
-        </Text>
+        <Text style={styles.label}>YOUR DRIVING TODAY</Text>
         {streakDays > 0 && (
           <View style={styles.streakBadge}>
             <Ionicons name="flame" size={12} color={AMBER} />
@@ -54,27 +53,26 @@ export function DrivingSummaryCard({
         )}
       </View>
 
-      {/* Big month miles */}
+      {/* Today's miles. The month's total is MileageMonthCard's job. */}
       <View style={styles.heroRow}>
-        <Text style={styles.heroValue}>{formatMilesHero(monthMiles)}</Text>
+        <Text style={styles.heroValue}>{formatMilesHero(todayMiles)}</Text>
         <Text style={styles.heroUnit}>miles</Text>
       </View>
 
       {/* Quick stats row */}
       <View style={styles.statsRow}>
         <View style={styles.statItem}>
-          <Text style={styles.statValue}>{formatMilesCompact(todayMiles)}</Text>
-          <Text style={styles.statLabel}>today</Text>
+          <Text style={styles.statValue}>{todayTrips}</Text>
+          {/* "trips today", not just "trips": MileageMonthCard directly below
+              shows the month's trip count, and two bare "trips" labels with
+              different numbers on one screen is the confusion this card was
+              just cleaned up to avoid. */}
+          <Text style={styles.statLabel}>{todayTrips === 1 ? "trip today" : "trips today"}</Text>
         </View>
         <View style={styles.statDivider} />
         <View style={styles.statItem}>
           <Text style={styles.statValue}>{formatMilesCompact(weekMiles)}</Text>
           <Text style={styles.statLabel}>this week</Text>
-        </View>
-        <View style={styles.statDivider} />
-        <View style={styles.statItem}>
-          <Text style={styles.statValue}>{monthTrips}</Text>
-          <Text style={styles.statLabel}>{monthTrips === 1 ? "trip" : "trips"}</Text>
         </View>
         {estimatedCostPence != null && estimatedCostPence > 0 && (
           <>
