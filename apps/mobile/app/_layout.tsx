@@ -152,6 +152,7 @@ import { getDatabase } from "../lib/db/index";
 import { hydrateLocalData, isHydrationComplete, reconcileSavedLocations, reconcileTrips } from "../lib/sync/hydrate";
 import { uploadDiagnosticDump } from "../lib/api/diagnostics";
 import { mountAppStateTracker } from "../lib/appState";
+import { useScreenTracking } from "../lib/events/useScreenTracking";
 import { isIapAvailable, initializeIap, setupPurchaseListeners, endIapConnection, iapStore } from "../lib/iap/index";
 import { validateGooglePurchase } from "../lib/api/billingGoogle";
 import { validateApplePurchase } from "../lib/api/billing";
@@ -192,6 +193,11 @@ void import("../lib/tracking/nativeLocation").then((m) => m.loadLicenceState());
 function RootNavigator() {
   const { isLoading, isAuthenticated } = useAuth();
   const router = useRouter();
+
+  // Screen-view telemetry for every route, hooked once here rather than pasted
+  // into each screen so new destinations are measured the day they ship.
+  // Records route names only and sends nothing until the app backgrounds.
+  useScreenTracking(isAuthenticated && !isLoading);
 
   const [onboardingChecked, setOnboardingChecked] = useState(false);
   const [onboardingComplete, setOnboardingComplete] = useState(false);
@@ -656,6 +662,8 @@ function RootNavigator() {
         <Stack.Screen name="trip-form" options={{ headerShown: true, title: "Add Trip" }} />
         <Stack.Screen name="trip-split" options={{ headerShown: true, title: "Split Trip" }} />
         <Stack.Screen name="vehicle-form" options={{ headerShown: true, title: "Add Vehicle" }} />
+        <Stack.Screen name="vehicles" options={{ headerShown: true, title: "Vehicles" }} />
+        <Stack.Screen name="shifts" options={{ headerShown: true, title: "Shifts" }} />
         <Stack.Screen name="nominate-manager" options={{ headerShown: true, title: "Invite your manager" }} />
         <Stack.Screen name="work-schedule" options={{ headerShown: true, title: "Work Schedule" }} />
         <Stack.Screen name="earning-form" options={{ headerShown: true, title: "Add Earning" }} />

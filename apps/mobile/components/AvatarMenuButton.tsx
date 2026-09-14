@@ -41,9 +41,16 @@ interface MenuItem {
   badge?: string;
 }
 
+// Trips, Fuel and Earnings are menu rows. They were briefly removed on
+// 13 Sep on the belief that each duplicated a bottom tab; that belief was
+// wrong. app/(tabs)/_layout.tsx is a plain Stack with no tab bar at all, so
+// the menu is the only way into these screens, and removing them left
+// Earnings unreachable from anywhere in the app.
 const MENU_ITEMS: Record<string, MenuItem> = {
   menu_dashboard: { key: "menu_dashboard", label: "Dashboard", route: "/(tabs)/dashboard", icon: "speedometer-outline", replace: true },
   menu_trips: { key: "menu_trips", label: "Trips", route: "/(tabs)/trips", icon: "car-outline", replace: true },
+  menu_vehicles: { key: "menu_vehicles", label: "Vehicles", route: "/vehicles", icon: "key-outline" },
+  menu_shifts: { key: "menu_shifts", label: "Shifts", route: "/shifts", icon: "time-outline" },
   menu_locations: { key: "menu_locations", label: "Saved Locations", route: "/saved-locations", icon: "location-outline" },
   menu_fuel: { key: "menu_fuel", label: "Fuel", route: "/(tabs)/fuel", icon: "water-outline", replace: true },
   menu_tax: { key: "menu_tax", label: "Self Assessment", route: "/self-assessment", icon: "calculator-outline" },
@@ -67,19 +74,32 @@ const MENU_ITEMS: Record<string, MenuItem> = {
 
 // Group definitions — items render in layout-pref order within each group.
 // Ordered by what a driver comes here for: recording, then the tax the
-// recording is for, then the money around it. Settings sit last, not
-// first; a tax-settings page was the headline of "WORK & TAX" while
-// Self Assessment, HMRC Reconciliation, Open Banking, Saved Locations and
-// Achievements were not in the menu at all.
+// recording is for, then the numbers on that recording, then the money
+// around it, with settings-shaped things last. Reordered 13 Sep against
+// real usage across 1,093 users: Achievements (76.7%), Trips (73.5%),
+// Vehicles (65.9%) and Shifts (28.1%) are the things people actually open,
+// while Earnings (5.6%), Fuel (3.5%) and Invoices (0.5%) barely get used -
+// see the menu_invoices comment in lib/layout/index.ts.
+//
+// menu_dashboard stays in TRACKING and stays locked (see SECTION_REGISTRY
+// in lib/layout/index.ts): locked keeps it un-hideable and un-reorderable
+// in Customize Layout, and nothing else in this file assumes it's first.
+//
+// Vehicles and Shifts have standalone screens as of 13 Sep (app/vehicles.tsx
+// and app/shifts.tsx). Before that Vehicles existed only as a section inside
+// /(tabs)/profile and Shifts had no screen at all - shifts could only be
+// started and ended inline on the dashboard.
 /** Menu entries that only make sense for a gig worker, hidden in company mode. */
 const GIG_ONLY_MENU_KEYS = new Set(["menu_earnings", "menu_bank", "menu_inbox", "menu_invoices"]);
 
 const GROUPS = [
-  { id: "track", label: "TRACKING", keys: ["menu_dashboard", "menu_trips", "menu_locations", "menu_fuel"] },
+  { id: "track", label: "TRACKING", keys: ["menu_dashboard", "menu_trips", "menu_vehicles", "menu_shifts", "menu_locations", "menu_fuel"] },
   { id: "tax", label: "TAX", keys: ["menu_tax", "menu_reconciliation", "menu_exports", "menu_accountant", "menu_work_tax"] },
-  { id: "money", label: "MONEY", keys: ["menu_earnings", "menu_expenses", "menu_invoices", "menu_bank", "menu_inbox"] },
   { id: "insight", label: "INSIGHTS", keys: ["menu_insights", "menu_analytics", "menu_achievements"] },
-  { id: "more", label: "MORE", keys: ["menu_schedule", "menu_refer", "menu_suggestions", "menu_help"] },
+  { id: "money", label: "MONEY", keys: ["menu_earnings", "menu_expenses", "menu_bank", "menu_inbox"] },
+  // menu_invoices demoted here from MONEY: 5 of 1,093 users have ever used
+  // Invoices (0.5%), so it no longer sits next to Expenses and Link Bank.
+  { id: "more", label: "MORE", keys: ["menu_schedule", "menu_refer", "menu_suggestions", "menu_help", "menu_invoices"] },
 ];
 
 // ── Component ──────────────────────────────────────────────────────

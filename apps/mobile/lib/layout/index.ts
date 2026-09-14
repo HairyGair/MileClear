@@ -17,6 +17,10 @@ export interface SectionDef {
   icon: string;
   locked?: boolean;
   description?: string;
+  // Sections a device has never seen (new install, or a registry entry
+  // added after the device last loaded prefs) default to visible: true.
+  // Set this to false to opt a section out of that default instead.
+  defaultVisible?: boolean;
 }
 
 export interface LayoutPref {
@@ -67,11 +71,15 @@ export const SECTION_REGISTRY: Record<ScreenKey, SectionDef[]> = {
       description: "HMRC estimate, weekly set-aside, filing deadline countdown",
     },
     // Summary cards (today / year / week)
+    // Default-hidden: shows three zeroes to anyone who hasn't driven yet
+    // today, on the same dashboard as Business Mileage below it. Still
+    // reachable via Settings > What You See (13 Sep reorder).
     {
       key: "daily_recap",
       label: "Today's Recap",
       icon: "today-outline",
       description: "Daily driving summary card",
+      defaultVisible: false,
     },
     {
       key: "business_mileage",
@@ -123,11 +131,14 @@ export const SECTION_REGISTRY: Record<ScreenKey, SectionDef[]> = {
       icon: "calendar-outline",
       description: "Monthly heatmap of your driving activity",
     },
+    // Default-hidden: low-signal at the bottom of an 11-card dashboard
+    // (13 Sep reorder). Still reachable via Settings > What You See.
     {
       key: "community",
       label: "Community Insights",
       icon: "people-outline",
       description: "Local driving intelligence",
+      defaultVisible: false,
     },
   ],
   dashboard_personal: [
@@ -137,12 +148,10 @@ export const SECTION_REGISTRY: Record<ScreenKey, SectionDef[]> = {
       icon: "navigate",
       locked: true,
     },
-    {
-      key: "personal_summary",
-      label: "Driving Summary",
-      icon: "speedometer-outline",
-      description: "Current month miles, trips, fuel cost (today / this week stats)",
-    },
+    // Month first, today second (14 Sep). The summary card below leads on
+    // today, which reads 0.0 first thing every morning, so with it on top the
+    // dashboard opened as a card of zeros while the month's real numbers sat
+    // underneath.
     {
       key: "monthly_history",
       label: "Monthly History",
@@ -150,10 +159,21 @@ export const SECTION_REGISTRY: Record<ScreenKey, SectionDef[]> = {
       description: "Mileage by month with prev/next chevrons - navigate back to past months",
     },
     {
+      key: "personal_summary",
+      label: "Driving Summary",
+      icon: "speedometer-outline",
+      description: "Today's miles and trips, plus this week and fuel cost",
+    },
+    // Default-hidden: it repeats figures the two cards above already carry,
+    // and it shows zeroes to anyone who hasn't driven yet today (13 Sep).
+    // The duplicate month miles and trip count it originally also called out
+    // were removed from Driving Summary itself on 14 Sep.
+    {
       key: "daily_recap",
       label: "Today's Recap",
       icon: "today-outline",
       description: "Daily driving summary card",
+      defaultVisible: false,
     },
     {
       key: "milestone",
@@ -173,11 +193,15 @@ export const SECTION_REGISTRY: Record<ScreenKey, SectionDef[]> = {
       icon: "map-outline",
       description: "Map of your recent trips",
     },
+    // Default-hidden: low-signal at the bottom of the dashboard, same as
+    // the work dashboard's copy of this card (13 Sep reorder). Still
+    // reachable via Settings > What You See.
     {
       key: "community",
       label: "Community Insights",
       icon: "people-outline",
       description: "Local driving intelligence",
+      defaultVisible: false,
     },
   ],
   profile: [
@@ -232,8 +256,17 @@ export const SECTION_REGISTRY: Record<ScreenKey, SectionDef[]> = {
     },
   ],
   avatar_menu: [
+    // menu_dashboard stays locked (see the GROUPS comment in
+    // AvatarMenuButton.tsx): locked keeps it un-hideable and un-reorderable
+    // in Customize Layout.
     { key: "menu_dashboard", label: "Dashboard", icon: "speedometer-outline", locked: true },
     { key: "menu_trips", label: "Trips", icon: "car-outline" },
+    // Vehicles and Shifts added 13 Sep, once they finally had screens of their
+    // own. They are the two most-used things in the app after trips (vehicles
+    // 66% of users, shifts 28%) and until now neither could be navigated to:
+    // vehicles existed only inside the Profile tab, shifts nowhere at all.
+    { key: "menu_vehicles", label: "Vehicles", icon: "key-outline" },
+    { key: "menu_shifts", label: "Shifts", icon: "time-outline" },
     { key: "menu_locations", label: "Saved Locations", icon: "location-outline" },
     { key: "menu_fuel", label: "Fuel", icon: "water-outline" },
     { key: "menu_tax", label: "Self Assessment", icon: "calculator-outline" },
@@ -243,7 +276,6 @@ export const SECTION_REGISTRY: Record<ScreenKey, SectionDef[]> = {
     { key: "menu_work_tax", label: "Tax Settings", icon: "briefcase-outline" },
     { key: "menu_earnings", label: "Earnings", icon: "cash-outline" },
     { key: "menu_expenses", label: "Expenses", icon: "receipt-outline" },
-    { key: "menu_invoices", label: "Invoices", icon: "document-text-outline" },
     { key: "menu_bank", label: "Link Bank", icon: "business-outline" },
     { key: "menu_inbox", label: "Bank Inbox", icon: "mail-unread-outline" },
     { key: "menu_insights", label: "Insights", icon: "stats-chart-outline" },
@@ -253,6 +285,11 @@ export const SECTION_REGISTRY: Record<ScreenKey, SectionDef[]> = {
     { key: "menu_refer", label: "Refer a Driver", icon: "gift-outline" },
     { key: "menu_suggestions", label: "Suggestions", icon: "bulb-outline" },
     { key: "menu_help", label: "Help & Tutorials", icon: "help-circle-outline" },
+    // Moved to the end of the list (was between Tax Settings and Link
+    // Bank) and out of the MONEY group into MORE: 5 users have ever used
+    // Invoices (0.5% of 1,093), so it no longer earns top billing next to
+    // Expenses and Link Bank.
+    { key: "menu_invoices", label: "Invoices", icon: "document-text-outline" },
     { key: "menu_logout", label: "Log out", icon: "log-out-outline", locked: true },
   ],
 };
@@ -262,7 +299,9 @@ export const SECTION_REGISTRY: Record<ScreenKey, SectionDef[]> = {
 function defaultPrefs(screen: ScreenKey): LayoutPref[] {
   return SECTION_REGISTRY[screen].map((s, i) => ({
     key: s.key,
-    visible: true,
+    // A section is visible by default unless it opts out via
+    // defaultVisible: false (Today's Recap, Community Insights - 13 Sep).
+    visible: s.defaultVisible ?? true,
     position: i,
   }));
 }
@@ -292,7 +331,11 @@ async function loadPrefs(screen: ScreenKey): Promise<LayoutPref[]> {
     if (!dbKeys.has(section.key)) {
       result.push({
         key: section.key,
-        visible: true,
+        // Same defaultVisible honouring as defaultPrefs() above - without
+        // this, a device that already has other prefs saved would still
+        // see a newly-registered defaultVisible: false section appended
+        // as visible: true, silently ignoring the flag.
+        visible: section.defaultVisible ?? true,
         position: result.length,
       });
     }
