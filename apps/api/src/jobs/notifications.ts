@@ -966,6 +966,7 @@ async function runNativeEngineHealthJob(): Promise<void> {
     orderBy: { capturedAt: "desc" },
     select: {
       userId: true,
+      capturedAt: true,
       verdict: true,
       statusJson: true,
       user: { select: { email: true } },
@@ -1086,6 +1087,37 @@ async function runNativeEngineHealthJob(): Promise<void> {
     }
   }
 
+  // ── Stuck quick-trip lock ────────────────────────────────────────────────
+  // A __quick_trip__ lock that never got released suppresses auto-detection for
+  // as long as it is held, and it renews its own liveness: the background
+  // location task writes breadcrumbs under whatever active_shift_id says, so a
+  // moving phone keeps the lock looking fresh. It does not time out on its own.
+  // Duncan Norton lost a morning's driving to one on 14 Sep 2026.
+  //
+  // Deliberately NOT gated on trip history. The silent bucket above requires
+  // zero auto trips in RECENT_DAYS, and Duncan had recorded a trip that very
+  // morning, so every filter up there excluded him. It is also not gated on
+  // nativeEngineEnabled, because the lock mutes capture whichever engine runs.
+  const STUCK_LOCK_MIN_MS = 3 * 60 * 60 * 1000;
+  const stuckLock: { email: string; userId: string; heldHours: number }[] = [];
+  for (const d of latest.values()) {
+    const st = (d.statusJson ?? {}) as Record<string, unknown>;
+    if (st.activeShiftId !== "__quick_trip__") continue;
+    const rows = Array.isArray(st.trackingState)
+      ? (st.trackingState as Array<{ key?: string; value?: string }>)
+      : [];
+    const stamp = rows.find((r) => r?.key === "active_shift_started_at");
+    const startedMs = stamp?.value != null ? Number(stamp.value) : NaN;
+    if (!Number.isFinite(startedMs)) continue;
+    const heldMs = d.capturedAt.getTime() - startedMs;
+    if (heldMs < STUCK_LOCK_MIN_MS) continue;
+    stuckLock.push({
+      email: d.user.email ?? d.userId,
+      userId: d.userId,
+      heldHours: Math.round(heldMs / 3_600_000),
+    });
+  }
+
   // ── Stranded-OTA check ───────────────────────────────────────────────────
   // A device on a pre-update-aware bundle (no `updates` key) or an OTA >21 days
   // old isn't pulling the latest fixes. But that population is MIXED: some are
@@ -1142,7 +1174,12 @@ async function runNativeEngineHealthJob(): Promise<void> {
     );
   }
 
-  if (unhealthy.length === 0 && silent.length === 0 && stranded.length === 0) {
+  if (
+    unhealthy.length === 0 &&
+    silent.length === 0 &&
+    stranded.length === 0 &&
+    stuckLock.length === 0
+  ) {
     lastNativeHealthSig = ""; // reset so a fresh problem alerts immediately
     return;
   }
@@ -1152,6 +1189,7 @@ async function runNativeEngineHealthJob(): Promise<void> {
     ...unhealthy.map((u) => `e:${u.userId}`),
     ...silent.map((u) => `s:${u.userId}`),
     ...stranded.map((u) => `o:${u.userId}`),
+    ...stuckLock.map((u) => `q:${u.userId}`),
   ]
     .sort()
     .join(",");
@@ -1196,10 +1234,25 @@ async function runNativeEngineHealthJob(): Promise<void> {
     );
   }
 
-  const total = unhealthy.length + silent.length + stranded.length;
+  if (stuckLock.length > 0) {
+    const list = stuckLock
+      .slice(0, 15)
+      .map((u) => `• ${u.email} — lock held ${u.heldHours}h`)
+      .join("\n");
+    sections.push(
+      `STUCK QUICK-TRIP LOCK — a Start Trip that was never finished. Auto-detection is ` +
+        `suppressed for as long as the lock is held and it renews its own liveness, so it will ` +
+        `NOT clear itself. The driver must open the app and finish the trip (tapping Arrive); ` +
+        `it cannot be cleared server-side. No trip-history gate here, so this catches drivers ` +
+        `who recorded normally earlier the same day:\n${list}` +
+        (stuckLock.length > 15 ? `\n…and ${stuckLock.length - 15} more` : "")
+    );
+  }
+
+  const total = unhealthy.length + silent.length + stranded.length + stuckLock.length;
   await postFounderAlert({
     severity: unhealthy.length + silent.length >= 3 ? "critical" : "warning",
-    title: `ClearTrack: ${total}/${nativeTotal} device(s) need attention (${unhealthy.length} error, ${silent.length} silent, ${stranded.length} stranded)`,
+    title: `ClearTrack: ${total}/${nativeTotal} device(s) need attention (${unhealthy.length} error, ${silent.length} silent, ${stranded.length} stranded, ${stuckLock.length} stuck-lock)`,
     detail:
       `ClearTrack (native-engine) devices. If the error/silent sets are growing across runs, consider rolling the native engine flag back.\n\n` +
       sections.join("\n\n"),
