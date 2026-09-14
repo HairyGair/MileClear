@@ -40,6 +40,7 @@ import { TrackingOffBanner } from "../../components/TrackingOffBanner";
 import { haptic } from "../../lib/haptics";
 import { AppModal } from "../../components/AppModal";
 import { Swipeable, RectButton } from "react-native-gesture-handler";
+import AppHeader from "../../components/AppHeader";
 
 if (Platform.OS === "android" && UIManager.setLayoutAnimationEnabledExperimental) {
   UIManager.setLayoutAnimationEnabledExperimental(true);
@@ -316,6 +317,11 @@ export default function TripsScreen() {
   const [customFrom, setCustomFrom] = useState<Date | null>(null);
   const [customTo, setCustomTo] = useState<Date | null>(null);
   const [showCustomPicker, setShowCustomPicker] = useState(false);
+  // Platform + date range now live behind a single "Filters" control (was
+  // two permanently-visible chip rows pushing the first trip a third of
+  // the way down the screen). Sheet visibility only - the underlying
+  // platformFilter/dateRange state and its query logic are untouched.
+  const [showFiltersSheet, setShowFiltersSheet] = useState(false);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -543,6 +549,25 @@ export default function TripsScreen() {
     },
     [loadTrips, loadSummary]
   );
+
+  // Clears both platform and date range in one reload - the "back to
+  // unfiltered" tap from the Filters sheet. Kept separate from
+  // handlePlatformChange so clearing doesn't fire two overlapping fetches.
+  const clearFilters = useCallback(() => {
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    setPlatformFilter("all");
+    platformFilterRef.current = "all";
+    setDateRange("all");
+    dateRangeRef.current = "all";
+    setCustomFrom(null);
+    setCustomTo(null);
+    customFromRef.current = null;
+    customToRef.current = null;
+    setTrips([]);
+    setLoading(true);
+    loadTrips(1);
+    loadSummary();
+  }, [loadTrips, loadSummary]);
 
   const onEndReachedSafe = useCallback(() => {
     if (isOffline) return;
@@ -1107,6 +1132,19 @@ export default function TripsScreen() {
     ? groupUnclassifiedTrips(trips.filter((t) => t.classification === "unclassified"))
     : [];
 
+  // Drives the collapsed Filters control: label + count so a narrowed list
+  // never reads as trips having gone missing.
+  const activePlatformLabel =
+    platformFilter === "all" ? null : (PLATFORM_LABELS[platformFilter] ?? platformFilter);
+  const activeDateLabel = dateRange === "all" ? null : rangeLabel(dateRange, customFrom, customTo);
+  const activeFilterCount = (activePlatformLabel ? 1 : 0) + (activeDateLabel ? 1 : 0);
+  const filtersButtonLabel =
+    activeFilterCount === 0
+      ? "Filters"
+      : activeFilterCount === 1
+        ? (activePlatformLabel ?? activeDateLabel)!
+        : `${activeFilterCount} filters`;
+
   const renderRouteGroup = ({ item: group }: { item: RouteGroup }) => {
     const isExpanded = expandedGroups.has(group.key);
     const isBatchClassifying = batchClassifyingKey === group.key;
@@ -1248,6 +1286,7 @@ export default function TripsScreen() {
 
   return (
     <View style={styles.container}>
+      <AppHeader title="Trips" showBack addRoute="/trip-form" />
       <FlatList
         key={filter === "unclassified" ? "grouped" : "flat"}
         data={filter === "unclassified" ? (routeGroups as any[]) : trips}
@@ -1289,7 +1328,7 @@ export default function TripsScreen() {
                 onPress={() => handleFilterChange("unclassified")}
                 activeOpacity={0.7}
                 accessibilityRole="button"
-                accessibilityLabel={`${unclassifiedCount} trip${unclassifiedCount !== 1 ? "s" : ""} need classifying. Tap to review.`}
+                accessibilityLabel={`${unclassifiedCount} trip${unclassifiedCount !== 1 ? "s need" : " needs"} classifying. Tap to review.`}
               >
                 <View style={styles.inboxBannerLeft}>
                   <View style={styles.inboxBannerIcon}>
@@ -1309,118 +1348,83 @@ export default function TripsScreen() {
             )}
 
             <View style={styles.filterRow}>
-              {FILTERS.map((f) => (
-                <TouchableOpacity
-                  key={f.label}
-                  style={[
-                    styles.filterChip,
-                    filter === f.value && styles.filterChipActive,
-                  ]}
-                  onPress={() => handleFilterChange(f.value)}
-                  accessibilityRole="button"
-                  accessibilityLabel={f.value === "unclassified" && unclassifiedCount > 0 ? `${f.label}, ${unclassifiedCount} trip${unclassifiedCount !== 1 ? "s" : ""}` : f.label}
-                  accessibilityState={{ selected: filter === f.value }}
-                >
-                  <Text
+              {/* The chips scroll sideways so the Filters control always
+                  stays on this row. It used to wrap onto a second line,
+                  costing a whole row of height above the first trip. */}
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                style={styles.filterChipsScroll}
+                contentContainerStyle={styles.filterChipsContent}
+              >
+                {FILTERS.map((f) => (
+                  <TouchableOpacity
+                    key={f.label}
                     style={[
-                      styles.filterChipText,
-                      filter === f.value && styles.filterChipTextActive,
+                      styles.filterChip,
+                      filter === f.value && styles.filterChipActive,
                     ]}
+                    onPress={() => handleFilterChange(f.value)}
+                    accessibilityRole="button"
+                    accessibilityLabel={f.value === "unclassified" && unclassifiedCount > 0 ? `${f.label}, ${unclassifiedCount} trip${unclassifiedCount !== 1 ? "s" : ""}` : f.label}
+                    accessibilityState={{ selected: filter === f.value }}
                   >
-                    {f.label}
-                  </Text>
-                  {f.value === "unclassified" && unclassifiedCount > 0 && (
-                    <View style={styles.filterBadge}>
-                      <Text style={styles.filterBadgeText}>
-                        {unclassifiedCount > 99 ? "99+" : unclassifiedCount}
-                      </Text>
-                    </View>
-                  )}
-                </TouchableOpacity>
-              ))}
+                    <Text
+                      style={[
+                        styles.filterChipText,
+                        filter === f.value && styles.filterChipTextActive,
+                      ]}
+                    >
+                      {f.label}
+                    </Text>
+                    {f.value === "unclassified" && unclassifiedCount > 0 && (
+                      <View style={styles.filterBadge}>
+                        <Text style={styles.filterBadgeText}>
+                          {unclassifiedCount > 99 ? "99+" : unclassifiedCount}
+                        </Text>
+                      </View>
+                    )}
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+
+              {/* Platform + date range used to be two permanently-visible
+                  chip rows here, pushing the first trip a third of the way
+                  down a tall phone. Both now live in the Filters sheet below;
+                  this single control shows the active value (or count, if
+                  both are set) so a narrowed list never reads as trips
+                  having gone missing. */}
+              <TouchableOpacity
+                style={[
+                  styles.filtersButton,
+                  activeFilterCount > 0 && styles.filtersButtonActive,
+                ]}
+                onPress={() => setShowFiltersSheet(true)}
+                accessibilityRole="button"
+                accessibilityLabel={
+                  activeFilterCount > 0
+                    ? `Filters, ${[activePlatformLabel, activeDateLabel].filter(Boolean).join(", ")} active. Opens filter options.`
+                    : "Filters. Opens platform and date range options."
+                }
+              >
+                <Ionicons
+                  name={activeFilterCount > 0 ? "funnel" : "funnel-outline"}
+                  size={14}
+                  color={activeFilterCount > 0 ? BG : TEXT_2}
+                  accessible={false}
+                />
+                <Text
+                  numberOfLines={1}
+                  ellipsizeMode="tail"
+                  style={[
+                    styles.filtersButtonText,
+                    activeFilterCount > 0 && styles.filtersButtonTextActive,
+                  ]}
+                >
+                  {filtersButtonLabel}
+                </Text>
+              </TouchableOpacity>
             </View>
-
-            {/* Platform chips - orthogonal to classification + date filters.
-                Lets a driver narrow to a specific app (Uber, Deliveroo, etc).
-                Horizontal scroll because there are 10 platforms + Any. */}
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.dateRangeRow}
-              accessibilityLabel="Platform filter"
-            >
-              {([{ value: "all" as const, label: "Any platform" }, ...GIG_PLATFORMS]).map((p) => {
-                const active = platformFilter === p.value;
-                return (
-                  <TouchableOpacity
-                    key={p.value}
-                    style={[styles.dateRangeChip, active && styles.dateRangeChipActive]}
-                    onPress={() => handlePlatformChange(p.value as PlatformTag | "all")}
-                    accessibilityRole="button"
-                    accessibilityLabel={`Platform: ${p.label}`}
-                    accessibilityState={{ selected: active }}
-                  >
-                    <Text
-                      style={[
-                        styles.dateRangeChipText,
-                        active && styles.dateRangeChipTextActive,
-                      ]}
-                    >
-                      {p.label}
-                    </Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </ScrollView>
-
-            {/* Date range chips - orthogonal to classification + platform
-                filters so they compose. Custom opens a from/to date picker. */}
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.dateRangeRow}
-            >
-              {DATE_RANGES.map((r) => {
-                const active = dateRange === r.value;
-                const label =
-                  r.value === "custom"
-                    ? rangeLabel(r.value, customFrom, customTo)
-                    : r.label;
-                return (
-                  <TouchableOpacity
-                    key={r.value}
-                    style={[styles.dateRangeChip, active && styles.dateRangeChipActive]}
-                    onPress={() => {
-                      if (r.value === "custom") {
-                        setShowCustomPicker(true);
-                        return;
-                      }
-                      setDateRange(r.value);
-                      setCustomFrom(null);
-                      setCustomTo(null);
-                      // Schedule reload after state has actually flushed.
-                      dateRangeRef.current = r.value;
-                      customFromRef.current = null;
-                      customToRef.current = null;
-                      loadTrips(1);
-                      loadSummary();
-                    }}
-                    accessibilityRole="button"
-                    accessibilityLabel={`Date range: ${label}`}
-                    accessibilityState={{ selected: active }}
-                  >
-                    <Text
-                      style={[
-                        styles.dateRangeChipText,
-                        active && styles.dateRangeChipTextActive,
-                      ]}
-                    >
-                      {label}
-                    </Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </ScrollView>
 
             {/* Stats summary - shown when any filter (date range OR platform)
                 is active. Sourced from /trips/summary so totals are accurate
@@ -1534,14 +1538,6 @@ export default function TripsScreen() {
               </View>
             )}
 
-            {/* Proactive "journeys you might have missed" (gap scanner) above the
-                reactive "Missing a trip?" link. Renders nothing when there are
-                no proposals. */}
-            {filter !== "unclassified" && <MissedJourneys />}
-
-            {/* "Missing a trip?" - kept near the top of the list so it's seen
-                without scrolling (the list isn't paginated for the user). */}
-            {filter !== "unclassified" && <MissingTripReporter />}
           </View>
         }
         ListEmptyComponent={
@@ -1564,6 +1560,12 @@ export default function TripsScreen() {
         }
         ListFooterComponent={
           <View style={styles.footer}>
+            {/* Both prompts moved out of the list header 13 Sep: they sat
+                directly above the first trip and pushed the list down the
+                screen. They are advisory rather than urgent, so they read
+                better after the trips than in front of them. */}
+            {filter !== "unclassified" && <MissedJourneys />}
+            {filter !== "unclassified" && <MissingTripReporter />}
             {loadingMore && (
               <ActivityIndicator
                 color={AMBER}
@@ -1742,6 +1744,131 @@ export default function TripsScreen() {
         </AppModal>
       )}
 
+      {/* Filters sheet - platform + date range, folded behind the single
+          "Filters" control in row 1. Same chips, same handlers as before;
+          only the location moved. */}
+      <AppModal
+        visible={showFiltersSheet}
+        animationType="slide"
+        onRequestClose={() => setShowFiltersSheet(false)}
+      >
+        <Pressable
+          style={styles.mergeBackdrop}
+          onPress={() => setShowFiltersSheet(false)}
+        >
+          <Pressable
+            style={styles.mergeSheet}
+            onPress={(e) => e.stopPropagation()}
+          >
+            <View style={styles.mergeHandle} />
+            <Text style={styles.mergeTitle}>Filters</Text>
+
+            <View style={styles.filtersSection}>
+              <Text style={styles.filtersSectionLabel}>Platform</Text>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.dateRangeRow}
+                accessibilityLabel="Platform filter"
+              >
+                {([{ value: "all" as const, label: "Any platform" }, ...GIG_PLATFORMS]).map((p) => {
+                  const active = platformFilter === p.value;
+                  return (
+                    <TouchableOpacity
+                      key={p.value}
+                      style={[styles.dateRangeChip, active && styles.dateRangeChipActive]}
+                      onPress={() => handlePlatformChange(p.value as PlatformTag | "all")}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Platform: ${p.label}`}
+                      accessibilityState={{ selected: active }}
+                    >
+                      <Text
+                        style={[
+                          styles.dateRangeChipText,
+                          active && styles.dateRangeChipTextActive,
+                        ]}
+                      >
+                        {p.label}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </ScrollView>
+            </View>
+
+            <View style={styles.filtersSection}>
+              <Text style={styles.filtersSectionLabel}>Date range</Text>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.dateRangeRow}
+                accessibilityLabel="Date range filter"
+              >
+                {DATE_RANGES.map((r) => {
+                  const active = dateRange === r.value;
+                  const label =
+                    r.value === "custom"
+                      ? rangeLabel(r.value, customFrom, customTo)
+                      : r.label;
+                  return (
+                    <TouchableOpacity
+                      key={r.value}
+                      style={[styles.dateRangeChip, active && styles.dateRangeChipActive]}
+                      onPress={() => {
+                        if (r.value === "custom") {
+                          // Hand off to the dedicated custom-range modal -
+                          // avoids stacking two sheets at once.
+                          setShowFiltersSheet(false);
+                          setShowCustomPicker(true);
+                          return;
+                        }
+                        setDateRange(r.value);
+                        setCustomFrom(null);
+                        setCustomTo(null);
+                        // Schedule reload after state has actually flushed.
+                        dateRangeRef.current = r.value;
+                        customFromRef.current = null;
+                        customToRef.current = null;
+                        loadTrips(1);
+                        loadSummary();
+                      }}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Date range: ${label}`}
+                      accessibilityState={{ selected: active }}
+                    >
+                      <Text
+                        style={[
+                          styles.dateRangeChipText,
+                          active && styles.dateRangeChipTextActive,
+                        ]}
+                      >
+                        {label}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </ScrollView>
+            </View>
+
+            <View style={styles.filtersSheetFooter}>
+              <Button
+                title="Clear filters"
+                variant="ghost"
+                onPress={clearFilters}
+                disabled={activeFilterCount === 0}
+                style={{ flex: 1 }}
+              />
+              <Button
+                title="Done"
+                variant="primary"
+                onPress={() => setShowFiltersSheet(false)}
+                style={{ flex: 1 }}
+              />
+            </View>
+          </Pressable>
+        </Pressable>
+      </AppModal>
+
       {/* Custom date-range picker modal */}
       <AppModal
         visible={showCustomPicker}
@@ -1870,8 +1997,21 @@ const styles = StyleSheet.create({
   // Filter chips
   filterRow: {
     flexDirection: "row",
+    alignItems: "center",
+    // Never wraps: the chips scroll sideways instead, so the Filters control
+    // stays on this row at any width rather than dropping to a second line.
+    flexWrap: "nowrap",
     gap: 8,
     marginBottom: 16,
+  },
+  filterChipsScroll: {
+    flexGrow: 0,
+    flexShrink: 1,
+  },
+  filterChipsContent: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
   },
   filterChip: {
     paddingHorizontal: 16,
@@ -1896,6 +2036,52 @@ const styles = StyleSheet.create({
   filterChipTextActive: {
     fontFamily: fonts.semibold,
     color: BG,
+  },
+  // Collapsed control for platform + date range - opens the Filters sheet.
+  // Kept narrower than the classification chips (icon + short label,
+  // ellipsised) so a long platform name like "Uber / Uber Eats" can't push
+  // row 1 to wrap on a typical phone width.
+  filtersButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    maxWidth: 120,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 20,
+    backgroundColor: CARD_BG,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.06)",
+  },
+  filtersButtonActive: {
+    backgroundColor: "rgba(245, 166, 35, 0.15)",
+    borderColor: "rgba(245, 166, 35, 0.4)",
+  },
+  filtersButtonText: {
+    fontSize: 13,
+    fontFamily: fonts.semibold,
+    color: TEXT_2,
+    flexShrink: 1,
+  },
+  filtersButtonTextActive: {
+    color: AMBER,
+  },
+  // Filters sheet body
+  filtersSectionLabel: {
+    fontSize: 12,
+    fontFamily: fonts.bold,
+    color: TEXT_3,
+    letterSpacing: 0.6,
+    textTransform: "uppercase",
+    marginBottom: 10,
+  },
+  filtersSection: {
+    marginBottom: 20,
+  },
+  filtersSheetFooter: {
+    flexDirection: "row",
+    gap: 10,
+    marginTop: 4,
   },
   // Date-range chip row (smaller / more secondary than classification pills)
   dateRangeRow: {

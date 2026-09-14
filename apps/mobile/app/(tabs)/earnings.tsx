@@ -19,6 +19,7 @@ import type { Earning } from "@mileclear/shared";
 import { Skeleton } from "../../components/Skeleton";
 import { EmptyState } from "../../components/EmptyState";
 import { colors, fonts } from "../../lib/theme";
+import AppHeader from "../../components/AppHeader";
 
 type EarningItem = Earning & { _isLocal?: boolean };
 
@@ -160,6 +161,7 @@ export default function EarningsScreen() {
 
   return (
     <View style={styles.container}>
+      <AppHeader title="Earnings" showBack addRoute="/earning-form" />
       <FlatList
         data={earnings}
         keyExtractor={(item) => item.id}

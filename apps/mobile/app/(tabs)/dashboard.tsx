@@ -98,6 +98,7 @@ import {
   type BatteryOptimisationState,
 } from "../../lib/tracking/batteryOptimisationRule";
 import { haptic } from "../../lib/haptics";
+import AppHeader from "../../components/AppHeader";
 
 function formatElapsed(seconds: number): string {
   const h = Math.floor(seconds / 3600);
@@ -1206,6 +1207,7 @@ export default function DashboardScreen() {
     // centred amber spinner that used to make load feel longer than it is.
     return (
       <View style={s.container}>
+        <AppHeader />
         <ScrollView contentContainerStyle={s.content}>
           <Skeleton.Group gap={spacing.md}>
             <Skeleton height={32} width={180} radius={radii.pill} />
@@ -1436,6 +1438,7 @@ export default function DashboardScreen() {
     return (
       <>
         {scorecardModal}
+        <AppHeader />
         <ScrollView
           style={s.container}
           contentContainerStyle={[s.content, { paddingTop: 16 }]}
@@ -1537,6 +1540,7 @@ export default function DashboardScreen() {
       {scorecardModal}
       {recapModal}
       {workExplainerModal}
+      <AppHeader />
       <ScrollView
         style={s.container}
         contentContainerStyle={[s.content, { paddingTop: 16 }]}
