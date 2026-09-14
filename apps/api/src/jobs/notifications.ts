@@ -1098,8 +1098,22 @@ async function runNativeEngineHealthJob(): Promise<void> {
   // zero auto trips in RECENT_DAYS, and Duncan had recorded a trip that very
   // morning, so every filter up there excluded him. It is also not gated on
   // nativeEngineEnabled, because the lock mutes capture whichever engine runs.
+  //
+  // ⚠️ An open lock is NOT on its own evidence of a problem. Swept 14 Sep: five
+  // phones held one for over 3h and only ONE had actually stopped capturing.
+  // drew.kidson logged 199 active_quick_trip blocks and still recorded two
+  // trips automatically; 2hmbynbrr4, diennomoki12 and chapmangail64 likewise.
+  // Their phones simply stopped feeding the lock, the liveness window lapsed
+  // and detection resumed. So the duration alone would have paged four times
+  // for nothing. The discriminator is duration AND silence: every false
+  // positive had an auto trip AFTER the lock began, and Duncan had none.
   const STUCK_LOCK_MIN_MS = 3 * 60 * 60 * 1000;
-  const stuckLock: { email: string; userId: string; heldHours: number }[] = [];
+  const lockCandidates: {
+    email: string;
+    userId: string;
+    heldHours: number;
+    lockStartedAt: Date;
+  }[] = [];
   for (const d of latest.values()) {
     const st = (d.statusJson ?? {}) as Record<string, unknown>;
     if (st.activeShiftId !== "__quick_trip__") continue;
@@ -1111,11 +1125,41 @@ async function runNativeEngineHealthJob(): Promise<void> {
     if (!Number.isFinite(startedMs)) continue;
     const heldMs = d.capturedAt.getTime() - startedMs;
     if (heldMs < STUCK_LOCK_MIN_MS) continue;
-    stuckLock.push({
+    lockCandidates.push({
       email: d.user.email ?? d.userId,
       userId: d.userId,
       heldHours: Math.round(heldMs / 3_600_000),
+      lockStartedAt: new Date(startedMs),
     });
+  }
+
+  const stuckLock: { email: string; userId: string; heldHours: number }[] = [];
+  if (lockCandidates.length > 0) {
+    // One query for the whole candidate set, from the oldest lock onwards.
+    const earliest = new Date(
+      Math.min(...lockCandidates.map((c) => c.lockStartedAt.getTime()))
+    );
+    const autoTrips = await prisma.trip.findMany({
+      where: {
+        userId: { in: lockCandidates.map((c) => c.userId) },
+        isManualEntry: false,
+        startedAt: { gte: earliest },
+      },
+      select: { userId: true, startedAt: true },
+    });
+    const byUser = new Map<string, number[]>();
+    for (const t of autoTrips) {
+      const list = byUser.get(t.userId) ?? [];
+      list.push(t.startedAt.getTime());
+      byUser.set(t.userId, list);
+    }
+    for (const c of lockCandidates) {
+      const capturedSince = (byUser.get(c.userId) ?? []).some(
+        (ms) => ms >= c.lockStartedAt.getTime()
+      );
+      if (capturedSince) continue; // lock open, but the engine is still recording
+      stuckLock.push({ email: c.email, userId: c.userId, heldHours: c.heldHours });
+    }
   }
 
   // ── Stranded-OTA check ───────────────────────────────────────────────────
@@ -1240,7 +1284,8 @@ async function runNativeEngineHealthJob(): Promise<void> {
       .map((u) => `• ${u.email} — lock held ${u.heldHours}h`)
       .join("\n");
     sections.push(
-      `STUCK QUICK-TRIP LOCK — a Start Trip that was never finished. Auto-detection is ` +
+      `STUCK QUICK-TRIP LOCK — a Start Trip that was never finished AND nothing captured ` +
+        `automatically since it began. Auto-detection is ` +
         `suppressed for as long as the lock is held and it renews its own liveness, so it will ` +
         `NOT clear itself. The driver must open the app and finish the trip (tapping Arrive); ` +
         `it cannot be cleared server-side. No trip-history gate here, so this catches drivers ` +
