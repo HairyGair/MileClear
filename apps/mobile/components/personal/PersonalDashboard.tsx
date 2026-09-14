@@ -137,13 +137,13 @@ export function PersonalDashboard({ avatarId: _avatarId, stats, visibleKeys, rec
               </TouchableOpacity>
               <TouchableOpacity
                 style={styles.quickAction}
-                onPress={() => router.replace("/(tabs)/fuel" as any)}
+                onPress={() => router.push("/vehicles")}
                 activeOpacity={0.7}
                 accessibilityRole="button"
-                accessibilityLabel="View fuel logs"
+                accessibilityLabel="View vehicles"
               >
-                <Ionicons name="water-outline" size={20} color={EMERALD} accessible={false} />
-                <Text style={styles.quickActionLabel}>Fuel</Text>
+                <Ionicons name="car-outline" size={20} color={EMERALD} accessible={false} />
+                <Text style={styles.quickActionLabel}>Vehicles</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={styles.quickAction}
@@ -168,19 +168,24 @@ export function PersonalDashboard({ avatarId: _avatarId, stats, visibleKeys, rec
             </View>
           </View>
         );
-      case "personal_summary":
+      case "personal_summary": {
+        // Same derivation the daily recap uses: weekTrips is already loaded,
+        // so today's count needs no extra request.
+        const summaryTodayStr = new Date().toDateString();
+        const summaryTodayTrips = weekTrips.filter(
+          (t) => new Date(t.startedAt).toDateString() === summaryTodayStr
+        ).length;
         return (
           <DrivingSummaryCard
             key={key}
-            monthMiles={monthMiles}
-            monthTrips={monthTrips}
             estimatedCostPence={estimatedCostPence}
-            monthLabel={monthLabel}
             streakDays={streakDays}
             todayMiles={todayMiles}
+            todayTrips={summaryTodayTrips}
             weekMiles={weekMiles}
           />
         );
+      }
       case "monthly_history":
         // Reuses the work-side MileageMonthCard with no classification
         // filter, so personal-mode users get an "all driving by month"
