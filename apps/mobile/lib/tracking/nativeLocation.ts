@@ -34,11 +34,12 @@ import {
   startNativeAutoTripLiveActivity,
   pushAutoTripLiveActivityProgress,
   shiftSuppressesAutoDetection,
-  clearNotDrivingCooldown,
+  clearNotDrivingCooldownIfHeld,
   isNotDrivingCooldownActive,
   haversineMeters,
   recentBufferedFixes,
 } from "./detection";
+import { MOTION_MIN_CONFIDENCE } from "@mileclear/shared";
 import { decideProgressPush } from "../liveActivity/progressRule";
 
 // When the Live Activity was last fed from the native location stream.
@@ -96,6 +97,10 @@ interface NativeMotionEvent {
   isMoving: boolean;
   location: NativeLocation;
 }
+
+/** The coprocessor classifications that mean the phone is being carried,
+ *  not driven. Mirrors ON_FOOT in the shared walk module. */
+const ON_FOOT_ACTIVITIES: ReadonlySet<string> = new Set(["walking", "on_foot", "running"]);
 
 // Short-journey backstop thresholds. A single confident driving-speed fix
 // force-starts a recording, so the native engine doesn't depend solely on
@@ -1035,6 +1040,28 @@ async function handleNativeMotionChange(event: NativeMotionEvent): Promise<void>
     if (event.isMoving) {
       // Driving started (CoreMotion classified it) — open the recording. If the
       // backstop already opened it from a speed fix, this is a harmless no-op.
+      // A "Not driving" cooldown means the driver just dismissed this very
+      // drive (a passenger ride); the speed backstop already honours it, and
+      // a motion flap mid-ride must not re-open what they turned off.
+      if (await isNotDrivingCooldownActive()) return;
+      // The coprocessor says what kind of movement this is, and until
+      // 15 Sep 2026 we stored it and never read it: any movement opened a
+      // recording, so a walk was recorded and only judged at the end.
+      // Someone walking or running is not driving. Let the speed backstop
+      // in handleNativeLocation open the recording instead, if and when a
+      // fix ever reaches driving speed (it fires ~1,800 times a week across
+      // the fleet, so nothing real is lost, only the first few hundred
+      // metres, which the wake-lag extension already restores).
+      const act = event.location?.activity;
+      const actType = typeof act?.type === "string" ? act.type : null;
+      const actConf = typeof act?.confidence === "number" ? act.confidence : null;
+      if (actType && ON_FOOT_ACTIVITIES.has(actType) && (actConf === null || actConf >= MOTION_MIN_CONFIDENCE)) {
+        logDetectionEvent("native_motion_start_skipped_on_foot", {
+          activity: actType,
+          confidence: actConf,
+        }).catch(() => {});
+        return;
+      }
       const already = await db.getFirstAsync<{ value: string }>(
         "SELECT value FROM tracking_state WHERE key = 'auto_recording_active'"
       );
@@ -1049,9 +1076,18 @@ async function handleNativeMotionChange(event: NativeMotionEvent): Promise<void>
       // run fitted inside one untouched (Class 19, 25 Aug 2026). Parking is
       // the natural end of the journey that was dismissed, so clear it here
       // and let a genuinely new drive be detected on its own merits.
+      // ...but not within five minutes of the tap: a walker pausing looks
+      // like a car parking, and on 15 Sep 2026 a "Not driving" on the golf
+      // course was cleared one second after it applied and the walk was
+      // recorded again. Tom's next-journey case is untouched: his 6-mile
+      // run started well after five minutes.
       if (await isNotDrivingCooldownActive()) {
-        await clearNotDrivingCooldown();
-        logDetectionEvent("not_driving_cleared_parked", {}).catch(() => {});
+        const outcome = await clearNotDrivingCooldownIfHeld();
+        if (outcome === "cleared") {
+          logDetectionEvent("not_driving_cleared_parked", {}).catch(() => {});
+        } else if (outcome === "held") {
+          logDetectionEvent("not_driving_parked_held", {}).catch(() => {});
+        }
       }
       // Stationary — finalize through the existing pipeline (trim, distance,
       // map-match, phantom guards, offline sync all reused).
