@@ -44,6 +44,55 @@ export const MISSED_MOVING_AT_WAKE_MAX_MILES = 5;
 export const MOVING_AT_WAKE_SPEED_MPS = 4; // ~9 mph
 export const MOVING_AT_WAKE_IMPLIED_MPH = 9;
 
+/**
+ * Plausibility: a gap is only worth offering if a car could have driven it
+ * in the time available. Fleet check 15 Sep 2026: 95 live proposals could
+ * not have been driven at all; the biggest were 3,000-6,000 crow-flies
+ * miles inside a day, i.e. the driver flew abroad and drove at the other
+ * end. Crow-flies over the whole gap is a generous floor for the speed a
+ * drive would have needed (the road is longer, and the car was parked for
+ * some of the gap), so anything above this is not a drive we missed.
+ */
+export const MISSED_MAX_IMPLIED_MPH = 80;
+
+/**
+ * A drive the engine recorded, then discarded for being under the auto-trip
+ * minimum, comes back through POST /trips/missed-journeys/recorded. Dry run
+ * 15 Sep 2026 over 740 of them (78 accepted, 193 dismissed): recorded miles,
+ * crow-flies, the routed estimate and duration all have the SAME quartiles
+ * for accepted and dismissed, so no distance rule keeps the ones drivers
+ * want without dropping the same share of the ones they take. The one cut
+ * that kept all 78 accepted was a duration floor: nothing accepted lasted
+ * under 30 s (the engine's fix interval, so a shorter "drive" is a single
+ * pair of fixes), and the 3 dismissed under it were 14-25 s. The distance
+ * floor only rejects a recording that went nowhere at all.
+ */
+export const MISSED_RECORDED_MIN_SECONDS = 30;
+export const MISSED_RECORDED_MIN_MILES = 0.01; // recorded OR crow-flies, whichever is larger
+
+export interface RecordedDiscardInput {
+  fromLat: number;
+  fromLng: number;
+  toLat: number;
+  toLng: number;
+  departedAt: Date;
+  arrivedAt: Date;
+  recordedMiles: number;
+}
+
+/** Why a discarded recording is not worth offering, or null when it is. */
+export function isRecordedDiscardWorthOffering(
+  input: RecordedDiscardInput
+): { ok: true } | { ok: false; reason: "too_brief" | "no_distance" } {
+  const seconds = (input.arrivedAt.getTime() - input.departedAt.getTime()) / 1000;
+  if (seconds < MISSED_RECORDED_MIN_SECONDS) return { ok: false, reason: "too_brief" };
+  const crow = haversineDistance(input.fromLat, input.fromLng, input.toLat, input.toLng);
+  if (Math.max(input.recordedMiles, crow) < MISSED_RECORDED_MIN_MILES) {
+    return { ok: false, reason: "no_distance" };
+  }
+  return { ok: true };
+}
+
 export interface MissedJourneyTripInput {
   id: string;
   startLat: number;
@@ -113,6 +162,11 @@ export interface MissedJourneySelection {
   wakeLagMaxMiles: number;
   /** Pairs offered as the start of B rather than a separate drive. */
   tripStartOffers: number;
+  /** Pairs skipped because the gap could not be driven in the time
+   *  available (crow-flies mph over MISSED_MAX_IMPLIED_MPH). */
+  implausibleSpeedSkipped: number;
+  /** Highest crow-flies mph among the skipped pairs, rounded to a whole. */
+  implausibleSpeedMaxMph: number;
 }
 
 /** trips must be ordered by startedAt ascending. */
@@ -123,6 +177,8 @@ export function selectMissedJourneyCandidates(
   let wakeLagSuppressed = 0;
   let wakeLagMaxMiles = 0;
   let tripStartOffers = 0;
+  let implausibleSpeedSkipped = 0;
+  let implausibleSpeedMaxMph = 0;
 
   for (let i = 0; i < trips.length - 1; i++) {
     const a = trips[i];
@@ -135,6 +191,12 @@ export function selectMissedJourneyCandidates(
     if (!b.isManualEntry && miles < MISSED_WAKE_LAG_MILES) {
       wakeLagSuppressed++;
       if (miles > wakeLagMaxMiles) wakeLagMaxMiles = miles;
+      continue;
+    }
+    const impliedMph = miles / (gapMin / 60);
+    if (impliedMph > MISSED_MAX_IMPLIED_MPH) {
+      implausibleSpeedSkipped++;
+      if (impliedMph > implausibleSpeedMaxMph) implausibleSpeedMaxMph = impliedMph;
       continue;
     }
     const isTripStart =
@@ -157,5 +219,7 @@ export function selectMissedJourneyCandidates(
     wakeLagSuppressed,
     wakeLagMaxMiles: Math.round(wakeLagMaxMiles * 10) / 10,
     tripStartOffers,
+    implausibleSpeedSkipped,
+    implausibleSpeedMaxMph: Math.round(implausibleSpeedMaxMph),
   };
 }

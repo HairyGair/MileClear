@@ -35,6 +35,7 @@ import { logEvent } from "../../services/appEvents.js";
 import {
   selectMissedJourneyCandidates,
   isMovingAtFirstFix,
+  isRecordedDiscardWorthOffering,
   type MissedJourneyTripInput,
 } from "../../services/missedJourneys.js";
 import { advanceLastTripAt } from "../../services/userActivity.js";
@@ -1186,21 +1187,28 @@ export async function tripRoutes(app: FastifyInstance) {
       });
       b.movingAtFirstFix = isMovingAtFirstFix(fixes);
     }
-    const { candidates, wakeLagSuppressed, wakeLagMaxMiles, tripStartOffers } =
-      selectMissedJourneyCandidates(trips);
-    if (wakeLagSuppressed > 0) {
+    const {
+      candidates, wakeLagSuppressed, wakeLagMaxMiles, tripStartOffers,
+      implausibleSpeedSkipped, implausibleSpeedMaxMph,
+    } = selectMissedJourneyCandidates(trips);
+    if (wakeLagSuppressed > 0 || implausibleSpeedSkipped > 0) {
       logEvent("trip.missed_proposals_wake_lag_suppressed", userId, {
         suppressed: wakeLagSuppressed,
         maxMiles: wakeLagMaxMiles,
         tripStartOffers,
+        implausibleSpeedSkipped,
+        implausibleSpeedMaxMph,
       });
     }
 
-    // Upsert candidates. The update touches only `source`, so a pair that was
-    // offered as a gap before the first-fix check existed becomes a
-    // trip-start offer, while an accepted/dismissed row keeps its status and
-    // is never resurrected. Then prune any 'proposed' rows whose gap has
-    // since closed (key no longer a candidate).
+    // Create any candidate that is not already on file (empty update: an
+    // existing row, whatever its status, is left exactly as it is, so an
+    // accepted/dismissed row is never resurrected and its updatedAt is not
+    // bumped by a scan it played no part in). Then, for rows still
+    // 'proposed', bring `source` up to date so a pair that was offered as a
+    // gap before the first-fix check existed becomes a trip-start offer.
+    // Decided rows keep the source they were decided under. Finally prune any
+    // 'proposed' rows whose gap has since closed (key no longer a candidate).
     const candidateKeys = candidates.map((c) => c.key);
     for (const c of candidates) {
       const { kind, tripId: _tripId, ...columns } = c;
@@ -1208,7 +1216,19 @@ export async function tripRoutes(app: FastifyInstance) {
       await prisma.missedJourneyProposal.upsert({
         where: { userId_key: { userId, key: c.key } },
         create: { userId, status: "proposed", source: kind, ...columns },
-        update: { source: kind },
+        update: {},
+      });
+    }
+    const keysByKind = new Map<string, string[]>();
+    for (const c of candidates) {
+      const list = keysByKind.get(c.kind) ?? [];
+      list.push(c.key);
+      keysByKind.set(c.kind, list);
+    }
+    for (const [kind, keys] of keysByKind) {
+      await prisma.missedJourneyProposal.updateMany({
+        where: { userId, status: "proposed", key: { in: keys }, source: { not: kind } },
+        data: { source: kind },
       });
     }
     // Prune only what this scan owns. A "recorded" row is a drive the engine
@@ -1276,6 +1296,20 @@ export async function tripRoutes(app: FastifyInstance) {
     const d = parsed.data;
     if (d.arrivedAt <= d.departedAt) {
       return reply.status(400).send({ error: "arrivedAt must be after departedAt" });
+    }
+
+    // Drivers dismiss three in four of these, and nothing about the drive
+    // predicts which (dry run 15 Sep 2026, see the helper). Only the ones
+    // too brief to be more than a pair of fixes, or that went nowhere, are
+    // dropped here; the rest are offered and the driver decides.
+    const worth = isRecordedDiscardWorthOffering(d);
+    if (!worth.ok) {
+      logEvent("trip.discarded_recording_skipped", userId, {
+        reason: worth.reason,
+        recordedMiles: d.recordedMiles,
+        seconds: Math.round((d.arrivedAt.getTime() - d.departedAt.getTime()) / 1000),
+      });
+      return reply.send({ ok: true, skipped: worth.reason });
     }
 
     // Keyed on the departure instant so a retry from the sync queue updates the
@@ -1412,7 +1446,10 @@ export async function tripRoutes(app: FastifyInstance) {
             } as Prisma.InputJsonValue,
           },
         });
-        await tx.missedJourneyProposal.update({ where: { id }, data: { status: "accepted" } });
+        await tx.missedJourneyProposal.update({
+          where: { id },
+          data: { status: "accepted", decidedAt: new Date() },
+        });
       });
       logEvent("trip.start_extended_from_offer", userId, {
         tripId: b.id,
@@ -1426,10 +1463,19 @@ export async function tripRoutes(app: FastifyInstance) {
     }
 
     const status = parsed.data.action === "accept" ? "accepted" : "dismissed";
+    // Only a still-open row can be decided; a repeat tap must not move
+    // decidedAt or flip an acceptance into a dismissal.
     const result = await prisma.missedJourneyProposal.updateMany({
-      where: { id, userId },
-      data: { status },
+      where: { id, userId, status: "proposed" },
+      data: { status, decidedAt: new Date() },
     });
+    if (result.count === 0) {
+      const exists = await prisma.missedJourneyProposal.findFirst({
+        where: { id, userId },
+        select: { id: true },
+      });
+      if (exists) return reply.send({ ok: true, skipped: "already_handled" });
+    }
     if (result.count === 0) return reply.code(404).send({ error: "Not found" });
     return reply.send({ ok: true });
   });

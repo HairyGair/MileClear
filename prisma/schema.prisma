@@ -1655,6 +1655,9 @@ model MissedJourneyProposal {
    *  journey, because it only starts recording once it is sure you are
    *  driving. Null for gap-derived rows. */
   recordedMiles  Float?
+  // When the driver accepted or dismissed it. updatedAt cannot stand in: the
+  // scan's upsert used to bump it on rows that were decided weeks earlier.
+  decidedAt      DateTime?
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 

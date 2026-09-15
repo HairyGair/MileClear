@@ -6,8 +6,11 @@ import { describe, it, expect } from "vitest";
 import {
   selectMissedJourneyCandidates,
   isMovingAtFirstFix,
+  isRecordedDiscardWorthOffering,
+  MISSED_RECORDED_MIN_SECONDS,
   MISSED_WAKE_LAG_MILES,
   MISSED_MIN_MILES,
+  MISSED_MAX_IMPLIED_MPH,
   type MissedJourneyTripInput,
 } from "../../services/missedJourneys.js";
 
@@ -101,8 +104,8 @@ describe("selectMissedJourneyCandidates", () => {
       trip("a", { startMin: 0, endMin: 10 }),
       trip("b", { startMin: 15, endMin: 40, startLatOffsetMiles: 0.8 }),
     ];
-    expect(selectMissedJourneyCandidates(tooSoon)).toEqual({ candidates: [], wakeLagSuppressed: 0, wakeLagMaxMiles: 0, tripStartOffers: 0 });
-    expect(selectMissedJourneyCandidates(tooLate)).toEqual({ candidates: [], wakeLagSuppressed: 0, wakeLagMaxMiles: 0, tripStartOffers: 0 });
+    expect(selectMissedJourneyCandidates(tooSoon)).toEqual({ candidates: [], wakeLagSuppressed: 0, wakeLagMaxMiles: 0, tripStartOffers: 0, implausibleSpeedSkipped: 0, implausibleSpeedMaxMph: 0 });
+    expect(selectMissedJourneyCandidates(tooLate)).toEqual({ candidates: [], wakeLagSuppressed: 0, wakeLagMaxMiles: 0, tripStartOffers: 0, implausibleSpeedSkipped: 0, implausibleSpeedMaxMph: 0 });
     expect(selectMissedJourneyCandidates(justInside).candidates).toHaveLength(1);
   });
 
@@ -130,6 +133,43 @@ describe("selectMissedJourneyCandidates", () => {
   it("exposes the floors it uses", () => {
     expect(MISSED_MIN_MILES).toBe(0.3);
     expect(MISSED_WAKE_LAG_MILES).toBe(0.6);
+  });
+});
+
+describe("plausibility - a gap nobody could have driven in the time (15 Sep 2026)", () => {
+  it("skips and counts a 3,000 mi gap in 10 h (a flight, not a drive)", () => {
+    const a = trip("a", { startMin: 0, endMin: 10 });
+    // Negative offset keeps the latitude on the globe (52.2 - 43.4 deg).
+    const b = trip("b", { startMin: 10 + 10 * 60, endMin: 10 + 10 * 60 + 30, startLatOffsetMiles: -3000 });
+    const r = selectMissedJourneyCandidates([a, b]);
+    expect(r.candidates).toEqual([]);
+    expect(r.implausibleSpeedSkipped).toBe(1);
+    expect(r.implausibleSpeedMaxMph).toBeGreaterThanOrEqual(295);
+    expect(r.implausibleSpeedMaxMph).toBeLessThanOrEqual(305);
+    expect(r.wakeLagSuppressed).toBe(0);
+  });
+
+  it("still offers a 60 mi gap in 1 h", () => {
+    const a = trip("a", { startMin: 0, endMin: 10 });
+    const b = trip("b", { startMin: 70, endMin: 90, startLatOffsetMiles: 60 });
+    const r = selectMissedJourneyCandidates([a, b]);
+    expect(r.candidates).toHaveLength(1);
+    expect(r.candidates[0].key).toBe("a:b");
+    expect(r.implausibleSpeedSkipped).toBe(0);
+    expect(r.implausibleSpeedMaxMph).toBe(0);
+  });
+
+  it("offers a 6 mi gap in 5 min (72 mph): fast, but a car can do it", () => {
+    const a = trip("a", { startMin: 0, endMin: 10 });
+    const b = trip("b", { startMin: 15, endMin: 30, startLatOffsetMiles: 6 });
+    const r = selectMissedJourneyCandidates([a, b]);
+    expect(r.candidates).toHaveLength(1);
+    expect(r.candidates[0].estimatedMiles).toBe(6);
+    expect(r.implausibleSpeedSkipped).toBe(0);
+  });
+
+  it("exposes the ceiling it uses", () => {
+    expect(MISSED_MAX_IMPLIED_MPH).toBe(80);
   });
 });
 
@@ -196,5 +236,34 @@ describe("isMovingAtFirstFix", () => {
   it("says unknown with nothing to judge from", () => {
     expect(isMovingAtFirstFix([])).toBeNull();
     expect(isMovingAtFirstFix([{ lat: 52.2, lng: -1.9, speed: null, recordedAt: new Date(t0) }])).toBeNull();
+  });
+});
+
+describe("isRecordedDiscardWorthOffering", () => {
+  const t0 = Date.UTC(2026, 8, 15, 9, 0, 0);
+  // ~0.14 mi north: a typical short hop the engine records and then discards.
+  const hop = { fromLat: 52.2, fromLng: -1.9, toLat: 52.202, toLng: -1.9, recordedMiles: 0.14 };
+
+  it("offers a short hop that lasted at least the fix interval", () => {
+    expect(isRecordedDiscardWorthOffering({
+      ...hop, departedAt: new Date(t0), arrivedAt: new Date(t0 + MISSED_RECORDED_MIN_SECONDS * 1000),
+    })).toEqual({ ok: true });
+  });
+
+  it("skips a recording too brief to be more than a pair of fixes", () => {
+    expect(isRecordedDiscardWorthOffering({
+      ...hop, departedAt: new Date(t0), arrivedAt: new Date(t0 + 14_000),
+    })).toEqual({ ok: false, reason: "too_brief" });
+  });
+
+  it("skips a recording that went nowhere, but keeps a there-and-back with recorded miles", () => {
+    const parked = { fromLat: 52.2, fromLng: -1.9, toLat: 52.2, toLng: -1.9 };
+    expect(isRecordedDiscardWorthOffering({
+      ...parked, recordedMiles: 0, departedAt: new Date(t0), arrivedAt: new Date(t0 + 60_000),
+    })).toEqual({ ok: false, reason: "no_distance" });
+    // Crow-flies is zero but the engine measured 0.2 mi: Chris Saunders' case.
+    expect(isRecordedDiscardWorthOffering({
+      ...parked, recordedMiles: 0.2, departedAt: new Date(t0), arrivedAt: new Date(t0 + 60_000),
+    })).toEqual({ ok: true });
   });
 });
