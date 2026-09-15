@@ -186,6 +186,55 @@ describe("decideWalk - driving evidence wins", () => {
   });
 });
 
+describe("decideWalk - walking pace (15 Sep 2026, the golf round)", () => {
+  // Anthony's 18:24 recording: 27 fixes, 16 min, sustained 3.2 mph, p95 3.3,
+  // device peak 3.8 mph, coprocessor 76% in_vehicle (trolley), 714 steps.
+  const golf = {
+    distanceMiles: 1.31,
+    durationSec: 16 * 60,
+    sustainedSpeedMph: 3.2,
+    sustainedSpeedP95Mph: 3.3,
+    deviceMaxSpeedMph: 3.8,
+    fixes: 27,
+    motion: summariseMotion([
+      ...motionFixes("in_vehicle", 13),
+      ...motionFixes("still", 4),
+    ]),
+    steps: 714,
+  };
+
+  it("calls a long walking-pace recording a walk even when the coprocessor says vehicle", () => {
+    const d = decideWalk(golf);
+    expect(d.verdict).toBe("walk");
+    expect(d.reason).toBe("walk_pace");
+  });
+
+  it("still trusts the coprocessor when any window reached running pace (a jam with real driving)", () => {
+    const d = decideWalk({ ...golf, sustainedSpeedP95Mph: 15 });
+    expect(d.verdict).toBe("drive");
+    expect(d.reason).toBe("motion_in_vehicle");
+  });
+
+  it("refuses the pace verdict when the device itself saw a driving speed", () => {
+    expect(decideWalk({ ...golf, deviceMaxSpeedMph: 14 }).verdict).toBe("drive");
+  });
+
+  it("refuses the pace verdict on a short or sparse recording", () => {
+    expect(decideWalk({ ...golf, durationSec: 5 * 60 }).verdict).toBe("drive");
+    expect(decideWalk({ ...golf, fixes: 10 }).verdict).toBe("drive");
+  });
+
+  it("refuses the pace verdict when the window speed is unknown", () => {
+    expect(decideWalk({ ...golf, sustainedSpeedP95Mph: null }).verdict).toBe("drive");
+  });
+
+  it("gives Android its first walk verdict, from pace alone, when the trace is dense", () => {
+    const d = decideWalk({ ...golf, motion: null, steps: null });
+    expect(d.verdict).toBe("walk");
+    expect(d.reason).toBe("walk_pace");
+  });
+});
+
 describe("decideWalk - positive on-foot evidence", () => {
   it("calls a walk a walk, however far it went", () => {
     // The 2-mile dog walk the current distance cap never even considers.

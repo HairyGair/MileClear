@@ -98,6 +98,36 @@ export const DRIVE_MIN_IN_VEHICLE_PCT = 0.5;
  *  overlap. */
 export const WALK_MAX_SUSTAINED_MPH = 12;
 
+/**
+ * Walking pace held for the whole recording, on a trace dense enough to be
+ * sure of it. This is the third kind of positive evidence, added 15 Sep 2026
+ * after Anthony's round of golf was saved as a 1.9-mile drive: the motion
+ * coprocessor called 76% of the fixes "in vehicle" (the phone was on a
+ * trolley, which smooths out the walking motion), the pedometer counted too
+ * few steps for a cadence verdict, and so the only proof left was the pace
+ * itself. Forty minutes at a sustained 3 mph is not a car.
+ *
+ * Why this is safe where average and peak speed were not (see the header):
+ * the sustained figure comes from the trace geometry with its own
+ * timestamps, so a trip whose end time was never written still shows its
+ * real driving windows, and a device speed field of zero does not matter.
+ * A genuine crawl in a jam does not qualify either, because a recording
+ * that contains any real driving has 45-second windows above running pace.
+ * Fleet dry run over 14 days and 20,396 saved trips: 7 would have been
+ * called walks, all 1.0-1.5 miles at under 4 mph. A recording that is
+ * nothing but ten minutes of gridlock could be dropped; it is under a
+ * mile and the drive either side of it is unaffected.
+ */
+export const WALK_PACE_MAX_SUSTAINED_MPH = 5;
+
+/** No 45-second window (at the 95th percentile, so a single GPS jump does
+ *  not veto) may exceed running pace. */
+export const WALK_PACE_MAX_WINDOW_MPH = 12;
+
+/** A pace verdict needs a long recording on a dense trace. */
+export const WALK_PACE_MIN_DURATION_SEC = 600;
+export const WALK_PACE_MIN_FIXES = 20;
+
 /** Steps per minute that means the phone was being carried on foot. A walking
  *  cadence is 100-120; 50 is a generous floor that tolerates a phone in a bag
  *  and a pedometer that missed part of the window. */
@@ -235,6 +265,14 @@ export interface WalkDecisionInput {
   durationSec: number;
   /** From computeSustainedSpeedMph. Null means no opinion. */
   sustainedSpeedMph: number | null;
+  /** The 95th-percentile 45-second window speed, from
+   *  computeSustainedSpeedMph with percentile 0.95. Null means no opinion. */
+  sustainedSpeedP95Mph?: number | null;
+  /** The device's own reported peak, if it reported one at all. Never used
+   *  to call a drive a walk; only ever to refuse the walk-pace verdict. */
+  deviceMaxSpeedMph?: number | null;
+  /** Fixes in the trace the speeds were computed from. */
+  fixes?: number | null;
   /** From summariseMotion. Absent on Android and on JS-engine traces. */
   motion?: MotionSummary | null;
   /** Steps counted over the trip window, where the platform can report them. */
@@ -261,12 +299,29 @@ export interface WalkDecision {
  * must never be thrown away to tidy up the walking part.
  */
 export function decideWalk(input: WalkDecisionInput): WalkDecision {
-  const { sustainedSpeedMph, motion, steps, durationSec } = input;
+  const { sustainedSpeedMph, sustainedSpeedP95Mph, deviceMaxSpeedMph, fixes, motion, steps, durationSec } = input;
 
   // Driving evidence, strongest first.
   if (sustainedSpeedMph !== null && sustainedSpeedMph >= DRIVING_EVIDENCE_SPEED_MPH) {
     return { verdict: "drive", reason: "sustained_driving_speed" };
   }
+
+  // Positive evidence #3, checked before the coprocessor's in-vehicle call
+  // because that call is exactly what a phone on a golf trolley gets wrong.
+  // Every condition must hold; any missing input refuses the verdict.
+  if (
+    sustainedSpeedMph !== null &&
+    sustainedSpeedMph <= WALK_PACE_MAX_SUSTAINED_MPH &&
+    typeof sustainedSpeedP95Mph === "number" &&
+    sustainedSpeedP95Mph < WALK_PACE_MAX_WINDOW_MPH &&
+    (deviceMaxSpeedMph == null || deviceMaxSpeedMph < WALK_PACE_MAX_WINDOW_MPH) &&
+    typeof fixes === "number" &&
+    fixes >= WALK_PACE_MIN_FIXES &&
+    durationSec >= WALK_PACE_MIN_DURATION_SEC
+  ) {
+    return { verdict: "walk", reason: "walk_pace" };
+  }
+
   if (
     motion &&
     motion.pctInVehicle !== null &&

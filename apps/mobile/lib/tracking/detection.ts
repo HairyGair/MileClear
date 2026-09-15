@@ -203,6 +203,11 @@ const STALE_ACTIVE_SHIFT_MS = 18 * 60 * 60 * 1000; // 18h - no real gig shift ru
 const QUICK_TRIP_LIVE_COORD_MS = QUICK_TRIP_LIVE_COORD_MS_RULE; // 20 min - a breadcrumb this recent means the quick trip is genuinely recording RIGHT NOW; never clear it
 const BACKGROUND_FETCH_INTERVAL_S = 15 * 60; // 15 minutes - iOS treats as a hint, actual cadence varies
 const COOLDOWN_MS = 20 * 60 * 1000; // 20 minutes
+/** A "Not driving" tap holds for at least this long before a parked
+ *  transition may clear it. Anthony, golf, 15 Sep 2026: the tap was cleared
+ *  one second after it applied because a walker pausing looks like a car
+ *  parking, and the walk was then recorded again. */
+export const NOT_DRIVING_MIN_HOLD_MS = 5 * 60 * 1000;
 
 // Gap-stop, shared by both engines (Class 20). The thresholds and the rule now
 // live in gapStop.ts, re-exported here so existing importers are unaffected.
@@ -1622,8 +1627,10 @@ async function _finalizeAutoTripInner(): Promise<void> {
   // classification, which is ground truth about the body carrying the phone
   // and is independent of GPS entirely.
   const sustainedSpeedMph = computeSustainedSpeedMph(filteredCoords);
+  const sustainedSpeedP95Mph = computeSustainedSpeedMph(filteredCoords, { percentile: 0.95 });
   const motion = summariseMotion(allCoords);
   tripQuality.sustainedSpeedMph = sustainedSpeedMph;
+  tripQuality.sustainedSpeedP95Mph = sustainedSpeedP95Mph;
   tripQuality.motionFixes = motion.fixes;
   tripQuality.pctOnFoot = motion.pctOnFoot;
   tripQuality.pctInVehicle = motion.pctInVehicle;
@@ -1727,6 +1734,9 @@ async function _finalizeAutoTripInner(): Promise<void> {
     distanceMiles: totalDistance,
     durationSec,
     sustainedSpeedMph,
+    sustainedSpeedP95Mph,
+    deviceMaxSpeedMph: tripQuality.maxSpeedMph ?? null,
+    fixes: filteredCoords.length,
     motion,
     steps,
   });
@@ -2589,6 +2599,25 @@ export async function clearNotDrivingCooldown(): Promise<void> {
   await db.runAsync(
     "DELETE FROM tracking_state WHERE key = 'not_driving_until'"
   );
+}
+
+/**
+ * Clear the not-driving cooldown because the phone has parked, but only
+ * once the tap is NOT_DRIVING_MIN_HOLD_MS old. Returns what it did so the
+ * caller can log it. The cooldown's set time is recovered from its expiry.
+ */
+export async function clearNotDrivingCooldownIfHeld(): Promise<"cleared" | "held" | "none"> {
+  const db = await getDatabase();
+  const row = await db.getFirstAsync<{ value: string }>(
+    "SELECT value FROM tracking_state WHERE key = 'not_driving_until'"
+  );
+  if (!row) return "none";
+  const until = parseInt(row.value, 10);
+  if (!Number.isFinite(until)) return "none";
+  const setAt = until - COOLDOWN_MS;
+  if (Date.now() - setAt < NOT_DRIVING_MIN_HOLD_MS) return "held";
+  await db.runAsync("DELETE FROM tracking_state WHERE key = 'not_driving_until'");
+  return "cleared";
 }
 
 /**

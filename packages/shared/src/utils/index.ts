@@ -409,6 +409,9 @@ export interface TripQuality {
   /** What the walk rule concluded, and why. "unknown" is the common and safe
    *  answer and changes nothing. */
   walkVerdict?: "walk" | "drive" | "unknown";
+  /** 95th-percentile 45-second window speed from the trace, for the
+   *  walk-pace verdict (15 Sep 2026). */
+  sustainedSpeedP95Mph?: number | null;
   walkReason?: string;
 }
 
