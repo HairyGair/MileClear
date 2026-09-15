@@ -19,11 +19,7 @@ import { useRouter, useFocusEffect } from "expo-router";
 import { Button } from "../../components/Button";
 import { DateTimePickerField } from "../../components/DateTimePickerField";
 import { TripRouteCard } from "../../components/map/TripRouteCard";
-<<<<<<< ours
-import { fetchTrips, fetchTripSummary, fetchUnclassifiedCount, fetchClassificationSuggestion, mergeTrips, TripWithVehicle, ClassificationSuggestion, type TripSummary } from "../../lib/api/trips";
-=======
-import { fetchTrips, fetchTripSummary, fetchUnclassifiedCount, fetchClassificationSuggestion, mergeTrips, undoClassification, clearDuplicateFlag, TripWithVehicle, ClassificationSuggestion, type TripSummary } from "../../lib/api/trips";
->>>>>>> theirs
+import { fetchTrips, fetchTripSummary, fetchUnclassifiedCount, fetchClassificationSuggestion, mergeTrips, clearDuplicateFlag, TripWithVehicle, ClassificationSuggestion, type TripSummary } from "../../lib/api/trips";
 import { describeError } from "../../lib/api/apiError";
 import { syncUpdateTrip, syncDeleteTrip } from "../../lib/sync/actions";
 import { processSyncQueue } from "../../lib/sync";
@@ -2487,14 +2483,6 @@ const styles = StyleSheet.create({
     paddingVertical: 3,
     borderRadius: 4,
   },
-<<<<<<< ours
-=======
-  autoUndoText: {
-    fontSize: 11,
-    fontFamily: fonts.semibold,
-    color: AMBER,
-    marginLeft: 6,
-  },
   duplicateWrap: {
     marginTop: 10,
     padding: 10,
@@ -2540,7 +2528,6 @@ const styles = StyleSheet.create({
     fontFamily: fonts.semibold,
     color: TEXT_2,
   },
->>>>>>> theirs
   unclassifiedBadgeText: {
     fontSize: 11,
     fontFamily: fonts.semibold,
