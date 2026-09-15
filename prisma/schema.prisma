@@ -234,6 +234,7 @@ model User {
   merchantMappings    MerchantMapping[]
   referralsMade       Referral[]         @relation("Referrer")
   missedJourneys      MissedJourneyProposal[]
+  shiftSuggestions    ShiftSuggestion[]
   deletedTrips        DeletedTrip[]
 
   @@map("users")
@@ -532,6 +533,13 @@ model Trip {
   odometerStart  Float?
   odometerEnd    Float?
 
+  // Possible double-count (15 Sep 2026). Set at create time on the NEWER of
+  // two trips that overlap in time by half the shorter one and share start
+  // and end points within 0.5 mi (a hand-added drive whose recording lands
+  // later, or a missed-journey gap the app then fills). Nothing is deleted:
+  // the app offers a merge, "Keep both" clears this via PATCH.
+  possibleDuplicateOfId String?
+
   createdAt      DateTime  @default(now())
   // Edit audit trail: bumped on every change so the UI can show "edited",
   // and a wrong figure isn't silently rewritten without a trace.
@@ -551,6 +559,7 @@ model Trip {
   // 20260603_trips_geo_index.
   @@index([startLat, startLng])
   @@index([endLat, endLng])
+  @@index([userId, possibleDuplicateOfId])
   @@map("trips")
 }
 
@@ -1666,4 +1675,35 @@ model MissedJourneyProposal {
   @@unique([userId, key])
   @@index([userId, status])
   @@map("missed_journey_proposals")
+}
+
+// Proposed shifts (15 Sep 2026). Only 152 of 626 drivers active in the last
+// 30 days ever pressed Start Shift, so the shift scorecard went unused by the
+// rest. A scanner clusters a driver's recent trips into work sessions (runs of
+// 3+ business trips with gaps under 45 min spanning 90+ min, none already in a
+// shift) and offers each as a shift. `key` is `${firstTripId}:${lastTripId}`
+// so repeated scans dedup; `status` stops re-nagging once the driver accepts
+// (a completed Shift is created and the trips attached) or dismisses one.
+model ShiftSuggestion {
+  id          String    @id @default(uuid())
+  userId      String
+  key         String    @db.VarChar(191)
+  status      String    @default("proposed") // proposed | accepted | dismissed
+  startedAt   DateTime  // first trip's startedAt
+  endedAt     DateTime  // latest endedAt across the session's trips
+  tripCount   Int
+  totalMiles  Float
+  platformTag String?
+  tripIdsJson Json
+  // When the driver accepted or dismissed it. Null until then; the scan's
+  // upsert never touches it.
+  decidedAt   DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, key])
+  @@index([userId, status])
+  @@map("shift_suggestions")
 }
