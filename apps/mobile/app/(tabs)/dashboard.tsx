@@ -26,6 +26,7 @@ import { ActiveRecordingBanner } from "../../components/ActiveRecordingBanner";
 import { SyncStatusBanner } from "../../components/SyncStatusBanner";
 import { TrackingOffBanner } from "../../components/TrackingOffBanner";
 import { TripStatusStrip } from "../../components/TripStatusStrip";
+import { ShiftSuggestionCard } from "../../components/ShiftSuggestionCard";
 import { describeError } from "../../lib/api/apiError";
 import { useFocusEffect, useRouter } from "expo-router";
 import { fetchVehicles } from "../../lib/api/vehicles";
@@ -2049,6 +2050,24 @@ export default function DashboardScreen() {
             // visibility, and "0 miles this month" is intuitive (it just
             // means they haven't driven yet).
             return <MileageMonthCard key={key} classification="business" />;
+          case "shift_suggestion":
+            // Renders nothing unless the server has a run of recent trips
+            // that looks like an unrecorded shift. "Grade it" creates the
+            // shift and opens the same scorecard modal a normal end-shift
+            // shows; if the API returned no scorecard, fall back to Shifts.
+            return (
+              <ShiftSuggestionCard
+                key={key}
+                onGraded={(sc) => {
+                  if (sc) {
+                    setScorecard(sc);
+                    setShowScorecard(true);
+                  } else {
+                    router.push("/shifts");
+                  }
+                }}
+              />
+            );
           case "activity_heatmap":
             // 7x24 grid filters for business trips. Hide until the user
             // actually has business activity so we don't show an empty
