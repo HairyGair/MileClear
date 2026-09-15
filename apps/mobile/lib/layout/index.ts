@@ -87,6 +87,16 @@ export const SECTION_REGISTRY: Record<ScreenKey, SectionDef[]> = {
       icon: "speedometer-outline",
       description: "Business miles by month, with prev/next navigation to past months",
     },
+    // Straight below the mileage (15 Sep). Only 152 of 626 active drivers
+    // ever pressed Start Shift; the card offers a run of recent trips as a
+    // shift and grades it in one tap. Renders nothing when there is nothing
+    // to offer.
+    {
+      key: "shift_suggestion",
+      label: "Shift Suggestions",
+      icon: "time-outline",
+      description: "Recent trips that look like a shift, ready to grade",
+    },
     {
       key: "weekly_goal",
       label: "Weekly Goal",
