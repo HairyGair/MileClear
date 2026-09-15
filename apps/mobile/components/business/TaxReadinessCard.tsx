@@ -218,7 +218,7 @@ export function TaxReadinessCard() {
           </View>
           <View style={s.setAsideRight}>
             <Text style={s.setAsideMeta}>
-              {snap.setAsideThisWeek.rateUsedPercent}% of {formatPence(snap.setAsideThisWeek.earningsLast7DaysPence)}
+              {snap.setAsideThisWeek.rateUsedPercent}% of {formatPence(snap.setAsideThisWeek.earningsLast7DaysPence)} since Monday
             </Text>
           </View>
         </View>

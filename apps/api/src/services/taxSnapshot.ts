@@ -49,8 +49,13 @@ export async function buildTaxSnapshot(userId: string): Promise<TaxSnapshot> {
     (filingDeadline.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)
   );
 
-  // Last 7 days for set-aside calculation (rolling window, not aligned to week).
-  const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+  // "This week" for the set-aside figure = since Monday 00:00 UK time, not a
+  // rolling seven days. Sonia (bug report, 15 Sep 2026): "My tax deduction
+  // for the week hasn't updated on Monday as it should, it's still adding
+  // the previous week's suggested amount." A rolling window kept her big
+  // Saturday and Sunday in the figure until the following weekend; drivers
+  // are paid by the calendar week and expect it to reset with it.
+  const sevenDaysAgo = startOfWeekLondon(now);
   // Last 14 days = "recent activity" signal for the earnings nudge.
   const fourteenDaysAgo = new Date(now.getTime() - 14 * 24 * 60 * 60 * 1000);
   // Last 30 days = "engagement window" for the earnings nudge.
@@ -571,8 +576,9 @@ async function buildMileageDeductionAcrossWindows(
 ): Promise<NumberAcrossWindows> {
   const { userId, now, taxYear, thisYearTotalPence, rateOpts, fallbackVehicleType } = input;
 
-  // Window bounds.
-  const last7DaysStart = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+  // Window bounds. "This week" runs from Monday 00:00 UK time, the same
+  // boundary the set-aside figure uses (Sonia, 15 Sep 2026).
+  const last7DaysStart = startOfWeekLondon(now);
   const thisMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
 
   // Last tax year — derive from current taxYear string e.g. "2025-26" → "2024-25".
@@ -826,4 +832,33 @@ function buildEarningsDerivation(input: EarningsDerivationInput): NumberDerivati
     sources: sources.length > 0 ? sources : undefined,
     notes,
   };
+}
+
+/**
+ * Monday 00:00 in Europe/London for the week containing `now`, as a UTC
+ * instant. Done with Intl so it is right on both sides of the clock change
+ * without a timezone library.
+ */
+export function startOfWeekLondon(now: Date): Date {
+  const parts = new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Europe/London",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    weekday: "short",
+  }).formatToParts(now);
+  const get = (t: string) => parts.find((p) => p.type === t)?.value ?? "";
+  const y = Number(get("year"));
+  const m = Number(get("month"));
+  const d = Number(get("day"));
+  const weekdayIndex = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].indexOf(get("weekday"));
+  const daysSinceMonday = weekdayIndex < 0 ? 0 : weekdayIndex;
+  // The Monday's calendar date, then the UTC instant of its London midnight.
+  const monday = new Date(Date.UTC(y, m - 1, d - daysSinceMonday, 12));
+  const utcMidnight = Date.UTC(monday.getUTCFullYear(), monday.getUTCMonth(), monday.getUTCDate(), 0);
+  // London is UTC+1 in summer, so its midnight is 23:00 UTC the night before.
+  const londonHourAtUtcMidnight = Number(
+    new Intl.DateTimeFormat("en-GB", { timeZone: "Europe/London", hour: "2-digit", hourCycle: "h23" }).format(new Date(utcMidnight))
+  );
+  return new Date(utcMidnight - londonHourAtUtcMidnight * 3600 * 1000);
 }
